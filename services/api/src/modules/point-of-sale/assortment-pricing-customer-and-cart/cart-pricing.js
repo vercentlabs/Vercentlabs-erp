@@ -24,6 +24,7 @@
 import { add, sub, mul, div, percent, max, min, roundMoney, asDatabaseDecimal, decimal, allocate } from "../../../core/decimal.js";
 import { resolveTaxRateComponents } from "../../../core/tax-engine.js";
 import { posError } from "../shared/errors.js";
+import { resolveSalesPrice, resolveSalesPriceList } from "../../sales/price-lists/resolver.js";
 import {
   resolveActivePosLoyaltyProgram,
   getPosLoyaltyBalanceValue,
@@ -158,49 +159,18 @@ async function resolveUnitPrice(client, context, store, policy, line, item, vari
       "POS_PRICE_LIST_REQUIRED",
     );
   }
-  // F274 gap closure: a variant-specific price_list_items row (migration
-  // 131) is preferred over a generic item-level one when both exist for
-  // the same item/quantity tier -- `variant_id=$6 OR variant_id IS NULL`
-  // means a plain (no-variant) line only ever matches a generic row
-  // (variant_id=NULL never satisfies `variant_id=NULL` on the left side
-  // when $6 is NULL, so it falls through to the IS NULL half), while a
-  // variant line matches either its own specific row or the generic
-  // fallback -- the ORDER BY then makes the specific one win when both
-  // exist.
-  const price = await client.query(
-    `SELECT price_item.rate
-     FROM tenant.price_list_items price_item
-     JOIN tenant.price_lists price_list
-       ON price_list.organization_id=price_item.organization_id AND price_list.id=price_item.price_list_id
-     WHERE price_item.organization_id=$1 AND price_item.price_list_id=$2 AND price_item.item_id=$3
-       AND (price_item.variant_id=$6 OR price_item.variant_id IS NULL)
-       AND price_item.minimum_quantity<=$4 AND price_item.status='active' AND price_list.status='active'
-       AND price_list.price_list_type='sales' AND price_list.currency_code=$5
-       AND (price_item.valid_from IS NULL OR price_item.valid_from<=current_date)
-       AND (price_item.valid_to IS NULL OR price_item.valid_to>=current_date)
-       AND (price_list.valid_from IS NULL OR price_list.valid_from<=current_date)
-       AND (price_list.valid_to IS NULL OR price_list.valid_to>=current_date)
-     ORDER BY (price_item.variant_id IS NOT NULL) DESC,price_item.minimum_quantity DESC,price_item.valid_from DESC NULLS LAST
-     LIMIT 1`,
-    [context.organizationId, store.price_list_id, item.id, asDatabaseDecimal(decimal(line.quantity)), store.currency_code, variant?.id ?? null],
-  );
-  let listUnitPrice;
-  if (price.rows[0]) {
-    listUnitPrice = decimal(price.rows[0].rate);
-  } else {
-    // No explicit price-list row for this item: a priced variant's own
-    // sales_price (or the item's own sales_price) is a legitimate fallback
-    // list price rather than a hard failure -- matches how
-    // searchPointOfSalePosProducts/lookupPointOfSaleBarcode already resolve
-    // a display price the same way (coalesce(variant.sales_price,
-    // item.sales_price)), so a product a cashier can find and scan is also
-    // a product they can actually sell.
-    const fallback = variant?.sales_price ?? item.sales_price;
-    if (fallback == null) {
-      throw posError(409, "No active POS price exists for this item and quantity.", "POS_PRICE_NOT_FOUND");
-    }
-    listUnitPrice = decimal(fallback);
+  // The store's price list, through the same price resolver Sales uses: the
+  // price valid today for the item (a variant's own price first), else the
+  // product's default price as a reference fallback, else no price.
+  let priceList;
+  try {
+    priceList = await resolveSalesPriceList(client, context, { priceListId: store.price_list_id, currencyCode: store.currency_code });
+  } catch {
+    throw posError(409, "The store's price list is inactive, out of date or in another currency.", "POS_PRICE_LIST_REQUIRED");
   }
+  const resolved = await resolveSalesPrice(client, context, { priceList, itemId: item.id, variantId: variant?.id ?? null });
+  if (resolved.missing) throw posError(409, resolved.message, "POS_PRICE_NOT_FOUND");
+  const listUnitPrice = decimal(resolved.listPrice);
   return applyCustomerPricingRules(client, context, store, customerId, item.id, item.group_id, decimal(line.quantity), listUnitPrice);
 }
 

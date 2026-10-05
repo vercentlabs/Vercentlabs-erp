@@ -10,8 +10,8 @@ import { quotationCapabilities } from "./readiness.js";
 
 const can = (context, permission) => Boolean(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(permission));
 const STATUS_LABELS = Object.freeze({
-  draft: "Draft", pending_approval: "Awaiting approval", approved: "Confirmed", sent: "Sent", viewed: "Viewed", accepted: "Accepted", rejected: "Rejected",
-  expired: "Expired", withdrawn: "Withdrawn", converted: "Sales order created", cancelled: "Cancelled",
+  draft: "Draft", pending_approval: "Awaiting approval", approved: "Confirmed", sent: "Sent", accepted: "Accepted", rejected: "Rejected", withdrawn: "Superseded",
+  cancelled: "Cancelled",
 });
 
 export async function listOpportunityQuotations(client, context, opportunityId) {
@@ -22,7 +22,7 @@ export async function listOpportunityQuotations(client, context, opportunityId) 
     `SELECT quote.id, quote.quotation_number, quote.lifecycle_status, quote.valid_until, quote.created_at, quote.converted_order_id, quote.sent_at, quote.sent_to,
             quote.sent_channel, quote.accepted_at, quote.rejected_at, quote.cancelled_at, quote.customer_reference, quote.decision_reference, quote.decision_notes,
             quote.cancel_reason, version.version_number, version.grand_total, version.currency_code, version.revision_reason, owner.full_name AS owner_name,
-            sales_order.sales_order_number, (quote.valid_until < current_date AND quote.lifecycle_status IN ('draft','pending_approval','approved','sent','viewed')) AS is_expired,
+            sales_order.sales_order_number, (quote.valid_until < current_date AND quote.lifecycle_status IN ('approved','sent')) AS is_expired, quote.revision_number,
             (SELECT count(*) FROM tenant.sales_quotation_versions earlier WHERE earlier.organization_id = quote.organization_id AND earlier.quotation_id = quote.id)::int AS revision_count
        FROM tenant.sales_quotations quote
        LEFT JOIN tenant.sales_quotation_versions version ON version.organization_id = quote.organization_id AND version.id = quote.current_version_id
@@ -32,14 +32,14 @@ export async function listOpportunityQuotations(client, context, opportunityId) 
       ORDER BY quote.created_at DESC, quote.quotation_number DESC`,
     [context.organizationId, opportunity.id],
   );
-  const latestActive = rows.find((row) => row.lifecycle_status !== "cancelled");
+  const latestActive = rows.find((row) => !["cancelled", "withdrawn"].includes(row.lifecycle_status));
   return {
     visible: true,
     capabilities: quotationCapabilities(context),
     quotations: rows.map((row) => ({
       id: row.id,
       number: row.quotation_number,
-      revision: Number(row.version_number ?? 1),
+      revision: Number(row.revision_number ?? 0),
       revisionCount: row.revision_count,
       revisionReason: row.revision_reason ?? null,
       status: row.lifecycle_status,

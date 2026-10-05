@@ -63,3 +63,18 @@ export async function salesMutation<I, T>(
     },
   );
 }
+
+// For multipart routes, which read the body themselves.
+export async function salesUpload<T>(
+  request: Request,
+  permission: string,
+  run: (client: Client, context: Context) => Promise<T>,
+  status = 200,
+) {
+  return workspaceRoute(
+    request,
+    { module: "sales", permission, billingWrite: true },
+    async ({ client, session }) =>
+      ok(toWire(await run(client as Client, salesContext(session))) as Record<string, unknown>, status),
+  );
+}

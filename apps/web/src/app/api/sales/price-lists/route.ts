@@ -1,47 +1,16 @@
-import { z } from "zod";
+import { createPriceList, listPriceLists } from "@vercentlabs/api";
+import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { createSalesPriceList, listSalesPriceLists } from "@vercentlabs/api";
+import { priceListRead, priceListWrite } from "@/features/sales/price-lists/server/price-list-http";
 
-import { ok, readJson } from "@/core/http";
-import { salesContext } from "@/features/sales/shared/sales-context";
-import { workspaceRoute } from "@/core/workspace-route";
-
-const createSchema = z.object({
-  code: z.string().trim().min(1).max(40),
-  name: z.string().trim().min(1).max(200),
-  currencyCode: z.string().trim().length(3).optional(),
-  taxInclusive: z.boolean().optional(),
-  validFrom: z.string().date().optional().nullable(),
-  validTo: z.string().date().optional().nullable(),
-});
-
+// ?search&status&currencyCode
 export async function GET(request: Request) {
-  return workspaceRoute(
-    request,
-    { module: "sales", permission: "sales.view" },
-    async ({ client, session }) => {
-      const result = await listSalesPriceLists(client, salesContext(session));
-      return ok(result);
-    },
-  );
+  const url = new URL(request.url);
+  return priceListRead(request, SALES_PERMISSIONS.priceListsView, (client, context) => listPriceLists(client, context, {
+    search: url.searchParams.get("search") ?? undefined, status: url.searchParams.get("status") ?? undefined, currencyCode: url.searchParams.get("currencyCode") ?? undefined,
+  }));
 }
 
 export async function POST(request: Request) {
-  return workspaceRoute(
-    request,
-    {
-      module: "sales",
-      permission: "sales.settings.manage",
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const input = createSchema.parse(await readJson(request));
-      const priceList = await createSalesPriceList(
-        client,
-        salesContext(session),
-        input,
-      );
-      return ok({ priceList }, 201);
-    },
-  );
+  return priceListWrite(request, SALES_PERMISSIONS.priceListsCreate, async (client, context, body) => ({ priceList: await createPriceList(client, context, body) }), 201);
 }

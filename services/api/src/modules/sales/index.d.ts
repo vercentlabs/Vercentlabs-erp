@@ -1,20 +1,8 @@
 export type SalesQueryClient = { query(text: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }> };
 export type SalesContext = { organizationId: string; userId: string | null; permissions: string[]; roleSlugs: string[] };
 export class SalesError extends Error { readonly status: number; readonly code: string; constructor(status: number, message: string, code?: string); }
-export function previewSalesDocument(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, options?: { order?: boolean }): Promise<any>;
-export function createQuotation(client: SalesQueryClient, context: SalesContext, input: Record<string, any>): Promise<any>;
-export function reviseQuotation(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;
-export function listQuotations(client: SalesQueryClient, context: SalesContext, filters?: Record<string, any>): Promise<any[]>;
-export function getQuotation(client: SalesQueryClient, context: SalesContext, id: string, publicView?: boolean): Promise<any>;
-export function submitQuotation(client: SalesQueryClient, context: SalesContext, id: string, assignedTo?: string | null): Promise<any>;
-export function approveQuotation(client: SalesQueryClient, context: SalesContext, quotationId: string, quotationVersionId: string): Promise<any>;
-export function rejectQuotationApproval(client: SalesQueryClient, context: SalesContext, quotationId: string, note?: string | null): Promise<void>;
-export function sendQuotation(client: SalesQueryClient, context: SalesContext, id: string, expiresInDays?: number): Promise<any>;
-export function resolvePublicQuoteToken(client: SalesQueryClient, context: SalesContext, tokenHash: string, trackView?: boolean): Promise<any>;
-export function recordPublicQuoteDecision(client: SalesQueryClient, context: SalesContext, tokenHash: string, input: Record<string, any>, metadata?: Record<string, any>): Promise<any>;
-export function scanExpiredQuotations(client: SalesQueryClient, context: SalesContext): Promise<{ scanned: number; expired: number }>;
+export function previewSalesDocument(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, options?: { order?: boolean; allowMissingPrice?: boolean }): Promise<any>;
 export function createSalesOrder(client: SalesQueryClient, context: SalesContext, input: Record<string, any>): Promise<any>;
-export function convertQuotationToOrder(client: SalesQueryClient, context: SalesContext, id: string): Promise<any>;
 export function listSalesOrders(client: SalesQueryClient, context: SalesContext, filters?: Record<string, any>): Promise<any[]>;
 export function getSalesOrder(client: SalesQueryClient, context: SalesContext, id: string): Promise<any>;
 export function amendSalesOrder(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;
@@ -48,29 +36,15 @@ export function getSalesDashboard(client: SalesQueryClient, context: SalesContex
 export function getSalesReport(client: SalesQueryClient, context: SalesContext, key: string): Promise<any[]>;
 export function getSalesOptions(client: SalesQueryClient, context: SalesContext, opportunityId?: string | null, partyId?: string | null): Promise<any>;
 
-
 export function listSalesPass1Operations(client: SalesQueryClient, context: SalesContext, options?: { kind?: string; limit?: number }): Promise<any[]>;
 export function requestSalesCreditAdjustment(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
 export function accrueSalesCommission(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
-export function upsertSalesPriceListItem(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
-export function upsertSalesCustomerPrice(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
 export function listSalesPass1Options(client: SalesQueryClient, context: SalesContext): Promise<Record<string, any[]>>;
-export function listSalesPriceLists(client: SalesQueryClient, context: SalesContext): Promise<{ rows: Record<string, any>[] }>;
-export function createSalesPriceList(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
-export function listSalesPriceListItems(client: SalesQueryClient, context: SalesContext, priceListId: string, options?: { limit?: number; offset?: number }): Promise<{ priceList: Record<string, any>; rows: Record<string, any>[]; total: number }>;
-export function listSalesCustomerPrices(client: SalesQueryClient, context: SalesContext, options?: { partyId?: string; limit?: number; offset?: number }): Promise<{ rows: Record<string, any>[]; total: number }>;
-export function listSalesPricingOptions(client: SalesQueryClient, context: SalesContext): Promise<{ items: Record<string, any>[]; customers: Record<string, any>[]; uoms: Record<string, any>[]; variants: Record<string, any>[] }>;
-export function deactivateSalesPriceListItem(client: SalesQueryClient, context: SalesContext, priceListItemId: string): Promise<any>;
-export function deactivateSalesPricingRule(client: SalesQueryClient, context: SalesContext, pricingRuleId: string): Promise<any>;
 export function getSalesOrderLineReservationContext(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
 
 export function getSalesSettings(client: SalesQueryClient, context: SalesContext): Promise<Record<string, any>>;
 export function updateSalesSettings(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<Record<string, any>>;
 
-// Quotation life after confirmation: sent by another channel or by email with its PDF, the customer's answer recorded by staff, cancellation.
-export function markQuotationSent(client: SalesQueryClient, context: SalesContext, quotationId: string, input?: { recipient?: string; note?: string }): Promise<{ quotationId: string; status: "sent" }>;
-export function emailQuotation(client: SalesQueryClient, context: SalesContext, quotationId: string, input: { to: string; cc?: string; subject?: string; message?: string },
-  attachment: { fileName: string; content: Uint8Array } | null, env?: Record<string, string | undefined>): Promise<{ quotationId: string; status: "sent"; messageId: string | null }>;
-export function recordQuotationDecision(client: SalesQueryClient, context: SalesContext, quotationId: string,
-  input: { decision: "accepted" | "rejected"; reference?: string; notes?: string; customerName?: string }): Promise<{ quotationId: string; decision: "accepted" | "rejected" }>;
-export function cancelQuotation(client: SalesQueryClient, context: SalesContext, quotationId: string, input: { reason: string }): Promise<{ quotationId: string; status: "cancelled"; changed: boolean }>;
+export * from "./price-lists/index.js";
+
+export * from "./quotations/index.js";

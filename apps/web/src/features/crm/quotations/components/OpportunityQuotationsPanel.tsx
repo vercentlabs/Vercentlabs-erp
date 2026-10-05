@@ -20,7 +20,7 @@ import { errorMessage, listOpportunityQuotations, setPrimaryOpportunityQuotation
 import { CreateQuotationDialog } from "./CreateQuotationDialog";
 
 const TONES: Record<string, "success" | "neutral" | "info" | "warning" | "danger"> = {
-  accepted: "success", converted: "success", cancelled: "neutral", rejected: "danger", draft: "neutral", pending_approval: "warning",
+  accepted: "success", cancelled: "neutral", rejected: "danger", draft: "neutral", pending_approval: "warning", withdrawn: "neutral",
 };
 
 export function OpportunityQuotationsPanel({ opportunity, canCreate, canEdit, onChanged, onMarkWon }: {
@@ -74,7 +74,7 @@ export function OpportunityQuotationsPanel({ opportunity, canCreate, canEdit, on
 function QuotationRow({ entry, can, canEdit, onPrimary, onChanged, onMarkWon }: {
   entry: OpportunityQuotation; can: (permission: string) => boolean; canEdit: boolean; onPrimary: (id: string) => void; onChanged: () => void; onMarkWon?: (quotationId: string) => void;
 }) {
-  const revisable = ["draft", "approved", "sent", "viewed", "rejected", "expired"].includes(entry.status) && can(entry.status === "draft" ? "sales.quotation.create" : "sales.quotation.revise");
+  const editable = entry.status === "draft" && can("sales.quotation.create");
   const facts = [
     entry.total !== null ? formatMoney(entry.currencyCode ?? undefined, entry.total) : null,
     entry.validUntil ? `Valid until ${formatDate(entry.validUntil)}` : null,
@@ -87,7 +87,7 @@ function QuotationRow({ entry, can, canEdit, onPrimary, onChanged, onMarkWon }: 
   return (
     <li className="flex flex-col gap-2 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={`/sales/quotations/${entry.id}`} className="font-medium text-brand underline-offset-2 hover:underline">{entry.number}{entry.revision > 1 ? ` · revision ${entry.revision}` : ""}</Link>
+        <Link href={`/sales/quotations/${entry.id}`} className="font-medium text-brand underline-offset-2 hover:underline">{entry.number}</Link>
         <StatusBadge tone={entry.isExpired ? "warning" : TONES[entry.status] ?? "info"}>{entry.statusLabel}</StatusBadge>
         {entry.isPrimary && <Badge tone="brand">Primary</Badge>}
         {entry.isWinning && <Badge tone="success">Winning</Badge>}
@@ -98,9 +98,9 @@ function QuotationRow({ entry, can, canEdit, onPrimary, onChanged, onMarkWon }: 
       <div className="flex flex-wrap items-center gap-2">
         <QuotationLifecycleActions size="compact" can={can} onChanged={onChanged}
           quotation={{ id: entry.id, number: entry.number, status: entry.status, isExpired: entry.isExpired, convertedOrderId: entry.salesOrderId }} />
-        {onMarkWon && ["accepted", "converted"].includes(entry.status) && <Button variant="primary" size="compact" onPress={() => onMarkWon(entry.id)}>Mark opportunity won</Button>}
-        {revisable && <LinkButton variant="secondary" size="compact" href={`/sales/quotations/${entry.id}/revise`}>{entry.status === "draft" ? "Edit draft" : "Revise"}</LinkButton>}
-        {canEdit && !entry.isPrimary && entry.status !== "cancelled" && <Button variant="ghost" size="compact" onPress={() => onPrimary(entry.id)}>Make primary</Button>}
+        {onMarkWon && entry.status === "accepted" && <Button variant="primary" size="compact" onPress={() => onMarkWon(entry.id)}>Mark opportunity won</Button>}
+        {editable && <LinkButton variant="secondary" size="compact" href={`/sales/quotations/${entry.id}/edit`}>Edit draft</LinkButton>}
+        {canEdit && !entry.isPrimary && !["cancelled", "withdrawn"].includes(entry.status) && <Button variant="ghost" size="compact" onPress={() => onPrimary(entry.id)}>Make primary</Button>}
       </div>
     </li>
   );

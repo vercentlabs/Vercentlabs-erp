@@ -17,13 +17,18 @@ export async function POST(request: Request) {
     "sales.view",
     documentSchema,
     async (client, context, input) => {
-      const preview = await previewSalesDocument(client, context, input);
+      // A line without a price is shown as a warning here; saving refuses it.
+      const preview = await previewSalesDocument(client, context, input, { allowMissingPrice: true });
+      const master = preview.master as { priceList?: { id: string; code: string; name: string; currencyCode: string; taxInclusive: boolean; basis: string } | null };
       const canSeeMargin =
         context.roleSlugs.includes("organization_owner") ||
         context.permissions.includes("sales.margin.view");
       const totals = preview.totals as Record<string, unknown>;
       return {
         preview: {
+          priceList: master.priceList
+            ? { id: master.priceList.id, code: master.priceList.code, name: master.priceList.name, currencyCode: master.priceList.currencyCode, taxInclusive: master.priceList.taxInclusive, basis: master.priceList.basis }
+            : null,
           totals: {
             subtotal: totals.subtotal,
             discountTotal: totals.discountTotal,
@@ -48,6 +53,10 @@ export async function POST(request: Request) {
               quantity: line.quantity,
               unitPrice: line.unitPrice,
               listUnitPrice: line.listUnitPrice,
+              manualPriceOverride: line.manualPriceOverride,
+              priceMissing: line.priceMissing,
+              priceMessage: line.priceMessage,
+              priceSource: (line.pricingTrace as { priceSource?: string } | undefined)?.priceSource ?? null,
               discountPercent: line.discountPercent,
               discountAmount: line.discountAmount,
               netAmount: line.netAmount,

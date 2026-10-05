@@ -16,7 +16,7 @@ const schema = z.object({
   orderApprovalAmount: z.number().optional(),
   allowDirectOrders: z.boolean().optional(),
   invoiceQuantityBasis: z.enum(["ordered", "fulfilled"]).optional(),
-  defaultPriceListId: z.string().uuid().nullable().optional(),
+  defaultQuotationTerms: z.string().max(20000).nullish(),
 });
 
 export async function GET(request: Request) {

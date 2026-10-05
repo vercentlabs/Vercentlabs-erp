@@ -188,7 +188,6 @@ export function assertEligibleLeadAssignee(
   userId: string,
 ): Promise<Record<string, unknown>>;
 
-export * from "./modules/sales/quotation-governance.js";
 
 export * from "./modules/sales/order-governance.js";
 
@@ -211,8 +210,6 @@ export function getCommunicationsDashboard(client: QueryClient, context: any): P
 export function listThreadMessages(client: QueryClient, context: any, threadId: string): Promise<{ thread: any; messages: any[] }>;
 export function updateSharedInboxThreadStatus(client: QueryClient, context: any, threadId: string, status: unknown): Promise<any>;
 
-export function publicQuoteTokenHash(token: string): string;
-export function resolvePublicQuoteOrganization(queryable: QueryClient, tokenHash: string): Promise<string>;
 // F014 public meeting pages (token-resolved, anonymous host context).
 export class PublicMeetingError extends Error { readonly status: number; readonly code: string }
 
@@ -261,10 +258,6 @@ export {
 export function listSalesPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
 export function requestSalesCreditAdjustment(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function accrueSalesCommission(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function upsertSalesPriceListItem(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function upsertSalesCustomerPrice(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function deactivateSalesPriceListItem(client: QueryClient, context: any, priceListItemId: string): Promise<any>;
-export function deactivateSalesPricingRule(client: QueryClient, context: any, pricingRuleId: string): Promise<any>;
 export function listSalesPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
 export function getSalesOrderLineReservationContext(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function checkSalesOrderLineAvailability(client: QueryClient, salesContext: any, stockContext: any, input?: Record<string, unknown>): Promise<any>;

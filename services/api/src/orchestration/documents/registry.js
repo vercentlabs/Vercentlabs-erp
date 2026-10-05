@@ -39,6 +39,17 @@ async function organizationName(client, organizationId) {
   return rows[0]?.name ?? null;
 }
 
+// The seller as printed on a quotation: name, legal name, GSTIN and GST state.
+async function companyDetails(client, organizationId) {
+  const { rows } = await client.query(
+    `SELECT organization.name, organization.legal_name, organization.tax_id, settings.seller_state_code
+       FROM public.organizations organization
+       LEFT JOIN tenant.sales_settings settings ON settings.organization_id = organization.id
+      WHERE organization.id = $1`, [organizationId]);
+  const row = rows[0] ?? {};
+  return { name: row.legal_name || row.name || null, legalName: row.legal_name && row.legal_name !== row.name ? row.name : null, taxId: row.tax_id ?? null, stateCode: row.seller_state_code ?? null };
+}
+
 async function organizationTimezone(client, organizationId) {
   const { rows } = await client.query(`SELECT timezone FROM public.organizations WHERE id=$1`, [organizationId]);
   return rows[0]?.timezone || "UTC";
@@ -124,35 +135,56 @@ export const DOCUMENT_RENDERERS = Object.freeze([
   Object.freeze({
     key: "sales.quotation",
     moduleKey: "sales",
-    permission: "sales.view",
+    permission: "sales.quotation.export",
     label: "Sales quotation",
     async load(client, session, id) {
       return getQuotation(client, salesContext(session), id);
     },
+    // Built only from the quotation as stored (its snapshots), so a later
+    // change to the customer, a product or a price list never changes it.
+    // Internal notes, cost and margin are never printed.
     async toModel(client, session, data) {
       const quote = data.quotation;
-      const timezone = await organizationTimezone(client, session.organizationId);
       const customer = quote.customer_snapshot || {};
+      const company = await companyDetails(client, session.organizationId);
+      const currency = String(quote.currency_code || "").trim();
+      const status = { draft: "Draft", awaiting_approval: "Draft - awaiting approval", cancelled: "Cancelled", superseded: "Superseded", expired: "Expired" }[quote.status];
       return {
         title: "Quotation",
-        documentNumber: `${quote.quotation_number}${quote.version_number > 1 ? ` (revision ${quote.version_number})` : ""}`,
-        issuedAt: date(quote.quotation_created_at, timezone),
-        organizationName: await organizationName(client, session.organizationId),
+        documentNumber: quote.quotation_number,
+        issuedAt: `Date: ${day(quote.quotation_date) ?? ""}`,
+        organizationName: company.name,
+        status: status ? `Status: ${status}` : null,
         parties: [
-          { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
+          { label: "From", lines: [company.legalName, company.taxId ? `GSTIN ${company.taxId}` : null, company.stateCode ? `State code ${company.stateCode}` : null].filter(Boolean) },
+          { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.customerNumber ? `Customer no. ${customer.customerNumber}` : null, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
           // The person the offer is addressed to.
           { label: "Attention", lines: [[quote.contact_snapshot?.first_name, quote.contact_snapshot?.last_name].filter(Boolean).join(" "), quote.contact_snapshot?.designation, quote.contact_snapshot?.email].filter(Boolean) },
           { label: "Bill to", lines: addressLines(quote.billing_address_snapshot) },
           { label: "Ship to", lines: addressLines(quote.shipping_address_snapshot) },
         ].filter((party) => party.lines.length),
         fields: [
-          { label: "Your reference", value: quote.customer_reference ?? "" },
+          { label: "Quotation date", value: day(quote.quotation_date) ?? "" },
           { label: "Valid until", value: day(quote.valid_until) ?? "" },
-          { label: "Place of supply", value: quote.place_of_supply ?? "" },
+          { label: "Your reference", value: quote.customer_reference ?? "" },
+          { label: "Revision of", value: quote.revision_of_number ?? "" },
+          { label: "Place of supply", value: quote.place_of_supply ?? quote.shipping_address_snapshot?.state ?? quote.billing_address_snapshot?.state ?? "" },
           { label: "Payment terms", value: quote.payment_term_snapshot?.name ?? "" },
+          { label: "Prices", value: quote.price_list_tax_inclusive ? "Inclusive of tax" : "Exclusive of tax" },
+          { label: "Sales person", value: quote.owner_name ?? "" },
         ].filter((field) => field.value),
-        table: salesLines(data.lines, String(quote.currency_code || "").trim()),
-        totals: salesTotals(quote),
+        table: salesLines(data.lines, currency),
+        totals: [
+          { label: "Subtotal", value: amount(quote.subtotal) },
+          ...(Number(quote.discount_total) ? [{ label: "Discount", value: `-${amount(quote.discount_total)}` }] : []),
+          ...(Number(quote.charge_total) ? [{ label: "Charges", value: amount(quote.charge_total) }] : []),
+          // The tax breakdown by component and rate (CGST / SGST / IGST).
+          ...(data.taxLines?.length
+            ? data.taxLines.map((tax) => ({ label: `${tax.label ?? String(tax.tax_type).toUpperCase()} ${Number(tax.rate)}%`, value: amount(tax.tax_amount) }))
+            : [{ label: "Tax", value: amount(quote.tax_total) }]),
+          ...(Number(quote.rounding_adjustment) ? [{ label: "Rounding", value: amount(quote.rounding_adjustment) }] : []),
+          { label: `Total (${currency})`, value: amount(quote.grand_total), emphasis: true },
+        ],
         notes: [
           ...(quote.customer_notes ? [{ label: "Notes", text: quote.customer_notes }] : []),
           ...(quote.terms_and_conditions ? [{ label: "Terms and conditions", text: quote.terms_and_conditions }] : []),

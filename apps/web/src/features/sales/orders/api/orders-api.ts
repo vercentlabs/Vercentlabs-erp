@@ -40,6 +40,8 @@ export type SalesOrderLine = {
   uom_snapshot: string | null;
   quantity: string;
   unit_price: string;
+  // Order lines record a manual price in their pricing trace.
+  pricing_trace?: { manualOverride?: boolean } | null;
   discount_percent: string;
   net_amount: string;
   tax_amount: string;

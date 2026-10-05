@@ -3,8 +3,9 @@
 // The steps after a quotation is confirmed, wherever it is shown (the Sales
 // quotation page and the opportunity's quotations): download its PDF, email
 // it, mark it sent when it went out another way, record the customer's
-// acceptance or rejection, cancel it, and turn an accepted one into a sales
-// order. The server checks every step against the quotation's state.
+// acceptance or rejection, create a revision, cancel it, and turn an accepted
+// one into a sales order. The server checks every step against the
+// quotation's state.
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -12,47 +13,54 @@ import { Button, Dialog, LinkButton, TextArea, TextField } from "@vercentlabs/de
 
 import { SalesApiError } from "@/features/sales/shared/http";
 import {
-  cancelSalesQuotation, convertSalesQuotation, emailSalesQuotation, markSalesQuotationSent, recordSalesQuotationDecision,
+  cancelSalesQuotation, createOrderFromQuotation, emailSalesQuotation, markSalesQuotationSent, recordSalesQuotationDecision, reviseSalesQuotation,
 } from "../api/quotations-api";
 
 export type LifecycleQuotation = {
-  id: string; number: string; status: string; isExpired: boolean; convertedOrderId: string | null; contactName?: string | null; contactEmail?: string | null;
+  id: string; number: string;
+  // The stored status: draft, pending_approval, approved (Confirmed), sent, accepted, rejected, cancelled, withdrawn (Superseded).
+  status: string;
+  isExpired: boolean; convertedOrderId: string | null; contactName?: string | null; contactEmail?: string | null;
 };
 type Can = (permission: string) => boolean;
-type DialogKind = "email" | "markSent" | "accept" | "reject" | "cancel" | null;
+type DialogKind = "email" | "markSent" | "accept" | "reject" | "cancel" | "revise" | null;
 
-const OFFER = ["approved", "sent", "viewed"];
+const OPEN = ["approved", "sent"];
+const CANCELLABLE = ["draft", "pending_approval", "approved", "sent"];
 
-export function QuotationLifecycleActions({ quotation, can, onChanged, size = "standard", showOrder = true }: {
-  quotation: LifecycleQuotation; can: Can; onChanged: () => void; size?: "compact" | "standard"; showOrder?: boolean;
+export function QuotationLifecycleActions({ quotation, can, onChanged, size = "standard", showOrder = true, showPdf = true }: {
+  quotation: LifecycleQuotation; can: Can; onChanged: () => void; size?: "compact" | "standard"; showOrder?: boolean; showPdf?: boolean;
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [error, setError] = useState<string | null>(null);
   const convert = useMutation({
-    mutationFn: () => convertSalesQuotation(quotation.id),
+    mutationFn: () => createOrderFromQuotation(quotation.id),
     onSuccess: ({ result }) => { onChanged(); router.push(`/sales/orders/${result.orderId}`); },
-    onError: (failure) => setError(failure instanceof Error ? failure.message : "The sales order could not be created."),
+    onError: (failure) => setError(failureText(failure, "The sales order could not be created.")),
   });
-  const offer = OFFER.includes(quotation.status);
+  const open = OPEN.includes(quotation.status);
   const done = () => { setDialog(null); setError(null); onChanged(); };
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <LinkButton variant="secondary" size={size} href={`/api/documents/sales.quotation/${quotation.id}/pdf`} download>PDF</LinkButton>
-        {offer && !quotation.isExpired && can("sales.quotation.send") && (
+        {showPdf && can("sales.quotation.export") && (
+          <LinkButton variant="secondary" size={size} href={`/api/documents/sales.quotation/${quotation.id}/pdf`} download>PDF</LinkButton>
+        )}
+        {open && !quotation.isExpired && can("sales.quotation.send") && (
           <>
             <Button variant="secondary" size={size} onPress={() => setDialog("email")}>Email</Button>
             <Button variant="secondary" size={size} onPress={() => setDialog("markSent")}>Mark as sent</Button>
           </>
         )}
-        {offer && !quotation.isExpired && can("sales.quotation.accept_on_behalf") && <Button variant="secondary" size={size} onPress={() => setDialog("accept")}>Record acceptance</Button>}
-        {offer && can("sales.quotation.reject") && <Button variant="secondary" size={size} onPress={() => setDialog("reject")}>Record rejection</Button>}
-        {showOrder && quotation.status === "accepted" && can("sales.order.create") && (quotation.convertedOrderId
+        {open && !quotation.isExpired && can("sales.quotation.accept_on_behalf") && <Button variant="secondary" size={size} onPress={() => setDialog("accept")}>Record acceptance</Button>}
+        {open && can("sales.quotation.reject") && <Button variant="secondary" size={size} onPress={() => setDialog("reject")}>Record rejection</Button>}
+        {open && can("sales.quotation.revise") && <Button variant="secondary" size={size} onPress={() => setDialog("revise")}>Create revision</Button>}
+        {showOrder && quotation.status === "accepted" && (quotation.convertedOrderId
           ? <LinkButton variant="primary" size={size} href={`/sales/orders/${quotation.convertedOrderId}`}>Open sales order</LinkButton>
-          : <Button variant="primary" size={size} isLoading={convert.isPending} onPress={() => convert.mutate()}>Create sales order</Button>)}
-        {!["converted", "cancelled"].includes(quotation.status) && !quotation.convertedOrderId && can("sales.quotation.cancel") && (
+          : can("sales.order.create") && <Button variant="primary" size={size} isLoading={convert.isPending} onPress={() => convert.mutate()}>Create sales order</Button>)}
+        {CANCELLABLE.includes(quotation.status) && !quotation.convertedOrderId && can("sales.quotation.cancel") && (
           <Button variant="ghost" size={size} onPress={() => setDialog("cancel")}>Cancel quotation</Button>
         )}
       </div>
@@ -61,11 +69,15 @@ export function QuotationLifecycleActions({ quotation, can, onChanged, size = "s
       {dialog === "markSent" && <MarkSentDialog quotation={quotation} onClose={() => setDialog(null)} onDone={done} />}
       {(dialog === "accept" || dialog === "reject") && <DecisionDialog quotation={quotation} decision={dialog === "accept" ? "accepted" : "rejected"} onClose={() => setDialog(null)} onDone={done} />}
       {dialog === "cancel" && <CancelDialog quotation={quotation} onClose={() => setDialog(null)} onDone={done} />}
+      {dialog === "revise" && (
+        <ReviseDialog quotation={quotation} onClose={() => setDialog(null)}
+          onDone={(revisionId) => { setDialog(null); onChanged(); router.push(`/sales/quotations/${revisionId}/edit`); }} />
+      )}
     </>
   );
 }
 
-function failureText(failure: unknown, fallback: string) {
+export function failureText(failure: unknown, fallback: string) {
   return failure instanceof SalesApiError || failure instanceof Error ? failure.message || fallback : fallback;
 }
 
@@ -85,7 +97,7 @@ function EmailDialog({ quotation, onClose, onDone }: { quotation: LifecycleQuota
   const [message, setMessage] = useState(`Dear ${quotation.contactName ?? "Sir/Madam"},\n\nPlease find attached our quotation ${quotation.number}.\n\nRegards`);
   const send = useMutation({ mutationFn: () => emailSalesQuotation(quotation.id, { to: to.trim(), cc: cc.trim() || undefined, subject, message }), onSuccess: onDone });
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={`Email ${quotation.number}`} description="The quotation PDF is attached. The send is recorded on the quotation." size="lg">
+    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Email ${quotation.number}`} description="The quotation PDF is attached. The send is recorded on the quotation." size="lg">
       <div className="flex flex-col gap-3">
         {send.isError && <p role="alert" className="text-sm text-danger">{failureText(send.error, "The email could not be sent.")}</p>}
         <TextField label="To" type="email" isRequired value={to} onChange={setTo} />
@@ -103,7 +115,7 @@ function MarkSentDialog({ quotation, onClose, onDone }: { quotation: LifecycleQu
   const [note, setNote] = useState("");
   const save = useMutation({ mutationFn: () => markSalesQuotationSent(quotation.id, { recipient: recipient.trim() || undefined, note: note.trim() || undefined }), onSuccess: onDone });
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={`Mark ${quotation.number} as sent`} description="For a quotation sent outside Vercentlabs, for example on WhatsApp.">
+    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Mark ${quotation.number} as sent`} description="For a quotation sent outside Vercentlabs, for example on WhatsApp.">
       <div className="flex flex-col gap-3">
         {save.isError && <p role="alert" className="text-sm text-danger">{failureText(save.error, "The quotation could not be marked as sent.")}</p>}
         <TextField label="Sent to" value={recipient} onChange={setRecipient} />
@@ -120,13 +132,13 @@ function DecisionDialog({ quotation, decision, onClose, onDone }: { quotation: L
   const save = useMutation({ mutationFn: () => recordSalesQuotationDecision(quotation.id, { decision, reference: reference.trim() || undefined, notes: notes.trim() || undefined }), onSuccess: onDone });
   const accepted = decision === "accepted";
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={accepted ? `Record acceptance of ${quotation.number}` : `Record rejection of ${quotation.number}`}
-      description={accepted ? "The opportunity stays open: mark it won when the deal is closed." : "The opportunity stays open: you can send a revised quotation."}>
+    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={accepted ? `Record acceptance of ${quotation.number}` : `Record rejection of ${quotation.number}`}
+      description={accepted ? "The opportunity stays open and can now be marked won." : "The opportunity stays open: you can send a revised quotation."}>
       <div className="flex flex-col gap-3">
         {save.isError && <p role="alert" className="text-sm text-danger">{failureText(save.error, "The decision could not be recorded.")}</p>}
         {accepted && <TextField label="Customer reference" description="Optional, for example the customer's PO number." value={reference} onChange={setReference} />}
-        <TextArea label={accepted ? "Notes" : "Reason given by the customer"} value={notes} onChange={setNotes} />
-        <Footer onClose={onClose} label={accepted ? "Record acceptance" : "Record rejection"} isLoading={save.isPending} onPress={() => save.mutate()} />
+        <TextArea label={accepted ? "Notes" : "Reason given by the customer"} isRequired={!accepted} value={notes} onChange={setNotes} />
+        <Footer onClose={onClose} label={accepted ? "Record acceptance" : "Record rejection"} isLoading={save.isPending} isDisabled={!accepted && !notes.trim()} onPress={() => save.mutate()} />
       </div>
     </Dialog>
   );
@@ -136,11 +148,27 @@ function CancelDialog({ quotation, onClose, onDone }: { quotation: LifecycleQuot
   const [reason, setReason] = useState("");
   const save = useMutation({ mutationFn: () => cancelSalesQuotation(quotation.id, reason.trim()), onSuccess: onDone });
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={`Cancel ${quotation.number}?`} description="The quotation is kept for the record but can no longer be sent or accepted. The opportunity is not affected.">
+    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Cancel ${quotation.number}?`} description="The quotation is kept for the record but can no longer be sent or accepted. The opportunity is not affected.">
       <div className="flex flex-col gap-3">
         {save.isError && <p role="alert" className="text-sm text-danger">{failureText(save.error, "The quotation could not be cancelled.")}</p>}
         <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
         <Footer onClose={onClose} label="Cancel quotation" isLoading={save.isPending} isDisabled={!reason.trim()} onPress={() => save.mutate()} />
+      </div>
+    </Dialog>
+  );
+}
+
+function ReviseDialog({ quotation, onClose, onDone }: { quotation: LifecycleQuotation; onClose: () => void; onDone: (revisionId: string) => void }) {
+  const [reason, setReason] = useState("");
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const save = useMutation({ mutationFn: () => reviseSalesQuotation(quotation.id, reason.trim(), idempotencyKey), onSuccess: ({ result }) => onDone(result.id) });
+  return (
+    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Create a revision of ${quotation.number}`}
+      description="A new draft quotation is made with the same lines and prices for you to change. This quotation stays as it is until the revision is sent, then it is superseded.">
+      <div className="flex flex-col gap-3">
+        {save.isError && <p role="alert" className="text-sm text-danger">{failureText(save.error, "The revision could not be created.")}</p>}
+        <TextArea label="Reason for the revision" isRequired value={reason} onChange={setReason} />
+        <Footer onClose={onClose} label="Create revision" isLoading={save.isPending} isDisabled={!reason.trim()} onPress={() => save.mutate()} />
       </div>
     </Dialog>
   );

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import {
+  AlertDialog,
   Button,
   ErrorState,
   IconButton,
@@ -56,6 +57,9 @@ type LineDraft = {
   quantity: number;
   discountPercent: number;
   description: string;
+  // "" means the price list price; anything else is a manual price.
+  unitPrice: string;
+  priceReason: string;
   warehouseId: string;
 };
 type ChargeDraft = {
@@ -195,8 +199,13 @@ function FormBody({
     existing?.order.currency_code ?? seedParty?.currency_code ?? baseCurrency,
   );
   const [priceListId, setPriceListId] = useState(
-    existing?.order.price_list_id ?? seedParty?.default_price_list_id ?? "",
+    existing?.order.price_list_id ?? "",
   );
+  // A price list change waiting for "re-price the lines?"
+  const [pendingPriceList, setPendingPriceList] = useState<string | null>(null);
+  const canOverridePrice =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes("sales.price.override");
   const [paymentTermId, setPaymentTermId] = useState(
     existing?.order.payment_term_id ?? seedParty?.payment_term_id ?? "",
   );
@@ -231,6 +240,8 @@ function FormBody({
           discountPercent: Number(line.discount_percent),
           warehouseId: line.warehouse_id ?? "",
           description: line.description_snapshot ?? "",
+          unitPrice: line.pricing_trace?.manualOverride ? String(Number(line.unit_price)) : "",
+          priceReason: "",
         }))
       : [
           {
@@ -242,6 +253,8 @@ function FormBody({
             discountPercent: 0,
             warehouseId: "",
             description: "",
+            unitPrice: "",
+            priceReason: "",
           },
         ],
   );
@@ -350,10 +363,10 @@ function FormBody({
     }),
   );
   const priceListOptions: SelectOption[] = [
-    { value: "", label: "No price list (item list price)" },
+    { value: "", label: "Customer's price list, else the default" },
     ...options.priceLists
-      .filter((list) => list.currency_code === currencyCode)
-      .map((list) => ({ value: list.id, label: list.name })),
+      .filter((list) => list.currency_code.trim() === currencyCode)
+      .map((list) => ({ value: list.id, label: `${list.name}${list.is_default ? " (default)" : ""}` })),
   ];
   const paymentTermOptions: SelectOption[] = [
     { value: "", label: "Customer default" },
@@ -370,7 +383,7 @@ function FormBody({
     // user can still change either, and the server validates the combination.
     if (party?.currency_code) setCurrencyCode(party.currency_code);
     if (party?.payment_term_id) setPaymentTermId(party.payment_term_id);
-    setPriceListId(party?.default_price_list_id ?? "");
+    setPriceListId("");
     // Default to the new customer's primary contact/billing/shipping address
     // (still fully overridable below) -- the previous customer's selections
     // don't carry over.
@@ -409,6 +422,9 @@ function FormBody({
         variantId: line.variantId || undefined,
         uomId: line.uomId || undefined,
         description: line.description.trim() || undefined,
+        ...(line.unitPrice.trim() !== "" && Number.isFinite(Number(line.unitPrice))
+          ? { unitPrice: Number(line.unitPrice), manualPriceReason: line.priceReason.trim() || undefined }
+          : {}),
         quantity: line.quantity,
         discountPercent: line.discountPercent || undefined,
         warehouseId: line.warehouseId || undefined,
@@ -621,7 +637,17 @@ function FormBody({
                 label="Price list"
                 options={priceListOptions}
                 selectedKey={priceListId}
-                onSelectionChange={(key) => setPriceListId(String(key ?? ""))}
+                description={
+                  preview?.priceList
+                    ? `Pricing from ${preview.priceList.name}${preview.priceList.basis === "customer" ? " (the customer's list)" : preview.priceList.basis === "default" ? " (the default list)" : ""}, ${preview.priceList.taxInclusive ? "tax inclusive" : "tax exclusive"}.`
+                    : partyId ? "No price list for this currency: products use their default price." : undefined
+                }
+                onSelectionChange={(key) => {
+                  const next = String(key ?? "");
+                  if (next === priceListId) return;
+                  if (validLines.length) setPendingPriceList(next);
+                  else setPriceListId(next);
+                }}
               />
               <Select
                 label="Payment terms"
@@ -658,6 +684,8 @@ function FormBody({
                       discountPercent: 0,
                       warehouseId: "",
                       description: "",
+                      unitPrice: "",
+                      priceReason: "",
                     },
                   ])
                 }
@@ -763,6 +791,31 @@ function FormBody({
                         value={line.description}
                         onChange={(value) => updateLine(line.key, { description: value })}
                       />
+                    )}
+                    {priced?.priceMissing && (
+                      <p role="alert" className="rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-2 py-1 text-xs text-warning sm:col-span-7">
+                        {priced.priceMessage}{" "}
+                        {canOverridePrice ? "Enter a price below, or choose another price list." : "Choose another price list, or ask someone who may set prices."}
+                      </p>
+                    )}
+                    {line.itemId && canOverridePrice && (
+                      <div className="grid grid-cols-1 gap-2 sm:col-span-7 sm:grid-cols-[12rem_minmax(0,1fr)]">
+                        <TextField
+                          aria-label={`Unit price ${index + 1}`}
+                          placeholder={priced && !priced.priceMissing ? `List price ${money(currencyCode, priced.listUnitPrice)}` : "Unit price"}
+                          inputMode="decimal"
+                          value={line.unitPrice}
+                          onChange={(value) => updateLine(line.key, { unitPrice: value.replace(/[^0-9.]/g, "") })}
+                        />
+                        {line.unitPrice.trim() !== "" && (
+                          <TextField
+                            aria-label={`Reason for the price ${index + 1}`}
+                            placeholder="Why this price? (required)"
+                            value={line.priceReason}
+                            onChange={(value) => updateLine(line.key, { priceReason: value })}
+                          />
+                        )}
+                      </div>
                     )}
                     {priced && (
                       <p className="text-xs text-text-muted sm:col-span-7">
@@ -1019,6 +1072,18 @@ function FormBody({
           </SalesPanel>
         </div>
       </div>
+      <AlertDialog
+        isOpen={pendingPriceList !== null}
+        onOpenChange={(open) => !open && setPendingPriceList(null)}
+        tone="primary"
+        title="Re-price the lines with the new price list?"
+        description="Every line without a manual price takes its price from the new list. Choose Cancel to keep the current price list."
+        confirmLabel="Re-price lines"
+        onConfirm={() => {
+          setPriceListId(pendingPriceList ?? "");
+          setPendingPriceList(null);
+        }}
+      />
     </div>
   );
 }

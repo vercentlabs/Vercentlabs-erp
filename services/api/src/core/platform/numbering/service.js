@@ -102,12 +102,12 @@ export async function nextDocumentNumber(client, context, { documentType, prefix
        SELECT COALESCE(policy.prefix, $4) AS prefix,
               COALESCE(policy.padding, $5) AS padding,
               CASE WHEN $3::text IS NOT NULL THEN $3::text
-                   WHEN policy.reset_policy = 'calendar_year' THEN 'cy' || settings.y
-                   WHEN policy.reset_policy = 'fiscal_year' THEN 'fy' || (settings.y - CASE WHEN settings.m < settings.start_month THEN 1 ELSE 0 END)
+                   WHEN COALESCE(policy.reset_policy, $8) = 'calendar_year' THEN 'cy' || settings.y
+                   WHEN COALESCE(policy.reset_policy, $8) = 'fiscal_year' THEN 'fy' || (settings.y - CASE WHEN settings.m < settings.start_month THEN 1 ELSE 0 END)
                    ELSE 'global' END AS period_key,
               CASE WHEN $3::text IS NOT NULL THEN NULL
-                   WHEN policy.reset_policy = 'calendar_year' THEN settings.y::text
-                   WHEN policy.reset_policy = 'fiscal_year' THEN (settings.y - CASE WHEN settings.m < settings.start_month THEN 1 ELSE 0 END)::text
+                   WHEN COALESCE(policy.reset_policy, $8) = 'calendar_year' THEN settings.y::text
+                   WHEN COALESCE(policy.reset_policy, $8) = 'fiscal_year' THEN (settings.y - CASE WHEN settings.m < settings.start_month THEN 1 ELSE 0 END)::text
                         || '-' || lpad(((settings.y - CASE WHEN settings.m < settings.start_month THEN 1 ELSE 0 END + 1) % 100)::text, 2, '0')
                    ELSE NULL END AS period_label
          FROM settings LEFT JOIN policy ON true
@@ -120,7 +120,7 @@ export async function nextDocumentNumber(client, context, { documentType, prefix
                (SELECT prefix FROM effective) AS effective_prefix,
                (SELECT padding FROM effective) AS effective_padding,
                (SELECT period_label FROM effective) AS period_label`,
-    [context.organizationId, type, explicitPeriod, defaultPrefix, defaultPadding, usePolicy, at],
+    [context.organizationId, type, explicitPeriod, defaultPrefix, defaultPadding, usePolicy, at, definition.defaultResetPolicy ?? "never"],
   );
   const row = rows[0];
   return formatDocumentNumber({
@@ -155,7 +155,7 @@ export async function getNumberingOverview(client, organizationId, { at = new Da
   for (const definition of DOCUMENT_TYPES) {
     if (definition.family) continue;
     const policy = policies.find((row) => row.document_type === definition.key) || null;
-    const resetPolicy = policy?.reset_policy ?? "never";
+    const resetPolicy = policy?.reset_policy ?? definition.defaultResetPolicy ?? "never";
     const period =
       resetPolicy === "calendar_year" ? { key: `cy${at.getUTCFullYear()}`, label: String(at.getUTCFullYear()) }
       : resetPolicy === "fiscal_year" ? (() => { const fy = fiscalYearFor(at, startMonth); return { key: `fy${fy.startYear}`, label: fy.label }; })()

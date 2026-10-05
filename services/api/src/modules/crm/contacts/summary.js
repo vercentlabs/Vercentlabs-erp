@@ -16,7 +16,7 @@ export async function getContactSummary(client, context, contactId) {
     `SELECT (SELECT count(*) FROM tenant.crm_activities WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2
                 AND activity_type IN ('task', 'follow_up') AND status IN ('planned', 'in_progress', 'overdue'))::int AS open_tasks,
             (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id = $1 AND contact_id = $2
-                AND lifecycle_status IN ('draft', 'pending_approval', 'approved', 'sent', 'viewed'))::int AS open_quotations,
+                AND lifecycle_status IN ('draft', 'pending_approval', 'approved', 'sent'))::int AS open_quotations,
             (SELECT count(*) FROM tenant.sales_orders WHERE organization_id = $1 AND contact_id = $2 AND lifecycle_status NOT IN ('draft', 'cancelled'))::int AS orders,
             (SELECT count(*) FROM tenant.support_tickets WHERE organization_id = $1 AND contact_id = $2 AND status IN ${OPEN_TICKET})::int AS open_tickets`,
     values,

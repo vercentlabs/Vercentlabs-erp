@@ -1,26 +1,54 @@
 "use client";
 
-import { post, request } from "@/features/sales/shared/http";
+import { del, post, request, SalesApiError } from "@/features/sales/shared/http";
 
-// Row shapes mirror the SELECTs in services/api/src/modules/sales/index.js
-// (listQuotations / getQuotation / getSalesOptions). Money arrives as strings
-// (numeric columns) and is formatted at the edge, never parsed for arithmetic
-// here -- every total shown is one the server computed.
+// Shapes returned by the Quotations module (services/api/src/modules/sales/
+// quotations). Money arrives as strings (numeric columns) and is formatted at
+// the edge, never parsed for arithmetic here -- every total shown is one the
+// server computed.
+export type QuotationStatusKey =
+  | "draft" | "awaiting_approval" | "confirmed" | "sent" | "accepted" | "rejected" | "cancelled" | "superseded" | "expired";
+
 export type SalesQuotationRow = {
   id: string;
   quotation_number: string;
-  lifecycle_status: string;
-  approval_status: string;
-  acceptance_status: string;
+  quotation_date: string;
   valid_until: string | null;
+  lifecycle_status: string;
+  status: QuotationStatusKey;
+  status_label: string;
+  is_expired: boolean;
+  revision_number: number;
+  customer_reference: string | null;
+  sent_at: string | null;
+  converted_order_id: string | null;
   updated_at: string;
+  party_id: string;
+  owner_user_id: string | null;
   version_number: number;
   currency_code: string;
+  subtotal: string;
+  tax_total: string;
   grand_total: string;
-  base_currency_total: string;
+  margin_percent?: string;
   customer_name: string | null;
-  owner_user_id: string | null;
-  is_expired?: boolean;
+  customer_number: string | null;
+  contact_name: string | null;
+  opportunity_id: string | null;
+  opportunity_name: string | null;
+  opportunity_code: string | null;
+  owner_name: string | null;
+};
+
+export type QuotationView = { key: string; label: string };
+export type QuotationCapabilities = Record<string, boolean>;
+export type SalesQuotationList = {
+  rows: SalesQuotationRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  views: QuotationView[];
+  capabilities: QuotationCapabilities;
 };
 
 export type SalesQuotationLine = {
@@ -34,10 +62,15 @@ export type SalesQuotationLine = {
   item_code_snapshot: string;
   item_name_snapshot: string;
   description_snapshot: string | null;
+  hsn_sac_snapshot: string | null;
   uom_snapshot: string | null;
   quantity: string;
   list_unit_price: string;
   unit_price: string;
+  manual_price_override: boolean;
+  manual_price_reason: string | null;
+  discount_type: "percent" | "amount";
+  discount_value: string;
   discount_percent: string;
   discount_amount: string;
   net_amount: string;
@@ -47,105 +80,134 @@ export type SalesQuotationLine = {
   margin_percent?: string;
 };
 
-export type SalesQuotationVersionSummary = {
-  id: string;
-  version_number: number;
-  revision_reason: string | null;
-  grand_total: string;
-  currency_code: string;
-  created_at: string;
-  created_by: string | null;
-};
 export type SalesDocumentEvent = {
+  id?: string;
   event_type: string;
   from_status: string | null;
   to_status: string | null;
   metadata: Record<string, unknown> | null;
   occurred_at: string;
   actor_user_id: string | null;
+  actor_name?: string | null;
 };
+
+export type QuotationActions = {
+  edit: boolean; confirm: boolean; approve: boolean; rejectApproval: boolean; send: boolean; accept: boolean; reject: boolean; revise: boolean;
+  duplicate: boolean; cancel: boolean; createOrder: boolean; print: boolean; expired: boolean;
+};
+
+type Snapshot = Record<string, string | null | undefined>;
 
 export type SalesQuotationDetail = {
   quotation: {
+    id: string;
     quotation_id: string;
     quotation_number: string;
+    quotation_date: string;
     current_version_id: string;
+    version_id: string;
+    version_number: number;
     lifecycle_status: string;
+    status: QuotationStatusKey;
+    status_label: string;
+    is_expired: boolean;
     approval_status: string;
     acceptance_status: string;
     valid_until: string | null;
-    converted_order_id: string | null;
     party_id: string;
     contact_id: string | null;
+    owner_user_id: string | null;
+    owner_name: string | null;
     billing_address_id: string | null;
     shipping_address_id: string | null;
-    owner_user_id: string | null;
+    price_list_id: string | null;
+    price_list_code: string | null;
+    price_list_name: string | null;
+    price_list_tax_inclusive: boolean | null;
+    payment_term_id: string | null;
     currency_code: string;
+    exchange_rate: string;
     subtotal: string;
     discount_total: string;
     charge_total: string;
     tax_total: string;
     rounding_adjustment: string;
     grand_total: string;
+    base_currency_total: string;
+    header_discount_percent: string;
     margin_percent?: string;
-    version_number: number;
-    customer_snapshot: {
-      displayName?: string;
-      legalName?: string;
-      gstin?: string;
-    } | null;
-    payment_term_snapshot: { name?: string } | null;
+    cost_total?: string;
+    customer_snapshot: Snapshot | null;
+    contact_snapshot: Snapshot | null;
+    billing_address_snapshot: Snapshot | null;
+    shipping_address_snapshot: Snapshot | null;
+    payment_term_snapshot: Snapshot | null;
+    customer_number: string | null;
+    customer_reference: string | null;
     customer_notes: string | null;
     internal_notes: string | null;
     terms_and_conditions: string | null;
     delivery_terms: string | null;
-    shipping_method?: string | null;
-    incoterm?: string | null;
-    supply_type?: string | null;
-    place_of_supply?: string | null;
-    shipping_address_snapshot?: {
-      state?: string | null;
-      state_code?: string | null;
-      stateCode?: string | null;
-    } | null;
-    tax_trace?: Array<{
-      taxType: string;
-      label: string;
-      rate: string;
-      taxAmount: string;
-    }> | null;
-    price_list_id: string | null;
-    payment_term_id: string | null;
-    exchange_rate: string;
-    is_expired?: boolean;
-    customer_reference?: string | null;
-    source_opportunity_id?: string | null;
-    source_opportunity_code?: string | null;
-    source_opportunity_name?: string | null;
-    contact_snapshot?: { first_name?: string; last_name?: string; designation?: string; email?: string } | null;
-    sent_at?: string | null;
-    sent_to?: string | null;
-    sent_channel?: string | null;
-    accepted_at?: string | null;
-    rejected_at?: string | null;
-    decision_reference?: string | null;
-    decision_notes?: string | null;
-    cancelled_at?: string | null;
-    cancel_reason?: string | null;
+    shipping_method: string | null;
+    incoterm: string | null;
+    supply_type: string | null;
+    place_of_supply: string | null;
+    source_opportunity_id: string | null;
+    source_opportunity_code: string | null;
+    source_opportunity_name: string | null;
+    source_opportunity_status: string | null;
+    revision_number: number;
+    revision_of_quotation_id: string | null;
+    revision_of_number: string | null;
+    revision_root_id: string | null;
+    superseded_at: string | null;
+    superseded_by_quotation_id: string | null;
+    superseded_by_number: string | null;
+    converted_order_id: string | null;
+    converted_order_number: string | null;
+    created_at: string;
+    created_by_name: string | null;
+    confirmed_at: string | null;
+    confirmed_by_name: string | null;
+    sent_at: string | null;
+    sent_by_name: string | null;
+    sent_to: string | null;
+    sent_channel: string | null;
+    accepted_at: string | null;
+    accepted_by_name: string | null;
+    rejected_at: string | null;
+    rejected_by_name: string | null;
+    decision_reference: string | null;
+    decision_notes: string | null;
+    cancelled_at: string | null;
+    cancelled_by_name: string | null;
+    cancel_reason: string | null;
   };
   lines: SalesQuotationLine[];
-  charges: Array<{
-    id: string;
-    sequence: number;
-    label: string;
-    calculation_type: string;
-    value: string;
-    amount: string;
-    taxable: boolean;
-  }>;
-  versions: SalesQuotationVersionSummary[];
+  charges: Array<{ id: string; sequence: number; label: string; calculation_type: string; value: string; amount: string; taxable: boolean }>;
+  taxLines: Array<{ tax_type: string; label: string; rate: string; taxable_amount: string; tax_amount: string }>;
+  versions: Array<{ id: string; version_number: number; revision_reason: string | null; grand_total: string; currency_code: string; created_at: string; created_by_name: string | null }>;
   events: SalesDocumentEvent[];
+  revisions: Array<{ id: string; quotation_number: string; revision_number: number; lifecycle_status: string; valid_until: string | null; grand_total: string; status: { key: string; label: string } }>;
+  decisions: Array<{ decision: string; customer_name: string; note: string | null; decided_at: string }>;
+  capabilities: QuotationCapabilities;
+  actions: QuotationActions;
 };
+
+export type QuotationDefaults = {
+  quotationDate: string;
+  validUntil: string;
+  termsAndConditions: string;
+  canChangeDate: boolean;
+  currencyCode?: string | null;
+  contactId?: string | null;
+  billingAddressId?: string | null;
+  shippingAddressId?: string | null;
+  paymentTermId?: string | null;
+  priceListId?: string | null;
+};
+
+export type QuotationFile = { id: string; fileName: string; mimeType: string; sizeBytes: number; uploadedAt: string };
 
 export type SalesOptions = {
   parties: Array<{
@@ -223,6 +285,7 @@ export type SalesOptions = {
     name: string;
     currency_code: string;
     tax_inclusive: boolean;
+    is_default: boolean;
   }>;
   paymentTerms: Array<{
     id: string;
@@ -248,6 +311,8 @@ type SalesDocumentLineInput = {
   variantId?: string | null;
   quantity: number;
   discountPercent?: number;
+  discountType?: "percent" | "amount";
+  discountValue?: number;
   unitPrice?: number;
   uomId?: string | null;
   warehouseId?: string | null;
@@ -258,6 +323,10 @@ type SalesDocumentLineInput = {
 export type SalesDocumentInput = {
   partyId: string;
   contactId?: string | null;
+  ownerUserId?: string;
+  quotationDate?: string | null;
+  customerReference?: string | null;
+  expectedVersionNumber?: number;
   opportunityId?: string | null;
   billingAddressId?: string | null;
   shippingAddressId?: string | null;
@@ -268,7 +337,7 @@ export type SalesDocumentInput = {
   headerDiscountPercent?: number;
   customerNotes?: string;
   internalNotes?: string;
-  termsAndConditions?: string;
+  termsAndConditions?: string | null;
   deliveryTerms?: string;
   revisionReason?: string;
   shippingMethod?: string;
@@ -286,6 +355,8 @@ export type SalesDocumentInput = {
 };
 
 export type SalesDocumentPreview = {
+  // The price list the document is priced from, and why (chosen, the customer's, or the default).
+  priceList: { id: string; code: string; name: string; currencyCode: string; taxInclusive: boolean; basis: "chosen" | "customer" | "default" } | null;
   totals: {
     subtotal: string;
     discountTotal: string;
@@ -300,6 +371,11 @@ export type SalesDocumentPreview = {
     itemNameSnapshot: string;
     quantity: string;
     unitPrice: string;
+    listUnitPrice: string;
+    manualPriceOverride: boolean;
+    priceMissing: boolean;
+    priceMessage: string | null;
+    priceSource: string | null;
     discountPercent: string;
     netAmount: string;
     taxAmount: string;
@@ -315,40 +391,27 @@ const qs = (params: Record<string, string | number | undefined>) => {
   return text ? `?${text}` : "";
 };
 
-export const listSalesQuotations = (
-  filters: {
-    status?: string;
-    search?: string;
-    partyId?: string;
-    opportunityId?: string;
-    limit?: number;
-    offset?: number;
-  } = {},
-) => request<{ rows: SalesQuotationRow[] }>(`/quotations${qs(filters)}`);
-export const getSalesQuotation = (id: string) =>
-  request<{ quotation: SalesQuotationDetail }>(`/quotations/${id}`);
+export type QuotationFilters = {
+  view?: string; search?: string; status?: string; partyId?: string; ownerUserId?: string; opportunityId?: string; currencyCode?: string; priceListId?: string;
+  dateFrom?: string; dateTo?: string; validFrom?: string; validTo?: string; amountMin?: string; amountMax?: string; sort?: string; direction?: string;
+  limit?: number; offset?: number;
+};
+
+export const listSalesQuotations = (filters: QuotationFilters = {}) => request<SalesQuotationList>(`/quotations${qs(filters)}`);
+export const quotationExportUrl = (filters: QuotationFilters = {}) => `/api/sales/quotations/export${qs({ ...filters, limit: undefined, offset: undefined })}`;
+export const getSalesQuotation = (id: string) => request<{ quotation: SalesQuotationDetail }>(`/quotations/${id}`);
+export const getQuotationDefaults = (partyId?: string) => request<{ defaults: QuotationDefaults }>(`/quotations/defaults${qs({ partyId })}`);
 export const createSalesQuotation = (input: SalesDocumentInput) =>
-  post<{ quotation: { id: string; quotation_number: string } }>(
-    "/quotations",
-    input,
-  );
-export const reviseSalesQuotation = (id: string, input: SalesDocumentInput) =>
-  post<{ version: { id: string; version_number: number } }>(
-    `/quotations/${id}/revise`,
-    input,
-  );
-export const submitSalesQuotation = (id: string, assignedTo?: string | null) =>
-  post<{ result: unknown }>(`/quotations/${id}/submit`, { assignedTo });
-export const approveSalesQuotation = (id: string, quotationVersionId: string) =>
-  post<{ result: unknown }>(`/quotations/${id}/approve`, {
-    quotationVersionId,
-  });
+  post<{ quotation: { id: string; quotation_number: string } }>("/quotations", input);
+// Saves changes to a Draft; expectedVersionNumber is the version the editor opened.
+export const updateSalesQuotation = (id: string, input: SalesDocumentInput) =>
+  request<{ quotation: { id: string; versionNumber: number } }>(`/quotations/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+export const confirmSalesQuotation = (id: string, expectedVersionNumber?: number) =>
+  post<{ result: { status: string; approvalRequired: boolean } }>(`/quotations/${id}/confirm`, { expectedVersionNumber });
+export const approveSalesQuotation = (id: string, quotationVersionId?: string) =>
+  post<{ result: unknown }>(`/quotations/${id}/approve`, { quotationVersionId });
 export const rejectSalesQuotationApproval = (id: string, reason: string) =>
   post<{ result: unknown }>(`/quotations/${id}/reject-approval`, { reason });
-export const sendSalesQuotation = (id: string, expiresInDays?: number) =>
-  post<{
-    result: { token: string; expiresAt: string; quotationNumber: string };
-  }>(`/quotations/${id}/send`, { expiresInDays });
 // The quotation went out another way (WhatsApp, the customer's email, in person).
 export const markSalesQuotationSent = (id: string, input: { recipient?: string; note?: string }) =>
   post<{ result: { status: string } }>(`/quotations/${id}/mark-sent`, input);
@@ -360,19 +423,24 @@ export const recordSalesQuotationDecision = (id: string, input: { decision: "acc
   post<{ result: { decision: string } }>(`/quotations/${id}/decision`, input);
 export const cancelSalesQuotation = (id: string, reason: string) =>
   post<{ result: { status: string } }>(`/quotations/${id}/cancel`, { reason });
-export const convertSalesQuotation = (id: string) =>
-  post<{ result: { orderId: string; idempotent?: boolean } }>(
-    `/quotations/${id}/convert`,
-    {},
-  );
-export const compareSalesQuotationVersions = (
-  id: string,
-  left: string,
-  right: string,
-) =>
-  request<{ comparison: unknown }>(
-    `/quotations/${id}/compare${qs({ left, right })}`,
-  );
+export const reviseSalesQuotation = (id: string, reason: string, idempotencyKey?: string) =>
+  post<{ result: { id: string; quotationNumber: string } }>(`/quotations/${id}/revise`, { reason, idempotencyKey });
+export const duplicateSalesQuotation = (id: string, idempotencyKey?: string) =>
+  post<{ result: { id: string; quotationNumber: string } }>(`/quotations/${id}/duplicate`, { idempotencyKey });
+export const createOrderFromQuotation = (id: string) =>
+  post<{ result: { orderId: string; orderNumber: string | null; idempotent: boolean } }>(`/quotations/${id}/sales-order`, {});
+export const addSalesQuotationNote = (id: string, note: string) => post<{ result: { added: boolean } }>(`/quotations/${id}/notes`, { note });
+export const listSalesQuotationFiles = (id: string) => request<{ files: QuotationFile[] }>(`/quotations/${id}/files`);
+// Multipart, so the browser sets the content type and boundary itself.
+export async function uploadSalesQuotationFile(id: string, file: File) {
+  const body = new FormData();
+  body.set("file", file);
+  const response = await fetch(`/api/sales/quotations/${id}/files`, { method: "POST", body, credentials: "same-origin" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok === false) throw new SalesApiError(payload.message || "The file could not be uploaded.", response.status, payload.code, payload);
+  return payload as { file: QuotationFile };
+}
+export const removeSalesQuotationFile = (id: string, fileId: string) => del<{ result: { removed: boolean } }>(`/quotations/${id}/files/${fileId}`);
 export const previewSalesDocument = (input: SalesDocumentInput) =>
   post<{ preview: SalesDocumentPreview }>("/documents/preview", input);
 export const getSalesOptions = (partyId?: string) =>

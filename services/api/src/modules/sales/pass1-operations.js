@@ -48,20 +48,6 @@ export async function listSalesPass1Operations(client, c, { kind = "adjustments"
     adjustments: "sales_credit_adjustment_requests",
     "pricing-rules": "sales_pricing_rules",
   };
-  if (kind === "price-list-items") {
-    const values = [c.organizationId];
-    values.push(Math.min(Math.max(Number(limit) || 100, 1), 250));
-    const { rows } = await client.query(
-      `SELECT pli.*,pl.code AS price_list_code,pl.name AS price_list_name,item.code AS item_code,item.name AS item_name
-         FROM tenant.price_list_items pli
-         JOIN tenant.price_lists pl ON pl.organization_id=pli.organization_id AND pl.id=pli.price_list_id
-         JOIN tenant.items item ON item.organization_id=pli.organization_id AND item.id=pli.item_id
-        WHERE pli.organization_id=$1 AND pl.price_list_type='sales'
-        ORDER BY pli.updated_at DESC LIMIT $${values.length}`,
-      values,
-    );
-    return rows;
-  }
   // Registers that span orders: each row carries its order number and customer so
   // the register is usable on its own.
   const REGISTERS = {
@@ -133,171 +119,6 @@ export async function accrueSalesCommission(client, c, input = {}) {
   return result.rows[0];
 }
 
-export async function upsertSalesPriceListItem(client, c, input = {}) {
-  need(c, "sales.settings.manage");
-  const priceListId = uuid(input.priceListId, "Price list");
-  const itemId = uuid(input.itemId, "Item");
-  const minimumQuantity = Number(input.minimumQuantity ?? 1);
-  const rate = Number(input.rate);
-  if (!Number.isFinite(minimumQuantity) || minimumQuantity <= 0)
-    throw new SalesError(400, "Minimum quantity must be greater than zero.", "SALES_PRICE_LIST_MIN_QTY_INVALID");
-  if (!Number.isFinite(rate) || rate < 0)
-    throw new SalesError(400, "Price-list rate cannot be negative.", "SALES_PRICE_LIST_RATE_INVALID");
-  const validFrom = input.validFrom || null;
-  const validTo = input.validTo || null;
-  if (validFrom && validTo && String(validFrom) > String(validTo))
-    throw new SalesError(400, "Price-list valid-from date cannot be after valid-to date.", "SALES_PRICE_LIST_DATE_INVALID");
-  const priceList = await client.query(
-    `SELECT id FROM tenant.price_lists WHERE organization_id=$1 AND id=$2 AND price_list_type='sales' AND status='active'`,
-    [c.organizationId, priceListId],
-  );
-  if (!priceList.rows[0]) throw new SalesError(404, "Active Sales price list not found.", "SALES_PRICE_LIST_NOT_FOUND");
-  const item = await client.query(
-    `SELECT id,uom_id FROM tenant.items WHERE organization_id=$1 AND id=$2 AND status='active'`,
-    [c.organizationId, itemId],
-  );
-  if (!item.rows[0])
-    throw new SalesError(404, "Active item not found.", "SALES_PRICE_ITEM_NOT_FOUND");
-  const uomId = input.uomId ? uuid(input.uomId, "UOM") : null;
-  if (uomId) {
-    const uom = await client.query(`SELECT id FROM tenant.units_of_measure WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId, uomId]);
-    if (!uom.rows[0]) throw new SalesError(409, "Selected UOM is not active.", "SALES_PRICE_UOM_INVALID");
-  }
-  // F274: an optional variant scopes
-  // this rate to one specific variant of the item (e.g. a Large vs. a
-  // Small) rather than every variant generically -- POS's own price
-  // resolver (cart-pricing.js) already prefers a variant-specific row
-  // over a generic one when both exist. Sales itself never sets this
-  // (Sales has no variant concept on its own lines); reused here rather
-  // than building a second, POS-owned price-list surface.
-  const variantId = input.variantId ? uuid(input.variantId, "Variant") : null;
-  if (variantId) {
-    const variant = await client.query(`SELECT id FROM tenant.item_variants WHERE organization_id=$1 AND id=$2 AND item_id=$3 AND status='active'`, [
-      c.organizationId,
-      variantId,
-      itemId,
-    ]);
-    if (!variant.rows[0]) throw new SalesError(404, "Active variant not found for this item.", "SALES_PRICE_VARIANT_NOT_FOUND");
-  }
-  const existing = await client.query(
-    `SELECT id FROM tenant.price_list_items WHERE organization_id=$1 AND price_list_id=$2 AND item_id=$3
-      AND uom_id IS NOT DISTINCT FROM $4 AND minimum_quantity=$5 AND valid_from IS NOT DISTINCT FROM $6::date
-      AND variant_id IS NOT DISTINCT FROM $7
-      ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`,
-    [c.organizationId, priceListId, itemId, uomId, minimumQuantity, validFrom, variantId],
-  );
-  if (existing.rows[0]) {
-    const updated = await client.query(
-      `UPDATE tenant.price_list_items SET rate=$4,valid_to=$5,status='active',updated_by=$6,updated_at=now()
-        WHERE organization_id=$1 AND id=$2 AND price_list_id=$3 RETURNING *`,
-      [c.organizationId, existing.rows[0].id, priceListId, rate, validTo, c.userId],
-    );
-    return updated.rows[0];
-  }
-  const created = await client.query(
-    `INSERT INTO tenant.price_list_items(organization_id,price_list_id,item_id,uom_id,minimum_quantity,rate,valid_from,valid_to,status,created_by,updated_by,variant_id)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$9,$10) RETURNING *`,
-    [c.organizationId, priceListId, itemId, uomId, minimumQuantity, rate, validFrom, validTo, c.userId, variantId],
-  );
-  return created.rows[0];
-}
-
-export async function upsertSalesCustomerPrice(client, c, input = {}) {
-  need(c, "sales.settings.manage");
-  const partyId = uuid(input.partyId, "Customer");
-  const itemId = uuid(input.itemId, "Item");
-  const minimumQuantity = Number(input.minimumQuantity ?? 0);
-  const fixedRate = Number(input.fixedRate);
-  if (!Number.isFinite(minimumQuantity) || minimumQuantity < 0)
-    throw new SalesError(400, "Minimum quantity cannot be negative.", "SALES_CUSTOMER_PRICE_MIN_QTY_INVALID");
-  if (!Number.isFinite(fixedRate) || fixedRate < 0)
-    throw new SalesError(400, "Customer price cannot be negative.", "SALES_CUSTOMER_PRICE_RATE_INVALID");
-  const party = await client.query(
-    `SELECT id,display_name FROM tenant.business_parties WHERE organization_id=$1 AND id=$2 AND status='active' AND party_type IN ('customer','both')`,
-    [c.organizationId, partyId],
-  );
-  if (!party.rows[0]) throw new SalesError(404, "Active customer not found.", "SALES_CUSTOMER_PRICE_PARTY_NOT_FOUND");
-  const item = await client.query(`SELECT id,standard_cost FROM tenant.items WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId,itemId]);
-  if (!item.rows[0])
-    throw new SalesError(404, "Active item not found.", "SALES_CUSTOMER_PRICE_ITEM_NOT_FOUND");
-  const priceListId = input.priceListId ? uuid(input.priceListId, "Price list") : null;
-  if (priceListId) {
-    const pl = await client.query(`SELECT id FROM tenant.price_lists WHERE organization_id=$1 AND id=$2 AND price_list_type='sales' AND status='active'`, [c.organizationId,priceListId]);
-    if (!pl.rows[0]) throw new SalesError(409, "Selected Sales price list is not active.", "SALES_CUSTOMER_PRICE_LIST_INVALID");
-  }
-  const validFrom = input.validFrom || null;
-  const validTo = input.validTo || null;
-  if (validFrom && validTo && String(validFrom) > String(validTo))
-    throw new SalesError(400, "Customer-price valid-from date cannot be after valid-to date.", "SALES_CUSTOMER_PRICE_DATE_INVALID");
-  // A standing negotiated price applies to every future order for this
-  // customer/item - higher blast radius than the one-off manual line
-  // override, which already requires a reason. Same discipline here.
-  const reason = text(input.reason, 2000);
-  if (!reason) throw new SalesError(400, "A reason is required to set a customer-specific price.", "SALES_CUSTOMER_PRICE_REASON_REQUIRED");
-  // Pricing policy: a negotiated price below the item's standard cost sells
-  // at a loss on every future order, so it needs the price-override right.
-  const standardCost = Number(item.rows[0].standard_cost || 0);
-  if (standardCost > 0 && fixedRate < standardCost && !can(c, "sales.price.override"))
-    throw new SalesError(403, `This price is below the item's standard cost (${standardCost}). Only users who can override prices may set it.`, "SALES_CUSTOMER_PRICE_BELOW_COST");
-  // Same customer/item/list/break AND same start date = a correction; the old
-  // row is retired (kept, linked to its successor) instead of overwritten.
-  const existing = await client.query(
-    `SELECT id,code FROM tenant.sales_pricing_rules WHERE organization_id=$1 AND party_id=$2 AND item_id=$3
-       AND price_list_id IS NOT DISTINCT FROM $4 AND minimum_quantity=$5 AND adjustment_type='fixed_rate' AND status='active'
-       AND valid_from IS NOT DISTINCT FROM $6::date
-       ORDER BY priority,id LIMIT 1 FOR UPDATE`,
-    [c.organizationId,partyId,itemId,priceListId,minimumQuantity,validFrom],
-  );
-  // A later start date schedules a successor: the price in force ends the day
-  // before, so the two never overlap (D365 trade agreements, SAP validity).
-  if (!existing.rows[0] && validFrom)
-    await client.query(
-      `UPDATE tenant.sales_pricing_rules SET valid_to=($6::date - 1),updated_by=$7,updated_at=now()
-        WHERE organization_id=$1 AND party_id=$2 AND item_id=$3 AND price_list_id IS NOT DISTINCT FROM $4 AND minimum_quantity=$5
-          AND adjustment_type='fixed_rate' AND status='active'
-          AND (valid_from IS NULL OR valid_from < $6::date) AND (valid_to IS NULL OR valid_to >= $6::date)`,
-      [c.organizationId,partyId,itemId,priceListId,minimumQuantity,validFrom,c.userId],
-    );
-  const created = await client.query(
-    `INSERT INTO tenant.sales_pricing_rules(organization_id,code,name,priority,party_id,party_type,item_id,price_list_id,minimum_quantity,adjustment_type,adjustment_value,valid_from,valid_to,reason,status,created_by,updated_by)
-     VALUES($1,'CUST-'||upper(substr(replace($2::text,'-',''),1,8))||'-'||upper(substr(replace($3::text,'-',''),1,8))||'-'||to_char(clock_timestamp(),'YYMMDDHH24MISSMS'),$4,10,$2::uuid,'customer',$3::uuid,$5,$6,'fixed_rate',$7,$8,$9,$10,'active',$11,$11) RETURNING *`,
-    [c.organizationId,partyId,itemId,`Customer price · ${party.rows[0].display_name}`,priceListId,minimumQuantity,fixedRate,validFrom,validTo,reason,c.userId],
-  );
-  if (existing.rows[0])
-    await client.query(
-      `UPDATE tenant.sales_pricing_rules SET status='inactive',superseded_by_id=$3,superseded_at=now(),updated_by=$4,updated_at=now()
-        WHERE organization_id=$1 AND id=$2`,
-      [c.organizationId,existing.rows[0].id,created.rows[0].id,c.userId],
-    );
-  return created.rows[0];
-}
-
-export async function deactivateSalesPriceListItem(client, c, priceListItemId) {
-  need(c, "sales.settings.manage");
-  const id = uuid(priceListItemId, "Price-list item");
-  const result = await client.query(
-    `UPDATE tenant.price_list_items SET status='inactive',updated_by=$3,updated_at=now()
-      WHERE organization_id=$1 AND id=$2
-      RETURNING id,status`,
-    [c.organizationId, id, c.userId],
-  );
-  if (!result.rows[0]) throw new SalesError(404, "Price-list item not found.", "SALES_PRICE_LIST_ITEM_NOT_FOUND");
-  return result.rows[0];
-}
-
-export async function deactivateSalesPricingRule(client, c, pricingRuleId) {
-  need(c, "sales.settings.manage");
-  const id = uuid(pricingRuleId, "Pricing rule");
-  const result = await client.query(
-    `UPDATE tenant.sales_pricing_rules record SET status='inactive',updated_by=$3,updated_at=now()
-      WHERE record.organization_id=$1 AND record.id=$2
-      RETURNING record.id,record.status`,
-    [c.organizationId, id, c.userId],
-  );
-  if (!result.rows[0]) throw new SalesError(404, "Pricing rule not found.", "SALES_PRICING_RULE_NOT_FOUND");
-  return result.rows[0];
-}
-
 export async function listSalesPass1Options(client, c) {
   need(c, "sales.view");
   const orders = await client.query(
@@ -361,6 +182,7 @@ const SETTINGS_DEFAULTS = Object.freeze({
   order_approval_amount: 0,
   allow_direct_orders: true,
   invoice_quantity_basis: "ordered",
+  default_quotation_terms: null,
 });
 
 export async function getSalesSettings(client, c) {
@@ -389,27 +211,21 @@ export async function updateSalesSettings(client, c, input = {}) {
   if (input.quotationApprovalDiscount !== undefined) next.quotation_approval_discount = boundedNumber(input.quotationApprovalDiscount, "Quotation approval discount %", { min: 0, max: 100 });
   if (input.minimumMarginPercent !== undefined) next.minimum_margin_percent = boundedNumber(input.minimumMarginPercent, "Minimum margin %", { min: -100, max: 100 });
   if (input.orderApprovalAmount !== undefined) next.order_approval_amount = boundedNumber(input.orderApprovalAmount, "Order approval amount", { min: 0, max: 1e12 });
-  if (input.defaultPriceListId !== undefined) {
-    const id = input.defaultPriceListId ? uuid(input.defaultPriceListId, "Default price list") : null;
-    if (id) {
-      const list = await client.query(`SELECT id FROM tenant.price_lists WHERE organization_id=$1 AND id=$2 AND price_list_type='sales' AND status='active'`, [c.organizationId, id]);
-      if (!list.rows[0]) throw new SalesError(409, "The default price list must be an active Sales price list.", "SALES_SETTINGS_INVALID");
-    }
-    next.default_price_list_id = id;
-  }
   if (input.allowDirectOrders !== undefined) next.allow_direct_orders = Boolean(input.allowDirectOrders);
+  // Copied onto each new quotation, where it can be changed.
+  if (input.defaultQuotationTerms !== undefined) next.default_quotation_terms = text(input.defaultQuotationTerms, 20000) || null;
   if (input.invoiceQuantityBasis !== undefined) {
     if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
     next.invoice_quantity_basis = input.invoiceQuantityBasis;
   }
   const result = await client.query(
-    `INSERT INTO tenant.sales_settings(organization_id,seller_state_code,default_quote_validity_days,quotation_approval_amount,quotation_approval_discount,minimum_margin_percent,order_approval_amount,allow_direct_orders,invoice_quantity_basis,default_price_list_id,created_by,updated_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$11,$10,$10)
+    `INSERT INTO tenant.sales_settings(organization_id,seller_state_code,default_quote_validity_days,quotation_approval_amount,quotation_approval_discount,minimum_margin_percent,order_approval_amount,allow_direct_orders,invoice_quantity_basis,default_price_list_id,default_quotation_terms,created_by,updated_by)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$11,$12,$10,$10)
      ON CONFLICT (organization_id) DO UPDATE SET seller_state_code=EXCLUDED.seller_state_code,default_quote_validity_days=EXCLUDED.default_quote_validity_days,
        quotation_approval_amount=EXCLUDED.quotation_approval_amount,quotation_approval_discount=EXCLUDED.quotation_approval_discount,minimum_margin_percent=EXCLUDED.minimum_margin_percent,
-       order_approval_amount=EXCLUDED.order_approval_amount,allow_direct_orders=EXCLUDED.allow_direct_orders,invoice_quantity_basis=EXCLUDED.invoice_quantity_basis,default_price_list_id=EXCLUDED.default_price_list_id,updated_by=EXCLUDED.updated_by,updated_at=now()
+       order_approval_amount=EXCLUDED.order_approval_amount,allow_direct_orders=EXCLUDED.allow_direct_orders,invoice_quantity_basis=EXCLUDED.invoice_quantity_basis,default_price_list_id=EXCLUDED.default_price_list_id,default_quotation_terms=EXCLUDED.default_quotation_terms,updated_by=EXCLUDED.updated_by,updated_at=now()
      RETURNING *`,
-    [c.organizationId, next.seller_state_code, next.default_quote_validity_days, next.quotation_approval_amount, next.quotation_approval_discount, next.minimum_margin_percent, next.order_approval_amount, next.allow_direct_orders, next.invoice_quantity_basis, c.userId, next.default_price_list_id ?? null],
+    [c.organizationId, next.seller_state_code, next.default_quote_validity_days, next.quotation_approval_amount, next.quotation_approval_discount, next.minimum_margin_percent, next.order_approval_amount, next.allow_direct_orders, next.invoice_quantity_basis, c.userId, next.default_price_list_id ?? null, next.default_quotation_terms ?? null],
   );
   return { ...SETTINGS_DEFAULTS, ...result.rows[0], configured: true };
 }

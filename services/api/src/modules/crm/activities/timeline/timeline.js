@@ -175,23 +175,22 @@ function buildBranch(kind, entityType, entityId, context, values) {
     const quotations = `SELECT event.id,'history'::text AS kind,'quotation_' || replace(event.event_type,'quotation.','') AS subtype,
          'Quotation ' || quote.quotation_number || ' ' || CASE event.event_type
            WHEN 'quotation.created' THEN 'created'
-           WHEN 'quotation.revised' THEN 'revised (revision ' || COALESCE(event.metadata->>'versionNumber','') || ')'
+           WHEN 'quotation.revision_created' THEN 'revised as ' || COALESCE(event.metadata->>'revisionNumber','')
            WHEN 'quotation.submitted' THEN 'submitted for approval'
-           WHEN 'quotation.approved' THEN 'approved'
-           WHEN 'quotation.approved_automatically' THEN 'confirmed'
+           WHEN 'quotation.approved' THEN 'approved and confirmed'
+           WHEN 'quotation.confirmed' THEN 'confirmed'
+           WHEN 'quotation.superseded' THEN 'superseded by ' || COALESCE(event.metadata->>'supersededByNumber','')
            WHEN 'quotation.sent' THEN 'sent' || COALESCE(' to ' || NULLIF(event.metadata->>'recipient',''),'')
-           WHEN 'quotation.viewed' THEN 'viewed by the customer'
            WHEN 'quotation.accepted' THEN 'accepted' || COALESCE(' (' || NULLIF(event.metadata->>'reference','') || ')','')
            WHEN 'quotation.rejected' THEN 'rejected' || COALESCE(': ' || NULLIF(event.metadata->>'notes',''),'')
            WHEN 'quotation.cancelled' THEN 'cancelled' || COALESCE(': ' || NULLIF(event.metadata->>'reason',''),'')
-           WHEN 'quotation.expired' THEN 'expired'
-           WHEN 'quotation.converted' THEN 'became sales order ' || COALESCE(sales_order.sales_order_number,'')
+           WHEN 'quotation.order_created' THEN 'became sales order ' || COALESCE(event.metadata->>'orderNumber', sales_order.sales_order_number, '')
            ELSE replace(replace(event.event_type,'quotation.',''),'_',' ') END AS title,
          event.occurred_at,event.to_status AS status,event.actor_user_id,event.actor_user_id AS created_by
        FROM tenant.sales_document_events event
        JOIN tenant.sales_quotations quote ON quote.organization_id=event.organization_id AND quote.id=event.entity_id
        LEFT JOIN tenant.sales_orders sales_order ON sales_order.organization_id=quote.organization_id AND sales_order.id=quote.converted_order_id
-       WHERE event.organization_id=$1 AND event.entity_type='quotation' AND event.event_type <> 'quotation.created' AND quote.source_opportunity_id=${quoteIdParam}`;
+       WHERE event.organization_id=$1 AND event.entity_type='quotation' AND event.event_type NOT IN ('quotation.created','quotation.updated','quotation.note_added','quotation.file_added','quotation.file_removed') AND quote.source_opportunity_id=${quoteIdParam}`;
     return `${own} UNION ALL ${tasks} UNION ALL ${quotations}`;
   }
   if (kind === "attachment") {

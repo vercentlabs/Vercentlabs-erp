@@ -1,5 +1,5 @@
 import { createApprovalRequest, finalizeApprovalRequest } from "../../core/platform/approvals/index.js";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { applySalesAdvancesToInvoiceRequest, reverseSalesCommissionsForOrder } from "./after-sales.js";
 import {
   decimal,
@@ -16,6 +16,8 @@ import {
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 import { resolveTaxRateComponents, isExemptSupplyType } from "../../core/tax-engine.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
+import { PriceListError } from "./price-lists/constants.js";
+import { resolveSalesPrice, resolveSalesPriceList } from "./price-lists/resolver.js";
 
 export class SalesError extends Error {
   constructor(status, message, code = "SALES_ERROR") {
@@ -72,7 +74,7 @@ function requirePermission(context, permission) {
 // F041-SEM-04: the person who submitted a document for approval cannot approve
 // it themselves. The role split alone does not guarantee this (a manager can also
 // author), so it is enforced against the approval request's own requester.
-async function assertNotSelfApproval(client, context, entityType, entityId) {
+export async function assertNotSelfApproval(client, context, entityType, entityId) {
   const request = (
     await client.query(
       `SELECT requested_by FROM public.approval_requests
@@ -124,7 +126,7 @@ async function loadDocumentContext(client, context, input, options = {}) {
   if (!organization) throw new SalesError(404, "Organisation not found.");
 
   const partyResult = await client.query(
-    `SELECT id,code,party_type,display_name,legal_name,gstin,pan,currency_code,credit_limit,payment_term_id,status,
+    `SELECT id,code,customer_number,party_type,display_name,legal_name,gstin,pan,currency_code,credit_limit,payment_term_id,status,
             default_price_list_id,tax_treatment,sales_block,sales_block_reason
        FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, partyId],
@@ -135,15 +137,14 @@ async function loadDocumentContext(client, context, input, options = {}) {
       409,
       "The selected customer or prospect is not active.",
     );
-  const allowedPartyTypes = options.order
-    ? ["customer", "both"]
-    : ["customer", "prospect", "both"];
-  if (!allowedPartyTypes.includes(party.party_type))
+  // A formal quotation or order is for a Customer Master, not a prospect.
+  if (!["customer", "both"].includes(party.party_type))
     throw new SalesError(
       409,
       options.order
         ? "Sales orders require an active customer."
-        : "The selected party cannot receive a quotation.",
+        : "A quotation is for a customer. Create the customer from the CRM account first.",
+      "SALES_CUSTOMER_REQUIRED",
     );
   // F031: a sales block stops new documents (all = quotations and orders,
   // orders = orders only), like SAP's order block or D365 "on hold".
@@ -259,38 +260,20 @@ async function loadDocumentContext(client, context, input, options = {}) {
     exchangeRate = decimal(rate.rows[0].rate);
   }
 
-  let priceList = null;
-  if (!input.priceListId && !options.noDefaultPriceList) {
-    const settingsDefault = await client.query(
-      `SELECT default_price_list_id FROM tenant.sales_settings WHERE organization_id=$1`,
-      [context.organizationId],
-    );
-    const defaultId = party.default_price_list_id || settingsDefault.rows[0]?.default_price_list_id || null;
-    if (defaultId) {
-      const result = await client.query(
-        `SELECT id,code,name,currency_code,tax_inclusive FROM tenant.price_lists WHERE organization_id=$1 AND id=$2 AND price_list_type='sales' AND currency_code=$3 AND status='active' AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date)`,
-        [context.organizationId, defaultId, currencyCode],
-      );
-      // F031/F034: the default applies only when it fits this document
-      // (same currency, active, in date); otherwise list prices apply.
-      priceList = result.rows[0] ? { ...result.rows[0], defaulted: true } : null;
-    }
-  }
-  if (input.priceListId) {
-    const result = await client.query(
-      `SELECT id,code,name,currency_code,tax_inclusive FROM tenant.price_lists WHERE organization_id=$1 AND id=$2 AND price_list_type='sales' AND currency_code=$3 AND status='active' AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date)`,
-      [
-        context.organizationId,
-        uuid(input.priceListId, "Price list"),
-        currencyCode,
-      ],
-    );
-    priceList = result.rows[0];
-    if (!priceList)
-      throw new SalesError(
-        409,
-        "The selected Sales price list is inactive, expired or uses another currency.",
-      );
+  // The document date decides which prices apply: an order's date, else today.
+  const documentDate = date(input.quotationDate, "Quotation date") ?? date(input.orderDate, "Order date") ?? new Date().toISOString().slice(0, 10);
+  let priceList;
+  try {
+    priceList = await resolveSalesPriceList(client, context, { priceListId: input.priceListId || null, partyId, currencyCode, documentDate });
+  } catch (error) {
+    if (!(error instanceof PriceListError)) throw error;
+    // A sales order made from a quotation carries the quoted prices, so the
+    // quotation's list is kept even if it has since been closed.
+    const kept = options.carryQuotedPrices && input.priceListId
+      ? (await client.query(`SELECT id,code,name,currency_code,tax_inclusive,is_default FROM tenant.price_lists WHERE organization_id=$1 AND id=$2`, [context.organizationId, input.priceListId])).rows[0]
+      : null;
+    if (!kept) throw new SalesError(error.status, error.message, error.code);
+    priceList = { id: kept.id, code: kept.code, name: kept.name, currencyCode: String(kept.currency_code).trim(), taxInclusive: kept.tax_inclusive, isDefault: kept.is_default, basis: "quotation" };
   }
   let paymentTerm = null;
   const paymentTermId = input.paymentTermId || party.payment_term_id;
@@ -321,6 +304,7 @@ async function loadDocumentContext(client, context, input, options = {}) {
     shipping,
     currency,
     priceList,
+    documentDate,
     paymentTerm,
     settings,
   };
@@ -393,28 +377,26 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   // item/variant prices are per BASE unit: selling 2 boxes of 12 must price
   // 24 units, not 2 (F033). Unit-specific price-list rows are already per
   // the selected unit and are not scaled.
-  let listUnitPrice = mul(decimal((variant?.sales_price ?? item.sales_price) || 0), conversionFactor);
-  let priceSource = variant?.sales_price != null ? "variant.sales_price" : "item.sales_price";
-  const appliedRules = [];
-  if (master.priceList) {
-    const priceResult = await client.query(
-      `SELECT rate,id,uom_id FROM tenant.price_list_items WHERE organization_id=$1 AND price_list_id=$2 AND item_id=$3 AND (uom_id=$4 OR uom_id IS NULL) AND (variant_id IS NULL OR variant_id IS NOT DISTINCT FROM $6::uuid) AND minimum_quantity<=$5 AND status='active' AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY (variant_id IS NOT NULL) DESC,(uom_id IS NOT DISTINCT FROM $4) DESC,minimum_quantity DESC,valid_from DESC NULLS LAST LIMIT 1`,
-      [
-        context.organizationId,
-        master.priceList.id,
-        itemId,
-        uomId,
-        asDatabaseDecimal(quantity),
-        variant?.id || null,
-      ],
-    );
-    if (priceResult.rows[0]) {
-      listUnitPrice = priceResult.rows[0].uom_id
-        ? decimal(priceResult.rows[0].rate)
-        : mul(decimal(priceResult.rows[0].rate), conversionFactor);
-      priceSource = `price_list_item:${priceResult.rows[0].id}`;
-    }
+  // The list price for the line's unit, from the price resolver. A line
+  // carried over from a quotation keeps the quotation's list price: the
+  // accepted quotation is the commercial commitment, not today's list.
+  let listUnitPrice;
+  let priceSource;
+  let priceMissing = false;
+  let priceMessage = null;
+  let priceEntryId = null;
+  if (options.carryQuotedPrices && line.listUnitPrice != null) {
+    listUnitPrice = decimal(line.listUnitPrice);
+    priceSource = "quotation";
+  } else {
+    const resolved = await resolveSalesPrice(client, context, { priceList: master.priceList, itemId, variantId: variant?.id ?? null, uomId, documentDate: master.documentDate });
+    listUnitPrice = decimal(resolved.listPrice);
+    priceSource = resolved.source;
+    priceMissing = resolved.missing;
+    priceMessage = resolved.message;
+    priceEntryId = resolved.entryId;
   }
+  const appliedRules = [];
   const rules = await client.query(
     `SELECT id,code,adjustment_type,adjustment_value FROM tenant.sales_pricing_rules WHERE organization_id=$1 AND status='active' AND (party_id IS NULL OR party_id=$2) AND (party_type IS NULL OR party_type=$3 OR party_type='both') AND (item_id IS NULL OR item_id=$4) AND (item_group_id IS NULL OR item_group_id=(SELECT group_id FROM tenant.items WHERE id=$4)) AND (price_list_id IS NULL OR price_list_id=$5) AND minimum_quantity<=$6 AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY priority,id`,
     [
@@ -446,12 +428,13 @@ async function calculateLine(client, context, master, line, sequence, input, opt
       value: formatDecimal(value),
     });
   }
-  const requestedUnitPrice =
-    line.unitPrice == null || line.unitPrice === ""
-      ? calculatedUnitPrice
-      : decimal(line.unitPrice);
+  const manualPriceGiven = !(line.unitPrice == null || line.unitPrice === "");
+  if (priceMissing && !manualPriceGiven && !options.allowMissingPrice)
+    throw new SalesError(409, `Line ${sequence}: ${priceMessage} Enter a price, or choose another price list.`, "SALES_PRICE_MISSING");
+  const requestedUnitPrice = manualPriceGiven ? decimal(line.unitPrice) : calculatedUnitPrice;
+  if (requestedUnitPrice < 0n) throw new SalesError(400, `Line ${sequence}: the price cannot be negative.`, "SALES_PRICE_INVALID");
   // carryQuotedPrices: the price was settled (and, if overridden, authorised) on the quotation.
-  const manualOverride = options.carryQuotedPrices ? line.manualPriceOverride === true : requestedUnitPrice !== calculatedUnitPrice;
+  const manualOverride = options.carryQuotedPrices ? line.manualPriceOverride === true : requestedUnitPrice !== calculatedUnitPrice || (priceMissing && manualPriceGiven);
   if (manualOverride && !options.carryQuotedPrices) {
     requirePermission(context, "sales.price.override");
     if (!text(line.manualPriceReason, 1000))
@@ -460,19 +443,28 @@ async function calculateLine(client, context, master, line, sequence, input, opt
         `Line ${sequence} requires a manual price reason.`,
       );
   }
-  const discountPercent = decimal(line.discountPercent || 0);
-  if (discountPercent < 0n || discountPercent > decimal(100))
-    throw new SalesError(
-      400,
-      `Line ${sequence} discount must be between 0 and 100.`,
-    );
-  if (discountPercent > 0n && !options.carryQuotedPrices && !hasPermission(context, "sales.discount.apply") && !hasPermission(context, "sales.price.override"))
-    throw new SalesError(403, `Line ${sequence}: you do not have permission to give discounts.`, "SALES_DISCOUNT_FORBIDDEN");
+  // A line discount is a percentage (the default) or a fixed amount off the
+  // line; either way the line keeps the amount and the equivalent percentage.
   const gross = mul(quantity, requestedUnitPrice);
-  const discountAmount = roundMoney(
-    percent(gross, discountPercent),
-    master.currency.decimal_places,
-  );
+  const discountType = line.discountType === "amount" ? "amount" : "percent";
+  const discountValue = decimal((discountType === "amount" ? line.discountValue ?? line.discountAmount : line.discountValue ?? line.discountPercent) || 0);
+  if (discountValue < 0n)
+    throw new SalesError(400, `Line ${sequence}: the discount cannot be negative.`, "SALES_DISCOUNT_INVALID");
+  let discountAmount;
+  let discountPercent;
+  if (discountType === "amount") {
+    discountAmount = roundMoney(discountValue, master.currency.decimal_places);
+    if (discountAmount > gross)
+      throw new SalesError(400, `Line ${sequence}: the discount is more than the line amount.`, "SALES_DISCOUNT_INVALID");
+    discountPercent = gross > 0n ? div(mul(discountAmount, 100), gross) : decimal(0);
+  } else {
+    if (discountValue > decimal(100))
+      throw new SalesError(400, `Line ${sequence} discount must be between 0 and 100.`, "SALES_DISCOUNT_INVALID");
+    discountPercent = discountValue;
+    discountAmount = roundMoney(percent(gross, discountPercent), master.currency.decimal_places);
+  }
+  if (discountAmount > 0n && !options.carryQuotedPrices && !hasPermission(context, "sales.discount.apply") && !hasPermission(context, "sales.price.override"))
+    throw new SalesError(403, `Line ${sequence}: you do not have permission to give discounts.`, "SALES_DISCOUNT_FORBIDDEN");
   let netAmount = roundMoney(
     sub(gross, discountAmount),
     master.currency.decimal_places,
@@ -503,7 +495,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   let headerDiscountShare = headerDiscountGross;
   let taxableAmount = discountedNet;
   let taxAmount = decimal(0);
-  if (master.priceList?.tax_inclusive && taxRate > 0n) {
+  if (master.priceList?.taxInclusive && taxRate > 0n) {
     taxableAmount = roundMoney(
       div(mul(discountedNet, 100), add(100, taxRate)),
       master.currency.decimal_places,
@@ -576,6 +568,8 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     listUnitPrice: asDatabaseDecimal(listUnitPrice),
     unitPrice: asDatabaseDecimal(requestedUnitPrice),
     discountPercent: asDatabaseDecimal(discountPercent),
+    discountType,
+    discountValue: asDatabaseDecimal(discountValue),
     discountAmount: asDatabaseDecimal(discountAmount),
     netAmount: asDatabaseDecimal(netAmount),
     headerDiscountShare: asDatabaseDecimal(headerDiscountShare),
@@ -594,8 +588,13 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     manualPriceReason: manualOverride
       ? text(line.manualPriceReason, 1000)
       : null,
+    priceMissing: priceMissing && !manualPriceGiven,
+    priceMessage: priceMissing && !manualPriceGiven ? priceMessage : null,
     pricingTrace: {
       priceSource,
+      priceListId: master.priceList?.id ?? null,
+      priceListEntryId: priceEntryId,
+      documentDate: master.documentDate,
       listPrice: asDatabaseDecimal(listUnitPrice),
       calculatedUnitPrice: asDatabaseDecimal(calculatedUnitPrice),
       finalUnitPrice: asDatabaseDecimal(requestedUnitPrice),
@@ -621,8 +620,8 @@ export async function previewSalesDocument(
   const headerDiscountPercent = decimal(input.headerDiscountPercent || 0);
   if (headerDiscountPercent < 0n || headerDiscountPercent > decimal(100))
     throw new SalesError(400, "Header discount must be between 0 and 100.");
-  if (headerDiscountPercent > 0n && !options.carryQuotedPrices)
-    requirePermission(context, "sales.price.override");
+  if (headerDiscountPercent > 0n && !options.carryQuotedPrices && !hasPermission(context, "sales.discount.apply") && !hasPermission(context, "sales.price.override"))
+    throw new SalesError(403, "You do not have permission to give a document discount.", "SALES_DISCOUNT_FORBIDDEN");
   const lines = [];
   for (let i = 0; i < input.lines.length; i++)
     lines.push(
@@ -699,6 +698,7 @@ export async function previewSalesDocument(
     customer: {
       id: master.party.id,
       code: master.party.code,
+      customerNumber: master.party.customer_number ?? null,
       displayName: master.party.display_name,
       legalName: master.party.legal_name,
       gstin: master.party.gstin,
@@ -740,296 +740,9 @@ export async function previewSalesDocument(
   };
 }
 
-async function insertQuotationVersion(
-  client,
-  context,
-  quotationId,
-  input,
-  preview,
-) {
-  const next = await client.query(
-    `SELECT COALESCE(max(version_number),0)+1 AS version FROM tenant.sales_quotation_versions WHERE organization_id=$1 AND quotation_id=$2`,
-    [context.organizationId, quotationId],
-  );
-  const versionNumber = Number(next.rows[0].version);
-  const contentHash = sha256(
-    stable({
-      input,
-      preview: {
-        lines: preview.lines,
-        charges: preview.charges,
-        totals: preview.totals,
-      },
-    }),
-  );
-  const version = await client.query(
-    `INSERT INTO tenant.sales_quotation_versions (organization_id,quotation_id,version_number,revision_reason,currency_code,base_currency_code,exchange_rate,price_list_id,payment_term_id,billing_address_id,shipping_address_id,customer_snapshot,contact_snapshot,billing_address_snapshot,shipping_address_snapshot,payment_term_snapshot,delivery_terms,shipping_method,incoterm,place_of_supply,supply_type,internal_notes,customer_notes,terms_and_conditions,subtotal,discount_total,charge_total,tax_total,rounding_adjustment,grand_total,base_currency_total,cost_total,margin_amount,margin_percent,maximum_discount_percent,pricing_trace,tax_trace,content_hash,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36::jsonb,$37::jsonb,$38,$39) RETURNING *`,
-    [
-      context.organizationId,
-      quotationId,
-      versionNumber,
-      text(input.revisionReason, 1000),
-      preview.master.currencyCode,
-      preview.master.baseCurrencyCode,
-      asDatabaseDecimal(preview.master.exchangeRate),
-      preview.master.priceList?.id || null,
-      preview.master.paymentTerm?.id || null,
-      preview.master.billing.id,
-      preview.master.shipping.id,
-      JSON.stringify(preview.snapshots.customer),
-      JSON.stringify(preview.snapshots.contact),
-      JSON.stringify(preview.snapshots.billingAddress),
-      JSON.stringify(preview.snapshots.shippingAddress),
-      JSON.stringify(preview.snapshots.paymentTerm),
-      text(input.deliveryTerms),
-      text(input.shippingMethod),
-      text(input.incoterm, 40),
-      text(input.placeOfSupply, 80),
-      input.supplyType || "domestic",
-      text(input.internalNotes, 10000),
-      text(input.customerNotes, 10000),
-      text(input.termsAndConditions, 20000),
-      preview.totals.subtotal,
-      preview.totals.discountTotal,
-      preview.totals.chargeTotal,
-      preview.totals.taxTotal,
-      preview.totals.roundingAdjustment,
-      preview.totals.grandTotal,
-      preview.totals.baseCurrencyTotal,
-      preview.totals.costTotal,
-      preview.totals.marginAmount,
-      preview.totals.marginPercent,
-      preview.totals.maximumDiscountPercent,
-      JSON.stringify(preview.pricingTrace),
-      JSON.stringify(preview.taxTrace),
-      contentHash,
-      context.userId,
-    ],
-  );
-  const versionId = version.rows[0].id;
-  for (const line of preview.lines) {
-    const inserted = await client.query(
-      `INSERT INTO tenant.sales_quotation_lines (organization_id,quotation_version_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,manual_price_override,manual_price_reason,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34) RETURNING id`,
-      [
-        context.organizationId,
-        versionId,
-        line.sequence,
-        line.itemId,
-        line.uomId,
-        line.warehouseId,
-        line.itemCodeSnapshot,
-        line.itemNameSnapshot,
-        line.descriptionSnapshot,
-        line.hsnSacSnapshot,
-        line.uomSnapshot,
-        line.quantity,
-        line.baseQuantity,
-        line.conversionFactor,
-        line.listUnitPrice,
-        line.unitPrice,
-        line.discountPercent,
-        line.discountAmount,
-        line.netAmount,
-        line.taxAmount,
-        line.lineTotal,
-        line.standardCost,
-        line.costAmount,
-        line.marginAmount,
-        line.marginPercent,
-        line.taxCategoryId,
-        line.requestedDeliveryDate,
-        line.manualPriceOverride,
-        line.manualPriceReason,
-        JSON.stringify(line.pricingTrace),
-        JSON.stringify(line.taxTrace),
-        line.variantId,
-        line.variantSkuSnapshot,
-        context.userId,
-      ],
-    );
-    for (const tax of line.taxLines)
-      await client.query(
-        `INSERT INTO tenant.sales_quotation_tax_lines (organization_id,quotation_version_id,quotation_line_id,sequence,tax_type,label,rate,taxable_amount,tax_amount) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [
-          context.organizationId,
-          versionId,
-          inserted.rows[0].id,
-          tax.sequence,
-          tax.taxType,
-          tax.label,
-          tax.rate,
-          tax.taxableAmount,
-          tax.taxAmount,
-        ],
-      );
-  }
-  for (const charge of preview.charges)
-    await client.query(
-      `INSERT INTO tenant.sales_quotation_charges (organization_id,quotation_version_id,sequence,charge_type,label,calculation_type,value,amount,taxable,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [
-        context.organizationId,
-        versionId,
-        charge.sequence,
-        charge.chargeType,
-        charge.label,
-        charge.calculationType,
-        charge.value,
-        charge.amount,
-        charge.taxable,
-        context.userId,
-      ],
-    );
-  await client.query(
-    `UPDATE tenant.sales_quotations SET current_version_id=$1,party_id=$2,contact_id=$3,owner_user_id=$4,source_opportunity_id=COALESCE($5,source_opportunity_id),valid_until=$6,lifecycle_status='draft',approval_status='not_required',acceptance_status='not_sent',updated_by=$7,updated_at=now() WHERE organization_id=$8 AND id=$9`,
-    [
-      versionId,
-      preview.master.partyId,
-      preview.master.contact?.id || null,
-      preview.master.ownerUserId,
-      input.opportunityId || null,
-      date(input.validUntil, "Valid until", true),
-      context.userId,
-      context.organizationId,
-      quotationId,
-    ],
-  );
-  return version.rows[0];
-}
-
-// F023 (Opportunity-to-quotation conversion): the CRM->Sales handoff takes
-// an idempotency key (with sourceOpportunityId), so a double-click on the
-// Opportunity page's "Create quotation" link (or a retried request after a
-// dropped response) can never create two quotations from one Opportunity.
-// Reuses the same shared idempotency utility (services/api/src/core/
-// idempotency.js) Stock/Quality/POS/Manufacturing already use, keyed off
-// input.idempotencyKey — optional (required: false); only a caller that
-// supplies a key gets replay-safety.
-export async function createQuotation(client, context, input) {
-  requirePermission(context, "sales.quotation.create");
-  assertValidUntilNotPast(input.validUntil);
-  const preview = await previewSalesDocument(client, context, input);
-  const idempotency = await beginIdempotentOperation(
-    client,
-    context,
-    {
-      operation: "sales.quotation.create",
-      key: input.idempotencyKey,
-      payload: { ...input, idempotencyKey: undefined },
-    },
-  );
-  if (idempotency.replayed) return { ...idempotency.response, replayed: true };
-  // A quotation may only cite an Opportunity of this organization for the
-  // same customer — otherwise any id could be stamped as its source deal.
-  if (input.opportunityId) {
-    const opportunity = await client.query(
-      `SELECT party_id FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2 AND status <> 'archived'`,
-      [context.organizationId, uuid(input.opportunityId, "Opportunity")],
-    );
-    if (!opportunity.rows[0])
-      throw new SalesError(404, "The linked opportunity was not found.");
-    if (opportunity.rows[0].party_id && opportunity.rows[0].party_id !== preview.master.partyId)
-      throw new SalesError(422, "The quotation customer must match the opportunity's account.");
-  }
-  const number = await allocateNumber(
-    client,
-    context.organizationId,
-    "quotation",
-  );
-  const result = await client.query(
-    `INSERT INTO tenant.sales_quotations (organization_id,quotation_number,source_opportunity_id,party_id,contact_id,owner_user_id,valid_until,created_by,updated_by,customer_reference) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9) RETURNING id,quotation_number`,
-    [
-      context.organizationId,
-      number,
-      input.opportunityId || null,
-      preview.master.partyId,
-      preview.master.contact?.id || null,
-      preview.master.ownerUserId,
-      date(input.validUntil, "Valid until", true),
-      context.userId,
-      text(input.customerReference, 200),
-    ],
-  );
-  const quotation = result.rows[0];
-  const version = await insertQuotationVersion(
-    client,
-    context,
-    quotation.id,
-    input,
-    preview,
-  );
-  await event(
-    client,
-    context,
-    "quotation",
-    quotation.id,
-    "quotation.created",
-    null,
-    "draft",
-    { versionId: version.id, versionNumber: version.version_number },
-  );
-  const response = { ...quotation, currentVersionId: version.id, replayed: false };
-  await completeIdempotentOperation(client, context, idempotency, {
-    response,
-    aggregateType: "sales_quotation",
-    aggregateId: quotation.id,
-  });
-  return response;
-}
-export async function reviseQuotation(client, context, id, input) {
-  const quote = await lockQuotation(client, context, id);
-  requirePermission(context, quote.lifecycle_status === "draft" ? "sales.quotation.create" : "sales.quotation.revise");
-  if (["accepted", "converted", "cancelled"].includes(quote.lifecycle_status))
-    throw new SalesError(409, "This quotation can no longer be revised.");
-  if (input.expectedVersionNumber !== undefined && input.expectedVersionNumber !== null) {
-    const current = (await client.query(`SELECT version_number FROM tenant.sales_quotation_versions WHERE organization_id=$1 AND id=$2`, [context.organizationId, quote.current_version_id])).rows[0];
-    if (current && Number(current.version_number) !== Number(input.expectedVersionNumber))
-      throw new SalesError(409, "Someone else changed this quotation. Reload it and make your change again.", "SALES_QUOTATION_VERSION_CONFLICT");
-  }
-  // F037: every revision is a new immutable version; say why it changed,
-  // and keep it an offer to the same customer (a new customer is a new quotation).
-  if (!text(input.revisionReason, 1000))
-    throw new SalesError(400, "Give a reason for this revision.", "SALES_QUOTATION_REVISION_REASON_REQUIRED");
-  assertValidUntilNotPast(input.validUntil);
-  const preview = await previewSalesDocument(client, context, input);
-  if (preview.master.partyId !== quote.party_id)
-    throw new SalesError(409, "A revision cannot change the customer. Create a new quotation instead.", "SALES_QUOTATION_CUSTOMER_LOCKED");
-  await finalizeApprovalRequest(client, {
-    organizationId: context.organizationId, commandKey: "sales.quotation.approve", entityId: id,
-    decision: "cancelled", actorUserId: context.userId || null, note: "Quotation was revised.",
-  });
-  await revokeQuoteLinks(client, context, id);
-  const version = await insertQuotationVersion(
-    client,
-    context,
-    id,
-    input,
-    preview,
-  );
-  if (input.customerReference !== undefined)
-    await client.query(`UPDATE tenant.sales_quotations SET customer_reference=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, text(input.customerReference, 200)]);
-  await event(
-    client,
-    context,
-    "quotation",
-    id,
-    "quotation.revised",
-    quote.lifecycle_status,
-    "draft",
-    { versionId: version.id, versionNumber: version.version_number },
-  );
-  return version;
-}
-
-// F036/F038: an offer cannot be created or revised with a validity date in the past.
-function assertValidUntilNotPast(validUntil) {
-  const value = String(validUntil || "").slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
-  if (value && value < today)
-    throw new SalesError(422, "Valid until cannot be in the past.", "SALES_QUOTATION_VALIDITY_PAST");
-}
 // F041: an approver away on an active delegation has new requests routed to
 // their delegate; the original assignee is kept on the event trail.
-async function resolveApprover(client, context, assignedTo) {
+export async function resolveApprover(client, context, assignedTo) {
   if (!assignedTo) return { assignee: null, delegatedFrom: null };
   const delegation = (
     await client.query(
@@ -1050,21 +763,13 @@ const APPROVAL_COMMAND_FOR = Object.freeze({
   sales_order: "sales.order.approve",
   sales_order_amendment: "sales.order.amendment.approve",
 });
-async function closeApprovalRequest(client, context, entityType, entityId, status, note = null) {
+export async function closeApprovalRequest(client, context, entityType, entityId, status, note = null) {
   await finalizeApprovalRequest(client, {
     organizationId: context.organizationId, commandKey: APPROVAL_COMMAND_FOR[entityType], entityId,
     decision: status, actorUserId: context.userId || null, note,
   });
 }
 
-async function lockQuotation(client, context, id) {
-  const result = await client.query(
-    `SELECT * FROM tenant.sales_quotations WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
-    [context.organizationId, uuid(id, "Quotation")],
-  );
-  if (!result.rows[0]) throw new SalesError(404, "Quotation not found.");
-  return result.rows[0];
-}
 async function lockOrder(client, context, id) {
   const result = await client.query(
     `SELECT * FROM tenant.sales_orders WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
@@ -1097,97 +802,8 @@ async function event(
     ],
   );
 }
-async function revokeQuoteLinks(client, context, quotationId) {
-  const links = await client.query(
-    `UPDATE tenant.sales_quote_share_links SET revoked_at=COALESCE(revoked_at,now()) WHERE organization_id=$1 AND quotation_id=$2 AND revoked_at IS NULL RETURNING token_hash`,
-    [context.organizationId, quotationId],
-  );
-  for (const link of links.rows)
-    await client.query(
-      `UPDATE public.sales_public_quote_tokens SET revoked_at=COALESCE(revoked_at,now()) WHERE token_hash=$1`,
-      [link.token_hash],
-    );
-}
-
-export async function listQuotations(client, context, filters = {}) {
-  requirePermission(context, "sales.view");
-  const values = [context.organizationId];
-  let where = "";
-  if (filters.status && filters.status !== "all") {
-    values.push(filters.status);
-    where += ` AND quotation.lifecycle_status=$${values.length}`;
-  }
-  if (filters.search) {
-    values.push(`%${String(filters.search).trim()}%`);
-    where += ` AND (quotation.quotation_number ILIKE $${values.length} OR version.customer_snapshot->>'displayName' ILIKE $${values.length})`;
-  }
-  if (filters.partyId) {
-    values.push(uuid(filters.partyId, "Customer"));
-    where += ` AND quotation.party_id=$${values.length}`;
-  }
-  if (filters.opportunityId) {
-    values.push(uuid(filters.opportunityId, "Opportunity"));
-    where += ` AND quotation.source_opportunity_id=$${values.length}`;
-  }
-  where += salesDocumentVisibilitySql(context, (value) => { values.push(value); return `$${values.length}`; }, "quotation");
-  const limit = Math.min(
-    500,
-    Math.max(1, Number.parseInt(filters.limit, 10) || 200),
-  );
-  const offset = Math.max(0, Number.parseInt(filters.offset, 10) || 0);
-  values.push(limit, offset);
-  const result = await client.query(
-    `SELECT quotation.id,quotation.quotation_number,quotation.lifecycle_status,quotation.approval_status,quotation.acceptance_status,quotation.valid_until,quotation.updated_at,version.version_number,version.currency_code,version.grand_total,version.base_currency_total,version.customer_snapshot->>'displayName' AS customer_name,quotation.owner_user_id,(quotation.valid_until < current_date AND quotation.lifecycle_status IN ('draft','pending_approval','approved','sent','viewed')) AS is_expired FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1${where} ORDER BY quotation.updated_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`,
-    values,
-  );
-  return result.rows.map((row) => redactMargin(row, context));
-}
-export async function getQuotation(client, context, id, publicView = false) {
-  if (!publicView) requirePermission(context, "sales.view");
-  const result = await client.query(
-    `SELECT quotation.*,version.*,quotation.id AS quotation_id,quotation.created_at AS quotation_created_at,quotation.updated_at AS quotation_updated_at,(quotation.valid_until < current_date AND quotation.lifecycle_status IN ('draft','pending_approval','approved','sent','viewed')) AS is_expired,opportunity.code AS source_opportunity_code,opportunity.name AS source_opportunity_name FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id=quotation.organization_id AND opportunity.id=quotation.source_opportunity_id WHERE quotation.organization_id=$1 AND quotation.id=$2`,
-    [context.organizationId, uuid(id, "Quotation")],
-  );
-  const quote = result.rows[0];
-  if (!quote) throw new SalesError(404, "Quotation not found.");
-  const lines = await client.query(
-    `SELECT * FROM tenant.sales_quotation_lines WHERE organization_id=$1 AND quotation_version_id=$2 ORDER BY sequence`,
-    [context.organizationId, quote.current_version_id],
-  );
-  const charges = await client.query(
-    `SELECT * FROM tenant.sales_quotation_charges WHERE organization_id=$1 AND quotation_version_id=$2 ORDER BY sequence`,
-    [context.organizationId, quote.current_version_id],
-  );
-  const versions = publicView
-    ? []
-    : (
-        await client.query(
-          `SELECT id,version_number,revision_reason,grand_total,currency_code,created_at,created_by FROM tenant.sales_quotation_versions WHERE organization_id=$1 AND quotation_id=$2 ORDER BY version_number DESC`,
-          [context.organizationId, id],
-        )
-      ).rows;
-  const events = publicView
-    ? []
-    : (
-        await client.query(
-          `SELECT event_type,from_status,to_status,metadata,occurred_at,actor_user_id FROM tenant.sales_document_events WHERE organization_id=$1 AND entity_type='quotation' AND entity_id=$2 ORDER BY occurred_at DESC`,
-          [context.organizationId, id],
-        )
-      ).rows;
-  return redactMargin(
-    {
-      quotation: quote,
-      lines: lines.rows,
-      charges: charges.rows,
-      versions,
-      events,
-    },
-    publicView ? { permissions: [], roleSlugs: [] } : context,
-    publicView,
-  );
-}
-function redactMargin(value, context, publicView = false) {
-  if (!publicView && hasPermission(context, "sales.margin.view")) return value;
+export function redactMargin(value, context) {
+  if (hasPermission(context, "sales.margin.view")) return value;
   const protectedKeys = new Set([
     "standard_cost",
     "cost_amount",
@@ -1197,6 +813,7 @@ function redactMargin(value, context, publicView = false) {
   ]);
   function walk(item) {
     if (Array.isArray(item)) return item.map(walk);
+    if (item instanceof Date) return item;
     if (item && typeof item === "object") {
       const output = {};
       for (const [key, v] of Object.entries(item))
@@ -1208,360 +825,7 @@ function redactMargin(value, context, publicView = false) {
   return walk(value);
 }
 
-export async function submitQuotation(client, context, id, assignedTo = null) {
-  requirePermission(context, "sales.quotation.create");
-  const quote = await lockQuotation(client, context, id);
-  if (quote.lifecycle_status !== "draft")
-    throw new SalesError(409, "Only draft quotations can be submitted.");
-  const version = (
-    await client.query(
-      `SELECT grand_total,maximum_discount_percent,margin_percent FROM tenant.sales_quotation_versions WHERE organization_id=$1 AND id=$2`,
-      [context.organizationId, quote.current_version_id],
-    )
-  ).rows[0];
-  const settings =
-    (
-      await client.query(
-        `SELECT * FROM tenant.sales_settings WHERE organization_id=$1`,
-        [context.organizationId],
-      )
-    ).rows[0] || {};
-  const required =
-    (decimal(settings.quotation_approval_amount || 0) > 0n &&
-      decimal(version.grand_total) >=
-        decimal(settings.quotation_approval_amount)) ||
-    decimal(version.maximum_discount_percent) >
-      decimal(settings.quotation_approval_discount || 100) ||
-    decimal(version.margin_percent) <
-      decimal(settings.minimum_margin_percent || -100);
-  if (!required) {
-    await client.query(
-      `UPDATE tenant.sales_quotations SET lifecycle_status='approved',approval_status='not_required',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,
-      [context.userId, context.organizationId, id],
-    );
-    await event(
-      client,
-      context,
-      "quotation",
-      id,
-      "quotation.approved_automatically",
-      "draft",
-      "approved",
-      { versionId: quote.current_version_id },
-    );
-    return { approvalRequired: false };
-  }
-  const route = await resolveApprover(client, context, assignedTo);
-  const approvalId = (
-    await createApprovalRequest(client, {
-      organizationId: context.organizationId,
-      commandKey: "sales.quotation.approve",
-      entityId: id,
-      title: `Approve quotation ${quote.quotation_number}`,
-      requestedBy: context.userId,
-      assignedTo: route.assignee,
-      payload: { quotationId: id, quotationVersionId: quote.current_version_id },
-    })
-  ).id;
-  await client.query(
-    `UPDATE tenant.sales_quotations SET lifecycle_status='pending_approval',approval_status='pending',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,
-    [context.userId, context.organizationId, id],
-  );
-  await event(
-    client,
-    context,
-    "quotation",
-    id,
-    "quotation.submitted",
-    "draft",
-    "pending_approval",
-    { approvalId, versionId: quote.current_version_id, assignedTo: route.assignee, delegatedFrom: route.delegatedFrom },
-  );
-  return { approvalRequired: true, approvalId };
-}
-export async function approveQuotation(
-  client,
-  context,
-  quotationId,
-  quotationVersionId,
-) {
-  requirePermission(context, "sales.quotation.approve");
-  const quote = await lockQuotation(client, context, quotationId);
-  await assertNotSelfApproval(client, context, "sales_quotation", quotationId);
-  if (quote.current_version_id !== quotationVersionId)
-    throw new SalesError(
-      409,
-      "The quotation was revised after this approval was requested.",
-    );
-  if (quote.lifecycle_status !== "pending_approval")
-    throw new SalesError(409, "The quotation is not awaiting approval.");
-  await client.query(
-    `UPDATE tenant.sales_quotations SET lifecycle_status='approved',approval_status='approved',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,
-    [context.userId, context.organizationId, quotationId],
-  );
-  await closeApprovalRequest(client, context, "sales_quotation", quotationId, "approved");
-  await event(
-    client,
-    context,
-    "quotation",
-    quotationId,
-    "quotation.approved",
-    "pending_approval",
-    "approved",
-    { versionId: quotationVersionId },
-  );
-  return { quotationId, quotationVersionId, status: "approved" };
-}
-export async function rejectQuotationApproval(client, context, quotationId, note = null) {
-  const reason = text(note, 2000);
-  const quote = await lockQuotation(client, context, quotationId);
-  if (quote.lifecycle_status === "pending_approval") {
-    await client.query(
-      `UPDATE tenant.sales_quotations SET lifecycle_status='draft',approval_status='rejected',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,
-      [context.userId, context.organizationId, quotationId],
-    );
-    await closeApprovalRequest(client, context, "sales_quotation", quotationId, "rejected", reason);
-    await event(
-      client,
-      context,
-      "quotation",
-      quotationId,
-      "quotation.approval_rejected",
-      "pending_approval",
-      "draft",
-      { reason },
-    );
-  }
-}
-
-export async function sendQuotation(client, context, id, expiresInDays = 30) {
-  requirePermission(context, "sales.quotation.send");
-  const quote = await lockQuotation(client, context, id);
-  if (quote.lifecycle_status !== "approved")
-    throw new SalesError(409, "Only approved quotations can be sent.");
-  const validUntil = quote.valid_until ? new Date(quote.valid_until).toISOString().slice(0, 10) : null;
-  if (validUntil && validUntil < new Date().toISOString().slice(0, 10))
-    throw new SalesError(409, "This quotation's validity has passed. Revise it with a new valid-until date before sending.", "SALES_QUOTATION_EXPIRED");
-  await revokeQuoteLinks(client, context, id);
-  const token = randomBytes(32).toString("base64url"),
-    tokenHash = sha256(token);
-  // F038: the customer's link ends with the offer (end of the valid-until day),
-  // never outliving or cutting short the quoted validity.
-  const expiresAt = validUntil
-    ? new Date(`${validUntil}T23:59:59.999Z`)
-    : new Date(Date.now() + Math.max(1, Math.min(90, Number(expiresInDays || 30))) * 86400000);
-  await client.query(
-    `INSERT INTO tenant.sales_quote_share_links (organization_id,quotation_id,quotation_version_id,token_hash,expires_at,created_by) VALUES ($1,$2,$3,$4,$5,$6)`,
-    [
-      context.organizationId,
-      id,
-      quote.current_version_id,
-      tokenHash,
-      expiresAt,
-      context.userId,
-    ],
-  );
-  await client.query(
-    `INSERT INTO public.sales_public_quote_tokens (token_hash,organization_id,quotation_id,quotation_version_id,expires_at) VALUES ($1,$2,$3,$4,$5)`,
-    [
-      tokenHash,
-      context.organizationId,
-      id,
-      quote.current_version_id,
-      expiresAt,
-    ],
-  );
-  await client.query(
-    `UPDATE tenant.sales_quotations SET lifecycle_status='sent',acceptance_status='pending',sent_at=now(),sent_by=$1,sent_channel='link',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,
-    [context.userId, context.organizationId, id],
-  );
-  await event(
-    client,
-    context,
-    "quotation",
-    id,
-    "quotation.sent",
-    "approved",
-    "sent",
-    { versionId: quote.current_version_id, expiresAt },
-  );
-  return { token, expiresAt, quotationNumber: quote.quotation_number };
-}
-// Public quote links: the URL token (32 random bytes, base64url) is the
-// credential; only its SHA-256 is stored. The organisation is resolved from
-// the hash alone, with no organisation context, by
-// public.resolve_public_quote_organization (migration 068); callers then run
-// resolvePublicQuoteToken / recordPublicQuoteDecision in a tenant
-// transaction for that organisation.
-export function publicQuoteTokenHash(token) {
-  if (!/^[A-Za-z0-9_-]{43}$/.test(String(token || ""))) throw new SalesError(404, "Quotation link not found.", "SALES_PUBLIC_QUOTE_NOT_FOUND");
-  return createHash("sha256").update(String(token)).digest("hex");
-}
-
-export async function resolvePublicQuoteOrganization(queryable, tokenHash) {
-  const organizationId = (await queryable.query("SELECT public.resolve_public_quote_organization($1) AS organization_id", [tokenHash])).rows[0]?.organization_id;
-  if (!organizationId) throw new SalesError(404, "Quotation link not found.", "SALES_PUBLIC_QUOTE_NOT_FOUND");
-  return organizationId;
-}
-
-export async function resolvePublicQuoteToken(
-  client,
-  context,
-  tokenHash,
-  trackView = true,
-) {
-  const linkResult = await client.query(
-    `SELECT * FROM tenant.sales_quote_share_links WHERE organization_id=$1 AND token_hash=$2 FOR UPDATE`,
-    [context.organizationId, tokenHash],
-  );
-  const link = linkResult.rows[0];
-  if (
-    !link ||
-    link.revoked_at ||
-    new Date(link.expires_at).getTime() <= Date.now()
-  )
-    throw new SalesError(
-      410,
-      "This quotation link has expired or was revoked.",
-    );
-  const quote = await lockQuotation(client, context, link.quotation_id);
-  if (quote.current_version_id !== link.quotation_version_id)
-    throw new SalesError(410, "A newer quotation revision is available.");
-  // The share LINK's own expiry (checked above) is a separate, independently
-  // configured access window (1-90 days from send) - it says nothing about
-  // whether the quotation's own commercial offer is still valid. Without this
-  // check a customer could accept pricing/terms past valid_until as long as
-  // their link happened to still be live.
-  const validUntilDate = new Date(quote.valid_until).toISOString().slice(0, 10);
-  const todayDate = new Date().toISOString().slice(0, 10);
-  if (validUntilDate < todayDate)
-    throw new SalesError(410, "This quotation has expired.");
-  if (trackView) {
-    await client.query(
-      `UPDATE tenant.sales_quote_share_links SET first_viewed_at=COALESCE(first_viewed_at,now()),last_viewed_at=now(),view_count=view_count+1 WHERE id=$1`,
-      [link.id],
-    );
-    if (quote.lifecycle_status === "sent") {
-      await client.query(
-        `UPDATE tenant.sales_quotations SET lifecycle_status='viewed',updated_at=now() WHERE id=$1`,
-        [quote.id],
-      );
-      await event(
-        client,
-        { ...context, userId: null },
-        "quotation",
-        quote.id,
-        "quotation.viewed",
-        "sent",
-        "viewed",
-      );
-    }
-  }
-  return {
-    link,
-    quotation: await getQuotation(client, context, quote.id, true),
-  };
-}
-export async function recordPublicQuoteDecision(
-  client,
-  context,
-  tokenHash,
-  input,
-  metadata = {},
-) {
-  const resolved = await resolvePublicQuoteToken(
-    client,
-    context,
-    tokenHash,
-    false,
-  );
-  const decision = input.decision;
-  if (!["accepted", "rejected"].includes(decision))
-    throw new SalesError(400, "Choose accept or reject.");
-  const name = text(input.customerName, 200);
-  if (!name) throw new SalesError(400, "Customer name is required.");
-  const quote = resolved.quotation.quotation;
-  const existing = await client.query(
-    `SELECT 1 FROM tenant.sales_quote_decisions WHERE organization_id=$1 AND quotation_id=$2`,
-    [context.organizationId, quote.quotation_id],
-  );
-  if (existing.rows[0])
-    throw new SalesError(409, "A decision has already been recorded.");
-  await client.query(
-    `INSERT INTO tenant.sales_quote_decisions (organization_id,quotation_id,quotation_version_id,share_link_id,decision,customer_name,customer_email,customer_title,typed_signature,note,ip_address,user_agent,recorded_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-    [
-      context.organizationId,
-      quote.quotation_id,
-      quote.current_version_id,
-      resolved.link.id,
-      decision,
-      name,
-      text(input.customerEmail, 320),
-      text(input.customerTitle, 160),
-      text(input.typedSignature, 300),
-      text(input.note, 4000),
-      metadata.ipAddress || null,
-      metadata.userAgent || null,
-      context.userId || null,
-    ],
-  );
-  await client.query(
-    `UPDATE tenant.sales_quotations SET lifecycle_status=$1,acceptance_status=$1,accepted_at=CASE WHEN $1='accepted' THEN now() ELSE accepted_at END,rejected_at=CASE WHEN $1='rejected' THEN now() ELSE rejected_at END,updated_by=COALESCE($2,updated_by),updated_at=now() WHERE organization_id=$3 AND id=$4`,
-    [
-      decision,
-      context.userId || null,
-      context.organizationId,
-      quote.quotation_id,
-    ],
-  );
-  await revokeQuoteLinks(client, context, quote.quotation_id);
-  await event(
-    client,
-    context,
-    "quotation",
-    quote.quotation_id,
-    `quotation.${decision}`,
-    quote.lifecycle_status,
-    decision,
-    { versionId: quote.current_version_id, customerName: name },
-  );
-  return { quotationId: quote.quotation_id, decision };
-}
-
-// F038 gap: valid_until was stored and reportable but nothing ever
-// transitioned a quotation to 'expired' - only an offer actively presented
-// to a customer (approved/sent/viewed, never a draft that was never sent)
-// can go stale. Naturally idempotent: the same WHERE clause that selects a
-// row is what excludes it from a later run, so a retried/concurrent scan
-// can't double-fire the same transition (same pattern as
-// scanLeadSlaBreaches/detectOverdueActivitiesHandler on the CRM side).
-export async function scanExpiredQuotations(client, context) {
-  requirePermission(context, "sales.settings.manage");
-  const result = await client.query(
-    `UPDATE tenant.sales_quotations
-        SET lifecycle_status='expired',acceptance_status=CASE WHEN acceptance_status='pending' THEN 'expired' ELSE acceptance_status END,updated_at=now()
-      WHERE organization_id=$1 AND lifecycle_status IN ('approved','sent','viewed')
-        AND valid_until < current_date
-      RETURNING id,current_version_id`,
-    [context.organizationId],
-  );
-  for (const row of result.rows) {
-    await revokeQuoteLinks(client, context, row.id);
-    await event(
-      client,
-      { ...context, userId: null },
-      "quotation",
-      row.id,
-      "quotation.expired",
-      null,
-      "expired",
-      { versionId: row.current_version_id },
-    );
-  }
-  return { scanned: result.rowCount ?? result.rows.length, expired: result.rows.length };
-}
-
-async function insertOrderFromPreview(
+export async function insertOrderFromPreview(
   client,
   context,
   input,
@@ -1601,7 +865,7 @@ async function insertOrderFromPreview(
     }),
   );
   const versionResult = await client.query(
-    `INSERT INTO tenant.sales_order_versions (organization_id,sales_order_id,version_number,amendment_reason,currency_code,base_currency_code,exchange_rate,price_list_id,payment_term_id,billing_address_id,shipping_address_id,customer_snapshot,contact_snapshot,billing_address_snapshot,shipping_address_snapshot,payment_term_snapshot,customer_po_number,customer_po_date,priority,delivery_terms,shipping_method,incoterm,place_of_supply,supply_type,internal_notes,customer_notes,terms_and_conditions,subtotal,discount_total,charge_total,tax_total,rounding_adjustment,grand_total,base_currency_total,cost_total,margin_amount,margin_percent,pricing_trace,tax_trace,content_hash,created_by) VALUES ($1,$2,1,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37::jsonb,$38::jsonb,$39,$40) RETURNING *`,
+    `INSERT INTO tenant.sales_order_versions (organization_id,sales_order_id,version_number,amendment_reason,currency_code,base_currency_code,exchange_rate,price_list_id,payment_term_id,billing_address_id,shipping_address_id,customer_snapshot,contact_snapshot,billing_address_snapshot,shipping_address_snapshot,payment_term_snapshot,customer_po_number,customer_po_date,priority,delivery_terms,shipping_method,incoterm,place_of_supply,supply_type,internal_notes,customer_notes,terms_and_conditions,subtotal,discount_total,charge_total,tax_total,rounding_adjustment,grand_total,base_currency_total,cost_total,margin_amount,margin_percent,pricing_trace,tax_trace,content_hash,created_by,header_discount_percent) VALUES ($1,$2,1,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37::jsonb,$38::jsonb,$39,$40,$41) RETURNING *`,
     [
       context.organizationId,
       order.id,
@@ -1643,12 +907,13 @@ async function insertOrderFromPreview(
       JSON.stringify(preview.taxTrace),
       contentHash,
       context.userId,
+      preview.totals.headerDiscountPercent,
     ],
   );
   const version = versionResult.rows[0];
   for (const line of preview.lines) {
     const inserted = await client.query(
-      `INSERT INTO tenant.sales_order_lines (organization_id,sales_order_version_id,source_quotation_line_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34) RETURNING id`,
+      `INSERT INTO tenant.sales_order_lines (organization_id,sales_order_version_id,source_quotation_line_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by,discount_type,discount_value) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34,$35,$36) RETURNING id`,
       [
         context.organizationId,
         version.id,
@@ -1684,6 +949,8 @@ async function insertOrderFromPreview(
         line.variantId,
         line.variantSkuSnapshot,
         context.userId,
+        line.discountType ?? "percent",
+        line.discountValue ?? line.discountPercent ?? 0,
       ],
     );
     await client.query(
@@ -1729,85 +996,6 @@ export async function createSalesOrder(client, context, input) {
   });
   return insertOrderFromPreview(client, context, input, preview);
 }
-export async function convertQuotationToOrder(client, context, id) {
-  requirePermission(context, "sales.order.create");
-  const quote = await lockQuotation(client, context, id);
-  if (quote.converted_order_id)
-    return { orderId: quote.converted_order_id, idempotent: true };
-  if (quote.lifecycle_status !== "accepted")
-    throw new SalesError(409, "Only an accepted quotation can be converted.");
-  const detail = await getQuotation(client, context, id);
-  const q = detail.quotation;
-  const input = {
-    partyId: q.party_id,
-    contactId: q.contact_id,
-    opportunityId: q.source_opportunity_id,
-    ownerUserId: q.owner_user_id,
-    currencyCode: q.currency_code,
-    exchangeRate: q.exchange_rate,
-    priceListId: q.price_list_id,
-    paymentTermId: q.payment_term_id,
-    billingAddressId: q.billing_address_id,
-    shippingAddressId: q.shipping_address_id,
-    requestedDeliveryDate: null,
-    deliveryTerms: q.delivery_terms,
-    shippingMethod: q.shipping_method,
-    incoterm: q.incoterm,
-    placeOfSupply: q.place_of_supply,
-    supplyType: q.supply_type,
-    internalNotes: q.internal_notes,
-    customerNotes: q.customer_notes,
-    termsAndConditions: q.terms_and_conditions,
-    lines: detail.lines.map((line) => ({
-      itemId: line.item_id,
-      uomId: line.uom_id,
-      warehouseId: line.warehouse_id,
-      description: line.description_snapshot,
-      quantity: line.quantity,
-      unitPrice: line.unit_price,
-      discountPercent: line.discount_percent,
-      requestedDeliveryDate: line.requested_delivery_date,
-      manualPriceOverride: line.manual_price_override,
-      manualPriceReason: line.manual_price_reason,
-    })),
-    charges: detail.charges.map((charge) => ({
-      chargeType: charge.charge_type,
-      label: charge.label,
-      calculationType: charge.calculation_type,
-      value: charge.value,
-      taxable: charge.taxable,
-    })),
-  };
-  const preview = await previewSalesDocument(client, context, input, {
-    order: true,
-    carryQuotedPrices: true,
-  });
-  const order = await insertOrderFromPreview(client, context, input, preview, {
-    quotationId: id,
-    quotationVersionId: quote.current_version_id,
-    opportunityId: quote.source_opportunity_id,
-  });
-  const updated = await client.query(
-    `UPDATE tenant.sales_quotations SET lifecycle_status='converted',converted_order_id=$1,updated_by=$2,updated_at=now() WHERE organization_id=$3 AND id=$4 AND converted_order_id IS NULL RETURNING id`,
-    [order.id, context.userId, context.organizationId, id],
-  );
-  if (!updated.rows[0]) {
-    const latest = await lockQuotation(client, context, id);
-    return { orderId: latest.converted_order_id, idempotent: true };
-  }
-  await event(
-    client,
-    context,
-    "quotation",
-    id,
-    "quotation.converted",
-    "accepted",
-    "converted",
-    { orderId: order.id },
-  );
-  return { orderId: order.id, idempotent: false };
-}
-
 export async function listSalesOrders(client, context, filters = {}) {
   requirePermission(context, "sales.view");
   const values = [context.organizationId];
@@ -2555,7 +1743,7 @@ export async function createInvoiceRequest(client, context, id, input) {
 export async function getSalesDashboard(client, context) {
   requirePermission(context, "sales.view");
   const result = await client.query(
-    `SELECT (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('draft','pending_approval','approved','sent','viewed')) AS active_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('sent','viewed') AND valid_until<=current_date+7) AS expiring_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending') AS pending_quote_approvals,(SELECT COALESCE(sum(version.base_currency_total),0) FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.lifecycle_status='confirmed') AS confirmed_order_value,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status='on_hold') AS orders_on_hold,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND billing_status='ready') AS ready_to_invoice`,
+    `SELECT (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('draft','pending_approval','approved','sent')) AS active_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('approved','sent') AND valid_until>=current_date AND valid_until<=current_date+7) AS expiring_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending') AS pending_quote_approvals,(SELECT COALESCE(sum(version.base_currency_total),0) FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.lifecycle_status='confirmed') AS confirmed_order_value,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status='on_hold') AS orders_on_hold,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND billing_status='ready') AS ready_to_invoice`,
     [context.organizationId],
   );
   return result.rows[0];
@@ -2572,7 +1760,7 @@ export async function getSalesReport(client, context, key) {
   ]);
   if (!allowed.has(key)) throw new SalesError(404, "Unknown Sales report.");
   const queries = {
-    "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('sent','viewed') AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,
+    "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('approved','sent') AND quotation.valid_until>=current_date AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,
     "pending-approvals": `SELECT id,quotation_number,lifecycle_status,approval_status,updated_at FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending' ORDER BY updated_at`,
     "active-holds": `SELECT hold.id,sales_order.id AS sales_order_id,sales_order.sales_order_number,hold.hold_type,hold.reason,hold.placed_at FROM tenant.sales_order_holds hold JOIN tenant.sales_orders sales_order ON sales_order.id=hold.sales_order_id WHERE hold.organization_id=$1 AND hold.status='active' ORDER BY hold.placed_at`,
     fulfillment: `SELECT id AS sales_order_id,sales_order_number,fulfillment_status,requested_delivery_date,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status IN ('confirmed','on_hold') ORDER BY requested_delivery_date NULLS LAST`,
@@ -2692,7 +1880,7 @@ export async function getSalesOptions(
       [context.organizationId],
     ),
     client.query(
-      `SELECT id,code,name,currency_code,tax_inclusive FROM tenant.price_lists WHERE organization_id=$1 AND price_list_type='sales' AND status='active' ORDER BY name`,
+      `SELECT id,code,name,currency_code,tax_inclusive,is_default FROM tenant.price_lists WHERE organization_id=$1 AND price_list_type='sales' AND status='active' AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY is_default DESC,name`,
       [context.organizationId],
     ),
     client.query(
@@ -2823,10 +2011,10 @@ export async function amendSalesOrder(client, context, id, input) {
        customer_po_number,customer_po_date,priority,delivery_terms,shipping_method,incoterm,place_of_supply,supply_type,
        internal_notes,customer_notes,terms_and_conditions,subtotal,discount_total,charge_total,tax_total,
        rounding_adjustment,grand_total,base_currency_total,cost_total,margin_amount,margin_percent,
-       pricing_trace,tax_trace,content_hash,created_by
+       pricing_trace,tax_trace,content_hash,created_by,header_discount_percent
      ) VALUES (
        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,$16::jsonb,
-       $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38::jsonb,$39::jsonb,$40,$41
+       $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38::jsonb,$39::jsonb,$40,$41,$42
      ) RETURNING *`,
     [
       context.organizationId,
@@ -2870,6 +2058,7 @@ export async function amendSalesOrder(client, context, id, input) {
       JSON.stringify(preview.taxTrace),
       contentHash,
       context.userId,
+      preview.totals.headerDiscountPercent,
     ],
   );
   const version = versionResult.rows[0];
@@ -2880,8 +2069,8 @@ export async function amendSalesOrder(client, context, id, input) {
         item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,
         base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,
         tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,
-        requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34) RETURNING id`,
+        requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by,discount_type,discount_value
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34,$35,$36) RETURNING id`,
       [
         context.organizationId,
         version.id,
@@ -2917,6 +2106,8 @@ export async function amendSalesOrder(client, context, id, input) {
         line.variantId,
         line.variantSkuSnapshot,
         context.userId,
+        line.discountType ?? "percent",
+        line.discountValue ?? line.discountPercent ?? 0,
       ],
     );
     await client.query(
@@ -3243,13 +2434,10 @@ export async function completeFulfillmentRequest(
   return getSalesOrder(client, context, request.sales_order_id);
 }
 
-// pass1-operations.js: price-list-item management, customer-specific
-// pricing rules, sales advances, drop-ship requests and commission accrual.
-// upsertSalesCustomerPrice is the ONLY way to create a
-// tenant.sales_pricing_rules row, which POS customer-sensitive pricing
-// (F275) reads.
+// pass1-operations.js: sales settings, advances, drop-ship requests and
+// commission accrual. price-lists/: price lists and the one price resolver.
 export * from "./pass1-operations.js";
-export * from "./price-lists.js";
+export * from "./price-lists/index.js";
 export * from "./order-execution.js";
 export * from "./after-sales.js";
-export * from "./quotation-lifecycle.js";
+export * from "./quotations/index.js";

@@ -4,7 +4,7 @@ import { markQuotationSent } from "@vercentlabs/api";
 
 import { salesMutation } from "@/features/sales/shared/route-helpers";
 
-// The quotation went out by another channel (WhatsApp, the customer's email, in person).
+// The quotation went out another way (in person, WhatsApp, the customer's own email).
 const schema = z.object({ recipient: z.string().max(320).optional(), note: z.string().max(1000).optional() });
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import {
+  AlertDialog,
   Button,
   ErrorState,
   IconButton,
@@ -39,10 +40,12 @@ import {
 } from "@/features/sales/shared/SalesUi";
 import {
   createSalesQuotation,
+  getQuotationDefaults,
   getSalesOptions,
   getSalesQuotation,
   previewSalesDocument,
-  reviseSalesQuotation,
+  updateSalesQuotation,
+  type QuotationDefaults,
   type SalesDocumentInput,
   type SalesQuotationDetail,
 } from "@/features/sales/quotations/api/quotations-api";
@@ -53,8 +56,12 @@ type LineDraft = {
   variantId: string;
   uomId: string;
   quantity: number;
-  discountPercent: number;
+  discountType: "percent" | "amount";
+  discountValue: number;
   description: string;
+  // "" means the price list price; anything else is a manual price.
+  unitPrice: string;
+  priceReason: string;
 };
 type ChargeDraft = {
   key: number;
@@ -66,12 +73,14 @@ type ChargeDraft = {
 let draftKey = 0;
 const nextKey = () => ++draftKey;
 
-const isoInDays = (days: number) =>
-  new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+const emptyLine = (): LineDraft => ({
+  key: nextKey(), itemId: "", variantId: "", uomId: "", quantity: 1, discountType: "percent", discountValue: 0, description: "", unitPrice: "", priceReason: "",
+});
 
-// F036/F037/F039/F040 -- create a quotation, or revise an existing one into a
-// new immutable version. The totals on the right come from the server's own
-// previewSalesDocument (the same pricing/tax/discount code that will run on
+// Create a quotation (Sales → Quotations → New), or edit a Draft. Each save
+// of a draft is kept as a version; a confirmed quotation is changed through
+// a revision. The totals on the right come from the server's own
+// previewSalesDocument (the same pricing/tax/discount code that runs on
 // save), debounced -- the browser never computes a price, so what you see is
 // what is stored.
 export function SalesQuotationFormScreen({
@@ -86,7 +95,7 @@ export function SalesQuotationFormScreen({
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const revising = Boolean(quotationId);
+  const editing = Boolean(quotationId);
 
   const optionsQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "sales", "options"),
@@ -95,10 +104,14 @@ export function SalesQuotationFormScreen({
   const existingQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "sales", "quotation", quotationId),
     queryFn: () => getSalesQuotation(quotationId!).then((r) => r.quotation),
-    enabled: revising,
+    enabled: editing,
+  });
+  const defaultsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "sales", "quotation-defaults"),
+    queryFn: () => getQuotationDefaults().then((r) => r.defaults),
   });
 
-  if (optionsQuery.isLoading || (revising && existingQuery.isLoading))
+  if (optionsQuery.isLoading || defaultsQuery.isLoading || (editing && existingQuery.isLoading))
     return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
   if (optionsQuery.isError || !optionsQuery.data)
     return (
@@ -107,7 +120,14 @@ export function SalesQuotationFormScreen({
         action={{ label: "Retry", onPress: () => optionsQuery.refetch() }}
       />
     );
-  if (revising && (existingQuery.isError || !existingQuery.data))
+  if (defaultsQuery.isError || !defaultsQuery.data)
+    return (
+      <ErrorState
+        title="Could not load the form"
+        action={{ label: "Retry", onPress: () => defaultsQuery.refetch() }}
+      />
+    );
+  if (editing && (existingQuery.isError || !existingQuery.data))
     return (
       <ErrorState
         title="Could not load this quotation"
@@ -119,6 +139,7 @@ export function SalesQuotationFormScreen({
     <FormBody
       key={quotationId ?? `new-${initialPartyId ?? ""}`}
       options={optionsQuery.data}
+      defaults={defaultsQuery.data}
       existing={existingQuery.data ?? null}
       quotationId={quotationId}
       initialPartyId={initialPartyId}
@@ -151,6 +172,7 @@ export function SalesQuotationFormScreen({
 
 function FormBody({
   options,
+  defaults,
   existing,
   quotationId,
   initialPartyId,
@@ -166,6 +188,7 @@ function FormBody({
         : never
       : never
   >;
+  defaults: QuotationDefaults;
   existing: SalesQuotationDetail | null;
   quotationId?: string;
   initialPartyId?: string;
@@ -175,7 +198,9 @@ function FormBody({
   onCustomerCreated: (customerId: string) => void;
 }) {
   const workspace = useWorkspaceContext();
-  const revising = Boolean(quotationId);
+  const editing = Boolean(quotationId);
+  // A revision stays an offer to the same customer.
+  const customerLocked = Boolean(existing && existing.quotation.revision_number > 0);
   const canCreateCustomer =
     workspace.roleSlugs.includes("organization_owner") ||
     workspace.permissions.includes("sales.customers.create");
@@ -226,29 +251,41 @@ function FormBody({
     existing?.quotation.currency_code ?? baseCurrency,
   );
   const [priceListId, setPriceListId] = useState(
-    existing?.quotation.price_list_id ??
-      options.parties.find((party) => party.id === partyId)
-        ?.default_price_list_id ??
-      "",
+    existing?.quotation.price_list_id ?? "",
   );
+  // A price list change waiting for "re-price the lines?"
+  const [pendingPriceList, setPendingPriceList] = useState<string | null>(null);
+  const canOverridePrice =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes("sales.price.override");
   const [paymentTermId, setPaymentTermId] = useState(
     existing?.quotation.payment_term_id ?? "",
   );
-  const [validUntil, setValidUntil] = useState(
-    existing?.quotation.valid_until?.slice(0, 10) ??
-      isoInDays(options.settings?.default_quote_validity_days ?? 30),
+  const [quotationDate, setQuotationDate] = useState(
+    existing?.quotation.quotation_date?.slice(0, 10) ?? defaults.quotationDate,
   );
-  const [headerDiscount, setHeaderDiscount] = useState(0);
+  const [validUntil, setValidUntil] = useState(
+    existing?.quotation.valid_until?.slice(0, 10) ?? defaults.validUntil,
+  );
+  const [ownerUserId, setOwnerUserId] = useState(
+    existing?.quotation.owner_user_id ?? workspace.userId ?? "",
+  );
+  const [customerReference, setCustomerReference] = useState(
+    existing?.quotation.customer_reference ?? "",
+  );
+  const [headerDiscount, setHeaderDiscount] = useState(
+    Number(existing?.quotation.header_discount_percent ?? 0),
+  );
   const [customerNotes, setCustomerNotes] = useState(
     existing?.quotation.customer_notes ?? "",
   );
   const [internalNotes, setInternalNotes] = useState(
     existing?.quotation.internal_notes ?? "",
   );
+  // A new quotation starts with the company's standard terms.
   const [terms, setTerms] = useState(
-    existing?.quotation.terms_and_conditions ?? "",
+    existing ? existing.quotation.terms_and_conditions ?? "" : defaults.termsAndConditions ?? "",
   );
-  const [revisionReason, setRevisionReason] = useState("");
   const initialParty = options.parties.find((party) => party.id === partyId);
   const [shippingMethod, setShippingMethod] = useState(
     existing?.quotation.shipping_method ??
@@ -275,20 +312,13 @@ function FormBody({
           variantId: line.variant_id ?? "",
           uomId: line.uom_id ?? "",
           quantity: Number(line.quantity),
-          discountPercent: Number(line.discount_percent),
+          discountType: line.discount_type === "amount" ? "amount" : "percent",
+          discountValue: Number(line.discount_type === "amount" ? line.discount_value : line.discount_percent),
           description: line.description_snapshot ?? "",
+          unitPrice: line.manual_price_override ? String(Number(line.unit_price)) : "",
+          priceReason: line.manual_price_reason ?? "",
         }))
-      : [
-          {
-            key: nextKey(),
-            itemId: "",
-            variantId: "",
-            uomId: "",
-            quantity: 1,
-            discountPercent: 0,
-            description: "",
-          },
-        ],
+      : [emptyLine()],
   );
   const [charges, setCharges] = useState<ChargeDraft[]>(() =>
     (existing?.charges ?? []).map((charge) => ({
@@ -384,11 +414,12 @@ function FormBody({
     }),
   );
   const priceListOptions: SelectOption[] = [
-    { value: "", label: "Organisation default price list" },
+    { value: "", label: "Customer's price list, else the default" },
     ...options.priceLists
-      .filter((list) => list.currency_code === currencyCode)
-      .map((list) => ({ value: list.id, label: list.name })),
+      .filter((list) => list.currency_code.trim() === currencyCode)
+      .map((list) => ({ value: list.id, label: `${list.name}${list.is_default ? " (default)" : ""}` })),
   ];
+  const ownerOptions: SelectOption[] = options.users.map((user) => ({ value: user.id, label: user.full_name }));
   const paymentTermOptions: SelectOption[] = [
     { value: "", label: "Customer default" },
     ...options.paymentTerms.map((term) => ({
@@ -404,7 +435,7 @@ function FormBody({
     // user can still change either, and the server validates the combination.
     if (party?.currency_code) setCurrencyCode(party.currency_code);
     if (party?.payment_term_id) setPaymentTermId(party.payment_term_id);
-    setPriceListId(party?.default_price_list_id ?? "");
+    setPriceListId("");
     setShippingMethod(party?.default_shipping_method ?? "");
     setDeliveryTerms(party?.default_delivery_terms ?? "");
     setIncoterm(party?.default_incoterm ?? "");
@@ -428,7 +459,10 @@ function FormBody({
     if (!partyId || !currencyCode || validLines.length === 0) return null;
     return {
       partyId,
-      contactId: contactId || undefined,
+      contactId: contactId || null,
+      ownerUserId: ownerUserId || undefined,
+      quotationDate: quotationDate || null,
+      customerReference: customerReference.trim() || null,
       billingAddressId: billingAddressId || undefined,
       shippingAddressId: shippingAddressId || undefined,
       currencyCode,
@@ -438,8 +472,7 @@ function FormBody({
       headerDiscountPercent: headerDiscount || undefined,
       customerNotes: customerNotes || undefined,
       internalNotes: internalNotes || undefined,
-      termsAndConditions: terms || undefined,
-      revisionReason: revisionReason || undefined,
+      termsAndConditions: terms,
       shippingMethod: shippingMethod || undefined,
       deliveryTerms: deliveryTerms || undefined,
       incoterm: incoterm || undefined,
@@ -449,8 +482,11 @@ function FormBody({
         variantId: line.variantId || undefined,
         uomId: line.uomId || undefined,
         description: line.description.trim() || undefined,
+        ...(line.unitPrice.trim() !== "" && Number.isFinite(Number(line.unitPrice))
+          ? { unitPrice: Number(line.unitPrice), manualPriceReason: line.priceReason.trim() || undefined }
+          : {}),
         quantity: line.quantity,
-        discountPercent: line.discountPercent || undefined,
+        ...(line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
       })),
       charges: charges
         .filter((charge) => charge.value > 0)
@@ -468,12 +504,14 @@ function FormBody({
     currencyCode,
     priceListId,
     paymentTermId,
+    ownerUserId,
+    quotationDate,
+    customerReference,
     validUntil,
     headerDiscount,
     customerNotes,
     internalNotes,
     terms,
-    revisionReason,
     shippingMethod,
     deliveryTerms,
     incoterm,
@@ -509,8 +547,8 @@ function FormBody({
           "Choose a customer and add at least one item.",
           400,
         );
-      if (quotationId) {
-        await reviseSalesQuotation(quotationId, input);
+      if (quotationId && existing) {
+        await updateSalesQuotation(quotationId, { ...input, expectedVersionNumber: existing.quotation.version_number });
         return quotationId;
       }
       const result = await createSalesQuotation({ ...input, idempotencyKey });
@@ -542,14 +580,14 @@ function FormBody({
     <div className="flex flex-col gap-6">
       <PageHeader
         title={
-          revising
-            ? `Revise ${existing?.quotation.quotation_number}`
+          editing
+            ? `Edit ${existing?.quotation.quotation_number}`
             : "New quotation"
         }
         description={
-          revising
-            ? "Saving creates a new version. Earlier versions stay exactly as they were sent."
-            : "Build a priced offer. Totals update as you edit and are calculated by the server."
+          editing
+            ? "A draft can be changed until it is confirmed. Each save is kept in the quotation's history."
+            : "Build a priced offer for a customer. Totals update as you edit and are calculated by the server."
         }
         secondaryActions={
           <Button variant="secondary" onPress={onCancel}>
@@ -561,13 +599,9 @@ function FormBody({
             variant="primary"
             onPress={() => saveMutation.mutate()}
             isLoading={saveMutation.isPending}
-            isDisabled={
-              !input ||
-              Boolean(previewError) ||
-              (revising && !revisionReason.trim())
-            }
+            isDisabled={!input || Boolean(previewError)}
           >
-            {revising ? "Save new version" : "Save quotation"}
+            {editing ? "Save changes" : "Save draft"}
           </Button>
         }
       />
@@ -585,9 +619,9 @@ function FormBody({
                 selectedKey={partyId || null}
                 onSelectionChange={(key) => selectParty(String(key ?? ""))}
                 placeholder="Select a customer"
-                isDisabled={revising}
+                isDisabled={customerLocked}
                 description={
-                  !revising && canCreateCustomer ? (
+                  !editing && canCreateCustomer ? (
                     <button
                       type="button"
                       className="text-brand underline-offset-2 hover:underline"
@@ -624,6 +658,15 @@ function FormBody({
                 isDisabled={!partyId}
               />
               <TextField
+                label="Quotation date"
+                type="date"
+                isRequired
+                value={quotationDate}
+                onChange={setQuotationDate}
+                isDisabled={!defaults.canChangeDate}
+                description={defaults.canChangeDate ? undefined : "Today. Only an authorised user can change it."}
+              />
+              <TextField
                 label="Valid until"
                 type="date"
                 isRequired
@@ -643,7 +686,17 @@ function FormBody({
                 label="Price list"
                 options={priceListOptions}
                 selectedKey={priceListId}
-                onSelectionChange={(key) => setPriceListId(String(key ?? ""))}
+                description={
+                  preview?.priceList
+                    ? `Pricing from ${preview.priceList.name}${preview.priceList.basis === "customer" ? " (the customer's list)" : preview.priceList.basis === "default" ? " (the default list)" : ""}, ${preview.priceList.taxInclusive ? "tax inclusive" : "tax exclusive"}.`
+                    : partyId ? "No price list for this currency: products use their default price." : undefined
+                }
+                onSelectionChange={(key) => {
+                  const next = String(key ?? "");
+                  if (next === priceListId) return;
+                  if (validLines.length) setPendingPriceList(next);
+                  else setPriceListId(next);
+                }}
               />
               <Select
                 label="Payment terms"
@@ -651,12 +704,23 @@ function FormBody({
                 selectedKey={paymentTermId}
                 onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))}
               />
-              {revising && (
+              <Select
+                label="Owner"
+                options={ownerOptions}
+                selectedKey={ownerUserId || null}
+                onSelectionChange={(key) => setOwnerUserId(String(key ?? ""))}
+              />
+              <TextField
+                label="Customer reference"
+                description="The customer's enquiry or RFQ number."
+                value={customerReference}
+                onChange={setCustomerReference}
+              />
+              {existing?.quotation.source_opportunity_name && (
                 <TextField
-                  label="Reason for this revision"
-                  isRequired
-                  value={revisionReason}
-                  onChange={setRevisionReason}
+                  label="Opportunity"
+                  value={`${existing.quotation.source_opportunity_code ?? ""} ${existing.quotation.source_opportunity_name}`.trim()}
+                  isReadOnly
                 />
               )}
             </div>
@@ -697,18 +761,7 @@ function FormBody({
                 variant="secondary"
                 size="compact"
                 onPress={() =>
-                  setLines((current) => [
-                    ...current,
-                    {
-                      key: nextKey(),
-                      itemId: "",
-                      variantId: "",
-                      uomId: "",
-                      quantity: 1,
-                      discountPercent: 0,
-                      description: "",
-                    },
-                  ])
+                  setLines((current) => [...current, emptyLine()])
                 }
               >
                 <Plus className="size-3.5" aria-hidden="true" />
@@ -770,17 +823,27 @@ function FormBody({
                       minValue={0}
                       step={1}
                     />
-                    <NumberField
-                      aria-label={`Discount ${index + 1}`}
-                      label={index === 0 ? "Discount %" : undefined}
-                      value={line.discountPercent}
-                      onChange={(value) =>
-                        updateLine(line.key, { discountPercent: value })
-                      }
-                      minValue={0}
-                      maxValue={100}
-                      step={1}
-                    />
+                    <div className="grid grid-cols-[minmax(0,1fr)_4.5rem] items-end gap-1">
+                      <NumberField
+                        aria-label={`Discount ${index + 1}`}
+                        label={index === 0 ? "Discount" : undefined}
+                        value={line.discountValue}
+                        onChange={(value) =>
+                          updateLine(line.key, { discountValue: value })
+                        }
+                        minValue={0}
+                        maxValue={line.discountType === "percent" ? 100 : undefined}
+                        step={line.discountType === "percent" ? 1 : 0.01}
+                      />
+                      <Select
+                        aria-label={`Discount type ${index + 1}`}
+                        options={[{ value: "percent", label: "%" }, { value: "amount", label: currencyCode }]}
+                        selectedKey={line.discountType}
+                        onSelectionChange={(key) =>
+                          updateLine(line.key, { discountType: key === "amount" ? "amount" : "percent" })
+                        }
+                      />
+                    </div>
                     <IconButton
                       aria-label={`Remove item ${index + 1}`}
                       variant="ghost"
@@ -804,8 +867,34 @@ function FormBody({
                         onChange={(value) => updateLine(line.key, { description: value })}
                       />
                     )}
+                    {priced?.priceMissing && (
+                      <p role="alert" className="rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-2 py-1 text-xs text-warning sm:col-span-6">
+                        {priced.priceMessage}{" "}
+                        {canOverridePrice ? "Enter a price below, or choose another price list." : "Choose another price list, or ask someone who may set prices."}
+                      </p>
+                    )}
+                    {line.itemId && canOverridePrice && (
+                      <div className="grid grid-cols-1 gap-2 sm:col-span-6 sm:grid-cols-[12rem_minmax(0,1fr)]">
+                        <TextField
+                          aria-label={`Unit price ${index + 1}`}
+                          placeholder={priced && !priced.priceMissing ? `List price ${money(currencyCode, priced.listUnitPrice)}` : "Unit price"}
+                          inputMode="decimal"
+                          value={line.unitPrice}
+                          onChange={(value) => updateLine(line.key, { unitPrice: value.replace(/[^0-9.]/g, "") })}
+                        />
+                        {line.unitPrice.trim() !== "" && (
+                          <TextField
+                            aria-label={`Reason for the price ${index + 1}`}
+                            placeholder="Why this price? (required)"
+                            value={line.priceReason}
+                            onChange={(value) => updateLine(line.key, { priceReason: value })}
+                          />
+                        )}
+                      </div>
+                    )}
                     {priced && (
                       <p className="text-xs text-text-muted sm:col-span-6">
+                        {priced.manualPriceOverride ? `List ${money(currencyCode, priced.listUnitPrice)} · overridden to ` : ""}
                         {money(currencyCode, priced.unitPrice)} each · net{" "}
                         {money(currencyCode, priced.netAmount)} · tax{" "}
                         {money(currencyCode, priced.taxAmount)} · line total{" "}
@@ -822,7 +911,7 @@ function FormBody({
 
           <SalesPanel
             title="Charges & discount"
-            description="Freight, handling, or a whole-document discount (which needs price-override permission)."
+            description="Freight, handling, or a discount on the whole document (needs the discount permission)."
             actions={
               <Button
                 variant="secondary"
@@ -1003,6 +1092,18 @@ function FormBody({
         onCreated={(customer) => {
           setCreatingCustomer(false);
           onCustomerCreated(customer.id);
+        }}
+      />
+      <AlertDialog
+        isOpen={pendingPriceList !== null}
+        onOpenChange={(open) => !open && setPendingPriceList(null)}
+        tone="primary"
+        title="Re-price the lines with the new price list?"
+        description="Every line without a manual price takes its price from the new list. Choose Cancel to keep the current price list."
+        confirmLabel="Re-price lines"
+        onConfirm={() => {
+          setPriceListId(pendingPriceList ?? "");
+          setPendingPriceList(null);
         }}
       />
     </div>

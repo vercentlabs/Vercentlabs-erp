@@ -10,6 +10,7 @@ import {
   PermissionState,
   Select,
   Switch,
+  TextArea,
   TextField,
 } from "@vercentlabs/design-system";
 import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
@@ -18,7 +19,6 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { request, SalesApiError } from "@/features/sales/shared/http";
 import { SalesAlert, SalesPanel } from "@/features/sales/shared/SalesUi";
-import { listSalesPriceLists } from "@/features/sales/price-lists/api/price-lists-api";
 
 type Settings = {
   seller_state_code: string | null;
@@ -29,7 +29,7 @@ type Settings = {
   order_approval_amount: string | number;
   allow_direct_orders: boolean;
   invoice_quantity_basis: "ordered" | "fulfilled";
-  default_price_list_id?: string | null;
+  default_quotation_terms: string | null;
 };
 
 // F041/F043 -- the thresholds that decide when a quotation or order needs a
@@ -91,13 +91,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
   );
   const [direct, setDirect] = useState(settings.allow_direct_orders);
   const [basis, setBasis] = useState<string>(settings.invoice_quantity_basis);
-  const [defaultPriceListId, setDefaultPriceListId] = useState(
-    settings.default_price_list_id ?? "",
-  );
-  const priceLists = useQuery({
-    queryKey: scopedQueryKey(workspace, "sales", "price-lists"),
-    queryFn: () => listSalesPriceLists().then((r) => r.rows),
-  });
+  const [quotationTerms, setQuotationTerms] = useState(settings.default_quotation_terms ?? "");
   const [saved, setSaved] = useState(false);
 
   const save = useMutation({
@@ -113,7 +107,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
           orderApprovalAmount: orderAmount,
           allowDirectOrders: direct,
           invoiceQuantityBasis: basis,
-          defaultPriceListId: defaultPriceListId || null,
+          defaultQuotationTerms: quotationTerms,
         }),
       }),
     onSuccess: () => {
@@ -237,23 +231,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
             isDisabled={!canManage}
           />
           <Select
-            label="Default price list"
-            options={[
-              { value: "", label: "None (item list prices)" },
-              ...(priceLists.data ?? [])
-                .filter((list) => list.status === "active")
-                .map((list) => ({
-                  value: list.id,
-                  label: `${list.name} (${list.currency_code})`,
-                })),
-            ]}
-            selectedKey={defaultPriceListId}
-            onSelectionChange={(key) =>
-              touch(setDefaultPriceListId)(String(key ?? ""))
-            }
-            isDisabled={!canManage}
-          />
-          <Select
             label="Invoice quantities when not chosen"
             options={[
               { value: "ordered", label: "Ordered quantities" },
@@ -266,6 +243,13 @@ function SettingsForm({ settings }: { settings: Settings }) {
             isDisabled={!canManage}
           />
         </div>
+        <TextArea
+          label="Standard terms and conditions for quotations"
+          description="Copied onto each new quotation, where it can be changed. Printed on the quotation."
+          value={quotationTerms}
+          onChange={touch(setQuotationTerms)}
+          isDisabled={!canManage}
+        />
       </SalesPanel>
     </div>
   );

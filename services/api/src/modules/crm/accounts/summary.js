@@ -8,7 +8,7 @@ import { accountCan } from "./access.js";
 import { getAccount } from "./records.js";
 
 const MODULE_PERMISSIONS = Object.freeze({ sales: "sales.view", finance: "accounting.view", projects: "projects.view", support: "support.view" });
-const OPEN_QUOTATION = "('draft', 'pending_approval', 'approved', 'sent', 'viewed')";
+const OPEN_QUOTATION = "('draft', 'pending_approval', 'approved', 'sent')";
 const OPEN_INVOICE = "('posted', 'partially_paid', 'overdue', 'disputed')";
 const OPEN_TICKET = "('new', 'open', 'pending_customer', 'pending_internal')";
 const num = (value) => Number(value ?? 0);

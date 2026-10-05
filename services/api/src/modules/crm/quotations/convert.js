@@ -110,8 +110,9 @@ export async function createQuotationFromOpportunity(client, context, opportunit
   const opportunity = await lockOpportunity(client, context, opportunityId);
   assertOpen(opportunity, "quoted");
   if (!opportunity.owner_user_id) throw new CrmError(409, "Assign an owner to this opportunity before creating a quotation.", "CRM_QUOTATION_OWNER_REQUIRED");
+  // Without a date the quotation is valid for the Sales settings default.
   const validUntil = text(input.validUntil, 10);
-  if (!validUntil || !DATE.test(validUntil)) throw new CrmError(400, "Choose the date the quotation is valid until.", "CRM_QUOTATION_VALIDATION", { field: "validUntil" });
+  if (validUntil && !DATE.test(validUntil)) throw new CrmError(400, "Choose the date the quotation is valid until.", "CRM_QUOTATION_VALIDATION", { field: "validUntil" });
   const lines = readLines(input);
   const currencyCode = (text(input.currencyCode, 3) ?? opportunity.currency_code ?? "").toString().trim().toUpperCase();
 
@@ -135,12 +136,14 @@ export async function createQuotationFromOpportunity(client, context, opportunit
     billingAddressId: text(input.billingAddressId) ?? defaults.billing_id ?? undefined,
     shippingAddressId: text(input.shippingAddressId) ?? defaults.shipping_id ?? undefined,
     placeOfSupply: text(input.placeOfSupply, 80) ?? undefined,
-    validUntil,
+    validUntil: validUntil ?? undefined,
+    quotationDate: text(input.quotationDate, 10) ?? undefined,
     customerReference: text(input.customerReference, 200),
     customerNotes: text(input.customerNotes, 10000),
-    termsAndConditions: text(input.termsAndConditions, 20000),
+    ...(input.termsAndConditions !== undefined ? { termsAndConditions: text(input.termsAndConditions, 20000) } : {}),
     internalNotes: text(input.internalNotes, 10000),
     lines,
+    source: "opportunity",
     idempotencyKey: idempotencyKey ? `crm:${idempotencyKey}` : undefined,
   });
 

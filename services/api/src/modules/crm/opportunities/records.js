@@ -48,7 +48,7 @@ export const OPPORTUNITY_SELECT = `
          (opportunity.expected_close_date >= current_date AND opportunity.expected_close_date <= current_date + ${OPPORTUNITY_CLOSING_SOON_DAYS}) AS closing_soon,
          EXISTS (SELECT 1 FROM tenant.sales_quotations accepted
                   WHERE accepted.organization_id = opportunity.organization_id AND accepted.source_opportunity_id = opportunity.id
-                    AND accepted.lifecycle_status IN ('accepted', 'converted')) AS has_accepted_quotation,
+                    AND accepted.lifecycle_status = 'accepted') AS has_accepted_quotation,
          -- calendar days, as text: a date has no time zone to shift it
          to_char(opportunity.expected_close_date, 'YYYY-MM-DD') AS expected_close_on, to_char(opportunity.actual_close_date, 'YYYY-MM-DD') AS actual_close_on,
          (opportunity.expected_close_date < current_date) AS past_expected_close,

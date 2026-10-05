@@ -14,7 +14,6 @@ export * from "./modules/accounting/index.js";
 
 export * from "./modules/procurement/index.js";
 
-export * from "./modules/sales/quotation-governance.js";
 
 export * from "./modules/sales/order-governance.js";
 

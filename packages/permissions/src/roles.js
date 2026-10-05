@@ -1231,7 +1231,47 @@ function withCustomerPermissions(role) {
   };
 }
 
-export const ROLE_TEMPLATES = Object.freeze(ROLE_DEFINITIONS.map(withCustomerPermissions).map(withProductPermissions));
+// Price lists, by the rules of the migration that added their permissions:
+// whoever opens Sales uses them; Sales administrators maintain them; whoever
+// may override prices may export them.
+const priceListMaintainer = [
+  "sales.price_lists.create", "sales.price_lists.edit", "sales.price_lists.manage_prices", "sales.price_lists.activate", "sales.price_lists.set_default",
+  "sales.price_lists.change_tax_mode", "sales.price_lists.import", "sales.price_lists.export",
+];
+function withPriceListPermissions(role) {
+  if (!Array.isArray(role.permissions)) return role;
+  const has = (key) => role.permissions.includes(key);
+  return {
+    ...role,
+    permissions: unique([
+      ...role.permissions,
+      ...(has("sales.view") ? ["sales.price_lists.view"] : []),
+      ...(has("sales.settings.manage") ? priceListMaintainer : []),
+      ...(has("sales.price.override") ? ["sales.price_lists.export"] : []),
+    ]),
+  };
+}
+
+// Quotations: everyone who opens Sales sees and prints quotations; whoever
+// writes them confirms them; approvers and Sales administrators also see
+// their team's and may date a quotation (as migration 0026 grants).
+function withQuotationPermissions(role) {
+  if (!Array.isArray(role.permissions)) return role;
+  const has = (key) => role.permissions.includes(key);
+  return {
+    ...role,
+    permissions: unique([
+      ...role.permissions,
+      ...(has("sales.view") ? ["sales.quotation.view", "sales.quotation.view_all", "sales.quotation.export"] : []),
+      ...(has("sales.quotation.create") ? ["sales.quotation.confirm"] : []),
+      ...(has("sales.quotation.approve") || has("sales.settings.manage") ? ["sales.quotation.view_team", "sales.quotation.change_date", "sales.quotation.confirm"] : []),
+    ]),
+  };
+}
+
+export const ROLE_TEMPLATES = Object.freeze(
+  ROLE_DEFINITIONS.map(withCustomerPermissions).map(withProductPermissions).map(withPriceListPermissions).map(withQuotationPermissions),
+);
 
 export const ROLE_TEMPLATE_BY_SLUG = new Map(
   ROLE_TEMPLATES.map((template) => [template.slug, template]),

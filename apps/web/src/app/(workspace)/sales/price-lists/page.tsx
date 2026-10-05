@@ -1,7 +1,7 @@
-import { SalesPriceListsScreen } from "@/features/sales/price-lists/screens/SalesPriceListsScreen";
+import { PriceListsScreen } from "@/features/sales/price-lists/screens/PriceListsScreen";
 
-export const metadata = { title: "Price lists" };
+export const metadata = { title: "Price Lists" };
 
-export default function SalesPriceListsPage() {
-  return <SalesPriceListsScreen />;
+export default function Page() {
+  return <PriceListsScreen />;
 }

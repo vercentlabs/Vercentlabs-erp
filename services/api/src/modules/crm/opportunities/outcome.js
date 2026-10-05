@@ -215,7 +215,7 @@ export async function reopenOpportunity(client, context, opportunityId, input = 
   if (opportunity.status === "won") {
     const downstream = await client.query(
       `SELECT (SELECT count(*) FROM tenant.sales_orders WHERE organization_id = $1 AND source_opportunity_id = $2)::int AS orders,
-              (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id = $1 AND source_opportunity_id = $2 AND lifecycle_status IN ('accepted', 'converted'))::int AS accepted`,
+              (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id = $1 AND source_opportunity_id = $2 AND lifecycle_status = 'accepted')::int AS accepted`,
       [context.organizationId, opportunity.id],
     );
     if (downstream.rows[0].orders > 0 || downstream.rows[0].accepted > 0)
