@@ -4,8 +4,6 @@ import { salesRead } from "@/features/sales/shared/route-helpers";
 
 const KINDS = [
   "adjustments",
-  "fulfillment-requests",
-  "invoice-requests",
   "pricing-rules",
 ];
 

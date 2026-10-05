@@ -30,6 +30,7 @@ type Settings = {
   require_customer_po: boolean;
   require_requested_delivery_date: boolean;
   check_availability_on_confirm: boolean;
+  show_prices_on_delivery_note: boolean;
   invoice_quantity_basis: "ordered" | "fulfilled";
   default_quotation_terms: string | null;
   allow_line_discounts: boolean;
@@ -102,6 +103,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [requirePo, setRequirePo] = useState(Boolean(settings.require_customer_po));
   const [requireDelivery, setRequireDelivery] = useState(Boolean(settings.require_requested_delivery_date));
   const [checkOnConfirm, setCheckOnConfirm] = useState(settings.check_availability_on_confirm !== false);
+  const [notePrices, setNotePrices] = useState(Boolean(settings.show_prices_on_delivery_note));
   const [basis, setBasis] = useState<string>(settings.invoice_quantity_basis);
   const [quotationTerms, setQuotationTerms] = useState(settings.default_quotation_terms ?? "");
   const canManageDiscounts =
@@ -131,6 +133,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
           requireCustomerPo: requirePo,
           requireRequestedDeliveryDate: requireDelivery,
           checkAvailabilityOnConfirm: checkOnConfirm,
+          showPricesOnDeliveryNote: notePrices,
           invoiceQuantityBasis: basis,
           defaultQuotationTerms: quotationTerms,
           ...(canManageDiscounts
@@ -259,6 +262,13 @@ function SettingsForm({ settings }: { settings: Settings }) {
         </Switch>
       </SalesPanel>
 
+      <SalesPanel title="Deliveries" description="Deliveries are dispatched by sales managers and the warehouse; stock is issued at dispatch.">
+        <Switch isSelected={notePrices} onChange={touch(setNotePrices)} isDisabled={!canManage}>
+          Show prices on delivery note
+        </Switch>
+        <p className="text-sm text-text-secondary">Only unit prices are printed. A delivery note never shows tax or totals, and never internal notes.</p>
+      </SalesPanel>
+
       <SalesPanel
         title="Pricing & Discounts"
         description="A discount is given on a line or on the whole document, as a percentage or a fixed amount. Standard customer prices belong in price lists, not here."
@@ -312,10 +322,11 @@ function SettingsForm({ settings }: { settings: Settings }) {
             isDisabled={!canManage}
           />
           <Select
-            label="Invoice quantities when not chosen"
+            label="Invoice based on"
+            description="Sales Order: anything ordered can be invoiced. Delivery: goods only once delivered (services as ordered)."
             options={[
-              { value: "ordered", label: "Ordered quantities" },
-              { value: "fulfilled", label: "Fulfilled quantities" },
+              { value: "ordered", label: "Sales Order" },
+              { value: "fulfilled", label: "Delivery" },
             ]}
             selectedKey={basis}
             onSelectionChange={(key) =>

@@ -7,6 +7,7 @@
 //
 // Every transition is its own operation; there is no "set status".
 import { reverseSalesCommissionsForOrder } from "../after-sales.js";
+import { cancelOpenDeliveriesForOrder } from "../deliveries/open.js";
 import { assertOrderVisible, requireOrderPermission } from "./access.js";
 import { CANCEL_REASONS, FULFILLMENT, INVOICING, ORDER_PERMISSIONS, OrderError, STATUS, requireUuid, text } from "./constants.js";
 import { loadOrderLineProgress, refreshSalesOrderProgress } from "./progress.js";
@@ -54,9 +55,10 @@ export async function reopenSalesOrder(client, context, orderId, input = {}) {
     `UPDATE tenant.sales_order_line_progress progress SET confirmed_quantity = 0, reserved_quantity = 0, updated_by = $3, updated_at = now()
        FROM tenant.sales_order_lines line WHERE progress.sales_order_line_id = line.id AND line.organization_id = $1 AND line.sales_order_version_id = $2`,
     [context.organizationId, order.current_version_id, context.userId ?? null]);
+  const deliveriesCancelled = await cancelOpenDeliveriesForOrder(client, context, order.id, "order_change", `Order reopened: ${reason}`);
   await reverseSalesCommissionsForOrder(client, context, order.id, `Order reopened: ${reason}`);
   const superseded = await supersedeCurrentConfirmation(client, context, order.id, reason);
-  await recordOrderEvent(client, context, order.id, "sales_order.reopened", STATUS.confirmed, STATUS.draft, { reason, reservationsReleased: released, supersededConfirmation: superseded?.version ?? null });
+  await recordOrderEvent(client, context, order.id, "sales_order.reopened", STATUS.confirmed, STATUS.draft, { reason, reservationsReleased: released, supersededConfirmation: superseded?.version ?? null, deliveriesCancelled });
   return { orderId: order.id, status: STATUS.draft, reservationsReleased: released, supersededConfirmation: superseded?.version ?? null };
 }
 
@@ -88,13 +90,14 @@ export async function cancelSalesOrder(client, context, orderId, input = {}) {
             updated_by = $6, updated_at = now()
       WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, order.id, STATUS.cancelled, FULFILLMENT.cancelled, INVOICING.blocked, context.userId ?? null, cancellation.code, cancellation.reason]);
+  const deliveriesCancelled = await cancelOpenDeliveriesForOrder(client, context, order.id, "order_change", "Order cancelled");
   // The quotation it came from can become an order again.
   if (order.source_quotation_id)
     await client.query(`UPDATE tenant.sales_quotations SET converted_order_id = NULL, updated_at = now() WHERE organization_id = $1 AND id = $2 AND converted_order_id = $3`,
       [context.organizationId, order.source_quotation_id, order.id]);
   await reverseSalesCommissionsForOrder(client, context, order.id, `Order cancelled: ${cancellation.label ?? "no reason given"}`);
   await recordOrderEvent(client, context, order.id, "sales_order.cancelled", order.lifecycle_status, STATUS.cancelled,
-    { reasonCode: cancellation.code, reason: cancellation.label, reservationsReleased: released });
+    { reasonCode: cancellation.code, reason: cancellation.label, reservationsReleased: released, deliveriesCancelled });
   return { orderId: order.id, status: STATUS.cancelled, changed: true, sourceOpportunityId: order.source_opportunity_id ?? null };
 }
 
@@ -138,7 +141,8 @@ export async function cancelSalesOrderRemaining(client, context, orderId, input 
       `UPDATE tenant.sales_orders SET lifecycle_status = $3, fulfillment_status = $4, billing_status = $5, cancelled_at = now(), cancelled_by = $6, cancel_reason_code = $7,
               cancel_reason = $8, updated_by = $6, updated_at = now() WHERE organization_id = $1 AND id = $2`,
       [context.organizationId, order.id, STATUS.cancelled, FULFILLMENT.cancelled, INVOICING.blocked, context.userId ?? null, cancellation.code, cancellation.reason]);
-    await recordOrderEvent(client, context, order.id, "sales_order.cancelled", STATUS.confirmed, STATUS.cancelled, { reasonCode: cancellation.code, reason: cancellation.label });
+    const deliveriesCancelled = await cancelOpenDeliveriesForOrder(client, context, order.id, "order_change", "Order cancelled");
+    await recordOrderEvent(client, context, order.id, "sales_order.cancelled", STATUS.confirmed, STATUS.cancelled, { reasonCode: cancellation.code, reason: cancellation.label, deliveriesCancelled });
     return { orderId: order.id, status: STATUS.cancelled, cancelled };
   }
   return { orderId: order.id, status: refreshed.lifecycleStatus, cancelled, fulfillmentStatus: refreshed.fulfillmentStatus, billingStatus: refreshed.billingStatus };

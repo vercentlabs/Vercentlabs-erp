@@ -1,4 +1,3 @@
-import { orderScopeSql } from "./orders/access.js";
 import { SalesError } from "./index.js";
 import { assertSalesCreditAdjustmentAllowed } from "./after-sales.js";
 
@@ -49,44 +48,6 @@ export async function listSalesPass1Operations(client, c, { kind = "adjustments"
     adjustments: "sales_credit_adjustment_requests",
     "pricing-rules": "sales_pricing_rules",
   };
-  // Registers that span orders: each row carries its order number and customer so
-  // the register is usable on its own. A row is listed only when the caller may see its order.
-  const REGISTERS = {
-    // Deliveries made from sales orders, with what each one carried.
-    "fulfillment-requests": {
-      select: `SELECT record.id,record.request_number,record.status,record.delivery_date,record.completed_at,record.carrier,record.tracking_number,record.shipped_at,record.delivered_at,record.received_by,
-          record.sales_order_id,orders.sales_order_number,version.currency_code,version.customer_snapshot->>'displayName' AS customer_name,
-          (SELECT string_agg(line.item_name_snapshot || ' × ' || trim(trailing '.' from trim(trailing '0' from delivered.quantity::text)) || COALESCE(' ' || delivered.uom_snapshot, ''), ', ' ORDER BY line.sequence)
-             FROM tenant.sales_delivery_lines delivered JOIN tenant.sales_order_lines line ON line.id=delivered.sales_order_line_id
-            WHERE delivered.organization_id=record.organization_id AND delivered.delivery_id=record.id) AS items
-        FROM tenant.sales_fulfillment_requests record`,
-      where: " AND record.status='completed'",
-      order: "record.completed_at DESC",
-    },
-    // Invoices raised from sales orders; Finance owns and posts them.
-    "invoice-requests": {
-      select: `SELECT record.id,record.request_number,record.requested_at,record.sales_order_id,orders.sales_order_number,version.customer_snapshot->>'displayName' AS customer_name,
-          invoice.id AS invoice_id,invoice.invoice_number,invoice.status,invoice.invoice_date,invoice.grand_total,invoice.outstanding_amount,invoice.currency_code
-        FROM tenant.sales_invoice_requests record
-        JOIN tenant.accounting_customer_invoices invoice ON invoice.organization_id=record.organization_id AND invoice.source_sales_invoice_request_id=record.id`,
-      where: "",
-      order: "record.requested_at DESC",
-    },
-  };
-  if (REGISTERS[kind]) {
-    const register = REGISTERS[kind];
-    const values = [c.organizationId];
-    const scope = orderScopeSql(c, values, "orders");
-    values.push(Math.min(Math.max(Number(limit) || 100, 1), 250));
-    const { rows } = await client.query(
-      `${register.select}
-         JOIN tenant.sales_orders orders ON orders.organization_id=record.organization_id AND orders.id=record.sales_order_id
-         JOIN tenant.sales_order_versions version ON version.organization_id=orders.organization_id AND version.id=orders.current_version_id
-        WHERE record.organization_id=$1${register.where}${scope} ORDER BY ${register.order} LIMIT $${values.length}`,
-      values,
-    );
-    return rows;
-  }
   const table = tables[kind];
   if (!table) throw new SalesError(404, "Unknown Sales operation resource.");
   const { rows } = await client.query(`SELECT * FROM tenant.${table} record WHERE record.organization_id=$1 ORDER BY record.created_at DESC LIMIT $2`, [c.organizationId, Math.min(Math.max(Number(limit) || 100, 1), 250)]);
@@ -188,6 +149,7 @@ const SETTINGS_DEFAULTS = Object.freeze({
   require_customer_po: false,
   require_requested_delivery_date: false,
   check_availability_on_confirm: true,
+  show_prices_on_delivery_note: false,
   default_quotation_terms: null,
   allow_line_discounts: true,
   allow_document_discounts: true,
@@ -231,6 +193,8 @@ export async function updateSalesSettings(client, c, input = {}) {
   if (input.requireCustomerPo !== undefined) next.require_customer_po = Boolean(input.requireCustomerPo);
   if (input.requireRequestedDeliveryDate !== undefined) next.require_requested_delivery_date = Boolean(input.requireRequestedDeliveryDate);
   if (input.checkAvailabilityOnConfirm !== undefined) next.check_availability_on_confirm = Boolean(input.checkAvailabilityOnConfirm);
+  // Unit prices on the Delivery Note (never tax or totals).
+  if (input.showPricesOnDeliveryNote !== undefined) next.show_prices_on_delivery_note = Boolean(input.showPricesOnDeliveryNote);
   // Pricing & Discounts: which discounts are allowed, when a reason is needed and how much a user may give.
   const discountKeys = Object.keys(DISCOUNT_SETTINGS).filter((key) => input[key] !== undefined);
   if (discountKeys.length) {
@@ -251,7 +215,7 @@ export async function updateSalesSettings(client, c, input = {}) {
     if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
     next.invoice_quantity_basis = input.invoiceQuantityBasis;
   }
-  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","invoice_quantity_basis","default_price_list_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent"];
+  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent"];
   const result = await client.query(
     `INSERT INTO tenant.sales_settings(organization_id,${columns.join(",")},created_by,updated_by)
      VALUES($1,${columns.map((_, index) => `$${index + 3}`).join(",")},$2,$2)

@@ -7,7 +7,5 @@ export {
 } from "./constants.js";
 export { addSalesOrderNote, createSalesOrder, exportSalesOrders, getSalesOrder, getSalesOrderDefaults, listSalesOrders, previewSalesOrder, updateSalesOrder } from "./records.js";
 export { cancelSalesOrder, cancelSalesOrderRemaining, reopenSalesOrder } from "./lifecycle.js";
-export { createDeliveryFromSalesOrder, getDeliveryProposal, recordDeliveryReceipt, recordDeliveryShipment } from "./deliveries.js";
-export { createInvoiceFromSalesOrder, getInvoiceProposal } from "./invoicing.js";
 export { refreshSalesOrderProgress } from "./progress.js";
 export { ORDER_FILE_ENTITY as SALES_ORDER_FILE_ENTITY, listSalesOrderFiles, prepareSalesOrderFileUpload, readSalesOrderFile, removeSalesOrderFile, uploadSalesOrderFile } from "./files.js";

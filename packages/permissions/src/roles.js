@@ -1309,6 +1309,21 @@ function withOrderPermissions(role) {
       ...(has("sales.view") ? ["sales.reservation.view"] : []),
       ...(has("sales.order.confirm") || has("sales.fulfillment.request") || has("sales.order.reserve") ? ["sales.reservation.release"] : []),
       ...(has("sales.view") || has("sales.order.view_all") || has("stock.view") ? ["sales.reservation.view_all"] : []),
+      // Deliveries (as migration 0034 grants): seen with the orders and by the warehouse; prepared, cancelled before
+      // dispatch and confirmed received by whoever creates them, sales managers and the warehouse; dispatched (stock
+      // is issued) only by sales managers and the warehouse.
+      ...(has("sales.view") || has("stock.view") ? ["sales.delivery.view", "sales.delivery.print"] : []),
+      ...(has("sales.view") || has("sales.order.view_all") || has("stock.view") ? ["sales.delivery.view_all"] : []),
+      ...(has("sales.fulfillment.request") || has("sales.order.confirm") || has("stock.issue") ? ["sales.delivery.edit", "sales.delivery.deliver", "sales.delivery.cancel"] : []),
+      ...(has("sales.order.confirm") || has("stock.issue") ? ["sales.delivery.dispatch"] : []),
+      // Sales invoices (as migration 0036 grants): seen, printed and their payments seen with the orders and by Finance; edited and sent by whoever
+      // creates them; posted by sales managers and Finance; reversed, credited and dated by Finance; their journal seen by Finance.
+      ...(has("sales.view") || has("accounting.view") ? ["sales.invoice.view", "sales.invoice.print", "sales.invoice.payments.view"] : []),
+      ...(has("sales.view") || has("sales.order.view_all") || has("accounting.view") ? ["sales.invoice.view_all"] : []),
+      ...(has("sales.invoice.request") || has("accounting.receivables.manage") ? ["sales.invoice.edit", "sales.invoice.send"] : []),
+      ...(has("sales.order.confirm") || has("accounting.receivables.manage") ? ["sales.invoice.post"] : []),
+      ...(has("accounting.receivables.manage") ? ["sales.invoice.reverse", "sales.invoice.credit_note", "sales.invoice.change_posting_date"] : []),
+      ...(has("accounting.view") ? ["sales.invoice.accounting.view"] : []),
     ]),
   };
 }

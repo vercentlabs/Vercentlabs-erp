@@ -28,18 +28,6 @@ export function cancelSalesOrderRemaining(client: QueryClient, context: Context,
   input: { lines?: Array<{ salesOrderLineId: string; quantity?: number | string | null }>; reasonCode?: string; reason?: string }): Promise<any>;
 
 
-export function getDeliveryProposal(client: QueryClient, context: Context, orderId: string): Promise<{ orderId: string; canDeliver: boolean; lines: any[] }>;
-export function createDeliveryFromSalesOrder(client: QueryClient, context: Context, orderId: string,
-  input: { idempotencyKey: string; lines?: Array<{ salesOrderLineId: string; quantity?: number | string }>; deliveryDate?: string | null; carrier?: string | null; trackingNumber?: string | null; notes?: string | null },
-): Promise<{ deliveryId: string; deliveryNumber: string; replayed: boolean; orderStatus?: string; fulfillmentStatus?: string }>;
-export function recordDeliveryShipment(client: QueryClient, context: Context, deliveryId: string, input: { carrier: string; trackingNumber?: string | null; shippedAt?: string | null }): Promise<any>;
-export function recordDeliveryReceipt(client: QueryClient, context: Context, deliveryId: string, input: { receivedBy: string; deliveredAt?: string | null; note?: string | null }): Promise<any>;
-
-export function getInvoiceProposal(client: QueryClient, context: Context, orderId: string, input?: { quantityBasis?: string }): Promise<{ orderId: string; quantityBasis: string; canInvoice: boolean; lines: any[] }>;
-export function createInvoiceFromSalesOrder(client: QueryClient, context: Context, orderId: string,
-  input: { idempotencyKey: string; lines?: Array<{ salesOrderLineId: string; quantity?: number | string }>; quantityBasis?: string },
-): Promise<{ invoiceId: string; invoiceNumber: string; total?: string; replayed: boolean; orderStatus?: string; billingStatus?: string }>;
-
 export function refreshSalesOrderProgress(client: QueryClient, organizationId: string, orderId: string, actorUserId?: string | null): Promise<any>;
 
 

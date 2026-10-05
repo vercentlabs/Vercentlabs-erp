@@ -19,7 +19,9 @@ export function reverseJournalEntry(client: QueryClient, context: AccountingCont
 export function listCustomerInvoices(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
 export function getCustomerInvoice(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
 export function createCustomerInvoice(client: QueryClient, context: AccountingContext, input: AccountingRecord, options?: AccountingRecord): Promise<AccountingRecord>;
-export function createInvoiceFromSalesRequest(client: QueryClient, context: AccountingContext, requestId: string): Promise<AccountingRecord>;
+export function replaceCustomerInvoiceDraft(client: QueryClient, context: AccountingContext, invoiceId: string, input: AccountingRecord, options?: { internal?: boolean }): Promise<{ lineIds: string[]; dueDate: string }>;
+export function cancelCustomerInvoiceDraft(client: QueryClient, context: AccountingContext, invoiceId: string, input?: { reason?: string | null }, options?: { internal?: boolean }): Promise<{ id: string; status: string; changed: boolean }>;
+export function reverseCustomerInvoice(client: QueryClient, context: AccountingContext, invoiceId: string, input: { reason: string; accountingDate?: string }, options?: { internal?: boolean }): Promise<{ id: string; status: string; changed: boolean; reversalEntryId?: string }>;
 export function submitCustomerInvoice(client: QueryClient, context: AccountingContext, id: string, assignedTo?: string | null): Promise<AccountingRecord>;
 export function approveCustomerInvoice(client: QueryClient, context: AccountingContext, id: string, contentHash: string): Promise<AccountingRecord>;
 export function rejectCustomerInvoiceApproval(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;

@@ -70,29 +70,6 @@ export async function getSalesCustomerCreditExposure(client, c, partyId) {
   };
 }
 
-// Applies recorded advances (oldest first) to a new invoice request, never
-// more than it bills, so the deposit is deducted once and only once.
-export async function applySalesAdvancesToInvoiceRequest(client, c, orderId, invoiceRequestId, billedValue) {
-  let remaining = round(billedValue);
-  const advances = (
-    await client.query(
-      `SELECT id,amount,payment_reference FROM tenant.sales_advance_payments WHERE organization_id=$1 AND sales_order_id=$2 AND status='recorded' ORDER BY received_at,created_at FOR UPDATE`,
-      [c.organizationId, orderId],
-    )
-  ).rows;
-  const applied = [];
-  for (const advance of advances) {
-    if (Number(advance.amount) > remaining + 0.005) continue;
-    await client.query(
-      `UPDATE tenant.sales_advance_payments SET status='applied',applied_invoice_request_id=$3,applied_at=now(),updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2`,
-      [c.organizationId, advance.id, invoiceRequestId, c.userId],
-    );
-    remaining = round(remaining - Number(advance.amount));
-    applied.push({ advanceId: advance.id, amount: String(advance.amount), reference: advance.payment_reference });
-  }
-  return { applied, amountDue: remaining };
-}
-
 // ---- F055 credit notes and refunds ---------------------------------------------
 // What the order has been invoiced for and paid, from Accounting (read only).
 export async function salesOrderBillingPosition(client, c, orderId) {

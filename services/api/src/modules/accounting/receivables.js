@@ -24,7 +24,7 @@ import {
   toBaseAmount,
   uuid,
 } from "./core.js";
-import { createJournalEntry, postJournalEntry } from "./journals.js";
+import { createJournalEntry, postJournalEntry, reverseJournalEntry } from "./journals.js";
 import { div, sub } from "./money.js";
 import { recordDocumentTaxLedger } from "./tax.js";
 import { refreshSalesOrderProgress } from "../sales/orders/progress.js";
@@ -112,6 +112,7 @@ async function normalizeInvoiceLines(client, context, organization, ledger, invo
     normalized.push({
       sequence: index + 1,
       sourceSalesOrderLineId: optionalUuid(line.sourceSalesOrderLineId, "Sales order line"),
+      sourceSalesDeliveryLineId: optionalUuid(line.sourceSalesDeliveryLineId, "Delivery line"),
       itemId: optionalUuid(line.itemId, "Item"),
       description: requiredText(line.description, `Line ${index + 1} description`, 1000),
       hsnSacCode: text(line.hsnSacCode, 30) || null,
@@ -142,20 +143,23 @@ async function normalizeInvoiceLines(client, context, organization, ledger, invo
 }
 
 async function insertInvoiceLines(client, context, invoiceId, lines) {
+  const ids = [];
   for (const line of lines) {
-    await client.query(
+    const inserted = await client.query(
       `INSERT INTO tenant.accounting_customer_invoice_lines (
         organization_id,customer_invoice_id,sequence,source_sales_order_line_id,item_id,description,hsn_sac_code,
         quantity,uom_id,unit_price,discount_amount,net_amount,tax_amount,line_total,revenue_account_id,
-        tax_account_id,tax_details,department_id,cost_center_id,created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20)`,
+        tax_account_id,tax_details,department_id,cost_center_id,created_by,source_sales_delivery_line_id
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20,$21) RETURNING id`,
       [context.organizationId, invoiceId, line.sequence, line.sourceSalesOrderLineId, line.itemId, line.description,
         line.hsnSacCode, asDatabaseDecimal(line.quantity), line.uomId, asDatabaseDecimal(line.unitPrice),
         asDatabaseDecimal(line.discount), asDatabaseDecimal(line.net), asDatabaseDecimal(line.tax),
         asDatabaseDecimal(line.total), line.revenueAccountId, line.taxAccountId, JSON.stringify(line.taxDetails),
-        line.departmentId, line.costCenterId, context.userId],
+        line.departmentId, line.costCenterId, context.userId, line.sourceSalesDeliveryLineId ?? null],
     );
+    ids.push(inserted.rows[0].id);
   }
+  return ids;
 }
 
 
@@ -235,7 +239,7 @@ export async function createCustomerInvoice(client, context, input, options = {}
       text(input.termsAndConditions, 5000) || null, context.userId],
   );
   const invoice = result.rows[0];
-  await insertInvoiceLines(client, context, invoice.id, totals.lines);
+  const lineIds = await insertInvoiceLines(client, context, invoice.id, totals.lines);
   for (const installment of paymentSchedule.installments) {
     await client.query(
       `INSERT INTO tenant.accounting_customer_invoice_schedules
@@ -245,119 +249,99 @@ export async function createCustomerInvoice(client, context, input, options = {}
     );
   }
   await event(client, context, "customer_invoice", invoice.id, "accounting.customer_invoice.created", null, "draft", { invoiceNumber });
+  if (options.returnLineIds) return { id: invoice.id, invoiceNumber, lineIds };
   return getCustomerInvoice(client, context, invoice.id);
 }
 
-export async function createInvoiceFromSalesRequest(client, context, requestIdValue) {
-  requirePermission(context, ACCOUNTING_PERMISSIONS.receivablesManage);
-  const requestId = uuid(requestIdValue, "Sales invoice request");
-  const requestResult = await client.query(`SELECT * FROM tenant.sales_invoice_requests WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, requestId]);
-  const request = requestResult.rows[0];
-  if (!request) throw new AccountingError(404, "Sales invoice request not found.");
-  const existing = await client.query(`SELECT id FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND source_sales_invoice_request_id=$2`, [context.organizationId, request.id]);
-  if (existing.rows[0]) return getCustomerInvoice(client, context, existing.rows[0].id);
-  if (!['pending','failed'].includes(request.status)) throw new AccountingError(409, `Sales invoice request is ${request.status}.`);
-  await client.query(`UPDATE tenant.sales_invoice_requests SET status='processing',retry_count=retry_count+1,last_error=NULL WHERE organization_id=$1 AND id=$2`, [context.organizationId, request.id]);
-  await client.query("SAVEPOINT accounting_sales_invoice_import");
-  try {
-    const orderResult = await client.query(
-      `SELECT sales_order.*,version.* FROM tenant.sales_orders sales_order
-       JOIN tenant.sales_order_versions version
-         ON version.organization_id=sales_order.organization_id
-        AND version.id=$3 AND version.sales_order_id=sales_order.id
-       WHERE sales_order.organization_id=$1 AND sales_order.id=$2`,
-      [context.organizationId, request.sales_order_id, request.sales_order_version_id],
-    );
-    const order = orderResult.rows[0];
-    if (!order) throw new AccountingError(409, "The source sales order no longer exists.");
-    const payloadLines = Array.isArray(request.payload?.lines) ? request.payload.lines : [];
-    if (!payloadLines.length) throw new AccountingError(409, "Sales invoice request contains no billable lines.");
-    const sourceLines = await client.query(
-      `SELECT line.*,progress.fulfilled_quantity,progress.invoiced_quantity,progress.cancelled_quantity
-         FROM tenant.sales_order_lines line
-         JOIN tenant.sales_order_line_progress progress
-           ON progress.organization_id=line.organization_id AND progress.sales_order_line_id=line.id
-        WHERE line.organization_id=$1 AND line.sales_order_version_id=$2
-          AND line.id=ANY($3::uuid[])`,
-      [context.organizationId, request.sales_order_version_id,
-        payloadLines.map((line) => uuid(line.salesOrderLineId, "Sales order line"))],
-    );
-    const sourceMap = new Map(sourceLines.rows.map((line) => [line.id, line]));
-    const orderPrecision = await getCurrencyPrecision(client, context, order.currency_code);
-    // The tax components each order line was calculated with (CGST, SGST, IGST, CESS …).
-    const orderTaxLines = await client.query(
-      `SELECT sales_order_line_id,tax_type,label,rate,taxable_amount,tax_amount FROM tenant.sales_order_tax_lines
-        WHERE organization_id=$1 AND sales_order_version_id=$2 ORDER BY sales_order_line_id,sequence`,
-      [context.organizationId, request.sales_order_version_id],
-    );
-    // The part of an order line's amount that belongs to the quantity invoiced
-    // now. Taken as a difference of running totals, so the partial invoices of
-    // a line add up to the line exactly, whatever the rounding.
-    const portion = (amount, source, invoiceQuantity) => {
-      const upTo = (quantity) => roundMoney(div(mul(decimal(amount), quantity), decimal(source.quantity)), orderPrecision);
-      const before = decimal(source.invoiced_quantity);
-      return sub(upTo(before + invoiceQuantity), upTo(before));
-    };
-    const lines = payloadLines.map((payloadLine) => {
-      const source = sourceMap.get(payloadLine.salesOrderLineId);
-      if (!source) throw new AccountingError(409, "A requested sales-order line is unavailable.");
-      const invoiceQuantity = positiveAmount(payloadLine.remainingQuantity, "Invoice quantity");
-      const available = request.quantity_basis === "fulfilled"
-        ? decimal(source.fulfilled_quantity) - decimal(source.invoiced_quantity)
-        : decimal(source.quantity) - decimal(source.invoiced_quantity) - decimal(source.cancelled_quantity);
-      if (invoiceQuantity > available) {
-        throw new AccountingError(409, `Requested invoice quantity exceeds the remaining ${request.quantity_basis} quantity for ${source.item_code_snapshot}.`);
-      }
-      // The order's agreed values are invoiced as they stand: the line discount
-      // and the line's share of the document discount follow the quantity.
-      const taxable = portion(source.taxable_amount, source, invoiceQuantity);
-      const gross = roundMoney(mul(invoiceQuantity, decimal(source.unit_price)), orderPrecision);
-      const taxDetails = orderTaxLines.rows.filter((component) => component.sales_order_line_id === source.id).map((component) => ({
-        taxType: component.tax_type, label: component.label, rate: component.rate,
-        taxableAmount: asDatabaseDecimal(portion(component.taxable_amount, source, invoiceQuantity)),
-        taxAmount: asDatabaseDecimal(portion(component.tax_amount, source, invoiceQuantity)),
-      }));
-      return {
-        sourceSalesOrderLineId: source.id,
-        itemId: source.item_id,
-        description: source.description_snapshot || source.item_name_snapshot,
-        hsnSacCode: source.hsn_sac_snapshot,
-        quantity: asDatabaseDecimal(invoiceQuantity),
-        uomId: source.uom_id,
-        unitPrice: source.unit_price,
-        discountAmount: asDatabaseDecimal(gross > taxable ? sub(gross, taxable) : decimal(0)),
-        // Each component follows the quantity; the line's tax is their sum, so the
-        // components always add up to the tax on the invoice line.
-        taxAmount: asDatabaseDecimal(taxDetails.reduce((total, component) => total + decimal(component.taxAmount), 0n)),
-        taxDetails,
-      };
-    });
-    const invoice = await createCustomerInvoice(client, context, {
-      ledgerId: null,
-      partyId: order.party_id,
-      billingAddressId: order.billing_address_id,
-      invoiceDate: new Date().toISOString().slice(0, 10),
-      accountingDate: new Date().toISOString().slice(0, 10),
-      currencyCode: order.currency_code,
-      exchangeRate: order.exchange_rate,
-      customerSnapshot: order.customer_snapshot,
-      billingAddressSnapshot: order.billing_address_snapshot,
-      paymentTermSnapshot: order.payment_term_snapshot,
-      placeOfSupply: order.place_of_supply,
-      supplyType: order.supply_type,
-      termsAndConditions: order.terms_and_conditions,
-      lines,
-    }, { internal: true, sourceSalesOrderId: order.sales_order_id, sourceSalesInvoiceRequestId: request.id });
-    await client.query("RELEASE SAVEPOINT accounting_sales_invoice_import");
-    await client.query(`UPDATE tenant.sales_invoice_requests SET status='completed',completed_at=now(),last_error=NULL WHERE organization_id=$1 AND id=$2`, [context.organizationId, request.id]);
-    return invoice;
-  } catch (error) {
-    const message = String(error?.message || error).slice(0, 1000);
-    await client.query("ROLLBACK TO SAVEPOINT accounting_sales_invoice_import");
-    await client.query("RELEASE SAVEPOINT accounting_sales_invoice_import");
-    await client.query(`UPDATE tenant.sales_invoice_requests SET status='failed',last_error=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, request.id, message]);
-    return { accountingImportFailed: true, requestId: request.id, message };
-  }
+// A draft's dates, lines and totals worked out again (a source module changing
+// its draft, e.g. Sales changing the quantities). The number, customer and
+// currency stay. input: as createCustomerInvoice (invoiceDate, accountingDate,
+// dueDate, paymentTermSnapshot, lines, notes, termsAndConditions).
+// Returns the new line ids in order.
+export async function replaceCustomerInvoiceDraft(client, context, idValue, input, options = {}) {
+  if (!options.internal) requirePermission(context, ACCOUNTING_PERMISSIONS.receivablesManage);
+  const id = uuid(idValue, "Customer invoice");
+  const invoice = (await client.query(`SELECT * FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id])).rows[0];
+  if (!invoice) throw new AccountingError(404, "Customer invoice not found.");
+  if (invoice.status !== "draft") throw new AccountingError(409, "Only a draft customer invoice can be changed.", "ACCOUNTING_INVOICE_NOT_DRAFT");
+  const organization = await loadOrganization(client, context);
+  const ledger = await getPrimaryLedger(client, context, invoice.ledger_id);
+  const invoiceDate = isoDate(input.invoiceDate || invoice.invoice_date, "Invoice date");
+  const accountingDate = isoDate(input.accountingDate || invoiceDate, "Accounting date");
+  const exchangeRate = await getExchangeRate(client, context, invoice.currency_code, organization.base_currency, accountingDate, invoice.exchange_rate);
+  const totals = await normalizeInvoiceLines(client, context, organization, ledger, invoiceDate, input.lines, invoice.currency_code, exchangeRate);
+  const grandTotal = totals.grandTotal + decimal(invoice.charge_total || 0) + decimal(invoice.rounding_adjustment || 0);
+  if (grandTotal <= 0n) throw new AccountingError(400, "Invoice grand total must be positive.");
+  const paymentSchedule = await resolvePaymentSchedule(client, context, {
+    documentDate: invoiceDate, explicitDueDate: input.dueDate ? isoDate(input.dueDate, "Due date") : null, paymentTermId: null,
+    partyPaymentTermId: null, snapshot: input.paymentTermSnapshot ?? invoice.payment_term_snapshot, total: grandTotal, precision: totals.precision,
+  });
+  await client.query(`DELETE FROM tenant.accounting_customer_invoice_schedules WHERE organization_id=$1 AND customer_invoice_id=$2`, [context.organizationId, id]);
+  await client.query(`DELETE FROM tenant.accounting_customer_invoice_lines WHERE organization_id=$1 AND customer_invoice_id=$2`, [context.organizationId, id]);
+  await client.query(
+    `UPDATE tenant.accounting_customer_invoices
+        SET invoice_date=$3,accounting_date=$4,due_date=$5,exchange_rate=$6,payment_term_snapshot=$7::jsonb,subtotal=$8,discount_total=$9,tax_total=$10,grand_total=$11,
+            base_currency_total=$12,outstanding_amount=$11,notes=$13,terms_and_conditions=$14,updated_by=$15,updated_at=now()
+      WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, id, invoiceDate, accountingDate, paymentSchedule.dueDate, asDatabaseDecimal(exchangeRate), JSON.stringify(paymentSchedule.snapshot),
+      asDatabaseDecimal(totals.subtotal), asDatabaseDecimal(totals.discountTotal), asDatabaseDecimal(totals.taxTotal), asDatabaseDecimal(grandTotal),
+      asDatabaseDecimal(toBaseAmount(grandTotal, exchangeRate, totals.basePrecision)), input.notes === undefined ? invoice.notes : text(input.notes, 2000) || null,
+      input.termsAndConditions === undefined ? invoice.terms_and_conditions : text(input.termsAndConditions, 5000) || null, context.userId]);
+  const lineIds = await insertInvoiceLines(client, context, id, totals.lines);
+  for (const installment of paymentSchedule.installments)
+    await client.query(
+      `INSERT INTO tenant.accounting_customer_invoice_schedules (organization_id,customer_invoice_id,sequence,due_date,amount,outstanding_amount) VALUES ($1,$2,$3,$4,$5,$5)`,
+      [context.organizationId, id, installment.sequence, installment.dueDate, asDatabaseDecimal(installment.amount)]);
+  await event(client, context, "customer_invoice", id, "accounting.customer_invoice.updated", "draft", "draft", {});
+  return { lineIds, dueDate: paymentSchedule.dueDate };
+}
+
+// Cancels an invoice that was never posted. Its number is kept, cancelled; nothing reached the books.
+export async function cancelCustomerInvoiceDraft(client, context, idValue, input = {}, options = {}) {
+  if (!options.internal) requirePermission(context, ACCOUNTING_PERMISSIONS.receivablesManage);
+  const id = uuid(idValue, "Customer invoice");
+  const invoice = (await client.query(`SELECT * FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id])).rows[0];
+  if (!invoice) throw new AccountingError(404, "Customer invoice not found.");
+  if (invoice.status === "cancelled") return { id, status: "cancelled", changed: false };
+  if (!["draft", "approved"].includes(invoice.status))
+    throw new AccountingError(409, invoice.status === "pending_approval" ? "Withdraw the approval request first." : "A posted invoice is reversed or credited, never cancelled.", "ACCOUNTING_INVOICE_NOT_DRAFT");
+  await client.query(`UPDATE tenant.accounting_customer_invoices SET status='cancelled',outstanding_amount=0,updated_by=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, context.userId]);
+  await event(client, context, "customer_invoice", id, "accounting.customer_invoice.cancelled", invoice.status, "cancelled", { reason: text(input.reason, 1000) || null });
+  if (invoice.source_sales_order_id) await refreshSalesOrderProgress(client, context.organizationId, invoice.source_sales_order_id, context.userId ?? null);
+  return { id, status: "cancelled", changed: true };
+}
+
+// Reverses a posted invoice that nothing has been applied to (no receipt, no credit, no credit note, tax not yet reported):
+// the journal is reversed, the receivable and the output tax are taken back, and the invoice is kept, Reversed.
+// input: { reason, accountingDate? }. Returns { id, status, reversalEntryId }.
+export async function reverseCustomerInvoice(client, context, idValue, input = {}, options = {}) {
+  if (!options.internal) requirePermission(context, ACCOUNTING_PERMISSIONS.receivablesManage);
+  const id = uuid(idValue, "Customer invoice");
+  const reason = requiredText(input.reason, "Reversal reason", 500);
+  const invoice = (await client.query(`SELECT * FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id])).rows[0];
+  if (!invoice) throw new AccountingError(404, "Customer invoice not found.");
+  if (invoice.status === "reversed") return { id, status: "reversed", changed: false };
+  if (["partially_paid", "paid"].includes(invoice.status))
+    throw new AccountingError(409, "A payment or credit is applied to this invoice. Correct it with a credit note instead.", "ACCOUNTING_INVOICE_HAS_ALLOCATIONS");
+  if (!["posted", "overdue"].includes(invoice.status) || !invoice.journal_entry_id)
+    throw new AccountingError(409, "Only a posted invoice with nothing applied to it can be reversed.", "ACCOUNTING_INVOICE_NOT_REVERSIBLE");
+  const applied = (await client.query(
+    `SELECT (SELECT count(*) FROM tenant.accounting_customer_receipt_allocations WHERE organization_id=$1 AND customer_invoice_id=$2)::int AS receipts,
+            (SELECT count(*) FROM tenant.accounting_customer_credit_allocations WHERE organization_id=$1 AND customer_invoice_id=$2)::int AS credits,
+            (SELECT count(*) FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND source_invoice_id=$2 AND status<>'cancelled')::int AS credit_notes,
+            (SELECT count(*) FROM tenant.accounting_tax_ledger WHERE organization_id=$1 AND source_id=$2 AND status IN ('reported','paid'))::int AS reported`,
+    [context.organizationId, id])).rows[0];
+  if (applied.receipts || applied.credits || applied.credit_notes)
+    throw new AccountingError(409, "A payment or credit is applied to this invoice. Correct it with a credit note instead.", "ACCOUNTING_INVOICE_HAS_ALLOCATIONS");
+  if (applied.reported) throw new AccountingError(409, "The invoice's tax has already been reported. Correct it with a credit note instead.", "ACCOUNTING_INVOICE_TAX_REPORTED");
+  const reversal = await reverseJournalEntry(client, { ...context, permissions: [...(context.permissions ?? []), ACCOUNTING_PERMISSIONS.journalReverse] }, invoice.journal_entry_id,
+    { reason: `Invoice ${invoice.invoice_number} reversed: ${reason}`, accountingDate: input.accountingDate });
+  await client.query(`UPDATE tenant.accounting_tax_ledger SET status='reversed' WHERE organization_id=$1 AND source_id=$2 AND status='open'`, [context.organizationId, id]);
+  await client.query(`UPDATE tenant.accounting_customer_invoice_schedules SET outstanding_amount=0 WHERE organization_id=$1 AND customer_invoice_id=$2`, [context.organizationId, id]);
+  await client.query(`UPDATE tenant.accounting_customer_invoices SET status='reversed',outstanding_amount=0,updated_by=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, context.userId]);
+  await event(client, context, "customer_invoice", id, "accounting.customer_invoice.reversed", invoice.status, "reversed", { reason, reversalEntryId: reversal.entry?.id ?? reversal.id });
+  if (invoice.source_sales_order_id) await refreshSalesOrderProgress(client, context.organizationId, invoice.source_sales_order_id, context.userId ?? null);
+  return { id, status: "reversed", changed: true, reversalEntryId: reversal.entry?.id ?? reversal.id };
 }
 
 // Accounting's canonical receivables document visibility rule (customer
@@ -424,6 +408,8 @@ export async function postCustomerInvoice(client, context, idValue, options = {}
   const invoice = locked.rows[0];
   if (!invoice) throw new AccountingError(404, "Customer invoice not found.");
   if (invoice.status === "posted" || invoice.status === "partially_paid" || invoice.status === "paid") return getCustomerInvoice(client, context, id);
+  if (!options.fromSales && (await client.query(`SELECT 1 FROM tenant.sales_invoices WHERE organization_id=$1 AND customer_invoice_id=$2`, [context.organizationId, id])).rows[0])
+    throw new AccountingError(409, "This is a Sales invoice: post it from Sales → Invoices, where its quantities and tax are checked first.", "ACCOUNTING_POST_FROM_SALES");
   if (invoice.status !== 'approved') throw new AccountingError(409, "Customer invoice must be approved before posting.");
   const detail = await getCustomerInvoice(client, context, id);
   const receivable = await getAccountMapping(client, context, invoice.ledger_id, "receivable", { partyId: invoice.party_id, date: invoice.accounting_date });

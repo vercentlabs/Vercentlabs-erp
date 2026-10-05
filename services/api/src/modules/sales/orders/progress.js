@@ -2,7 +2,7 @@
 // that own it:
 //   reserved   the active stock reservations made for each order line
 //   delivered  the lines of the order's completed deliveries
-//   invoiced   the lines of its valid customer invoices (draft or posted)
+//   invoiced   the lines of its posted invoices (a draft only holds its quantity)
 // Cancelled quantity is the order's own. Nobody types a delivered or an
 // invoiced quantity on an order line; they are recalculated here each time
 // something downstream changes, so the order can always be reconciled.
@@ -26,7 +26,7 @@ const LINES_SQL = `
                     WHERE delivered.organization_id = line.organization_id AND delivered.sales_order_line_id = line.id), 0) AS delivered,
          COALESCE((SELECT sum(invoiced.quantity) FROM tenant.accounting_customer_invoice_lines invoiced
                      JOIN tenant.accounting_customer_invoices invoice ON invoice.id = invoiced.customer_invoice_id AND invoice.invoice_type = 'invoice'
-                          AND invoice.status NOT IN ('cancelled', 'reversed')
+                          AND invoice.status IN ('posted', 'partially_paid', 'paid', 'overdue', 'disputed')
                     WHERE invoiced.organization_id = line.organization_id AND invoiced.source_sales_order_line_id = line.id), 0) AS invoiced
     FROM tenant.sales_order_lines line
     JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
@@ -58,15 +58,14 @@ export async function loadOrderLineProgress(client, organizationId, versionId) {
   });
 }
 
+// Not delivered, partially delivered or delivered, from the physical lines alone: a line is
+// complete when ordered = delivered + cancelled. Services never count; an order of services only has nothing to deliver.
 export function fulfillmentOf(lines) {
   const deliverable = lines.filter((line) => line.deliverable);
   if (!deliverable.length) return { status: FULFILLMENT.delivered, deliverable: false, complete: true };
   const complete = deliverable.every((line) => line.remainingToDeliver <= EPSILON);
   if (complete) return { status: FULFILLMENT.delivered, deliverable: true, complete: true };
   if (deliverable.some((line) => line.delivered > EPSILON)) return { status: FULFILLMENT.partiallyDelivered, deliverable: true, complete: false };
-  const tracked = deliverable.filter((line) => line.stockTracked && line.remainingToDeliver > EPSILON);
-  if (tracked.length && tracked.every((line) => line.reserved + EPSILON >= line.remainingToDeliver)) return { status: FULFILLMENT.reserved, deliverable: true, complete: false };
-  if (tracked.some((line) => line.reserved > EPSILON)) return { status: FULFILLMENT.partiallyReserved, deliverable: true, complete: false };
   return { status: FULFILLMENT.notStarted, deliverable: true, complete: false };
 }
 
@@ -108,6 +107,11 @@ export async function refreshSalesOrderProgress(client, organizationId, orderId,
               updated_at = now()
         WHERE organization_id = $1 AND id = $2`,
       [organizationId, order.id, fulfillment.status, invoicing.status, lifecycleStatus, actorUserId]);
+    if (invoicing.status !== order.billing_status && invoicing.status === INVOICING.fullyInvoiced)
+      await client.query(
+        `INSERT INTO tenant.sales_document_events (organization_id, entity_type, entity_id, event_type, from_status, to_status, metadata, actor_user_id, occurred_at)
+         VALUES ($1, 'sales_order', $2, 'sales_order.fully_invoiced', $3, $3, '{}'::jsonb, $4, clock_timestamp())`,
+        [organizationId, order.id, order.lifecycle_status, actorUserId]);
     if (lifecycleStatus !== order.lifecycle_status)
       await client.query(
         `INSERT INTO tenant.sales_document_events (organization_id, entity_type, entity_id, event_type, from_status, to_status, metadata, actor_user_id, occurred_at)

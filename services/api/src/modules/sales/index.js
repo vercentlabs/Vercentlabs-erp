@@ -934,7 +934,7 @@ export function redactMargin(value, context) {
 export async function getSalesDashboard(client, context) {
   requirePermission(context, "sales.view");
   const result = await client.query(
-    `SELECT (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('draft','pending_approval','approved','sent')) AS active_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('approved','sent') AND valid_until>=current_date AND valid_until<=current_date+7) AS expiring_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending') AS pending_quote_approvals,(SELECT COALESCE(sum(version.base_currency_total),0) FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.lifecycle_status='confirmed') AS confirmed_order_value,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status='confirmed' AND fulfillment_status IN ('not_started','partially_allocated','allocated','partially_fulfilled') AND EXISTS (SELECT 1 FROM tenant.sales_order_lines line JOIN tenant.items item ON item.id=line.item_id WHERE line.sales_order_version_id=sales_orders.current_version_id AND item.item_type<>'service')) AS orders_awaiting_delivery,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND billing_status='ready') AS ready_to_invoice`,
+    `SELECT (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('draft','pending_approval','approved','sent')) AS active_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('approved','sent') AND valid_until>=current_date AND valid_until<=current_date+7) AS expiring_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending') AS pending_quote_approvals,(SELECT COALESCE(sum(version.base_currency_total),0) FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.lifecycle_status='confirmed') AS confirmed_order_value,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status='confirmed' AND fulfillment_status IN ('not_started','partially_fulfilled') AND EXISTS (SELECT 1 FROM tenant.sales_order_lines line JOIN tenant.items item ON item.id=line.item_id WHERE line.sales_order_version_id=sales_orders.current_version_id AND item.item_type<>'service')) AS orders_awaiting_delivery,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND billing_status='ready') AS ready_to_invoice`,
     [context.organizationId],
   );
   return result.rows[0];
@@ -945,6 +945,8 @@ export async function getSalesReport(client, context, key) {
     "expiring-quotations",
     "pending-approvals",
     "fulfillment",
+    "remaining-by-product",
+    "delivery-performance",
     "billing-readiness",
     "order-status",
   ]);
@@ -952,7 +954,50 @@ export async function getSalesReport(client, context, key) {
   const queries = {
     "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('approved','sent') AND quotation.valid_until>=current_date AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,
     "pending-approvals": `SELECT id,quotation_number,lifecycle_status,approval_status,updated_at FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending' ORDER BY updated_at`,
-    fulfillment: `SELECT id AS sales_order_id,sales_order_number,fulfillment_status,requested_delivery_date,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status='confirmed' ORDER BY requested_delivery_date NULLS LAST`,
+    // Open demand per order, from the deliveries and cancellations themselves: what is left to deliver and whether it is late.
+    fulfillment: `SELECT orders.id AS sales_order_id,orders.sales_order_number,version.customer_snapshot->>'displayName' AS customer,orders.requested_delivery_date,
+        sum(line.quantity) AS ordered,sum(delivered.quantity) AS delivered,sum(progress.cancelled_quantity) AS cancelled,
+        sum(GREATEST(line.quantity-progress.cancelled_quantity-delivered.quantity,0)) AS remaining,
+        CASE WHEN sum(delivered.quantity)=0 THEN 'Not delivered' ELSE 'Partially delivered' END AS fulfillment,
+        CASE WHEN orders.requested_delivery_date<current_date THEN 'Overdue' ELSE '' END AS overdue
+      FROM tenant.sales_orders orders
+      JOIN tenant.sales_order_versions version ON version.id=orders.current_version_id
+      JOIN tenant.sales_order_lines line ON line.sales_order_version_id=version.id
+      JOIN tenant.items item ON item.id=line.item_id AND item.item_type<>'service'
+      JOIN tenant.sales_order_line_progress progress ON progress.sales_order_line_id=line.id
+      CROSS JOIN LATERAL (SELECT COALESCE(sum(delivery_line.quantity),0) AS quantity FROM tenant.sales_delivery_lines delivery_line
+                            JOIN tenant.sales_fulfillment_requests delivery ON delivery.id=delivery_line.delivery_id AND delivery.delivery_status IN ('dispatched','delivered')
+                           WHERE delivery_line.sales_order_line_id=line.id) delivered
+     WHERE orders.organization_id=$1 AND orders.lifecycle_status='confirmed'
+     GROUP BY orders.id,version.customer_snapshot
+    HAVING sum(GREATEST(line.quantity-progress.cancelled_quantity-delivered.quantity,0))>0
+     ORDER BY orders.requested_delivery_date NULLS LAST,orders.sales_order_number LIMIT 500`,
+    // Open demand per product across confirmed orders: what procurement and production can plan from.
+    "remaining-by-product": `SELECT item.code AS product_code,item.name AS product,line.uom_snapshot AS unit,count(DISTINCT orders.id) AS orders,
+        sum(GREATEST(line.quantity-progress.cancelled_quantity-delivered.quantity,0)) AS remaining,
+        sum(LEAST(GREATEST(line.quantity-progress.cancelled_quantity-delivered.quantity,0),progress.reserved_quantity)) AS reserved,
+        min(orders.requested_delivery_date) AS earliest_requested
+      FROM tenant.sales_orders orders
+      JOIN tenant.sales_order_lines line ON line.sales_order_version_id=orders.current_version_id
+      JOIN tenant.items item ON item.id=line.item_id AND item.item_type<>'service'
+      JOIN tenant.sales_order_line_progress progress ON progress.sales_order_line_id=line.id
+      CROSS JOIN LATERAL (SELECT COALESCE(sum(delivery_line.quantity),0) AS quantity FROM tenant.sales_delivery_lines delivery_line
+                            JOIN tenant.sales_fulfillment_requests delivery ON delivery.id=delivery_line.delivery_id AND delivery.delivery_status IN ('dispatched','delivered')
+                           WHERE delivery_line.sales_order_line_id=line.id) delivered
+     WHERE orders.organization_id=$1 AND orders.lifecycle_status='confirmed'
+     GROUP BY item.id,item.code,item.name,line.uom_snapshot
+    HAVING sum(GREATEST(line.quantity-progress.cancelled_quantity-delivered.quantity,0))>0
+     ORDER BY remaining DESC LIMIT 500`,
+    // Each dispatched delivery against the date the customer asked for.
+    "delivery-performance": `SELECT delivery.request_number AS delivery_number,orders.sales_order_number,delivery.customer_snapshot->>'displayName' AS customer,
+        orders.requested_delivery_date,delivery.dispatch_date,delivery.delivered_at::date AS delivered_on,
+        CASE WHEN orders.requested_delivery_date IS NULL THEN 'No date requested'
+             WHEN COALESCE(delivery.delivered_at::date,delivery.dispatch_date)<=orders.requested_delivery_date THEN 'On time'
+             ELSE 'Late by '||(COALESCE(delivery.delivered_at::date,delivery.dispatch_date)-orders.requested_delivery_date)||' day(s)' END AS performance
+      FROM tenant.sales_fulfillment_requests delivery
+      JOIN tenant.sales_orders orders ON orders.id=delivery.sales_order_id
+     WHERE delivery.organization_id=$1 AND delivery.delivery_status IN ('dispatched','delivered')
+     ORDER BY delivery.dispatch_date DESC NULLS LAST,delivery.request_number DESC LIMIT 500`,
     "billing-readiness": `SELECT id AS sales_order_id,sales_order_number,billing_status,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status='confirmed' AND billing_status IN ('ready','partially_invoiced') ORDER BY updated_at DESC`,
     // F059: one reconciled stage per order from Sales, Stock (reservations,
     // deliveries) and Accounting (invoices, payments), with the exceptions
@@ -1138,4 +1183,6 @@ export * from "./orders/index.js";
 export * from "./order-confirmations/index.js";
 export * from "./availability/index.js";
 export * from "./reservations/index.js";
+export * from "./deliveries/index.js";
+export * from "./invoices/index.js";
 export { DISCOUNT_PERMISSIONS, DISCOUNT_REASONS } from "./discounts.js";

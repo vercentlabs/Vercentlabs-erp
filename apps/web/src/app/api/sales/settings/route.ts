@@ -17,6 +17,7 @@ const schema = z.object({
   requireCustomerPo: z.boolean().optional(),
   requireRequestedDeliveryDate: z.boolean().optional(),
   checkAvailabilityOnConfirm: z.boolean().optional(),
+  showPricesOnDeliveryNote: z.boolean().optional(),
   invoiceQuantityBasis: z.enum(["ordered", "fulfilled"]).optional(),
   defaultQuotationTerms: z.string().max(20000).nullish(),
   // Pricing & Discounts (needs sales.discount.manage_settings). A null limit or threshold switches it off.

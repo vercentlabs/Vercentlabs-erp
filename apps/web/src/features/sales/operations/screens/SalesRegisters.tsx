@@ -2,7 +2,6 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -23,13 +22,8 @@ import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { request, SalesApiError } from "@/features/sales/shared/http";
-import {
-  recordDeliveryReceipt,
-  recordDeliveryShipment,
-} from "@/features/sales/orders/api/orders-api";
 import type { SalesOptions } from "@/features/sales/quotations/api/quotations-api";
 import {
-  calendarDate,
   dateTime,
   money,
   statusLabel,
@@ -41,8 +35,6 @@ import {
   requestAdjustment,
   type AdjustmentRow,
   type PricingRuleRow,
-  type DeliveryRegisterRow,
-  type InvoiceRegisterRow,
 } from "@/features/sales/operations/api/operations-api";
 import { SalesRegisterPage } from "@/features/sales/operations/screens/SalesRegisterPage";
 
@@ -267,187 +259,6 @@ const orderSelectOptions = (
       value: order.id,
       label: `${order.sales_order_number} — ${money(order.currency_code, order.grand_total)}`,
     }));
-
-// ---------------------------------------------------------------- deliveries
-// Deliveries are made from a sales order (Create Delivery); this register
-// lists them and records the carrier and the customer's receipt.
-export function SalesDeliveriesScreen() {
-  const router = useRouter();
-  const workspace = useWorkspaceContext();
-  const prompt = usePrompt();
-  const canUpdate =
-    workspace.roleSlugs.includes("organization_owner") ||
-    workspace.permissions.includes("sales.fulfillment.request");
-  const columns: ColumnDef<DeliveryRegisterRow, unknown>[] = useMemo(
-    () => [
-      {
-        id: "delivery",
-        header: "Delivery",
-        accessorKey: "request_number",
-        cell: ({ row }) => (
-          <span className="font-medium text-text">
-            {row.original.request_number}
-          </span>
-        ),
-      },
-      { id: "order", header: "Sales order", accessorKey: "sales_order_number" },
-      {
-        id: "customer",
-        header: "Customer",
-        accessorFn: (row) => row.customer_name ?? "—",
-      },
-      {
-        id: "date",
-        header: "Delivery date",
-        accessorFn: (row) => calendarDate(row.delivery_date),
-      },
-      { id: "items", header: "Delivered", accessorFn: (row) => row.items ?? "—" },
-      {
-        id: "shipment",
-        header: "Shipment",
-        accessorFn: (row) =>
-          row.carrier
-            ? `${row.carrier}${row.tracking_number ? ` · ${row.tracking_number}` : ""}`
-            : "—",
-      },
-      {
-        id: "received",
-        header: "Received by customer",
-        accessorFn: (row) =>
-          row.delivered_at
-            ? `${dateTime(row.delivered_at)} · ${row.received_by ?? ""}`
-            : "—",
-      },
-    ],
-    [],
-  );
-  return (
-    <>
-      <SalesRegisterPage<DeliveryRegisterRow>
-        config={{
-          kind: "fulfillment-requests",
-          title: "Deliveries",
-          description:
-            "Goods delivered against sales orders. A delivery is created from its sales order.",
-          searchLabel: "Search deliveries",
-          columns,
-          searchText: (row) =>
-            `${row.request_number} ${row.sales_order_number} ${row.customer_name ?? ""} ${row.items ?? ""} ${row.carrier ?? ""}`,
-          emptyTitle: "No deliveries yet",
-          emptyDescription:
-            "Open a confirmed sales order and choose Create Delivery.",
-          onRowClick: (row) =>
-            router.push(`/sales/orders/${row.sales_order_id}`),
-          rowActions: (row, refresh) =>
-            canUpdate && !row.delivered_at ? (
-              <div className="flex gap-1">
-                {actionButton(row.carrier ? "Change shipment" : "Record shipment", () =>
-                  prompt.open({
-                    title: `Shipment of ${row.request_number}`,
-                    confirmLabel: "Save shipment",
-                    fields: [
-                      { key: "carrier", label: "Carrier", required: true },
-                      { key: "trackingNumber", label: "Tracking number" },
-                    ],
-                    submit: (values) =>
-                      recordDeliveryShipment(row.id, {
-                        carrier: values.carrier.trim(),
-                        trackingNumber: values.trackingNumber.trim() || undefined,
-                      }),
-                    refresh,
-                  }),
-                )}
-                {actionButton("Mark received", () =>
-                  prompt.open({
-                    title: `${row.request_number} received by the customer`,
-                    confirmLabel: "Mark received",
-                    fields: [
-                      { key: "receivedBy", label: "Received by", required: true },
-                      { key: "note", label: "Note" },
-                    ],
-                    submit: (values) =>
-                      recordDeliveryReceipt(row.id, {
-                        receivedBy: values.receivedBy.trim(),
-                        note: values.note.trim() || undefined,
-                      }),
-                    refresh,
-                  }),
-                )}
-              </div>
-            ) : null,
-        }}
-      />
-      {prompt.dialog}
-    </>
-  );
-}
-
-// ------------------------------------------------------------------ invoices
-// Invoices are created from a sales order (Create Invoice) as draft customer
-// invoices; Finance posts them and collects payment.
-export function SalesInvoicesScreen() {
-  const router = useRouter();
-  const columns: ColumnDef<InvoiceRegisterRow, unknown>[] = useMemo(
-    () => [
-      {
-        id: "invoice",
-        header: "Invoice",
-        accessorKey: "invoice_number",
-        cell: ({ row }) => (
-          <span className="font-medium text-text">
-            {row.original.invoice_number}
-          </span>
-        ),
-      },
-      { id: "order", header: "Sales order", accessorKey: "sales_order_number" },
-      {
-        id: "customer",
-        header: "Customer",
-        accessorFn: (row) => row.customer_name ?? "—",
-      },
-      {
-        id: "date",
-        header: "Invoice date",
-        accessorFn: (row) => calendarDate(row.invoice_date),
-      },
-      {
-        id: "status",
-        header: "Invoice status",
-        accessorKey: "status",
-        cell: ({ row }) => badge(row.original.status),
-      },
-      {
-        id: "total",
-        header: "Invoice total",
-        accessorFn: (row) => money(row.currency_code, row.grand_total),
-      },
-      {
-        id: "outstanding",
-        header: "Outstanding",
-        accessorFn: (row) => money(row.currency_code, row.outstanding_amount),
-      },
-    ],
-    [],
-  );
-  return (
-    <SalesRegisterPage<InvoiceRegisterRow>
-      config={{
-        kind: "invoice-requests",
-        title: "Invoices",
-        description:
-          "Invoices raised from sales orders. Finance posts them and records payment.",
-        searchLabel: "Search invoices",
-        columns,
-        searchText: (row) =>
-          `${row.invoice_number} ${row.sales_order_number} ${row.customer_name ?? ""} ${row.status}`,
-        emptyTitle: "No invoices yet",
-        emptyDescription:
-          "Open a confirmed sales order and choose Create Invoice.",
-        onRowClick: (row) => router.push(`/sales/orders/${row.sales_order_id}`),
-      }}
-    />
-  );
-}
 
 // --------------------------------------------------------------- adjustments
 function AdjustmentDialog({

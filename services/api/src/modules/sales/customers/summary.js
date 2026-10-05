@@ -118,7 +118,13 @@ const RELATED = Object.freeze({
   },
   orders: {
     needs: "sales",
-    sql: `SELECT sales_order.id, sales_order.sales_order_number AS code, sales_order.lifecycle_status AS status, sales_order.fulfillment_status AS detail, version.grand_total AS amount,
+    // Delivery and invoicing progress, each worked out from the order's deliveries and posted invoices.
+    sql: `SELECT sales_order.id, sales_order.sales_order_number AS code, sales_order.lifecycle_status AS status,
+                 CASE WHEN sales_order.lifecycle_status IN ('draft', 'cancelled') THEN NULL ELSE
+                   concat_ws(' · ',
+                     CASE sales_order.fulfillment_status WHEN 'fulfilled' THEN 'Delivered' WHEN 'partially_fulfilled' THEN 'Partially delivered' ELSE 'Not delivered' END,
+                     CASE sales_order.billing_status WHEN 'fully_invoiced' THEN 'Fully invoiced' WHEN 'partially_invoiced' THEN 'Partially invoiced' ELSE 'Not invoiced' END) END AS detail,
+                 version.grand_total AS amount,
                  version.currency_code, sales_order.order_date AS date
             FROM tenant.sales_orders sales_order
             LEFT JOIN tenant.sales_order_versions version ON version.organization_id = sales_order.organization_id AND version.id = sales_order.current_version_id
@@ -132,14 +138,18 @@ const RELATED = Object.freeze({
             FROM tenant.sales_fulfillment_requests request
             JOIN tenant.sales_orders sales_order ON sales_order.organization_id = request.organization_id AND sales_order.id = request.sales_order_id
            WHERE request.organization_id = $1 AND sales_order.party_id = $2 ORDER BY request.requested_at DESC LIMIT 200`,
-    href: (row) => `/sales/orders/${row.parent_id}`,
+    href: (row) => `/sales/deliveries/${row.id}`,
   },
   invoices: {
     needs: "finance",
-    sql: `SELECT id, invoice_number AS code, status, grand_total AS amount, outstanding_amount AS outstanding, currency_code, invoice_date AS date, due_date
-            FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND party_id = $2 AND invoice_type <> 'credit_note'
-           ORDER BY invoice_date DESC, created_at DESC LIMIT 200`,
-    href: () => null,
+    sql: `SELECT invoice.id, invoice.invoice_number AS code, invoice.status, invoice.grand_total AS amount, invoice.outstanding_amount AS outstanding, invoice.currency_code,
+                 invoice.invoice_date AS date, invoice.due_date, sales_invoice.customer_invoice_id IS NOT NULL AS from_sales
+            FROM tenant.accounting_customer_invoices invoice
+            LEFT JOIN tenant.sales_invoices sales_invoice ON sales_invoice.customer_invoice_id = invoice.id
+           WHERE invoice.organization_id = $1 AND invoice.party_id = $2 AND invoice.invoice_type <> 'credit_note'
+           ORDER BY invoice.invoice_date DESC, invoice.created_at DESC LIMIT 200`,
+    // Each invoice is its own document; a Sales invoice opens in Sales.
+    href: (row) => (row.from_sales ? `/sales/invoices/${row.id}` : null),
   },
   payments: {
     needs: "finance",

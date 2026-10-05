@@ -1,7 +1,7 @@
-import { SalesInvoicesScreen } from "@/features/sales/operations/screens/SalesRegisters";
+import { InvoicesScreen } from "@/features/sales/invoices/screens/InvoicesScreen";
 
 export const metadata = { title: "Invoices" };
 
 export default function Page() {
-  return <SalesInvoicesScreen />;
+  return <InvoicesScreen />;
 }

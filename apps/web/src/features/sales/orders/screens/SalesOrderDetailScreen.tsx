@@ -11,11 +11,12 @@
 // customer acknowledged it.
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowLeft, Check, Eye, FileText, Pencil, Send, Truck, Upload } from "lucide-react";
 import {
-  Button, EnterpriseDataGrid, ErrorState, LinkButton, MetricStrip, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, buttonVariants,
+  Button, EnterpriseDataGrid, ErrorState, LinkButton, MetricStrip, PermissionState, ProgressBar, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, buttonVariants,
 } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -28,16 +29,18 @@ import type { SalesDocumentEvent } from "@/features/sales/quotations/api/quotati
 
 import {
   addSalesOrderNote, confirmationPdfUrl, listSalesOrderFiles, getSalesOrder, orderPdfUrl, removeSalesOrderFile, reserveSalesOrderStock, uploadSalesOrderFile,
-  type ConfirmResult, type ReservationOutcome, type SalesOrderDelivery, type SalesOrderDetail, type SalesOrderLine,
+  type ConfirmResult, type ReservationOutcome, type SalesOrderDetail, type SalesOrderLine,
 } from "../api/orders-api";
 import { AvailabilityPanel } from "../components/AvailabilityPanel";
 import { ReservationPanel } from "../components/ReservationPanel";
 import { AcknowledgeConfirmationDialog, ConfirmOrderDialog, MarkConfirmationSentDialog, SendConfirmationDialog } from "../components/ConfirmationDialogs";
-import {
-  CancelOrderDialog, CancelRemainingDialog, CreateDeliveryDialog, CreateInvoiceDialog, DeliveryReceiptDialog, DeliveryShipmentDialog, ReopenOrderDialog,
-  failureText,
-} from "../components/OrderDialogs";
-import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge } from "../components/OrderStatusBadges";
+import { CreateDeliveryDialog } from "@/features/sales/deliveries/components/DeliveryDialogs";
+import { DeliveryStatusBadge } from "@/features/sales/deliveries/components/DeliveryStatusBadge";
+
+import { CreateInvoiceDialog } from "@/features/sales/invoices/components/InvoiceDialogs";
+
+import { CancelOrderDialog, CancelRemainingDialog, ReopenOrderDialog, failureText } from "../components/OrderDialogs";
+import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge } from "../components/OrderStatusBadges";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -54,8 +57,9 @@ const EVENT_LABELS: Record<string, string> = {
   "sales_order.confirmation_refused": "Confirmation refused", "sales_order.confirmation_created": "Order Confirmation recorded", "sales_order.confirmation_superseded": "Order Confirmation superseded",
   "sales_order.confirmation_marked_sent": "Order Confirmation marked as sent", "sales_order.confirmation_acknowledged": "Customer acknowledged the confirmation",
   "sales_order.cancelled": "Cancelled", "sales_order.quantity_cancelled": "Remaining quantity cancelled", "sales_order.stock_reserved": "Stock reserved",
-  "sales_order.stock_released": "Reservation released", "sales_order.delivery_created": "Delivery created", "sales_order.shipped": "Shipment recorded",
-  "sales_order.delivery_received": "Received by the customer", "sales_order.invoice_created": "Invoice created", "sales_order.confirmation_sent": "Order Confirmation sent",
+  "sales_order.stock_released": "Reservation released", "sales_order.delivery_created": "Delivery created", "sales_order.delivery_dispatched": "Delivery dispatched", "sales_order.delivery_cancelled": "Delivery cancelled",
+  "sales_order.reservation_consumed": "Reserved stock issued",
+  "sales_order.delivery_received": "Delivered to the customer", "sales_order.invoice_created": "Invoice created", "sales_order.confirmation_sent": "Order Confirmation sent",
   "sales_order.closed": "Closed", "sales_order.reopened_for_work": "Open again", "sales_order.note_added": "Note", "sales_order.file_added": "File added",
   "sales_order.file_removed": "File removed",
 };
@@ -84,6 +88,7 @@ function eventDetail(event: SalesDocumentEvent) {
 
 export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const workspace = useWorkspaceContext();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const key = scopedQueryKey(workspace, "sales", "order", orderId);
   const query = useQuery({ queryKey: key, queryFn: () => getSalesOrder(orderId).then((r) => r.order) });
@@ -160,6 +165,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
               <OrderStatusBadge status={order.status} label={order.statusLabel} />
               {executing && order.confirmation !== "none" && <ConfirmationStatusBadge status={order.confirmation} label={order.confirmationLabel} />}
               {executing && <FulfillmentStatusBadge status={order.fulfillment} label={order.fulfillmentLabel} />}
+              {detail.delivery.overdue && <OverdueDeliveryBadge />}
               {executing && order.status !== "cancelled" && <InvoicingStatusBadge status={order.invoicing} label={order.invoicingLabel} />}
             </span>
           ),
@@ -245,10 +251,10 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           onClose={() => setDialog(null)} onDone={() => done()} />
       )}
       {dialog === "cancelRemaining" && <CancelRemainingDialog orderId={orderId} detail={detail} onClose={() => setDialog(null)} onDone={() => done("The remaining quantity was cancelled.")} />}
-      {dialog === "delivery" && <CreateDeliveryDialog orderId={orderId} number={order.sales_order_number} onClose={() => setDialog(null)} onDone={(number) => { setTab("fulfillment"); done(`Delivery ${number} was created.`); }} />}
+      {dialog === "delivery" && <CreateDeliveryDialog orderId={orderId} number={order.sales_order_number} onClose={() => setDialog(null)} onDone={(deliveryId) => { refresh(); router.push(`/sales/deliveries/${deliveryId}`); }} />}
       {dialog === "invoice" && (
-        <CreateInvoiceDialog orderId={orderId} number={order.sales_order_number} currencyCode={currency} lines={detail.lines} onClose={() => setDialog(null)}
-          onDone={(number) => { setTab("invoices"); done(`Invoice ${number} was created as a draft for Finance to post.`); }} />
+        <CreateInvoiceDialog orderId={orderId} number={order.sales_order_number} onClose={() => setDialog(null)}
+          onDone={(invoiceId) => { refresh(); router.push(`/sales/invoices/${invoiceId}`); }} />
       )}
 
       {dialog === "email" && (
@@ -382,36 +388,32 @@ function Fulfillment({ detail, orderId, autoCheck, reserving, onReserve, onDeliv
   const order = detail.order;
   const actions = detail.actions;
   const goods = detail.lines.filter((line) => !line.is_service);
-  const [shipping, setShipping] = useState<SalesOrderDelivery | null>(null);
-  const [receiving, setReceiving] = useState<SalesOrderDelivery | null>(null);
   return (
     <div className="flex flex-col gap-4 pt-4">
       {detail.capabilities.checkAvailability && goods.some((line) => line.is_stock_tracked) && order.status !== "cancelled" && order.status !== "closed" && (
         <AvailabilityPanel key={autoCheck ? "checked" : "idle"} orderId={orderId} autoCheck={autoCheck} canReserve={actions.reserve} reserving={reserving} onReserve={onReserve}
           canChangeWarehouse={order.status === "confirmed" && Boolean(detail.capabilities.changeWarehouse)} onChanged={onChanged} />
       )}
+      {detail.delivery.deliverable && order.status !== "draft" && <DeliveryProgress detail={detail} canDeliver={actions.deliver} onDeliver={onDeliver} />}
       <ReservationPanel orderId={orderId} detail={detail} reserving={reserving} onReserveRemaining={onReserve} onDeliver={onDeliver} onChanged={onChanged} />
-      <SalesPanel title="Deliveries" description="An order can be delivered in several parts. Stock is issued when a delivery is created.">
+      <SalesPanel title="Deliveries" description="An order can be delivered in several parts, each from one warehouse. Stock is issued when a delivery is dispatched.">
         {!detail.deliveries.length ? <p className="text-sm text-text-muted">No deliveries yet.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.deliveries.map((delivery) => (
               <li key={delivery.id} className="flex flex-col gap-1 py-2">
                 <span className="flex flex-wrap items-center gap-3">
-                  <span className="font-medium tabular-nums">{delivery.delivery_number}</span>
-                  <span className="text-text-muted">{calendarDate(delivery.delivery_date)}{delivery.created_by_name ? ` · ${delivery.created_by_name}` : ""}</span>
-                  {delivery.delivered_at ? <StatusBadge tone="success">Received</StatusBadge> : delivery.carrier ? <StatusBadge tone="info">Shipped</StatusBadge> : <StatusBadge tone="neutral">Delivered from stock</StatusBadge>}
-                  {detail.capabilities.deliver && !delivery.delivered_at && (
-                    <>
-                      <Button variant="ghost" size="compact" onPress={() => setShipping(delivery)}>{delivery.carrier ? "Change shipment" : "Record shipment"}</Button>
-                      <Button variant="ghost" size="compact" onPress={() => setReceiving(delivery)}>Mark received</Button>
-                    </>
-                  )}
+                  <Link className="font-medium text-brand tabular-nums hover:underline" href={`/sales/deliveries/${delivery.id}`}>{delivery.delivery_number}</Link>
+                  <DeliveryStatusBadge status={delivery.delivery_status} label={delivery.statusLabel} />
+                  <span className="text-text-muted">
+                    {[delivery.warehouse_name, delivery.dispatch_date && `dispatched ${calendarDate(delivery.dispatch_date)}`,
+                      !delivery.dispatch_date && delivery.expected_delivery_date && `expected ${calendarDate(delivery.expected_delivery_date)}`].filter(Boolean).join(" · ")}
+                  </span>
                 </span>
                 <span className="text-text-secondary">{delivery.lines.map((line) => `${line.item_name_snapshot} × ${withUnit(line.quantity, line.uom_snapshot)}`).join(", ")}</span>
-                {(delivery.carrier || delivery.delivered_at || delivery.notes) && (
+                {(delivery.carrier || delivery.delivered_at) && (
                   <span className="text-xs text-text-muted">
                     {[delivery.carrier && `Carrier ${delivery.carrier}${delivery.tracking_number ? ` · ${delivery.tracking_number}` : ""}`,
-                      delivery.delivered_at && `Received ${dateTime(delivery.delivered_at)}${delivery.received_by ? ` by ${delivery.received_by}` : ""}`, delivery.notes].filter(Boolean).join(" · ")}
+                      delivery.delivered_at && `Delivered ${dateTime(delivery.delivered_at)}${delivery.received_by ? ` · received by ${delivery.received_by}` : ""}`].filter(Boolean).join(" · ")}
                   </span>
                 )}
               </li>
@@ -419,9 +421,56 @@ function Fulfillment({ detail, orderId, autoCheck, reserving, onReserve, onDeliv
           </ul>
         )}
       </SalesPanel>
-      {shipping && <DeliveryShipmentDialog delivery={shipping} onClose={() => setShipping(null)} onDone={() => { setShipping(null); onChanged(); }} />}
-      {receiving && <DeliveryReceiptDialog delivery={receiving} onClose={() => setReceiving(null)} onDone={() => { setReceiving(null); onChanged(); }} />}
     </div>
+  );
+}
+
+// What has gone out against what is still ordered, line by line. Remaining = ordered − dispatched − cancelled, from the deliveries and
+// cancellations themselves; a partial delivery leaves the rest open until it is delivered or cancelled.
+function DeliveryProgress({ detail, canDeliver, onDeliver }: { detail: SalesOrderDetail; canDeliver: boolean; onDeliver: () => void }) {
+  const progress = detail.delivery;
+  const goods = detail.lines.filter((line) => !line.is_service);
+  const returns = goods.some((line) => Number(line.returned_quantity) > 0);
+  const requested = detail.order.requested_delivery_date;
+  return (
+    <SalesPanel title="Delivery progress"
+      description={`${quantity(progress.delivered)} of ${quantity(progress.ordered - progress.cancelled)} delivered${progress.cancelled ? ` (${quantity(progress.cancelled)} cancelled)` : ""}${progress.remaining ? ` · ${quantity(progress.remaining)} left to deliver` : ""}${requested ? ` · requested by ${calendarDate(requested)}` : ""}`}
+      actions={(
+        <span className="flex flex-wrap items-center gap-2">
+          {progress.overdue && <OverdueDeliveryBadge />}
+          {canDeliver && <Button variant="primary" size="compact" onPress={onDeliver}>{detail.deliveries.some((delivery) => delivery.delivery_status !== "cancelled") ? "Create Next Delivery" : "Create Delivery"}</Button>}
+        </span>
+      )}>
+      <ProgressBar label="Delivered" value={progress.percent} />
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[40rem] text-sm">
+          <thead className="text-left text-xs text-text-muted">
+            <tr className="border-b border-border">
+              <th className="py-2 pr-3 font-medium">Product</th>
+              <th className="py-2 pr-3 text-right font-medium">Ordered</th>
+              <th className="py-2 pr-3 text-right font-medium">Reserved</th>
+              <th className="py-2 pr-3 text-right font-medium">Dispatched</th>
+              <th className="py-2 pr-3 text-right font-medium">Cancelled</th>
+              {returns && <th className="py-2 pr-3 text-right font-medium">Returned</th>}
+              <th className="py-2 text-right font-medium">Remaining</th>
+            </tr>
+          </thead>
+          <tbody>
+            {goods.map((line) => (
+              <tr key={line.id} className="border-b border-border">
+                <td className="py-2 pr-3 font-medium">{line.item_name_snapshot}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{withUnit(line.ordered_quantity, line.uom_snapshot)}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{line.is_stock_tracked ? quantity(line.reserved_quantity) : "—"}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{quantity(line.delivered_quantity)}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{Number(line.cancelled_quantity) ? quantity(line.cancelled_quantity) : ""}</td>
+                {returns && <td className="py-2 pr-3 text-right tabular-nums">{Number(line.returned_quantity) ? quantity(line.returned_quantity) : ""}</td>}
+                <td className="py-2 text-right font-medium tabular-nums">{Number(line.remaining_to_deliver) ? quantity(line.remaining_to_deliver) : "Complete"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SalesPanel>
   );
 }
 
@@ -432,27 +481,41 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
     { id: "item", header: "Product / service", cell: ({ row }) => <span className="font-medium">{row.original.item_name_snapshot}</span> },
     { id: "ordered", header: "Ordered", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{withUnit(row.original.ordered_quantity, row.original.uom_snapshot)}</span> },
     { id: "delivered", header: "Delivered", cell: ({ row }) => <span className="tabular-nums">{row.original.is_service ? "—" : quantity(row.original.delivered_quantity)}</span> },
-    { id: "invoiced", header: "Invoiced", cell: ({ row }) => <span className="tabular-nums">{quantity(row.original.invoiced_quantity)}</span> },
     { id: "cancelled", header: "Cancelled", cell: ({ row }) => <span className="tabular-nums">{row.original.cancelled_quantity ? quantity(row.original.cancelled_quantity) : ""}</span> },
-    { id: "remaining", header: "Remaining to invoice", cell: ({ row }) => <span className="font-medium tabular-nums">{quantity(row.original.remaining_to_invoice)}</span> },
+    { id: "invoiced", header: "Invoiced", cell: ({ row }) => <span className="tabular-nums">{quantity(row.original.invoiced_quantity)}</span> },
+    { id: "drafts", header: "On drafts", cell: ({ row }) => <span className="tabular-nums text-text-muted">{row.original.on_draft_invoices ? quantity(row.original.on_draft_invoices) : ""}</span> },
+    { id: "now", header: "Invoiceable now", cell: ({ row }) => <span className="font-medium tabular-nums">{quantity(row.original.invoiceable_now)}</span> },
+    ...(detail.invoicing.basis === "delivered"
+      ? [{ id: "pending", header: "Pending delivery", cell: ({ row }: { row: { original: SalesOrderLine } }) => <span className="tabular-nums">{row.original.is_service ? "—" : quantity(row.original.pending_delivery_to_invoice)}</span> } as ColumnDef<SalesOrderLine, unknown>]
+      : []),
+    { id: "remaining", header: "Remaining to invoice", cell: ({ row }) => <span className="tabular-nums">{quantity(row.original.remaining_to_invoice)}</span> },
   ];
+  const onDrafts = detail.lines.some((line) => line.on_draft_invoices > 0);
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Invoiced value" description="Payment is recorded against each invoice by Finance, not against the order."
-        actions={detail.actions.invoice ? <Button variant="primary" size="compact" onPress={onInvoice}>Create Invoice</Button> : undefined}>
-        <SalesFacts items={[
-          { label: "Ordered value", value: money(currency, detail.invoicing.orderedValue) },
-          { label: "Invoiced value", value: money(currency, detail.invoicing.invoicedValue) },
+      <SalesPanel title="Invoicing progress"
+        description={`Invoiced on ${detail.invoicing.basis === "delivered" ? "delivered" : "ordered"} quantities (Sales settings). Only posted invoices count as invoiced; payment is recorded against each invoice by Finance.`}
+        actions={(
+          <span className="flex flex-wrap items-center gap-2">
+            {order.status !== "draft" && <InvoicingStatusBadge status={order.invoicing} label={order.invoicingLabel} />}
+            {detail.actions.invoice && <Button variant="primary" size="compact" onPress={onInvoice}>Create Invoice</Button>}
+          </span>
+        )}>
+        <SalesFacts columns={4} items={[
+          { label: "Order value", value: money(currency, detail.invoicing.orderedValue) },
+          { label: "Invoiced", value: money(currency, detail.invoicing.invoicedValue) },
           { label: "Remaining to invoice", value: money(currency, detail.invoicing.remainingValue) },
+          { label: "Invoiceable now", value: money(currency, detail.invoicing.invoiceableNowValue) },
         ]} />
+        {onDrafts && <SalesAlert tone="info">Draft invoices bill part of what is left. They are not invoiced until posted, and only what is left at posting can be posted.</SalesAlert>}
       </SalesPanel>
-      <SalesPanel title="Invoices" description="An order can be invoiced in several parts. Each invoice bills its quantity with the discount and tax in proportion.">
+      <SalesPanel title="Invoices" description="An order can be invoiced in several parts. Each invoice bills its quantity with the discount and tax in proportion; only posted invoices count as invoiced.">
         {!detail.invoices.length ? <p className="text-sm text-text-muted">No invoices yet.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.invoices.map((invoice) => (
               <li key={invoice.id} className="flex flex-wrap items-center gap-3 py-2">
-                {detail.capabilities.invoice
-                  ? <Link className="font-medium text-brand tabular-nums hover:underline" href="/accounting/customer-invoices">{invoice.invoice_number}</Link>
+                {invoice.invoice_type === "invoice"
+                  ? <Link className="font-medium text-brand tabular-nums hover:underline" href={`/sales/invoices/${invoice.id}`}>{invoice.invoice_number}</Link>
                   : <span className="font-medium tabular-nums">{invoice.invoice_number}</span>}
                 {invoice.invoice_type !== "invoice" && <StatusBadge tone="neutral">{statusLabel(invoice.invoice_type)}</StatusBadge>}
                 <StatusBadge tone={statusTone(invoice.status)}>{statusLabel(invoice.status)}</StatusBadge>

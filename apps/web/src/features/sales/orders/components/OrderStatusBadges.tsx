@@ -3,7 +3,7 @@ import { StatusBadge } from "@vercentlabs/design-system";
 type Tone = "success" | "neutral" | "info" | "warning" | "danger";
 const ORDER: Record<string, Tone> = { draft: "neutral", confirmed: "info", cancelled: "danger", closed: "success" };
 const FULFILLMENT: Record<string, Tone> = {
-  not_started: "neutral", partially_reserved: "warning", reserved: "info", partially_delivered: "warning", delivered: "success", cancelled: "neutral", not_required: "neutral",
+  not_delivered: "neutral", partially_delivered: "warning", delivered: "success", cancelled: "neutral", not_required: "neutral",
 };
 const INVOICING: Record<string, Tone> = { not_invoiced: "neutral", partially_invoiced: "warning", fully_invoiced: "success" };
 
@@ -23,4 +23,8 @@ export function FulfillmentStatusBadge({ status, label }: { status: string; labe
 }
 export function InvoicingStatusBadge({ status, label }: { status: string; label: string }) {
   return <StatusBadge tone={INVOICING[status] ?? "neutral"}>{label}</StatusBadge>;
+}
+// Derived: the requested delivery date has passed with goods still to deliver.
+export function OverdueDeliveryBadge() {
+  return <StatusBadge tone="danger">Overdue delivery</StatusBadge>;
 }

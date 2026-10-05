@@ -19,7 +19,7 @@ export type RelatedList = "quotations" | "orders" | "deliveries" | "invoices" | 
 
 const LISTS: Record<RelatedList, { noun: string; empty: string; title: string; detail?: string; due?: string; amount?: boolean; outstanding?: string }> = {
   quotations: { noun: "Quotation", empty: "No quotations for this customer yet.", title: "", due: "Valid until", amount: true },
-  orders: { noun: "Sales order", empty: "No sales orders for this customer yet.", title: "", detail: "Fulfilment", amount: true },
+  orders: { noun: "Sales order", empty: "No sales orders for this customer yet.", title: "", detail: "Delivery · Invoicing", amount: true },
   deliveries: { noun: "Delivery", empty: "No deliveries for this customer yet.", title: "Sales order", detail: "Tracking" },
   invoices: { noun: "Invoice", empty: "No invoices for this customer yet.", title: "", due: "Due", amount: true, outstanding: "Outstanding" },
   payments: { noun: "Receipt", empty: "No payments from this customer yet.", title: "", detail: "Method", amount: true, outstanding: "Unallocated" },

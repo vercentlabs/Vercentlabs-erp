@@ -71,7 +71,7 @@ export function SalesHomeScreen() {
     {
       href: "/sales/deliveries",
       label: "Deliveries",
-      hint: "Fulfilment requests and progress",
+      hint: "Partial and full deliveries, dispatch and receipt",
     },
     {
       href: "/sales/invoices",
@@ -322,13 +322,18 @@ export const STATUS_REPORTS: ReportSpec[] = [
   },
   {
     key: "fulfillment",
-    label: "Fulfilment status",
-    description: "Open orders and how far fulfilment has got.",
+    label: "Remaining by order",
+    description: "Confirmed orders with goods still to deliver: ordered, delivered, cancelled and remaining, and whether the requested date has passed.",
   },
   {
-    key: "active-holds",
-    label: "Active holds",
-    description: "Orders currently blocked, and why.",
+    key: "remaining-by-product",
+    label: "Remaining by product",
+    description: "Open delivery demand per product across confirmed orders, and how much of it is reserved.",
+  },
+  {
+    key: "delivery-performance",
+    label: "Delivery performance",
+    description: "Each dispatched delivery against the date the customer requested.",
   },
   {
     key: "billing-readiness",

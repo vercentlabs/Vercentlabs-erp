@@ -15,6 +15,10 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "sales.order": { moduleKey: "sales", purposes: ["attachment"] },
   // The exact PDF of each order confirmation that was emailed.
   "sales.order_confirmation": { moduleKey: "sales", purposes: ["attachment"] },
+  // Proof of delivery: the signed delivery note, photos, the customer's acknowledgement.
+  "sales.delivery": { moduleKey: "sales", purposes: ["attachment"] },
+  // Files on a sales invoice, and the exact PDFs emailed to the customer.
+  "sales.invoice": { moduleKey: "sales", purposes: ["attachment"] },
   "platform.export": { moduleKey: null, purposes: ["export"] },
   "platform.report_run": { moduleKey: null, purposes: ["report_output"] },
 });

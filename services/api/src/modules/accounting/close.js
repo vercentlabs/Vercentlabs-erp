@@ -54,9 +54,9 @@ async function periodBlockers(client, context, period) {
         JOIN tenant.accounting_vendor_bills bill ON bill.id=match.vendor_bill_id
         WHERE match.organization_id=$1 AND bill.accounting_date BETWEEN $2 AND $3
           AND match.status='exception')::int AS matching_exceptions,
-      (SELECT count(*) FROM tenant.sales_invoice_requests request
-        WHERE request.organization_id=$1
-          AND request.requested_at::date BETWEEN $2 AND $3 AND request.status='failed')::int AS failed_sales_invoice_requests`,
+      (SELECT count(*) FROM tenant.accounting_customer_invoices invoice
+        WHERE invoice.organization_id=$1
+          AND invoice.accounting_date BETWEEN $2 AND $3 AND invoice.status IN ('draft','pending_approval','approved'))::int AS unposted_customer_invoices`,
     parameters,
   );
   const counts = result.rows[0] || {};

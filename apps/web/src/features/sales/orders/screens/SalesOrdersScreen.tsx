@@ -22,7 +22,7 @@ import { calendarDate, money } from "@/features/sales/shared/format";
 import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 
 import { listSalesOrders, salesOrderExportUrl, type OrderFilters, type SalesOrderRow } from "../api/orders-api";
-import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge } from "../components/OrderStatusBadges";
+import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge } from "../components/OrderStatusBadges";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -37,8 +37,7 @@ const NAMES: Record<FilterKey, string> = {
 };
 const STATUSES = [{ value: "draft", label: "Draft" }, { value: "confirmed", label: "Confirmed" }, { value: "cancelled", label: "Cancelled" }, { value: "closed", label: "Closed" }];
 const FULFILLMENTS = [
-  { value: "not_started", label: "Not started" }, { value: "partially_reserved", label: "Partially reserved" }, { value: "reserved", label: "Reserved" },
-  { value: "partially_delivered", label: "Partially delivered" }, { value: "delivered", label: "Delivered" },
+  { value: "not_delivered", label: "Not delivered" }, { value: "partially_delivered", label: "Partially delivered" }, { value: "delivered", label: "Delivered" },
 ];
 const CONFIRMATIONS = [{ value: "not_sent", label: "Not sent" }, { value: "sent", label: "Sent" }, { value: "acknowledged", label: "Acknowledged" }];
 const INVOICINGS = [{ value: "not_invoiced", label: "Not invoiced" }, { value: "partially_invoiced", label: "Partially invoiced" }, { value: "fully_invoiced", label: "Fully invoiced" }];
@@ -97,7 +96,12 @@ export function SalesOrdersScreen() {
     { id: "total", accessorKey: "grand_total", header: "Total", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{money(row.original.currency_code, row.original.grand_total)}</span> },
     { id: "status", accessorKey: "lifecycle_status", header: "Order status", cell: ({ row }) => <OrderStatusBadge status={row.original.status} label={row.original.statusLabel} /> },
     { id: "confirmation", header: "Confirmation", enableSorting: false, cell: ({ row }) => row.original.confirmation === "none" ? "" : <ConfirmationStatusBadge status={row.original.confirmation} label={row.original.confirmationLabel} /> },
-    { id: "fulfillment", header: "Fulfillment", enableSorting: false, cell: ({ row }) => row.original.status === "draft" ? "" : <FulfillmentStatusBadge status={row.original.fulfillment} label={row.original.fulfillmentLabel} /> },
+    {
+      id: "fulfillment", header: "Fulfillment", enableSorting: false,
+      cell: ({ row }) => row.original.status === "draft" ? "" : (
+        <span className="flex flex-wrap gap-1"><FulfillmentStatusBadge status={row.original.fulfillment} label={row.original.fulfillmentLabel} />{row.original.delivery_overdue && <OverdueDeliveryBadge />}</span>
+      ),
+    },
     { id: "invoicing", header: "Invoicing", enableSorting: false, cell: ({ row }) => ["draft", "cancelled"].includes(row.original.status) ? "" : <InvoicingStatusBadge status={row.original.invoicing} label={row.original.invoicingLabel} /> },
   ], []);
 

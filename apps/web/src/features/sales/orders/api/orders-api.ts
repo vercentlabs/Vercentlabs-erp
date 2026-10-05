@@ -8,7 +8,8 @@ import type { SalesDocumentEvent, SalesDocumentInput, SalesDocumentPreview } fro
 // ordered, reserved, delivered, invoiced and remaining are worked out by the
 // server from the reservations, deliveries and invoices themselves.
 export type OrderStatusKey = "draft" | "confirmed" | "cancelled" | "closed";
-export type FulfillmentKey = "not_started" | "partially_reserved" | "reserved" | "partially_delivered" | "delivered" | "cancelled" | "not_required";
+// Delivery only: reservation has its own status.
+export type FulfillmentKey = "not_delivered" | "partially_delivered" | "delivered" | "cancelled" | "not_required";
 export type InvoicingKey = "not_invoiced" | "partially_invoiced" | "fully_invoiced";
 // Whether the current order confirmation went out; separate from the order's status.
 export type ConfirmationKey = "none" | "not_sent" | "sent" | "acknowledged" | "superseded";
@@ -34,6 +35,8 @@ export type SalesOrderRow = DisplayStatuses & {
   grand_total: string;
   customer_po_number: string | null;
   customer_name: string | null;
+  // The requested delivery date has passed with goods still to deliver.
+  delivery_overdue: boolean;
   customer_number: string | null;
   owner_name: string | null;
 };
@@ -93,19 +96,26 @@ export type SalesOrderLine = {
   returned_quantity: number;
   remaining_to_deliver: number;
   remaining_to_invoice: number;
+  // On the company's invoicing basis: what can be invoiced now, what waits for delivery, and what draft invoices bill (not yet invoiced).
+  invoiceable_now: number;
+  pending_delivery_to_invoice: number;
+  on_draft_invoices: number;
 };
 
+// Every delivery of the order, whatever its state; only dispatched and delivered ones count as delivered.
 export type SalesOrderDelivery = {
   id: string;
   delivery_number: string;
-  delivery_date: string | null;
-  completed_at: string | null;
+  delivery_status: "draft" | "ready" | "dispatched" | "delivered" | "cancelled";
+  statusLabel: string;
+  dispatch_date: string | null;
+  expected_delivery_date: string | null;
   carrier: string | null;
   tracking_number: string | null;
-  shipped_at: string | null;
+  tracking_url: string | null;
   delivered_at: string | null;
   received_by: string | null;
-  notes: string | null;
+  warehouse_name: string | null;
   created_by_name: string | null;
   lines: Array<{ sales_order_line_id: string; quantity: string; uom_snapshot: string | null; item_name_snapshot: string }>;
 };
@@ -259,7 +269,9 @@ export type SalesOrderDetail = {
   taxLines: Array<{ tax_type: string; label: string; rate: string; taxable_amount: string; tax_amount: string }>;
   deliveries: SalesOrderDelivery[];
   invoices: SalesOrderInvoice[];
-  invoicing: { orderedValue: number; invoicedValue: number; remainingValue: number };
+  // The physical lines together: ordered, dispatched, cancelled, returned and left to deliver, and the share of what is still ordered that went out.
+  delivery: { deliverable: boolean; ordered: number; delivered: number; cancelled: number; returned: number; remaining: number; percent: number; overdue: boolean };
+  invoicing: { basis: "ordered" | "delivered"; orderedValue: number; invoicedValue: number; remainingValue: number; invoiceableNowValue: number };
   versions: Array<{ id: string; version_number: number; change_note: string | null; grand_total: string; currency_code: string; created_at: string; created_by_name: string | null }>;
   confirmations: OrderConfirmation[];
   events: SalesDocumentEvent[];
@@ -317,17 +329,6 @@ export const RELEASE_REASONS = [
   { code: "reservation_correction", label: "Reservation correction" }, { code: "other", label: "Other" },
 ];
 
-export type DeliveryProposal = {
-  orderId: string;
-  canDeliver: boolean;
-  lines: Array<{ salesOrderLineId: string; itemName: string; unit: string | null; ordered: number; delivered: number; reserved: number; remaining: number; stockTracked: boolean; warehouseId: string | null }>;
-};
-export type InvoiceProposal = {
-  orderId: string;
-  quantityBasis: "ordered" | "fulfilled";
-  canInvoice: boolean;
-  lines: Array<{ salesOrderLineId: string; itemName: string; unit: string | null; ordered: number; delivered: number; invoiced: number; cancelled: number; eligible: number; isService: boolean }>;
-};
 export type OrderFile = { id: string; fileName: string; mimeType: string; sizeBytes: number; uploadedAt: string };
 
 export type SalesOrderDocumentInput = Omit<SalesDocumentInput, "lines"> & {
@@ -388,12 +389,6 @@ export const releaseSalesOrderReservation = (id: string, input: { lineId?: strin
   post<{ result: { released: number } }>(`/orders/${id}/release`, input);
 export const listSalesOrderReservations = (id: string) => request<{ reservations: StockReservationRecord[] }>(`/orders/${id}/reservations`);
 
-export const getDeliveryProposal = (id: string) => request<{ proposal: DeliveryProposal }>(`/orders/${id}/deliveries`);
-export const createSalesOrderDelivery = (id: string, input: { idempotencyKey: string; lines: QuantityLine[]; deliveryDate?: string; carrier?: string; trackingNumber?: string; notes?: string }) =>
-  post<{ result: { deliveryId: string; deliveryNumber: string } }>(`/orders/${id}/deliveries`, input);
-export const getInvoiceProposal = (id: string) => request<{ proposal: InvoiceProposal }>(`/orders/${id}/invoices`);
-export const createSalesOrderInvoice = (id: string, input: { idempotencyKey: string; lines: QuantityLine[] }) =>
-  post<{ result: { invoiceId: string; invoiceNumber: string } }>(`/orders/${id}/invoices`, input);
 
 // The current confirmation: emailed with its PDF, marked as sent another way, acknowledged by the customer.
 export const sendOrderConfirmation = (id: string, input: { to: string; cc?: string; subject?: string; message?: string; idempotencyKey: string }) =>
@@ -417,9 +412,3 @@ export async function uploadSalesOrderFile(id: string, file: File) {
   return payload as { file: OrderFile };
 }
 export const removeSalesOrderFile = (id: string, fileId: string) => del<{ result: { removed: boolean } }>(`/orders/${id}/files/${fileId}`);
-
-// The carrier of a delivery that has left, and the customer's receipt of it.
-export const recordDeliveryShipment = (deliveryId: string, input: { carrier: string; trackingNumber?: string }) =>
-  post<{ result: unknown }>(`/deliveries/${deliveryId}/ship`, input);
-export const recordDeliveryReceipt = (deliveryId: string, input: { receivedBy: string; note?: string }) =>
-  post<{ result: unknown }>(`/deliveries/${deliveryId}/receive`, input);
