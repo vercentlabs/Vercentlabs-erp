@@ -764,7 +764,7 @@ const reservations: RegisterConfig = {
   key: "reservations",
   title: "Reservations",
   description:
-    "Stock set aside for an order or a hold. Reserved stock is not available to promise.",
+    "Stock set aside for a sales order, a work order or a hold. Reserved stock stays on hand but is not available to other demand; a delivery consumes it.",
   searchLabel: "Search reservations",
   emptyTitle: "No reservations",
   emptyDescription: "Reserve stock to hold it for an order.",
@@ -800,24 +800,31 @@ const reservations: RegisterConfig = {
     ]),
   ],
   columns: () => [
+    strong("number", "Reservation", (r) => String(r.reservation_number ?? "—")),
     badge("status", "Status", (r) => r.status),
     col("item", "Item", (r) => `${r.item_name} (${r.item_code})`),
     col("warehouse", "Warehouse", (r) => String(r.warehouse_name)),
     col("batch", "Batch", (r) => String(r.batch_number ?? "—")),
-    col("qty", "Quantity", (r) => quantity(r.quantity)),
+    col("qty", "Reserved", (r) => quantity(r.quantity)),
+    col("active", "Still held", (r) => quantity(r.active_quantity)),
+    col("consumed", "Consumed", (r) => quantity(r.consumed_quantity)),
+    col("releasedQty", "Released", (r) => quantity(r.released_quantity)),
     col("ref", "Held for", (r) =>
-      r.reference_type ? label(r.reference_type) : "—",
+      r.sales_order_number
+        ? `${r.sales_order_number}${r.customer_name ? ` · ${r.customer_name}` : ""}`
+        : r.reference_type ? label(r.reference_type) : "—",
     ),
-    col("created", "Reserved", (r) => dateTime(r.created_at)),
-    col("released", "Released", (r) => dateTime(r.released_at)),
+    col("created", "Reserved on", (r) => `${dateTime(r.created_at)}${r.reserved_by_name ? ` · ${r.reserved_by_name}` : ""}`),
+    col("held", "Held for (days)", (r) => (r.days_held == null ? "—" : String(r.days_held))),
   ],
   searchText: (r) =>
-    text(r, ["item_name", "item_code", "warehouse_name", "reference_type"]),
+    text(r, ["reservation_number", "item_name", "item_code", "warehouse_name", "reference_type", "sales_order_number", "customer_name"]),
   rowActions: [
     {
       label: "Release",
       permission: "stock.reserve",
-      show: (r) => r.status === "active",
+      // A sales order's reservation is released from the order, with a reason.
+      show: (r) => r.status === "active" && !r.sales_order_id,
       success: "Reservation released.",
       run: (r) => act("reservation-release", { id: r.id }),
     },

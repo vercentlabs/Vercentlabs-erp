@@ -11,7 +11,7 @@ import { Button, Dialog, Select, TextArea, TextField } from "@vercentlabs/design
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { money } from "@/features/sales/shared/format";
+import { dateTime, money } from "@/features/sales/shared/format";
 import { SalesAlert } from "@/features/sales/shared/SalesUi";
 
 import {
@@ -94,6 +94,9 @@ export function ConfirmOrderDialog({ orderId, number, versionNumber, onClose, on
                   </>
                 ) : <p className="text-sm text-success">Matches the accepted quotation.</p>}
               </Section>
+            )}
+            {data.availabilitySummary && (
+              <p className="text-sm">Stock: <span className="font-medium">{data.availabilitySummary}</span>{data.availabilityCheckedAt ? <span className="text-text-muted"> · checked {dateTime(data.availabilityCheckedAt)}</span> : null}</p>
             )}
             {data.shortages.length > 0 && (
               <Section title="Stock">

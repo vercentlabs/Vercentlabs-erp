@@ -30,7 +30,6 @@ type CrmDashboardMetrics = {
   stalledOpportunities: number;
   needsQualificationLeads: number;
   highPriorityLeads: number;
-  uncoveredTerritories: number;
 };
 
 type CrmDashboardStage = {

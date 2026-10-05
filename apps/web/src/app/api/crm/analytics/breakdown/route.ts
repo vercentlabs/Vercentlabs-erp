@@ -7,7 +7,7 @@ import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
 import { crmContext } from "@/features/crm/shared/crm-context";
 
-// F024 one metric grouped by a dimension (stage, owner, team, territory,
+// F024 one metric grouped by a dimension (stage, owner, team,
 // source, category, pipeline, close month); rows add up to the KPI.
 export async function GET(request: Request) {
   return workspaceRoute(

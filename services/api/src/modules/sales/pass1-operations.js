@@ -187,6 +187,7 @@ const SETTINGS_DEFAULTS = Object.freeze({
   reserve_stock_on_confirm: true,
   require_customer_po: false,
   require_requested_delivery_date: false,
+  check_availability_on_confirm: true,
   default_quotation_terms: null,
   allow_line_discounts: true,
   allow_document_discounts: true,
@@ -229,6 +230,7 @@ export async function updateSalesSettings(client, c, input = {}) {
   // What must be on an order before it is confirmed.
   if (input.requireCustomerPo !== undefined) next.require_customer_po = Boolean(input.requireCustomerPo);
   if (input.requireRequestedDeliveryDate !== undefined) next.require_requested_delivery_date = Boolean(input.requireRequestedDeliveryDate);
+  if (input.checkAvailabilityOnConfirm !== undefined) next.check_availability_on_confirm = Boolean(input.checkAvailabilityOnConfirm);
   // Pricing & Discounts: which discounts are allowed, when a reason is needed and how much a user may give.
   const discountKeys = Object.keys(DISCOUNT_SETTINGS).filter((key) => input[key] !== undefined);
   if (discountKeys.length) {
@@ -249,7 +251,7 @@ export async function updateSalesSettings(client, c, input = {}) {
     if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
     next.invoice_quantity_basis = input.invoiceQuantityBasis;
   }
-  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","invoice_quantity_basis","default_price_list_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent"];
+  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","invoice_quantity_basis","default_price_list_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent"];
   const result = await client.query(
     `INSERT INTO tenant.sales_settings(organization_id,${columns.join(",")},created_by,updated_by)
      VALUES($1,${columns.map((_, index) => `$${index + 3}`).join(",")},$2,$2)

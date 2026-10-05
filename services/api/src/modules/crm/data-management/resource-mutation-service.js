@@ -11,13 +11,13 @@
 //   Automation    -> automation/automation-engine.js (runCrmAutomation)
 import { runCrmAutomation } from "./automation/automation-engine.js";
 import { CrmError } from "./errors.js";
-import { assertSalesTeamParentAllowed, assertTerritoryParentAllowed } from "../sales-organization/hierarchy-rules.js";
+import { assertSalesTeamParentAllowed } from "../sales-organization/hierarchy-rules.js";
 import { queueOutboxEvent } from "./outbox.js";
 import { assertLeadLinkedContentAllowed, assertLifecycleUpdate, assertOwnerAssignmentAllowed, projectCrmRecord, recordScope } from "./record-policy.js";
 import { addParameter, camelizeRow } from "./record-utils.js";
 import { getCrmRecord, nextCode } from "./resource-query-service.js";
 import { auditColumns, definitionFor } from "./resource-registry.js";
-import { GENERIC_VERSIONED_RESOURCES, assertCustomFieldRequiredRolloutSafe, assertGenericLeadLinkedTarget, assertRecordExpectedVersion, mutableEntries, normalizeStorageInput, validateCustomRecord, validateOrganizationUserReferences } from "./resource-validation.js";
+import { GENERIC_VERSIONED_RESOURCES, assertGenericLeadLinkedTarget, assertRecordExpectedVersion, mutableEntries, normalizeStorageInput, validateOrganizationUserReferences } from "./resource-validation.js";
 
 // The audit stamps an UPDATE may write on this resource's table.
 function updateStamps(resource, userParameter) {
@@ -79,18 +79,7 @@ export async function createCrmRecord(client, context, resource, input) {
       context.organizationId,
       definition.codeEntity,
     );
-  if (resource === "custom-field-definitions" && prepared.required === true) {
-    await assertCustomFieldRequiredRolloutSafe(
-      client,
-      context,
-      prepared.objectDefinitionId,
-      prepared.fieldKey,
-      Boolean(input.confirmRequiredRollout),
-    );
-  }
   await assertGenericLeadLinkedTarget(client, context, resource, prepared);
-  if (resource === "custom-records")
-    await validateCustomRecord(client, context, prepared);
   await validateOrganizationUserReferences(
     client,
     context,
@@ -202,32 +191,6 @@ export async function updateCrmRecord(
   await assertOwnerAssignmentAllowed(client, definition, context, input);
   assertLifecycleUpdate(resource, before, input, context);
   const prepared = normalizeStorageInput(resource, input);
-  if (resource === "custom-records") {
-    const callerSuppliedData = Object.prototype.hasOwnProperty.call(prepared, "data");
-    prepared.objectDefinitionId ??= before.objectDefinitionId;
-    prepared.data ??= before.data;
-    await validateCustomRecord(
-      client,
-      context,
-      prepared,
-      id,
-      callerSuppliedData ? new Set(Object.keys(prepared.data)) : new Set(),
-    );
-  }
-  if (
-    resource === "custom-field-definitions" &&
-    prepared.required === true &&
-    before.required !== true
-  ) {
-    await assertCustomFieldRequiredRolloutSafe(
-      client,
-      context,
-      before.objectDefinitionId,
-      before.fieldKey,
-      Boolean(input.confirmRequiredRollout),
-    );
-  }
-  await assertTerritoryParentAllowed(client, context, resource, id, prepared);
   await assertSalesTeamParentAllowed(client, context, resource, id, prepared);
   await assertGenericLeadLinkedTarget(client, context, resource, {
     ...before,
@@ -360,7 +323,6 @@ export async function archiveCrmRecord(
   if (
     resource === "consent-events" ||
     resource === "communications" ||
-    resource === "playbook-responses" ||
     resource === "data-quality-scores" ||
     resource === "pipeline-inspections" ||
     resource === "ai-feedback"
@@ -369,13 +331,6 @@ export async function archiveCrmRecord(
       409,
       "This CRM record is immutable and cannot be deleted.",
       "CRM_RECORD_IMMUTABLE",
-    );
-  }
-  if (resource === "privacy-requests" && before.status === "completed") {
-    throw new CrmError(
-      409,
-      "Completed privacy requests cannot be archived.",
-      "CRM_PRIVACY_REQUEST_CLOSED",
     );
   }
 
@@ -394,17 +349,11 @@ export async function archiveCrmRecord(
     integrations: "disabled",
     "sales-teams": "inactive",
     "sales-team-members": "inactive",
-    territories: "archived",
-    "quota-plans": "cancelled",
     "forecast-periods": "closed",
     "forecast-submissions": "superseded",
     "account-plans": "archived",
     "account-stakeholders": "inactive",
-    playbooks: "archived",
-    "playbook-questions": "inactive",
-    "privacy-requests": "cancelled",
     "engagement-templates": "archived",
-    "meeting-links": "archived",
     "sync-accounts": "disabled",
     conversations: "archived",
     "conversation-insights": "superseded",
@@ -416,9 +365,6 @@ export async function archiveCrmRecord(
     "account-signals": "dismissed",
     "partner-accounts": "archived",
     "partner-deals": "cancelled",
-    "custom-object-definitions": "archived",
-    "custom-field-definitions": "archived",
-    "custom-records": "archived",
     "field-visits": "cancelled",
     "ai-predictions": "expired",
   };

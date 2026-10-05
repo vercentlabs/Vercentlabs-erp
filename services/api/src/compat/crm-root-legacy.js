@@ -11,7 +11,6 @@
 
 export * from "../modules/crm/data-management/core-acceptance.js";
 export * from "../modules/crm/activities/communications.js";
-export * from "../modules/crm/activities/public-meetings.js";
 export * from "../modules/crm/pipeline/opportunity-revenue-intelligence.js";
 export * from "../modules/crm/data-management/offline-sync.js";
 export * from "../modules/crm/data-management/notification-visibility.js";

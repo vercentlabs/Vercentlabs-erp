@@ -27,9 +27,6 @@ export function cancelSalesOrder(client: QueryClient, context: Context, orderId:
 export function cancelSalesOrderRemaining(client: QueryClient, context: Context, orderId: string,
   input: { lines?: Array<{ salesOrderLineId: string; quantity?: number | string | null }>; reasonCode?: string; reason?: string }): Promise<any>;
 
-export function checkSalesOrderAvailability(client: QueryClient, context: Context, orderId: string): Promise<{ orderId: string; status: string; lines: any[]; shortages: number }>;
-export function reserveSalesOrderStock(client: QueryClient, context: Context, orderId: string, input?: { lineIds?: string[] }): Promise<{ orderId: string; lines: any[]; reservedLines: number; fulfillmentStatus: string }>;
-export function releaseSalesOrderReservation(client: QueryClient, context: Context, orderId: string, input: { lineId?: string | null; reason: string }): Promise<{ orderId: string; released: number; fulfillmentStatus: string }>;
 
 export function getDeliveryProposal(client: QueryClient, context: Context, orderId: string): Promise<{ orderId: string; canDeliver: boolean; lines: any[] }>;
 export function createDeliveryFromSalesOrder(client: QueryClient, context: Context, orderId: string,

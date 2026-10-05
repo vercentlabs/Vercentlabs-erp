@@ -161,6 +161,8 @@ export type ConfirmationCheck = {
   };
   varianceNeedsPermission: boolean;
   shortages: Array<{ itemName: string; unit: string | null; required: number; available: number | null; shortage: number | null; problem: string | null }>;
+  availabilitySummary: string | null;
+  availabilityCheckedAt: string | null;
   reservesOnConfirm: boolean;
   nextConfirmationVersion: number;
 };
@@ -250,6 +252,8 @@ export type SalesOrderDetail = {
     cancel_reason: string | null;
     closed_at: string | null;
     confirmation_version: number;
+    reservation: ReservationStatusKey;
+    reservationLabel: string;
   };
   lines: SalesOrderLine[];
   taxLines: Array<{ tax_type: string; label: string; rate: string; taxable_amount: string; tax_amount: string }>;
@@ -280,17 +284,38 @@ export type SalesOrderDefaults = {
   blocked?: string | null;
 };
 
-export type SalesOrderAvailability = {
-  orderId: string;
-  status: string;
-  shortages: number;
-  lines: Array<{
-    lineId: string; sequence: number; itemName: string; unit: string | null; ordered: number; delivered: number; remaining: number; reserved: number;
-    warehouseId: string | null; warehouseName: string | null; onHand: number | null; reservedElsewhere: number | null; available: number | null; shortage: number | null;
-    canReserve: number; problem: string | null;
-  }>;
+// Stock availability now, worked out from Inventory: never stored, never a promise. Only a reservation commits stock.
+export type AvailabilityResultKey = "available" | "partially_available" | "unavailable" | "not_required" | "not_tracked" | "no_warehouse";
+export type AlternativeWarehouse = { warehouseId: string; warehouseCode: string; warehouseName: string; available: number; onHand?: number };
+export type LineAvailability = {
+  lineId: string; sequence: number; itemId: string; itemName: string; unit: string | null; isService: boolean; stockTracked: boolean;
+  ordered: number; delivered: number; cancelled: number; reserved: number;
+  remaining?: number; unreservedDemand?: number; baseUnit?: string | null; conversionFactor?: number;
+  warehouseId?: string | null; warehouseName?: string | null; warehouseSource?: "line" | "order_default" | null;
+  onHand?: number; reservedByOthers?: number; unusable?: number; available?: number; reservable?: number; shortage?: number;
+  baseRequired?: number; baseAvailable?: number;
+  result: AvailabilityResultKey; resultLabel: string; problem?: string | null; alternatives?: AlternativeWarehouse[];
 };
-export type ReservationOutcome = { lineId: string; itemName: string; wanted: number; reserved: number; problem: string | null };
+export type SalesOrderAvailability = {
+  orderId: string; orderNumber: string; status: string; checkedAt: string; informational: boolean;
+  summary: "fully_available" | "partially_available" | "unavailable" | "not_required"; summaryLabel: string; lines: LineAvailability[]; shortages: number;
+};
+export type ReservationOutcome = {
+  lineId: string; itemName: string; unit?: string | null; wanted: number; reserved: number; shortage?: number; reservations?: string[]; warehouseName?: string; problem: string | null;
+};
+export type ReservationStatusKey = "not_required" | "not_reserved" | "partially_reserved" | "fully_reserved";
+export type ReservationResult = { orderId: string; lines: ReservationOutcome[]; reservedLines: number; reservationStatus: ReservationStatusKey; replayed: boolean };
+// One reservation record: what it reserved, still holds, consumed (by which delivery) and released, in the line's unit.
+export type StockReservationRecord = {
+  id: string; reservationNumber: string | null; status: "active" | "consumed" | "released" | "cancelled"; statusLabel: string; lineId: string; itemName: string; unit: string | null;
+  reserved: number; active: number; consumed: number; released: number; warehouseName: string; location: string | null; batch: string | null;
+  reservedAt: string; reservedByName: string | null; releasedAt: string | null; releasedByName: string | null; releaseReason: string | null; daysHeld: number | null; stale: boolean;
+  consumptions: Array<{ deliveryNumber: string | null; quantity: number; consumedAt: string }>;
+};
+export const RELEASE_REASONS = [
+  { code: "customer_delay", label: "Customer delay" }, { code: "warehouse_reassignment", label: "Warehouse reassignment" }, { code: "order_amendment", label: "Order amendment" },
+  { code: "reservation_correction", label: "Reservation correction" }, { code: "other", label: "Other" },
+];
 
 export type DeliveryProposal = {
   orderId: string;
@@ -352,10 +377,16 @@ export const cancelSalesOrderRemaining = (id: string, input: { lines?: QuantityL
   post<{ result: unknown }>(`/orders/${id}/cancel-remaining`, input);
 
 export const getSalesOrderAvailability = (id: string) => request<{ availability: SalesOrderAvailability }>(`/orders/${id}/availability`);
-export const reserveSalesOrderStock = (id: string, lineIds?: string[]) =>
-  post<{ result: { lines: ReservationOutcome[]; reservedLines: number } }>(`/orders/${id}/reserve`, { lineIds });
-export const releaseSalesOrderReservation = (id: string, input: { lineId?: string; reason: string }) =>
+// The warehouse a confirmed line ships from; what it held in the old one is released.
+export const changeLineWarehouse = (id: string, lineId: string, input: { warehouseId: string; reason?: string }) =>
+  post<{ result: { changed: boolean; reservationsReleased: number } }>(`/orders/${id}/lines/${lineId}/warehouse`, input);
+// Reserve Available / Remaining for the order (or lines), a chosen quantity of one line, and releases with a reason.
+export const reserveSalesOrderStock = (id: string, input: { lineIds?: string[]; idempotencyKey?: string } = {}) => post<{ result: ReservationResult }>(`/orders/${id}/reserve`, input);
+export const reserveSalesOrderLine = (id: string, lineId: string, input: { quantity?: number; idempotencyKey?: string }) =>
+  post<{ result: ReservationResult }>(`/orders/${id}/lines/${lineId}/reserve`, input);
+export const releaseSalesOrderReservation = (id: string, input: { lineId?: string; quantity?: number; reasonCode: string; reason?: string }) =>
   post<{ result: { released: number } }>(`/orders/${id}/release`, input);
+export const listSalesOrderReservations = (id: string) => request<{ reservations: StockReservationRecord[] }>(`/orders/${id}/reservations`);
 
 export const getDeliveryProposal = (id: string) => request<{ proposal: DeliveryProposal }>(`/orders/${id}/deliveries`);
 export const createSalesOrderDelivery = (id: string, input: { idempotencyKey: string; lines: QuantityLine[]; deliveryDate?: string; carrier?: string; trackingNumber?: string; notes?: string }) =>

@@ -104,6 +104,14 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         requiredPermission: "users.view",
       },
       {
+        id: "teams",
+        label: "Teams",
+        route: "/settings/teams",
+        status: "AVAILABLE",
+        description: "Teams for lead assignment and team record visibility.",
+        requiredPermission: "crm.teams.manage",
+      },
+      {
         id: "invitations",
         label: "Invitations",
         route: "/settings/invitations",

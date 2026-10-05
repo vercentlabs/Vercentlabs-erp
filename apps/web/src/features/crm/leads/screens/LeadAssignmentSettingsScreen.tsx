@@ -95,7 +95,7 @@ export function LeadAssignmentSettingsScreen() {
         secondaryActions={
           <>
             <Button variant="outline" onPress={() => setTransferring(true)}>Transfer a user&apos;s leads</Button>
-            <LinkButton variant="outline" href="/crm/settings/territories">Teams</LinkButton>
+            <LinkButton variant="outline" href="/settings/teams">Teams</LinkButton>
           </>
         }
       />

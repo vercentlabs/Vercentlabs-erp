@@ -51,6 +51,10 @@ export const ORDER_PERMISSIONS = Object.freeze({
   markConfirmationSent: "sales.order.confirmation.mark_sent",
   acknowledgeConfirmation: "sales.order.confirmation.acknowledge",
   confirmQuoteVariance: "sales.order.confirm_quote_variance",
+  checkAvailability: "sales.availability.check",
+  changeWarehouse: "sales.order.change_warehouse",
+  viewReservations: "sales.reservation.view",
+  releaseReservation: "sales.reservation.release",
 });
 
 export const ORDER_VIEWS = Object.freeze([

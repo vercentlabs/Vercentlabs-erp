@@ -123,7 +123,7 @@ export async function getProductionDashboard(client, c) {
   const shortages = (await client.query(
     `SELECT count(DISTINCT wo.id)::int AS orders FROM tenant.manufacturing_work_order_materials m JOIN tenant.manufacturing_work_orders wo ON wo.id=m.work_order_id
       WHERE m.organization_id=$1 AND wo.status IN ('planned','released','in_progress') AND GREATEST(m.required_quantity-(m.issued_quantity-m.returned_quantity),0) >
-            COALESCE((SELECT sum(r.quantity) FROM tenant.stock_reservations r WHERE r.organization_id=m.organization_id AND r.reference_type='manufacturing_work_order' AND r.reference_id=wo.id AND r.item_id=m.item_id AND r.status='active'),0)+0.000001`,
+            COALESCE((SELECT sum(r.active_quantity) FROM tenant.stock_reservations r WHERE r.organization_id=m.organization_id AND r.reference_type='manufacturing_work_order' AND r.reference_id=wo.id AND r.item_id=m.item_id AND r.status='active'),0)+0.000001`,
     [c.organizationId],
   )).rows[0];
   const attention = (

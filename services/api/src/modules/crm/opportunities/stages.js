@@ -63,24 +63,6 @@ export async function pipelineStage(client, context, pipelineId, stageId) {
   return rows[0];
 }
 
-// A question marked "must be answered before leaving this stage" (CRM
-// settings, Playbooks) holds the deal in the stage until it is answered.
-async function assertStageExitAllowed(client, context, opportunity) {
-  const { rows } = await client.query(
-    `SELECT question.prompt FROM tenant.crm_playbook_questions question
-      WHERE question.organization_id = $1 AND question.stage_id = $2 AND question.status = 'active' AND question.blocks_stage_exit
-        AND NOT EXISTS (SELECT 1 FROM tenant.crm_playbook_responses response
-                         WHERE response.organization_id = question.organization_id AND response.question_id = question.id AND response.opportunity_id = $3
-                           AND response.response IS NOT NULL AND response.response <> 'null'::jsonb)
-      ORDER BY question.sequence`,
-    [context.organizationId, opportunity.stage_id, opportunity.id],
-  );
-  if (rows.length)
-    throw new CrmError(409, "Answer the required questions for this stage before moving the opportunity.", "CRM_OPPORTUNITY_STAGE_EXIT_BLOCKED", {
-      missingRequirements: rows.map((row) => row.prompt),
-    });
-}
-
 // Writes the stage, the stage history row and the audit entry. The caller has
 // locked the row and decided the status. Returns the probability it set.
 //   columns  other opportunity columns written with the move ({ column: value })
@@ -122,7 +104,6 @@ export async function changeOpportunityStage(client, context, opportunityId, inp
   const stage = await pipelineStage(client, context, opportunity.pipeline_id, input.stageId);
   if (stage.is_won || stage.is_lost)
     throw new CrmError(409, `Use Mark ${stage.is_won ? "won" : "lost"} to close this opportunity.`, "CRM_OPPORTUNITY_STAGE_TERMINAL");
-  await assertStageExitAllowed(client, context, opportunity);
   const blockers = stageEntryBlockers(opportunity, stage);
   if (blockers.length) throw new CrmError(409, blockers[0], "CRM_OPPORTUNITY_STAGE_REQUIREMENTS", { missingRequirements: blockers });
   const warnings = input.warn ? stageEntryWarnings(opportunity, stage) : [];

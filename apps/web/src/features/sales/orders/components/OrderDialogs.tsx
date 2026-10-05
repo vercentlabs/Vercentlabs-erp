@@ -16,7 +16,7 @@ import { SalesAlert } from "@/features/sales/shared/SalesUi";
 
 import {
   cancelSalesOrder, cancelSalesOrderRemaining, createSalesOrderDelivery, createSalesOrderInvoice, getDeliveryProposal, getInvoiceProposal, recordDeliveryReceipt,
-  recordDeliveryShipment, releaseSalesOrderReservation, reopenSalesOrder, type SalesOrderDelivery, type SalesOrderDetail, type SalesOrderLine,
+  recordDeliveryShipment, reopenSalesOrder, type SalesOrderDelivery, type SalesOrderDetail, type SalesOrderLine,
 } from "../api/orders-api";
 
 export function failureText(failure: unknown, fallback: string) {
@@ -206,18 +206,6 @@ export function ReopenOrderDialog({ orderId, number, onClose, onDone }: { orderI
   return (
     <Shell title={`Reopen ${number} to draft?`} description="The order becomes a draft again so it can be changed: its current Order Confirmation is superseded (kept as history) and the stock reserved for it is released. Confirming it again makes the next revision."
       error={save.error} fallback="The order could not be reopened." onClose={onClose} label="Reopen to Draft" isLoading={save.isPending} isDisabled={!reason.trim()} onPress={() => save.mutate()}>
-      <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
-    </Shell>
-  );
-}
-
-export function ReleaseReservationDialog({ orderId, onClose, onDone }: { orderId: string; onClose: () => void; onDone: () => void }) {
-  const [reason, setReason] = useState("");
-  const save = useMutation({ mutationFn: () => releaseSalesOrderReservation(orderId, { reason: reason.trim() }), onSuccess: onDone });
-  return (
-    <Shell title="Release the reserved stock?" description="The stock held for this order becomes available to other orders. The order stays confirmed and can be reserved again."
-      error={save.error} fallback="The reservation could not be released." onClose={onClose} label="Release Reservation" isLoading={save.isPending} isDisabled={!reason.trim()}
-      onPress={() => save.mutate()}>
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
     </Shell>
   );

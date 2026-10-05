@@ -47,7 +47,6 @@ export type ForecastSubmission = {
   id: string;
   periodId: string;
   teamId: string | null;
-  territoryId: string | null;
   ownerUserId: string;
   // numeric(18,2)-shaped amounts — see CrmForecastRow's own caveat.
   pipelineAmount: number | string | null;

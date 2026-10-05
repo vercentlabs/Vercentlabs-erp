@@ -27,12 +27,14 @@ import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/Sale
 import type { SalesDocumentEvent } from "@/features/sales/quotations/api/quotations-api";
 
 import {
-  addSalesOrderNote, confirmationPdfUrl, getSalesOrderAvailability, listSalesOrderFiles, getSalesOrder, orderPdfUrl, removeSalesOrderFile, reserveSalesOrderStock, uploadSalesOrderFile,
+  addSalesOrderNote, confirmationPdfUrl, listSalesOrderFiles, getSalesOrder, orderPdfUrl, removeSalesOrderFile, reserveSalesOrderStock, uploadSalesOrderFile,
   type ConfirmResult, type ReservationOutcome, type SalesOrderDelivery, type SalesOrderDetail, type SalesOrderLine,
 } from "../api/orders-api";
+import { AvailabilityPanel } from "../components/AvailabilityPanel";
+import { ReservationPanel } from "../components/ReservationPanel";
 import { AcknowledgeConfirmationDialog, ConfirmOrderDialog, MarkConfirmationSentDialog, SendConfirmationDialog } from "../components/ConfirmationDialogs";
 import {
-  CancelOrderDialog, CancelRemainingDialog, CreateDeliveryDialog, CreateInvoiceDialog, DeliveryReceiptDialog, DeliveryShipmentDialog, ReleaseReservationDialog, ReopenOrderDialog,
+  CancelOrderDialog, CancelRemainingDialog, CreateDeliveryDialog, CreateInvoiceDialog, DeliveryReceiptDialog, DeliveryShipmentDialog, ReopenOrderDialog,
   failureText,
 } from "../components/OrderDialogs";
 import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge } from "../components/OrderStatusBadges";
@@ -45,7 +47,7 @@ const personName = (snapshot: Snapshot) => [snapshot?.first_name, snapshot?.last
 const quantity = (value: number | string | null | undefined) => Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const withUnit = (value: number | string | null | undefined, unit: string | null) => `${quantity(value)}${unit ? ` ${unit}` : ""}`;
 
-type DialogKind = "confirm" | "reopen" | "cancel" | "cancelRemaining" | "delivery" | "invoice" | "release" | "email" | "markSent" | "acknowledge" | null;
+type DialogKind = "confirm" | "reopen" | "cancel" | "cancelRemaining" | "delivery" | "invoice" | "email" | "markSent" | "acknowledge" | null;
 
 const EVENT_LABELS: Record<string, string> = {
   "sales_order.created": "Created", "sales_order.updated": "Draft saved", "sales_order.confirmed": "Confirmed", "sales_order.reconfirmed": "Reconfirmed", "sales_order.reopened": "Reopened to draft",
@@ -86,6 +88,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const key = scopedQueryKey(workspace, "sales", "order", orderId);
   const query = useQuery({ queryKey: key, queryFn: () => getSalesOrder(orderId).then((r) => r.order) });
   const [tab, setTab] = useState("overview");
+  // Check Availability in the header opens Fulfillment and runs the check.
+  const [checkAvailability, setCheckAvailability] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -103,10 +107,11 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
     done(short.length ? `The order is confirmed${revision}. Stock could not be reserved in full:\n${short.join("\n")}` : `The order is confirmed${revision}. Send the Order Confirmation to the customer when ready.`);
   };
   const reserve = useMutation({
-    mutationFn: () => reserveSalesOrderStock(orderId),
+    // Stock is checked again by the server; what is short stays unreserved demand.
+    mutationFn: () => reserveSalesOrderStock(orderId, { idempotencyKey: crypto.randomUUID() }),
     onSuccess: ({ result }) => {
       const short = shortOf(result.lines);
-      done(short.length ? `Reserved what is available.\n${short.join("\n")}` : result.reservedLines ? "Stock is reserved." : "There was nothing more to reserve.");
+      done(short.length ? `Reserved what is available now.\n${short.join("\n")}` : result.reservedLines ? "Stock is reserved." : "There was nothing more to reserve.");
     },
     onError: fail("The stock could not be reserved."),
   });
@@ -181,7 +186,9 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
               {actions.edit && <LinkButton variant="secondary" href={`/sales/orders/${orderId}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
               {actions.viewConfirmation && <a className={buttonVariants({ variant: "secondary" })} href={orderPdfUrl(orderId, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />View Confirmation</a>}
               {actions.sendConfirmation && <Button variant="secondary" onPress={() => setDialog("email")}><Send className="size-4" aria-hidden="true" />Send Confirmation</Button>}
-              {executing && order.status !== "cancelled" && <Button variant="secondary" onPress={() => setTab("fulfillment")}>Check Availability</Button>}
+              {order.status !== "cancelled" && order.status !== "closed" && detail.capabilities.checkAvailability && detail.lines.some((line) => line.is_stock_tracked) && (
+                <Button variant="secondary" onPress={() => { setCheckAvailability(true); setTab("fulfillment"); }}>Check Availability</Button>
+              )}
               {actions.reserve && <Button variant="secondary" isLoading={reserve.isPending} onPress={() => reserve.mutate()}>Reserve Stock</Button>}
               {actions.deliver && actions.invoice && <Button variant="secondary" onPress={() => setDialog("invoice")}><FileText className="size-4" aria-hidden="true" />Create Invoice</Button>}
               {actions.print && <LinkButton variant="secondary" href={orderPdfUrl(orderId)} download>{order.status === "draft" ? "Draft PDF" : "Download PDF"}</LinkButton>}
@@ -216,8 +223,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           <TabPanel id="overview"><Overview detail={detail} /></TabPanel>
           <TabPanel id="items"><Items detail={detail} /></TabPanel>
           <TabPanel id="fulfillment">
-            <Fulfillment detail={detail} orderId={orderId} reserving={reserve.isPending} onReserve={() => reserve.mutate()} onRelease={() => setDialog("release")}
-              onDeliver={() => setDialog("delivery")} onChanged={refresh} />
+            <Fulfillment detail={detail} orderId={orderId} autoCheck={checkAvailability} reserving={reserve.isPending} onReserve={() => reserve.mutate()}
+              onDeliver={() => setDialog("delivery")} onChanged={(message?: string) => (message ? done(message) : refresh())} />
           </TabPanel>
           <TabPanel id="invoices"><Invoices detail={detail} onInvoice={() => setDialog("invoice")} /></TabPanel>
           <TabPanel id="confirmation">
@@ -243,7 +250,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
         <CreateInvoiceDialog orderId={orderId} number={order.sales_order_number} currencyCode={currency} lines={detail.lines} onClose={() => setDialog(null)}
           onDone={(number) => { setTab("invoices"); done(`Invoice ${number} was created as a draft for Finance to post.`); }} />
       )}
-      {dialog === "release" && <ReleaseReservationDialog orderId={orderId} onClose={() => setDialog(null)} onDone={() => done("The reserved stock was released.")} />}
+
       {dialog === "email" && (
         <SendConfirmationDialog orderId={orderId} number={order.sales_order_number} version={order.confirmation_version} contactName={personName(order.contact_snapshot)}
           contactEmail={order.contact_snapshot?.email ?? null} customerPo={order.customer_po_number} onClose={() => setDialog(null)} onDone={(sentTo) => done(`The Order Confirmation was sent to ${sentTo}.`)} />
@@ -369,66 +376,21 @@ function Items({ detail }: { detail: SalesOrderDetail }) {
   );
 }
 
-function Fulfillment({ detail, orderId, reserving, onReserve, onRelease, onDeliver, onChanged }: {
-  detail: SalesOrderDetail; orderId: string; reserving: boolean; onReserve: () => void; onRelease: () => void; onDeliver: () => void; onChanged: () => void;
+function Fulfillment({ detail, orderId, autoCheck, reserving, onReserve, onDeliver, onChanged }: {
+  detail: SalesOrderDetail; orderId: string; autoCheck: boolean; reserving: boolean; onReserve: () => void; onDeliver: () => void; onChanged: (message?: string) => void;
 }) {
-  const workspace = useWorkspaceContext();
   const order = detail.order;
   const actions = detail.actions;
   const goods = detail.lines.filter((line) => !line.is_service);
   const [shipping, setShipping] = useState<SalesOrderDelivery | null>(null);
   const [receiving, setReceiving] = useState<SalesOrderDelivery | null>(null);
-  // Stock on hand is read when asked for: it changes with every other order.
-  const [checked, setChecked] = useState(false);
-  const availability = useQuery({
-    queryKey: scopedQueryKey(workspace, "sales", "order", orderId, "availability"),
-    queryFn: () => getSalesOrderAvailability(orderId).then((r) => r.availability),
-    enabled: checked,
-    staleTime: 0,
-  });
-  const stock = new Map((availability.data?.lines ?? []).map((line) => [line.lineId, line]));
-  const columns: ColumnDef<SalesOrderLine, unknown>[] = [
-    {
-      id: "item", header: "Product",
-      cell: ({ row }) => <span className="flex min-w-40 flex-col"><span className="font-medium">{row.original.item_name_snapshot}</span><span className="text-xs text-text-muted">{row.original.warehouse_name ?? (row.original.is_stock_tracked ? "No warehouse" : "Not stock tracked")}</span></span>,
-    },
-    { id: "ordered", header: "Ordered", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{withUnit(row.original.ordered_quantity, row.original.uom_snapshot)}</span> },
-    { id: "reserved", header: "Reserved", cell: ({ row }) => <span className="tabular-nums">{row.original.is_stock_tracked ? quantity(row.original.reserved_quantity) : "—"}</span> },
-    { id: "delivered", header: "Delivered", cell: ({ row }) => <span className="tabular-nums">{quantity(row.original.delivered_quantity)}</span> },
-    { id: "cancelled", header: "Cancelled", cell: ({ row }) => <span className="tabular-nums">{row.original.cancelled_quantity ? quantity(row.original.cancelled_quantity) : ""}</span> },
-    { id: "remaining", header: "Remaining", cell: ({ row }) => <span className="font-medium tabular-nums">{quantity(row.original.remaining_to_deliver)}</span> },
-    ...(availability.data ? [
-      { id: "onHand", header: "On hand", cell: ({ row }: { row: { original: SalesOrderLine } }) => <span className="tabular-nums">{stock.get(row.original.id)?.onHand != null ? quantity(stock.get(row.original.id)!.onHand) : "—"}</span> },
-      { id: "elsewhere", header: "Reserved elsewhere", cell: ({ row }: { row: { original: SalesOrderLine } }) => <span className="tabular-nums">{stock.get(row.original.id)?.reservedElsewhere != null ? quantity(stock.get(row.original.id)!.reservedElsewhere) : "—"}</span> },
-      { id: "available", header: "Available", cell: ({ row }: { row: { original: SalesOrderLine } }) => <span className="tabular-nums">{stock.get(row.original.id)?.available != null ? quantity(stock.get(row.original.id)!.available) : "—"}</span> },
-      {
-        id: "shortage", header: "Shortage",
-        cell: ({ row }: { row: { original: SalesOrderLine } }) => {
-          const line = stock.get(row.original.id);
-          if (!line) return "";
-          if (line.problem) return <span className="text-xs text-warning">{line.problem}</span>;
-          return Number(line.shortage) > 0 ? <StatusBadge tone="danger">{`Short ${quantity(line.shortage)}`}</StatusBadge> : <StatusBadge tone="success">Available</StatusBadge>;
-        },
-      },
-    ] as ColumnDef<SalesOrderLine, unknown>[] : []),
-  ];
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Ordered, reserved and delivered"
-        description={order.status === "draft" ? "Stock is reserved and delivered once the order is confirmed." : "Worked out from the reservations and deliveries themselves. Services are not delivered and are not listed here."}
-        actions={(
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" size="compact" isLoading={availability.isFetching} onPress={() => (checked ? void availability.refetch() : setChecked(true))}>Check Availability</Button>
-            {actions.reserve && <Button variant="secondary" size="compact" isLoading={reserving} onPress={onReserve}>Reserve Stock</Button>}
-            {actions.release && <Button variant="ghost" size="compact" onPress={onRelease}>Release Reservation</Button>}
-            {actions.deliver && <Button variant="primary" size="compact" onPress={onDeliver}>Create Delivery</Button>}
-          </div>
-        )}>
-        {availability.isError && <SalesAlert>{failureText(availability.error, "Availability could not be checked.")}</SalesAlert>}
-        {availability.data && availability.data.shortages > 0 && <SalesAlert tone="warning">Stock is short on {availability.data.shortages} line(s). The order can still be confirmed and delivered in parts.</SalesAlert>}
-        {goods.length ? <EnterpriseDataGrid<SalesOrderLine> aria-label="Fulfillment by line" columns={columns} data={goods} getRowId={(row) => row.id} state="ready" />
-          : <p className="text-sm text-text-muted">This order has only services: there is nothing to reserve or deliver.</p>}
-      </SalesPanel>
+      {detail.capabilities.checkAvailability && goods.some((line) => line.is_stock_tracked) && order.status !== "cancelled" && order.status !== "closed" && (
+        <AvailabilityPanel key={autoCheck ? "checked" : "idle"} orderId={orderId} autoCheck={autoCheck} canReserve={actions.reserve} reserving={reserving} onReserve={onReserve}
+          canChangeWarehouse={order.status === "confirmed" && Boolean(detail.capabilities.changeWarehouse)} onChanged={onChanged} />
+      )}
+      <ReservationPanel orderId={orderId} detail={detail} reserving={reserving} onReserveRemaining={onReserve} onDeliver={onDeliver} onChanged={onChanged} />
       <SalesPanel title="Deliveries" description="An order can be delivered in several parts. Stock is issued when a delivery is created.">
         {!detail.deliveries.length ? <p className="text-sm text-text-muted">No deliveries yet.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">

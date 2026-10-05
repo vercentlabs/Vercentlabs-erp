@@ -612,6 +612,40 @@ export async function getStockAvailability(client, c, input = {}) {
   };
 }
 
+// ---- Stock reservations ------------------------------------------------------
+// A reservation commits usable stock in one warehouse (and one location and
+// batch row) to a demand: an order line, a work order, a manual hold. It
+// lowers what is available, never what is on hand, and creates no stock
+// movement and no accounting entry. It keeps what it reserved; consumption by
+// a delivery and releases are recorded beside it:
+//   active = reserved − consumed − released
+// stock_balances.reserved_quantity is a cache of the active quantities of a
+// balance row, changed in the same statement order as the reservation and
+// rebuilt from the reservations by reconcileStockReservations.
+
+// Usable means: not in a quality or inactive location, not in a blocked or expired batch.
+const USABLE_ROW = `COALESCE(location.location_type,'') <> 'quality' AND COALESCE(location.status,'active')='active' AND COALESCE(batch.status,'active')='active'`;
+const reservationRound = (value) => Math.round(Number(value) * 1e6) / 1e6;
+
+async function insertReservation(client, c, balance, quantity, input, idempotencyKey) {
+  const number = await nextDocumentNumber(client, c, { documentType: "stock_reservation" });
+  const created = await client.query(
+    `INSERT INTO tenant.stock_reservations(
+       organization_id,reservation_number,item_id,warehouse_id,warehouse_location_id,batch_id,quantity,reference_type,reference_id,status,reserved_by,idempotency_key,
+       sales_order_id,sales_order_line_id,sales_quantity,sales_uom,updated_at)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11,$12,$13,$14,$15,now()) RETURNING *`,
+    [c.organizationId, number, input.itemId, input.warehouseId, balance.warehouse_location_id, balance.batch_id, quantity, String(input.referenceType).slice(0, 100), input.referenceId,
+      c.userId ?? null, idempotencyKey, input.salesOrderId ?? null, input.salesOrderLineId ?? null, input.salesQuantity ?? null, input.salesUom ?? null],
+  );
+  await client.query(
+    `UPDATE tenant.stock_balances SET reserved_quantity=reserved_quantity+$6,updated_at=now()
+      WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3 AND warehouse_location_id IS NOT DISTINCT FROM $4 AND batch_id IS NOT DISTINCT FROM $5`,
+    [c.organizationId, input.itemId, input.warehouseId, balance.warehouse_location_id, balance.batch_id, quantity],
+  );
+  return created.rows[0];
+}
+
+// Reserves exactly `quantity` from one balance row (a manual hold, a work order).
 export async function reserveStock(client, c, input = {}) {
   need(c, "stock.reserve");
   const quantity = num(input.quantity, "Quantity");
@@ -619,111 +653,184 @@ export async function reserveStock(client, c, input = {}) {
     throw new StockError(400, "Item and warehouse are required for a reservation.", "STOCK_RESERVATION_SCOPE_REQUIRED");
   if (!input.referenceType || !input.referenceId)
     throw new StockError(400, "Reservation reference type and reference id are required.", "STOCK_RESERVATION_REFERENCE_REQUIRED");
-  await stockDimension(client, c, {
-    itemId: input.itemId,
-    warehouseId: input.warehouseId,
-    warehouseLocationId: input.warehouseLocationId || null,
-    batchId: input.batchId || null,
-  });
+  await stockDimension(client, c, { itemId: input.itemId, warehouseId: input.warehouseId, warehouseLocationId: input.warehouseLocationId || null, batchId: input.batchId || null });
   const idempotencyKey = String(input.idempotencyKey || "").trim() || null;
-  const idempotency = await beginIdempotentOperation(client, c, {
-    operation: "stock.reservation.create",
-    key: idempotencyKey,
-    payload: { ...input, idempotencyKey: undefined },
-  });
+  const idempotency = await beginIdempotentOperation(client, c, { operation: "stock.reservation.create", key: idempotencyKey, payload: { ...input, idempotencyKey: undefined } });
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
   await lockInventoryItem(client, c, input.itemId);
   const values = [c.organizationId, input.itemId, input.warehouseId];
   let dimensionFilter = "";
-  if (input.warehouseLocationId) { values.push(input.warehouseLocationId); dimensionFilter += ` AND warehouse_location_id=$${values.length}`; }
-  if (input.batchId) { values.push(input.batchId); dimensionFilter += ` AND batch_id=$${values.length}`; }
-  const balances = await client.query(
-    `SELECT * FROM tenant.stock_balances
-      WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3${dimensionFilter}
-        AND quantity-reserved_quantity >= $${values.length + 1}
-      ORDER BY (quantity-reserved_quantity) DESC,updated_at ASC
-      LIMIT 1 FOR UPDATE`,
+  if (input.warehouseLocationId) { values.push(input.warehouseLocationId); dimensionFilter += ` AND balance.warehouse_location_id=$${values.length}`; }
+  if (input.batchId) { values.push(input.batchId); dimensionFilter += ` AND balance.batch_id=$${values.length}`; }
+  const balance = (await client.query(
+    `SELECT balance.* FROM tenant.stock_balances balance
+       LEFT JOIN tenant.warehouse_locations location ON location.organization_id=balance.organization_id AND location.id=balance.warehouse_location_id
+       LEFT JOIN tenant.stock_batches batch ON batch.organization_id=balance.organization_id AND batch.id=balance.batch_id
+      WHERE balance.organization_id=$1 AND balance.item_id=$2 AND balance.warehouse_id=$3${dimensionFilter}
+        AND balance.quantity-balance.reserved_quantity >= $${values.length + 1} AND ${USABLE_ROW}
+      ORDER BY (balance.quantity-balance.reserved_quantity) DESC,balance.updated_at ASC
+      LIMIT 1 FOR UPDATE OF balance`,
     [...values, quantity],
-  );
-  const balance = balances.rows[0];
-  if (!balance)
-    throw new StockError(409, "Insufficient available stock for this reservation.", "STOCK_RESERVATION_INSUFFICIENT");
-  await assertQualityAllowsDecrease(
-    client,
-    c,
-    {
-      itemId: input.itemId,
-      warehouseId: input.warehouseId,
-      warehouseLocationId: balance.warehouse_location_id,
-      batchId: balance.batch_id,
-      serialId: null,
-    },
-    quantity,
-    balance,
-  );
-  const created = await client.query(
-    `INSERT INTO tenant.stock_reservations(
-       organization_id,item_id,warehouse_id,warehouse_location_id,batch_id,quantity,
-       reference_type,reference_id,status,reserved_by,idempotency_key,updated_at)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$10,now()) RETURNING *`,
-    [c.organizationId,input.itemId,input.warehouseId,balance.warehouse_location_id,balance.batch_id,
-     quantity,String(input.referenceType).slice(0,100),input.referenceId,c.userId,idempotencyKey],
-  );
-  await client.query(
-    `UPDATE tenant.stock_balances SET reserved_quantity=reserved_quantity+$6,updated_at=now()
-      WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3
-        AND warehouse_location_id IS NOT DISTINCT FROM $4 AND batch_id IS NOT DISTINCT FROM $5`,
-    [c.organizationId,input.itemId,input.warehouseId,balance.warehouse_location_id,balance.batch_id,quantity],
-  );
-  const response = { ...created.rows[0], replayed: false };
-  await completeIdempotentOperation(client, c, idempotency, {
-    response,
-    aggregateType: "stock_reservation",
-    aggregateId: created.rows[0].id,
-  });
+  )).rows[0];
+  if (!balance) throw new StockError(409, "Insufficient available stock for this reservation.", "STOCK_RESERVATION_INSUFFICIENT");
+  await assertQualityAllowsDecrease(client, c, { itemId: input.itemId, warehouseId: input.warehouseId, warehouseLocationId: balance.warehouse_location_id, batchId: balance.batch_id, serialId: null }, quantity, balance);
+  const created = await insertReservation(client, c, balance, quantity, input, idempotencyKey);
+  const response = { ...created, replayed: false };
+  await completeIdempotentOperation(client, c, idempotency, { response, aggregateType: "stock_reservation", aggregateId: created.id });
   return response;
 }
 
-export async function releaseStockReservation(client, c, id, { status = "released" } = {}) {
+// Reserves as much as is usable and free now, up to maxQuantity, in one
+// warehouse: the product is locked first, so two requests can never reserve
+// the same unit; stock spread over several locations or batches is reserved
+// from each (one reservation per row). Stock under quality hold is left.
+// input: { itemId, warehouseId, maxQuantity, referenceType, referenceId, salesOrderId?, salesOrderLineId?, salesQuantityPerBase?, salesUom? }
+// Returns { requested, reserved, reservations }.
+export async function reserveAvailableStock(client, c, input = {}) {
+  need(c, "stock.reserve");
+  const wanted = num(input.maxQuantity, "Quantity");
+  if (!input.referenceType || !input.referenceId)
+    throw new StockError(400, "Reservation reference type and reference id are required.", "STOCK_RESERVATION_REFERENCE_REQUIRED");
+  await stockDimension(client, c, { itemId: input.itemId, warehouseId: input.warehouseId });
+  await lockInventoryItem(client, c, input.itemId);
+  const rows = (await client.query(
+    `SELECT balance.* FROM tenant.stock_balances balance
+       LEFT JOIN tenant.warehouse_locations location ON location.organization_id=balance.organization_id AND location.id=balance.warehouse_location_id
+       LEFT JOIN tenant.stock_batches batch ON batch.organization_id=balance.organization_id AND batch.id=balance.batch_id
+      WHERE balance.organization_id=$1 AND balance.item_id=$2 AND balance.warehouse_id=$3 AND balance.quantity-balance.reserved_quantity > 0 AND ${USABLE_ROW}
+      ORDER BY (balance.quantity-balance.reserved_quantity) DESC,balance.updated_at ASC
+      FOR UPDATE OF balance`,
+    [c.organizationId, input.itemId, input.warehouseId],
+  )).rows;
+  const holds = (await client.query(
+    `SELECT bool_or(quantity=0) AS blocks_all, COALESCE(sum(CASE WHEN quantity=0 THEN 0 ELSE greatest(quantity-released_quantity,0) END),0) AS held
+       FROM tenant.quality_holds WHERE organization_id=$1 AND item_id=$2 AND status='active' AND hold_type IN ('inventory','batch','serial') AND (warehouse_id IS NULL OR warehouse_id=$3)`,
+    [c.organizationId, input.itemId, input.warehouseId],
+  )).rows[0];
+  if (holds?.blocks_all) return { requested: wanted, reserved: 0, reservations: [], blockedByQuality: true };
+  const free = Math.max(0, rows.reduce((total, row) => total + Number(row.quantity) - Number(row.reserved_quantity), 0) - Number(holds?.held ?? 0));
+  let left = Math.min(wanted, free);
+  const reservations = [];
+  for (const row of rows) {
+    if (left <= 1e-9) break;
+    const take = reservationRound(Math.min(left, Number(row.quantity) - Number(row.reserved_quantity)));
+    if (take <= 1e-9) continue;
+    const perBase = Number(input.salesQuantityPerBase) || null;
+    reservations.push(await insertReservation(client, c, row, take, { ...input, salesQuantity: perBase ? reservationRound(take * perBase) : null }, null));
+    left = reservationRound(left - take);
+  }
+  return { requested: wanted, reserved: reservationRound(reservations.reduce((total, row) => total + Number(row.quantity), 0)), reservations, blockedByQuality: false };
+}
+
+// Gives back what a reservation still holds, or part of it.
+// options: { status: "released" | "cancelled" | "consumed", quantity?, reasonCode?, reason? }
+// "consumed" closes what is left as consumed (a work order that used its material).
+export async function releaseStockReservation(client, c, id, { status = "released", quantity = null, reasonCode = null, reason = null } = {}) {
   need(c, "stock.reserve");
   if (!new Set(["released", "cancelled", "consumed"]).has(status))
     throw new StockError(400, "Reservation close status is invalid.", "STOCK_RESERVATION_STATUS_INVALID");
-  const found = await client.query(
-    `SELECT * FROM tenant.stock_reservations WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
-    [c.organizationId,id],
-  );
-  const reservation = found.rows[0];
+  const reservation = (await client.query(`SELECT * FROM tenant.stock_reservations WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, id])).rows[0];
   if (!reservation) throw new StockError(404, "Reservation not found.", "STOCK_RESERVATION_NOT_FOUND");
   if (reservation.status !== "active") return reservation;
-  const balance = await client.query(
+  const active = Number(reservation.active_quantity);
+  const amount = quantity == null ? active : reservationRound(num(quantity, "Quantity to release"));
+  if (amount > active + 1e-9) throw new StockError(409, `Only ${active} is still reserved.`, "STOCK_RESERVATION_EXCEEDS_ACTIVE");
+  await adjustReservedBalance(client, c, reservation, amount);
+  const closing = amount + 1e-9 >= active;
+  const consumed = status === "consumed";
+  const { rows } = await client.query(
+    `UPDATE tenant.stock_reservations
+        SET consumed_quantity=consumed_quantity+$3, released_quantity=released_quantity+$4,
+            status=CASE WHEN $5 THEN (CASE WHEN $6 THEN 'consumed' WHEN consumed_quantity > 0 AND $7 = 'released' THEN 'consumed' ELSE $7 END) ELSE 'active' END,
+            released_at=CASE WHEN $5 THEN now() ELSE released_at END, released_by=$8, release_reason_code=COALESCE($9, release_reason_code), release_reason=COALESCE($10, release_reason),
+            updated_at=now()
+      WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [c.organizationId, id, consumed ? amount : 0, consumed ? 0 : amount, closing, consumed, status, c.userId ?? null, reasonCode, reason],
+  );
+  return rows[0];
+}
+
+// A delivery used part or all of a reservation: the reservation is consumed,
+// the stock is issued from the very row it was reserved in, and the
+// consumption is recorded with the delivery and the movement, together.
+// reference: { deliveryId?, deliveryLineId?, issue: { referenceType, referenceId, idempotencyKey } }
+export async function consumeStockReservation(client, c, id, quantity, reference = {}) {
+  need(c, "stock.reserve");
+  const amount = reservationRound(num(quantity, "Quantity consumed"));
+  const reservation = (await client.query(`SELECT * FROM tenant.stock_reservations WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, id])).rows[0];
+  if (!reservation) throw new StockError(404, "Reservation not found.", "STOCK_RESERVATION_NOT_FOUND");
+  if (reservation.status !== "active" || amount > Number(reservation.active_quantity) + 1e-9)
+    throw new StockError(409, `Only ${Number(reservation.active_quantity)} is still reserved on ${reservation.reservation_number ?? "this reservation"}.`, "STOCK_RESERVATION_EXCEEDS_ACTIVE");
+  await adjustReservedBalance(client, c, reservation, amount);
+  const { rows } = await client.query(
+    `UPDATE tenant.stock_reservations
+        SET consumed_quantity=consumed_quantity+$3, last_consumed_at=now(),
+            status=CASE WHEN quantity-consumed_quantity-released_quantity-$3 <= 0 THEN 'consumed' ELSE 'active' END,
+            released_at=CASE WHEN quantity-consumed_quantity-released_quantity-$3 <= 0 THEN now() ELSE released_at END, updated_at=now()
+      WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [c.organizationId, id, amount],
+  );
+  const movement = reference.issue
+    ? await postStockMovement(client, c, {
+      movementType: "issue", itemId: reservation.item_id, warehouseId: reservation.warehouse_id, warehouseLocationId: reservation.warehouse_location_id,
+      batchId: reservation.batch_id, quantity: amount, referenceType: reference.issue.referenceType, referenceId: reference.issue.referenceId,
+      idempotencyKey: reference.issue.idempotencyKey,
+    })
+    : null;
+  await client.query(
+    `INSERT INTO tenant.stock_reservation_consumptions (organization_id, reservation_id, quantity, delivery_id, delivery_line_id, stock_movement_id, consumed_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [c.organizationId, id, amount, reference.deliveryId ?? null, reference.deliveryLineId ?? null, movement?.id ?? null, c.userId ?? null],
+  );
+  return { ...rows[0], stockMovementId: movement?.id ?? null };
+}
+
+async function adjustReservedBalance(client, c, reservation, amount) {
+  const balance = (await client.query(
     `SELECT reserved_quantity FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3
        AND warehouse_location_id IS NOT DISTINCT FROM $4 AND batch_id IS NOT DISTINCT FROM $5 FOR UPDATE`,
-    [c.organizationId,reservation.item_id,reservation.warehouse_id,reservation.warehouse_location_id,reservation.batch_id],
-  );
-  if (!balance.rows[0] || Number(balance.rows[0].reserved_quantity) < Number(reservation.quantity))
-    throw new StockError(409, "Reservation balance is inconsistent; run stock diagnostics before releasing it.", "STOCK_RESERVATION_DRIFT");
+    [c.organizationId, reservation.item_id, reservation.warehouse_id, reservation.warehouse_location_id, reservation.batch_id],
+  )).rows[0];
+  if (!balance || Number(balance.reserved_quantity) + 1e-9 < amount)
+    throw new StockError(409, "Reservation balance is inconsistent; reconcile stock reservations before releasing it.", "STOCK_RESERVATION_DRIFT");
   await client.query(
-    `UPDATE tenant.stock_balances SET reserved_quantity=reserved_quantity-$6,updated_at=now()
-      WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3
-        AND warehouse_location_id IS NOT DISTINCT FROM $4 AND batch_id IS NOT DISTINCT FROM $5`,
-    [c.organizationId,reservation.item_id,reservation.warehouse_id,reservation.warehouse_location_id,reservation.batch_id,reservation.quantity],
+    `UPDATE tenant.stock_balances SET reserved_quantity=greatest(reserved_quantity-$6,0),updated_at=now()
+      WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3 AND warehouse_location_id IS NOT DISTINCT FROM $4 AND batch_id IS NOT DISTINCT FROM $5`,
+    [c.organizationId, reservation.item_id, reservation.warehouse_id, reservation.warehouse_location_id, reservation.batch_id, amount],
   );
-  const closed = await client.query(
-    `UPDATE tenant.stock_reservations SET status=$3,released_at=now(),updated_at=now()
-      WHERE organization_id=$1 AND id=$2 RETURNING *`,
-    [c.organizationId,id,status],
-  );
-  return closed.rows[0];
 }
 
 export async function listActiveStockReservationsByReference(client, c, { referenceType, referenceId }) {
   need(c, "stock.view");
   const { rows } = await client.query(
     `SELECT * FROM tenant.stock_reservations
-      WHERE organization_id=$1 AND reference_type=$2 AND reference_id=$3 AND status='active'`,
-    [c.organizationId, String(referenceType).slice(0,100), referenceId],
+      WHERE organization_id=$1 AND reference_type=$2 AND reference_id=$3 AND status='active' ORDER BY created_at, id`,
+    [c.organizationId, String(referenceType).slice(0, 100), referenceId],
   );
   return rows;
+}
+
+// The reserved quantity cached on each balance row against the active
+// reservations that make it up. With repair, the cache is rebuilt from the reservations.
+export async function reconcileStockReservations(client, c, { repair = false } = {}) {
+  need(c, "stock.view");
+  const { rows } = await client.query(
+    `SELECT balance.id, balance.item_id, balance.warehouse_id, balance.warehouse_location_id, balance.batch_id, balance.reserved_quantity AS cached,
+            COALESCE((SELECT sum(reservation.active_quantity) FROM tenant.stock_reservations reservation
+                       WHERE reservation.organization_id=balance.organization_id AND reservation.item_id=balance.item_id AND reservation.warehouse_id=balance.warehouse_id
+                         AND reservation.warehouse_location_id IS NOT DISTINCT FROM balance.warehouse_location_id AND reservation.batch_id IS NOT DISTINCT FROM balance.batch_id
+                         AND reservation.status='active'), 0) AS actual
+       FROM tenant.stock_balances balance WHERE balance.organization_id=$1`,
+    [c.organizationId],
+  );
+  const mismatches = rows.filter((row) => Math.abs(Number(row.cached) - Number(row.actual)) > 1e-6)
+    .map((row) => ({ balanceId: row.id, itemId: row.item_id, warehouseId: row.warehouse_id, cachedReserved: Number(row.cached), activeReservations: Number(row.actual) }));
+  if (repair && mismatches.length) {
+    need(c, "stock.adjust");
+    for (const mismatch of mismatches)
+      await client.query(`UPDATE tenant.stock_balances SET reserved_quantity=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`, [c.organizationId, mismatch.balanceId, mismatch.activeReservations]);
+  }
+  return { checked: rows.length, mismatchCount: mismatches.length, mismatches, repaired: repair ? mismatches.length : 0 };
 }
 
 export async function listStockOperationOptions(client,c){

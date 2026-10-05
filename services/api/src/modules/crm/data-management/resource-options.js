@@ -72,7 +72,7 @@ export async function getCrmOptions(client, context) {
   const assignableOwnerIds = canViewAllCrmResource(context, "opportunities") ? null : [String(context.userId), ...teamIds];
   const assignableLeadOwnerIds = canViewAllCrmResource(context, "leads") ? null : [String(context.userId), ...teamIds];
   // Every active member of the organization — for naming and picking people
-  // in sales-organization setup (teams, territories, quotas), which is not
+  // in team setup, which is not
   // limited to whoever is currently eligible for lead assignment.
   const members = await client.query(
     `SELECT u.id, u.full_name AS name FROM public.users u JOIN public.organization_memberships membership ON membership.user_id = u.id WHERE membership.organization_id = $1 AND membership.status = 'active' ORDER BY u.full_name`,
@@ -122,24 +122,12 @@ export async function getCrmOptions(client, context) {
     `SELECT team.id, team.name FROM tenant.crm_sales_teams team WHERE team.organization_id = $1 AND team.status = 'active' ORDER BY team.name`,
     parameters,
   );
-  const territories = await queryOptions(
-    `SELECT territory.id, territory.name FROM tenant.crm_territories territory WHERE territory.organization_id = $1 AND territory.status = 'active' ORDER BY territory.name`,
-    parameters,
-  );
   const forecastPeriods = await queryOptions(
     `SELECT period.id, period.name, period.period_start, period.period_end FROM tenant.crm_forecast_periods period WHERE period.organization_id = $1 AND period.status IN ('planned','open','frozen') ORDER BY period.period_start DESC`,
     parameters,
   );
   const accountPlans = await queryOptions(
     `SELECT plan.id, party.display_name AS name FROM tenant.crm_account_plans plan JOIN tenant.business_parties party ON party.id = plan.party_id AND party.organization_id = plan.organization_id WHERE plan.organization_id = $1 AND plan.status = 'active' ORDER BY party.display_name`,
-    parameters,
-  );
-  const playbooks = await queryOptions(
-    `SELECT playbook.id, playbook.name FROM tenant.crm_playbooks playbook WHERE playbook.organization_id = $1 AND playbook.status = 'active' ORDER BY playbook.name`,
-    parameters,
-  );
-  const playbookQuestions = await queryOptions(
-    `SELECT question.id, question.prompt AS name, question.playbook_id FROM tenant.crm_playbook_questions question WHERE question.organization_id = $1 AND question.status = 'active' ORDER BY question.sequence, question.prompt`,
     parameters,
   );
   const conversations = await queryOptions(
@@ -152,10 +140,6 @@ export async function getCrmOptions(client, context) {
   );
   const partnerAccounts = await queryOptions(
     `SELECT partner.id, partner.name FROM tenant.crm_partner_accounts partner WHERE partner.organization_id = $1 AND partner.status = 'active' ORDER BY partner.name`,
-    parameters,
-  );
-  const customObjects = await queryOptions(
-    `SELECT definition.id, definition.plural_label AS name, definition.object_key FROM tenant.crm_custom_object_definitions definition WHERE definition.organization_id = $1 AND definition.status = 'active' ORDER BY definition.plural_label`,
     parameters,
   );
   const aiPredictions = await queryOptions(
@@ -191,15 +175,11 @@ export async function getCrmOptions(client, context) {
     opportunities: map(opportunities),
     sequences: map(sequences),
     salesTeams: map(salesTeams),
-    territories: map(territories),
     forecastPeriods: map(forecastPeriods),
     accountPlans: map(accountPlans),
-    playbooks: map(playbooks),
-    playbookQuestions: map(playbookQuestions),
     conversations: map(conversations),
     buyingCommittees: map(buyingCommittees),
     partnerAccounts: map(partnerAccounts),
-    customObjects: map(customObjects),
     aiPredictions: map(aiPredictions),
     recommendations: map(recommendations),
   };

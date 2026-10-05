@@ -92,19 +92,34 @@ export async function listStockTransfersDetailed(client, c, { status = null, lim
   return rows;
 }
 
-export async function listStockReservationsDetailed(client, c, { status = null, limit = 250 } = {}) {
+// Reservations with what each still holds, the sales order and customer it
+// is for, who reserved it and for how long it has been held.
+// filters: status, itemId, warehouseId, salesOrderId
+export async function listStockReservationsDetailed(client, c, { status = null, itemId = null, warehouseId = null, salesOrderId = null, limit = 250 } = {}) {
   need(c, "stock.view");
   const values = [c.organizationId];
   let filter = "";
-  if (status) { values.push(String(status)); filter = ` AND reservation.status=$${values.length}`; }
+  const add = (sql, value) => { values.push(value); filter += sql.replace("?", `$${values.length}`); };
+  if (status) add(" AND reservation.status=?", String(status));
+  if (itemId) add(" AND reservation.item_id=?", String(itemId));
+  if (warehouseId) add(" AND reservation.warehouse_id=?", String(warehouseId));
+  if (salesOrderId) add(" AND reservation.sales_order_id=?", String(salesOrderId));
   values.push(clampLimit(limit));
   const { rows } = await client.query(
-    `SELECT reservation.id,reservation.status,reservation.quantity::text AS quantity,reservation.item_id,item.code AS item_code,item.name AS item_name,reservation.warehouse_id,warehouse.name AS warehouse_name,
-            batch.batch_number,reservation.reference_type,reservation.reference_id,reservation.reserved_by,reservation.created_at,reservation.released_at
+    `SELECT reservation.id,reservation.reservation_number,reservation.status,reservation.quantity::text AS quantity,reservation.active_quantity::text AS active_quantity,
+            reservation.consumed_quantity::text AS consumed_quantity,reservation.released_quantity::text AS released_quantity,
+            reservation.item_id,item.code AS item_code,item.name AS item_name,reservation.warehouse_id,warehouse.name AS warehouse_name,
+            batch.batch_number,reservation.reference_type,reservation.reference_id,reservation.reserved_by,reserver.full_name AS reserved_by_name,
+            reservation.created_at,reservation.released_at,reservation.release_reason,reservation.sales_order_id,sales_order.sales_order_number,
+            version.customer_snapshot->>'displayName' AS customer_name,
+            CASE WHEN reservation.status='active' THEN (current_date - reservation.created_at::date) END AS days_held
        FROM tenant.stock_reservations reservation
        JOIN tenant.items item ON item.organization_id=reservation.organization_id AND item.id=reservation.item_id
        JOIN tenant.warehouses warehouse ON warehouse.organization_id=reservation.organization_id AND warehouse.id=reservation.warehouse_id
        LEFT JOIN tenant.stock_batches batch ON batch.organization_id=reservation.organization_id AND batch.id=reservation.batch_id
+       LEFT JOIN public.users reserver ON reserver.id=reservation.reserved_by
+       LEFT JOIN tenant.sales_orders sales_order ON sales_order.organization_id=reservation.organization_id AND sales_order.id=reservation.sales_order_id
+       LEFT JOIN tenant.sales_order_versions version ON version.organization_id=sales_order.organization_id AND version.id=sales_order.current_version_id
       WHERE reservation.organization_id=$1${filter}
       ORDER BY reservation.created_at DESC LIMIT $${values.length}`,
     values,

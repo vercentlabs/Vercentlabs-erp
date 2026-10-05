@@ -98,6 +98,9 @@ export async function GET(
         return {
           rows: await listStockReservationsDetailed(client, context, {
             status: get("status"),
+            itemId: get("itemId"),
+            warehouseId: get("warehouseId"),
+            salesOrderId: get("salesOrderId"),
           }),
         };
       case "batches":

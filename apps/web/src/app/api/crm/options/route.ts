@@ -5,7 +5,7 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
 // Dropdown/reference data (sources, sales stages, lost reasons, teams,
-// territories, ...) for every CRM screen — one call, not a per-field
+// teams, ...) for every CRM screen — one call, not a per-field
 // browser-side fan-out.
 export async function GET(request: Request) {
   return workspaceRoute(

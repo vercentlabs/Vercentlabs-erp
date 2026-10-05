@@ -29,7 +29,6 @@ const LIST_FILTER_KEYS = [
   "opportunityId",
   "committeeId",
   "teamId",
-  "territoryId",
   "partyId",
   "accountPlanId",
   "contactId",

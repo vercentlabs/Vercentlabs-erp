@@ -21,5 +21,9 @@ export * from "./quotations/index.js";
 export * from "./orders/index.js";
 
 export * from "./order-confirmations/index.js";
+
+export * from "./availability/index.js";
+
+export * from "./reservations/index.js";
 export const DISCOUNT_PERMISSIONS: Readonly<Record<"applyLine" | "applyDocument" | "aboveLimit" | "overrideLimit" | "manageSettings", string>>;
 export const DISCOUNT_REASONS: ReadonlyArray<{ code: string; label: string }>;

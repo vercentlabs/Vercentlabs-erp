@@ -1,7 +1,6 @@
 import { canViewSensitiveLeadContent } from "../leads/access.js";
 import { CrmError } from "./errors.js";
-import { normalizeTerritoryCoverage, normalizeTerritoryType } from "../sales-organization/territory-coverage.js";
-import { LEAD_LINKED_GENERIC_RESOURCES, canViewCustomField } from "./record-policy.js";
+import { LEAD_LINKED_GENERIC_RESOURCES } from "./record-policy.js";
 import { getCrmRecord } from "./resource-query-service.js";
 
 
@@ -66,8 +65,7 @@ export function assertRecordExpectedVersion(
 // map. It covers every mutable CRM configuration/aggregate resource that
 // is genuinely editable post-creation (has real
 // fields a second editor could race on) rather than append-only: sales
-// teams, team memberships, territories, territory assignments, quota
-// plans, account plans, account stakeholders, forecast periods, forecast
+// teams, team memberships, account plans, account stakeholders, forecast periods, forecast
 // submissions, report definitions, assignment rules, scoring rules, and
 // pipelines. (Pipeline Stages and Lead Sources already had their own
 // dedicated, already-enforced version checks — see sales-stage-operations.js
@@ -75,9 +73,6 @@ export function assertRecordExpectedVersion(
 export const GENERIC_VERSIONED_RESOURCES = {
   "sales-teams": { entityLabel: "Sales team", codePrefix: "CRM_SALES_TEAM" },
   "sales-team-members": { entityLabel: "Team membership", codePrefix: "CRM_TEAM_MEMBERSHIP" },
-  territories: { entityLabel: "Territory", codePrefix: "CRM_TERRITORY" },
-  "territory-assignments": { entityLabel: "Territory assignment", codePrefix: "CRM_TERRITORY_ASSIGNMENT" },
-  "quota-plans": { entityLabel: "Quota plan", codePrefix: "CRM_QUOTA_PLAN" },
   "account-plans": { entityLabel: "Account plan", codePrefix: "CRM_ACCOUNT_PLAN" },
   "account-stakeholders": { entityLabel: "Account stakeholder", codePrefix: "CRM_ACCOUNT_STAKEHOLDER" },
   "forecast-periods": { entityLabel: "Forecast period", codePrefix: "CRM_FORECAST_PERIOD" },
@@ -150,15 +145,6 @@ export function normalizeStorageInput(resource, input) {
   // that targets a jsonb column JSON.stringify()s first; this resource
   // never got that treatment because crm_account_plans had zero rows
   // anywhere until F002's Customer 360 seed data first populated one.
-  // F020: territory coverage is structured and validated (empty = {} — the
-  // column is NOT NULL, so null used to fail the save), and the type must be
-  // one the database accepts instead of free text.
-  if (resource === "territories") {
-    if (Object.prototype.hasOwnProperty.call(prepared, "assignmentRules"))
-      prepared.assignmentRules = JSON.stringify(normalizeTerritoryCoverage(prepared.assignmentRules));
-    if (Object.prototype.hasOwnProperty.call(prepared, "territoryType"))
-      prepared.territoryType = normalizeTerritoryType(prepared.territoryType);
-  }
   if (resource === "account-plans") {
     for (const field of ["objectives", "risks", "whiteSpace", "successPlan"]) {
       if (Object.prototype.hasOwnProperty.call(prepared, field) && typeof prepared[field] === "object" && prepared[field] !== null) {
@@ -268,223 +254,9 @@ export function isPlainObject(value) {
 
 
 
-export function valueMatchesCustomField(field, value) {
-  if (value === null || value === undefined) return true;
-  if (field.data_type === "boolean") return typeof value === "boolean";
-  if (["number", "currency"].includes(field.data_type))
-    return typeof value === "number" && Number.isFinite(value);
-  if (field.data_type === "multi_select") return Array.isArray(value);
-  if (field.data_type === "json") return typeof value === "object";
-  if (field.data_type === "date")
-    return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
-  if (field.data_type === "datetime")
-    return typeof value === "string" && Number.isFinite(Date.parse(value));
-  if (field.data_type === "email")
-    return (
-      typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-    );
-  if (field.data_type === "url") {
-    if (typeof value !== "string") return false;
-    try {
-      const url = new URL(value);
-      return url.protocol === "https:" || url.protocol === "http:";
-    } catch {
-      return false;
-    }
-  }
-  return typeof value === "string";
-}
 
 
 
-// F028: rolling out `required: true` on a field that already has active
-// records without a value for it would make every one of those records fail
-// on its very next unrelated edit, with no warning at the point the field
-// was actually changed. Requires an explicit confirmation once existing gaps
-// are known, rather than silently blocking or silently allowing it.
-export async function assertCustomFieldRequiredRolloutSafe(
-  client,
-  context,
-  objectDefinitionId,
-  fieldKey,
-  confirmed,
-) {
-  if (confirmed) return;
-  const gap = await client.query(
-    `SELECT count(*)::int AS count FROM tenant.crm_custom_records
-      WHERE organization_id=$1 AND object_definition_id=$2 AND status='active'
-        AND (data->>$3 IS NULL OR data->>$3 = '')`,
-    [context.organizationId, objectDefinitionId, fieldKey],
-  );
-  const missing = Number(gap.rows[0]?.count || 0);
-  if (missing > 0)
-    throw new CrmError(
-      409,
-      `${missing} existing record(s) have no value for "${fieldKey}". Confirm to make it required anyway.`,
-      "CRM_CUSTOM_FIELD_REQUIRED_ROLLOUT_GAP",
-      { missing, fieldKey },
-    );
-}
 
 
 
-export async function validateCustomRecord(
-  client,
-  context,
-  prepared,
-  existingId = null,
-  changedDataKeys = null,
-) {
-  if (!prepared.objectDefinitionId)
-    throw new CrmError(400, "Custom object definition is required.");
-  if (!isPlainObject(prepared.data))
-    throw new CrmError(400, "Custom record data must be a JSON object.");
-
-  const definitionResult = await client.query(
-    `SELECT id FROM tenant.crm_custom_object_definitions WHERE organization_id = $1 AND id = $2 AND status = 'active'`,
-    [context.organizationId, prepared.objectDefinitionId],
-  );
-  const objectDefinition = definitionResult.rows[0];
-  if (!objectDefinition)
-    throw new CrmError(409, "The custom object definition is not active.");
-
-  const fieldsResult = await client.query(
-    `SELECT field_key, data_type, required, unique_value, options, validation, visible_to_roles, depends_on_field_key FROM tenant.crm_custom_field_definitions WHERE organization_id = $1 AND object_definition_id = $2 AND status = 'active' ORDER BY sequence, field_key`,
-    [context.organizationId, prepared.objectDefinitionId],
-  );
-  const knownFields = new Set(
-    fieldsResult.rows.map((field) => field.field_key),
-  );
-  const unknownFields = Object.keys(prepared.data).filter(
-    (key) => !knownFields.has(key),
-  );
-  if (unknownFields.length)
-    throw new CrmError(
-      400,
-      `Unknown custom fields: ${unknownFields.join(", ")}.`,
-      "CRM_CUSTOM_FIELD_UNKNOWN",
-    );
-  // F028 CAP-002: a caller who cannot see a role-restricted field must not be
-  // able to set it either — otherwise it could be written blind and then
-  // silently redacted back to them, or worse, used to smuggle a value past a
-  // reviewer who also can't see it. Only fields the caller actually supplied
-  // are checked (changedDataKeys), not every key present in the merged
-  // before+after blob — an update that never mentions `data` at all falls
-  // back to the record's existing data verbatim and must not be blocked
-  // merely because someone else previously set a restricted field.
-  const forbiddenField = fieldsResult.rows.find(
-    (field) =>
-      (changedDataKeys
-        ? changedDataKeys.has(field.field_key)
-        : Object.prototype.hasOwnProperty.call(prepared.data, field.field_key)) &&
-      !canViewCustomField(context, field.visible_to_roles),
-  );
-  if (forbiddenField)
-    throw new CrmError(
-      403,
-      `You do not have permission to set ${forbiddenField.field_key}.`,
-      "CRM_CUSTOM_FIELD_FORBIDDEN",
-      { field: forbiddenField.field_key },
-    );
-
-  for (const field of fieldsResult.rows) {
-    const value = prepared.data[field.field_key];
-    const empty = value === undefined || value === null || value === "";
-    if (field.required && empty)
-      throw new CrmError(
-        400,
-        `${field.field_key} is required.`,
-        "CRM_CUSTOM_FIELD_REQUIRED",
-      );
-    if (empty) continue;
-    if (!valueMatchesCustomField(field, value))
-      throw new CrmError(
-        400,
-        `${field.field_key} has an invalid ${field.data_type} value.`,
-        "CRM_CUSTOM_FIELD_TYPE_INVALID",
-      );
-    if (["select", "multi_select"].includes(field.data_type)) {
-      // F028: when depends_on_field_key is set, `options` is a
-      // {parentValue: [childValues]} map rather than a flat array — the
-      // valid choices for this field narrow to whatever the parent field's
-      // current value in this same record allows. An unset/unrecognized
-      // parent value has no allowed options, so any non-empty child value
-      // is rejected until the parent is set.
-      const dependentOptions = field.depends_on_field_key
-        ? (isPlainObject(field.options) ? field.options : {})[
-            prepared.data[field.depends_on_field_key]
-          ]
-        : field.options;
-      if (Array.isArray(dependentOptions) && dependentOptions.length) {
-        const selected = Array.isArray(value) ? value : [value];
-        if (selected.some((item) => !dependentOptions.includes(item)))
-          throw new CrmError(
-            400,
-            field.depends_on_field_key
-              ? `${field.field_key} does not have a valid option for the selected ${field.depends_on_field_key}.`
-              : `${field.field_key} contains an unsupported option.`,
-            "CRM_CUSTOM_FIELD_OPTION_INVALID",
-          );
-      } else if (field.depends_on_field_key && !empty) {
-        throw new CrmError(
-          400,
-          `${field.field_key} does not have a valid option for the selected ${field.depends_on_field_key}.`,
-          "CRM_CUSTOM_FIELD_OPTION_INVALID",
-        );
-      }
-    }
-    const validation = isPlainObject(field.validation) ? field.validation : {};
-    if (typeof value === "string" && validation.pattern) {
-      let pattern;
-      try {
-        pattern = new RegExp(String(validation.pattern));
-      } catch {
-        throw new CrmError(
-          409,
-          `${field.field_key} has an invalid configured validation pattern.`,
-        );
-      }
-      if (!pattern.test(value))
-        throw new CrmError(
-          400,
-          `${field.field_key} does not match its validation rule.`,
-          "CRM_CUSTOM_FIELD_PATTERN_INVALID",
-        );
-    }
-    if (typeof value === "number") {
-      if (
-        validation.minimum !== undefined &&
-        value < Number(validation.minimum)
-      )
-        throw new CrmError(400, `${field.field_key} is below its minimum.`);
-      if (
-        validation.maximum !== undefined &&
-        value > Number(validation.maximum)
-      )
-        throw new CrmError(400, `${field.field_key} exceeds its maximum.`);
-    }
-    if (field.unique_value) {
-      const uniqueParameters = [
-        context.organizationId,
-        prepared.objectDefinitionId,
-        field.field_key,
-        JSON.stringify(value),
-      ];
-      let exclusion = "";
-      if (existingId) {
-        uniqueParameters.push(existingId);
-        exclusion = " AND id <> $5";
-      }
-      const duplicate = await client.query(
-        `SELECT 1 FROM tenant.crm_custom_records WHERE organization_id = $1 AND object_definition_id = $2 AND data -> $3 = $4::jsonb${exclusion} LIMIT 1`,
-        uniqueParameters,
-      );
-      if (duplicate.rows[0])
-        throw new CrmError(
-          409,
-          `${field.field_key} must be unique.`,
-          "CRM_CUSTOM_FIELD_NOT_UNIQUE",
-        );
-    }
-  }
-}

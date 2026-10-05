@@ -15,6 +15,7 @@ import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { SalesError, previewSalesDocument, redactMargin } from "../index.js";
 import { CONFIRMATION_STATUS_LABELS, confirmationStatus } from "../order-confirmations/constants.js";
 import { listOrderConfirmations } from "../order-confirmations/snapshot.js";
+import { RESERVATION_STATUS_LABELS, reservationStatusOf } from "../reservations/constants.js";
 import { assertOrderVisible, orderCan, orderCapabilities, orderScopeSql, requireOrderAccess, requireOrderPermission, teamOwnersSql } from "./access.js";
 import {
   CANCEL_REASONS, FULFILLMENT, INVOICING, ORDER_PERMISSIONS, ORDER_VIEWS, OrderError, STATUS, dayOf, displayStatuses, isUuid, requireUuid, text,
@@ -280,7 +281,7 @@ function availableActions(context, order, lines, downstream, confirmation) {
     confirm: status === STATUS.draft && can(ORDER_PERMISSIONS.confirm),
     reopen: confirmed && untouched && can(ORDER_PERMISSIONS.reopen),
     reserve: confirmed && can(ORDER_PERMISSIONS.reserve) && lines.some((line) => line.stockTracked && line.remainingToDeliver - line.reserved > 1e-6),
-    release: confirmed && can(ORDER_PERMISSIONS.reserve) && lines.some((line) => line.reserved > 1e-6),
+    release: can(ORDER_PERMISSIONS.releaseReservation) && lines.some((line) => line.reserved > 1e-6),
     deliver: confirmed && can(ORDER_PERMISSIONS.deliver) && lines.some((line) => line.remainingToDeliver > 1e-6),
     invoice: confirmed && can(ORDER_PERMISSIONS.invoice) && lines.some((line) => line.remainingToInvoice > 1e-6),
     cancel: ((status === STATUS.draft) || (confirmed && untouched)) && can(ORDER_PERMISSIONS.cancel),
@@ -330,8 +331,10 @@ export async function getSalesOrder(client, context, orderId) {
   const byLine = new Map(progress.map((line) => [line.lineId, line]));
   const [lines, taxLines, deliveries, deliveryLines, invoices, versions, events] = await inOrder([
     () => client.query(
-      `SELECT line.*, warehouse.name AS warehouse_name FROM tenant.sales_order_lines line
-         LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = line.organization_id AND warehouse.id = line.warehouse_id
+      // The warehouse shown is where the line ships from now (changed after confirmation, else as ordered).
+      `SELECT line.*, COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id) AS warehouse_id, warehouse.name AS warehouse_name FROM tenant.sales_order_lines line
+         LEFT JOIN tenant.sales_order_line_progress progress ON progress.organization_id = line.organization_id AND progress.sales_order_line_id = line.id
+         LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = line.organization_id AND warehouse.id = COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id)
         WHERE line.organization_id = $1 AND line.sales_order_version_id = $2 ORDER BY line.sequence`, [context.organizationId, order.current_version_id]),
     () => client.query(
       `SELECT tax_type, label, rate, sum(taxable_amount) AS taxable_amount, sum(tax_amount) AS tax_amount FROM tenant.sales_order_tax_lines
@@ -365,7 +368,8 @@ export async function getSalesOrder(client, context, orderId) {
   const fulfillment = fulfillmentOf(progress);
   const confirmations = await listOrderConfirmations(client, context.organizationId, id);
   const current = confirmations.find((confirmation) => confirmation.current) ?? null;
-  const statuses = { ...displayStatuses(order, { deliverable: fulfillment.deliverable }), ...confirmationDisplay(current) };
+  const reservation = reservationStatusOf(progress);
+  const statuses = { ...displayStatuses(order, { deliverable: fulfillment.deliverable }), ...confirmationDisplay(current), reservation, reservationLabel: RESERVATION_STATUS_LABELS[reservation] };
   const invoicedValue = validInvoices.reduce((total, invoice) => total + Number(invoice.grand_total), 0);
   const detail = {
     order: { ...order, ...statuses },

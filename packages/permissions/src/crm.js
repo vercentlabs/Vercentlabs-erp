@@ -120,22 +120,17 @@ export const CRM_PERMISSIONS = Object.freeze({
   accountsImport: "crm.accounts.import",
   accountsExport: "crm.accounts.export",
   accountsCreateCustomer: "crm.accounts.create_customer",
-  playbooksManage: "crm.playbooks.manage",
   privacyManage: "crm.privacy.manage",
   dataQualityManage: "crm.data-quality.manage",
   integrationsManage: "crm.integrations.manage",
   aiManage: "crm.ai.manage",
   analyticsManage: "crm.analytics.manage",
-  customizationManage: "crm.customization.manage",
   partnersManage: "crm.partners.manage",
   fieldSalesManage: "crm.field-sales.manage",
   // F020 sales organisation and coverage: seeing coverage, shaping teams,
   // shaping the territory structure and moving record ownership are
   // separate authorities.
-  coverageView: "crm.coverage.view",
   teamsManage: "crm.teams.manage",
-  territoriesManage: "crm.territories.manage",
-  coverageAssign: "crm.coverage.assign",
   // F025 forecast: submit your own, review/adjust your team's, govern periods.
   forecastSubmit: "crm.forecast.submit",
   forecastReview: "crm.forecast.review",

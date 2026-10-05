@@ -128,7 +128,7 @@ export async function getMetricDrilldown(client, context, { metric: metricKey, f
      SELECT page.*, summary.total_count, summary.total_value, summary.unconverted_count
        FROM (SELECT count(*)::int AS total_count, ${MEASURE_SQL[measure]()} AS total_value, count(*) FILTER (WHERE f.fx_rate IS NULL)::int AS unconverted_count FROM population f) summary
        LEFT JOIN LATERAL (
-         SELECT f.id, f.code, f.name, f.status, f.stage_id, f.stage_name, f.owner_user_id, f.owner_name, f.team_id, f.team_name, f.territory_id, f.territory_name,
+         SELECT f.id, f.code, f.name, f.status, f.stage_id, f.stage_name, f.owner_user_id, f.owner_name, f.team_id, f.team_name,
                 f.forecast_category, f.probability, f.amount, f.currency_code, f.fx_rate, f.fx_rate_date,
                 round(f.amount_reporting,2) AS amount_reporting, round(f.weighted_reporting,2) AS weighted_reporting,
                 f.expected_close_date, f.actual_close_date, f.stalled, ${sortKey} AS sort_key
@@ -162,97 +162,9 @@ export async function getMetricDrilldown(client, context, { metric: metricKey, f
   };
 }
 
-// Quota plans overlapping [from, to], prorated by overlapping days and with the
-// rate to the reporting currency at the period end (NULL when missing).
-function quotaPlansSql(org, from, to, level) {
-  return `SELECT plan.user_id, plan.team_id, plan.territory_id,
-                plan.target_amount * (LEAST(plan.period_end, ${to}) - GREATEST(plan.period_start, ${from}) + 1)::numeric
-                  / (plan.period_end - plan.period_start + 1)::numeric AS prorated,
-                CASE WHEN COALESCE(plan.currency_code, organization.base_currency)=organization.base_currency THEN 1::numeric ELSE (
-                  SELECT rate.rate FROM tenant.exchange_rates rate
-                   WHERE rate.organization_id=plan.organization_id
-                     AND rate.from_currency_code=plan.currency_code AND rate.to_currency_code=organization.base_currency
-                     AND rate.rate_date<=${to} AND rate.status='active'
-                   ORDER BY rate.rate_date DESC LIMIT 1) END AS rate
-           FROM tenant.crm_quota_plans plan
-           JOIN public.organizations organization ON organization.id=plan.organization_id
-          WHERE plan.organization_id=${org} AND plan.status IN ('active','closed') AND plan.quota_type IN ('revenue','bookings')
-            AND plan.period_end>=${from} AND plan.period_start<=${to} AND (${level})`;
-}
 
-const canSeeOrganizationQuotas = (context) =>
-  canViewAllCrmResource(context, "opportunities") ||
-  (context.permissions || []).some((permission) => ["crm.revenue.manage", "crm.analytics.manage"].includes(permission));
 
-/**
- * Quota for the filtered scope and period, attainment and coverage.
- * Resolution (never double counts a level): an owner filter uses that
- * user's plans; a team filter uses the team's own plan, else the sum of
- * user plans of owners whose primary team is in the subtree; a territory
- * filter uses the territory's own plan; no filter sums user-level plans.
- * Plans are prorated by the days they overlap the period and converted to
- * the reporting currency at the period end. Quota amounts are sensitive:
- * without revenue/analytics authority a caller sees only their own.
- */
-export async function getQuotaSummary(client, context, rawFilters = {}, won = null, closing = null) {
-  const filters = normalizeAnalyticsFilters(rawFilters);
-  const own = filters.scope === "mine" || filters.ownerId === context.userId;
-  if (!canSeeOrganizationQuotas(context) && !own) return { available: false, reason: "restricted" };
-  const parameters = [];
-  const org = addParameter(parameters, context.organizationId);
-  const from = `${addParameter(parameters, filters.from)}::date`;
-  const to = `${addParameter(parameters, filters.to)}::date`;
-  let level;
-  if (own || filters.ownerId) {
-    const user = addParameter(parameters, own ? context.userId : filters.ownerId === "unassigned" ? null : filters.ownerId);
-    level = `plan.user_id=${user}`;
-  } else if (filters.territoryId) {
-    level = `plan.territory_id=${addParameter(parameters, filters.territoryId)} AND plan.user_id IS NULL`;
-  } else if (filters.teamId) {
-    const team = addParameter(parameters, filters.teamId);
-    level = `CASE WHEN EXISTS (SELECT 1 FROM tenant.crm_quota_plans own_plan WHERE own_plan.organization_id=${org} AND own_plan.team_id=${team} AND own_plan.user_id IS NULL AND own_plan.territory_id IS NULL AND own_plan.status IN ('active','closed') AND own_plan.period_end>=${from} AND own_plan.period_start<=${to})
-      THEN plan.team_id=${team} AND plan.user_id IS NULL AND plan.territory_id IS NULL
-      ELSE plan.user_id IS NOT NULL AND ${primaryTeamSql("plan.organization_id", "plan.user_id", `${addParameter(parameters, filters.asOf)}::date`)} IN (${teamSubtreeSql(org, team)}) END`;
-  } else if (filters.scope === "team") {
-    const me = addParameter(parameters, context.userId);
-    level = `plan.user_id IS NOT NULL AND (plan.user_id=${me} OR plan.user_id IN (${managedTeamMembersSql(org, me)}))`;
-  } else level = "plan.user_id IS NOT NULL";
-  const { rows } = await client.query(
-    `SELECT count(*)::int AS plans,
-            round(COALESCE(sum(prorated * rate) FILTER (WHERE rate IS NOT NULL),0),2) AS quota,
-            count(*) FILTER (WHERE rate IS NULL)::int AS unconverted_plans
-       FROM (${quotaPlansSql(org, from, to, level)}) plans`,
-    parameters,
-  );
-  const quota = Number(rows[0]?.quota || 0);
-  const plans = Number(rows[0]?.plans || 0);
-  const wonValue = won ?? 0;
-  const gap = quota - wonValue;
-  return {
-    available: true,
-    plans,
-    quota: plans ? quota : null,
-    unconvertedPlans: Number(rows[0]?.unconverted_plans || 0),
-    attainmentPercent: plans && quota > 0 ? Math.round((wonValue / quota) * 10000) / 100 : null,
-    remaining: plans ? Math.round(gap * 100) / 100 : null,
-    coverageRatio: plans && gap > 0 && closing !== null ? Math.round((closing / gap) * 100) / 100 : null,
-  };
-}
 
-/** Per-user quota (user-level plans) for the period; null map when restricted. */
-export async function getUserQuotas(client, context, rawFilters = {}) {
-  const filters = normalizeAnalyticsFilters(rawFilters);
-  const parameters = [];
-  const org = addParameter(parameters, context.organizationId);
-  const from = `${addParameter(parameters, filters.from)}::date`;
-  const to = `${addParameter(parameters, filters.to)}::date`;
-  const level = canSeeOrganizationQuotas(context) ? "plan.user_id IS NOT NULL" : `plan.user_id=${addParameter(parameters, context.userId)}`;
-  const { rows } = await client.query(
-    `SELECT user_id, round(COALESCE(sum(prorated * rate) FILTER (WHERE rate IS NOT NULL),0),2) AS quota FROM (${quotaPlansSql(org, from, to, level)}) plans GROUP BY user_id`,
-    parameters,
-  );
-  return new Map(rows.map((row) => [String(row.user_id), Number(row.quota)]));
-}
 
 /**
  * Several metrics grouped by one dimension in a single pass (forecast
@@ -300,11 +212,10 @@ export async function getMetricRollup(client, context, { dimension: dimensionKey
   };
 }
 
-/** F024 dashboard payload: KPIs, stage breakdown and quota, one filter set. */
+/** F024 dashboard payload: KPIs and the stage breakdown, one filter set. */
 export async function getPipelineDashboard(client, context, rawFilters = {}) {
   const filters = normalizeAnalyticsFilters(rawFilters);
   const summary = await getPipelineMetrics(client, context, filters);
   const byStage = await getPipelineBreakdown(client, context, { metric: "open_pipeline", dimension: "stage", filters });
-  const quota = await getQuotaSummary(client, context, filters, summary.metrics.won_amount, summary.metrics.closing_in_period);
-  return { ...summary, byStage: byStage.rows, quota, definitions: listMetricDefinitions() };
+  return { ...summary, byStage: byStage.rows, definitions: listMetricDefinitions() };
 }

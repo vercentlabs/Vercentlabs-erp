@@ -60,7 +60,6 @@ export const BREAKDOWN_DIMENSIONS = Object.freeze({
   stage: { label: "Stage", key: "f.stage_id", name: "COALESCE(f.stage_name,'No stage')", order: "min(f.stage_sequence)" },
   owner: { label: "Owner", key: "f.owner_user_id", name: "COALESCE(f.owner_name,'Unassigned')", order: null },
   team: { label: "Sales team", key: "f.team_id", name: "COALESCE(f.team_name,'No team')", order: null },
-  territory: { label: "Territory", key: "f.territory_id", name: "COALESCE(f.territory_name,'No territory')", order: null },
   source: { label: "Source", key: "f.source_id", name: "COALESCE(f.source_name,'Unspecified')", order: null },
   forecast_category: { label: "Forecast category", key: "f.forecast_category", name: "f.forecast_category", order: null },
   pipeline: { label: "Pipeline", key: "f.pipeline_id", name: "COALESCE(f.pipeline_name,'No pipeline')", order: null },

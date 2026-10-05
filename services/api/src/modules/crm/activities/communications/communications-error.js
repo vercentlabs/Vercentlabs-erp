@@ -1,4 +1,4 @@
-// The one error type of the CRM communications and meeting-booking services
+// The one error type of the CRM communications services
 // (status + code), and the identifier check that raises it.
 
 const text = (value) => String(value ?? "").trim();

@@ -15,8 +15,6 @@ export type CrmFoundationContext = {
   organizationId: string;
   userId: string;
 };
-export type PublicMeetingLinkRow = { organization_id: string; meeting_link_id: string; owner_user_id: string; [key: string]: any };
-export type PublicMeetingBookingRow = { organization_id: string; booking_id: string; host_user_id: string; token_type: string };
 export class CrmError extends Error {
   status: number;
   code: string;
@@ -86,7 +84,7 @@ export function getCrmReport(
 ): Promise<any>;
 export type CrmAnalyticsFilters = {
   from?: string; to?: string; asOf?: string; scope?: string; pipelineId?: string; stageId?: string; teamId?: string;
-  territoryId?: string; ownerId?: string; sourceId?: string; forecastCategory?: string;
+  ownerId?: string; sourceId?: string; forecastCategory?: string;
 };
 export function analyticsFiltersFromSearchParams(searchParams: URLSearchParams): CrmAnalyticsFilters;
 export function normalizeAnalyticsFilters(input?: CrmAnalyticsFilters): Required<CrmAnalyticsFilters>;
@@ -99,8 +97,6 @@ export function getPipelineDashboard(client: QueryClient, context: CrmContext, f
 export function getPipelineBreakdown(client: QueryClient, context: CrmContext, input: { metric: string; dimension: string; filters?: CrmAnalyticsFilters }): Promise<any>;
 export function getMetricRollup(client: QueryClient, context: CrmContext, input: { dimension: string; metrics: string[]; filters?: CrmAnalyticsFilters }): Promise<any>;
 export function getMetricDrilldown(client: QueryClient, context: CrmContext, input: { metric: string; filters?: CrmAnalyticsFilters; cursor?: string | null; limit?: number }): Promise<any>;
-export function getQuotaSummary(client: QueryClient, context: CrmContext, filters?: CrmAnalyticsFilters, won?: number | null, closing?: number | null): Promise<any>;
-export function getUserQuotas(client: QueryClient, context: CrmContext, filters?: CrmAnalyticsFilters): Promise<Map<string, number>>;
 export function buildForecastRollup(teams: any[], owners: any[], ownerTeam: Map<string, string | null>): any;
 export function getForecastWorkspace(client: QueryClient, context: CrmContext, input: { periodId: string; asOf?: string }): Promise<any>;
 export function submitForecast(client: QueryClient, context: CrmContext, input: { periodId: string; commitAmount: number; bestCaseAmount?: number; notes?: string; expectedVersion?: number }): Promise<any>;
@@ -111,11 +107,6 @@ export function captureScheduledForecastSnapshots(client: QueryClient, organizat
 export function getForecastSnapshot(client: QueryClient, context: CrmContext, captureId: string): Promise<any>;
 export function setForecastPeriodStatus(client: QueryClient, context: CrmContext, input: { periodId: string; status: string; expectedUpdatedAt?: string }): Promise<any>;
 export function getForecastAccuracy(client: QueryClient, context: CrmContext, input?: { limit?: number; horizonDays?: number; ownerUserId?: string | null }): Promise<any>;
-export const COVERAGE_REASSIGN_LIMIT: number;
-export function getSalesCoverage(client: QueryClient, context: CrmContext, input?: { asOf?: string }): Promise<any>;
-export function listUnassignedRecords(client: QueryClient, context: CrmContext, input: { type: string; cursor?: string | null; limit?: number }): Promise<any>;
-export function reassignCoverage(client: QueryClient, context: CrmContext, input: { type: string; ids: string[]; ownerUserId: string | null; reason: string; expectedUpdatedAt?: Record<string, string> }): Promise<any>;
-export function transferTerritoryCoverage(client: QueryClient, context: CrmContext, territoryId: string, input: { assigneeType: string; assigneeId: string; effectiveFrom?: string; reason: string }): Promise<any>;
 export function resolvePublicCaptureOrganization(queryable: QueryClient, formKey: string): Promise<string | null>;
 export function captureCrmLead(
   client: QueryClient,
@@ -150,7 +141,6 @@ export function completeCrmMeeting(client: QueryClient, context: CrmContext, id:
 export function cancelCrmMeeting(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
 
 
-export * from "./data-management/custom-field-runtime.js";
 export * from "./data-management/tag-assignment.js";
 
 
@@ -168,16 +158,6 @@ export {
 // Declarations previously written inline in services/api/src/index.d.ts.
 // F005 — hand-written signature for a runtime export reached through
 // lead-governance.js's re-export of assignment/index.js.
-export function matchLeadTerritory(client: QueryClient, context: any, lead: Record<string, unknown>): Promise<{ territoryId: string; code: string; name: string; matchedOn: string[]; alternatives: Array<{ territoryId: string; name: string; matchedOn: string[] }> } | null>;
-export function normalizeTerritoryCoverage(value: unknown): Record<string, string[]>;
-export const TERRITORY_TYPES: string[];
-export function resolvePublicMeetingLink(queryable: QueryClient, token: string): Promise<PublicMeetingLinkRow>;
-export function resolvePublicMeetingBooking(queryable: QueryClient, token: string): Promise<PublicMeetingBookingRow>;
-export function publicMeetingContext(input: { organizationId: string; hostUserId: string }): any;
-export function assertPublicDate(date: string | null): string;
-export function getPublicMeetingLinkView(client: QueryClient, link: PublicMeetingLinkRow): Promise<Record<string, unknown>>;
-export function getPublicMeetingBookingView(client: QueryClient, booking: PublicMeetingBookingRow): Promise<Record<string, unknown>>;
-export function getPublicRescheduleAvailability(client: QueryClient, booking: PublicMeetingBookingRow, date: string | null): Promise<any>;
 // The canonical overdue rule for activities.
 export function taskOverdueSql(alias?: string): string;
 // The shared reminder mechanism (reminders/index.js).
@@ -212,24 +192,15 @@ export function resolveCrmEntityAccess(
 ): Promise<boolean>;
 
 // Declarations kept with the F014/F018 and account-intelligence compatibility
-// boundary (activities/communications.d.ts), and the privacy operations.
+// boundary (activities/communications.d.ts).
 export {
-  bookMeeting,
-  cancelMeetingBooking,
   fetchProviderCalendarDelta,
   getCrmEmailHistory,
   getCrmEmailThread,
-  getMeetingAvailability,
   pushProviderCalendarEvent,
   recordMeetingCalendarPushResult,
-  rescheduleMeetingBooking,
   prepareMeetingCalendarPush,
 } from "./activities/communications.js";
-export function previewPrivacyRequest(client: QueryClient, context: CrmContext, requestId: string): Promise<Record<string, unknown>>;
-export function executePrivacyRequest(client: QueryClient, context: CrmContext, requestId: string, input?: Record<string, unknown>): Promise<Record<string, unknown>>;
-export function getPrivacyRetentionDashboard(client: QueryClient, context: CrmContext): Promise<Record<string, unknown>>;
-export function updatePrivacyRetentionPolicy(client: QueryClient, context: CrmContext, policyId: string, input: Record<string, unknown>): Promise<Record<string, unknown>>;
-export function runPrivacyRetention(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<Record<string, unknown>>;
 
 // Record kernel: access scope, outbox and communication access.
 export function canViewAllCrmRecords(context: CrmContext): boolean;

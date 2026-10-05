@@ -15,10 +15,10 @@ import { FULFILLMENT, INVOICING, STATUS } from "./constants.js";
 // A service is never delivered or reserved; a product that is not stock
 // tracked is delivered but never reserved.
 const LINES_SQL = `
-  SELECT line.id, line.sequence, line.item_id, line.warehouse_id, line.quantity, line.conversion_factor, line.line_total, line.item_name_snapshot, line.uom_snapshot,
+  SELECT line.id, line.sequence, line.item_id, COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id) AS warehouse_id, line.quantity, line.conversion_factor, line.line_total, line.item_name_snapshot, line.uom_snapshot,
          item.item_type <> 'service' AS deliverable, COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AS stock_tracked,
          progress.cancelled_quantity, progress.returned_quantity,
-         COALESCE((SELECT sum(reservation.quantity) FROM tenant.stock_reservations reservation
+         COALESCE((SELECT sum(reservation.active_quantity) FROM tenant.stock_reservations reservation
                     WHERE reservation.organization_id = line.organization_id AND reservation.reference_type = 'sales_order_line' AND reservation.reference_id = line.id
                       AND reservation.status = 'active'), 0) / COALESCE(NULLIF(line.conversion_factor, 0), 1) AS reserved,
          COALESCE((SELECT sum(delivered.quantity) FROM tenant.sales_delivery_lines delivered

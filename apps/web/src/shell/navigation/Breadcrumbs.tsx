@@ -25,8 +25,8 @@ const GLOBAL_ENTRIES = [
 
 // Module > Workspace > (Group) > Page, from the same route-ownership rules
 // the secondary sidebar uses (navigation-resolution.ts): /crm/pipeline reads
-// CRM > Opportunities > Pipeline and /crm/settings/territories reads
-// CRM > CRM Setup > Routing & organization > Territories & Sales Teams.
+// CRM > Opportunities > Pipeline and /crm/settings/leads/stages reads
+// CRM > CRM Settings > Lead Management > Lead Stages & Statuses.
 function crumbsForPathname(pathname: string): Crumb[] {
   const activeModule = MODULE_NAVIGATION.find((entry) =>
     matchRoute(entry, pathname),

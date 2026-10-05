@@ -24,23 +24,16 @@ const SELF_SCOPED_CRM_RESOURCES = new Set<string>([]);
 const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   leads: CRM_PERMISSIONS.leadsEdit,
   opportunities: CRM_PERMISSIONS.opportunitiesManage,
-  // F020: team structure and territory structure are separate authorities
-  // (crm.teams.manage / crm.territories.manage), no longer crm.settings.manage.
+  // Teams and their members are managed with crm.teams.manage (Settings → Teams).
   "sales-teams": CRM_PERMISSIONS.teamsManage,
   "sales-team-members": CRM_PERMISSIONS.teamsManage,
-  territories: CRM_PERMISSIONS.territoriesManage,
-  "territory-assignments": CRM_PERMISSIONS.territoriesManage,
   tags: CRM_PERMISSIONS.settingsManage,
-  "custom-object-definitions": CRM_PERMISSIONS.settingsManage,
-  "custom-field-definitions": CRM_PERMISSIONS.settingsManage,
   pipelines: CRM_PERMISSIONS.settingsManage,
   // F002 AccountPlanPanel/stakeholder UI (not a redirect-governed resource
   // like "stages", so without an entry here it would fall through to
   // module-access-only).
   "account-plans": CRM_PERMISSIONS.accountsEdit,
   "account-stakeholders": CRM_PERMISSIONS.accountsEdit,
-  // Playbooks setup UI.
-  playbooks: CRM_PERMISSIONS.settingsManage,
   // F025 — forecast-periods is admin-configured; forecast-
   // submissions is rep-authored (own Opportunity-derived numbers), so it
   // reuses crm.opportunities.manage rather than crm.settings.manage —
@@ -52,25 +45,9 @@ const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   // lifecycle and immutability rules).
   "forecast-periods": CRM_PERMISSIONS.forecastManage,
   "forecast-submissions": CRM_PERMISSIONS.forecastSubmit,
-  // F014 — meeting-links config (availability/duration/
-  // buffers/provider) is what a public booking page is generated from,
-  // so only settings-manage should create/edit one.
-  "meeting-links": CRM_PERMISSIONS.settingsManage,
-  // F020 — quota-plans configuration (team/territory/user target amounts);
-  // targets are governed with forecast periods.
-  "quota-plans": CRM_PERMISSIONS.forecastManage,
-  // Consent/GDPR module — crm_consent_events (immutable evidence log) and
-  // crm_privacy_requests (the DSR queue) already have a full backend
-  // (account-intelligence.js's preview/executePrivacyRequest and friends)
-  // and record-policy.js already governs their write shape (consent
-  // events are create-only; a completed request can't be reopened), but
-  // both were missing from this map — meaning any mutation against them
-  // through the generic /api/crm/[resource] route silently resolved to
-  // "denied" until now. crm.privacy.manage is the same permission already
-  // seeded and already used to gate the "privacy" report and the Data
-  // Subject Requests settings screen.
+  // Consent events: an immutable evidence log that outbound email checks
+  // before contacting someone; created only, never edited (record-policy.js).
   "consent-events": CRM_PERMISSIONS.privacyManage,
-  "privacy-requests": CRM_PERMISSIONS.privacyManage,
 };
 
 export type CrmMutationPermissionResolution =

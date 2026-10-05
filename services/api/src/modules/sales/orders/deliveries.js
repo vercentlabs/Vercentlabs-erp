@@ -4,15 +4,16 @@
 // never on a delivery. A delivery cannot deliver more than is left on a line.
 //
 // Recording a delivery issues the stock of stock-tracked lines from their
-// warehouse (consuming what was reserved for the line) and is the only way an
-// order's delivered quantity changes. A retried request with the same key
+// warehouse, consuming what was reserved for the line (and issuing from the
+// very rows it was reserved in), in the same transaction; it is the only way
+// an order's delivered quantity changes. A retried request with the same key
 // returns the delivery already made.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
-import { postStockMovement } from "../../stock/index.js";
+import { StockError } from "../../stock/index.js";
+import { consumeReservationForDelivery } from "../reservations/service.js";
 import { assertOrderVisible, requireOrderAccess, requireOrderPermission } from "./access.js";
 import { ORDER_PERMISSIONS, OrderError, STATUS, requireUuid, text } from "./constants.js";
 import { loadOrderLineProgress, refreshSalesOrderProgress } from "./progress.js";
-import { consumeLineReservation, orderStockContext } from "./stock.js";
 import { lockOrder, readDate, recordOrderEvent } from "./versions.js";
 
 const EPSILON = 1e-6;
@@ -74,29 +75,32 @@ export async function createDeliveryFromSalesOrder(client, context, orderId, inp
      RETURNING id, request_number, delivery_date`,
     [context.organizationId, number, order.id, order.current_version_id, key, JSON.stringify({ salesOrderNumber: order.sales_order_number, lines: chosen.length }), context.userId ?? null,
       deliveryDate, carrier, text(input.trackingNumber, 120), text(input.notes, 2000)])).rows[0];
-  const stock = orderStockContext(context);
+  const consumption = [];
   for (const { line, quantity } of chosen) {
     const baseQuantity = Math.round(quantity * line.conversionFactor * 1e6) / 1e6;
-    await client.query(
+    const deliveryLine = (await client.query(
       `INSERT INTO tenant.sales_delivery_lines (organization_id, delivery_id, sales_order_id, sales_order_line_id, item_id, warehouse_id, quantity, base_quantity, uom_snapshot, stock_issued)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [context.organizationId, delivery.id, order.id, line.lineId, line.itemId, line.warehouseId, quantity, baseQuantity, line.unit, line.stockTracked]);
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [context.organizationId, delivery.id, order.id, line.lineId, line.itemId, line.warehouseId, quantity, baseQuantity, line.unit, line.stockTracked])).rows[0];
     if (!line.stockTracked) continue;
-    // The goods leave: what was reserved for the line is consumed and the stock is issued.
-    await consumeLineReservation(client, context, line.lineId, { itemId: line.itemId, warehouseId: line.warehouseId, baseQuantity });
+    // The goods leave: the line's reservations are consumed and the stock is issued from where it was reserved.
     try {
-      await postStockMovement(client, stock, {
-        movementType: "issue", itemId: line.itemId, warehouseId: line.warehouseId, quantity: baseQuantity, referenceType: "sales_delivery", referenceId: delivery.id,
-        idempotencyKey: `sales-delivery:${delivery.id}:${line.lineId}`,
-      });
+      const used = await consumeReservationForDelivery(client, context, { order, line, warehouseId: line.warehouseId, quantity, deliveryId: delivery.id, deliveryLineId: deliveryLine.id });
+      consumption.push({ item: line.itemName, unit: line.unit, reservations: used.consumed, fromFreeStock: used.fromFreeStock });
     } catch (error) {
-      if (error?.name !== "StockError") throw error;
+      if (!(error instanceof StockError)) throw error;
       throw new OrderError(409, `${line.itemName}: ${error.message}`, error.code ?? "SALES_ORDER_STOCK_UNAVAILABLE");
     }
   }
   await recordOrderEvent(client, context, order.id, "sales_order.delivery_created", STATUS.confirmed, STATUS.confirmed, {
     deliveryId: delivery.id, deliveryNumber: delivery.request_number, lines: chosen.map(({ line, quantity }) => ({ item: line.itemName, quantity, unit: line.unit })),
   });
+  if (consumption.some((entry) => entry.reservations.length))
+    await recordOrderEvent(client, context, order.id, "sales_order.reservation_consumed", STATUS.confirmed, STATUS.confirmed, {
+      deliveryId: delivery.id, deliveryNumber: delivery.request_number,
+      lines: consumption.filter((entry) => entry.reservations.length).map((entry) => ({ item: entry.item, unit: entry.unit, quantity: entry.reservations.reduce((total, used) => total + used.quantity, 0),
+        reservations: entry.reservations.map((used) => used.reservation).filter(Boolean) })),
+    });
   const refreshed = await refreshSalesOrderProgress(client, context.organizationId, order.id, context.userId ?? null);
   return { deliveryId: delivery.id, deliveryNumber: delivery.request_number, replayed: false, orderStatus: refreshed.lifecycleStatus, fulfillmentStatus: refreshed.fulfillmentStatus };
 }

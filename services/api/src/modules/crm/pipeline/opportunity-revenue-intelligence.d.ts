@@ -23,9 +23,6 @@ export function evaluateMutualActionPlan(
 export function calculatePredictiveForecast(
   input: Record<string, unknown>,
 ): Record<string, unknown>;
-export function allocateQuotaSeasonality(
-  input: Record<string, unknown>,
-): Array<Record<string, unknown>>;
 export function cloneOpportunityBlueprint(
   source: Record<string, unknown>,
   options?: Record<string, unknown>,
@@ -63,11 +60,6 @@ export function capturePredictiveForecast(
   client: QueryClient,
   context: CrmFoundationContext,
   input?: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-export function saveQuotaSeasonality(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input: Record<string, unknown>,
 ): Promise<Record<string, unknown>>;
 export function getOpportunityRevenueWorkspace(
   client: QueryClient,

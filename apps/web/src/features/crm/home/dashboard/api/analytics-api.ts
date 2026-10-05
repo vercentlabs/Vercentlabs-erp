@@ -14,7 +14,6 @@ export type PipelineFilters = {
   pipelineId?: string;
   stageId?: string;
   teamId?: string;
-  territoryId?: string;
   ownerId?: string;
   sourceId?: string;
   forecastCategory?: string;
@@ -27,7 +26,6 @@ const PIPELINE_FILTER_KEYS: Array<keyof PipelineFilters> = [
   "pipelineId",
   "stageId",
   "teamId",
-  "territoryId",
   "ownerId",
   "sourceId",
   "forecastCategory",
@@ -49,18 +47,6 @@ type PipelineCurrency = {
   unconvertedCurrencies: string[];
 };
 
-type QuotaSummary =
-  | { available: false; reason: string }
-  | {
-      available: true;
-      plans: number;
-      quota: number | null;
-      unconvertedPlans: number;
-      attainmentPercent: number | null;
-      remaining: number | null;
-      coverageRatio: number | null;
-    };
-
 export type PipelineDashboard = {
   metricVersion: string;
   filters: Required<PipelineFilters> & { asOf: string };
@@ -73,7 +59,6 @@ export type PipelineDashboard = {
     value: number;
     unconvertedCount: number;
   }>;
-  quota: QuotaSummary;
   definitions: MetricDefinition[];
 };
 
@@ -85,7 +70,6 @@ type DrilldownRecord = {
   stageName: string | null;
   ownerName: string | null;
   teamName: string | null;
-  territoryName: string | null;
   forecastCategory: string;
   probability: number | null;
   amount: number;

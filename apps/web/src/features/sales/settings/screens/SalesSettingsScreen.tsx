@@ -29,6 +29,7 @@ type Settings = {
   reserve_stock_on_confirm: boolean;
   require_customer_po: boolean;
   require_requested_delivery_date: boolean;
+  check_availability_on_confirm: boolean;
   invoice_quantity_basis: "ordered" | "fulfilled";
   default_quotation_terms: string | null;
   allow_line_discounts: boolean;
@@ -100,6 +101,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [reserveOnConfirm, setReserveOnConfirm] = useState(settings.reserve_stock_on_confirm !== false);
   const [requirePo, setRequirePo] = useState(Boolean(settings.require_customer_po));
   const [requireDelivery, setRequireDelivery] = useState(Boolean(settings.require_requested_delivery_date));
+  const [checkOnConfirm, setCheckOnConfirm] = useState(settings.check_availability_on_confirm !== false);
   const [basis, setBasis] = useState<string>(settings.invoice_quantity_basis);
   const [quotationTerms, setQuotationTerms] = useState(settings.default_quotation_terms ?? "");
   const canManageDiscounts =
@@ -128,6 +130,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
           reserveStockOnConfirm: reserveOnConfirm,
           requireCustomerPo: requirePo,
           requireRequestedDeliveryDate: requireDelivery,
+          checkAvailabilityOnConfirm: checkOnConfirm,
           invoiceQuantityBasis: basis,
           defaultQuotationTerms: quotationTerms,
           ...(canManageDiscounts
@@ -236,6 +239,10 @@ function SettingsForm({ settings }: { settings: Settings }) {
           isDisabled={!canManage}
         >
           Allow orders without a quotation
+        </Switch>
+        <p className="text-sm text-text-secondary">Availability is worked out as on hand minus reserved, in each warehouse; stock under quality hold is not available.</p>
+        <Switch isSelected={checkOnConfirm} onChange={touch(setCheckOnConfirm)} isDisabled={!canManage}>
+          Check stock availability when an order is confirmed
         </Switch>
         <Switch
           isSelected={reserveOnConfirm}

@@ -1,5 +1,5 @@
 import type { BusinessDataResourceKey } from "@vercentlabs/shared-types";
-import type { CrmFoundationContext, PublicMeetingBookingRow, PublicMeetingLinkRow } from "./modules/crm/index.js";
+import type { CrmFoundationContext } from "./modules/crm/index.js";
 
 export type QueryClient = {
   query(
@@ -202,7 +202,6 @@ export function getCommunicationsDashboard(client: QueryClient, context: any): P
   summary: Record<string, unknown>;
   inboxes: any[];
   threads: any[];
-  upcomingMeetings: any[];
   syncAccounts: any[];
   signatures: any[];
 }>;
@@ -210,7 +209,6 @@ export function listThreadMessages(client: QueryClient, context: any, threadId: 
 export function updateSharedInboxThreadStatus(client: QueryClient, context: any, threadId: string, status: unknown): Promise<any>;
 
 // F014 public meeting pages (token-resolved, anonymous host context).
-export class PublicMeetingError extends Error { readonly status: number; readonly code: string }
 
 
 

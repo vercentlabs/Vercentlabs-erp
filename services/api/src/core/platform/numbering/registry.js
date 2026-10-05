@@ -56,6 +56,7 @@ export const DOCUMENT_TYPES = Object.freeze(
     org("procurement_match_exception", "procurement", "Invoice match exception", "MATCH-", 6),
     // Stock
     std("stock_movement", "stock", "Stock movement", "STK"),
+    std("stock_reservation", "stock", "Stock reservation", "RES", { defaultResetPolicy: "calendar_year" }),
     std("stock_transfer", "stock", "Stock transfer", "TRF"),
     std("stock_pick_list", "stock", "Pick list", "PCK"),
     std("stock_count", "stock", "Stock count", "CNT", { configurable: false }),

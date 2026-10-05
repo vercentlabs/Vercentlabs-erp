@@ -288,22 +288,6 @@ export function calculatePredictiveForecast(input = {}) {
   };
 }
 
-export function allocateQuotaSeasonality(input = {}) {
-  const total = round2(input.totalAmount);
-  const weights = array(input.weights).map((entry, index) => ({
-    periodKey: text(entry.periodKey || entry.period_key || `P${index + 1}`),
-    weight: Math.max(0, number(entry.weight)),
-  }));
-  const amounts = allocateExactAmounts(
-    total,
-    weights.map((entry) => entry.weight),
-  );
-  return weights.map((entry, index) => ({
-    periodKey: entry.periodKey,
-    weight: entry.weight,
-    targetAmount: amounts[index],
-  }));
-}
 
 export function cloneOpportunityBlueprint(sourceValue, optionsValue = {}) {
   const source = object(sourceValue);
@@ -733,53 +717,6 @@ export async function capturePredictiveForecast(client, context, input = {}) {
   return { snapshot: result.rows[0], forecast };
 }
 
-export async function saveQuotaSeasonality(client, context, input = {}) {
-  const quotaPlanId = text(input.quotaPlanId);
-  const quota = await client.query(
-    `SELECT * FROM tenant.crm_quota_plans WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
-    [context.organizationId, quotaPlanId],
-  );
-  if (!quota.rows[0])
-    throw new CrmOpportunityRevenueError(
-      404,
-      "Quota plan not found.",
-      "CRM_QUOTA_NOT_FOUND",
-    );
-  if (text(quota.rows[0].status) === "closed")
-    throw new CrmOpportunityRevenueError(
-      409,
-      "Closed quota plans cannot be reallocated.",
-      "CRM_QUOTA_CLOSED",
-    );
-  const allocation = allocateQuotaSeasonality({
-    totalAmount: quota.rows[0].target_amount,
-    weights: input.weights,
-  });
-  await client.query(
-    `DELETE FROM tenant.crm_quota_seasonality_allocations WHERE organization_id=$1 AND quota_plan_id=$2`,
-    [context.organizationId, quotaPlanId],
-  );
-  for (const row of allocation) {
-    await client.query(
-      `INSERT INTO tenant.crm_quota_seasonality_allocations
-       (organization_id,quota_plan_id,period_key,weight,target_amount,status,created_by,updated_by)
-       VALUES($1,$2,$3,$4,$5,'draft',$6,$6)`,
-      [
-        context.organizationId,
-        quotaPlanId,
-        row.periodKey,
-        row.weight,
-        row.targetAmount,
-        context.userId,
-      ],
-    );
-  }
-  return {
-    quotaPlanId,
-    allocation,
-    total: round2(allocation.reduce((sum, row) => sum + row.targetAmount, 0)),
-  };
-}
 
 export async function getOpportunityRevenueWorkspace(
   client,
@@ -837,15 +774,14 @@ export async function getOpportunityRevenueWorkspace(
 export async function getOpportunityRevenueDashboard(client, context) {
   const summaryParameters = [context.organizationId];
   const winLossParameters = [context.organizationId];
-  const quotaParameters = [context.organizationId];
   const actionPlanParameters = [context.organizationId];
   // Every Opportunity-anchored query here is scoped, not just the summary:
   // a restricted caller must never see other owners' loss reasons,
   // competitor names or action-plan status. Win/loss reviews and action
   // plans are scoped via their parent Opportunity's own recordScope
-  // (mirroring the summary query exactly); quota plans/allocations and
-  // crm_predictive_forecast_snapshots are organization-level planning
-  // artifacts, so they stay organization-scoped intentionally.
+  // (mirroring the summary query exactly);
+  // crm_predictive_forecast_snapshots is an organization-level planning
+  // artifact, so it stays organization-scoped intentionally.
   const winLossOpportunityScope = recordScope(
     resources.opportunities,
     context,
@@ -858,7 +794,7 @@ export async function getOpportunityRevenueDashboard(client, context) {
     actionPlanParameters,
     "opportunity",
   );
-  // Sequential, not Promise.all: these 5 reads share one PoolClient with
+  // Sequential, not Promise.all: these reads share one PoolClient with
   // dynamic, differing parameter counts (recordScope()
   // append scope params conditionally) — firing them concurrently on a
   // single client risks the extended-query protocol interleaving Parse/Bind
@@ -886,13 +822,6 @@ export async function getOpportunityRevenueDashboard(client, context) {
       ORDER BY review.reviewed_at DESC LIMIT 200`,
     winLossParameters,
   );
-  const quota = await client.query(
-    `SELECT
-       (SELECT count(*)::int FROM tenant.crm_quota_plans q WHERE q.organization_id=$1) AS plans,
-       (SELECT COALESCE(sum(q.target_amount),0)::numeric FROM tenant.crm_quota_plans q WHERE q.organization_id=$1) AS target,
-       (SELECT COALESCE(sum(a.target_amount),0)::numeric FROM tenant.crm_quota_seasonality_allocations a JOIN tenant.crm_quota_plans q ON q.organization_id=a.organization_id AND q.id=a.quota_plan_id WHERE a.organization_id=$1) AS allocated`,
-    quotaParameters,
-  );
   const actionPlans = await client.query(
     `SELECT p.id,p.opportunity_id,p.name,p.status,p.target_close_date,count(m.id)::int AS milestones,count(m.id) FILTER(WHERE m.status='completed')::int AS completed
        FROM tenant.crm_mutual_action_plans p
@@ -906,7 +835,6 @@ export async function getOpportunityRevenueDashboard(client, context) {
     summary: summary.rows[0],
     latestForecast: forecast.rows[0] || null,
     winLoss: summarizeWinLoss(winLoss.rows),
-    quota: quota.rows[0],
     actionPlans: actionPlans.rows,
   };
 }

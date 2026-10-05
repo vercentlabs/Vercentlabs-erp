@@ -169,63 +169,17 @@ export function canAssignLeadOwners(context) {
 
 
 
-export function canViewCustomField(context, visibleToRoles) {
-  if (!Array.isArray(visibleToRoles) || !visibleToRoles.length) return true;
-  if (context.roleSlugs?.includes("organization_owner")) return true;
-  return Boolean(context.roleSlugs?.some((slug) => visibleToRoles.includes(slug)));
-}
 
 
 
-// F028 CAP-002: crm_custom_field_definitions.visible_to_roles restricts a
-// custom field (definition and stored value) to specific role slugs. This
-// redacts restricted keys from a custom-records row's `data` blob for a
-// caller whose role isn't allowlisted, mirroring the sensitive-field
-// redaction pattern already used for Leads/Contacts.
-async function restrictedCustomFieldKeys(client, context, objectDefinitionIds) {
-  const ids = [...new Set(objectDefinitionIds.filter(Boolean))];
-  if (!ids.length) return new Map();
-  const result = await client.query(
-    `SELECT object_definition_id, field_key, visible_to_roles
-       FROM tenant.crm_custom_field_definitions
-      WHERE organization_id=$1 AND object_definition_id=ANY($2::uuid[])
-        AND visible_to_roles IS NOT NULL AND array_length(visible_to_roles,1) > 0`,
-    [context.organizationId, ids],
-  );
-  const byObject = new Map();
-  for (const row of result.rows) {
-    if (canViewCustomField(context, row.visible_to_roles)) continue;
-    const keys = byObject.get(row.object_definition_id) || new Set();
-    keys.add(row.field_key);
-    byObject.set(row.object_definition_id, keys);
-  }
-  return byObject;
-}
 
 
 
-export function redactCustomRecordData(record, restrictedKeys) {
-  if (!restrictedKeys || !restrictedKeys.size || !record?.data || typeof record.data !== "object")
-    return record;
-  const data = { ...record.data };
-  let removed = false;
-  for (const key of restrictedKeys) {
-    if (Object.prototype.hasOwnProperty.call(data, key)) {
-      delete data[key];
-      removed = true;
-    }
-  }
-  return removed ? { ...record, data, restrictedFieldsHidden: true } : record;
-}
 
 
 
 export async function projectCrmRecord(client, context, resource, record) {
   if (resource === "leads") return projectLeadForContext(context, record);
-  if (resource === "custom-records" && record?.objectDefinitionId) {
-    const restricted = await restrictedCustomFieldKeys(client, context, [record.objectDefinitionId]);
-    return redactCustomRecordData(record, restricted.get(record.objectDefinitionId));
-  }
   // The generic CRM resource route (and mobile's
   // generic [resource]/[id] route, which falls through to this SAME
   // getCrmRecord/listCrmRecords pair for "communications") is one of the
@@ -246,17 +200,7 @@ export async function projectCrmRecord(client, context, resource, record) {
 
 
 export async function projectCrmRecords(client, context, resource, records) {
-  if (resource !== "custom-records") {
-    return Promise.all(records.map((record) => projectCrmRecord(client, context, resource, record)));
-  }
-  const restrictedByObject = await restrictedCustomFieldKeys(
-    client,
-    context,
-    records.map((record) => record.objectDefinitionId),
-  );
-  return records.map((record) =>
-    redactCustomRecordData(record, restrictedByObject.get(record.objectDefinitionId)),
-  );
+  return Promise.all(records.map((record) => projectCrmRecord(client, context, resource, record)));
 }
 
 
@@ -385,18 +329,6 @@ export function assertLifecycleUpdate(resource, before, input, context = {}) {
       403,
       "You cannot set a manager adjustment on your own forecast submission.",
       "CRM_FORECAST_SELF_ADJUSTMENT_FORBIDDEN",
-    );
-  }
-  if (
-    resource === "privacy-requests" &&
-    before.status === "completed" &&
-    input.status !== undefined &&
-    input.status !== "completed"
-  ) {
-    throw new CrmError(
-      409,
-      "Completed privacy requests cannot be reopened. Create a new request.",
-      "CRM_PRIVACY_REQUEST_CLOSED",
     );
   }
   const controlledFields =

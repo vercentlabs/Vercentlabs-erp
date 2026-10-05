@@ -1,5 +1,4 @@
-// Compatibility boundary for the CRM communications and meeting-booking
-// services. This file holds no implementation: it re-exports the public
+// Compatibility boundary for the CRM communications services. This file holds no implementation: it re-exports the public
 // names that used to be defined here, from the files that now own them, so
 // @vercentlabs/api (services/api/src/index.js) and existing importers keep
 // working unchanged. Add new behaviour to the owning file, not here; CRM
@@ -49,19 +48,6 @@ export {
 export {
   synchronizeProviderAccount,
 } from "./communications/provider-sync.js";
-
-// F014 meeting booking: slot engine, availability, book / cancel / reschedule
-export {
-  zonedWallTimeToUtc,
-  calendarDateInZone,
-  calculateMeetingSlots,
-  getMeetingAvailability,
-  isBookableDate,
-  normalizeMeetingGuestInput,
-  bookMeeting,
-  cancelMeetingBooking,
-  rescheduleMeetingBooking,
-} from "./meetings/meeting-booking.js";
 
 // F014 calendar sync (inbound) and Meeting calendar push (outbound)
 export {

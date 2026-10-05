@@ -18,9 +18,6 @@ export function normalizeProviderCalendarEvent(
 export function verifyCrmProviderWebhookSignature(
   input: Record<string, unknown>,
 ): boolean;
-export function calculateMeetingSlots(
-  input: Record<string, unknown>,
-): Array<{ startsAt: string; endsAt: string }>;
 export function outboundSendDecision(input: Record<string, unknown>): {
   allowed: boolean;
   reason: string | null;
@@ -88,19 +85,6 @@ export function queueOutboundEmail(
   context: CrmFoundationContext,
   input?: Record<string, unknown>,
 ): Promise<Record<string, unknown>>;
-export function getMeetingAvailability(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  meetingLinkId: string,
-  date: string,
-  input?: Record<string, unknown>,
-): Promise<Array<{ startsAt: string; endsAt: string }>>;
-export function bookMeeting(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  meetingLinkId: string,
-  input?: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
 export function resolveProviderCredential(
   reference: unknown,
   environment?: Record<string, string | undefined>,
@@ -135,18 +119,6 @@ export function synchronizeProviderAccount(
   client: QueryClient,
   context: CrmFoundationContext,
   syncAccountId: string,
-  input?: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-export function cancelMeetingBooking(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  bookingId: string,
-  reason?: string | null,
-): Promise<Record<string, unknown>>;
-export function rescheduleMeetingBooking(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  bookingId: string,
   input?: Record<string, unknown>,
 ): Promise<Record<string, unknown>>;
 export function getCommunicationTimeline(

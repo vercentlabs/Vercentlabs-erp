@@ -17,7 +17,7 @@ import { accrueSalesCommission } from "../pass1-operations.js";
 import { assertOrderVisible, orderCan, requireOrderPermission } from "../orders/access.js";
 import { FULFILLMENT, INVOICING, OrderError, STATUS, text } from "../orders/constants.js";
 import { refreshSalesOrderProgress } from "../orders/progress.js";
-import { reserveOrderLines } from "../orders/stock.js";
+import { reserveOrderLines } from "../reservations/service.js";
 import { lockOrder, recordOrderEvent } from "../orders/versions.js";
 import { CONFIRMATION_PERMISSIONS } from "./constants.js";
 import { createOrderConfirmation, currentConfirmation } from "./snapshot.js";

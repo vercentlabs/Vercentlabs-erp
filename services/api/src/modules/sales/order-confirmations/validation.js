@@ -21,7 +21,7 @@
 import { orderCan, assertOrderVisible, requireOrderAccess } from "../orders/access.js";
 import { OrderError, dayOf } from "../orders/constants.js";
 import { databaseToday, draftDocument, priced } from "../orders/records.js";
-import { checkSalesOrderAvailability } from "../orders/stock.js";
+import { computeOrderAvailability } from "../availability/service.js";
 import { lockOrder } from "../orders/versions.js";
 import { CONFIRMATION_PERMISSIONS } from "./constants.js";
 
@@ -200,17 +200,22 @@ export async function evaluateConfirmation(client, context, order) {
   const quotation = await quotationComparison(client, context, order, version, lines);
   if (quotation && !quotation.stillAccepted) problems.push(`Quotation ${quotation.quotationNumber} is no longer the accepted quotation of this order.`);
   if (quotation?.differs) warnings.push(`This order differs from the accepted quotation ${quotation.quotationNumber}.`);
-  const availability = await checkSalesOrderAvailability(client, context, order.id);
-  const shortages = availability.lines.filter((line) => Number(line.shortage) > 0 || line.problem)
-    .map((line) => ({ itemName: line.itemName, unit: line.unit, required: line.remaining, available: line.available, shortage: line.shortage, problem: line.problem }));
-  if (shortages.length) warnings.push(`Stock is short on ${shortages.length} line(s). The order can still be confirmed; what is available is reserved and the rest later.`);
-  const settings = (await client.query(`SELECT reserve_stock_on_confirm FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0];
+  const settings = (await client.query(`SELECT reserve_stock_on_confirm, check_availability_on_confirm FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0];
+  // Stock is checked when Sales settings say so; a shortage never stops a confirmation.
+  let shortages = [];
+  let availability = null;
+  if (settings?.check_availability_on_confirm !== false) {
+    availability = await computeOrderAvailability(client, context, order.id);
+    shortages = availability.lines.filter((line) => Number(line.shortage) > 0 || line.problem)
+      .map((line) => ({ itemName: line.itemName, unit: line.unit, required: line.remaining, available: line.available, shortage: line.shortage, problem: line.problem }));
+    if (shortages.length) warnings.push(`Stock is short on ${shortages.length} line(s). The order can still be confirmed; what is available is reserved and the rest later.`);
+  }
   return {
     orderId: order.id, orderNumber: order.sales_order_number, status: order.lifecycle_status, versionNumber: Number(order.version_number),
     ready: problems.length === 0, problems: [...new Set(problems)], warnings,
     totals: { saved: version?.grand_total ?? null, recalculated: preview?.totals.grandTotal ?? null, currencyCode: String(version?.currency_code ?? "").trim() },
     quotation, varianceNeedsPermission: Boolean(quotation?.differs) && !orderCan(context, CONFIRMATION_PERMISSIONS.quoteVariance),
-    shortages, reservesOnConfirm: settings?.reserve_stock_on_confirm !== false, nextConfirmationVersion: Number(order.confirmation_version ?? 0) + 1,
+    shortages, availabilitySummary: availability?.summaryLabel ?? null, availabilityCheckedAt: availability?.checkedAt ?? null, reservesOnConfirm: settings?.reserve_stock_on_confirm !== false, nextConfirmationVersion: Number(order.confirmation_version ?? 0) + 1,
   };
 }
 

@@ -479,7 +479,7 @@ export async function getProductionOrder(client, c, id) {
     await client.query(
       `SELECT material.id,material.item_id,item.code AS item_code,item.name AS item_name,material.warehouse_id,warehouse.name AS warehouse_name,material.issue_method,material.required_quantity::text AS required_quantity,material.issued_quantity::text AS issued_quantity,material.returned_quantity::text AS returned_quantity,
               material.issued_cost::text AS issued_cost,
-              COALESCE((SELECT sum(r.quantity) FROM tenant.stock_reservations r WHERE r.organization_id=material.organization_id AND r.reference_type='manufacturing_work_order' AND r.reference_id=material.work_order_id AND r.item_id=material.item_id AND r.warehouse_id=material.warehouse_id AND r.status='active'),0)::text AS reserved_quantity,
+              COALESCE((SELECT sum(r.active_quantity) FROM tenant.stock_reservations r WHERE r.organization_id=material.organization_id AND r.reference_type='manufacturing_work_order' AND r.reference_id=material.work_order_id AND r.item_id=material.item_id AND r.warehouse_id=material.warehouse_id AND r.status='active'),0)::text AS reserved_quantity,
               COALESCE((SELECT sum(b.quantity-b.reserved_quantity) FROM tenant.stock_balances b WHERE b.organization_id=material.organization_id AND b.item_id=material.item_id AND b.warehouse_id=material.warehouse_id),0)::text AS available_quantity
          FROM tenant.manufacturing_work_order_materials material JOIN tenant.items item ON item.id=material.item_id JOIN tenant.warehouses warehouse ON warehouse.id=material.warehouse_id WHERE material.organization_id=$1 AND material.work_order_id=$2 ORDER BY item.name`,
       [c.organizationId, wo.id],
@@ -509,7 +509,7 @@ export async function listMaterialReservations(client, c) {
   need(c, "manufacturing.view");
   const { rows } = await client.query(
     `SELECT material.id,wo.id AS work_order_id,wo.work_order_number,wo.status AS work_order_status,item.code AS item_code,item.name AS item_name,warehouse.name AS warehouse_name,material.required_quantity::text AS required_quantity,(material.issued_quantity-material.returned_quantity)::text AS issued_quantity,
-            COALESCE((SELECT sum(r.quantity) FROM tenant.stock_reservations r WHERE r.organization_id=material.organization_id AND r.reference_type='manufacturing_work_order' AND r.reference_id=wo.id AND r.item_id=material.item_id AND r.warehouse_id=material.warehouse_id AND r.status='active'),0)::text AS reserved_quantity,
+            COALESCE((SELECT sum(r.active_quantity) FROM tenant.stock_reservations r WHERE r.organization_id=material.organization_id AND r.reference_type='manufacturing_work_order' AND r.reference_id=wo.id AND r.item_id=material.item_id AND r.warehouse_id=material.warehouse_id AND r.status='active'),0)::text AS reserved_quantity,
             COALESCE((SELECT sum(b.quantity-b.reserved_quantity) FROM tenant.stock_balances b WHERE b.organization_id=material.organization_id AND b.item_id=material.item_id AND b.warehouse_id=material.warehouse_id),0)::text AS free_quantity
        FROM tenant.manufacturing_work_order_materials material JOIN tenant.manufacturing_work_orders wo ON wo.id=material.work_order_id JOIN tenant.items item ON item.id=material.item_id JOIN tenant.warehouses warehouse ON warehouse.id=material.warehouse_id
       WHERE material.organization_id=$1 AND wo.status IN ('planned','released','in_progress','on_hold') ORDER BY wo.work_order_number,item.name`,

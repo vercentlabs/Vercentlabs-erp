@@ -4,7 +4,7 @@ import { CrmError } from "../data-management/errors.js";
 import { canViewAllCrmRecords } from "../data-management/record-policy.js";
 import { canViewAllCrmResource, crmAccountAccessSql, crmOwnerScopeSql } from "../data-management/crm-access-scope.js";
 import { camelizeRow, managedTeamMembersSql } from "../data-management/record-utils.js";
-import { getMetricRollup, getPipelineBreakdown, getPipelineMetrics, getUserQuotas } from "./pipeline-metrics.js";
+import { getMetricRollup, getPipelineBreakdown, getPipelineMetrics } from "./pipeline-metrics.js";
 
 
 
@@ -104,21 +104,7 @@ export async function getCrmDashboard(client, context, options = {}) {
      )
      SELECT
       (SELECT organization.base_currency FROM public.organizations organization WHERE organization.id = $1) AS currency_code,
-      lead_counts.*, activity_counts.*,
-      -- F020 (Territories/sales teams) coverage gap: a territory with
-      -- nobody currently, effectively assigned as its primary owner. A territory with only an 'overlay'/
-      -- 'shared'/'manager' assignment role and no 'primary' one still
-      -- counts as a coverage gap — those roles supplement primary
-      -- ownership, they do not substitute for it.
-      (SELECT count(*)::int FROM tenant.crm_territories territory
-        WHERE territory.organization_id = $1 AND territory.status = 'active' AND ${orgWide}
-          AND NOT EXISTS (
-            SELECT 1 FROM tenant.crm_territory_assignments assignment
-             WHERE assignment.organization_id = territory.organization_id AND assignment.territory_id = territory.id
-               AND assignment.assignment_role = 'primary'
-               AND assignment.effective_from <= current_date
-               AND (assignment.effective_to IS NULL OR assignment.effective_to >= current_date)
-          )) AS uncovered_territories
+      lead_counts.*, activity_counts.*
      FROM lead_counts, activity_counts`,
     parameters,
   );
@@ -193,22 +179,11 @@ async function canonicalReport(client, context, report, { from, to }) {
       commitAmount: row.values.commit, won: row.values.won_amount, openDeals: row.values.closing_opportunities, wonDeals: row.values.won_count,
     })).sort((a, b) => b.weighted - a.weighted);
   } else {
-    const rollup = await getMetricRollup(client, context, { dimension: "owner", metrics: ["open_pipeline", "best_case", "commit", "won_amount", "win_rate", "closing_in_period"], filters });
-    const quotas = await getUserQuotas(client, context, filters);
-    const seen = new Set();
-    rows = rollup.rows.map((row) => {
-      seen.add(String(row.key));
-      const quota = quotas.get(String(row.key)) ?? null;
-      return {
-        ownerUserId: row.key, owner: row.label, quota, pipeline: row.values.open_pipeline, bestCase: row.values.best_case, committed: row.values.commit, won: row.values.won_amount,
-        pipelineCoverage: quota ? Math.round((row.values.closing_in_period / quota) * 100) / 100 : null,
-        quotaAttainmentPercent: quota ? Math.round((row.values.won_amount / quota) * 10000) / 100 : null,
-        winRatePercent: row.values.win_rate,
-      };
-    });
-    const names = quotas.size ? await client.query(`SELECT id, full_name FROM public.users WHERE id = ANY($1::uuid[])`, [[...quotas.keys()].filter((id) => !seen.has(id))]) : { rows: [] };
-    for (const user of names.rows)
-      rows.push({ ownerUserId: user.id, owner: user.full_name, quota: quotas.get(String(user.id)), pipeline: 0, bestCase: 0, committed: 0, won: 0, pipelineCoverage: 0, quotaAttainmentPercent: 0, winRatePercent: null });
+    const rollup = await getMetricRollup(client, context, { dimension: "owner", metrics: ["open_pipeline", "best_case", "commit", "won_amount", "win_rate"], filters });
+    rows = rollup.rows.map((row) => ({
+      ownerUserId: row.key, owner: row.label, pipeline: row.values.open_pipeline, bestCase: row.values.best_case, committed: row.values.commit, won: row.values.won_amount,
+      winRatePercent: row.values.win_rate,
+    }));
     rows.sort((a, b) => b.won - a.won || b.pipeline - a.pipeline);
   }
   const reportFilters = { from: summary.filters.from, to: summary.filters.to };
@@ -309,8 +284,6 @@ export async function getCrmReport(client, context, report, filters = {}) {
     sql = `SELECT campaign.name, campaign.attribution_model, count(DISTINCT touchpoint.subject_id)::int AS leads_touched, count(touchpoint.id)::int AS touches, count(touchpoint.id) FILTER (WHERE touchpoint.event_type='converted')::int AS conversions, COALESCE(sum(touchpoint.revenue) FILTER (WHERE touchpoint.event_type='converted'),0)::numeric AS attributed_revenue, count(touchpoint.id) FILTER (WHERE touchpoint.rank_asc=1)::int AS first_touches, count(touchpoint.id) FILTER (WHERE touchpoint.rank_desc=1)::int AS last_touches FROM (SELECT raw.*, row_number() OVER (PARTITION BY raw.subject_id ORDER BY raw.event_at ASC) AS rank_asc, row_number() OVER (PARTITION BY raw.subject_id ORDER BY raw.event_at DESC) AS rank_desc FROM tenant.crm_marketing_touchpoints raw WHERE raw.organization_id=$1 AND raw.subject_type='lead' AND raw.campaign_id IS NOT NULL) touchpoint JOIN tenant.crm_campaigns campaign ON campaign.organization_id=$1 AND campaign.id=touchpoint.campaign_id WHERE campaign.organization_id=$1 ${dateClause("touchpoint.event_at")} GROUP BY campaign.id, campaign.name, campaign.attribution_model ORDER BY attributed_revenue DESC`;
   else if (report === "account-health")
     sql = `SELECT party.display_name AS account, plan.account_tier, plan.lifecycle_stage, plan.health_status, plan.health_score, plan.annual_revenue, plan.potential_revenue, plan.renewal_date, plan.next_review_at FROM tenant.crm_account_plans plan JOIN tenant.business_parties party ON party.id = plan.party_id AND party.organization_id = plan.organization_id WHERE plan.organization_id = $1 AND plan.status = 'active' AND ${accountVisible("plan.party_id")} ORDER BY CASE plan.health_status WHEN 'critical' THEN 1 WHEN 'at_risk' THEN 2 WHEN 'watch' THEN 3 WHEN 'healthy' THEN 4 ELSE 5 END, plan.next_review_at NULLS LAST`;
-  else if (report === "privacy")
-    sql = `SELECT request.request_type, request.status, count(*)::int AS requests, count(*) FILTER (WHERE request.due_at < now() AND request.status NOT IN ('completed','rejected','cancelled'))::int AS overdue FROM tenant.crm_privacy_requests request WHERE request.organization_id = $1 ${dateClause("request.created_at")} GROUP BY request.request_type, request.status ORDER BY request.request_type, request.status`;
   else if (report === "pipeline-intelligence")
     sql = `SELECT inspection.health_status, count(*)::int AS opportunities, round(avg(inspection.health_score),2) AS average_health_score, round(avg(inspection.stage_age_days),2) AS average_stage_age_days, round(avg(inspection.days_since_activity),2) AS average_days_since_activity, count(*) FILTER (WHERE inspection.close_date_slip_days > 0)::int AS slipped_close_dates FROM tenant.crm_pipeline_inspections inspection WHERE inspection.organization_id = $1 ${dateClause("inspection.inspected_at")} AND ${opportunityVisible("inspection.opportunity_id")} GROUP BY inspection.health_status ORDER BY CASE inspection.health_status WHEN 'critical' THEN 1 WHEN 'at_risk' THEN 2 WHEN 'watch' THEN 3 ELSE 4 END`;
   else if (report === "engagement-intelligence")

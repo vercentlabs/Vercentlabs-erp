@@ -100,14 +100,10 @@ export function buildFilters(
     ["pipelineId", "pipeline_id"],
     ["sourceId", "source_id"],
     ["campaignId", "campaign_id"],
-    // F020 — sales-team-members/territory-assignments
-    // are inherently parent-scoped (a membership belongs to exactly one
-    // team, an assignment to exactly one territory); listing either
-    // without this filter would return every membership/assignment across
-    // the organization, a real cross-team/cross-territory data exposure,
-    // not just a UX inconvenience.
+    // sales-team-members are parent-scoped (a membership belongs to exactly
+    // one team); listing them without this filter would return every
+    // team's members, a real cross-team data exposure.
     ["teamId", "team_id"],
-    ["territoryId", "territory_id"],
     // F002 — same reasoning for account-plans/
     // account-stakeholders/communications: each row belongs to exactly one
     // Account (party_id) or, for stakeholders, one account plan
@@ -121,7 +117,7 @@ export function buildFilters(
     // to a Contact rather than an Account (tenant.crm_communications has
     // both party_id and contact_id columns).
     ["contactId", "contact_id"],
-    // Consent & data-subject-request module — consent-events belongs to
+    // consent-events belongs to
     // exactly one Lead/Contact/Account; the Lead Detail consent panel
     // filters to just its own Lead's events by this key.
     ["leadId", "lead_id"],
@@ -259,25 +255,6 @@ export async function getSalesStageResourceRecord(client, context, id) {
 
 
 
-// F020. The exact same "no effectively-active primary
-// assignment" predicate the CRM dashboard's uncovered_territories metric
-// already uses (analytics-service.js) — reused here, not re-derived, so
-// the aggregate count and this per-row detail can never silently drift
-// apart. A territory with only an 'overlay'/'shared'/'manager' assignment
-// still counts as uncovered; those roles supplement primary ownership,
-// they do not substitute for it.
-async function annotateTerritoryCoverage(client, context, rows) {
-  const ids = rows.map((row) => row.id);
-  if (!ids.length) return rows;
-  const { rows: covered } = await client.query(
-    `SELECT DISTINCT territory_id FROM tenant.crm_territory_assignments
-      WHERE organization_id=$1 AND territory_id = ANY($2::uuid[]) AND assignment_role='primary'
-        AND effective_from<=current_date AND (effective_to IS NULL OR effective_to>=current_date)`,
-    [context.organizationId, ids],
-  );
-  const coveredIds = new Set(covered.map((row) => row.territory_id));
-  return rows.map((row) => ({ ...row, hasPrimaryCoverage: coveredIds.has(row.id) }));
-}
 
 // Opportunity display names: apps/web's Opportunity types carry
 // stageName/partyName/contactName/ownerName, but the base query is a plain
@@ -370,7 +347,6 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
     parameters,
   );
   let rows = result.rows.map((row) => camelizeRow(row));
-  if (resource === "territories") rows = await annotateTerritoryCoverage(client, context, rows);
   if (resource === "opportunities") rows = await annotateOpportunityRelations(client, context, rows);
   if (resource === "leads") rows = await annotateLeadRelations(client, context, rows);
   return {

@@ -10,11 +10,9 @@ import { definitionFor } from "../data-management/resource-registry.js";
 // the Opportunities list applies — so no aggregate can include a deal the
 // caller could not open. Attribution (effective-dated, one value per deal, so
 // hierarchy rollups never double count):
-//   team      = the owner's primary sales-team membership on the as-of date
-//               (active seller/manager membership; highest allocation, then
-//               earliest start, then team code);
-//   territory = the primary territory assignment of the deal itself, else of
-//               its account, else of its owner, effective on the as-of date.
+//   team = the owner's primary sales-team membership on the as-of date
+//          (active seller/manager membership; highest allocation, then
+//          earliest start, then team code).
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -59,7 +57,6 @@ export function normalizeAnalyticsFilters(input = {}) {
     pipelineId: optionalUuid(input.pipelineId, "Pipeline"),
     stageId: optionalUuid(input.stageId, "Stage"),
     teamId: optionalUuid(input.teamId, "Sales team"),
-    territoryId: optionalUuid(input.territoryId, "Territory"),
     ownerId: optionalUuid(input.ownerId, "Owner", { allowUnassigned: true }),
     sourceId: optionalUuid(input.sourceId, "Source"),
     forecastCategory: category,
@@ -67,7 +64,7 @@ export function normalizeAnalyticsFilters(input = {}) {
 }
 
 export function analyticsFiltersFromSearchParams(searchParams) {
-  const keys = ["from", "to", "asOf", "scope", "pipelineId", "stageId", "teamId", "territoryId", "ownerId", "sourceId", "forecastCategory"];
+  const keys = ["from", "to", "asOf", "scope", "pipelineId", "stageId", "teamId", "ownerId", "sourceId", "forecastCategory"];
   return Object.fromEntries(keys.map((key) => [key, searchParams.get(key) ?? undefined]));
 }
 
@@ -81,14 +78,6 @@ export function teamSubtreeSql(organizationParam, teamParam) {
     SELECT id FROM subtree`;
 }
 
-export function territorySubtreeSql(organizationParam, territoryParam) {
-  return `WITH RECURSIVE subtree(id, depth) AS (
-      SELECT id, 0 FROM tenant.crm_territories WHERE organization_id=${organizationParam} AND id=${territoryParam}
-      UNION ALL
-      SELECT child.id, subtree.depth+1 FROM tenant.crm_territories child JOIN subtree ON child.parent_territory_id=subtree.id
-       WHERE child.organization_id=${organizationParam} AND subtree.depth < 25)
-    SELECT id FROM subtree`;
-}
 
 // SQL expression: a primary team for `ownerExpr` on `asOfExpr`.
 export function primaryTeamSql(organizationExpr, ownerExpr, asOfExpr) {
@@ -102,7 +91,7 @@ export function primaryTeamSql(organizationExpr, ownerExpr, asOfExpr) {
 
 // Set-based attribution, computed once per query (a correlated subquery per
 // opportunity cost ~0.2 ms each: 850 ms at 5,000 deals). Same ordering rules
-// as primaryTeamSql / the territory precedence below.
+// as primaryTeamSql.
 export function ownerTeamCte(organizationParam, asOfExpr) {
   return `owner_team AS (
       SELECT DISTINCT ON (member.user_id) member.user_id, member.team_id
@@ -113,16 +102,6 @@ export function ownerTeamCte(organizationParam, asOfExpr) {
        ORDER BY member.user_id, member.allocation_percent DESC, member.effective_from, team.code, team.id)`;
 }
 
-export function primaryTerritoryCte(organizationParam, asOfExpr) {
-  return `primary_territory AS (
-      SELECT DISTINCT ON (assignment.assignee_type, assignment.assignee_id) assignment.assignee_type, assignment.assignee_id, assignment.territory_id
-        FROM tenant.crm_territory_assignments assignment
-        JOIN tenant.crm_territories territory ON territory.organization_id=assignment.organization_id AND territory.id=assignment.territory_id AND territory.status='active'
-       WHERE assignment.organization_id=${organizationParam} AND assignment.assignment_role='primary'
-         AND assignment.assignee_type IN ('opportunity','party','user')
-         AND assignment.effective_from<=${asOfExpr} AND (assignment.effective_to IS NULL OR assignment.effective_to>=${asOfExpr})
-       ORDER BY assignment.assignee_type, assignment.assignee_id, assignment.effective_from DESC, territory.code, territory.id)`;
-}
 
 /**
  * Appends the CTEs `opportunity_facts` (and helpers) to a query and returns
@@ -151,14 +130,9 @@ export function opportunityFactsCte(context, filters, parameters) {
     scopeCtes.push(`team_scope AS MATERIALIZED (${teamSubtreeSql(org, addParameter(parameters, filters.teamId))})`);
     attributed.push("team_id IN (SELECT id FROM team_scope)");
   }
-  if (filters.territoryId) {
-    scopeCtes.push(`territory_scope AS MATERIALIZED (${territorySubtreeSql(org, addParameter(parameters, filters.territoryId))})`);
-    attributed.push("territory_id IN (SELECT id FROM territory_scope)");
-  }
   const valuationDate = `(CASE WHEN o.status IN ('won','lost') THEN COALESCE(o.actual_close_date, ${asOf}) ELSE ${asOf} END)`;
   const rate = `(CASE WHEN COALESCE(o.currency_code, organization.base_currency)=organization.base_currency THEN 1::numeric ELSE fx.rate END)`;
-  return `${ownerTeamCte(org, asOf)},
-    ${primaryTerritoryCte(org, asOf)},${scopeCtes.map((cte) => `
+  return `${ownerTeamCte(org, asOf)},${scopeCtes.map((cte) => `
     ${cte},`).join("")}
     opportunity_base AS (
       SELECT o.id, o.code, o.name, o.status, o.pipeline_id, o.stage_id, o.owner_user_id, o.party_id, o.source_id,
@@ -175,8 +149,7 @@ export function opportunityFactsCte(context, filters, parameters) {
                AND o.stage_entered_at <= now() - (COALESCE(policy.maximum_days, stage.stale_after_days) || ' days')::interval) AS stalled,
              stage.name AS stage_name, stage.sequence AS stage_sequence, pipeline.name AS pipeline_name,
              owner_account.full_name AS owner_name, source.name AS source_name,
-             owner_team.team_id,
-             COALESCE(opportunity_territory.territory_id, party_territory.territory_id, owner_territory.territory_id) AS territory_id
+             owner_team.team_id
         FROM tenant.crm_opportunities o
         JOIN public.organizations organization ON organization.id=o.organization_id
         LEFT JOIN tenant.crm_pipeline_stages stage ON stage.organization_id=o.organization_id AND stage.id=o.stage_id
@@ -185,9 +158,6 @@ export function opportunityFactsCte(context, filters, parameters) {
         LEFT JOIN public.users owner_account ON owner_account.id=o.owner_user_id
         LEFT JOIN tenant.crm_lead_sources source ON source.organization_id=o.organization_id AND source.id=o.source_id
         LEFT JOIN owner_team ON owner_team.user_id=o.owner_user_id
-        LEFT JOIN primary_territory opportunity_territory ON opportunity_territory.assignee_type='opportunity' AND opportunity_territory.assignee_id=o.id
-        LEFT JOIN primary_territory party_territory ON party_territory.assignee_type='party' AND party_territory.assignee_id=o.party_id
-        LEFT JOIN primary_territory owner_territory ON owner_territory.assignee_type='user' AND owner_territory.assignee_id=o.owner_user_id
         LEFT JOIN LATERAL (
           SELECT rate.rate, rate.rate_date FROM tenant.exchange_rates rate
            WHERE rate.organization_id=o.organization_id
@@ -197,10 +167,9 @@ export function opportunityFactsCte(context, filters, parameters) {
        WHERE ${where.join(" AND ")}${scope}
     ),
     opportunity_facts AS (
-      SELECT base.*, team.name AS team_name, territory.name AS territory_name
+      SELECT base.*, team.name AS team_name
         FROM opportunity_base base
         LEFT JOIN tenant.crm_sales_teams team ON team.organization_id=${org} AND team.id=base.team_id
-        LEFT JOIN tenant.crm_territories territory ON territory.organization_id=${org} AND territory.id=base.territory_id
        ${attributed.length ? `WHERE ${attributed.map((clause) => `base.${clause}`).join(" AND ")}` : ""}
     )`;
 }

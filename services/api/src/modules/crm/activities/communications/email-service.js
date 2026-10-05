@@ -710,10 +710,6 @@ export async function getCommunicationsDashboard(client, context) {
     `SELECT thread.*,inbox.name AS inbox_name FROM tenant.crm_email_threads thread LEFT JOIN tenant.crm_shared_inboxes inbox ON inbox.organization_id=thread.organization_id AND inbox.id=thread.inbox_id WHERE thread.organization_id=$1 AND thread.status IN ('open','pending') ORDER BY CASE thread.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 ELSE 3 END,thread.first_response_due_at NULLS LAST,thread.last_message_at DESC LIMIT 50`,
     [context.organizationId],
   );
-  const upcoming = await client.query(
-    `SELECT booking.*,link.name AS meeting_name FROM tenant.crm_meeting_bookings booking JOIN tenant.crm_meeting_links link ON link.organization_id=booking.organization_id AND link.id=booking.meeting_link_id WHERE booking.organization_id=$1 AND booking.status='confirmed' AND booking.starts_at>=now() ORDER BY booking.starts_at LIMIT 20`,
-    [context.organizationId],
-  );
   const syncAccounts = await client.query(
     `SELECT id,provider,display_name,email_address,status,last_synced_at,last_error,webhook_expires_at FROM tenant.crm_sync_accounts WHERE organization_id=$1 ORDER BY updated_at DESC`,
     [context.organizationId],
@@ -733,7 +729,6 @@ export async function getCommunicationsDashboard(client, context) {
     },
     inboxes: inboxes.rows,
     threads: threads.rows,
-    upcomingMeetings: upcoming.rows,
     syncAccounts: syncAccounts.rows,
     signatures: signatures.rows,
   };

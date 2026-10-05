@@ -11,7 +11,8 @@ import { assertOrderVisible, requireOrderPermission } from "./access.js";
 import { CANCEL_REASONS, FULFILLMENT, INVOICING, ORDER_PERMISSIONS, OrderError, STATUS, requireUuid, text } from "./constants.js";
 import { loadOrderLineProgress, refreshSalesOrderProgress } from "./progress.js";
 import { supersedeCurrentConfirmation } from "../order-confirmations/snapshot.js";
-import { releaseOrderReservations, reserveOrderLines } from "./stock.js";
+import { SYSTEM_RELEASE_REASONS } from "../reservations/constants.js";
+import { releaseOrderReservations, trimLineReservation } from "../reservations/service.js";
 import { lockOrder, recordOrderEvent } from "./versions.js";
 
 const EPSILON = 1e-6;
@@ -43,7 +44,8 @@ export async function reopenSalesOrder(client, context, orderId, input = {}) {
   const used = await downstream(client, context, order.id);
   if (used.deliveries || used.invoices)
     throw new OrderError(409, "This order has a delivery or an invoice and cannot be reopened. Cancel the remaining quantity, or use a return or a credit note.", "SALES_ORDER_IN_EXECUTION");
-  const released = await releaseOrderReservations(client, context, order);
+  // A draft never holds stock: what was reserved goes back, and is reserved again when the order is confirmed again.
+  const released = (await releaseOrderReservations(client, context, order, { how: "released", reasonCode: "order_reopened", reason: `${SYSTEM_RELEASE_REASONS.order_reopened}: ${reason}` })).reduce((total, line) => total + line.count, 0);
   await client.query(
     `UPDATE tenant.sales_orders SET lifecycle_status = $3, fulfillment_status = $4, billing_status = $5, confirmed_at = NULL, confirmed_by = NULL, updated_by = $6, updated_at = now()
       WHERE organization_id = $1 AND id = $2`,
@@ -79,7 +81,7 @@ export async function cancelSalesOrder(client, context, orderId, input = {}) {
   if (used.deliveries || used.invoices)
     throw new OrderError(409, "This order has a delivery or an invoice. Cancel its remaining quantity instead; what was delivered and invoiced stays.", "SALES_ORDER_IN_EXECUTION");
   const cancellation = readCancelReason(input, { required: order.lifecycle_status === STATUS.confirmed });
-  const released = await releaseOrderReservations(client, context, order, { how: "cancelled" });
+  const released = (await releaseOrderReservations(client, context, order, { how: "cancelled", reasonCode: "order_cancelled", reason: SYSTEM_RELEASE_REASONS.order_cancelled })).reduce((total, line) => total + line.count, 0);
   await client.query(
     `UPDATE tenant.sales_orders
         SET lifecycle_status = $3, fulfillment_status = $4, billing_status = $5, cancelled_at = now(), cancelled_by = $6, cancel_reason_code = $7, cancel_reason = $8,
@@ -123,11 +125,8 @@ export async function cancelSalesOrderRemaining(client, context, orderId, input 
       throw new OrderError(409, `${line.itemName}: only ${available} ${line.unit ?? ""} can be cancelled; the rest is already delivered or invoiced.`.replace("  ", " "), "SALES_ORDER_CANCEL_EXCEEDS_REMAINING");
     await client.query(`UPDATE tenant.sales_order_line_progress SET cancelled_quantity = cancelled_quantity + $3, updated_by = $4, updated_at = now() WHERE organization_id = $1 AND sales_order_line_id = $2`,
       [context.organizationId, line.lineId, amount, context.userId ?? null]);
-    // Stock held for the cancelled quantity goes back; what is still to deliver is reserved again.
-    if (line.reserved > EPSILON) {
-      await releaseOrderReservations(client, context, order, { lineId: line.lineId, how: "cancelled" });
-      await reserveOrderLines(client, context, order, { lineIds: [line.lineId] });
-    }
+    // Only stock held beyond what is still to deliver goes back; the rest stays reserved.
+    await trimLineReservation(client, context, order, line.lineId, "quantity_cancelled");
     cancelled.push({ lineId: line.lineId, item: line.itemName, quantity: amount, unit: line.unit });
   }
   await recordOrderEvent(client, context, order.id, "sales_order.quantity_cancelled", STATUS.confirmed, STATUS.confirmed,
