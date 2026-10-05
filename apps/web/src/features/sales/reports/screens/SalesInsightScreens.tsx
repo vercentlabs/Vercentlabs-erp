@@ -32,7 +32,7 @@ type Dashboard = {
   expiring_quotations: string;
   pending_quote_approvals: string;
   confirmed_order_value: string;
-  orders_on_hold: string;
+  orders_awaiting_delivery: string;
   ready_to_invoice: string;
 };
 type ReportRow = Record<string, unknown> & { _row: number };
@@ -124,8 +124,8 @@ export function SalesHomeScreen() {
                 : "…",
             },
             {
-              label: "Orders on hold",
-              value: d ? String(Number(d.orders_on_hold)) : "…",
+              label: "Orders awaiting delivery",
+              value: d ? String(Number(d.orders_awaiting_delivery)) : "…",
             },
             {
               label: "Ready to invoice",

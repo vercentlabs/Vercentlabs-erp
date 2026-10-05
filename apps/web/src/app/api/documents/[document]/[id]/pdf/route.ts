@@ -16,6 +16,8 @@ export async function GET(
 ) {
   const { document, id } = await context.params;
   const renderer = getDocumentRenderer(document);
+  // ?disposition=inline opens the PDF in the browser (View); the default downloads it.
+  const inline = new URL(request.url).searchParams.get("disposition") === "inline";
   if (!renderer) return errorResponse(new HttpError(404, "Unknown document."));
   return workspaceRoute(
     request,
@@ -35,7 +37,7 @@ export async function GET(
         status: 200,
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${pdf.fileName}"`,
+          "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${pdf.fileName}"`,
           "Content-Length": String(pdf.body.length),
           "Cache-Control": "private, no-store",
           "X-Content-Type-Options": "nosniff",

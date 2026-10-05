@@ -1304,9 +1304,31 @@ function withTaxPermissions(role) {
   };
 }
 
+// Sales orders: everyone who opens Sales sees and prints orders; whoever
+// cancels orders may reopen them and cancel a remaining quantity; whoever
+// confirms orders or delivers them reserves their stock; approvers and Sales
+// administrators also see their team's (as migration 0029 grants).
+function withOrderPermissions(role) {
+  if (!Array.isArray(role.permissions)) return role;
+  const has = (key) => role.permissions.includes(key);
+  return {
+    ...role,
+    permissions: unique([
+      ...role.permissions,
+      ...(has("sales.view") ? ["sales.order.view", "sales.order.view_all", "sales.order.export"] : []),
+      ...(has("sales.order.cancel") ? ["sales.order.reopen", "sales.order.cancel_remaining"] : []),
+      ...(has("sales.order.confirm") || has("sales.fulfillment.request") ? ["sales.order.reserve"] : []),
+      ...(has("sales.order.approve") || has("sales.settings.manage") ? ["sales.order.view_team"] : []),
+      // Order confirmations: sent and acknowledged by whoever creates or confirms orders.
+      ...(has("sales.order.create") || has("sales.order.confirm") ? ["sales.order.confirmation.send", "sales.order.confirmation.mark_sent", "sales.order.confirmation.acknowledge"] : []),
+      ...(has("sales.order.cancel") ? ["sales.order.confirm_quote_variance"] : []),
+    ]),
+  };
+}
+
 export const ROLE_TEMPLATES = Object.freeze(
   ROLE_DEFINITIONS.map(withCustomerPermissions).map(withProductPermissions).map(withPriceListPermissions).map(withQuotationPermissions).map(withDiscountPermissions)
-    .map(withTaxPermissions),
+    .map(withTaxPermissions).map(withOrderPermissions),
 );
 
 export const ROLE_TEMPLATE_BY_SLUG = new Map(

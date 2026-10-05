@@ -10,7 +10,7 @@ import { CUSTOMER_PERMISSIONS, CustomerError } from "./constants.js";
 import { loadCustomerRow } from "./records.js";
 
 const OPEN_QUOTATION = "('draft', 'pending_approval', 'approved', 'sent', 'viewed')";
-const OPEN_ORDER = "('pending_approval', 'approved', 'confirmed', 'on_hold')";
+const OPEN_ORDER = "('confirmed')";
 const OPEN_INVOICE = "('posted', 'partially_paid', 'overdue', 'disputed')";
 const DEAD_RECEIPT = "('draft', 'cancelled', 'reversed')";
 const PENDING_DELIVERY = "('pending', 'processing', 'failed')";

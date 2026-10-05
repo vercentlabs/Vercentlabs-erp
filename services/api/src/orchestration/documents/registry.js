@@ -7,7 +7,7 @@
 import { formatDateTime } from "@vercentlabs/localization";
 
 import { getPosSaleReceipt } from "../../modules/point-of-sale/transaction-continuity-and-documents/receipts.js";
-import { getQuotation, getSalesOrder } from "../../modules/sales/index.js";
+import { getOrderConfirmation, getQuotation, getSalesOrder } from "../../modules/sales/index.js";
 
 const amount = (value, locale = "en-IN") => new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
 const date = (value, timeZone) => (value ? formatDateTime(value, { timeZone: timeZone || "UTC" }) : null);
@@ -51,11 +51,6 @@ async function companyDetails(client, organizationId) {
 function sellerLines(seller, company) {
   if (!seller?.name) return [company.legalName, company.taxId ? `GSTIN ${company.taxId}` : null].filter(Boolean);
   return [seller.legalName ?? seller.name, seller.address, seller.gstin ? `GSTIN ${seller.gstin}` : null, seller.stateName ? `${seller.stateName}${seller.stateCode ? ` (${seller.stateCode})` : ""}` : null].filter(Boolean);
-}
-
-async function organizationTimezone(client, organizationId) {
-  const { rows } = await client.query(`SELECT timezone FROM public.organizations WHERE id=$1`, [organizationId]);
-  return rows[0]?.timezone || "UTC";
 }
 
 function salesLines(lines, currency) {
@@ -103,6 +98,65 @@ function salesTotals(header, taxLines = []) {
     ...(Number(header.rounding_adjustment) ? [{ label: "Rounding", value: amount(header.rounding_adjustment) }] : []),
     { label: `Total (${currency})`, value: amount(header.grand_total), emphasis: true },
   ];
+}
+
+// What a confirmation PDF says about its revision.
+const confirmationMeta = (confirmation) => ({
+  version: confirmation.version, confirmedAt: confirmation.confirmed_at, supersededAt: confirmation.superseded_at,
+  cancelled: !confirmation.superseded_at && confirmation.order_status === "cancelled",
+});
+const confirmationFileName = (confirmation, draft) =>
+  draft ? `Sales-Order-${confirmation.order_number}-draft` : `Order-Confirmation-${confirmation.order_number}${confirmation.version > 1 ? `-rev${confirmation.version}` : ""}`;
+
+// The Order Confirmation, built only from what was confirmed (the snapshot):
+// the customer, addresses, items, prices, discounts, taxes and terms as they
+// were, however late it is downloaded. Internal notes, cost and margin are
+// not in a snapshot and are never printed. A requested delivery date is shown
+// as requested, never as a promise.
+function orderConfirmationModel(snapshot, meta) {
+  const order = snapshot.order;
+  const company = snapshot.company ?? {};
+  const customer = order.customer_snapshot || {};
+  const contact = order.contact_snapshot || {};
+  const status = meta.draft ? "Draft - not confirmed"
+    : meta.supersededAt ? `Superseded on ${day(meta.supersededAt)}: replaced by a later revision`
+      : meta.cancelled ? "The order was later cancelled" : null;
+  return {
+    title: meta.draft ? "Sales Order" : "Order Confirmation",
+    documentNumber: order.sales_order_number,
+    issuedAt: `Order date: ${day(order.order_date) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      { label: "From", lines: sellerLines(order.seller_snapshot, { legalName: company.name, taxId: company.taxId }) },
+      { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.legalName && customer.legalName !== customer.displayName ? customer.legalName : null,
+        customer.customerNumber ? `Customer no. ${customer.customerNumber}` : null, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
+      { label: "Attention", lines: [[contact.first_name, contact.last_name].filter(Boolean).join(" "), contact.designation, contact.email, contact.phone ?? contact.mobile].filter(Boolean) },
+      { label: "Bill to", lines: addressLines(order.billing_address_snapshot) },
+      { label: "Ship to", lines: addressLines(order.shipping_address_snapshot) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Sales order", value: order.sales_order_number },
+      { label: "Order date", value: day(order.order_date) ?? "" },
+      { label: "Confirmation date", value: meta.confirmedAt ? day(meta.confirmedAt) ?? "" : "" },
+      { label: "Revision", value: meta.version > 1 ? String(meta.version) : "" },
+      { label: "Your PO reference", value: [order.customer_po_number, day(order.customer_po_date)].filter(Boolean).join(" dated ") },
+      { label: "Your reference", value: order.customer_reference ?? "" },
+      { label: "Our quotation", value: order.source_quotation_number ?? "" },
+      { label: "Requested delivery date", value: day(order.requested_delivery_date) ?? "" },
+      { label: "Place of supply", value: order.place_of_supply ? `${order.place_of_supply_name ?? ""} (${order.place_of_supply})`.trim() : "" },
+      { label: "Payment terms", value: order.payment_term_snapshot?.name ?? "" },
+      { label: "Delivery terms", value: order.delivery_terms ?? "" },
+      { label: "Sales person", value: order.owner_name ?? "" },
+    ].filter((field) => field.value),
+    table: salesLines(snapshot.lines ?? [], String(order.currency_code || "").trim()),
+    totals: salesTotals(order, snapshot.taxLines ?? []),
+    notes: [
+      ...(order.customer_notes ? [{ label: "Notes", text: order.customer_notes }] : []),
+      ...(order.terms_and_conditions ? [{ label: "Terms and conditions", text: order.terms_and_conditions }] : []),
+    ],
+    footer: `${order.sales_order_number}${meta.version > 1 ? ` · revision ${meta.version}` : ""}`,
+  };
 }
 
 export const DOCUMENT_RENDERERS = Object.freeze([
@@ -205,41 +259,35 @@ export const DOCUMENT_RENDERERS = Object.freeze([
   Object.freeze({
     key: "sales.order",
     moduleKey: "sales",
-    permission: "sales.view",
-    label: "Sales order",
+    permission: "sales.order.export",
+    label: "Order confirmation",
+    // A confirmed order prints its current Order Confirmation, from the
+    // snapshot taken when it was confirmed. A draft prints as a draft.
     async load(client, session, id) {
-      return getSalesOrder(client, salesContext(session), id);
+      const context = salesContext(session);
+      const confirmation = await getOrderConfirmation(client, context, { orderId: id });
+      if (confirmation) return { confirmation };
+      const detail = await getSalesOrder(client, context, id);
+      return { draft: { order: detail.order, lines: detail.lines, taxLines: detail.taxLines, company: await companyDetails(client, session.organizationId) } };
     },
-    async toModel(client, session, data) {
-      const order = data.order;
-      const timezone = await organizationTimezone(client, session.organizationId);
-      const customer = order.customer_snapshot || {};
-      return {
-        title: "Sales order",
-        documentNumber: `${order.sales_order_number}${order.version_number > 1 ? ` (version ${order.version_number})` : ""}`,
-        issuedAt: day(order.order_date) ?? date(order.order_created_at, timezone),
-        organizationName: await organizationName(client, session.organizationId),
-        parties: [
-          { label: "From", lines: sellerLines(order.seller_snapshot, await companyDetails(client, session.organizationId)) },
-          { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
-          { label: "Bill to", lines: addressLines(order.billing_address_snapshot) },
-          { label: "Ship to", lines: addressLines(order.shipping_address_snapshot) },
-        ].filter((party) => party.lines.length),
-        fields: [
-          { label: "Customer PO", value: order.customer_po_number ?? "" },
-          { label: "Place of supply", value: order.place_of_supply ? `${order.place_of_supply_name ?? ""} (${order.place_of_supply})`.trim() : "" },
-          { label: "Payment terms", value: order.payment_term_snapshot?.name ?? "" },
-        ].filter((field) => field.value),
-        table: salesLines(data.lines, String(order.currency_code || "").trim()),
-        totals: salesTotals(order, data.taxLines ?? []),
-        notes: [
-          ...(order.customer_notes ? [{ label: "Notes", text: order.customer_notes }] : []),
-          ...(order.terms_and_conditions ? [{ label: "Terms and conditions", text: order.terms_and_conditions }] : []),
-        ],
-        footer: order.sales_order_number,
-      };
+    async toModel(_client, _session, data) {
+      return data.confirmation ? orderConfirmationModel(data.confirmation.snapshot, confirmationMeta(data.confirmation)) : orderConfirmationModel(data.draft, { draft: true });
     },
-    fileName: (data) => `sales-order-${data.order.sales_order_number}`,
+    fileName: (data) => confirmationFileName(data.confirmation ?? { order_number: data.draft.order.sales_order_number }, Boolean(data.draft)),
+  }),
+  Object.freeze({
+    key: "sales.order.confirmation",
+    moduleKey: "sales",
+    permission: "sales.order.export",
+    label: "Order confirmation revision",
+    // Any revision of an order's confirmation, current or superseded, through the order's own access rules.
+    async load(client, session, id) {
+      return { confirmation: await getOrderConfirmation(client, salesContext(session), { confirmationId: id }) };
+    },
+    async toModel(_client, _session, data) {
+      return orderConfirmationModel(data.confirmation.snapshot, confirmationMeta(data.confirmation));
+    },
+    fileName: (data) => confirmationFileName(data.confirmation, false),
   }),
 ]);
 

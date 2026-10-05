@@ -25,8 +25,10 @@ type Settings = {
   quotation_approval_amount: string | number;
   quotation_approval_discount: string | number;
   minimum_margin_percent: string | number;
-  order_approval_amount: string | number;
   allow_direct_orders: boolean;
+  reserve_stock_on_confirm: boolean;
+  require_customer_po: boolean;
+  require_requested_delivery_date: boolean;
   invoice_quantity_basis: "ordered" | "fulfilled";
   default_quotation_terms: string | null;
   allow_line_discounts: boolean;
@@ -94,10 +96,10 @@ function SettingsForm({ settings }: { settings: Settings }) {
     Number(settings.quotation_approval_discount),
   );
   const [margin, setMargin] = useState(Number(settings.minimum_margin_percent));
-  const [orderAmount, setOrderAmount] = useState(
-    Number(settings.order_approval_amount),
-  );
   const [direct, setDirect] = useState(settings.allow_direct_orders);
+  const [reserveOnConfirm, setReserveOnConfirm] = useState(settings.reserve_stock_on_confirm !== false);
+  const [requirePo, setRequirePo] = useState(Boolean(settings.require_customer_po));
+  const [requireDelivery, setRequireDelivery] = useState(Boolean(settings.require_requested_delivery_date));
   const [basis, setBasis] = useState<string>(settings.invoice_quantity_basis);
   const [quotationTerms, setQuotationTerms] = useState(settings.default_quotation_terms ?? "");
   const canManageDiscounts =
@@ -122,8 +124,10 @@ function SettingsForm({ settings }: { settings: Settings }) {
           quotationApprovalAmount: quoteAmount,
           quotationApprovalDiscount: quoteDiscount,
           minimumMarginPercent: margin,
-          orderApprovalAmount: orderAmount,
           allowDirectOrders: direct,
+          reserveStockOnConfirm: reserveOnConfirm,
+          requireCustomerPo: requirePo,
+          requireRequestedDeliveryDate: requireDelivery,
           invoiceQuantityBasis: basis,
           defaultQuotationTerms: quotationTerms,
           ...(canManageDiscounts
@@ -222,23 +226,29 @@ function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </SalesPanel>
 
-      <SalesPanel title="Order approval">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <NumberField
-            label="Approval above amount (0 = never)"
-            value={orderAmount}
-            onChange={touch(setOrderAmount)}
-            minValue={0}
-            step={0.01}
-            isDisabled={!canManage}
-          />
-        </div>
+      <SalesPanel
+        title="Sales orders"
+        description="Orders are confirmed by someone with the Confirm sales orders permission; there is no order approval."
+      >
         <Switch
           isSelected={direct}
           onChange={touch(setDirect)}
           isDisabled={!canManage}
         >
           Allow orders without a quotation
+        </Switch>
+        <Switch
+          isSelected={reserveOnConfirm}
+          onChange={touch(setReserveOnConfirm)}
+          isDisabled={!canManage}
+        >
+          Reserve available stock when an order is confirmed
+        </Switch>
+        <Switch isSelected={requirePo} onChange={touch(setRequirePo)} isDisabled={!canManage}>
+          Require the customer&apos;s PO number before an order is confirmed
+        </Switch>
+        <Switch isSelected={requireDelivery} onChange={touch(setRequireDelivery)} isDisabled={!canManage}>
+          Require a requested delivery date before an order is confirmed
         </Switch>
       </SalesPanel>
 

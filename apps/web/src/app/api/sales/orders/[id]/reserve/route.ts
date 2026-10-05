@@ -1,42 +1,13 @@
 import { z } from "zod";
 
-import { reserveSalesOrderLineFromStock } from "@vercentlabs/api";
+import { reserveSalesOrderStock } from "@vercentlabs/api";
 
-import { stockContextFor } from "@/features/sales/orders/server/stock-context";
 import { salesMutation } from "@/features/sales/shared/route-helpers";
 
-const schema = z.object({
-  salesOrderLineId: z.string().uuid(),
-  quantity: z.union([z.number(), z.string()]).nullish(),
-  idempotencyKey: z.string().trim().max(200).nullish(),
-});
+// Reserves the stock available for the order's lines; a line is reserved partly when stock is short.
+const schema = z.object({ lineIds: z.array(z.string().uuid()).max(500).optional() });
 
-export async function POST(
-  request: Request,
-  ctx: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  return salesMutation(
-    request,
-    "sales.fulfillment.request",
-    schema,
-    async (client, context, input) => {
-      const stock = stockContextFor(
-        {
-          organizationId: context.organizationId,
-          userId: context.userId ?? "",
-        },
-        "reserve",
-      );
-      return {
-        reservation: await reserveSalesOrderLineFromStock(
-          client,
-          context,
-          stock,
-          { salesOrderId: id, ...input },
-        ),
-      };
-    },
-    201,
-  );
+  return salesMutation(request, "sales.order.reserve", schema, async (client, context, input) => ({ result: await reserveSalesOrderStock(client, context, id, input) }));
 }

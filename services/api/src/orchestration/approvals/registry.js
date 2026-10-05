@@ -20,8 +20,6 @@ import {
 } from "../../modules/point-of-sale/index.js";
 import {
   approveQuotation, rejectQuotationApproval,
-  approveSalesOrder, rejectSalesOrderApproval,
-  approveSalesOrderAmendment, rejectSalesOrderAmendment,
 } from "../../modules/sales/index.js";
 
 // key -> { approve, reject, href }. Only verified handlers are listed.
@@ -50,16 +48,6 @@ const HANDLERS = Object.freeze({
     approve: (client, context, p) => approveQuotation(client, context, p.quotationId, p.quotationVersionId),
     reject: (client, context, p) => rejectQuotationApproval(client, context, p.quotationId, p.note),
     href: (p) => `/sales/quotations/${p.quotationId}`,
-  },
-  "sales.order.approve": {
-    approve: (client, context, p) => approveSalesOrder(client, context, p.orderId, p.orderVersionId),
-    reject: (client, context, p) => rejectSalesOrderApproval(client, context, p.orderId, p.note),
-    href: (p) => `/sales/orders/${p.orderId}`,
-  },
-  "sales.order.amendment.approve": {
-    approve: (client, context, p) => approveSalesOrderAmendment(client, context, p.orderId, p.orderVersionId, p.previousVersionId, p.resumeStatus),
-    reject: (client, context, p) => rejectSalesOrderAmendment(client, context, p.orderId, p.orderVersionId, p.previousVersionId, p.resumeStatus),
-    href: (p) => `/sales/orders/${p.orderId}`,
   },
   "pos.discount.approve": {
     approve: (client, context, p) => approvePosCartDiscountApproval(client, context, p),

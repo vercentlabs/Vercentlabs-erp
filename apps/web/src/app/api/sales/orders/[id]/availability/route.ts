@@ -1,42 +1,9 @@
-import { z } from "zod";
+import { checkSalesOrderAvailability } from "@vercentlabs/api";
 
-import { checkSalesOrderLineAvailability } from "@vercentlabs/api";
+import { salesRead } from "@/features/sales/shared/route-helpers";
 
-import { stockContextFor } from "@/features/sales/orders/server/stock-context";
-import { salesMutation } from "@/features/sales/shared/route-helpers";
-
-const schema = z.object({
-  salesOrderLineId: z.string().uuid(),
-  quantity: z.union([z.number(), z.string()]).nullish(),
-});
-
-// A read in effect (nothing is written) but POST because it takes a body;
-// gated on the same permission as reserving.
-export async function POST(
-  request: Request,
-  ctx: { params: Promise<{ id: string }> },
-) {
+// Ordered, on hand, reserved elsewhere, available and shortage for each stock line, by warehouse.
+export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  return salesMutation(
-    request,
-    "sales.fulfillment.request",
-    schema,
-    async (client, context, input) => {
-      const stock = stockContextFor(
-        {
-          organizationId: context.organizationId,
-          userId: context.userId ?? "",
-        },
-        "availability",
-      );
-      return {
-        availability: await checkSalesOrderLineAvailability(
-          client,
-          context,
-          stock,
-          { salesOrderId: id, ...input },
-        ),
-      };
-    },
-  );
+  return salesRead(request, "sales.order.view", async (client, context) => ({ availability: await checkSalesOrderAvailability(client, context, id) }));
 }

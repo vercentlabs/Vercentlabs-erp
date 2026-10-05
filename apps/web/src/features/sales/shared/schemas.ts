@@ -20,6 +20,8 @@ const documentLineSchema = z.object({
   description: z.string().trim().max(2000).nullish(),
   requestedDeliveryDate: optionalDate,
   manualPriceReason: z.string().trim().max(500).nullish(),
+  // Saving a draft order: the line this one replaces, so a quoted line keeps its quoted price.
+  salesOrderLineId: uuid.nullish(),
 });
 
 const documentChargeSchema = z.object({
@@ -48,6 +50,7 @@ export const documentSchema = z.object({
   orderDate: optionalDate,
   requestedDeliveryDate: optionalDate,
   customerPoNumber: z.string().trim().max(120).nullish(),
+  defaultWarehouseId: uuid.nullish(),
   customerPoDate: optionalDate,
   externalReference: z.string().trim().max(200).nullish(),
   // Tax is worked out by the server; these are sent only to override it (each needs a permission and a reason).

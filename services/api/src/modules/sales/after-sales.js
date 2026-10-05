@@ -47,7 +47,7 @@ export async function getSalesCustomerCreditExposure(client, c, partyId) {
                     JOIN tenant.sales_order_versions version ON version.id=orders.current_version_id
                     JOIN tenant.sales_order_lines line ON line.sales_order_version_id=version.id
                     JOIN tenant.sales_order_line_progress progress ON progress.sales_order_line_id=line.id
-                   WHERE orders.organization_id=$1 AND orders.party_id=$2 AND orders.lifecycle_status IN ('confirmed','on_hold') AND orders.billing_status<>'fully_invoiced'),0) AS open_orders
+                   WHERE orders.organization_id=$1 AND orders.party_id=$2 AND orders.lifecycle_status = 'confirmed' AND orders.billing_status<>'fully_invoiced'),0) AS open_orders
        FROM tenant.business_parties party WHERE party.organization_id=$1 AND party.id=$2`,
     [c.organizationId, id],
   );

@@ -16,7 +16,6 @@ export * from "./modules/accounting/index.js";
 export * from "./modules/procurement/index.js";
 
 
-export * from "./modules/sales/order-governance.js";
 
 export * from "./modules/procurement/governance.js";
 
@@ -24,7 +23,6 @@ export * from "./core/release/governance.js";
 
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
-export * from "./modules/sales/record-lookups.js";
 export * from "./modules/procurement/record-lookups.js";
 export * from "./modules/accounting/record-lookups.js";
 export * from "./modules/stock/read-models.js";
@@ -66,9 +64,7 @@ export * from "./modules/procurement/pass1-operations.js";
 export * from "./orchestration/procurement-stock-receiving.js";
 export * from "./orchestration/procurement-accounting-vendor-bill.js";
 
-export * from "./orchestration/sales-stock-reservation.js";
 
-export * from "./orchestration/sales-stock-fulfillment.js";
 
 // Shared Access public boundary (see core/access/index.js).
 export * from "./core/access/index.js";
@@ -113,7 +109,6 @@ export { SEARCH_PROVIDERS } from "./orchestration/search/providers.js";
 export * from "./orchestration/notifications/visibility.js";
 export * from "./core/platform/module-administration.js";
 
-export * from "./orchestration/sales-crm-opportunity-sync.js";
 export { hrContext, HrError } from "./modules/hr-payroll/common.js";
 export * from "./modules/hr-payroll/options.js";
 export * from "./modules/hr-payroll/workforce.js";

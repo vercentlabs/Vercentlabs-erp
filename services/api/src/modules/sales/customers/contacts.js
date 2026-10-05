@@ -209,7 +209,7 @@ export async function linkCustomerContact(client, context, customerId, input = {
 async function openDocumentsFor(client, context, partyId, contactId) {
   const { rows } = await client.query(
     `SELECT (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id = $1 AND party_id = $2 AND contact_id = $3 AND lifecycle_status IN ('draft', 'pending_approval', 'approved', 'sent', 'viewed'))::int AS quotations,
-            (SELECT count(*) FROM tenant.sales_orders WHERE organization_id = $1 AND party_id = $2 AND contact_id = $3 AND lifecycle_status IN ('draft', 'pending_approval', 'approved', 'confirmed', 'on_hold'))::int AS orders`,
+            (SELECT count(*) FROM tenant.sales_orders WHERE organization_id = $1 AND party_id = $2 AND contact_id = $3 AND lifecycle_status IN ('draft', 'confirmed'))::int AS orders`,
     [context.organizationId, partyId, contactId],
   );
   return rows[0];

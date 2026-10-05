@@ -1,3 +1,4 @@
+import { orderScopeSql } from "./orders/access.js";
 import { SalesError } from "./index.js";
 import { assertSalesCreditAdjustmentAllowed } from "./after-sales.js";
 
@@ -49,19 +50,39 @@ export async function listSalesPass1Operations(client, c, { kind = "adjustments"
     "pricing-rules": "sales_pricing_rules",
   };
   // Registers that span orders: each row carries its order number and customer so
-  // the register is usable on its own.
+  // the register is usable on its own. A row is listed only when the caller may see its order.
   const REGISTERS = {
-    "fulfillment-requests": `SELECT record.id,record.request_number,record.status,record.retry_count,record.last_error,record.requested_at,record.completed_at,record.carrier,record.tracking_number,record.shipped_at,record.delivered_at,record.received_by,record.sales_order_id,orders.sales_order_number,version.currency_code,version.customer_snapshot->>'displayName' AS customer_name FROM tenant.sales_fulfillment_requests record`,
-    "invoice-requests": `SELECT record.id,record.request_number,record.status,record.quantity_basis,record.retry_count,record.last_error,record.requested_at,record.completed_at,record.sales_order_id,orders.sales_order_number,version.currency_code,version.grand_total,version.customer_snapshot->>'displayName' AS customer_name FROM tenant.sales_invoice_requests record`,
+    // Deliveries made from sales orders, with what each one carried.
+    "fulfillment-requests": {
+      select: `SELECT record.id,record.request_number,record.status,record.delivery_date,record.completed_at,record.carrier,record.tracking_number,record.shipped_at,record.delivered_at,record.received_by,
+          record.sales_order_id,orders.sales_order_number,version.currency_code,version.customer_snapshot->>'displayName' AS customer_name,
+          (SELECT string_agg(line.item_name_snapshot || ' × ' || trim(trailing '.' from trim(trailing '0' from delivered.quantity::text)) || COALESCE(' ' || delivered.uom_snapshot, ''), ', ' ORDER BY line.sequence)
+             FROM tenant.sales_delivery_lines delivered JOIN tenant.sales_order_lines line ON line.id=delivered.sales_order_line_id
+            WHERE delivered.organization_id=record.organization_id AND delivered.delivery_id=record.id) AS items
+        FROM tenant.sales_fulfillment_requests record`,
+      where: " AND record.status='completed'",
+      order: "record.completed_at DESC",
+    },
+    // Invoices raised from sales orders; Finance owns and posts them.
+    "invoice-requests": {
+      select: `SELECT record.id,record.request_number,record.requested_at,record.sales_order_id,orders.sales_order_number,version.customer_snapshot->>'displayName' AS customer_name,
+          invoice.id AS invoice_id,invoice.invoice_number,invoice.status,invoice.invoice_date,invoice.grand_total,invoice.outstanding_amount,invoice.currency_code
+        FROM tenant.sales_invoice_requests record
+        JOIN tenant.accounting_customer_invoices invoice ON invoice.organization_id=record.organization_id AND invoice.source_sales_invoice_request_id=record.id`,
+      where: "",
+      order: "record.requested_at DESC",
+    },
   };
   if (REGISTERS[kind]) {
+    const register = REGISTERS[kind];
     const values = [c.organizationId];
+    const scope = orderScopeSql(c, values, "orders");
     values.push(Math.min(Math.max(Number(limit) || 100, 1), 250));
     const { rows } = await client.query(
-      `${REGISTERS[kind]}
+      `${register.select}
          JOIN tenant.sales_orders orders ON orders.organization_id=record.organization_id AND orders.id=record.sales_order_id
          JOIN tenant.sales_order_versions version ON version.organization_id=orders.organization_id AND version.id=orders.current_version_id
-        WHERE record.organization_id=$1 ORDER BY record.requested_at DESC LIMIT $${values.length}`,
+        WHERE record.organization_id=$1${register.where}${scope} ORDER BY ${register.order} LIMIT $${values.length}`,
       values,
     );
     return rows;
@@ -153,23 +174,6 @@ export async function listSalesPass1Options(client, c) {
   return { orders: orders.rows, lines: lines.rows, commissionRules: rules.rows, priceLists: priceLists.rows, items: items.rows, customers: customers.rows, uoms: uoms.rows, users: users.rows, suppliers: suppliers.rows };
 }
 
-export async function getSalesOrderLineReservationContext(client,c,input={}){
-  need(c,"sales.fulfillment.request");
-  const target=await order(client,c,input.salesOrderId);
-  if(target.lifecycle_status!=="confirmed")throw new SalesError(409,"Only confirmed Sales orders can reserve stock.","SALES_ORDER_RESERVATION_STATE_INVALID");
-  const lineId=uuid(input.salesOrderLineId,"Sales order line");
-  const result=await client.query(`SELECT line.id,line.item_id,line.warehouse_id,line.quantity,line.conversion_factor,line.uom_snapshot,line.item_name_snapshot,progress.reserved_quantity,progress.fulfilled_quantity,progress.cancelled_quantity,progress.confirmed_quantity,COALESCE((SELECT sum(drop_ship.quantity) FROM tenant.sales_drop_ship_requests drop_ship WHERE drop_ship.organization_id=line.organization_id AND drop_ship.sales_order_line_id=line.id AND drop_ship.status IN ('requested','ordered','acknowledged','shipped')),0) AS drop_shipping FROM tenant.sales_order_lines line JOIN tenant.sales_order_line_progress progress ON progress.organization_id=line.organization_id AND progress.sales_order_line_id=line.id WHERE line.organization_id=$1 AND line.sales_order_version_id=$2 AND line.id=$3`,[c.organizationId,target.current_version_id,lineId]);
-  const line=result.rows[0];if(!line)throw new SalesError(404,"Sales order line was not found in the current order version.");
-  const tracked=(await client.query(`SELECT track_inventory FROM tenant.items WHERE organization_id=$1 AND id=$2`,[c.organizationId,line.item_id])).rows[0];
-  if(!tracked?.track_inventory)throw new SalesError(409,`${line.item_name_snapshot} is a service or non-stock item. It has no stock to check or reserve.`,"SALES_ITEM_NOT_STOCKED");
-  if(!line.warehouse_id)throw new SalesError(409,"Select a warehouse on the Sales order line before checking or reserving stock.","SALES_ORDER_WAREHOUSE_REQUIRED");
-  // Quantity a supplier is drop-shipping never comes from our stock (F056).
-  const remaining=Number(line.confirmed_quantity)-Number(line.fulfilled_quantity)-Number(line.cancelled_quantity)-Number(line.reserved_quantity)-Number(line.drop_shipping||0);
-  return {orderId:target.id,lineId:line.id,itemId:line.item_id,warehouseId:line.warehouse_id,lineQuantity:Number(line.quantity),reservedQuantity:Number(line.reserved_quantity),remainingReservableQuantity:Math.max(0,remaining),
-    // Sales quantities are in the line's selling unit (e.g. cartons); Stock counts base units.
-    conversionFactor:Number(line.conversion_factor)||1,unit:line.uom_snapshot,itemName:line.item_name_snapshot};
-}
-
 // ---- Sales settings (approval thresholds, margin floor, defaults) ----------------
 const SETTINGS_DEFAULTS = Object.freeze({
   default_price_list_id: null,
@@ -178,9 +182,11 @@ const SETTINGS_DEFAULTS = Object.freeze({
   quotation_approval_amount: 0,
   quotation_approval_discount: 10,
   minimum_margin_percent: 0,
-  order_approval_amount: 0,
   allow_direct_orders: true,
   invoice_quantity_basis: "ordered",
+  reserve_stock_on_confirm: true,
+  require_customer_po: false,
+  require_requested_delivery_date: false,
   default_quotation_terms: null,
   allow_line_discounts: true,
   allow_document_discounts: true,
@@ -217,8 +223,12 @@ export async function updateSalesSettings(client, c, input = {}) {
   if (input.quotationApprovalAmount !== undefined) next.quotation_approval_amount = boundedNumber(input.quotationApprovalAmount, "Quotation approval amount", { min: 0, max: 1e12 });
   if (input.quotationApprovalDiscount !== undefined) next.quotation_approval_discount = boundedNumber(input.quotationApprovalDiscount, "Quotation approval discount %", { min: 0, max: 100 });
   if (input.minimumMarginPercent !== undefined) next.minimum_margin_percent = boundedNumber(input.minimumMarginPercent, "Minimum margin %", { min: -100, max: 100 });
-  if (input.orderApprovalAmount !== undefined) next.order_approval_amount = boundedNumber(input.orderApprovalAmount, "Order approval amount", { min: 0, max: 1e12 });
   if (input.allowDirectOrders !== undefined) next.allow_direct_orders = Boolean(input.allowDirectOrders);
+  // Reserve the stock available when an order is confirmed.
+  if (input.reserveStockOnConfirm !== undefined) next.reserve_stock_on_confirm = Boolean(input.reserveStockOnConfirm);
+  // What must be on an order before it is confirmed.
+  if (input.requireCustomerPo !== undefined) next.require_customer_po = Boolean(input.requireCustomerPo);
+  if (input.requireRequestedDeliveryDate !== undefined) next.require_requested_delivery_date = Boolean(input.requireRequestedDeliveryDate);
   // Pricing & Discounts: which discounts are allowed, when a reason is needed and how much a user may give.
   const discountKeys = Object.keys(DISCOUNT_SETTINGS).filter((key) => input[key] !== undefined);
   if (discountKeys.length) {
@@ -239,7 +249,7 @@ export async function updateSalesSettings(client, c, input = {}) {
     if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
     next.invoice_quantity_basis = input.invoiceQuantityBasis;
   }
-  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","order_approval_amount","allow_direct_orders","invoice_quantity_basis","default_price_list_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent"];
+  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","invoice_quantity_basis","default_price_list_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent"];
   const result = await client.query(
     `INSERT INTO tenant.sales_settings(organization_id,${columns.join(",")},created_by,updated_by)
      VALUES($1,${columns.map((_, index) => `$${index + 3}`).join(",")},$2,$2)

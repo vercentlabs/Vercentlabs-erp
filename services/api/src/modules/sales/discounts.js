@@ -116,6 +116,8 @@ export function checkDiscountRules(context, master, input, lines, options = {}) 
   let requested = decimal(0);
   let line = null;
   for (const entry of lines) {
+    // A line carried from a quotation was checked when it was quoted.
+    if (entry.quoted) continue;
     const effective = decimal(entry.effectiveDiscountPercent);
     if (effective > requested) { requested = effective; line = entry.sequence; }
   }

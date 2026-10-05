@@ -23,30 +23,31 @@ export type AdjustmentRow = {
   created_at: string;
   decision_note?: string | null;
 };
-export type FulfillmentRegisterRow = OrderRef & {
+// A delivery made from a sales order, with what it carried.
+export type DeliveryRegisterRow = OrderRef & {
   id: string;
   request_number: string;
   status: string;
-  retry_count: number;
-  last_error: string | null;
-  requested_at: string;
+  delivery_date: string | null;
   completed_at: string | null;
-  carrier?: string | null;
-  tracking_number?: string | null;
-  shipped_at?: string | null;
-  delivered_at?: string | null;
-  received_by?: string | null;
+  carrier: string | null;
+  tracking_number: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
+  received_by: string | null;
+  items: string | null;
 };
+// An invoice raised from a sales order; Finance owns and posts it.
 export type InvoiceRegisterRow = OrderRef & {
   id: string;
   request_number: string;
-  status: string;
-  quantity_basis: string;
-  retry_count: number;
-  last_error: string | null;
   requested_at: string;
-  completed_at: string | null;
+  invoice_id: string;
+  invoice_number: string;
+  status: string;
+  invoice_date: string | null;
   grand_total: string;
+  outstanding_amount: string;
 };
 export const listRegister = <T>(kind: RegisterKind) =>
   request<{ rows: T[] }>(`/operations?kind=${kind}`);
@@ -70,94 +71,6 @@ export type PricingRuleRow = {
   valid_to: string | null;
   status: string;
 };
-type AvailabilityPromise = {
-  basis:
-    | "in_stock"
-    | "incoming_supply"
-    | "supplier_lead_time"
-    | "no_supply"
-    | "reserved";
-  promisedDate: string | null;
-  explanation: string;
-  unit: string | null;
-  conversionFactor: number;
-  availableBase: number;
-  requestedBase: number;
-  supplierLeadTimeDays: number | null;
-  incoming: Array<{
-    purchaseOrderNumber: string | null;
-    expectedDate: string | null;
-    openQuantity: number;
-  }>;
-};
-export type StockAvailability = {
-  line: {
-    lineQuantity: number;
-    reservedQuantity: number;
-    remainingReservableQuantity: number;
-    conversionFactor: number;
-    unit: string | null;
-  };
-  availability: {
-    canPromise: boolean;
-    requestedQuantity: string | number;
-    onHandQuantity: string;
-    reservedQuantity: string;
-    availableQuantity: string;
-    availableToPromise: string;
-    qualityHeldQuantity: string | null;
-  };
-  requestedQuantity: number;
-  requestedBaseQuantity: number;
-  promise: AvailabilityPromise;
-};
-
-export const checkLineAvailability = (
-  orderId: string,
-  salesOrderLineId: string,
-  quantity?: number,
-) =>
-  post<{ availability: StockAvailability }>(`/orders/${orderId}/availability`, {
-    salesOrderLineId,
-    quantity,
-  });
-export const reserveLineStock = (
-  orderId: string,
-  salesOrderLineId: string,
-  quantity: number,
-  idempotencyKey: string,
-) =>
-  post<{ reservation: unknown }>(`/orders/${orderId}/reserve`, {
-    salesOrderLineId,
-    quantity,
-    idempotencyKey,
-  });
-export const completeDelivery = (
-  requestId: string,
-  lines: Array<{ salesOrderLineId: string; fulfilledQuantity: number }>,
-) =>
-  post<{ detail: unknown }>(`/fulfillment-requests/${requestId}/complete`, {
-    lines,
-  });
-export const releaseOrderReservations = (orderId: string, reason: string) =>
-  post<{ result: { released: number } }>(
-    `/orders/${orderId}/reservations/release`,
-    { reason },
-  );
-export const recordShipment = (
-  requestId: string,
-  input: { carrier: string; trackingNumber?: string },
-) =>
-  post<{ shipment: unknown }>(`/fulfillment-requests/${requestId}/ship`, input);
-export const recordDelivery = (
-  requestId: string,
-  input: { receivedBy: string; note?: string },
-) =>
-  post<{ delivery: unknown }>(
-    `/fulfillment-requests/${requestId}/deliver`,
-    input,
-  );
-
 export const decideAdjustment = (
   id: string,
   decision: "approved" | "rejected",

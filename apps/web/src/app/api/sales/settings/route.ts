@@ -12,8 +12,10 @@ const schema = z.object({
   quotationApprovalAmount: z.number().optional(),
   quotationApprovalDiscount: z.number().optional(),
   minimumMarginPercent: z.number().optional(),
-  orderApprovalAmount: z.number().optional(),
   allowDirectOrders: z.boolean().optional(),
+  reserveStockOnConfirm: z.boolean().optional(),
+  requireCustomerPo: z.boolean().optional(),
+  requireRequestedDeliveryDate: z.boolean().optional(),
   invoiceQuantityBasis: z.enum(["ordered", "fulfilled"]).optional(),
   defaultQuotationTerms: z.string().max(20000).nullish(),
   // Pricing & Discounts (needs sales.discount.manage_settings). A null limit or threshold switches it off.

@@ -27,6 +27,7 @@ import {
 import { createJournalEntry, postJournalEntry } from "./journals.js";
 import { div, sub } from "./money.js";
 import { recordDocumentTaxLedger } from "./tax.js";
+import { refreshSalesOrderProgress } from "../sales/orders/progress.js";
 import { resolvePaymentSchedule } from "./schedules.js";
 import { createCustomerSettlementAdjustment } from "./settlements.js";
 
@@ -458,16 +459,8 @@ export async function postCustomerInvoice(client, context, idValue, options = {}
   await postJournalEntry(client, context, journal.entry.id, { internal: true, allowDraft: true });
   await recordDocumentTaxLedger(client, context, invoice, detail.lines, journal.entry.id, "output");
   await client.query(`UPDATE tenant.accounting_customer_invoices SET status='posted',journal_entry_id=$3,outstanding_amount=grand_total,posted_at=now(),posted_by=$4,updated_by=$4 WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, journal.entry.id, context.userId]);
-  for (const line of detail.lines) {
-    if (!line.source_sales_order_line_id) continue;
-    await client.query(`UPDATE tenant.sales_order_line_progress
-      SET invoiced_quantity=GREATEST(0,invoiced_quantity+($3::numeric*$4::numeric)),updated_by=$5,updated_at=now()
-      WHERE organization_id=$1 AND sales_order_line_id=$2`,
-    [context.organizationId, line.source_sales_order_line_id, line.quantity, isCreditNote ? -1 : 1, context.userId]);
-  }
-  if (invoice.source_sales_order_id) {
-    await client.query(`UPDATE tenant.sales_orders SET billing_status=CASE WHEN EXISTS (SELECT 1 FROM tenant.sales_order_line_progress progress JOIN tenant.sales_order_lines line ON line.id=progress.sales_order_line_id JOIN tenant.sales_orders sales_order ON sales_order.current_version_id=line.sales_order_version_id WHERE sales_order.id=$2 AND progress.invoiced_quantity < line.quantity-progress.cancelled_quantity) THEN 'partially_invoiced' ELSE 'fully_invoiced' END,updated_by=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`, [context.organizationId, invoice.source_sales_order_id, context.userId]);
-  }
+  // The order's invoiced quantities and invoice status follow from its invoices.
+  if (invoice.source_sales_order_id) await refreshSalesOrderProgress(client, context.organizationId, invoice.source_sales_order_id, context.userId ?? null);
   await event(client, context, "customer_invoice", id, "accounting.customer_invoice.posted", invoice.status, "posted", { journalEntryId: journal.entry.id });
   return getCustomerInvoice(client, context, id);
 }

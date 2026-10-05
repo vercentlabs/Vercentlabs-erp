@@ -12,6 +12,9 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   // Shared by every module that uses the catalogue; the product module checks access.
   "products.item": { moduleKey: null, purposes: ["attachment"] },
   "sales.quotation": { moduleKey: "sales", purposes: ["attachment"] },
+  "sales.order": { moduleKey: "sales", purposes: ["attachment"] },
+  // The exact PDF of each order confirmation that was emailed.
+  "sales.order_confirmation": { moduleKey: "sales", purposes: ["attachment"] },
   "platform.export": { moduleKey: null, purposes: ["export"] },
   "platform.report_run": { moduleKey: null, purposes: ["report_output"] },
 });

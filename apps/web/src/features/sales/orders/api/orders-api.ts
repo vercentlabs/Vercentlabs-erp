@@ -1,29 +1,51 @@
 "use client";
 
-import { post, request } from "@/features/sales/shared/http";
-import type {
-  SalesDocumentEvent,
-  SalesDocumentInput,
-} from "@/features/sales/quotations/api/quotations-api";
+import { del, post, request, SalesApiError } from "@/features/sales/shared/http";
+import type { SalesDocumentEvent, SalesDocumentInput, SalesDocumentPreview } from "@/features/sales/quotations/api/quotations-api";
 
-// Row shapes mirror listSalesOrders / getSalesOrder in
-// services/api/src/modules/sales/index.js. Money arrives as strings and is only
-// formatted at the edge -- every figure shown is one the server computed.
-export type SalesOrderRow = {
+// Shapes returned by the Sales Orders module (services/api/src/modules/sales/
+// orders). Money arrives as strings and is formatted at the edge; quantities
+// ordered, reserved, delivered, invoiced and remaining are worked out by the
+// server from the reservations, deliveries and invoices themselves.
+export type OrderStatusKey = "draft" | "confirmed" | "cancelled" | "closed";
+export type FulfillmentKey = "not_started" | "partially_reserved" | "reserved" | "partially_delivered" | "delivered" | "cancelled" | "not_required";
+export type InvoicingKey = "not_invoiced" | "partially_invoiced" | "fully_invoiced";
+// Whether the current order confirmation went out; separate from the order's status.
+export type ConfirmationKey = "none" | "not_sent" | "sent" | "acknowledged" | "superseded";
+type DisplayStatuses = {
+  status: OrderStatusKey; statusLabel: string;
+  confirmation: ConfirmationKey; confirmationLabel: string;
+  fulfillment: FulfillmentKey; fulfillmentLabel: string;
+  invoicing: InvoicingKey; invoicingLabel: string;
+};
+
+export type SalesOrderRow = DisplayStatuses & {
   id: string;
   sales_order_number: string;
-  lifecycle_status: string;
-  approval_status: string;
-  credit_status: string;
-  fulfillment_status: string;
-  billing_status: string;
   order_date: string | null;
   requested_delivery_date: string | null;
+  party_id: string;
+  owner_user_id: string | null;
+  source_quotation_id: string | null;
+  source_quotation_number: string | null;
   updated_at: string;
+  version_number: number;
   currency_code: string;
   grand_total: string;
-  base_currency_total: string;
+  customer_po_number: string | null;
   customer_name: string | null;
+  customer_number: string | null;
+  owner_name: string | null;
+};
+
+export type SalesOrderCapabilities = Record<string, boolean>;
+export type SalesOrderList = {
+  rows: SalesOrderRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  views: Array<{ key: string; label: string }>;
+  capabilities: SalesOrderCapabilities;
 };
 
 export type SalesOrderLine = {
@@ -31,93 +53,153 @@ export type SalesOrderLine = {
   sequence: number;
   item_id: string;
   variant_id: string | null;
-  variant_sku_snapshot: string | null;
   uom_id: string | null;
   warehouse_id: string | null;
+  warehouse_name: string | null;
   item_code_snapshot: string;
   item_name_snapshot: string;
   description_snapshot: string | null;
+  hsn_sac_snapshot: string | null;
+  hsn_sac_kind: "hsn" | "sac" | null;
   uom_snapshot: string | null;
   quantity: string;
-  unit_price: string;
-  // Order lines record a manual price in their pricing trace.
-  pricing_trace?: { manualOverride?: boolean } | null;
   list_unit_price: string;
+  unit_price: string;
+  manual_price_override: boolean;
+  manual_price_reason: string | null;
   discount_type: "percent" | "amount";
   discount_value: string;
-  discount_percent: string;
   discount_amount: string;
   gross_amount: string;
   net_amount: string;
   document_discount_amount: string;
   taxable_amount: string;
+  tax_rate: string;
+  tax_treatment: string | null;
   tax_amount: string;
   line_total: string;
-  requested_delivery_date: string | null;
+  source_quotation_line_id: string | null;
   margin_percent?: string;
-  confirmed_quantity: string;
-  reserved_quantity: string;
-  fulfilled_quantity: string;
-  invoiced_quantity: string;
-  returned_quantity: string;
-  cancelled_quantity: string;
-  remaining_to_fulfill: string;
-  remaining_to_invoice: string;
+  // A service is invoiced but never delivered or reserved.
+  is_service: boolean;
+  is_stock_tracked: boolean;
+  // Came from the quotation: its price, discount and tax are the agreed ones.
+  is_quoted: boolean;
+  ordered_quantity: number;
+  cancelled_quantity: number;
+  reserved_quantity: number;
+  delivered_quantity: number;
+  invoiced_quantity: number;
+  returned_quantity: number;
+  remaining_to_deliver: number;
+  remaining_to_invoice: number;
 };
 
-export type SalesOrderHold = {
+export type SalesOrderDelivery = {
   id: string;
-  hold_type: string;
-  reason: string;
-  status: string;
-  placed_at: string;
-  released_at: string | null;
-  release_note: string | null;
-};
-export type SalesHandoffRequest = {
-  id: string;
-  request_number: string;
-  status: string;
-  retry_count: number;
-  last_error: string | null;
-  requested_at: string;
+  delivery_number: string;
+  delivery_date: string | null;
   completed_at: string | null;
-  quantity_basis?: string;
-  carrier?: string | null;
-  tracking_number?: string | null;
-  shipped_at?: string | null;
-  delivered_at?: string | null;
-  received_by?: string | null;
+  carrier: string | null;
+  tracking_number: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
+  received_by: string | null;
+  notes: string | null;
+  created_by_name: string | null;
+  lines: Array<{ sales_order_line_id: string; quantity: string; uom_snapshot: string | null; item_name_snapshot: string }>;
 };
-export type SalesOrderVersionSummary = {
+export type SalesOrderInvoice = {
   id: string;
-  version_number: number;
-  amendment_reason: string | null;
-  currency_code: string;
+  invoice_number: string;
+  invoice_type: string;
+  status: string;
+  invoice_date: string | null;
   grand_total: string;
-  created_at: string;
-  approval_request_id: string | null;
+  tax_total: string;
+  outstanding_amount: string;
+  currency_code: string;
 };
+
+export type SalesOrderActions = {
+  edit: boolean; confirm: boolean; reopen: boolean; reserve: boolean; release: boolean; deliver: boolean; invoice: boolean; cancel: boolean;
+  cancelRemaining: boolean; print: boolean; viewConfirmation: boolean; sendConfirmation: boolean; markConfirmationSent: boolean; acknowledgeConfirmation: boolean;
+};
+
+// One revision of the order's confirmation: what was confirmed is kept unchanged; its PDF is built from it.
+export type OrderConfirmation = {
+  id: string;
+  version: number;
+  current: boolean;
+  status: ConfirmationKey;
+  statusLabel: string;
+  confirmed_at: string;
+  confirmed_by_name: string | null;
+  sent_at: string | null;
+  sent_to: string | null;
+  sent_by_name: string | null;
+  acknowledged_at: string | null;
+  acknowledgement_reference: string | null;
+  acknowledgement_note: string | null;
+  acknowledged_by_name: string | null;
+  superseded_at: string | null;
+  superseded_reason: string | null;
+  superseded_by_name: string | null;
+  variance_reason: string | null;
+  quotation_variance: ConfirmationCheck["quotation"];
+  grand_total: string | null;
+  sends: Array<{ id: string; channel: string; channelLabel: string; recipients: string | null; subject: string | null; note: string | null; pdf_kept: boolean; sent_at: string; sent_by_name: string | null }>;
+};
+
+// What confirming a draft would find; nothing is changed by asking.
+export type ConfirmationCheck = {
+  orderId: string; orderNumber: string; status: string; versionNumber: number; ready: boolean; problems: string[]; warnings: string[];
+  totals: { saved: string | null; recalculated: string | null; currencyCode: string };
+  quotation: null | {
+    quotationId: string; quotationNumber: string; quotationTotal: string; orderTotal: string; stillAccepted: boolean; differs: boolean;
+    changes: Array<{ item: string; change: "removed" | "quantity" | "added"; from: number; to: number; unit: string | null }>;
+  };
+  varianceNeedsPermission: boolean;
+  shortages: Array<{ itemName: string; unit: string | null; required: number; available: number | null; shortage: number | null; problem: string | null }>;
+  reservesOnConfirm: boolean;
+  nextConfirmationVersion: number;
+};
+export type ConfirmResult = {
+  orderId: string; confirmed: boolean; status: string; changed: boolean; problems?: string[]; warnings?: string[]; confirmationVersion?: number | null;
+  reservation?: ReservationOutcome[];
+};
+export type DuplicatePurchaseOrder = { id: string; number: string; status: string; orderDate: string | null };
+
+type Snapshot = Record<string, string | null | undefined>;
 
 export type SalesOrderDetail = {
-  order: {
-    sales_order_id: string;
+  order: DisplayStatuses & {
+    id: string;
     sales_order_number: string;
     current_version_id: string;
+    version_number: number;
     lifecycle_status: string;
-    approval_status: string;
-    credit_status: string;
-    fulfillment_status: string;
-    billing_status: string;
     party_id: string;
     contact_id: string | null;
+    owner_user_id: string | null;
+    owner_name: string | null;
     billing_address_id: string | null;
     shipping_address_id: string | null;
     order_date: string | null;
     requested_delivery_date: string | null;
+    default_warehouse_id: string | null;
+    default_warehouse_name: string | null;
     source_quotation_id: string | null;
-    version_number: number;
+    source_quotation_number: string | null;
+    source_opportunity_id: string | null;
+    source_opportunity_code: string | null;
+    source_opportunity_name: string | null;
+    price_list_id: string | null;
+    price_list_name: string | null;
+    price_list_tax_inclusive: boolean | null;
+    payment_term_id: string | null;
     currency_code: string;
+    exchange_rate: string;
     subtotal: string;
     discount_total: string;
     gross_total: string;
@@ -143,46 +225,94 @@ export type SalesOrderDetail = {
     rounding_adjustment: string;
     grand_total: string;
     margin_percent?: string;
-    customer_snapshot: {
-      displayName?: string;
-      legalName?: string;
-      gstin?: string;
-    } | null;
-    payment_term_snapshot: { name?: string } | null;
+    customer_snapshot: Snapshot | null;
+    contact_snapshot: Snapshot | null;
+    billing_address_snapshot: Snapshot | null;
+    shipping_address_snapshot: Snapshot | null;
+    payment_term_snapshot: Snapshot | null;
+    customer_number: string | null;
+    customer_status: string | null;
+    sales_block: string | null;
+    sales_block_reason: string | null;
     customer_po_number: string | null;
     customer_po_date: string | null;
+    customer_reference: string | null;
     customer_notes: string | null;
     internal_notes: string | null;
     terms_and_conditions: string | null;
-    price_list_id: string | null;
-    payment_term_id: string | null;
-    exchange_rate: string;
+    created_at: string;
+    created_by_name: string | null;
+    confirmed_at: string | null;
+    confirmed_by_name: string | null;
+    cancelled_at: string | null;
+    cancelled_by_name: string | null;
+    cancel_reason_code: string | null;
+    cancel_reason: string | null;
+    closed_at: string | null;
+    confirmation_version: number;
   };
   lines: SalesOrderLine[];
   taxLines: Array<{ tax_type: string; label: string; rate: string; taxable_amount: string; tax_amount: string }>;
-  versions: SalesOrderVersionSummary[];
-  holds: SalesOrderHold[];
-  fulfillmentRequests: SalesHandoffRequest[];
-  invoiceRequests: SalesHandoffRequest[];
+  deliveries: SalesOrderDelivery[];
+  invoices: SalesOrderInvoice[];
+  invoicing: { orderedValue: number; invoicedValue: number; remainingValue: number };
+  versions: Array<{ id: string; version_number: number; change_note: string | null; grand_total: string; currency_code: string; created_at: string; created_by_name: string | null }>;
+  confirmations: OrderConfirmation[];
   events: SalesDocumentEvent[];
+  duplicatePurchaseOrders: DuplicatePurchaseOrder[];
+  cancelReasons: Array<{ code: string; label: string }>;
+  capabilities: SalesOrderCapabilities;
+  actions: SalesOrderActions;
 };
 
-export type SalesOrderReadiness = {
+export type SalesOrderDefaults = {
+  orderDate: string;
+  directOrdersAllowed: boolean;
+  reservesOnConfirm: boolean;
+  currencyCode?: string | null;
+  contactId?: string | null;
+  billingAddressId?: string | null;
+  shippingAddressId?: string | null;
+  ownerUserId?: string | null;
+  paymentTermId?: string | null;
+  priceListId?: string | null;
+  // Why an order cannot be placed for this customer, when it cannot.
+  blocked?: string | null;
+};
+
+export type SalesOrderAvailability = {
   orderId: string;
-  orderNumber: string;
-  versionId: string;
-  health: {
-    readiness?: string;
-    blockers?: Array<{ code?: string; message?: string }>;
-    warnings?: Array<{ code?: string; message?: string }>;
-  } & Record<string, unknown>;
+  status: string;
+  shortages: number;
+  lines: Array<{
+    lineId: string; sequence: number; itemName: string; unit: string | null; ordered: number; delivered: number; remaining: number; reserved: number;
+    warehouseId: string | null; warehouseName: string | null; onHand: number | null; reservedElsewhere: number | null; available: number | null; shortage: number | null;
+    canReserve: number; problem: string | null;
+  }>;
 };
+export type ReservationOutcome = { lineId: string; itemName: string; wanted: number; reserved: number; problem: string | null };
 
-export type SalesOrderDocumentInput = SalesDocumentInput & {
+export type DeliveryProposal = {
+  orderId: string;
+  canDeliver: boolean;
+  lines: Array<{ salesOrderLineId: string; itemName: string; unit: string | null; ordered: number; delivered: number; reserved: number; remaining: number; stockTracked: boolean; warehouseId: string | null }>;
+};
+export type InvoiceProposal = {
+  orderId: string;
+  quantityBasis: "ordered" | "fulfilled";
+  canInvoice: boolean;
+  lines: Array<{ salesOrderLineId: string; itemName: string; unit: string | null; ordered: number; delivered: number; invoiced: number; cancelled: number; eligible: number; isService: boolean }>;
+};
+export type OrderFile = { id: string; fileName: string; mimeType: string; sizeBytes: number; uploadedAt: string };
+
+export type SalesOrderDocumentInput = Omit<SalesDocumentInput, "lines"> & {
+  orderDate?: string | null;
   requestedDeliveryDate?: string | null;
   customerPoNumber?: string | null;
   customerPoDate?: string | null;
-  amendmentReason?: string;
+  defaultWarehouseId?: string | null;
+  // An existing line of the order carries its id, so a quoted line keeps its quoted price.
+  lines: Array<SalesDocumentInput["lines"][number] & { salesOrderLineId?: string }>;
 };
 
 const qs = (params: Record<string, string | number | undefined>) => {
@@ -193,97 +323,72 @@ const qs = (params: Record<string, string | number | undefined>) => {
   return text ? `?${text}` : "";
 };
 
-export const listSalesOrders = (
-  filters: {
-    status?: string;
-    search?: string;
-    partyId?: string;
-    limit?: number;
-    offset?: number;
-  } = {},
-) => request<{ rows: SalesOrderRow[] }>(`/orders${qs(filters)}`);
-export const getSalesOrder = (id: string) =>
-  request<{ detail: SalesOrderDetail }>(`/orders/${id}`);
-export const createSalesOrder = (input: SalesOrderDocumentInput) =>
-  post<{ order: { id: string; sales_order_number: string } }>("/orders", input);
-export const amendSalesOrder = (id: string, input: SalesOrderDocumentInput) =>
-  post<{ detail: SalesOrderDetail }>(`/orders/${id}/amend`, input);
-export const submitSalesOrder = (id: string, assignedTo?: string | null) =>
-  post<{ result: { approvalRequired: boolean } }>(`/orders/${id}/submit`, {
-    assignedTo,
-  });
-export const approveSalesOrder = (id: string, orderVersionId: string) =>
-  post<{ result: unknown }>(`/orders/${id}/approve`, { orderVersionId });
-export const rejectSalesOrderApproval = (
-  id: string,
-  orderVersionId: string,
-  reason: string,
-) =>
-  post<{ result: unknown }>(`/orders/${id}/reject-approval`, {
-    orderVersionId,
-    reason,
-  });
-export const confirmSalesOrder = (
-  id: string,
-  input: { overrideCredit?: boolean; creditOverrideReason?: string } = {},
-) =>
-  post<{ result: { status: string; creditStatus: string } }>(
-    `/orders/${id}/confirm`,
-    input,
-  );
-export const placeSalesOrderHold = (
-  id: string,
-  input: { holdType?: string; reason: string },
-) => post<{ hold: { id: string } }>(`/orders/${id}/hold`, input);
-export const releaseSalesOrderHold = (
-  id: string,
-  input: { holdId: string; note?: string },
-) => post<{ result: unknown }>(`/orders/${id}/hold/release`, input);
-export const cancelSalesOrder = (id: string, reason: string) =>
-  post<{ result: unknown }>(`/orders/${id}/cancel`, { reason });
-export const requestSalesFulfillment = (id: string, idempotencyKey: string) =>
-  post<{ request: SalesHandoffRequest }>(`/orders/${id}/fulfillment-request`, {
-    idempotencyKey,
-  });
-export const requestSalesInvoice = (
-  id: string,
-  idempotencyKey: string,
-  quantityBasis?: "ordered" | "fulfilled",
-  lines?: Array<{ salesOrderLineId: string; quantity: number }>,
-) =>
-  post<{ request: SalesHandoffRequest }>(`/orders/${id}/invoice-request`, {
-    idempotencyKey,
-    quantityBasis,
-    lines,
-  });
-export const closeSalesOrder = (id: string) =>
-  post<{ result: unknown }>(`/orders/${id}/close`, {});
-export const getSalesOrderReadiness = (id: string) =>
-  request<{ readiness: SalesOrderReadiness }>(`/orders/${id}/readiness`);
-
-// F044: what an amendment would change and what blocks it.
-export type AmendmentImpact = {
-  totalBefore: number;
-  totalAfter: number;
-  totalChange: number;
-  creditRecheck: boolean;
-  lines: Array<{
-    item: string;
-    unit: string | null;
-    change: "added" | "removed" | "changed" | "unchanged";
-    quantityBefore: number;
-    quantityAfter: number;
-    unitPriceBefore: number | null;
-    unitPriceAfter: number | null;
-  }>;
-  downstream: {
-    active_reservations: number;
-    open_fulfilment_requests: number;
-    open_invoice_requests: number;
-  };
-  blockers: string[];
+export type OrderFilters = {
+  view?: string; search?: string; status?: string; confirmation?: string; fulfillment?: string; invoicing?: string; partyId?: string; ownerUserId?: string; warehouseId?: string;
+  currencyCode?: string; quotationId?: string; opportunityId?: string; productId?: string; source?: string; dateFrom?: string; dateTo?: string;
+  deliveryFrom?: string; deliveryTo?: string; sort?: string; direction?: string; limit?: number; offset?: number;
 };
-export const previewAmendmentImpact = (
-  id: string,
-  input: SalesOrderDocumentInput,
-) => post<{ impact: AmendmentImpact }>(`/orders/${id}/amend/impact`, input);
+type QuantityLine = { salesOrderLineId: string; quantity: number };
+
+export const listSalesOrders = (filters: OrderFilters = {}) => request<SalesOrderList>(`/orders${qs(filters)}`);
+export const salesOrderExportUrl = (filters: OrderFilters = {}) => `/api/sales/orders/export${qs({ ...filters, limit: undefined, offset: undefined })}`;
+export const getSalesOrder = (id: string) => request<{ order: SalesOrderDetail }>(`/orders/${id}`);
+export const getSalesOrderDefaults = (partyId?: string) => request<{ defaults: SalesOrderDefaults }>(`/orders/defaults${qs({ partyId })}`);
+export const createSalesOrder = (input: SalesOrderDocumentInput) =>
+  post<{ order: { id: string; sales_order_number: string; duplicatePurchaseOrders: DuplicatePurchaseOrder[] } }>("/orders", input);
+// Saves changes to a Draft; expectedVersionNumber is the version the editor opened.
+export const updateSalesOrder = (id: string, input: SalesOrderDocumentInput) =>
+  request<{ order: { id: string; versionNumber: number; duplicatePurchaseOrders: DuplicatePurchaseOrder[] } }>(`/orders/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+// The totals a save of the draft would store; quoted lines keep their quoted price.
+export const previewSalesOrder = (id: string, input: SalesOrderDocumentInput) => post<{ preview: SalesDocumentPreview }>(`/orders/${id}/preview`, input);
+
+// Confirming: checked first (nothing changes), then confirmed against the version reviewed.
+export const getConfirmationCheck = (id: string) => request<{ check: ConfirmationCheck }>(`/orders/${id}/confirmation/check`);
+export const confirmSalesOrder = (id: string, input: { expectedVersionNumber: number; quotationVarianceReason?: string }) =>
+  post<{ result: ConfirmResult }>(`/orders/${id}/confirm`, input);
+export const reopenSalesOrder = (id: string, reason: string) => post<{ result: { status: string } }>(`/orders/${id}/reopen`, { reason });
+export const cancelSalesOrder = (id: string, input: { reasonCode?: string; reason?: string }) => post<{ result: { status: string } }>(`/orders/${id}/cancel`, input);
+export const cancelSalesOrderRemaining = (id: string, input: { lines?: QuantityLine[]; reasonCode?: string; reason?: string }) =>
+  post<{ result: unknown }>(`/orders/${id}/cancel-remaining`, input);
+
+export const getSalesOrderAvailability = (id: string) => request<{ availability: SalesOrderAvailability }>(`/orders/${id}/availability`);
+export const reserveSalesOrderStock = (id: string, lineIds?: string[]) =>
+  post<{ result: { lines: ReservationOutcome[]; reservedLines: number } }>(`/orders/${id}/reserve`, { lineIds });
+export const releaseSalesOrderReservation = (id: string, input: { lineId?: string; reason: string }) =>
+  post<{ result: { released: number } }>(`/orders/${id}/release`, input);
+
+export const getDeliveryProposal = (id: string) => request<{ proposal: DeliveryProposal }>(`/orders/${id}/deliveries`);
+export const createSalesOrderDelivery = (id: string, input: { idempotencyKey: string; lines: QuantityLine[]; deliveryDate?: string; carrier?: string; trackingNumber?: string; notes?: string }) =>
+  post<{ result: { deliveryId: string; deliveryNumber: string } }>(`/orders/${id}/deliveries`, input);
+export const getInvoiceProposal = (id: string) => request<{ proposal: InvoiceProposal }>(`/orders/${id}/invoices`);
+export const createSalesOrderInvoice = (id: string, input: { idempotencyKey: string; lines: QuantityLine[] }) =>
+  post<{ result: { invoiceId: string; invoiceNumber: string } }>(`/orders/${id}/invoices`, input);
+
+// The current confirmation: emailed with its PDF, marked as sent another way, acknowledged by the customer.
+export const sendOrderConfirmation = (id: string, input: { to: string; cc?: string; subject?: string; message?: string; idempotencyKey: string }) =>
+  post<{ result: { sentTo: string; version: number } }>(`/orders/${id}/confirmation/send`, input);
+export const markConfirmationSent = (id: string, input: { channel: string; recipient?: string; note?: string; idempotencyKey?: string }) =>
+  post<{ result: unknown }>(`/orders/${id}/confirmation/mark-sent`, input);
+export const recordConfirmationAcknowledgement = (id: string, input: { reference?: string; note?: string; acknowledgedAt?: string }) =>
+  post<{ result: { changed: boolean } }>(`/orders/${id}/confirmation/acknowledge`, input);
+// PDFs: the order's current confirmation (or a draft), and any single revision.
+export const orderPdfUrl = (id: string, inline = false) => `/api/documents/sales.order/${id}/pdf${inline ? "?disposition=inline" : ""}`;
+export const confirmationPdfUrl = (confirmationId: string, inline = false) => `/api/documents/sales.order.confirmation/${confirmationId}/pdf${inline ? "?disposition=inline" : ""}`;
+export const addSalesOrderNote = (id: string, note: string) => post<{ result: { added: boolean } }>(`/orders/${id}/notes`, { note });
+export const listSalesOrderFiles = (id: string) => request<{ files: OrderFile[] }>(`/orders/${id}/files`);
+// Multipart, so the browser sets the content type and boundary itself.
+export async function uploadSalesOrderFile(id: string, file: File) {
+  const body = new FormData();
+  body.set("file", file);
+  const response = await fetch(`/api/sales/orders/${id}/files`, { method: "POST", body, credentials: "same-origin" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok === false) throw new SalesApiError(payload.message || "The file could not be uploaded.", response.status, payload.code, payload);
+  return payload as { file: OrderFile };
+}
+export const removeSalesOrderFile = (id: string, fileId: string) => del<{ result: { removed: boolean } }>(`/orders/${id}/files/${fileId}`);
+
+// The carrier of a delivery that has left, and the customer's receipt of it.
+export const recordDeliveryShipment = (deliveryId: string, input: { carrier: string; trackingNumber?: string }) =>
+  post<{ result: unknown }>(`/deliveries/${deliveryId}/ship`, input);
+export const recordDeliveryReceipt = (deliveryId: string, input: { receivedBy: string; note?: string }) =>
+  post<{ result: unknown }>(`/deliveries/${deliveryId}/receive`, input);

@@ -189,7 +189,6 @@ export function assertEligibleLeadAssignee(
 ): Promise<Record<string, unknown>>;
 
 
-export * from "./modules/sales/order-governance.js";
 
 export * from "./modules/procurement/governance.js";
 
@@ -217,7 +216,6 @@ export class PublicMeetingError extends Error { readonly status: number; readonl
 
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
-export * from "./modules/sales/record-lookups.js";
 export * from "./modules/procurement/record-lookups.js";
 export * from "./modules/accounting/record-lookups.js";
 export * from "./modules/stock/read-models.js";
@@ -259,18 +257,8 @@ export function listSalesPass1Operations(client: QueryClient, context: any, opti
 export function requestSalesCreditAdjustment(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function accrueSalesCommission(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function listSalesPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
-export function getSalesOrderLineReservationContext(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function checkSalesOrderLineAvailability(client: QueryClient, salesContext: any, stockContext: any, input?: Record<string, unknown>): Promise<any>;
-export function reserveSalesOrderLineFromStock(client: QueryClient, salesContext: any, stockContext: any, input?: Record<string, unknown>): Promise<any>;
-export function completeFulfillmentRequestWithStockMovement(client: QueryClient, salesContext: any, stockContext: any, requestId: string, input?: Record<string, unknown>): Promise<any>;
-export function releaseSalesOrderStockReservations(client: QueryClient, salesContext: any, stockContext: any, orderId: string, reason: string): Promise<any>;
-export function previewSalesOrderAmendmentImpact(client: QueryClient, context: any, orderId: string, input?: Record<string, unknown>): Promise<any>;
-export function recordFulfillmentShipment(client: QueryClient, context: any, requestId: string, input?: Record<string, unknown>): Promise<any>;
-export function recordFulfillmentDelivery(client: QueryClient, context: any, requestId: string, input?: Record<string, unknown>): Promise<any>;
 export function getSalesCustomerCreditExposure(client: QueryClient, context: any, partyId: string): Promise<any>;
 export function decideSalesCreditAdjustment(client: QueryClient, context: any, adjustmentId: string, input?: Record<string, unknown>): Promise<any>;
-export function confirmSalesOrderWithCrmSync(client: QueryClient, salesContext: any, orderId: string, options?: Record<string, unknown>): Promise<any>;
-export function cancelSalesOrderWithCrmSync(client: QueryClient, salesContext: any, orderId: string, reason?: string): Promise<any>;
 
 export function listProcurementPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
 export function linkSupplierAccountingParty(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;

@@ -3,7 +3,8 @@
 // quoted (nothing is re-priced). One quotation makes one order: a repeated
 // request, or two people at once, get the same order. No stock is reserved
 // by a quotation; the order reserves stock when it is confirmed.
-import { SalesError, insertOrderFromPreview, previewSalesDocument } from "../index.js";
+import { SalesError, previewSalesDocument } from "../index.js";
+import { insertOrder } from "../orders/records.js";
 import { requireQuotationPermission } from "./access.js";
 import { QUOTATION_PERMISSIONS, QuotationError, STATUS, text } from "./constants.js";
 import { assertQuotationVisible } from "./records.js";
@@ -26,16 +27,16 @@ export async function createSalesOrderFromQuotation(client, context, quotationId
     ...source,
     orderDate: text(input.orderDate, 10) ?? undefined,
     requestedDeliveryDate: text(input.requestedDeliveryDate, 10) ?? null,
-    customerPoNumber: text(input.customerPoNumber, 120) ?? quote.customer_reference ?? null,
+    customerPoNumber: text(input.customerPoNumber, 120) ?? null,
+    customerReference: quote.customer_reference ?? null,
     customerPoDate: text(input.customerPoDate, 10) ?? null,
   };
   let order;
   try {
     const preview = await previewSalesDocument(client, context, document, { order: true, carryQuotedPrices: true });
-    // Each order line remembers the quotation line it came from.
-    preview.lines.forEach((line, index) => { line.sourceQuotationLineId = source.lines[index]?.sourceQuotationLineId ?? null; });
-    order = await insertOrderFromPreview(client, context, document, preview, {
-      quotationId: quote.id, quotationVersionId: quote.current_version_id, opportunityId: quote.source_opportunity_id,
+    // Each order line remembers the quotation line it came from (source.lines carry it).
+    order = await insertOrder(client, context, { ...document, orderDate: document.orderDate ?? null }, preview, {
+      quotationId: quote.id, quotationNumber: quote.quotation_number, quotationVersionId: quote.current_version_id, opportunityId: quote.source_opportunity_id,
     });
   } catch (error) {
     if (error instanceof SalesError) throw new QuotationError(error.status, error.message, error.code);
