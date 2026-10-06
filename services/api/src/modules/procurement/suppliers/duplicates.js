@@ -51,8 +51,8 @@ export async function checkSupplierDuplicates(client, context, probe = {}, { exc
      SELECT party.id AS party_id, supplier.id AS supplier_id, supplier.supplier_number, party.display_name, party.legal_name, party.gstin, supplier.status,
             party.customer_number, location.city,
             array_remove(ARRAY[
-              CASE WHEN probe.gstin IS NOT NULL AND (upper(party.gstin) = probe.gstin OR EXISTS (SELECT 1 FROM tenant.procurement_supplier_addresses address
-                     WHERE address.organization_id = party.organization_id AND address.supplier_id = supplier.id AND address.gstin = probe.gstin)) THEN 'gstin' END,
+              CASE WHEN probe.gstin IS NOT NULL AND (upper(party.gstin) = probe.gstin OR EXISTS (SELECT 1 FROM tenant.procurement_supplier_tax_registrations registration
+                     WHERE registration.organization_id = party.organization_id AND registration.supplier_id = supplier.id AND registration.gstin = probe.gstin)) THEN 'gstin' END,
               CASE WHEN probe.pan IS NOT NULL AND party.normalized_pan = probe.pan THEN 'pan' END,
               CASE WHEN probe.name IS NOT NULL AND (party.normalized_company_name = probe.name OR party.normalized_legal_company_name = probe.name) THEN 'name' END,
               CASE WHEN probe.legal IS NOT NULL AND probe.legal IS DISTINCT FROM probe.name
@@ -70,15 +70,15 @@ export async function checkSupplierDuplicates(client, context, probe = {}, { exc
        LEFT JOIN LATERAL (
          SELECT address.city FROM tenant.procurement_supplier_addresses address
           WHERE address.organization_id = party.organization_id AND address.supplier_id = supplier.id AND address.status = 'active'
-          ORDER BY address.is_primary DESC, (address.address_type = 'registered') DESC, address.created_at LIMIT 1) supplier_city ON true
+          ORDER BY address.created_at LIMIT 1) supplier_city ON true
        LEFT JOIN LATERAL (
          SELECT COALESCE(supplier_city.city, (SELECT party_address.city FROM tenant.addresses party_address
                   WHERE party_address.organization_id = party.organization_id AND party_address.party_id = party.id AND party_address.status = 'active'
                   ORDER BY party_address.is_primary DESC, party_address.created_at LIMIT 1)) AS city) location ON true
       WHERE ($10::uuid IS NULL OR supplier.id IS NULL OR supplier.id <> $10::uuid) AND ($11::uuid IS NULL OR party.id <> $11::uuid)
         AND (
-          (probe.gstin IS NOT NULL AND (upper(party.gstin) = probe.gstin OR EXISTS (SELECT 1 FROM tenant.procurement_supplier_addresses address
-             WHERE address.organization_id = party.organization_id AND address.supplier_id = supplier.id AND address.gstin = probe.gstin)))
+          (probe.gstin IS NOT NULL AND (upper(party.gstin) = probe.gstin OR EXISTS (SELECT 1 FROM tenant.procurement_supplier_tax_registrations registration
+             WHERE registration.organization_id = party.organization_id AND registration.supplier_id = supplier.id AND registration.gstin = probe.gstin)))
           OR (probe.pan IS NOT NULL AND party.normalized_pan = probe.pan)
           OR (probe.name IS NOT NULL AND (party.normalized_company_name = probe.name OR party.normalized_legal_company_name = probe.name
                 OR similarity(party.normalized_company_name, probe.name) >= 0.55))

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
@@ -50,6 +50,16 @@ export type FormConfig = {
     values: Record<string, FieldValue>,
     lines: Array<Record<string, FieldValue>>,
   ) => Record<string, unknown>;
+  // Values the form keeps without a Details field (set by renderExtra), filled from the record on edit.
+  hiddenFields?: string[];
+  // A bespoke section shown after Details (e.g. the supplier contact and locations of an order).
+  renderExtra?: (form: {
+    values: Record<string, FieldValue>;
+    setValue: (name: string, value: FieldValue) => void;
+    options: ProcOptions;
+    reloadOptions: () => Promise<unknown>;
+    editing: boolean;
+  }) => ReactNode;
   // Pre-fill from the query string on create (e.g. ?supplier=<id>).
   initial?: Record<string, FieldValue>;
   // Create from another document (a PO from an approved requisition, ...): the
@@ -182,6 +192,10 @@ function FormBody({
             field.defaultValue ??
             (field.kind === "number" ? 0 : ""));
     }
+    for (const name of config.hiddenFields ?? []) {
+      const fromRecord = existing?.[name];
+      initial[name] = fromRecord !== undefined && fromRecord !== null ? String(fromRecord) : (config.initial?.[name] ?? "");
+    }
     return initial;
   });
   const [lines, setLines] = useState<LineState[]>(() => {
@@ -217,6 +231,7 @@ function FormBody({
       blankLine(config.lines!.fields),
     );
   });
+  const setField = useCallback((name: string, value: FieldValue) => setValues((current) => ({ ...current, [name]: value })), []);
   const [error, setError] = useState<string | null>(null);
   const [amendReason, setAmendReason] = useState("");
 
@@ -356,6 +371,13 @@ function FormBody({
           ))}
         </div>
       </ProcPanel>
+      {config.renderExtra?.({
+        values,
+        setValue: setField,
+        options,
+        reloadOptions: () => queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement", "options") }),
+        editing,
+      })}
       {config.lines && (
         <ProcPanel
           title={config.lines.label}

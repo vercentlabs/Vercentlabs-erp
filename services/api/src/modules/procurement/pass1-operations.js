@@ -34,5 +34,17 @@ export async function listProcurementPass1Options(client,c){
   const categories=await client.query(`SELECT record.id,COALESCE(record.data->>'name',record.data->>'code',record.id::text) AS label,record.status FROM tenant.procurement_categories record WHERE record.organization_id=$1 AND record.status='active' ORDER BY label LIMIT 200`,values);
   // Purchase payment terms, for a purchase order that does not take its supplier's default.
   const paymentTerms=await client.query(`SELECT id,code,name FROM tenant.payment_terms WHERE organization_id=$1 AND status='active' AND is_purchase_enabled ORDER BY default_due_days,name`,values);
-  return {paymentTerms:paymentTerms.rows,suppliers:suppliers.rows,purchaseOrders:orders.rows,receipts:receipts.rows,items:items.rows,warehouses:warehouses.rows,uoms:uoms.rows,categories:categories.rows};
+  // The active locations and people of active suppliers, for a new document's supplier side (the server checks each choice again).
+  // The active locations and people of active suppliers, for a new document's supplier side (the server checks each choice again).
+  const supplierAddresses=await client.query(`SELECT address.id, address.supplier_id, address.label, address.city, address.state, registration.gstin,
+      COALESCE((SELECT array_agg(purpose.purpose) FROM tenant.procurement_supplier_address_purposes purpose WHERE purpose.organization_id = address.organization_id AND purpose.address_id = address.id), '{}') AS purposes
+    FROM tenant.procurement_supplier_addresses address JOIN tenant.procurement_suppliers supplier ON supplier.organization_id = address.organization_id AND supplier.id = address.supplier_id AND supplier.status = 'active'
+    LEFT JOIN tenant.procurement_supplier_tax_registrations registration ON registration.organization_id = address.organization_id AND registration.id = address.tax_registration_id AND registration.status = 'active'
+   WHERE address.organization_id=$1 AND address.status = 'active' ORDER BY address.label LIMIT 5000`,values);
+  const supplierContacts=await client.query(`SELECT link.id, link.supplier_id, COALESCE(NULLIF(contact.display_name, ''), concat_ws(' ', contact.first_name, contact.last_name)) AS name, contact.designation, contact.email,
+      COALESCE((SELECT array_agg(role.role) FROM tenant.procurement_supplier_contact_roles role WHERE role.organization_id = link.organization_id AND role.supplier_contact_id = link.id), '{}') AS roles
+    FROM tenant.procurement_supplier_contacts link JOIN tenant.procurement_suppliers supplier ON supplier.organization_id = link.organization_id AND supplier.id = link.supplier_id AND supplier.status = 'active'
+    JOIN tenant.contacts contact ON contact.organization_id = link.organization_id AND contact.id = link.contact_id
+   WHERE link.organization_id=$1 AND link.status = 'active' ORDER BY name LIMIT 5000`,values);
+  return {supplierAddresses:supplierAddresses.rows,supplierContacts:supplierContacts.rows,paymentTerms:paymentTerms.rows,suppliers:suppliers.rows,purchaseOrders:orders.rows,receipts:receipts.rows,items:items.rows,warehouses:warehouses.rows,uoms:uoms.rows,categories:categories.rows};
 }

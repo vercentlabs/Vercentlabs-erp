@@ -7,7 +7,8 @@ export const SUPPLIER_PERMISSIONS: Readonly<Record<string, string>>;
 export const SUPPLIER_STATUS: Readonly<{ active: "active"; inactive: "inactive"; blocked: "blocked" }>;
 export const SUPPLIER_TYPES: Coded;
 export const SUPPLIER_CATEGORIES: Coded;
-export const SUPPLIER_ADDRESS_TYPES: Coded;
+export const SUPPLIER_ADDRESS_PURPOSES: ReadonlyArray<{ code: string; label: string; defaultColumn: string | null }>;
+export const SUPPLIER_CONTACT_PURPOSES: ReadonlyArray<{ code: string; label: string; defaultColumn: string }>;
 export const SUPPLIER_CONTACT_ROLES: Coded;
 export const SUPPLIER_GST_REGISTRATION_TYPES: ReadonlyArray<{ code: string; label: string; needsGstin: boolean }>;
 export const SUPPLIER_VIEWS: ReadonlyArray<{ key: string; label: string }>;
@@ -28,12 +29,22 @@ export function blockSupplier(client: QueryClient, context: Context, supplierId:
 export function unblockSupplier(client: QueryClient, context: Context, supplierId: string, input?: Record<string, any>): Promise<any>;
 export function deleteSupplier(client: QueryClient, context: Context, supplierId: string): Promise<{ deleted: boolean; supplierNumber: string; partyRemoved: boolean }>;
 
-export function addSupplierAddress(client: QueryClient, context: Context, supplierId: string, input?: Record<string, any>): Promise<{ addressId: string }>;
-export function updateSupplierAddress(client: QueryClient, context: Context, supplierId: string, addressId: string, input?: Record<string, any>): Promise<{ addressId: string }>;
-export function setSupplierAddressStatus(client: QueryClient, context: Context, supplierId: string, addressId: string, active: boolean): Promise<{ addressId: string; changed: boolean }>;
-export function addSupplierContact(client: QueryClient, context: Context, supplierId: string, input?: Record<string, any>): Promise<{ relationshipId: string; contactId: string }>;
-export function updateSupplierContact(client: QueryClient, context: Context, supplierId: string, relationshipId: string, input?: Record<string, any>): Promise<{ relationshipId: string }>;
-export function setSupplierContactStatus(client: QueryClient, context: Context, supplierId: string, relationshipId: string, active: boolean): Promise<{ relationshipId: string; changed: boolean }>;
+export function addSupplierAddress(client: QueryClient, context: Context, supplierId: string, input?: Record<string, any>): Promise<{ addressId: string; warnings: any[] }>;
+export function updateSupplierAddress(client: QueryClient, context: Context, supplierId: string, addressId: string, input?: Record<string, any>): Promise<{ addressId: string; warnings: any[] }>;
+export function setSupplierAddressStatus(client: QueryClient, context: Context, supplierId: string, addressId: string, active: boolean): Promise<{ addressId: string; changed: boolean; openDocuments: number; clearedDefaults: string[] }>;
+export function setDefaultSupplierAddress(client: QueryClient, context: Context, supplierId: string, purpose: string, addressId: string | null): Promise<{ changed: boolean }>;
+export function checkSupplierAddressDuplicates(client: QueryClient, context: Context, supplierId: string, input?: Record<string, any>, exceptAddressId?: string | null): Promise<any[]>;
+export function listSupplierAddresses(client: QueryClient, context: Context, supplierId: string, filters?: Record<string, any>): Promise<any[]>;
+export function addSupplierContact(client: QueryClient, context: Context, supplierId: string, input?: Record<string, any>): Promise<{ relationshipId: string; contactId: string; warnings: any[] }>;
+export function updateSupplierContact(client: QueryClient, context: Context, supplierId: string, relationshipId: string, input?: Record<string, any>): Promise<{ relationshipId: string; warnings: any[] }>;
+export function setSupplierContactStatus(client: QueryClient, context: Context, supplierId: string, relationshipId: string, active: boolean): Promise<{ relationshipId: string; changed: boolean; clearedDefaults: string[] }>;
+export function setSupplierContactForPurpose(client: QueryClient, context: Context, supplierId: string, purpose: string, relationshipId: string | null): Promise<{ changed: boolean }>;
+export function setPrimarySupplierContact(client: QueryClient, context: Context, supplierId: string, relationshipId: string | null): Promise<{ changed: boolean }>;
+export function checkSupplierContactDuplicates(client: QueryClient, context: Context, supplierId: string, input?: Record<string, any>, exceptRelationshipId?: string | null): Promise<any[]>;
+export function listSupplierContacts(client: QueryClient, context: Context, supplierId: string, filters?: Record<string, any>): Promise<any[]>;
+export function listSupplierTaxRegistrations(client: QueryClient, organizationId: string, supplierId: string): Promise<any[]>;
+export function addSupplierTaxRegistration(client: QueryClient, context: Context, supplierId: string, input?: Record<string, any>): Promise<{ registrationId: string; created: boolean }>;
+export function updateSupplierTaxRegistration(client: QueryClient, context: Context, supplierId: string, registrationId: string, input?: Record<string, any>): Promise<{ registrationId: string; changed: boolean }>;
 
 export function listSupplierPaymentDetails(client: QueryClient, context: Context, supplierId: string): Promise<{ accounts: any[]; canManage: boolean }>;
 export function addSupplierBankAccount(client: QueryClient, context: Context, supplierId: string, input?: Record<string, any>): Promise<{ accountId: string }>;
@@ -46,7 +57,10 @@ export function listSupplierHistory(client: QueryClient, context: Context, suppl
 
 export function assertSupplierUsable(client: QueryClient, organizationId: string, supplierId: string, options?: { purpose?: string }): Promise<any>;
 export function supplierDefaultsFor(client: QueryClient, organizationId: string, supplierId: string, options?: { purpose?: string }): Promise<any>;
-export function resolveSupplierDefaults(client: QueryClient, context: Context, supplierId: string): Promise<any>;
+export function resolveSupplierDefaults(client: QueryClient, context: Context, supplierId: string, purpose?: string): Promise<any>;
+export function resolveSupplierTransactionDefaults(client: QueryClient, organizationId: string, supplierId: string, purpose?: string): Promise<any>;
+export function supplierSelection(client: QueryClient, organizationId: string, supplierId: string, kind: "contact" | "address", id: string | null, label: string): Promise<any>;
+export function registrationSnapshotFor(client: QueryClient, organizationId: string, supplierId: string, ...addressIds: Array<string | null | undefined>): Promise<any>;
 
 export function prepareSupplierFileUpload(input: { fileName: string; bytes: Uint8Array }, env?: Record<string, string | undefined>): Promise<any>;
 export function listSupplierFiles(client: QueryClient, context: Context, supplierId: string): Promise<any[]>;

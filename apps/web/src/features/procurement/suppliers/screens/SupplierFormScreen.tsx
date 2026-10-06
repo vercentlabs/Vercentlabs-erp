@@ -97,7 +97,7 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
       }
       const body: Record<string, unknown> = Object.fromEntries([...IDENTITY, ...TAX, ...COMMERCIAL].filter((field) => values[field]).map((field) => [field, values[field]]));
       if (values.line1 || values.city)
-        body.address = { addressType: "registered", line1: values.line1, line2: values.line2 || null, city: values.city, state: values.state || null, postalCode: values.postalCode || null,
+        body.address = { line1: values.line1, line2: values.line2 || null, city: values.city, state: values.state || null, postalCode: values.postalCode || null,
           countryCode: values.countryCode, gstin: values.gstin || null, stateCode: values.registeredStateCode || null };
       if (values.contactFirstName)
         body.primaryContact = { firstName: values.contactFirstName, lastName: values.contactLastName || null, email: values.contactEmail || null, mobile: values.contactPhone || null };

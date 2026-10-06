@@ -24,7 +24,12 @@ export const SUPPLIER_PERMISSIONS = Object.freeze({
   status: "procurement.suppliers.status",
   block: "procurement.suppliers.block",
   addresses: "procurement.suppliers.addresses",
+  addressesView: "procurement.suppliers.addresses.view",
+  addressesDeactivate: "procurement.suppliers.addresses.deactivate",
   contacts: "procurement.suppliers.contacts",
+  contactsView: "procurement.suppliers.contacts.view",
+  contactsDeactivate: "procurement.suppliers.contacts.deactivate",
+  defaults: "procurement.suppliers.defaults",
   commercial: "procurement.suppliers.commercial",
   tax: "procurement.suppliers.tax",
   import: "procurement.suppliers.import",
@@ -57,26 +62,40 @@ export const SUPPLIER_CATEGORIES = Object.freeze([
   { code: "other", label: "Other" },
 ]);
 
-export const SUPPLIER_ADDRESS_TYPES = Object.freeze([
-  { code: "registered", label: "Registered" },
-  { code: "billing", label: "Billing" },
-  { code: "ordering", label: "Ordering" },
-  { code: "dispatch", label: "Dispatch / Ship From" },
-  { code: "branch", label: "Branch" },
-  { code: "other", label: "Other" },
+// What a supplier location is used for. One place may serve several purposes (a head office that is the registered,
+// ordering and billing address); each purpose has at most one default location.
+export const SUPPLIER_ADDRESS_PURPOSES = Object.freeze([
+  { code: "registered", label: "Registered / Legal", defaultColumn: "registered_address_id" },
+  { code: "ordering", label: "Ordering / Correspondence", defaultColumn: "ordering_address_id" },
+  { code: "billing", label: "Billing / Invoice", defaultColumn: "billing_address_id" },
+  { code: "ship_from", label: "Ship From / Dispatch", defaultColumn: "ship_from_address_id" },
+  { code: "branch", label: "Branch / Plant", defaultColumn: null },
+  { code: "return_to", label: "Return To", defaultColumn: "return_to_address_id" },
+  { code: "other", label: "Other", defaultColumn: null },
 ]);
+// The old one-type-per-row column keeps a value only because its NOT NULL check cannot be removed.
+export const LEGACY_ADDRESS_TYPE = Object.freeze({ registered: "registered", ordering: "ordering", billing: "billing", ship_from: "dispatch", branch: "branch", return_to: "other", other: "other" });
 
+// What a person does for you at the supplier. One person may hold several roles.
 export const SUPPLIER_CONTACT_ROLES = Object.freeze([
-  { code: "sales", label: "Sales" },
-  { code: "quotation", label: "Quotation" },
-  { code: "procurement", label: "Procurement" },
+  { code: "sales", label: "Sales / Quotation" },
+  { code: "procurement", label: "Procurement / Orders" },
   { code: "accounts", label: "Accounts / Billing" },
-  { code: "dispatch", label: "Dispatch" },
+  { code: "dispatch", label: "Dispatch / Logistics" },
   { code: "technical", label: "Technical" },
   { code: "management", label: "Management" },
   { code: "other", label: "Other" },
 ]);
+// The person a document is addressed to by default, one per purpose. Primary is the fallback when no specific one is set.
+export const SUPPLIER_CONTACT_PURPOSES = Object.freeze([
+  { code: "primary", label: "Primary contact", defaultColumn: "primary_contact_id" },
+  { code: "rfq", label: "RFQ contact", defaultColumn: "rfq_contact_id" },
+  { code: "ordering", label: "Ordering contact", defaultColumn: "ordering_contact_id" },
+  { code: "accounts", label: "Accounts contact", defaultColumn: "accounts_contact_id" },
+  { code: "dispatch", label: "Dispatch contact", defaultColumn: "dispatch_contact_id" },
+]);
 
+// A GST registration is one of the registered types; a location without one trades unregistered (or overseas).
 export const GST_REGISTRATION_TYPES = Object.freeze([
   { code: "registered_regular", label: "Registered – Regular", needsGstin: true },
   { code: "registered_composition", label: "Registered – Composition", needsGstin: true },
@@ -97,7 +116,8 @@ export const SUPPLIER_VIEWS = Object.freeze([
 const label = (list) => (code) => list.find((entry) => entry.code === code)?.label ?? code ?? null;
 export const supplierCategoryLabel = label(SUPPLIER_CATEGORIES);
 export const supplierTypeLabel = label(SUPPLIER_TYPES);
-export const supplierAddressTypeLabel = label(SUPPLIER_ADDRESS_TYPES);
+export const supplierAddressPurposeLabel = label(SUPPLIER_ADDRESS_PURPOSES);
+export const supplierContactPurposeLabel = label(SUPPLIER_CONTACT_PURPOSES);
 export const supplierContactRoleLabel = label(SUPPLIER_CONTACT_ROLES);
 export const gstRegistrationLabel = label(GST_REGISTRATION_TYPES);
 

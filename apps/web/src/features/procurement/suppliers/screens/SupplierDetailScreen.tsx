@@ -21,7 +21,8 @@ import { calendarDate, dateTime, money } from "@/features/procurement/shared/for
 import { deleteSupplier, errorCode, errorMessage, getSummary, getSupplier, getSupplierOptions, type SupplierDetail, type SupplierOptions } from "../api/suppliers-api";
 import { SupplierStatusBadge, formatAddress } from "../supplier-format";
 import { StatusDialog, type StatusAction } from "../components/SupplierDialogs";
-import { AddressesAndContacts, DocumentsPanel, FilesPanel, HistoryPanel, PaymentDetailsPanel } from "../components/SupplierPanels";
+import { DocumentsPanel, FilesPanel, HistoryPanel, PaymentDetailsPanel } from "../components/SupplierPanels";
+import { AddressesContactsPanel } from "../components/AddressesContactsPanel";
 
 export function SupplierDetailScreen({ supplierId }: { supplierId: string }) {
   const workspace = useWorkspaceContext();
@@ -103,7 +104,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
         <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
           <TabList aria-label="Supplier sections">
             <Tab id="overview">Overview</Tab>
-            <Tab id="places">Addresses &amp; Contacts</Tab>
+            {(actions.viewAddresses || actions.viewContacts) && <Tab id="places">Addresses &amp; Contacts</Tab>}
             <Tab id="commercial">Commercial</Tab>
             <Tab id="tax">Tax &amp; Compliance</Tab>
             <Tab id="purchases">Purchases</Tab>
@@ -125,7 +126,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                   { label: "Phone", value: supplier.primaryPhone ?? "—" },
                   { label: "Website", value: supplier.website ? <a className="text-brand hover:underline" href={supplier.website} target="_blank" rel="noreferrer">{supplier.website}</a> : "—" },
                   { label: "Primary contact", value: supplier.primaryContact ? [supplier.primaryContact.name, supplier.primaryContact.email, supplier.primaryContact.phone].filter(Boolean).join(" · ") : "—" },
-                  { label: "Default address", value: supplier.primaryAddress ? `${supplier.primaryAddress.addressTypeLabel}: ${formatAddress(supplier.primaryAddress)}` : "—" },
+                  { label: "Primary location", value: supplier.primaryAddress ? `${supplier.primaryAddress.label ?? "Registered"}: ${formatAddress(supplier.primaryAddress)}` : "—" },
                   { label: "Country", value: supplier.countryCode ?? "—" },
                 ]} />
               </ProcPanel>
@@ -156,7 +157,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
               </ProcPanel>
             </div>
           </TabPanel>
-          <TabPanel id="places"><div className="pt-4"><AddressesAndContacts detail={detail} options={options} onChanged={onChanged} /></div></TabPanel>
+          {(actions.viewAddresses || actions.viewContacts) && <TabPanel id="places"><div className="pt-4"><AddressesContactsPanel detail={detail} options={options} onChanged={onChanged} onShowHistory={() => setTab("history")} /></div></TabPanel>}
           <TabPanel id="commercial">
             <div className="flex flex-col gap-4 pt-4">
               <ProcPanel title="Commercial defaults" description="New RFQs and purchase orders start from these. A document keeps what it was given: changing them here never changes an existing order or bill.">
@@ -165,7 +166,14 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                   { label: "Default payment terms", value: supplier.paymentTermName ?? "—" },
                   { label: "Buyer", value: supplier.assignedBuyerName ?? "Unassigned" },
                   { label: "Category", value: supplier.categoryLabel },
-                  { label: "Ordering contact", value: detail.contacts.find((contact) => contact.status === "active" && ["procurement", "quotation"].includes(contact.role))?.name ?? supplier.primaryContact?.name ?? "—" },
+                  ...(["ordering", "rfq", "accounts", "dispatch"] as const).map((purpose) => ({
+                    label: { ordering: "Ordering contact", rfq: "RFQ contact", accounts: "Accounts contact", dispatch: "Dispatch contact" }[purpose],
+                    value: detail.contacts.find((contact) => contact.id === detail.defaults.contacts[purpose])?.name ?? supplier.primaryContact?.name ?? "—",
+                  })),
+                  ...(["ordering", "billing", "ship_from", "return_to"] as const).map((purpose) => ({
+                    label: { ordering: "Ordering address", billing: "Billing address", ship_from: "Ship-from location", return_to: "Return-to location" }[purpose],
+                    value: detail.addresses.find((address) => address.id === detail.defaults.addresses[purpose])?.label ?? "—",
+                  })),
                 ]} />
               </ProcPanel>
             </div>
@@ -182,14 +190,22 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                   { label: "Supplier type", value: supplier.supplierTypeLabel },
                 ]} />
               </ProcPanel>
-              <ProcPanel title="Registered locations" description="Other GST registrations, one per location.">
-                {detail.addresses.filter((address) => address.gstin && address.status === "active").length ? (
+              <ProcPanel title="GST registrations" description="Every registration of this supplier and the locations it covers. Managed under Addresses & Contacts.">
+                {detail.taxRegistrations.length ? (
                   <ul className="flex flex-col divide-y divide-border text-sm">
-                    {detail.addresses.filter((address) => address.gstin && address.status === "active").map((address) => (
-                      <li key={address.id} className="py-2"><span className="font-medium tabular-nums">{address.gstin}</span> · {address.label ?? address.addressTypeLabel}, {address.city}{address.state ? `, ${address.state}` : ""}</li>
-                    ))}
+                    {detail.taxRegistrations.map((registration) => {
+                      const covered = detail.addresses.filter((address) => address.taxRegistration?.id === registration.id && address.status === "active");
+                      return (
+                        <li key={registration.id} className={`py-2 ${registration.status !== "active" ? "opacity-60" : ""}`}>
+                          <span className="font-medium tabular-nums">{registration.gstin}</span>
+                          {" "}· {registration.registrationLabel} · {registration.stateName ?? registration.stateCode}{registration.isPrincipal ? " · principal" : ""}
+                          {registration.status !== "active" ? " · inactive" : ""}
+                          <span className="block text-xs text-text-muted">{covered.length ? covered.map((address) => `${address.label}, ${address.city}`).join(" · ") : "No location linked"}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
-                ) : <p className="text-sm text-text-muted">No other registrations.</p>}
+                ) : <p className="text-sm text-text-muted">No GST registrations.</p>}
               </ProcPanel>
             </div>
           </TabPanel>

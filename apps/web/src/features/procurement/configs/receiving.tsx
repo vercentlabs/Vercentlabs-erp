@@ -180,6 +180,7 @@ export const receiptDetail: DetailConfig = {
       ),
     },
     { label: "Received on", value: calendarDate(r.receiptDate) },
+    ...(r.supplierShipFrom ? [{ label: "Supplier ship-from", value: [r.supplierShipFrom.label, r.supplierShipFrom.city, r.supplierShipFrom.state].filter(Boolean).join(", ") }] : []),
     { label: "Delivery note", value: String(r.deliveryNote ?? "—") },
     { label: "Notes", value: String(r.notes ?? "—") },
   ],

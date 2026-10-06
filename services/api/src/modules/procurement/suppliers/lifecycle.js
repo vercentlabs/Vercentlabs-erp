@@ -108,7 +108,7 @@ export async function deleteSupplier(client, context, supplierId) {
     throw new SupplierError(409, `${supplier.supplier_number} has been used (${uses.join(", ")}). Deactivate or block it instead.`, "SUPPLIER_IN_USE", { uses });
   const contacts = (await client.query(`SELECT contact_id FROM tenant.procurement_supplier_contacts WHERE organization_id = $1 AND supplier_id = $2`,
     [context.organizationId, supplier.id])).rows.map((row) => row.contact_id);
-  for (const table of ["procurement_supplier_contacts", "procurement_supplier_addresses", "procurement_supplier_events"])
+  for (const table of ["procurement_supplier_defaults", "procurement_supplier_contacts", "procurement_supplier_addresses", "procurement_supplier_tax_registrations", "procurement_supplier_events"])
     await client.query(`DELETE FROM tenant.${table} WHERE organization_id = $1 AND supplier_id = $2`, [context.organizationId, supplier.id]);
   await client.query(`DELETE FROM public.attachments WHERE organization_id = $1 AND entity_type = 'procurement.supplier' AND entity_id = $2`, [context.organizationId, supplier.id]);
   await client.query(`DELETE FROM tenant.procurement_suppliers WHERE organization_id = $1 AND id = $2`, [context.organizationId, supplier.id]);

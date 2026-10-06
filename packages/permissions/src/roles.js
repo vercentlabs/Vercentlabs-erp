@@ -1387,6 +1387,10 @@ function withOrderPermissions(role) {
       // Supplier Master (as migration 0043 grants): every supplier seen by whoever saw suppliers; what suppliers are owed seen by Accounts Payable;
       // where suppliers are paid seen by whoever pays them and changed only by whoever approves payments; purchase payment terms seen by Procurement.
       ...(has("procurement.suppliers.view") ? ["procurement.suppliers.view_all"] : []),
+      // Supplier contacts and addresses (as migration 0044 grants): seen by whoever sees suppliers; deactivated, and defaults chosen, by whoever manages them.
+      ...(has("procurement.suppliers.view") || has("procurement.suppliers.view_all") ? ["procurement.suppliers.addresses.view", "procurement.suppliers.contacts.view"] : []),
+      ...(has("procurement.suppliers.addresses") ? ["procurement.suppliers.addresses.deactivate", "procurement.suppliers.defaults"] : []),
+      ...(has("procurement.suppliers.contacts") ? ["procurement.suppliers.contacts.deactivate", "procurement.suppliers.defaults"] : []),
       ...(has("accounting.payables.manage") || has("accounting.payables.approve") ? ["procurement.suppliers.payables.view"] : []),
       ...(has("accounting.payments.manage") || has("accounting.payments.approve") ? ["accounting.supplier_payment_details.view"] : []),
       ...(has("accounting.payments.approve") ? ["accounting.supplier_payment_details.manage"] : []),

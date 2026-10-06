@@ -29,6 +29,9 @@ export type ProcOptions = {
   categories: Array<{ id: string; label: string; status: string }>;
   agreements: Array<{ id: string; label: string; status: string }>;
   requisitions: Array<{ id: string; label: string; status: string }>;
+  // Active locations and people of active suppliers, for the order's supplier contact and locations.
+  supplierAddresses?: Array<{ id: string; supplier_id: string; label: string; city: string; state: string | null; gstin: string | null; purposes: string[] }>;
+  supplierContacts?: Array<{ id: string; supplier_id: string; name: string; designation: string | null; email: string | null; roles: string[] }>;
 };
 
 const qs = (params: Record<string, string | number | undefined>) => {

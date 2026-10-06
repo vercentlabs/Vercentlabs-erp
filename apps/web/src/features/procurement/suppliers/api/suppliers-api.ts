@@ -7,14 +7,25 @@ import { ProcApiError, post, request } from "@/features/procurement/shared/http"
 export type SupplierStatus = "active" | "inactive" | "blocked";
 export type Coded = { code: string; label: string };
 
+export type TaxRegistration = {
+  id: string; gstin: string; registrationType: string; registrationLabel: string; stateCode: string; stateName: string | null; isPrincipal: boolean; status: "active" | "inactive";
+};
 export type SupplierAddress = {
-  id: string; addressType: string; addressTypeLabel: string; label: string | null; line1: string; line2: string | null; city: string; district: string | null; state: string | null;
-  stateCode: string | null; postalCode: string | null; countryCode: string | null; gstRegistrationType: string | null; gstRegistrationLabel: string | null; gstin: string | null;
-  isPrimary: boolean; status: "active" | "inactive";
+  id: string; label: string; purposes: string[]; purposeLabels: string[]; defaultFor: string[]; line1: string; line2: string | null; locality: string | null; city: string;
+  district: string | null; state: string | null; stateCode: string | null; stateName: string | null; postalCode: string | null; countryCode: string | null;
+  locationEmail: string | null; locationPhone: string | null;
+  taxRegistration: { id: string; gstin: string; registrationType: string; stateCode: string; status: string; isPrincipal: boolean } | null;
+  status: "active" | "inactive"; updatedAt: string;
 };
 export type SupplierContact = {
-  id: string; contactId: string; contactNumber: string | null; name: string; firstName: string; lastName: string | null; designation: string | null; email: string | null;
-  phone: string | null; mobile: string | null; role: string; roleLabel: string; isPrimary: boolean; status: "active" | "inactive";
+  id: string; contactId: string; contactNumber: string | null; name: string; firstName: string; lastName: string | null; designation: string | null; department: string | null;
+  email: string | null; phone: string | null; mobile: string | null; roles: string[]; roleLabels: string[]; defaultFor: string[];
+  location: { id: string; label: string; city: string; status: string } | null; status: "active" | "inactive";
+};
+export type SupplierDefaults = { addresses: Record<string, string | null>; contacts: Record<string, string | null> };
+export type AddressMatch = { addressId: string; label: string; city: string; status: string; reason: string };
+export type ContactMatch = {
+  scope: "supplier" | "tenant"; relationshipId?: string; contactId: string; name: string; designation: string | null; company?: string | null; status?: string; reason: string;
 };
 export type Supplier = {
   id: string; supplierNumber: string; partyId: string; supplierName: string; legalName: string | null; supplierType: string; supplierTypeLabel: string; category: string;
@@ -23,19 +34,25 @@ export type Supplier = {
   countryCode: string | null; notes: string | null; gstRegistrationType: string | null; gstRegistrationLabel: string | null; gstin: string | null; pan: string | null;
   registeredStateCode: string | null; registeredStateName: string | null; defaultCurrency: string; paymentTermId: string; paymentTermName: string | null;
   assignedBuyerId: string | null; assignedBuyerName: string | null; isCustomer: boolean; customerNumber: string | null;
-  primaryAddress: { id: string; addressType: string; addressTypeLabel: string; label: string | null; line1: string; city: string; state: string | null; stateCode: string | null; postalCode: string | null; countryCode: string | null } | null;
-  primaryContact: { relationshipId: string; contactId: string; name: string; email: string | null; phone: string | null; role: string; roleLabel: string } | null;
+  primaryAddress: { id: string; label: string | null; line1: string; city: string; state: string | null; stateCode: string | null; postalCode: string | null; countryCode: string | null } | null;
+  primaryContact: { relationshipId: string; contactId: string; name: string; email: string | null; phone: string | null; designation: string | null } | null;
   version: number; createdAt: string; updatedAt: string;
 };
 export type SupplierActions = {
-  edit: boolean; createPurchaseOrder: boolean; deactivate: boolean; activate: boolean; block: boolean; unblock: boolean; manageAddresses: boolean; manageContacts: boolean;
+  edit: boolean; createPurchaseOrder: boolean; deactivate: boolean; activate: boolean; block: boolean; unblock: boolean;
+  viewAddresses: boolean; manageAddresses: boolean; deactivateAddresses: boolean; viewContacts: boolean; manageContacts: boolean; deactivateContacts: boolean; setDefaults: boolean;
+  manageTaxRegistrations: boolean;
   viewPayables: boolean; viewPaymentDetails: boolean; managePaymentDetails: boolean;
 };
-export type SupplierDetail = { supplier: Supplier; addresses: SupplierAddress[]; contacts: SupplierContact[]; actions: SupplierActions; capabilities: Record<string, boolean> };
+export type SupplierDetail = {
+  supplier: Supplier; addresses: SupplierAddress[]; contacts: SupplierContact[]; taxRegistrations: TaxRegistration[]; defaults: SupplierDefaults; actions: SupplierActions;
+  capabilities: Record<string, boolean>;
+};
 export type SupplierOptions = {
   baseCurrency: string | null; countryCode: string; currencies: Array<{ code: string; name: string }>;
   paymentTerms: Array<{ id: string; code: string; name: string; days: number | null }>; buyers: Array<{ id: string; name: string; email: string }>;
-  types: Coded[]; categories: Coded[]; gstRegistrationTypes: Array<Coded & { needsGstin: boolean }>; addressTypes: Coded[]; contactRoles: Coded[];
+  types: Coded[]; categories: Coded[]; gstRegistrationTypes: Array<Coded & { needsGstin: boolean }>; addressPurposes: Array<Coded & { hasDefault: boolean }>; contactRoles: Coded[];
+  contactPurposes: Coded[];
   states: Array<{ code: string; name: string }>; statuses: Coded[]; views: Array<{ key: string; label: string }>; capabilities: Record<string, boolean>;
 };
 export type DuplicateMatch = {
@@ -105,12 +122,27 @@ export const deleteSupplier = (id: string) => send<{ result: { deleted: boolean 
 export const checkDuplicates = (probe: Record<string, unknown>) => post<{ matches: DuplicateMatch[] }>("/suppliers/duplicates", probe).then((result) => result.matches);
 export const changeSupplierStatus = (id: string, action: "activate" | "deactivate" | "block" | "unblock", input: Record<string, unknown>) =>
   send<SupplierDetail>(`/suppliers/${id}/${action}`, { method: "POST", body: JSON.stringify(input) });
-export const addAddress = (id: string, input: Record<string, unknown>) => send<{ addressId: string }>(`/suppliers/${id}/addresses`, { method: "POST", body: JSON.stringify(input) });
+export const addAddress = (id: string, input: Record<string, unknown>) => send<{ addressId: string; warnings: AddressMatch[] }>(`/suppliers/${id}/addresses`, { method: "POST", body: JSON.stringify(input) });
 export const updateAddress = (id: string, addressId: string, input: Record<string, unknown>) =>
-  send<{ addressId: string }>(`/suppliers/${id}/addresses/${addressId}`, { method: "PATCH", body: JSON.stringify(input) });
-export const addContact = (id: string, input: Record<string, unknown>) => send<{ relationshipId: string }>(`/suppliers/${id}/contacts`, { method: "POST", body: JSON.stringify(input) });
+  send<{ addressId: string; warnings?: AddressMatch[]; openDocuments?: number; clearedDefaults?: string[] }>(`/suppliers/${id}/addresses/${addressId}`, { method: "PATCH", body: JSON.stringify(input) });
+export const checkAddressDuplicates = (id: string, input: Record<string, unknown>) =>
+  post<{ matches: AddressMatch[] }>(`/suppliers/${id}/addresses/duplicates`, input).then((result) => result.matches);
+export const checkContactDuplicates = (id: string, input: Record<string, unknown>) =>
+  post<{ matches: ContactMatch[] }>(`/suppliers/${id}/contacts/duplicates`, input).then((result) => result.matches);
+export const setDefault = (id: string, kind: "address" | "contact", purpose: string, target: string | null) =>
+  send<{ changed: boolean }>(`/suppliers/${id}/default-assignments`, { method: "POST", body: JSON.stringify({ kind, purpose, id: target }) });
+export const addRegistration = (id: string, input: Record<string, unknown>) =>
+  send<{ registrationId: string }>(`/suppliers/${id}/tax-registrations`, { method: "POST", body: JSON.stringify(input) });
+export const updateRegistration = (id: string, registrationId: string, input: Record<string, unknown>) =>
+  send<{ registrationId: string; changed: boolean; linkedLocations?: number }>(`/suppliers/${id}/tax-registrations/${registrationId}`, { method: "PATCH", body: JSON.stringify(input) });
+export type TransactionDefaults = {
+  contact: { relationshipId: string; name: string } | null; address: { addressId: string; label: string } | null; shipFrom: { addressId: string; label: string } | null;
+};
+export const getTransactionDefaults = (id: string, purpose = "purchase_order") =>
+  request<{ defaults: TransactionDefaults }>(`/suppliers/${id}/defaults?purpose=${purpose}`).then((result) => result.defaults);
+export const addContact = (id: string, input: Record<string, unknown>) => send<{ relationshipId: string; warnings: ContactMatch[] }>(`/suppliers/${id}/contacts`, { method: "POST", body: JSON.stringify(input) });
 export const updateContact = (id: string, relationshipId: string, input: Record<string, unknown>) =>
-  send<{ relationshipId: string }>(`/suppliers/${id}/contacts/${relationshipId}`, { method: "PATCH", body: JSON.stringify(input) });
+  send<{ relationshipId: string; warnings?: ContactMatch[]; clearedDefaults?: string[] }>(`/suppliers/${id}/contacts/${relationshipId}`, { method: "PATCH", body: JSON.stringify(input) });
 export const getSummary = (id: string) => request<{ purchases: PurchaseSummary; payables: PayablesSummary }>(`/suppliers/${id}/summary`);
 export const getDocuments = (id: string, kind: string) => request<{ documents: SupplierDocument[] }>(`/suppliers/${id}/documents/${kind}`).then((result) => result.documents);
 export const getHistory = (id: string) => request<{ history: HistoryEntry[] }>(`/suppliers/${id}/history`).then((result) => result.history);

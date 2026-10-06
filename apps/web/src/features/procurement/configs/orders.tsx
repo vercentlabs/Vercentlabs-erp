@@ -9,6 +9,7 @@ import {
 import type { DetailConfig } from "@/features/procurement/shared/DocumentDetail";
 import type { FormConfig } from "@/features/procurement/shared/DocumentForm";
 import type { ListConfig } from "@/features/procurement/shared/ResourceListPage";
+import { SupplierContextFields } from "@/features/procurement/suppliers/components/SupplierContextFields";
 import {
   calendarDate,
   money,
@@ -88,6 +89,10 @@ const lineFields = [
   },
 ];
 
+const SUPPLIER_CONTEXT = ["supplierContactId", "supplierAddressId", "supplierShipFromId"];
+const place = (value: { label?: string; line1?: string; city?: string; state?: string | null }) =>
+  [value.label, value.line1, value.city, value.state].filter(Boolean).join(", ");
+
 export const orderForm: FormConfig = {
   resource: "purchase-orders",
   noun: "purchase order",
@@ -138,6 +143,14 @@ export const orderForm: FormConfig = {
     addLabel: "Add item",
     fields: lineFields,
   },
+  // The supplier contact and locations: links to the Supplier Master, snapshotted by the server on save.
+  hiddenFields: [...SUPPLIER_CONTEXT],
+  renderExtra: (form) => <SupplierContextFields {...form} />,
+  toInput: (values, lines) => ({
+    ...Object.fromEntries(Object.entries(values).filter(([key, value]) => value !== "" || SUPPLIER_CONTEXT.includes(key))
+      .map(([key, value]) => [key, value === "" ? null : value])),
+    lines,
+  }),
 };
 
 export const orderDetail: DetailConfig = {
@@ -150,9 +163,11 @@ export const orderDetail: DetailConfig = {
     { label: "Title", value: String(r.title ?? "—") },
     // The supplier as it was when the order was made: later changes to the supplier never rewrite it.
     { label: "Supplier", value: r.supplierSnapshot ? `${r.supplierSnapshot.supplierName} · ${r.supplierSnapshot.supplierNumber}` : lookup.supplier(r.supplierId) },
-    ...(r.supplierSnapshot?.gstin ? [{ label: "Supplier GSTIN", value: String(r.supplierSnapshot.gstin) }] : []),
-    ...(r.supplierAddress ? [{ label: "Supplier address", value: [r.supplierAddress.line1, r.supplierAddress.city, r.supplierAddress.state].filter(Boolean).join(", ") }] : []),
-    ...(r.supplierContact ? [{ label: "Supplier contact", value: [r.supplierContact.name, r.supplierContact.email, r.supplierContact.phone].filter(Boolean).join(" · ") }] : []),
+    ...(r.supplierTaxRegistration?.gstin || r.supplierSnapshot?.gstin
+      ? [{ label: "Supplier GSTIN", value: String(r.supplierTaxRegistration?.gstin ?? r.supplierSnapshot.gstin) + (r.supplierTaxRegistration?.stateName ? ` · ${r.supplierTaxRegistration.stateName}` : "") }] : []),
+    ...(r.supplierContact ? [{ label: "Supplier contact", value: [r.supplierContact.name, r.supplierContact.designation, r.supplierContact.email, r.supplierContact.phone].filter(Boolean).join(" · ") }] : []),
+    ...(r.supplierAddress ? [{ label: "Ordering address", value: place(r.supplierAddress) }] : []),
+    ...(r.supplierShipFrom ? [{ label: "Ship-from location", value: place(r.supplierShipFrom) }] : []),
     { label: "Expected delivery", value: calendarDate(r.expectedDeliveryDate) },
     { label: "Currency", value: String(r.currencyCode ?? "—") },
     { label: "Payment terms", value: String(r.paymentTerms ?? "—") },

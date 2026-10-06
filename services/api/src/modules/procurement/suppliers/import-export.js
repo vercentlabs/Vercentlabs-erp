@@ -135,7 +135,7 @@ async function rowToInput(values, lookups, defaults) {
   if (values.buyerEmail) input.assignedBuyerId = await lookups.buyer(values.buyerEmail);
   if (values.line1 || values.city) {
     const stateCode = values.state ? (/^\d{2}$/.test(values.state) ? values.state : gstStateCode(values.state) ?? null) : null;
-    input.address = { addressType: "registered", line1: values.line1, line2: values.line2, city: values.city, state: values.state, stateCode, postalCode: values.postalCode,
+    input.address = { line1: values.line1, line2: values.line2, city: values.city, state: values.state, stateCode, postalCode: values.postalCode,
       countryCode: input.countryCode, gstin: input.gstin };
   }
   if (values.contactFirstName)

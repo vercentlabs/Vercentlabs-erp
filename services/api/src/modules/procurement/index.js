@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { add, allocate, decimal, format, mul } from "./money.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { purchaseTermSnapshot } from "../../core/payment-terms/index.js";
-import { assertSupplierUsable, supplierDefaultsFor } from "./suppliers/defaults.js";
+import { assertSupplierUsable, registrationSnapshotFor, supplierDefaultsFor, supplierSelection } from "./suppliers/defaults.js";
 
 export class ProcurementError extends Error {
   constructor(status, message, code = "PROCUREMENT_ERROR") {
@@ -342,10 +342,16 @@ async function loadReference(client, context, table, referenceId, label, options
   return { ...(row.data || {}), ...row };
 }
 
-// A purchase order's supplier comes from the Supplier Master: only an active supplier starts one, and its
-// currency, payment terms, ordering contact, ordering location and tax identity are copied onto the order
-// once (when the supplier is chosen or changed). The order keeps that snapshot: later changes to the
-// supplier never rewrite it. What the request sets itself (a currency, payment terms) wins.
+// A purchase order's supplier comes from the Supplier Master: only an active supplier starts one. When the
+// supplier is chosen (or changed on a draft) the order takes, once, the supplier's currency, payment terms,
+// ordering contact, ordering address, ship-from location and the GST registration of that location, each as
+// a link and a snapshot. A location or person the request chooses instead must be an active one of that
+// supplier. The order keeps its snapshots: later changes to the supplier never rewrite it.
+const ORDER_SELECTIONS = Object.freeze([
+  ["supplierContactId", "contact", "supplierContact", "The supplier contact", "relationshipId"],
+  ["supplierAddressId", "address", "supplierAddress", "The supplier ordering address", "addressId"],
+  ["supplierShipFromId", "address", "supplierShipFrom", "The supplier ship-from location", "addressId"],
+]);
 async function applySupplierToOrder(client, context, payload, input, previous) {
   const supplierChanged = !previous || previous.supplierId !== payload.supplierId || !payload.supplierSnapshot;
   if (supplierChanged) {
@@ -353,15 +359,30 @@ async function applySupplierToOrder(client, context, payload, input, previous) {
     payload.supplierSnapshot = defaults.supplier;
     payload.supplierContact = defaults.contact;
     payload.supplierAddress = defaults.address;
+    payload.supplierShipFrom = defaults.shipFrom;
+    payload.supplierTaxRegistration = defaults.taxRegistration;
+    for (const [key, , snapshotKey, , idKey] of ORDER_SELECTIONS) payload[key] = payload[snapshotKey]?.[idKey] ?? null;
     if (!input.currencyCode) payload.currencyCode = defaults.currencyCode;
     if (!input.paymentTermId) {
       payload.paymentTermId = defaults.paymentTerm?.id ?? null;
       payload.paymentTerm = defaults.paymentTerm;
     }
   }
+  let addressChosen = false;
+  for (const [key, kind, snapshotKey, label] of ORDER_SELECTIONS) {
+    if (!Object.prototype.hasOwnProperty.call(input, key)) continue;
+    const chosen = input[key] || null;
+    if (!supplierChanged && chosen === (previous?.[key] ?? null)) continue;
+    payload[key] = chosen;
+    payload[snapshotKey] = await supplierSelection(client, context.organizationId, payload.supplierId, kind, chosen, label);
+    if (kind === "address") addressChosen = true;
+  }
+  if (addressChosen)
+    payload.supplierTaxRegistration = await registrationSnapshotFor(client, context.organizationId, payload.supplierId, payload.supplierShipFromId, payload.supplierAddressId);
   if (input.paymentTermId && (supplierChanged || input.paymentTermId !== previous?.paymentTermId))
     payload.paymentTerm = await purchaseTermSnapshot(client, context.organizationId, payload.paymentTermId);
   payload.paymentTerms = payload.paymentTerm?.name ?? null;
+  if (payload.supplierTaxRegistration?.gstin && payload.supplierSnapshot) payload.supplierSnapshot = { ...payload.supplierSnapshot, gstin: payload.supplierTaxRegistration.gstin };
   if (!payload.currencyCode) throw new ProcurementError(400, "Currency is required.", "PROCUREMENT_VALIDATION");
 }
 
@@ -404,6 +425,10 @@ async function validateDocumentReferences(client, context, resource, payload, { 
     references.purchase_order_id = order.id;
     references.supplier_id = order.supplier_id || order.supplierId || null;
     payload.supplierId = references.supplier_id;
+    if (!payload.supplierShipFrom && order.supplierShipFrom) {
+      payload.supplierShipFrom = order.supplierShipFrom;
+      payload.supplierShipFromId = order.supplierShipFromId ?? null;
+    }
   }
   if (resource === "match-exceptions" && payload.purchaseOrderId) {
     const order = await loadReference(

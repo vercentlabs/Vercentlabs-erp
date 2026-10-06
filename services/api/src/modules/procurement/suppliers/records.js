@@ -10,17 +10,19 @@ import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { listPurchaseTermOptions } from "../../../core/payment-terms/index.js";
 import { GST_STATES, gstStateName } from "../../../core/tax/index.js";
 import {
-  CONTACT_NUMBER_DOCUMENT_TYPE, GST_REGISTRATION_TYPES, PARTY_CODE_DOCUMENT_TYPE, SUPPLIER_ADDRESS_TYPES, SUPPLIER_CATEGORIES, SUPPLIER_CONTACT_ROLES,
+  CONTACT_NUMBER_DOCUMENT_TYPE, GST_REGISTRATION_TYPES, PARTY_CODE_DOCUMENT_TYPE, SUPPLIER_ADDRESS_PURPOSES, SUPPLIER_CATEGORIES, SUPPLIER_CONTACT_PURPOSES, SUPPLIER_CONTACT_ROLES,
   SUPPLIER_NUMBER_DOCUMENT_TYPE, SUPPLIER_PERMISSIONS, SUPPLIER_STATUS, SUPPLIER_STATUS_LABELS, SUPPLIER_TYPES, SUPPLIER_VIEWS, SupplierError, gstRegistrationLabel,
-  has, isUuid, requireUuid, supplierAddressTypeLabel, supplierCategoryLabel, supplierContactRoleLabel, supplierTypeLabel, text,
+  has, isUuid, requireUuid, supplierCategoryLabel, supplierTypeLabel, text,
 } from "./constants.js";
 import { loadSupplier, recordSupplierEvent, requireSupplierAccess, requireSupplierPermission, supplierCan, supplierCapabilities, supplierScopeSql } from "./access.js";
 import {
   COMMERCIAL_FIELDS, IDENTITY_FIELDS, TAX_FIELDS, assertSupplierReferences, assertValidSupplier, completeTaxDetails, fieldLabel, normalizeSupplierInput,
 } from "./validation.js";
 import { assertNoBlockingSupplierDuplicate } from "./duplicates.js";
-import { insertSupplierAddress } from "./addresses.js";
-import { addSupplierContact } from "./contacts.js";
+import { ADDRESS_SELECT, insertSupplierAddress, toAddress } from "./addresses.js";
+import { CONTACT_SELECT, addSupplierContact, toContact } from "./contacts.js";
+import { defaultsView, readDefaults } from "./default-assignments.js";
+import { ensureRegistration, listSupplierTaxRegistrations } from "./tax-registrations.js";
 
 // supplier field -> [table alias, column]. The party holds the shared identity; the supplier row Procurement's own data.
 const COLUMNS = Object.freeze({
@@ -43,27 +45,28 @@ const SELECT = `
          supplier.blocked_at, supplier.version, supplier.created_at, supplier.updated_at, supplier.created_by,
          party.display_name, party.legal_name, party.gstin, party.pan, party.website, party.country_code, party.gst_state_code, party.tax_treatment, party.customer_number,
          term.name AS payment_term_name, term.code AS payment_term_code, buyer.full_name AS buyer_name, blocker.full_name AS blocked_by_name, changer.full_name AS status_changed_by_name,
-         location.id AS location_id, location.address_type AS location_type, location.label AS location_label, location.line1 AS location_line1, location.city AS location_city,
+         location.id AS location_id, location.label AS location_label, location.line1 AS location_line1, location.city AS location_city,
          location.state AS location_state, location.state_code AS location_state_code, location.postal_code AS location_postal_code, location.country_code AS location_country_code,
          person.relationship_id AS primary_contact_relationship_id, person.contact_id AS primary_contact_id, person.name AS primary_contact_name, person.email AS primary_contact_email,
-         person.phone AS primary_contact_phone, person.role AS primary_contact_role
+         person.phone AS primary_contact_phone, person.designation AS primary_contact_designation
     FROM tenant.procurement_suppliers supplier
     JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
     LEFT JOIN tenant.payment_terms term ON term.organization_id = supplier.organization_id AND term.id = supplier.payment_term_id
     LEFT JOIN public.users buyer ON buyer.id = supplier.assigned_buyer_id
     LEFT JOIN public.users blocker ON blocker.id = supplier.blocked_by
     LEFT JOIN public.users changer ON changer.id = supplier.status_changed_by
+    LEFT JOIN tenant.procurement_supplier_defaults defaults ON defaults.organization_id = supplier.organization_id AND defaults.supplier_id = supplier.id
     LEFT JOIN LATERAL (
       SELECT address.* FROM tenant.procurement_supplier_addresses address
        WHERE address.organization_id = supplier.organization_id AND address.supplier_id = supplier.id AND address.status = 'active'
-       ORDER BY address.is_primary DESC, (address.address_type = 'registered') DESC, address.created_at LIMIT 1) location ON true
+         AND address.id IN (defaults.registered_address_id, defaults.ordering_address_id)
+       ORDER BY (address.id = defaults.registered_address_id) DESC LIMIT 1) location ON true
     LEFT JOIN LATERAL (
-      SELECT link.id AS relationship_id, contact.id AS contact_id, link.role,
+      SELECT link.id AS relationship_id, contact.id AS contact_id, contact.designation,
              COALESCE(NULLIF(contact.display_name, ''), concat_ws(' ', contact.first_name, contact.last_name)) AS name, contact.email, COALESCE(contact.mobile, contact.phone) AS phone
         FROM tenant.procurement_supplier_contacts link
         JOIN tenant.contacts contact ON contact.organization_id = link.organization_id AND contact.id = link.contact_id
-       WHERE link.organization_id = supplier.organization_id AND link.supplier_id = supplier.id AND link.status = 'active'
-       ORDER BY link.is_primary DESC, link.created_at LIMIT 1) person ON true`;
+       WHERE link.organization_id = supplier.organization_id AND link.id = defaults.primary_contact_id AND link.status = 'active') person ON true`;
 
 export function toSupplier(row) {
   return {
@@ -102,13 +105,14 @@ export function toSupplier(row) {
     assignedBuyerName: row.buyer_name ?? null,
     isCustomer: Boolean(row.customer_number),
     customerNumber: row.customer_number ?? null,
+    // The primary location (the registered default, else the ordering default) and the primary contact, for headers and lists.
     primaryAddress: row.location_id ? {
-      id: row.location_id, addressType: row.location_type, addressTypeLabel: supplierAddressTypeLabel(row.location_type), label: row.location_label, line1: row.location_line1,
-      city: row.location_city, state: row.location_state, stateCode: row.location_state_code, postalCode: row.location_postal_code, countryCode: row.location_country_code?.trim() ?? null,
+      id: row.location_id, label: row.location_label, line1: row.location_line1, city: row.location_city, state: row.location_state, stateCode: row.location_state_code,
+      postalCode: row.location_postal_code, countryCode: row.location_country_code?.trim() ?? null,
     } : null,
     primaryContact: row.primary_contact_id ? {
       relationshipId: row.primary_contact_relationship_id, contactId: row.primary_contact_id, name: row.primary_contact_name, email: row.primary_contact_email,
-      phone: row.primary_contact_phone, role: row.primary_contact_role, roleLabel: supplierContactRoleLabel(row.primary_contact_role),
+      phone: row.primary_contact_phone, designation: row.primary_contact_designation,
     } : null,
     version: row.version,
     createdAt: row.created_at,
@@ -133,41 +137,36 @@ function supplierActions(context, supplier) {
     activate: supplier.status === SUPPLIER_STATUS.inactive && can(SUPPLIER_PERMISSIONS.status),
     block: supplier.status !== SUPPLIER_STATUS.blocked && can(SUPPLIER_PERMISSIONS.block),
     unblock: supplier.status === SUPPLIER_STATUS.blocked && can(SUPPLIER_PERMISSIONS.block),
+    viewAddresses: can(SUPPLIER_PERMISSIONS.addressesView),
     manageAddresses: can(SUPPLIER_PERMISSIONS.addresses),
+    deactivateAddresses: can(SUPPLIER_PERMISSIONS.addressesDeactivate),
+    viewContacts: can(SUPPLIER_PERMISSIONS.contactsView),
     manageContacts: can(SUPPLIER_PERMISSIONS.contacts),
+    deactivateContacts: can(SUPPLIER_PERMISSIONS.contactsDeactivate),
+    setDefaults: can(SUPPLIER_PERMISSIONS.defaults),
+    manageTaxRegistrations: can(SUPPLIER_PERMISSIONS.tax),
     viewPayables: can(SUPPLIER_PERMISSIONS.payablesView),
     viewPaymentDetails: can(SUPPLIER_PERMISSIONS.paymentDetailsView) || can(SUPPLIER_PERMISSIONS.paymentDetailsManage),
     managePaymentDetails: can(SUPPLIER_PERMISSIONS.paymentDetailsManage),
   };
 }
 
+// The supplier with its locations, people, GST registrations and defaults. Locations and people are shown to whoever may view them.
 export async function getSupplier(client, context, supplierId) {
   const scoped = await loadSupplier(client, context, supplierId);
   const supplier = toSupplier(await readSupplierRow(client, context.organizationId, scoped.id));
-  const addresses = (await client.query(
-    `SELECT * FROM tenant.procurement_supplier_addresses WHERE organization_id = $1 AND supplier_id = $2
-      ORDER BY (status = 'active') DESC, is_primary DESC, address_type, created_at`, [context.organizationId, supplier.id])).rows.map(toAddress);
-  const contacts = (await client.query(
-    `SELECT link.id, link.contact_id, link.role, link.is_primary, link.status, contact.contact_number, contact.first_name, contact.last_name,
-            COALESCE(NULLIF(contact.display_name, ''), concat_ws(' ', contact.first_name, contact.last_name)) AS name, contact.designation, contact.email, contact.phone, contact.mobile
-       FROM tenant.procurement_supplier_contacts link
-       JOIN tenant.contacts contact ON contact.organization_id = link.organization_id AND contact.id = link.contact_id
-      WHERE link.organization_id = $1 AND link.supplier_id = $2
-      ORDER BY (link.status = 'active') DESC, link.is_primary DESC, link.created_at`, [context.organizationId, supplier.id])).rows.map(toContact);
-  return { supplier, addresses, contacts, actions: supplierActions(context, supplier), capabilities: supplierCapabilities(context) };
+  const actions = supplierActions(context, supplier);
+  const defaults = await readDefaults(client, context.organizationId, supplier.id);
+  const addresses = actions.viewAddresses ? (await client.query(
+    `${ADDRESS_SELECT} WHERE address.organization_id = $1 AND address.supplier_id = $2 ORDER BY (address.status = 'active') DESC, address.label, address.created_at`,
+    [context.organizationId, supplier.id])).rows.map((row) => toAddress(row, defaults)) : [];
+  const contacts = actions.viewContacts ? (await client.query(
+    `${CONTACT_SELECT} WHERE link.organization_id = $1 AND link.supplier_id = $2 ORDER BY (link.status = 'active') DESC, contact.first_name, link.created_at`,
+    [context.organizationId, supplier.id])).rows.map((row) => toContact(row, defaults)) : [];
+  const taxRegistrations = actions.viewAddresses ? await listSupplierTaxRegistrations(client, context.organizationId, supplier.id) : [];
+  if (!actions.viewContacts) supplier.primaryContact = supplier.primaryContact ? { ...supplier.primaryContact, email: null, phone: null } : null;
+  return { supplier, addresses, contacts, taxRegistrations, defaults: defaultsView(defaults), actions, capabilities: supplierCapabilities(context) };
 }
-
-export const toAddress = (row) => ({
-  id: row.id, addressType: row.address_type, addressTypeLabel: supplierAddressTypeLabel(row.address_type), label: row.label, line1: row.line1, line2: row.line2, city: row.city,
-  district: row.district, state: row.state, stateCode: row.state_code, postalCode: row.postal_code, countryCode: row.country_code?.trim() ?? null,
-  gstRegistrationType: row.gst_registration_type, gstRegistrationLabel: row.gst_registration_type ? gstRegistrationLabel(row.gst_registration_type) : null, gstin: row.gstin,
-  isPrimary: row.is_primary, status: row.status,
-});
-
-export const toContact = (row) => ({
-  id: row.id, contactId: row.contact_id, contactNumber: row.contact_number, name: row.name, firstName: row.first_name, lastName: row.last_name, designation: row.designation,
-  email: row.email, phone: row.phone, mobile: row.mobile, role: row.role, roleLabel: supplierContactRoleLabel(row.role), isPrimary: row.is_primary, status: row.status,
-});
 
 // ------------------------------------------------------------------ create
 
@@ -235,14 +234,16 @@ export async function createSupplier(client, context, input = {}) {
   const supplierId = (await client.query(
     `INSERT INTO tenant.procurement_suppliers (${columns.join(", ")}) VALUES (${values.map((_, index) => `$${index + 1}`).join(", ")}) RETURNING id`, values)).rows[0].id;
 
+  if (candidate.gstin)
+    await ensureRegistration(client, context, { id: supplierId, party_id: partyId }, candidate.gstin, { registrationType: candidate.gstRegistrationType, principal: true });
   const strong = duplicates.filter((match) => match.strength === "strong");
   await recordSupplierEvent(client, context, supplierId, "supplier.created",
     party ? `Supplier ${supplierNumber} created for ${candidate.supplierName}${party.customer_number ? `, also customer ${party.customer_number}` : ""}` : `Supplier ${supplierNumber} created`,
     { origin: text(input.origin) ?? "procurement", status, ...(strong.length ? { createdDespite: strong.map((match) => match.number ?? match.name), reason: text(input.duplicateReason) } : {}) });
   if (input.address && typeof input.address === "object")
-    await insertSupplierAddress(client, context, supplierId, { addressType: "registered", ...input.address, isPrimary: true }, { record: false });
+    await insertSupplierAddress(client, context, supplierId, { purposes: ["registered", "ordering", "billing"], label: input.address.label ?? "Registered Office", ...input.address }, { record: false });
   if (input.primaryContact && text(input.primaryContact.firstName))
-    await addSupplierContact(client, context, supplierId, { role: "procurement", ...input.primaryContact, isPrimary: true }, { record: false, skipPermission: true });
+    await addSupplierContact(client, context, supplierId, { roles: ["procurement", "sales"], defaults: ["primary"], ...input.primaryContact }, { record: false, skipPermission: true });
   return getSupplier(client, context, supplierId);
 }
 
@@ -294,6 +295,12 @@ export async function updateSupplier(client, context, supplierId, input = {}) {
   };
   await write("party", "business_parties", row.party_id);
   await write("supplier", "procurement_suppliers", row.id, [["version = version + 1"], ["search_text", `${row.supplier_number} ${candidate.supplierName}`]]);
+  // The principal registration follows the supplier's own GSTIN; the old one stays as a registration its locations may still use.
+  if (finalChanged.includes("gstin") || (finalChanged.includes("gstRegistrationType") && candidate.gstin)) {
+    if (candidate.gstin) await ensureRegistration(client, context, row, candidate.gstin, { registrationType: candidate.gstRegistrationType, principal: true });
+    else await client.query(`UPDATE tenant.procurement_supplier_tax_registrations SET is_principal = false, updated_at = now() WHERE organization_id = $1 AND supplier_id = $2 AND is_principal`,
+      [context.organizationId, row.id]);
+  }
 
   // The business events, one each; the minor details together.
   const names = await describeReferences(client, context, current, candidate);
@@ -358,7 +365,9 @@ export async function listSuppliers(client, context, filters = {}) {
       OR party.pan ILIKE ${term} OR supplier.primary_email ILIKE ${term} OR party.website ILIKE ${term}
       ${digits.length >= 6 ? `OR supplier.normalized_phone LIKE ${bind(`%${digits.slice(-10)}%`)}` : ""}
       OR EXISTS (SELECT 1 FROM tenant.procurement_supplier_addresses address WHERE address.organization_id = supplier.organization_id AND address.supplier_id = supplier.id
-                  AND (address.city ILIKE ${term} OR address.gstin ILIKE ${term} OR address.state ILIKE ${term})))`;
+                  AND (address.city ILIKE ${term} OR address.state ILIKE ${term} OR address.label ILIKE ${term}))
+      OR EXISTS (SELECT 1 FROM tenant.procurement_supplier_tax_registrations registration WHERE registration.organization_id = supplier.organization_id
+                  AND registration.supplier_id = supplier.id AND registration.gstin ILIKE ${term}))`;
   }
   const sort = SORTS[filters.sort] ?? SORTS.number;
   const direction = filters.direction === "desc" ? "DESC" : "ASC";
@@ -394,8 +403,10 @@ export async function getSupplierFormOptions(client, context) {
       WHERE membership.organization_id = $1 AND membership.status = 'active' AND users.status = 'active' ORDER BY users.full_name`, [context.organizationId])).rows;
   return {
     baseCurrency: organization.currency ?? null, countryCode: organization.country_code ?? "IN", currencies, paymentTerms: await listPurchaseTermOptions(client, context.organizationId),
-    buyers, types: SUPPLIER_TYPES, categories: SUPPLIER_CATEGORIES, gstRegistrationTypes: GST_REGISTRATION_TYPES, addressTypes: SUPPLIER_ADDRESS_TYPES,
-    contactRoles: SUPPLIER_CONTACT_ROLES, states: GST_STATES.map(([code, name]) => ({ code, name })), statuses: Object.entries(SUPPLIER_STATUS_LABELS).map(([code, label]) => ({ code, label })),
+    buyers, types: SUPPLIER_TYPES, categories: SUPPLIER_CATEGORIES, gstRegistrationTypes: GST_REGISTRATION_TYPES,
+    addressPurposes: SUPPLIER_ADDRESS_PURPOSES.map(({ code, label, defaultColumn }) => ({ code, label, hasDefault: Boolean(defaultColumn) })),
+    contactPurposes: SUPPLIER_CONTACT_PURPOSES.map(({ code, label }) => ({ code, label })),
+    contactRoles: SUPPLIER_CONTACT_ROLES, states: GST_STATES.map(({ code, name }) => ({ code, name })), statuses: Object.entries(SUPPLIER_STATUS_LABELS).map(([code, label]) => ({ code, label })),
     views: SUPPLIER_VIEWS, capabilities: supplierCapabilities(context),
   };
 }

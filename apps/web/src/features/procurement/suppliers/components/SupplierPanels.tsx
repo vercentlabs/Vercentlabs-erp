@@ -14,97 +14,14 @@ import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/procurement/shared/format";
 
 import {
-  errorMessage, fileUrl, getDocuments, getHistory, listFiles, listPaymentDetails, removeFile, updateAddress, updateBankAccount, updateContact, uploadFile,
-  type BankAccount, type SupplierAddress, type SupplierContact, type SupplierDetail, type SupplierDocument, type SupplierOptions,
+  errorMessage, fileUrl, getDocuments, getHistory, listFiles, listPaymentDetails, removeFile, updateBankAccount, uploadFile,
+  type BankAccount, type SupplierDetail, type SupplierDocument, type SupplierOptions,
 } from "../api/suppliers-api";
-import { formatAddress } from "../supplier-format";
-import { AddressDialog, BankAccountDialog, ContactDialog } from "./SupplierDialogs";
+import { BankAccountDialog } from "./SupplierDialogs";
 
 const Row = ({ children, inactive }: { children: React.ReactNode; inactive?: boolean }) => (
   <li className={`flex flex-wrap items-start justify-between gap-3 py-3 ${inactive ? "opacity-60" : ""}`}>{children}</li>
 );
-
-export function AddressesAndContacts({ detail, options, onChanged }: { detail: SupplierDetail; options: SupplierOptions; onChanged: (message: string) => void }) {
-  const { supplier, addresses, contacts, actions } = detail;
-  const [address, setAddress] = useState<SupplierAddress | "new" | null>(null);
-  const [contact, setContact] = useState<SupplierContact | "new" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const toggleAddress = useMutation({
-    mutationFn: (entry: SupplierAddress) => updateAddress(supplier.id, entry.id, { active: entry.status !== "active" }),
-    onSuccess: (_result, entry) => onChanged(entry.status === "active" ? "The address was removed." : "The address was restored."),
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-  const toggleContact = useMutation({
-    mutationFn: (entry: SupplierContact) => updateContact(supplier.id, entry.id, { active: entry.status !== "active" }),
-    onSuccess: (_result, entry) => onChanged(entry.status === "active" ? "The contact was removed from this supplier." : "The contact was added back."),
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-  return (
-    <div className="flex flex-col gap-4">
-      {error && <ProcAlert>{error}</ProcAlert>}
-      <ProcPanel title="Addresses" description="Registered office, billing and ordering offices, dispatch locations, branches. Documents keep a copy of the address they used."
-        actions={actions.manageAddresses ? <Button size="compact" variant="secondary" onPress={() => setAddress("new")}>Add address</Button> : undefined}>
-        {!addresses.length ? <p className="text-sm text-text-muted">No addresses yet.</p> : (
-          <ul className="flex flex-col divide-y divide-border">
-            {addresses.map((entry) => (
-              <Row key={entry.id} inactive={entry.status !== "active"}>
-                <span className="flex min-w-0 flex-col gap-0.5 text-sm">
-                  <span className="flex flex-wrap items-center gap-2 font-medium">
-                    {entry.addressTypeLabel}{entry.label ? ` · ${entry.label}` : ""}
-                    {entry.isPrimary && <StatusBadge tone="info">Default</StatusBadge>}
-                    {entry.status !== "active" && <StatusBadge tone="neutral">Removed</StatusBadge>}
-                  </span>
-                  <span className="text-text-secondary">{formatAddress(entry)}</span>
-                  {entry.gstin && <span className="text-xs text-text-muted">GSTIN {entry.gstin}{entry.gstRegistrationLabel ? ` · ${entry.gstRegistrationLabel}` : ""}</span>}
-                </span>
-                {actions.manageAddresses && (
-                  <span className="flex gap-2">
-                    {entry.status === "active" && <Button size="compact" variant="ghost" onPress={() => setAddress(entry)}>Edit</Button>}
-                    <Button size="compact" variant="ghost" isLoading={toggleAddress.isPending && toggleAddress.variables?.id === entry.id} onPress={() => toggleAddress.mutate(entry)}>
-                      {entry.status === "active" ? "Remove" : "Restore"}
-                    </Button>
-                  </span>
-                )}
-              </Row>
-            ))}
-          </ul>
-        )}
-      </ProcPanel>
-      <ProcPanel title="Contacts" description="The people at this supplier and their roles here. A person is a shared contact."
-        actions={actions.manageContacts ? <Button size="compact" variant="secondary" onPress={() => setContact("new")}>Add contact</Button> : undefined}>
-        {!contacts.length ? <p className="text-sm text-text-muted">No contacts yet.</p> : (
-          <ul className="flex flex-col divide-y divide-border">
-            {contacts.map((entry) => (
-              <Row key={entry.id} inactive={entry.status !== "active"}>
-                <span className="flex min-w-0 flex-col gap-0.5 text-sm">
-                  <span className="flex flex-wrap items-center gap-2 font-medium">
-                    {entry.name}
-                    <StatusBadge tone="neutral">{entry.roleLabel}</StatusBadge>
-                    {entry.isPrimary && <StatusBadge tone="info">Primary</StatusBadge>}
-                    {entry.status !== "active" && <StatusBadge tone="neutral">Removed</StatusBadge>}
-                  </span>
-                  <span className="text-text-secondary">{[entry.designation, entry.email, entry.mobile ?? entry.phone].filter(Boolean).join(" · ")}</span>
-                </span>
-                {actions.manageContacts && (
-                  <span className="flex gap-2">
-                    {entry.status === "active" && <Button size="compact" variant="ghost" onPress={() => setContact(entry)}>Edit</Button>}
-                    <Button size="compact" variant="ghost" isLoading={toggleContact.isPending && toggleContact.variables?.id === entry.id} onPress={() => toggleContact.mutate(entry)}>
-                      {entry.status === "active" ? "Remove" : "Add back"}
-                    </Button>
-                  </span>
-                )}
-              </Row>
-            ))}
-          </ul>
-        )}
-      </ProcPanel>
-      {address && <AddressDialog supplier={supplier} address={address === "new" ? null : address} options={options} onClose={() => setAddress(null)}
-        onDone={(message) => { setAddress(null); onChanged(message); }} />}
-      {contact && <ContactDialog supplier={supplier} contact={contact === "new" ? null : contact} options={options} onClose={() => setContact(null)}
-        onDone={(message) => { setContact(null); onChanged(message); }} />}
-    </div>
-  );
-}
 
 const KINDS: Record<string, { title: string; description: string; empty: string }> = {
   orders: { title: "Purchase orders", description: "Every purchase order for this supplier, newest first.", empty: "No purchase orders yet." },
