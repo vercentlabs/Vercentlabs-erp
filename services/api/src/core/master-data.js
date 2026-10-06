@@ -219,20 +219,6 @@ const resources = Object.freeze({
     relationField: "warehouseId",
     archiveStatus: "inactive",
   },
-  "payment-terms": {
-    table: "tenant.payment_terms",
-    searchColumns: ["code", "name", "description"],
-    orderBy: "default_due_days ASC, name ASC",
-    fields: {
-      code: "code",
-      name: "name",
-      description: "description",
-      defaultDueDays: "default_due_days",
-      status: "status",
-    },
-    scope: "organization",
-    archiveStatus: "inactive",
-  },
   "price-lists": {
     table: "tenant.price_lists",
     searchColumns: ["code", "name", "price_list_type", "currency_code"],
@@ -574,30 +560,6 @@ export async function createBusinessDataRecord(
       parameters,
     );
 
-    if (resource === "payment-terms") {
-      const term = result.rows[0];
-      await client.query(
-        `
-          INSERT INTO tenant.payment_term_lines (
-            organization_id,
-            payment_term_id,
-            sequence,
-            due_days,
-            percentage,
-            created_by,
-            updated_by
-          )
-          VALUES ($1, $2, 1, $3, 100, $4, $4)
-        `,
-        [
-          context.organizationId,
-          term.id,
-          scopedInput.defaultDueDays,
-          context.userId,
-        ],
-      );
-    }
-
     return camelizeRow(result.rows[0]);
   } catch (error) {
     throw databaseError(error);
@@ -704,38 +666,6 @@ export async function updateBusinessDataRecord(
         );
       }
       throw new BusinessDataError(404, "Record not found.");
-    }
-
-    if (
-      resource === "payment-terms" &&
-      suppliedFields.includes("defaultDueDays")
-    ) {
-      await client.query(
-        `
-          INSERT INTO tenant.payment_term_lines (
-            organization_id,
-            payment_term_id,
-            sequence,
-            due_days,
-            percentage,
-            created_by,
-            updated_by
-          )
-          VALUES ($1, $2, 1, $3, 100, $4, $4)
-          ON CONFLICT (organization_id, payment_term_id, sequence)
-          DO UPDATE SET
-            due_days = EXCLUDED.due_days,
-            percentage = EXCLUDED.percentage,
-            updated_by = EXCLUDED.updated_by,
-            updated_at = now()
-        `,
-        [
-          context.organizationId,
-          id,
-          scopedInput.defaultDueDays,
-          context.userId,
-        ],
-      );
     }
 
     return camelizeRow(result.rows[0]);
@@ -1190,41 +1120,31 @@ export async function seedBusinessDataFoundation(client, context) {
     );
   }
 
+  // Sensible starting payment terms; a tenant adds, renames and deactivates its own (core/payment-terms).
   const terms = [
-    ["IMMEDIATE", "Immediate", "Payment is due immediately.", 0],
-    ["NET-7", "Net 7", "Payment is due within 7 days.", 7],
-    ["NET-15", "Net 15", "Payment is due within 15 days.", 15],
-    ["NET-30", "Net 30", "Payment is due within 30 days.", 30],
-    ["NET-45", "Net 45", "Payment is due within 45 days.", 45],
-    ["NET-60", "Net 60", "Payment is due within 60 days.", 60],
+    ["IMMEDIATE", "Due on Receipt", "Payment is due on receipt of the invoice.", 0, "due_on_receipt"],
+    ["NET-7", "Net 7", "Payment is due within 7 days of the invoice date.", 7, "net_days"],
+    ["NET-15", "Net 15", "Payment is due within 15 days of the invoice date.", 15, "net_days"],
+    ["NET-30", "Net 30", "Payment is due within 30 days of the invoice date.", 30, "net_days"],
+    ["NET-45", "Net 45", "Payment is due within 45 days of the invoice date.", 45, "net_days"],
+    ["NET-60", "Net 60", "Payment is due within 60 days of the invoice date.", 60, "net_days"],
+    ["CUSTOM", "Custom / as agreed", "Payment as mutually agreed.", 0, "custom"],
   ];
 
-  for (const [code, name, description, dueDays] of terms) {
+  for (const [code, name, description, dueDays, calculationType] of terms) {
     const termResult = await client.query(
       `
         INSERT INTO tenant.payment_terms (
-          organization_id, code, name, description, default_due_days,
+          organization_id, code, name, description, default_due_days, calculation_type,
           created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $6)
-        ON CONFLICT (organization_id, code) DO UPDATE SET
-          name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          default_due_days = EXCLUDED.default_due_days,
-          updated_by = EXCLUDED.updated_by,
-          updated_at = now()
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+        ON CONFLICT (organization_id, code) DO NOTHING
         RETURNING id
       `,
-      [
-        context.organizationId,
-        code,
-        name,
-        description,
-        dueDays,
-        context.userId,
-      ],
+      [context.organizationId, code, name, description, dueDays, calculationType, context.userId],
     );
-
+    if (!termResult.rows[0]) continue;
     await client.query(
       `
         INSERT INTO tenant.payment_term_lines (
@@ -1232,12 +1152,7 @@ export async function seedBusinessDataFoundation(client, context) {
           percentage, created_by, updated_by
         )
         VALUES ($1, $2, 1, $3, 100, $4, $4)
-        ON CONFLICT (organization_id, payment_term_id, sequence)
-        DO UPDATE SET
-          due_days = EXCLUDED.due_days,
-          percentage = EXCLUDED.percentage,
-          updated_by = EXCLUDED.updated_by,
-          updated_at = now()
+        ON CONFLICT (organization_id, payment_term_id, sequence) DO NOTHING
       `,
       [context.organizationId, termResult.rows[0].id, dueDays, context.userId],
     );

@@ -18,6 +18,7 @@ import {
 import { DuplicateOverride } from "@/features/crm/duplicates/DuplicateParts";
 import { DuplicateWarning } from "../components/DuplicateWarning";
 import { ErrorBanner, PRIORITY_OPTIONS, RATING_OPTIONS } from "../lead-format";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 const NONE = "";
 const AUTO = "__auto__";
@@ -113,11 +114,12 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
     setFieldErrors((current) => ({ ...current, [key]: "" }));
   };
 
+  const submit = useSubmitKey();
   const mutation = useMutation({
-    mutationFn: (allowDuplicate: boolean) => {
+    mutationFn: (allowDuplicate: boolean) => submit.run(async () => {
       const input = { ...toInput(values, mode), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
       return mode === "edit" ? updateLead(leadId as string, { ...input, expectedUpdatedAt: lead?.updatedAt }) : createLead(input);
-    },
+    }),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "lead", saved.id) });
@@ -156,7 +158,7 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
           {blockingMatches ? (
             <DuplicateWarning matches={blockingMatches} blocking>
               <DuplicateOverride subject="person" reason={duplicateReason} onReasonChange={setDuplicateReason}
-                onConfirm={() => mutation.mutate(true)} onCancel={() => setBlockingMatches(null)} isLoading={mutation.isPending} />
+                onConfirm={() => mutation.mutate(true)} onCancel={() => setBlockingMatches(null)} isLoading={mutation.isPending || mutation.isSuccess} />
             </DuplicateWarning>
           ) : (
             <DuplicateWarning matches={similarMatches} blocking={similarMatches.some((match) => match.strength === "exact")} />
@@ -166,7 +168,7 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.replace(cancelHref)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate(false)} isLoading={mutation.isPending} isDisabled={!hasIdentity}>
+          <Button variant="primary" onPress={() => mutation.mutate(false)} isLoading={mutation.isPending || mutation.isSuccess} isDisabled={!hasIdentity}>
             {mode === "edit" ? "Save changes" : "Create lead"}
           </Button>
         </>

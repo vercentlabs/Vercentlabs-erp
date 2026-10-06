@@ -9,13 +9,16 @@ import type { SalesDocumentEvent, SalesDocumentInput, SalesDocumentPreview } fro
 // server from the reservations, deliveries and invoices themselves.
 export type OrderStatusKey = "draft" | "confirmed" | "cancelled" | "closed";
 // Delivery only: reservation has its own status.
-export type FulfillmentKey = "not_delivered" | "partially_delivered" | "delivered" | "cancelled" | "not_required";
+// "complete": nothing is left to deliver, but part of the order was cancelled rather than delivered.
+export type FulfillmentKey = "not_delivered" | "partially_delivered" | "delivered" | "complete" | "cancelled" | "not_required";
+export type ReservationKey = "not_required" | "not_reserved" | "partially_reserved" | "fully_reserved";
 export type InvoicingKey = "not_invoiced" | "partially_invoiced" | "fully_invoiced";
 // Whether the current order confirmation went out; separate from the order's status.
 export type ConfirmationKey = "none" | "not_sent" | "sent" | "acknowledged" | "superseded";
 type DisplayStatuses = {
   status: OrderStatusKey; statusLabel: string;
   confirmation: ConfirmationKey; confirmationLabel: string;
+  reservation: ReservationKey; reservationLabel: string;
   fulfillment: FulfillmentKey; fulfillmentLabel: string;
   invoicing: InvoicingKey; invoicingLabel: string;
 };
@@ -37,6 +40,17 @@ export type SalesOrderRow = DisplayStatuses & {
   customer_name: string | null;
   // The requested delivery date has passed with goods still to deliver.
   delivery_overdue: boolean;
+  // What is still owed on the order's invoices, from Finance; null when the caller may not see payments.
+  balance_due: number | null;
+  overdue_balance: number | null;
+  // The order's progress in each dimension, as the order page shows it (the order tracking service).
+  tracking: {
+    reservation: { status: ReservationKey; label: string; applies: boolean; required: number; reserved: number; percent: number };
+    fulfillment: { status: FulfillmentKey; label: string; applies: boolean; ordered: number; delivered: number; cancelled: number; remaining: number; returned: number; percent: number; overdue: boolean };
+    invoicing: { status: InvoicingKey; label: string; ordered: number; cancelled: number; invoiced: number; remaining: number; invoiceableNow: number; percent: number };
+    payment: { status: string; label: string; balanceDue?: number; overdueBalance?: number; paid?: number; netBilled?: number };
+    flags: { deliveryOverdue: boolean; readyToInvoice: boolean; readyToClose: boolean; needsAttention: boolean };
+  };
   customer_number: string | null;
   owner_name: string | null;
 };
@@ -268,10 +282,14 @@ export type SalesOrderDetail = {
   lines: SalesOrderLine[];
   taxLines: Array<{ tax_type: string; label: string; rate: string; taxable_amount: string; tax_amount: string }>;
   deliveries: SalesOrderDelivery[];
+  // Goods that came back against the order's deliveries (cancelled drafts left out).
+  returns: Array<{ id: string; return_number: string; status: string; return_date: string; reason_code: string; delivery_number: string; quantity: string }>;
   invoices: SalesOrderInvoice[];
+  // Credit notes against the order's invoices (cancelled drafts left out); posted ones reduce what was billed.
+  creditNotes: SalesOrderInvoice[];
   // The physical lines together: ordered, dispatched, cancelled, returned and left to deliver, and the share of what is still ordered that went out.
   delivery: { deliverable: boolean; ordered: number; delivered: number; cancelled: number; returned: number; remaining: number; percent: number; overdue: boolean };
-  invoicing: { basis: "ordered" | "delivered"; orderedValue: number; invoicedValue: number; remainingValue: number; invoiceableNowValue: number };
+  invoicing: { basis: "ordered" | "delivered"; orderedValue: number; invoicedValue: number; creditedValue: number; netBilledValue: number; remainingValue: number; invoiceableNowValue: number };
   versions: Array<{ id: string; version_number: number; change_note: string | null; grand_total: string; currency_code: string; created_at: string; created_by_name: string | null }>;
   confirmations: OrderConfirmation[];
   events: SalesDocumentEvent[];
@@ -285,6 +303,8 @@ export type SalesOrderDefaults = {
   orderDate: string;
   directOrdersAllowed: boolean;
   reservesOnConfirm: boolean;
+  // Sales Settings → Fulfillment: the warehouse a new order starts with.
+  defaultWarehouseId?: string | null;
   currencyCode?: string | null;
   contactId?: string | null;
   billingAddressId?: string | null;
@@ -350,7 +370,8 @@ const qs = (params: Record<string, string | number | undefined>) => {
 };
 
 export type OrderFilters = {
-  view?: string; search?: string; status?: string; confirmation?: string; fulfillment?: string; invoicing?: string; partyId?: string; ownerUserId?: string; warehouseId?: string;
+  view?: string; search?: string; status?: string; confirmation?: string; reservation?: string; fulfillment?: string; invoicing?: string; deliveryOverdue?: string; readyToInvoice?: string;
+  balance?: string; partyId?: string; ownerUserId?: string; warehouseId?: string;
   currencyCode?: string; quotationId?: string; opportunityId?: string; productId?: string; source?: string; dateFrom?: string; dateTo?: string;
   deliveryFrom?: string; deliveryTo?: string; sort?: string; direction?: string; limit?: number; offset?: number;
 };

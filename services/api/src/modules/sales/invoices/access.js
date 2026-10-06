@@ -34,7 +34,8 @@ export async function loadInvoice(client, context, invoiceId, { lock = false } =
             sales_invoice.seller_registration_id, sales_invoice.seller_snapshot, sales_invoice.place_of_supply_name, sales_invoice.supply_nature, sales_invoice.customer_po_number,
             sales_invoice.owner_user_id, sales_invoice.customer_notes, sales_invoice.internal_notes, sales_invoice.version, sales_invoice.sent_at, sales_invoice.sent_by,
             sales_invoice.sent_to, sales_invoice.sent_channel, sales_invoice.reversed_at, sales_invoice.reversed_by, sales_invoice.reversal_reason,
-            sales_invoice.reversal_journal_entry_id, sales_invoice.idempotency_key, sales_order.sales_order_number, sales_order.lifecycle_status AS order_status,
+            sales_invoice.reversal_journal_entry_id, sales_invoice.idempotency_key,
+            sales_invoice.calculated_due_date, sales_invoice.due_date_overridden, sales_invoice.due_date_override_reason, sales_order.sales_order_number, sales_order.lifecycle_status AS order_status,
             sales_order.current_version_id AS order_version_id
        FROM tenant.sales_invoices sales_invoice
        JOIN tenant.accounting_customer_invoices invoice ON invoice.organization_id = sales_invoice.organization_id AND invoice.id = sales_invoice.customer_invoice_id

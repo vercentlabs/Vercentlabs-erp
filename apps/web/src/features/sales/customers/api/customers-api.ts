@@ -170,7 +170,7 @@ export type CustomerOverview = {
   };
   sales?: { openQuotations: number; openSalesOrders: number; pendingDeliveries: number; lastOrderDate: string | null };
   finance?: {
-    currencyCode: string | null; outstanding: number; overdue: number; unallocatedAdvance: number; openInvoices: number; lastPaymentDate: string | null;
+    currencyCode: string | null; outstanding: number; overdue: number; unallocatedAdvance: number; creditNoteCredit: number; refunded: number; openInvoices: number; lastPaymentDate: string | null;
     lastPaymentAmount: number | null; lastPaymentNumber: string | null; aging: Array<{ key: string; label: string; amount: number }>;
   };
 };

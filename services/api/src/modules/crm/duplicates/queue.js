@@ -6,8 +6,9 @@
 //
 // Pairs are found on values the database can match directly: email, mobile,
 // GSTIN, website domain, exact normalized company name, and the same person
-// name at the same company. Fuzzy matching belongs to the warning shown
-// while a record is entered.
+// name at the same company, or with no company on either side, when no email
+// or mobile tells them apart (two leads that are only "Prasad"). Fuzzy
+// matching belongs to the warning shown while a record is entered.
 import { mergedSql, requireDuplicateReview } from "./decisions.js";
 import { gradeMatch } from "./scoring.js";
 
@@ -33,12 +34,16 @@ const QUERIES = Object.freeze({
             array_remove(ARRAY[
               CASE WHEN a.normalized_email IS NOT NULL AND a.normalized_email = b.normalized_email THEN 'email' END,
               CASE WHEN a.normalized_mobile IS NOT NULL AND a.normalized_mobile = b.normalized_mobile THEN 'mobile' END,
-              CASE WHEN a.normalized_name IS NOT NULL AND a.normalized_name = b.normalized_name AND a.normalized_company_name = b.normalized_company_name THEN 'name_company' END], NULL) AS signals
+              CASE WHEN a.normalized_name IS NOT NULL AND a.normalized_name = b.normalized_name AND a.normalized_company_name = b.normalized_company_name THEN 'name_company' END,
+              CASE WHEN a.normalized_name IS NOT NULL AND a.normalized_name = b.normalized_name AND a.normalized_company_name IS NULL AND b.normalized_company_name IS NULL THEN 'name' END], NULL) AS signals
        FROM tenant.crm_leads a
        JOIN tenant.crm_leads b ON b.organization_id = a.organization_id AND a.id < b.id
         AND ((a.normalized_email IS NOT NULL AND a.normalized_email = b.normalized_email) OR (a.normalized_mobile IS NOT NULL AND a.normalized_mobile = b.normalized_mobile)
-          -- the same person at the same company, with no email or mobile to settle it: a possible duplicate
-          OR (a.normalized_name IS NOT NULL AND a.normalized_company_name IS NOT NULL AND a.normalized_name = b.normalized_name AND a.normalized_company_name = b.normalized_company_name))
+          -- the same person at the same company, or with no company on either side, and no email or mobile
+          -- that tells them apart: a possible duplicate
+          OR (a.normalized_name IS NOT NULL AND a.normalized_name = b.normalized_name AND a.normalized_company_name IS NOT DISTINCT FROM b.normalized_company_name
+              AND NOT (a.normalized_email IS NOT NULL AND b.normalized_email IS NOT NULL AND a.normalized_email <> b.normalized_email)
+              AND NOT (a.normalized_mobile IS NOT NULL AND b.normalized_mobile IS NOT NULL AND a.normalized_mobile <> b.normalized_mobile)))
        LEFT JOIN public.users a_owner ON a_owner.id = a.owner_user_id
        LEFT JOIN public.users b_owner ON b_owner.id = b.owner_user_id
       WHERE a.organization_id = $1 AND a.archived_at IS NULL AND b.archived_at IS NULL AND a.status <> 'converted' AND b.status <> 'converted'

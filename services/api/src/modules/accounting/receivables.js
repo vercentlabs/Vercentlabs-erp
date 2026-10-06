@@ -37,7 +37,7 @@ async function salesJournal(client, context, ledgerId) {
   return result.rows[0].id;
 }
 
-async function bankJournal(client, context, ledgerId, bankAccountId = null) {
+export async function bankJournal(client, context, ledgerId, bankAccountId = null) {
   if (bankAccountId) {
     const bank = await client.query(`SELECT bank.*,journal.id AS journal_id FROM tenant.accounting_bank_accounts bank LEFT JOIN tenant.accounting_journals journal ON journal.organization_id=bank.organization_id AND journal.ledger_id=bank.ledger_id AND journal.journal_type='bank' AND journal.status='active' WHERE bank.organization_id=$1 AND bank.ledger_id=$2 AND bank.id=$3 AND bank.status='active' ORDER BY journal.created_at LIMIT 1`, [context.organizationId, ledgerId, uuid(bankAccountId, "Bank account")]);
     if (!bank.rows[0]) throw new AccountingError(409, "Bank account is unavailable for this ledger.");
@@ -48,7 +48,7 @@ async function bankJournal(client, context, ledgerId, bankAccountId = null) {
   return result.rows[0];
 }
 
-async function reduceInvoiceSchedules(client, context, invoiceId, amountValue, scheduleId = null) {
+export async function reduceInvoiceSchedules(client, context, invoiceId, amountValue, scheduleId = null) {
   let remaining = decimal(amountValue);
   const values = [context.organizationId, invoiceId];
   let scheduleFilter = "";
@@ -73,6 +73,25 @@ async function reduceInvoiceSchedules(client, context, invoiceId, amountValue, s
     remaining -= applied;
   }
   if (remaining !== 0n) throw new AccountingError(409, "Invoice schedules do not reconcile to the requested allocation.");
+}
+
+// A credit note against an invoice reverses that invoice's own values: with the credit notes
+// already posted against it, it cannot credit more taxable value or more tax than the invoice carries.
+async function assertCreditWithinSource(client, context, sourceInvoiceId, taxable, tax, exceptId = null) {
+  const carried = (await client.query(
+    `SELECT source.subtotal - source.discount_total AS taxable, source.tax_total AS tax,
+            COALESCE(sum(credit.subtotal - credit.discount_total), 0) AS credited_taxable, COALESCE(sum(credit.tax_total), 0) AS credited_tax
+       FROM tenant.accounting_customer_invoices source
+       LEFT JOIN tenant.accounting_customer_invoices credit ON credit.organization_id=source.organization_id AND credit.source_invoice_id=source.id
+            AND credit.invoice_type='credit_note' AND credit.status IN ('posted','partially_paid','paid','overdue','disputed') AND ($3::uuid IS NULL OR credit.id<>$3)
+      WHERE source.organization_id=$1 AND source.id=$2 GROUP BY source.id`,
+    [context.organizationId, sourceInvoiceId, exceptId],
+  )).rows[0];
+  if (!carried) throw new AccountingError(409, "The source customer document was not found.");
+  if (taxable + decimal(carried.credited_taxable) > decimal(carried.taxable))
+    throw new AccountingError(409, "The credit note is for more than the taxable value left on the invoice.", "ACCOUNTING_CREDIT_EXCEEDS_INVOICE");
+  if (tax + decimal(carried.credited_tax) > decimal(carried.tax))
+    throw new AccountingError(409, "The credit note carries more tax than is left on the invoice.", "ACCOUNTING_CREDIT_TAX_EXCEEDS_INVOICE");
 }
 
 function reversePostingLines(lines) {
@@ -196,24 +215,8 @@ export async function createCustomerInvoice(client, context, input, options = {}
     );
     if (!source.rows[0]) throw new AccountingError(409, "The source customer document does not belong to this ledger and customer.");
     if (source.rows[0].currency_code !== invoiceCurrency) throw new AccountingError(409, "The source customer document currency must match.");
-    if (invoiceType === "credit_note" && source.rows[0].invoice_type === "credit_note") throw new AccountingError(409, "A customer credit note cannot be credited again.");    // A credit note against an invoice reverses that invoice's own values: it
-    // cannot credit more taxable value or more tax than the invoice still carries.
-    if (invoiceType === "credit_note") {
-      const carried = (await client.query(
-        `SELECT source.subtotal - source.discount_total AS taxable, source.tax_total AS tax,
-                COALESCE(sum(credit.subtotal - credit.discount_total), 0) AS credited_taxable, COALESCE(sum(credit.tax_total), 0) AS credited_tax
-           FROM tenant.accounting_customer_invoices source
-           LEFT JOIN tenant.accounting_customer_invoices credit ON credit.organization_id=source.organization_id AND credit.source_invoice_id=source.id
-                AND credit.invoice_type='credit_note' AND credit.status NOT IN ('cancelled','reversed')
-          WHERE source.organization_id=$1 AND source.id=$2 GROUP BY source.id`,
-        [context.organizationId, sourceInvoiceId],
-      )).rows[0];
-      const creditTaxable = totals.subtotal - totals.discountTotal;
-      if (creditTaxable + decimal(carried.credited_taxable) > decimal(carried.taxable))
-        throw new AccountingError(409, "The credit note is for more than the taxable value left on the invoice.", "ACCOUNTING_CREDIT_EXCEEDS_INVOICE");
-      if (totals.taxTotal + decimal(carried.credited_tax) > decimal(carried.tax))
-        throw new AccountingError(409, "The credit note carries more tax than is left on the invoice.", "ACCOUNTING_CREDIT_TAX_EXCEEDS_INVOICE");
-    }
+    if (invoiceType === "credit_note" && source.rows[0].invoice_type === "credit_note") throw new AccountingError(409, "A customer credit note cannot be credited again.");
+    if (invoiceType === "credit_note") await assertCreditWithinSource(client, context, sourceInvoiceId, totals.subtotal - totals.discountTotal, totals.taxTotal);
   }
   const entityType = invoiceType === "credit_note" ? "customer_credit_note" : "customer_invoice";
   const invoiceNumber = await allocateNumber(client, context.organizationId, entityType);
@@ -328,7 +331,7 @@ export async function reverseCustomerInvoice(client, context, idValue, input = {
   const applied = (await client.query(
     `SELECT (SELECT count(*) FROM tenant.accounting_customer_receipt_allocations WHERE organization_id=$1 AND customer_invoice_id=$2)::int AS receipts,
             (SELECT count(*) FROM tenant.accounting_customer_credit_allocations WHERE organization_id=$1 AND customer_invoice_id=$2)::int AS credits,
-            (SELECT count(*) FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND source_invoice_id=$2 AND status<>'cancelled')::int AS credit_notes,
+            (SELECT count(*) FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND source_invoice_id=$2 AND status NOT IN ('cancelled','reversed'))::int AS credit_notes,
             (SELECT count(*) FROM tenant.accounting_tax_ledger WHERE organization_id=$1 AND source_id=$2 AND status IN ('reported','paid'))::int AS reported`,
     [context.organizationId, id])).rows[0];
   if (applied.receipts || applied.credits || applied.credit_notes)
@@ -410,11 +413,15 @@ export async function postCustomerInvoice(client, context, idValue, options = {}
   if (invoice.status === "posted" || invoice.status === "partially_paid" || invoice.status === "paid") return getCustomerInvoice(client, context, id);
   if (!options.fromSales && (await client.query(`SELECT 1 FROM tenant.sales_invoices WHERE organization_id=$1 AND customer_invoice_id=$2`, [context.organizationId, id])).rows[0])
     throw new AccountingError(409, "This is a Sales invoice: post it from Sales → Invoices, where its quantities and tax are checked first.", "ACCOUNTING_POST_FROM_SALES");
+  if (!options.fromSales && (await client.query(`SELECT 1 FROM tenant.sales_credit_notes WHERE organization_id=$1 AND customer_invoice_id=$2`, [context.organizationId, id])).rows[0])
+    throw new AccountingError(409, "This is a Sales credit note: post it from Sales → Credit Notes, where it is checked against the invoice first.", "ACCOUNTING_POST_FROM_SALES");
   if (invoice.status !== 'approved') throw new AccountingError(409, "Customer invoice must be approved before posting.");
   const detail = await getCustomerInvoice(client, context, id);
   const receivable = await getAccountMapping(client, context, invoice.ledger_id, "receivable", { partyId: invoice.party_id, date: invoice.accounting_date });
   const journalId = await salesJournal(client, context, invoice.ledger_id);
   const isCreditNote = invoice.invoice_type === "credit_note";
+  if (isCreditNote && invoice.source_invoice_id)
+    await assertCreditWithinSource(client, context, invoice.source_invoice_id, decimal(invoice.subtotal) - decimal(invoice.discount_total), decimal(invoice.tax_total), invoice.id);
   let lines = [{ accountId: receivable.account_id, partyId: invoice.party_id, description: `Receivable ${invoice.invoice_number}`, debit: invoice.grand_total, credit: 0, dueDate: invoice.due_date, referenceType: "customer_invoice", referenceId: invoice.id }];
   for (const line of detail.lines) {
     if (decimal(line.net_amount) > 0n) lines.push({ accountId: line.revenue_account_id, partyId: invoice.party_id, departmentId: line.department_id, costCenterId: line.cost_center_id, description: line.description, debit: 0, credit: line.net_amount, referenceType: "customer_invoice", referenceId: invoice.id });
@@ -674,4 +681,92 @@ export async function applyCustomerCreditNote(client, context, creditNoteIdValue
   await event(client, context, "customer_invoice", credit.id, "accounting.customer_credit.allocated", credit.status,
     creditStatus, { allocatedAmount: asDatabaseDecimal(totalAllocated) });
   return getCustomerInvoice(client, context, credit.id);
+}
+
+// Reverses a posted credit note posted in error: what it was applied to is unapplied (each invoice owes
+// it again), the journal is reversed, the output tax it took back is restored, and the credit note is
+// kept, Reversed. input: { reason, accountingDate? }. Returns { id, status, reversalEntryId, unapplied }.
+export async function reverseCustomerCreditNote(client, context, idValue, input = {}, options = {}) {
+  if (!options.internal) requirePermission(context, ACCOUNTING_PERMISSIONS.receivablesManage);
+  const id = uuid(idValue, "Customer credit note");
+  const reason = requiredText(input.reason, "Reversal reason", 500);
+  const credit = (await client.query(`SELECT * FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id])).rows[0];
+  if (!credit || credit.invoice_type !== "credit_note") throw new AccountingError(404, "Customer credit note not found.");
+  if (credit.status === "reversed") return { id, status: "reversed", changed: false, unapplied: [] };
+  if (!["posted", "partially_paid", "paid", "overdue", "disputed"].includes(credit.status) || !credit.journal_entry_id)
+    throw new AccountingError(409, "Only a posted credit note can be reversed.", "ACCOUNTING_CREDIT_NOTE_NOT_REVERSIBLE");
+  const reported = (await client.query(`SELECT count(*)::int AS count FROM tenant.accounting_tax_ledger WHERE organization_id=$1 AND source_id=$2 AND status IN ('reported','paid')`,
+    [context.organizationId, id])).rows[0].count;
+  if (reported) throw new AccountingError(409, "The credit note's tax has already been reported. Correct it with a new invoice instead.", "ACCOUNTING_INVOICE_TAX_REPORTED");
+  const refunds = (await client.query(
+    `SELECT refund.refund_number FROM tenant.accounting_customer_refund_allocations allocation
+       JOIN tenant.accounting_customer_refunds refund ON refund.id=allocation.refund_id AND refund.status='posted'
+      WHERE allocation.organization_id=$1 AND allocation.credit_note_id=$2`, [context.organizationId, id])).rows;
+  if (refunds.length)
+    throw new AccountingError(409, `Its credit was refunded (${refunds.map((row) => row.refund_number).join(", ")}). Reverse the refund first.`, "ACCOUNTING_CREDIT_NOTE_REFUNDED");
+  const unapplied = [];
+  const allocations = (await client.query(
+    `SELECT * FROM tenant.accounting_customer_credit_allocations WHERE organization_id=$1 AND credit_note_id=$2 ORDER BY allocated_at`, [context.organizationId, id])).rows;
+  for (const allocation of allocations) {
+    const target = (await client.query(`SELECT * FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, allocation.customer_invoice_id])).rows[0];
+    const amount = decimal(allocation.allocated_amount);
+    await restoreInvoiceSchedules(client, context, target.id, amount);
+    const outstanding = decimal(target.outstanding_amount) + amount;
+    const status = outstanding >= decimal(target.grand_total) ? "posted" : "partially_paid";
+    await client.query(`UPDATE tenant.accounting_customer_invoices SET outstanding_amount=$3,status=$4,updated_by=$5,updated_at=now() WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, target.id, asDatabaseDecimal(outstanding), status, context.userId]);
+    await client.query(`DELETE FROM tenant.accounting_customer_credit_allocations WHERE organization_id=$1 AND id=$2`, [context.organizationId, allocation.id]);
+    await event(client, context, "customer_invoice", target.id, "accounting.customer_credit.unapplied", target.status, status,
+      { creditNoteId: id, creditNoteNumber: credit.invoice_number, amount: asDatabaseDecimal(amount), reason });
+    unapplied.push({ invoiceId: target.id, invoiceNumber: target.invoice_number, amount: asDatabaseDecimal(amount) });
+  }
+  const reversal = await reverseJournalEntry(client, { ...context, permissions: [...(context.permissions ?? []), ACCOUNTING_PERMISSIONS.journalReverse] }, credit.journal_entry_id,
+    { reason: `Credit note ${credit.invoice_number} reversed: ${reason}`, accountingDate: input.accountingDate });
+  await client.query(`UPDATE tenant.accounting_tax_ledger SET status='reversed' WHERE organization_id=$1 AND source_id=$2 AND status='open'`, [context.organizationId, id]);
+  await client.query(`UPDATE tenant.accounting_customer_invoice_schedules SET outstanding_amount=0 WHERE organization_id=$1 AND customer_invoice_id=$2`, [context.organizationId, id]);
+  await client.query(`UPDATE tenant.accounting_customer_invoices SET status='reversed',outstanding_amount=0,updated_by=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, context.userId]);
+  await event(client, context, "customer_invoice", id, "accounting.customer_credit_note.reversed", credit.status, "reversed",
+    { reason, reversalEntryId: reversal.entry?.id ?? reversal.id, unapplied });
+  if (credit.source_sales_order_id) await refreshSalesOrderProgress(client, context.organizationId, credit.source_sales_order_id, context.userId ?? null);
+  return { id, status: "reversed", changed: true, reversalEntryId: reversal.entry?.id ?? reversal.id, unapplied };
+}
+
+// An unapplied amount owed again on the invoice's schedules, latest instalment first.
+export async function restoreInvoiceSchedules(client, context, invoiceId, amountValue) {
+  let remaining = decimal(amountValue);
+  const schedules = await client.query(
+    `SELECT * FROM tenant.accounting_customer_invoice_schedules WHERE organization_id=$1 AND customer_invoice_id=$2 AND outstanding_amount<amount
+      ORDER BY due_date DESC,sequence DESC FOR UPDATE`, [context.organizationId, invoiceId]);
+  for (const schedule of schedules.rows) {
+    if (remaining <= 0n) break;
+    const room = decimal(schedule.amount) - decimal(schedule.outstanding_amount);
+    const restored = remaining < room ? remaining : room;
+    const outstanding = decimal(schedule.outstanding_amount) + restored;
+    await client.query(`UPDATE tenant.accounting_customer_invoice_schedules SET outstanding_amount=$3,status=$4 WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, schedule.id, asDatabaseDecimal(outstanding), outstanding >= decimal(schedule.amount) ? "open" : "partially_paid"]);
+    remaining -= restored;
+  }
+  if (remaining !== 0n) throw new AccountingError(409, "Invoice schedules do not reconcile to the amount unapplied.");
+}
+
+// Corrects when a posted invoice falls due. Only the date moves (on the invoice and on what is still owed of its
+// instalments); amounts, the journal and tax are untouched. input: { dueDate, reason }
+export async function changeCustomerInvoiceDueDate(client, context, idValue, input = {}, options = {}) {
+  if (!options.internal) requirePermission(context, ACCOUNTING_PERMISSIONS.receivablesManage);
+  const id = uuid(idValue, "Customer invoice");
+  const reason = requiredText(input.reason, "Reason", 500);
+  const dueDate = isoDate(input.dueDate, "Due date");
+  const invoice = (await client.query(`SELECT * FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id])).rows[0];
+  if (!invoice || invoice.invoice_type === "credit_note") throw new AccountingError(404, "Customer invoice not found.");
+  if (!["posted", "partially_paid", "overdue", "disputed"].includes(invoice.status))
+    throw new AccountingError(409, "Only a posted invoice that still owes something has a due date to change.", "ACCOUNTING_INVOICE_NOT_OPEN");
+  // DATE columns arrive as local midnight: read the calendar day, not the UTC instant.
+  const localDay = (value) => (value instanceof Date ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}` : String(value).slice(0, 10));
+  const before = localDay(invoice.due_date);
+  if (dueDate < localDay(invoice.invoice_date)) throw new AccountingError(400, "The due date cannot be before the invoice date.");
+  if (dueDate === before) return { id, dueDate, changed: false };
+  await client.query(`UPDATE tenant.accounting_customer_invoices SET due_date=$3,updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, dueDate, context.userId]);
+  await client.query(`UPDATE tenant.accounting_customer_invoice_schedules SET due_date=$3 WHERE organization_id=$1 AND customer_invoice_id=$2 AND outstanding_amount>0`, [context.organizationId, id, dueDate]);
+  await event(client, context, "customer_invoice", id, "accounting.customer_invoice.due_date_changed", invoice.status, invoice.status, { from: before, to: dueDate, reason });
+  return { id, dueDate, changed: true };
 }

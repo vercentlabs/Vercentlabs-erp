@@ -12,10 +12,11 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { money } from "@/features/sales/shared/format";
+import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 import { SalesAlert } from "@/features/sales/shared/SalesUi";
 
 import {
-  cancelInvoice, createCreditNote, createInvoiceFromDelivery, createInvoiceFromOrder, getInvoiceProposal, markInvoiceSent, postInvoice, reverseInvoice, sendInvoice,
+  cancelInvoice, changeInvoiceDueDate, createInvoiceFromDelivery, createInvoiceFromOrder, getInvoiceProposal, markInvoiceSent, postInvoice, reverseInvoice, sendInvoice,
   updateDraftInvoice, validateInvoice, type InvoiceDetail,
 } from "../api/invoices-api";
 
@@ -130,7 +131,8 @@ export function DeliveryInvoiceDialog({ deliveryId, number, lines: deliveryLines
 }
 
 // A draft: quantities, dates and notes. Lines are the full set: 0 takes a line off.
-export function EditInvoiceDialog({ detail, canChangeDates, onClose, onDone }: { detail: InvoiceDetail; canChangeDates: boolean; onClose: () => void; onDone: () => void }) {
+// termsOnly: for whoever may settle the payment terms and due date of a draft without the right to edit the rest of it.
+export function EditInvoiceDialog({ detail, canChangeDates, termsOnly = false, onClose, onDone }: { detail: InvoiceDetail; canChangeDates: boolean; termsOnly?: boolean; onClose: () => void; onDone: () => void }) {
   const invoice = detail.invoice;
   const rows: QuantityRow[] = detail.lines.map((line) => ({
     id: line.source_sales_order_line_id, name: line.item_name_snapshot, unit: line.uom_snapshot, max: Number.MAX_SAFE_INTEGER, initial: Number(line.quantity),
@@ -139,33 +141,71 @@ export function EditInvoiceDialog({ detail, canChangeDates, onClose, onDone }: {
   const [values, setValues] = useState<Record<string, number>>({});
   const [invoiceDate, setInvoiceDate] = useState(day(invoice.invoice_date));
   const [postingDate, setPostingDate] = useState(day(invoice.accounting_date));
+  // Sent only when the user sets it: left alone, the server works the due date out from the terms and the invoice date.
   const [dueDate, setDueDate] = useState("");
+  const [dueDateReason, setDueDateReason] = useState("");
+  const [clearOverride, setClearOverride] = useState(false);
+  const workspace = useWorkspaceContext();
+  const terms = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "options"), queryFn: () => getSalesOptions().then((r) => r.options.paymentTerms), staleTime: 60_000, enabled: detail.actions.changePaymentTerms });
+  const [paymentTermId, setPaymentTermId] = useState(invoice.paymentTerm?.id ?? "");
+  const [paymentTermsNote, setPaymentTermsNote] = useState(invoice.paymentTerm?.note ?? "");
+  const chosenTerm = (terms.data ?? []).find((term) => term.id === paymentTermId);
+  const termType = chosenTerm?.calculation_type ?? invoice.paymentTerm?.calculationType ?? "net_days";
+  const termOptions = [
+    ...(terms.data ?? []).map((term) => ({ value: term.id, label: `${term.name}${term.calculation_type === "net_days" ? ` (${term.days} days)` : ""}` })),
+    ...(invoice.paymentTerm?.id && !(terms.data ?? []).some((term) => term.id === invoice.paymentTerm?.id) ? [{ value: invoice.paymentTerm.id, label: `${invoice.paymentTerm.name} (as agreed)` }] : []),
+  ];
   const [customerNotes, setCustomerNotes] = useState(invoice.customer_notes ?? "");
   const [internalNotes, setInternalNotes] = useState(invoice.internal_notes ?? "");
   const lines = rows.map((row) => ({ salesOrderLineId: row.id, quantity: values[row.id] ?? row.initial }));
   const linesChanged = rows.some((row) => values[row.id] !== undefined && values[row.id] !== row.initial);
   const save = useMutation({
     mutationFn: () => updateDraftInvoice(invoice.id, {
-      expectedVersion: invoice.version, ...(linesChanged ? { lines } : {}),
-      ...(invoiceDate && invoiceDate !== day(invoice.invoice_date) ? { invoiceDate } : {}),
-      ...(canChangeDates && postingDate && postingDate !== day(invoice.accounting_date) ? { postingDate } : {}),
-      ...(canChangeDates && dueDate ? { dueDate } : {}),
-      customerNotes: customerNotes.trim() || null, internalNotes: internalNotes.trim() || null,
+      expectedVersion: invoice.version, ...(!termsOnly && linesChanged ? { lines } : {}),
+      ...(!termsOnly && invoiceDate && invoiceDate !== day(invoice.invoice_date) ? { invoiceDate } : {}),
+      ...(!termsOnly && canChangeDates && postingDate && postingDate !== day(invoice.accounting_date) ? { postingDate } : {}),
+      ...(detail.actions.changePaymentTerms && paymentTermId && paymentTermId !== (invoice.paymentTerm?.id ?? "") ? { paymentTermId } : {}),
+      ...(detail.actions.changePaymentTerms && paymentTermsNote.trim() !== (invoice.paymentTerm?.note ?? "") ? { paymentTermsNote: paymentTermsNote.trim() || null } : {}),
+      ...(detail.actions.overrideDueDate && clearOverride ? { dueDate: null } : detail.actions.overrideDueDate && dueDate ? { dueDate, dueDateReason: dueDateReason.trim() || null } : {}),
+      ...(termsOnly ? {} : { customerNotes: customerNotes.trim() || null, internalNotes: internalNotes.trim() || null }),
     }),
     onSuccess: onDone,
   });
   return (
-    <Shell title={`Edit ${invoice.invoice_number}`} description="The values are worked out again from the order as agreed. The due date follows the payment terms."
+    <Shell title={termsOnly ? `Payment terms and due date of ${invoice.invoice_number}` : `Edit ${invoice.invoice_number}`}
+      description={termsOnly ? "The due date follows the payment terms and the invoice date, unless another date is set with a reason." : "The values are worked out again from the order as agreed. The due date follows the payment terms and the invoice date."}
       size="lg" error={save.error} fallback="The invoice could not be saved." onClose={onClose} label="Save" isLoading={save.isPending}
-      isDisabled={!lines.some((line) => line.quantity > 0)} onPress={() => save.mutate()}>
-      <QuantityRows rows={rows} values={values} onChange={setValues} />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <TextField label="Invoice date" type="date" value={invoiceDate} onChange={setInvoiceDate} />
-        {canChangeDates && <TextField label="Posting date" type="date" value={postingDate} onChange={setPostingDate} />}
-        {canChangeDates && <TextField label="Due date" description={`Now ${day(invoice.due_date)}`} type="date" value={dueDate} onChange={setDueDate} />}
-      </div>
-      <TextArea label="Customer notes" description="Printed on the invoice." value={customerNotes} onChange={setCustomerNotes} />
-      <TextArea label="Internal notes" description="Never printed." value={internalNotes} onChange={setInternalNotes} />
+      isDisabled={(!termsOnly && !lines.some((line) => line.quantity > 0)) || Boolean(dueDate && !clearOverride && termType !== "custom" && !dueDateReason.trim())} onPress={() => save.mutate()}>
+      {!termsOnly && <QuantityRows rows={rows} values={values} onChange={setValues} />}
+      {!termsOnly && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <TextField label="Invoice date" type="date" value={invoiceDate} onChange={setInvoiceDate} />
+          {canChangeDates && <TextField label="Posting date" type="date" value={postingDate} onChange={setPostingDate} />}
+        </div>
+      )}
+      {detail.actions.changePaymentTerms ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Select label="Payment terms" selectedKey={paymentTermId || null} options={termOptions} onSelectionChange={(selected) => setPaymentTermId(String(selected ?? ""))}
+            description={chosenTerm?.description ?? invoice.paymentTerm?.description ?? "Inherited from the sales order. Other terms work the due date out again."} />
+          <TextField label="Additional payment terms" description="Optional, for this invoice only. Printed with the payment terms." value={paymentTermsNote} onChange={setPaymentTermsNote} />
+        </div>
+      ) : <p className="text-sm">Payment terms: <span className="font-medium">{invoice.paymentTerm?.name ?? "None"}</span></p>}
+      <p className="text-sm text-text-secondary">
+        Due date now <span className="font-medium tabular-nums text-text">{invoice.dueDateRequired ? "not entered" : day(invoice.due_date)}</span>
+        {invoice.due_date_overridden && termType !== "custom" ? ` (set by hand${invoice.due_date_override_reason ? `: ${invoice.due_date_override_reason}` : ""}; the terms work out ${day(invoice.calculated_due_date) || "no date"})` : ""}.
+        {termType === "custom" ? " These terms set no date: enter the due date before posting." : " Saving another invoice date or other terms works it out again."}
+      </p>
+      {detail.actions.overrideDueDate && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <TextField label={termType === "custom" ? "Due date" : "Set another due date"} type="date" value={dueDate} isDisabled={clearOverride} onChange={setDueDate} />
+          {termType !== "custom" && <TextField label="Reason" isRequired={Boolean(dueDate)} isDisabled={clearOverride || !dueDate} description="Why the date differs from the payment terms." value={dueDateReason} onChange={setDueDateReason} />}
+        </div>
+      )}
+      {detail.actions.overrideDueDate && invoice.due_date_overridden && termType !== "custom" && (
+        <Button variant="secondary" onPress={() => { setClearOverride(!clearOverride); setDueDate(""); }}>{clearOverride ? "Keep the hand-set due date" : "Go back to the due date from the payment terms"}</Button>
+      )}
+      {!termsOnly && <TextArea label="Customer notes" description="Printed on the invoice." value={customerNotes} onChange={setCustomerNotes} />}
+      {!termsOnly && <TextArea label="Internal notes" description="Never printed." value={internalNotes} onChange={setInternalNotes} />}
     </Shell>
   );
 }
@@ -266,24 +306,20 @@ export function MarkSentDialog({ detail, onClose, onDone }: { detail: InvoiceDet
   );
 }
 
-// A draft credit note against the posted invoice, at the invoice's own values, for Finance to post.
-export function CreditNoteDialog({ detail, onClose, onDone }: { detail: InvoiceDetail; onClose: () => void; onDone: (number: string) => void }) {
+
+// A posted invoice's due date corrected by Finance: only the date moves, with a reason kept in the history.
+export function ChangeDueDateDialog({ detail, onClose, onDone }: { detail: InvoiceDetail; onClose: () => void; onDone: () => void }) {
   const invoice = detail.invoice;
-  const rows: QuantityRow[] = detail.lines.map((line) => ({
-    id: line.id, name: line.item_name_snapshot, unit: line.uom_snapshot, max: Number(line.quantity), initial: 0,
-    hint: `Invoiced ${amount(Number(line.quantity))}${line.uom_snapshot ? ` ${line.uom_snapshot}` : ""} at ${money(invoice.currency_code, line.unit_price)}`,
-  }));
-  const [values, setValues] = useState<Record<string, number>>({});
+  const [dueDate, setDueDate] = useState(day(invoice.due_date));
   const [reason, setReason] = useState("");
-  const [idempotencyKey] = useState(() => crypto.randomUUID());
-  const lines = chosen(rows, values).map((line) => ({ invoiceLineId: line.id, quantity: line.quantity }));
-  const save = useMutation({ mutationFn: () => createCreditNote(invoice.id, { idempotencyKey, reason: reason.trim(), lines }), onSuccess: ({ result }) => onDone(result.creditNoteNumber) });
+  const save = useMutation({ mutationFn: () => changeInvoiceDueDate(invoice.id, { dueDate, reason: reason.trim() }), onSuccess: onDone });
   return (
-    <Shell title={`Credit note against ${invoice.invoice_number}`}
-      description="For goods returned or a reduction agreed after posting. The invoice itself never changes. The credit note is created as a draft for Finance to post and apply."
-      size="lg" error={save.error} fallback="The credit note could not be created." onClose={onClose} label="Create Credit Note" isLoading={save.isPending}
-      isDisabled={!lines.length || !reason.trim()} onPress={() => save.mutate()}>
-      <QuantityRows rows={rows} values={values} onChange={setValues} />
+    <Shell title={`Change the due date of ${invoice.invoice_number}`}
+      description="The invoice is posted: only its due date changes, and overdue and ageing follow the new date. The amounts, the payment terms and the books stay as they are."
+      error={save.error} fallback="The due date could not be changed." onClose={onClose} label="Change Due Date" isLoading={save.isPending}
+      isDisabled={!dueDate || dueDate === day(invoice.due_date) || !reason.trim()} onPress={() => save.mutate()}>
+      <p className="text-sm">Payment terms <span className="font-medium">{invoice.paymentTerm?.name ?? "none"}</span> · invoice date {day(invoice.invoice_date)} · due {day(invoice.due_date)}</p>
+      <TextField label="New due date" type="date" isRequired value={dueDate} onChange={setDueDate} />
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
     </Shell>
   );

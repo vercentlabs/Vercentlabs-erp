@@ -27,7 +27,8 @@ export function createInvoiceFromDelivery(client: QueryClient, context: Context,
 ): Promise<Created & { deliveryId: string }>;
 export function updateDraftInvoice(client: QueryClient, context: Context, invoiceId: string,
   input: {
-    expectedVersion?: number | null; lines?: QuantityLines; invoiceDate?: string | null; postingDate?: string | null; dueDate?: string | null; contactId?: string | null;
+    expectedVersion?: number | null; lines?: QuantityLines; invoiceDate?: string | null; postingDate?: string | null; paymentTermId?: string; paymentTermsNote?: string | null;
+    dueDate?: string | null; dueDateReason?: string | null; contactId?: string | null;
     customerNotes?: string | null; internalNotes?: string | null; recalculateTax?: boolean;
   },
 ): Promise<{ invoiceId: string; version: number; changed: boolean; changes?: any[] }>;
@@ -43,14 +44,13 @@ export function validateInvoiceForPosting(client: QueryClient, context: Context,
 export function postSalesInvoice(client: QueryClient, context: Context, invoiceId: string, input?: { expectedVersion?: number | null }): Promise<{
   invoiceId: string; invoiceNumber: string; status: SalesInvoiceStatus; replayed: boolean; awaitingApproval?: boolean;
 }>;
+export function changePostedInvoiceDueDate(client: QueryClient, context: Context, invoiceId: string, input: { dueDate: string; reason: string }): Promise<{ invoiceId: string; dueDate: string; changed: boolean }>;
 export function cancelDraftInvoice(client: QueryClient, context: Context, invoiceId: string, input?: { reason?: string | null }): Promise<{ invoiceId: string; status: SalesInvoiceStatus; changed: boolean }>;
 export function reverseSalesInvoice(client: QueryClient, context: Context, invoiceId: string, input: { reason: string }): Promise<{ invoiceId: string; status: SalesInvoiceStatus; changed: boolean }>;
 
 export function sendSalesInvoice(client: QueryClient, context: Context, invoiceId: string, input: { to: string; cc?: string; subject?: string; message?: string; idempotencyKey: string },
   attachment: { fileName: string; content: Uint8Array } | null, env?: Record<string, string | undefined>): Promise<{ invoiceId: string; sentTo: string; messageId: string | null; replayed: boolean }>;
 export function markSalesInvoiceSent(client: QueryClient, context: Context, invoiceId: string, input: { channel: string; recipient?: string; note?: string; sentAt?: string; idempotencyKey?: string }): Promise<{ invoiceId: string; replayed: boolean }>;
-export function createCreditNoteFromInvoice(client: QueryClient, context: Context, invoiceId: string,
-  input: { idempotencyKey: string; reason: string; lines: Array<{ invoiceLineId: string; quantity: number | string }> }): Promise<{ creditNoteId: string; creditNoteNumber: string; replayed: boolean }>;
 export function getSalesInvoiceDocument(client: QueryClient, context: Context, invoiceId: string): Promise<any>;
 
 export function prepareInvoiceFileUpload(input: { fileName: string; bytes: Uint8Array }, env?: Record<string, string | undefined>): Promise<any>;

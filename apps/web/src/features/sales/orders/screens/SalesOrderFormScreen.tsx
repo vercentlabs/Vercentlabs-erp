@@ -29,6 +29,7 @@ import {
 import {
   createSalesOrder, getSalesOrder, getSalesOrderDefaults, previewSalesOrder, updateSalesOrder, type SalesOrderDefaults, type SalesOrderDetail, type SalesOrderDocumentInput,
 } from "../api/orders-api";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type LineDraft = {
   key: number;
@@ -121,13 +122,15 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
   // A price list change waiting for "re-price the lines?"
   const [pendingPriceList, setPendingPriceList] = useState<string | null>(null);
   const [paymentTermId, setPaymentTermId] = useState(order?.payment_term_id ?? seedParty?.payment_term_id ?? "");
+  // Additional payment terms for this order only, printed with its terms.
+  const [paymentTermsNote, setPaymentTermsNote] = useState(order?.payment_term_snapshot?.note ?? "");
   const [ownerUserId, setOwnerUserId] = useState(order?.owner_user_id ?? workspace.userId ?? "");
   const [orderDate, setOrderDate] = useState(order?.order_date?.slice(0, 10) ?? defaults.orderDate);
   const [deliveryDate, setDeliveryDate] = useState(order?.requested_delivery_date?.slice(0, 10) ?? "");
   const [poNumber, setPoNumber] = useState(order?.customer_po_number ?? "");
   const [poDate, setPoDate] = useState(order?.customer_po_date?.slice(0, 10) ?? "");
   const [customerReference, setCustomerReference] = useState(order?.customer_reference ?? "");
-  const [defaultWarehouseId, setDefaultWarehouseId] = useState(order?.default_warehouse_id ?? "");
+  const [defaultWarehouseId, setDefaultWarehouseId] = useState(order ? order.default_warehouse_id ?? "" : defaults.defaultWarehouseId ?? "");
   const [documentDiscount, setDocumentDiscount] = useState<DocumentDiscountDraft>(() => order
     ? { type: order.document_discount_type === "amount" ? "amount" : "percent", value: Number(order.document_discount_value ?? 0), reasonCode: order.discount_reason_code ?? "", reasonText: order.discount_reason_text ?? "" }
     : { ...NO_DOCUMENT_DISCOUNT, type: defaultDiscountType(options.discounts) });
@@ -200,14 +203,20 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
     { value: "", label: "Customer's price list, else the default" },
     ...options.priceLists.filter((list) => list.currency_code.trim() === currencyCode).map((list) => ({ value: list.id, label: `${list.name}${list.is_default ? " (default)" : ""}` })),
   ];
-  const paymentTermOptions: SelectOption[] = [{ value: "", label: "Customer default" }, ...options.paymentTerms.map((term) => ({ value: term.id, label: `${term.name} (${term.default_due_days} days)` }))];
+  // The order's own terms (the accepted quotation's, when it came from one) stay selectable even if the term has since been deactivated.
+  const keptTerm = order?.payment_term_snapshot;
+  const paymentTermOptions: SelectOption[] = [
+    { value: "", label: "Customer's terms, else the company default" },
+    ...options.paymentTerms.map((term) => ({ value: term.id, label: `${term.name}${term.calculation_type === "net_days" ? ` (${term.days} days)` : term.calculation_type === "custom" ? " (due date entered on the invoice)" : ""}${term.is_default ? " · company default" : ""}` })),
+    ...(keptTerm?.id && !options.paymentTerms.some((term) => term.id === keptTerm.id) ? [{ value: keptTerm.id, label: `${keptTerm.name ?? "Payment terms"} (as agreed; no longer offered)` }] : []),
+  ];
   const ownerOptions: SelectOption[] = options.users.map((user) => ({ value: user.id, label: user.full_name }));
 
   function selectParty(id: string) {
     setPartyId(id);
     const party = options.parties.find((candidate) => candidate.id === id);
     if (party?.currency_code) setCurrencyCode(party.currency_code);
-    if (party?.payment_term_id) setPaymentTermId(party.payment_term_id);
+    setPaymentTermId(party?.payment_term_id && options.paymentTerms.some((term) => term.id === party.payment_term_id) ? party.payment_term_id : "");
     setPriceListId("");
     const addresses = options.addresses.filter((address) => address.party_id === id);
     setContactId(options.contacts.find((contact) => contact.party_id === id && contact.is_primary)?.id ?? "");
@@ -235,6 +244,7 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
       currencyCode,
       priceListId: priceListId || null,
       paymentTermId: paymentTermId || null,
+      paymentTermsNote: paymentTermsNote.trim() || null,
       orderDate: orderDate || null,
       requestedDeliveryDate: deliveryDate || null,
       customerPoNumber: poNumber.trim() || null,
@@ -264,7 +274,7 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
       })),
       charges: charges.filter((charge) => charge.value > 0).map((charge) => ({ label: charge.label || "Charge", calculationType: charge.calculationType, value: charge.value })),
     };
-  }, [partyId, contactId, ownerUserId, billingAddressId, shippingAddressId, currencyCode, priceListId, paymentTermId, orderDate, deliveryDate, poNumber, poDate, customerReference,
+  }, [partyId, contactId, ownerUserId, billingAddressId, shippingAddressId, currencyCode, priceListId, paymentTermId, paymentTermsNote, orderDate, deliveryDate, poNumber, poDate, customerReference,
     defaultWarehouseId, documentDiscount, customerNotes, internalNotes, documentTax, terms, order?.version_number, validLines, charges]);
 
   // Debounce so typing a quantity doesn't fire a pricing request per keystroke.
@@ -286,15 +296,16 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
   const preview = previewQuery.data;
   const previewError = previewQuery.isError ? (previewQuery.error instanceof SalesApiError ? previewQuery.error.message : "Pricing could not be calculated.") : null;
 
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => submit.run(async () => {
       if (!input) throw new SalesApiError("Choose a customer and add at least one item.", 400);
       if (orderId) {
         await updateSalesOrder(orderId, input);
         return orderId;
       }
       return (await createSalesOrder({ ...input, idempotencyKey })).order.id;
-    },
+    }),
     onSuccess: (id) => onDone(id),
     onError: (failure) => setError(failure instanceof SalesApiError ? failure.message : "The order could not be saved."),
   });
@@ -308,7 +319,7 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
           : "Saved as a draft. Totals update as you edit and are calculated by the server; confirm the order when it is ready."}
         secondaryActions={<Button variant="secondary" onPress={onCancel}>Cancel</Button>}
         primaryAction={
-          <Button variant="primary" onPress={() => save.mutate()} isLoading={save.isPending} isDisabled={!input || Boolean(previewError) || Boolean(blocked)}>
+          <Button variant="primary" onPress={() => save.mutate()} isLoading={save.isPending || save.isSuccess} isDisabled={!input || Boolean(previewError) || Boolean(blocked)}>
             {existing ? "Save Draft" : "Save as Draft"}
           </Button>
         }
@@ -355,7 +366,9 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
                   if (validLines.length) setPendingPriceList(next);
                   else setPriceListId(next);
                 }} />
-              <Select label="Payment terms" options={paymentTermOptions} selectedKey={paymentTermId} onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))} />
+              <Select label="Payment terms" options={paymentTermOptions} selectedKey={paymentTermId} onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))}
+                description={options.paymentTerms.find((term) => term.id === paymentTermId)?.description ?? "When payment is due. Each invoice of the order gets its own due date."} />
+              <TextField label="Additional payment terms" description="Optional, for this order only. Printed with the payment terms." value={paymentTermsNote} onChange={setPaymentTermsNote} />
             </div>
           </SalesPanel>
 

@@ -16,11 +16,6 @@ import {
   categoriesList,
   categoryForm,
 } from "@/features/procurement/configs/categories";
-import {
-  supplierForm,
-  suppliersList,
-} from "@/features/procurement/configs/suppliers";
-import { SupplierDetailScreen } from "@/features/procurement/screens/SupplierDetailScreen";
 import { orderForm, ordersList } from "@/features/procurement/configs/orders";
 import { OrderDetailScreen } from "@/features/procurement/screens/OrderDetailScreen";
 import {
@@ -39,7 +34,6 @@ import {
 } from "@/features/procurement/shared/OperationRegister";
 
 const LISTS: Record<string, ListConfig> = {
-  suppliers: suppliersList,
   categories: categoriesList,
   orders: ordersList,
   receipts: receiptsList,
@@ -47,7 +41,6 @@ const LISTS: Record<string, ListConfig> = {
   exceptions: exceptionsList,
 };
 const FORMS: Record<string, FormConfig> = {
-  suppliers: supplierForm,
   categories: categoryForm,
   orders: orderForm,
   receipts: receiptForm,
@@ -61,7 +54,6 @@ const CUSTOM_DETAILS: Record<
   string,
   (props: { id: string }) => React.ReactNode
 > = {
-  suppliers: (props) => <SupplierDetailScreen id={props.id} />,
   orders: (props) => <OrderDetailScreen id={props.id} />,
 };
 
@@ -84,16 +76,19 @@ export function FormPage({
   sourceKind,
   sourceId,
   amend,
+  initial,
 }: {
   name: string;
   id?: string;
   sourceKind?: string;
   sourceId?: string;
   amend?: boolean;
+  // Pre-filled values for a new document (a purchase order started from a supplier).
+  initial?: Record<string, string>;
 }) {
   return (
     <DocumentForm
-      config={FORMS[name]}
+      config={initial ? { ...FORMS[name], initial } : FORMS[name]}
       id={id}
       sourceKind={sourceKind}
       sourceId={sourceId}

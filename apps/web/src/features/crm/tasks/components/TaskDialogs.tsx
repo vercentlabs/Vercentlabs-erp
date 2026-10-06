@@ -14,6 +14,7 @@ import {
   assignTask, cancelTask, completeTask, createTask, errorMessage, updateTask, type Task, type TaskInput, type TaskOptions, type TaskPriority, type TaskRelatedType,
 } from "../api/tasks-api";
 import { ErrorBanner, PRIORITY_OPTIONS } from "../task-format";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 const NONE = "none";
 const CUSTOM = "custom";
@@ -56,8 +57,9 @@ export function TaskFormDialog({ isOpen, onOpenChange, options, related, task, o
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const canAssign = options.capabilities.assign;
 
+  const submit = useSubmitKey();
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: () => submit.run(async () => {
       const input: TaskInput = {
         title, description, priority, dueDate, dueTime,
         ...(reminder === CUSTOM ? { reminderAt: reminderAt || null } : { reminderOffsetMinutes: reminder === NONE ? null : Number(reminder) }),
@@ -68,7 +70,7 @@ export function TaskFormDialog({ isOpen, onOpenChange, options, related, task, o
       }
       if (task) return updateTask(task.id, { ...input, expectedUpdatedAt: task.updatedAt });
       return createTask({ ...input, ...(related ? { relatedType: related.type, relatedId: related.id } : {}), assignedTo, idempotencyKey });
-    },
+    }),
     onSuccess: (saved) => { setError(null); onSaved(saved); onOpenChange(false); },
     onError: (failure) => setError(errorMessage(failure)),
   });

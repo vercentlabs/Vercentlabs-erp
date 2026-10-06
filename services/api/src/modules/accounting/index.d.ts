@@ -75,4 +75,7 @@ export function allocateInstallments(total: string | number, termLines: Accounti
 export function calculateSettlementBaseAmounts(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
 export function createCustomerSettlementAdjustment(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
 export function createVendorSettlementAdjustment(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
+export function reverseCustomerCreditNote(client: QueryClient, context: AccountingContext, id: string, input: { reason: string; accountingDate?: string }, options?: { internal?: boolean }): Promise<AccountingRecord>;
+export function changeCustomerInvoiceDueDate(client: QueryClient, context: AccountingContext, id: string, input: { dueDate: string; reason: string }, options?: { internal?: boolean }): Promise<AccountingRecord>;
+export * from "./refunds/index.js";
 export function resolvePaymentSchedule(client: QueryClient, context: AccountingContext, options: AccountingRecord): Promise<AccountingRecord>;

@@ -170,15 +170,6 @@ const SOURCES: QueueSource[] = [
     href: (id) => `/procurement/receipts/${id}`,
     number: (r) => String(r.receiptNumber ?? r.id),
   },
-  {
-    resource: "suppliers",
-    kind: "Supplier qualification",
-    statuses: ["submitted"],
-    approve: "qualify",
-    permission: "procurement.suppliers.qualify",
-    href: (id) => `/procurement/suppliers/${id}`,
-    number: (r) => String(r.displayName ?? r.supplierCode ?? r.id),
-  },
 ];
 
 type QueueRow = ProcRecord & { _source: QueueSource };

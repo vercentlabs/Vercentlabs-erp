@@ -666,9 +666,17 @@ const ROLE_DEFINITIONS = [
       "items.manage",
       "finance_setup.manage",
       "procurement.settings.manage",
-      "procurement.suppliers.manage",
-      "procurement.suppliers.qualify",
-      "procurement.suppliers.sensitive",
+      "procurement.suppliers.create",
+      "procurement.suppliers.edit",
+      "procurement.suppliers.addresses",
+      "procurement.suppliers.contacts",
+      "procurement.suppliers.commercial",
+      "procurement.suppliers.tax",
+      "procurement.suppliers.import",
+      "procurement.suppliers.export",
+      "procurement.suppliers.status",
+      "procurement.suppliers.block",
+      "procurement.suppliers.payables.view",
       "procurement.catalog.manage",
       "procurement.requisition.manage",
       "procurement.requisition.approve",
@@ -699,8 +707,17 @@ const ROLE_DEFINITIONS = [
       ...procurementReader,
       "parties.manage",
       "items.manage",
-      "procurement.suppliers.manage",
-      "procurement.suppliers.qualify",
+      "procurement.suppliers.create",
+      "procurement.suppliers.edit",
+      "procurement.suppliers.addresses",
+      "procurement.suppliers.contacts",
+      "procurement.suppliers.commercial",
+      "procurement.suppliers.tax",
+      "procurement.suppliers.import",
+      "procurement.suppliers.export",
+      "procurement.suppliers.status",
+      "procurement.suppliers.block",
+      "procurement.suppliers.payables.view",
       "procurement.catalog.manage",
       "procurement.requisition.manage",
       "procurement.sourcing.manage",
@@ -771,9 +788,17 @@ const ROLE_DEFINITIONS = [
     permissions: unique([
       ...procurementReader,
       "parties.manage",
-      "procurement.suppliers.manage",
-      "procurement.suppliers.qualify",
-      "procurement.suppliers.sensitive",
+      "procurement.suppliers.create",
+      "procurement.suppliers.edit",
+      "procurement.suppliers.addresses",
+      "procurement.suppliers.contacts",
+      "procurement.suppliers.commercial",
+      "procurement.suppliers.tax",
+      "procurement.suppliers.import",
+      "procurement.suppliers.export",
+      "procurement.suppliers.status",
+      "procurement.suppliers.block",
+      "procurement.suppliers.payables.view",
       "procurement.catalog.manage",
       "procurement.supplier_portal.manage",
     ]),
@@ -1297,6 +1322,10 @@ function withOrderPermissions(role) {
       ...role.permissions,
       ...(has("sales.view") ? ["sales.order.view", "sales.order.view_all", "sales.order.export"] : []),
       ...(has("sales.order.cancel") ? ["sales.order.reopen", "sales.order.cancel_remaining"] : []),
+      // Order status tracking (as migration 0041 grants): whoever confirms orders closes them by hand; reopening a closed order is for whoever approves
+      // orders or manages Sales settings.
+      ...(has("sales.order.confirm") ? ["sales.order.close"] : []),
+      ...(has("sales.order.approve") || has("sales.settings.manage") ? ["sales.order.reopen_closed"] : []),
       ...(has("sales.order.confirm") || has("sales.fulfillment.request") ? ["sales.order.reserve"] : []),
       ...(has("sales.order.approve") || has("sales.settings.manage") ? ["sales.order.view_team"] : []),
       // Order confirmations: sent and acknowledged by whoever creates or confirms orders.
@@ -1317,13 +1346,51 @@ function withOrderPermissions(role) {
       ...(has("sales.fulfillment.request") || has("sales.order.confirm") || has("stock.issue") ? ["sales.delivery.edit", "sales.delivery.deliver", "sales.delivery.cancel"] : []),
       ...(has("sales.order.confirm") || has("stock.issue") ? ["sales.delivery.dispatch"] : []),
       // Sales invoices (as migration 0036 grants): seen, printed and their payments seen with the orders and by Finance; edited and sent by whoever
-      // creates them; posted by sales managers and Finance; reversed, credited and dated by Finance; their journal seen by Finance.
+      // creates them; posted by sales managers and Finance; reversed and dated by Finance; their journal seen by Finance.
       ...(has("sales.view") || has("accounting.view") ? ["sales.invoice.view", "sales.invoice.print", "sales.invoice.payments.view"] : []),
       ...(has("sales.view") || has("sales.order.view_all") || has("accounting.view") ? ["sales.invoice.view_all"] : []),
       ...(has("sales.invoice.request") || has("accounting.receivables.manage") ? ["sales.invoice.edit", "sales.invoice.send"] : []),
       ...(has("sales.order.confirm") || has("accounting.receivables.manage") ? ["sales.invoice.post"] : []),
-      ...(has("accounting.receivables.manage") ? ["sales.invoice.reverse", "sales.invoice.credit_note", "sales.invoice.change_posting_date"] : []),
+      ...(has("accounting.receivables.manage") ? ["sales.invoice.reverse", "sales.invoice.change_posting_date"] : []),
       ...(has("accounting.view") ? ["sales.invoice.accounting.view"] : []),
+      // Sales returns (as migration 0037 grants): seen and printed with the orders and by the warehouse; prepared by whoever creates deliveries, sales
+      // managers and the warehouse; received (stock comes back) by the warehouse and sales managers; credited by whoever makes credit notes.
+      ...(has("sales.view") || has("stock.view") || has("accounting.view") ? ["sales.return.view", "sales.return.print"] : []),
+      ...(has("sales.view") || has("sales.order.view_all") || has("stock.view") || has("accounting.view") ? ["sales.return.view_all"] : []),
+      ...(has("sales.fulfillment.request") || has("sales.order.confirm") || has("stock.receive") ? ["sales.return.create", "sales.return.edit"] : []),
+      ...(has("stock.receive") || has("sales.order.confirm") ? ["sales.return.receive", "sales.return.select_warehouse"] : []),
+      ...(has("accounting.receivables.manage") ? ["sales.return.credit_note"] : []),
+      // Credit notes (as migration 0038 grants): seen, printed and their application seen with the invoices; prepared (by quantity, also from
+      // returns), edited and sent by sales managers and Finance; amount credits, posting and reversal by Finance; their journal seen by Finance.
+      ...(has("sales.view") || has("accounting.view") ? ["sales.credit_note.view", "sales.credit_note.print", "sales.credit_note.application.view"] : []),
+      ...(has("sales.view") || has("sales.order.view_all") || has("accounting.view") ? ["sales.credit_note.view_all"] : []),
+      ...(has("sales.order.confirm") || has("accounting.receivables.manage")
+        ? ["sales.credit_note.create", "sales.credit_note.edit", "sales.credit_note.send", "sales.return.credit_note"] : []),
+      ...(has("accounting.receivables.manage") ? ["sales.credit_note.amount", "sales.credit_note.post", "sales.credit_note.reverse"] : []),
+      ...(has("accounting.view") ? ["sales.credit_note.accounting.view"] : []),
+      // Customer refunds (as migration 0039 grants): seen, with the customer credit behind them and their journal, by whoever sees the books; drafted,
+      // edited, cancelled and sent by whoever records receipts or handles payments; posted and reversed, and the bank or cash account chosen, only by
+      // whoever executes or approves payments.
+      ...(has("accounting.view") ? ["accounting.refund.view", "accounting.customer_credit.view", "accounting.refund.accounting.view"] : []),
+      ...(has("accounting.receipts.manage") || has("accounting.payments.manage") || has("accounting.payments.approve")
+        ? ["accounting.refund.create", "accounting.refund.edit", "accounting.refund.cancel", "accounting.refund.send"] : []),
+      ...(has("accounting.payments.manage") || has("accounting.payments.approve") ? ["accounting.refund.select_account", "accounting.refund.post", "accounting.refund.reverse"] : []),
+      // Payment terms (as migration 0040 grants): seen by Sales and Finance; maintained, and the Sales default chosen, by whoever manages Sales settings;
+      // chosen on a quotation or order by whoever prepares it; on a draft invoice, with a hand-set due date, by sales managers and Finance; a posted
+      // invoice's due date corrected only by Finance.
+      ...(has("sales.view") || has("accounting.view") ? ["payment_terms.view"] : []),
+      ...(has("sales.settings.manage") ? ["payment_terms.manage", "payment_terms.set_default"] : []),
+      ...(has("sales.quotation.create") ? ["sales.quotation.change_payment_terms"] : []),
+      ...(has("sales.order.create") ? ["sales.order.change_payment_terms"] : []),
+      ...(has("sales.order.confirm") || has("accounting.receivables.manage") ? ["sales.invoice.change_payment_terms", "sales.invoice.override_due_date"] : []),
+      ...(has("accounting.receivables.manage") ? ["sales.invoice.change_posted_due_date"] : []),
+      // Supplier Master (as migration 0043 grants): every supplier seen by whoever saw suppliers; what suppliers are owed seen by Accounts Payable;
+      // where suppliers are paid seen by whoever pays them and changed only by whoever approves payments; purchase payment terms seen by Procurement.
+      ...(has("procurement.suppliers.view") ? ["procurement.suppliers.view_all"] : []),
+      ...(has("accounting.payables.manage") || has("accounting.payables.approve") ? ["procurement.suppliers.payables.view"] : []),
+      ...(has("accounting.payments.manage") || has("accounting.payments.approve") ? ["accounting.supplier_payment_details.view"] : []),
+      ...(has("accounting.payments.approve") ? ["accounting.supplier_payment_details.manage"] : []),
+      ...(has("procurement.view") ? ["payment_terms.view"] : []),
     ]),
   };
 }
@@ -1412,12 +1479,12 @@ export const SOD_CONFLICTS = Object.freeze([
       "POS payment reconciliation generation/matching and exception approval must be separated — the same role must not both match settlement evidence and resolve its own variance.",
   },
   {
-    key: "supplier_manage_sensitive",
-    first: "procurement.suppliers.manage",
-    second: "procurement.suppliers.sensitive",
+    key: "supplier_edit_payment_details",
+    first: "procurement.suppliers.edit",
+    second: "accounting.supplier_payment_details.manage",
     severity: "warning",
     description:
-      "Supplier maintenance and sensitive supplier access should be reviewed.",
+      "Editing suppliers and changing the bank accounts they are paid to should be separated: together they allow a payment to be redirected.",
   },
   {
     key: "sourcing_evaluate_award",

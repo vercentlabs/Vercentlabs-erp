@@ -31,7 +31,8 @@ export async function getCustomerOptions(client, context) {
     currencies: (await rows(`SELECT code, name FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`)).map((row) => ({ code: row.code.trim(), name: row.name })),
     priceLists: (await rows(`SELECT id, name, currency_code FROM tenant.price_lists WHERE organization_id = $1 AND price_list_type = 'sales' AND status = 'active' ORDER BY name`))
       .map((row) => ({ id: row.id, name: row.name, currencyCode: row.currency_code?.trim() ?? null })),
-    paymentTerms: (await rows(`SELECT id, name, default_due_days FROM tenant.payment_terms WHERE organization_id = $1 AND status = 'active' ORDER BY default_due_days, name`))
+    paymentTerms: (await rows(`SELECT id, name, default_due_days, calculation_type FROM tenant.payment_terms WHERE organization_id = $1 AND status = 'active' AND is_sales_enabled
+                                 ORDER BY (calculation_type = 'custom'), default_due_days, name`))
       .map((row) => ({ id: row.id, name: row.name, dueDays: row.default_due_days })),
     salespeople: (await rows(
       `SELECT users.id, users.full_name FROM public.organization_memberships membership JOIN public.users users ON users.id = membership.user_id

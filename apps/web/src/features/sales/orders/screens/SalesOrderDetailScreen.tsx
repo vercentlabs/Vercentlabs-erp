@@ -19,12 +19,15 @@ import {
   Button, EnterpriseDataGrid, ErrorState, LinkButton, MetricStrip, PermissionState, ProgressBar, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, buttonVariants,
 } from "@vercentlabs/design-system";
 
+import { useCreateRequest } from "@/features/sales/shared/use-create-request";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { StoredTotals, discountReasonLabel } from "@/features/sales/shared/DocumentDiscounts";
 import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
+import { getOrderTracking, type OrderTracking } from "@/features/sales/order-tracking/api/order-tracking-api";
+import { OrderProgress, OrderReturnsCredits, OrderTrackingSummary, RelatedDocuments } from "@/features/sales/order-tracking/components/OrderTrackingPanel";
 import type { SalesDocumentEvent } from "@/features/sales/quotations/api/quotations-api";
 
 import {
@@ -40,7 +43,7 @@ import { DeliveryStatusBadge } from "@/features/sales/deliveries/components/Deli
 import { CreateInvoiceDialog } from "@/features/sales/invoices/components/InvoiceDialogs";
 
 import { CancelOrderDialog, CancelRemainingDialog, ReopenOrderDialog, failureText } from "../components/OrderDialogs";
-import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge } from "../components/OrderStatusBadges";
+import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge, ReservationStatusBadge } from "../components/OrderStatusBadges";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -92,7 +95,10 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const queryClient = useQueryClient();
   const key = scopedQueryKey(workspace, "sales", "order", orderId);
   const query = useQuery({ queryKey: key, queryFn: () => getSalesOrder(orderId).then((r) => r.order) });
-  const [tab, setTab] = useState("overview");
+  // Where the order stands: one service for every dimension, read beside the order itself.
+  const trackingKey = scopedQueryKey(workspace, "sales", "order", orderId, "tracking");
+  const trackingQuery = useQuery({ queryKey: trackingKey, queryFn: () => getOrderTracking(orderId).then((r) => r.tracking) });
+  const [chosenTab, setTab] = useState<string | null>(null);
   // Check Availability in the header opens Fulfillment and runs the check.
   const [checkAvailability, setCheckAvailability] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -121,6 +127,13 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
     onError: fail("The stock could not be reserved."),
   });
 
+  // From Sales → + Create: open the delivery or invoice dialog when this order allows it.
+  useCreateRequest(Boolean(query.data), (kind) => {
+    const actions = query.data?.actions;
+    if (kind === "delivery") { if (actions?.deliver) setDialog("delivery"); else setNotice("Nothing on this order can be delivered now."); }
+    if (kind === "invoice") { if (actions?.invoice) setDialog("invoice"); else setNotice("Nothing on this order can be invoiced now."); }
+  });
+
   if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
   if (query.isError && query.error instanceof SalesApiError && query.error.status === 403)
     return <PermissionState title="You don't have access to sales orders" description="Ask an administrator for the View sales orders permission." />;
@@ -133,6 +146,11 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const actions = detail.actions;
   const currency = order.currency_code;
   const executing = order.status !== "draft";
+  const tracking = trackingQuery.data;
+  const tab = chosenTab ?? "overview";
+  const trackingMissing = executing && !tracking && (trackingQuery.isLoading
+    ? <p className="text-sm text-text-muted">Loading where the order stands…</p>
+    : <ErrorState title="Could not load the order's tracking" action={{ label: "Retry", onPress: () => trackingQuery.refetch() }} />);
 
   return (
     <div className="flex flex-col gap-4">
@@ -164,7 +182,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
             <span className="flex flex-wrap items-center gap-1.5">
               <OrderStatusBadge status={order.status} label={order.statusLabel} />
               {executing && order.confirmation !== "none" && <ConfirmationStatusBadge status={order.confirmation} label={order.confirmationLabel} />}
-              {executing && <FulfillmentStatusBadge status={order.fulfillment} label={order.fulfillmentLabel} />}
+              {order.status === "confirmed" && order.reservation !== "not_required" && <ReservationStatusBadge status={order.reservation} label={order.reservationLabel} />}
+              {executing && order.fulfillment !== "not_required" && <FulfillmentStatusBadge status={order.fulfillment} label={order.fulfillmentLabel} />}
               {detail.delivery.overdue && <OverdueDeliveryBadge />}
               {executing && order.status !== "cancelled" && <InvoicingStatusBadge status={order.invoicing} label={order.invoicingLabel} />}
             </span>
@@ -174,7 +193,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
             { label: "Order date", value: calendarDate(order.order_date) },
             { label: "Customer PO", value: order.customer_po_number ?? "—" },
             { label: "Requested delivery", value: calendarDate(order.requested_delivery_date) },
-            { label: "Total", value: money(currency, order.grand_total) },
+            { label: "Order value", value: money(currency, order.grand_total) },
+            ...(executing && tracking?.payment.balanceDue !== undefined && tracking.payment.status !== "not_invoiced" ? [{ label: "Balance due", value: money(currency, tracking.payment.balanceDue) }] : []),
             { label: "Salesperson", value: order.owner_name ?? "—" },
             ...(order.source_quotation_id
               ? [{ label: "Quotation", value: <Link className="hover:underline" href={`/sales/quotations/${order.source_quotation_id}`}>{order.source_quotation_number}</Link> }]
@@ -205,6 +225,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           ),
         }}
       >
+        {/* Where the order stands, always on top once it is confirmed: one service for this page, the list and the reports. */}
+        {executing && tracking ? <OrderTrackingSummary tracking={tracking} onChanged={(message) => done(message)} /> : trackingMissing || (
         <MetricStrip
           metrics={[
             { label: "Subtotal", value: money(currency, order.subtotal) },
@@ -214,7 +236,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
             ...(executing ? [{ label: "Invoiced", value: money(currency, detail.invoicing.invoicedValue) }] : []),
             ...(order.margin_percent !== undefined ? [{ label: "Margin", value: `${Number(order.margin_percent).toFixed(1)}%` }] : []),
           ]}
-        />
+        />)}
         <Tabs selectedKey={tab} onSelectionChange={(selected) => setTab(String(selected))}>
           <TabList aria-label="Sales order sections">
             <Tab id="overview">Overview</Tab>
@@ -222,11 +244,12 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
             <Tab id="fulfillment">Fulfillment</Tab>
             <Tab id="invoices">Invoices ({detail.invoices.length})</Tab>
             <Tab id="confirmation">Confirmation</Tab>
+            {executing && <Tab id="returns">Returns &amp; credits</Tab>}
             <Tab id="related">Related documents</Tab>
             <Tab id="notes">Notes &amp; attachments</Tab>
             <Tab id="history">History</Tab>
           </TabList>
-          <TabPanel id="overview"><Overview detail={detail} /></TabPanel>
+                    <TabPanel id="overview"><Overview detail={detail} tracking={executing ? tracking : undefined} /></TabPanel>
           <TabPanel id="items"><Items detail={detail} /></TabPanel>
           <TabPanel id="fulfillment">
             <Fulfillment detail={detail} orderId={orderId} autoCheck={checkAvailability} reserving={reserve.isPending} onReserve={() => reserve.mutate()}
@@ -236,7 +259,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           <TabPanel id="confirmation">
             <Confirmation detail={detail} onSend={() => setDialog("email")} onMarkSent={() => setDialog("markSent")} onAcknowledge={() => setDialog("acknowledge")} />
           </TabPanel>
-          <TabPanel id="related"><Related detail={detail} /></TabPanel>
+          {executing && <TabPanel id="returns">{tracking ? <OrderReturnsCredits tracking={tracking} /> : <div className="pt-4">{trackingMissing}</div>}</TabPanel>}
+          <TabPanel id="related"><Related detail={detail} tracking={tracking} /></TabPanel>
           <TabPanel id="notes"><Notes detail={detail} orderId={orderId} canEdit={Boolean(detail.capabilities.create)} onChanged={refresh} /></TabPanel>
           <TabPanel id="history"><History detail={detail} /></TabPanel>
         </Tabs>
@@ -265,10 +289,11 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   );
 }
 
-function Overview({ detail }: { detail: SalesOrderDetail }) {
+function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: OrderTracking }) {
   const order = detail.order;
   return (
     <div className="flex flex-col gap-4 pt-4">
+      {tracking && <OrderProgress tracking={tracking} />}
       <SalesPanel title="Customer">
         <SalesFacts items={[
           { label: "Customer", value: order.customer_snapshot?.displayName ?? "—" },
@@ -293,7 +318,10 @@ function Overview({ detail }: { detail: SalesOrderDetail }) {
         <SalesFacts items={[
           { label: "Currency", value: order.currency_code },
           { label: "Price list", value: order.price_list_name ? `${order.price_list_name} (${order.price_list_tax_inclusive ? "tax inclusive" : "tax exclusive"})` : "None" },
-          { label: "Payment terms", value: order.payment_term_snapshot?.name ?? "—" },
+          { label: "Payment terms", value: order.payment_term_snapshot?.name
+            ? <span className="flex flex-col"><span>{order.payment_term_snapshot.name}</span>
+                {[order.payment_term_snapshot.description, order.payment_term_snapshot.note].filter(Boolean).map((line, index) => <span key={index} className="text-xs text-text-muted">{line}</span>)}</span>
+            : "—" },
           { label: "Issued by", value: order.seller_snapshot?.name ? `${order.seller_snapshot.name}${order.seller_snapshot.gstin ? ` · GSTIN ${order.seller_snapshot.gstin}` : ""}` : "—" },
           { label: "Place of supply", value: order.place_of_supply
             ? `${order.place_of_supply_name ?? order.place_of_supply} (${order.place_of_supply})${order.place_of_supply_source === "override" ? ` · changed: ${order.place_of_supply_reason ?? ""}` : ""}`
@@ -452,6 +480,7 @@ function DeliveryProgress({ detail, canDeliver, onDeliver }: { detail: SalesOrde
               <th className="py-2 pr-3 text-right font-medium">Dispatched</th>
               <th className="py-2 pr-3 text-right font-medium">Cancelled</th>
               {returns && <th className="py-2 pr-3 text-right font-medium">Returned</th>}
+              {returns && <th className="py-2 pr-3 text-right font-medium">Net with customer</th>}
               <th className="py-2 text-right font-medium">Remaining</th>
             </tr>
           </thead>
@@ -464,6 +493,7 @@ function DeliveryProgress({ detail, canDeliver, onDeliver }: { detail: SalesOrde
                 <td className="py-2 pr-3 text-right tabular-nums">{quantity(line.delivered_quantity)}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{Number(line.cancelled_quantity) ? quantity(line.cancelled_quantity) : ""}</td>
                 {returns && <td className="py-2 pr-3 text-right tabular-nums">{Number(line.returned_quantity) ? quantity(line.returned_quantity) : ""}</td>}
+                {returns && <td className="py-2 pr-3 text-right tabular-nums">{quantity(Number(line.delivered_quantity) - Number(line.returned_quantity))}</td>}
                 <td className="py-2 text-right font-medium tabular-nums">{Number(line.remaining_to_deliver) ? quantity(line.remaining_to_deliver) : "Complete"}</td>
               </tr>
             ))}
@@ -504,6 +534,8 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
         <SalesFacts columns={4} items={[
           { label: "Order value", value: money(currency, detail.invoicing.orderedValue) },
           { label: "Invoiced", value: money(currency, detail.invoicing.invoicedValue) },
+          { label: "Credited", value: money(currency, detail.invoicing.creditedValue) },
+          { label: "Net billed", value: money(currency, detail.invoicing.netBilledValue) },
           { label: "Remaining to invoice", value: money(currency, detail.invoicing.remainingValue) },
           { label: "Invoiceable now", value: money(currency, detail.invoicing.invoiceableNowValue) },
         ]} />
@@ -522,6 +554,20 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
                 <span className="text-text-muted">{calendarDate(invoice.invoice_date)}</span>
                 <span className="tabular-nums">{money(invoice.currency_code, invoice.grand_total)}</span>
                 {Number(invoice.outstanding_amount) > 0 && <span className="text-text-muted tabular-nums">Outstanding {money(invoice.currency_code, invoice.outstanding_amount)}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </SalesPanel>
+      <SalesPanel title="Credit notes" description="Credits against the order's posted invoices: returned goods, price adjustments and corrections. Invoices keep their totals; posted credit notes reduce what was billed.">
+        {!detail.creditNotes.length ? <p className="text-sm text-text-muted">No credit notes.</p> : (
+          <ul className="flex flex-col divide-y divide-border text-sm">
+            {detail.creditNotes.map((credit) => (
+              <li key={credit.id} className="flex flex-wrap items-center gap-3 py-2">
+                <Link className="font-medium text-brand tabular-nums hover:underline" href={`/sales/credit-notes/${credit.id}`}>{credit.invoice_number}</Link>
+                <StatusBadge tone={statusTone(credit.status)}>{statusLabel(credit.status)}</StatusBadge>
+                <span className="text-text-muted">{calendarDate(credit.invoice_date)}</span>
+                <span className="tabular-nums">{money(credit.currency_code, credit.grand_total)}</span>
               </li>
             ))}
           </ul>
@@ -588,24 +634,26 @@ function Confirmation({ detail, onSend, onMarkSent, onAcknowledge }: {
         <SalesFacts items={[
           { label: "Quotation", value: order.source_quotation_id ? <Link className="text-brand hover:underline" href={`/sales/quotations/${order.source_quotation_id}`}>{order.source_quotation_number}</Link> : "None (direct order)" },
           { label: "Deliveries", value: detail.deliveries.length ? detail.deliveries.map((delivery) => delivery.delivery_number).join(", ") : "None" },
+          { label: "Returns", value: detail.returns.length ? <span className="flex flex-wrap gap-2">{detail.returns.map((item) => <Link key={item.id} className="text-brand hover:underline" href={`/sales/returns/${item.id}`}>{item.return_number}</Link>)}</span> : "None" },
           { label: "Invoices", value: detail.invoices.length ? detail.invoices.map((invoice) => invoice.invoice_number).join(", ") : "None" },
+          { label: "Credit notes", value: detail.creditNotes.length ? <span className="flex flex-wrap gap-2">{detail.creditNotes.map((credit) => <Link key={credit.id} className="text-brand hover:underline" href={`/sales/credit-notes/${credit.id}`}>{credit.invoice_number}</Link>)}</span> : "None" },
         ]} />
       </SalesPanel>
     </div>
   );
 }
 
-function Related({ detail }: { detail: SalesOrderDetail }) {
+function Related({ detail, tracking }: { detail: SalesOrderDetail; tracking?: OrderTracking }) {
   const order = detail.order;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Related documents">
+      {/* The documents the order led to come from the order tracking service: one source for this page, the list and the reports. */}
+      {tracking && <RelatedDocuments tracking={tracking} />}
+      <SalesPanel title="Where it came from">
         <SalesFacts items={[
           { label: "Customer", value: <Link className="text-brand hover:underline" href={`/sales/customers/${order.party_id}`}>{order.customer_snapshot?.displayName ?? "Open customer"}</Link> },
           { label: "Quotation", value: order.source_quotation_id ? <Link className="text-brand hover:underline" href={`/sales/quotations/${order.source_quotation_id}`}>{order.source_quotation_number}</Link> : "None (direct order)" },
           { label: "Opportunity", value: order.source_opportunity_id ? <Link className="text-brand hover:underline" href={`/crm/opportunities/${order.source_opportunity_id}`}>{[order.source_opportunity_code, order.source_opportunity_name].filter(Boolean).join(" · ")}</Link> : "None" },
-          { label: "Deliveries", value: detail.deliveries.length ? detail.deliveries.map((delivery) => delivery.delivery_number).join(", ") : "None" },
-          { label: "Invoices", value: detail.invoices.length ? detail.invoices.map((invoice) => invoice.invoice_number).join(", ") : "None" },
         ]} />
       </SalesPanel>
       <SalesPanel title="Saved versions" description="Each save of the draft is kept.">

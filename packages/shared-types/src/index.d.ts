@@ -12,7 +12,6 @@ export const BUSINESS_DATA_RESOURCE_KEYS: readonly [
   "tax-rates",
   "warehouses",
   "warehouse-locations",
-  "payment-terms",
   "price-lists",
   "fiscal-periods",
   "currencies",

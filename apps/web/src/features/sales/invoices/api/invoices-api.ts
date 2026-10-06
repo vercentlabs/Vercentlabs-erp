@@ -8,6 +8,7 @@ import type { SalesDocumentEvent } from "@/features/sales/quotations/api/quotati
 // amount paid and balance are worked out from what Finance applied.
 export type InvoiceStatusKey = "draft" | "posted" | "reversed" | "cancelled";
 export type PaymentStatusKey = "not_applicable" | "unpaid" | "partially_paid" | "paid";
+export type CreditStatusKey = "not_credited" | "partially_credited" | "fully_credited";
 type Snapshot = Record<string, string | null | undefined> | null;
 
 export type InvoiceRow = {
@@ -31,6 +32,10 @@ export type InvoiceRow = {
   sales_order_number: string;
   owner_name: string | null;
   sent_at: string | null;
+  payment_term_name: string | null;
+  credited_total: number;
+  creditStatus: CreditStatusKey;
+  creditStatusLabel: string;
 };
 export type InvoiceList = { rows: InvoiceRow[]; total: number; limit: number; offset: number; views: Array<{ key: string; label: string }>; capabilities: Record<string, boolean> };
 
@@ -60,7 +65,9 @@ export type InvoiceLine = {
   line_total: string;
   taxes: InvoiceTax[];
 };
-export type InvoiceActions = Record<"edit" | "post" | "cancel" | "print" | "send" | "markSent" | "recordPayment" | "creditNote" | "reverse" | "viewPayments" | "viewAccounting", boolean>;
+export type InvoiceActions = Record<
+  "edit" | "post" | "cancel" | "print" | "send" | "markSent" | "recordPayment" | "creditNote" | "reverse" | "viewPayments" | "viewAccounting" | "changePaymentTerms" | "overrideDueDate" | "changeDueDate",
+  boolean>;
 
 export type InvoiceDetail = {
   invoice: {
@@ -74,6 +81,10 @@ export type InvoiceDetail = {
     overdue: boolean;
     amountPaid: number | null;
     credited: number | null;
+    creditedTotal: number;
+    netAfterCredits: number;
+    creditStatus: CreditStatusKey;
+    creditStatusLabel: string;
     balanceDue: number;
     sent: boolean;
     sentLabel: string;
@@ -95,7 +106,17 @@ export type InvoiceDetail = {
     billing_address_snapshot: Snapshot;
     shipping_address_snapshot: Snapshot;
     seller_snapshot: Snapshot;
-    payment_term_snapshot: { name?: string | null } | null;
+    payment_term_snapshot: { id?: string | null; name?: string | null } | null;
+    // The terms as agreed on this invoice (its own snapshot), and the due date beside what the terms work out.
+    paymentTerm: {
+      id: string | null; code: string | null; name: string | null; description: string | null; calculationType: "due_on_receipt" | "net_days" | "custom"; days: number | null;
+      note: string | null; calculationLabel: string; summary: string;
+    } | null;
+    calculated_due_date: string | null;
+    due_date_overridden: boolean;
+    due_date_override_reason: string | null;
+    // The terms set no date and none was entered yet: needed before posting.
+    dueDateRequired: boolean;
     place_of_supply: string | null;
     place_of_supply_name: string | null;
     supply_nature: string | null;
@@ -130,8 +151,14 @@ export type InvoiceDetail = {
   taxSummary: Array<{ taxType: string; label: string | null; rate: number; taxableAmount: number; taxAmount: number }>;
   receipts: Array<{ id: string; allocated_amount: string; allocated_at: string; receipt_number: string; receipt_date: string; payment_method: string | null }>;
   credits: Array<{ id: string; allocated_amount: string; allocated_at: string; credit_note_number: string }>;
-  creditNotes: Array<{ id: string; invoice_number: string; status: string; invoice_date: string; grand_total: string; currency_code: string }>;
+  // Credit notes against the invoice; posted ones credit it, its own total never changes.
+  creditNotes: Array<{
+    id: string; invoice_number: string; status: string; statusLabel: string; invoice_date: string; grand_total: string; outstanding_amount: string; currency_code: string;
+    reason_code: string | null; sales_return_id: string | null; refunded: string;
+  }>;
   deliveries: Array<{ id: string; delivery_number: string; delivery_status: string; dispatch_date: string | null }>;
+  // Returns of the goods this invoice billed.
+  returns: Array<{ id: string; return_number: string; status: string; return_date: string }>;
   sends: Array<{ id: string; channel: string; recipients: string | null; subject: string | null; note: string | null; sent_at: string; sent_by_name: string | null }>;
   events: SalesDocumentEvent[];
   sentChannels: Array<{ code: string; label: string }>;
@@ -153,7 +180,7 @@ export type PostingCheck = {
   ready: boolean; problems: Array<{ code: string; message: string }>; warnings: Array<{ code: string; message: string }>; taxDifferences: Array<{ item: string; invoiced: string; expected: string }>;
 };
 export type InvoiceFilters = {
-  view?: string; search?: string; status?: string; paymentStatus?: string; partyId?: string; salesOrderId?: string; ownerUserId?: string; currencyCode?: string;
+  view?: string; search?: string; status?: string; paymentStatus?: string; partyId?: string; salesOrderId?: string; ownerUserId?: string; paymentTermId?: string; currencyCode?: string;
   dateFrom?: string; dateTo?: string; dueFrom?: string; dueTo?: string; overdue?: string; sort?: string; direction?: string; limit?: number; offset?: number;
 };
 export type InvoiceFile = { id: string; fileName: string; mimeType: string; sizeBytes: number; uploadedAt: string };
@@ -175,18 +202,19 @@ export const createInvoiceFromOrder = (orderId: string, input: { idempotencyKey:
 export const createInvoiceFromDelivery = (deliveryId: string, input: { idempotencyKey: string; lines?: Array<{ deliveryLineId: string; quantity: number }>; invoiceDate?: string }) =>
   post<Created>(`/deliveries/${deliveryId}/invoices`, input);
 export const updateDraftInvoice = (id: string, input: {
-  expectedVersion?: number; lines?: QuantityLine[]; invoiceDate?: string; postingDate?: string; dueDate?: string; contactId?: string | null; customerNotes?: string | null;
+  expectedVersion?: number; lines?: QuantityLine[]; invoiceDate?: string; postingDate?: string; paymentTermId?: string; paymentTermsNote?: string | null;
+  // A date sets the due date by hand; null goes back to what the payment terms work out.
+  dueDate?: string | null; dueDateReason?: string | null; contactId?: string | null; customerNotes?: string | null;
   internalNotes?: string | null; recalculateTax?: boolean;
 }) => request<{ result: { version: number; changed: boolean } }>(`/invoices/${id}`, { method: "PATCH", body: JSON.stringify(input) });
 export const validateInvoice = (id: string) => request<{ check: PostingCheck }>(`/invoices/${id}/validate`);
 export const postInvoice = (id: string, expectedVersion?: number) => post<{ result: { invoiceNumber: string; status: InvoiceStatusKey; awaitingApproval?: boolean; replayed: boolean } }>(`/invoices/${id}/post`, { expectedVersion });
 export const cancelInvoice = (id: string, reason?: string) => post<{ result: unknown }>(`/invoices/${id}/cancel`, { reason });
+export const changeInvoiceDueDate = (id: string, input: { dueDate: string; reason: string }) => post<{ result: { changed: boolean } }>(`/invoices/${id}/due-date`, input);
 export const reverseInvoice = (id: string, reason: string) => post<{ result: unknown }>(`/invoices/${id}/reverse`, { reason });
 export const sendInvoice = (id: string, input: { to: string; cc?: string; subject?: string; message?: string; idempotencyKey: string }) =>
   post<{ result: { sentTo: string } }>(`/invoices/${id}/send`, input);
 export const markInvoiceSent = (id: string, input: { channel: string; recipient?: string; note?: string; idempotencyKey?: string }) => post<{ result: unknown }>(`/invoices/${id}/mark-sent`, input);
-export const createCreditNote = (id: string, input: { idempotencyKey: string; reason: string; lines: Array<{ invoiceLineId: string; quantity: number }> }) =>
-  post<{ result: { creditNoteId: string; creditNoteNumber: string } }>(`/invoices/${id}/credit-notes`, input);
 export const invoicePdfUrl = (id: string, inline = false) => `/api/documents/sales.invoice/${id}/pdf${inline ? "?disposition=inline" : ""}`;
 export const listInvoiceFiles = (id: string) => request<{ files: InvoiceFile[] }>(`/invoices/${id}/files`);
 export const invoiceFileUrl = (id: string, fileId: string) => `/api/sales/invoices/${id}/files/${fileId}`;

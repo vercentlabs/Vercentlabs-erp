@@ -42,6 +42,7 @@ export const QUOTATION_PERMISSIONS = Object.freeze({
   reject: "sales.quotation.reject",
   cancel: "sales.quotation.cancel",
   changeDate: "sales.quotation.change_date",
+  changePaymentTerms: "sales.quotation.change_payment_terms",
   export: "sales.quotation.export",
   overridePrice: "sales.price.override",
   applyDiscount: "sales.discount.apply",
@@ -51,15 +52,16 @@ export const QUOTATION_PERMISSIONS = Object.freeze({
 
 export const QUOTATION_VIEWS = Object.freeze([
   { key: "all", label: "All Quotations" },
-  { key: "mine", label: "My Quotations" },
-  { key: "team", label: "Team Quotations" },
   { key: "draft", label: "Draft" },
+  { key: "confirmed", label: "Confirmed" },
   { key: "sent", label: "Sent" },
   { key: "awaiting", label: "Awaiting Response" },
   { key: "accepted", label: "Accepted" },
   { key: "rejected", label: "Rejected" },
   { key: "expired", label: "Expired" },
   { key: "cancelled", label: "Cancelled" },
+  { key: "mine", label: "My Quotations" },
+  { key: "team", label: "Team Quotations" },
 ]);
 
 export class QuotationError extends Error {

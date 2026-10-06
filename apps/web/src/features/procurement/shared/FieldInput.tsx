@@ -22,7 +22,7 @@ type OptionSource =
   | "categories"
   | "agreements"
   | "requisitions"
-  | "accountingParties";
+  | "paymentTerms";
 export type FieldDef = {
   name: string;
   label: string;
@@ -40,13 +40,19 @@ export type FieldValue = string | number;
 function resolveOptions(
   source: FieldDef["options"],
   options: ProcOptions | undefined,
+  current?: FieldValue,
 ): SelectOption[] {
   if (!source) return [];
   if (Array.isArray(source)) return source;
   const o = options;
   switch (source) {
     case "suppliers":
-      return (o?.suppliers ?? []).map((s) => ({ value: s.id, label: s.label }));
+      // Only an active supplier starts new business (the server refuses the others too); a document keeps the one it has.
+      return (o?.suppliers ?? [])
+        .filter((s) => s.selectable || s.id === current)
+        .map((s) => ({ value: s.id, label: s.selectable ? s.label : `${s.label} (${s.status})` }));
+    case "paymentTerms":
+      return (o?.paymentTerms ?? []).map((t) => ({ value: t.id, label: t.name }));
     case "warehouses":
       return (o?.warehouses ?? []).map((w) => ({
         value: w.id,
@@ -78,11 +84,6 @@ function resolveOptions(
       return (o?.categories ?? []).map((c) => ({
         value: c.id,
         label: c.label,
-      }));
-    case "accountingParties":
-      return (o?.accountingParties ?? []).map((p) => ({
-        value: p.id,
-        label: p.label,
       }));
     case "agreements":
       return (o?.agreements ?? []).map((a) => ({
@@ -142,7 +143,7 @@ export function FieldInput({
           {...aria}
           label={ariaSuffix ? undefined : label}
           isRequired={field.required}
-          options={resolveOptions(field.options, options)}
+          options={resolveOptions(field.options, options, value)}
           selectedKey={value ? String(value) : null}
           onSelectionChange={(key) => onChange(String(key ?? ""))}
           placeholder={field.placeholder ?? `Select ${label.toLowerCase()}`}

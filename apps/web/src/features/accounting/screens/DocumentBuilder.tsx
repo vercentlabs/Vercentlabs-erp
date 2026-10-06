@@ -22,6 +22,7 @@ import {
 import { money } from "@/features/accounting/shared/format";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 export type BuilderKind = "journal" | "invoice" | "bill";
 type Line = {
@@ -103,8 +104,9 @@ export function DocumentBuilder({ kind }: { kind: BuilderKind }) {
       cur.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
     );
 
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: () => submit.run(async () => {
       if (kind === "journal") {
         return act(copy.action, {
           journalId,
@@ -140,7 +142,7 @@ export function DocumentBuilder({ kind }: { kind: BuilderKind }) {
         notes: description || undefined,
         lines: docLines,
       });
-    },
+    }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: scopedQueryKey(workspace, "accounting"),
@@ -338,7 +340,7 @@ export function DocumentBuilder({ kind }: { kind: BuilderKind }) {
         <Button
           variant="primary"
           isDisabled={missing}
-          isLoading={save.isPending}
+          isLoading={save.isPending || save.isSuccess}
           onPress={() => save.mutate()}
         >
           Save draft

@@ -1,12 +1,8 @@
-import { DetailPage } from "@/features/procurement/registry/registry";
+import { SupplierDetailScreen } from "@/features/procurement/suppliers/screens/SupplierDetailScreen";
 
 export const metadata = { title: "Supplier" };
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <DetailPage name="suppliers" id={id} />;
+  return <SupplierDetailScreen supplierId={id} />;
 }

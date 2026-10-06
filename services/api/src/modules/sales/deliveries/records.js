@@ -288,7 +288,7 @@ export async function updateDraftDelivery(client, context, deliveryId, input = {
 }
 
 // What the caller can do with the delivery now; the server checks again on each action.
-function availableActions(context, delivery, invoiceable) {
+function availableActions(context, delivery, invoiceable, returnable = false) {
   const can = (permission) => deliveryCan(context, permission);
   const status = delivery.delivery_status;
   return {
@@ -304,6 +304,8 @@ function availableActions(context, delivery, invoiceable) {
     print: status !== DELIVERY_STATUS.cancelled && can(DELIVERY_PERMISSIONS.print),
     createInvoice: SHIPPED.includes(status) && invoiceable && can(DELIVERY_PERMISSIONS.invoice),
     uploadProof: SHIPPED.includes(status) && (can(DELIVERY_PERMISSIONS.deliver) || can(DELIVERY_PERMISSIONS.edit)),
+    // Goods that left can come back, up to what was delivered less what already came back.
+    createReturn: SHIPPED.includes(status) && returnable && can("sales.return.create"),
   };
 }
 
@@ -363,30 +365,44 @@ export async function getDelivery(client, context, deliveryId) {
          FROM tenant.sales_document_events event LEFT JOIN public.users actor ON actor.id = event.actor_user_id
         WHERE event.organization_id = $1 AND event.entity_type = 'fulfillment_request' AND event.entity_id = $2 ORDER BY event.occurred_at DESC, event.id DESC`, [context.organizationId, delivery.id]),
   ];
+  const returned = new Map((await client.query(
+    `SELECT returned.delivery_line_id, sum(returned.quantity) AS quantity FROM tenant.sales_return_lines returned
+       JOIN tenant.sales_returns sales_return ON sales_return.id = returned.sales_return_id AND sales_return.status = 'received'
+      WHERE returned.organization_id = $1 AND sales_return.delivery_id = $2 GROUP BY returned.delivery_line_id`, [context.organizationId, delivery.id])).rows
+    .map((row) => [row.delivery_line_id, Number(row.quantity)]));
+  const returns = (await client.query(
+    `SELECT sales_return.id, sales_return.return_number, sales_return.status, sales_return.return_date, sales_return.reason_code,
+            (SELECT COALESCE(sum(line.quantity), 0) FROM tenant.sales_return_lines line WHERE line.sales_return_id = sales_return.id) AS quantity
+       FROM tenant.sales_returns sales_return WHERE sales_return.organization_id = $1 AND sales_return.delivery_id = $2 AND sales_return.status <> 'cancelled'
+      ORDER BY sales_return.created_at`, [context.organizationId, delivery.id])).rows;
   const detailLines = lines.map((line) => {
     const state = progress.get(line.sales_order_line_id);
     return {
       ...line, quantity: Number(line.quantity), invoiced_quantity: Number(line.invoiced_quantity),
+      returned_quantity: returned.get(line.id) ?? 0, kept_quantity: round(Number(line.quantity) - (returned.get(line.id) ?? 0)),
       ordered_now: state?.ordered ?? Number(line.ordered_quantity ?? 0), cancelled_now: state?.cancelled ?? 0, delivered_now: state?.delivered ?? 0,
       reserved_now: round(state?.reserved ?? 0), remaining_now: state?.remainingToDeliver ?? 0, open_elsewhere: round(open.get(line.sales_order_line_id) ?? 0),
     };
   });
   const shipped = SHIPPED.includes(delivery.delivery_status);
   const totalQuantity = detailLines.reduce((total, line) => total + line.quantity, 0);
-  const invoicedQuantity = detailLines.reduce((total, line) => total + Math.min(line.quantity, line.invoiced_quantity), 0);
-  const invoicing = !shipped || totalQuantity <= EPSILON ? "not_invoiced" : invoicedQuantity <= EPSILON ? "not_invoiced" : invoicedQuantity + EPSILON >= totalQuantity ? "fully_invoiced" : "partially_invoiced";
+  // Invoicing is complete when what the customer kept is invoiced.
+  const keptQuantity = detailLines.reduce((total, line) => total + line.kept_quantity, 0);
+  const invoicedQuantity = detailLines.reduce((total, line) => total + Math.min(line.kept_quantity, line.invoiced_quantity), 0);
+  const invoicing = !shipped || totalQuantity <= EPSILON ? "not_invoiced" : invoicedQuantity <= EPSILON ? "not_invoiced" : invoicedQuantity + EPSILON >= keptQuantity ? "fully_invoiced" : "partially_invoiced";
   return {
     delivery: {
       ...delivery, ...head, status: delivery.delivery_status, statusLabel: DELIVERY_STATUS_LABELS[delivery.delivery_status], shipment: SHIPMENT_LABELS[delivery.delivery_status],
       invoicing, invoicingLabel: { not_invoiced: "Not invoiced", partially_invoiced: "Partially invoiced", fully_invoiced: "Fully invoiced" }[invoicing],
-      line_count: detailLines.length, total_quantity: round(totalQuantity),
+      line_count: detailLines.length, total_quantity: round(totalQuantity), returned_quantity: round(totalQuantity - keptQuantity),
     },
+    returns: returns.map((row) => ({ ...row, quantity: Number(row.quantity) })),
     lines: detailLines,
     invoices: invoices.rows,
     stockMovements: movements.rows,
     events: events.rows,
     cancelReasons: DELIVERY_CANCEL_REASONS,
-    actions: availableActions(context, delivery, shipped && invoicedQuantity + EPSILON < totalQuantity),
+    actions: availableActions(context, delivery, shipped && invoicedQuantity + EPSILON < keptQuantity, keptQuantity > EPSILON),
   };
 }
 
@@ -414,6 +430,8 @@ export async function listDeliveries(client, context, filters = {}) {
     default: break;
   }
   if (Object.values(DELIVERY_STATUS).includes(filters.status)) where += ` AND delivery.delivery_status = ${bind(filters.status)}`;
+  // Deliveries goods have left on: what a return can be made from.
+  if (filters.shipped === "true") where += status("dispatched", "delivered");
   const search = text(filters.search, 200);
   if (search) {
     const term = bind(`%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`);

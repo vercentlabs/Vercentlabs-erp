@@ -215,10 +215,7 @@ export function InvoiceMatchScreen({ orderId }: { orderId?: string }) {
             <ProcAlert tone={result?.vendorBill ? "success" : "info"}>
               {result?.vendorBill
                 ? "A vendor bill was created in Accounting."
-                : result?.vendorBillSkippedReason ===
-                    "PROCUREMENT_SUPPLIER_NOT_LINKED_TO_ACCOUNTING_PARTY"
-                  ? "Matched. No vendor bill was created because this supplier is not linked to an Accounting party."
-                  : "Matched."}
+                : "Matched."}
             </ProcAlert>
           )}
           <div>

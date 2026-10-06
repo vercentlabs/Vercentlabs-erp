@@ -191,7 +191,12 @@ export function LeadImportScreen() {
 
       {result && (
         <section aria-live="polite" className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
-          <h2 className="text-base font-semibold">Import finished</h2>
+          <h2 className="text-base font-semibold">
+            {result.created === 0 ? "No leads were imported" : result.failed > 0 ? `${result.created} of ${result.total} rows imported` : `${result.created} ${result.created === 1 ? "lead" : "leads"} imported`}
+          </h2>
+          {result.created === 0 && result.total > 0 && (
+            <ErrorBanner message={`Every row was refused, so nothing was added to the lead list. The reason for each row is below; fix them in the review file and import it again.`} />
+          )}
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Count label="Rows read" value={result.total} />
             <Count label="Leads created" value={result.created} />
@@ -214,11 +219,13 @@ export function LeadImportScreen() {
               </ul>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onPress={downloadErrors}><Download className="size-4" aria-hidden="true" />Download review file</Button>
-                {result.possibleDuplicates > 0 && <LinkButton variant="outline" href="/crm/data-quality">Review possible duplicates</LinkButton>}
               </div>
             </>
           )}
-          <div><LinkButton variant="primary" href="/crm/leads">View leads</LinkButton></div>
+          <div className="flex flex-wrap gap-2">
+            {result.created > 0 && <LinkButton variant="primary" href="/crm/leads">View leads</LinkButton>}
+            {result.possibleDuplicates > 0 && <LinkButton variant="outline" href="/crm/data-quality">Review possible duplicates</LinkButton>}
+          </div>
         </section>
       )}
     </div>

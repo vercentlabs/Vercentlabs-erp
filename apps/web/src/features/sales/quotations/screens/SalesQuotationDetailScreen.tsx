@@ -197,7 +197,10 @@ function Overview({ detail }: { detail: SalesQuotationDetail }) {
         <SalesFacts items={[
           { label: "Currency", value: quote.currency_code },
           { label: "Price list", value: quote.price_list_name ? `${quote.price_list_name} (${quote.price_list_tax_inclusive ? "tax inclusive" : "tax exclusive"})` : "None" },
-          { label: "Payment terms", value: quote.payment_term_snapshot?.name ?? "—" },
+          { label: "Payment terms", value: quote.payment_term_snapshot?.name
+            ? <span className="flex flex-col"><span>{quote.payment_term_snapshot.name}</span>
+                {[quote.payment_term_snapshot.description, quote.payment_term_snapshot.note].filter(Boolean).map((line, index) => <span key={index} className="text-xs text-text-muted">{line}</span>)}</span>
+            : "—" },
           { label: "Issued by", value: quote.seller_snapshot?.name ? `${quote.seller_snapshot.name}${quote.seller_snapshot.gstin ? ` · GSTIN ${quote.seller_snapshot.gstin}` : ""}` : "—" },
           { label: "Place of supply", value: quote.place_of_supply
             ? `${quote.place_of_supply_name ?? quote.place_of_supply} (${quote.place_of_supply})${quote.place_of_supply_source === "override" ? ` · changed: ${quote.place_of_supply_reason ?? ""}` : ""}`

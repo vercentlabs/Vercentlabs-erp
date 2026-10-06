@@ -46,7 +46,7 @@ async function storedInput(client, context, order) {
   const input = {
     partyId: order.party_id, contactId: order.contact_id ?? null, ownerUserId: order.owner_user_id ?? undefined,
     billingAddressId: version.billing_address_id, shippingAddressId: version.shipping_address_id, currencyCode: String(version.currency_code).trim(), exchangeRate: version.exchange_rate,
-    priceListId: version.price_list_id, paymentTermId: version.payment_term_id, orderDate: dayOf(order.order_date), requestedDeliveryDate: dayOf(order.requested_delivery_date),
+    priceListId: version.price_list_id, paymentTermId: version.payment_term_id, carriedPaymentTerm: version.payment_term_snapshot, orderDate: dayOf(order.order_date), requestedDeliveryDate: dayOf(order.requested_delivery_date),
     customerPoNumber: version.customer_po_number, customerPoDate: dayOf(version.customer_po_date), customerReference: version.customer_reference,
     defaultWarehouseId: version.default_warehouse_id, priority: version.priority, deliveryTerms: version.delivery_terms, shippingMethod: version.shipping_method, incoterm: version.incoterm,
     customerNotes: version.customer_notes, internalNotes: version.internal_notes, termsAndConditions: version.terms_and_conditions,
@@ -162,7 +162,7 @@ async function orderProblems(client, context, order, preview) {
   if (!facts.currency_code) problems.push("Choose the currency.");
   else if (facts.currency_status && facts.currency_status !== "active") problems.push("The order currency is no longer active.");
   if (!facts.payment_term_id) problems.push("Choose the payment terms.");
-  else if (facts.term_status !== "active") problems.push("The payment terms are no longer active.");
+  // The order keeps the terms it was agreed with: a term deactivated since is still the order's term.
   if (!facts.billing_address_id) problems.push("Choose the billing address.");
   const goods = lines.filter((line) => line.item_type !== "service");
   if (goods.length && !facts.shipping_address_id) problems.push("Choose the shipping address: this order has goods to deliver.");

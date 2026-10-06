@@ -21,6 +21,7 @@ import {
   type Opportunity, type OpportunityDuplicate, type OpportunityOptions,
 } from "../api/opportunities-api";
 import { ErrorBanner, PRIORITY_OPTIONS } from "../opportunity-format";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 const NONE = "";
 const UNASSIGNED = "__unassigned__";
@@ -116,11 +117,12 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
     return () => clearTimeout(timer);
   }, [values.accountId, values.name, values.productInterest, opportunity?.id]);
 
+  const submit = useSubmitKey();
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: () => submit.run(async () => {
       const input = toInput(values, mode);
       return opportunity ? updateOpportunity(opportunity.id, { ...input, expectedUpdatedAt: opportunity.updatedAt }) : createOpportunity(input);
-    },
+    }),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunities") });
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunity", saved.id) });
@@ -176,7 +178,7 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.replace(cancelHref)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!ready}>
+          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending || mutation.isSuccess} isDisabled={!ready}>
             {opportunity ? "Save changes" : similar.length ? "Continue anyway" : "Create opportunity"}
           </Button>
         </>

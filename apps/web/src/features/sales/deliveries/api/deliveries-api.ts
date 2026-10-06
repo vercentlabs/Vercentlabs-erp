@@ -63,6 +63,9 @@ export type DeliveryLine = {
   ordered_quantity: string | null;
   previously_delivered_quantity: string | null;
   invoiced_quantity: number;
+  // What came back of it (received returns), and what the customer kept.
+  returned_quantity: number;
+  kept_quantity: number;
   consumed_reservations: Array<{ reservation: string | null; quantity: string }>;
   // The order line as it stands now.
   ordered_now: number;
@@ -74,7 +77,7 @@ export type DeliveryLine = {
 };
 
 export type DeliveryActions = Record<
-  "edit" | "editShipment" | "changeAddress" | "changeWarehouse" | "markReady" | "backToDraft" | "dispatch" | "markDelivered" | "cancel" | "print" | "createInvoice" | "uploadProof",
+  "edit" | "editShipment" | "changeAddress" | "changeWarehouse" | "markReady" | "backToDraft" | "dispatch" | "markDelivered" | "cancel" | "print" | "createInvoice" | "uploadProof" | "createReturn",
   boolean
 >;
 
@@ -135,6 +138,7 @@ export type DeliveryDetail = {
   };
   lines: DeliveryLine[];
   invoices: Array<{ id: string; invoice_number: string; status: string; invoice_date: string | null; grand_total: string; currency_code: string }>;
+  returns: Array<{ id: string; return_number: string; status: string; return_date: string; reason_code: string; quantity: number }>;
   stockMovements: Array<{ id: string; movement_number: string | null; quantity: string; created_at: string; item_name: string; warehouse_name: string; location_code: string | null }>;
   events: SalesDocumentEvent[];
   cancelReasons: Array<{ code: string; label: string }>;

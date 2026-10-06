@@ -18,7 +18,10 @@ import { assertActiveLeadSource, findLeadSourceByName } from "./sources.js";
 
 const IMPORT_ROW_LIMIT = 2000;
 const EXPORT_ROW_LIMIT = 10000;
-const TIMEFRAME_BY_LABEL = new Map(LEAD_PURCHASE_TIMEFRAMES.flatMap((entry) => [[entry.label.toLowerCase(), entry.code], [entry.code, entry.code]]));
+// A timeframe is read from its label ("1–3 months", also typed "1-3 months"),
+// its code ("within_3_months") or the code's wording ("within 3 months").
+const timeframeKey = (value) => String(value).toLowerCase().replace(/[‒-―]/g, "-").replace(/_/g, " ").replace(/\s*-\s*/g, "-").replace(/\s+/g, " ").trim();
+const TIMEFRAME_BY_LABEL = new Map(LEAD_PURCHASE_TIMEFRAMES.flatMap((entry) => [[timeframeKey(entry.label), entry.code], [timeframeKey(entry.code), entry.code]]));
 const TIMEFRAME_LABELS = new Map(LEAD_PURCHASE_TIMEFRAMES.map((entry) => [entry.code, entry.label]));
 
 // Importable fields, in template order. `aliases` are other header spellings
@@ -40,7 +43,7 @@ export const LEAD_IMPORT_FIELDS = Object.freeze([
   { key: "industry", label: "Industry", aliases: ["sector"], sample: "Textiles" },
   { key: "productInterest", label: "Product / Service Interest", aliases: ["product interest", "interest", "product", "service"], sample: "Inventory and GST billing" },
   { key: "estimatedValue", label: "Estimated Deal Value", aliases: ["estimated value", "deal value", "value", "amount"], sample: "250000" },
-  { key: "purchaseTimeframe", label: "Purchase Timeframe", aliases: ["timeframe", "timeline"], sample: "Within 3 months" },
+  { key: "purchaseTimeframe", label: "Purchase Timeframe", aliases: ["timeframe", "timeline"], sample: "1-3 months" },
   { key: "priority", label: "Priority", aliases: [], sample: "High" },
   { key: "rating", label: "Rating", aliases: [], sample: "Warm" },
   { key: "description", label: "Description", aliases: ["notes", "comments", "remarks"], sample: "Met at the Surat trade fair." },
@@ -98,13 +101,14 @@ function rowToInput(record, mapping) {
   const input = {};
   for (const [header, fieldKey] of Object.entries(mapping)) {
     if (!FIELD_BY_KEY.has(fieldKey)) continue;
-    const value = String(record[header] ?? "").trim();
+    // A leading ' is the spreadsheet guard our exports and template add before =, +, - or @ ("'+91 98200 12345"): not part of the value.
+    const value = String(record[header] ?? "").trim().replace(/^'(?=[=+\-@])/, "");
     if (value) input[fieldKey] = value;
   }
   if (input.priority) input.priority = input.priority.toLowerCase();
   if (input.rating) input.rating = input.rating.toLowerCase();
   if (input.estimatedValue) input.estimatedValue = input.estimatedValue.replace(/[,\s]/g, "");
-  if (input.purchaseTimeframe) input.purchaseTimeframe = TIMEFRAME_BY_LABEL.get(input.purchaseTimeframe.toLowerCase()) ?? input.purchaseTimeframe;
+  if (input.purchaseTimeframe) input.purchaseTimeframe = TIMEFRAME_BY_LABEL.get(timeframeKey(input.purchaseTimeframe)) ?? input.purchaseTimeframe;
   return input;
 }
 

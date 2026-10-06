@@ -49,12 +49,15 @@ export async function draftQuantities(client, organizationId, orderId, exceptInv
 // The invoicing position of one order line on a basis.
 export function invoicingOfLine(line, basis) {
   const open = Math.max(0, line.ordered - line.cancelled);
-  const cap = basis === QUANTITY_BASIS.delivered && line.deliverable ? Math.min(line.delivered, open) : open;
+  // Delivery-based: what the customer kept (delivered less returned) is what can be billed.
+  const kept = Math.max(0, line.delivered - (line.returned ?? 0));
+  const cap = basis === QUANTITY_BASIS.delivered && line.deliverable ? Math.min(kept, open) : open;
   return {
     remainingToInvoice: round(Math.max(0, open - line.invoiced)),
     invoiceableNow: round(Math.max(0, cap - line.invoiced)),
     // Delivery-based: what cannot be invoiced until it is delivered.
     pendingDelivery: basis === QUANTITY_BASIS.delivered && line.deliverable ? round(Math.max(0, open - Math.max(line.delivered, line.invoiced))) : 0,
+    returned: line.returned ?? 0,
   };
 }
 

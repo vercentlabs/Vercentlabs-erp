@@ -18,12 +18,15 @@ import { DELIVERY_STATUS_LABELS } from "../deliveries/constants.js";
 import { draftQuantities, invoicingOfLine } from "../invoices/build.js";
 import { basisOfSetting } from "../invoices/constants.js";
 import { listOrderConfirmations } from "../order-confirmations/snapshot.js";
-import { RESERVATION_STATUS_LABELS, reservationStatusOf } from "../reservations/constants.js";
 import { assertOrderVisible, orderCan, orderCapabilities, orderScopeSql, requireOrderAccess, requireOrderPermission, teamOwnersSql } from "./access.js";
 import {
-  CANCEL_REASONS, FULFILLMENT, INVOICING, ORDER_PERMISSIONS, ORDER_VIEWS, OrderError, STATUS, dayOf, displayStatuses, isUuid, overdueDeliverySql, requireUuid, text,
+  CANCEL_REASONS, FULFILLMENT, INVOICING, ORDER_PERMISSIONS, ORDER_VIEWS, OrderError, STATUS, STATUS_LABELS, dayOf, isUuid, requireUuid, text,
 } from "./constants.js";
-import { fulfillmentOf, loadOrderLineProgress } from "./progress.js";
+import { loadOrderLineProgress } from "./progress.js";
+import { deriveFulfillmentStatus, deriveInvoiceStatus, deriveReservationStatus } from "../order-tracking/derive.js";
+import {
+  TRACKING_COLUMNS, financeJoin, invoicingBasisSetting, needsAttentionSql, quantitiesJoin, summaryFromRow, trackingConditions,
+} from "../order-tracking/summary.js";
 import { insertOrderVersion, lockOrder, readDate, recordOrderEvent } from "./versions.js";
 
 // One connection runs one query at a time.
@@ -44,12 +47,16 @@ export async function priced(client, context, input, options) {
 }
 
 // What a new order starts with when the form leaves it out: today's date, the
-// customer's currency, salesperson, default contact and addresses. A line
-// without a warehouse takes the order's default warehouse.
+// customer's currency, salesperson, default contact and addresses, and the
+// warehouse from Sales Settings. A line without a warehouse takes the order's
+// default warehouse.
 async function withDefaults(client, context, input, today) {
   const partyId = requireUuid(input.partyId, "Customer");
   const { rows } = await client.query(
     `SELECT party.currency_code, party.owner_user_id, organization.base_currency,
+            (SELECT settings.default_warehouse_id FROM tenant.sales_settings settings
+               JOIN tenant.warehouses warehouse ON warehouse.organization_id = settings.organization_id AND warehouse.id = settings.default_warehouse_id AND warehouse.status = 'active'
+              WHERE settings.organization_id = $1) AS default_warehouse_id,
             (SELECT id FROM tenant.addresses WHERE organization_id = $1 AND party_id = $2 AND status = 'active' AND is_default_billing LIMIT 1) AS billing_id,
             (SELECT id FROM tenant.addresses WHERE organization_id = $1 AND party_id = $2 AND status = 'active' AND is_default_shipping LIMIT 1) AS shipping_id,
             (SELECT link.contact_id FROM tenant.crm_contact_account_relationships link
@@ -62,7 +69,8 @@ async function withDefaults(client, context, input, today) {
       WHERE organization.id = $1`,
     [context.organizationId, partyId]);
   const defaults = rows[0] ?? {};
-  const defaultWarehouseId = input.defaultWarehouseId ? requireUuid(input.defaultWarehouseId, "Warehouse") : null;
+  const defaultWarehouseId = input.defaultWarehouseId === undefined ? defaults.default_warehouse_id ?? null
+    : input.defaultWarehouseId ? requireUuid(input.defaultWarehouseId, "Warehouse") : null;
   return {
     ...input,
     partyId,
@@ -130,9 +138,12 @@ export async function createSalesOrder(client, context, input = {}) {
   const policy = (await client.query(`SELECT allow_direct_orders FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0];
   if (policy && policy.allow_direct_orders === false)
     throw new OrderError(409, "Orders without a quotation are switched off in Sales settings. Create a quotation and make the order from it.", "SALES_DIRECT_ORDERS_DISABLED");
-  const document = await withDefaults(client, context, input, await databaseToday(client));
+  // A direct order takes its terms from what is chosen, the customer or the company default.
+  const document = { ...(await withDefaults(client, context, input, await databaseToday(client))), carriedPaymentTerm: undefined };
   checkDates(document);
   const preview = await priced(client, context, document);
+  if (preview.master.paymentTerm?.id && preview.master.paymentTerm.id !== preview.master.paymentTermDefaultId)
+    requireOrderPermission(context, ORDER_PERMISSIONS.changePaymentTerms, "You do not have permission to choose other payment terms than the customer's.");
   const order = await insertOrder(client, context, document, preview);
   const response = {
     id: order.id, salesOrderNumber: order.sales_order_number, sales_order_number: order.sales_order_number, currentVersionId: order.current_version_id, versionNumber: 1,
@@ -169,7 +180,9 @@ async function quotedLines(client, context, order) {
 // document discount stay, and each quoted line keeps its price, discount and tax.
 export async function draftDocument(client, context, order, input, today) {
   const quoted = await quotedLines(client, context, order);
-  let document = await withDefaults(client, context, { ...input, opportunityId: order.source_opportunity_id }, today);
+  // The order's own terms (the accepted quotation's, when it came from one) stay unless other terms are chosen.
+  const terms = (await client.query(`SELECT payment_term_snapshot FROM tenant.sales_order_versions WHERE organization_id = $1 AND id = $2`, [context.organizationId, order.current_version_id])).rows[0];
+  let document = await withDefaults(client, context, { ...input, opportunityId: order.source_opportunity_id, carriedPaymentTerm: terms?.payment_term_snapshot }, today);
   checkDates(document);
   if (!order.source_quotation_id) return document;
   if (document.partyId !== order.party_id)
@@ -219,6 +232,8 @@ export async function updateSalesOrder(client, context, orderId, input = {}) {
   const document = await draftDocument(client, context, order, input, await databaseToday(client));
   const before = await commercialSnapshot(client, context, order.current_version_id);
   const preview = await priced(client, context, document, { carryDocumentDiscount: Boolean(order.source_quotation_id) });
+  if (before.version.payment_term_id && (preview.master.paymentTerm?.id ?? null) !== before.version.payment_term_id)
+    requireOrderPermission(context, ORDER_PERMISSIONS.changePaymentTerms, "You do not have permission to change the payment terms.");
   const version = await insertOrderVersion(client, context, order.id, document, preview);
   await client.query(
     `UPDATE tenant.sales_orders
@@ -238,7 +253,7 @@ export async function updateSalesOrder(client, context, orderId, input = {}) {
 async function commercialSnapshot(client, context, versionId) {
   const version = (await client.query(
     `SELECT version.grand_total, version.customer_snapshot->>'displayName' AS customer, version.billing_address_id, version.shipping_address_id, version.default_warehouse_id,
-            version.document_discount_type, version.document_discount_value, version.tax_total
+            version.document_discount_type, version.document_discount_value, version.tax_total, version.payment_term_id, version.payment_term_snapshot->>'name' AS payment_term
        FROM tenant.sales_order_versions version WHERE version.organization_id = $1 AND version.id = $2`, [context.organizationId, versionId])).rows[0];
   const lines = (await client.query(
     `SELECT item_id, item_name_snapshot, quantity, unit_price, manual_price_override, discount_type, discount_value, warehouse_id FROM tenant.sales_order_lines
@@ -254,6 +269,7 @@ function commercialChanges(before, preview, document) {
   say("Billing address", before.version.billing_address_id, preview.master.billing.id);
   say("Shipping address", before.version.shipping_address_id, preview.master.shipping.id);
   say("Default warehouse", before.version.default_warehouse_id, document.defaultWarehouseId);
+  say("Payment terms", before.version.payment_term, preview.master.paymentTerm?.name);
   say("Document discount", Number(before.version.document_discount_value) ? `${Number(before.version.document_discount_value)}${before.version.document_discount_type === "percent" ? "%" : ""}` : null,
     Number(preview.totals.documentDiscountValue) ? `${Number(preview.totals.documentDiscountValue)}${preview.totals.documentDiscountType === "percent" ? "%" : ""}` : null);
   const discount = (type, value) => (Number(value) ? `${Number(value)}${type === "percent" ? "%" : ""}` : null);
@@ -310,7 +326,7 @@ export async function getSalesOrder(client, context, orderId) {
             price_list.name AS price_list_name, price_list.tax_inclusive AS price_list_tax_inclusive, warehouse.name AS default_warehouse_name,
             owner.full_name AS owner_name, creator.full_name AS created_by_name, confirmer.full_name AS confirmed_by_name, canceller.full_name AS cancelled_by_name,
             party.customer_number, party.status AS customer_status, party.sales_block, party.sales_block_reason,
-            ${overdueDeliverySql("sales_order")} AS delivery_overdue
+            (sales_order.requested_delivery_date < current_date) AS requested_delivery_overdue
        FROM tenant.sales_orders sales_order
        JOIN tenant.sales_order_versions version ON version.organization_id = sales_order.organization_id AND version.id = sales_order.current_version_id
        LEFT JOIN tenant.sales_quotations quotation ON quotation.organization_id = sales_order.organization_id AND quotation.id = sales_order.source_quotation_id
@@ -376,20 +392,27 @@ export async function getSalesOrder(client, context, orderId) {
       [context.organizationId, id]),
   ]);
   const validInvoices = invoices.rows.filter((invoice) => invoice.invoice_type === "invoice" && ["posted", "partially_paid", "paid", "overdue", "disputed"].includes(invoice.status));
-  const fulfillment = fulfillmentOf(progress);
   const confirmations = await listOrderConfirmations(client, context.organizationId, id);
   const current = confirmations.find((confirmation) => confirmation.current) ?? null;
-  const reservation = reservationStatusOf(progress);
-  const statuses = { ...displayStatuses(order, { deliverable: fulfillment.deliverable }), ...confirmationDisplay(current), reservation, reservationLabel: RESERVATION_STATUS_LABELS[reservation] };
+  // The order's dimensions, each derived by the tracking service's own functions (../order-tracking): the page, the list and the reports agree.
+  const fulfillment = deriveFulfillmentStatus(order, progress);
+  const reservation = deriveReservationStatus(order, progress);
+  const invoiceProgress = deriveInvoiceStatus(order, progress, invoicingByLine, basis);
+  const statuses = {
+    status: order.lifecycle_status, statusLabel: STATUS_LABELS[order.lifecycle_status] ?? order.lifecycle_status, ...confirmationDisplay(current),
+    fulfillment: fulfillment.status, fulfillmentLabel: fulfillment.label, invoicing: invoiceProgress.status, invoicingLabel: invoiceProgress.label,
+    reservation: reservation.status, reservationLabel: reservation.label,
+  };
   const invoicedValue = validInvoices.reduce((total, invoice) => total + Number(invoice.grand_total), 0);
-  // Delivery progress of the physical lines, from the deliveries and cancellations themselves (services never count).
-  const goods = progress.filter((line) => line.deliverable);
-  const total = (key) => Math.round(goods.reduce((sum, line) => sum + line[key], 0) * 1e6) / 1e6;
+  // Credit notes against the order's invoices: posted ones reduce what the customer was billed.
+  const creditNotes = invoices.rows.filter((invoice) => invoice.invoice_type === "credit_note" && invoice.status !== "cancelled");
+  const creditedValue = creditNotes.filter((credit) => ["posted", "partially_paid", "paid", "overdue", "disputed"].includes(credit.status)).reduce((total, credit) => total + Number(credit.grand_total), 0);
+  // Delivery progress of the physical lines (services never count): ordered = delivered + cancelled + remaining; a return changes none of them.
   const deliveryProgress = {
-    deliverable: goods.length > 0, ordered: total("ordered"), delivered: total("delivered"), cancelled: total("cancelled"), returned: total("returned"),
-    remaining: total("remainingToDeliver"), overdue: Boolean(order.delivery_overdue),
-    // Of what is still ordered (ordered − cancelled), how much has been dispatched.
-    percent: total("ordered") - total("cancelled") > 0 ? Math.min(100, Math.round((100 * total("delivered")) / (total("ordered") - total("cancelled")))) : goods.length ? 100 : 0,
+    deliverable: fulfillment.applies, ordered: fulfillment.ordered, delivered: fulfillment.delivered, cancelled: fulfillment.cancelled, returned: fulfillment.returned,
+    remaining: fulfillment.remaining, netWithCustomer: fulfillment.netWithCustomer, overdue: fulfillment.overdue,
+    // Of what was ordered, how much was dispatched: 6 of 10 with 4 cancelled is complete, and still 6 of 10.
+    percent: fulfillment.percent,
   };
   const detail = {
     order: { ...order, ...statuses },
@@ -406,16 +429,22 @@ export async function getSalesOrder(client, context, orderId) {
       };
     }),
     taxLines: taxLines.rows,
+    returns: (await client.query(
+      `SELECT sales_return.id, sales_return.return_number, sales_return.status, sales_return.return_date, sales_return.reason_code, delivery.request_number AS delivery_number,
+              (SELECT COALESCE(sum(line.quantity), 0) FROM tenant.sales_return_lines line WHERE line.sales_return_id = sales_return.id) AS quantity
+         FROM tenant.sales_returns sales_return JOIN tenant.sales_fulfillment_requests delivery ON delivery.id = sales_return.delivery_id
+        WHERE sales_return.organization_id = $1 AND sales_return.sales_order_id = $2 AND sales_return.status <> 'cancelled' ORDER BY sales_return.created_at`, [context.organizationId, id])).rows,
     deliveries: deliveries.rows.map((delivery) => ({
       ...delivery, statusLabel: DELIVERY_STATUS_LABELS[delivery.delivery_status], lines: deliveryLines.rows.filter((line) => line.delivery_id === delivery.id),
     })),
-    invoices: invoices.rows.map((invoice) => ({ ...invoice, currency_code: invoice.currency_code?.trim() })),
+    invoices: invoices.rows.filter((invoice) => invoice.invoice_type !== "credit_note").map((invoice) => ({ ...invoice, currency_code: invoice.currency_code?.trim() })),
+    creditNotes: creditNotes.map((credit) => ({ ...credit, currency_code: credit.currency_code?.trim() })),
     delivery: deliveryProgress,
     // Values: what posted invoices billed, and the order's value of what is left (and of what can be invoiced now), at its agreed line totals.
     invoicing: {
       basis, orderedValue: Number(order.grand_total), invoicedValue: Math.round(invoicedValue * 100) / 100,
-      remainingValue: Math.round(progress.reduce((total, line) => total + (line.ordered ? line.lineTotal * line.remainingToInvoice / line.ordered : 0), 0) * 100) / 100,
-      invoiceableNowValue: Math.round(progress.reduce((total, line) => total + (line.ordered ? line.lineTotal * (invoicingByLine.get(line.lineId)?.invoiceableNow ?? 0) / line.ordered : 0), 0) * 100) / 100,
+      creditedValue: Math.round(creditedValue * 100) / 100, netBilledValue: Math.round((invoicedValue - creditedValue) * 100) / 100,
+      remainingValue: invoiceProgress.remainingValue, invoiceableNowValue: invoiceProgress.invoiceableNowValue,
     },
     versions: versions.rows,
     confirmations,
@@ -435,43 +464,40 @@ function confirmationDisplay(current) {
   return { confirmation: key, confirmationLabel: CONFIRMATION_STATUS_LABELS[key] };
 }
 
+// The raw quantities a list row is derived from; they are not part of the row.
+const TRACKING_KEYS = new Set(["goods_lines", "stock_lines", "open_lines", "full_lines", "reserved_lines", "reserve_required", "reserve_held", "goods_ordered", "goods_delivered",
+  "goods_cancelled", "goods_remaining", "goods_returned", "quantity_ordered", "quantity_cancelled", "quantity_invoiced", "uninvoiced_lines", "invoiceable_now", "finance_invoiced", "finance_credits",
+  "finance_balance_due", "finance_overdue_balance", "finance_paid", "finance_customer_credit", "requested_delivery_overdue", "fulfillment_status", "billing_status"]);
 const SORTS = Object.freeze({
   date: "sales_order.order_date", number: "sales_order.sales_order_number", customer: "customer_name", total: "version.grand_total", status: "sales_order.lifecycle_status",
   requestedDelivery: "sales_order.requested_delivery_date", updated: "sales_order.updated_at",
 });
 
-// filters: view, search, status, fulfillment, invoicing, partyId, ownerUserId, warehouseId, currencyCode, quotationId, productId,
-//          dateFrom, dateTo, deliveryFrom, deliveryTo, sort, direction, limit, offset
-export async function listSalesOrders(client, context, filters = {}) {
-  requireOrderAccess(context);
-  const values = [context.organizationId];
-  const bind = (value) => { values.push(value); return `$${values.length}`; };
-  let where = orderScopeSql(context, values, "sales_order");
+// " AND (…)" for one saved view of the order list. The list and the Sales
+// home use it, so a count on the home is the list it opens. Needs the
+// quantities and confirmation joins of ORDER_LIST_FROM.
+function orderViewSql(view, context, bind) {
+  const is = trackingConditions("sales_order");
   const lifecycle = (status) => ` AND sales_order.lifecycle_status = '${status}'`;
   const fulfillment = (...statuses) => ` AND sales_order.fulfillment_status IN ('${statuses.join("','")}')`;
   const invoicing = (...statuses) => ` AND sales_order.billing_status IN ('${statuses.join("','")}')`;
   const seesTeam = orderCan(context, ORDER_PERMISSIONS.viewTeam) || orderCan(context, ORDER_PERMISSIONS.viewAll);
-  switch (filters.view) {
+  let where = "";
+  switch (view) {
     case "mine": where += ` AND sales_order.owner_user_id = ${bind(context.userId ?? null)}`; break;
     case "team": where += seesTeam ? ` AND sales_order.owner_user_id IN ${teamOwnersSql(bind(context.userId ?? null))}` : " AND false"; break;
     case "draft": where += lifecycle(STATUS.draft); break;
     case "confirmed": where += lifecycle(STATUS.confirmed); break;
     case "confirmation_not_sent": where += lifecycle(STATUS.confirmed) + " AND confirmation.id IS NOT NULL AND confirmation.sent_at IS NULL"; break;
     case "confirmation_sent": where += " AND sales_order.lifecycle_status IN ('confirmed','closed') AND confirmation.sent_at IS NOT NULL"; break;
-    case "awaiting_delivery": where += lifecycle(STATUS.confirmed) + fulfillment(FULFILLMENT.notStarted); break;
+    case "needs_attention": where += ` AND ${needsAttentionSql("sales_order")}`; break;
+    case "awaiting_reservation": where += ` AND ${is.awaitingReservation}`; break;
+    case "partially_reserved": where += ` AND ${is.partiallyReserved}`; break;
+    case "awaiting_delivery": where += lifecycle(STATUS.confirmed) + fulfillment(FULFILLMENT.notStarted) + " AND quantities.goods_lines > 0"; break;
     case "partially_delivered": where += lifecycle(STATUS.confirmed) + fulfillment(FULFILLMENT.partiallyDelivered); break;
     case "delivered": where += ` AND sales_order.lifecycle_status IN ('confirmed','closed')` + fulfillment(FULFILLMENT.delivered); break;
-    case "overdue_delivery": where += ` AND ${overdueDeliverySql("sales_order")}`; break;
-    case "ready_to_invoice": {
-      const setting = bind((await client.query(`SELECT invoice_quantity_basis FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0]?.invoice_quantity_basis ?? "ordered");
-      where += lifecycle(STATUS.confirmed) + ` AND EXISTS (SELECT 1 FROM tenant.sales_order_lines line
-          JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
-          JOIN tenant.sales_order_line_progress progress ON progress.organization_id = line.organization_id AND progress.sales_order_line_id = line.id
-         WHERE line.organization_id = sales_order.organization_id AND line.sales_order_version_id = sales_order.current_version_id
-           AND (CASE WHEN ${setting} = 'fulfilled' AND item.item_type <> 'service' THEN LEAST(progress.fulfilled_quantity, line.quantity - progress.cancelled_quantity)
-                     ELSE line.quantity - progress.cancelled_quantity END) - progress.invoiced_quantity > 0.000001)`;
-      break;
-    }
+    case "overdue_delivery": where += ` AND ${is.deliveryOverdue}`; break;
+    case "ready_to_invoice": where += ` AND ${is.readyToInvoice}`; break;
     case "not_invoiced": where += lifecycle(STATUS.confirmed) + invoicing(INVOICING.notInvoiced); break;
     case "partially_invoiced": where += lifecycle(STATUS.confirmed) + invoicing(INVOICING.partiallyInvoiced); break;
     case "fully_invoiced": where += ` AND sales_order.lifecycle_status IN ('confirmed','closed')` + invoicing(INVOICING.fullyInvoiced); break;
@@ -479,11 +505,59 @@ export async function listSalesOrders(client, context, filters = {}) {
     case "closed": where += lifecycle(STATUS.closed); break;
     default: break;
   }
+  return where;
+}
+
+// How many orders the caller can see in each of the given views, in one query.
+export async function countSalesOrderViews(client, context, views) {
+  requireOrderAccess(context);
+  const values = [context.organizationId];
+  const bind = (value) => { values.push(value); return `$${values.length}`; };
+  const basis = bind(await invoicingBasisSetting(client, context.organizationId));
+  const scope = orderScopeSql(context, values, "sales_order");
+  const known = views.filter((view) => ORDER_VIEWS.some((entry) => entry.key === view));
+  if (!known.length) return {};
+  const columns = known.map((view, index) => `count(*) FILTER (WHERE true${orderViewSql(view, context, bind)})::int AS v${index}`).join(", ");
+  const row = (await client.query(
+    `SELECT ${columns}
+       FROM tenant.sales_orders sales_order
+       LEFT JOIN tenant.sales_order_confirmations confirmation
+              ON confirmation.organization_id = sales_order.organization_id AND confirmation.sales_order_id = sales_order.id AND confirmation.superseded_at IS NULL
+       ${quantitiesJoin("sales_order", basis)}
+       ${financeJoin("sales_order")}
+      WHERE sales_order.organization_id = $1${scope}`, values)).rows[0];
+  return Object.fromEntries(known.map((view, index) => [view, row[`v${index}`]]));
+}
+
+// filters: view, search, status, reservation, fulfillment, invoicing, deliveryOverdue ('true'), readyToInvoice ('true'), deliverable ('true': goods left to deliver), balance ('due' | 'overdue'), partyId, ownerUserId, warehouseId, currencyCode,
+//          quotationId, productId,
+//          dateFrom, dateTo, deliveryFrom, deliveryTo, sort, direction, limit, offset
+export async function listSalesOrders(client, context, filters = {}) {
+  requireOrderAccess(context);
+  const values = [context.organizationId];
+  const bind = (value) => { values.push(value); return `$${values.length}`; };
+  // Each order's progress is read once, from the same quantities the order page uses, and the same derivations decide every status shown.
+  const basis = bind(await invoicingBasisSetting(client, context.organizationId));
+  const is = trackingConditions("sales_order");
+  const canSeeMoney = orderCan(context, "sales.invoice.payments.view");
+  let where = orderScopeSql(context, values, "sales_order");
+  const lifecycle = (status) => ` AND sales_order.lifecycle_status = '${status}'`;
+  const fulfillment = (...statuses) => ` AND sales_order.fulfillment_status IN ('${statuses.join("','")}')`;
+  const invoicing = (...statuses) => ` AND sales_order.billing_status IN ('${statuses.join("','")}')`;
+  const seesTeam = orderCan(context, ORDER_PERMISSIONS.viewTeam) || orderCan(context, ORDER_PERMISSIONS.viewAll);
+  where += orderViewSql(filters.view, context, bind);
   if (Object.values(STATUS).includes(filters.status)) where += lifecycle(filters.status);
   const FULFILLMENT_FILTER = { not_delivered: FULFILLMENT.notStarted, partially_delivered: FULFILLMENT.partiallyDelivered, delivered: FULFILLMENT.delivered };
   if (FULFILLMENT_FILTER[filters.fulfillment]) where += fulfillment(FULFILLMENT_FILTER[filters.fulfillment]) + ` AND sales_order.lifecycle_status IN ('confirmed','closed')`;
   const INVOICING_FILTER = { not_invoiced: INVOICING.notInvoiced, partially_invoiced: INVOICING.partiallyInvoiced, fully_invoiced: INVOICING.fullyInvoiced };
   if (INVOICING_FILTER[filters.invoicing]) where += invoicing(INVOICING_FILTER[filters.invoicing]) + ` AND sales_order.lifecycle_status IN ('confirmed','closed')`;
+  const RESERVATION_FILTER = { not_required: is.reservationNotRequired, not_reserved: is.awaitingReservation, partially_reserved: is.partiallyReserved, fully_reserved: is.fullyReserved };
+  if (RESERVATION_FILTER[filters.reservation]) where += ` AND ${RESERVATION_FILTER[filters.reservation]}`;
+  if (filters.deliveryOverdue === "true") where += ` AND ${is.deliveryOverdue}`;
+  if (filters.readyToInvoice === "true") where += ` AND ${is.readyToInvoice}`;
+  if (filters.deliverable === "true") where += lifecycle(STATUS.confirmed) + " AND quantities.goods_remaining > 0.000001";
+  if (filters.balance === "due") where += ` AND ${is.hasBalance}`;
+  if (filters.balance === "overdue") where += ` AND ${is.hasOverdueBalance}`;
   const CONFIRMATION_FILTER = {
     not_sent: " AND confirmation.id IS NOT NULL AND confirmation.sent_at IS NULL AND confirmation.acknowledged_at IS NULL",
     sent: " AND confirmation.sent_at IS NOT NULL AND confirmation.acknowledged_at IS NULL",
@@ -495,7 +569,11 @@ export async function listSalesOrders(client, context, filters = {}) {
     const term = bind(`%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`);
     where += ` AND (sales_order.sales_order_number ILIKE ${term} OR version.customer_po_number ILIKE ${term} OR version.customer_reference ILIKE ${term}
       OR version.customer_snapshot->>'displayName' ILIKE ${term} OR party.customer_number ILIKE ${term} OR quotation.quotation_number ILIKE ${term}
-      OR concat_ws(' ', version.contact_snapshot->>'first_name', version.contact_snapshot->>'last_name') ILIKE ${term}
+      OR concat_ws(' ', version.contact_snapshot->>'first_name', version.contact_snapshot->>'last_name') ILIKE ${term} OR owner.full_name ILIKE ${term}
+      OR EXISTS (SELECT 1 FROM tenant.sales_fulfillment_requests delivery WHERE delivery.organization_id = sales_order.organization_id AND delivery.sales_order_id = sales_order.id
+                  AND delivery.request_number ILIKE ${term})
+      OR EXISTS (SELECT 1 FROM tenant.accounting_customer_invoices invoice WHERE invoice.organization_id = sales_order.organization_id AND invoice.source_sales_order_id = sales_order.id
+                  AND invoice.invoice_number ILIKE ${term})
       OR EXISTS (SELECT 1 FROM tenant.sales_order_lines line WHERE line.organization_id = sales_order.organization_id AND line.sales_order_version_id = version.id
                   AND (line.item_name_snapshot ILIKE ${term} OR line.item_code_snapshot ILIKE ${term})))`;
   }
@@ -525,6 +603,8 @@ export async function listSalesOrders(client, context, filters = {}) {
        LEFT JOIN public.users owner ON owner.id = sales_order.owner_user_id
        LEFT JOIN tenant.sales_order_confirmations confirmation
               ON confirmation.organization_id = sales_order.organization_id AND confirmation.sales_order_id = sales_order.id AND confirmation.superseded_at IS NULL
+       ${quantitiesJoin("sales_order", basis)}
+       ${financeJoin("sales_order")}
       WHERE sales_order.organization_id = $1`;
   const countValues = [...values];
   const [result, count] = await inOrder([
@@ -534,19 +614,27 @@ export async function listSalesOrders(client, context, filters = {}) {
               version.version_number, version.currency_code, version.grand_total, version.customer_po_number, version.margin_percent,
               version.customer_snapshot->>'displayName' AS customer_name, party.customer_number, quotation.quotation_number AS source_quotation_number, owner.full_name AS owner_name,
               confirmation.id AS confirmation_id, confirmation.version AS confirmation_revision, confirmation.sent_at AS confirmation_last_sent_at,
-              confirmation.acknowledged_at AS confirmation_acknowledged_at, ${overdueDeliverySql("sales_order")} AS delivery_overdue,
-              EXISTS (SELECT 1 FROM tenant.sales_order_lines line JOIN tenant.items item ON item.id = line.item_id
-                       WHERE line.sales_order_version_id = version.id AND item.item_type <> 'service') AS deliverable
+              confirmation.acknowledged_at AS confirmation_acknowledged_at, (sales_order.requested_delivery_date < current_date) AS requested_delivery_overdue,
+              sales_order.closed_manually, ${TRACKING_COLUMNS}
          ${from}${where}
         ORDER BY ${sort} ${direction} NULLS LAST, sales_order.sales_order_number DESC
         LIMIT ${bind(limit)} OFFSET ${bind(offset)}`, values),
     () => client.query(`SELECT count(*)::int AS total ${from}${where}`, countValues),
   ]);
   return redactMargin({
-    rows: result.rows.map((row) => ({
-      ...row, currency_code: row.currency_code?.trim(), ...displayStatuses(row, { deliverable: row.deliverable }),
-      ...confirmationDisplay(row.confirmation_id ? { id: row.confirmation_id, sent_at: row.confirmation_last_sent_at, acknowledged_at: row.confirmation_acknowledged_at } : null),
-    })),
+    rows: result.rows.map((row) => {
+      const tracking = summaryFromRow(row, { canSeeMoney });
+      const shown = Object.fromEntries(Object.entries(row).filter(([key]) => !TRACKING_KEYS.has(key)));
+      return {
+        ...shown, currency_code: row.currency_code?.trim(), status: row.lifecycle_status, statusLabel: STATUS_LABELS[row.lifecycle_status] ?? row.lifecycle_status,
+        fulfillment: tracking.fulfillment.status, fulfillmentLabel: tracking.fulfillment.label, invoicing: tracking.invoicing.status, invoicingLabel: tracking.invoicing.label,
+        reservation: tracking.reservation.status, reservationLabel: tracking.reservation.label, delivery_overdue: tracking.flags.deliveryOverdue,
+        balance_due: canSeeMoney ? tracking.payment.balanceDue : null, overdue_balance: canSeeMoney ? tracking.payment.overdueBalance : null,
+        // The order's progress in each dimension, as the order page shows it.
+        tracking,
+        ...confirmationDisplay(row.confirmation_id ? { id: row.confirmation_id, sent_at: row.confirmation_last_sent_at, acknowledged_at: row.confirmation_acknowledged_at } : null),
+      };
+    }),
     total: count.rows[0].total,
     limit,
     offset,
@@ -559,15 +647,22 @@ export async function listSalesOrders(client, context, filters = {}) {
 export async function getSalesOrderDefaults(client, context, input = {}) {
   requireOrderPermission(context, ORDER_PERMISSIONS.create, "You do not have permission to create sales orders.");
   const today = await databaseToday(client);
-  const settings = (await client.query(`SELECT allow_direct_orders, reserve_stock_on_confirm FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0] ?? {};
-  const base = { orderDate: today, directOrdersAllowed: settings.allow_direct_orders !== false, reservesOnConfirm: settings.reserve_stock_on_confirm !== false };
+  const settings = (await client.query(
+    `SELECT settings.allow_direct_orders, settings.reserve_stock_on_confirm, settings.default_payment_term_id, warehouse.id AS default_warehouse_id
+       FROM tenant.sales_settings settings
+       LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = settings.organization_id AND warehouse.id = settings.default_warehouse_id AND warehouse.status = 'active'
+      WHERE settings.organization_id = $1`, [context.organizationId])).rows[0] ?? {};
+  const base = {
+    orderDate: today, directOrdersAllowed: settings.allow_direct_orders !== false, reservesOnConfirm: settings.reserve_stock_on_confirm !== false,
+    defaultWarehouseId: settings.default_warehouse_id ?? null,
+  };
   if (!isUuid(input.partyId)) return base;
   const document = await withDefaults(client, context, { partyId: input.partyId, lines: [] }, today);
   const party = (await client.query(`SELECT payment_term_id, default_price_list_id, status, sales_block, sales_block_reason FROM tenant.business_parties WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, document.partyId])).rows[0] ?? {};
   return {
     ...base, currencyCode: document.currencyCode ?? null, contactId: document.contactId, billingAddressId: document.billingAddressId, shippingAddressId: document.shippingAddressId,
-    ownerUserId: document.ownerUserId, paymentTermId: party.payment_term_id ?? null, priceListId: party.default_price_list_id ?? null,
+    ownerUserId: document.ownerUserId, paymentTermId: party.payment_term_id ?? settings.default_payment_term_id ?? null, priceListId: party.default_price_list_id ?? null,
     // Why an order cannot be placed for this customer, when it cannot.
     blocked: party.status !== "active" ? "This customer is inactive." : ["all", "orders"].includes(party.sales_block) ? `Customer is blocked: ${party.sales_block_reason}` : null,
   };
@@ -588,9 +683,12 @@ export async function exportSalesOrders(client, context, filters = {}) {
     rows.push(...page.rows);
     if (page.rows.length < 200) break;
   }
-  const header = ["Sales order", "Order date", "Customer", "Customer number", "Customer PO", "Quotation", "Salesperson", "Requested delivery", "Currency", "Total", "Order status", "Confirmation", "Fulfilment", "Invoicing"];
+  const header = ["Sales order", "Order date", "Customer", "Customer number", "Customer PO", "Quotation", "Salesperson", "Requested delivery", "Currency", "Total", "Order status", "Confirmation",
+    "Reservation", "Fulfilment", "Delivered", "Cancelled", "Invoicing", "Balance due"];
   const body = rows.map((row) => [row.sales_order_number, dayOf(row.order_date), row.customer_name, row.customer_number, row.customer_po_number, row.source_quotation_number, row.owner_name,
-    dayOf(row.requested_delivery_date), row.currency_code, row.grand_total, row.statusLabel, row.confirmationLabel, row.fulfillmentLabel, row.invoicingLabel].map(csvCell).join(","));
+    dayOf(row.requested_delivery_date), row.currency_code, row.grand_total, row.statusLabel, row.confirmationLabel, row.reservationLabel, row.fulfillmentLabel,
+    row.tracking.fulfillment.applies ? `${row.tracking.fulfillment.delivered} / ${row.tracking.fulfillment.ordered}` : "", row.tracking.fulfillment.cancelled || "", row.invoicingLabel,
+    row.balance_due ?? ""].map(csvCell).join(","));
   return { csv: [header.join(","), ...body].join("\r\n") + "\r\n", fileName: `sales-orders-${await databaseToday(client)}.csv`, rows: rows.length };
 }
 

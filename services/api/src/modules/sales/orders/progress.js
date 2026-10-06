@@ -3,6 +3,7 @@
 //   reserved   the active stock reservations made for each order line
 //   delivered  the lines of the order's completed deliveries
 //   invoiced   the lines of its posted invoices (a draft only holds its quantity)
+//   returned   the lines of its received sales returns
 // Cancelled quantity is the order's own. Nobody types a delivered or an
 // invoiced quantity on an order line; they are recalculated here each time
 // something downstream changes, so the order can always be reconciled.
@@ -17,7 +18,10 @@ import { FULFILLMENT, INVOICING, STATUS } from "./constants.js";
 const LINES_SQL = `
   SELECT line.id, line.sequence, line.item_id, COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id) AS warehouse_id, line.quantity, line.conversion_factor, line.line_total, line.item_name_snapshot, line.uom_snapshot,
          item.item_type <> 'service' AS deliverable, COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AS stock_tracked,
-         progress.cancelled_quantity, progress.returned_quantity,
+         progress.cancelled_quantity,
+         COALESCE((SELECT sum(returned.quantity) FROM tenant.sales_return_lines returned
+                     JOIN tenant.sales_returns sales_return ON sales_return.id = returned.sales_return_id AND sales_return.status = 'received'
+                    WHERE returned.organization_id = line.organization_id AND returned.sales_order_line_id = line.id), 0) AS returned_quantity,
          COALESCE((SELECT sum(reservation.active_quantity) FROM tenant.stock_reservations reservation
                     WHERE reservation.organization_id = line.organization_id AND reservation.reference_type = 'sales_order_line' AND reservation.reference_id = line.id
                       AND reservation.status = 'active'), 0) / COALESCE(NULLIF(line.conversion_factor, 0), 1) AS reserved,
@@ -80,7 +84,7 @@ export function invoicingOf(lines) {
 // Returns { lines, fulfillmentStatus, billingStatus, lifecycleStatus }.
 export async function refreshSalesOrderProgress(client, organizationId, orderId, actorUserId = null) {
   const order = (await client.query(
-    `SELECT id, current_version_id, lifecycle_status, fulfillment_status, billing_status FROM tenant.sales_orders WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
+    `SELECT id, current_version_id, lifecycle_status, fulfillment_status, billing_status, closed_manually FROM tenant.sales_orders WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
     [organizationId, orderId])).rows[0];
   if (!order) return null;
   const lines = await loadOrderLineProgress(client, organizationId, order.current_version_id);
@@ -89,6 +93,10 @@ export async function refreshSalesOrderProgress(client, organizationId, orderId,
       `UPDATE tenant.sales_order_line_progress SET reserved_quantity = $3, fulfilled_quantity = $4, invoiced_quantity = $5, updated_by = COALESCE($6, updated_by), updated_at = now()
         WHERE organization_id = $1 AND sales_order_line_id = $2 AND (reserved_quantity, fulfilled_quantity, invoiced_quantity) IS DISTINCT FROM ($3::numeric, $4::numeric, $5::numeric)`,
       [organizationId, line.lineId, line.reserved, line.delivered, line.invoiced, actorUserId]);
+  // The cached returned quantity follows the received returns.
+  for (const line of lines)
+    await client.query(`UPDATE tenant.sales_order_line_progress SET returned_quantity = $3 WHERE organization_id = $1 AND sales_order_line_id = $2 AND returned_quantity IS DISTINCT FROM $3::numeric`,
+      [organizationId, line.lineId, line.returned]);
   if (![STATUS.confirmed, STATUS.closed].includes(order.lifecycle_status))
     return { lines, fulfillmentStatus: order.fulfillment_status, billingStatus: order.billing_status, lifecycleStatus: order.lifecycle_status };
 
@@ -96,8 +104,9 @@ export async function refreshSalesOrderProgress(client, organizationId, orderId,
   const invoicing = invoicingOf(lines);
   // Nothing left to deliver or invoice: the order is done. Something was
   // delivered or invoiced, so an order whose every line was cancelled is not "closed" here.
+  // An order someone closed by hand stays closed (../order-tracking/close.js). Paid or not is no part of it.
   const done = fulfillment.complete && invoicing.complete;
-  const lifecycleStatus = done ? STATUS.closed : STATUS.confirmed;
+  const lifecycleStatus = done || (order.lifecycle_status === STATUS.closed && order.closed_manually) ? STATUS.closed : STATUS.confirmed;
   if (fulfillment.status !== order.fulfillment_status || invoicing.status !== order.billing_status || lifecycleStatus !== order.lifecycle_status) {
     await client.query(
       `UPDATE tenant.sales_orders
@@ -117,7 +126,7 @@ export async function refreshSalesOrderProgress(client, organizationId, orderId,
         `INSERT INTO tenant.sales_document_events (organization_id, entity_type, entity_id, event_type, from_status, to_status, metadata, actor_user_id, occurred_at)
          VALUES ($1, 'sales_order', $2, $3, $4, $5, $6::jsonb, $7, clock_timestamp())`,
         [organizationId, order.id, done ? "sales_order.closed" : "sales_order.reopened_for_work", order.lifecycle_status, lifecycleStatus,
-          JSON.stringify(done ? { reason: "Nothing left to deliver or invoice." } : { reason: "A delivery or invoice was undone." }), actorUserId]);
+          JSON.stringify(lifecycleStatus === STATUS.closed ? { reason: "Nothing left to deliver or invoice." } : { reason: "A delivery or invoice was undone." }), actorUserId]);
   }
   return { lines, fulfillmentStatus: fulfillment.status, billingStatus: invoicing.status, lifecycleStatus, deliverable: fulfillment.deliverable };
 }

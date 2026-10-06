@@ -7,7 +7,8 @@
 import { formatDateTime } from "@vercentlabs/localization";
 
 import { getPosSaleReceipt } from "../../modules/point-of-sale/transaction-continuity-and-documents/receipts.js";
-import { getDeliveryNote, getOrderConfirmation, getQuotation, getSalesInvoiceDocument, getSalesOrder } from "../../modules/sales/index.js";
+import { getRefundVoucher } from "../../modules/accounting/index.js";
+import { getCreditNoteDocument, getDeliveryNote, getOrderConfirmation, getQuotation, getReturnNote, getSalesInvoiceDocument, getSalesOrder } from "../../modules/sales/index.js";
 
 const amount = (value, locale = "en-IN") => new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
 const date = (value, timeZone) => (value ? formatDateTime(value, { timeZone: timeZone || "UTC" }) : null);
@@ -46,6 +47,13 @@ async function companyDetails(client, organizationId) {
   const row = rows[0] ?? {};
   return { name: row.legal_name || row.name || null, legalName: row.legal_name && row.legal_name !== row.name ? row.name : null, taxId: row.tax_id ?? null };
 }
+
+// The payment terms as the customer reads them: what the term says (its description) and anything added for this
+// document. When payment is due, never where or how to pay, and never internal notes.
+const paymentTermNotes = (snapshot) => {
+  const text = [snapshot?.description, snapshot?.note].filter(Boolean).join("\n");
+  return text ? [{ label: `Payment terms: ${snapshot.name ?? ""}`.trim(), text }] : [];
+};
 
 // The seller as printed: the registration stored on the document, else the organization.
 function sellerLines(seller, company) {
@@ -152,6 +160,7 @@ function orderConfirmationModel(snapshot, meta) {
     table: salesLines(snapshot.lines ?? [], String(order.currency_code || "").trim()),
     totals: salesTotals(order, snapshot.taxLines ?? []),
     notes: [
+      ...paymentTermNotes(order.payment_term_snapshot),
       ...(order.customer_notes ? [{ label: "Notes", text: order.customer_notes }] : []),
       ...(order.terms_and_conditions ? [{ label: "Terms and conditions", text: order.terms_and_conditions }] : []),
     ],
@@ -293,10 +302,178 @@ function salesInvoiceModel(data) {
       { label: `Total (${currency})`, value: amount(invoice.grand_total), emphasis: true },
     ],
     notes: [
+      ...paymentTermNotes(invoice.payment_term_snapshot),
       ...(invoice.customer_notes ? [{ label: "Notes", text: invoice.customer_notes }] : []),
       ...(invoice.terms_and_conditions ? [{ label: "Terms and conditions", text: invoice.terms_and_conditions }] : []),
     ],
     footer: `${invoice.invoice_number}${invoice.sales_order_number ? ` · ${invoice.sales_order_number}` : ""}`,
+  };
+}
+
+// The Credit Note: titled CREDIT NOTE, naming the original invoice (number and
+// date), the reason, the lines credited with HSN/SAC and their tax components,
+// and the totals, all from the credit note's own snapshots. Never internal
+// notes, never how the credit was applied.
+function creditNoteModel(data) {
+  const { creditNote, lines, taxSummary, company } = data;
+  const currency = creditNote.currency_code;
+  const customer = creditNote.sales_customer_snapshot || creditNote.customer_snapshot || {};
+  const contact = creditNote.contact_snapshot || {};
+  const seller = creditNote.seller_snapshot || {};
+  const types = ["cgst", "sgst", "igst", "cess"].filter((type) => lines.some((line) => line.taxes.some((tax) => tax.tax_type === type)));
+  const status = { draft: "Draft - not posted", reversed: `Reversed${creditNote.reversal_reason ? `: ${creditNote.reversal_reason}` : ""}` }[creditNote.status];
+  const gross = lines.reduce((total, line) => total + Number(line.gross_amount ?? Number(line.quantity) * Number(line.unit_price)), 0);
+  const discount = lines.reduce((total, line) => total + Number(line.discount_amount), 0);
+  const taxable = lines.reduce((total, line) => total + Number(line.net_amount), 0);
+  const label = { cgst: "CGST", sgst: "SGST", igst: "IGST", cess: "Cess" };
+  return {
+    title: "CREDIT NOTE",
+    documentNumber: creditNote.invoice_number,
+    issuedAt: `Credit note date: ${day(creditNote.invoice_date) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      { label: "From", lines: sellerLines(seller, { legalName: company.name, taxId: company.taxId }) },
+      { label: "Credit to", lines: [customer.legalName ?? customer.displayName ?? customer.display_name, customer.customerNumber ? `Customer no. ${customer.customerNumber}` : null,
+        ...addressLines(creditNote.billing_address_snapshot), customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
+      { label: "Contact", lines: [[contact.first_name, contact.last_name].filter(Boolean).join(" "), contact.email, contact.phone ?? contact.mobile].filter(Boolean) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Credit note no.", value: creditNote.invoice_number },
+      { label: "Credit note date", value: day(creditNote.invoice_date) ?? "" },
+      { label: "Original invoice", value: creditNote.source_invoice_number ?? "" },
+      { label: "Invoice date", value: day(creditNote.source_invoice_date) ?? "" },
+      { label: "Reason", value: [creditNote.reasonLabel, creditNote.reason_code === "sales_return" ? null : creditNote.reason_note].filter(Boolean).join(": ") },
+      { label: "Sales order", value: creditNote.sales_order_number ?? "" },
+      { label: "Return", value: creditNote.return_number ?? "" },
+      { label: "Your PO reference", value: creditNote.customer_po_number ?? "" },
+      { label: "Place of supply", value: creditNote.place_of_supply ? `${creditNote.place_of_supply_name ?? ""} (${creditNote.place_of_supply})`.trim() : "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Item", width: types.length > 2 ? "24%" : "30%" },
+        { key: "quantity", label: "Qty", align: "right", width: "9%" },
+        { key: "price", label: `Rate (${currency})`, align: "right", width: "11%" },
+        { key: "discount", label: "Discount", align: "right", width: "9%" },
+        { key: "taxable", label: "Taxable", align: "right", width: "12%" },
+        ...types.map((type) => ({ key: type, label: label[type], align: "right", width: "10%" })),
+        { key: "total", label: "Amount", align: "right", width: "12%" },
+      ],
+      rows: lines.map((line) => ({
+        item: [line.item_name_snapshot, line.credit_type === "amount" ? "Value adjustment" : null,
+          line.hsn_sac_code ? `${line.hsn_sac_kind === "sac" ? "SAC" : "HSN"} ${line.hsn_sac_code}` : null].filter(Boolean).join(" · "),
+        quantity: line.credit_type === "amount" ? "—" : `${Number(line.quantity)} ${line.uom_snapshot ?? ""}`.trim(),
+        price: line.credit_type === "amount" ? "—" : amount(line.unit_price),
+        discount: line.credit_type !== "amount" && Number(line.discount_amount) ? amount(line.discount_amount) : "",
+        taxable: amount(line.net_amount),
+        ...Object.fromEntries(types.map((type) => {
+          const tax = line.taxes.find((component) => component.tax_type === type);
+          return [type, tax ? `${amount(tax.tax_amount)} (${Number(tax.rate)}%)` : ""];
+        })),
+        total: amount(line.line_total),
+      })),
+    },
+    totals: [
+      { label: "Subtotal", value: amount(gross) },
+      ...(discount ? [{ label: "Discounts", value: `-${amount(discount)}` }] : []),
+      { label: "Taxable value credited", value: amount(taxable) },
+      ...taxSummary.map((tax) => ({ label: `${label[tax.taxType] ?? tax.label ?? tax.taxType} ${tax.rate}%`, value: amount(tax.taxAmount) })),
+      { label: `Total credit (${currency})`, value: amount(creditNote.grand_total), emphasis: true },
+    ],
+    notes: [
+      ...(creditNote.customer_notes ? [{ label: "Notes", text: creditNote.customer_notes }] : []),
+    ],
+    footer: `${creditNote.invoice_number} · against invoice ${creditNote.source_invoice_number}`,
+  };
+}
+
+// The Refund Voucher: evidence that money was paid back, never a tax document. The refund number and
+// date, the customer, the amount, how it was paid and its reference, the credit it settles and the
+// reason. No tax, no accounts, no internal notes.
+function refundVoucherModel(data) {
+  const { refund, source, company } = data;
+  const customer = refund.customer_snapshot || {};
+  const currency = refund.currency_code;
+  const status = { draft: "Draft - not paid", reversed: `Reversed${refund.reversal_reason ? `: ${refund.reversal_reason}` : ""}` }[refund.status];
+  return {
+    title: "Refund Voucher",
+    documentNumber: refund.refund_number,
+    issuedAt: `Refund date: ${day(refund.refund_date) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      { label: "From", lines: [company.name].filter(Boolean) },
+      { label: "Refunded to", lines: [customer.legalName ?? customer.displayName ?? refund.customer_name, customer.customerNumber ? `Customer no. ${customer.customerNumber}` : null].filter(Boolean) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Refund no.", value: refund.refund_number },
+      { label: "Refund date", value: day(refund.refund_date) ?? "" },
+      { label: "Amount", value: `${amount(refund.amount)} ${currency}` },
+      { label: "Payment method", value: refund.paymentMethodLabel ?? "" },
+      { label: "Transaction reference", value: refund.external_reference ?? "" },
+      { label: source.typeLabel, value: source.number ?? "" },
+      { label: "Reason", value: [refund.reasonLabel, refund.reason_note].filter(Boolean).join(": ") },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "description", label: "Description", width: "70%" },
+        { key: "amount", label: `Amount (${currency})`, align: "right", width: "30%" },
+      ],
+      rows: [{ description: `Refund of customer credit: ${String(source.typeLabel).toLowerCase()} ${source.number}`, amount: amount(refund.amount) }],
+    },
+    totals: [{ label: `Refunded (${currency})`, value: amount(refund.amount), emphasis: true }],
+    notes: [
+      ...(refund.customer_notes ? [{ label: "Notes", text: refund.customer_notes }] : []),
+      { label: "", text: "This voucher confirms a payment. It is not a tax document." },
+    ],
+    footer: `${refund.refund_number} · ${source.number}`,
+  };
+}
+
+// The Return Note: what came back, from which delivery and order, why, in what
+// condition and into which warehouse. Never prices, never internal notes.
+function returnNoteModel(data) {
+  const { salesReturn, lines, invoices, company } = data;
+  const customer = salesReturn.customer_snapshot || {};
+  return {
+    title: "Return Note",
+    documentNumber: salesReturn.return_number,
+    issuedAt: `Return date: ${day(salesReturn.return_date) ?? ""}`,
+    organizationName: company.name,
+    status: salesReturn.status === "draft" ? "Status: Draft - not received" : null,
+    parties: [
+      { label: "Received by", lines: [company.name, salesReturn.warehouse_name ? `Warehouse: ${salesReturn.warehouse_name}` : null, company.taxId ? `GSTIN ${company.taxId}` : null].filter(Boolean) },
+      { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.customerNumber ? `Customer no. ${customer.customerNumber}` : null,
+        customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Return no.", value: salesReturn.return_number },
+      { label: "Sales order", value: salesReturn.sales_order_number ?? "" },
+      { label: "Delivery", value: salesReturn.delivery_number ?? "" },
+      { label: "Invoice", value: invoices.map((invoice) => invoice.invoice_number).join(", ") },
+      { label: "Your PO reference", value: salesReturn.customer_po_number ?? "" },
+      { label: "Reason", value: [salesReturn.reasonLabel, salesReturn.reason_note].filter(Boolean).join(": ") },
+      { label: "Received", value: salesReturn.received_at ? day(salesReturn.received_at) ?? "" : "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "number", label: "#", width: "5%" },
+        { key: "code", label: "Code", width: "15%" },
+        { key: "item", label: "Item", width: "45%" },
+        { key: "quantity", label: "Returned", align: "right", width: "15%" },
+        { key: "condition", label: "Condition", width: "20%" },
+      ],
+      rows: lines.map((line, index) => ({
+        number: index + 1, code: line.item_code_snapshot ?? "", item: line.item_name_snapshot,
+        quantity: `${Number(line.quantity)} ${line.uom_snapshot ?? ""}`.trim(), condition: line.dispositionLabel ?? "",
+      })),
+    },
+    totals: [{ label: "Total quantity", value: String(salesReturn.total_quantity ?? 0) }],
+    notes: [
+      ...(salesReturn.customer_notes ? [{ label: "Notes", text: salesReturn.customer_notes }] : []),
+      { label: "Received in the condition stated", text: "Name: ______________________   Signature: ______________________   Date: ______________" },
+    ],
+    footer: `${salesReturn.return_number} · ${salesReturn.delivery_number ?? ""}`,
   };
 }
 
@@ -389,6 +566,7 @@ export const DOCUMENT_RENDERERS = Object.freeze([
         table: salesLines(data.lines, currency),
         totals: salesTotals(quote, data.taxLines ?? []),
         notes: [
+          ...paymentTermNotes(quote.payment_term_snapshot),
           ...(quote.customer_notes ? [{ label: "Notes", text: quote.customer_notes }] : []),
           ...(quote.terms_and_conditions ? [{ label: "Terms and conditions", text: quote.terms_and_conditions }] : []),
         ],
@@ -441,6 +619,45 @@ export const DOCUMENT_RENDERERS = Object.freeze([
       return salesInvoiceModel(data);
     },
     fileName: (data) => `Invoice-${data.invoice.invoice_number}${data.invoice.status === "draft" ? "-draft" : ""}`,
+  }),
+  Object.freeze({
+    key: "sales.credit_note",
+    moduleKey: "sales",
+    permission: "sales.credit_note.print",
+    label: "Credit note",
+    async load(client, session, id) {
+      return getCreditNoteDocument(client, salesContext(session), id);
+    },
+    async toModel(_client, _session, data) {
+      return creditNoteModel(data);
+    },
+    fileName: (data) => `Credit-Note-${data.creditNote.invoice_number}${data.creditNote.status === "draft" ? "-draft" : ""}`,
+  }),
+  Object.freeze({
+    key: "accounting.customer_refund",
+    moduleKey: "accounting",
+    permission: "accounting.refund.view",
+    label: "Refund voucher",
+    async load(client, session, id) {
+      return getRefundVoucher(client, salesContext(session), id);
+    },
+    async toModel(_client, _session, data) {
+      return refundVoucherModel(data);
+    },
+    fileName: (data) => `Refund-${data.refund.refund_number}${data.refund.status === "draft" ? "-draft" : ""}`,
+  }),
+  Object.freeze({
+    key: "sales.return",
+    moduleKey: "sales",
+    permission: "sales.return.print",
+    label: "Return note",
+    async load(client, session, id) {
+      return getReturnNote(client, salesContext(session), id);
+    },
+    async toModel(_client, _session, data) {
+      return returnNoteModel(data);
+    },
+    fileName: (data) => `Return-Note-${data.salesReturn.return_number}`,
   }),
   Object.freeze({
     key: "sales.order.confirmation",

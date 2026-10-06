@@ -70,7 +70,7 @@ export async function resolvePaymentSchedule(client, context, options) {
   }
   const paymentTermId = uuid(paymentTermIdValue, "Payment term");
   const result = await client.query(
-    `SELECT term.id,term.code,term.name,term.description,term.default_due_days,
+    `SELECT term.id,term.code,term.name,term.description,term.default_due_days,term.calculation_type,
       COALESCE(jsonb_agg(jsonb_build_object(
         'sequence',line.sequence,'dueDays',line.due_days,'percentage',line.percentage
       ) ORDER BY line.sequence) FILTER (WHERE line.id IS NOT NULL),'[]'::jsonb) AS lines
@@ -83,6 +83,8 @@ export async function resolvePaymentSchedule(client, context, options) {
   );
   const term = result.rows[0];
   if (!term) throw new AccountingError(409, "The selected payment term is inactive or unavailable.");
+  // Terms described in words set no date: the document's due date is entered.
+  if (term.calculation_type === "custom") throw new AccountingError(409, `Payment terms "${term.name}" do not set a due date. Enter the due date.`, "ACCOUNTING_DUE_DATE_REQUIRED");
   const sourceLines = Array.isArray(term.lines) && term.lines.length
     ? term.lines.map((line) => ({ sequence: line.sequence, due_days: line.dueDays, percentage: line.percentage }))
     : [{ sequence: 1, due_days: term.default_due_days, percentage: "100" }];
@@ -96,6 +98,9 @@ export async function resolvePaymentSchedule(client, context, options) {
       code: term.code,
       name: term.name,
       description: term.description,
+      calculationType: term.calculation_type,
+      days: term.calculation_type === "net_days" ? term.default_due_days : 0,
+      default_due_days: term.default_due_days,
       lines: installments.map((line) => ({ sequence: line.sequence, dueDays: line.dueDays, dueDate: line.dueDate, percentage: line.percentage, amount: asDatabaseDecimal(line.amount) })),
     },
     installments,

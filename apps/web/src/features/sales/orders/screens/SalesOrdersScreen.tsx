@@ -22,17 +22,18 @@ import { calendarDate, money } from "@/features/sales/shared/format";
 import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 
 import { listSalesOrders, salesOrderExportUrl, type OrderFilters, type SalesOrderRow } from "../api/orders-api";
-import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge } from "../components/OrderStatusBadges";
+import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge, ReservationStatusBadge } from "../components/OrderStatusBadges";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
-type FilterKey = "status" | "confirmation" | "fulfillment" | "invoicing" | "partyId" | "ownerUserId" | "warehouseId" | "source" | "dateFrom" | "dateTo" | "deliveryFrom" | "deliveryTo";
+type FilterKey = "status" | "confirmation" | "reservation" | "fulfillment" | "invoicing" | "deliveryOverdue" | "readyToInvoice" | "balance" | "partyId" | "ownerUserId" | "warehouseId" | "source" | "dateFrom" | "dateTo" | "deliveryFrom" | "deliveryTo";
 type Filters = Record<FilterKey, string>;
 const NO_FILTERS: Filters = {
-  status: ANY, confirmation: ANY, fulfillment: ANY, invoicing: ANY, partyId: ANY, ownerUserId: ANY, warehouseId: ANY, source: ANY, dateFrom: "", dateTo: "", deliveryFrom: "", deliveryTo: "",
+  status: ANY, confirmation: ANY, reservation: ANY, fulfillment: ANY, invoicing: ANY, deliveryOverdue: ANY, readyToInvoice: ANY, balance: ANY, partyId: ANY, ownerUserId: ANY, warehouseId: ANY, source: ANY, dateFrom: "", dateTo: "", deliveryFrom: "", deliveryTo: "",
 };
 const NAMES: Record<FilterKey, string> = {
-  status: "Order status", confirmation: "Confirmation", fulfillment: "Fulfillment", invoicing: "Invoicing", partyId: "Customer", ownerUserId: "Salesperson", warehouseId: "Warehouse", source: "Source",
+  status: "Order status", confirmation: "Confirmation", reservation: "Reservation", fulfillment: "Fulfillment", invoicing: "Invoicing", deliveryOverdue: "Delivery", readyToInvoice: "Invoicing now",
+  balance: "Balance", partyId: "Customer", ownerUserId: "Salesperson", warehouseId: "Warehouse", source: "Source",
   dateFrom: "Ordered from", dateTo: "Ordered to", deliveryFrom: "Delivery from", deliveryTo: "Delivery to",
 };
 const STATUSES = [{ value: "draft", label: "Draft" }, { value: "confirmed", label: "Confirmed" }, { value: "cancelled", label: "Cancelled" }, { value: "closed", label: "Closed" }];
@@ -41,8 +42,13 @@ const FULFILLMENTS = [
 ];
 const CONFIRMATIONS = [{ value: "not_sent", label: "Not sent" }, { value: "sent", label: "Sent" }, { value: "acknowledged", label: "Acknowledged" }];
 const INVOICINGS = [{ value: "not_invoiced", label: "Not invoiced" }, { value: "partially_invoiced", label: "Partially invoiced" }, { value: "fully_invoiced", label: "Fully invoiced" }];
+const RESERVATIONS = [
+  { value: "not_reserved", label: "Not reserved" }, { value: "partially_reserved", label: "Partially reserved" }, { value: "fully_reserved", label: "Fully reserved" },
+  { value: "not_required", label: "Not required" },
+];
 const SOURCES = [{ value: "quotation", label: "From a quotation" }, { value: "direct", label: "Direct order" }];
 const DEFAULT_VIEWS = [{ key: "all", label: "All Orders" }];
+const amount = (value: number) => Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 });
 
 export function SalesOrdersScreen() {
   const workspace = useWorkspaceContext();
@@ -97,19 +103,45 @@ export function SalesOrdersScreen() {
     { id: "status", accessorKey: "lifecycle_status", header: "Order status", cell: ({ row }) => <OrderStatusBadge status={row.original.status} label={row.original.statusLabel} /> },
     { id: "confirmation", header: "Confirmation", enableSorting: false, cell: ({ row }) => row.original.confirmation === "none" ? "" : <ConfirmationStatusBadge status={row.original.confirmation} label={row.original.confirmationLabel} /> },
     {
-      id: "fulfillment", header: "Fulfillment", enableSorting: false,
-      cell: ({ row }) => row.original.status === "draft" ? "" : (
-        <span className="flex flex-wrap gap-1"><FulfillmentStatusBadge status={row.original.fulfillment} label={row.original.fulfillmentLabel} />{row.original.delivery_overdue && <OverdueDeliveryBadge />}</span>
+      id: "reservation", header: "Reservation", enableSorting: false,
+      cell: ({ row }) => row.original.status !== "confirmed" || !row.original.tracking.reservation.applies || row.original.reservation === "not_required" ? "" : (
+        <span className="flex flex-col gap-0.5"><ReservationStatusBadge status={row.original.reservation} label={row.original.reservationLabel} />
+          <span className="text-xs tabular-nums text-text-muted">{amount(row.original.tracking.reservation.reserved)} / {amount(row.original.tracking.reservation.required)}</span></span>
       ),
     },
-    { id: "invoicing", header: "Invoicing", enableSorting: false, cell: ({ row }) => ["draft", "cancelled"].includes(row.original.status) ? "" : <InvoicingStatusBadge status={row.original.invoicing} label={row.original.invoicingLabel} /> },
+    {
+      id: "fulfillment", header: "Fulfillment", enableSorting: false,
+      cell: ({ row }) => row.original.status === "draft" || !row.original.tracking.fulfillment.applies ? "" : (
+        <span className="flex flex-col gap-0.5">
+          <span className="flex flex-wrap gap-1"><FulfillmentStatusBadge status={row.original.fulfillment} label={row.original.fulfillmentLabel} />{row.original.delivery_overdue && <OverdueDeliveryBadge />}</span>
+          {row.original.status !== "cancelled" && <span className="text-xs tabular-nums text-text-muted">{amount(row.original.tracking.fulfillment.delivered)} / {amount(row.original.tracking.fulfillment.ordered)}
+            {row.original.tracking.fulfillment.cancelled > 0 ? ` · ${amount(row.original.tracking.fulfillment.cancelled)} cancelled` : ""}</span>}
+        </span>
+      ),
+    },
+    {
+      id: "invoicing", header: "Invoice", enableSorting: false,
+      cell: ({ row }) => ["draft", "cancelled"].includes(row.original.status) ? "" : (
+        <span className="flex flex-col gap-0.5"><InvoicingStatusBadge status={row.original.invoicing} label={row.original.invoicingLabel} />
+          {row.original.tracking.flags.readyToInvoice && <span className="text-xs text-text-muted">Ready to invoice</span>}</span>
+      ),
+    },
+    {
+      id: "balance", header: "Balance due", enableSorting: false,
+      cell: ({ row }) => row.original.balance_due === null || !["confirmed", "closed"].includes(row.original.status) || row.original.tracking.payment.status === "not_invoiced" ? "" : (
+        <span className="flex flex-col gap-0.5"><span className="whitespace-nowrap tabular-nums">{money(row.original.currency_code, row.original.balance_due)}</span>
+          {(row.original.overdue_balance ?? 0) > 0 && <span className="text-xs text-danger">{money(row.original.currency_code, row.original.overdue_balance ?? 0)} overdue</span>}</span>
+      ),
+    },
   ], []);
 
   if (listQuery.isError && listQuery.error instanceof SalesApiError && listQuery.error.status === 403)
     return <PermissionState title="You don't have access to sales orders" description="Ask an administrator for the View sales orders permission." />;
 
   const choices: Partial<Record<FilterKey, Array<{ value: string; label: string }>>> = {
-    status: STATUSES, confirmation: CONFIRMATIONS, fulfillment: FULFILLMENTS, invoicing: INVOICINGS, source: SOURCES,
+    status: STATUSES, confirmation: CONFIRMATIONS, reservation: RESERVATIONS, fulfillment: FULFILLMENTS, invoicing: INVOICINGS, source: SOURCES,
+    deliveryOverdue: [{ value: "true", label: "Delivery overdue" }], readyToInvoice: [{ value: "true", label: "Ready to invoice" }],
+    balance: [{ value: "due", label: "Balance due" }, { value: "overdue", label: "Overdue balance" }],
     partyId: (options?.parties ?? []).filter((party) => ["customer", "both"].includes(party.party_type)).map((party) => ({ value: party.id, label: party.display_name })),
     ownerUserId: (options?.users ?? []).map((user) => ({ value: user.id, label: user.full_name })),
     warehouseId: (options?.warehouses ?? []).map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
@@ -131,7 +163,7 @@ export function SalesOrdersScreen() {
     <EnterpriseListPage
       header={{
         title: "Sales Orders",
-        description: "Confirmed customer orders: what was agreed, and how much of it has been reserved, delivered and invoiced.",
+        description: "Customer orders and where each one stands: reserved, delivered, invoiced and paid, each on its own.",
         primaryAction: canCreate ? <LinkButton href="/sales/orders/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New Sales Order</LinkButton> : undefined,
         secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={salesOrderExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" />Export</a> : undefined,
       }}
@@ -139,12 +171,16 @@ export function SalesOrdersScreen() {
       actionBar={{
         start: (
           <>
-            <SearchField aria-label="Search sales orders" placeholder="Search order, customer, customer PO, quotation, contact or product" className="w-full sm:w-96"
+            <SearchField aria-label="Search sales orders" placeholder="Search order, customer, customer PO, quotation, delivery, invoice, product or salesperson" className="w-full sm:w-96"
               value={search} onChange={setSearch} onSubmit={(value) => setSubmitted(value.trim())} />
             {select("status", "Any order status")}
             {select("confirmation", "Any confirmation")}
+            {select("reservation", "Any reservation")}
             {select("fulfillment", "Any fulfillment")}
             {select("invoicing", "Any invoicing")}
+            {select("deliveryOverdue", "Any delivery date")}
+            {select("readyToInvoice", "Invoiceable or not")}
+            {select("balance", "Any balance")}
             {select("partyId", "Any customer")}
             {select("ownerUserId", "Any salesperson")}
             {select("warehouseId", "Any warehouse")}

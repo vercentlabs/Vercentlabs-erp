@@ -14,6 +14,7 @@
 import { getOpenPeriod } from "../../accounting/core.js";
 import { cancelCustomerInvoiceDraft, postCustomerInvoice, reverseCustomerInvoice } from "../../accounting/receivables.js";
 import { submitSubledgerDocument } from "../../accounting/subledger-approvals.js";
+import { readTermSnapshot } from "../../../core/payment-terms/index.js";
 import { STATUS, dayOf, text } from "../orders/constants.js";
 import { lockOrder } from "../orders/versions.js";
 import { loadInvoice, requireInvoicePermission } from "./access.js";
@@ -72,6 +73,10 @@ async function postingProblems(client, context, invoice, order) {
     problem("SALES_PLACE_OF_SUPPLY_MISSING", "The place of supply is missing.");
   // Dates and period.
   if (dayOf(invoice.due_date) < dayOf(invoice.invoice_date)) problem("SALES_INVOICE_DUE_DATE_INVALID", "The due date is before the invoice date.");
+  // Without a due date, ageing and overdue cannot be trusted: terms described in words leave the date to be entered.
+  const terms = readTermSnapshot(invoice.payment_term_snapshot);
+  if (terms?.calculationType === "custom" && !invoice.due_date_overridden)
+    problem("SALES_INVOICE_DUE_DATE_REQUIRED", `Payment terms "${terms.name}" do not set a due date. Enter the due date for this invoice.`);
   try {
     await getOpenPeriod(client, context, dayOf(invoice.accounting_date));
   } catch (error) {

@@ -22,6 +22,13 @@ export function invoiceStatusOf(financeStatus) {
 export const invoiceStatusLabel = (financeStatus) =>
   financeStatus === "pending_approval" ? INVOICE_STATUS_LABELS.awaiting_approval : INVOICE_STATUS_LABELS[invoiceStatusOf(financeStatus)];
 
+// How much of the invoice posted credit notes have credited; the invoice's own total never changes.
+export const CREDIT_STATUS_LABELS = Object.freeze({ not_credited: "Not credited", partially_credited: "Partially credited", fully_credited: "Fully credited" });
+export function creditStatusOf({ total, credited }) {
+  if (credited <= 0.005) return "not_credited";
+  return credited + 0.005 >= total ? "fully_credited" : "partially_credited";
+}
+
 export const PAYMENT_STATUS_LABELS = Object.freeze({ not_applicable: "—", unpaid: "Unpaid", partially_paid: "Partially paid", paid: "Paid" });
 // From the amounts Finance applied; Overdue is a condition beside it, never a status of its own.
 export function paymentStatusOf({ status, total, paid }) {
@@ -44,10 +51,13 @@ export const INVOICE_PERMISSIONS = Object.freeze({
   reverse: "sales.invoice.reverse",
   send: "sales.invoice.send",
   print: "sales.invoice.print",
-  creditNote: "sales.invoice.credit_note",
+  creditNote: "sales.credit_note.create",
   paymentsView: "sales.invoice.payments.view",
   accountingView: "sales.invoice.accounting.view",
   changePostingDate: "sales.invoice.change_posting_date",
+  changePaymentTerms: "sales.invoice.change_payment_terms",
+  overrideDueDate: "sales.invoice.override_due_date",
+  changePostedDueDate: "sales.invoice.change_posted_due_date",
   overrideTax: "tax.transaction.override",
   recordPayment: "accounting.receipts.manage",
 });
@@ -58,7 +68,10 @@ export const INVOICE_VIEWS = Object.freeze([
   { key: "posted", label: "Posted" },
   { key: "unpaid", label: "Unpaid" },
   { key: "partially_paid", label: "Partially Paid" },
+  { key: "balance_due", label: "Balance Due" },
   { key: "paid", label: "Paid" },
+  { key: "due_today", label: "Due Today" },
+  { key: "due_this_week", label: "Due This Week" },
   { key: "overdue", label: "Overdue" },
   { key: "reversed", label: "Cancelled / Reversed" },
   { key: "mine", label: "My Invoices" },

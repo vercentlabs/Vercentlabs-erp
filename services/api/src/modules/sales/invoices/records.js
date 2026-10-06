@@ -7,7 +7,8 @@
 // and tax components. A draft is not owed, not in the books and not invoiced:
 // another draft may bill the same quantity for a while (each is warned of the
 // others), and posting decides, against what is really left then.
-import { createCustomerInvoice, replaceCustomerInvoiceDraft } from "../../accounting/receivables.js";
+import { changeCustomerInvoiceDueDate, createCustomerInvoice, replaceCustomerInvoiceDraft } from "../../accounting/receivables.js";
+import { PaymentTermError, calculateDueDate, readTermSnapshot, salesTermSnapshot } from "../../../core/payment-terms/index.js";
 import { asDatabaseDecimal, decimal } from "../../../core/decimal.js";
 import { assertOrderVisible, requireOrderAccess } from "../orders/access.js";
 import { STATUS, dayOf, requireUuid, text } from "../orders/constants.js";
@@ -15,8 +16,8 @@ import { lockOrder, readDate } from "../orders/versions.js";
 import { invoiceCan, invoiceScopeSql, loadInvoice, requireInvoiceAccess, requireInvoicePermission } from "./access.js";
 import { EPSILON, buildInvoiceLines, invoiceableLines, orderSource, taxDifferences, taxEngineFor } from "./build.js";
 import {
-  FINANCE_POSTED, INVOICE_PERMISSIONS, INVOICE_STATUS, INVOICE_VIEWS, InvoiceError, PAYMENT_STATUS_LABELS, QUANTITY_BASIS, SENT_CHANNELS, basisOfSetting, invoiceStatusLabel,
-  invoiceStatusOf, paymentStatusOf,
+  CREDIT_STATUS_LABELS, FINANCE_POSTED, INVOICE_PERMISSIONS, INVOICE_STATUS, INVOICE_VIEWS, InvoiceError, PAYMENT_STATUS_LABELS, QUANTITY_BASIS, SENT_CHANNELS, basisOfSetting,
+  creditStatusOf, invoiceStatusLabel, invoiceStatusOf, paymentStatusOf,
 } from "./constants.js";
 
 // Sales events of an invoice; the event table keeps sales invoices as 'invoice_request'.
@@ -139,12 +140,15 @@ export async function createInvoiceFromSalesOrder(client, context, orderId, inpu
   const built = await buildInvoiceLines(client, context, source, chosen, taxOf);
   const postingDate = readDate(input.postingDate, "Posting date");
   if (postingDate && postingDate !== invoiceDate) requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostingDate, "You do not have permission to change the posting date.");
+  // The invoice inherits the order's agreed payment terms as they were agreed, never today's customer terms or master. Its due date
+  // is worked out from its own date; terms that set no date (custom) leave it to be entered before posting.
+  const calculatedDueDate = calculateDueDate(invoiceDate, version.payment_term_snapshot);
   let created;
   try {
     created = await createCustomerInvoice(client, financeContext(context), {
-      partyId: order.party_id, billingAddressId: version.billing_address_id, invoiceDate, accountingDate: postingDate ?? invoiceDate,
+      partyId: order.party_id, billingAddressId: version.billing_address_id, invoiceDate, accountingDate: postingDate ?? invoiceDate, dueDate: calculatedDueDate ?? invoiceDate,
       currencyCode: String(version.currency_code).trim(), exchangeRate: version.exchange_rate, customerSnapshot: version.customer_snapshot,
-      billingAddressSnapshot: version.billing_address_snapshot, paymentTermId: version.payment_term_id, paymentTermSnapshot: version.payment_term_snapshot,
+      billingAddressSnapshot: version.billing_address_snapshot, paymentTermSnapshot: version.payment_term_snapshot,
       placeOfSupply: version.place_of_supply, supplyType: version.supply_type, termsAndConditions: version.terms_and_conditions,
       lines: built.map((line) => line.finance),
     }, { internal: true, sourceSalesOrderId: order.id, returnLineIds: true });
@@ -154,12 +158,12 @@ export async function createInvoiceFromSalesOrder(client, context, orderId, inpu
   await client.query(
     `INSERT INTO tenant.sales_invoices (customer_invoice_id, organization_id, sales_order_id, sales_order_version_id, idempotency_key, quantity_basis, customer_snapshot, contact_id,
         contact_snapshot, shipping_address_snapshot, seller_registration_id, seller_snapshot, place_of_supply_name, supply_nature, customer_po_number, owner_user_id,
-        customer_notes, internal_notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10::jsonb, $11, $12::jsonb, $13, $14, $15, $16, $17, $18, $19)`,
+        customer_notes, internal_notes, created_by, calculated_due_date)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10::jsonb, $11, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20)`,
     [created.id, context.organizationId, order.id, version.id, key, basis, JSON.stringify(version.customer_snapshot ?? {}), order.contact_id ?? null,
       JSON.stringify(version.contact_snapshot ?? {}), JSON.stringify(version.shipping_address_snapshot ?? {}), version.seller_registration_id ?? null,
       JSON.stringify(version.seller_snapshot ?? {}), version.place_of_supply_name ?? null, version.supply_nature ?? null, version.customer_po_number ?? null,
-      order.owner_user_id ?? null, text(input.customerNotes, 4000) ?? version.customer_notes ?? null, text(input.internalNotes, 4000), context.userId ?? null]);
+      order.owner_user_id ?? null, text(input.customerNotes, 4000) ?? version.customer_notes ?? null, text(input.internalNotes, 4000), context.userId ?? null, calculatedDueDate]);
   await writeSalesLines(client, context, created.id, created.lineIds, built);
   const summary = chosen.map(({ line, quantity }) => ({ item: line.itemName, quantity, unit: line.unit }));
   await recordInvoiceEvent(client, context, created.id, "sales_invoice.created", null, INVOICE_STATUS.draft,
@@ -216,7 +220,9 @@ export async function deliveryInvoiceableLines(client, organizationId, deliveryI
         WHERE invoiced.organization_id = line.organization_id AND invoiced.source_sales_delivery_line_id = line.id), 0)`;
   return (await client.query(
     `SELECT line.id, line.sales_order_line_id, line.item_name_snapshot, line.uom_snapshot, line.quantity,
-            line.quantity - ${billed(`'${FINANCE_POSTED.join("','")}'`)} AS available, ${billed("'draft','pending_approval','approved'")} AS on_drafts
+            line.quantity - ${billed(`'${FINANCE_POSTED.join("','")}'`)}
+              - COALESCE((SELECT sum(returned.quantity) FROM tenant.sales_return_lines returned JOIN tenant.sales_returns sales_return ON sales_return.id = returned.sales_return_id AND sales_return.status = 'received'
+                           WHERE returned.organization_id = line.organization_id AND returned.delivery_line_id = line.id), 0) AS available, ${billed("'draft','pending_approval','approved'")} AS on_drafts
        FROM tenant.sales_delivery_lines line WHERE line.organization_id = $1 AND line.delivery_id = $2 ORDER BY line.sequence NULLS LAST, line.created_at`,
     [organizationId, deliveryId, exceptInvoiceId])).rows.map((row) => ({ ...row, quantity: Number(row.quantity), available: Math.max(0, Number(row.available)), onDrafts: Number(row.on_drafts) }));
 }
@@ -243,7 +249,7 @@ export async function invoiceLines(client, organizationId, invoiceId) {
 // values in proportion to the quantity over what is posted now, tax at the rates the draft carries
 // (or, recalculating, those in force on the invoice date). Used when a draft changes and when it is
 // posted, so posted invoices always add up to the order. Returns { changes, chosen }.
-export async function rewriteDraft(client, context, invoice, order, { requested = null, invoiceDate, postingDate, dueDate = null, recalculateTax = false }) {
+export async function rewriteDraft(client, context, invoice, order, { requested = null, invoiceDate, postingDate, dueDate, paymentTermSnapshot = undefined, recalculateTax = false }) {
   const changes = [];
   const current = await invoiceLines(client, context.organizationId, invoice.id);
   const source = await orderSource(client, context.organizationId, invoice.sales_order_version_id ?? order.current_version_id);
@@ -279,7 +285,7 @@ export async function rewriteDraft(client, context, invoice, order, { requested 
   let replaced;
   try {
     replaced = await replaceCustomerInvoiceDraft(client, financeContext(context), invoice.id, {
-      invoiceDate, accountingDate: postingDate, dueDate, lines: built.map((line) => line.finance),
+      invoiceDate, accountingDate: postingDate, dueDate, paymentTermSnapshot: paymentTermSnapshot ?? invoice.payment_term_snapshot, lines: built.map((line) => line.finance),
     }, { internal: true });
   } catch (error) {
     throw financeError(error, "The invoice could not be changed");
@@ -292,7 +298,10 @@ export async function rewriteDraft(client, context, invoice, order, { requested 
 // input: { expectedVersion?, lines?: [{ salesOrderLineId, quantity }] (the full set; 0 removes), invoiceDate?, postingDate?, dueDate?, contactId?, customerNotes?, internalNotes?,
 //          recalculateTax? }
 export async function updateDraftInvoice(client, context, invoiceId, input = {}) {
-  requireInvoicePermission(context, INVOICE_PERMISSIONS.edit, "You do not have permission to edit invoices.");
+  // The payment terms and the due date can be settled by whoever may change them (a sales manager before posting), without the right to edit the rest.
+  const termsOnly = Object.keys(input).every((key) => ["expectedVersion", "paymentTermId", "paymentTermsNote", "dueDate", "dueDateReason"].includes(key) || input[key] === undefined);
+  if (!(termsOnly && (invoiceCan(context, INVOICE_PERMISSIONS.changePaymentTerms) || invoiceCan(context, INVOICE_PERMISSIONS.overrideDueDate))))
+    requireInvoicePermission(context, INVOICE_PERMISSIONS.edit, "You do not have permission to edit invoices.");
   const seen = await loadInvoice(client, context, invoiceId);
   const order = await lockOrder(client, context, seen.sales_order_id);
   const invoice = await loadInvoice(client, context, invoiceId, { lock: true });
@@ -305,22 +314,73 @@ export async function updateDraftInvoice(client, context, invoiceId, input = {})
   const changes = [];
   const invoiceDate = has("invoiceDate") ? readDate(input.invoiceDate, "Invoice date") ?? dayOf(invoice.invoice_date) : dayOf(invoice.invoice_date);
   const postingDate = has("postingDate") ? readDate(input.postingDate, "Posting date") ?? invoiceDate : (dayOf(invoice.accounting_date) === dayOf(invoice.invoice_date) ? invoiceDate : dayOf(invoice.accounting_date));
-  const dueDate = has("dueDate") ? readDate(input.dueDate, "Due date") : null;
-  if ((postingDate !== invoiceDate && (has("postingDate") || has("invoiceDate"))) || dueDate)
-    requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostingDate, "You do not have permission to change the posting or due date.");
+  if (postingDate !== invoiceDate && (has("postingDate") || has("invoiceDate")))
+    requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostingDate, "You do not have permission to change the posting date.");
   if (invoiceDate !== dayOf(invoice.invoice_date)) changes.push({ what: "Invoice date", from: dayOf(invoice.invoice_date), to: invoiceDate });
   if (postingDate !== dayOf(invoice.accounting_date)) changes.push({ what: "Posting date", from: dayOf(invoice.accounting_date), to: postingDate });
-  if (dueDate && dueDate !== dayOf(invoice.due_date)) changes.push({ what: "Due date", from: dayOf(invoice.due_date), to: dueDate });
-
-  if (Array.isArray(input.lines) || changes.length || input.recalculateTax) {
-    const rewritten = await rewriteDraft(client, context, invoice, order, {
-      requested: Array.isArray(input.lines) ? input.lines : null, invoiceDate, postingDate, dueDate, recalculateTax: Boolean(input.recalculateTax),
-    });
-    changes.push(...rewritten.changes);
-  }
   const sets = [];
   const values = [context.organizationId, invoice.id];
   const set = (column, value, cast = "") => { values.push(value); sets.push(`${column} = $${values.length}${cast}`); };
+
+  // Payment terms: other terms (an active one), or other additional text for this invoice. The invoice keeps its own snapshot.
+  const currentTerm = readTermSnapshot(invoice.payment_term_snapshot);
+  let termSnapshot;
+  if (has("paymentTermId") || has("paymentTermsNote")) {
+    const wanted = has("paymentTermId") && input.paymentTermId ? requireUuid(input.paymentTermId, "Payment terms") : currentTerm?.id ?? null;
+    const note = has("paymentTermsNote") ? text(input.paymentTermsNote, 1000) : currentTerm?.note ?? null;
+    if (wanted && wanted !== (currentTerm?.id ?? null)) {
+      requireInvoicePermission(context, INVOICE_PERMISSIONS.changePaymentTerms, "You do not have permission to change the payment terms.");
+      try {
+        termSnapshot = await salesTermSnapshot(client, context.organizationId, wanted, note);
+      } catch (error) {
+        if (!(error instanceof PaymentTermError)) throw error;
+        throw new InvoiceError(error.status === 404 ? 409 : error.status, error.message, "SALES_INVOICE_PAYMENT_TERMS_INVALID", { field: "paymentTermId" });
+      }
+      changes.push({ what: "Payment terms", from: currentTerm?.name ?? null, to: termSnapshot.name });
+    } else if (currentTerm && (note ?? "") !== (currentTerm.note ?? "")) {
+      requireInvoicePermission(context, INVOICE_PERMISSIONS.changePaymentTerms, "You do not have permission to change the payment terms.");
+      termSnapshot = { ...invoice.payment_term_snapshot, note: note ?? undefined };
+      changes.push({ what: "Additional payment terms", from: currentTerm.note ?? null, to: note });
+    }
+  }
+  // The due date: what the terms work out from the invoice date, unless an authorised user sets another date with a reason.
+  // Other terms or another invoice date work it out again and drop an earlier override; terms that set no date keep the one entered.
+  const terms = termSnapshot ?? invoice.payment_term_snapshot;
+  const calculated = calculateDueDate(invoiceDate, terms);
+  const before = dayOf(invoice.due_date);
+  let overridden = Boolean(invoice.due_date_overridden);
+  let reason = invoice.due_date_override_reason ?? null;
+  let dueDate = overridden ? before : calculated ?? before;
+  if (has("dueDate") && !input.dueDate) {
+    overridden = false; reason = null; dueDate = calculated ?? invoiceDate;
+  } else if (has("dueDate") && (readDate(input.dueDate, "Due date") !== (overridden ? before : calculated) || (calculated === null && !overridden))) {
+    requireInvoicePermission(context, INVOICE_PERMISSIONS.overrideDueDate, "You do not have permission to set the due date by hand.");
+    dueDate = readDate(input.dueDate, "Due date");
+    reason = text(input.dueDateReason, 500);
+    // Terms that work out a date need a reason to depart from it; terms that set none are simply completed.
+    if (calculated !== null && dueDate !== calculated && !reason)
+      throw new InvoiceError(400, "Give the reason for setting another due date.", "SALES_INVOICE_DUE_DATE_REASON_REQUIRED", { field: "dueDateReason" });
+    overridden = calculated === null || dueDate !== calculated;
+    if (!overridden) reason = null;
+  } else if (overridden && calculated !== null && (termSnapshot?.id !== undefined && termSnapshot.id !== currentTerm?.id || invoiceDate !== dayOf(invoice.invoice_date))) {
+    overridden = false; reason = null; dueDate = calculated;
+    changes.push({ what: "Due date override", from: before, to: "worked out again from the payment terms" });
+  }
+  if (dueDate < invoiceDate) throw new InvoiceError(400, "The due date cannot be before the invoice date.", "SALES_INVOICE_DUE_DATE_INVALID", { field: "dueDate" });
+  if (dueDate !== before) changes.push({ what: overridden ? "Due date (set by hand)" : "Due date", from: before, to: dueDate, reason: overridden ? reason ?? undefined : undefined });
+  if ((dayOf(invoice.calculated_due_date) ?? "") !== (calculated ?? "")) set("calculated_due_date", calculated);
+  if (overridden !== Boolean(invoice.due_date_overridden)) set("due_date_overridden", overridden);
+  if ((reason ?? "") !== (invoice.due_date_override_reason ?? "")) {
+    set("due_date_override_reason", reason);
+    if (dueDate === before && overridden) changes.push({ what: "Due date reason", from: invoice.due_date_override_reason ?? null, to: reason });
+  }
+
+  if (Array.isArray(input.lines) || changes.length || input.recalculateTax) {
+    const rewritten = await rewriteDraft(client, context, invoice, order, {
+      requested: Array.isArray(input.lines) ? input.lines : null, invoiceDate, postingDate, dueDate, paymentTermSnapshot: termSnapshot, recalculateTax: Boolean(input.recalculateTax),
+    });
+    changes.push(...rewritten.changes);
+  }
   for (const [key, column, label] of [["customerNotes", "customer_notes", "Customer notes"], ["internalNotes", "internal_notes", "Internal notes"]]) {
     if (!has(key)) continue;
     const value = text(input[key], 4000);
@@ -344,15 +404,16 @@ export async function updateDraftInvoice(client, context, invoiceId, input = {})
         to: [contact.first_name, contact.last_name].filter(Boolean).join(" ") || null });
     }
   }
-  if (!changes.length) return { invoiceId: invoice.id, version: Number(invoice.version), changed: false };
+  if (!changes.length && !sets.length) return { invoiceId: invoice.id, version: Number(invoice.version), changed: false };
   const version = (await client.query(
     `UPDATE tenant.sales_invoices SET ${[...sets, "version = version + 1", "updated_at = now()"].join(", ")} WHERE organization_id = $1 AND customer_invoice_id = $2 RETURNING version`, values)).rows[0].version;
+  if (!changes.length) return { invoiceId: invoice.id, version: Number(version), changed: false };
   await recordInvoiceEvent(client, context, invoice.id, "sales_invoice.updated", INVOICE_STATUS.draft, INVOICE_STATUS.draft, { changes });
   return { invoiceId: invoice.id, version: Number(version), changed: true, changes };
 }
 
 // What the caller can do with the invoice now; the server checks again on each action.
-function availableActions(context, invoice, { paid, credits, balance }) {
+function availableActions(context, invoice, { paid, credits, balance }, creditedTotal) {
   const can = (permission) => invoiceCan(context, permission);
   const status = invoiceStatusOf(invoice.status);
   const posted = status === INVOICE_STATUS.posted;
@@ -364,8 +425,12 @@ function availableActions(context, invoice, { paid, credits, balance }) {
     send: posted && can(INVOICE_PERMISSIONS.send),
     markSent: posted && can(INVOICE_PERMISSIONS.send),
     recordPayment: posted && balance > 0.005 && can(INVOICE_PERMISSIONS.recordPayment),
-    creditNote: posted && can(INVOICE_PERMISSIONS.creditNote),
+    creditNote: posted && creditedTotal + 0.005 < Number(invoice.grand_total) && can(INVOICE_PERMISSIONS.creditNote),
     reverse: ["posted", "overdue"].includes(invoice.status) && paid <= 0.005 && credits <= 0.005 && can(INVOICE_PERMISSIONS.reverse),
+    changePaymentTerms: invoice.status === "draft" && can(INVOICE_PERMISSIONS.changePaymentTerms),
+    overrideDueDate: invoice.status === "draft" && can(INVOICE_PERMISSIONS.overrideDueDate),
+    // A posted invoice that still owes something: Finance can correct when it falls due.
+    changeDueDate: posted && balance > 0.005 && can(INVOICE_PERMISSIONS.changePostedDueDate),
     viewPayments: can(INVOICE_PERMISSIONS.paymentsView),
     viewAccounting: Boolean(invoice.journal_entry_id) && can(INVOICE_PERMISSIONS.accountingView),
   };
@@ -419,8 +484,11 @@ export async function getSalesInvoice(client, context, invoiceId) {
          FROM tenant.accounting_customer_credit_allocations allocation JOIN tenant.accounting_customer_invoices credit ON credit.id = allocation.credit_note_id
         WHERE allocation.organization_id = $1 AND allocation.customer_invoice_id = $2 ORDER BY allocation.allocated_at`, [context.organizationId, invoice.id])).rows : [],
     (await client.query(
-      `SELECT id, invoice_number, status, invoice_date, grand_total, btrim(currency_code) AS currency_code FROM tenant.accounting_customer_invoices
-        WHERE organization_id = $1 AND source_invoice_id = $2 AND invoice_type = 'credit_note' ORDER BY created_at`, [context.organizationId, invoice.id])).rows,
+      `SELECT credit.id, credit.invoice_number, credit.status, credit.invoice_date, credit.grand_total, credit.outstanding_amount, btrim(credit.currency_code) AS currency_code,
+              note.reason_code, note.sales_return_id, COALESCE((SELECT sum(allocation.amount) FROM tenant.accounting_customer_refund_allocations allocation
+              JOIN tenant.accounting_customer_refunds refund ON refund.id = allocation.refund_id AND refund.status = 'posted' WHERE allocation.credit_note_id = credit.id), 0) AS refunded
+         FROM tenant.accounting_customer_invoices credit LEFT JOIN tenant.sales_credit_notes note ON note.customer_invoice_id = credit.id
+        WHERE credit.organization_id = $1 AND credit.source_invoice_id = $2 AND credit.invoice_type = 'credit_note' ORDER BY credit.created_at`, [context.organizationId, invoice.id])).rows,
     (await client.query(
       `SELECT DISTINCT delivery.id, delivery.request_number AS delivery_number, delivery.delivery_status, delivery.dispatch_date
          FROM tenant.accounting_customer_invoice_lines line
@@ -443,6 +511,9 @@ export async function getSalesInvoice(client, context, invoiceId) {
           AND event.event_type NOT IN ('accounting.customer_invoice.created', 'accounting.customer_invoice.updated', 'accounting.customer_invoice.auto_approved')`,
       [context.organizationId, invoice.id])).rows,
   ];
+  // Posted credit notes credit the invoice; its own total never changes.
+  const creditedTotal = Math.round(creditNotes.filter((credit) => FINANCE_POSTED.includes(credit.status)).reduce((total, credit) => total + Number(credit.grand_total), 0) * 100) / 100;
+  const creditStatus = creditStatusOf({ total, credited: creditedTotal });
   const taxSummary = new Map();
   for (const line of lines)
     for (const tax of line.taxes) {
@@ -456,17 +527,26 @@ export async function getSalesInvoice(client, context, invoiceId) {
     invoice: {
       ...invoice, ...head, status, financeStatus: invoice.status, statusLabel: invoiceStatusLabel(invoice.status), paymentStatus, paymentStatusLabel: PAYMENT_STATUS_LABELS[paymentStatus],
       overdue, amountPaid: canSeePayments ? money.paid : null, credited: canSeePayments ? money.credits : null, balanceDue: money.balance,
+      creditedTotal, netAfterCredits: Math.round((total - creditedTotal) * 100) / 100, creditStatus, creditStatusLabel: CREDIT_STATUS_LABELS[creditStatus],
       sent: Boolean(invoice.sent_at), sentLabel: invoice.sent_at ? "Sent" : "Not sent",
+      // The terms as agreed on this invoice (its snapshot) and the due date in force; whether a date was set by hand, and what the terms worked out.
+      paymentTerm: readTermSnapshot(invoice.payment_term_snapshot),
+      dueDateRequired: readTermSnapshot(invoice.payment_term_snapshot)?.calculationType === "custom" && !invoice.due_date_overridden,
       journal_entry_number: invoiceCan(context, INVOICE_PERMISSIONS.accountingView) ? head.journal_entry_number : null,
       journal_entry_id: invoiceCan(context, INVOICE_PERMISSIONS.accountingView) ? invoice.journal_entry_id : null,
     },
     lines,
     taxSummary: [...taxSummary.values()],
-    receipts, credits, creditNotes, deliveries, sends,
+    receipts, credits, deliveries, sends,
+    creditNotes: creditNotes.map((credit) => ({ ...credit, statusLabel: credit.status === "pending_approval" ? "Awaiting Finance approval" : invoiceStatusLabel(credit.status) })),
+    returns: (await client.query(
+      `SELECT DISTINCT sales_return.id, sales_return.return_number, sales_return.status, sales_return.return_date
+         FROM tenant.sales_return_lines line JOIN tenant.sales_returns sales_return ON sales_return.id = line.sales_return_id AND sales_return.status <> 'cancelled'
+        WHERE line.organization_id = $1 AND line.sales_order_line_id = ANY($2::uuid[])`, [context.organizationId, lines.map((line) => line.source_sales_order_line_id)])).rows,
     events: [...events, ...financeEvents].sort((a, b) => new Date(b.occurred_at) - new Date(a.occurred_at)),
     sentChannels: SENT_CHANNELS,
     draftWarnings: invoice.status === "draft" ? await otherDrafts(client, context, invoice, lines) : [],
-    actions: availableActions(context, invoice, money),
+    actions: availableActions(context, invoice, money, creditedTotal),
   };
 }
 
@@ -490,7 +570,7 @@ const POSTED_SQL = `invoice.status IN ('${FINANCE_POSTED.join("','")}')`;
 const PAID_SQL = `(COALESCE((SELECT sum(allocated_amount) FROM tenant.accounting_customer_receipt_allocations WHERE customer_invoice_id = invoice.id), 0)
   + COALESCE((SELECT sum(allocated_amount) FROM tenant.accounting_customer_credit_allocations WHERE customer_invoice_id = invoice.id), 0))`;
 
-// filters: view, search, status, paymentStatus, partyId, salesOrderId, ownerUserId, currencyCode, dateFrom, dateTo, dueFrom, dueTo, overdue, sort, direction, limit, offset
+// filters: view, search, status, paymentStatus, partyId, salesOrderId, ownerUserId, paymentTermId, currencyCode, dateFrom, dateTo, dueFrom, dueTo, overdue, sort, direction, limit, offset
 export async function listSalesInvoices(client, context, filters = {}) {
   requireInvoiceAccess(context);
   const values = [context.organizationId];
@@ -503,8 +583,12 @@ export async function listSalesInvoices(client, context, filters = {}) {
       case "posted": return ` AND ${POSTED_SQL}`;
       case "unpaid": return ` AND ${POSTED_SQL} AND ${PAID_SQL} <= 0.005`;
       case "partially_paid": return ` AND ${POSTED_SQL} AND ${PAID_SQL} > 0.005 AND ${PAID_SQL} < invoice.grand_total - 0.005`;
+      case "balance_due": return ` AND ${POSTED_SQL} AND invoice.grand_total - ${PAID_SQL} > 0.005`;
       case "paid": return ` AND ${POSTED_SQL} AND ${PAID_SQL} >= invoice.grand_total - 0.005`;
       case "overdue": return ` AND ${overdueSql}`;
+      // Derived from each invoice's due date: still owing, and falling due today / within the next seven days.
+      case "due_today": return ` AND ${POSTED_SQL} AND invoice.due_date = current_date AND invoice.grand_total - ${PAID_SQL} > 0.005`;
+      case "due_this_week": return ` AND ${POSTED_SQL} AND invoice.due_date BETWEEN current_date AND current_date + 6 AND invoice.grand_total - ${PAID_SQL} > 0.005`;
       case "reversed": return ` AND invoice.status IN ('reversed','cancelled')`;
       case "mine": return ` AND (sales_invoice.owner_user_id = ${bind(context.userId ?? null)} OR sales_invoice.created_by = ${bind(context.userId ?? null)})`;
       default: return "";
@@ -528,6 +612,7 @@ export async function listSalesInvoices(client, context, filters = {}) {
   uuidFilter("partyId", (p) => ` AND invoice.party_id = ${p}`, "Customer");
   uuidFilter("salesOrderId", (p) => ` AND sales_invoice.sales_order_id = ${p}`, "Sales order");
   uuidFilter("ownerUserId", (p) => ` AND sales_invoice.owner_user_id = ${p}`, "Salesperson");
+  uuidFilter("paymentTermId", (p) => ` AND invoice.payment_term_snapshot->>'id' = ${p}::text`, "Payment terms");
   if (text(filters.currencyCode, 3)) where += ` AND btrim(invoice.currency_code) = ${bind(text(filters.currencyCode, 3).toUpperCase())}`;
   const dateFilter = (key, sql, label) => { const day = readDate(filters[key], label); if (day) where += sql(bind(day)); };
   dateFilter("dateFrom", (p) => ` AND invoice.invoice_date >= ${p}::date`, "Invoice date from");
@@ -548,7 +633,9 @@ export async function listSalesInvoices(client, context, filters = {}) {
   const rows = (await client.query(
     `SELECT invoice.id, invoice.invoice_number, invoice.status AS finance_status, invoice.invoice_date, invoice.due_date, invoice.grand_total, btrim(invoice.currency_code) AS currency_code,
             invoice.party_id, sales_invoice.customer_snapshot->>'displayName' AS customer_name, party.customer_number, sales_invoice.sales_order_id, sales_order.sales_order_number,
-            owner.full_name AS owner_name, sales_invoice.sent_at, ${PAID_SQL} AS paid, (invoice.due_date < current_date) AS past_due
+            owner.full_name AS owner_name, sales_invoice.sent_at, invoice.payment_term_snapshot->>'name' AS payment_term_name, ${PAID_SQL} AS paid, (invoice.due_date < current_date) AS past_due,
+            (SELECT COALESCE(sum(credit.grand_total), 0) FROM tenant.accounting_customer_invoices credit
+              WHERE credit.source_invoice_id = invoice.id AND credit.invoice_type = 'credit_note' AND credit.status IN ('${FINANCE_POSTED.join("','")}')) AS credited_total
        ${from}${where}
       ORDER BY ${sort} ${direction} NULLS LAST, invoice.invoice_number DESC
       LIMIT ${bind(limit)} OFFSET ${bind(offset)}`, values)).rows;
@@ -563,9 +650,56 @@ export async function listSalesInvoices(client, context, filters = {}) {
       return {
         ...row, status, statusLabel: invoiceStatusLabel(row.finance_status), paymentStatus, paymentStatusLabel: PAYMENT_STATUS_LABELS[paymentStatus], balance_due: balance,
         overdue: status === INVOICE_STATUS.posted && balance > 0.005 && Boolean(row.past_due), paid: undefined, past_due: undefined,
+        credited_total: Number(row.credited_total), creditStatus: creditStatusOf({ total, credited: Number(row.credited_total) }),
+        creditStatusLabel: CREDIT_STATUS_LABELS[creditStatusOf({ total, credited: Number(row.credited_total) })],
       };
     }),
     total: count, limit, offset, views: INVOICE_VIEWS,
     capabilities: Object.fromEntries(Object.entries(INVOICE_PERMISSIONS).map(([name, permission]) => [name, invoiceCan(context, permission)])),
   };
+}
+
+// Corrects the due date of a posted invoice that still owes something: by permission, with a reason, kept in its history.
+// Nothing else on the invoice changes; overdue and ageing follow the new date. input: { dueDate, reason }
+export async function changePostedInvoiceDueDate(client, context, invoiceId, input = {}) {
+  requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostedDueDate, "You do not have permission to change a posted invoice's due date.");
+  const reason = text(input.reason, 500);
+  if (!reason) throw new InvoiceError(400, "Give the reason for changing the due date.", "SALES_INVOICE_DUE_DATE_REASON_REQUIRED", { field: "reason" });
+  const dueDate = readDate(input.dueDate, "Due date");
+  if (!dueDate) throw new InvoiceError(400, "Enter the new due date.", "SALES_INVOICE_DUE_DATE_INVALID", { field: "dueDate" });
+  const invoice = await loadInvoice(client, context, invoiceId, { lock: true });
+  if (!FINANCE_POSTED.includes(invoice.status))
+    throw new InvoiceError(409, invoice.status === "draft" ? "Edit the draft to change its due date." : `A ${invoice.status} invoice has no due date to change.`, "SALES_INVOICE_NOT_POSTED");
+  if (dueDate < dayOf(invoice.invoice_date)) throw new InvoiceError(400, "The due date cannot be before the invoice date.", "SALES_INVOICE_DUE_DATE_INVALID", { field: "dueDate" });
+  const before = dayOf(invoice.due_date);
+  if (dueDate === before) return { invoiceId: invoice.id, dueDate, changed: false };
+  try {
+    await changeCustomerInvoiceDueDate(client, financeContext(context), invoice.id, { dueDate, reason }, { internal: true });
+  } catch (error) {
+    throw financeError(error, "The due date could not be changed");
+  }
+  const calculated = calculateDueDate(dayOf(invoice.invoice_date), invoice.payment_term_snapshot);
+  await client.query(
+    `UPDATE tenant.sales_invoices SET due_date_overridden = $3, due_date_override_reason = $4, calculated_due_date = COALESCE(calculated_due_date, $5::date), updated_at = now()
+      WHERE organization_id = $1 AND customer_invoice_id = $2`, [context.organizationId, invoice.id, dueDate !== calculated, dueDate !== calculated ? reason : null, calculated]);
+  await recordInvoiceEvent(client, context, invoice.id, "sales_invoice.due_date_changed", INVOICE_STATUS.posted, INVOICE_STATUS.posted, { from: before, to: dueDate, reason });
+  return { invoiceId: invoice.id, dueDate, changed: true };
+}
+
+// What customers still owe on the posted invoices the caller can see, in the
+// base currency: the figure the Sales home links to the Unpaid view with.
+export async function salesInvoiceBalance(client, context) {
+  requireInvoiceAccess(context);
+  const values = [context.organizationId];
+  const scope = invoiceScopeSql(context, values, "sales_order");
+  const row = (await client.query(
+    `SELECT count(*) FILTER (WHERE due.balance > 0.005)::int AS invoices,
+            COALESCE(sum(due.balance * invoice.exchange_rate) FILTER (WHERE due.balance > 0.005), 0) AS outstanding,
+            COALESCE(sum(due.balance * invoice.exchange_rate) FILTER (WHERE due.balance > 0.005 AND invoice.due_date < current_date), 0) AS overdue
+       FROM tenant.sales_invoices sales_invoice
+       JOIN tenant.accounting_customer_invoices invoice ON invoice.organization_id = sales_invoice.organization_id AND invoice.id = sales_invoice.customer_invoice_id
+       JOIN tenant.sales_orders sales_order ON sales_order.organization_id = sales_invoice.organization_id AND sales_order.id = sales_invoice.sales_order_id
+       CROSS JOIN LATERAL (SELECT invoice.grand_total - ${PAID_SQL} AS balance) due
+      WHERE sales_invoice.organization_id = $1 AND ${POSTED_SQL}${scope}`, values)).rows[0];
+  return { invoices: row.invoices, outstanding: Number(row.outstanding), overdue: Number(row.overdue) };
 }

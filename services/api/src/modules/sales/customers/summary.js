@@ -4,6 +4,7 @@
 // Everything here is read from the module that owns it. Receivable figures
 // come from Accounting's invoices and receipts and are shown only to callers
 // who may see customer financials; nothing is stored on the customer.
+import { TRACKING_COLUMNS, financeJoin, invoicingBasisSetting, quantitiesJoin, summaryFromRow, summaryLine } from "../order-tracking/summary.js";
 import { listAccountHistory } from "../../crm/accounts/history.js";
 import { canViewCustomerFinancials, customerCan, requireCustomerPermission } from "./access.js";
 import { CUSTOMER_PERMISSIONS, CustomerError } from "./constants.js";
@@ -83,11 +84,18 @@ export async function getCustomerOverview(client, context, customerId) {
               (SELECT jsonb_build_object('date', receipt_date, 'amount', amount, 'number', receipt_number) FROM tenant.accounting_customer_receipts
                 WHERE organization_id = $1 AND party_id = $2 AND status NOT IN ${DEAD_RECEIPT} ORDER BY receipt_date DESC, created_at DESC LIMIT 1) AS last_payment
          FROM tenant.accounting_customer_receipts WHERE organization_id = $1 AND party_id = $2 AND status NOT IN ${DEAD_RECEIPT}`);
+    const credit = await one(
+      `SELECT (SELECT COALESCE(sum(outstanding_amount), 0) FROM tenant.accounting_customer_invoices
+                WHERE organization_id = $1 AND party_id = $2 AND invoice_type = 'credit_note' AND status IN ('posted', 'partially_paid')) AS amount,
+              (SELECT COALESCE(sum(amount), 0) FROM tenant.accounting_customer_refunds WHERE organization_id = $1 AND party_id = $2 AND status = 'posted') AS refunded`);
     overview.finance = {
       currencyCode: customer.currency_code?.trim() ?? null,
       outstanding: num(finance.outstanding),
       overdue: num(finance.overdue),
       unallocatedAdvance: num(receipts.unallocated),
+      // What is left on posted credit notes: with unapplied receipts, the credit Finance can apply or refund.
+      creditNoteCredit: num(credit.amount),
+      refunded: num(credit.refunded),
       openInvoices: finance.open_invoices,
       lastPaymentDate: receipts.last_payment?.date ?? null,
       lastPaymentAmount: receipts.last_payment ? num(receipts.last_payment.amount) : null,
@@ -118,16 +126,16 @@ const RELATED = Object.freeze({
   },
   orders: {
     needs: "sales",
-    // Delivery and invoicing progress, each worked out from the order's deliveries and posted invoices.
-    sql: `SELECT sales_order.id, sales_order.sales_order_number AS code, sales_order.lifecycle_status AS status,
-                 CASE WHEN sales_order.lifecycle_status IN ('draft', 'cancelled') THEN NULL ELSE
-                   concat_ws(' · ',
-                     CASE sales_order.fulfillment_status WHEN 'fulfilled' THEN 'Delivered' WHEN 'partially_fulfilled' THEN 'Partially delivered' ELSE 'Not delivered' END,
-                     CASE sales_order.billing_status WHEN 'fully_invoiced' THEN 'Fully invoiced' WHEN 'partially_invoiced' THEN 'Partially invoiced' ELSE 'Not invoiced' END) END AS detail,
+    // Each order with where it stands, from the order tracking service: the same summary the order list and the order page show.
+    tracking: true,
+    sql: `SELECT sales_order.id, sales_order.sales_order_number AS code, sales_order.lifecycle_status AS status, sales_order.lifecycle_status,
+                 (sales_order.requested_delivery_date < current_date) AS requested_delivery_overdue, ${TRACKING_COLUMNS},
                  version.grand_total AS amount,
                  version.currency_code, sales_order.order_date AS date
             FROM tenant.sales_orders sales_order
             LEFT JOIN tenant.sales_order_versions version ON version.organization_id = sales_order.organization_id AND version.id = sales_order.current_version_id
+            ${quantitiesJoin("sales_order", "$3")}
+            ${financeJoin("sales_order")}
            WHERE sales_order.organization_id = $1 AND sales_order.party_id = $2 ORDER BY sales_order.order_date DESC NULLS LAST, sales_order.created_at DESC LIMIT 200`,
     href: (row) => `/sales/orders/${row.id}`,
   },
@@ -153,24 +161,39 @@ const RELATED = Object.freeze({
   },
   payments: {
     needs: "finance",
-    sql: `SELECT id, receipt_number AS code, status, amount, unapplied_amount AS outstanding, currency_code, receipt_date AS date, payment_method AS detail
-            FROM tenant.accounting_customer_receipts WHERE organization_id = $1 AND party_id = $2 ORDER BY receipt_date DESC, created_at DESC LIMIT 200`,
-    href: () => null,
+    // Receipts (with what is left unapplied) and the refunds paid back to the customer.
+    sql: `SELECT id, receipt_number AS code, status, amount, unapplied_amount AS outstanding, currency_code, receipt_date::timestamptz AS date,
+                 concat_ws(' · ', 'Receipt', replace(payment_method, '_', ' ')) AS detail, 'receipt' AS parent_id
+            FROM tenant.accounting_customer_receipts WHERE organization_id = $1 AND party_id = $2
+          UNION ALL
+          SELECT refund.id, refund.refund_number, refund.status, refund.amount, NULL, refund.currency_code, refund.refund_date::timestamptz,
+                 concat_ws(' · ', 'Refund', replace(refund.payment_method, '_', ' '), refund.external_reference), 'refund'
+            FROM tenant.accounting_customer_refunds refund WHERE refund.organization_id = $1 AND refund.party_id = $2
+           ORDER BY date DESC LIMIT 200`,
+    href: (row) => (row.parent_id === "refund" ? `/accounting/customer-refunds/${row.id}` : null),
   },
   returns: {
     needs: "sales",
-    sql: `SELECT request.id, request.request_number AS code, request.status, request.reason AS title, request.requested_at AS date, 'Return' AS detail,
-                 sales_order.id AS parent_id, NULL::numeric AS amount, NULL::text AS currency_code
-            FROM tenant.sales_return_requests request
-            JOIN tenant.sales_orders sales_order ON sales_order.organization_id = request.organization_id AND sales_order.id = request.sales_order_id
-           WHERE request.organization_id = $1 AND sales_order.party_id = $2
+    // Each return with what came back, its order and the credit notes made for it; then the credit notes themselves.
+    sql: `SELECT sales_return.id, sales_return.return_number AS code, sales_return.status,
+                 (SELECT string_agg(line.item_name_snapshot || ' × ' || trim(trailing '.' from trim(trailing '0' from line.quantity::text)), ', ' ORDER BY line.sequence)
+                    FROM tenant.sales_return_lines line WHERE line.sales_return_id = sales_return.id) AS title,
+                 sales_return.return_date::timestamptz AS date,
+                 concat_ws(' · ', sales_order.sales_order_number,
+                   (SELECT string_agg(DISTINCT credit_note.invoice_number, ', ') FROM tenant.sales_return_credits credit
+                      JOIN tenant.accounting_customer_invoices credit_note ON credit_note.id = credit.credit_note_id WHERE credit.sales_return_id = sales_return.id)) AS detail,
+                 'return' AS parent_id, NULL::numeric AS amount, NULL::text AS currency_code
+            FROM tenant.sales_returns sales_return
+            JOIN tenant.sales_orders sales_order ON sales_order.organization_id = sales_return.organization_id AND sales_order.id = sales_return.sales_order_id
+           WHERE sales_return.organization_id = $1 AND sales_return.party_id = $2
           UNION ALL
-          SELECT invoice.id, invoice.invoice_number, invoice.status, NULL, invoice.invoice_date::timestamptz, 'Credit note', NULL, invoice.grand_total, invoice.currency_code
+          SELECT invoice.id, invoice.invoice_number, invoice.status, NULL, invoice.invoice_date::timestamptz, 'Credit note',
+                 CASE WHEN EXISTS (SELECT 1 FROM tenant.sales_credit_notes note WHERE note.customer_invoice_id = invoice.id) THEN 'credit_note' END, invoice.grand_total, invoice.currency_code
             FROM tenant.accounting_customer_invoices invoice
            WHERE invoice.organization_id = $1 AND invoice.party_id = $2 AND invoice.invoice_type = 'credit_note' AND $3::boolean
            ORDER BY date DESC LIMIT 200`,
     finance: true,
-    href: (row) => (row.parent_id ? `/sales/orders/${row.parent_id}` : null),
+    href: (row) => (row.parent_id === "return" ? `/sales/returns/${row.id}` : row.parent_id === "credit_note" ? `/sales/credit-notes/${row.id}` : null),
   },
   projects: {
     needs: "projects",
@@ -198,15 +221,20 @@ export async function listCustomerRelated(client, context, customerId, list) {
   const customer = await loadCustomerRow(client, context, customerId);
   const values = [context.organizationId, customer.id];
   if (definition.finance) values.push(can.finance);
+  if (definition.tracking) values.push(await invoicingBasisSetting(client, context.organizationId));
   const { rows } = await client.query(definition.sql, values);
   return rows.map((row) => ({
     id: row.id,
     code: row.code ?? null,
     title: row.title ?? null,
     status: row.status ?? null,
-    detail: row.detail ?? null,
+    detail: definition.tracking
+      ? (["draft", "cancelled"].includes(row.lifecycle_status) ? null : summaryLine(summaryFromRow(row, { canSeeMoney: Boolean(can.finance) }), { canSeeMoney: Boolean(can.finance) }))
+      : row.detail ?? null,
     amount: row.amount === null || row.amount === undefined ? null : num(row.amount),
-    outstanding: row.outstanding === null || row.outstanding === undefined ? null : num(row.outstanding),
+    // For an order: what is still owed on its invoices, from Finance.
+    outstanding: definition.tracking ? (can.finance && !["draft", "cancelled"].includes(row.lifecycle_status) ? num(row.finance_balance_due) : null)
+      : row.outstanding === null || row.outstanding === undefined ? null : num(row.outstanding),
     currencyCode: row.currency_code?.trim() ?? null,
     date: row.date ?? null,
     dueDate: row.due_date ?? null,

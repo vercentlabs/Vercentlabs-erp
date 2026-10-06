@@ -17,6 +17,7 @@ import {
   type AddressInput, type Customer, type CustomerInput, type CustomerOptions, type DuplicateResult,
 } from "../api/customers-api";
 import { ErrorBanner, NONE, orNull, withNone } from "../customer-format";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Values = {
   displayName: string; legalName: string; customerKind: string; status: string; email: string; phone: string; website: string; countryCode: string; currencyCode: string;
@@ -176,8 +177,9 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
   const gstinRequired = india && Boolean(registration?.needsGstin);
   const derivedState = /^[0-9]{2}/.test(values.gstin) ? options.gstStates.find((state) => state.code === values.gstin.slice(0, 2))?.name : undefined;
 
+  const submitKey = useSubmitKey();
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: () => submitKey.run(async () => {
       const input = toInput(values);
       const override = acknowledged ? { allowDuplicate: true, duplicateReason: reason.trim() } : {};
       if (customer) {
@@ -192,7 +194,7 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
         primaryContact: contact.firstName.trim() ? { ...contact, firstName: contact.firstName.trim() } : null,
       };
       return accountId ? createCustomerFromAccount(accountId, created) : createCustomer(created);
-    },
+    }),
     onSuccess: (saved) => onSaved(saved),
     onError: (failure) => {
       setErrors(fieldErrors(failure));
@@ -295,7 +297,7 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
 
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onPress={onCancel}>Cancel</Button>
-        <Button variant="primary" onPress={submit} isLoading={mutation.isPending} isDisabled={blocked}>{editing ? "Save changes" : "Create customer"}</Button>
+        <Button variant="primary" onPress={submit} isLoading={mutation.isPending || mutation.isSuccess} isDisabled={blocked}>{editing ? "Save changes" : "Create customer"}</Button>
       </div>
     </div>
   );

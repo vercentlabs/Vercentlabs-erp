@@ -52,6 +52,7 @@ export function CustomerOverviewPanel({ customer, onOpenTab }: { customer: Custo
   const workspace = useWorkspaceContext();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "customer", customer.id, "overview"), queryFn: () => getCustomerOverview(customer.id) });
   const overview = query.data;
+  const canRefund = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("accounting.refund.create");
   const tabLink = (tab: string, label: string) => <button type="button" className="text-xs text-brand underline-offset-2 hover:underline" onClick={() => onOpenTab(tab)}>{label}</button>;
 
   return (
@@ -137,6 +138,8 @@ export function CustomerOverviewPanel({ customer, onOpenTab }: { customer: Custo
               <Figure label="Outstanding receivable" value={formatMoney(overview.finance.currencyCode, overview.finance.outstanding)} />
               <Figure label="Overdue" value={formatMoney(overview.finance.currencyCode, overview.finance.overdue)} tone={overview.finance.overdue > 0 ? "danger" : undefined} />
               <Figure label="Unallocated advance" value={formatMoney(overview.finance.currencyCode, overview.finance.unallocatedAdvance)} />
+              <Figure label="Credit on credit notes" value={formatMoney(overview.finance.currencyCode, overview.finance.creditNoteCredit)} />
+              <Figure label="Refunded" value={formatMoney(overview.finance.currencyCode, overview.finance.refunded)} />
               <Figure label="Last payment" value={overview.finance.lastPaymentDate ? formatDate(overview.finance.lastPaymentDate) : "None"} />
             </div>
             {overview.finance.lastPaymentAmount !== null && (
@@ -156,6 +159,10 @@ export function CustomerOverviewPanel({ customer, onOpenTab }: { customer: Custo
             <p className="text-xs text-text-muted">These figures come from Accounting. They cannot be edited here.</p>
             <div className="flex flex-wrap gap-3">
               {tabLink("invoices", "Customer statement: invoices")}{tabLink("payments", "Payments")}
+              {/* Available credit (unapplied receipts and credit notes) can be paid back: Sales → Refunds, with this customer chosen. */}
+              {canRefund && overview.finance.unallocatedAdvance + overview.finance.creditNoteCredit > 0.005 && (
+                <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/sales/refunds?create=1&partyId=${customer.id}`}>Refund available credit</Link>
+              )}
               <Link className="text-xs text-brand underline-offset-2 hover:underline" href="/accounting/customer-invoices">Open receivables in Accounting</Link>
             </div>
           </Card>

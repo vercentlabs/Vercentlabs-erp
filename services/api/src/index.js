@@ -1,5 +1,6 @@
 export * from "@vercentlabs/reporting-engine";
 export * from "./core/master-data.js";
+export * from "./core/payment-terms/index.js";
 export * from "./core/tax/index.js";
 export * from "./core/platform/numbering/index.js";
 export * from "./core/idempotency.js";
@@ -14,6 +15,7 @@ export * from "./modules/sales/index.js";
 export * from "./modules/accounting/index.js";
 
 export * from "./modules/procurement/index.js";
+export * from "./modules/procurement/suppliers/index.js";
 
 
 

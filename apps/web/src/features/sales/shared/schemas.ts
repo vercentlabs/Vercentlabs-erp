@@ -39,6 +39,8 @@ export const documentSchema = z.object({
   opportunityId: uuid.nullish(),
   priceListId: uuid.nullish(),
   paymentTermId: uuid.nullish(),
+  // Additional payment terms for this document only, printed with its terms.
+  paymentTermsNote: z.string().trim().max(1000).nullish(),
   billingAddressId: uuid.nullish(),
   shippingAddressId: uuid.nullish(),
   currencyCode: z.string().trim().length(3).nullish(),

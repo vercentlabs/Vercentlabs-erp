@@ -135,6 +135,8 @@ export async function inputFromQuotation(client, context, quote, { carryPrices =
     exchangeRate: version.exchange_rate,
     priceListId: version.price_list_id,
     paymentTermId: version.payment_term_id,
+    // The terms as agreed on the quotation travel with it (to its revision and its sales order), whatever the master says today.
+    carriedPaymentTerm: version.payment_term_snapshot,
     billingAddressId: version.billing_address_id,
     shippingAddressId: version.shipping_address_id,
     deliveryTerms: version.delivery_terms,

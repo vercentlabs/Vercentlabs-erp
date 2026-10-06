@@ -17,14 +17,15 @@ export type ProcRecord = {
 } & Record<string, any>;
 
 export type ProcOptions = {
-  suppliers: Array<{ id: string; label: string; status: string }>;
+  // From the Supplier Master; only active (selectable) suppliers start a new document.
+  suppliers: Array<{ id: string; label: string; status: string; supplier_number: string; name: string; gstin: string | null; city: string | null; selectable: boolean }>;
+  paymentTerms: Array<{ id: string; code: string; name: string }>;
   purchaseOrders: Array<{ id: string; label: string; status: string }>;
   receipts: Array<{ id: string; label: string; status: string }>;
   items: Array<{ id: string; code: string; name: string }>;
   warehouses: Array<{ id: string; code: string; name: string }>;
   sourcingEvents: Array<{ id: string; label: string; status: string }>;
   uoms: Array<{ id: string; code: string; name: string }>;
-  accountingParties: Array<{ id: string; label: string }>;
   categories: Array<{ id: string; label: string; status: string }>;
   agreements: Array<{ id: string; label: string; status: string }>;
   requisitions: Array<{ id: string; label: string; status: string }>;

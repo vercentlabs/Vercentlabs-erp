@@ -114,9 +114,12 @@ export async function createQuotation(client, context, input = {}) {
   });
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
   const today = await databaseToday(client);
-  const document = await withDefaults(client, context, input, today);
+  // A new quotation takes its terms from what is chosen, the customer or the company default; never from the request as a ready-made snapshot.
+  const document = { ...(await withDefaults(client, context, input, today)), carriedPaymentTerm: undefined };
   checkDates(context, document, today);
   const preview = await priced(client, context, document);
+  if (preview.master.paymentTerm?.id && (preview.master.paymentTerm.id ?? null) !== preview.master.paymentTermDefaultId)
+    requireQuotationPermission(context, QUOTATION_PERMISSIONS.changePaymentTerms, "You do not have permission to choose other payment terms than the customer's.");
   await checkOpportunity(client, context, document.opportunityId, preview.master.partyId);
   const number = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: "quotation", at: document.quotationDate });
   const quotation = (await client.query(
@@ -146,8 +149,11 @@ export async function updateQuotation(client, context, quotationId, input = {}) 
   if (input.expectedVersionNumber == null || Number(input.expectedVersionNumber) !== Number(quote.version_number))
     throw new QuotationError(409, "Someone else changed this quotation. Reload it and make your change again.", "SALES_QUOTATION_VERSION_CONFLICT");
   const today = await databaseToday(client);
+  // The draft's own terms stay as they are unless other terms are chosen.
+  const stored = (await client.query(`SELECT payment_term_id, payment_term_snapshot FROM tenant.sales_quotation_versions WHERE organization_id = $1 AND id = $2`, [context.organizationId, quote.current_version_id])).rows[0] ?? {};
   const document = await withDefaults(client, context, {
     ...input,
+    carriedPaymentTerm: stored.payment_term_snapshot,
     termsAndConditions: has(input, "termsAndConditions") ? input.termsAndConditions : null,
     opportunityId: has(input, "opportunityId") ? input.opportunityId || null : quote.source_opportunity_id,
   }, today);
@@ -156,6 +162,8 @@ export async function updateQuotation(client, context, quotationId, input = {}) 
   if (quote.revision_of_quotation_id && document.partyId !== quote.party_id)
     throw new QuotationError(409, "A revision cannot change the customer. Create a new quotation instead.", "SALES_QUOTATION_CUSTOMER_LOCKED");
   const preview = await priced(client, context, document);
+  const termChanged = (preview.master.paymentTerm?.id ?? null) !== (stored.payment_term_id ?? null);
+  if (termChanged && stored.payment_term_id) requireQuotationPermission(context, QUOTATION_PERMISSIONS.changePaymentTerms, "You do not have permission to change the payment terms.");
   await checkOpportunity(client, context, document.opportunityId, preview.master.partyId);
   const before = await discountSnapshot(client, context, quote.current_version_id);
   const version = await insertQuotationVersion(client, context, quote.id, document, preview);
@@ -168,6 +176,9 @@ export async function updateQuotation(client, context, quotationId, input = {}) 
     [context.organizationId, quote.id, version.id, preview.master.partyId, preview.master.contact?.id ?? null, preview.master.ownerUserId, document.opportunityId || null,
       document.quotationDate, document.validUntil, text(document.customerReference, 200), context.userId ?? null]);
   await recordQuotationEvent(client, context, quote.id, "quotation.updated", STATUS.draft, STATUS.draft, { versionId: version.id, versionNumber: version.version_number });
+  if (termChanged)
+    await recordQuotationEvent(client, context, quote.id, "quotation.payment_terms_changed", STATUS.draft, STATUS.draft,
+      { from: stored.payment_term_snapshot?.name ?? null, to: preview.master.paymentTerm?.name ?? null, versionNumber: version.version_number });
   return { id: quote.id, currentVersionId: version.id, versionNumber: Number(version.version_number) };
 }
 
@@ -325,6 +336,7 @@ export async function listQuotations(client, context, filters = {}) {
       where += ` AND quotation.owner_user_id IN ${teamOwnersSql(me)}`;
     } else where += " AND false"; break;
     case "draft": where += ` AND quotation.lifecycle_status IN ('${STATUS.draft}','${STATUS.awaitingApproval}')`; break;
+    case "confirmed": where += ` AND quotation.lifecycle_status = '${STATUS.confirmed}'`; break;
     case "sent": where += ` AND quotation.lifecycle_status = '${STATUS.sent}'`; break;
     case "awaiting": where += ` AND quotation.lifecycle_status = '${STATUS.sent}' AND NOT ${expired}`; break;
     case "accepted": where += ` AND quotation.lifecycle_status = '${STATUS.accepted}'`; break;
@@ -487,7 +499,7 @@ export async function addQuotationNote(client, context, quotationId, input = {})
 export async function getQuotationDefaults(client, context, input = {}) {
   requireQuotationPermission(context, QUOTATION_PERMISSIONS.create, "You do not have permission to create quotations.");
   const today = await databaseToday(client);
-  const settings = (await client.query(`SELECT default_quote_validity_days, default_quotation_terms FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0] ?? {};
+  const settings = (await client.query(`SELECT default_quote_validity_days, default_quotation_terms, default_payment_term_id FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0] ?? {};
   const base = {
     quotationDate: today,
     validUntil: addDays(today, Number(settings.default_quote_validity_days ?? 15) || 15),
@@ -504,7 +516,8 @@ export async function getQuotationDefaults(client, context, input = {}) {
     contactId: document.contactId,
     billingAddressId: document.billingAddressId,
     shippingAddressId: document.shippingAddressId,
-    paymentTermId: party.payment_term_id ?? null,
+    // The customer's terms, else the company default.
+    paymentTermId: party.payment_term_id ?? settings.default_payment_term_id ?? null,
     priceListId: party.default_price_list_id ?? null,
   };
 }

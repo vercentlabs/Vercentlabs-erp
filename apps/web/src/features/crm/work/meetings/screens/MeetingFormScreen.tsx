@@ -27,6 +27,7 @@ import {
   type RelatedValue,
 } from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { createMeeting, MeetingApiError } from "../api/meetings-api";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type FormValues = {
   mode: "schedule" | "log";
@@ -117,8 +118,9 @@ export function MeetingFormScreen({
     [contactsQuery.data],
   );
 
+  const submit = useSubmitKey();
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => submit.run(async () => {
       if (!values.subject.trim()) {
         setFieldErrors({ subject: "Subject is required." });
         throw new Error("Review the highlighted fields.");
@@ -170,7 +172,7 @@ export function MeetingFormScreen({
         input.outcomeCode = values.outcomeCode;
       }
       return createMeeting(input);
-    },
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: scopedQueryKey(workspace, "crm", "meetings"),
@@ -216,7 +218,7 @@ export function MeetingFormScreen({
           <Button
             variant="primary"
             onPress={() => mutation.mutate()}
-            isLoading={mutation.isPending}
+            isLoading={mutation.isPending || mutation.isSuccess}
           >
             {values.mode === "schedule" ? "Schedule meeting" : "Log meeting"}
           </Button>

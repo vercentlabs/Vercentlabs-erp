@@ -1,12 +1,6 @@
 import { SalesError } from "./index.js";
-import { assertSalesCreditAdjustmentAllowed } from "./after-sales.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const money = (value, label = "Amount") => {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) throw new SalesError(400, `${label} must be greater than zero.`, "SALES_AMOUNT_INVALID");
-  return n;
-};
 const uuid = (value, label) => {
   if (!UUID.test(String(value || ""))) throw new SalesError(400, `${label} is invalid.`, "SALES_REFERENCE_INVALID");
   return String(value);
@@ -39,32 +33,6 @@ async function order(client, c, id, { lock = false } = {}) {
     values,
   );
   if (!result.rows[0]) throw new SalesError(404, "Sales order not found.", "SALES_ORDER_NOT_FOUND");
-  return result.rows[0];
-}
-
-export async function listSalesPass1Operations(client, c, { kind = "adjustments", limit = 100 } = {}) {
-  need(c, "sales.view");
-  const tables = {
-    adjustments: "sales_credit_adjustment_requests",
-    "pricing-rules": "sales_pricing_rules",
-  };
-  const table = tables[kind];
-  if (!table) throw new SalesError(404, "Unknown Sales operation resource.");
-  const { rows } = await client.query(`SELECT * FROM tenant.${table} record WHERE record.organization_id=$1 ORDER BY record.created_at DESC LIMIT $2`, [c.organizationId, Math.min(Math.max(Number(limit) || 100, 1), 250)]);
-  return rows;
-}
-
-export async function requestSalesCreditAdjustment(client, c, input = {}) {
-  need(c, "sales.invoice.request");
-  const target = await order(client, c, input.salesOrderId);
-  const type = String(input.adjustmentType || "").toLowerCase();
-  if (!new Set(["credit_note", "refund"]).has(type)) throw new SalesError(400, "Adjustment type must be credit_note or refund.", "SALES_ADJUSTMENT_TYPE_INVALID");
-  const amount = money(input.amount);
-  if (amount > Number(target.grand_total) + 0.000001) throw new SalesError(409, "Adjustment cannot exceed the Sales order total.", "SALES_ADJUSTMENT_EXCEEDS_ORDER");
-  const reason = text(input.reason, 2000);
-  if (!reason) throw new SalesError(400, "Adjustment reason is required.", "SALES_ADJUSTMENT_REASON_REQUIRED");
-  await assertSalesCreditAdjustmentAllowed(client, c, target, { type, amount, returnRequestId: input.returnRequestId ? uuid(input.returnRequestId, "Return request") : null });
-  const result = await client.query(`INSERT INTO tenant.sales_credit_adjustment_requests(organization_id,sales_order_id,return_request_id,adjustment_type,amount,currency_code,reason,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *`, [c.organizationId,target.id,input.returnRequestId ? uuid(input.returnRequestId,"Return request") : null,type,amount,target.currency_code,reason,c.userId]);
   return result.rows[0];
 }
 
@@ -101,44 +69,11 @@ export async function accrueSalesCommission(client, c, input = {}) {
   return result.rows[0];
 }
 
-export async function listSalesPass1Options(client, c) {
-  need(c, "sales.view");
-  const orders = await client.query(
-    `SELECT record.id,record.sales_order_number,record.owner_user_id,record.lifecycle_status,record.current_version_id,
-            version.currency_code,version.grand_total
-       FROM tenant.sales_orders record
-       JOIN tenant.sales_order_versions version ON version.organization_id=record.organization_id AND version.id=record.current_version_id
-      WHERE record.organization_id=$1 AND record.lifecycle_status NOT IN ('cancelled')
-      ORDER BY record.updated_at DESC LIMIT 100`, [c.organizationId]);
-  const lines = orders.rows.length ? await client.query(
-    `SELECT line.id,line.sales_order_version_id,line.item_name_snapshot,line.item_code_snapshot,line.quantity
-       FROM tenant.sales_order_lines line
-      WHERE line.organization_id=$1 AND line.sales_order_version_id=ANY($2::uuid[])
-      ORDER BY line.sales_order_version_id,line.sequence`, [c.organizationId, orders.rows.map((row)=>row.current_version_id)]) : { rows: [] };
-  const rules = await client.query(
-    `SELECT record.id,record.name,record.owner_user_id,record.rate_percent,record.basis FROM tenant.sales_commission_rules record WHERE record.organization_id=$1 AND record.status='active' ORDER BY record.name LIMIT 100`, [c.organizationId]);
-  const [priceLists, items, customers, uoms, users, suppliers] = await Promise.all([
-    client.query(`SELECT id,code,name,currency_code FROM tenant.price_lists WHERE organization_id=$1 AND price_list_type='sales' AND status='active' ORDER BY name LIMIT 200`, [c.organizationId]),
-    client.query(`SELECT id,code,name,uom_id FROM tenant.items WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 500`, [c.organizationId]),
-    client.query(`SELECT id,code,display_name FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','both') ORDER BY display_name LIMIT 500`, [c.organizationId]),
-    client.query(`SELECT id,code,name FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 200`, [c.organizationId]),
-    client.query(
-      `SELECT users.id,users.full_name AS name
-         FROM public.organization_memberships membership
-         JOIN public.users users ON users.id=membership.user_id
-        WHERE membership.organization_id=$1 AND membership.status='active' AND users.status='active'
-        ORDER BY users.full_name LIMIT 500`,
-      [c.organizationId],
-    ),
-    client.query(`SELECT id,code,display_name FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('supplier','both') ORDER BY display_name LIMIT 500`, [c.organizationId]),
-  ]);
-  return { orders: orders.rows, lines: lines.rows, commissionRules: rules.rows, priceLists: priceLists.rows, items: items.rows, customers: customers.rows, uoms: uoms.rows, users: users.rows, suppliers: suppliers.rows };
-}
-
 // ---- Sales settings (approval thresholds, margin floor, defaults) ----------------
 const SETTINGS_DEFAULTS = Object.freeze({
   default_price_list_id: null,
   default_payment_term_id: null,
+  default_warehouse_id: null,
   default_quote_validity_days: 15,
   quotation_approval_amount: 0,
   quotation_approval_discount: 10,
@@ -170,6 +105,12 @@ export async function getSalesSettings(client, c) {
   need(c, "sales.view");
   const result = await client.query("SELECT * FROM tenant.sales_settings WHERE organization_id=$1", [c.organizationId]);
   return { ...SETTINGS_DEFAULTS, ...(result.rows[0] || {}), configured: Boolean(result.rows[0]) };
+}
+
+// The active warehouses Sales Settings → Fulfillment can start new orders from.
+export async function listSalesSettingsWarehouses(client, c) {
+  need(c, "sales.view");
+  return (await client.query(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND status = 'active' ORDER BY name LIMIT 500`, [c.organizationId])).rows;
 }
 
 function boundedNumber(value, label, { min, max }) {
@@ -211,11 +152,18 @@ export async function updateSalesSettings(client, c, input = {}) {
   }
   // Copied onto each new quotation, where it can be changed.
   if (input.defaultQuotationTerms !== undefined) next.default_quotation_terms = text(input.defaultQuotationTerms, 20000) || null;
+  // The warehouse a new order starts with (an active one); null clears it.
+  if (input.defaultWarehouseId !== undefined) {
+    const warehouseId = input.defaultWarehouseId || null;
+    if (warehouseId && !(await client.query(`SELECT 1 FROM tenant.warehouses WHERE organization_id = $1 AND id = $2 AND status = 'active'`, [c.organizationId, warehouseId])).rows[0])
+      throw new SalesError(400, "Choose an active warehouse.", "SALES_SETTINGS_INVALID");
+    next.default_warehouse_id = warehouseId;
+  }
   if (input.invoiceQuantityBasis !== undefined) {
     if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
     next.invoice_quantity_basis = input.invoiceQuantityBasis;
   }
-  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent"];
+  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_warehouse_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent"];
   const result = await client.query(
     `INSERT INTO tenant.sales_settings(organization_id,${columns.join(",")},created_by,updated_by)
      VALUES($1,${columns.map((_, index) => `$${index + 3}`).join(",")},$2,$2)

@@ -255,7 +255,7 @@ export async function importProcurementMatchAsVendorBill(
   const result = await client.query(
     `SELECT matching.*,
             purchase_order.data AS purchase_order_data,
-            supplier.id AS supplier_id,supplier.data AS supplier_data
+            supplier.id AS supplier_id,supplier.party_id AS supplier_party_id
        FROM tenant.procurement_matching_records matching
        JOIN tenant.procurement_purchase_orders purchase_order
          ON purchase_order.organization_id=matching.organization_id
@@ -285,15 +285,12 @@ export async function importProcurementMatchAsVendorBill(
     match.purchase_order_data && typeof match.purchase_order_data === "object"
       ? match.purchase_order_data
       : {};
-  const supplierData =
-    match.supplier_data && typeof match.supplier_data === "object"
-      ? match.supplier_data
-      : {};
-  const partyId = input.partyId || supplierData.partyId;
+  // The supplier is one identity with its party: the bill is for that party.
+  const partyId = input.partyId || match.supplier_party_id;
   if (!partyId) {
     throw new AccountingError(
       409,
-      "Link the Procurement supplier to an Accounting business partner before creating the vendor bill.",
+      "The purchase order has no supplier to bill.",
       "ACCOUNTING_SUPPLIER_PARTY_REQUIRED",
     );
   }

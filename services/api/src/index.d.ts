@@ -177,11 +177,13 @@ export * from "./compat/crm-root-legacy.js";
 // declarations reachable through the compatibility barrel.
 export {
 } from "./modules/crm/index.js";
+export * from "./core/payment-terms/index.js";
 export * from "./modules/sales/index.js";
 
 export * from "./modules/accounting/index.js";
 
 export * from "./modules/procurement/index.js";
+export * from "./modules/procurement/suppliers/index.js";
 export function assertEligibleLeadAssignee(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -251,15 +253,10 @@ export {
 // F015-F114 public API declarations.
 // F017 canonical governed-attachment domain.
 
-export function listSalesPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
-export function requestSalesCreditAdjustment(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function accrueSalesCommission(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function listSalesPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
 export function getSalesCustomerCreditExposure(client: QueryClient, context: any, partyId: string): Promise<any>;
-export function decideSalesCreditAdjustment(client: QueryClient, context: any, adjustmentId: string, input?: Record<string, unknown>): Promise<any>;
 
 export function listProcurementPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
-export function linkSupplierAccountingParty(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function listProcurementPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
 export function transitionProcurementReceiptWithStockMovement(client: QueryClient, procurementContext: any, stockContext: any, receiptId: string, action: string, input?: Record<string, unknown>): Promise<any>;
 export function runProcurementMatchWithVendorBillImport(client: QueryClient, procurementContext: any, accountingContext: any, input?: Record<string, unknown>): Promise<any>;

@@ -10,7 +10,6 @@ export class ProcurementGovernanceError extends Error {
 
 const DAY_MS = 86_400_000;
 const ENTITY_TABLES = Object.freeze({
-  suppliers: "procurement_suppliers",
   "purchase-orders": "procurement_purchase_orders",
   receipts: "procurement_receipts",
 });
@@ -62,14 +61,6 @@ function daysFrom(value, now) {
 
 function defaultPolicy(policy = {}) {
   return {
-    certificationWarningDays: Math.max(
-      0,
-      number(
-        policy.certification_warning_days ??
-          policy.certificationWarningDays ??
-          30,
-      ),
-    ),
     purchaseOrderAckDays: Math.max(
       1,
       number(
@@ -88,14 +79,6 @@ function defaultPolicy(policy = {}) {
           0,
       ),
     ),
-    blockExpiredCertifications:
-      policy.block_expired_certifications ??
-      policy.blockExpiredCertifications ??
-      true,
-    requireQualifiedSupplier:
-      policy.require_qualified_supplier ??
-      policy.requireQualifiedSupplier ??
-      true,
     requireCompetitiveBids:
       policy.require_competitive_bids ?? policy.requireCompetitiveBids ?? true,
   };
@@ -113,69 +96,6 @@ function finishHealth(blockers, warnings, metrics = {}) {
       ? "medium"
       : "low";
   return { readiness, riskBand, blockers, warnings, metrics };
-}
-
-export function evaluateSupplierGovernance(
-  row,
-  policyInput = {},
-  now = new Date(),
-) {
-  const policy = defaultPolicy(policyInput);
-  const blockers = [];
-  const warnings = [];
-  const status = string(row.status);
-  const legalName = string(
-    row.legal_name ?? row.legalName ?? row.data?.legalName,
-  );
-  const currency = string(
-    row.currency_code ?? row.currencyCode ?? row.data?.currencyCode,
-  );
-  const qualificationCount = number(
-    row.qualification_count ?? row.qualificationCount,
-  );
-  const certificationCount = number(
-    row.certification_count ?? row.certificationCount,
-  );
-  const expiredCertifications = number(
-    row.expired_certification_count ?? row.expiredCertificationCount,
-  );
-  const expiringCertifications = number(
-    row.expiring_certification_count ?? row.expiringCertificationCount,
-  );
-  const score = number(row.latest_score ?? row.latestScore);
-  if (!legalName) blockers.push("Supplier legal name is missing.");
-  if (!currency) blockers.push("Supplier currency is missing.");
-  if (["blocked", "suspended", "cancelled"].includes(status))
-    blockers.push(`Supplier status is ${status}.`);
-  if (
-    policy.requireQualifiedSupplier &&
-    !["qualified", "active"].includes(status)
-  )
-    blockers.push(
-      "Supplier must be qualified and active before award or ordering.",
-    );
-  if (qualificationCount < 1)
-    blockers.push("Supplier qualification evidence is missing.");
-  if (policy.blockExpiredCertifications && expiredCertifications > 0)
-    blockers.push("Supplier has expired compliance certifications.");
-  if (certificationCount < 1)
-    warnings.push("No supplier certification records are available.");
-  if (expiringCertifications > 0)
-    warnings.push(
-      `${expiringCertifications} supplier certification(s) expire soon.`,
-    );
-  if (score > 0 && score < 60)
-    warnings.push(
-      "Supplier performance score is below the preferred threshold.",
-    );
-  return finishHealth(blockers, warnings, {
-    qualificationCount,
-    certificationCount,
-    expiredCertifications,
-    expiringCertifications,
-    score,
-    certificationWarningDays: policy.certificationWarningDays,
-  });
 }
 
 export function evaluatePurchaseOrderHealth(
@@ -209,12 +129,9 @@ export function evaluatePurchaseOrderHealth(
   );
   if (!row.supplier_id && !row.supplierId && !data.supplierId)
     blockers.push("Purchase order supplier is missing.");
-  if (
-    policy.requireQualifiedSupplier &&
-    supplierStatus &&
-    !["qualified", "active"].includes(supplierStatus)
-  )
-    blockers.push("Purchase order supplier is not qualified and active.");
+  // The Supplier Master's own rule: only an active supplier takes a purchase order forward.
+  if (supplierStatus && supplierStatus !== "active")
+    blockers.push(`Purchase order supplier is ${supplierStatus}.`);
   if (lineCount < 1) blockers.push("Purchase order has no lines.");
   if (!expectedDeliveryDate)
     blockers.push("Expected delivery date is missing.");
@@ -319,23 +236,6 @@ async function loadEntity(
 }
 
 async function enrichEntity(client, context, entityType, row, policy) {
-  if (entityType === "suppliers") {
-    const result = await client.query(
-      `SELECT
-      (SELECT count(*) FROM tenant.procurement_supplier_qualifications q WHERE q.organization_id=$1 AND q.parent_id=$2 AND q.status='active')::int AS qualification_count,
-      (SELECT count(*) FROM tenant.procurement_supplier_certifications c WHERE c.organization_id=$1 AND c.parent_id=$2 AND c.status='active')::int AS certification_count,
-      (SELECT count(*) FROM tenant.procurement_supplier_certifications c WHERE c.organization_id=$1 AND c.parent_id=$2 AND c.status='active' AND NULLIF(c.data->>'expiryDate','')::date<current_date)::int AS expired_certification_count,
-      (SELECT count(*) FROM tenant.procurement_supplier_certifications c WHERE c.organization_id=$1 AND c.parent_id=$2 AND c.status='active' AND NULLIF(c.data->>'expiryDate','')::date BETWEEN current_date AND current_date+$3::int)::int AS expiring_certification_count,
-      COALESCE((SELECT NULLIF(s.data->>'overallScore','')::numeric FROM tenant.procurement_supplier_scorecards s WHERE s.organization_id=$1 AND s.parent_id=$2 ORDER BY s.created_at DESC LIMIT 1),0) AS latest_score`,
-      [context.organizationId, row.id, policy.certificationWarningDays],
-    );
-    return {
-      ...row,
-      ...result.rows[0],
-      legal_name: row.data?.legalName,
-      currency_code: row.data?.currencyCode,
-    };
-  }
   if (entityType === "purchase-orders") {
     const result = await client.query(
       `SELECT supplier.status AS supplier_status,lines.* FROM tenant.procurement_purchase_orders purchase_order
@@ -357,8 +257,6 @@ async function enrichEntity(client, context, entityType, row, policy) {
 }
 
 function evaluateEntity(entityType, row, policy) {
-  if (entityType === "suppliers")
-    return evaluateSupplierGovernance(row, policy);
   if (entityType === "purchase-orders")
     return evaluatePurchaseOrderHealth(row, policy);
   if (entityType === "receipts") return evaluateReceiptHealth(row, policy);

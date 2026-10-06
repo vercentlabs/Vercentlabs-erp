@@ -55,6 +55,7 @@ import {
   type SalesDocumentInput,
   type SalesQuotationDetail,
 } from "@/features/sales/quotations/api/quotations-api";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type LineDraft = {
   key: number;
@@ -267,6 +268,8 @@ function FormBody({
   const [paymentTermId, setPaymentTermId] = useState(
     existing?.quotation.payment_term_id ?? "",
   );
+  // Additional payment terms for this quotation only, printed with its terms.
+  const [paymentTermsNote, setPaymentTermsNote] = useState(existing?.quotation.payment_term_snapshot?.note ?? "");
   const [quotationDate, setQuotationDate] = useState(
     existing?.quotation.quotation_date?.slice(0, 10) ?? defaults.quotationDate,
   );
@@ -430,12 +433,12 @@ function FormBody({
       .map((list) => ({ value: list.id, label: `${list.name}${list.is_default ? " (default)" : ""}` })),
   ];
   const ownerOptions: SelectOption[] = options.users.map((user) => ({ value: user.id, label: user.full_name }));
+  // The quotation's own terms stay selectable even if the term has since been deactivated.
+  const keptTerm = existing?.quotation.payment_term_snapshot;
   const paymentTermOptions: SelectOption[] = [
-    { value: "", label: "Customer default" },
-    ...options.paymentTerms.map((term) => ({
-      value: term.id,
-      label: `${term.name} (${term.default_due_days} days)`,
-    })),
+    { value: "", label: "Customer's terms, else the company default" },
+    ...options.paymentTerms.map((term) => ({ value: term.id, label: `${term.name}${term.calculation_type === "net_days" ? ` (${term.days} days)` : term.calculation_type === "custom" ? " (due date entered on the invoice)" : ""}${term.is_default ? " · company default" : ""}` })),
+    ...(keptTerm?.id && !options.paymentTerms.some((term) => term.id === keptTerm.id) ? [{ value: keptTerm.id, label: `${keptTerm.name ?? "Payment terms"} (as agreed; no longer offered)` }] : []),
   ];
 
   function selectParty(id: string) {
@@ -444,7 +447,8 @@ function FormBody({
     // A customer's own currency and terms are the natural starting point; the
     // user can still change either, and the server validates the combination.
     if (party?.currency_code) setCurrencyCode(party.currency_code);
-    if (party?.payment_term_id) setPaymentTermId(party.payment_term_id);
+    // The customer's terms, else the company default.
+    setPaymentTermId(party?.payment_term_id && options.paymentTerms.some((term) => term.id === party.payment_term_id) ? party.payment_term_id : "");
     setPriceListId("");
     setShippingMethod(party?.default_shipping_method ?? "");
     setDeliveryTerms(party?.default_delivery_terms ?? "");
@@ -478,6 +482,7 @@ function FormBody({
       currencyCode,
       priceListId: priceListId || null,
       paymentTermId: paymentTermId || null,
+      paymentTermsNote: paymentTermsNote.trim() || null,
       validUntil: validUntil || null,
       documentDiscountType: documentDiscount.type,
       documentDiscountValue: documentDiscount.value || undefined,
@@ -517,6 +522,7 @@ function FormBody({
     currencyCode,
     priceListId,
     paymentTermId,
+    paymentTermsNote,
     ownerUserId,
     quotationDate,
     customerReference,
@@ -553,8 +559,9 @@ function FormBody({
     placeholderData: (previous) => previous,
   });
 
+  const submit = useSubmitKey();
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => submit.run(async () => {
       if (!input)
         throw new SalesApiError(
           "Choose a customer and add at least one item.",
@@ -566,7 +573,7 @@ function FormBody({
       }
       const result = await createSalesQuotation({ ...input, idempotencyKey });
       return result.quotation.id;
-    },
+    }),
     onSuccess: (id) => onDone(id),
     onError: (err) =>
       setError(
@@ -611,7 +618,7 @@ function FormBody({
           <Button
             variant="primary"
             onPress={() => saveMutation.mutate()}
-            isLoading={saveMutation.isPending}
+            isLoading={saveMutation.isPending || saveMutation.isSuccess}
             isDisabled={!input || Boolean(previewError)}
           >
             {editing ? "Save changes" : "Save draft"}
@@ -715,7 +722,14 @@ function FormBody({
                 label="Payment terms"
                 options={paymentTermOptions}
                 selectedKey={paymentTermId}
+                description={options.paymentTerms.find((term) => term.id === paymentTermId)?.description ?? "When payment is due. The due date itself is set on each invoice."}
                 onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))}
+              />
+              <TextField
+                label="Additional payment terms"
+                description="Optional, for this quotation only. Printed with the payment terms."
+                value={paymentTermsNote}
+                onChange={setPaymentTermsNote}
               />
               <Select
                 label="Owner"

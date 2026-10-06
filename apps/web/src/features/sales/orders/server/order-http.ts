@@ -3,7 +3,7 @@ import "server-only";
 import { HttpError } from "@/core/http";
 
 const FILTER_KEYS = [
-  "view", "search", "status", "confirmation", "fulfillment", "invoicing", "partyId", "ownerUserId", "warehouseId", "currencyCode", "quotationId", "opportunityId", "productId", "source",
+  "view", "search", "status", "confirmation", "reservation", "fulfillment", "invoicing", "deliveryOverdue", "readyToInvoice", "deliverable", "balance", "partyId", "ownerUserId", "warehouseId", "currencyCode", "quotationId", "opportunityId", "productId", "source",
   "dateFrom", "dateTo", "deliveryFrom", "deliveryTo", "sort", "direction", "limit", "offset",
 ] as const;
 

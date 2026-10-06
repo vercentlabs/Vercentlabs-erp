@@ -3,7 +3,7 @@ import { listSalesInvoices } from "@vercentlabs/api";
 import { salesRead } from "@/features/sales/shared/route-helpers";
 
 const FILTER_KEYS = [
-  "view", "search", "status", "paymentStatus", "partyId", "salesOrderId", "ownerUserId", "currencyCode", "dateFrom", "dateTo", "dueFrom", "dueTo", "overdue", "sort", "direction", "limit", "offset",
+  "view", "search", "status", "paymentStatus", "partyId", "salesOrderId", "ownerUserId", "paymentTermId", "currencyCode", "dateFrom", "dateTo", "dueFrom", "dueTo", "overdue", "sort", "direction", "limit", "offset",
 ] as const;
 
 // Sales → Invoices: every invoice the caller may see (by its order's visibility, or all for Finance).

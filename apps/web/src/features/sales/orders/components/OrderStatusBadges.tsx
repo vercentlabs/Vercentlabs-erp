@@ -3,13 +3,14 @@ import { StatusBadge } from "@vercentlabs/design-system";
 type Tone = "success" | "neutral" | "info" | "warning" | "danger";
 const ORDER: Record<string, Tone> = { draft: "neutral", confirmed: "info", cancelled: "danger", closed: "success" };
 const FULFILLMENT: Record<string, Tone> = {
-  not_delivered: "neutral", partially_delivered: "warning", delivered: "success", cancelled: "neutral", not_required: "neutral",
+  not_delivered: "neutral", partially_delivered: "warning", delivered: "success", complete: "success", cancelled: "neutral", not_required: "neutral",
 };
+const RESERVATION: Record<string, Tone> = { not_required: "neutral", not_reserved: "warning", partially_reserved: "warning", fully_reserved: "success" };
 const INVOICING: Record<string, Tone> = { not_invoiced: "neutral", partially_invoiced: "warning", fully_invoiced: "success" };
 
-// An order carries three statuses, each worked out by the server: the order
-// itself, what has been reserved and delivered, and what has been invoiced.
-// Payment is the invoice's, not the order's.
+// An order's own status is one of four. Beside it, reservation, fulfilment and
+// invoicing each have their own, worked out by the server from the documents
+// themselves. Payment is Finance's, read from the order's invoices.
 export function OrderStatusBadge({ status, label }: { status: string; label: string }) {
   return <StatusBadge tone={ORDER[status] ?? "neutral"}>{label}</StatusBadge>;
 }
@@ -20,6 +21,9 @@ export function ConfirmationStatusBadge({ status, label }: { status: string; lab
 }
 export function FulfillmentStatusBadge({ status, label }: { status: string; label: string }) {
   return <StatusBadge tone={FULFILLMENT[status] ?? "neutral"}>{label}</StatusBadge>;
+}
+export function ReservationStatusBadge({ status, label }: { status: string; label: string }) {
+  return <StatusBadge tone={RESERVATION[status] ?? "neutral"}>{label}</StatusBadge>;
 }
 export function InvoicingStatusBadge({ status, label }: { status: string; label: string }) {
   return <StatusBadge tone={INVOICING[status] ?? "neutral"}>{label}</StatusBadge>;

@@ -298,9 +298,10 @@ async function consumeFifoLayers(client, c, itemId, warehouseId, qty, fallbackCo
 
 export async function postStockMovement(client, c, input = {}) {
   const movementType = String(input.movementType || "").toLowerCase();
-  if (!new Set(["receipt", "issue", "adjustment"]).has(movementType))
-    throw new StockError(400, "Movement type must be receipt, issue or adjustment.", "STOCK_MOVEMENT_TYPE_INVALID");
-  const permission = movementType === "receipt" ? "stock.receive" : movementType === "issue" ? "stock.issue" : "stock.adjust";
+  // return: goods coming back from a customer (a sales return), received like a receipt.
+  if (!new Set(["receipt", "issue", "adjustment", "return"]).has(movementType))
+    throw new StockError(400, "Movement type must be receipt, issue, adjustment or return.", "STOCK_MOVEMENT_TYPE_INVALID");
+  const permission = movementType === "receipt" || movementType === "return" ? "stock.receive" : movementType === "issue" ? "stock.issue" : "stock.adjust";
   need(c, permission);
 
   const idempotencyKey = String(input.idempotencyKey || "").trim() || null;
@@ -556,18 +557,23 @@ export async function getStockAvailability(client, c, input = {}) {
   if (!input.itemId) throw new StockError(400, "Item is required.", "STOCK_ITEM_REQUIRED");
   const values = [c.organizationId, input.itemId];
   let filter = "";
-  if (input.warehouseId) { values.push(input.warehouseId); filter += ` AND warehouse_id=$${values.length}`; }
-  if (input.warehouseLocationId) { values.push(input.warehouseLocationId); filter += ` AND warehouse_location_id=$${values.length}`; }
-  if (input.batchId) { values.push(input.batchId); filter += ` AND batch_id=$${values.length}`; }
+  if (input.warehouseId) { values.push(input.warehouseId); filter += ` AND balance.warehouse_id=$${values.length}`; }
+  if (input.warehouseLocationId) { values.push(input.warehouseLocationId); filter += ` AND balance.warehouse_location_id=$${values.length}`; }
+  if (input.batchId) { values.push(input.batchId); filter += ` AND balance.batch_id=$${values.length}`; }
+  // On hand counts every row; available only usable ones (USABLE_ROW): stock in a quality or
+  // inactive location, or in a blocked or expired batch, is on hand but cannot be sold.
   const { rows } = await client.query(
-    `SELECT item_id,${input.warehouseId ? "warehouse_id" : "NULL::uuid AS warehouse_id"},
-            COALESCE(sum(quantity),0)::text AS on_hand_quantity,
-            COALESCE(sum(reserved_quantity),0)::text AS reserved_quantity,
-            COALESCE(sum(quantity-reserved_quantity),0)::text AS available_quantity,
-            COALESCE(sum(CASE WHEN quantity-reserved_quantity>0 THEN quantity-reserved_quantity ELSE 0 END),0)::text AS available_to_promise
-       FROM tenant.stock_balances
-      WHERE organization_id=$1 AND item_id=$2${filter}
-      GROUP BY item_id${input.warehouseId ? ",warehouse_id" : ""}`,
+    `SELECT balance.item_id,${input.warehouseId ? "balance.warehouse_id" : "NULL::uuid AS warehouse_id"},
+            COALESCE(sum(balance.quantity),0)::text AS on_hand_quantity,
+            COALESCE(sum(balance.reserved_quantity),0)::text AS reserved_quantity,
+            COALESCE(sum(CASE WHEN ${USABLE_ROW} THEN balance.quantity-balance.reserved_quantity ELSE 0 END),0)::text AS available_quantity,
+            COALESCE(sum(CASE WHEN ${USABLE_ROW} AND balance.quantity-balance.reserved_quantity>0 THEN balance.quantity-balance.reserved_quantity ELSE 0 END),0)::text AS available_to_promise,
+            COALESCE(sum(CASE WHEN ${USABLE_ROW} THEN 0 ELSE balance.quantity END),0)::text AS unusable_quantity
+       FROM tenant.stock_balances balance
+       LEFT JOIN tenant.warehouse_locations location ON location.organization_id=balance.organization_id AND location.id=balance.warehouse_location_id
+       LEFT JOIN tenant.stock_batches batch ON batch.organization_id=balance.organization_id AND batch.id=balance.batch_id
+      WHERE balance.organization_id=$1 AND balance.item_id=$2${filter}
+      GROUP BY balance.item_id${input.warehouseId ? ",balance.warehouse_id" : ""}`,
     values,
   );
   const row = rows[0] || {
@@ -577,6 +583,7 @@ export async function getStockAvailability(client, c, input = {}) {
     reserved_quantity: "0",
     available_quantity: "0",
     available_to_promise: "0",
+    unusable_quantity: "0",
   };
   const holdValues = [c.organizationId, input.itemId];
   let holdWarehouseFilter = "";
@@ -605,6 +612,8 @@ export async function getStockAvailability(client, c, input = {}) {
     reservedQuantity: row.reserved_quantity,
     qualityHeldQuantity: scopeBlocked ? null : String(heldQuantity),
     qualityScopeBlocked: scopeBlocked,
+    // On hand in quality or inactive locations, or in blocked or expired batches: never available.
+    unusableQuantity: row.unusable_quantity,
     availableQuantity: String(adjustedAvailable),
     availableToPromise: String(adjustedAtp),
     requestedQuantity: requested,

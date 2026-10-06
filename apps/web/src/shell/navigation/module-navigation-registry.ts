@@ -33,14 +33,6 @@ import {
 
 import type { ModuleNavigation, SecondaryNavItem } from "./navigation-types";
 
-function planned(label: string, route: string): SecondaryNavItem {
-  const id = label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-  return { id, label, route, status: "PLANNED" };
-}
-
 function available(label: string, route: string): SecondaryNavItem {
   const id = label
     .toLowerCase()
@@ -269,57 +261,129 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     label: "Sales",
     icon: ShoppingCart,
     requiredPermission: "sales.view",
+    // The Sales sidebar: eleven destinations in eight groups. Everything else
+    // happens on a record or inside Sales Settings: addresses and contacts on
+    // the customer; confirmation, availability, reservation, partial delivery,
+    // partial invoicing and order tracking on the sales order; shipment on the
+    // delivery; discounts and taxes on each document. Routes inside a
+    // workspace are registered with `parent`: routed, searchable and
+    // breadcrumbed, never a sidebar entry of their own.
     sections: [
       {
         id: "overview",
         label: "Overview",
+        items: [available("Home", "/sales")],
+      },
+      {
+        id: "customers-catalog",
+        label: "Customers & Catalog",
+        featureRange: "F031-F034",
         items: [
-          available("Home", "/sales"),
-          available("Settings", "/sales/settings"),
+          { ...available("Customers", "/sales/customers"), aliases: ["customer master", "addresses", "contacts", "customer 360"] },
+          { ...available("Products & Services", "/sales/products"), aliases: ["catalog", "items", "services", "sku", "hsn", "sac"] },
+          { ...available("Price Lists", "/sales/price-lists"), aliases: ["prices", "default price list"] },
         ],
       },
       {
         id: "selling",
-        label: "Selling",
-        featureRange: "F031-F040",
+        label: "Sales",
+        featureRange: "F035-F040",
         items: [
-          available("Customers", "/sales/customers"),
-          available("Products & Services", "/sales/products"),
-          available("Quotations", "/sales/quotations"),
-          available("Sales Orders", "/sales/orders"),
-          planned("Availability", "/sales/availability"),
+          { ...available("Quotations", "/sales/quotations"), aliases: ["quotes", "estimates", "revisions"] },
+          {
+            ...available("Sales Orders", "/sales/orders"),
+            aliases: ["orders", "order tracking", "order status", "order confirmation", "availability", "stock reservation", "partial delivery", "partial invoicing", "customer po"],
+          },
         ],
       },
       {
         id: "fulfillment",
         label: "Fulfillment",
         featureRange: "F041-F046",
-        items: [available("Deliveries", "/sales/deliveries")],
+        items: [{ ...available("Deliveries", "/sales/deliveries"), aliases: ["shipment", "delivery note", "dispatch", "tracking number", "carrier", "proof of delivery"] }],
       },
       {
         id: "billing",
         label: "Billing",
         featureRange: "F047-F052",
-        items: [
-          available("Invoices", "/sales/invoices"),
-          available("Credit / Adjustments", "/sales/credit-adjustments"),
-        ],
+        items: [{ ...available("Invoices", "/sales/invoices"), aliases: ["sales invoices", "billing", "balance due", "overdue invoices"] }],
       },
       {
-        id: "commercial",
-        label: "Commercial",
-        featureRange: "F055-F058",
+        id: "returns-credits",
+        label: "Returns & Credits",
+        featureRange: "F053-F058",
         items: [
-          available("Price Lists", "/sales/price-lists"),
-          available("Discounts", "/sales/discounts"),
-          available("Terms", "/sales/terms"),
+          { ...available("Sales Returns", "/sales/returns"), aliases: ["returns", "return note", "rma"] },
+          { ...available("Credit Notes", "/sales/credit-notes"), aliases: ["credits", "price adjustment"] },
+          // The customer refunds Finance owns, the same records as Finance → Customer Refunds.
+          { ...available("Refunds", "/sales/refunds"), aliases: ["customer refunds", "refund credit"], requiredPermission: "accounting.refund.view" },
         ],
       },
       {
         id: "insights",
         label: "Insights",
         featureRange: "F059-F062",
-        items: [available("Order Status", "/sales/order-status")],
+        items: [
+          {
+            ...available("Reports", "/sales/reports"),
+            aliases: ["order status", "remaining by order", "remaining by product", "delivery performance", "billing readiness", "expiring quotations"],
+            requiredPermission: "sales.reports.view",
+          },
+        ],
+      },
+      {
+        id: "administration",
+        label: "Administration",
+        items: [
+          { ...available("Sales Settings", "/sales/settings"), aliases: ["setup", "configuration", "settings"] },
+          // ---- Commercial
+          {
+            ...available("Payment Terms", "/sales/settings/payment-terms"),
+            parent: "sales-settings",
+            group: "commercial",
+            description: "Due on receipt, Net N days or custom terms, and the default for new documents.",
+            aliases: ["net 30", "due date", "credit terms"],
+            requiredPermission: "payment_terms.view",
+          },
+          {
+            ...available("Discount Controls", "/sales/settings/discounts"),
+            parent: "sales-settings",
+            group: "commercial",
+            description: "Which discounts are allowed, salesperson and manager limits, and when a reason is required.",
+            aliases: ["discounts", "discount limits", "maximum discount"],
+          },
+          {
+            ...available("Quotation & Order Rules", "/sales/settings/quotations-orders"),
+            parent: "sales-settings",
+            group: "commercial",
+            description: "Quotation approval and validity, standard terms, and what an order needs before it is confirmed.",
+            aliases: ["quotation approval", "quotation validity", "direct orders", "customer po required"],
+          },
+          // ---- Fulfillment
+          {
+            ...available("Fulfillment Settings", "/sales/settings/fulfillment"),
+            parent: "sales-settings",
+            group: "fulfillment",
+            description: "Invoice based on order or delivery, availability and reservation on confirmation, default warehouse, delivery note.",
+            aliases: ["invoice based on", "invoicing basis", "auto reserve", "default warehouse", "delivery note prices"],
+          },
+        ],
+      },
+    ],
+    groups: [
+      {
+        id: "commercial",
+        workspace: "sales-settings",
+        label: "Commercial",
+        description: "Payment terms, discount controls, and the rules for quotations and orders.",
+        icon: Store,
+      },
+      {
+        id: "fulfillment",
+        workspace: "sales-settings",
+        label: "Fulfillment",
+        description: "How orders are reserved, delivered and invoiced.",
+        icon: Truck,
       },
     ],
   },
@@ -372,7 +436,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Suppliers",
         featureRange: "F087-F090",
         items: [
-          available("Supplier Master", "/procurement/suppliers"),
+          { ...available("Suppliers", "/procurement/suppliers"), aliases: ["supplier master", "vendors", "vendor", "supplier import", "gstin"], requiredAnyPermission: ["procurement.suppliers.view", "procurement.suppliers.view_all"] },
           available("Categories", "/procurement/categories"),
         ],
       },
@@ -954,6 +1018,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Customer Invoices", "/accounting/customer-invoices"),
           available("Receipts", "/accounting/receipts"),
+          available("Customer Refunds", "/accounting/customer-refunds"),
         ],
       },
       {

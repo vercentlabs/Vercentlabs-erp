@@ -16,6 +16,7 @@ import {
   createProduct, errorMessage, fieldErrors, findDuplicateProducts, updateProduct, type Product, type ProductInput, type ProductOptions, type ProductType,
 } from "../api/products-api";
 import { ErrorBanner, NONE, orNull, withNone } from "../product-format";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Values = {
   type: ProductType; code: string; name: string; categoryId: string; description: string; salesDescription: string; purchaseDescription: string; sku: string; barcode: string;
@@ -94,8 +95,9 @@ export function ProductForm({ options, product, onSaved, onCancel }: { options: 
   });
   const matches = duplicates.data?.matches ?? [];
 
+  const submitKey = useSubmitKey();
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: () => submitKey.run(async () => {
       const input = toInput(values, !editing);
       if (may.cost) for (const field of COST_FIELDS) input[field] = values[field];
       if (!product) return createProduct(input);
@@ -103,7 +105,7 @@ export function ProductForm({ options, product, onSaved, onCancel }: { options: 
       if (may.cost) for (const field of COST_FIELDS) before[field] = product[field] ?? 0;
       const changed = Object.fromEntries(Object.entries(input).filter(([key, value]) => String(value ?? "") !== String((before as Record<string, unknown>)[key] ?? "")));
       return updateProduct(product.id, changed);
-    },
+    }),
     onSuccess: onSaved,
     onError: (failure) => { setErrors(fieldErrors(failure)); setError(errorMessage(failure)); },
   });
@@ -220,7 +222,7 @@ export function ProductForm({ options, product, onSaved, onCancel }: { options: 
 
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onPress={onCancel}>Cancel</Button>
-        <Button variant="primary" onPress={submit} isLoading={save.isPending} isDisabled={strong.length > 0}>{editing ? "Save changes" : service ? "Create service" : "Create product"}</Button>
+        <Button variant="primary" onPress={submit} isLoading={save.isPending || save.isSuccess} isDisabled={strong.length > 0}>{editing ? "Save changes" : service ? "Create service" : "Create product"}</Button>
       </div>
     </div>
   );

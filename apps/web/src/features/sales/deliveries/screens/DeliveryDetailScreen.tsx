@@ -16,6 +16,7 @@ import {
   Button, EnterpriseDataGrid, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, buttonVariants,
 } from "@vercentlabs/design-system";
 
+import { useCreateRequest } from "@/features/sales/shared/use-create-request";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
@@ -32,6 +33,7 @@ import {
 } from "../components/DeliveryDialogs";
 import { DeliveryInvoicingBadge, DeliveryStatusBadge } from "../components/DeliveryStatusBadge";
 import { DeliveryInvoiceDialog } from "@/features/sales/invoices/components/InvoiceDialogs";
+import { CreateReturnDialog } from "@/features/sales/returns/components/ReturnDialogs";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -42,7 +44,7 @@ const quantity = (value: number | string | null | undefined) => Number(value ?? 
 const withUnit = (value: number | string | null | undefined, unit: string | null) => `${quantity(value)}${unit ? ` ${unit}` : ""}`;
 const by = (at: string | null, name: string | null) => (at ? `${dateTime(at)}${name ? ` by ${name}` : ""}` : "—");
 
-type DialogKind = "edit" | "address" | "warehouse" | "dispatch" | "delivered" | "cancel" | "shipment" | "invoice" | null;
+type DialogKind = "edit" | "address" | "warehouse" | "dispatch" | "delivered" | "cancel" | "shipment" | "invoice" | "return" | null;
 
 const EVENT_LABELS: Record<string, string> = {
   "sales_delivery.created": "Created", "sales_delivery.updated": "Changed", "sales_delivery.ready": "Ready to dispatch", "sales_delivery.returned_to_draft": "Back to draft",
@@ -98,6 +100,13 @@ export function DeliveryDetailScreen({ deliveryId }: { deliveryId: string }) {
   const fail = (fallback: string) => (failure: unknown) => setError(failureText(failure, fallback));
   const ready = useMutation({ mutationFn: () => markDeliveryReady(deliveryId, query.data?.delivery.version), onSuccess: () => done("The delivery is ready to dispatch."), onError: fail("The delivery could not be marked ready.") });
   const backToDraft = useMutation({ mutationFn: () => returnDeliveryToDraft(deliveryId, query.data?.delivery.version), onSuccess: () => done(), onError: fail("The delivery could not go back to draft.") });
+
+  // From Sales → + Create: open the requested dialog when this delivery allows it.
+  useCreateRequest(Boolean(query.data), (kind) => {
+    const actions = query.data?.actions;
+    if (kind === "return") { if (actions?.createReturn) setDialog("return"); else setNotice("Nothing more can be returned from this delivery."); }
+    if (kind === "invoice") { if (actions?.createInvoice) setDialog("invoice"); else setNotice("Nothing on this delivery can be invoiced now."); }
+  });
 
   if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
   if (query.isError && query.error instanceof SalesApiError && query.error.status === 403)
@@ -159,6 +168,7 @@ export function DeliveryDetailScreen({ deliveryId }: { deliveryId: string }) {
               {actions.changeWarehouse && <Button variant="secondary" onPress={() => setDialog("warehouse")}>Change Warehouse</Button>}
               {actions.editShipment && <Button variant="secondary" onPress={() => setDialog("shipment")}>Shipment Details</Button>}
               {actions.createInvoice && !invoiceIsPrimary && <Button variant="secondary" onPress={() => setDialog("invoice")}><FileText className="size-4" aria-hidden="true" />Create Invoice</Button>}
+              {actions.createReturn && <Button variant="secondary" onPress={() => setDialog("return")}>Create Return</Button>}
               {actions.print && <a className={buttonVariants({ variant: "secondary" })} href={deliveryNotePdfUrl(deliveryId, true)} target="_blank" rel="noreferrer"><Printer className="size-4" aria-hidden="true" />Delivery Note</a>}
               {actions.backToDraft && <Button variant="ghost" isLoading={backToDraft.isPending} onPress={() => backToDraft.mutate()}>Back to Draft</Button>}
               {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel Delivery</Button>}
@@ -193,6 +203,9 @@ export function DeliveryDetailScreen({ deliveryId }: { deliveryId: string }) {
       {dialog === "delivered" && <MarkDeliveredDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The delivery is marked delivered.")} />}
       {dialog === "cancel" && <CancelDeliveryDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The delivery was cancelled.")} />}
       {dialog === "shipment" && <ShipmentDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The shipment details were saved.")} />}
+      {dialog === "return" && (
+        <CreateReturnDialog deliveryId={deliveryId} number={delivery.request_number} onClose={() => setDialog(null)} onDone={(returnId) => { refresh(); router.push(`/sales/returns/${returnId}`); }} />
+      )}
       {dialog === "invoice" && (
         <DeliveryInvoiceDialog deliveryId={deliveryId} number={delivery.request_number} lines={detail.lines} onClose={() => setDialog(null)}
           onDone={(invoiceId) => { refresh(); router.push(`/sales/invoices/${invoiceId}`); }} />
@@ -262,6 +275,7 @@ function Items({ detail }: { detail: DeliveryDetail }) {
         ? <span className="text-xs">{row.original.consumed_reservations.length ? `Issued from ${row.original.consumed_reservations.map((used) => used.reservation ?? "free stock").join(", ")}` : "Issued"}</span>
         : <span className="text-xs text-text-muted">Reserved {quantity(row.original.reserved_now)}</span>,
     },
+    { id: "returned", header: "Returned", cell: ({ row }) => shipped && row.original.returned_quantity ? <span className="tabular-nums">{quantity(row.original.returned_quantity)}</span> : "" },
     { id: "invoiced", header: "Invoiced", cell: ({ row }) => shipped ? <span className="tabular-nums">{quantity(row.original.invoiced_quantity)}</span> : "" },
   ];
   return (
@@ -346,6 +360,7 @@ function Related({ detail }: { detail: DeliveryDetail }) {
           { label: "Quotation", value: delivery.source_quotation_id ? <Link className="text-brand hover:underline" href={`/sales/quotations/${delivery.source_quotation_id}`}>{delivery.source_quotation_number}</Link> : "—" },
           { label: "Customer", value: delivery.party_id ? <Link className="text-brand hover:underline" href={`/sales/customers/${delivery.party_id}`}>{delivery.customer_snapshot?.displayName ?? "Customer"}</Link> : "—" },
           { label: "Invoices", value: detail.invoices.length ? detail.invoices.map((invoice) => invoice.invoice_number).join(", ") : "None" },
+          { label: "Returns", value: detail.returns.length ? <span className="flex flex-wrap gap-2">{detail.returns.map((item) => <Link key={item.id} className="text-brand hover:underline" href={`/sales/returns/${item.id}`}>{item.return_number}</Link>)}</span> : "None" },
           { label: "Stock movements", value: detail.stockMovements.length ? detail.stockMovements.map((movement) => movement.movement_number ?? "Issue").join(", ") : "None" },
         ]} />
       </SalesPanel>

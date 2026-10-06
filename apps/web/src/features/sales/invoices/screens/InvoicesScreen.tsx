@@ -26,11 +26,11 @@ import { InvoiceStatusBadges } from "../components/InvoiceStatusBadges";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
-type FilterKey = "status" | "paymentStatus" | "partyId" | "ownerUserId" | "currencyCode" | "dateFrom" | "dateTo" | "dueFrom" | "dueTo";
+type FilterKey = "status" | "paymentStatus" | "partyId" | "ownerUserId" | "paymentTermId" | "currencyCode" | "dateFrom" | "dateTo" | "dueFrom" | "dueTo";
 type Filters = Record<FilterKey, string>;
-const NO_FILTERS: Filters = { status: ANY, paymentStatus: ANY, partyId: ANY, ownerUserId: ANY, currencyCode: ANY, dateFrom: "", dateTo: "", dueFrom: "", dueTo: "" };
+const NO_FILTERS: Filters = { status: ANY, paymentStatus: ANY, partyId: ANY, ownerUserId: ANY, paymentTermId: ANY, currencyCode: ANY, dateFrom: "", dateTo: "", dueFrom: "", dueTo: "" };
 const NAMES: Record<FilterKey, string> = {
-  status: "Invoice status", paymentStatus: "Payment status", partyId: "Customer", ownerUserId: "Salesperson", currencyCode: "Currency", dateFrom: "Invoiced from", dateTo: "Invoiced to",
+  status: "Invoice status", paymentStatus: "Payment status", partyId: "Customer", ownerUserId: "Salesperson", paymentTermId: "Payment terms", currencyCode: "Currency", dateFrom: "Invoiced from", dateTo: "Invoiced to",
   dueFrom: "Due from", dueTo: "Due to",
 };
 const STATUSES = [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "reversed", label: "Cancelled / Reversed" }];
@@ -79,11 +79,13 @@ export function InvoicesScreen() {
       cell: ({ row }) => <span className="flex min-w-40 flex-col"><span>{row.original.customer_name ?? ""}</span>{row.original.customer_number && <span className="text-xs text-text-muted tabular-nums">{row.original.customer_number}</span>}</span>,
     },
     { id: "date", accessorKey: "invoice_date", header: "Invoice date", cell: ({ row }) => <span className="whitespace-nowrap">{calendarDate(row.original.invoice_date)}</span> },
-    { id: "due", accessorKey: "due_date", header: "Due", cell: ({ row }) => <span className="whitespace-nowrap">{calendarDate(row.original.due_date)}</span> },
+    { id: "due", accessorKey: "due_date", header: "Due date", cell: ({ row }) => <span className="whitespace-nowrap">{calendarDate(row.original.due_date)}</span> },
+    { id: "terms", header: "Payment terms", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.payment_term_name ?? ""}</span> },
     { id: "order", header: "Sales order", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{row.original.sales_order_number}</span> },
     { id: "total", accessorKey: "grand_total", header: "Amount", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{money(row.original.currency_code, row.original.grand_total)}</span> },
     { id: "balance", header: "Balance due", enableSorting: false, cell: ({ row }) => row.original.status === "posted" ? <span className="whitespace-nowrap tabular-nums">{money(row.original.currency_code, row.original.balance_due)}</span> : "" },
     { id: "status", header: "Status", enableSorting: false, cell: ({ row }) => <InvoiceStatusBadges row={row.original} /> },
+    { id: "credit", header: "Credited", enableSorting: false, cell: ({ row }) => (row.original.creditStatus === "not_credited" ? "" : <span className="whitespace-nowrap">{row.original.creditStatusLabel}</span>) },
     { id: "owner", header: "Salesperson", enableSorting: false, cell: ({ row }) => row.original.owner_name ?? "" },
   ], []);
 
@@ -94,6 +96,7 @@ export function InvoicesScreen() {
     status: STATUSES, paymentStatus: PAYMENTS,
     partyId: (options?.parties ?? []).filter((party) => ["customer", "both"].includes(party.party_type)).map((party) => ({ value: party.id, label: party.display_name })),
     ownerUserId: (options?.users ?? []).map((user) => ({ value: user.id, label: user.full_name })),
+    paymentTermId: (options?.paymentTerms ?? []).map((term) => ({ value: term.id, label: term.name })),
     currencyCode: [...new Set(rows.map((row) => row.currency_code))].map((code) => ({ value: code, label: code })),
   };
   const select = (key: FilterKey, anyLabel: string) => (
@@ -122,6 +125,7 @@ export function InvoicesScreen() {
             {select("paymentStatus", "Any payment")}
             {select("partyId", "Any customer")}
             {select("ownerUserId", "Any salesperson")}
+            {select("paymentTermId", "Any payment terms")}
             {select("currencyCode", "Any currency")}
             {date("dateFrom")}
             {date("dateTo")}

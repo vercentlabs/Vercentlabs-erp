@@ -1,26 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { add, allocate, decimal, format, mul } from "./money.js";
-import { hasAnyOwnField, omitFields } from "../../core/access/index.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
-
-// Supplier banking/financial-account keys inside tenant.procurement_suppliers'
-// jsonb `data` column, gated behind procurement.suppliers.sensitive.
-// Deliberately does NOT include taxRegistrationNumber: that field is
-// collected by the standard, ungated supplier form and used by roles (e.g.
-// Buyer) that hold procurement.suppliers.manage without .sensitive. No
-// supplier banking field is wired into any current form, so protecting
-// this set prevents mass assignment without breaking any caller.
-const SUPPLIER_SENSITIVE_FIELDS = Object.freeze([
-  "bankAccountNumber",
-  "bankAccountName",
-  "bankName",
-  "bankBranch",
-  "bankIfscCode",
-  "bankSwiftCode",
-  "bankRoutingNumber",
-  "bankIban",
-]);
+import { purchaseTermSnapshot } from "../../core/payment-terms/index.js";
+import { assertSupplierUsable, supplierDefaultsFor } from "./suppliers/defaults.js";
 
 export class ProcurementError extends Error {
   constructor(status, message, code = "PROCUREMENT_ERROR") {
@@ -33,7 +16,6 @@ export class ProcurementError extends Error {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INITIAL_DOCUMENT_STATUS = Object.freeze({
-  suppliers: "draft",
   categories: "active",
   "purchase-orders": "draft",
   receipts: "draft",
@@ -56,9 +38,6 @@ const INTERNAL_INPUT_FIELDS = new Set([
 ]);
 
 const CHILDREN = Object.freeze({
-  suppliers: [
-    ["sites", "procurement_supplier_sites"],
-  ],
   "purchase-orders": [
     ["lines", "procurement_purchase_order_lines"],
     ["schedules", "procurement_purchase_order_schedules"],
@@ -68,22 +47,6 @@ const CHILDREN = Object.freeze({
 });
 
 const RESOURCE_CONFIG = Object.freeze({
-  suppliers: {
-    table: "procurement_suppliers",
-    kind: "document",
-    view: "procurement.suppliers.view",
-    create: "procurement.suppliers.manage",
-    manage: "procurement.suppliers.manage",
-    titleFields: ["supplierCode", "legalName", "name", "displayName"],
-  },
-  "supplier-sites": {
-    table: "procurement_supplier_sites",
-    kind: "child",
-    view: "procurement.suppliers.view",
-    create: "procurement.suppliers.manage",
-    manage: "procurement.suppliers.manage",
-    parentResource: "suppliers",
-  },
   categories: {
     table: "procurement_categories",
     kind: "document",
@@ -152,26 +115,6 @@ function permission(context, key) {
       403,
       "You do not have permission to perform this action.",
       "PROCUREMENT_FORBIDDEN",
-    );
-  }
-}
-
-function canViewSupplierSensitiveFields(context) {
-  return isOwner(context) || (context.permissions || []).includes("procurement.suppliers.sensitive");
-}
-
-function applySupplierFieldVisibility(resource, row, context) {
-  if (resource !== "suppliers" || canViewSupplierSensitiveFields(context)) return row;
-  return omitFields(row, SUPPLIER_SENSITIVE_FIELDS);
-}
-
-function assertSupplierSensitiveFieldsAllowed(resource, input, context) {
-  if (resource !== "suppliers" || canViewSupplierSensitiveFields(context)) return;
-  if (hasAnyOwnField(input, SUPPLIER_SENSITIVE_FIELDS)) {
-    throw new ProcurementError(
-      403,
-      "You do not have permission to set sensitive supplier banking details.",
-      "PROCUREMENT_SUPPLIER_SENSITIVE_FORBIDDEN",
     );
   }
 }
@@ -299,25 +242,12 @@ function normalizeDocument(resource, input, context) {
 
   const common = {
     ...value,
-    currencyCode: text(value.currencyCode || "INR", "Currency", { required: true, max: 3 }).toUpperCase(),
+    currencyCode: resource === "purchase-orders"
+      ? text(value.currencyCode, "Currency", { max: 3 })?.toUpperCase() || null
+      : text(value.currencyCode || "INR", "Currency", { required: true, max: 3 }).toUpperCase(),
   };
 
   switch (resource) {
-    case "suppliers": {
-      common.legalName = text(value.legalName || value.name || value.displayName, "Supplier legal name", { required: true, max: 240 });
-      common.displayName = text(value.displayName || common.legalName, "Supplier display name", { required: true, max: 240 });
-      common.supplierCode = text(value.supplierCode || value.code, "Supplier code", { required: true, max: 60 }).toUpperCase();
-      // Optional link to the Accounting business partner this supplier
-      // corresponds to. Procurement and Accounting/Sales/CRM do not share
-      // one supplier/customer entity (unlike Sales, which consumes CRM's
-      // tenant.business_parties directly) -- this is the minimum additive
-      // field needed so a matched invoice can actually be imported as a
-      // real vendor bill (accounting.payables.importProcurementMatchAsVendorBill
-      // already requires a partyId; nothing populated one before this).
-      common.accountingPartyId = value.accountingPartyId ? id(value.accountingPartyId, "Accounting business partner") : null;
-      common.sites = array(value.sites, "Supplier sites");
-      return common;
-    }
     case "categories":
       common.name = text(value.name || value.title, "Category name", { required: true, max: 160 });
       common.code = text(value.code, "Category code", { required: true, max: 60 }).toUpperCase();
@@ -325,6 +255,7 @@ function normalizeDocument(resource, input, context) {
     case "purchase-orders":
       common.title = text(value.title || value.name || "Purchase order", "Purchase order title", { required: true, max: 240 });
       common.supplierId = id(value.supplierId, "Supplier");
+      common.paymentTermId = value.paymentTermId ? id(value.paymentTermId, "Payment terms") : null;
       common.expectedDeliveryDate = text(value.expectedDeliveryDate, "Expected delivery date", { required: true, max: 10 });
       common.lines = array(value.lines, "Purchase order lines", { required: true }).map((line, index) => ({
         ...normalizeLine(line, index, resource),
@@ -374,16 +305,13 @@ const DOCUMENT_REFERENCE_COLUMNS = Object.freeze({
   },
   receipts: {
     purchaseOrderId: ["purchase_order_id", "procurement_purchase_orders"],
-    supplierId: ["supplier_id", "procurement_suppliers"],
   },
   "match-exceptions": {
     purchaseOrderId: ["purchase_order_id", "procurement_purchase_orders"],
-    supplierId: ["supplier_id", "procurement_suppliers"],
   },
 });
 
 const CHILD_PARENT_EDITABLE_STATES = Object.freeze({
-  "supplier-sites": ["draft", "submitted", "qualified", "active", "suspended"],
   "purchase-order-lines": ["draft", "rejected"],
   "purchase-order-schedules": ["draft", "rejected", "approved", "dispatched", "acknowledged", "partially_received"],
   "receipt-lines": ["draft", "rejected"],
@@ -414,11 +342,38 @@ async function loadReference(client, context, table, referenceId, label, options
   return { ...(row.data || {}), ...row };
 }
 
-async function validateDocumentReferences(client, context, resource, payload) {
+// A purchase order's supplier comes from the Supplier Master: only an active supplier starts one, and its
+// currency, payment terms, ordering contact, ordering location and tax identity are copied onto the order
+// once (when the supplier is chosen or changed). The order keeps that snapshot: later changes to the
+// supplier never rewrite it. What the request sets itself (a currency, payment terms) wins.
+async function applySupplierToOrder(client, context, payload, input, previous) {
+  const supplierChanged = !previous || previous.supplierId !== payload.supplierId || !payload.supplierSnapshot;
+  if (supplierChanged) {
+    const defaults = await supplierDefaultsFor(client, context.organizationId, payload.supplierId, { purpose: "a new purchase order" });
+    payload.supplierSnapshot = defaults.supplier;
+    payload.supplierContact = defaults.contact;
+    payload.supplierAddress = defaults.address;
+    if (!input.currencyCode) payload.currencyCode = defaults.currencyCode;
+    if (!input.paymentTermId) {
+      payload.paymentTermId = defaults.paymentTerm?.id ?? null;
+      payload.paymentTerm = defaults.paymentTerm;
+    }
+  }
+  if (input.paymentTermId && (supplierChanged || input.paymentTermId !== previous?.paymentTermId))
+    payload.paymentTerm = await purchaseTermSnapshot(client, context.organizationId, payload.paymentTermId);
+  payload.paymentTerms = payload.paymentTerm?.name ?? null;
+  if (!payload.currencyCode) throw new ProcurementError(400, "Currency is required.", "PROCUREMENT_VALIDATION");
+}
+
+async function validateDocumentReferences(client, context, resource, payload, { input = {}, previous = null } = {}) {
   const references = {};
+  if (resource === "purchase-orders" && payload.supplierId) {
+    await applySupplierToOrder(client, context, payload, input, previous);
+    references.supplier_id = payload.supplierId;
+  }
   const configured = DOCUMENT_REFERENCE_COLUMNS[resource] || {};
   for (const [payloadKey, [column, table]] of Object.entries(configured)) {
-    if (!payload[payloadKey]) continue;
+    if (!payload[payloadKey] || (resource === "purchase-orders" && payloadKey === "supplierId")) continue;
     const row = await loadReference(
       client,
       context,
@@ -427,9 +382,7 @@ async function validateDocumentReferences(client, context, resource, payload) {
       payloadKey,
       {
         allowedStatuses:
-          payloadKey === "supplierId"
-            ? ["qualified", "active"]
-            : payloadKey === "purchaseOrderId"
+          payloadKey === "purchaseOrderId"
               ? ["approved", "dispatched", "acknowledged", "partially_received", "received"]
               : undefined,
       },
@@ -742,9 +695,7 @@ export async function listProcurementRecords(client, context, resource, filters 
     values,
   );
   return {
-    rows: rows.rows.map((row) =>
-      applySupplierFieldVisibility(resource, { ...(row.data || {}), ...row }, context),
-    ),
+    rows: rows.rows.map((row) => ({ ...(row.data || {}), ...row })),
     total: Number(count.rows[0]?.total || 0),
     limit,
     offset,
@@ -763,11 +714,7 @@ export async function getProcurementRecord(client, context, resource, recordId) 
   if (!result.rows[0]) {
     throw new ProcurementError(404, "Procurement record not found.", "PROCUREMENT_RECORD_NOT_FOUND");
   }
-  const row = applySupplierFieldVisibility(
-    resource,
-    { ...(result.rows[0].data || {}), ...result.rows[0] },
-    context,
-  );
+  const row = { ...(result.rows[0].data || {}), ...result.rows[0] };
   return config.kind === "document"
     ? hydrateChildren(client, context, resource, row)
     : row;
@@ -779,7 +726,6 @@ export async function createProcurementRecord(client, context, resource, input) 
     throw new ProcurementError(405, "This Procurement resource is read-only.");
   }
   permission(context, config.create);
-  assertSupplierSensitiveFieldsAllowed(resource, input, context);
 
   if (config.kind === "child") {
     const payload = normalizeChild(resource, input, context);
@@ -812,7 +758,7 @@ export async function createProcurementRecord(client, context, resource, input) 
 
   let payload = normalizeDocument(resource, input, context);
   payload = await ensureNumber(client, context, resource, payload);
-  const references = await validateDocumentReferences(client, context, resource, payload);
+  const references = await validateDocumentReferences(client, context, resource, payload, { input });
   const status = INITIAL_DOCUMENT_STATUS[resource] || "draft";
   const idempotencyKey = text(input.idempotencyKey, "Idempotency key", { max: 200 });
   const result = await client.query(
@@ -862,7 +808,6 @@ export async function updateProcurementRecord(client, context, resource, recordI
   const config = configFor(resource);
   if (!config.manage) throw new ProcurementError(405, "This Procurement resource is read-only.");
   permission(context, config.manage);
-  assertSupplierSensitiveFieldsAllowed(resource, input, context);
   const current = await getProcurementRecord(client, context, resource, recordId);
   if (config.kind === "child") {
     const version = expectedVersion(input.expectedVersion);
@@ -911,7 +856,7 @@ export async function updateProcurementRecord(client, context, resource, recordI
   }
   let payload = normalizeDocument(resource, { ...(current.data || {}), ...input }, context);
   payload = await ensureNumber(client, context, resource, payload);
-  const references = await validateDocumentReferences(client, context, resource, payload);
+  const references = await validateDocumentReferences(client, context, resource, payload, { input, previous: current.data || {} });
   const result = await client.query(
     `
       UPDATE tenant.${config.table}
@@ -942,14 +887,6 @@ export async function updateProcurementRecord(client, context, resource, recordI
 }
 
 const TRANSITIONS = Object.freeze({
-  suppliers: {
-    submit: ["draft", "submitted", "procurement.suppliers.manage"],
-    qualify: ["submitted", "qualified", "procurement.suppliers.qualify"],
-    activate: [["qualified", "suspended", "blocked"], "active", "procurement.suppliers.qualify"],
-    block: [["active", "qualified", "suspended"], "blocked", "procurement.suppliers.qualify"],
-    suspend: [["active", "qualified"], "suspended", "procurement.suppliers.qualify"],
-    cancel: [["draft", "submitted"], "cancelled", "procurement.suppliers.manage"],
-  },
   "purchase-orders": {
     submit: [["draft", "rejected"], "submitted", "procurement.po.manage"],
     approve: [["submitted", "pending_approval"], "approved", "procurement.po.approve"],
@@ -1148,6 +1085,12 @@ export async function transitionProcurementRecord(client, context, resource, rec
   }
   if (["reject", "cancel", "block", "suspend", "override", "reverse"].includes(action)) {
     text(input.reason, "Reason", { required: true, max: 1000 });
+  }
+  // A purchase order goes forward only with an active supplier; a block placed after it was drafted stops it here.
+  if (resource === "purchase-orders" && ["submit", "approve", "dispatch"].includes(action)) {
+    await assertSupplierUsable(client, context.organizationId, current.supplier_id || current.supplierId, {
+      purpose: action === "dispatch" ? "dispatching a purchase order" : action === "approve" ? "approving a purchase order" : "submitting a purchase order",
+    });
   }
   const config = configFor(resource);
   const result = await client.query(
@@ -1789,7 +1732,7 @@ export async function getProcurementDashboard(client, context) {
         (SELECT count(*) FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND record.status IN ('approved','dispatched','acknowledged','partially_received','pending_amendment_approval'))::int open_orders,
         (SELECT count(*) FROM tenant.procurement_receipts record WHERE record.organization_id=$1 AND record.status IN ('draft','submitted'))::int pending_receipts,
         (SELECT count(*) FROM tenant.procurement_match_exceptions record WHERE record.organization_id=$1 AND record.status='open')::int match_exceptions,
-        (SELECT count(*) FROM tenant.procurement_suppliers record WHERE record.organization_id=$1 AND record.status IN ('conditional','blocked','suspended'))::int supplier_risks,
+        (SELECT count(*) FROM tenant.procurement_suppliers record WHERE record.organization_id=$1 AND record.status = 'blocked')::int supplier_risks,
         (SELECT coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0) FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND record.status NOT IN ('cancelled','closed'))::text open_commitment_value
     `,
     values,

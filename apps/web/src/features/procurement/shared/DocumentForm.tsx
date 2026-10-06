@@ -30,6 +30,7 @@ import {
   type FieldValue,
 } from "@/features/procurement/shared/FieldInput";
 import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 export type FormConfig = {
   resource: string;
@@ -219,8 +220,9 @@ function FormBody({
   const [error, setError] = useState<string | null>(null);
   const [amendReason, setAmendReason] = useState("");
 
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => submit.run(async () => {
       const cleanLines = lines.map((line) => {
         const out: Record<string, FieldValue> = {};
         for (const [key, value] of Object.entries(line))
@@ -248,7 +250,7 @@ function FormBody({
           expectedVersion: existing?.version,
         });
       return createRecord(config.resource, payload);
-    },
+    }),
     onSuccess: (record) => {
       queryClient.invalidateQueries({
         queryKey: scopedQueryKey(workspace, "procurement"),
@@ -309,7 +311,7 @@ function FormBody({
           <Button
             variant="primary"
             onPress={() => save.mutate()}
-            isLoading={save.isPending}
+            isLoading={save.isPending || save.isSuccess}
             isDisabled={amend && !amendReason.trim()}
           >
             {amend

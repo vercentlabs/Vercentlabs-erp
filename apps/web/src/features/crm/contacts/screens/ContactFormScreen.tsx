@@ -19,6 +19,7 @@ import {
 import { DuplicateOverride } from "@/features/crm/duplicates/DuplicateParts";
 import { ContactDuplicateWarning } from "../components/ContactDuplicateWarning";
 import { ErrorBanner } from "../contact-format";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 const NONE = "";
 const AUTO = "__auto__";
@@ -129,11 +130,12 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
     setFieldErrors((current) => ({ ...current, [key]: "" }));
   };
 
+  const submit = useSubmitKey();
   const mutation = useMutation({
-    mutationFn: (allowDuplicate: boolean) => {
+    mutationFn: (allowDuplicate: boolean) => submit.run(async () => {
       const input = { ...toInput(values, mode, sensitiveHidden, contact), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
       return mode === "edit" ? updateContact(contactId as string, { ...input, expectedUpdatedAt: contact?.updatedAt }) : createContact(input);
-    },
+    }),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "contacts") });
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "contact", saved.id) });
@@ -171,7 +173,7 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
           {blockingMatches ? (
             <ContactDuplicateWarning matches={blockingMatches} blocking>
               <DuplicateOverride subject="person" reason={duplicateReason} onReasonChange={setDuplicateReason}
-                onConfirm={() => mutation.mutate(true)} onCancel={() => setBlockingMatches(null)} isLoading={mutation.isPending} />
+                onConfirm={() => mutation.mutate(true)} onCancel={() => setBlockingMatches(null)} isLoading={mutation.isPending || mutation.isSuccess} />
             </ContactDuplicateWarning>
           ) : (
             <ContactDuplicateWarning matches={similarMatches} blocking={similarMatches.some((match) => match.strength === "exact")} />
@@ -181,7 +183,7 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.replace(cancelHref)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate(false)} isLoading={mutation.isPending} isDisabled={!values.firstName.trim() || !reachable}>
+          <Button variant="primary" onPress={() => mutation.mutate(false)} isLoading={mutation.isPending || mutation.isSuccess} isDisabled={!values.firstName.trim() || !reachable}>
             {mode === "edit" ? "Save changes" : "Create contact"}
           </Button>
         </>

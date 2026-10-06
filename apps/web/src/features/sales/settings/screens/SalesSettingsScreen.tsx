@@ -1,348 +1,103 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  ErrorState,
-  NumberField,
-  PageHeader,
-  PermissionState,
-  Select,
-  Switch,
-  TextArea,
-  TextField,
-} from "@vercentlabs/design-system";
-import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
+// Sales Settings: every Sales configuration page on one screen, grouped under
+// its heading, in the main content area. Sales' own pages come from the
+// navigation registry (module-navigation-registry.ts, parent "sales-settings"),
+// so each card opens a real route and only pages the person may open are
+// shown. Configuration Sales shares with the rest of the platform (taxes,
+// document numbering, imports) is linked, never copied: those cards open the
+// shared page.
+import Link from "next/link";
+import { ChevronRight, Database, FileDigit, Percent } from "lucide-react";
+import { PageHeader, PermissionState } from "@vercentlabs/design-system";
 
+import { getModuleNavigation } from "@/shell/navigation/module-navigation-registry";
+import { isItemPermitted, workspaceChildren, type NavViewer } from "@/shell/navigation/navigation-resolution";
+import type { NavIcon, SecondaryNavItem } from "@/shell/navigation/navigation-types";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { request, SalesApiError } from "@/features/sales/shared/http";
-import { SalesAlert, SalesPanel } from "@/features/sales/shared/SalesUi";
 
-type Settings = {
-  default_quote_validity_days: number;
-  quotation_approval_amount: string | number;
-  quotation_approval_discount: string | number;
-  minimum_margin_percent: string | number;
-  allow_direct_orders: boolean;
-  reserve_stock_on_confirm: boolean;
-  require_customer_po: boolean;
-  require_requested_delivery_date: boolean;
-  check_availability_on_confirm: boolean;
-  show_prices_on_delivery_note: boolean;
-  invoice_quantity_basis: "ordered" | "fulfilled";
-  default_quotation_terms: string | null;
-  allow_line_discounts: boolean;
-  allow_document_discounts: boolean;
-  allow_percent_discounts: boolean;
-  allow_amount_discounts: boolean;
-  discount_reason_above_percent: string | number | null;
-  discount_limit_percent: string | number | null;
-  discount_limit_elevated_percent: string | number | null;
-};
-// An empty field means "no limit" / "never required".
-const optionalPercent = (value: string | number | null) => (value === null || value === undefined ? "" : String(Number(value)));
-const percentOrNull = (value: string) => (value.trim() === "" ? null : Number(value));
+const SETTINGS_WORKSPACE = "sales-settings";
+type Card = { id: string; label: string; route: string; description?: string; shared?: boolean };
 
-// F041/F043 -- the thresholds that decide when a quotation or order needs a
-// second person, plus document defaults. Zero on an amount means "no amount
-// trigger". Changes apply to documents submitted afterwards; documents already
-// awaiting approval keep the decision they were routed with.
+// Shared configuration Sales uses. Each entry is checked against the permission of the page it opens.
+const SHARED: Array<{ id: string; label: string; description: string; icon: NavIcon; cards: Array<SecondaryNavItem & { shared: true }> }> = [
+  {
+    id: "tax", label: "Tax", description: "Sales documents calculate tax with the shared tax engine.", icon: Percent,
+    cards: [{ id: "taxes", label: "Taxes", route: "/settings/taxes", status: "AVAILABLE", requiredPermission: "tax.view", shared: true,
+      description: "Tax categories, rates, components and GST registrations. Opens the shared Tax Settings." }],
+  },
+  {
+    id: "documents", label: "Documents", description: "Quotation, order, delivery, invoice, return and credit note numbers.", icon: FileDigit,
+    cards: [{ id: "numbering", label: "Document Numbering", route: "/settings/numbering", status: "AVAILABLE", requiredPermission: "numbering.manage", shared: true,
+      description: "Prefixes and sequences for every Sales document. Opens the shared Numbering settings." }],
+  },
+  {
+    id: "data", label: "Data", description: "Bring Sales master data in from a file.", icon: Database,
+    cards: [
+      { id: "import-customers", label: "Import Customers", route: "/sales/customers/import", status: "AVAILABLE", requiredPermission: "sales.customers.import", shared: true,
+        description: "Create or update customers from a CSV file." },
+      { id: "import-products", label: "Import Products & Services", route: "/sales/products/import", status: "AVAILABLE", requiredPermission: "products.import", shared: true,
+        description: "Create or update catalog items from a CSV file." },
+      { id: "price-lists", label: "Import Prices", route: "/sales/price-lists", status: "AVAILABLE", requiredPermission: "sales.price_lists.import", shared: true,
+        description: "Open a price list to import or export its prices." },
+    ],
+  },
+];
+
+function CardGrid({ label, items }: { label: string; items: Card[] }) {
+  return (
+    <ul aria-label={`${label} settings`} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {items.map((item) => (
+        <li key={item.id}>
+          <Link href={item.route}
+            className="group flex h-full items-start gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none">
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="text-sm font-semibold text-text">{item.label}</span>
+              {item.description ? <span className="text-sm text-text-secondary">{item.description}</span> : null}
+            </span>
+            <ChevronRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-text-muted group-hover:text-text" />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Section({ id, label, description, icon: Icon, items }: { id: string; label: string; description: string; icon: NavIcon; items: Card[] }) {
+  return (
+    <section id={id} aria-labelledby={`${id}-heading`} className="flex scroll-mt-6 flex-col gap-3">
+      <div className="flex items-start gap-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-brand-soft text-brand">
+          <Icon aria-hidden="true" className="size-4" />
+        </span>
+        <div className="flex flex-col">
+          <h2 id={`${id}-heading`} className="text-base font-semibold text-text">{label}</h2>
+          <p className="text-sm text-text-secondary">{description}</p>
+        </div>
+      </div>
+      <CardGrid label={label} items={items} />
+    </section>
+  );
+}
+
 export function SalesSettingsScreen() {
   const workspace = useWorkspaceContext();
-  const query = useQuery({
-    queryKey: scopedQueryKey(workspace, "sales", "settings"),
-    queryFn: () =>
-      request<{ settings: Settings }>("/settings").then((r) => r.settings),
-  });
-  if (query.isLoading)
-    return (
-      <p className="px-4 py-8 text-sm text-text-secondary">Loading settings…</p>
-    );
-  if (query.isError || !query.data) {
-    if (query.error instanceof SalesApiError && query.error.status === 403)
-      return (
-        <PermissionState
-          title="You don't have access to Sales"
-          description="Ask an administrator to grant sales.view."
-        />
-      );
-    return (
-      <ErrorState
-        title="Could not load Sales settings"
-        action={{ label: "Retry", onPress: () => query.refetch() }}
-      />
-    );
-  }
+  const sales = getModuleNavigation("sales");
+  if (!sales) return null;
+  const viewer: NavViewer = { permissions: workspace.permissions, isOwner: workspace.roleSlugs.includes("organization_owner") };
+  const destinations = workspaceChildren(sales, SETTINGS_WORKSPACE, viewer);
+  const own = (sales.groups ?? [])
+    .filter((group) => group.workspace === SETTINGS_WORKSPACE)
+    .map((group) => ({ group, items: destinations.filter((item) => item.group === group.id) }))
+    .filter((entry) => entry.items.length > 0);
+  const shared = SHARED.map((entry) => ({ ...entry, cards: entry.cards.filter((card) => isItemPermitted(card, viewer)) })).filter((entry) => entry.cards.length > 0);
+  if (own.length === 0 && shared.length === 0) return <PermissionState title="You do not have access to Sales Settings" />;
   return (
-    <div className="flex flex-col gap-4">
-      <SettingsForm settings={query.data} />
+    <div className="flex flex-1 flex-col gap-8">
+      <PageHeader title="Sales Settings" description="Commercial rules, fulfillment, and the shared settings Sales documents use." />
+      {own.map(({ group, items }) => <Section key={group.id} id={group.id} label={group.label} description={group.description} icon={group.icon} items={items} />)}
+      {shared.map((entry) => <Section key={entry.id} id={entry.id} label={entry.label} description={entry.description} icon={entry.icon} items={entry.cards} />)}
     </div>
   );
 }
 
-function SettingsForm({ settings }: { settings: Settings }) {
-  const workspace = useWorkspaceContext();
-  const queryClient = useQueryClient();
-  const canManage =
-    workspace.roleSlugs.includes("organization_owner") ||
-    workspace.permissions.includes(SALES_PERMISSIONS.settingsManage);
-  const [validity, setValidity] = useState(
-    settings.default_quote_validity_days,
-  );
-  const [quoteAmount, setQuoteAmount] = useState(
-    Number(settings.quotation_approval_amount),
-  );
-  const [quoteDiscount, setQuoteDiscount] = useState(
-    Number(settings.quotation_approval_discount),
-  );
-  const [margin, setMargin] = useState(Number(settings.minimum_margin_percent));
-  const [direct, setDirect] = useState(settings.allow_direct_orders);
-  const [reserveOnConfirm, setReserveOnConfirm] = useState(settings.reserve_stock_on_confirm !== false);
-  const [requirePo, setRequirePo] = useState(Boolean(settings.require_customer_po));
-  const [requireDelivery, setRequireDelivery] = useState(Boolean(settings.require_requested_delivery_date));
-  const [checkOnConfirm, setCheckOnConfirm] = useState(settings.check_availability_on_confirm !== false);
-  const [notePrices, setNotePrices] = useState(Boolean(settings.show_prices_on_delivery_note));
-  const [basis, setBasis] = useState<string>(settings.invoice_quantity_basis);
-  const [quotationTerms, setQuotationTerms] = useState(settings.default_quotation_terms ?? "");
-  const canManageDiscounts =
-    workspace.roleSlugs.includes("organization_owner") ||
-    workspace.permissions.includes(SALES_PERMISSIONS.discountManageSettings);
-  const [lineDiscounts, setLineDiscounts] = useState(settings.allow_line_discounts);
-  const [documentDiscounts, setDocumentDiscounts] = useState(settings.allow_document_discounts);
-  const [percentDiscounts, setPercentDiscounts] = useState(settings.allow_percent_discounts);
-  const [amountDiscounts, setAmountDiscounts] = useState(settings.allow_amount_discounts);
-  const [reasonAbove, setReasonAbove] = useState(optionalPercent(settings.discount_reason_above_percent));
-  const [discountLimit, setDiscountLimit] = useState(optionalPercent(settings.discount_limit_percent));
-  const [managerLimit, setManagerLimit] = useState(optionalPercent(settings.discount_limit_elevated_percent));
-  const percentInput = (value: string) => value.replace(/[^0-9.]/g, "");
-  const [saved, setSaved] = useState(false);
-
-  const save = useMutation({
-    mutationFn: () =>
-      request<{ settings: Settings }>("/settings", {
-        method: "PUT",
-        body: JSON.stringify({
-          defaultQuoteValidityDays: validity,
-          quotationApprovalAmount: quoteAmount,
-          quotationApprovalDiscount: quoteDiscount,
-          minimumMarginPercent: margin,
-          allowDirectOrders: direct,
-          reserveStockOnConfirm: reserveOnConfirm,
-          requireCustomerPo: requirePo,
-          requireRequestedDeliveryDate: requireDelivery,
-          checkAvailabilityOnConfirm: checkOnConfirm,
-          showPricesOnDeliveryNote: notePrices,
-          invoiceQuantityBasis: basis,
-          defaultQuotationTerms: quotationTerms,
-          ...(canManageDiscounts
-            ? {
-                allowLineDiscounts: lineDiscounts,
-                allowDocumentDiscounts: documentDiscounts,
-                allowPercentDiscounts: percentDiscounts,
-                allowAmountDiscounts: amountDiscounts,
-                discountReasonAbovePercent: percentOrNull(reasonAbove),
-                discountLimitPercent: percentOrNull(discountLimit),
-                discountLimitElevatedPercent: percentOrNull(managerLimit),
-              }
-            : {}),
-        }),
-      }),
-    onSuccess: () => {
-      setSaved(true);
-      queryClient.invalidateQueries({
-        queryKey: scopedQueryKey(workspace, "sales"),
-      });
-    },
-  });
-  const error = save.error
-    ? save.error instanceof SalesApiError
-      ? save.error.message
-      : "Settings could not be saved."
-    : null;
-  const touch =
-    <T,>(setter: (value: T) => void) =>
-    (value: T) => {
-      setSaved(false);
-      setter(value);
-    };
-
-  return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Sales settings"
-        description="When a second person must approve, and the defaults documents start from."
-        primaryAction={
-          canManage ? (
-            <Button
-              variant="primary"
-              onPress={() => save.mutate()}
-              isLoading={save.isPending}
-            >
-              Save settings
-            </Button>
-          ) : undefined
-        }
-      />
-      {!canManage && (
-        <SalesAlert tone="info">
-          You can view these settings. Changing them needs the Sales settings
-          permission.
-        </SalesAlert>
-      )}
-      {error && <SalesAlert>{error}</SalesAlert>}
-      {saved && (
-        <SalesAlert tone="success">
-          Settings saved. They apply to documents submitted from now on.
-        </SalesAlert>
-      )}
-
-      <SalesPanel
-        title="Quotation approval"
-        description="A quotation needs approval by someone other than its author when any trigger below is met. Set an amount to 0 to switch that trigger off."
-      >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <NumberField
-            label="Approval above amount"
-            value={quoteAmount}
-            onChange={touch(setQuoteAmount)}
-            minValue={0}
-            step={0.01}
-            isDisabled={!canManage}
-          />
-          <NumberField
-            label="Approval above discount (%)"
-            value={quoteDiscount}
-            onChange={touch(setQuoteDiscount)}
-            minValue={0}
-            maxValue={100}
-            step={1}
-            isDisabled={!canManage}
-          />
-          <NumberField
-            label="Approval below margin (%)"
-            value={margin}
-            onChange={touch(setMargin)}
-            minValue={-100}
-            maxValue={100}
-            step={1}
-            isDisabled={!canManage}
-          />
-        </div>
-      </SalesPanel>
-
-      <SalesPanel
-        title="Sales orders"
-        description="Orders are confirmed by someone with the Confirm sales orders permission; there is no order approval."
-      >
-        <Switch
-          isSelected={direct}
-          onChange={touch(setDirect)}
-          isDisabled={!canManage}
-        >
-          Allow orders without a quotation
-        </Switch>
-        <p className="text-sm text-text-secondary">Availability is worked out as on hand minus reserved, in each warehouse; stock under quality hold is not available.</p>
-        <Switch isSelected={checkOnConfirm} onChange={touch(setCheckOnConfirm)} isDisabled={!canManage}>
-          Check stock availability when an order is confirmed
-        </Switch>
-        <Switch
-          isSelected={reserveOnConfirm}
-          onChange={touch(setReserveOnConfirm)}
-          isDisabled={!canManage}
-        >
-          Reserve available stock when an order is confirmed
-        </Switch>
-        <Switch isSelected={requirePo} onChange={touch(setRequirePo)} isDisabled={!canManage}>
-          Require the customer&apos;s PO number before an order is confirmed
-        </Switch>
-        <Switch isSelected={requireDelivery} onChange={touch(setRequireDelivery)} isDisabled={!canManage}>
-          Require a requested delivery date before an order is confirmed
-        </Switch>
-      </SalesPanel>
-
-      <SalesPanel title="Deliveries" description="Deliveries are dispatched by sales managers and the warehouse; stock is issued at dispatch.">
-        <Switch isSelected={notePrices} onChange={touch(setNotePrices)} isDisabled={!canManage}>
-          Show prices on delivery note
-        </Switch>
-        <p className="text-sm text-text-secondary">Only unit prices are printed. A delivery note never shows tax or totals, and never internal notes.</p>
-      </SalesPanel>
-
-      <SalesPanel
-        title="Pricing & Discounts"
-        description="A discount is given on a line or on the whole document, as a percentage or a fixed amount. Standard customer prices belong in price lists, not here."
-      >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Switch isSelected={lineDiscounts} onChange={touch(setLineDiscounts)} isDisabled={!canManageDiscounts}>Allow line discounts</Switch>
-          <Switch isSelected={documentDiscounts} onChange={touch(setDocumentDiscounts)} isDisabled={!canManageDiscounts}>Allow document discounts</Switch>
-          <Switch isSelected={percentDiscounts} onChange={touch(setPercentDiscounts)} isDisabled={!canManageDiscounts}>Percentage discounts</Switch>
-          <Switch isSelected={amountDiscounts} onChange={touch(setAmountDiscounts)} isDisabled={!canManageDiscounts}>Fixed amount discounts</Switch>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <TextField
-            label="Require a reason above (%)"
-            description="Leave empty to never require a reason."
-            inputMode="decimal"
-            value={reasonAbove}
-            onChange={(value) => touch(setReasonAbove)(percentInput(value))}
-            isDisabled={!canManageDiscounts}
-          />
-          <TextField
-            label="Salesperson maximum discount (%)"
-            description="Leave empty for no limit."
-            inputMode="decimal"
-            value={discountLimit}
-            onChange={(value) => touch(setDiscountLimit)(percentInput(value))}
-            isDisabled={!canManageDiscounts}
-          />
-          <TextField
-            label="Manager maximum discount (%)"
-            description="For users who may discount up to the higher limit. Leave empty for no limit."
-            inputMode="decimal"
-            value={managerLimit}
-            onChange={(value) => touch(setManagerLimit)(percentInput(value))}
-            isDisabled={!canManageDiscounts}
-          />
-        </div>
-        <p className="text-xs text-text-muted">
-          The limit applies to each line&apos;s total discount: its own discount plus its share of the document discount. Users who may override the limit are not restricted.
-        </p>
-      </SalesPanel>
-
-      <SalesPanel title="Document defaults">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <NumberField
-            label="Quotation validity (days)"
-            value={validity}
-            onChange={touch(setValidity)}
-            minValue={1}
-            maxValue={365}
-            step={1}
-            isDisabled={!canManage}
-          />
-          <Select
-            label="Invoice based on"
-            description="Sales Order: anything ordered can be invoiced. Delivery: goods only once delivered (services as ordered)."
-            options={[
-              { value: "ordered", label: "Sales Order" },
-              { value: "fulfilled", label: "Delivery" },
-            ]}
-            selectedKey={basis}
-            onSelectionChange={(key) =>
-              touch(setBasis)(String(key ?? "ordered"))
-            }
-            isDisabled={!canManage}
-          />
-        </div>
-        <TextArea
-          label="Standard terms and conditions for quotations"
-          description="Copied onto each new quotation, where it can be changed. Printed on the quotation."
-          value={quotationTerms}
-          onChange={touch(setQuotationTerms)}
-          isDisabled={!canManage}
-        />
-      </SalesPanel>
-    </div>
-  );
-}

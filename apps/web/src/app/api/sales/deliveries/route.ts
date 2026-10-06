@@ -3,7 +3,7 @@ import { listDeliveries } from "@vercentlabs/api";
 import { salesRead } from "@/features/sales/shared/route-helpers";
 
 const FILTER_KEYS = [
-  "view", "search", "status", "partyId", "warehouseId", "salesOrderId", "carrier", "ownerUserId", "dispatchFrom", "dispatchTo", "expectedFrom", "expectedTo", "sort", "direction", "limit", "offset",
+  "view", "search", "status", "shipped", "partyId", "warehouseId", "salesOrderId", "carrier", "ownerUserId", "dispatchFrom", "dispatchTo", "expectedFrom", "expectedTo", "sort", "direction", "limit", "offset",
 ] as const;
 
 // Sales → Deliveries: every delivery the caller may see (by its order's visibility, or all for the warehouse).

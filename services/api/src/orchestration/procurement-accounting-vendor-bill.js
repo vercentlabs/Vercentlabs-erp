@@ -45,7 +45,7 @@ export async function runProcurementMatchWithVendorBillImport(
   }
 
   const supplier = await client.query(
-    `SELECT data->>'accountingPartyId' AS party_id FROM tenant.procurement_suppliers WHERE organization_id=$1 AND id=$2`,
+    `SELECT party_id FROM tenant.procurement_suppliers WHERE organization_id=$1 AND id=$2`,
     [procurementContext.organizationId, matchingRecord.supplierId],
   );
   const partyId = supplier.rows[0]?.party_id || null;
@@ -53,7 +53,7 @@ export async function runProcurementMatchWithVendorBillImport(
     return {
       ...result,
       vendorBill: null,
-      vendorBillSkippedReason: "PROCUREMENT_SUPPLIER_NOT_LINKED_TO_ACCOUNTING_PARTY",
+      vendorBillSkippedReason: "PROCUREMENT_SUPPLIER_HAS_NO_PARTY",
     };
   }
 

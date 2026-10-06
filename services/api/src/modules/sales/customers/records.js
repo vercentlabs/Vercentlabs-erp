@@ -248,7 +248,7 @@ export async function assertCustomerReferences(client, context, normalized) {
     throw new CustomerError(400, "Choose a currency your organization uses.", "SALES_CUSTOMER_VALIDATION", { issues: [{ field: "currencyCode", message: "Choose a currency your organization uses." }] });
   if (normalized.priceListId && !(await one(`SELECT 1 FROM tenant.price_lists WHERE organization_id = $1 AND id = $2 AND price_list_type = 'sales' AND status = 'active'`, normalized.priceListId)))
     throw new CustomerError(400, "Choose an active sales price list.", "SALES_CUSTOMER_VALIDATION", { issues: [{ field: "priceListId", message: "Choose an active sales price list." }] });
-  if (normalized.paymentTermId && !(await one(`SELECT 1 FROM tenant.payment_terms WHERE organization_id = $1 AND id = $2 AND status = 'active'`, normalized.paymentTermId)))
+  if (normalized.paymentTermId && !(await one(`SELECT 1 FROM tenant.payment_terms WHERE organization_id = $1 AND id = $2 AND status = 'active' AND is_sales_enabled`, normalized.paymentTermId)))
     throw new CustomerError(400, "Choose active payment terms.", "SALES_CUSTOMER_VALIDATION", { issues: [{ field: "paymentTermId", message: "Choose active payment terms." }] });
   if (normalized.ownerUserId && !(await one(
     `SELECT 1 FROM public.organization_memberships membership JOIN public.users users ON users.id = membership.user_id

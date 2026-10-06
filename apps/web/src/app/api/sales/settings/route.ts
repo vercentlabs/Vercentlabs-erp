@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { getSalesSettings, updateSalesSettings } from "@vercentlabs/api";
+import { getSalesSettings, listSalesSettingsWarehouses, updateSalesSettings } from "@vercentlabs/api";
 
 import {
   salesMutation,
@@ -19,6 +19,7 @@ const schema = z.object({
   checkAvailabilityOnConfirm: z.boolean().optional(),
   showPricesOnDeliveryNote: z.boolean().optional(),
   invoiceQuantityBasis: z.enum(["ordered", "fulfilled"]).optional(),
+  defaultWarehouseId: z.string().uuid().nullable().optional(),
   defaultQuotationTerms: z.string().max(20000).nullish(),
   // Pricing & Discounts (needs sales.discount.manage_settings). A null limit or threshold switches it off.
   allowLineDiscounts: z.boolean().optional(),
@@ -33,6 +34,7 @@ const schema = z.object({
 export async function GET(request: Request) {
   return salesRead(request, "sales.view", async (client, context) => ({
     settings: await getSalesSettings(client, context),
+    warehouses: await listSalesSettingsWarehouses(client, context),
   }));
 }
 

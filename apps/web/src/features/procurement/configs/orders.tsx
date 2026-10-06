@@ -115,17 +115,19 @@ export const orderForm: FormConfig = {
       kind: "date",
       required: true,
     },
+    // Left empty, both come from the supplier when the order is saved, and stay on the order as they were then.
     {
       name: "currencyCode",
       label: "Currency",
       kind: "text",
-      defaultValue: "INR",
+      placeholder: "The supplier's default currency",
     },
     {
-      name: "paymentTerms",
+      name: "paymentTermId",
       label: "Payment terms",
-      kind: "text",
-      placeholder: "e.g. Net 30",
+      kind: "select",
+      options: "paymentTerms",
+      placeholder: "The supplier's default terms",
     },
     { name: "deliveryTerms", label: "Delivery terms", kind: "text" },
     { name: "notes", label: "Notes", kind: "textarea" },
@@ -146,7 +148,11 @@ export const orderDetail: DetailConfig = {
   title: (r) => String(r.purchaseOrderNumber ?? r.title ?? "Purchase order"),
   fields: (r, lookup) => [
     { label: "Title", value: String(r.title ?? "—") },
-    { label: "Supplier", value: lookup.supplier(r.supplierId) },
+    // The supplier as it was when the order was made: later changes to the supplier never rewrite it.
+    { label: "Supplier", value: r.supplierSnapshot ? `${r.supplierSnapshot.supplierName} · ${r.supplierSnapshot.supplierNumber}` : lookup.supplier(r.supplierId) },
+    ...(r.supplierSnapshot?.gstin ? [{ label: "Supplier GSTIN", value: String(r.supplierSnapshot.gstin) }] : []),
+    ...(r.supplierAddress ? [{ label: "Supplier address", value: [r.supplierAddress.line1, r.supplierAddress.city, r.supplierAddress.state].filter(Boolean).join(", ") }] : []),
+    ...(r.supplierContact ? [{ label: "Supplier contact", value: [r.supplierContact.name, r.supplierContact.email, r.supplierContact.phone].filter(Boolean).join(" · ") }] : []),
     { label: "Expected delivery", value: calendarDate(r.expectedDeliveryDate) },
     { label: "Currency", value: String(r.currencyCode ?? "—") },
     { label: "Payment terms", value: String(r.paymentTerms ?? "—") },

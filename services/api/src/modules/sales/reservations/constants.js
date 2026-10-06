@@ -4,6 +4,8 @@
 // line. It is a commitment, not a movement: on hand, inventory value and the
 // books are untouched until a delivery issues the goods. Whether an order is
 // reserved is shown beside its status, never as its status.
+import { reservationStatusOfCounts } from "../order-tracking/derive.js";
+
 export const RESERVATION_PERMISSIONS = Object.freeze({
   view: "sales.reservation.view",
   viewAll: "sales.reservation.view_all",
@@ -37,12 +39,11 @@ export const RECORD_STATUS_LABELS = Object.freeze({ active: "Active", consumed: 
 // A reservation held this many days or more is flagged, never released by itself.
 export const STALE_AFTER_DAYS = 30;
 
-const EPSILON = 1e-6;
-// An order's reservation state, from its lines still to deliver: services and non-stock products need none.
+// An order's reservation state, from its lines still to deliver: services and non-stock products need none. The rule itself
+// is the tracking service's (../order-tracking/derive.js), so every screen reads the same status.
 export function reservationStatusOf(lines) {
-  const open = lines.filter((line) => line.stockTracked && line.remainingToDeliver > EPSILON);
-  if (!open.length) return "not_required";
-  if (open.every((line) => line.reserved + EPSILON >= line.remainingToDeliver)) return "fully_reserved";
-  if (open.some((line) => line.reserved > EPSILON)) return "partially_reserved";
-  return "not_reserved";
+  const open = lines.filter((line) => line.stockTracked && line.remainingToDeliver > 1e-6);
+  return reservationStatusOfCounts({
+    openLines: open.length, fullLines: open.filter((line) => line.reserved + 1e-6 >= line.remainingToDeliver).length, reservedLines: open.filter((line) => line.reserved > 1e-6).length,
+  });
 }

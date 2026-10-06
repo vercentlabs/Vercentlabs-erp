@@ -11,17 +11,8 @@ export const STATUS_LABELS = Object.freeze({ draft: "Draft", confirmed: "Confirm
 // still ordered. Reservation has its own status (../reservations). Stored
 // codes keep the values the order table allows; these are the names shown.
 export const FULFILLMENT = Object.freeze({ notStarted: "not_started", partiallyDelivered: "partially_fulfilled", delivered: "fulfilled", cancelled: "cancelled" });
-export const FULFILLMENT_KEYS = Object.freeze({ not_started: "not_delivered", partially_fulfilled: "partially_delivered", fulfilled: "delivered", cancelled: "cancelled" });
-export const FULFILLMENT_LABELS = Object.freeze({
-  not_delivered: "Not delivered", partially_delivered: "Partially delivered", delivered: "Delivered", cancelled: "Cancelled", not_required: "Not required",
-});
-// A confirmed order whose requested delivery date has passed with goods still to deliver. Derived, never stored.
-export const overdueDeliverySql = (alias) =>
-  `(${alias}.lifecycle_status = 'confirmed' AND ${alias}.fulfillment_status IN ('not_started', 'partially_fulfilled') AND ${alias}.requested_delivery_date < current_date)`;
+// What is shown for fulfilment and invoicing is derived in ../order-tracking/derive.js; these are the codes the order table stores.
 export const INVOICING = Object.freeze({ notBillable: "not_billable", notInvoiced: "ready", partiallyInvoiced: "partially_invoiced", fullyInvoiced: "fully_invoiced", blocked: "blocked" });
-export const INVOICING_KEYS = Object.freeze({ not_billable: "not_invoiced", ready: "not_invoiced", partially_invoiced: "partially_invoiced", fully_invoiced: "fully_invoiced", blocked: "not_invoiced" });
-export const INVOICING_LABELS = Object.freeze({ not_invoiced: "Not invoiced", partially_invoiced: "Partially invoiced", fully_invoiced: "Fully invoiced" });
-
 export const CANCEL_REASONS = Object.freeze([
   { code: "customer_cancelled", label: "Customer cancelled" },
   { code: "product_unavailable", label: "Product unavailable" },
@@ -36,10 +27,13 @@ export const ORDER_PERMISSIONS = Object.freeze({
   viewTeam: "sales.order.view_team",
   viewAll: "sales.order.view_all",
   create: "sales.order.create",
+  changePaymentTerms: "sales.order.change_payment_terms",
   confirm: "sales.order.confirm",
   reopen: "sales.order.reopen",
   cancel: "sales.order.cancel",
   cancelRemaining: "sales.order.cancel_remaining",
+  close: "sales.order.close",
+  reopenClosed: "sales.order.reopen_closed",
   reserve: "sales.order.reserve",
   deliver: "sales.fulfillment.request",
   invoice: "sales.invoice.request",
@@ -59,22 +53,25 @@ export const ORDER_PERMISSIONS = Object.freeze({
 
 export const ORDER_VIEWS = Object.freeze([
   { key: "all", label: "All Orders" },
-  { key: "mine", label: "My Orders" },
-  { key: "team", label: "Team Orders" },
   { key: "draft", label: "Draft" },
   { key: "confirmed", label: "Confirmed" },
-  { key: "confirmation_not_sent", label: "Confirmation Not Sent" },
-  { key: "confirmation_sent", label: "Confirmation Sent" },
+  { key: "awaiting_reservation", label: "Awaiting Reservation" },
+  { key: "partially_reserved", label: "Partially Reserved" },
   { key: "awaiting_delivery", label: "Awaiting Delivery" },
   { key: "partially_delivered", label: "Partially Delivered" },
-  { key: "delivered", label: "Fully Delivered" },
   { key: "overdue_delivery", label: "Overdue Delivery" },
   { key: "ready_to_invoice", label: "Ready to Invoice" },
-  { key: "not_invoiced", label: "Not Invoiced" },
   { key: "partially_invoiced", label: "Partially Invoiced" },
   { key: "fully_invoiced", label: "Fully Invoiced" },
-  { key: "cancelled", label: "Cancelled" },
   { key: "closed", label: "Closed" },
+  { key: "cancelled", label: "Cancelled" },
+  { key: "needs_attention", label: "Needs Attention" },
+  { key: "mine", label: "My Orders" },
+  { key: "team", label: "Team Orders" },
+  { key: "confirmation_not_sent", label: "Confirmation Not Sent" },
+  { key: "confirmation_sent", label: "Confirmation Sent" },
+  { key: "delivered", label: "Fully Delivered" },
+  { key: "not_invoiced", label: "Not Invoiced" },
 ]);
 
 export class OrderError extends Error {
@@ -103,14 +100,3 @@ export const dayOf = (value) => {
   if (value instanceof Date) return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
   return String(value).slice(0, 10);
 };
-
-// The three statuses as shown. deliverable: the order has something to deliver.
-export function displayStatuses(row, { deliverable = true } = {}) {
-  const fulfillmentKey = row.lifecycle_status === STATUS.cancelled ? "cancelled" : deliverable ? FULFILLMENT_KEYS[row.fulfillment_status] ?? "not_delivered" : "not_required";
-  const invoiceKey = INVOICING_KEYS[row.billing_status] ?? "not_invoiced";
-  return {
-    status: row.lifecycle_status, statusLabel: STATUS_LABELS[row.lifecycle_status] ?? row.lifecycle_status,
-    fulfillment: fulfillmentKey, fulfillmentLabel: FULFILLMENT_LABELS[fulfillmentKey],
-    invoicing: invoiceKey, invoicingLabel: INVOICING_LABELS[invoiceKey],
-  };
-}

@@ -309,11 +309,16 @@ export type SalesOptions = {
     tax_inclusive: boolean;
     is_default: boolean;
   }>;
+  // The active terms offered for Sales; is_default marks the company default.
   paymentTerms: Array<{
     id: string;
     code: string;
     name: string;
+    description: string | null;
+    calculation_type: "due_on_receipt" | "net_days" | "custom";
+    days: number | null;
     default_due_days: number;
+    is_default: boolean;
   }>;
   currencies: Array<{
     code: string;

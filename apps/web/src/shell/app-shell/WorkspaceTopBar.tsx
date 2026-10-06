@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { CrmCreateMenu } from "@/features/crm/shared/CrmCreateMenu";
+import { SalesCreateMenu } from "@/features/sales/shared/SalesCreateMenu";
 import { Breadcrumbs } from "@/shell/navigation/Breadcrumbs";
 import {
   GLOBAL_NAV_TOP,
@@ -99,7 +100,7 @@ function TopBarIconLink({
 }
 
 // Persistent strip above every workspace page (desktop and mobile) —
-// breadcrumbs on the left; on the right, the CRM Create menu (on CRM pages), search, the company/branch
+// breadcrumbs on the left; on the right, the CRM or Sales Create menu (on those modules' pages), search, the company/branch
 // context switcher, Settings and the profile menu. One
 // place for all of it rather than each page building its own header.
 //
@@ -124,6 +125,12 @@ export function WorkspaceTopBar() {
         {isActive(pathname, "/crm") && pathname !== "/crm" ? (
           <span className="hidden lg:flex">
             <CrmCreateMenu size="compact" />
+          </span>
+        ) : null}
+        {/* Inside Sales: start a customer, quotation or order, or a later document from its source. */}
+        {isActive(pathname, "/sales") && pathname !== "/sales" ? (
+          <span className="hidden lg:flex">
+            <SalesCreateMenu size="compact" />
           </span>
         ) : null}
         {SEARCH_ENTRY ? (

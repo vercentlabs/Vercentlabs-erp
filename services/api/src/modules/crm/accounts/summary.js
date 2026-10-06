@@ -120,11 +120,10 @@ const RELATED = Object.freeze({
   },
   returns: {
     module: "sales",
-    sql: `SELECT request.id, request.request_number AS code, request.status, request.reason AS title, request.requested_at AS date
-            FROM tenant.sales_return_requests request
-            JOIN tenant.sales_orders sales_order ON sales_order.organization_id = request.organization_id AND sales_order.id = request.sales_order_id
-           WHERE request.organization_id = $1 AND sales_order.party_id = $2 ORDER BY request.requested_at DESC LIMIT 100`,
-    href: () => null,
+    sql: `SELECT sales_return.id, sales_return.return_number AS code, sales_return.status, sales_return.reason_code AS title, sales_return.return_date AS date
+            FROM tenant.sales_returns sales_return
+           WHERE sales_return.organization_id = $1 AND sales_return.party_id = $2 ORDER BY sales_return.return_date DESC, sales_return.created_at DESC LIMIT 100`,
+    href: (row) => `/sales/returns/${row.id}`,
   },
   invoices: {
     module: "finance",

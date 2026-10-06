@@ -20,6 +20,7 @@ import { DuplicateOverride } from "@/features/crm/duplicates/DuplicateParts";
 import { AccountDuplicateWarning } from "../components/AccountDuplicateWarning";
 import { AccountPicker } from "../components/AccountPicker";
 import { ErrorBanner } from "../account-format";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 const NONE = "";
 const ME = "__me__";
@@ -127,11 +128,12 @@ function AccountForm({ account, options }: { account?: Account; options: Account
   const addressStarted = mode === "create" && ADDRESS_FIELDS.some((field) => values[field].trim());
   const addressComplete = !addressStarted || Boolean(values.line1.trim() && values.city.trim() && values.state.trim() && values.postalCode.trim() && values.countryCode);
 
+  const submit = useSubmitKey();
   const mutation = useMutation({
-    mutationFn: (allowDuplicate: boolean) => {
+    mutationFn: (allowDuplicate: boolean) => submit.run(async () => {
       const input = { ...toInput(values, mode, sensitiveHidden, options), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
       return mode === "edit" ? updateAccount(accountId as string, { ...input, expectedUpdatedAt: account?.updatedAt }) : createAccount(input);
-    },
+    }),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "accounts") });
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "account", saved.id) });
@@ -172,7 +174,7 @@ function AccountForm({ account, options }: { account?: Account; options: Account
           {blockingMatches ? (
             <AccountDuplicateWarning matches={blockingMatches} blocking>
               <DuplicateOverride subject="company" reason={duplicateReason} onReasonChange={setDuplicateReason}
-                onConfirm={() => mutation.mutate(true)} onCancel={() => setBlockingMatches(null)} isLoading={mutation.isPending} />
+                onConfirm={() => mutation.mutate(true)} onCancel={() => setBlockingMatches(null)} isLoading={mutation.isPending || mutation.isSuccess} />
             </AccountDuplicateWarning>
           ) : (
             <AccountDuplicateWarning matches={similarMatches} blocking={similarMatches.some((match) => match.strength === "exact")} />
@@ -182,7 +184,7 @@ function AccountForm({ account, options }: { account?: Account; options: Account
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.replace(cancelHref)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate(false)} isLoading={mutation.isPending} isDisabled={!values.displayName.trim() || !addressComplete}>
+          <Button variant="primary" onPress={() => mutation.mutate(false)} isLoading={mutation.isPending || mutation.isSuccess} isDisabled={!values.displayName.trim() || !addressComplete}>
             {mode === "edit" ? "Save changes" : "Create account"}
           </Button>
         </>

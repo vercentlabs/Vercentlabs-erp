@@ -14,7 +14,9 @@ import {
 import {
   GST_STATES, SUPPLY_TYPES, TAX_PERMISSIONS, TaxError, computeTax, derivePlaceOfSupply, gstStateName, loadTaxContext, resolveLineTax, summarizeTax, supplyTypeForCustomer, treatmentOfSupply,
 } from "../../core/tax/index.js";
+import { PaymentTermError, listSalesTermOptions, readTermSnapshot, salesTermSnapshot } from "../../core/payment-terms/index.js";
 import { PriceListError } from "./price-lists/constants.js";
+import { salesOrderTrackingReport } from "./order-tracking/summary.js";
 import { resolveSalesPrice, resolveSalesPriceList } from "./price-lists/resolver.js";
 import { allocateDocumentDiscount, checkDiscountRules, discountOptions, readDocumentDiscount } from "./discounts.js";
 
@@ -307,17 +309,27 @@ async function loadDocumentContext(client, context, input, options = {}) {
     [context.organizationId],
   );
   const settings = settingsResult.rows[0] || {};
+  // Payment terms. A document that already has terms keeps them exactly as they were agreed (its own snapshot): a later
+  // change to the customer, the company default or the term itself, even its deactivation, never reaches it. Otherwise:
+  // the terms asked for, else the customer's, else the company default from Sales settings; an active term, offered for Sales.
   let paymentTerm = null;
-  // The document's terms, else the customer's, else the company default from Sales settings.
-  const paymentTermId = input.paymentTermId || party.payment_term_id || settings.default_payment_term_id;
-  if (paymentTermId) {
-    const result = await client.query(
-      `SELECT id,code,name,description,default_due_days FROM tenant.payment_terms WHERE organization_id=$1 AND id=$2 AND status='active'`,
-      [context.organizationId, uuid(paymentTermId, "Payment term")],
-    );
-    paymentTerm = result.rows[0];
-    if (!paymentTerm)
-      throw new SalesError(409, "The selected payment term is not active.");
+  const carriedTerm = readTermSnapshot(input.carriedPaymentTerm);
+  const paymentTermDefaultId = party.payment_term_id || settings.default_payment_term_id || null;
+  const paymentTermsNote = Object.prototype.hasOwnProperty.call(input, "paymentTermsNote") ? text(input.paymentTermsNote, 1000) || null : carriedTerm?.note ?? null;
+  if (carriedTerm?.id && (!input.paymentTermId || input.paymentTermId === carriedTerm.id)) {
+    paymentTerm = { ...input.carriedPaymentTerm, note: paymentTermsNote ?? undefined };
+  } else {
+    // Terms asked for must be usable; a customer default that has since been deactivated gives way to the company default.
+    const candidates = input.paymentTermId ? [input.paymentTermId] : [party.payment_term_id, settings.default_payment_term_id].filter(Boolean);
+    for (const candidate of candidates) {
+      try {
+        paymentTerm = await salesTermSnapshot(client, context.organizationId, uuid(candidate, "Payment term"), paymentTermsNote);
+        break;
+      } catch (error) {
+        if (!(error instanceof PaymentTermError)) throw error;
+        if (input.paymentTermId) throw new SalesError(error.status === 404 ? 409 : error.status, error.message, error.code);
+      }
+    }
   }
   const tax = await documentTaxContext(client, context, input, { party, billing, shipping }, options);
   return {
@@ -336,6 +348,8 @@ async function loadDocumentContext(client, context, input, options = {}) {
     priceList,
     documentDate,
     paymentTerm,
+    // What the terms would be with nothing chosen: the customer's, else the company default.
+    paymentTermDefaultId,
     settings,
   };
 }
@@ -931,14 +945,6 @@ export function redactMargin(value, context) {
   return walk(value);
 }
 
-export async function getSalesDashboard(client, context) {
-  requirePermission(context, "sales.view");
-  const result = await client.query(
-    `SELECT (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('draft','pending_approval','approved','sent')) AS active_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('approved','sent') AND valid_until>=current_date AND valid_until<=current_date+7) AS expiring_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending') AS pending_quote_approvals,(SELECT COALESCE(sum(version.base_currency_total),0) FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.lifecycle_status='confirmed') AS confirmed_order_value,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status='confirmed' AND fulfillment_status IN ('not_started','partially_fulfilled') AND EXISTS (SELECT 1 FROM tenant.sales_order_lines line JOIN tenant.items item ON item.id=line.item_id WHERE line.sales_order_version_id=sales_orders.current_version_id AND item.item_type<>'service')) AS orders_awaiting_delivery,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND billing_status='ready') AS ready_to_invoice`,
-    [context.organizationId],
-  );
-  return result.rows[0];
-}
 export async function getSalesReport(client, context, key) {
   requirePermission(context, "sales.reports.view");
   const allowed = new Set([
@@ -999,40 +1005,9 @@ export async function getSalesReport(client, context, key) {
      WHERE delivery.organization_id=$1 AND delivery.delivery_status IN ('dispatched','delivered')
      ORDER BY delivery.dispatch_date DESC NULLS LAST,delivery.request_number DESC LIMIT 500`,
     "billing-readiness": `SELECT id AS sales_order_id,sales_order_number,billing_status,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status='confirmed' AND billing_status IN ('ready','partially_invoiced') ORDER BY updated_at DESC`,
-    // F059: one reconciled stage per order from Sales, Stock (reservations,
-    // deliveries) and Accounting (invoices, payments), with the exceptions
-    // that need someone's attention.
-    "order-status": `SELECT orders.id AS sales_order_id,orders.sales_order_number,version.customer_snapshot->>'displayName' AS customer,
-        CASE WHEN orders.lifecycle_status='closed' THEN 'Closed'
-             WHEN sum(progress.invoiced_quantity)>=sum(line.quantity-progress.cancelled_quantity) AND COALESCE(max(billing.outstanding),0)=0 AND max(billing.invoiced)>0 THEN 'Paid'
-             WHEN sum(progress.invoiced_quantity)>=sum(line.quantity-progress.cancelled_quantity) THEN 'Invoiced'
-             WHEN sum(progress.invoiced_quantity)>0 THEN 'Partly invoiced'
-             WHEN sum(progress.fulfilled_quantity)>=sum(line.quantity-progress.cancelled_quantity) THEN 'Delivered'
-             WHEN sum(progress.fulfilled_quantity)>0 THEN 'Partly delivered'
-             WHEN sum(progress.reserved_quantity)>0 THEN 'Stock reserved'
-             ELSE 'Confirmed' END AS stage,
-        round(100*sum(progress.reserved_quantity)/NULLIF(sum(line.quantity),0)) AS reserved_pct,
-        round(100*sum(progress.fulfilled_quantity)/NULLIF(sum(line.quantity),0)) AS delivered_pct,
-        round(100*sum(progress.invoiced_quantity)/NULLIF(sum(line.quantity),0)) AS invoiced_pct,
-        COALESCE(max(billing.outstanding),0) AS outstanding,
-        concat_ws('; ',
-          CASE WHEN orders.requested_delivery_date<current_date AND sum(progress.fulfilled_quantity)<sum(line.quantity-progress.cancelled_quantity) THEN 'Delivery overdue' END,
-          CASE WHEN max(billing.overdue)>0 THEN 'Payment overdue' END,
-          CASE WHEN sum(progress.fulfilled_quantity)>sum(progress.invoiced_quantity) THEN 'Delivered, not yet invoiced' END,
-          CASE WHEN sum(progress.cancelled_quantity)>0 THEN 'Part cancelled' END
-        ) AS exceptions
-      FROM tenant.sales_orders orders
-      JOIN tenant.sales_order_versions version ON version.id=orders.current_version_id
-      JOIN tenant.sales_order_lines line ON line.sales_order_version_id=version.id
-      JOIN tenant.sales_order_line_progress progress ON progress.sales_order_line_id=line.id
-      LEFT JOIN LATERAL (SELECT sum(invoice.grand_total) AS invoiced,sum(invoice.outstanding_amount) AS outstanding,
-                                sum(invoice.outstanding_amount) FILTER (WHERE invoice.due_date<current_date) AS overdue
-                           FROM tenant.accounting_customer_invoices invoice
-                          WHERE invoice.organization_id=orders.organization_id AND invoice.source_sales_order_id=orders.id AND invoice.status NOT IN ('draft','cancelled','reversed')) billing ON true
-     WHERE orders.organization_id=$1 AND orders.lifecycle_status IN ('confirmed','closed')
-     GROUP BY orders.id,version.customer_snapshot
-     ORDER BY orders.sales_order_number DESC LIMIT 500`,
   };
+  // Order status: each dimension of every order's progress, from the tracking service (never one squeezed "stage").
+  if (key === "order-status") return salesOrderTrackingReport(client, context.organizationId, { canSeeMoney: Boolean(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("sales.invoice.payments.view")) });
   return (await client.query(queries[key], [context.organizationId])).rows;
 }
 
@@ -1115,10 +1090,7 @@ export async function getSalesOptions(
       `SELECT id,code,name,currency_code,tax_inclusive,is_default FROM tenant.price_lists WHERE organization_id=$1 AND price_list_type='sales' AND status='active' AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY is_default DESC,name`,
       [context.organizationId],
     ),
-    client.query(
-      `SELECT id,code,name,default_due_days FROM tenant.payment_terms WHERE organization_id=$1 AND status='active' ORDER BY default_due_days,name`,
-      [context.organizationId],
-    ),
+    listSalesTermOptions(client, context.organizationId).then((rows) => ({ rows })),
     client.query(
       `SELECT code,name,symbol,decimal_places,is_base FROM tenant.currencies WHERE organization_id=$1 AND status='active' ORDER BY is_base DESC,code`,
       [context.organizationId],
@@ -1185,4 +1157,8 @@ export * from "./availability/index.js";
 export * from "./reservations/index.js";
 export * from "./deliveries/index.js";
 export * from "./invoices/index.js";
+export * from "./returns/index.js";
+export * from "./credit-notes/index.js";
+export * from "./order-tracking/index.js";
+export * from "./home/index.js";
 export { DISCOUNT_PERMISSIONS, DISCOUNT_REASONS } from "./discounts.js";

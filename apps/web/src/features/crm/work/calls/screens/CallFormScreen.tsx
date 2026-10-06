@@ -25,6 +25,7 @@ import {
 } from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { CallApiError, createCall } from "../api/calls-api";
 import { OUTCOME_OPTIONS } from "../constants";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type FormValues = {
   mode: "schedule" | "log";
@@ -82,8 +83,9 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
     setValues((current) => ({ ...current, [key]: value }));
   }
 
+  const submit = useSubmitKey();
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => submit.run(async () => {
       if (!values.subject.trim()) {
         setFieldErrors({ subject: "Subject is required." });
         throw new Error("Review the highlighted fields.");
@@ -118,7 +120,7 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
         input.outcome = values.outcome || null;
       }
       return createCall(input);
-    },
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: scopedQueryKey(workspace, "crm", "calls"),
@@ -164,7 +166,7 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
           <Button
             variant="primary"
             onPress={() => mutation.mutate()}
-            isLoading={mutation.isPending}
+            isLoading={mutation.isPending || mutation.isSuccess}
           >
             {values.mode === "schedule" ? "Schedule call" : "Log call"}
           </Button>
