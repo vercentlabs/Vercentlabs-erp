@@ -3,8 +3,6 @@ import { need, positive } from "./common.js";
 import { explodeBom } from "./engineering.js";
 
 const round = (n) => Math.round(n * 1e6) / 1e6;
-// Purchase-order lines keep their quantity in JSON: read it defensively so one odd value cannot fail a check.
-const PO_QTY = `(CASE WHEN line.data->>'quantity' ~ '^[0-9]+(\\.[0-9]+)?$' THEN (line.data->>'quantity')::numeric ELSE 0 END)`;
 
 export async function getMaterialAvailability(client, c, input = {}) {
   need(c, "manufacturing.view");
@@ -15,8 +13,10 @@ export async function getMaterialAvailability(client, c, input = {}) {
   for (const total of explosion.purchasedTotals) {
     const stock = (await client.query(`SELECT COALESCE(sum(quantity),0) AS q,COALESCE(sum(quantity-reserved_quantity),0) AS free FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2`, [c.organizationId, total.itemId])).rows[0];
     const incoming = (await client.query(
-      `SELECT COALESCE(sum(GREATEST(${PO_QTY}-line.received_quantity,0)),0) AS q FROM tenant.procurement_purchase_order_lines line JOIN tenant.procurement_purchase_orders po ON po.id=line.parent_id
-        WHERE line.organization_id=$1 AND line.item_id=$2 AND po.status IN ('approved','dispatched','acknowledged','partially_received')`,
+      `SELECT COALESCE(sum(status.remaining_to_receive * line.conversion_factor),0) AS q FROM tenant.purchase_order_line_status status
+        JOIN tenant.purchase_order_lines line ON line.organization_id=status.organization_id AND line.id=status.purchase_order_line_id
+        JOIN tenant.purchase_orders po ON po.organization_id=line.organization_id AND po.id=line.purchase_order_id
+        WHERE line.organization_id=$1 AND line.product_id=$2 AND po.status='confirmed'`,
       [c.organizationId, total.itemId],
     )).rows[0];
     const required = Number(total.requiredQuantity);

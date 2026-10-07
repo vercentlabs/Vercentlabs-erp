@@ -32,7 +32,7 @@ const HANDLERS = Object.freeze({
   "accounting.vendor_bill.approve": {
     approve: (client, context, p) => approveVendorBill(client, context, p.documentId, p.contentHash),
     reject: (client, context, p) => rejectVendorBillApproval(client, context, p.documentId),
-    href: () => "/accounting/supplier-invoices",
+    href: (p) => (p?.documentId ? `/procurement/supplier-bills/${p.documentId}` : "/procurement/supplier-bills"),
   },
   "accounting.vendor_payment.approve": {
     approve: (client, context, p) => approveVendorPayment(client, context, p.documentId, p.contentHash),

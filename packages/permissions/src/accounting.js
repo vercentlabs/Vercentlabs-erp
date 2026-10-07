@@ -25,6 +25,7 @@ export const ACCOUNTING_PERMISSIONS = Object.freeze({
   recurringManage: "accounting.recurring.manage",
   reportsView: "accounting.reports.view",
   settingsManage: "accounting.settings.manage",
+  payablesReschedule: "accounting.payables.reschedule",
   auditView: "accounting.audit.view",
   refundView: "accounting.refund.view",
   refundCreate: "accounting.refund.create",

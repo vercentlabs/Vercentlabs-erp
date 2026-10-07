@@ -9,6 +9,10 @@ import { formatDateTime } from "@vercentlabs/localization";
 import { getPosSaleReceipt } from "../../modules/point-of-sale/transaction-continuity-and-documents/receipts.js";
 import { getRefundVoucher } from "../../modules/accounting/index.js";
 import { getCreditNoteDocument, getDeliveryNote, getOrderConfirmation, getQuotation, getReturnNote, getSalesInvoiceDocument, getSalesOrder } from "../../modules/sales/index.js";
+import { getGoodsReceipt, getPurchaseOrderDocument } from "../../modules/procurement/purchase-orders/index.js";
+import { getSupplierBill } from "../../modules/procurement/supplier-bills/index.js";
+import { getPurchaseReturn } from "../../modules/procurement/purchase-returns/index.js";
+import { getSupplierDebitClaim, getVendorCredit } from "../../modules/procurement/vendor-credits/index.js";
 
 const amount = (value, locale = "en-IN") => new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
 const date = (value, timeZone) => (value ? formatDateTime(value, { timeZone: timeZone || "UTC" }) : null);
@@ -165,6 +169,343 @@ function orderConfirmationModel(snapshot, meta) {
       ...(order.terms_and_conditions ? [{ label: "Terms and conditions", text: order.terms_and_conditions }] : []),
     ],
     footer: `${order.sales_order_number}${meta.version > 1 ? ` · revision ${meta.version}` : ""}`,
+  };
+}
+
+// The Purchase Order the supplier receives, built only from the confirmed
+// version's snapshot (or the draft, marked as such): the buying company and
+// its registration, the supplier and its GST registration, the contact and
+// ordering address, bill-to and ship-to, the lines with HSN/SAC, discounts,
+// taxes and totals, expected delivery, payment terms and the notes meant for
+// the supplier. Internal notes are never in a snapshot and never printed.
+function purchaseOrderModel(data) {
+  const { order, lines = [], taxes = [], company = {} } = data.snapshot;
+  const currency = String(order.currency_code || "").trim();
+  const supplier = order.supplier_snapshot || {};
+  const contact = order.contact_snapshot || {};
+  const buyer = order.buyer_registration_snapshot;
+  const supplierTax = order.supplier_tax_snapshot;
+  const status = data.draft ? "Draft - not confirmed, not an order"
+    : order.status === "cancelled" ? "Cancelled" : data.superseded ? "Superseded by a later revision" : null;
+  const taxLines = [];
+  for (const tax of taxes) {
+    const existing = taxLines.find((entry) => entry.tax_type === tax.tax_type && Number(entry.rate) === Number(tax.rate));
+    if (existing) existing.tax_amount = Number(existing.tax_amount) + Number(tax.tax_amount);
+    else taxLines.push({ tax_type: tax.tax_type, label: tax.label, rate: tax.rate, tax_amount: Number(tax.tax_amount) });
+  }
+  const shipTo = order.ship_to_snapshot ? [order.ship_to_snapshot.name, ...addressLines(order.ship_to_snapshot)].filter(Boolean)
+    : order.bill_to_snapshot ? [order.bill_to_snapshot.name, order.bill_to_snapshot.line1].filter(Boolean) : [];
+  return {
+    title: "Purchase Order",
+    documentNumber: order.purchase_order_number,
+    issuedAt: `Order date: ${day(order.order_date) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      { label: "Buyer", lines: sellerLines(buyer, { legalName: company.name, taxId: company.taxId }) },
+      { label: "Supplier", lines: [supplier.legalName ?? supplier.supplierName, supplier.supplierNumber ? `Supplier no. ${supplier.supplierNumber}` : null,
+        supplierTax?.gstin ? `GSTIN ${supplierTax.gstin}` : supplier.gstin ? `GSTIN ${supplier.gstin}` : null, ...addressLines(order.ordering_address_snapshot)].filter(Boolean) },
+      { label: "Attention", lines: [contact.name, contact.designation, contact.email, contact.phone].filter(Boolean) },
+      { label: "Ship to", lines: shipTo },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Purchase order", value: order.purchase_order_number },
+      { label: "Order date", value: day(order.order_date) ?? "" },
+      { label: "Revision", value: data.version > 1 ? String(data.version) : "" },
+      { label: "Your quotation", value: order.supplier_quotation_reference ?? "" },
+      { label: "Your reference", value: order.supplier_reference ?? "" },
+      { label: "Expected delivery", value: day(order.expected_delivery_date) ?? "" },
+      { label: "Payment terms", value: order.payment_term_snapshot?.name ?? "" },
+      { label: "Prices", value: order.price_mode === "inclusive" ? "Inclusive of tax" : "Exclusive of tax" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Item", width: "30%" },
+        { key: "quantity", label: "Qty", align: "right", width: "10%" },
+        { key: "price", label: `Rate (${currency})`, align: "right", width: "12%" },
+        { key: "discount", label: "Discount", align: "right", width: "10%" },
+        { key: "taxable", label: "Taxable", align: "right", width: "13%" },
+        { key: "tax", label: "Tax", align: "right", width: "12%" },
+        { key: "total", label: "Amount", align: "right", width: "13%" },
+      ],
+      rows: lines.map((line) => ({
+        item: [line.product_snapshot?.code, line.description, line.hsn_sac_code ? `${line.product_type === "service" ? "SAC" : "HSN"} ${line.hsn_sac_code}` : null,
+          line.expected_delivery_date ? `Due ${day(line.expected_delivery_date)}` : null].filter(Boolean).join(" · "),
+        quantity: `${Number(line.ordered_quantity)} ${line.uom_snapshot?.code ?? ""}`.trim(),
+        price: amount(line.unit_price),
+        discount: Number(line.line_discount) + Number(line.allocated_document_discount) ? amount(Number(line.line_discount) + Number(line.allocated_document_discount)) : "",
+        taxable: amount(line.taxable_amount),
+        tax: line.tax_treatment && line.tax_treatment !== "taxable" ? String(line.tax_treatment).replace(/_/g, " ") : `${amount(line.tax_total)} (${Number(line.tax_rate)}%)`,
+        total: amount(line.line_total),
+      })),
+    },
+    totals: [
+      { label: "Subtotal", value: amount(order.gross_total) },
+      ...(Number(order.line_discount_total) ? [{ label: "Line discounts", value: `-${amount(order.line_discount_total)}` }] : []),
+      ...(Number(order.document_discount_amount) ? [{ label: "Order discount", value: `-${amount(order.document_discount_amount)}` }] : []),
+      { label: "Taxable value", value: amount(order.taxable_total) },
+      ...(taxLines.length ? taxLines.map((tax) => ({ label: `${tax.label} ${Number(tax.rate)}%`, value: amount(tax.tax_amount) })) : [{ label: "Tax", value: amount(order.tax_total) }]),
+      { label: `Total (${currency})`, value: amount(order.grand_total), emphasis: true },
+    ],
+    notes: [
+      ...paymentTermNotes(order.payment_term_snapshot),
+      ...(order.supplier_notes ? [{ label: "Notes", text: order.supplier_notes }] : []),
+    ],
+    footer: `${order.purchase_order_number}${data.version > 1 ? ` · revision ${data.version}` : ""}`,
+  };
+}
+
+// The Goods Receipt Note: what was physically received against the purchase
+// order, line by line — accepted, held for inspection, damaged and refused —
+// with the supplier's challan. No prices: it records custody, not value.
+// Return Note: the dispatch document for goods returned to the supplier — from the return's own snapshots. Internal notes are never printed;
+// it is not a GST credit note (Finance's debit note and the supplier's credit note are).
+function purchaseReturnModel(data, company) {
+  const { purchaseReturn: ret, lines } = data;
+  const q = (value) => Number(value ?? 0).toString();
+  const status = { draft: "Draft - not dispatched", cancelled: "Cancelled", reversed: `Reversed${ret.reversalReason ? `: ${ret.reversalReason}` : ""}` }[ret.status];
+  return {
+    title: "Purchase Return Note",
+    documentNumber: ret.returnNumber,
+    issuedAt: `Return date: ${day(ret.returnDate) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      { label: "From", lines: [company.name, ret.warehouseName && `Warehouse: ${ret.warehouseName}`].filter(Boolean) },
+      { label: "Return to (supplier)", lines: [ret.supplier?.legalName ?? ret.supplierName, ret.supplier?.gstin ? `GSTIN ${ret.supplier.gstin}` : null, ...addressLines(ret.returnTo)].filter(Boolean) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Purchase order", value: ret.purchaseOrderNumber },
+      { label: "Goods receipts", value: [...new Set(lines.map((line) => line.receiptNumber))].join(", ") },
+      { label: "Supplier RMA", value: ret.supplierRmaReference ?? "" },
+      { label: "Carrier", value: [ret.carrierReference, ret.trackingReference && `Tracking ${ret.trackingReference}`].filter(Boolean).join(" · ") },
+      { label: "Challan / dispatch ref", value: ret.dispatchReference ?? "" },
+      { label: "Dispatched", value: ret.dispatchedAt ? date(ret.dispatchedAt) : "" },
+      { label: "Prepared by", value: ret.createdByName ?? "" },
+      { label: "Posted by", value: ret.postedByName ?? "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Item", width: "46%" },
+        { key: "source", label: "Received on", width: "18%" },
+        { key: "quantity", label: "Returned", align: "right", width: "14%" },
+        { key: "reason", label: "Reason", width: "22%" },
+      ],
+      rows: lines.map((line) => ({
+        item: [line.product?.code, line.description, line.batchNumber && `Lot ${line.batchNumber}`, line.expiryDate && `Exp ${day(line.expiryDate)}`,
+          line.serialNumbers?.length ? `S/N ${line.serialNumbers.join(", ")}` : null].filter(Boolean).join(" · "),
+        source: `${line.receiptNumber} / line ${line.receiptLineNumber}`, quantity: `${q(line.quantity)} ${line.uom?.code ?? ""}`.trim(),
+        reason: [line.reasonLabel, line.reasonNotes].filter(Boolean).join(": "),
+      })),
+    },
+    totals: [],
+    notes: [{ label: "Note", text: "This return note documents goods dispatched back to the supplier. It is not a GST credit or debit note." }],
+  };
+}
+
+function goodsReceiptModel(data, company) {
+  const { receipt, lines } = data;
+  const q = (value) => Number(value ?? 0).toString();
+  const status = { draft: "Draft - not posted", cancelled: "Cancelled", reversed: `Reversed${receipt.reversalReason ? `: ${receipt.reversalReason}` : ""}` }[receipt.status];
+  return {
+    title: "Goods Receipt Note",
+    documentNumber: receipt.receiptNumber,
+    issuedAt: `Received: ${day(receipt.receiptDate) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      { label: "Receiving company", lines: [receipt.company?.legalName ?? receipt.company?.name ?? company.name, receipt.company?.gstin ? `GSTIN ${receipt.company.gstin}` : null,
+        receipt.warehouseName && `Warehouse: ${receipt.warehouseName}`].filter(Boolean) },
+      { label: "Supplier", lines: [receipt.supplierName, ...addressLines(receipt.shipFrom)].filter(Boolean) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Purchase order", value: receipt.purchaseOrderNumber },
+      { label: "Supplier challan", value: [receipt.supplierChallanNumber, day(receipt.supplierChallanDate)].filter(Boolean).join(" dated ") },
+      { label: "Receipt date", value: day(receipt.receiptDate) ?? "" },
+      { label: "Goods arrived", value: receipt.physicalReceivedAt ? date(receipt.physicalReceivedAt) : "" },
+      { label: "Received by", value: receipt.receivedByName ?? "" },
+      { label: "Vehicle", value: receipt.vehicleNumber ?? "" },
+      { label: "Carrier", value: [receipt.carrierName, receipt.trackingReference && `Ref ${receipt.trackingReference}`].filter(Boolean).join(" · ") },
+      { label: "Posted", value: receipt.postedAt ? `${date(receipt.postedAt)}${receipt.postedByName ? ` by ${receipt.postedByName}` : ""}` : "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Item", width: "34%" },
+        { key: "received", label: "Received", align: "right", width: "13%" },
+        { key: "accepted", label: "Accepted", align: "right", width: "13%" },
+        { key: "hold", label: "On hold", align: "right", width: "13%" },
+        { key: "damaged", label: "Damaged", align: "right", width: "13%" },
+        { key: "refused", label: "Refused", align: "right", width: "14%" },
+      ],
+      rows: lines.map((line) => ({
+        item: [`PO line ${line.orderLineNumber}`, line.product?.code, line.description, line.batchNumber && `Lot ${line.batchNumber}`, line.manufacturedDate && `Mfd ${day(line.manufacturedDate)}`,
+          line.expiryDate && `Exp ${day(line.expiryDate)}`, line.serialNumbers?.length ? `S/N ${line.serialNumbers.join(", ")}` : null].filter(Boolean).join(" · "),
+        received: `${q(line.receivedQuantity)} ${line.uom?.code ?? ""}`.trim(), accepted: q(line.acceptedQuantity), hold: q(line.inspectionQuantity), damaged: q(line.damagedQuantity),
+        refused: q(line.refusedQuantity),
+      })),
+    },
+    totals: [],
+    notes: [
+      ...data.discrepancies.map((entry) => ({ label: `${entry.label}${entry.lineNumber ? ` (line ${entry.lineNumber})` : ""}${entry.quantity ? ` × ${q(entry.quantity)}` : ""}`, text: entry.notes })),
+      ...(receipt.notes ? [{ label: "Receiving notes", text: receipt.notes }] : []),
+    ],
+    footer: receipt.receiptNumber,
+  };
+}
+
+// The internal purchase voucher of a supplier bill: Vercentlabs' accounting record of the supplier's claim, from the bill as
+// posted (its snapshots). It is never the supplier's tax invoice: that is the original attached to the bill.
+function supplierBillModel(data, company) {
+  const { bill, lines } = data;
+  const m = (value) => (value === null || value === undefined ? "" : Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const q = (value) => Number(value ?? 0).toString();
+  const status = { draft: "Draft - not posted", awaiting_approval: "Awaiting approval - not posted", cancelled: "Cancelled", reversed: `Reversed${bill.reversalReason ? `: ${bill.reversalReason}` : ""}` }[bill.documentStatus];
+  return {
+    title: "Purchase Voucher (internal record — not the supplier's tax invoice)",
+    documentNumber: bill.billNumber,
+    issuedAt: `Posting date: ${day(bill.postingDate) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      { label: "Supplier", lines: [bill.supplier?.legalName ?? bill.supplierName, bill.supplierTaxRegistration?.gstin ? `GSTIN ${bill.supplierTaxRegistration.gstin}` : bill.supplier?.gstin ? `GSTIN ${bill.supplier.gstin}` : null,
+        ...addressLines(bill.supplierAddress)].filter(Boolean) },
+      { label: "Buying company", lines: [bill.buyingRegistration?.legalName ?? bill.buyingRegistration?.name ?? company.name, bill.buyingRegistration?.gstin ? `GSTIN ${bill.buyingRegistration.gstin}` : null].filter(Boolean) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Supplier invoice", value: [bill.supplierInvoiceNumber, day(bill.supplierInvoiceDate)].filter(Boolean).join(" dated ") },
+      { label: "Purchase order", value: bill.purchaseOrderNumber ?? (bill.sourceType === "direct" ? "Direct expense" : "") },
+      { label: "Due date", value: day(bill.dueDate) ?? "" },
+      { label: "Place of supply", value: bill.placeOfSupply ?? "" },
+      { label: "Currency", value: bill.currencyCode === bill.baseCurrencyCode ? bill.currencyCode : `${bill.currencyCode} @ ${bill.exchangeRate}` },
+      { label: "Reverse charge", value: bill.reverseCharge ? "Yes" : "" },
+      { label: "Posted", value: bill.postedAt ? `${date(bill.postedAt)}${bill.postedByName ? ` by ${bill.postedByName}` : ""}` : "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Item", width: "36%" }, { key: "quantity", label: "Qty", align: "right", width: "10%" }, { key: "price", label: "Rate", align: "right", width: "12%" },
+        { key: "taxable", label: "Taxable", align: "right", width: "14%" }, { key: "tax", label: "Tax", align: "right", width: "14%" }, { key: "total", label: "Total", align: "right", width: "14%" },
+      ],
+      rows: lines.map((line) => ({
+        item: [line.description, line.hsnSacCode && `HSN/SAC ${line.hsnSacCode}`, line.taxes.map((tax) => `${tax.label} ${Number(tax.rate)}%${tax.classification === "reverse_charge" ? " (RCM)" : ""}`).join(", ")].filter(Boolean).join(" · "),
+        quantity: `${q(line.quantity)} ${line.uom?.code ?? ""}`.trim(), price: m(line.unitPrice), taxable: m(line.taxableAmount), tax: m(line.taxAmount), total: m(line.lineTotal),
+      })),
+    },
+    totals: [
+      { label: "Taxable value", value: m(bill.taxableTotal) }, { label: "Tax", value: m(bill.taxTotal) },
+      ...(Number(bill.reverseChargeTaxTotal) > 0 ? [{ label: "Reverse-charge tax (self-assessed, not payable to supplier)", value: m(bill.reverseChargeTaxTotal) }] : []),
+      { label: "Invoice total", value: m(bill.invoiceTotal) },
+      ...(Number(bill.withholdingTotal) > 0 ? [{ label: `TDS withheld${bill.withholdingSection ? ` (${bill.withholdingSection.code})` : ""}`, value: `- ${m(bill.withholdingTotal)}` }] : []),
+      ...(Number(bill.roundingAdjustment) !== 0 ? [{ label: "Rounding", value: m(bill.roundingAdjustment) }] : []),
+      { label: "Net payable", value: m(bill.netPayable) },
+    ],
+    notes: [
+      ...(bill.notes ? [{ label: "Notes", text: bill.notes }] : []),
+      { label: "This voucher", text: "An internal accounting record. The supplier's original tax invoice is the document attached to this bill." },
+    ],
+    footer: bill.billNumber,
+  };
+}
+
+// Debit Note to Supplier: the buyer's commercial claim as issued — what is claimed, on which bills, and why. It is a claim, not a tax document:
+// it changes neither the payable nor input tax (the supplier's credit note, recorded as a vendor credit, does).
+function debitClaimModel(data, company) {
+  const { claim, lines, responses } = data;
+  const m = (value) => (value === null || value === undefined ? "" : Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const status = { draft: "Draft - not issued", closed: `Closed${claim.closeReason ? `: ${claim.closeReason}` : ""}` }[claim.status];
+  const latest = responses[responses.length - 1];
+  return {
+    title: "Debit Note to Supplier",
+    documentNumber: claim.claimNumber,
+    issuedAt: `Issue date: ${day(claim.issueDate) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      { label: "From", lines: [company.name, company.taxId ? `GSTIN ${company.taxId}` : null].filter(Boolean) },
+      { label: "To (supplier)", lines: [claim.supplier?.legalName ?? claim.supplierName, claim.supplier?.gstin ? `GSTIN ${claim.supplier.gstin}` : null,
+        claim.supplier?.supplierNumber ? `Supplier no. ${claim.supplier.supplierNumber}` : null].filter(Boolean) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Reason", value: claim.reason },
+      { label: "Bills", value: [...new Set(lines.map((line) => line.billNumber).filter(Boolean))].join(", ") },
+      { label: "Supplier reference", value: claim.supplierReference ?? "" },
+      { label: "Currency", value: claim.currencyCode },
+      { label: "Supplier response", value: latest ? `${latest.decision.replace("_", " ")}${latest.respondedOn ? ` on ${day(latest.respondedOn)}` : ""}` : "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Claimed for", width: "46%" }, { key: "source", label: "Bill / line", width: "16%" }, { key: "amount", label: "Amount", align: "right", width: "13%" },
+        { key: "tax", label: "Tax (est.)", align: "right", width: "12%" }, { key: "total", label: "Total", align: "right", width: "13%" },
+      ],
+      rows: lines.map((line) => ({
+        item: [line.description, line.reasonLabel, line.basis === "quantity" ? `${Number(line.quantity)} × ${m(line.unitValue)}` : null].filter(Boolean).join(" · "),
+        source: line.billNumber ? `${line.billNumber}${line.billLineSequence ? ` / ${line.billLineSequence}` : ""}` : "", amount: m(line.amount), tax: m(line.taxAmount), total: m(line.total),
+      })),
+    },
+    totals: [
+      { label: "Amount claimed", value: m(claim.claimedAmount) },
+      ...(Number(claim.acceptedAmount) > 0 ? [{ label: "Accepted by supplier", value: m(claim.acceptedAmount) }] : []),
+      ...(Number(claim.disputedAmount) > 0 ? [{ label: "Disputed / rejected", value: m(claim.disputedAmount) }] : []),
+    ],
+    notes: [
+      ...(claim.notes ? [{ label: "Notes", text: claim.notes }] : []),
+      { label: "This document", text: "A commercial claim to the supplier. Please issue your credit note for the amount accepted; it does not by itself change any amount payable or tax." },
+    ],
+    footer: claim.claimNumber,
+  };
+}
+
+// Vendor Credit Voucher: the internal accounting record of a supplier's credit as posted — what it credits, its tax treatment, and how it was
+// settled (applied to bills, refunded). It is not the supplier's credit note: that is the document attached to the credit.
+function vendorCreditModel(data, company) {
+  const { credit, lines, allocations, refunds } = data;
+  const m = (value) => (value === null || value === undefined ? "" : Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const status = { draft: "Draft - not posted", awaiting_approval: "Awaiting approval - not posted", cancelled: "Cancelled", reversed: `Reversed${credit.reversalReason ? `: ${credit.reversalReason}` : ""}` }[credit.status];
+  return {
+    title: "Vendor Credit Voucher (internal record)",
+    documentNumber: credit.number,
+    issuedAt: `Posting date: ${day(credit.postingDate) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      { label: "Supplier", lines: [credit.supplier?.legalName ?? credit.supplierName, credit.supplierTax?.gstin ? `GSTIN ${credit.supplierTax.gstin}` : credit.supplier?.gstin ? `GSTIN ${credit.supplier.gstin}` : null].filter(Boolean) },
+      { label: "Buying company", lines: [credit.buyingRegistration?.legalName ?? credit.buyingRegistration?.name ?? company.name, credit.buyingRegistration?.gstin ? `GSTIN ${credit.buyingRegistration.gstin}` : null].filter(Boolean) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Origin", value: credit.originLabel },
+      { label: "Supplier credit note", value: [credit.supplierCreditNoteNumber, day(credit.supplierCreditNoteDate)].filter(Boolean).join(" dated ") },
+      { label: "Debit note", value: credit.claim?.number ?? "" },
+      { label: "Bills corrected", value: [...new Set(lines.map((line) => line.billNumber).filter(Boolean))].join(", ") },
+      { label: "Returns", value: [...new Set(lines.map((line) => line.returnNumber).filter(Boolean))].join(", ") },
+      { label: "Tax treatment", value: credit.taxTreatmentLabel },
+      { label: "Reason", value: credit.reason ?? "" },
+      { label: "Authorised basis", value: credit.authorizationReason ?? "" },
+      { label: "Currency", value: credit.currencyCode },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Credited", width: "40%" }, { key: "source", label: "Bill / line", width: "14%" }, { key: "quantity", label: "Qty", align: "right", width: "8%" },
+        { key: "taxable", label: "Taxable", align: "right", width: "13%" }, { key: "tax", label: "Tax", align: "right", width: "12%" }, { key: "total", label: "Total", align: "right", width: "13%" },
+      ],
+      rows: lines.map((line) => ({
+        item: [line.description, line.reasonLabel, line.components.map((tax) => `${tax.label} ${Number(tax.rate)}%`).join(", ")].filter(Boolean).join(" · "),
+        source: line.billNumber ? `${line.billNumber} / ${line.billLineSequence}` : "On account", quantity: line.basis === "quantity" ? Number(line.quantity).toString() : "",
+        taxable: m(line.taxable), tax: m(line.tax), total: m(line.total),
+      })),
+    },
+    totals: [
+      { label: "Taxable value", value: m(credit.taxable) }, { label: "Tax", value: m(credit.tax) },
+      ...(Number(credit.withholding) > 0 ? [{ label: "TDS adjusted", value: `- ${m(credit.withholding)}` }] : []),
+      { label: "Credit to supplier account", value: m(credit.total) },
+      ...(Number(credit.applied) > 0 ? [{ label: "Applied to bills", value: m(credit.applied) }] : []),
+      ...(Number(credit.refunded) > 0 ? [{ label: "Refunded by supplier", value: m(credit.refunded) }] : []),
+      ...(credit.status === "posted" ? [{ label: "Unapplied balance", value: m(credit.available) }] : []),
+    ],
+    notes: [
+      ...allocations.map((entry) => ({ label: `Applied to ${entry.billNumber}`, text: m(entry.amount) })),
+      ...refunds.map((entry) => ({ label: `Refund ${entry.refundNumber}${entry.status === "reversed" ? " (reversed)" : ""}`, text: `${m(entry.amount)} on ${day(entry.date)} · ${entry.reference ?? ""}` })),
+      { label: "This voucher", text: "An internal accounting record. The supplier's credit note is the document attached to this credit." },
+    ],
+    footer: credit.number,
   };
 }
 
@@ -660,6 +1001,85 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     fileName: (data) => `Return-Note-${data.salesReturn.return_number}`,
   }),
   Object.freeze({
+    key: "procurement.purchase_order",
+    moduleKey: "procurement",
+    permission: "procurement.po.view",
+    label: "Purchase order",
+    // The current confirmed version (or ?version= an earlier one, through the order's own access rules); a draft prints as a draft.
+    async load(client, session, id, options = {}) {
+      return getPurchaseOrderDocument(client, salesContext(session), id, { version: options.version ?? null });
+    },
+    async toModel(_client, _session, data) {
+      return purchaseOrderModel(data);
+    },
+    fileName: (data) => `Purchase-Order-${data.snapshot.order.purchase_order_number}${data.draft ? "-draft" : data.version > 1 ? `-rev${data.version}` : ""}`,
+  }),
+  Object.freeze({
+    key: "procurement.goods_receipt",
+    moduleKey: "procurement",
+    permission: "procurement.po.view",
+    label: "Goods receipt note",
+    async load(client, session, id) {
+      return { detail: await getGoodsReceipt(client, salesContext(session), id), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return goodsReceiptModel(data.detail, data.company);
+    },
+    fileName: (data) => `GRN-${data.detail.receipt.receiptNumber}${data.detail.receipt.status === "draft" ? "-draft" : ""}`,
+  }),
+  Object.freeze({
+    key: "procurement.purchase_return",
+    moduleKey: "procurement",
+    permission: "procurement.returns.view",
+    label: "Purchase return note",
+    async load(client, session, id) {
+      return { detail: await getPurchaseReturn(client, salesContext(session), id), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return purchaseReturnModel(data.detail, data.company);
+    },
+    fileName: (data) => `Return-Note-${data.detail.purchaseReturn.returnNumber}${data.detail.purchaseReturn.status === "draft" ? "-draft" : ""}`,
+  }),
+  Object.freeze({
+    key: "procurement.supplier_bill",
+    moduleKey: "procurement",
+    permission: "procurement.bills.view",
+    label: "Purchase voucher",
+    async load(client, session, id) {
+      return { detail: await getSupplierBill(client, salesContext(session), id), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return supplierBillModel(data.detail, data.company);
+    },
+    fileName: (data) => `Purchase-Voucher-${data.detail.bill.billNumber}`,
+  }),
+  Object.freeze({
+    key: "procurement.debit_claim",
+    moduleKey: "procurement",
+    permission: "procurement.claims.view",
+    label: "Debit note to supplier",
+    async load(client, session, id) {
+      return { detail: await getSupplierDebitClaim(client, salesContext(session), id), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return debitClaimModel(data.detail, data.company);
+    },
+    fileName: (data) => `Debit-Note-${data.detail.claim.claimNumber}${data.detail.claim.status === "draft" ? "-draft" : ""}`,
+  }),
+  Object.freeze({
+    key: "procurement.vendor_credit",
+    moduleKey: "procurement",
+    permission: "procurement.bills.view",
+    label: "Vendor credit voucher",
+    async load(client, session, id) {
+      return { detail: await getVendorCredit(client, salesContext(session), id), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return vendorCreditModel(data.detail, data.company);
+    },
+    fileName: (data) => `Vendor-Credit-${data.detail.credit.number}${data.detail.credit.status === "draft" ? "-draft" : ""}`,
+  }),
+  Object.freeze({
     key: "sales.order.confirmation",
     moduleKey: "sales",
     permission: "sales.order.export",
@@ -684,11 +1104,11 @@ export function getDocumentRenderer(key) {
  * document. The caller has already checked module access and the renderer's
  * permission; the module read re-checks its own permission and scope.
  */
-export async function renderAuthorizedDocument(client, session, key, id) {
+export async function renderAuthorizedDocument(client, session, key, id, options = {}) {
   const renderer = getDocumentRenderer(key);
   if (!renderer) throw Object.assign(new Error("Unknown document."), { status: 404, code: "DOCUMENT_RENDERER_UNKNOWN" });
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""))) throw Object.assign(new Error("Document not found."), { status: 404, code: "DOCUMENT_NOT_FOUND" });
-  const data = await renderer.load(client, session, id);
+  const data = await renderer.load(client, session, id, options);
   const model = await renderer.toModel(client, session, data);
   const { renderDocumentPdf, safePdfFileName } = await import("@vercentlabs/document-engine/pdf");
   return { fileName: safePdfFileName(renderer.fileName(data)), body: await renderDocumentPdf(model) };

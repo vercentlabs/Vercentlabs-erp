@@ -7,17 +7,17 @@
 import { SUPPLIER_PERMISSIONS } from "./constants.js";
 import { loadSupplier, supplierCan } from "./access.js";
 
-const OPEN_ORDER = ["draft", "submitted", "pending_approval", "approved", "dispatched", "acknowledged", "partially_received", "pending_amendment_approval"];
+const OPEN_ORDER = ["draft", "confirmed"];
 const OPEN_BILL = ["posted", "partially_paid", "overdue", "disputed"];
 
 export async function getSupplierPurchaseSummary(client, context, supplierId) {
   const supplier = await loadSupplier(client, context, supplierId);
   const row = (await client.query(
-    `SELECT (SELECT count(*) FROM tenant.procurement_purchase_orders po WHERE po.organization_id = $1 AND po.supplier_id = $2 AND po.status <> 'cancelled')::int AS purchase_orders,
-            (SELECT count(*) FROM tenant.procurement_purchase_orders po WHERE po.organization_id = $1 AND po.supplier_id = $2 AND po.status = ANY($3::text[]))::int AS open_purchase_orders,
-            (SELECT max(po.created_at) FROM tenant.procurement_purchase_orders po WHERE po.organization_id = $1 AND po.supplier_id = $2 AND po.status <> 'cancelled') AS last_purchase_at,
-            (SELECT count(*) FROM tenant.procurement_receipts receipt WHERE receipt.organization_id = $1 AND receipt.supplier_id = $2 AND receipt.status IN ('draft', 'submitted'))::int AS open_receipts,
-            (SELECT count(*) FROM tenant.procurement_returns ret WHERE ret.organization_id = $1 AND ret.supplier_id = $2)::int AS returns`,
+    `SELECT (SELECT count(*) FROM tenant.purchase_orders po WHERE po.organization_id = $1 AND po.supplier_id = $2 AND po.status <> 'cancelled')::int AS purchase_orders,
+            (SELECT count(*) FROM tenant.purchase_orders po WHERE po.organization_id = $1 AND po.supplier_id = $2 AND po.status = ANY($3::text[]))::int AS open_purchase_orders,
+            (SELECT max(po.order_date) FROM tenant.purchase_orders po WHERE po.organization_id = $1 AND po.supplier_id = $2 AND po.status <> 'cancelled') AS last_purchase_at,
+            (SELECT count(*) FROM tenant.goods_receipts receipt WHERE receipt.organization_id = $1 AND receipt.supplier_id = $2 AND receipt.status = 'draft')::int AS open_receipts,
+            (SELECT count(*) FROM tenant.purchase_returns ret WHERE ret.organization_id = $1 AND ret.supplier_id = $2 AND ret.document_status = 'posted')::int AS returns`,
     [context.organizationId, supplier.id, OPEN_ORDER])).rows[0];
   return {
     purchaseOrders: row.purchase_orders, openPurchaseOrders: row.open_purchase_orders, lastPurchaseAt: row.last_purchase_at, openGoodsReceipts: row.open_receipts, purchaseReturns: row.returns,
@@ -57,29 +57,28 @@ export async function listSupplierDocuments(client, context, supplierId, kind) {
   switch (kind) {
     case "orders":
       return (await client.query(
-        `SELECT id, status, created_at, COALESCE(data->>'purchaseOrderNumber', id::text) AS number, data->>'title' AS title, data->>'currencyCode' AS currency,
-                NULLIF(data #>> '{totals,grandTotal}', '')::numeric AS total, data->>'expectedDeliveryDate' AS expected
-           FROM tenant.procurement_purchase_orders WHERE organization_id = $1 AND supplier_id = $2 ORDER BY created_at DESC LIMIT 200`, values)).rows
-        .map((row) => ({ id: row.id, number: row.number, title: row.title, status: row.status, date: row.created_at, expected: row.expected, currency: row.currency,
-          total: row.total === null ? null : Number(row.total), href: `/procurement/orders/${row.id}` }));
+        `SELECT id, status, order_date, purchase_order_number AS number, supplier_reference AS title, btrim(currency_code) AS currency, grand_total AS total, expected_delivery_date AS expected
+           FROM tenant.purchase_orders WHERE organization_id = $1 AND supplier_id = $2 ORDER BY order_date DESC, created_at DESC LIMIT 200`, values)).rows
+        .map((row) => ({ id: row.id, number: row.number, title: row.title, status: row.status, date: row.order_date, expected: row.expected, currency: row.currency,
+          total: row.total === null ? null : Number(row.total), href: `/procurement/purchase-orders/${row.id}` }));
     case "receipts":
       return (await client.query(
-        `SELECT receipt.id, receipt.status, receipt.created_at, COALESCE(receipt.data->>'receiptNumber', receipt.id::text) AS number, receipt.data->>'receiptDate' AS receipt_date,
-                COALESCE(po.data->>'purchaseOrderNumber', '') AS order_number
-           FROM tenant.procurement_receipts receipt LEFT JOIN tenant.procurement_purchase_orders po ON po.organization_id = receipt.organization_id AND po.id = receipt.purchase_order_id
-          WHERE receipt.organization_id = $1 AND receipt.supplier_id = $2 ORDER BY receipt.created_at DESC LIMIT 200`, values)).rows
-        .map((row) => ({ id: row.id, number: row.number, status: row.status, date: row.receipt_date ?? row.created_at, orderNumber: row.order_number || null, href: `/procurement/receipts/${row.id}` }));
+        `SELECT receipt.id, receipt.status, receipt.receipt_number AS number, receipt.receipt_date, po.purchase_order_number AS order_number
+           FROM tenant.goods_receipts receipt JOIN tenant.purchase_orders po ON po.organization_id = receipt.organization_id AND po.id = receipt.purchase_order_id
+          WHERE receipt.organization_id = $1 AND receipt.supplier_id = $2 ORDER BY receipt.receipt_date DESC, receipt.created_at DESC LIMIT 200`, values)).rows
+        .map((row) => ({ id: row.id, number: row.number, status: row.status, date: row.receipt_date, orderNumber: row.order_number || null, href: `/procurement/goods-receipts/${row.id}` }));
     case "returns":
       return (await client.query(
-        `SELECT id, status, created_at, COALESCE(data->>'returnNumber', data->>'number', id::text) AS number FROM tenant.procurement_returns
-          WHERE organization_id = $1 AND supplier_id = $2 ORDER BY created_at DESC LIMIT 200`, values)).rows
-        .map((row) => ({ id: row.id, number: row.number, status: row.status, date: row.created_at, href: null }));
+        `SELECT purchase_return.id, purchase_return.document_status AS status, purchase_return.return_date, purchase_return.return_number AS number, po.purchase_order_number AS order_number
+           FROM tenant.purchase_returns purchase_return JOIN tenant.purchase_orders po ON po.organization_id = purchase_return.organization_id AND po.id = purchase_return.purchase_order_id
+          WHERE purchase_return.organization_id = $1 AND purchase_return.supplier_id = $2 ORDER BY purchase_return.return_date DESC, purchase_return.created_at DESC LIMIT 200`, values)).rows
+        .map((row) => ({ id: row.id, number: row.number, status: row.status, date: row.return_date, orderNumber: row.order_number, href: `/procurement/purchase-returns/${row.id}` }));
     case "bills":
       return (await client.query(
-        `SELECT id, bill_number, supplier_invoice_number, bill_type, status, bill_date, due_date, btrim(currency_code) AS currency, grand_total, outstanding_amount
+        `SELECT id, bill_number, COALESCE(supplier_invoice_reference, supplier_invoice_number) AS supplier_invoice_number, bill_type, status, bill_date, due_date, btrim(currency_code) AS currency, grand_total, outstanding_amount
            FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND party_id = $2 ORDER BY bill_date DESC, created_at DESC LIMIT 200`, [context.organizationId, supplier.party_id])).rows
         .map((row) => ({ id: row.id, number: row.bill_number, supplierInvoiceNumber: row.supplier_invoice_number, type: row.bill_type, status: row.status, date: row.bill_date, dueDate: row.due_date,
-          currency: row.currency, total: money ? Number(row.grand_total) : null, outstanding: money ? Number(row.outstanding_amount) : null, href: "/accounting/supplier-invoices" }));
+          currency: row.currency, total: money ? Number(row.grand_total) : null, outstanding: money ? Number(row.outstanding_amount) : null, href: `/procurement/supplier-bills/${row.id}` }));
     case "payments":
       if (!money) return [];
       return (await client.query(

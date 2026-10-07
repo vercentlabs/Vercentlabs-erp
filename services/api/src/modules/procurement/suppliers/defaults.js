@@ -17,7 +17,7 @@
 //
 // Only an active supplier starts new business, and only active locations and
 // people are offered or accepted. This is checked here, on the server.
-import { purchaseTermSnapshot } from "../../../core/payment-terms/index.js";
+import { getSupplierDefaultPaymentTerm, purchaseTermSnapshot } from "../../../core/payment-terms/index.js";
 import { gstStateName } from "../../../core/tax/index.js";
 import { SUPPLIER_STATUS, SupplierError, isUuid } from "./constants.js";
 import { loadSupplier } from "./access.js";
@@ -128,7 +128,10 @@ export async function supplierDefaultsFor(client, organizationId, supplierId, { 
   let paymentTerm = null;
   let paymentTermWarning = null;
   try {
-    paymentTerm = await purchaseTermSnapshot(client, organizationId, supplier.payment_term_id);
+    // The supplier's own terms, else the company default for Purchases.
+    const resolved = await getSupplierDefaultPaymentTerm(client, organizationId, supplier.id);
+    paymentTerm = resolved.paymentTermId ? { ...(await purchaseTermSnapshot(client, organizationId, resolved.paymentTermId)), source: resolved.source } : null;
+    if (!paymentTerm) paymentTermWarning = "The supplier has no payment terms and there is no company default. Choose the payment terms on the document.";
   } catch (error) {
     paymentTermWarning = `${error.message} Choose the payment terms on the document.`;
   }

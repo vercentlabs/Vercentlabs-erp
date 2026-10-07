@@ -338,14 +338,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Sales Settings", "/sales/settings"), aliases: ["setup", "configuration", "settings"] },
           // ---- Commercial
           {
-            ...available("Payment Terms", "/sales/settings/payment-terms"),
-            parent: "sales-settings",
-            group: "commercial",
-            description: "Due on receipt, Net N days or custom terms, and the default for new documents.",
-            aliases: ["net 30", "due date", "credit terms"],
-            requiredPermission: "payment_terms.view",
-          },
-          {
             ...available("Discount Controls", "/sales/settings/discounts"),
             parent: "sales-settings",
             group: "commercial",
@@ -393,51 +385,64 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     icon: Truck,
     requiredPermission: "procurement.view",
     sections: [
-      {
-        id: "overview",
-        label: "Overview",
-        items: [
-          available("Home", "/procurement"),
-          available("Settings", "/procurement/settings"),
-        ],
-      },
-      {
-        id: "requests",
-        label: "Requests",
-        featureRange: "F063-F066",
-        items: [available("Approval Queue", "/procurement/approval-queue")],
-      },
+      // Nine workspaces in seven sections. Partial receipts, rejections, partial billing, matching, direct bills and payment schedules
+      // live inside their documents (tabs and contextual actions), never as their own sidebar entries.
+      { id: "overview", label: "Overview", items: [{ ...available("Home", "/procurement"), aliases: ["procurement dashboard", "requires attention"] }] },
       {
         id: "purchasing",
         label: "Purchasing",
-        featureRange: "F073-F078",
-        items: [available("Purchase Orders", "/procurement/orders")],
+        items: [
+          { ...available("Suppliers", "/procurement/suppliers"), aliases: ["supplier master", "vendors", "vendor", "supplier import", "gstin", "supplier contacts", "supplier addresses"],
+            requiredAnyPermission: ["procurement.suppliers.view", "procurement.suppliers.view_all"] },
+          { ...available("Purchase Orders", "/procurement/purchase-orders"), aliases: ["po", "purchase order", "buy", "partial receipts", "partial billing"],
+            requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
+          { ...available("Supplier Quotations", "/procurement/purchase-orders/quotations"), parent: "purchase-orders", aliases: ["quotation", "supplier quote", "rfq response"],
+            description: "Supplier quotations an order can be created from.", requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
+        ],
       },
       {
         id: "receiving",
         label: "Receiving",
-        featureRange: "F079-F082",
         items: [
-          available("Goods Receipts", "/procurement/receipts"),
-          available("Rejections", "/procurement/rejections"),
+          { ...available("Goods Receipts", "/procurement/goods-receipts"), aliases: ["grn", "goods received", "receiving issues", "rejected receipts", "dock refusal", "discrepancies"],
+            requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
+          { ...available("Receiving Issues", "/procurement/receiving-issues"), parent: "goods-receipts", aliases: ["refused goods", "quarantine", "shortage"],
+            description: "Dock refusals, shortages, wrong deliveries and post-receipt rejections.", requiredAnyPermission: ["procurement.rejections.view", "procurement.rejections.view_all"] },
         ],
       },
       {
-        id: "invoices-cost",
-        label: "Invoices & Cost",
-        featureRange: "F083-F086",
+        id: "billing",
+        label: "Billing",
         items: [
-          available("Supplier Invoices", "/procurement/invoices"),
-          available("Three-Way Match", "/procurement/three-way-match"),
+          { ...available("Supplier Bills", "/procurement/supplier-bills"), aliases: ["supplier invoice", "vendor bill", "purchase invoice", "direct bill", "2-way matching", "3-way matching", "payment schedule"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
         ],
       },
       {
-        id: "suppliers",
-        label: "Suppliers",
-        featureRange: "F087-F090",
+        id: "returns-credits",
+        label: "Returns & Credits",
         items: [
-          { ...available("Suppliers", "/procurement/suppliers"), aliases: ["supplier master", "vendors", "vendor", "supplier import", "gstin"], requiredAnyPermission: ["procurement.suppliers.view", "procurement.suppliers.view_all"] },
-          available("Categories", "/procurement/categories"),
+          { ...available("Purchase Returns", "/procurement/purchase-returns"), aliases: ["return to supplier", "rtv", "replacement"],
+            requiredAnyPermission: ["procurement.returns.view", "procurement.po.view", "procurement.po.view_all"] },
+          { ...available("Debit Notes & Vendor Credits", "/procurement/debit-notes-credits"), aliases: ["debit note", "debit claim", "vendor credit", "supplier credit", "supplier credit note", "supplier refund"],
+            requiredAnyPermission: ["procurement.claims.view", "procurement.claims.manage", "procurement.credits.manage", "procurement.bills.view", "accounting.payables.manage"] },
+        ],
+      },
+      {
+        id: "insights",
+        label: "Insights",
+        items: [
+          { ...available("Reports", "/procurement/reports"), aliases: ["procurement reports", "ap aging", "overdue bills", "vendor credit balances", "unbilled receipts"] },
+          { ...available("Payment Obligations & AP Aging", "/procurement/reports/payment-obligations"), parent: "reports", aliases: ["payment obligations", "due payments", "msme payments"],
+            description: "Overdue and upcoming instalments, AP aging and statutory deadlines.", requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+        ],
+      },
+      {
+        id: "administration",
+        label: "Administration",
+        items: [
+          { ...available("Procurement Settings", "/procurement/settings"), aliases: ["procurement configuration", "matching rules", "receiving rules"] },
+          { ...available("Supplier Categories", "/procurement/settings/categories"), parent: "procurement-settings", description: "Categories suppliers are grouped by." },
         ],
       },
     ],

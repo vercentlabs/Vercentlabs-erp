@@ -23,6 +23,29 @@ import { SupplierStatusBadge, formatAddress } from "../supplier-format";
 import { StatusDialog, type StatusAction } from "../components/SupplierDialogs";
 import { DocumentsPanel, FilesPanel, HistoryPanel, PaymentDetailsPanel } from "../components/SupplierPanels";
 import { AddressesContactsPanel } from "../components/AddressesContactsPanel";
+import { useTabParam } from "@/features/procurement/shared/navigation";
+import { listDebitNotesAndCredits } from "@/features/procurement/vendor-credits/api/vendor-credits-api";
+
+const SUPPLIER_TABS = ["overview", "contacts", "addresses", "tax", "purchase-orders", "goods-receipts", "supplier-bills", "returns-credits", "payment-details", "notes", "history"] as const;
+
+// The supplier's debit notes (claims) and vendor credits, from Debit Notes & Vendor Credits.
+function SupplierCreditsPanel({ supplierId }: { supplierId: string }) {
+  const workspace = useWorkspaceContext();
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "supplier-credits", supplierId), queryFn: () => listDebitNotesAndCredits({ supplierId }) });
+  const rows = query.data?.rows ?? [];
+  return (
+    <ProcPanel title="Debit claims and vendor credits" description="Claims raised with this supplier and the credits it gave."
+      actions={<LinkButton size="compact" variant="secondary" href={`/procurement/debit-notes-credits/new?supplierId=${supplierId}`}>New Credit / Claim</LinkButton>}>
+      {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : !rows.length ? <p className="text-sm text-text-muted">None.</p> : (
+        <ul className="flex flex-col divide-y divide-border text-sm">
+          {rows.map((row) => <li key={`${row.kind}-${row.id}`} className="flex flex-wrap justify-between gap-2 py-2"><span><Link className="text-brand hover:underline" href={row.href}>{row.number}</Link>
+            {" "}· {row.kind === "claim" ? "Debit claim" : "Vendor credit"} · {row.statusLabel}{row.settlementLabel ? ` · ${row.settlementLabel}` : ""}</span>
+            <span className="tabular-nums">{money(row.currencyCode, row.total)}</span></li>)}
+        </ul>
+      )}
+    </ProcPanel>
+  );
+}
 
 export function SupplierDetailScreen({ supplierId }: { supplierId: string }) {
   const workspace = useWorkspaceContext();
@@ -50,7 +73,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const { supplier, actions } = detail;
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useTabParam(SUPPLIER_TABS, "overview");
   const [statusAction, setStatusAction] = useState<StatusAction | null>(null);
   const [deleting, setDeleting] = useState(false);
   const summary = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "supplier", supplier.id, "summary"), queryFn: () => getSummary(supplier.id) });
@@ -87,10 +110,11 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
             ...(supplier.isCustomer ? [{ label: "Also customer", value: supplier.customerNumber ?? "Yes" }] : []),
           ],
           primaryAction: actions.createPurchaseOrder ? (
-            <LinkButton variant="primary" href={`/procurement/orders/new?supplierId=${supplier.id}`}><ShoppingCart className="size-4" aria-hidden="true" />Create Purchase Order</LinkButton>
+            <LinkButton variant="primary" href={`/procurement/purchase-orders/new?supplierId=${supplier.id}`}><ShoppingCart className="size-4" aria-hidden="true" />Create Purchase Order</LinkButton>
           ) : undefined,
           secondaryActions: (
             <div className="flex flex-wrap items-center gap-2">
+              {actions.createBill && <LinkButton variant="secondary" href={`/procurement/supplier-bills/new?source=direct&supplierId=${supplier.id}`}>Create Supplier Bill</LinkButton>}
               {actions.edit && <LinkButton variant="secondary" href={`/procurement/suppliers/${supplier.id}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
               {actions.activate && <Button variant="secondary" onPress={() => setStatusAction("activate")}>Activate</Button>}
               {actions.unblock && <Button variant="secondary" onPress={() => setStatusAction("unblock")}>Unblock</Button>}
@@ -104,14 +128,14 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
         <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
           <TabList aria-label="Supplier sections">
             <Tab id="overview">Overview</Tab>
-            {(actions.viewAddresses || actions.viewContacts) && <Tab id="places">Addresses &amp; Contacts</Tab>}
-            <Tab id="commercial">Commercial</Tab>
-            <Tab id="tax">Tax &amp; Compliance</Tab>
-            <Tab id="purchases">Purchases</Tab>
-            <Tab id="receipts">Receipts</Tab>
-            <Tab id="bills">Bills &amp; Payments</Tab>
-            <Tab id="returns">Returns &amp; Debit Notes</Tab>
-            {actions.viewPaymentDetails && <Tab id="payment">Payment Details</Tab>}
+            {actions.viewContacts && <Tab id="contacts">Contacts</Tab>}
+            {actions.viewAddresses && <Tab id="addresses">Addresses</Tab>}
+            <Tab id="tax">Tax &amp; Registrations</Tab>
+            <Tab id="purchase-orders">Purchase Orders</Tab>
+            <Tab id="goods-receipts">Goods Receipts</Tab>
+            <Tab id="supplier-bills">Supplier Bills</Tab>
+            <Tab id="returns-credits">Returns &amp; Credits</Tab>
+            {actions.viewPaymentDetails && <Tab id="payment-details">Payment Details</Tab>}
             <Tab id="notes">Notes &amp; Attachments</Tab>
             <Tab id="history">History</Tab>
           </TabList>
@@ -155,15 +179,12 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                 ) : <p className="text-sm text-text-muted">Loading…</p>}
                 {payables && !payables.amountsVisible && <p className="text-xs text-text-muted">Amounts are shown to people who may see supplier payables.</p>}
               </ProcPanel>
-            </div>
-          </TabPanel>
-          {(actions.viewAddresses || actions.viewContacts) && <TabPanel id="places"><div className="pt-4"><AddressesContactsPanel detail={detail} options={options} onChanged={onChanged} onShowHistory={() => setTab("history")} /></div></TabPanel>}
-          <TabPanel id="commercial">
-            <div className="flex flex-col gap-4 pt-4">
               <ProcPanel title="Commercial defaults" description="New RFQs and purchase orders start from these. A document keeps what it was given: changing them here never changes an existing order or bill.">
                 <ProcFacts columns={3} items={[
                   { label: "Default currency", value: supplier.defaultCurrency },
                   { label: "Default payment terms", value: supplier.paymentTermName ?? "—" },
+                  { label: "MSME classification", value: supplier.msme?.classification ? `${{ micro: "Micro", small: "Small", medium: "Medium", not_msme: "Not an MSME" }[supplier.msme.classification] ?? supplier.msme.classification}${supplier.msme.registrationNumber ? ` · ${supplier.msme.registrationNumber}` : ""}${supplier.msme.effectiveFrom ? ` (from ${supplier.msme.effectiveFrom})` : ""}` : "Not recorded" },
+                  { label: "Payment agreement", value: supplier.msme?.writtenPaymentAgreement ? `Written: ${supplier.msme.agreedPaymentDays ?? "—"} days${supplier.msme.paymentAgreementReference ? ` · ${supplier.msme.paymentAgreementReference}` : ""}` : "No written agreement" },
                   { label: "Buyer", value: supplier.assignedBuyerName ?? "Unassigned" },
                   { label: "Category", value: supplier.categoryLabel },
                   ...(["ordering", "rfq", "accounts", "dispatch"] as const).map((purpose) => ({
@@ -178,6 +199,8 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
               </ProcPanel>
             </div>
           </TabPanel>
+          {actions.viewContacts && <TabPanel id="contacts"><div className="pt-4"><AddressesContactsPanel detail={detail} options={options} onChanged={onChanged} onShowHistory={() => setTab("history")} show="contacts" /></div></TabPanel>}
+          {actions.viewAddresses && <TabPanel id="addresses"><div className="pt-4"><AddressesContactsPanel detail={detail} options={options} onChanged={onChanged} onShowHistory={() => setTab("history")} show="addresses" /></div></TabPanel>}
           <TabPanel id="tax">
             <div className="flex flex-col gap-4 pt-4">
               <ProcPanel title="Tax identity" description="Master data: each document keeps a snapshot, so a change here never rewrites a posted bill.">
@@ -209,16 +232,16 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
               </ProcPanel>
             </div>
           </TabPanel>
-          <TabPanel id="purchases"><div className="pt-4"><DocumentsPanel supplierId={supplier.id} kind="orders" /></div></TabPanel>
-          <TabPanel id="receipts"><div className="pt-4"><DocumentsPanel supplierId={supplier.id} kind="receipts" /></div></TabPanel>
-          <TabPanel id="bills">
+          <TabPanel id="purchase-orders"><div className="pt-4"><DocumentsPanel supplierId={supplier.id} kind="orders" /></div></TabPanel>
+          <TabPanel id="goods-receipts"><div className="pt-4"><DocumentsPanel supplierId={supplier.id} kind="receipts" /></div></TabPanel>
+          <TabPanel id="supplier-bills">
             <div className="flex flex-col gap-4 pt-4">
               <DocumentsPanel supplierId={supplier.id} kind="bills" />
               {actions.viewPayables && <DocumentsPanel supplierId={supplier.id} kind="payments" />}
             </div>
           </TabPanel>
-          <TabPanel id="returns"><div className="pt-4"><DocumentsPanel supplierId={supplier.id} kind="returns" /></div></TabPanel>
-          {actions.viewPaymentDetails && <TabPanel id="payment"><div className="pt-4"><PaymentDetailsPanel detail={detail} options={options} onChanged={onChanged} /></div></TabPanel>}
+          <TabPanel id="returns-credits"><div className="flex flex-col gap-4 pt-4"><DocumentsPanel supplierId={supplier.id} kind="returns" /><SupplierCreditsPanel supplierId={supplier.id} /></div></TabPanel>
+          {actions.viewPaymentDetails && <TabPanel id="payment-details"><div className="pt-4"><PaymentDetailsPanel detail={detail} options={options} onChanged={onChanged} /></div></TabPanel>}
           <TabPanel id="notes">
             <div className="flex flex-col gap-4 pt-4">
               <ProcPanel title="Internal notes" description="Never printed on a purchase order.">

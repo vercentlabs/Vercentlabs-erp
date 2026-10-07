@@ -14,7 +14,7 @@ export const categoriesList: ListConfig = {
     col("desc", "Description", (r) => String(r.description ?? "—")),
     statusCol(),
   ],
-  newHref: "/procurement/categories/new",
+  newHref: "/procurement/settings/categories/new",
   newLabel: "New category",
   createPermission: "procurement.settings.manage",
   emptyTitle: "No categories yet",
@@ -25,8 +25,8 @@ export const categoriesList: ListConfig = {
 export const categoryForm: FormConfig = {
   resource: "categories",
   noun: "category",
-  backHref: "/procurement/categories",
-  detailHref: () => "/procurement/categories",
+  backHref: "/procurement/settings/categories",
+  detailHref: () => "/procurement/settings/categories",
   fields: [
     { name: "code", label: "Code", kind: "text", required: true },
     { name: "name", label: "Name", kind: "text", required: true },

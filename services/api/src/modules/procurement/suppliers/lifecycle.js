@@ -69,8 +69,8 @@ export async function unblockSupplier(client, context, supplierId, input = {}) {
 
 // Every place a supplier can be used: procurement documents, other modules' records, and Accounts Payable through its party.
 const USES = Object.freeze([
-  ["procurement_purchase_orders", "supplier_id", "purchase orders"], ["procurement_receipts", "supplier_id", "goods receipts"], ["procurement_returns", "supplier_id", "purchase returns"],
-  ["procurement_invoice_matches", "supplier_id", "invoice matches"], ["procurement_match_exceptions", "supplier_id", "match exceptions"],
+  ["purchase_orders", "supplier_id", "purchase orders"], ["goods_receipts", "supplier_id", "goods receipts"], ["purchase_returns", "supplier_id", "purchase returns"],
+  ["supplier_quotations", "supplier_id", "supplier quotations"],
   ["procurement_agreements", "supplier_id", "agreements"], ["procurement_service_entries", "supplier_id", "service entries"], ["procurement_sourcing_awards", "supplier_id", "RFQ awards"],
   ["procurement_subcontract_orders", "supplier_id", "subcontract orders"], ["procurement_reorder_requests", "supplier_id", "reorder requests"],
   ["procurement_supplier_prices", "supplier_id", "supplier prices"], ["procurement_supplier_lead_times", "supplier_id", "lead times"],

@@ -35,6 +35,7 @@ export type Product = {
   inventoryTracked: boolean;
   trackingType: "none" | "batch" | "serial";
   allowNegativeStock: boolean;
+  requiresExpiryDate: boolean;
   valuationMethod: "moving_average" | "fifo" | "standard";
   hsnSacCode: string | null;
   hsnSacLabel: "HSN" | "SAC";
@@ -59,7 +60,7 @@ export type ProductInput = Partial<{
   type: ProductType; code: string; name: string; categoryId: string | null; description: string | null; salesDescription: string | null; purchaseDescription: string | null;
   sku: string | null; barcode: string | null; baseUomId: string; salesUomId: string | null; salesUomFactor: number | null; purchaseUomId: string | null; purchaseUomFactor: number | null;
   isSellable: boolean; isPurchasable: boolean; hsnSacCode: string | null; taxCategoryId: string | null; defaultSalesPrice: number | null; defaultPurchaseCost: number | null;
-  standardCost: number | null; trackingType: string; allowNegativeStock: boolean; valuationMethod: string; status: string;
+  standardCost: number | null; trackingType: string; allowNegativeStock: boolean; requiresExpiryDate: boolean; valuationMethod: string; status: string;
 }>;
 
 export type ProductOptions = {

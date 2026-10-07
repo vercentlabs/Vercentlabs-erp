@@ -206,7 +206,7 @@ export function ProductDetailScreen({ productId }: { productId: string }) {
                 </>
               )}
               <Card title="Inventory settings">
-                <Facts items={[["Lot / serial tracking", TRACKING[product.trackingType]], ["Valuation method", VALUATION[product.valuationMethod]], ["Allow negative stock", yesNo(product.allowNegativeStock)],
+                <Facts items={[["Lot / serial tracking", TRACKING[product.trackingType]], ["Valuation method", VALUATION[product.valuationMethod]], ["Allow negative stock", yesNo(product.allowNegativeStock)], ...(product.trackingType === "batch" ? [["Lots need an expiry date", yesNo(product.requiresExpiryDate)] as [string, string]] : []),
                   ...(product.standardCost !== undefined ? [["Standard cost", price(product.standardCost)] as [string, ReactNode]] : [])]} />
               </Card>
             </div>

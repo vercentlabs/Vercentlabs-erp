@@ -24,10 +24,10 @@ import {
   toBaseAmount,
   uuid,
 } from "./core.js";
-import { createJournalEntry, postJournalEntry } from "./journals.js";
+import { createJournalEntry, postJournalEntry, reverseJournalEntry } from "./journals.js";
 import { sub } from "./money.js";
 import { recordDocumentTaxLedger } from "./tax.js";
-import { resolvePaymentSchedule } from "./schedules.js";
+import { resolvePaymentSchedule, writeDocumentSchedule } from "./schedules.js";
 import { createVendorSettlementAdjustment } from "./settlements.js";
 
 async function purchaseJournal(client, context, ledgerId) {
@@ -48,7 +48,7 @@ async function paymentJournal(client, context, ledgerId, bankAccountId = null) {
   return { journal_id: journal.rows[0].journal_id, gl_account_id: bank.account_id };
 }
 
-async function reduceBillSchedules(client, context, billId, amountValue, scheduleId = null) {
+export async function reduceBillSchedules(client, context, billId, amountValue, scheduleId = null) {
   let remaining = decimal(amountValue);
   const values = [context.organizationId, billId];
   let scheduleFilter = "";
@@ -79,34 +79,140 @@ function reversePostingLines(lines) {
   return lines.map((line) => ({ ...line, debit: line.credit || 0, credit: line.debit || 0 }));
 }
 
+// The amounts of each bill line, as the caller worked them out with the shared tax engine (price, discounts, tax components); Accounting checks
+// they are consistent and that every line has its accounts. A line may carry a price variance (booked to its own account), reverse-charge tax
+// (self-assessed, not owed to the supplier) and withholding (deducted from what the supplier is paid).
 async function normalizeBillLines(client, context, organization, ledger, billDate, lines, billCurrency, exchangeRate) {
   if (!Array.isArray(lines) || !lines.length) throw new AccountingError(400, "At least one supplier bill line is required.");
   const precision = await getCurrencyPrecision(client, context, billCurrency);
   const basePrecision = await getCurrencyPrecision(client, context, organization.base_currency);
-  let subtotal = 0n; let discountTotal = 0n; let taxTotal = 0n; let withholdingTotal = 0n; let grandTotal = 0n;
+  let subtotal = 0n; let discountTotal = 0n; let taxTotal = 0n; let withholdingTotal = 0n; let grandTotal = 0n; let reverseChargeTotal = 0n;
   const normalized = [];
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const quantity = positiveAmount(line.quantity || 1, `Line ${index + 1} quantity`);
     const unitPrice = positiveAmount(line.unitPrice, `Line ${index + 1} unit price`);
-    const gross = roundMoney(mul(quantity, unitPrice), precision);
+    const gross = line.grossAmount !== undefined ? roundMoney(decimal(line.grossAmount), precision) : roundMoney(mul(quantity, unitPrice), precision);
     const discount = roundMoney(decimal(line.discountAmount || 0), precision);
     const tax = roundMoney(decimal(line.taxAmount || 0), precision);
     const withholding = roundMoney(decimal(line.withholdingAmount || 0), precision);
-    if (discount < 0n || discount > gross || tax < 0n || withholding < 0n) throw new AccountingError(400, `Line ${index + 1} amounts are invalid.`);
+    const reverseChargeTax = roundMoney(decimal(line.reverseChargeTax || 0), precision);
+    const variance = roundMoney(decimal(line.varianceAmount || 0), precision);
+    if (discount < 0n || discount > gross || tax < 0n || withholding < 0n || reverseChargeTax < 0n) throw new AccountingError(400, `Line ${index + 1} amounts are invalid.`);
     const net = sub(gross, discount);
+    if (line.netAmount !== undefined && roundMoney(decimal(line.netAmount), precision) !== net) throw new AccountingError(400, `Line ${index + 1}: the taxable value does not reconcile.`);
     const total = net + tax - withholding;
     if (total <= 0n) throw new AccountingError(400, `Line ${index + 1} total must be positive.`);
     const expense = line.accountId ? { account_id: uuid(line.accountId, "Expense account") } : await getAccountMapping(client, context, ledger.id, "expense", { itemId: line.itemId || null, date: billDate });
-    const taxAccount = tax > 0n ? (line.taxAccountId ? { account_id: uuid(line.taxAccountId, "Input tax account") } : await getAccountMapping(client, context, ledger.id, "input_tax", { date: billDate })) : null;
+    const blocked = line.inputTaxEligibility === "blocked";
+    // A blocked credit is part of the cost: the tax is booked to the line's own account, never to recoverable input tax.
+    const taxAccount = tax > 0n ? (blocked ? { account_id: expense.account_id } : line.taxAccountId ? { account_id: uuid(line.taxAccountId, "Input tax account") } : await getAccountMapping(client, context, ledger.id, "input_tax", { date: billDate })) : null;
     const withholdingAccount = withholding > 0n ? (line.withholdingAccountId ? { account_id: uuid(line.withholdingAccountId, "Withholding account") } : await getAccountMapping(client, context, ledger.id, "withholding_tax", { date: billDate })) : null;
-    subtotal += gross; discountTotal += discount; taxTotal += tax; withholdingTotal += withholding; grandTotal += total;
-    normalized.push({ sequence: index + 1, itemId: optionalUuid(line.itemId, "Item"), description: requiredText(line.description, `Line ${index + 1} description`, 1000), hsnSacCode: text(line.hsnSacCode, 30) || null, quantity, uomId: optionalUuid(line.uomId, "Unit of measure"), unitPrice, discount, net, tax, withholding, total, expenseAccountId: expense.account_id, taxAccountId: taxAccount?.account_id || null, withholdingAccountId: withholdingAccount?.account_id || null, taxDetails: Array.isArray(line.taxDetails) ? line.taxDetails : [], departmentId: optionalUuid(line.departmentId, "Department"), costCenterId: optionalUuid(line.costCenterId, "Cost centre") });
+    const varianceAccountId = variance !== 0n ? uuid(line.varianceAccountId, `Line ${index + 1} price variance account`) : null;
+    subtotal += gross; discountTotal += discount; taxTotal += tax; withholdingTotal += withholding; grandTotal += total; reverseChargeTotal += reverseChargeTax;
+    normalized.push({
+      sequence: index + 1, itemId: optionalUuid(line.itemId, "Item"), description: requiredText(line.description, `Line ${index + 1} description`, 1000), hsnSacCode: text(line.hsnSacCode, 30) || null,
+      quantity, uomId: optionalUuid(line.uomId, "Unit of measure"), unitPrice, gross, discount, net, tax, withholding, total, expenseAccountId: expense.account_id,
+      taxAccountId: taxAccount?.account_id || null, withholdingAccountId: withholdingAccount?.account_id || null, taxDetails: Array.isArray(line.taxDetails) ? line.taxDetails : [],
+      departmentId: optionalUuid(line.departmentId, "Department"), costCenterId: optionalUuid(line.costCenterId, "Cost centre"),
+      productType: text(line.productType, 30) || null, productSnapshot: line.productSnapshot ?? null, uomSnapshot: line.uomSnapshot ?? null, taxCategoryId: optionalUuid(line.taxCategoryId, "Tax category"),
+      lineDiscountType: ["percent", "amount"].includes(line.lineDiscountType) ? line.lineDiscountType : null, lineDiscountValue: decimal(line.lineDiscountValue || 0),
+      lineDiscountAmount: roundMoney(decimal(line.lineDiscountAmount ?? line.discountAmount ?? 0), precision), allocatedDocumentDiscount: roundMoney(decimal(line.allocatedDocumentDiscount || 0), precision),
+      reverseCharge: Boolean(line.reverseCharge), reverseChargeTax, withholdingRate: decimal(line.withholdingRate || 0), varianceAccountId, variance,
+      purchaseOrderLineId: optionalUuid(line.purchaseOrderLineId, "Purchase order line"), goodsReceiptLineId: optionalUuid(line.goodsReceiptLineId, "Goods receipt line"),
+      orderedUnitPrice: line.orderedUnitPrice === undefined || line.orderedUnitPrice === null ? null : decimal(line.orderedUnitPrice),
+      sourceBillLineId: optionalUuid(line.sourceBillLineId, "Source bill line"), adjustmentKind: ["quantity", "value"].includes(line.adjustmentKind) ? line.adjustmentKind : null,
+      creditReason: text(line.creditReason, 60) || null, creditBasis: ["quantity", "amount"].includes(line.creditBasis) ? line.creditBasis : null,
+      purchaseReturnLineId: optionalUuid(line.purchaseReturnLineId, "Purchase return line"),
+      taxComponents: Array.isArray(line.taxComponents) ? line.taxComponents : [],
+      inputTaxEligibility: blocked ? "blocked" : "eligible", expenseCategoryId: optionalUuid(line.expenseCategoryId, "Expense category"),
+    });
   }
-  return { lines: normalized, subtotal, discountTotal, taxTotal, withholdingTotal, grandTotal, baseTotal: toBaseAmount(grandTotal, exchangeRate, basePrecision), precision, basePrecision };
+  return { lines: normalized, subtotal, discountTotal, taxTotal, withholdingTotal, grandTotal, reverseChargeTotal, baseTotal: toBaseAmount(grandTotal, exchangeRate, basePrecision), precision, basePrecision };
 }
 
-export async function createVendorBill(client, context, input) {
+const d = (value) => (value === null || value === undefined ? null : asDatabaseDecimal(value));
+async function writeBillLines(client, context, billId, lines) {
+  for (const line of lines) {
+    const row = (await client.query(
+      `INSERT INTO tenant.accounting_vendor_bill_lines (organization_id,vendor_bill_id,sequence,item_id,description,hsn_sac_code,quantity,uom_id,unit_price,discount_amount,net_amount,tax_amount,
+         withholding_amount,line_total,expense_account_id,tax_account_id,withholding_account_id,tax_details,department_id,cost_center_id,created_by,product_type,product_snapshot,uom_snapshot,
+         tax_category_id,gross_amount,line_discount_type,line_discount_value,line_discount_amount,allocated_document_discount,reverse_charge,reverse_charge_tax,withholding_rate,
+         variance_account_id,variance_amount,purchase_order_line_id,goods_receipt_line_id,ordered_unit_price,source_bill_line_id,adjustment_kind,input_tax_eligibility,expense_category_id,
+         credit_reason,credit_basis,purchase_return_line_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19,$20,$21,$22,$23::jsonb,$24::jsonb,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45) RETURNING id`,
+      [context.organizationId, billId, line.sequence, line.itemId, line.description, line.hsnSacCode, d(line.quantity), line.uomId, d(line.unitPrice), d(line.discount), d(line.net),
+        d(line.tax), d(line.withholding), d(line.total), line.expenseAccountId, line.taxAccountId, line.withholdingAccountId, JSON.stringify(line.taxDetails), line.departmentId,
+        line.costCenterId, context.userId, line.productType, line.productSnapshot ? JSON.stringify(line.productSnapshot) : null, line.uomSnapshot ? JSON.stringify(line.uomSnapshot) : null,
+        line.taxCategoryId, d(line.gross), line.lineDiscountType, d(line.lineDiscountValue), d(line.lineDiscountAmount), d(line.allocatedDocumentDiscount), line.reverseCharge,
+        d(line.reverseChargeTax), d(line.withholdingRate), line.varianceAccountId, d(line.variance), line.purchaseOrderLineId, line.goodsReceiptLineId, d(line.orderedUnitPrice),
+        line.sourceBillLineId, line.adjustmentKind, line.inputTaxEligibility, line.expenseCategoryId, line.creditReason ?? null, line.creditBasis ?? null, line.purchaseReturnLineId ?? null])).rows[0];
+    line.id = row.id;
+    for (const component of line.taxComponents) {
+      await client.query(
+        `INSERT INTO tenant.supplier_bill_line_taxes (organization_id,vendor_bill_id,vendor_bill_line_id,tax_type,label,tax_rate,taxable_base,tax_amount,tax_classification) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [context.organizationId, billId, row.id, text(component.taxType, 30) || "other", text(component.label, 60) || "Tax", d(decimal(component.rate || 0)), d(decimal(component.taxableAmount || 0)),
+          d(decimal(component.taxAmount || 0)), component.classification === "reverse_charge" ? "reverse_charge" : "input"]);
+    }
+  }
+}
+
+// The procurement fields a supplier bill carries beside Accounting's own (see migration 0049).
+const HEADER_EXTRAS = [
+  ["supplierInvoiceReference", "supplier_invoice_reference", (value) => text(value, 100) || null], ["supplierId", "supplier_id", (value) => optionalUuid(value, "Supplier")],
+  ["sourceType", "source_type", (value) => (["purchase_order", "goods_receipt", "direct"].includes(value) ? value : null)],
+  ["supplierTaxRegistrationId", "supplier_tax_registration_id", (value) => optionalUuid(value, "Supplier registration")],
+  ["supplierTaxSnapshot", "supplier_tax_snapshot", (value) => (value ? JSON.stringify(value) : null), "::jsonb"],
+  ["supplierAddressSnapshot", "supplier_address_snapshot", (value) => (value ? JSON.stringify(value) : null), "::jsonb"],
+  ["buyingRegistrationId", "buying_registration_id", (value) => optionalUuid(value, "Company registration")],
+  ["buyingRegistrationSnapshot", "buying_registration_snapshot", (value) => (value ? JSON.stringify(value) : null), "::jsonb"],
+  ["placeOfSupply", "place_of_supply", (value) => text(value, 10) || null], ["supplyNature", "supply_nature", (value) => text(value, 30) || null],
+  ["reverseCharge", "reverse_charge", (value) => Boolean(value)], ["priceMode", "price_mode", (value) => (value === "inclusive" ? "inclusive" : "exclusive")],
+  ["documentDiscountType", "document_discount_type", (value) => (["percent", "amount"].includes(value) ? value : null)],
+  ["documentDiscountValue", "document_discount_value", (value) => asDatabaseDecimal(decimal(value || 0))],
+  ["supplierStatedTotal", "supplier_stated_total", (value) => (value === undefined || value === null || value === "" ? null : asDatabaseDecimal(decimal(value)))],
+  ["paymentTermId", "payment_term_id", (value) => optionalUuid(value, "Payment term")], ["withholdingSectionId", "withholding_section_id", (value) => optionalUuid(value, "Withholding section")],
+  ["duplicateOverrideReason", "duplicate_override_reason", (value) => text(value, 1000) || null], ["debitNoteReason", "debit_note_reason", (value) => text(value, 1000) || null],
+  ["sourcePurchaseReturnId", "source_purchase_return_id", (value) => optionalUuid(value, "Purchase return")],
+  ["computedDueDate", "computed_due_date", (value) => (value ? isoDate(value, "Due date") : null)],
+  ["dueDateOverrideReason", "due_date_override_reason", (value) => text(value, 1000) || null],
+  // A vendor credit (migration 0055): where it comes from, the supplier's credit note date, its tax treatment and the claim it resolves.
+  ["creditOrigin", "credit_origin", (value) => (["supplier_credit_note", "accepted_claim", "other_authorized"].includes(value) ? value : null)],
+  ["supplierCreditNoteDate", "supplier_credit_note_date", (value) => (value ? isoDate(value, "Supplier credit note date") : null)],
+  ["taxTreatment", "tax_treatment", (value) => (["gst_adjusting", "financial_only"].includes(value) ? value : null)],
+  ["debitClaimId", "debit_claim_id", (value) => optionalUuid(value, "Debit claim")],
+  ["creditAuthorizationReason", "credit_authorization_reason", (value) => text(value, 1000) || null],
+  ["creditAuthorizedBy", "credit_authorized_by", (value) => optionalUuid(value, "Authorised by")],
+  // Payment terms (migration 0056): the invoice received date, the terms the supplier's invoice states, why the agreed terms changed, the acceptance date.
+  ["invoiceReceivedDate", "invoice_received_date", (value) => (value ? isoDate(value, "Invoice received date") : null)],
+  ["supplierStatedTerms", "supplier_stated_terms", (value) => text(value, 200) || null],
+  ["supplierStatedTermId", "supplier_stated_term_id", (value) => optionalUuid(value, "Supplier stated terms")],
+  ["paymentTermChangeReason", "payment_term_change_reason", (value) => text(value, 1000) || null],
+  ["acceptanceDate", "acceptance_date", (value) => (value ? isoDate(value, "Acceptance date") : null)],
+];
+async function writeHeaderExtras(client, context, billId, input, totals) {
+  const values = [context.organizationId, billId];
+  const sets = [];
+  for (const [key, column, read, cast = ""] of HEADER_EXTRAS) {
+    if (!Object.prototype.hasOwnProperty.call(input, key)) continue;
+    values.push(read(input[key]));
+    sets.push(`${column}=$${values.length}${cast}`);
+  }
+  if (totals) {
+    values.push(asDatabaseDecimal(sub(totals.subtotal, totals.discountTotal)));
+    sets.push(`taxable_total=$${values.length}`);
+    values.push(asDatabaseDecimal(sub(totals.subtotal, totals.discountTotal) + totals.taxTotal));
+    sets.push(`invoice_total=$${values.length}`);
+    values.push(asDatabaseDecimal(totals.reverseChargeTotal));
+    sets.push(`reverse_charge_tax_total=$${values.length}`);
+  }
+  if (input.duplicateOverrideReason) { values.push(context.userId || null); sets.push(`duplicate_override_by=$${values.length}`); }
+  if (Object.prototype.hasOwnProperty.call(input, "dueDateOverrideReason")) { values.push(input.dueDateOverrideReason ? context.userId || null : null); sets.push(`due_date_override_by=$${values.length}`); }
+  if (sets.length) await client.query(`UPDATE tenant.accounting_vendor_bills SET ${sets.join(",")} WHERE organization_id=$1 AND id=$2`, values);
+}
+
+// options.documentNumber: the number the calling module allocated in its own series (a vendor credit's VC-…); otherwise Finance numbers it.
+export async function createVendorBill(client, context, input, options = {}) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.payablesManage);
   const organization = await loadOrganization(client, context);
   const ledger = await getPrimaryLedger(client, context, input.ledgerId);
@@ -126,7 +232,7 @@ export async function createVendorBill(client, context, input) {
   const paymentSchedule = await resolvePaymentSchedule(client, context, {
     documentDate: billDate, explicitDueDate, paymentTermId: input.paymentTermId,
     partyPaymentTermId: supplier.payment_term_id, snapshot: input.paymentTermSnapshot,
-    total: grandTotal, precision: totals.precision,
+    total: grandTotal, precision: totals.precision, dates: { invoiceReceivedDate: input.invoiceReceivedDate ?? null, postingDate: accountingDate },
   });
   const dueDate = paymentSchedule.dueDate;
   const billType = ["bill", "credit_note", "debit_note", "opening"].includes(input.billType) ? input.billType : "bill";
@@ -142,20 +248,83 @@ export async function createVendorBill(client, context, input) {
     if (billType === "credit_note" && source.rows[0].bill_type === "credit_note") throw new AccountingError(409, "A vendor credit note cannot be credited again.");
   }
   const entityType = billType === "credit_note" ? "vendor_credit_note" : "vendor_bill";
-  const billNumber = await allocateNumber(client, context.organizationId, entityType);
-  const result = await client.query(`INSERT INTO tenant.accounting_vendor_bills (organization_id,ledger_id,bill_number,supplier_invoice_number,bill_type,party_id,source_purchase_order_id,source_goods_receipt_id,source_bill_id,bill_date,accounting_date,due_date,currency_code,functional_currency_code,exchange_rate,supplier_snapshot,payment_term_snapshot,subtotal,discount_total,charge_total,tax_total,withholding_total,rounding_adjustment,grand_total,base_currency_total,outstanding_amount,matching_status,status,notes,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18,$19,$20,$21,$22,$23,$24,$25,$24,$26,'draft',$27,$28,$28) RETURNING *`, [context.organizationId, ledger.id, billNumber, text(input.supplierInvoiceNumber, 100) || null, billType, supplier.id, optionalUuid(input.sourcePurchaseOrderId, "Purchase order"), optionalUuid(input.sourceGoodsReceiptId, "Goods receipt"), sourceBillId, billDate, accountingDate, dueDate, billCurrency, organization.base_currency, asDatabaseDecimal(rate), JSON.stringify(input.supplierSnapshot || { id: supplier.id, code: supplier.code, displayName: supplier.display_name, legalName: supplier.legal_name, gstin: supplier.gstin, pan: supplier.pan }), JSON.stringify(paymentSchedule.snapshot), asDatabaseDecimal(totals.subtotal), asDatabaseDecimal(totals.discountTotal), asDatabaseDecimal(chargeTotal), asDatabaseDecimal(totals.taxTotal), asDatabaseDecimal(totals.withholdingTotal), asDatabaseDecimal(roundingAdjustment), asDatabaseDecimal(grandTotal), asDatabaseDecimal(baseTotal), input.matchingStatus && ["not_required","pending","matched","exception","overridden"].includes(input.matchingStatus) ? input.matchingStatus : "not_required", text(input.notes, 2000) || null, context.userId]);
+  const billNumber = text(options.documentNumber, 60) || await allocateNumber(client, context.organizationId, entityType);
+  // The supplier's invoice number is kept as supplied (supplier_invoice_reference); the duplicate key is set when the bill is posted.
+  const result = await client.query(`INSERT INTO tenant.accounting_vendor_bills (organization_id,ledger_id,bill_number,supplier_invoice_number,bill_type,party_id,source_purchase_order_id,source_goods_receipt_id,source_bill_id,bill_date,accounting_date,due_date,currency_code,functional_currency_code,exchange_rate,supplier_snapshot,payment_term_snapshot,subtotal,discount_total,charge_total,tax_total,withholding_total,rounding_adjustment,grand_total,base_currency_total,outstanding_amount,matching_status,status,notes,created_by,updated_by,supplier_invoice_reference) VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$21,$22,$23,$24,$23,$25,'draft',$26,$27,$27,$28) RETURNING *`, [context.organizationId, ledger.id, billNumber, billType, supplier.id, optionalUuid(input.sourcePurchaseOrderId, "Purchase order"), optionalUuid(input.sourceGoodsReceiptId, "Goods receipt"), sourceBillId, billDate, accountingDate, dueDate, billCurrency, organization.base_currency, asDatabaseDecimal(rate), JSON.stringify(input.supplierSnapshot || { id: supplier.id, code: supplier.code, displayName: supplier.display_name, legalName: supplier.legal_name, gstin: supplier.gstin, pan: supplier.pan }), JSON.stringify(paymentSchedule.snapshot), asDatabaseDecimal(totals.subtotal), asDatabaseDecimal(totals.discountTotal), asDatabaseDecimal(chargeTotal), asDatabaseDecimal(totals.taxTotal), asDatabaseDecimal(totals.withholdingTotal), asDatabaseDecimal(roundingAdjustment), asDatabaseDecimal(grandTotal), asDatabaseDecimal(baseTotal), input.matchingStatus && ["not_required","pending","matched","exception","overridden"].includes(input.matchingStatus) ? input.matchingStatus : "not_required", text(input.notes, 2000) || null, context.userId, text(input.supplierInvoiceReference ?? input.supplierInvoiceNumber, 100) || null]);
   const bill = result.rows[0];
-  for (const line of totals.lines) await client.query(`INSERT INTO tenant.accounting_vendor_bill_lines (organization_id,vendor_bill_id,sequence,item_id,description,hsn_sac_code,quantity,uom_id,unit_price,discount_amount,net_amount,tax_amount,withholding_amount,line_total,expense_account_id,tax_account_id,withholding_account_id,tax_details,department_id,cost_center_id,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19,$20,$21)`, [context.organizationId, bill.id, line.sequence, line.itemId, line.description, line.hsnSacCode, asDatabaseDecimal(line.quantity), line.uomId, asDatabaseDecimal(line.unitPrice), asDatabaseDecimal(line.discount), asDatabaseDecimal(line.net), asDatabaseDecimal(line.tax), asDatabaseDecimal(line.withholding), asDatabaseDecimal(line.total), line.expenseAccountId, line.taxAccountId, line.withholdingAccountId, JSON.stringify(line.taxDetails), line.departmentId, line.costCenterId, context.userId]);
-  for (const installment of paymentSchedule.installments) {
-    await client.query(
-      `INSERT INTO tenant.accounting_vendor_bill_schedules
-        (organization_id,vendor_bill_id,sequence,due_date,amount,outstanding_amount)
-       VALUES ($1,$2,$3,$4,$5,$5)`,
-      [context.organizationId, bill.id, installment.sequence, installment.dueDate, asDatabaseDecimal(installment.amount)],
-    );
-  }
+  await writeBillLines(client, context, bill.id, totals.lines);
+  await writeHeaderExtras(client, context, bill.id, input, totals);
+  await writeDocumentSchedule(client, context, "accounting_vendor_bill_schedules", "vendor_bill_id", bill.id, paymentSchedule.installments);
   await event(client, context, "vendor_bill", bill.id, "accounting.vendor_bill.created", null, "draft", { billNumber });
   return getVendorBill(client, context, bill.id);
+}
+
+// updateDraftVendorBill: a draft's dates, terms, lines and totals, recalculated as on creation. Anything past draft changes only by its own command.
+export async function updateDraftVendorBill(client, context, idValue, input) {
+  requirePermission(context, ACCOUNTING_PERMISSIONS.payablesManage);
+  const id = uuid(idValue, "Vendor bill");
+  const current = (await client.query(`SELECT * FROM tenant.accounting_vendor_bills WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id])).rows[0];
+  if (!current) throw new AccountingError(404, "Vendor bill not found.");
+  if (current.status !== "draft") throw new AccountingError(409, "Only a draft supplier bill can be changed.", "SUPPLIER_BILL_LOCKED");
+  const organization = await loadOrganization(client, context);
+  const ledger = await getPrimaryLedger(client, context, current.ledger_id);
+  const supplier = await ensureParty(client, context, current.party_id, ["supplier", "both"]);
+  const billDate = isoDate(input.billDate || String(current.bill_date instanceof Date ? current.bill_date.toISOString() : current.bill_date).slice(0, 10), "Bill date");
+  const accountingDate = isoDate(input.accountingDate || billDate, "Accounting date");
+  const billCurrency = currency(input.currencyCode || current.currency_code);
+  const rate = await getExchangeRate(client, context, billCurrency, organization.base_currency, accountingDate, input.exchangeRate);
+  const totals = await normalizeBillLines(client, context, organization, ledger, billDate, input.lines, billCurrency, rate);
+  const roundingAdjustment = roundMoney(decimal(input.roundingAdjustment || 0), totals.precision);
+  const grandTotal = totals.grandTotal + roundingAdjustment;
+  if (grandTotal <= 0n) throw new AccountingError(400, "Bill grand total must be positive.");
+  const paymentSchedule = await resolvePaymentSchedule(client, context, {
+    documentDate: billDate, explicitDueDate: input.dueDate ? isoDate(input.dueDate, "Due date") : null, paymentTermId: input.paymentTermId,
+    partyPaymentTermId: supplier.payment_term_id, snapshot: input.paymentTermSnapshot, total: grandTotal, precision: totals.precision,
+    dates: { invoiceReceivedDate: input.invoiceReceivedDate ?? null, postingDate: accountingDate },
+  });
+  await client.query(`DELETE FROM tenant.supplier_bill_line_taxes WHERE organization_id=$1 AND vendor_bill_id=$2`, [context.organizationId, id]);
+  await client.query(`DELETE FROM tenant.accounting_vendor_bill_lines WHERE organization_id=$1 AND vendor_bill_id=$2`, [context.organizationId, id]);
+  await client.query(`DELETE FROM tenant.accounting_vendor_bill_schedules WHERE organization_id=$1 AND vendor_bill_id=$2`, [context.organizationId, id]);
+  await client.query(
+    `UPDATE tenant.accounting_vendor_bills SET bill_date=$3,accounting_date=$4,due_date=$5,currency_code=$6,exchange_rate=$7,payment_term_snapshot=$8::jsonb,subtotal=$9,discount_total=$10,
+            tax_total=$11,withholding_total=$12,rounding_adjustment=$13,grand_total=$14,base_currency_total=$15,outstanding_amount=$14,matching_status=$16,notes=$17,updated_by=$18,updated_at=now(),
+            supplier_snapshot=COALESCE($19::jsonb,supplier_snapshot)
+      WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, id, billDate, accountingDate, paymentSchedule.dueDate, billCurrency, asDatabaseDecimal(rate), JSON.stringify(paymentSchedule.snapshot),
+      asDatabaseDecimal(totals.subtotal), asDatabaseDecimal(totals.discountTotal), asDatabaseDecimal(totals.taxTotal), asDatabaseDecimal(totals.withholdingTotal),
+      asDatabaseDecimal(roundingAdjustment), asDatabaseDecimal(grandTotal), asDatabaseDecimal(toBaseAmount(grandTotal, rate, totals.basePrecision)),
+      ["not_required", "pending", "matched", "exception", "overridden"].includes(input.matchingStatus) ? input.matchingStatus : current.matching_status, text(input.notes, 2000) || null,
+      context.userId, input.supplierSnapshot ? JSON.stringify(input.supplierSnapshot) : null]);
+  await writeBillLines(client, context, id, totals.lines);
+  await writeHeaderExtras(client, context, id, input, totals);
+  await writeDocumentSchedule(client, context, "accounting_vendor_bill_schedules", "vendor_bill_id", id, paymentSchedule.installments);
+  await event(client, context, "vendor_bill", id, "accounting.vendor_bill.updated", "draft", "draft", {});
+  return getVendorBill(client, context, id);
+}
+
+// cancelDraftVendorBill: a bill that will not be posted. It never had an accounting effect.
+export async function cancelDraftVendorBill(client, context, idValue, input = {}) {
+  requirePermission(context, ACCOUNTING_PERMISSIONS.payablesManage);
+  const id = uuid(idValue, "Vendor bill");
+  const bill = (await client.query(`SELECT * FROM tenant.accounting_vendor_bills WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id])).rows[0];
+  if (!bill) throw new AccountingError(404, "Vendor bill not found.");
+  if (bill.status === "cancelled") return getVendorBill(client, context, id);
+  if (!["draft", "pending_approval", "approved"].includes(bill.status)) throw new AccountingError(409, "A posted bill is not cancelled; reverse it or correct it with a vendor credit.", "SUPPLIER_BILL_LOCKED");
+  const reason = requiredText(input.reason, "Cancellation reason", 1000);
+  await client.query(`UPDATE tenant.accounting_vendor_bills SET status='cancelled',outstanding_amount=0,cancelled_by=$3,cancelled_at=now(),cancel_reason=$4,updated_by=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, id, context.userId, reason]);
+  await event(client, context, "vendor_bill", id, "accounting.vendor_bill.cancelled", bill.status, "cancelled", { reason });
+  return getVendorBill(client, context, id);
+}
+
+// The duplicate key of a supplier invoice: its number without whitespace, case-folded, with the GSTIN that issued it and the financial year.
+export function supplierInvoiceKey(reference, gstin, billDate, countryCode = "IN") {
+  const number = String(reference ?? "").replace(/\s+/g, "").toUpperCase();
+  if (!number) return null;
+  const day = String(billDate instanceof Date ? billDate.toISOString() : billDate).slice(0, 10);
+  const [year, month] = day.split("-").map(Number);
+  const fiscal = countryCode === "IN" ? (month >= 4 ? `${year}-${String((year + 1) % 100).padStart(2, "0")}` : `${year - 1}-${String(year % 100).padStart(2, "0")}`) : String(year);
+  return `${number}|${String(gstin ?? "").trim().toUpperCase() || "-"}|FY${fiscal}`;
 }
 
 export async function listVendorBills(client, context, filters = {}) {
@@ -163,15 +332,15 @@ export async function listVendorBills(client, context, filters = {}) {
   const values = [context.organizationId]; let where = "";
   if (filters.status && filters.status !== "all") { values.push(text(filters.status, 30)); where += ` AND bill.status=$${values.length}`; }
   if (filters.partyId) { values.push(uuid(filters.partyId, "Supplier")); where += ` AND bill.party_id=$${values.length}`; }
-  if (filters.search) { values.push(`%${text(filters.search, 100)}%`); where += ` AND (bill.bill_number ILIKE $${values.length} OR bill.supplier_invoice_number ILIKE $${values.length} OR party.display_name ILIKE $${values.length})`; }
-  const result = await client.query(`SELECT bill.id,bill.party_id,bill.bill_number,bill.supplier_invoice_number,bill.bill_type,bill.bill_date,bill.due_date,bill.currency_code,bill.grand_total,bill.outstanding_amount,bill.matching_status,bill.status,party.display_name AS supplier_name FROM tenant.accounting_vendor_bills bill JOIN tenant.business_parties party ON party.id=bill.party_id WHERE bill.organization_id=$1${where} ORDER BY bill.bill_date DESC,bill.created_at DESC LIMIT 300`, values);
+  if (filters.search) { values.push(`%${text(filters.search, 100)}%`); where += ` AND (bill.bill_number ILIKE $${values.length} OR COALESCE(bill.supplier_invoice_reference,bill.supplier_invoice_number) ILIKE $${values.length} OR party.display_name ILIKE $${values.length})`; }
+  const result = await client.query(`SELECT bill.id,bill.party_id,bill.bill_number,COALESCE(bill.supplier_invoice_reference,bill.supplier_invoice_number) AS supplier_invoice_number,bill.bill_type,bill.bill_date,bill.due_date,bill.currency_code,bill.grand_total,bill.outstanding_amount,bill.matching_status,bill.status,party.display_name AS supplier_name FROM tenant.accounting_vendor_bills bill JOIN tenant.business_parties party ON party.id=bill.party_id WHERE bill.organization_id=$1${where} ORDER BY bill.bill_date DESC,bill.created_at DESC LIMIT 300`, values);
   return result.rows;
 }
 
 export async function getVendorBill(client, context, idValue) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
   const id = uuid(idValue, "Vendor bill");
-  const result = await client.query(`SELECT bill.*,party.display_name AS supplier_name FROM tenant.accounting_vendor_bills bill JOIN tenant.business_parties party ON party.id=bill.party_id WHERE bill.organization_id=$1 AND bill.id=$2`, [context.organizationId, id]);
+  const result = await client.query(`SELECT bill.*,COALESCE(bill.supplier_invoice_reference,bill.supplier_invoice_number) AS supplier_invoice_number,party.display_name AS supplier_name FROM tenant.accounting_vendor_bills bill JOIN tenant.business_parties party ON party.id=bill.party_id WHERE bill.organization_id=$1 AND bill.id=$2`, [context.organizationId, id]);
   const bill = result.rows[0];
   if (!bill) throw new AccountingError(404, "Vendor bill not found.");
   // Sequential, not Promise.all: a single pg client can only run one query at a time (concurrent
@@ -179,7 +348,7 @@ export async function getVendorBill(client, context, idValue) {
   // fix already applied to getCustomerInvoice above.
   const lines = await client.query(`SELECT line.*,account.code AS expense_account_code,account.name AS expense_account_name FROM tenant.accounting_vendor_bill_lines line JOIN tenant.accounting_accounts account ON account.id=line.expense_account_id WHERE line.organization_id=$1 AND line.vendor_bill_id=$2 ORDER BY line.sequence`, [context.organizationId, id]);
   const schedules = await client.query(`SELECT * FROM tenant.accounting_vendor_bill_schedules WHERE organization_id=$1 AND vendor_bill_id=$2 ORDER BY sequence`, [context.organizationId, id]);
-  const allocations = await client.query(`SELECT allocation.*,payment.payment_number,payment.payment_date FROM tenant.accounting_vendor_payment_allocations allocation JOIN tenant.accounting_vendor_payments payment ON payment.id=allocation.payment_id WHERE allocation.organization_id=$1 AND allocation.vendor_bill_id=$2 ORDER BY allocation.allocated_at DESC`, [context.organizationId, id]);
+  const allocations = await client.query(`SELECT allocation.*,payment.payment_number,payment.payment_date,payment.payment_method,payment.external_reference,reversal.reversed_at FROM tenant.accounting_vendor_payment_allocations allocation JOIN tenant.accounting_vendor_payments payment ON payment.id=allocation.payment_id LEFT JOIN tenant.accounting_vendor_payment_allocation_reversals reversal ON reversal.organization_id=allocation.organization_id AND reversal.allocation_id=allocation.id WHERE allocation.organization_id=$1 AND allocation.vendor_bill_id=$2 ORDER BY allocation.allocated_at DESC`, [context.organizationId, id]);
   const creditAllocations = await client.query(`SELECT allocation.*,credit.bill_number AS credit_note_number,target.bill_number AS target_bill_number
       FROM tenant.accounting_vendor_credit_allocations allocation
       JOIN tenant.accounting_vendor_bills credit ON credit.id=allocation.credit_note_id
@@ -199,6 +368,47 @@ export async function getVendorBill(client, context, idValue) {
     creditAllocations: creditAllocations.rows, creditCandidates: creditCandidates.rows, events: events.rows };
 }
 
+// Reverse-charge tax is self-assessed by the buyer: input tax (recoverable) against a reverse-charge liability, in its own journal; never owed to the supplier.
+async function postReverseCharge(client, context, bill, detail) {
+  const lines = detail.lines.filter((line) => decimal(line.reverse_charge_tax) > 0n);
+  if (!lines.length) return null;
+  const input = await getAccountMapping(client, context, bill.ledger_id, "input_tax", { date: bill.accounting_date });
+  let liability;
+  try { liability = await getAccountMapping(client, context, bill.ledger_id, "reverse_charge_tax", { date: bill.accounting_date }); }
+  catch { liability = await getAccountMapping(client, context, bill.ledger_id, "output_tax", { date: bill.accounting_date }); }
+  const journalId = await purchaseJournal(client, context, bill.ledger_id);
+  const journalLines = [];
+  for (const line of lines) {
+    journalLines.push({ accountId: input.account_id, partyId: bill.party_id, description: `Reverse-charge input tax ${line.description}`, debit: line.reverse_charge_tax, credit: 0,
+      referenceType: "vendor_bill", referenceId: bill.id, taxBaseAmount: line.net_amount });
+    journalLines.push({ accountId: liability.account_id, partyId: bill.party_id, description: `Reverse-charge tax payable ${line.description}`, debit: 0, credit: line.reverse_charge_tax,
+      referenceType: "vendor_bill", referenceId: bill.id });
+  }
+  const journal = await createJournalEntry(client, context, { ledgerId: bill.ledger_id, journalId, entryDate: bill.bill_date, accountingDate: bill.accounting_date, documentDate: bill.bill_date,
+    entryType: "subledger", reference: bill.supplier_invoice_reference || bill.bill_number, description: `Reverse charge on ${bill.bill_number}`, currencyCode: bill.currency_code,
+    exchangeRate: bill.exchange_rate, lines: journalLines }, { internal: true, sourceModule: "accounting", sourceType: "vendor_bill_reverse_charge", sourceId: bill.id, sourceNumber: bill.bill_number });
+  await postJournalEntry(client, context, journal.entry.id, { internal: true, allowDraft: true });
+  const taxed = (await client.query(`SELECT id FROM tenant.accounting_journal_lines WHERE organization_id=$1 AND journal_entry_id=$2 AND tax_base_amount<>0 ORDER BY sequence`,
+    [context.organizationId, journal.entry.id])).rows;
+  const components = (await client.query(`SELECT * FROM tenant.supplier_bill_line_taxes WHERE organization_id=$1 AND vendor_bill_id=$2 AND tax_classification='reverse_charge'`,
+    [context.organizationId, bill.id])).rows;
+  for (const [index, line] of lines.entries()) {
+    const parts = components.filter((component) => component.vendor_bill_line_id === line.id);
+    for (const part of parts.length ? parts : [{ tax_type: "other", taxable_base: line.net_amount, tax_amount: line.reverse_charge_tax }]) {
+      for (const direction of ["input", "output"]) {
+        await client.query(
+          `INSERT INTO tenant.accounting_tax_ledger (organization_id,journal_entry_id,journal_line_id,source_type,source_id,party_id,tax_registration,tax_type,direction,tax_period,
+             taxable_amount,tax_amount,recoverable_amount,reverse_charge,place_of_supply,hsn_sac_code,status)
+           VALUES ($1,$2,$3,'vendor_bill',$4,$5,$6,$7,$8,to_char($9::date,'YYYY-MM'),$10,$11,$12,true,$13,$14,'open') ON CONFLICT (organization_id,journal_line_id,tax_type,direction) DO NOTHING`,
+          [context.organizationId, journal.entry.id, taxed[index].id, bill.id, bill.party_id, bill.supplier_tax_snapshot?.gstin || bill.supplier_snapshot?.gstin || null,
+            ["cgst", "sgst", "igst", "cess"].includes(part.tax_type) ? part.tax_type : "other", direction, bill.accounting_date, part.taxable_base, part.tax_amount,
+            direction === "input" ? part.tax_amount : 0, bill.place_of_supply || null, line.hsn_sac_code || null]);
+      }
+    }
+  }
+  return journal.entry.id;
+}
+
 export async function postVendorBill(client, context, idValue) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.payablesManage);
   const id = uuid(idValue, "Vendor bill");
@@ -208,13 +418,34 @@ export async function postVendorBill(client, context, idValue) {
   if (['posted','partially_paid','paid'].includes(bill.status)) return getVendorBill(client, context, id);
   if (bill.status !== 'approved') throw new AccountingError(409, "Vendor bill must be approved before posting.");
   if (bill.matching_status === 'exception') throw new AccountingError(409, "Resolve or override the matching exception before posting.");
+  // One supplier invoice, one payable: the key is unique among bills that left draft, unless the duplicate was accepted with a reason.
+  if (bill.bill_type === "bill" && bill.supplier_invoice_reference && !bill.duplicate_override_reason) {
+    const organization = await loadOrganization(client, context);
+    const key = supplierInvoiceKey(bill.supplier_invoice_reference, bill.supplier_tax_snapshot?.gstin ?? bill.supplier_snapshot?.gstin, bill.bill_date, String(organization.country_code ?? "IN").trim());
+    try {
+      await client.query("SAVEPOINT supplier_invoice_key");
+      await client.query(`UPDATE tenant.accounting_vendor_bills SET supplier_invoice_key=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, key]);
+      await client.query("RELEASE SAVEPOINT supplier_invoice_key");
+    } catch (error) {
+      await client.query("ROLLBACK TO SAVEPOINT supplier_invoice_key");
+      if (error.code !== "23505") throw error;
+      const existing = (await client.query(`SELECT bill_number FROM tenant.accounting_vendor_bills WHERE organization_id=$1 AND party_id=$2 AND supplier_invoice_key=$3 AND id<>$4 AND status NOT IN ('draft','cancelled','reversed') LIMIT 1`,
+        [context.organizationId, bill.party_id, key, id])).rows[0];
+      throw new AccountingError(409, `Supplier invoice ${bill.supplier_invoice_reference} is already recorded${existing ? ` as ${existing.bill_number}` : ""}.`, "SUPPLIER_BILL_DUPLICATE_INVOICE");
+    }
+  }
   const detail = await getVendorBill(client, context, id);
   const payable = await getAccountMapping(client, context, bill.ledger_id, "payable", { partyId: bill.party_id, date: bill.accounting_date });
   const journalId = await purchaseJournal(client, context, bill.ledger_id);
   const isCreditNote = bill.bill_type === "credit_note";
   let lines = [];
   for (const line of detail.lines) {
-    if (decimal(line.net_amount) > 0n) lines.push({ accountId: line.expense_account_id, partyId: bill.party_id, departmentId: line.department_id, costCenterId: line.cost_center_id, description: line.description, debit: line.net_amount, credit: 0, referenceType: "vendor_bill", referenceId: bill.id });
+    const variance = decimal(line.variance_amount || 0);
+    const expensePart = decimal(line.net_amount) - variance;
+    if (expensePart !== 0n) lines.push({ accountId: line.expense_account_id, partyId: bill.party_id, departmentId: line.department_id, costCenterId: line.cost_center_id, description: line.description,
+      debit: expensePart > 0n ? asDatabaseDecimal(expensePart) : 0, credit: expensePart < 0n ? asDatabaseDecimal(-expensePart) : 0, referenceType: "vendor_bill", referenceId: bill.id });
+    if (variance !== 0n && line.variance_account_id) lines.push({ accountId: line.variance_account_id, partyId: bill.party_id, description: `Price variance ${line.description}`,
+      debit: variance > 0n ? asDatabaseDecimal(variance) : 0, credit: variance < 0n ? asDatabaseDecimal(-variance) : 0, referenceType: "vendor_bill", referenceId: bill.id });
     if (decimal(line.tax_amount) > 0n && line.tax_account_id) lines.push({ accountId: line.tax_account_id, partyId: bill.party_id, description: `Input tax ${line.description}`, debit: line.tax_amount, credit: 0, referenceType: "vendor_bill", referenceId: bill.id, taxBaseAmount: line.net_amount });
     if (decimal(line.withholding_amount) > 0n && line.withholding_account_id) lines.push({ accountId: line.withholding_account_id, partyId: bill.party_id, description: `Withholding ${line.description}`, debit: 0, credit: line.withholding_amount, referenceType: "vendor_bill", referenceId: bill.id });
   }
@@ -235,149 +466,62 @@ export async function postVendorBill(client, context, idValue) {
     throw new AccountingError(409, "Vendor bill posting does not reconcile to the document grand total.");
   }
   const sourceType = isCreditNote ? "vendor_credit_note" : "vendor_bill";
-  const journal = await createJournalEntry(client, context, { ledgerId: bill.ledger_id, journalId, entryDate: bill.bill_date, accountingDate: bill.accounting_date, documentDate: bill.bill_date, entryType: "subledger", reference: bill.supplier_invoice_number || bill.bill_number, description: `Vendor bill ${bill.bill_number}`, currencyCode: bill.currency_code, exchangeRate: bill.exchange_rate, lines }, { internal: true, sourceModule: "accounting", sourceType, sourceId: bill.id, sourceNumber: bill.bill_number });
+  const journal = await createJournalEntry(client, context, { ledgerId: bill.ledger_id, journalId, entryDate: bill.bill_date, accountingDate: bill.accounting_date, documentDate: bill.bill_date, entryType: "subledger", reference: bill.supplier_invoice_reference || bill.bill_number, description: `Vendor bill ${bill.bill_number}`, currencyCode: bill.currency_code, exchangeRate: bill.exchange_rate, lines }, { internal: true, sourceModule: "accounting", sourceType, sourceId: bill.id, sourceNumber: bill.bill_number });
   await postJournalEntry(client, context, journal.entry.id, { internal: true, allowDraft: true });
-  await recordDocumentTaxLedger(client, context, bill, detail.lines, journal.entry.id, "input");
-  await client.query(`UPDATE tenant.accounting_vendor_bills SET status='posted',journal_entry_id=$3,outstanding_amount=grand_total,posted_at=now(),posted_by=$4,updated_by=$4 WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, journal.entry.id, context.userId]);
-  await event(client, context, "vendor_bill", id, "accounting.vendor_bill.posted", bill.status, "posted", { journalEntryId: journal.entry.id });
+  // Reverse-charge tax has its own ledger rows (postReverseCharge); the tax the supplier charged is ordinary input tax.
+  await recordDocumentTaxLedger(client, context, { ...bill, reverse_charge: false }, detail.lines, journal.entry.id, "input");
+  await recordWithholdingLedger(client, context, bill, detail.lines, journal.entry.id);
+  const reverseChargeJournalId = isCreditNote ? null : await postReverseCharge(client, context, bill, detail);
+  await client.query(`UPDATE tenant.accounting_vendor_bills SET status='posted',journal_entry_id=$3,outstanding_amount=grand_total,posted_at=now(),posted_by=$4,updated_by=$4,reverse_charge_journal_entry_id=$5 WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, journal.entry.id, context.userId, reverseChargeJournalId]);
+  await event(client, context, "vendor_bill", id, "accounting.vendor_bill.posted", bill.status, "posted", { journalEntryId: journal.entry.id, reverseChargeJournalId });
   return getVendorBill(client, context, id);
 }
 
+// TDS withheld on a bill, for the withholding ledger: one row per withholding journal line.
+async function recordWithholdingLedger(client, context, bill, detailLines, journalEntryId) {
+  const sources = detailLines.filter((line) => decimal(line.withholding_amount || 0) > 0n && line.withholding_account_id);
+  if (!sources.length) return;
+  const journalLines = (await client.query(
+    `SELECT id FROM tenant.accounting_journal_lines WHERE organization_id=$1 AND journal_entry_id=$2 AND description LIKE 'Withholding %' ORDER BY sequence`, [context.organizationId, journalEntryId])).rows;
+  const sign = bill.bill_type === "credit_note" ? -1n : 1n;
+  for (const [index, line] of sources.entries()) {
+    if (!journalLines[index]) break;
+    await client.query(
+      `INSERT INTO tenant.accounting_tax_ledger (organization_id,journal_entry_id,journal_line_id,source_type,source_id,party_id,tax_registration,tax_type,direction,tax_period,
+         taxable_amount,tax_amount,recoverable_amount,reverse_charge,place_of_supply,hsn_sac_code,status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'tds','withholding',to_char($8::date,'YYYY-MM'),$9,$10,0,false,$11,$12,'open') ON CONFLICT (organization_id,journal_line_id,tax_type,direction) DO NOTHING`,
+      [context.organizationId, journalEntryId, journalLines[index].id, bill.bill_type === "credit_note" ? "vendor_credit_note" : "vendor_bill", bill.id, bill.party_id,
+        bill.supplier_snapshot?.pan || null, bill.accounting_date, asDatabaseDecimal(decimal(line.net_amount) * sign), asDatabaseDecimal(decimal(line.withholding_amount) * sign),
+        bill.place_of_supply || null, line.hsn_sac_code || null]);
+  }
+}
 
-export async function importProcurementMatchAsVendorBill(
-  client,
-  context,
-  matchingRecordIdValue,
-  input = {},
-) {
-  requirePermission(context, ACCOUNTING_PERMISSIONS.payablesManage);
-  const matchingRecordId = uuid(matchingRecordIdValue, "Procurement matching record");
-  const result = await client.query(
-    `SELECT matching.*,
-            purchase_order.data AS purchase_order_data,
-            supplier.id AS supplier_id,supplier.party_id AS supplier_party_id
-       FROM tenant.procurement_matching_records matching
-       JOIN tenant.procurement_purchase_orders purchase_order
-         ON purchase_order.organization_id=matching.organization_id
-        AND purchase_order.id=matching.parent_id
-       LEFT JOIN tenant.procurement_suppliers supplier
-         ON supplier.organization_id=purchase_order.organization_id
-        AND supplier.id=NULLIF(purchase_order.data->>'supplierId','')::uuid
-      WHERE matching.organization_id=$1 AND matching.id=$2
-      FOR UPDATE OF matching`,
-    [context.organizationId, matchingRecordId],
-  );
-  const match = result.rows[0];
-  if (!match) throw new AccountingError(404, "Procurement matching record not found.");
-  if (match.status !== "matched") {
-    throw new AccountingError(
-      409,
-      "Resolve the Procurement matching exception before creating a vendor bill.",
-      "ACCOUNTING_PROCUREMENT_MATCH_REQUIRED",
-    );
-  }
-
-  const matchingData = match.data && typeof match.data === "object" ? match.data : {};
-  if (matchingData.accountingVendorBillId) {
-    return getVendorBill(client, context, matchingData.accountingVendorBillId);
-  }
-  const purchaseOrderData =
-    match.purchase_order_data && typeof match.purchase_order_data === "object"
-      ? match.purchase_order_data
-      : {};
-  // The supplier is one identity with its party: the bill is for that party.
-  const partyId = input.partyId || match.supplier_party_id;
-  if (!partyId) {
-    throw new AccountingError(
-      409,
-      "The purchase order has no supplier to bill.",
-      "ACCOUNTING_SUPPLIER_PARTY_REQUIRED",
-    );
-  }
-  const invoiceLines = Array.isArray(matchingData.invoiceLines)
-    ? matchingData.invoiceLines
-    : [];
-  if (!invoiceLines.length) {
-    throw new AccountingError(
-      409,
-      "The Procurement matching record has no invoice lines to import.",
-      "ACCOUNTING_PROCUREMENT_LINES_REQUIRED",
-    );
-  }
-
-  let sourceGoodsReceiptId = input.sourceGoodsReceiptId || matchingData.sourceGoodsReceiptId || null;
-  if (!sourceGoodsReceiptId) {
-    const receipt = await client.query(
-      `SELECT id FROM tenant.procurement_receipts
-        WHERE organization_id=$1
-          AND data->>'purchaseOrderId'=$2 AND status='approved'
-        ORDER BY updated_at DESC LIMIT 1`,
-      [context.organizationId, String(match.parent_id)],
-    );
-    sourceGoodsReceiptId = receipt.rows[0]?.id || null;
-  }
-
-  const bill = await createVendorBill(client, context, {
-    ledgerId: input.ledgerId || null,
-    partyId,
-    sourcePurchaseOrderId: match.parent_id,
-    sourceGoodsReceiptId,
-    supplierInvoiceNumber: matchingData.invoiceNumber,
-    supplierInvoiceDate: input.supplierInvoiceDate || null,
-    billDate: input.billDate || input.supplierInvoiceDate,
-    accountingDate: input.accountingDate,
-    dueDate: input.dueDate || null,
-    currencyCode:
-      input.currencyCode || matchingData.currencyCode || purchaseOrderData.currencyCode,
-    exchangeRate: input.exchangeRate,
-    chargeTotal: input.chargeTotal || 0,
-    roundingAdjustment: input.roundingAdjustment || 0,
-    matchingStatus: "matched",
-    notes:
-      input.notes ||
-      `Imported from Procurement match ${matchingRecordId} for purchase order ${match.parent_id}.`,
-    lines: invoiceLines.map((line) => ({
-      itemId: line.itemId || null,
-      uomId: line.uomId || null,
-      description: line.description,
-      quantity: line.quantity || 1,
-      unitPrice: line.unitPrice,
-      discountAmount: line.discountAmount || 0,
-      taxAmount: line.taxAmount || 0,
-      withholdingAmount: line.withholdingAmount || 0,
-      accountId: line.accountId || null,
-      taxAccountId: line.taxAccountId || null,
-      withholdingAccountId: line.withholdingAccountId || null,
-      departmentId: line.departmentId || null,
-      costCenterId: line.costCenterId || null,
-      hsnSacCode: line.hsnSacCode || null,
-      taxDetails: Array.isArray(line.taxDetails) ? line.taxDetails : [],
-    })),
-  });
-  const billId = bill?.bill?.id || bill?.id;
-  if (!billId) {
-    throw new AccountingError(500, "The imported vendor bill did not return an identifier.");
-  }
-  await client.query(
-    `UPDATE tenant.procurement_matching_records
-        SET data=jsonb_set(
-              jsonb_set(data,'{accountingVendorBillId}',to_jsonb($3::text),true),
-              '{accountingImportedAt}',to_jsonb(now()::text),true
-            ),updated_at=now()
-      WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, matchingRecordId, billId],
-  );
-  await event(
-    client,
-    context,
-    "procurement_matching_record",
-    matchingRecordId,
-    "accounting.vendor_bill.imported_from_procurement",
-    "matched",
-    "imported",
-    { vendorBillId: billId, purchaseOrderId: match.parent_id },
-  );
-  return bill;
+// reverseVendorBill: undoes a posted bill nothing has settled — no payment, no credit applied, no credit note against it — by reversing its
+// journals (and the reverse-charge journal) and its tax ledger rows. The bill is kept, marked reversed.
+export async function reverseVendorBill(client, context, idValue, input = {}) {
+  requirePermission(context, ACCOUNTING_PERMISSIONS.payablesApprove);
+  const id = uuid(idValue, "Vendor bill");
+  const bill = (await client.query(`SELECT * FROM tenant.accounting_vendor_bills WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id])).rows[0];
+  if (!bill) throw new AccountingError(404, "Vendor bill not found.");
+  if (bill.status === "reversed") return getVendorBill(client, context, id);
+  if (!["posted", "overdue"].includes(bill.status) || decimal(bill.outstanding_amount) !== decimal(bill.grand_total))
+    throw new AccountingError(409, "Only a posted bill with nothing paid or credited can be reversed. Reverse the payments or credits first, or record a vendor credit.", "SUPPLIER_BILL_IN_USE");
+  const reason = requiredText(input.reason, "Reversal reason", 1000);
+  const used = (await client.query(
+    `SELECT (SELECT count(*) FROM tenant.accounting_vendor_payment_allocations WHERE organization_id=$1 AND vendor_bill_id=$2)::int AS payments,
+            (SELECT count(*) FROM tenant.accounting_vendor_credit_allocations WHERE organization_id=$1 AND (vendor_bill_id=$2 OR credit_note_id=$2))::int AS credits,
+            (SELECT count(*) FROM tenant.accounting_vendor_bills WHERE organization_id=$1 AND source_bill_id=$2 AND status NOT IN ('cancelled','reversed'))::int AS notes`,
+    [context.organizationId, id])).rows[0];
+  if (used.payments || used.credits || used.notes) throw new AccountingError(409, "Payments or vendor credits refer to this bill. Correct them first.", "SUPPLIER_BILL_IN_USE");
+  const reversing = { ...context, permissions: [...new Set([...(context.permissions || []), ACCOUNTING_PERMISSIONS.journalReverse, ACCOUNTING_PERMISSIONS.view])] };
+  const reversal = await reverseJournalEntry(client, reversing, bill.journal_entry_id, { reason: `${bill.bill_number}: ${reason}` });
+  if (bill.reverse_charge_journal_entry_id) await reverseJournalEntry(client, reversing, bill.reverse_charge_journal_entry_id, { reason: `${bill.bill_number}: ${reason}` });
+  await client.query(`UPDATE tenant.accounting_tax_ledger SET status='reversed' WHERE organization_id=$1 AND source_id=$2 AND status='open'`, [context.organizationId, id]);
+  await client.query(`UPDATE tenant.accounting_vendor_bill_schedules SET outstanding_amount=0 WHERE organization_id=$1 AND vendor_bill_id=$2`, [context.organizationId, id]);
+  await client.query(`UPDATE tenant.accounting_vendor_bills SET status='reversed',outstanding_amount=0,reversed_by=$3,reversed_at=now(),reversal_reason=$4,reversal_journal_entry_id=$5,updated_by=$3,updated_at=now()
+                       WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, context.userId, reason, reversal.entry?.id ?? reversal.id ?? null]);
+  await event(client, context, "vendor_bill", id, "accounting.vendor_bill.reversed", bill.status, "reversed", { reason });
+  return getVendorBill(client, context, id);
 }
 
 export async function createVendorPayment(client, context, input) {
@@ -477,6 +621,7 @@ export async function allocateVendorPayment(client, context, paymentIdValue, inp
     const duplicate = await client.query(
       `SELECT id FROM tenant.accounting_vendor_payment_allocations
         WHERE organization_id=$1 AND payment_id=$2 AND vendor_bill_id=$3
+          AND NOT EXISTS (SELECT 1 FROM tenant.accounting_vendor_payment_allocation_reversals reversal WHERE reversal.organization_id=$1 AND reversal.allocation_id=accounting_vendor_payment_allocations.id)
           AND COALESCE(schedule_id,'00000000-0000-0000-0000-000000000000'::uuid)=COALESCE($4::uuid,'00000000-0000-0000-0000-000000000000'::uuid)`,
       [context.organizationId, payment.id, bill.id, scheduleId],
     );
@@ -535,6 +680,57 @@ export async function allocateVendorPayment(client, context, paymentIdValue, inp
     paymentAmount: asDatabaseDecimal(totalPaymentAmount),
     billSettlementAmount: asDatabaseDecimal(totalBillSettlement),
   });
+  return updated.rows[0];
+}
+
+// Puts back what reduced a bill's schedules (latest due first), when a payment that settled it is reversed.
+export async function restoreBillSchedules(client, context, billId, amountValue) {
+  let remaining = decimal(amountValue);
+  const schedules = await client.query(
+    `SELECT * FROM tenant.accounting_vendor_bill_schedules WHERE organization_id=$1 AND vendor_bill_id=$2 AND outstanding_amount<amount ORDER BY due_date DESC,sequence DESC FOR UPDATE`,
+    [context.organizationId, billId]);
+  for (const schedule of schedules.rows) {
+    if (remaining <= 0n) break;
+    const room = decimal(schedule.amount) - decimal(schedule.outstanding_amount);
+    const back = remaining < room ? remaining : room;
+    const outstanding = decimal(schedule.outstanding_amount) + back;
+    await client.query(`UPDATE tenant.accounting_vendor_bill_schedules SET outstanding_amount=$3,status=$4 WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, schedule.id, asDatabaseDecimal(outstanding), outstanding === decimal(schedule.amount) ? "open" : "partially_paid"]);
+    remaining -= back;
+  }
+}
+
+// reverseVendorPayment: a posted supplier payment that did not happen (bounced, entered in error). Its journal and settlement adjustments are
+// reversed, every bill it settled is owed again, and its allocations are kept, marked reversed.
+export async function reverseVendorPayment(client, context, paymentIdValue, input = {}) {
+  requirePermission(context, ACCOUNTING_PERMISSIONS.paymentsApprove);
+  const id = uuid(paymentIdValue, "Vendor payment");
+  const payment = (await client.query(`SELECT * FROM tenant.accounting_vendor_payments WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id])).rows[0];
+  if (!payment) throw new AccountingError(404, "Vendor payment not found.");
+  if (payment.status === "reversed") return payment;
+  if (!["posted", "partially_applied", "applied"].includes(payment.status)) throw new AccountingError(409, "Only a posted payment can be reversed.");
+  const reason = requiredText(input.reason, "Reversal reason", 1000);
+  const reversing = { ...context, permissions: [...new Set([...(context.permissions || []), ACCOUNTING_PERMISSIONS.journalReverse, ACCOUNTING_PERMISSIONS.view])] };
+  const allocations = (await client.query(`SELECT allocation.* FROM tenant.accounting_vendor_payment_allocations allocation WHERE allocation.organization_id=$1 AND allocation.payment_id=$2
+      AND NOT EXISTS (SELECT 1 FROM tenant.accounting_vendor_payment_allocation_reversals reversal WHERE reversal.organization_id=$1 AND reversal.allocation_id=allocation.id)`,
+    [context.organizationId, id])).rows;
+  for (const allocation of allocations) {
+    const bill = (await client.query(`SELECT * FROM tenant.accounting_vendor_bills WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, allocation.vendor_bill_id])).rows[0];
+    const outstanding = decimal(bill.outstanding_amount) + decimal(allocation.allocated_amount);
+    await restoreBillSchedules(client, context, bill.id, allocation.allocated_amount);
+    const status = outstanding >= decimal(bill.grand_total) ? "posted" : "partially_paid";
+    await client.query(`UPDATE tenant.accounting_vendor_bills SET outstanding_amount=$3,status=$4,updated_by=$5,updated_at=now() WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, bill.id, asDatabaseDecimal(outstanding), status, context.userId]);
+    if (allocation.adjustment_journal_entry_id) await reverseJournalEntry(client, reversing, allocation.adjustment_journal_entry_id, { reason: `${payment.payment_number} reversed: ${reason}` });
+    await client.query(`INSERT INTO tenant.accounting_vendor_payment_allocation_reversals (organization_id,allocation_id,payment_id,vendor_bill_id,amount,reason,reversed_by) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [context.organizationId, allocation.id, id, bill.id, allocation.allocated_amount, reason, context.userId]);
+    await event(client, context, "vendor_bill", bill.id, "accounting.vendor_bill.payment_reversed", bill.status, status, { paymentId: id, amount: asDatabaseDecimal(decimal(allocation.allocated_amount)) });
+  }
+  const reversal = await reverseJournalEntry(client, reversing, payment.journal_entry_id, { reason: `${payment.payment_number}: ${reason}` });
+  const updated = await client.query(
+    `UPDATE tenant.accounting_vendor_payments SET status='reversed',unapplied_amount=0,reversed_at=now(),reversed_by=$3,reversal_reason=$4,reversal_journal_entry_id=$5,updated_by=$3
+      WHERE organization_id=$1 AND id=$2 RETURNING *`, [context.organizationId, id, context.userId, reason, reversal.entry?.id ?? reversal.id ?? null]);
+  await event(client, context, "vendor_payment", id, "accounting.vendor_payment.reversed", payment.status, "reversed", { reason });
   return updated.rows[0];
 }
 

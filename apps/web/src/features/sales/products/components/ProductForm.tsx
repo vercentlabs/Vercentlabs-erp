@@ -21,7 +21,7 @@ import { useSubmitKey } from "@/shared/http/submit-once";
 type Values = {
   type: ProductType; code: string; name: string; categoryId: string; description: string; salesDescription: string; purchaseDescription: string; sku: string; barcode: string;
   baseUomId: string; salesUomId: string; salesUomFactor: number; purchaseUomId: string; purchaseUomFactor: number; isSellable: boolean; isPurchasable: boolean; hsnSacCode: string;
-  taxCategoryId: string; defaultSalesPrice: number; defaultPurchaseCost: number; standardCost: number; trackingType: string; allowNegativeStock: boolean; valuationMethod: string;
+  taxCategoryId: string; defaultSalesPrice: number; defaultPurchaseCost: number; standardCost: number; trackingType: string; allowNegativeStock: boolean; requiresExpiryDate: boolean; valuationMethod: string;
   status: string;
 };
 
@@ -33,7 +33,7 @@ function initial(product?: Product): Values {
     purchaseUomId: product && product.purchaseUomId !== product.baseUomId ? product.purchaseUomId : NONE, purchaseUomFactor: product?.purchaseUomFactor ?? 1,
     isSellable: product?.isSellable ?? true, isPurchasable: product?.isPurchasable ?? true, hsnSacCode: product?.hsnSacCode ?? "", taxCategoryId: product?.taxCategoryId ?? NONE,
     defaultSalesPrice: product?.defaultSalesPrice ?? 0, defaultPurchaseCost: product?.defaultPurchaseCost ?? 0, standardCost: product?.standardCost ?? 0,
-    trackingType: product?.trackingType ?? "none", allowNegativeStock: product?.allowNegativeStock ?? false, valuationMethod: product?.valuationMethod ?? "moving_average", status: "active",
+    trackingType: product?.trackingType ?? "none", allowNegativeStock: product?.allowNegativeStock ?? false, requiresExpiryDate: product?.requiresExpiryDate ?? false, valuationMethod: product?.valuationMethod ?? "moving_average", status: "active",
   };
 }
 
@@ -47,7 +47,7 @@ function toInput(values: Values, creating: boolean): ProductInput {
     defaultSalesPrice: values.defaultSalesPrice, sku: service ? null : values.sku.trim() || null, barcode: service ? null : values.barcode.trim() || null,
   };
   if (values.code.trim()) input.code = values.code.trim();
-  if (values.type === "stock") Object.assign(input, { trackingType: values.trackingType, allowNegativeStock: values.allowNegativeStock, valuationMethod: values.valuationMethod });
+  if (values.type === "stock") Object.assign(input, { trackingType: values.trackingType, allowNegativeStock: values.allowNegativeStock, requiresExpiryDate: values.trackingType === "batch" && values.requiresExpiryDate, valuationMethod: values.valuationMethod });
   if (creating) input.status = values.status;
   return input;
 }
@@ -201,6 +201,9 @@ export function ProductForm({ options, product, onSaved, onCancel }: { options: 
                 <NumberField label="Standard cost" value={values.standardCost} onChange={set("standardCost")} minValue={0} isDisabled={!may.cost} formatOptions={{ style: "currency", currency: "INR" }} errorMessage={errors.standardCost} />
               )}
               <div className="flex items-end"><Checkbox isSelected={values.allowNegativeStock} isDisabled={!may.inventory} onChange={set("allowNegativeStock")}>Allow negative stock</Checkbox></div>
+              {values.trackingType === "batch" && (
+                <div className="flex items-end"><Checkbox isSelected={values.requiresExpiryDate} isDisabled={!may.inventory} onChange={set("requiresExpiryDate")}>Every lot needs an expiry date</Checkbox></div>
+              )}
             </>
           )}
         </Section>

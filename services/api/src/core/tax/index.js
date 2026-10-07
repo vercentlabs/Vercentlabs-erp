@@ -9,3 +9,4 @@ export {
   changeTaxRate, createTaxCategory, createTaxRegistration, getTaxCategory, getTaxOptions, getTaxSettings, listTaxCategories, listTaxCategoryChoices, listTaxHistory, listTaxRegistrations,
   setTaxCategoryStatus, updateTaxCategory, updateTaxRegistration, updateTaxSettings,
 } from "./configuration.js";
+export { listWithholdingSections, saveWithholdingSection } from "./withholding.js";

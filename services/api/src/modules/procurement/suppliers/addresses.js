@@ -15,7 +15,7 @@ import { ensureRegistration, normalizeGstin } from "./tax-registrations.js";
 import { gstStateName } from "../../../core/tax/index.js";
 
 const PURPOSE_ORDER = SUPPLIER_ADDRESS_PURPOSES.map((entry) => entry.code);
-const OPEN_ORDERS = ["draft", "submitted", "pending_approval", "approved", "dispatched", "acknowledged", "partially_received", "pending_amendment_approval"];
+const OPEN_ORDERS = ["draft", "confirmed"];
 
 function fail(field, message, code = "SUPPLIER_ADDRESS_VALIDATION") {
   throw new SupplierError(400, message, code, { issues: [{ field, message }] });
@@ -229,8 +229,8 @@ export async function updateSupplierAddress(client, context, supplierId, address
 // Open purchase orders that name this location, for the warning before it is deactivated. They keep their snapshot either way.
 async function openDocumentCount(client, organizationId, supplierId, addressId) {
   return Number((await client.query(
-    `SELECT count(*) FROM tenant.procurement_purchase_orders WHERE organization_id = $1 AND supplier_id = $2 AND status = ANY($4::text[])
-        AND (data #>> '{supplierAddress,addressId}' = $3 OR data #>> '{supplierShipFrom,addressId}' = $3)`,
+    `SELECT count(*) FROM tenant.purchase_orders WHERE organization_id = $1 AND supplier_id = $2 AND status = ANY($4::text[])
+        AND (supplier_address_id = $3::uuid OR supplier_ship_from_id = $3::uuid OR supplier_billing_address_id = $3::uuid)`,
     [organizationId, supplierId, addressId, OPEN_ORDERS])).rows[0].count);
 }
 

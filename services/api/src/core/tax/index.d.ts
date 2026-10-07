@@ -42,3 +42,5 @@ export function getTaxSettings(client: QueryClient, context: Context): Promise<{
 export function updateTaxSettings(client: QueryClient, context: Context, input: { taxEnabled?: boolean; defaultTaxCategoryId?: string | null }): Promise<any>;
 export function getTaxOptions(client: QueryClient, context: Context): Promise<any>;
 export function listTaxHistory(client: QueryClient, context: Context, filters?: { entityType?: string; entityId?: string; limit?: number }): Promise<any[]>;
+export declare function listWithholdingSections(client: any, context: any, options?: { includeInactive?: boolean }): Promise<Array<{ id: string; code: string; name: string; rate: string; status: string }>>;
+export declare function saveWithholdingSection(client: any, context: any, sectionId: string | null, input?: Record<string, unknown>): Promise<{ id: string; code: string; name: string; rate: string; status: string }>;

@@ -17,6 +17,7 @@ import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
+import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
 
 import {
   checkDuplicates, createSupplier, duplicateMatchesOf, errorCode, errorMessage, fieldIssuesOf, getSupplier, getSupplierOptions, updateSupplier,
@@ -26,12 +27,15 @@ import { DuplicateWarning } from "../components/DuplicateWarning";
 
 type Values = Record<
   | "supplierName" | "legalName" | "supplierType" | "category" | "primaryEmail" | "primaryPhone" | "website" | "countryCode" | "notes" | "gstRegistrationType" | "gstin" | "pan"
-  | "registeredStateCode" | "defaultCurrency" | "paymentTermId" | "assignedBuyerId" | "line1" | "line2" | "city" | "state" | "postalCode" | "contactFirstName" | "contactLastName"
-  | "contactEmail" | "contactPhone",
+  | "registeredStateCode" | "withholdingSectionId" | "defaultCurrency" | "paymentTermId" | "assignedBuyerId" | "line1" | "line2" | "city" | "state" | "postalCode" | "contactFirstName" | "contactLastName"
+  | "contactEmail" | "contactPhone" | "msmeClassification" | "msmeRegistrationNumber" | "msmeEffectiveFrom" | "msmeEvidenceReference" | "writtenPaymentAgreement" | "agreedPaymentDays"
+  | "paymentAgreementReference",
   string
 >;
 const IDENTITY = ["supplierName", "legalName", "supplierType", "category", "primaryEmail", "primaryPhone", "website", "countryCode", "notes"] as const;
-const TAX = ["gstRegistrationType", "gstin", "pan", "registeredStateCode"] as const;
+// The MSMED Act classification and the written payment agreement are tax information: the statutory payment deadline is worked out from them.
+const TAX = ["gstRegistrationType", "gstin", "pan", "registeredStateCode", "withholdingSectionId", "msmeClassification", "msmeRegistrationNumber", "msmeEffectiveFrom",
+  "msmeEvidenceReference", "writtenPaymentAgreement", "agreedPaymentDays", "paymentAgreementReference"] as const;
 const COMMERCIAL = ["defaultCurrency", "paymentTermId", "assignedBuyerId"] as const;
 
 function valuesOf(supplier: Supplier | null, options: SupplierOptions): Values {
@@ -39,9 +43,12 @@ function valuesOf(supplier: Supplier | null, options: SupplierOptions): Values {
     supplierName: supplier?.supplierName ?? "", legalName: supplier?.legalName ?? "", supplierType: supplier?.supplierType ?? "business", category: supplier?.category ?? "",
     primaryEmail: supplier?.primaryEmail ?? "", primaryPhone: supplier?.primaryPhone ?? "", website: supplier?.website ?? "", countryCode: supplier?.countryCode ?? options.countryCode ?? "IN",
     notes: supplier?.notes ?? "", gstRegistrationType: supplier?.gstRegistrationType ?? "", gstin: supplier?.gstin ?? "", pan: supplier?.pan ?? "",
-    registeredStateCode: supplier?.registeredStateCode ?? "", defaultCurrency: supplier?.defaultCurrency ?? options.baseCurrency ?? "",
+    registeredStateCode: supplier?.registeredStateCode ?? "", withholdingSectionId: supplier?.withholdingSectionId ?? "", defaultCurrency: supplier?.defaultCurrency ?? options.baseCurrency ?? "",
     paymentTermId: supplier?.paymentTermId ?? "", assignedBuyerId: supplier?.assignedBuyerId ?? "", line1: "", line2: "", city: "", state: "", postalCode: "", contactFirstName: "",
-    contactLastName: "", contactEmail: "", contactPhone: "",
+    contactLastName: "", contactEmail: "", contactPhone: "", msmeClassification: supplier?.msme?.classification ?? "", msmeRegistrationNumber: supplier?.msme?.registrationNumber ?? "",
+    msmeEffectiveFrom: supplier?.msme?.effectiveFrom ?? "", msmeEvidenceReference: supplier?.msme?.evidenceReference ?? "", writtenPaymentAgreement: supplier?.msme?.writtenPaymentAgreement ? "true" : "",
+    agreedPaymentDays: supplier?.msme?.agreedPaymentDays === null || supplier?.msme?.agreedPaymentDays === undefined ? "" : String(supplier.msme.agreedPaymentDays),
+    paymentAgreementReference: supplier?.msme?.paymentAgreementReference ?? "",
   };
 }
 
@@ -89,6 +96,7 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
   }, [identity, editing]);
 
   const submit = useSubmitKey();
+  useFormChangesWarning(values);
   const save = useMutation({
     mutationFn: (extra: { allowDuplicate?: boolean; partyId?: string }) => submit.run(async () => {
       if (existing) {
@@ -184,6 +192,18 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
           {text("gstin", "GSTIN", { isRequired: Boolean(gstType?.needsGstin), description: "The registered state and PAN are read from it." })}
           {text("pan", "PAN / Tax ID")}
           {select("registeredStateCode", "Registered state", options.states.map((state) => ({ value: state.code, label: `${state.name} (${state.code})` })))}
+          {select("withholdingSectionId", "Usual TDS section", [{ value: "", label: "No TDS" }, ...(options.withholdingSections ?? []).map((entry) => ({ value: entry.id, label: `${entry.code} · ${entry.name} (${Number(entry.rate)}%)` }))],
+            { description: "Proposed on this supplier's bills; a bill may use another or none." })}
+        </div>
+        <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-3">
+          {select("msmeClassification", "MSME classification", [{ value: "", label: "Not recorded" }, { value: "micro", label: "Micro enterprise" }, { value: "small", label: "Small enterprise" },
+            { value: "medium", label: "Medium enterprise" }, { value: "not_msme", label: "Not an MSME" }], { description: "Micro and small enterprises have a statutory payment deadline (MSMED Act)." })}
+          {text("msmeRegistrationNumber", "Udyam registration number")}
+          {text("msmeEffectiveFrom", "Classified from", { type: "date" })}
+          {text("msmeEvidenceReference", "Evidence (certificate reference)")}
+          {select("writtenPaymentAgreement", "Written payment agreement", [{ value: "", label: "No written agreement" }, { value: "true", label: "Yes, in writing" }])}
+          {values.writtenPaymentAgreement && text("agreedPaymentDays", "Agreed payment days", { inputMode: "numeric", description: "The statutory limit is 45 days from acceptance." })}
+          {values.writtenPaymentAgreement && text("paymentAgreementReference", "Agreement reference")}
         </div>
       </ProcPanel>
       <ProcPanel title="Commercial defaults" description={editing && !can.commercial ? "Changing these needs the Manage supplier commercial defaults permission." : "New RFQs and purchase orders start from these; documents keep what they were given."}>

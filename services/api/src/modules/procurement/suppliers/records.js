@@ -7,7 +7,7 @@
 // shares: name, legal name, GSTIN, PAN, website, country, registered state,
 // GST registration type. The supplier row holds what is Procurement's own.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
-import { listPurchaseTermOptions } from "../../../core/payment-terms/index.js";
+import { getSupplierDefaultPaymentTerm, listPurchaseTermOptions } from "../../../core/payment-terms/index.js";
 import { GST_STATES, gstStateName } from "../../../core/tax/index.js";
 import {
   CONTACT_NUMBER_DOCUMENT_TYPE, GST_REGISTRATION_TYPES, PARTY_CODE_DOCUMENT_TYPE, SUPPLIER_ADDRESS_PURPOSES, SUPPLIER_CATEGORIES, SUPPLIER_CONTACT_PURPOSES, SUPPLIER_CONTACT_ROLES,
@@ -24,12 +24,17 @@ import { CONTACT_SELECT, addSupplierContact, toContact } from "./contacts.js";
 import { defaultsView, readDefaults } from "./default-assignments.js";
 import { ensureRegistration, listSupplierTaxRegistrations } from "./tax-registrations.js";
 
+const dayOfDate = (value) => (value instanceof Date ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}` : String(value).slice(0, 10));
+
 // supplier field -> [table alias, column]. The party holds the shared identity; the supplier row Procurement's own data.
 const COLUMNS = Object.freeze({
   supplierName: ["party", "display_name"], legalName: ["party", "legal_name"], website: ["party", "website"], countryCode: ["party", "country_code"],
   gstRegistrationType: ["party", "tax_treatment"], gstin: ["party", "gstin"], pan: ["party", "pan"], registeredStateCode: ["party", "gst_state_code"],
   supplierType: ["supplier", "supplier_type"], category: ["supplier", "category"], primaryEmail: ["supplier", "primary_email"], primaryPhone: ["supplier", "primary_phone"],
   notes: ["supplier", "notes"], defaultCurrency: ["supplier", "default_currency"], paymentTermId: ["supplier", "payment_term_id"], assignedBuyerId: ["supplier", "assigned_buyer_id"],
+  withholdingSectionId: ["supplier", "withholding_section_id"], msmeClassification: ["supplier", "msme_classification"], msmeRegistrationNumber: ["supplier", "msme_registration_number"],
+  msmeEffectiveFrom: ["supplier", "msme_effective_from"], msmeEvidenceReference: ["supplier", "msme_evidence_reference"], writtenPaymentAgreement: ["supplier", "written_payment_agreement"],
+  agreedPaymentDays: ["supplier", "agreed_payment_days"], paymentAgreementReference: ["supplier", "payment_agreement_reference"],
 });
 
 // The supplier as saved, in the shape validation reads.
@@ -37,10 +42,15 @@ const currentOf = (row) => ({
   supplierName: row.display_name, legalName: row.legal_name, website: row.website, countryCode: row.country_code?.trim() ?? null, gstRegistrationType: row.tax_treatment,
   gstin: row.gstin, pan: row.pan, registeredStateCode: row.gst_state_code, supplierType: row.supplier_type, category: row.category, primaryEmail: row.primary_email,
   primaryPhone: row.primary_phone, notes: row.notes, defaultCurrency: row.default_currency?.trim() ?? null, paymentTermId: row.payment_term_id, assignedBuyerId: row.assigned_buyer_id,
+  withholdingSectionId: row.withholding_section_id ?? null, msmeClassification: row.msme_classification ?? null, msmeRegistrationNumber: row.msme_registration_number ?? null,
+  msmeEffectiveFrom: row.msme_effective_from ? dayOfDate(row.msme_effective_from) : null, msmeEvidenceReference: row.msme_evidence_reference ?? null,
+  writtenPaymentAgreement: Boolean(row.written_payment_agreement), agreedPaymentDays: row.agreed_payment_days ?? null, paymentAgreementReference: row.payment_agreement_reference ?? null,
 });
 
 const SELECT = `
-  SELECT supplier.id, supplier.supplier_number, supplier.party_id, supplier.supplier_type, supplier.category, supplier.status, supplier.default_currency, supplier.payment_term_id,
+  SELECT supplier.id, supplier.supplier_number, supplier.party_id, supplier.supplier_type, supplier.category, supplier.status, supplier.default_currency, supplier.payment_term_id, supplier.withholding_section_id,
+         supplier.msme_classification, supplier.msme_registration_number, supplier.msme_effective_from, supplier.msme_evidence_reference, supplier.written_payment_agreement,
+         supplier.agreed_payment_days, supplier.payment_agreement_reference,
          supplier.assigned_buyer_id, supplier.primary_email, supplier.primary_phone, supplier.notes, supplier.status_reason, supplier.status_changed_at, supplier.blocked_reason,
          supplier.blocked_at, supplier.version, supplier.created_at, supplier.updated_at, supplier.created_by,
          party.display_name, party.legal_name, party.gstin, party.pan, party.website, party.country_code, party.gst_state_code, party.tax_treatment, party.customer_number,
@@ -103,6 +113,10 @@ export function toSupplier(row) {
     paymentTermName: row.payment_term_name ?? null,
     assignedBuyerId: row.assigned_buyer_id,
     assignedBuyerName: row.buyer_name ?? null,
+    withholdingSectionId: row.withholding_section_id ?? null,
+    msme: { classification: row.msme_classification ?? null, registrationNumber: row.msme_registration_number ?? null, effectiveFrom: row.msme_effective_from ? dayOfDate(row.msme_effective_from) : null,
+      evidenceReference: row.msme_evidence_reference ?? null, writtenPaymentAgreement: Boolean(row.written_payment_agreement), agreedPaymentDays: row.agreed_payment_days ?? null,
+      paymentAgreementReference: row.payment_agreement_reference ?? null },
     isCustomer: Boolean(row.customer_number),
     customerNumber: row.customer_number ?? null,
     // The primary location (the registered default, else the ordering default) and the primary contact, for headers and lists.
@@ -133,6 +147,9 @@ function supplierActions(context, supplier) {
   return {
     edit: can(SUPPLIER_PERMISSIONS.edit) || can(SUPPLIER_PERMISSIONS.tax) || can(SUPPLIER_PERMISSIONS.commercial),
     createPurchaseOrder: active && can(SUPPLIER_PERMISSIONS.createPurchaseOrder),
+    // A bill from an inactive supplier (a final invoice after deactivation) is Accounts Payable's call; never from a blocked one.
+    createBill: active ? can(SUPPLIER_PERMISSIONS.createBill) || can(SUPPLIER_PERMISSIONS.managePayables)
+      : supplier.status === SUPPLIER_STATUS.inactive && can(SUPPLIER_PERMISSIONS.managePayables),
     deactivate: active && can(SUPPLIER_PERMISSIONS.status),
     activate: supplier.status === SUPPLIER_STATUS.inactive && can(SUPPLIER_PERMISSIONS.status),
     block: supplier.status !== SUPPLIER_STATUS.blocked && can(SUPPLIER_PERMISSIONS.block),
@@ -202,6 +219,8 @@ export async function createSupplier(client, context, input = {}) {
     ...normalized, ...Object.fromEntries(Object.entries(fromParty).filter(([, value]) => value !== null && value !== undefined)),
   });
   candidate.legalName ??= candidate.supplierName;
+  // Without its own payment terms, a new supplier takes the company default for purchases.
+  if (!candidate.paymentTermId) candidate.paymentTermId = (await getSupplierDefaultPaymentTerm(client, context.organizationId, null)).paymentTermId ?? null;
   assertValidSupplier(candidate);
   await assertSupplierReferences(client, context, candidate);
   const duplicates = await assertNoBlockingSupplierDuplicate(client, context, {
@@ -275,6 +294,8 @@ export async function updateSupplier(client, context, supplierId, input = {}) {
   if (changed.includes("gstin")) { if (!has(normalized, "registeredStateCode")) candidate.registeredStateCode = null; if (!has(normalized, "pan")) candidate.pan = null; }
   completeTaxDetails(candidate);
   candidate.legalName ??= candidate.supplierName;
+  // Without its own payment terms, a new supplier takes the company default for purchases.
+  if (!candidate.paymentTermId) candidate.paymentTermId = (await getSupplierDefaultPaymentTerm(client, context.organizationId, null)).paymentTermId ?? null;
   assertValidSupplier(candidate);
   await assertSupplierReferences(client, context, candidate, changed);
   if (changed.some((field) => ["supplierName", "legalName", "gstin", "pan"].includes(field)))
@@ -403,6 +424,7 @@ export async function getSupplierFormOptions(client, context) {
       WHERE membership.organization_id = $1 AND membership.status = 'active' AND users.status = 'active' ORDER BY users.full_name`, [context.organizationId])).rows;
   return {
     baseCurrency: organization.currency ?? null, countryCode: organization.country_code ?? "IN", currencies, paymentTerms: await listPurchaseTermOptions(client, context.organizationId),
+    withholdingSections: (await client.query(`SELECT id, code, name, rate FROM tenant.withholding_tax_sections WHERE organization_id = $1 AND status = 'active' ORDER BY code`, [context.organizationId])).rows,
     buyers, types: SUPPLIER_TYPES, categories: SUPPLIER_CATEGORIES, gstRegistrationTypes: GST_REGISTRATION_TYPES,
     addressPurposes: SUPPLIER_ADDRESS_PURPOSES.map(({ code, label, defaultColumn }) => ({ code, label, hasDefault: Boolean(defaultColumn) })),
     contactPurposes: SUPPLIER_CONTACT_PURPOSES.map(({ code, label }) => ({ code, label })),

@@ -32,14 +32,16 @@ export type Supplier = {
   categoryLabel: string; status: SupplierStatus; statusLabel: string; statusReason: string | null; statusChangedAt: string | null; statusChangedByName: string | null;
   blockedReason: string | null; blockedAt: string | null; blockedByName: string | null; primaryEmail: string | null; primaryPhone: string | null; website: string | null;
   countryCode: string | null; notes: string | null; gstRegistrationType: string | null; gstRegistrationLabel: string | null; gstin: string | null; pan: string | null;
-  registeredStateCode: string | null; registeredStateName: string | null; defaultCurrency: string; paymentTermId: string; paymentTermName: string | null;
+  registeredStateCode: string | null; registeredStateName: string | null; defaultCurrency: string; paymentTermId: string; paymentTermName: string | null; withholdingSectionId?: string | null;
   assignedBuyerId: string | null; assignedBuyerName: string | null; isCustomer: boolean; customerNumber: string | null;
+  msme?: { classification: string | null; registrationNumber: string | null; effectiveFrom: string | null; evidenceReference: string | null; writtenPaymentAgreement: boolean;
+    agreedPaymentDays: number | null; paymentAgreementReference: string | null };
   primaryAddress: { id: string; label: string | null; line1: string; city: string; state: string | null; stateCode: string | null; postalCode: string | null; countryCode: string | null } | null;
   primaryContact: { relationshipId: string; contactId: string; name: string; email: string | null; phone: string | null; designation: string | null } | null;
   version: number; createdAt: string; updatedAt: string;
 };
 export type SupplierActions = {
-  edit: boolean; createPurchaseOrder: boolean; deactivate: boolean; activate: boolean; block: boolean; unblock: boolean;
+  edit: boolean; createPurchaseOrder: boolean; createBill: boolean; deactivate: boolean; activate: boolean; block: boolean; unblock: boolean;
   viewAddresses: boolean; manageAddresses: boolean; deactivateAddresses: boolean; viewContacts: boolean; manageContacts: boolean; deactivateContacts: boolean; setDefaults: boolean;
   manageTaxRegistrations: boolean;
   viewPayables: boolean; viewPaymentDetails: boolean; managePaymentDetails: boolean;
@@ -53,7 +55,7 @@ export type SupplierOptions = {
   paymentTerms: Array<{ id: string; code: string; name: string; days: number | null }>; buyers: Array<{ id: string; name: string; email: string }>;
   types: Coded[]; categories: Coded[]; gstRegistrationTypes: Array<Coded & { needsGstin: boolean }>; addressPurposes: Array<Coded & { hasDefault: boolean }>; contactRoles: Coded[];
   contactPurposes: Coded[];
-  states: Array<{ code: string; name: string }>; statuses: Coded[]; views: Array<{ key: string; label: string }>; capabilities: Record<string, boolean>;
+  states: Array<{ code: string; name: string }>; withholdingSections?: Array<{ id: string; code: string; name: string; rate: string }>; statuses: Coded[]; views: Array<{ key: string; label: string }>; capabilities: Record<string, boolean>;
 };
 export type DuplicateMatch = {
   kind: "supplier" | "organization"; supplierId: string | null; partyId: string; number: string | null; name: string; legalName: string | null; gstin: string | null;

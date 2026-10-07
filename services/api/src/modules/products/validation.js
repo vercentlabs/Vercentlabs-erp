@@ -36,6 +36,7 @@ export const PRODUCT_COLUMNS = Object.freeze({
   standardCost: "standard_cost",
   trackingType: "tracking_type",
   allowNegativeStock: "allow_negative_stock",
+  requiresExpiryDate: "requires_expiry_date",
   valuationMethod: "valuation_method",
 });
 
@@ -43,7 +44,7 @@ export const PRODUCT_FIELD_LABELS = Object.freeze({
   code: "Code", name: "Name", type: "Type", description: "Description", salesDescription: "Sales description", purchaseDescription: "Purchase description",
   categoryId: "Category", sku: "SKU", barcode: "Barcode", baseUomId: "Base unit", salesUomId: "Sales unit", purchaseUomId: "Purchase unit", isSellable: "Can be sold",
   isPurchasable: "Can be purchased", hsnSacCode: "HSN / SAC", taxCategoryId: "Tax category", defaultSalesPrice: "Default sales price", defaultPurchaseCost: "Default purchase cost",
-  standardCost: "Standard cost", trackingType: "Lot / serial tracking", allowNegativeStock: "Allow negative stock", valuationMethod: "Valuation method", salesUomFactor: "Sales unit conversion", purchaseUomFactor: "Purchase unit conversion", imageAttachmentId: "Image",
+  standardCost: "Standard cost", trackingType: "Lot / serial tracking", allowNegativeStock: "Allow negative stock", requiresExpiryDate: "Lots need an expiry date", valuationMethod: "Valuation method", salesUomFactor: "Sales unit conversion", purchaseUomFactor: "Purchase unit conversion", imageAttachmentId: "Image",
 });
 
 const TEXT_LIMITS = Object.freeze({ code: 40, name: 240, description: 4000, salesDescription: 4000, purchaseDescription: 4000, sku: 60, barcode: 64, hsnSacCode: 8 });
@@ -68,7 +69,7 @@ export function normalizeProductInput(input = {}) {
   if (has(input, "hsnSacCode")) normalized.hsnSacCode = text(input.hsnSacCode).replace(/\s/g, "") || null;
   if (has(input, "type")) normalized.type = text(input.type).toLowerCase() || null;
   for (const field of ["categoryId", "baseUomId", "salesUomId", "purchaseUomId", "taxCategoryId", "imageAttachmentId"]) if (has(input, field)) normalized[field] = text(input[field]) || null;
-  for (const field of ["isSellable", "isPurchasable", "allowNegativeStock"]) if (has(input, field)) normalized[field] = bool(input[field]);
+  for (const field of ["isSellable", "isPurchasable", "allowNegativeStock", "requiresExpiryDate"]) if (has(input, field)) normalized[field] = bool(input[field]);
   for (const field of ["trackingType", "valuationMethod"]) if (has(input, field)) normalized[field] = text(input[field]).toLowerCase() || null;
   for (const field of ["defaultSalesPrice", "defaultPurchaseCost", "standardCost", "salesUomFactor", "purchaseUomFactor"]) if (has(input, field)) normalized[field] = money(input[field]);
   return normalized;
@@ -110,6 +111,7 @@ export function validateProduct(normalized, candidate) {
   if (normalized.trackingType && !["none", "batch", "serial"].includes(normalized.trackingType)) issue("trackingType", "Choose None, Lot / batch or Serial number.");
   if (normalized.valuationMethod && !["moving_average", "fifo", "standard"].includes(normalized.valuationMethod)) issue("valuationMethod", "Choose Moving average, FIFO or Standard.");
   if (candidate.type !== "stock" && candidate.trackingType && candidate.trackingType !== "none") issue("trackingType", "Only a Stock Item can be lot or serial tracked.");
+  if (candidate.requiresExpiryDate && candidate.trackingType !== "batch") issue("requiresExpiryDate", "Only a lot-tracked product can require an expiry date.");
   if (!candidate.isSellable && !candidate.isPurchasable && candidate.type === "service") issue("isSellable", "A service must be sold or purchased.");
   return issues;
 }

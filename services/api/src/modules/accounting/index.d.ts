@@ -33,7 +33,6 @@ export function allocateCustomerReceipt(client: QueryClient, context: Accounting
 export function listVendorBills(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
 export function getVendorBill(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
 export function createVendorBill(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function importProcurementMatchAsVendorBill(client: QueryClient, context: AccountingContext, matchingRecordId: string, input?: AccountingRecord): Promise<AccountingRecord>;
 export function submitVendorBill(client: QueryClient, context: AccountingContext, id: string, assignedTo?: string | null): Promise<AccountingRecord>;
 export function approveVendorBill(client: QueryClient, context: AccountingContext, id: string, contentHash: string): Promise<AccountingRecord>;
 export function rejectVendorBillApproval(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
@@ -79,3 +78,9 @@ export function reverseCustomerCreditNote(client: QueryClient, context: Accounti
 export function changeCustomerInvoiceDueDate(client: QueryClient, context: AccountingContext, id: string, input: { dueDate: string; reason: string }, options?: { internal?: boolean }): Promise<AccountingRecord>;
 export * from "./refunds/index.js";
 export function resolvePaymentSchedule(client: QueryClient, context: AccountingContext, options: AccountingRecord): Promise<AccountingRecord>;
+export declare function recordVendorCreditRefund(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function reverseVendorCreditRefund(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function unapplyVendorCreditNote(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function reverseVendorCreditNote(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function reduceBillSchedules(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function restoreBillSchedules(client: any, context: any, ...args: any[]): Promise<any>;

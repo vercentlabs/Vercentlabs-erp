@@ -184,6 +184,13 @@ export * from "./modules/accounting/index.js";
 
 export * from "./modules/procurement/index.js";
 export * from "./modules/procurement/suppliers/index.js";
+export * from "./modules/procurement/purchase-orders/index.js";
+export * from "./modules/procurement/supplier-bills/index.js";
+export * from "./modules/procurement/purchase-returns/index.js";
+export * from "./modules/procurement/vendor-credits/index.js";
+export * from "./modules/procurement/payment-terms/index.js";
+export * from "./modules/procurement/form-options.js";
+export * from "./modules/procurement/insights/index.js";
 export function assertEligibleLeadAssignee(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -192,7 +199,6 @@ export function assertEligibleLeadAssignee(
 
 
 
-export * from "./modules/procurement/governance.js";
 
 export * from "./core/release/governance.js";
 
@@ -216,7 +222,6 @@ export function updateSharedInboxThreadStatus(client: QueryClient, context: any,
 
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
-export * from "./modules/procurement/record-lookups.js";
 export * from "./modules/accounting/record-lookups.js";
 export * from "./modules/stock/read-models.js";
 export * from "./modules/stock/counts.js";
@@ -256,10 +261,6 @@ export {
 export function accrueSalesCommission(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function getSalesCustomerCreditExposure(client: QueryClient, context: any, partyId: string): Promise<any>;
 
-export function listProcurementPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
-export function listProcurementPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
-export function transitionProcurementReceiptWithStockMovement(client: QueryClient, procurementContext: any, stockContext: any, receiptId: string, action: string, input?: Record<string, unknown>): Promise<any>;
-export function runProcurementMatchWithVendorBillImport(client: QueryClient, procurementContext: any, accountingContext: any, input?: Record<string, unknown>): Promise<any>;
 
 export function getStockAvailability(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function reserveStock(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;

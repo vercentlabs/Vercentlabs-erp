@@ -10,13 +10,17 @@ import {
 } from "./constants.js";
 
 export const IDENTITY_FIELDS = Object.freeze(["supplierName", "legalName", "supplierType", "category", "primaryEmail", "primaryPhone", "website", "countryCode", "notes"]);
-export const TAX_FIELDS = Object.freeze(["gstRegistrationType", "gstin", "pan", "registeredStateCode"]);
+// The MSMED Act classification and the written payment agreement: what the statutory payment deadline is worked out from.
+export const MSME_FIELDS = Object.freeze(["msmeClassification", "msmeRegistrationNumber", "msmeEffectiveFrom", "msmeEvidenceReference", "writtenPaymentAgreement", "agreedPaymentDays", "paymentAgreementReference"]);
+export const TAX_FIELDS = Object.freeze(["gstRegistrationType", "gstin", "pan", "registeredStateCode", "withholdingSectionId", ...MSME_FIELDS]);
 export const COMMERCIAL_FIELDS = Object.freeze(["defaultCurrency", "paymentTermId", "assignedBuyerId"]);
 
 const LABELS = Object.freeze({
   supplierName: "Supplier name", legalName: "Legal name", supplierType: "Supplier type", category: "Category", primaryEmail: "Email", primaryPhone: "Phone",
   website: "Website", countryCode: "Country", notes: "Notes", gstRegistrationType: "GST registration type", gstin: "GSTIN", pan: "PAN",
   registeredStateCode: "Registered state", defaultCurrency: "Default currency", paymentTermId: "Payment terms", assignedBuyerId: "Buyer",
+  withholdingSectionId: "TDS section", msmeClassification: "MSME classification", msmeRegistrationNumber: "Udyam registration number", msmeEffectiveFrom: "MSME classification effective from",
+  msmeEvidenceReference: "MSME evidence", writtenPaymentAgreement: "Written payment agreement", agreedPaymentDays: "Agreed payment days", paymentAgreementReference: "Payment agreement reference",
 });
 
 function fail(issues) {
@@ -44,6 +48,14 @@ export function normalizeSupplierInput(input = {}) {
   put("defaultCurrency", text(input.defaultCurrency, 3)?.toUpperCase() ?? null);
   put("paymentTermId", text(input.paymentTermId, 40));
   put("assignedBuyerId", text(input.assignedBuyerId, 40));
+  put("withholdingSectionId", text(input.withholdingSectionId, 40));
+  put("msmeClassification", text(input.msmeClassification, 20));
+  put("msmeRegistrationNumber", text(input.msmeRegistrationNumber, 40)?.toUpperCase() ?? null);
+  put("msmeEffectiveFrom", text(input.msmeEffectiveFrom, 10));
+  put("msmeEvidenceReference", text(input.msmeEvidenceReference, 200));
+  if (has(input, "writtenPaymentAgreement")) out.writtenPaymentAgreement = input.writtenPaymentAgreement === true || input.writtenPaymentAgreement === "true";
+  if (has(input, "agreedPaymentDays")) out.agreedPaymentDays = input.agreedPaymentDays === null || input.agreedPaymentDays === "" ? null : Number(input.agreedPaymentDays);
+  put("paymentAgreementReference", text(input.paymentAgreementReference, 200));
   return out;
 }
 
@@ -60,7 +72,12 @@ export function assertValidSupplier(candidate) {
   if (candidate.website && !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(candidate.website)) issue("website", "Enter a valid website.");
   if (candidate.countryCode && !/^[A-Z]{2}$/.test(candidate.countryCode)) issue("countryCode", "Choose the country.");
   if (!/^[A-Z]{3}$/.test(candidate.defaultCurrency ?? "")) issue("defaultCurrency", "Choose the default currency.");
-  if (!isUuid(candidate.paymentTermId)) issue("paymentTermId", "Choose the default payment terms.");
+  if (!isUuid(candidate.paymentTermId)) issue("paymentTermId", "Choose the default payment terms (or set a company default for purchases).");
+  if (candidate.msmeClassification && !["micro", "small", "medium", "not_msme"].includes(candidate.msmeClassification)) issue("msmeClassification", "Choose micro, small, medium or not an MSME.");
+  if (candidate.msmeEffectiveFrom && (!/^\d{4}-\d{2}-\d{2}$/.test(candidate.msmeEffectiveFrom) || Number.isNaN(Date.parse(candidate.msmeEffectiveFrom)))) issue("msmeEffectiveFrom", "Enter a valid date.");
+  if (candidate.agreedPaymentDays !== null && candidate.agreedPaymentDays !== undefined && (!Number.isInteger(candidate.agreedPaymentDays) || candidate.agreedPaymentDays < 0 || candidate.agreedPaymentDays > 3650))
+    issue("agreedPaymentDays", "Enter the agreed payment days: a whole number.");
+  if (candidate.writtenPaymentAgreement && (candidate.agreedPaymentDays === null || candidate.agreedPaymentDays === undefined)) issue("agreedPaymentDays", "Enter the days the written payment agreement allows.");
   if (candidate.assignedBuyerId && !isUuid(candidate.assignedBuyerId)) issue("assignedBuyerId", "Choose the buyer.");
   const gstType = GST_REGISTRATION_TYPES.find((entry) => entry.code === candidate.gstRegistrationType);
   if (candidate.gstRegistrationType && !gstType) issue("gstRegistrationType", "Choose the GST registration type.");
@@ -102,6 +119,10 @@ export async function assertSupplierReferences(client, context, candidate, chang
       fail([{ field: "paymentTermId", message: error.message ?? "Choose active purchase payment terms." }]);
     }
   }
+  // The supplier's usual TDS section: an active one of the shared tax set-up (a bill may use another or none).
+  if (touched("withholdingSectionId") && candidate.withholdingSectionId
+    && !(await one(`SELECT 1 FROM tenant.withholding_tax_sections WHERE organization_id = $1 AND id = $2 AND status = 'active'`, [context.organizationId, candidate.withholdingSectionId])))
+    fail([{ field: "withholdingSectionId", message: "Choose an active TDS section." }]);
   if (touched("assignedBuyerId") && candidate.assignedBuyerId && !(await one(
     `SELECT 1 FROM public.organization_memberships membership JOIN public.users users ON users.id = membership.user_id
       WHERE membership.organization_id = $1 AND membership.user_id = $2 AND membership.status = 'active' AND users.status = 'active'`,

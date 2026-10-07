@@ -4,7 +4,7 @@
 // filters, import and export. Inactive and blocked suppliers stay listed and
 // say so; the server decides what the person may see and do.
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { Download, Plus, Upload } from "lucide-react";
@@ -13,6 +13,7 @@ import {
 } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
+import { useListState } from "@/features/procurement/shared/navigation";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { ProcAlert } from "@/features/procurement/shared/ProcUi";
@@ -33,16 +34,17 @@ const FILTER_NAMES: Record<FilterKey, string> = {
 export function SupplierListScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
-  const params = useSearchParams();
-  const [view, setViewState] = useState(params.get("view") || "all");
-  const [search, setSearch] = useState(params.get("search") ?? "");
-  const [submittedSearch, setSubmittedSearchState] = useState(params.get("search") ?? "");
-  const [filters, setFiltersState] = useState<Filters>(NO_FILTERS);
-  const [sorting, setSortingState] = useState<SortingState>([{ id: "supplierNumber", desc: false }]);
-  const [pageIndex, setPageIndex] = useState(0);
-  const setView = (next: string) => { setViewState(next); setPageIndex(0); };
-  const setFilters = (next: Filters) => { setFiltersState(next); setPageIndex(0); };
-  const setSorting = (next: SortingState) => { setSortingState(next); setPageIndex(0); };
+  // The view is in the URL; the search, filters, sorting and page are remembered for this browser tab.
+  const list = useListState("suppliers", { view: "all", filters: { ...NO_FILTERS, sortId: "supplierNumber", sortDesc: "", page: "0" } });
+  const { view, search, setSearch } = list;
+  const { sortId, sortDesc, page, ...filters } = list.filters;
+  const sorting: SortingState = [{ id: sortId, desc: sortDesc === "true" }];
+  const pageIndex = Number(page) || 0;
+  const setPageIndex = (next: number) => list.setFilter("page", String(next));
+  const [submittedSearch, setSubmittedSearchState] = useState(search);
+  const setView = (next: string) => { list.setView(next); setPageIndex(0); };
+  const setFilters = (next: Filters) => list.setFilters((current) => ({ ...current, ...next, page: "0" }));
+  const setSorting = (next: SortingState) => list.setFilters((current) => ({ ...current, sortId: next[0]?.id ?? "supplierNumber", sortDesc: next[0]?.desc ? "true" : "", page: "0" }));
   const setSubmittedSearch = (next: string) => { if (next !== submittedSearch) { setSubmittedSearchState(next); setPageIndex(0); } };
   // Typing searches after a short pause; Enter searches immediately.
   useEffect(() => {

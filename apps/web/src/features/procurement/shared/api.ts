@@ -16,22 +16,14 @@ export type ProcRecord = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } & Record<string, any>;
 
+// Master data for the configuration forms (categories, policies, source rules).
 export type ProcOptions = {
-  // From the Supplier Master; only active (selectable) suppliers start a new document.
-  suppliers: Array<{ id: string; label: string; status: string; supplier_number: string; name: string; gstin: string | null; city: string | null; selectable: boolean }>;
+  suppliers: Array<{ id: string; label: string; status: string; selectable: boolean }>;
   paymentTerms: Array<{ id: string; code: string; name: string }>;
-  purchaseOrders: Array<{ id: string; label: string; status: string }>;
-  receipts: Array<{ id: string; label: string; status: string }>;
   items: Array<{ id: string; code: string; name: string }>;
   warehouses: Array<{ id: string; code: string; name: string }>;
-  sourcingEvents: Array<{ id: string; label: string; status: string }>;
   uoms: Array<{ id: string; code: string; name: string }>;
   categories: Array<{ id: string; label: string; status: string }>;
-  agreements: Array<{ id: string; label: string; status: string }>;
-  requisitions: Array<{ id: string; label: string; status: string }>;
-  // Active locations and people of active suppliers, for the order's supplier contact and locations.
-  supplierAddresses?: Array<{ id: string; supplier_id: string; label: string; city: string; state: string | null; gstin: string | null; purposes: string[] }>;
-  supplierContacts?: Array<{ id: string; supplier_id: string; name: string; designation: string | null; email: string | null; roles: string[] }>;
 };
 
 const qs = (params: Record<string, string | number | undefined>) => {
@@ -66,22 +58,5 @@ export const updateRecord = (
   patch<{ record: ProcRecord }>(`/${resource}/${id}`, input).then(
     (r) => r.record,
   );
-export const actOn = (
-  resource: string,
-  id: string,
-  action: string,
-  input: Record<string, unknown> = {},
-) =>
-  post<{ record: ProcRecord }>(`/${resource}/${id}/${action}`, input).then(
-    (r) => r.record,
-  );
 export const getOptions = () =>
   request<{ options: ProcOptions }>("/options").then((r) => r.options);
-export const getDashboard = () =>
-  request<{ dashboard: Record<string, string | number> }>("/dashboard").then(
-    (r) => r.dashboard,
-  );
-export const listOperations = <T>(kind: string) =>
-  request<{ rows: T[] }>(`/operations?kind=${kind}`).then((r) => r.rows);
-export const runMatch = (input: Record<string, unknown>) =>
-  post<{ result: Record<string, any> }>("/match", input).then((r) => r.result); // eslint-disable-line @typescript-eslint/no-explicit-any

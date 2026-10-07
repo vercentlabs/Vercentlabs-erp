@@ -1,4 +1,4 @@
-import { ProcurementHomeScreen } from "@/features/procurement/screens/ProcurementScreens";
+import { ProcurementHomeScreen } from "@/features/procurement/insights/ProcurementHomeScreen";
 
 export const metadata = { title: "Procurement" };
 

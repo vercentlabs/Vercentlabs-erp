@@ -38,6 +38,8 @@ export const SUPPLIER_PERMISSIONS = Object.freeze({
   paymentDetailsView: "accounting.supplier_payment_details.view",
   paymentDetailsManage: "accounting.supplier_payment_details.manage",
   createPurchaseOrder: "procurement.po.create",
+  createBill: "procurement.bills.create",
+  managePayables: "accounting.payables.manage",
 });
 
 // Active: used for RFQs and purchase orders. Inactive: not for new business,

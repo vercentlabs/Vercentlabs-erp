@@ -16,12 +16,7 @@ type OptionSource =
   | "warehouses"
   | "items"
   | "uoms"
-  | "purchaseOrders"
-  | "receipts"
-  | "sourcingEvents"
   | "categories"
-  | "agreements"
-  | "requisitions"
   | "paymentTerms";
 export type FieldDef = {
   name: string;
@@ -68,32 +63,10 @@ function resolveOptions(
         value: u.id,
         label: `${u.name} (${u.code})`,
       }));
-    case "purchaseOrders":
-      return (o?.purchaseOrders ?? []).map((p) => ({
-        value: p.id,
-        label: p.label,
-      }));
-    case "receipts":
-      return (o?.receipts ?? []).map((r) => ({ value: r.id, label: r.label }));
-    case "sourcingEvents":
-      return (o?.sourcingEvents ?? []).map((e) => ({
-        value: e.id,
-        label: e.label,
-      }));
     case "categories":
       return (o?.categories ?? []).map((c) => ({
         value: c.id,
         label: c.label,
-      }));
-    case "agreements":
-      return (o?.agreements ?? []).map((a) => ({
-        value: a.id,
-        label: a.label,
-      }));
-    case "requisitions":
-      return (o?.requisitions ?? []).map((r) => ({
-        value: r.id,
-        label: r.label,
       }));
   }
 }

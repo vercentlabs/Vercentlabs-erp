@@ -27,6 +27,15 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "accounting.customer_refund": { moduleKey: "accounting", purposes: ["attachment"] },
   // Files on a supplier: contracts, rate cards, tax and quality certificates, company profile, correspondence.
   "procurement.supplier": { moduleKey: "procurement", purposes: ["attachment"] },
+  // Files on a purchase order (quotations, specifications, drawings, contracts) and the exact PDFs emailed to the supplier.
+  "procurement.purchase_order": { moduleKey: "procurement", purposes: ["attachment"] },
+  // Files on a goods receipt: the supplier challan, packing slips, photos of damaged goods.
+  "procurement.goods_receipt": { moduleKey: "procurement", purposes: ["attachment"] },
+  // Evidence on a receiving rejection: photos, inspection records, supplier correspondence.
+  "procurement.receiving_rejection": { moduleKey: "procurement", purposes: ["attachment"] },
+  // On a supplier bill: the supplier's original invoice (PDF or image) and supporting documents.
+  "procurement.supplier_bill": { moduleKey: "procurement", purposes: ["attachment"] },
+  "procurement.purchase_return": { moduleKey: "procurement", purposes: ["attachment"] },
   "platform.export": { moduleKey: null, purposes: ["export"] },
   "platform.report_run": { moduleKey: null, purposes: ["report_output"] },
 });

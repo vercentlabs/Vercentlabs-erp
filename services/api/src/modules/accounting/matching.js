@@ -16,7 +16,7 @@ export async function getVendorBillMatch(client, context, billIdValue) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
   const billId = uuid(billIdValue, "Vendor bill");
   const result = await client.query(
-    `SELECT match.*,bill.bill_number,bill.supplier_invoice_number,bill.matching_status,bill.grand_total
+    `SELECT match.*,bill.bill_number,COALESCE(bill.supplier_invoice_reference,bill.supplier_invoice_number) AS supplier_invoice_number,bill.matching_status,bill.grand_total
      FROM tenant.accounting_vendor_bill_matches match
      JOIN tenant.accounting_vendor_bills bill
        ON bill.organization_id=match.organization_id AND bill.id=match.vendor_bill_id

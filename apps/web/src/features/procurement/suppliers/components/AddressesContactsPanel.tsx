@@ -22,8 +22,9 @@ const DEFAULT_LABEL: Record<string, string> = {
 };
 const contactDefaultLabel = (purpose: string) => (purpose === "ordering" ? "Default ordering" : DEFAULT_LABEL[purpose] ?? purpose);
 
-export function AddressesContactsPanel({ detail, options, onChanged, onShowHistory }: {
-  detail: SupplierDetail; options: SupplierOptions; onChanged: (message: string) => void; onShowHistory: () => void;
+// show: only the addresses or only the contacts (the supplier's Addresses and Contacts tabs); both when omitted.
+export function AddressesContactsPanel({ detail, options, onChanged, onShowHistory, show }: {
+  detail: SupplierDetail; options: SupplierOptions; onChanged: (message: string) => void; onShowHistory: () => void; show?: "addresses" | "contacts";
 }) {
   const { supplier, addresses, contacts, taxRegistrations, actions } = detail;
   const access = { setDefaults: actions.setDefaults, manageTax: actions.manageTaxRegistrations };
@@ -78,7 +79,7 @@ export function AddressesContactsPanel({ detail, options, onChanged, onShowHisto
       {error && <ProcAlert>{error}</ProcAlert>}
       {warning && <ProcAlert tone="warning">{warning}</ProcAlert>}
 
-      {actions.viewAddresses && <ProcPanel title="Addresses" description="Each location with what it is used for. A purpose has one default; documents start from it and can choose another active location."
+      {actions.viewAddresses && show !== "contacts" && <ProcPanel title="Addresses" description="Each location with what it is used for. A purpose has one default; documents start from it and can choose another active location."
         actions={actions.manageAddresses ? <Button size="compact" variant="secondary" onPress={() => setAddress("new")}>Add address</Button> : undefined}>
         <div className="flex flex-wrap gap-2">
           <SearchField aria-label="Search addresses" placeholder="Label, city, state, PIN or GSTIN" className="w-full sm:w-72" value={addressSearch} onChange={setAddressSearch} />
@@ -127,7 +128,7 @@ export function AddressesContactsPanel({ detail, options, onChanged, onShowHisto
         )}
       </ProcPanel>}
 
-      {actions.viewContacts && <ProcPanel title="Contacts" description="The people at this supplier. One person can hold several roles; documents keep the person they named even if they leave."
+      {actions.viewContacts && show !== "addresses" && <ProcPanel title="Contacts" description="The people at this supplier. One person can hold several roles; documents keep the person they named even if they leave."
         actions={actions.manageContacts ? <Button size="compact" variant="secondary" onPress={() => setContact("new")}>Add contact</Button> : undefined}>
         <div className="flex flex-wrap gap-2">
           <SearchField aria-label="Search contacts" placeholder="Name, email, phone, designation or location" className="w-full sm:w-72" value={contactSearch} onChange={setContactSearch} />

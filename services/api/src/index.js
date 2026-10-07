@@ -16,16 +16,21 @@ export * from "./modules/accounting/index.js";
 
 export * from "./modules/procurement/index.js";
 export * from "./modules/procurement/suppliers/index.js";
+export * from "./modules/procurement/purchase-orders/index.js";
+export * from "./modules/procurement/supplier-bills/index.js";
+export * from "./modules/procurement/purchase-returns/index.js";
+export * from "./modules/procurement/vendor-credits/index.js";
+export * from "./modules/procurement/payment-terms/index.js";
+export * from "./modules/procurement/form-options.js";
+export * from "./modules/procurement/insights/index.js";
 
 
 
-export * from "./modules/procurement/governance.js";
 
 export * from "./core/release/governance.js";
 
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
-export * from "./modules/procurement/record-lookups.js";
 export * from "./modules/accounting/record-lookups.js";
 export * from "./modules/stock/read-models.js";
 export * from "./modules/stock/counts.js";
@@ -62,9 +67,6 @@ export {
 
 export * from "./modules/sales/pass1-operations.js";
 
-export * from "./modules/procurement/pass1-operations.js";
-export * from "./orchestration/procurement-stock-receiving.js";
-export * from "./orchestration/procurement-accounting-vendor-bill.js";
 
 
 

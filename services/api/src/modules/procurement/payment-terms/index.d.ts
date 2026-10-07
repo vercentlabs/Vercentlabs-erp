@@ -1,0 +1,20 @@
+// Payment terms in Procurement.
+export declare function getPurchaseOrderPaymentTerms(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function recordPurchaseOrderAdvance(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function approvePaymentReschedule(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function getOverdueSupplierObligations(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function getSupplierBillPaymentSchedule(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function getSupplierInstallmentAging(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function getSupplierPaymentTermHistory(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function getUpcomingSupplierPayments(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function recalculatePaymentScheduleSettlement(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function rejectPaymentReschedule(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function requestPaymentReschedule(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function resolvePurchaseOrderPaymentTerm(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function resolveSupplierBillPaymentTerm(client: any, context: any, ...args: any[]): Promise<any>;
+export declare const STATUTORY_DEFAULT_DAYS: number;
+export declare const STATUTORY_MAX_AGREED_DAYS: number;
+export declare function getSupplierBillComplianceDeadlines(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function generateComplianceDeadlines(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function recordAcceptanceDispute(client: any, context: any, ...args: any[]): Promise<any>;
+export declare function validateStatutoryPaymentDeadline(client: any, context: any, ...args: any[]): Promise<any>;

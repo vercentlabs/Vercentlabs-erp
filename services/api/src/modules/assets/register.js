@@ -348,7 +348,7 @@ export async function createAssetFromSource(client, c, input) {
     const asset = await registerAsset(client, c, { ...input, name: input.name || l.description, acquisitionCost: input.acquisitionCost ?? l.net_amount, acquisitionDate: input.acquisitionDate || String(l.bill_date instanceof Date ? l.bill_date.toISOString().slice(0, 10) : l.bill_date).slice(0, 10), supplierId: input.supplierId || l.party_id }, { type: "vendor_bill_line", documentId: l.bill_id, lineId: l.id });
     return { asset, reused: false };
   }
-  const po = await client.query(`SELECT id,status FROM tenant.procurement_purchase_orders WHERE organization_id=$1 AND id=$2`, [c.organizationId, sourceId]);
+  const po = await client.query(`SELECT id,status FROM tenant.purchase_orders WHERE organization_id=$1 AND id=$2`, [c.organizationId, sourceId]);
   if (!po.rows[0]) throw new AssetError(404, "The purchase order was not found.", "ASSET_SOURCE_NOT_FOUND");
   const asset = await registerAsset(client, c, { ...input, purchaseOrderId: sourceId }, { type: "purchase_order", documentId: sourceId, lineId: null });
   return { asset, reused: false };

@@ -88,14 +88,13 @@ const RELATED = Object.freeze({
   },
   purchases: {
     needs: "procurement.view",
-    sql: `SELECT po.id, COALESCE(po.data->>'purchaseOrderNumber', po.data->>'poNumber', po.data->>'number', left(po.id::text, 8)) AS code, party.display_name AS party, po.status,
-                 COALESCE(NULLIF(line.data->>'quantity', '')::numeric, 0) AS quantity, uom.code AS uom, NULL::numeric AS amount, po.data->>'currencyCode' AS currency_code, po.created_at AS date
-            FROM tenant.procurement_purchase_order_lines line
-            JOIN tenant.procurement_purchase_orders po ON po.organization_id = line.organization_id AND po.id = line.parent_id
-            LEFT JOIN tenant.business_parties party ON party.organization_id = po.organization_id AND party.id = po.supplier_id
-            LEFT JOIN tenant.units_of_measure uom ON uom.organization_id = line.organization_id AND uom.id = line.uom_id
-           WHERE line.organization_id = $1 AND line.item_id = $2 ORDER BY po.created_at DESC LIMIT 100`,
-    href: () => null,
+    sql: `SELECT po.id, po.purchase_order_number AS code, party.display_name AS party, po.status, line.ordered_quantity AS quantity, line.uom_snapshot->>'code' AS uom,
+                 line.line_total AS amount, po.currency_code, po.order_date AS date
+            FROM tenant.purchase_order_lines line
+            JOIN tenant.purchase_orders po ON po.organization_id = line.organization_id AND po.id = line.purchase_order_id
+            LEFT JOIN tenant.business_parties party ON party.organization_id = po.organization_id AND party.id = po.party_id
+           WHERE line.organization_id = $1 AND line.product_id = $2 ORDER BY po.order_date DESC, po.created_at DESC LIMIT 100`,
+    href: (row) => `/procurement/purchase-orders/${row.id}`,
   },
   stock: {
     needs: "stock.view",

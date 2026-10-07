@@ -1395,6 +1395,59 @@ function withOrderPermissions(role) {
       ...(has("accounting.payments.manage") || has("accounting.payments.approve") ? ["accounting.supplier_payment_details.view"] : []),
       ...(has("accounting.payments.approve") ? ["accounting.supplier_payment_details.manage"] : []),
       ...(has("procurement.view") ? ["payment_terms.view"] : []),
+      // Purchase orders (as migration 0045 grants): seen by whoever sees procurement, and by Accounts Payable, which bills them; confirmed, closed
+      // and priced at no charge by whoever approved orders; sent by whoever dispatched them; kept up to date (dates, warehouses, one-off lines) by
+      // whoever manages them; supplier quotations recorded by whoever ran sourcing.
+      ...(has("procurement.view") || has("accounting.payables.manage") ? ["procurement.po.view", "procurement.po.view_all"] : []),
+      ...(has("procurement.po.approve") ? ["procurement.po.confirm", "procurement.po.close", "procurement.po.override_price", "procurement.po.send"] : []),
+      ...(has("procurement.po.dispatch") ? ["procurement.po.send"] : []),
+      ...(has("procurement.po.manage") ? ["procurement.po.change_warehouse", "procurement.po.update_dates", "procurement.po.descriptive_lines"] : []),
+      ...(has("procurement.sourcing.manage") ? ["procurement.quotations.manage"] : []),
+      // Receiving (as migration 0046 grants): posted by whoever records receipts, reversed by whoever approved them, held goods released by whoever
+      // inspects, receiving warehouses assigned by whoever manages procurement settings.
+      ...(has("procurement.receipts.manage") ? ["procurement.receipts.post"] : []),
+      ...(has("procurement.receipts.approve") ? ["procurement.receipts.reverse"] : []),
+      ...(has("procurement.inspection.manage") ? ["procurement.receipts.release"] : []),
+      ...(has("procurement.settings.manage") ? ["procurement.receipts.access"] : []),
+      // Receiving rejections (as migration 0048 grants): seen by procurement, Accounts Payable and Quality; recorded by whoever records receipts;
+      // quality rejections by whoever inspects; cancelled, accepted back and disposed of by whoever approves receipts (disposal also by whoever
+      // adjusts stock, acceptance also by whoever releases quality); resolved by receiving, approvers and buyers; financial links by payables.
+      ...(has("procurement.view") || has("accounting.payables.manage") || has("quality.inspect") ? ["procurement.rejections.view", "procurement.rejections.view_all"] : []),
+      ...(has("procurement.receipts.manage") ? ["procurement.rejections.record", "procurement.rejections.edit", "procurement.rejections.resolve"] : []),
+      ...(has("procurement.inspection.manage") || has("quality.inspect") ? ["procurement.rejections.quality"] : []),
+      ...(has("procurement.receipts.approve") ? ["procurement.rejections.cancel", "procurement.rejections.resolve", "procurement.rejections.override", "procurement.rejections.dispose"] : []),
+      ...(has("procurement.po.manage") ? ["procurement.rejections.resolve"] : []),
+      ...(has("quality.release") ? ["procurement.rejections.override"] : []),
+      ...(has("stock.adjust") ? ["procurement.rejections.dispose"] : []),
+      ...(has("accounting.payables.manage") || has("procurement.suppliers.payables.view") ? ["procurement.rejections.financial"] : []),
+      // Supplier bills (as migration 0049 grants): seen by procurement, Accounts Payable, Finance approvers and treasury; duplicates accepted and
+      // posted bills reversed by whoever approves payables.
+      ...(has("procurement.view") || has("accounting.payables.manage") || has("accounting.payables.approve") || has("accounting.payments.manage") ? ["procurement.bills.view"] : []),
+      ...(has("accounting.payables.approve") ? ["procurement.bills.override_duplicate", "procurement.bills.reverse", "procurement.matching.override"] : []),
+      // Direct bills (as migration 0050 grants): drafts by Accounts Payable and buyers, due-date overrides by payables approvers, expense
+      // categories by payables approvers and whoever manages procurement settings.
+      ...(has("accounting.payables.manage") || has("procurement.po.manage") ? ["procurement.bills.create"] : []),
+      ...(has("accounting.payables.approve") ? ["procurement.bills.override_due_date", "procurement.bills.categories"] : []),
+      ...(has("procurement.settings.manage") ? ["procurement.bills.categories"] : []),
+      // Purchase returns (as migration 0054 grants): viewing with orders or payables, posting and resolving by whoever returns goods, reversing
+      // and commercial returns by purchasing approvers, resolutions also by Accounts Payable and buyers.
+      ...(has("procurement.po.view") || has("procurement.po.view_all") || has("accounting.payables.manage") ? ["procurement.returns.view"] : []),
+      ...(has("procurement.returns.manage") ? ["procurement.returns.post", "procurement.returns.resolve"] : []),
+      ...(has("procurement.po.approve") ? ["procurement.returns.reverse", "procurement.returns.commercial"] : []),
+      ...(has("accounting.payables.manage") || has("procurement.po.manage") ? ["procurement.returns.resolve"] : []),
+      // Debit notes to suppliers and vendor credits (as migration 0055 grants).
+      ...(has("procurement.po.view") || has("procurement.po.view_all") || has("accounting.payables.manage") ? ["procurement.claims.view"] : []),
+      ...(has("procurement.po.manage") || has("accounting.payables.manage") ? ["procurement.claims.manage", "procurement.claims.respond", "procurement.credits.manage"] : []),
+      ...(has("accounting.payables.approve") ? ["procurement.credits.exceptional"] : []),
+      // Payment terms engine (as migration 0056 grants): purchase terms chosen by whoever prepares orders, a bill's agreed terms changed by
+      // Accounts Payable, reschedules approved by payables approvers, statutory deadlines seen by procurement and Finance; the master
+      // maintained by whoever manages procurement or Finance settings.
+      ...(has("procurement.po.create") || has("procurement.po.manage") ? ["procurement.po.change_payment_terms"] : []),
+      ...(has("accounting.payables.manage") ? ["procurement.bills.override_payment_terms", "payment_terms.view"] : []),
+      ...(has("accounting.payables.approve") ? ["accounting.payables.reschedule"] : []),
+      ...(has("procurement.po.view") || has("accounting.payables.manage") || has("accounting.view") ? ["procurement.compliance.view"] : []),
+      ...(has("procurement.po.view") ? ["payment_terms.view"] : []),
+      ...(has("procurement.settings.manage") || has("accounting.settings.manage") ? ["payment_terms.manage", "payment_terms.set_default"] : []),
     ]),
   };
 }

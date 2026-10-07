@@ -14,8 +14,6 @@ export type Lookup = {
   supplier: (id: unknown) => string;
   item: (id: unknown) => string;
   warehouse: (id: unknown) => string;
-  order: (id: unknown) => string;
-  receipt: (id: unknown) => string;
   category: (id: unknown) => string;
 };
 
@@ -41,8 +39,6 @@ export function useLookup(): Lookup {
     supplier: (id) => find(o?.suppliers, id, (r) => r.label),
     item: (id) => find(o?.items, id, (r) => `${r.name} (${r.code})`),
     warehouse: (id) => find(o?.warehouses, id, (r) => r.name),
-    order: (id) => find(o?.purchaseOrders, id, (r) => r.label),
-    receipt: (id) => find(o?.receipts, id, (r) => r.label),
     category: (id) => find(o?.categories, id, (r) => r.label),
   };
 }

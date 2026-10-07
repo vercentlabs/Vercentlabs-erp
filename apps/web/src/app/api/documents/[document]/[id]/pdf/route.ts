@@ -17,7 +17,10 @@ export async function GET(
   const { document, id } = await context.params;
   const renderer = getDocumentRenderer(document);
   // ?disposition=inline opens the PDF in the browser (View); the default downloads it.
-  const inline = new URL(request.url).searchParams.get("disposition") === "inline";
+  const params = new URL(request.url).searchParams;
+  const inline = params.get("disposition") === "inline";
+  // ?version= prints an earlier confirmed version of a document that keeps versions (a purchase order).
+  const version = Number(params.get("version")) || null;
   if (!renderer) return errorResponse(new HttpError(404, "Unknown document."));
   return workspaceRoute(
     request,
@@ -32,6 +35,7 @@ export async function GET(
         session,
         renderer.key,
         id,
+        { version },
       );
       return new Response(new Uint8Array(pdf.body), {
         status: 200,

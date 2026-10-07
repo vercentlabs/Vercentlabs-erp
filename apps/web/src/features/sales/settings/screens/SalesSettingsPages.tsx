@@ -2,7 +2,7 @@
 
 // The pages inside Sales Settings: Quotation & Order Rules, Fulfillment and
 // Discount Controls. Each reads the organization's Sales settings and saves
-// only its own fields; Payment Terms has its own screen. Viewing needs
+// only its own fields; Payment Terms are shared settings (Settings → Payment Terms). Viewing needs
 // sales.view, changing needs sales.settings.manage (and, for discounts,
 // sales.discount.manage_settings). The server checks both again.
 import { useState, type ReactNode } from "react";

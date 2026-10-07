@@ -92,6 +92,20 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
     ],
   },
   {
+    id: "finance-commercial",
+    label: "Finance & Commercial",
+    items: [
+      {
+        id: "payment-terms",
+        label: "Payment Terms",
+        route: "/settings/finance-commercial/payment-terms",
+        status: "AVAILABLE",
+        description: "When suppliers and customers are paid: net days, end of month, fixed days, instalments and advances, with company defaults.",
+        requiredPermission: "payment_terms.view",
+      },
+    ],
+  },
+  {
     id: "people",
     label: "People and access",
     items: [

@@ -75,6 +75,7 @@ export function toProduct(row, { cost = false } = {}) {
     inventoryTracked: row.track_inventory,
     trackingType: row.tracking_type,
     allowNegativeStock: row.allow_negative_stock,
+    requiresExpiryDate: Boolean(row.requires_expiry_date),
     valuationMethod: row.valuation_method,
     hsnSacCode: row.hsn_sac_code,
     hsnSacLabel: type === "service" ? "SAC" : "HSN",
@@ -224,8 +225,9 @@ const USES = Object.freeze([
   ["sales orders", "SELECT 1 FROM tenant.sales_order_lines WHERE organization_id = $1 AND item_id = $2"],
   ["invoices", "SELECT 1 FROM tenant.accounting_customer_invoice_lines WHERE organization_id = $1 AND item_id = $2"],
   ["supplier bills", "SELECT 1 FROM tenant.accounting_vendor_bill_lines WHERE organization_id = $1 AND item_id = $2"],
-  ["purchase orders", "SELECT 1 FROM tenant.procurement_purchase_order_lines WHERE organization_id = $1 AND item_id = $2"],
-  ["goods receipts", "SELECT 1 FROM tenant.procurement_receipt_lines WHERE organization_id = $1 AND item_id = $2"],
+  ["purchase orders", "SELECT 1 FROM tenant.purchase_order_lines WHERE organization_id = $1 AND product_id = $2"],
+  ["supplier quotations", "SELECT 1 FROM tenant.supplier_quotation_lines WHERE organization_id = $1 AND item_id = $2"],
+  ["goods receipts", "SELECT 1 FROM tenant.goods_receipt_lines WHERE organization_id = $1 AND product_id = $2"],
   ["stock movements", "SELECT 1 FROM tenant.stock_movements WHERE organization_id = $1 AND item_id = $2"],
   ["stock balances", "SELECT 1 FROM tenant.stock_balances WHERE organization_id = $1 AND item_id = $2"],
   ["bills of materials", "SELECT 1 FROM tenant.manufacturing_boms WHERE organization_id = $1 AND item_id = $2 UNION ALL SELECT 1 FROM tenant.manufacturing_bom_components WHERE organization_id = $1 AND item_id = $2"],
@@ -286,6 +288,7 @@ const FIELD_PERMISSION = Object.freeze({
   code: [PRODUCT_PERMISSIONS.editInventory, "You do not have permission to change the product code."],
   trackingType: [PRODUCT_PERMISSIONS.editInventory, "You do not have permission to change inventory configuration."],
   allowNegativeStock: [PRODUCT_PERMISSIONS.editInventory, "You do not have permission to change inventory configuration."],
+  requiresExpiryDate: [PRODUCT_PERMISSIONS.editInventory, "You do not have permission to change inventory configuration."],
   valuationMethod: [PRODUCT_PERMISSIONS.editInventory, "You do not have permission to change inventory configuration."],
   defaultPurchaseCost: [PRODUCT_PERMISSIONS.editCost, "You do not have permission to change costs."],
   standardCost: [PRODUCT_PERMISSIONS.editCost, "You do not have permission to change costs."],
@@ -380,6 +383,10 @@ export async function updateProduct(client, context, productId, input = {}) {
   if (candidate.type === "service" && before.type !== "service") { candidate.sku = null; candidate.barcode = null; }
   candidate.salesUomIdConverts = await hasConversion(client, context, row.id, candidate.salesUomId, candidate.baseUomId);
   candidate.purchaseUomIdConverts = await hasConversion(client, context, row.id, candidate.purchaseUomId, candidate.baseUomId);
+  // A product no longer lot-tracked cannot keep requiring lot expiry dates.
+  if (candidate.requiresExpiryDate && candidate.trackingType !== "batch" && !changed.includes("requiresExpiryDate")) {
+    candidate.requiresExpiryDate = false; normalized.requiresExpiryDate = false; changed.push("requiresExpiryDate");
+  }
   assertValidProduct(normalized, candidate);
   // The type decides which tax categories fit, so a type change rechecks the tax category.
   await assertReferences(client, context, { ...Object.fromEntries(changed.map((field) => [field, normalized[field]])),
