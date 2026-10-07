@@ -1,5 +1,6 @@
 export { FieldChrome, inputChrome, fieldLabel, fieldDescription, fieldError, type FieldChromeProps } from "./field-chrome.tsx";
 export { TextField, type TextFieldProps } from "./TextField.tsx";
+export { PasswordField, type PasswordFieldProps } from "./PasswordField.tsx";
 export { TextArea, type TextAreaProps } from "./TextArea.tsx";
 export { NumberField, type NumberFieldProps } from "./NumberField.tsx";
 export { MoneyField, type MoneyFieldProps } from "./MoneyField.tsx";

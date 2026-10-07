@@ -7,6 +7,55 @@
    or every utility class there is silently dropped from the build. */
 @source "../../../../packages/design-system/src";
 
+/* Web UI scale: the whole interface is drawn at 95% of the design size, as
+   the browser would show it at 95% zoom, so more fits on a desktop screen.
+   The generated tokens (tokens.css, shared with mobile) keep the design
+   values; here the web overrides its size tokens, and the root font size
+   scales every rem-based utility with them. Breakpoints are not scaled.
+   Change --ui-scale to adjust (1 = design size). Unlayered, so it wins over
+   the @theme values. */
+:root {
+  --ui-scale: 0.95;
+
+  --spacing-1: calc(4px * var(--ui-scale));
+  --spacing-2: calc(8px * var(--ui-scale));
+  --spacing-3: calc(12px * var(--ui-scale));
+  --spacing-4: calc(16px * var(--ui-scale));
+  --spacing-5: calc(20px * var(--ui-scale));
+  --spacing-6: calc(24px * var(--ui-scale));
+  --spacing-8: calc(32px * var(--ui-scale));
+  --spacing-10: calc(40px * var(--ui-scale));
+  --spacing-12: calc(48px * var(--ui-scale));
+
+  --radius-control: calc(8px * var(--ui-scale));
+  --radius-card: calc(10px * var(--ui-scale));
+  --radius-panel: calc(12px * var(--ui-scale));
+  --radius-overlay: calc(14px * var(--ui-scale));
+
+  --control-height-compact: calc(34px * var(--ui-scale));
+  --control-height-standard: calc(42px * var(--ui-scale));
+  --control-height-large: calc(48px * var(--ui-scale));
+  --control-touch-target-web: calc(44px * var(--ui-scale));
+
+  --text-xs: calc(12px * var(--ui-scale));
+  --text-sm: calc(13px * var(--ui-scale));
+  --text-md: calc(14px * var(--ui-scale));
+  --text-lg: calc(16px * var(--ui-scale));
+  --text-section: calc(18px * var(--ui-scale));
+  --text-xl: calc(20px * var(--ui-scale));
+  --text-2xl: calc(24px * var(--ui-scale));
+  --text-3xl: calc(28px * var(--ui-scale));
+
+  --layout-primary-rail-width: calc(68px * var(--ui-scale));
+  --layout-secondary-sidebar-width: calc(276px * var(--ui-scale));
+  --layout-content-max: calc(1680px * var(--ui-scale));
+  --layout-topbar-height: calc(68px * var(--ui-scale));
+}
+
+html {
+  font-size: calc(100% * var(--ui-scale));
+}
+
 html,
 body {
   height: 100%;
@@ -58,9 +107,47 @@ body {
   }
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: 2px;
+/* The default keyboard focus outline, in the base layer so components that
+   draw their own focus style can turn it off with `outline-none`. Unlayered,
+   it beat that utility: a focused text field showed this outline around
+   the input inside the field's own focus border and ring — a box in a box. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+/* Scrollbars: a slim 4px rounded thumb on a transparent track, no arrow
+   buttons. Chromium and Safari draw ::-webkit-scrollbar — but Chromium
+   ignores it on any element that sets the standard scrollbar-width or
+   scrollbar-color, so those are applied only where ::-webkit-scrollbar is
+   unsupported (Firefox, whose thinnest setting is `thin`). */
+@layer base {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-border-strong);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-text-subtle);
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-border-strong) transparent;
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

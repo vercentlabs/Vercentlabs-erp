@@ -19,7 +19,7 @@ export type TabListProps<T extends object> = Omit<AriaTabListProps<T>, "classNam
 export function TabList<T extends object>({ className, ...props }: TabListProps<T>) {
   return (
     <AriaTabList
-      className={cn("flex max-w-full gap-1 overflow-x-auto shadow-[inset_0_-1px_0_var(--color-border)] [scrollbar-width:thin]", className)}
+      className={cn("flex max-w-full gap-1 overflow-x-auto shadow-[inset_0_-1px_0_var(--color-border)]", className)}
       {...props}
     />
   );

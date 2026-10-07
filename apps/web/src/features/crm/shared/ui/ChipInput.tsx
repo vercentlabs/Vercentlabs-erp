@@ -47,7 +47,7 @@ export function ChipInput({
       <label htmlFor={id} className="text-sm font-medium text-text">
         {label}
       </label>
-      <div className="flex min-h-11 flex-wrap items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-2 py-1.5 focus-within:border-brand">
+      <div className="flex min-h-11 flex-wrap items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-2 py-1.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-focus">
         {values.map((v) => (
           <span
             key={v}

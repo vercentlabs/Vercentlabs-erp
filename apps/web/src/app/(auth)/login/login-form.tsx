@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Button } from "@vercentlabs/design-system";
+import { Button, PasswordField } from "@vercentlabs/design-system";
 import { TextField } from "@vercentlabs/design-system";
 
 export function LoginForm() {
@@ -51,10 +51,9 @@ export function LoginForm() {
         value={email}
         onChange={setEmail}
       />
-      <TextField
+      <PasswordField
         label="Password"
-        type="password"
-        autoComplete="current-password"
+                autoComplete="current-password"
         isRequired
         value={password}
         onChange={setPassword}

@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Button, TextField } from "@vercentlabs/design-system";
+import { Button, TextField, PasswordField } from "@vercentlabs/design-system";
 
 export function AcceptInvitationForm({
   token,
@@ -138,18 +138,16 @@ export function AcceptInvitationForm({
         value={fullName}
         onChange={setFullName}
       />
-      <TextField
+      <PasswordField
         label="Password"
-        type="password"
-        autoComplete="new-password"
+                autoComplete="new-password"
         isRequired
         value={password}
         onChange={setPassword}
       />
-      <TextField
+      <PasswordField
         label="Confirm password"
-        type="password"
-        autoComplete="new-password"
+                autoComplete="new-password"
         isRequired
         value={confirmPassword}
         onChange={setConfirmPassword}

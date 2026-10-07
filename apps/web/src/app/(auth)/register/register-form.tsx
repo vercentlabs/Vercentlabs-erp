@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Button, TextField } from "@vercentlabs/design-system";
+import { Button, TextField, PasswordField } from "@vercentlabs/design-system";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -74,10 +74,9 @@ export function RegisterForm() {
         value={email}
         onChange={setEmail}
       />
-      <TextField
+      <PasswordField
         label="Password"
-        type="password"
-        autoComplete="new-password"
+                autoComplete="new-password"
         isRequired
         value={password}
         onChange={setPassword}

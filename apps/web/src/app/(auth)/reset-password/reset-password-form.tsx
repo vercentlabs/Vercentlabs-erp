@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Button, TextField } from "@vercentlabs/design-system";
+import { Button, PasswordField } from "@vercentlabs/design-system";
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const router = useRouter();
@@ -59,18 +59,16 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
-      <TextField
+      <PasswordField
         label="New password"
-        type="password"
-        autoComplete="new-password"
+                autoComplete="new-password"
         isRequired
         value={password}
         onChange={setPassword}
       />
-      <TextField
+      <PasswordField
         label="Confirm new password"
-        type="password"
-        autoComplete="new-password"
+                autoComplete="new-password"
         isRequired
         value={confirmPassword}
         onChange={setConfirmPassword}
