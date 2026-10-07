@@ -2,7 +2,7 @@ import { buildProductImportErrorFile, importProducts } from "@vercentlabs/api/pr
 import { PRODUCT_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError } from "@/core/http";
-import { productUpload, readFile } from "@/features/sales/products/server/product-http";
+import { productUpload, readFile } from "@/features/items/server/item-http";
 
 // Multipart: file, mapping (JSON { header: field }), existing (skip | update), dryRun.
 export async function POST(request: Request) {

@@ -44,8 +44,8 @@ export async function updateStockSettings(client, c, input = {}) {
 }
 
 // ---------------------------------------------------------------- scan / lookup (F119)
-// Resolves whatever a scanner or a person typed: an item code or barcode, a variant SKU or
-// barcode, a batch number, or a serial number -- and says what it found.
+// Resolves whatever a scanner or a person typed: an item SKU or barcode, a batch number, or a
+// serial number -- and says what it found.
 export async function lookupStockByCode(client, c, input = {}) {
   need(c, "stock.view");
   const code = text(input.code, 200);
@@ -58,16 +58,12 @@ export async function lookupStockByCode(client, c, input = {}) {
     );
     return r.rows[0];
   };
-  const item = (await client.query(`SELECT ${itemColumns} FROM tenant.items item WHERE item.organization_id=$1 AND (lower(item.code)=lower($2) OR lower(item.barcode)=lower($2)) LIMIT 1`, [c.organizationId, code])).rows[0];
+  // The SKU or any live barcode / identifier of the item (a variant is an item of its own).
+  const item = (await client.query(
+    `SELECT ${itemColumns} FROM tenant.items item WHERE item.organization_id=$1 AND (lower(item.code)=lower($2) OR EXISTS (SELECT 1 FROM tenant.item_identifiers identifier
+        WHERE identifier.organization_id=item.organization_id AND identifier.item_id=item.id AND identifier.status='active' AND upper(identifier.value)=upper($2))) LIMIT 1`,
+    [c.organizationId, code])).rows[0];
   if (item) return { kind: "item", item, stock: await summary(item.id) };
-  const variant = (
-    await client.query(
-      `SELECT variant.id AS variant_id,variant.sku,variant.name AS variant_name,${itemColumns} FROM tenant.item_variants variant JOIN tenant.items item ON item.organization_id=variant.organization_id AND item.id=variant.item_id
-        WHERE variant.organization_id=$1 AND (lower(variant.sku)=lower($2) OR lower(variant.barcode)=lower($2)) LIMIT 1`,
-      [c.organizationId, code],
-    )
-  ).rows[0];
-  if (variant) return { kind: "variant", item: { id: variant.id, code: variant.code, name: variant.name, barcode: variant.barcode, tracking_type: variant.tracking_type, track_inventory: variant.track_inventory, uom_id: variant.uom_id, status: variant.status }, variant: { id: variant.variant_id, sku: variant.sku, name: variant.variant_name }, stock: await summary(variant.id) };
   const batch = (
     await client.query(
       `SELECT batch.id AS batch_id,batch.batch_number,batch.expires_on,batch.status AS batch_status,${itemColumns} FROM tenant.stock_batches batch JOIN tenant.items item ON item.organization_id=batch.organization_id AND item.id=batch.item_id

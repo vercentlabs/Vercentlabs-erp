@@ -69,7 +69,6 @@ export type SalesOrderLine = {
   id: string;
   sequence: number;
   item_id: string;
-  variant_id: string | null;
   uom_id: string | null;
   warehouse_id: string | null;
   warehouse_name: string | null;

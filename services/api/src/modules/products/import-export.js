@@ -4,8 +4,8 @@
 // column mapping, sample rows), then run it with the confirmed mapping. Each
 // row goes through createProduct, or updateProduct for a row whose code
 // already exists when the caller chose to update, so validation, duplicate
-// checks, permissions and history are exactly those of the form. Category,
-// unit and tax category are matched to existing records by name or code;
+// checks, permissions and history are exactly those of the form. Category (by
+// code, full path or unambiguous name), unit and tax category are matched to existing records;
 // nothing is created from a typo. A failing row is reported with its reason
 // and never stops the rest. `dryRun` checks the whole file and saves nothing.
 import { parseCsvUpload } from "../../core/platform/data-exchange/csv.js";
@@ -13,20 +13,23 @@ import { isXlsxFileName, parseXlsxUpload } from "../../core/platform/data-exchan
 import { canViewProductCost, requireProductPermission } from "./access.js";
 import { PRODUCT_PERMISSIONS, PRODUCT_TYPES, ProductError } from "./constants.js";
 import { PRODUCT_SELECT, buildProductListWhere, createProduct, toProduct, updateProduct } from "./records.js";
+import { addItemIdentifier, identifierOwner } from "./identifiers.js";
 import { text } from "./validation.js";
 
 const IMPORT_ROW_LIMIT = 5000;
 const EXPORT_ROW_LIMIT = 20000;
 
 export const PRODUCT_IMPORT_FIELDS = Object.freeze([
-  { key: "code", label: "Code", aliases: ["product code", "item code", "sku code"], sample: "ERP-CRM" },
+  { key: "code", label: "SKU", aliases: ["code", "product code", "item code", "sku code", "item sku"], sample: "PUMP-001" },
   { key: "name", label: "Name", aliases: ["product name", "item name", "product", "item", "service"], sample: "ERP CRM Module" },
   { key: "type", label: "Type", aliases: ["product type", "item type"], sample: "Service" },
   { key: "category", label: "Category", aliases: ["group", "item group", "product category"], sample: "ERP Modules" },
   { key: "description", label: "Description", aliases: ["internal description"], sample: "" },
   { key: "salesDescription", label: "Sales Description", aliases: ["sales text"], sample: "Vercentlabs ERP CRM module" },
-  { key: "sku", label: "SKU", aliases: [], sample: "" },
-  { key: "barcode", label: "Barcode", aliases: ["ean", "upc", "gtin"], sample: "" },
+  { key: "barcode", label: "Barcode", aliases: ["ean", "upc", "gtin", "primary barcode"], sample: "" },
+  { key: "brand", label: "Brand", aliases: [], sample: "" },
+  { key: "manufacturerName", label: "Manufacturer", aliases: ["make", "manufacturer name"], sample: "" },
+  { key: "manufacturerPartNumber", label: "Manufacturer Part Number", aliases: ["mpn", "part number", "part no"], sample: "" },
   { key: "baseUom", label: "UOM", aliases: ["base uom", "unit", "base unit", "unit of measure"], sample: "License" },
   { key: "salesUom", label: "Sales UOM", aliases: ["sales unit"], sample: "" },
   { key: "salesUomFactor", label: "Sales UOM Factor", aliases: ["sales conversion"], sample: "" },
@@ -35,11 +38,10 @@ export const PRODUCT_IMPORT_FIELDS = Object.freeze([
   { key: "isSellable", label: "Sellable", aliases: ["can be sold", "sell"], sample: "Yes" },
   { key: "isPurchasable", label: "Purchasable", aliases: ["can be purchased", "buy"], sample: "No" },
   { key: "inventoryTracked", label: "Inventory Tracked", aliases: ["track inventory", "stock tracked", "stock item"], sample: "No" },
+  { key: "trackingType", label: "Tracking", aliases: ["tracking mode", "batch serial", "lot serial"], sample: "None" },
   { key: "hsn", label: "HSN", aliases: ["hsn code"], sample: "" },
   { key: "sac", label: "SAC", aliases: ["sac code"], sample: "998313" },
   { key: "taxCategory", label: "Tax Category", aliases: ["tax", "gst category", "tax class"], sample: "" },
-  { key: "defaultSalesPrice", label: "Default Sales Price", aliases: ["sales price", "price", "selling price", "mrp"], sample: "2000" },
-  { key: "defaultPurchaseCost", label: "Default Purchase Cost", aliases: ["purchase cost", "cost", "purchase price"], sample: "" },
   { key: "status", label: "Status", aliases: ["active"], sample: "Active" },
 ]);
 
@@ -98,8 +100,34 @@ async function makeLookups(client, context) {
       return id;
     };
   };
+  // A category by its code, its full path ("Raw Materials › Steel", as exported; ">" or "/" also separate levels) or its name when only
+  // one category has that name: names are unique among siblings only.
+  const categoryLookup = (rows) => {
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const pathOf = (row) => { const names = []; for (let cursor = row, depth = 0; cursor && depth < 60; cursor = byId.get(cursor.parent_id), depth += 1) names.unshift(cursor.name); return names; };
+    const key = (value) => String(value).split(/\s*(?:›|>|\/)\s*/).map((part) => part.trim().toLowerCase()).filter(Boolean).join(" › ");
+    const exact = new Map();
+    const names = new Map();
+    for (const row of rows.filter((entry) => entry.status === "active")) {
+      exact.set(String(row.code).trim().toLowerCase(), row.id);
+      exact.set(key(pathOf(row).join(" › ")), row.id);
+      const name = row.name.trim().toLowerCase();
+      names.set(name, [...(names.get(name) ?? []), row]);
+    }
+    return (value) => {
+      const wanted = key(text(value));
+      const id = exact.get(text(value).toLowerCase()) ?? exact.get(wanted);
+      if (id) return id;
+      const named = names.get(wanted) ?? [];
+      if (named.length === 1) return named[0].id;
+      if (named.length > 1)
+        throw new ProductError(400, `More than one category is named “${text(value)}” (${named.map((row) => pathOf(row).join(" › ")).join("; ")}). Give its code or full path.`, "PRODUCT_IMPORT_ROW");
+      throw new ProductError(400, `Category “${text(value)}” was not found. Add it first or correct the spelling.`, "PRODUCT_IMPORT_ROW");
+    };
+  };
   return {
-    category: index(await load(`SELECT id, code, name FROM tenant.item_groups WHERE organization_id = $1 AND status = 'active'`), "Category"),
+    // Inactive categories are loaded only to build the paths of active ones.
+    category: categoryLookup(await load(`SELECT id, code, name, parent_id, status FROM tenant.item_groups WHERE organization_id = $1`)),
     uom: index(await load(`SELECT id, code, name FROM tenant.units_of_measure WHERE organization_id = $1 AND status = 'active'`), "Unit of measure"),
     taxCategory: index(await load(`SELECT id, code, name FROM tenant.tax_categories WHERE organization_id = $1 AND status = 'active'`), "Tax category"),
   };
@@ -114,7 +142,7 @@ function flag(values, key, label) {
 
 function rowToInput(values, lookups) {
   const input = {};
-  for (const field of ["code", "name", "description", "salesDescription", "sku", "barcode", "salesUomFactor", "purchaseUomFactor", "defaultSalesPrice", "defaultPurchaseCost"])
+  for (const field of ["code", "name", "description", "salesDescription", "barcode", "brand", "manufacturerName", "manufacturerPartNumber", "salesUomFactor", "purchaseUomFactor"])
     if (values[field]) input[field] = values[field];
   const tracked = flag(values, "inventoryTracked", "Inventory Tracked");
   if (values.type) {
@@ -137,9 +165,14 @@ function rowToInput(values, lookups) {
   if (values.sac && input.type && input.type !== "service") throw new ProductError(400, "A SAC is for services. Use the HSN column for goods.", "PRODUCT_IMPORT_ROW");
   if (values.hsn && input.type === "service") throw new ProductError(400, "An HSN is for goods. Use the SAC column for services.", "PRODUCT_IMPORT_ROW");
   if (values.hsn || values.sac) input.hsnSacCode = values.hsn || values.sac;
+  if (values.trackingType) {
+    const tracking = { none: "none", batch: "batch", lot: "batch", "batch / lot": "batch", serial: "serial", "serial number": "serial" }[text(values.trackingType).toLowerCase()];
+    if (!tracking) throw new ProductError(400, "Tracking must be None, Batch or Serial.", "PRODUCT_IMPORT_ROW");
+    input.trackingType = tracking;
+  }
   if (values.status) {
-    const status = { active: "active", inactive: "inactive", yes: "active", no: "inactive" }[text(values.status).toLowerCase()];
-    if (!status) throw new ProductError(400, "Status must be Active or Inactive.", "PRODUCT_IMPORT_ROW");
+    const status = { active: "active", inactive: "inactive", draft: "draft", yes: "active", no: "inactive" }[text(values.status).toLowerCase()];
+    if (!status) throw new ProductError(400, "Status must be Draft, Active or Inactive.", "PRODUCT_IMPORT_ROW");
     input.status = status;
   }
   return input;
@@ -174,23 +207,26 @@ export async function importProducts(client, context, { bytes, fileName, mapping
     try {
       const input = rowToInput(values, lookups);
       // Two rows of the same file with one code, SKU or barcode.
-      for (const field of ["code", "sku", "barcode"]) {
+      for (const field of ["code", "barcode"]) {
         const key = input[field] ? `${field}:${String(input[field]).toUpperCase()}` : null;
-        if (key && seen.has(key)) throw new ProductError(400, `${field.toUpperCase()} ${input[field]} is also on row ${seen.get(key)}.`, "PRODUCT_IMPORT_ROW");
+        if (key && seen.has(key)) throw new ProductError(400, `${field === "code" ? "SKU" : "Barcode"} ${input[field]} is also on row ${seen.get(key)}.`, "PRODUCT_IMPORT_ROW");
       }
       const match = input.code ? (await client.query(`SELECT id FROM tenant.items WHERE organization_id = $1 AND upper(code) = $2`, [context.organizationId, String(input.code).toUpperCase()])).rows[0] : null;
       if (match && existing === "skip") {
         results.push({ rowNumber, name, outcome: "skipped", productId: match.id, message: `Code ${input.code} already exists.` });
       } else if (match) {
-        const { status: _status, code: _code, ...changes } = input;
+        const { status: _status, code: _code, barcode, ...changes } = input;
         const updated = await updateProduct(client, context, match.id, changes);
+        // A new barcode is added to the item; one it already has is left alone.
+        if (barcode && !(await identifierOwner(client, context, barcode))) await addItemIdentifier(client, context, match.id, { value: barcode });
+        else if (barcode && (await identifierOwner(client, context, barcode)).id !== match.id) throw new ProductError(409, `Barcode ${barcode} belongs to another item.`, "PRODUCT_IMPORT_ROW");
         results.push({ rowNumber, name, outcome: "updated", productId: updated.id, code: updated.code, message: `Updated ${updated.code}.` });
       } else {
         if (!input.type) input.type = "stock";
         const created = await createProduct(client, context, input, { origin: "import" });
         results.push({ rowNumber, name, outcome: "created", productId: created.id, code: created.code, message: `Created ${created.code}.` });
       }
-      for (const field of ["code", "sku", "barcode"]) if (input[field]) seen.set(`${field}:${String(input[field]).toUpperCase()}`, rowNumber);
+      for (const field of ["code", "barcode"]) if (input[field]) seen.set(`${field}:${String(input[field]).toUpperCase()}`, rowNumber);
       await client.query("RELEASE SAVEPOINT product_import_row");
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT product_import_row");
@@ -219,14 +255,16 @@ export async function exportProducts(client, context, filters = {}) {
   const { rows } = await client.query(`${PRODUCT_SELECT} ${sql} ORDER BY item.code LIMIT ${EXPORT_ROW_LIMIT + 1}`, values);
   if (rows.length > EXPORT_ROW_LIMIT) throw new ProductError(413, `More than ${EXPORT_ROW_LIMIT} products match. Narrow the filters and export again.`, "PRODUCT_EXPORT_TOO_LARGE");
   const yes = (value) => (value ? "Yes" : "No");
-  const header = ["Code", "Name", "Type", "Category", "Description", "Sales Description", "SKU", "Barcode", "UOM", "Sales UOM", "Sales UOM Factor", "Purchase UOM", "Purchase UOM Factor",
-    "Sellable", "Purchasable", "Inventory Tracked", "HSN", "SAC", "Tax Category", "GST Rate", "Default Sales Price", ...(cost ? ["Default Purchase Cost", "Standard Cost"] : []), "Status"];
+  const header = ["SKU", "Name", "Type", "Category", "Description", "Sales Description", "Barcode", "Brand", "Manufacturer", "Manufacturer Part Number", "UOM", "Sales UOM",
+    "Sales UOM Factor", "Purchase UOM", "Purchase UOM Factor", "Sellable", "Purchasable", "Inventory Tracked", "Tracking", "HSN", "SAC", "Tax Category", "GST Rate",
+    ...(cost ? ["Standard Cost"] : []), "Status"];
   const body = rows.map((row) => {
     const product = toProduct(row, { cost });
-    return [product.code, product.name, product.typeLabel, product.categoryName, product.description, product.salesDescription, product.sku, product.barcode, product.baseUom?.code,
-      product.salesUom?.code, product.salesUomFactor === 1 ? "" : product.salesUomFactor, product.purchaseUom?.code, product.purchaseUomFactor === 1 ? "" : product.purchaseUomFactor,
-      yes(product.isSellable), yes(product.isPurchasable), yes(product.inventoryTracked), product.isService ? "" : product.hsnSacCode, product.isService ? product.hsnSacCode : "",
-      product.taxCategoryName, product.gstRate, product.defaultSalesPrice, ...(cost ? [product.defaultPurchaseCost, product.standardCost] : []), product.isActive ? "Active" : "Inactive"];
+    return [product.code, product.name, product.typeLabel, product.categoryName, product.description, product.salesDescription, product.barcode, product.brand, product.manufacturerName,
+      product.manufacturerPartNumber, product.baseUom?.code, product.salesUom?.code, product.salesUomFactor === 1 ? "" : product.salesUomFactor, product.purchaseUom?.code,
+      product.purchaseUomFactor === 1 ? "" : product.purchaseUomFactor, yes(product.isSellable), yes(product.isPurchasable), yes(product.inventoryTracked), product.trackingLabel,
+      product.isService ? "" : product.hsnSacCode, product.isService ? product.hsnSacCode : "", product.taxCategoryName, product.gstRate, ...(cost ? [product.standardCost] : []),
+      product.lifecycleLabel];
   });
-  return { fileName: `products-${new Date().toISOString().slice(0, 10)}.csv`, csv: toCsv([header, ...body]), count: rows.length };
+  return { fileName: `items-${new Date().toISOString().slice(0, 10)}.csv`, csv: toCsv([header, ...body]), count: rows.length };
 }

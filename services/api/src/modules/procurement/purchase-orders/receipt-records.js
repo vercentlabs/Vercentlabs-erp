@@ -4,7 +4,8 @@
 // Inventory reconciliation — what each posted line should have put into stock
 // against what Inventory actually holds for it. Costs are shown only to those
 // who may see payables; warehouse staff see quantities.
-import { add, decimal, formatDecimal, sub } from "../../../core/decimal.js";
+import { add, decimal, formatDecimal, mul, sub } from "../../../core/decimal.js";
+import { allowedItemUnits } from "../../products/uom.js";
 import { loadPurchaseOrder, poCan, poScopeSql, requirePoAccess } from "./access.js";
 import { PO_PERMISSIONS, dayOf, isUuid, text } from "./constants.js";
 import { DISCREPANCY_LABELS, DISCREPANCY_TYPES, loadReceipt, orderLinesById, statusOf } from "./receipts.js";
@@ -34,8 +35,11 @@ export async function getPurchaseOrderRemainingReceivableQty(client, context, or
       supplierNumber: order.supplier_snapshot?.supplierNumber ?? null, company: order.buyer_registration_snapshot, shipFrom: order.ship_from_snapshot, defaultWarehouseId: order.default_warehouse_id,
       expectedDeliveryDate: dayOf(order.expected_delivery_date),
     },
-    lines: [...lines.values()].map((line) => {
+    // Each product line's purchase units: the order's unit or any other one of the item's, converted exactly to the order's unit on receipt.
+    lines: await Promise.all([...lines.values()].map(async (line) => {
       const state = progress.get(line.id);
+      const units = line.product_id ? (await allowedItemUnits(client, context.organizationId, line.product_id, "purchase"))
+        .map((unit) => ({ uomId: unit.uomId, code: unit.code, factor: unit.factor, decimals: unit.decimals, isBase: unit.isBase })) : [];
       const otherDrafts = drafts.filter((draft) => draft.purchase_order_line_id === line.id);
       return {
         purchaseOrderLineId: line.id, lineNumber: line.line_number, productId: line.product_id, product: line.product_snapshot, description: line.description, productType: line.product_type,
@@ -43,8 +47,9 @@ export async function getPurchaseOrderRemainingReceivableQty(client, context, or
         warehouseId: line.receiving_warehouse_id, receiptRequired: state.receiptRequired, ordered: dec(state.ordered), received: dec(state.received), cancelled: dec(state.cancelled),
         remaining: dec(state.remainingToReceive), returned: dec(state.returned), onOtherDrafts: dec(otherDrafts.reduce((total, draft) => add(total, draft.quantity), 0n)),
         otherDrafts: otherDrafts.map((draft) => ({ id: draft.id, number: draft.receipt_number, quantity: dec(draft.quantity) })),
+        uomId: line.purchase_uom_id, conversionFactor: dec(line.conversion_factor), baseUom: line.base_uom_code ?? null, remainingBase: dec(mul(state.remainingToReceive, line.conversion_factor ?? "1")), units,
       };
-    }),
+    })),
   };
 }
 export const getPurchaseOrderReceiptProgress = getPurchaseOrderRemainingReceivableQty;
@@ -84,7 +89,7 @@ export async function getGoodsReceipt(client, context, receiptId) {
        LEFT JOIN tenant.accounting_journal_entries reversal ON reversal.organization_id = receipt.organization_id AND reversal.id = receipt.accrual_reversal_journal_entry_id
       WHERE receipt.organization_id = $1 AND receipt.id = $2`, [organizationId, receipt.id])).rows[0];
   const lines = (await client.query(
-    `SELECT line.*, warehouse.name AS warehouse_name, location.code AS location_code, hold.code AS hold_location_code, order_line.line_number AS order_line_number, order_line.ordered_quantity,
+    `SELECT line.*, entered_uom.code AS entered_uom_code, warehouse.name AS warehouse_name, location.code AS location_code, hold.code AS hold_location_code, order_line.line_number AS order_line_number, order_line.ordered_quantity,
             order_line.unit_price, order_line.taxable_amount AS order_taxable_amount,
             (SELECT COALESCE(sum(return_line.quantity) FILTER (WHERE return_line.disposition_id IS NULL AND NOT return_line.from_hold), 0) FROM tenant.purchase_return_lines return_line WHERE return_line.organization_id = line.organization_id AND return_line.goods_receipt_line_id = line.id AND EXISTS (SELECT 1 FROM tenant.purchase_returns posted_return WHERE posted_return.organization_id = return_line.organization_id AND posted_return.id = return_line.purchase_return_id AND posted_return.document_status = 'posted')) AS returned_from_stock,
             (SELECT COALESCE(sum(return_line.quantity), 0) FROM tenant.purchase_return_lines return_line WHERE return_line.organization_id = line.organization_id AND return_line.goods_receipt_line_id = line.id AND EXISTS (SELECT 1 FROM tenant.purchase_returns posted_return WHERE posted_return.organization_id = return_line.organization_id AND posted_return.id = return_line.purchase_return_id AND posted_return.document_status = 'posted')) AS returned
@@ -93,6 +98,7 @@ export async function getGoodsReceipt(client, context, receiptId) {
        LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = line.organization_id AND warehouse.id = line.warehouse_id
        LEFT JOIN tenant.warehouse_locations location ON location.organization_id = line.organization_id AND location.id = line.warehouse_location_id
        LEFT JOIN tenant.warehouse_locations hold ON hold.organization_id = line.organization_id AND hold.id = line.hold_location_id
+       LEFT JOIN tenant.units_of_measure entered_uom ON entered_uom.organization_id = line.organization_id AND entered_uom.id = line.entered_uom_id
       WHERE line.organization_id = $1 AND line.goods_receipt_id = $2 ORDER BY line.line_number`, [organizationId, receipt.id])).rows;
   const dispositions = (await client.query(
     `SELECT disposition.*, inspection.inspection_number, inspection.status AS inspection_status FROM tenant.goods_receipt_dispositions disposition
@@ -153,6 +159,8 @@ export async function getGoodsReceipt(client, context, receiptId) {
         damagedQuantity: dec(line.damaged_quantity), heldQuantity: dec(line.held_quantity), refusedQuantity: dec(line.rejected_quantity), refusalReason: line.rejection_reason, refusalReasonCode: line.refusal_reason_code,
         presentedQuantity: dec(line.presented_quantity),
         baseQuantity: dec(line.base_quantity), conversionFactor: dec(line.conversion_factor), warehouseId: line.warehouse_id, warehouseName: line.warehouse_name,
+        // Entered in another unit than the order's: what was typed (the quantities above are in the order's unit).
+        entered: line.entered_uom_id ? { uomId: line.entered_uom_id, uom: line.entered_uom_code ?? null, quantity: dec(line.entered_quantity), conversionFactor: dec(line.entered_conversion_factor) } : null,
         warehouseLocationId: line.warehouse_location_id, locationCode: line.location_code, holdLocationCode: line.hold_location_code, batchNumber: line.batch_number,
         expiryDate: dayOf(line.expiry_date), manufacturedDate: dayOf(line.manufactured_date), trackingType: line.tracking_snapshot?.trackingType ?? "none",
         requiresExpiryDate: Boolean(line.tracking_snapshot?.requiresExpiryDate), serialNumbers: line.serial_numbers, discrepancyNotes: line.discrepancy_notes,

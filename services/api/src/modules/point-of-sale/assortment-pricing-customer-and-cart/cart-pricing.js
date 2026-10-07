@@ -84,9 +84,11 @@ export async function resolveBuyerStateCode(client, context, customerId, sellerS
   return result.rows[0]?.state_code || sellerStateCode;
 }
 
-async function resolveItemAndVariant(client, context, itemId, variantId) {
+// A sellable, active item. A variant is an item of its own: a line names the variant's item.
+async function resolveSaleItem(client, context, itemId, variantId) {
+  if (variantId) throw posError(409, "Choose the variant item itself.", "POS_SALE_VARIANT_IS_ITEM");
   const itemResult = await client.query(
-    `SELECT id,code,name,description,sales_price,standard_cost,tax_category_id,group_id,status,tracking_type,is_sellable
+    `SELECT id,code,name,description,standard_cost,tax_category_id,group_id,status,tracking_type,is_sellable
      FROM tenant.items WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, itemId],
   );
@@ -94,19 +96,7 @@ async function resolveItemAndVariant(client, context, itemId, variantId) {
   if (!item || item.status !== "active" || !item.is_sellable) {
     throw posError(404, "One or more POS sale items were not found.", "POS_SALE_ITEM_NOT_FOUND");
   }
-  let variant = null;
-  if (variantId) {
-    const variantResult = await client.query(
-      `SELECT id,item_id,name,sku,sales_price,status
-       FROM tenant.item_variants WHERE organization_id=$1 AND id=$2 AND item_id=$3`,
-      [context.organizationId, variantId, itemId],
-    );
-    variant = variantResult.rows[0];
-    if (!variant || variant.status !== "active") {
-      throw posError(404, "The selected product variant was not found.", "POS_SALE_VARIANT_NOT_FOUND");
-    }
-  }
-  return { item, variant };
+  return item;
 }
 
 // F275 fix: customer-sensitive pricing. Previously this resolver only
@@ -144,7 +134,7 @@ export async function applyCustomerPricingRules(client, context, store, customer
   return price;
 }
 
-async function resolveUnitPrice(client, context, store, policy, line, item, variant, customerId) {
+async function resolveUnitPrice(client, context, store, policy, line, item, customerId) {
   if (line.priceOverride) {
     if (!policy.allow_price_override) {
       throw posError(409, "Price override is disabled for this organization.", "POS_PRICE_OVERRIDE_DISABLED");
@@ -166,15 +156,14 @@ async function resolveUnitPrice(client, context, store, policy, line, item, vari
     );
   }
   // The store's price list, through the same price resolver Sales uses: the
-  // price valid today for the item (a variant's own price first), else the
-  // product's default price as a reference fallback, else no price.
+  // price valid today for the item, else no price.
   let priceList;
   try {
     priceList = await resolveSalesPriceList(client, context, { priceListId: store.price_list_id, currencyCode: store.currency_code });
   } catch {
     throw posError(409, "The store's price list is inactive, out of date or in another currency.", "POS_PRICE_LIST_REQUIRED");
   }
-  const resolved = await resolveSalesPrice(client, context, { priceList, itemId: item.id, variantId: variant?.id ?? null });
+  const resolved = await resolveSalesPrice(client, context, { priceList, itemId: item.id });
   if (resolved.missing) throw posError(409, resolved.message, "POS_PRICE_NOT_FOUND");
   const listUnitPrice = decimal(resolved.listPrice);
   return applyCustomerPricingRules(client, context, store, customerId, item.id, item.group_id, decimal(line.quantity), listUnitPrice);
@@ -410,7 +399,7 @@ async function evaluatePosLoyaltyRedemption(client, context, customerId, request
 }
 
 // The single authoritative pricing pipeline. `lines` input shape:
-// [{ itemId, variantId?, quantity, unitPrice?, priceOverride?,
+// [{ itemId, quantity, unitPrice?, priceOverride?,
 //    warehouseId?, warehouseLocationId?, batchId?, serialId?,
 //    manualDiscount?: {type,value,reason} }]
 export async function priceCartLines(client, context, { store, policy, customerId, lines, cartDiscount, couponCode, loyaltyRedeemPoints, expectedTotals } = {}) {
@@ -431,8 +420,8 @@ export async function priceCartLines(client, context, { store, policy, customerI
     lineNumber += 1;
     const quantity = decimal(rawLine.quantity);
     if (quantity <= 0n) throw posError(400, "POS sale quantity must be greater than zero.", "POS_SALE_QUANTITY_INVALID");
-    const { item, variant } = await resolveItemAndVariant(client, context, rawLine.itemId, rawLine.variantId || null);
-    const unitPrice = await resolveUnitPrice(client, context, store, policy, { ...rawLine, quantity: asDatabaseDecimal(quantity) }, item, variant, customerId);
+    const item = await resolveSaleItem(client, context, rawLine.itemId, rawLine.variantId || null);
+    const unitPrice = await resolveUnitPrice(client, context, store, policy, { ...rawLine, quantity: asDatabaseDecimal(quantity) }, item, customerId);
     const listPrice = unitPrice;
     const grossAmount = roundMoney(mul(quantity, unitPrice), decimalPlaces);
     const manualDiscountAmount = normalizedDiscountAmount(rawLine.manualDiscount, grossAmount, policy.max_line_discount_percent, `Line ${lineNumber}`);
@@ -449,9 +438,8 @@ export async function priceCartLines(client, context, { store, policy, customerI
     priced.push({
       lineNumber,
       itemId: item.id,
-      variantId: variant?.id || null,
       itemGroupId: item.group_id || null,
-      description: rawLine.description || variant?.name || item.name,
+      description: rawLine.description || item.name,
       quantity,
       listPrice,
       unitPrice,

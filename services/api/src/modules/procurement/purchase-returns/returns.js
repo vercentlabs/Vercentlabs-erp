@@ -15,6 +15,7 @@ import { beginIdempotentOperation, completeIdempotentOperation } from "../../../
 import { add, decimal, div, formatDecimal, mul, roundMoney, sub } from "../../../core/decimal.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { StockError, postStockMovement } from "../../stock/index.js";
+import { convertBetweenUnits, factorOf, resolveItemUnit } from "../../products/uom.js";
 import { loadPurchaseOrder, poCan } from "../purchase-orders/access.js";
 import { postReturnAccrual, reverseReturnAccrual } from "../purchase-orders/accrual.js";
 import { databaseToday } from "../purchase-orders/document.js";
@@ -123,7 +124,19 @@ async function buildLines(client, context, requested, { orderId = null, excludeR
     if (line.product_type === "service") throw new PurchaseReturnError(409, `${label}: a service is not returned; correct its bill instead.`, "PURCHASE_RETURN_SERVICE");
     if (orderId && line.purchase_order_id !== orderId) fail(`${label}: a return covers the receipts of one purchase order.`, "lines", "PURCHASE_RETURN_ORDER_MISMATCH", 409);
     orderId = orderId ?? line.purchase_order_id;
-    const quantity = readQuantity(entry.quantity, label);
+    let quantity = readQuantity(entry.quantity, label);
+    // Returned in another unit than the receipt's (10 PCS of a receipt in BOX of 20): kept as entered, and turned exactly into the receipt's
+    // unit, so the entitlement is consumed in base units whatever unit is used.
+    const enteredUomId = optionalUuid(entry.uomId, "Unit of measure");
+    let entered = null;
+    if (enteredUomId && line.product_id && enteredUomId !== line.receipt_uom_id) {
+      const unit = await resolveItemUnit(client, organizationId, line.product_id, enteredUomId, { purpose: "purchase" });
+      if (!unit.ok) fail(`${label}: ${unit.message}`, "uomId", "PURCHASE_RETURN_UOM_INVALID", 409);
+      const converted = await convertBetweenUnits(client, organizationId, line.product_id, formatDecimal(quantity), enteredUomId, line.receipt_uom_id, { purpose: "purchase" });
+      if (!converted.ok) fail(`${label}: ${converted.message}`, "quantity", converted.reason === "inexact" ? "PURCHASE_RETURN_UOM_INEXACT" : "PURCHASE_RETURN_QUANTITY_INVALID", 409);
+      entered = { uomId: enteredUomId, quantity, factor: factorOf(unit.unit) };
+      quantity = converted.quantity;
+    }
     const reason = String(entry.reason ?? entry.returnReason ?? defaultReason ?? "").trim();
     if (!REASON_LABELS[reason]) fail(`${label}: choose the return reason.`, "reason", "PURCHASE_RETURN_REASON_REQUIRED");
     const notes = text(entry.reasonNotes ?? entry.notes, 1000);
@@ -162,7 +175,8 @@ async function buildLines(client, context, requested, { orderId = null, excludeR
     if (posting && COMMERCIAL_REASONS.includes(reason) && !rejection && !disposition && !can(context, RETURN_PERMISSIONS.commercial))
       throw new PurchaseReturnError(403, `${label}: returning good stock for a commercial reason (${REASON_LABELS[reason].toLowerCase()}) is posted by someone allowed to approve commercial returns.`, "PERMISSION_DENIED");
     const serials = (Array.isArray(entry.serialNumbers) ? entry.serialNumbers : String(entry.serialNumbers ?? "").split(/[\s,;]+/)).map((value) => text(value, 120)).filter(Boolean);
-    if (line.tracking_type === "serial" && line.product_type === "stock" && BigInt(serials.length) * decimal(1) !== quantity)
+    // One serial number per base unit returned (a BOX of 5 serial-numbered pieces is 5 serial numbers).
+    if (line.tracking_type === "serial" && line.product_type === "stock" && BigInt(serials.length) * decimal(1) !== roundMoney(mul(quantity, line.conversion_factor ?? "1"), 6))
       fail(`${label}: choose the serial number of each unit returned.`, "serialNumbers", "PURCHASE_RETURN_SERIALS_REQUIRED");
     if (new Set(serials.map((value) => value.toLowerCase())).size !== serials.length) fail(`${label}: a serial number is entered twice.`, "serialNumbers", "PURCHASE_RETURN_SERIAL_INVALID");
     if (rejection && rejection.serial_numbers?.length) {
@@ -178,7 +192,7 @@ async function buildLines(client, context, requested, { orderId = null, excludeR
     const other = drafts.get(line.id);
     if (other && !posting) warnings.push(`${label}: ${dec(other.quantity)} is also on draft return${other.numbers.length === 1 ? "" : "s"} ${other.numbers.join(", ")} — whichever posts first is returned.`);
     entries.push({
-      line, quantity, reason, notes, rejection, disposition, serials, warehouseId, locationId, billingAllocation,
+      line, entered, quantity, reason, notes, rejection, disposition, serials, warehouseId, locationId, billingAllocation,
       baseQuantity: roundMoney(mul(quantity, line.conversion_factor ?? "1"), 6),
       expectedCredit: roundMoney(div(mul(line.order_taxable ?? 0, quantity), line.order_ordered ?? "1"), 2),
     });
@@ -235,12 +249,13 @@ async function writeLines(client, context, returnId, entries) {
     await client.query(
       `INSERT INTO tenant.purchase_return_lines (organization_id, purchase_return_id, goods_receipt_line_id, purchase_order_line_id, quantity, from_hold, disposition_id, serial_numbers,
          receiving_rejection_id, line_number, return_reason, reason_notes, product_id, product_snapshot, description, uom_snapshot, conversion_factor, base_quantity, warehouse_location_id,
-         batch_id, stock_disposition, expected_credit_amount, billing_allocation)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23)`,
+         batch_id, stock_disposition, expected_credit_amount, billing_allocation, entered_uom_id, entered_quantity, entered_conversion_factor)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
       [context.organizationId, returnId, line.id, line.purchase_order_line_id, dec(entry.quantity), Boolean(entry.disposition), entry.disposition?.id ?? null, entry.serials,
         entry.rejection?.id ?? null, index + 1, entry.reason, entry.notes, line.product_id, JSON.stringify(line.product_snapshot ?? { code: line.item_code, name: line.description }),
         line.description, JSON.stringify(line.uom_snapshot ?? null), dec(decimal(line.conversion_factor ?? "1")), dec(entry.baseQuantity), entry.locationId, line.batch_id,
-        entry.rejection ? "rejected" : entry.disposition ? entry.disposition.disposition : "usable_stock", dec(entry.expectedCredit), entry.billingAllocation]);
+        entry.rejection ? "rejected" : entry.disposition ? entry.disposition.disposition : "usable_stock", dec(entry.expectedCredit), entry.billingAllocation,
+        entry.entered?.uomId ?? null, entry.entered ? dec(entry.entered.quantity) : null, entry.entered ? dec(entry.entered.factor) : null]);
   }
 }
 

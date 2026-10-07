@@ -4,6 +4,7 @@
 // any date is never ambiguous; a future price is a second entry that starts
 // when the first ends.
 import { requirePriceListPermission } from "./access.js";
+import { resolveItemUnit } from "../../products/uom.js";
 import { PRICE_LIST_PERMISSIONS, PriceListError, has, optionalDate, requireUuid, text, today } from "./constants.js";
 import { recordPriceListHistory } from "./history.js";
 import { loadPriceListRow } from "./records.js";
@@ -13,14 +14,13 @@ const NO_PERMISSION = "You do not have permission to change prices.";
 
 const ENTRY_SELECT = `
   SELECT entry.*, entry.valid_from::text AS valid_from_text, entry.valid_to::text AS valid_to_text,
-         item.code AS item_code, item.name AS item_name, item.sku AS item_sku, item.item_type, item.status AS item_status, item.uom_id AS base_uom_id,
-         category.name AS category_name, uom.code AS uom_code, uom.name AS uom_name, variant.sku AS variant_sku,
+         item.code AS item_code, item.name AS item_name, item.item_type, item.status AS item_status, item.uom_id AS base_uom_id,
+         category.name AS category_name, uom.code AS uom_code, uom.name AS uom_name,
          updater.full_name AS updated_by_name
     FROM tenant.price_list_items entry
     JOIN tenant.items item ON item.organization_id = entry.organization_id AND item.id = entry.item_id
     LEFT JOIN tenant.item_groups category ON category.organization_id = item.organization_id AND category.id = item.group_id
     LEFT JOIN tenant.units_of_measure uom ON uom.organization_id = entry.organization_id AND uom.id = entry.uom_id
-    LEFT JOIN tenant.item_variants variant ON variant.organization_id = entry.organization_id AND variant.id = entry.variant_id
     LEFT JOIN public.users updater ON updater.id = entry.updated_by`;
 
 function toEntry(row) {
@@ -33,7 +33,7 @@ function toEntry(row) {
     productId: row.item_id,
     productCode: row.item_code,
     productName: row.item_name,
-    sku: row.variant_sku ?? row.item_sku,
+    sku: row.item_code,
     isService: row.item_type === "service",
     productActive: row.item_status === "active",
     categoryName: row.category_name ?? null,
@@ -61,7 +61,7 @@ export async function listPriceListEntries(client, context, priceListId, filters
   const where = ["entry.organization_id = $1", "entry.price_list_id = $2"];
   if (text(filters.search)) {
     values.push(`%${text(filters.search).toLowerCase().replace(/[\\%_]/g, "\\$&")}%`);
-    where.push(`lower(concat_ws(' ', item.code, item.name, item.sku, variant.sku, category.name, uom.code, uom.name)) LIKE $${values.length}`);
+    where.push(`lower(concat_ws(' ', item.code, item.name, category.name, uom.code, uom.name)) LIKE $${values.length}`);
   }
   const state = text(filters.state) || "active";
   if (state === "inactive") where.push("entry.status = 'inactive'");
@@ -104,12 +104,10 @@ async function checkProductAndUnit(client, context, itemId, uomId) {
   if (item.status !== "active") throw issue("productId", `${item.name} is inactive.`);
   if (!item.is_sellable) throw issue("productId", `${item.name} is not sold, so it cannot be on a sales price list.`);
   const unit = uomId ? requireUuid(uomId, "Unit") : item.uom_id;
+  // A price per unit the item is sold in (its base unit, or a sales-enabled alternate unit), from the shared conversion service.
   if (unit !== item.uom_id) {
-    const { rows } = await client.query(
-      `SELECT 1 FROM tenant.item_uom_conversions WHERE organization_id = $1 AND item_id = $2 AND status = 'active'
-          AND ((from_uom_id = $3 AND to_uom_id = $4) OR (from_uom_id = $4 AND to_uom_id = $3)) LIMIT 1`,
-      [context.organizationId, item.id, unit, item.uom_id]);
-    if (!rows[0]) throw issue("uomId", `${item.name} has no conversion between this unit and its base unit. Add one on the product first.`);
+    const resolved = await resolveItemUnit(client, context.organizationId, item.id, unit, { purpose: "sales" });
+    if (!resolved.ok) throw issue("uomId", resolved.reason === "no_conversion" ? `${item.name} has no conversion between this unit and its base unit. Add one on the product first.` : resolved.message);
   }
   return { item, uomId: unit };
 }
@@ -120,7 +118,7 @@ async function assertNoOverlap(client, context, priceListId, itemId, uomId, vali
   const { rows } = await client.query(
     `SELECT entry.id, entry.rate, entry.valid_from::text AS valid_from, entry.valid_to::text AS valid_to
        FROM tenant.price_list_items entry
-      WHERE entry.organization_id = $1 AND entry.price_list_id = $2 AND entry.item_id = $3 AND entry.uom_id = $4 AND entry.variant_id IS NULL AND entry.status = 'active'
+      WHERE entry.organization_id = $1 AND entry.price_list_id = $2 AND entry.item_id = $3 AND entry.uom_id = $4 AND entry.status = 'active'
         AND ($7::uuid IS NULL OR entry.id <> $7)
         AND COALESCE(entry.valid_from, '-infinity'::date) <= COALESCE($6::date, 'infinity'::date)
         AND COALESCE(entry.valid_to, 'infinity'::date) >= COALESCE($5::date, '-infinity'::date)

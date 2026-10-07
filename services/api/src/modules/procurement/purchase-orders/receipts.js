@@ -34,6 +34,7 @@ import { databaseToday } from "./document.js";
 import { recordPoEvent } from "./persist.js";
 import { REJECTION_REASONS, openRejectionCase } from "./rejection-core.js";
 import { loadLineProgress } from "./progress.js";
+import { convertBetweenUnits, factorOf, resolveItemUnit } from "../../products/uom.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -93,10 +94,11 @@ export async function qualityLocation(client, organizationId, warehouseId) {
 export async function orderLinesById(client, organizationId, orderId) {
   const { rows } = await client.query(
     `SELECT line.*, item.tracking_type, item.track_inventory, item.item_type, item.status AS item_status, item.requires_expiry_date, item.group_id AS item_group_id,
-            uom.decimal_places, uom.code AS uom_code
+            uom.decimal_places, uom.code AS uom_code, base.code AS base_uom_code
        FROM tenant.purchase_order_lines line
        LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.product_id
        LEFT JOIN tenant.units_of_measure uom ON uom.organization_id = line.organization_id AND uom.id = line.purchase_uom_id
+      LEFT JOIN tenant.units_of_measure base ON base.organization_id = line.organization_id AND base.id = line.base_uom_id
       WHERE line.organization_id = $1 AND line.purchase_order_id = $2 ORDER BY line.line_number`, [organizationId, orderId]);
   return new Map(rows.map((row) => [row.id, row]));
 }
@@ -126,18 +128,41 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
     if (line.product_type === "service") fail(`${label} is a service; services are not received. Bill it when the service is done.`, "purchaseOrderLineId", "GOODS_RECEIPT_SERVICE_LINE", 409);
     if (entry.warehouseId && entry.warehouseId !== warehouseId)
       fail(`${label}: a goods receipt has one receiving warehouse. Receive goods for another warehouse on a separate receipt.`, "warehouseId", "GOODS_RECEIPT_ONE_WAREHOUSE");
-    const inspection = readQuantity(entry.heldQuantity ?? entry.inspectionQuantity, `${label} inspection hold`);
-    const damaged = readQuantity(entry.damagedQuantity, `${label} damaged quantity`);
-    const refused = readQuantity(entry.refusedQuantity ?? entry.rejectedQuantity, `${label} refused quantity`);
-    const accepted = entry.acceptedQuantity !== undefined && entry.acceptedQuantity !== null && entry.acceptedQuantity !== ""
+    let inspection = readQuantity(entry.heldQuantity ?? entry.inspectionQuantity, `${label} inspection hold`);
+    let damaged = readQuantity(entry.damagedQuantity, `${label} damaged quantity`);
+    let refused = readQuantity(entry.refusedQuantity ?? entry.rejectedQuantity, `${label} refused quantity`);
+    let accepted = entry.acceptedQuantity !== undefined && entry.acceptedQuantity !== null && entry.acceptedQuantity !== ""
       ? readQuantity(entry.acceptedQuantity, `${label} accepted quantity`)
       : sub(readQuantity(entry.receivedQuantity, `${label} received quantity`), add(inspection, damaged));
     if (accepted < 0n) fail(`${label}: the inspection and damaged quantities are more than was received.`, "receivedQuantity", "GOODS_RECEIPT_QUANTITY_INVALID");
+    if (add(accepted, inspection, damaged, refused) <= 0n) continue;
+    // Received in another unit than the order's (30 PCS against an order in BOX of 20): what was entered is kept, and each quantity is turned
+    // into the order's unit exactly through the shared conversion service — never rounded, so the order's entitlement stays exact.
+    const enteredUomId = optionalUuid(entry.uomId ?? entry.receiptUomId, "Unit of measure") ?? line.purchase_uom_id;
+    let entered = null;
+    let presentedEntered = entry.presentedQuantity;
+    if (line.product_id && enteredUomId !== line.purchase_uom_id) {
+      const unit = await resolveItemUnit(client, organizationId, line.product_id, enteredUomId, { purpose: "purchase" });
+      if (!unit.ok) fail(`${label}: ${unit.message}`, "uomId", "GOODS_RECEIPT_UOM_INVALID", 409);
+      const toOrderUnit = async (value, what) => {
+        if (value === 0n) return 0n;
+        const converted = await convertBetweenUnits(client, organizationId, line.product_id, formatDecimal(value), enteredUomId, line.purchase_uom_id, { purpose: "purchase" });
+        if (!converted.ok) fail(`${label} (${what}): ${converted.message}`, "quantity", converted.reason === "inexact" ? "GOODS_RECEIPT_UOM_INEXACT" : "GOODS_RECEIPT_QUANTITY_INVALID", 409);
+        return converted.quantity;
+      };
+      entered = { uomId: enteredUomId, quantity: add(accepted, inspection, damaged, refused), factor: factorOf(unit.unit), code: unit.unit.code };
+      accepted = await toOrderUnit(accepted, "accepted");
+      inspection = await toOrderUnit(inspection, "inspection hold");
+      damaged = await toOrderUnit(damaged, "damaged");
+      refused = await toOrderUnit(refused, "refused");
+      if (presentedEntered !== undefined && presentedEntered !== null && presentedEntered !== "")
+        presentedEntered = formatDecimal(await toOrderUnit(readQuantity(presentedEntered, `${label} presented quantity`), "presented"));
+    } else {
+      const places = Number(line.decimal_places ?? 6);
+      for (const [value, what] of [[accepted, "accepted"], [inspection, "inspection hold"], [damaged, "damaged"], [refused, "refused"]])
+        if (roundMoney(value, places) !== value) fail(`${label}: ${line.uom_code ?? "the unit"} allows ${places} decimal place${places === 1 ? "" : "s"} (${what}).`, "quantity", "GOODS_RECEIPT_QUANTITY_INVALID");
+    }
     const received = add(accepted, inspection, damaged);
-    if (received + refused <= 0n) continue;
-    const places = Number(line.decimal_places ?? 6);
-    for (const [value, what] of [[accepted, "accepted"], [inspection, "inspection hold"], [damaged, "damaged"], [refused, "refused"]])
-      if (roundMoney(value, places) !== value) fail(`${label}: ${line.uom_code ?? "the unit"} allows ${places} decimal place${places === 1 ? "" : "s"} (${what}).`, "quantity", "GOODS_RECEIPT_QUANTITY_INVALID");
     if (inspection + damaged > 0n && line.product_type !== "stock") fail(`${label}: only stock items can be held.`, "heldQuantity");
     if (inspection + damaged > 0n && line.tracking_type === "serial") fail(`${label}: serial-numbered items are accepted or refused at receipt; hold them through Quality.`, "heldQuantity");
     const refusalText = text(entry.refusalReason ?? entry.rejectionReason, 500);
@@ -148,7 +173,7 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
       if (refusalCode === "other" && (!refusalText || refusalText.length < 3)) fail(`${label}: explain why the goods were refused.`, "refusalReason", "REJECTION_EXPLANATION_REQUIRED");
     } else refusalCode = null;
     // What was presented at the dock is either taken into custody or refused: nothing is counted twice.
-    const presented = entry.presentedQuantity === undefined || entry.presentedQuantity === null || entry.presentedQuantity === "" ? null : readQuantity(entry.presentedQuantity, `${label} presented quantity`);
+    const presented = presentedEntered === undefined || presentedEntered === null || presentedEntered === "" ? null : readQuantity(presentedEntered, `${label} presented quantity`);
     if (presented !== null && presented !== add(received, refused))
       fail(`${label}: of the ${formatDecimal(presented)} presented, ${formatDecimal(received)} taken in and ${formatDecimal(refused)} refused do not add up. Record a shortage as a discrepancy.`,
         "presentedQuantity", "GOODS_RECEIPT_PRESENTED_MISMATCH");
@@ -163,8 +188,10 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
     const tracked = line.product_type === "stock";
     const serials = serialsOf(entry.serialNumbers);
     if (tracked && line.tracking_type === "serial" && accepted > 0n) {
-      if (accepted % ONE !== 0n || BigInt(serials.length) * ONE !== accepted)
-        fail(`${label}: enter one serial number for each unit accepted (${formatDecimal(accepted)}).`, "serialNumbers", "GOODS_RECEIPT_SERIALS_REQUIRED");
+      // One serial number per base unit: 2 BOX of 5 laptops needs 10 serial numbers, not 2.
+      const units = roundMoney(mul(accepted, line.conversion_factor ?? ONE), 6);
+      if (units % ONE !== 0n || BigInt(serials.length) * ONE !== units)
+        fail(`${label}: enter one serial number for each unit accepted (${formatDecimal(units).replace(/\.?0+$/, "")} ${line.base_uom_code ?? "units"}).`, "serialNumbers", "GOODS_RECEIPT_SERIALS_REQUIRED");
       if (new Set(serials.map((value) => value.toLowerCase())).size !== serials.length) fail(`${label}: a serial number is entered twice.`, "serialNumbers", "GOODS_RECEIPT_SERIAL_DUPLICATE");
     }
     const batchNumber = text(entry.batchNumber, 120);
@@ -176,12 +203,17 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
     if (expiryDate && manufacturedDate && manufacturedDate > expiryDate) fail(`${label}: the manufacture date is after the expiry date.`, "manufacturedDate");
     if (expiryDate && receiptDate && expiryDate < receiptDate && accepted > 0n)
       fail(`${label}: the lot expired on ${expiryDate}. Receive it as damaged, or refuse it.`, "expiryDate", "GOODS_RECEIPT_LOT_EXPIRED");
+    // The entitlement is compared in base units (what is still owed × the order's own factor), whatever unit the receipt is entered in.
     const owed = progress.get(line.id).remainingToReceive;
-    if (received > owed)
-      throw new PurchaseOrderError(409, owed === 0n ? `${label} is fully received.` : `${label}: only ${formatDecimal(owed)} ${line.uom_code ?? ""} is still to be received.`.trim(),
-        "GOODS_RECEIPT_OVER_RECEIPT", { lineId: line.id, remaining: formatDecimal(owed) });
+    const factor = line.conversion_factor ?? ONE;
+    if (mul(received, factor) > mul(owed, factor)) {
+      const owedBase = formatDecimal(mul(owed, factor)).replace(/\.?0+$/, "");
+      throw new PurchaseOrderError(409, owed === 0n ? `${label} is fully received.`
+        : `${label}: only ${formatDecimal(owed).replace(/\.?0+$/, "")} ${line.uom_code ?? ""} (${owedBase} ${line.base_uom_code ?? "base units"}) is still to be received.`.replace(/\s+/g, " "),
+        "GOODS_RECEIPT_OVER_RECEIPT", { lineId: line.id, remaining: formatDecimal(owed), remainingBase: owedBase });
+    }
     result.push({
-      line, accepted, inspection, damaged, held: add(inspection, damaged), refused, refusalReason: refusalText, refusalCode, presented, locationId, serials, batchNumber,
+      line, entered, accepted, inspection, damaged, held: add(inspection, damaged), refused, refusalReason: refusalText, refusalCode, presented, locationId, serials, batchNumber,
       expiryDate, manufacturedDate, discrepancyNotes: text(entry.discrepancyNotes, 2000),
       trackingSnapshot: { trackingType: line.tracking_type ?? "none", requiresExpiryDate: Boolean(line.requires_expiry_date), stocked: tracked },
     });
@@ -197,13 +229,15 @@ async function writeReceiptLines(client, context, receiptId, orderId, warehouseI
     await client.query(
       `INSERT INTO tenant.goods_receipt_lines (organization_id, goods_receipt_id, purchase_order_id, purchase_order_line_id, line_number, product_id, product_type, description,
          warehouse_id, warehouse_location_id, accepted_quantity, held_quantity, damaged_quantity, rejected_quantity, rejection_reason, conversion_factor, uom_snapshot, batch_number,
-         serial_numbers, product_snapshot, receipt_uom_id, base_quantity, discrepancy_notes, tracking_snapshot, expiry_date, manufactured_date, presented_quantity, refusal_reason_code)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19, $20::jsonb, $21, $22, $23, $24::jsonb, $25, $26, $27, $28)`,
+         serial_numbers, product_snapshot, receipt_uom_id, base_quantity, discrepancy_notes, tracking_snapshot, expiry_date, manufactured_date, presented_quantity, refusal_reason_code,
+         entered_uom_id, entered_quantity, entered_conversion_factor)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19, $20::jsonb, $21, $22, $23, $24::jsonb, $25, $26, $27, $28, $29, $30, $31)`,
       [context.organizationId, receiptId, orderId, entry.line.id, index + 1, entry.line.product_id, entry.line.product_type, entry.line.description,
         entry.line.product_type === "service" ? null : warehouseId, entry.locationId, formatDecimal(entry.accepted), formatDecimal(entry.held), formatDecimal(entry.damaged),
         formatDecimal(entry.refused), entry.refusalReason, entry.line.conversion_factor, JSON.stringify(entry.line.uom_snapshot ?? {}), entry.batchNumber, entry.serials,
         JSON.stringify(entry.line.product_snapshot ?? {}), entry.line.purchase_uom_id, formatDecimal(baseQuantity), entry.discrepancyNotes, JSON.stringify(entry.trackingSnapshot),
-        entry.expiryDate, entry.manufacturedDate, entry.presented === null ? null : formatDecimal(entry.presented), entry.refusalCode]);
+        entry.expiryDate, entry.manufacturedDate, entry.presented === null ? null : formatDecimal(entry.presented), entry.refusalCode,
+        entry.entered?.uomId ?? null, entry.entered ? formatDecimal(entry.entered.quantity) : null, entry.entered ? formatDecimal(entry.entered.factor) : null]);
   }
 }
 
@@ -375,7 +409,8 @@ export async function validateGoodsReceiptForPosting(client, context, receiptId,
       }
     }
     if (orderLine.tracking_type === "serial" && decimal(line.accepted_quantity) > 0n) {
-      if (BigInt(line.serial_numbers.length) * ONE !== decimal(line.accepted_quantity)) issues.push(`${label}: enter one serial number for each unit accepted.`);
+      // One serial number per base unit accepted (the receipt line's own conversion snapshot).
+      if (BigInt(line.serial_numbers.length) * ONE !== roundMoney(mul(line.accepted_quantity, line.conversion_factor ?? ONE), 6)) issues.push(`${label}: enter one serial number for each unit accepted.`);
       const taken = (await client.query(`SELECT serial_number FROM tenant.stock_serials WHERE organization_id = $1 AND lower(serial_number) = ANY($2::text[])`,
         [organizationId, line.serial_numbers.map((value) => value.toLowerCase())])).rows;
       if (taken.length) issues.push(`${label}: serial number ${taken.map((row) => row.serial_number).join(", ")} is already registered.`);

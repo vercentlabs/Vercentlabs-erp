@@ -1,7 +1,7 @@
 import { listProductTransactions } from "@vercentlabs/api/products";
 import { PRODUCT_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { productRead } from "@/features/sales/products/server/product-http";
+import { productRead } from "@/features/items/server/item-http";
 
 type Params = { params: Promise<{ id: string; list: string }> };
 

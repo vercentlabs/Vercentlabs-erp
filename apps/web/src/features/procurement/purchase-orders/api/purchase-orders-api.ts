@@ -119,7 +119,7 @@ export type PurchaseOrderOptions = {
   billingLabels: Record<string, string>; paymentLabels: Record<string, string>; communicationLabels: Record<string, string>; productTypeLabels: Record<string, string>;
   settings: { billingBasis: "receipt" | "order"; requireExpectedDate: boolean; defaultWarehouseId: string | null; billHeldGoods: boolean; postReceiptAccrual: boolean };
   suppliers: Array<{ id: string; supplier_number: string; name: string; status: string; currency_code: string }>;
-  products: Array<{ id: string; code: string; name: string; item_type: string; track_inventory: boolean; purchase_uom_id: string | null; uom_id: string | null; purchase_price: string; tax_category_id: string | null }>;
+  products: Array<{ id: string; code: string; name: string; item_type: string; track_inventory: boolean; purchase_uom_id: string | null; uom_id: string | null; last_purchase_price: string | null; tax_category_id: string | null }>;
   uoms: Array<{ id: string; code: string; name: string; decimal_places: number }>; warehouses: Array<{ id: string; code: string; name: string }>;
   currencies: Array<{ code: string; name: string }>; paymentTerms: Array<{ id: string; code: string; name: string; term_type?: string; advance_percentage?: string | null; is_default?: boolean }>;
   registrations: Array<{ id: string; code: string; name: string; gstin: string | null; state_code: string | null; is_default: boolean }>;
@@ -216,7 +216,9 @@ export type Receivable = {
     defaultWarehouseId: string | null; expectedDeliveryDate: string | null };
   lines: Array<{ purchaseOrderLineId: string; lineNumber: number; productId: string | null; product: { code?: string | null; name?: string }; description: string; productType: string;
     trackingType: string; requiresExpiryDate: boolean; uom: { code: string }; uomDecimals: number; warehouseId: string | null; receiptRequired: boolean; ordered: string; received: string; cancelled: string; remaining: string;
-    returned: string; onOtherDrafts: string; otherDrafts: Array<{ id: string; number: string; quantity: string }> }>;
+    returned: string; onOtherDrafts: string; otherDrafts: Array<{ id: string; number: string; quantity: string }>;
+    uomId: string | null; conversionFactor: string | null; baseUom: string | null; remainingBase: string | null;
+    units: Array<{ uomId: string; code: string; factor: string; decimals: number; isBase: boolean }> }>;
 };
 export const getReceivable = (orderId: string, exceptReceiptId?: string) =>
   get<{ receivable: Receivable }>(`/purchase-orders/${orderId}/receivable${qs({ exceptReceiptId })}`).then((result) => result.receivable);

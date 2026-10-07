@@ -83,7 +83,7 @@ export const act = <T = { record: Row }>(
   });
 
 export type InvOptions = {
-  items: Array<{ id: string; code: string; name: string }>;
+  items: Array<{ id: string; code: string; name: string; uom_id?: string; base_uom?: string | null; units?: Array<{ uomId: string; code: string; factor: string; decimals: number }> }>;
   warehouses: Array<{ id: string; code: string; name: string }>;
   locations: Array<{
     id: string;
@@ -92,9 +92,6 @@ export type InvOptions = {
     warehouse_id: string;
   }>;
   batches: Array<{ id: string; code: string; name: string; item_id: string }>;
-  uoms: Array<{ id: string; code: string; name: string }>;
-  groups: Array<{ id: string; code: string; name: string }>;
-  taxCategories: Array<{ id: string; code: string; name: string }>;
 };
 
 // Names for pickers, and for the ids stored on documents.

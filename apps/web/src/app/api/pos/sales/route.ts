@@ -13,7 +13,6 @@ import { workspaceRoute } from "@/core/workspace-route";
 // requests before they reach the domain layer, not to duplicate its logic.
 const saleLineSchema = z.object({
   itemId: z.string().uuid(),
-  variantId: z.string().uuid().optional().nullable(),
   quantity: z.number().positive(),
   unitPrice: z.number().min(0).optional(),
   priceOverride: z.boolean().optional(),

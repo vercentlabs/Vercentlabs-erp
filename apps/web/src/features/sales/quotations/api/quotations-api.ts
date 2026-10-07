@@ -55,8 +55,6 @@ export type SalesQuotationLine = {
   id: string;
   sequence: number;
   item_id: string;
-  variant_id: string | null;
-  variant_sku_snapshot: string | null;
   uom_id: string | null;
   warehouse_id: string | null;
   item_code_snapshot: string;
@@ -281,9 +279,9 @@ export type SalesOptions = {
     sales_description: string | null;
     description: string | null;
     track_inventory: boolean;
-    sku: string | null;
-    sales_price: string | null;
     standard_cost?: string | null;
+    parent_item_id: string | null;
+    variant_attributes: Record<string, string> | null;
   }>;
   uoms: Array<{ id: string; code: string; name: string }>;
   itemUomConversions: Array<{
@@ -291,14 +289,6 @@ export type SalesOptions = {
     from_uom_id: string;
     to_uom_id: string;
     conversion_factor: string;
-  }>;
-  itemVariants: Array<{
-    id: string;
-    item_id: string;
-    sku: string;
-    name: string;
-    sales_price: string | null;
-    standard_cost?: string | null;
   }>;
   warehouses: Array<{ id: string; code: string; name: string }>;
   priceLists: Array<{
@@ -347,7 +337,6 @@ export type SalesOptions = {
 
 type SalesDocumentLineInput = {
   itemId: string;
-  variantId?: string | null;
   quantity: number;
   discountType?: "percent" | "amount";
   discountValue?: number;

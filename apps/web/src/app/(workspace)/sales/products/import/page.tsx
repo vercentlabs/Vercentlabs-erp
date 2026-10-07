@@ -1,7 +1,7 @@
-import { ProductImportScreen } from "@/features/sales/products/screens/ProductImportScreen";
+import { ItemImportScreen } from "@/features/items/screens/ItemImportScreen";
 
-export const metadata = { title: "Import products" };
+export const metadata = { title: "Import Products" };
 
 export default function Page() {
-  return <ProductImportScreen />;
+  return <ItemImportScreen lens="sales" />;
 }

@@ -8,7 +8,8 @@
 // lot / serial / expiry details the product needs, how much is on inspection
 // hold or damaged, and what was refused at the door. Saving keeps a draft (no
 // stock moves, nothing is reserved); posting checks everything again on the
-// server and moves the stock.
+// server and moves the stock. A line may be received in another of the item's purchase units (30 PCS against an order in BOX of 20): the
+// server converts it exactly into the order's unit and checks what is still owed in base units.
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,8 +32,10 @@ import {
 
 type Row = {
   include: boolean; presented: string; received: string; hold: string; damaged: string; refused: string; refusalCode: string; refusalReason: string; batch: string; expiry: string;
-  manufactured: string; serials: string; notes: string;
+  manufactured: string; serials: string; notes: string; uomId: string;
 };
+// quantity × factor ÷ orderFactor, for the "in the order's unit" hint (the server does the authoritative, exact conversion).
+const inOrderUnit = (value: string, factor: string, orderFactor: string) => (Number(value || 0) * Number(factor || 1)) / Number(orderFactor || 1);
 const trim = (value: string | null | undefined) => (value == null ? "" : String(Number(value)));
 // <input type="datetime-local"> works in local time without a zone.
 const toLocalInput = (iso: string | null | undefined) => {
@@ -103,8 +106,8 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
     return [line.purchaseOrderLineId, entry ? {
       include: true, presented: trim(entry.presentedQuantity), received: trim(entry.receivedQuantity), hold: trim(entry.inspectionQuantity), damaged: trim(entry.damagedQuantity),
       refused: trim(entry.refusedQuantity), refusalCode: entry.refusalReasonCode ?? "damaged_goods", refusalReason: entry.refusalReason ?? "", batch: entry.batchNumber ?? "", expiry: entry.expiryDate ?? "", manufactured: entry.manufacturedDate ?? "",
-      serials: entry.serialNumbers.join(", "), notes: entry.discrepancyNotes ?? "",
-    } : { include: !existing && Number(line.remaining) > 0, presented: "", received: Number(line.remaining) > 0 ? trim(line.remaining) : "", hold: "", damaged: "", refused: "",
+      serials: entry.serialNumbers.join(", "), notes: entry.discrepancyNotes ?? "", uomId: line.uomId ?? "",
+    } : { uomId: line.uomId ?? "", include: !existing && Number(line.remaining) > 0, presented: "", received: Number(line.remaining) > 0 ? trim(line.remaining) : "", hold: "", damaged: "", refused: "",
       refusalCode: "damaged_goods", refusalReason: "",
       batch: "", expiry: "", manufactured: "", serials: "", notes: "" }];
   })));
@@ -115,7 +118,8 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
     supplierChallanNumber: header.challanNumber || null, supplierChallanDate: header.challanDate || null, notes: header.notes || null,
     lines: goods.filter((line) => rows[line.purchaseOrderLineId]?.include).map((line) => {
       const row = rows[line.purchaseOrderLineId];
-      return { purchaseOrderLineId: line.purchaseOrderLineId, productId: line.productId ?? undefined, receivedQuantity: row.received || "0", heldQuantity: row.hold || "0",
+      return { purchaseOrderLineId: line.purchaseOrderLineId, productId: line.productId ?? undefined, uomId: row.uomId && row.uomId !== line.uomId ? row.uomId : undefined,
+        receivedQuantity: row.received || "0", heldQuantity: row.hold || "0",
         damagedQuantity: row.damaged || "0", refusedQuantity: row.refused || "0", presentedQuantity: row.presented || undefined,
         refusalReasonCode: Number(row.refused) > 0 ? row.refusalCode : undefined, refusalReason: row.refusalReason || undefined, batchNumber: row.batch || undefined,
         expiryDate: row.expiry || undefined, manufacturedDate: row.manufactured || undefined, serialNumbers: row.serials || undefined, discrepancyNotes: row.notes || undefined };
@@ -174,6 +178,10 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
           {goods.map((line) => {
             const row = rows[line.purchaseOrderLineId];
             const done = Number(line.remaining) <= 0;
+            const entered = line.units.find((unit) => unit.uomId === row.uomId);
+            const enteredCode = entered?.code ?? line.uom.code;
+            const orderFactor = line.conversionFactor ?? "1";
+            const orderQuantity = inOrderUnit(row.received, entered?.factor ?? orderFactor, orderFactor);
             return (
               <div key={line.purchaseOrderLineId} className={`flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3 ${done && !row.include ? "opacity-60" : ""}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -186,8 +194,13 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
                 {Number(line.onOtherDrafts) > 0 && <p className="text-xs text-warning">{quantity(line.onOtherDrafts)} is also on draft {line.otherDrafts.map((entry) => entry.number).join(", ")} — whichever is posted first counts.</p>}
                 {row.include && (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
-                    <TextField label={`Receive now (${line.uom.code})`} inputMode="decimal" value={row.received} onChange={(value) => set(line.purchaseOrderLineId, { received: value })}
-                      description="Everything taken into custody." />
+                    {line.units.length > 1 && (
+                      <Select label="Unit received" selectedKey={row.uomId || line.uomId} onSelectionChange={(value) => set(line.purchaseOrderLineId, { uomId: String(value) })}
+                        options={line.units.map((unit) => ({ value: unit.uomId, label: unit.isBase ? `${unit.code} (base)` : `${unit.code} (1 = ${Number(unit.factor)} ${line.baseUom ?? ""})` }))}
+                        description={`The order is in ${line.uom.code}.`} />
+                    )}
+                    <TextField label={`Receive now (${enteredCode})`} inputMode="decimal" value={row.received} onChange={(value) => set(line.purchaseOrderLineId, { received: value })}
+                      description={entered && entered.uomId !== line.uomId ? `= ${quantity(orderQuantity)} ${line.uom.code} = ${quantity(Number(row.received || 0) * Number(entered.factor))} ${line.baseUom ?? ""}` : "Everything taken into custody."} />
                     {line.productType === "stock" && line.trackingType !== "serial" && (
                       <>
                         <TextField label="Of which on inspection hold" inputMode="decimal" value={row.hold} onChange={(value) => set(line.purchaseOrderLineId, { hold: value })} />
@@ -215,8 +228,9 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
                     )}
                     {line.trackingType === "serial" && <TextField label="Serial numbers" isRequired value={row.serials} onChange={(value) => set(line.purchaseOrderLineId, { serials: value })} description="One per unit, comma separated; each must be new." />}
                     <TextField label="Discrepancy notes" value={row.notes} onChange={(value) => set(line.purchaseOrderLineId, { notes: value })} />
-                    <p className="text-xs text-text-muted sm:col-span-4">Usable now: {quantity(Math.max(Number(row.received || 0) - Number(row.hold || 0) - Number(row.damaged || 0), 0))} · after this receipt,
-                      {" "}{quantity(Math.max(Number(line.remaining) - Number(row.received || 0), 0))} {line.uom.code} still to receive</p>
+                    <p className="text-xs text-text-muted sm:col-span-4">Usable now: {quantity(Math.max(Number(row.received || 0) - Number(row.hold || 0) - Number(row.damaged || 0), 0))} {enteredCode} · after this receipt,
+                      {" "}{quantity(Math.max(Number(line.remaining) - orderQuantity, 0))} {line.uom.code}{line.baseUom ? ` (${quantity(Math.max(Number(line.remainingBase ?? 0) - orderQuantity * Number(orderFactor), 0))} ${line.baseUom})` : ""} still to receive
+                      {line.trackingType === "serial" && Number(row.received) > 0 ? ` · ${quantity(orderQuantity * Number(orderFactor))} serial numbers needed` : ""}</p>
                   </div>
                 )}
               </div>

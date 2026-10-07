@@ -1,4 +1,5 @@
 import { finalizeApprovalRequest } from "../../core/platform/approvals/index.js";
+import { normalizeQuantityToBase, resolveItemUnit } from "../products/uom.js";
 import {
   decimal,
   add,
@@ -361,7 +362,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   const carried = Boolean(options.carryQuotedPrices || line.quoted);
   const itemId = uuid(line.itemId, `Line ${sequence} item`);
   const itemResult = await client.query(
-    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.sales_price,item.tax_category_id,item.item_type,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
+    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.tax_category_id,item.item_type,item.is_variant_template,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
@@ -371,60 +372,36 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   // since stopped being sold; a new line must be a sellable product.
   if (!item.is_sellable && !carried)
     throw new SalesError(409, `Line ${sequence}: ${item.name} is not sold.`, "SALES_ITEM_NOT_SELLABLE");
-  let variant = null;
-  if (line.variantId) {
-    const variantResult = await client.query(
-      `SELECT id,sku,name,sales_price,standard_cost FROM tenant.item_variants WHERE organization_id=$1 AND id=$2 AND item_id=$3 AND status='active'`,
-      [context.organizationId, uuid(line.variantId, `Line ${sequence} variant`), itemId],
-    );
-    variant = variantResult.rows[0];
-    if (!variant)
-      throw new SalesError(
-        409,
-        `Line ${sequence} variant does not belong to this item.`,
-      );
-  }
-  // Without a unit on the line, the product's sales unit (when it converts to
-  // the base unit), else the base unit.
+  // A variant is an item of its own: the line names the variant's item.
+  if (line.variantId) throw new SalesError(409, `Line ${sequence}: choose the variant item itself.`, "SALES_VARIANT_IS_ITEM");
+  if (item.is_variant_template) throw new SalesError(409, `Line ${sequence}: ${item.name} is a variant template. Choose one of its variants.`, "SALES_ITEM_TEMPLATE");
+  // Without a unit on the line, the product's sales unit (when it is enabled
+  // for sales), else the base unit. The unit, its conversion and the base
+  // quantity come from the shared conversion service: base = quantity ×
+  // factor, checked against both units' precision (a line carried from a
+  // quotation keeps the unit it was quoted in).
   let defaultUomId = item.uom_id;
-  if (item.sales_uom_id && item.sales_uom_id !== item.uom_id) {
-    const salesConversion = await client.query(
-      `SELECT 1 FROM tenant.item_uom_conversions WHERE organization_id=$1 AND item_id=$2 AND status='active' AND ((from_uom_id=$3 AND to_uom_id=$4) OR (from_uom_id=$4 AND to_uom_id=$3)) LIMIT 1`,
-      [context.organizationId, itemId, item.sales_uom_id, item.uom_id],
-    );
-    if (salesConversion.rows[0]) defaultUomId = item.sales_uom_id;
-  }
+  if (item.sales_uom_id && item.sales_uom_id !== item.uom_id && (await resolveItemUnit(client, context.organizationId, itemId, item.sales_uom_id, { purpose: "sales" })).ok)
+    defaultUomId = item.sales_uom_id;
   const uomId = line.uomId
     ? uuid(line.uomId, `Line ${sequence} UOM`)
     : defaultUomId;
-  let conversionFactor = decimal(1);
-  let uomCode = item.uom_code;
-  if (uomId !== item.uom_id) {
-    const conversion = await client.query(
-      `SELECT conversion_factor,uom.code AS uom_code FROM tenant.item_uom_conversions conversion JOIN tenant.units_of_measure uom ON uom.id=conversion.from_uom_id WHERE conversion.organization_id=$1 AND conversion.item_id=$2 AND conversion.from_uom_id=$3 AND conversion.to_uom_id=$4 AND uom.status='active' UNION ALL SELECT (1/conversion_factor),uom.code FROM tenant.item_uom_conversions conversion JOIN tenant.units_of_measure uom ON uom.id=conversion.to_uom_id WHERE conversion.organization_id=$1 AND conversion.item_id=$2 AND conversion.to_uom_id=$3 AND conversion.from_uom_id=$4 AND uom.status='active' LIMIT 1`,
-      [context.organizationId, itemId, uomId, item.uom_id],
-    );
-    if (!conversion.rows[0])
-      throw new SalesError(
-        409,
-        `Line ${sequence} has no conversion to the item's base UOM.`,
-      );
-    conversionFactor = decimal(conversion.rows[0].conversion_factor);
-    uomCode = conversion.rows[0].uom_code;
-  }
-  const quantity = decimal(line.quantity);
+  let quantity;
+  try { quantity = decimal(line.quantity); } catch { throw new SalesError(400, `Line ${sequence}: enter the quantity as a number.`, "SALES_QUANTITY_INVALID"); }
   if (quantity <= 0n)
     throw new SalesError(
       400,
       `Line ${sequence} quantity must be greater than zero.`,
     );
-  const baseQuantity = mul(quantity, conversionFactor);
-  // A variant's own price/cost (when set -- both columns are nullable,
-  // meaning "inherit from the item") override the item's, the same way a
-  // NetSuite/Odoo variant price supersedes its template's.
-  // item/variant prices are per BASE unit: selling 2 boxes of 12 must price
-  // 24 units, not 2 (F033). Unit-specific price-list rows are already per
-  // the selected unit and are not scaled.
+  const unit = await normalizeQuantityToBase(client, context.organizationId, itemId, uomId, line.quantity, { purpose: "sales", allowInactive: carried });
+  if (!unit.ok)
+    throw new SalesError(unit.reason === "no_conversion" ? 409 : 400, `Line ${sequence}: ${unit.message}`,
+      ["precision", "base_precision", "serial_fraction", "conversion_loss", "quantity_invalid"].includes(unit.reason) ? "SALES_QUANTITY_INVALID" : "SALES_UOM_INVALID");
+  const conversionFactor = unit.factor;
+  const uomCode = unit.unit.code;
+  const baseQuantity = unit.baseQuantity;
+  // Prices come from price lists only: a base-unit row is scaled to the
+  // line's unit (2 boxes of 12 price 24 units); a unit-specific row is not.
   // The list price for the line's unit, from the price resolver. A line
   // carried over from a quotation keeps the quotation's list price: the
   // accepted quotation is the commercial commitment, not today's list.
@@ -437,7 +414,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     listUnitPrice = decimal(line.listUnitPrice);
     priceSource = "quotation";
   } else {
-    const resolved = await resolveSalesPrice(client, context, { priceList: master.priceList, itemId, variantId: variant?.id ?? null, uomId, documentDate: master.documentDate });
+    const resolved = await resolveSalesPrice(client, context, { priceList: master.priceList, itemId, uomId, documentDate: master.documentDate });
     listUnitPrice = decimal(resolved.listPrice);
     priceSource = resolved.source;
     priceMissing = resolved.missing;
@@ -610,7 +587,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
       sellerStateCode: master.tax.registration?.stateCode ?? null, documentDate: master.documentDate, inclusive, reverseCharge: resolvedTax.reverseCharge,
     },
   }));
-  const effectiveStandardCost = decimal((variant?.standard_cost ?? item.standard_cost) || 0);
+  const effectiveStandardCost = decimal(item.standard_cost || 0);
   const costAmount = roundMoney(
     mul(baseQuantity, effectiveStandardCost),
     master.currency.decimal_places,
@@ -622,12 +599,10 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   return {
     sequence,
     itemId,
-    variantId: variant?.id || null,
-    variantSkuSnapshot: variant?.sku || null,
     uomId,
     warehouseId: line.warehouseId || null,
-    itemCodeSnapshot: variant?.sku || item.code,
-    itemNameSnapshot: variant ? `${item.name} — ${variant.name}` : item.name,
+    itemCodeSnapshot: item.code,
+    itemNameSnapshot: item.name,
     descriptionSnapshot: text(line.description, 4000) || item.sales_description || item.description,
     hsnSacSnapshot: item.hsn_sac_code,
     // Goods carry an HSN code, services a SAC code.
@@ -1029,7 +1004,6 @@ export async function getSalesOptions(
     items,
     uoms,
     itemUomConversions,
-    itemVariants,
     warehouses,
     priceLists,
     paymentTerms,
@@ -1061,7 +1035,7 @@ export async function getSalesOptions(
         : [context.organizationId],
     ),
     client.query(
-      `SELECT id,code,name,item_type,uom_id,sales_uom_id,sales_description,description,track_inventory,sku,sales_price,standard_cost,tax_category_id FROM tenant.items WHERE organization_id=$1 AND status='active' AND is_sellable ORDER BY name LIMIT 2000`,
+      `SELECT id,code,name,item_type,uom_id,sales_uom_id,sales_description,description,track_inventory,standard_cost,tax_category_id,parent_item_id,variant_attributes FROM tenant.items WHERE organization_id=$1 AND status='active' AND is_sellable ORDER BY name LIMIT 2000`,
       [context.organizationId],
     ),
     client.query(
@@ -1073,13 +1047,7 @@ export async function getSalesOptions(
     // editor's per-item UOM picker filters against, instead of offering every
     // UOM in the org regardless of whether a conversion exists.
     client.query(
-      `SELECT item_id,from_uom_id,to_uom_id,conversion_factor FROM tenant.item_uom_conversions WHERE organization_id=$1 AND status='active' LIMIT 2000`,
-      [context.organizationId],
-    ),
-    // Sellable SKUs of an item (size/colour/pack) -- optional per line; when
-    // chosen, its own price/cost override the item's if set.
-    client.query(
-      `SELECT id,item_id,sku,name,sales_price,standard_cost FROM tenant.item_variants WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 2000`,
+      `SELECT item_id,from_uom_id,to_uom_id,conversion_factor FROM tenant.item_uom_conversions WHERE organization_id=$1 AND status='active' AND sales_enabled LIMIT 2000`,
       [context.organizationId],
     ),
     client.query(
@@ -1126,7 +1094,6 @@ export async function getSalesOptions(
       items: items.rows,
       uoms: uoms.rows,
       itemUomConversions: itemUomConversions.rows,
-      itemVariants: itemVariants.rows,
       warehouses: warehouses.rows,
       priceLists: priceLists.rows,
       paymentTerms: paymentTerms.rows,

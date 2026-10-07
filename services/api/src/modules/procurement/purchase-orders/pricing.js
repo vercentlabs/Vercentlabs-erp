@@ -12,6 +12,7 @@
 // the currency.
 import { add, decimal, div, mul, percent, roundMoney, sub, formatDecimal } from "../../../core/decimal.js";
 import { TaxError, computeTax, loadTaxContext, resolveLineTax } from "../../../core/tax/index.js";
+import { normalizeQuantityToBase } from "../../products/uom.js";
 import { poCan } from "./access.js";
 import { PO_PERMISSIONS, PurchaseOrderError, fail, optionalUuid, readDate, text } from "./constants.js";
 
@@ -30,16 +31,10 @@ export function supplyTypeForSupplier(registrationType) {
   return ["registered_regular", "sez", "deemed_export", null, undefined, ""].includes(registrationType) ? "domestic" : "non_gst";
 }
 
-async function conversionFactor(client, organizationId, item, uomId) {
-  if (!item.uom_id || uomId === item.uom_id) return decimal(1);
-  const { rows } = await client.query(
-    `SELECT conversion_factor AS factor FROM tenant.item_uom_conversions WHERE organization_id = $1 AND item_id = $2 AND from_uom_id = $3 AND to_uom_id = $4 AND status = 'active'
-     UNION ALL
-     SELECT 1 / conversion_factor FROM tenant.item_uom_conversions WHERE organization_id = $1 AND item_id = $2 AND from_uom_id = $4 AND to_uom_id = $3 AND status = 'active'
-     LIMIT 1`, [organizationId, item.id, uomId, item.uom_id]);
-  if (!rows[0]) return null;
-  return decimal(String(Number(rows[0].factor).toFixed(9)).replace(/\.?0+$/, "") || "1");
-}
+// What the order's unit refuses, as the order's own error codes.
+const UOM_CODES = { no_conversion: "PURCHASE_ORDER_UOM_CONVERSION_MISSING", unit_not_found: "PURCHASE_ORDER_UOM_INVALID", unit_inactive: "PURCHASE_ORDER_UOM_INVALID",
+  not_enabled: "PURCHASE_ORDER_UOM_INVALID", precision: "PURCHASE_ORDER_QUANTITY_INVALID", base_precision: "PURCHASE_ORDER_QUANTITY_INVALID", serial_fraction: "PURCHASE_ORDER_QUANTITY_INVALID",
+  conversion_loss: "PURCHASE_ORDER_QUANTITY_INVALID", quantity_invalid: "PURCHASE_ORDER_QUANTITY_INVALID" };
 
 async function uomOf(client, organizationId, uomId) {
   if (!uomId) return null;
@@ -99,8 +94,8 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
     let expenseAccountId = optionalUuid(input.expenseAccountId, "Expense account");
     if (productId) {
       item = (await client.query(
-        `SELECT id, code, name, description, purchase_description, item_type, track_inventory, tracking_type, uom_id, purchase_uom_id, hsn_sac_code, tax_category_id, purchase_price,
-                standard_cost, status, is_purchasable FROM tenant.items WHERE organization_id = $1 AND id = $2`, [organizationId, productId])).rows[0];
+        `SELECT id, code, name, description, purchase_description, item_type, track_inventory, tracking_type, uom_id, purchase_uom_id, hsn_sac_code, tax_category_id, status,
+                is_purchasable FROM tenant.items WHERE organization_id = $1 AND id = $2`, [organizationId, productId])).rows[0];
       if (!item) fail(`${label}: the product was not found.`, "productId", "PURCHASE_ORDER_PRODUCT_INVALID", 409);
       if (item.status !== "active" && !input.carried) fail(`${label}: ${item.name} is inactive.`, "productId", "PURCHASE_ORDER_PRODUCT_INACTIVE", 409);
       if (item.is_purchasable === false && !input.carried) fail(`${label}: ${item.name} is not set up to be purchased.`, "productId", "PURCHASE_ORDER_PRODUCT_NOT_PURCHASABLE", 409);
@@ -124,11 +119,19 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
     if (!uomId) fail(`${label}: the product has no unit of measure.`, "uomId");
     const uom = await uomOf(client, organizationId, uomId);
     if (!uom) fail(`${label}: the unit of measure was not found.`, "uomId", "PURCHASE_ORDER_UOM_INVALID", 409);
-    const factor = item ? await conversionFactor(client, organizationId, item, uom.id) : decimal(1);
-    if (factor === null) fail(`${label}: ${item.name} has no conversion from ${uom.code} to its stock unit.`, "uomId", "PURCHASE_ORDER_UOM_CONVERSION_MISSING", 409);
     const quantity = readQuantity(input.quantity ?? input.orderedQuantity, label);
-    const decimals = Number(uom.decimal_places ?? 6);
-    if (roundMoney(quantity, decimals) !== quantity) fail(`${label}: ${uom.code} allows ${decimals} decimal place${decimals === 1 ? "" : "s"}.`, "quantity", "PURCHASE_ORDER_QUANTITY_INVALID");
+    // The item's unit (purchase-enabled; a carried line keeps the unit it was agreed in) and its conversion to the base, from the shared
+    // conversion service: base quantity = quantity × factor, checked against both units' precision.
+    let factor = decimal(1);
+    if (item) {
+      const unit = await normalizeQuantityToBase(client, organizationId, item.id, uom.id, quantity, { purpose: "purchase", allowInactive: Boolean(input.carried) });
+      if (!unit.ok) fail(`${label}: ${unit.message}`, unit.reason === "no_conversion" || unit.reason === "not_enabled" || unit.reason === "unit_inactive" ? "uomId" : "quantity",
+        UOM_CODES[unit.reason] ?? "PURCHASE_ORDER_UOM_INVALID", unit.reason === "no_conversion" ? 409 : 400);
+      factor = unit.factor;
+    } else {
+      const decimals = Number(uom.decimal_places ?? 6);
+      if (roundMoney(quantity, decimals) !== quantity) fail(`${label}: ${uom.code} allows ${decimals} decimal place${decimals === 1 ? "" : "s"}.`, "quantity", "PURCHASE_ORDER_QUANTITY_INVALID");
+    }
 
     const rawPrice = input.unitPrice === undefined || input.unitPrice === null ? "" : String(input.unitPrice).trim();
     let unitPrice = null;

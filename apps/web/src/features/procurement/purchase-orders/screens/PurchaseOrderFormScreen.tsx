@@ -244,13 +244,13 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
                       onSelectionChange={(value) => {
                         const chosen = options.products.find((entry) => entry.id === String(value));
                         setLine(line.key, { productId: String(value), uomId: chosen?.purchase_uom_id ?? chosen?.uom_id ?? "",
-                          unitPrice: line.unitPrice || (chosen && Number(chosen.purchase_price) > 0 ? trimNumber(chosen.purchase_price) : "") });
+                          unitPrice: line.unitPrice || (chosen?.last_purchase_price ? trimNumber(chosen.last_purchase_price) : "") });
                       }} options={productOptions} />
                   )}
                   <TextField label="Quantity" inputMode="decimal" value={line.quantity} onChange={(value) => setLine(line.key, { quantity: value })} />
                   <Select label="Unit" selectedKey={line.uomId || null} onSelectionChange={(value) => setLine(line.key, { uomId: String(value) })} options={uomOptions} isDisabled={Boolean(line.sourceQuotationLineId)} />
                   <TextField label={`Unit price (${preview?.currencyCode ?? ""})`} inputMode="decimal" value={line.unitPrice} onChange={(value) => setLine(line.key, { unitPrice: value })}
-                    description={line.sourceQuotationLineId ? "Quoted price" : product && Number(product.purchase_price) > 0 ? `Purchase cost ${trimNumber(product.purchase_price)}: confirm the agreed price` : undefined} />
+                    description={line.sourceQuotationLineId ? "Quoted price" : product?.last_purchase_price ? `Last price paid ${trimNumber(product.last_purchase_price)}: confirm the agreed price` : undefined} />
                 </div>
                 <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-6">
                   <Select label="Discount" selectedKey={line.discountType} onSelectionChange={(value) => setLine(line.key, { discountType: String(value) })}

@@ -1201,8 +1201,11 @@ const customerManager = [
 // products; whoever sees margin
 // or stock valuation sees cost.
 const productMaintainer = [
-  "products.create", "products.edit", "products.activate", "products.delete", "products.import", "products.export", "products.edit_pricing", "products.edit_tax",
-  "products.edit_inventory",
+  "products.create", "products.edit", "products.activate", "products.delete", "products.import", "products.export", "products.edit_tax",
+  "products.edit_inventory", "products.manage_categories", "products.manage_units", "products.manage_identifiers", "products.configure_tracking",
+  "products.configure_accounting", "products.delete_categories", "products.reclassify", "products.category_inventory_defaults", "products.category_tax_defaults",
+  "products.generate_sku", "products.enter_sku", "products.change_sku", "products.configure_sku_numbering",
+  "products.manage_uom_master", "products.change_uom_conversions", "products.change_default_uoms",
 ];
 function withProductPermissions(role) {
   if (!Array.isArray(role.permissions)) return role;
@@ -1212,10 +1215,14 @@ function withProductPermissions(role) {
     ...role,
     permissions: unique([
       ...role.permissions,
-      ...(["sales.view", "procurement.view", "stock.view", "business_data.view", "items.manage"].some(has) ? ["products.view"] : []),
+      ...(["sales.view", "procurement.view", "stock.view", "business_data.view", "items.manage"].some(has) ? ["products.view", "products.view_sku_history"] : []),
+      // Warehouse stock on items: whoever works with stock, sells or buys.
+      ...(["stock.view", "sales.view", "procurement.view", "items.manage", "sales.settings.manage"].some(has) ? ["products.view_stock"] : []),
       // Sales administrators keep the catalogue they sell from.
       ...(has("items.manage") || has("sales.settings.manage") ? productMaintainer : []),
       ...(cost ? ["products.view_cost"] : []),
+      // A category's accounting defaults are Finance's.
+      ...(has("accounting.settings.manage") ? ["products.category_accounting_defaults"] : []),
       ...(cost && has("items.manage") ? ["products.edit_cost"] : []),
     ]),
   };

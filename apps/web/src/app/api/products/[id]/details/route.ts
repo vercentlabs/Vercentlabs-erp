@@ -1,7 +1,7 @@
 import { getProductDetails } from "@vercentlabs/api/products";
 import { PRODUCT_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { type ProductRouteParams, productRead } from "@/features/sales/products/server/product-http";
+import { type ProductRouteParams, productRead } from "@/features/items/server/item-http";
 
 // The Sales, Purchasing and Inventory tabs.
 export async function GET(request: Request, { params }: ProductRouteParams) {

@@ -199,7 +199,7 @@ export async function draftDocument(client, context, order, input, today) {
       const source = quoted.get(line.salesOrderLineId);
       if (!source || source.line.item_id !== line.itemId) return line;
       return {
-        ...line, quoted: true, uomId: source.line.uom_id, variantId: source.line.variant_id, listUnitPrice: source.line.list_unit_price, unitPrice: source.line.unit_price,
+        ...line, quoted: true, uomId: source.line.uom_id, listUnitPrice: source.line.list_unit_price, unitPrice: source.line.unit_price,
         manualPriceOverride: source.line.manual_price_override, manualPriceReason: source.line.manual_price_reason, discountType: source.line.discount_type,
         discountValue: source.line.discount_value, sourceQuotationLineId: source.line.source_quotation_line_id, carriedTax: source.carriedTax,
       };

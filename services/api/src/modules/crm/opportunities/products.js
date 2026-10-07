@@ -9,6 +9,7 @@ import { CrmError } from "../data-management/errors.js";
 import { requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_PERMISSIONS } from "./constants.js";
 import { recordOpportunityHistory } from "./history.js";
+import { resolveSalesPrice, resolveSalesPriceList } from "../../sales/price-lists/resolver.js";
 import { assertOpen, getOpportunity, lockOpportunity, requireUuid } from "./records.js";
 
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -45,12 +46,21 @@ export async function listOpportunityProducts(client, context, opportunityId) {
 export async function searchOpportunityProducts(client, context, search = "") {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
   const { rows } = await client.query(
-    `SELECT id, code, name, item_type, sales_price FROM tenant.items
-      WHERE organization_id = $1 AND status = 'active' AND is_sellable AND ($2 = '' OR lower(name || ' ' || code || ' ' || COALESCE(sku, '')) LIKE $2)
+    `SELECT id, code, name, item_type FROM tenant.items
+      WHERE organization_id = $1 AND status = 'active' AND is_sellable AND ($2 = '' OR lower(name || ' ' || code) LIKE $2)
       ORDER BY lower(name) LIMIT 50`,
     [context.organizationId, text(search) ? `%${text(search).toLowerCase().replace(/[\\%_]/g, "\\$&")}%` : ""],
   );
-  return rows.map((row) => ({ id: row.id, code: row.code, name: row.name, type: row.item_type, salesPrice: Number(row.sales_price ?? 0) }));
+  return rows.map((row) => ({ id: row.id, code: row.code, name: row.name, type: row.item_type }));
+}
+
+// The estimate a deal line starts from: the price list price for the deal's account and currency, else nothing to go on (zero, to be edited).
+async function estimatedPrice(client, context, opportunity, itemId) {
+  if (!opportunity.currency_code) return 0;
+  const priceList = await resolveSalesPriceList(client, context, { partyId: opportunity.party_id, currencyCode: opportunity.currency_code });
+  if (!priceList) return 0;
+  const resolved = await resolveSalesPrice(client, context, { priceList, itemId });
+  return resolved.missing ? 0 : Number(resolved.listPrice);
 }
 
 function amounts(input, current = {}) {
@@ -63,15 +73,15 @@ function amounts(input, current = {}) {
   return { quantity, unitPrice, discountPercent, total: round(quantity * unitPrice * (1 - discountPercent / 100)) };
 }
 
-// input: { productId (required), quantity?, unitPrice? (defaults to the product's sales price), discountPercent?, description? }
+// input: { productId (required), quantity?, unitPrice? (defaults to the price on the account's or the default price list, when it has one), discountPercent?, description? }
 export async function addOpportunityProduct(client, context, opportunityId, input = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
   assertOpen(opportunity, "changed");
-  const product = (await client.query(`SELECT id, name, sales_price FROM tenant.items WHERE organization_id = $1 AND id = $2 AND status = 'active' AND is_sellable`,
+  const product = (await client.query(`SELECT id, name FROM tenant.items WHERE organization_id = $1 AND id = $2 AND status = 'active' AND is_sellable`,
     [context.organizationId, requireUuid(input.productId, "Product")])).rows[0];
   if (!product) throw invalid("Choose a product or service from the list.");
-  const line = amounts({ quantity: 1, unitPrice: product.sales_price ?? 0, ...input });
+  const line = amounts({ quantity: 1, unitPrice: has(input, "unitPrice") ? input.unitPrice : await estimatedPrice(client, context, opportunity, product.id), ...input });
   const { rows } = await client.query(
     `INSERT INTO tenant.crm_opportunity_items (organization_id, opportunity_id, item_id, description, quantity, unit_price, discount_percent, created_by, updated_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8) RETURNING id`,

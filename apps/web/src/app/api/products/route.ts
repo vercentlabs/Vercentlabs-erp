@@ -1,7 +1,7 @@
 import { createProduct, listProducts } from "@vercentlabs/api/products";
 import { PRODUCT_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { productFiltersFromUrl, productRead, productWrite } from "@/features/sales/products/server/product-http";
+import { productFiltersFromUrl, productRead, productWrite } from "@/features/items/server/item-http";
 
 export async function GET(request: Request) {
   return productRead(request, PRODUCT_PERMISSIONS.view, (client, context) => listProducts(client, context, productFiltersFromUrl(new URL(request.url))));

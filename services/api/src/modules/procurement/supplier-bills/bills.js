@@ -10,6 +10,7 @@
 // payable, the input tax, reverse-charge and withholding, exactly once. A bill never moves stock and never changes the order.
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, decimal, div, formatDecimal, mul, roundMoney, sub } from "../../../core/decimal.js";
+import { factorOf, resolveItemUnit } from "../../products/uom.js";
 import { loadTaxContext } from "../../../core/tax/index.js";
 import { PaymentTermError, getSupplierDefaultPaymentTerm, purchaseTermSnapshot, readTermSnapshot } from "../../../core/payment-terms/index.js";
 import { generateComplianceDeadlines, validateStatutoryPaymentDeadline, voidComplianceDeadlines } from "../payment-terms/statutory.js";
@@ -301,22 +302,14 @@ async function orderBillLines(client, context, order, requested, { excludeBillId
   return { lines, warnings, pending, shortfalls };
 }
 
-// normalizeMatchingQuantities: how many of the order's unit one invoiced unit is (through the item's unit conversions), or null.
+// normalizeMatchingQuantities: how many of the order's unit one invoiced unit is, from the shared conversion service (both through the
+// item's base unit: invoiced factor ÷ order factor; the order's factor is its own snapshot), or null when the invoiced unit cannot count
+// the item. Quantity and unit price are both normalised with it, so 20 PCS at ₹50 matches 1 BOX of 20 at ₹1,000.
 async function invoiceUnitFactor(client, organizationId, orderLine, invoiceUomId) {
   if (!orderLine.product_id) return null;
-  const item = (await client.query(`SELECT uom_id FROM tenant.items WHERE organization_id = $1 AND id = $2`, [organizationId, orderLine.product_id])).rows[0];
-  if (!item) return null;
-  let toBase = invoiceUomId === item.uom_id ? decimal(1) : null;
-  if (!toBase) {
-    const row = (await client.query(
-      `SELECT conversion_factor AS factor FROM tenant.item_uom_conversions WHERE organization_id = $1 AND item_id = $2 AND from_uom_id = $3 AND to_uom_id = $4 AND status = 'active'
-       UNION ALL
-       SELECT 1 / conversion_factor FROM tenant.item_uom_conversions WHERE organization_id = $1 AND item_id = $2 AND from_uom_id = $4 AND to_uom_id = $3 AND status = 'active' LIMIT 1`,
-      [organizationId, orderLine.product_id, invoiceUomId, item.uom_id])).rows[0];
-    if (row) toBase = decimal(formatDecimal(decimal(String(row.factor).match(/^\d+(?:\.\d{1,6})?/)?.[0] ?? "0")));
-  }
-  if (!toBase || toBase <= 0n) return null;
-  return div(toBase, orderLine.conversion_factor ?? "1");
+  const invoiced = await resolveItemUnit(client, organizationId, orderLine.product_id, invoiceUomId, { purpose: "purchase", allowInactive: true });
+  if (!invoiced.ok) return null;
+  return div(factorOf(invoiced.unit), orderLine.conversion_factor ?? "1");
 }
 
 // A line of an order bill that is not on the order: a product the order does not include, or a charge (freight, handling). Recorded as

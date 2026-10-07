@@ -91,7 +91,7 @@ export async function getCrmOptions(client, context) {
     accountParameters,
   );
   const items = await queryOptions(
-    `SELECT id, name, sales_price FROM tenant.items WHERE organization_id = $1 AND status = 'active' AND is_sellable ORDER BY name`,
+    `SELECT id, name FROM tenant.items WHERE organization_id = $1 AND status = 'active' AND is_sellable ORDER BY name`,
     parameters,
   );
   const priceLists = await queryOptions(

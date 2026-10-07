@@ -82,10 +82,10 @@ export async function importPrices(client, context, priceListId, { bytes, fileNa
     if (!Object.values(mapping).includes(required)) throw new PriceListError(400, `Map the ${FIELD_BY_KEY.get(required).label} column.`, "SALES_PRICE_IMPORT_MAPPING");
 
   const products = new Map();
-  for (const row of (await client.query(`SELECT id, code, sku FROM tenant.items WHERE organization_id = $1`, [context.organizationId])).rows) {
-    products.set(row.code.toUpperCase(), row.id);
-    if (row.sku) products.set(row.sku.toUpperCase(), products.get(row.sku.toUpperCase()) ?? row.id);
-  }
+  // A product is named by its SKU or by any of its live barcodes.
+  for (const row of (await client.query(`SELECT id, code FROM tenant.items WHERE organization_id = $1`, [context.organizationId])).rows) products.set(row.code.toUpperCase(), row.id);
+  for (const row of (await client.query(`SELECT item_id, value FROM tenant.item_identifiers WHERE organization_id = $1 AND status = 'active'`, [context.organizationId])).rows)
+    products.set(row.value.toUpperCase(), products.get(row.value.toUpperCase()) ?? row.item_id);
   const units = new Map();
   for (const row of (await client.query(`SELECT id, code, name FROM tenant.units_of_measure WHERE organization_id = $1 AND status = 'active'`, [context.organizationId])).rows) {
     units.set(row.code.toLowerCase(), row.id);
@@ -112,7 +112,7 @@ export async function importPrices(client, context, priceListId, { bytes, fileNa
       const validTo = readDate(values.validTo);
       const existing = (await client.query(
         `SELECT id, rate, valid_to::text AS valid_to FROM tenant.price_list_items
-          WHERE organization_id = $1 AND price_list_id = $2 AND item_id = $3 AND uom_id = $4 AND variant_id IS NULL AND status = 'active' AND valid_from IS NOT DISTINCT FROM $5::date`,
+          WHERE organization_id = $1 AND price_list_id = $2 AND item_id = $3 AND uom_id = $4 AND status = 'active' AND valid_from IS NOT DISTINCT FROM $5::date`,
         [context.organizationId, list.id, productId, uomId, validFrom])).rows[0];
       if (existing) {
         if (Number(existing.rate) === Number(text(values.unitPrice).replace(/[,\s]/g, "")) && (existing.valid_to ?? null) === validTo) {
@@ -155,7 +155,7 @@ export async function exportPrices(client, context, priceListId, { state = "acti
        FROM tenant.price_list_items entry
        JOIN tenant.items item ON item.organization_id = entry.organization_id AND item.id = entry.item_id
        LEFT JOIN tenant.units_of_measure uom ON uom.organization_id = entry.organization_id AND uom.id = entry.uom_id
-      WHERE entry.organization_id = $1 AND entry.price_list_id = $2 AND entry.variant_id IS NULL
+      WHERE entry.organization_id = $1 AND entry.price_list_id = $2
         AND ($3 = 'all' OR entry.status = 'active')
         AND ($3 <> 'current' OR ((entry.valid_from IS NULL OR entry.valid_from <= current_date) AND (entry.valid_to IS NULL OR entry.valid_to >= current_date)))
       ORDER BY item.code, uom.code, entry.valid_from NULLS FIRST`,

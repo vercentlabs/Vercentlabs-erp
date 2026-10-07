@@ -10,7 +10,6 @@ const optionalDate = z.string().date().nullish();
 
 const documentLineSchema = z.object({
   itemId: uuid,
-  variantId: uuid.nullish(),
   quantity: z.union([z.number(), z.string()]),
   uomId: uuid.nullish(),
   warehouseId: uuid.nullish(),

@@ -110,7 +110,6 @@ async function loadLines(client, context, cartId) {
 function toPricingInputLines(rows) {
   return rows.map((row) => ({
     itemId: row.item_id,
-    variantId: row.variant_id,
     quantity: row.quantity,
     unitPrice: row.price_override ? row.unit_price : undefined,
     priceOverride: row.price_override,
@@ -221,7 +220,7 @@ async function reprice(client, context, cart, policy) {
         // (the frontend never sends one -- see PosCheckoutScreen's
         // addLine), so this column stayed NULL forever. cart-pricing.js's
         // priceCartLines already resolves the right display text
-        // (rawLine.description || variant?.name || item.name) into
+        // (rawLine.description || item.name) into
         // `line.description` on every reprice, but that resolved value
         // was only ever handed to pos_sale_lines at checkout completion
         // -- never persisted back onto pos_cart_lines itself. The result:
@@ -353,7 +352,7 @@ export async function addPosCartLine(client, context, cartId, input) {
   const existingLines = await loadLines(client, context, cartId);
   if (existingLines.length >= 200) throw posError(400, "A POS cart cannot contain more than 200 lines.", "POS_CART_LINE_LIMIT_EXCEEDED");
   const existing = existingLines.find(
-    (line) => line.item_id === input.itemId && (line.variant_id || null) === (input.variantId || null) && !line.price_override && !input.priceOverride,
+    (line) => line.item_id === input.itemId && !line.price_override && !input.priceOverride,
   );
   if (existing) {
     const nextQuantity = Number(existing.quantity) + Number(input.quantity);
@@ -366,15 +365,14 @@ export async function addPosCartLine(client, context, cartId, input) {
     const nextLineNumber = existingLines.reduce((max, line) => Math.max(max, line.line_number), 0) + 1;
     await client.query(
       `INSERT INTO tenant.pos_cart_lines
-        (organization_id,cart_id,line_number,item_id,variant_id,description,quantity,unit_price,price_override,
+        (organization_id,cart_id,line_number,item_id,description,quantity,unit_price,price_override,
          warehouse_id,warehouse_location_id,batch_id,serial_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
         context.organizationId,
         cartId,
         nextLineNumber,
         input.itemId,
-        input.variantId || null,
         input.description || null,
         input.quantity,
         input.unitPrice || 0,

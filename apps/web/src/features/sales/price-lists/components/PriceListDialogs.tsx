@@ -7,7 +7,7 @@ import { Button, Checkbox, ComboBox, Dialog, NumberField, Select, TextArea, Text
 
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { listProducts } from "@/features/sales/products/api/products-api";
+import { listItems } from "@/features/items/api/items-api";
 
 import {
   addPrice, copyPriceList, createPriceList, errorMessage, fieldErrors, updatePrice, updatePriceList, type PriceEntry, type PriceList, type PriceListCapabilities,
@@ -94,7 +94,7 @@ export function PriceDialog({ priceList, entry, onClose, onSaved }: { priceList:
   const [error, setError] = useState<string | null>(null);
   const products = useQuery({
     queryKey: scopedQueryKey(workspace, "products", "price-picker", search),
-    queryFn: () => listProducts({ search: search || undefined, status: "active", sellable: "yes", limit: 30 }),
+    queryFn: () => listItems({ search: search || undefined, status: "active", sellable: "yes", limit: 30 }),
     enabled: !entry,
   });
   const chosen = products.data?.products.find((product) => product.id === productId);

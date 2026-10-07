@@ -66,7 +66,7 @@ export async function insertOrderVersion(client, context, orderId, input, previe
   for (const line of preview.lines) {
     const inserted = await insert(client, "tenant.sales_order_lines", {
       organization_id: context.organizationId, sales_order_version_id: version.id, source_quotation_line_id: line.sourceQuotationLineId ?? null, sequence: line.sequence,
-      item_id: line.itemId, variant_id: line.variantId, variant_sku_snapshot: line.variantSkuSnapshot, uom_id: line.uomId, warehouse_id: line.warehouseId,
+      item_id: line.itemId, uom_id: line.uomId, warehouse_id: line.warehouseId,
       item_code_snapshot: line.itemCodeSnapshot, item_name_snapshot: line.itemNameSnapshot, description_snapshot: line.descriptionSnapshot, hsn_sac_snapshot: line.hsnSacSnapshot,
       uom_snapshot: line.uomSnapshot, quantity: line.quantity, base_quantity: line.baseQuantity, conversion_factor: line.conversionFactor,
       list_unit_price: line.listUnitPrice, unit_price: line.unitPrice, manual_price_override: Boolean(line.manualPriceOverride), manual_price_reason: line.manualPriceReason ?? null,

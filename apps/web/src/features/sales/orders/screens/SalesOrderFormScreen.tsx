@@ -38,7 +38,6 @@ type LineDraft = {
   // Came from the quotation: price and discount are the agreed ones.
   quoted: boolean;
   itemId: string;
-  variantId: string;
   uomId: string;
   quantity: number;
   discountType: "percent" | "amount";
@@ -109,7 +108,7 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
   const seedParty = existing ? undefined : options.parties.find((party) => party.id === initialPartyId);
   const seedAddresses = options.addresses.filter((address) => address.party_id === seedParty?.id);
   const blank = (): LineDraft => ({
-    key: nextKey(), salesOrderLineId: "", quoted: false, itemId: "", variantId: "", uomId: "", quantity: 1, discountType: defaultDiscountType(options.discounts),
+    key: nextKey(), salesOrderLineId: "", quoted: false, itemId: "", uomId: "", quantity: 1, discountType: defaultDiscountType(options.discounts),
     discountValue: 0, description: "", unitPrice: "", priceReason: "", warehouseId: "",
   });
 
@@ -141,7 +140,7 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
   const [terms, setTerms] = useState(order?.terms_and_conditions ?? "");
   const [lines, setLines] = useState<LineDraft[]>(() => existing?.lines.length
     ? existing.lines.map((line) => ({
-        key: nextKey(), salesOrderLineId: line.id, quoted: line.is_quoted, itemId: line.item_id, variantId: line.variant_id ?? "", uomId: line.uom_id ?? "",
+        key: nextKey(), salesOrderLineId: line.id, quoted: line.is_quoted, itemId: line.item_id, uomId: line.uom_id ?? "",
         quantity: Number(line.quantity), discountType: line.discount_type === "amount" ? "amount" : "percent", discountValue: Number(line.discount_value),
         warehouseId: line.warehouse_id ?? "", description: line.description_snapshot ?? "",
         unitPrice: line.manual_price_override && !line.is_quoted ? String(Number(line.unit_price)) : "", priceReason: line.manual_price_reason ?? "",
@@ -191,10 +190,6 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
     return Array.from(reachable).map((id) => uomById.get(id)).filter((uom): uom is NonNullable<typeof uom> => Boolean(uom))
       .map((uom) => ({ value: uom.id, label: `${uom.name} (${uom.code})` }));
   }
-  const variantOptionsFor = (itemId: string): SelectOption[] => [
-    { value: "", label: "Standard (no variant)" },
-    ...options.itemVariants.filter((variant) => variant.item_id === itemId).map((variant) => ({ value: variant.id, label: `${variant.sku} — ${variant.name}` })),
-  ];
   const isService = (itemId: string) => options.items.find((item) => item.id === itemId)?.item_type === "service";
   const warehouseOptions: SelectOption[] = options.warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.name} (${warehouse.code})` }));
   const lineWarehouseOptions: SelectOption[] = [{ value: "", label: defaultWarehouseId ? "Order default" : "No warehouse yet" }, ...warehouseOptions];
@@ -229,7 +224,7 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
   function selectLineItem(key: number, itemId: string) {
     const item = options.items.find((candidate) => candidate.id === itemId);
     // Another product is a new line: it is priced from today's price list, not from the quotation.
-    updateLine(key, { itemId, variantId: "", quoted: false, salesOrderLineId: "", uomId: defaultLineUom(item, options.itemUomConversions), description: defaultLineDescription(item) });
+    updateLine(key, { itemId, quoted: false, salesOrderLineId: "", uomId: defaultLineUom(item, options.itemUomConversions), description: defaultLineDescription(item) });
   }
 
   const validLines = lines.filter((line) => line.itemId && line.quantity > 0);
@@ -263,7 +258,6 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
       lines: validLines.map((line) => ({
         ...(line.salesOrderLineId ? { salesOrderLineId: line.salesOrderLineId } : {}),
         itemId: line.itemId,
-        variantId: line.variantId || undefined,
         uomId: line.uomId || undefined,
         description: line.description.trim() || undefined,
         ...(!line.quoted && line.unitPrice.trim() !== "" && Number.isFinite(Number(line.unitPrice))
@@ -378,15 +372,12 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
             <div className="flex flex-col gap-3">
               {lines.map((line, index) => {
                 const priced = preview?.lines.find((candidate) => candidate.sequence === validLines.findIndex((valid) => valid.key === line.key) + 1);
-                const variants = variantOptionsFor(line.itemId);
                 const uoms = uomOptionsFor(line.itemId);
                 const service = isService(line.itemId);
                 return (
-                  <div key={line.key} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_auto]">
+                  <div key={line.key} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,2.7fr)_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_auto]">
                     <Select aria-label={`Item ${index + 1}`} label={index === 0 ? "Item" : undefined} options={itemOptions} selectedKey={line.itemId || null}
                       onSelectionChange={(key) => selectLineItem(line.key, String(key ?? ""))} placeholder="Select an item" />
-                    <Select aria-label={`Variant ${index + 1}`} label={index === 0 ? "Variant" : undefined} options={variants} selectedKey={line.variantId}
-                      onSelectionChange={(key) => updateLine(line.key, { variantId: String(key ?? "") })} isDisabled={line.quoted || variants.length <= 1} />
                     <Select aria-label={`Unit ${index + 1}`} label={index === 0 ? "Unit" : undefined} options={uoms} selectedKey={line.uomId || null}
                       onSelectionChange={(key) => updateLine(line.key, { uomId: String(key ?? "") })} isDisabled={line.quoted || uoms.length <= 1} />
                     <NumberField aria-label={`Quantity ${index + 1}`} label={index === 0 ? "Quantity" : undefined} value={line.quantity}

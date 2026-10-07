@@ -25,7 +25,6 @@ export const DOCUMENT_TYPES = Object.freeze(
     org("business_party", "crm", "Account", "ACC-"),
     org("crm_contact", "crm", "Contact", "CON-"),
     org("customer", "sales", "Customer", "CUS-", 6),
-    org("product", "sales", "Product / service", "PRD-"),
     // Sales
     std("quotation", "sales", "Sales quotation", "QT", { defaultResetPolicy: "calendar_year" }),
     std("sales_order", "sales", "Sales order", "SO", { defaultResetPolicy: "calendar_year" }),

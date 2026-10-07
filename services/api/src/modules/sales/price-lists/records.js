@@ -260,8 +260,8 @@ export async function copyPriceList(client, context, priceListId, input = {}) {
   }, { historySummary: `Copied from ${source.code}` });
   // Only the prices valid today or later are copied; expired ones are history.
   const { rowCount } = await client.query(
-    `INSERT INTO tenant.price_list_items (organization_id, price_list_id, item_id, variant_id, uom_id, minimum_quantity, rate, valid_from, valid_to, status, created_by, updated_by)
-     SELECT organization_id, $3, item_id, variant_id, uom_id, 1, rate, valid_from, valid_to, 'active', $4, $4
+    `INSERT INTO tenant.price_list_items (organization_id, price_list_id, item_id, uom_id, minimum_quantity, rate, valid_from, valid_to, status, created_by, updated_by)
+     SELECT organization_id, $3, item_id, uom_id, 1, rate, valid_from, valid_to, 'active', $4, $4
        FROM tenant.price_list_items WHERE organization_id = $1 AND price_list_id = $2 AND status = 'active' AND (valid_to IS NULL OR valid_to >= current_date)`,
     [context.organizationId, source.id, copy.id, context.userId ?? null],
   );

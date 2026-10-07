@@ -3,7 +3,7 @@ import { PRODUCT_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { workspaceRoute } from "@/core/workspace-route";
 import { salesContext } from "@/features/sales/shared/sales-context";
-import { productWrite } from "@/features/sales/products/server/product-http";
+import { productWrite } from "@/features/items/server/item-http";
 
 type Params = { params: Promise<{ id: string; fileId: string }> };
 

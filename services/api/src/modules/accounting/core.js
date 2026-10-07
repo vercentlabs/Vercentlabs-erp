@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { ACCOUNTING_PERMISSIONS } from "@vercentlabs/permissions";
 import { decimal, asDatabaseDecimal, mul, roundMoney } from "./money.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
+import { itemProfileAccount } from "./item-profiles.js";
 
 export class AccountingError extends Error {
   constructor(status, message, code = "ACCOUNTING_ERROR") {
@@ -174,9 +175,11 @@ export async function getExchangeRate(client, context, fromCurrency, toCurrency,
   return positiveAmount(result.rows[0].rate, "Exchange rate");
 }
 
+// The account a posting uses: an item-specific mapping first, then the account the item's Finance profile names for this purpose, then
+// the mappings for the party, category or tax category, then the company default.
 export async function getAccountMapping(client, context, ledgerId, mappingKey, selectors = {}) {
   const result = await client.query(
-    `SELECT mapping.account_id,account.code,account.name,account.account_type,account.account_class
+    `SELECT mapping.account_id,mapping.item_id,account.code,account.name,account.account_type,account.account_class
        FROM tenant.accounting_account_mappings mapping
        JOIN tenant.accounting_accounts account ON account.id=mapping.account_id
       WHERE mapping.organization_id=$1 AND mapping.ledger_id=$2
@@ -197,8 +200,13 @@ export async function getAccountMapping(client, context, ledgerId, mappingKey, s
     [context.organizationId, ledgerId, mappingKey, selectors.partyId || null,
       selectors.itemId || null, selectors.itemGroupId || null, selectors.taxCategoryId || null, selectors.date || today()],
   );
-  if (!result.rows[0]) throw new AccountingError(409, `Account mapping ${mappingKey} is not configured.`);
-  return result.rows[0];
+  const mapped = result.rows[0];
+  if (selectors.itemId && !(mapped && mapped.item_id)) {
+    const fromProfile = await itemProfileAccount(client, context.organizationId, selectors.itemId, mappingKey);
+    if (fromProfile) return fromProfile;
+  }
+  if (!mapped) throw new AccountingError(409, `Account mapping ${mappingKey} is not configured.`);
+  return mapped;
 }
 
 export async function ensureParty(client, context, partyIdValue, allowedTypes) {

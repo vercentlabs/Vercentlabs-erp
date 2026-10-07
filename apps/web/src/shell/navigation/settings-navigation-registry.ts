@@ -103,6 +103,14 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         description: "When suppliers and customers are paid: net days, end of month, fixed days, instalments and advances, with company defaults.",
         requiredPermission: "payment_terms.view",
       },
+      {
+        id: "item-profiles",
+        label: "Item Profiles",
+        route: "/settings/finance-commercial/item-profiles",
+        status: "AVAILABLE",
+        description: "Finance sets of accounts for items: inventory asset and receipt clearing, revenue, expense, cost of goods sold and price variance.",
+        requiredPermission: "accounting.view",
+      },
     ],
   },
   {

@@ -1,7 +1,7 @@
 import { exportProducts } from "@vercentlabs/api/products";
 import { PRODUCT_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { csvResponse, productFiltersFromUrl, productRead } from "@/features/sales/products/server/product-http";
+import { csvResponse, productFiltersFromUrl, productRead } from "@/features/items/server/item-http";
 
 export async function GET(request: Request) {
   return productRead(request, PRODUCT_PERMISSIONS.export, async (client, context) => {

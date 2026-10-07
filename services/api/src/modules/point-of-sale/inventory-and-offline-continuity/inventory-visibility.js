@@ -34,7 +34,7 @@ export async function listPosStoreInventory(client, context, { storeId, search =
   const trimmed = search ? String(search).trim() : "";
   if (trimmed) {
     values.push(`%${trimmed}%`);
-    filter = ` AND (i.name ILIKE $${values.length} OR i.code ILIKE $${values.length} OR i.barcode ILIKE $${values.length})`;
+    filter = ` AND (i.name ILIKE $${values.length} OR i.code ILIKE $${values.length} OR EXISTS (SELECT 1 FROM tenant.item_identifiers identifier WHERE identifier.organization_id = i.organization_id AND identifier.item_id = i.id AND identifier.status = 'active' AND identifier.value ILIKE $${values.length}))`;
   }
   values.push(Math.min(Number(limit) || 50, 200), Number(offset) || 0);
   const result = await client.query(

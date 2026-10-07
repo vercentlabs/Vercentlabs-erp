@@ -380,16 +380,16 @@ export function PosCheckoutScreen() {
     }
   }
 
-  const addLine = (itemId: string, variantId: string | null) =>
+  const addLine = (itemId: string) =>
     cart &&
-    run(() => addPosCartLine(cart.id, { itemId, variantId, quantity: 1 }));
+    run(() => addPosCartLine(cart.id, { itemId, quantity: 1 }));
 
   function scanBarcode() {
     if (!barcodeInput.trim() || !store?.id) return;
     lookupPosBarcode(store.id, barcodeInput.trim())
       .then((product: PosProductMatch) => {
         setBarcodeInput("");
-        addLine(product.itemId, product.variantId);
+        addLine(product.itemId);
       })
       .catch((err) =>
         setError(
@@ -823,9 +823,9 @@ export function PosCheckoutScreen() {
               <div className="max-h-64 overflow-y-auto rounded-[var(--radius-control)] border border-border">
                 {(searchQuery.data?.rows ?? []).map((product) => (
                   <button
-                    key={`${product.itemId}-${product.variantId ?? ""}`}
+                    key={product.itemId}
                     type="button"
-                    onClick={() => addLine(product.itemId, product.variantId)}
+                    onClick={() => addLine(product.itemId)}
                     className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none"
                   >
                     <span>
@@ -833,7 +833,7 @@ export function PosCheckoutScreen() {
                       <span className="text-text-muted">({product.code})</span>
                     </span>
                     <span className="shrink-0 tabular-nums text-text-secondary">
-                      {money(currency, product.salesPrice)} ·{" "}
+                      {product.salesPrice === null ? "No price" : money(currency, product.salesPrice)} ·{" "}
                       {product.availableQuantity} avail.
                     </span>
                   </button>

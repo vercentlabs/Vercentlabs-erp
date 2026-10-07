@@ -57,7 +57,7 @@ async function storedInput(client, context, order) {
     // An order keeps only the total of its charges.
     charges: Number(version.charge_total) ? [{ label: "Charges", calculationType: "fixed", value: version.charge_total }] : [],
     lines: lines.map((line) => ({
-      salesOrderLineId: line.id, itemId: line.item_id, variantId: line.variant_id, uomId: line.uom_id, warehouseId: line.warehouse_id, quantity: line.quantity,
+      salesOrderLineId: line.id, itemId: line.item_id, uomId: line.uom_id, warehouseId: line.warehouse_id, quantity: line.quantity,
       description: line.description_snapshot, requestedDeliveryDate: dayOf(line.requested_delivery_date),
       ...(line.manual_price_override && !line.source_quotation_line_id ? { unitPrice: line.unit_price, manualPriceReason: line.manual_price_reason } : {}),
       discountType: line.discount_type, discountValue: line.discount_value,
@@ -147,8 +147,13 @@ async function orderProblems(client, context, order, preview) {
     `SELECT line.sequence, line.item_name_snapshot, line.quantity, line.unit_price, line.manual_price_override, line.manual_price_reason, line.warehouse_id, line.tax_amount,
             line.tax_treatment, line.hsn_sac_snapshot, line.uom_id, line.source_quotation_line_id, item.uom_id AS base_uom_id,
             item.status AS item_status, item.is_sellable, item.item_type, COALESCE(item.track_inventory, false) AS track_inventory, warehouse.status AS warehouse_status,
+            -- The line's unit still counts the item: the base, one of its active conversions to the base, or a standard unit of the base's dimension.
             (line.uom_id IS NULL OR line.uom_id = item.uom_id OR EXISTS (SELECT 1 FROM tenant.item_uom_conversions conversion
-               WHERE conversion.organization_id = line.organization_id AND conversion.item_id = line.item_id AND line.uom_id IN (conversion.from_uom_id, conversion.to_uom_id))) AS uom_valid
+               WHERE conversion.organization_id = line.organization_id AND conversion.item_id = line.item_id AND conversion.from_uom_id = line.uom_id AND conversion.to_uom_id = item.uom_id
+                 AND conversion.status = 'active')
+             OR EXISTS (SELECT 1 FROM tenant.units_of_measure line_uom JOIN tenant.units_of_measure base_uom ON base_uom.organization_id = line_uom.organization_id AND base_uom.id = item.uom_id
+               JOIN public.uom_standard_conversions line_std ON line_std.code = line_uom.code JOIN public.uom_standard_conversions base_std ON base_std.code = base_uom.code
+               WHERE line_uom.organization_id = line.organization_id AND line_uom.id = line.uom_id AND line_std.dimension = base_std.dimension AND line_uom.category = base_uom.category)) AS uom_valid
        FROM tenant.sales_order_lines line
        JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
        LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = line.organization_id AND warehouse.id = line.warehouse_id

@@ -7,8 +7,6 @@ import {
   listStockCounts,
   getStockDashboard,
   getStockSettings,
-  listBusinessDataRecords,
-  listTaxCategoryChoices,
   listStockBalancesDetailed,
   listStockBatchesWithBalance,
   listStockLedger,
@@ -48,28 +46,8 @@ export async function GET(
       }
       case "settings":
         return { settings: await getStockSettings(client, context) };
-      case "options": {
-        const base = await listStockOperationOptions(client, context);
-        const [uoms, groups, taxCategories] = await Promise.all([
-          listBusinessDataRecords(client, context, "units-of-measure", {
-            status: "active",
-            limit: 500,
-          }),
-          listBusinessDataRecords(client, context, "item-groups", {
-            status: "active",
-            limit: 500,
-          }),
-          listTaxCategoryChoices(client, context),
-        ]);
-        return {
-          options: {
-            ...base,
-            uoms: uoms.rows,
-            groups: groups.rows,
-            taxCategories,
-          },
-        };
-      }
+      case "options":
+        return { options: await listStockOperationOptions(client, context) };
       case "balances":
         return {
           rows: await listStockBalancesDetailed(client, context, {

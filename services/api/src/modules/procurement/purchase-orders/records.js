@@ -147,15 +147,23 @@ export async function previewPurchaseOrder(client, context, input = {}, orderId 
   };
 }
 
-// resolveSupplierDefaults for a new order, with each product's suggested purchase cost (a suggestion only: the agreed price is entered).
+// The price last agreed for an item in its purchase unit: the latest confirmed (or closed) purchase order line in that unit, from this
+// supplier when there is one, else from any. A suggestion only: the agreed price is entered on the order.
+const LAST_PRICE_SQL = (item, supplier) => `(SELECT line.unit_price FROM tenant.purchase_order_lines line
+    JOIN tenant.purchase_orders po ON po.organization_id = line.organization_id AND po.id = line.purchase_order_id
+   WHERE line.organization_id = ${item}.organization_id AND line.product_id = ${item}.id AND po.status IN ('confirmed', 'closed') AND line.unit_price IS NOT NULL
+     AND line.purchase_uom_id = COALESCE(${item}.purchase_uom_id, ${item}.uom_id)
+   ORDER BY ${supplier ? `(po.supplier_id = ${supplier}) DESC, ` : ""}po.order_date DESC, po.created_at DESC LIMIT 1)`;
+
+// resolveSupplierDefaults for a new order, with each product's suggested price: the price last agreed for it (a suggestion only).
 export async function getPurchaseOrderDefaults(client, context, { supplierId, productIds = [] } = {}) {
   requirePoPermission(context, PO_PERMISSIONS.create, "You do not have permission to create purchase orders.");
   const supplier = supplierId ? await translated(() => resolveSupplierDefaults(client, context, requireUuid(supplierId, "Supplier"), "purchase_order")) : null;
   const ids = (Array.isArray(productIds) ? productIds : String(productIds || "").split(",")).filter(isUuid);
   const products = ids.length ? (await client.query(
-    `SELECT item.id, item.code, item.name, item.item_type, item.track_inventory, item.purchase_price, item.standard_cost, item.purchase_uom_id, item.uom_id, item.tax_category_id
-       FROM tenant.items item WHERE item.organization_id = $1 AND item.id = ANY($2::uuid[])`, [context.organizationId, ids])).rows
-    .map((row) => ({ id: row.id, code: row.code, name: row.name, suggestedPrice: Number(row.purchase_price) > 0 ? formatDecimal(row.purchase_price) : Number(row.standard_cost) > 0 ? formatDecimal(row.standard_cost) : null,
+    `SELECT item.id, item.code, item.name, item.item_type, item.track_inventory, item.purchase_uom_id, item.uom_id, item.tax_category_id, ${LAST_PRICE_SQL("item", "$3::uuid")} AS last_price
+       FROM tenant.items item WHERE item.organization_id = $1 AND item.id = ANY($2::uuid[])`, [context.organizationId, ids, supplierId && isUuid(supplierId) ? supplierId : null])).rows
+    .map((row) => ({ id: row.id, code: row.code, name: row.name, suggestedPrice: row.last_price === null ? null : formatDecimal(row.last_price),
       uomId: row.purchase_uom_id ?? row.uom_id, productType: row.item_type === "service" ? "service" : row.track_inventory ? "stock" : "non_stock" })) : [];
   const settings = await procurementSettings(client, context.organizationId);
   return { supplier, products, settings, today: await databaseToday(client) };
@@ -462,8 +470,8 @@ export async function getPurchaseOrderOptions(client, context) {
     suppliers: await q(`SELECT supplier.id, supplier.supplier_number, party.display_name AS name, supplier.status, supplier.default_currency AS currency_code
                           FROM tenant.procurement_suppliers supplier JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
                          WHERE supplier.organization_id = $1 ORDER BY party.display_name LIMIT 2000`),
-    products: await q(`SELECT id, code, name, item_type, track_inventory, purchase_uom_id, uom_id, purchase_price, tax_category_id FROM tenant.items
-                        WHERE organization_id = $1 AND status = 'active' AND is_purchasable IS NOT FALSE ORDER BY name LIMIT 5000`),
+    products: await q(`SELECT item.id, item.code, item.name, item.item_type, item.track_inventory, item.purchase_uom_id, item.uom_id, ${LAST_PRICE_SQL("item", null)} AS last_purchase_price, item.tax_category_id
+                         FROM tenant.items item WHERE item.organization_id = $1 AND item.status = 'active' AND item.is_purchasable ORDER BY item.name LIMIT 5000`),
     uoms: await q(`SELECT id, code, name, decimal_places FROM tenant.units_of_measure WHERE organization_id = $1 AND status = 'active' ORDER BY code`),
     warehouses: await q(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND status = 'active' ORDER BY name`),
     currencies: await q(`SELECT code, name FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`),

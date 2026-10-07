@@ -47,15 +47,15 @@ export async function insertQuotationVersion(client, context, quotationId, input
       `INSERT INTO tenant.sales_quotation_lines (organization_id, quotation_version_id, sequence, item_id, uom_id, warehouse_id, item_code_snapshot, item_name_snapshot,
           description_snapshot, hsn_sac_snapshot, uom_snapshot, quantity, base_quantity, conversion_factor, list_unit_price, unit_price, discount_percent, discount_amount,
           net_amount, tax_amount, line_total, standard_cost, cost_amount, margin_amount, margin_percent, tax_category_id, requested_delivery_date, manual_price_override,
-          manual_price_reason, pricing_trace, tax_trace, variant_id, variant_sku_snapshot, created_by, discount_type, discount_value, gross_amount, document_discount_amount,
+          manual_price_reason, pricing_trace, tax_trace, created_by, discount_type, discount_value, gross_amount, document_discount_amount,
           taxable_amount, tax_rate, tax_rate_id, tax_category_code, tax_treatment, hsn_sac_kind)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30::jsonb, $31::jsonb,
-               $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44) RETURNING id`,
+               $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42) RETURNING id`,
       [context.organizationId, version.id, line.sequence, line.itemId, line.uomId, line.warehouseId, line.itemCodeSnapshot, line.itemNameSnapshot, line.descriptionSnapshot,
         line.hsnSacSnapshot, line.uomSnapshot, line.quantity, line.baseQuantity, line.conversionFactor, line.listUnitPrice, line.unitPrice, line.discountPercent,
         line.discountAmount, line.netAmount, line.taxAmount, line.lineTotal, line.standardCost, line.costAmount, line.marginAmount, line.marginPercent, line.taxCategoryId,
-        line.requestedDeliveryDate, line.manualPriceOverride, line.manualPriceReason, JSON.stringify(line.pricingTrace), JSON.stringify(line.taxTrace), line.variantId,
-        line.variantSkuSnapshot, context.userId ?? null, line.discountType, line.discountValue, line.grossAmount, line.documentDiscountAmount, line.taxableAmount, ...lineTaxColumns(line)],
+        line.requestedDeliveryDate, line.manualPriceOverride, line.manualPriceReason, JSON.stringify(line.pricingTrace), JSON.stringify(line.taxTrace),
+        context.userId ?? null, line.discountType, line.discountValue, line.grossAmount, line.documentDiscountAmount, line.taxableAmount, ...lineTaxColumns(line)],
     );
     for (const tax of line.taxLines)
       await client.query(
@@ -157,7 +157,6 @@ export async function inputFromQuotation(client, context, quote, { carryPrices =
     discountReasonText: version.discount_reason_text,
     lines: lines.map((line) => ({
       itemId: line.item_id,
-      variantId: line.variant_id,
       uomId: line.uom_id,
       warehouseId: line.warehouse_id,
       description: line.description_snapshot,

@@ -148,7 +148,6 @@ function AddProductDialog({ opportunityId, currency, onClose, onAdded }: { oppor
     onSuccess: () => { onAdded(); onClose(); },
     onError: (failure) => setError(errorMessage(failure)),
   });
-  const chosen = products.data?.find((entry) => entry.id === productId);
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Add product or service">
       <div className="flex flex-col gap-4">
@@ -159,12 +158,12 @@ function AddProductDialog({ opportunityId, currency, onClose, onAdded }: { oppor
             const id = key ? String(key) : null;
             setProductId(id);
             const picked = products.data?.find((entry) => entry.id === id);
-            if (picked) { setSearch(`${picked.name} (${picked.code})`); setUnitPrice(String(picked.salesPrice || "")); }
+            if (picked) setSearch(`${picked.name} (${picked.code})`);
           }} />
         <div className="grid gap-4 sm:grid-cols-3">
           <TextField label="Quantity" inputMode="decimal" value={quantity} onChange={setQuantity} />
           <TextField label={`Estimated price${currency ? ` (${currency})` : ""}`} inputMode="decimal" value={unitPrice} onChange={setUnitPrice}
-            description={chosen ? `List price ${formatMoney(currency, chosen.salesPrice)}` : undefined} />
+            description="Leave empty to use the price on the account's price list." />
           <TextField label="Discount %" inputMode="decimal" value={discount} onChange={setDiscount} />
         </div>
         <div className="flex justify-end gap-2">

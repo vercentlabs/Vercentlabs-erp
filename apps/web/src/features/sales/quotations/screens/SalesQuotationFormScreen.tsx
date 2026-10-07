@@ -60,7 +60,6 @@ import { useSubmitKey } from "@/shared/http/submit-once";
 type LineDraft = {
   key: number;
   itemId: string;
-  variantId: string;
   uomId: string;
   quantity: number;
   discountType: "percent" | "amount";
@@ -81,7 +80,7 @@ let draftKey = 0;
 const nextKey = () => ++draftKey;
 
 const emptyLine = (): LineDraft => ({
-  key: nextKey(), itemId: "", variantId: "", uomId: "", quantity: 1, discountType: "percent", discountValue: 0, description: "", unitPrice: "", priceReason: "",
+  key: nextKey(), itemId: "", uomId: "", quantity: 1, discountType: "percent", discountValue: 0, description: "", unitPrice: "", priceReason: "",
 });
 
 // Create a quotation (Sales → Quotations → New), or edit a Draft. Each save
@@ -322,7 +321,6 @@ function FormBody({
       ? existing.lines.map((line) => ({
           key: nextKey(),
           itemId: line.item_id,
-          variantId: line.variant_id ?? "",
           uomId: line.uom_id ?? "",
           quantity: Number(line.quantity),
           discountType: line.discount_type === "amount" ? "amount" : "percent",
@@ -385,10 +383,8 @@ function FormBody({
     value: item.id,
     label: `${item.name} (${item.code})`,
   }));
-  // F033: expose a line's UOM and variant/SKU context, not just the item --
-  // "sell 20 cartons of the Large/Brown box" needs both. The UOM list is
-  // scoped to what the item can actually convert to (the server enforces the
-  // same thing); the variant list is scoped to that item's own SKUs.
+  // A line's unit is chosen from what the item converts to (the server
+  // enforces the same thing). A variant (Large / Brown) is an item of its own.
   const uomById = new Map(options.uoms.map((uom) => [uom.id, uom]));
   function uomOptionsFor(itemId: string): SelectOption[] {
     const item = options.items.find((candidate) => candidate.id === itemId);
@@ -404,21 +400,9 @@ function FormBody({
       .filter((uom): uom is NonNullable<typeof uom> => Boolean(uom))
       .map((uom) => ({ value: uom.id, label: `${uom.name} (${uom.code})` }));
   }
-  function variantOptionsFor(itemId: string): SelectOption[] {
-    const variants = options.itemVariants.filter(
-      (variant) => variant.item_id === itemId,
-    );
-    return [
-      { value: "", label: "Standard (no variant)" },
-      ...variants.map((variant) => ({
-        value: variant.id,
-        label: `${variant.sku} — ${variant.name}`,
-      })),
-    ];
-  }
   function selectLineItem(key: number, itemId: string) {
     const item = options.items.find((candidate) => candidate.id === itemId);
-    updateLine(key, { itemId, variantId: "", uomId: defaultLineUom(item, options.itemUomConversions), description: defaultLineDescription(item) });
+    updateLine(key, { itemId, uomId: defaultLineUom(item, options.itemUomConversions), description: defaultLineDescription(item) });
   }
   const currencyOptions: SelectOption[] = options.currencies.map(
     (currency) => ({
@@ -497,7 +481,6 @@ function FormBody({
       ...taxInput(documentTax),
       lines: validLines.map((line) => ({
         itemId: line.itemId,
-        variantId: line.variantId || undefined,
         uomId: line.uomId || undefined,
         description: line.description.trim() || undefined,
         ...(line.unitPrice.trim() !== "" && Number.isFinite(Number(line.unitPrice))
@@ -797,12 +780,11 @@ function FormBody({
                     candidate.sequence ===
                     validLines.findIndex((v) => v.key === line.key) + 1,
                 );
-                const lineVariantOptions = variantOptionsFor(line.itemId);
                 const lineUomOptions = uomOptionsFor(line.itemId);
                 return (
                   <div
                     key={line.key}
-                    className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto]"
+                    className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto]"
                   >
                     <Select
                       aria-label={`Item ${index + 1}`}
@@ -813,16 +795,6 @@ function FormBody({
                         selectLineItem(line.key, String(key ?? ""))
                       }
                       placeholder="Select an item"
-                    />
-                    <Select
-                      aria-label={`Variant ${index + 1}`}
-                      label={index === 0 ? "Variant" : undefined}
-                      options={lineVariantOptions}
-                      selectedKey={line.variantId}
-                      onSelectionChange={(key) =>
-                        updateLine(line.key, { variantId: String(key ?? "") })
-                      }
-                      isDisabled={lineVariantOptions.length <= 1}
                     />
                     <Select
                       aria-label={`UOM ${index + 1}`}

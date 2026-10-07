@@ -2,7 +2,7 @@ import { activateProduct, deactivateProduct } from "@vercentlabs/api/products";
 import { PRODUCT_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError } from "@/core/http";
-import { type ProductRouteParams, productWrite } from "@/features/sales/products/server/product-http";
+import { type ProductRouteParams, productWrite } from "@/features/items/server/item-http";
 
 // body: { action: activate | deactivate, reason? }
 export async function POST(request: Request, { params }: ProductRouteParams) {

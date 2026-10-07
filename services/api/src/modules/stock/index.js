@@ -1,4 +1,6 @@
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
+import { baseUnitPrice, normalizeQuantityToBase } from "../products/uom.js";
+import { decimal, formatDecimal } from "../../core/decimal.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 import { lockInventoryItem } from "../../core/inventory-lock.js";
 
@@ -83,7 +85,8 @@ async function settings(client, c) {
 }
 async function stockDimension(client, c, input) {
   const item = (await client.query(
-    `SELECT id,track_inventory,allow_negative_stock,standard_cost,tracking_type,valuation_method FROM tenant.items WHERE organization_id=$1 AND id=$2 AND status='active'`,
+    // An inactive item keeps its stock movable (returned, transferred, adjusted or disposed of); a draft item has none.
+    `SELECT id,track_inventory,allow_negative_stock,standard_cost,tracking_type,valuation_method FROM tenant.items WHERE organization_id=$1 AND id=$2 AND lifecycle_status IN ('active','inactive')`,
     [c.organizationId, input.itemId],
   )).rows[0];
   if (!item)
@@ -296,7 +299,24 @@ async function consumeFifoLayers(client, c, itemId, warehouseId, qty, fallbackCo
   };
 }
 
-export async function postStockMovement(client, c, input = {}) {
+// A quantity entered in another unit than the item's base (2 BOX of 20): checked and converted by the shared conversion service. The ledger
+// gets the base quantity (40); the movement keeps what was entered, its unit and factor. A unit cost entered per that unit becomes the cost
+// of one base unit (₹5,000 / CARTON of 100 = ₹50 / PCS).
+async function enteredInUnit(client, c, input, purpose = "inventory") {
+  if (!input.uomId) return { input, entered: null };
+  const unit = await normalizeQuantityToBase(client, c.organizationId, input.itemId, input.uomId, input.quantity, { purpose });
+  if (!unit.ok) throw new StockError(unit.reason === "no_conversion" || unit.reason === "not_enabled" || unit.reason === "unit_inactive" ? 409 : 400, unit.message, "STOCK_UOM_INVALID");
+  if (unit.unit.isBase) return { input: { ...input, quantity: formatDecimal(unit.baseQuantity) }, entered: null };
+  const enteredCost = input.unitCost == null || input.unitCost === "" ? null : decimal(String(input.unitCost));
+  return {
+    input: { ...input, quantity: formatDecimal(unit.baseQuantity), unitCost: enteredCost === null ? input.unitCost : formatDecimal(baseUnitPrice(enteredCost, unit.factor)) },
+    entered: { uomId: input.uomId, quantity: formatDecimal(unit.quantity), factor: formatDecimal(unit.factor), unitCost: enteredCost === null ? null : formatDecimal(enteredCost),
+      baseQuantity: formatDecimal(unit.baseQuantity) },
+  };
+}
+
+export async function postStockMovement(client, c, rawInput = {}) {
+  const { input, entered } = await enteredInUnit(client, c, rawInput);
   const movementType = String(input.movementType || "").toLowerCase();
   // return: goods coming back from a customer (a sales return), received like a receipt.
   if (!new Set(["receipt", "issue", "adjustment", "return"]).has(movementType))
@@ -308,7 +328,7 @@ export async function postStockMovement(client, c, input = {}) {
   const idempotency = await beginIdempotentOperation(client, c, {
     operation: "stock.movement",
     key: idempotencyKey,
-    payload: { ...input, idempotencyKey: undefined },
+    payload: { ...rawInput, idempotencyKey: undefined },
   });
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
 
@@ -402,8 +422,9 @@ export async function postStockMovement(client, c, input = {}) {
     prefix: "STK",
   });
   const movement = await client.query(
-    `INSERT INTO tenant.stock_movements(organization_id,movement_number,movement_type,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,unit_cost,reference_type,reference_id,reason,created_by,idempotency_key,cost_variance) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
-    [c.organizationId,movementNumber,movementType,input.itemId,input.warehouseId,input.warehouseLocationId || null,input.batchId || null,input.serialId || null,signed,cost,input.referenceType || null,input.referenceId || null,input.reason || null,c.userId,idempotencyKey,costVariance],
+    `INSERT INTO tenant.stock_movements(organization_id,movement_number,movement_type,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,unit_cost,reference_type,reference_id,reason,created_by,idempotency_key,cost_variance,entered_uom_id,entered_quantity,entered_conversion_factor,entered_unit_cost) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+    [c.organizationId,movementNumber,movementType,input.itemId,input.warehouseId,input.warehouseLocationId || null,input.batchId || null,input.serialId || null,signed,cost,input.referenceType || null,input.referenceId || null,input.reason || null,c.userId,idempotencyKey,costVariance,
+      entered?.uomId ?? null,entered?.quantity ?? null,entered?.factor ?? null,entered?.unitCost ?? null],
   );
   await client.query(
     `INSERT INTO tenant.stock_balances(organization_id,item_id,warehouse_id,warehouse_location_id,batch_id,quantity,reserved_quantity,average_cost) VALUES($1,$2,$3,$4,$5,$6,0,$7) ON CONFLICT(organization_id,item_id,warehouse_id,warehouse_location_id,batch_id) DO UPDATE SET quantity=EXCLUDED.quantity,average_cost=EXCLUDED.average_cost,updated_at=now()`,
@@ -422,14 +443,16 @@ export async function postStockMovement(client, c, input = {}) {
   return response;
 }
 
-export async function createStockTransfer(client, c, input = {}) {
+export async function createStockTransfer(client, c, rawInput = {}) {
   need(c, "stock.transfer");
+  // One base quantity for both sides: 2 BOX of 20 leaves one warehouse and arrives in the other as 40 PCS.
+  const { input, entered } = await enteredInUnit(client, c, rawInput);
   const q = num(input.quantity, "Quantity");
   const idempotencyKey = String(input.idempotencyKey || "").trim() || null;
   const idempotency = await beginIdempotentOperation(client, c, {
     operation: "stock.transfer.create",
     key: idempotencyKey,
-    payload: { ...input, idempotencyKey: undefined },
+    payload: { ...rawInput, idempotencyKey: undefined },
   });
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
   await stockDimension(client,c,{ itemId: input.itemId, warehouseId: input.sourceWarehouseId, warehouseLocationId: input.sourceLocationId || null, batchId: input.batchId || null });
@@ -441,8 +464,9 @@ export async function createStockTransfer(client, c, input = {}) {
     prefix: "TRF",
   });
   const { rows } = await client.query(
-    `INSERT INTO tenant.stock_transfers(organization_id,transfer_number,item_id,source_warehouse_id,source_location_id,destination_warehouse_id,destination_location_id,batch_id,quantity,requested_by,idempotency_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-    [c.organizationId,transferNumber,input.itemId,input.sourceWarehouseId,input.sourceLocationId || null,input.destinationWarehouseId,input.destinationLocationId || null,input.batchId || null,q,c.userId,idempotencyKey],
+    `INSERT INTO tenant.stock_transfers(organization_id,transfer_number,item_id,source_warehouse_id,source_location_id,destination_warehouse_id,destination_location_id,batch_id,quantity,requested_by,idempotency_key,entered_uom_id,entered_quantity,entered_conversion_factor) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+    [c.organizationId,transferNumber,input.itemId,input.sourceWarehouseId,input.sourceLocationId || null,input.destinationWarehouseId,input.destinationLocationId || null,input.batchId || null,q,c.userId,idempotencyKey,
+      entered?.uomId ?? null,entered?.quantity ?? null,entered?.factor ?? null],
   );
   const response = { ...rows[0], replayed: false };
   await completeIdempotentOperation(client, c, idempotency, {
@@ -632,8 +656,8 @@ export async function getStockAvailability(client, c, input = {}) {
 // balance row, changed in the same statement order as the reservation and
 // rebuilt from the reservations by reconcileStockReservations.
 
-// Usable means: not in a quality or inactive location, not in a blocked or expired batch.
-const USABLE_ROW = `COALESCE(location.location_type,'') <> 'quality' AND COALESCE(location.status,'active')='active' AND COALESCE(batch.status,'active')='active'`;
+// A balance row whose stock can be sold or issued: not in a quality or inactive location, nor in a blocked or expired batch.
+export const USABLE_ROW = `COALESCE(location.location_type,'') <> 'quality' AND COALESCE(location.status,'active')='active' AND COALESCE(batch.status,'active')='active'`;
 const reservationRound = (value) => Math.round(Number(value) * 1e6) / 1e6;
 
 async function insertReservation(client, c, balance, quantity, input, idempotencyKey) {
@@ -845,7 +869,13 @@ export async function reconcileStockReservations(client, c, { repair = false } =
 export async function listStockOperationOptions(client,c){
   need(c,"stock.view");
   const [items,warehouses,locations,batches]=await Promise.all([
-    client.query(`SELECT id,code,name FROM tenant.items WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 500`,[c.organizationId]),
+    // Each item with its base unit and the units Inventory may be entered in (the base and its inventory-enabled conversions).
+    client.query(`SELECT item.id,item.code,item.name,item.uom_id,base.code AS base_uom,
+        COALESCE((SELECT jsonb_agg(jsonb_build_object('uomId',conversion.from_uom_id,'code',uom.code,'factor',conversion.conversion_factor,'decimals',COALESCE(conversion.quantity_precision,uom.decimal_places)) ORDER BY conversion.conversion_factor)
+          FROM tenant.item_uom_conversions conversion JOIN tenant.units_of_measure uom ON uom.organization_id=conversion.organization_id AND uom.id=conversion.from_uom_id
+         WHERE conversion.organization_id=item.organization_id AND conversion.item_id=item.id AND conversion.to_uom_id=item.uom_id AND conversion.status='active' AND conversion.inventory_enabled AND uom.status='active'),'[]'::jsonb) AS units
+       FROM tenant.items item LEFT JOIN tenant.units_of_measure base ON base.organization_id=item.organization_id AND base.id=item.uom_id
+      WHERE item.organization_id=$1 AND item.status='active' ORDER BY item.name LIMIT 500`,[c.organizationId]),
     client.query(`SELECT id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 200`,[c.organizationId]),
     client.query(`SELECT l.id,l.code,l.name,l.warehouse_id FROM tenant.warehouse_locations l JOIN tenant.warehouses w ON w.organization_id=l.organization_id AND w.id=l.warehouse_id WHERE l.organization_id=$1 AND l.status='active' AND w.status='active' ORDER BY w.code,l.code LIMIT 1000`,[c.organizationId]),
     client.query(`SELECT id,batch_number AS code,batch_number AS name,item_id FROM tenant.stock_batches WHERE organization_id=$1 AND status='active' ORDER BY created_at DESC LIMIT 500`,[c.organizationId]),

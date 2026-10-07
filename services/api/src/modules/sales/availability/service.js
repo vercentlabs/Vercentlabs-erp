@@ -20,6 +20,7 @@
 // locks nothing and is not written to the order's history. Reserving checks
 // the stock again.
 import { assertOrderVisible, orderCan, requireOrderAccess } from "../orders/access.js";
+import { resolveItemUnit } from "../../products/uom.js";
 import { OrderError, requireUuid } from "../orders/constants.js";
 import { loadOrderLineProgress } from "../orders/progress.js";
 import { AVAILABILITY_PERMISSIONS, RESULT_LABELS, SUMMARY_LABELS } from "./constants.js";
@@ -176,14 +177,18 @@ export async function checkItemsAvailability(client, context, input = {}) {
     `SELECT item.id, item.name, item.item_type, COALESCE(item.track_inventory, false) AS track_inventory, item.uom_id, unit.code AS base_unit FROM tenant.items item
        LEFT JOIN tenant.units_of_measure unit ON unit.organization_id = item.organization_id AND unit.id = item.uom_id
       WHERE item.organization_id = $1 AND item.id = ANY($2::uuid[])`, [context.organizationId, requested.map((line) => line.itemId)])).rows.map((row) => [row.id, row]));
-  const conversions = (await client.query(
-    `SELECT item_id, from_uom_id, to_uom_id, conversion_factor FROM tenant.item_uom_conversions WHERE organization_id = $1 AND item_id = ANY($2::uuid[]) AND status = 'active'`,
-    [context.organizationId, requested.map((line) => line.itemId)])).rows;
-  // How many base units one of the chosen unit is: the same conversion pricing uses.
+  // How many base units one of the chosen unit is, from the shared conversion service (the same one pricing and orders use).
+  const factors = new Map();
+  for (const line of requested) {
+    const item = items.get(line.itemId);
+    if (!item || !line.uomId || line.uomId === item.uom_id) continue;
+    const resolved = await resolveItemUnit(client, context.organizationId, item.id, line.uomId, { purpose: "sales" });
+    factors.set(`${item.id}:${line.uomId}`, resolved.ok ? Number(resolved.unit.factor) : null);
+  }
   const factorOf = (item, uomId) => {
     if (!uomId || uomId === item.uom_id) return 1;
-    const direct = conversions.find((row) => row.item_id === item.id && row.from_uom_id === uomId && row.to_uom_id === item.uom_id);
-    if (direct) return Number(direct.conversion_factor);
+    const factor = factors.get(`${item.id}:${uomId}`);
+    if (factor) return factor;
     throw new OrderError(400, `${item.name} is not sold in that unit.`, "SALES_AVAILABILITY_UNIT_INVALID");
   };
   const positions = await stockPositions(client, context.organizationId, requested.filter((line) => items.get(line.itemId)).map((line) => line.itemId));

@@ -8,7 +8,6 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 const addLineSchema = z.object({
   itemId: z.string().uuid(),
-  variantId: z.string().uuid().optional().nullable(),
   quantity: z.number().positive(),
   unitPrice: z.number().min(0).optional(),
   priceOverride: z.boolean().optional(),

@@ -12,17 +12,17 @@ import type { InvOptions } from "@/features/inventory/shared/client";
 
 type OptionSource =
   | "items"
+  | "itemUnits"
   | "warehouses"
   | "locations"
-  | "batches"
-  | "uoms"
-  | "groups"
-  | "taxCategories";
+  | "batches";
 export type FieldValue = string | number;
 export type FieldDef = {
   name: string;
   label: string;
-  kind: "text" | "number" | "date" | "textarea" | "select" | "bool";
+  kind: "text" | "number" | "date" | "textarea" | "select" | "bool" | "info";
+  // An "info" field shows a line worked out from the other values (such as the base-quantity impact) and is never sent.
+  info?: (values: Record<string, FieldValue>, options: InvOptions | undefined) => string | null;
   required?: boolean;
   options?: SelectOption[] | OptionSource;
   // Narrow a dependent picker: locations by the chosen warehouse, batches by the chosen item.
@@ -70,25 +70,17 @@ function resolveOptions(
           (l) => !field.dependsOn || (parent && l.warehouse_id === parent),
         )
         .map((l) => ({ value: l.id, label: `${l.name} (${l.code})` }));
+    case "itemUnits": {
+      // The chosen item's base unit and the alternate units it may be entered in.
+      const item = (options?.items ?? []).find((entry) => entry.id === parent);
+      if (!item) return [];
+      return [{ value: "", label: `${item.base_uom ?? "Base unit"} (base)` },
+        ...(item.units ?? []).map((unit) => ({ value: unit.uomId, label: `${unit.code} (1 = ${Number(unit.factor)} ${item.base_uom ?? ""})` }))];
+    }
     case "batches":
       return (options?.batches ?? [])
         .filter((b) => !field.dependsOn || (parent && b.item_id === parent))
         .map((b) => ({ value: b.id, label: b.code }));
-    case "uoms":
-      return (options?.uoms ?? []).map((u) => ({
-        value: u.id,
-        label: `${u.name} (${u.code})`,
-      }));
-    case "groups":
-      return (options?.groups ?? []).map((g) => ({
-        value: g.id,
-        label: `${g.name} (${g.code})`,
-      }));
-    case "taxCategories":
-      return (options?.taxCategories ?? []).map((t) => ({
-        value: t.id,
-        label: `${t.name} (${t.code})`,
-      }));
   }
 }
 
@@ -107,6 +99,10 @@ export function FieldInput({
 }) {
   const label = field.label;
   switch (field.kind) {
+    case "info": {
+      const text = field.info?.(values, options);
+      return text ? <p className="rounded-[var(--radius-control)] bg-surface-muted px-3 py-2 text-sm tabular-nums">{text}</p> : null;
+    }
     case "textarea":
       return (
         <TextArea

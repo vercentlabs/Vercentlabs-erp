@@ -1,58 +1,50 @@
-// Duplicate product detection, used while typing, on save and on import.
+// Duplicate item detection, used while typing, on save and on import.
 //
-// Strong (the save is refused): the same code, the same SKU, or the same
-// barcode on another item or variant.
-// Possible (a warning only): a similar name.
+// Strong (the save is refused): the same SKU, or a barcode / identifier another item already has.
+// Possible (a warning only): the same or a similar name, or the same manufacturer and part number. Two items may legitimately share a name.
 import { requireProductPermission } from "./access.js";
 import { PRODUCT_PERMISSIONS, productTypeOf } from "./constants.js";
 import { isUuid, text } from "./validation.js";
 
 const SIMILAR = 0.55;
-const LABELS = Object.freeze({ code: "Same code", sku: "Same SKU", barcode: "Same barcode", name: "Same name", similar_name: "Similar name" });
+const LABELS = Object.freeze({ sku: "Same SKU", barcode: "Same barcode", name: "Same name", similar_name: "Similar name", part_number: "Same manufacturer part number" });
 
-// input: { code, name, sku, barcode }
+// input: { code, name, barcode, manufacturerName, manufacturerPartNumber }
 export async function findDuplicateProducts(client, context, input = {}, { excludeId = null, limit = 8 } = {}) {
-  requireProductPermission(context, PRODUCT_PERMISSIONS.view, "You do not have permission to view products.");
-  const code = text(input.code).toUpperCase();
+  requireProductPermission(context, PRODUCT_PERMISSIONS.view, "You do not have permission to view items.");
+  const code = text(input.code ?? input.sku).toUpperCase();
   const name = text(input.name);
-  const sku = text(input.sku).toUpperCase();
   const barcode = text(input.barcode).replace(/\s/g, "");
-  if (!code && !name && !sku && !barcode) return { matches: [], hasBlockingMatch: false };
+  const partNumber = text(input.manufacturerPartNumber).toUpperCase();
+  const manufacturer = text(input.manufacturerName).toLowerCase();
+  if (!code && !name && !barcode && !partNumber) return { matches: [], hasBlockingMatch: false };
   const exclude = isUuid(excludeId) ? excludeId : null;
   const { rows } = await client.query(
-    `SELECT item.id, item.code, item.name, item.sku, item.barcode, item.item_type, item.track_inventory, item.status,
+    `SELECT item.id, item.code, item.name, item.item_type, item.track_inventory, item.lifecycle_status,
             array_remove(ARRAY[
-              CASE WHEN $2 <> '' AND upper(item.code) = $2 THEN 'code' END,
-              CASE WHEN $4 <> '' AND upper(item.sku) = $4 THEN 'sku' END,
-              CASE WHEN $5 <> '' AND item.barcode = $5 THEN 'barcode' END,
+              CASE WHEN $2 <> '' AND upper(item.code) = $2 THEN 'sku' END,
+              CASE WHEN $4 <> '' AND EXISTS (SELECT 1 FROM tenant.item_identifiers identifier WHERE identifier.organization_id = item.organization_id
+                   AND identifier.item_id = item.id AND identifier.status = 'active' AND upper(identifier.value) = upper($4)) THEN 'barcode' END,
               CASE WHEN $3 <> '' AND lower(item.name) = lower($3) THEN 'name' END,
-              CASE WHEN $3 <> '' AND lower(item.name) <> lower($3) AND similarity(lower(item.name), lower($3)) >= $7 THEN 'similar_name' END
+              CASE WHEN $3 <> '' AND lower(item.name) <> lower($3) AND similarity(lower(item.name), lower($3)) >= $7 THEN 'similar_name' END,
+              CASE WHEN $5 <> '' AND upper(item.manufacturer_part_number) = $5 AND ($8 = '' OR lower(COALESCE(item.manufacturer_name, '')) = $8) THEN 'part_number' END
             ], NULL) AS signals
        FROM tenant.items item
       WHERE item.organization_id = $1 AND ($6::uuid IS NULL OR item.id <> $6)
-        AND (($2 <> '' AND upper(item.code) = $2) OR ($4 <> '' AND upper(item.sku) = $4) OR ($5 <> '' AND item.barcode = $5)
-             OR ($3 <> '' AND (lower(item.name) = lower($3) OR lower(item.name) % lower($3))))
+        AND (($2 <> '' AND upper(item.code) = $2)
+             OR ($4 <> '' AND EXISTS (SELECT 1 FROM tenant.item_identifiers identifier WHERE identifier.organization_id = item.organization_id AND identifier.item_id = item.id
+                   AND identifier.status = 'active' AND upper(identifier.value) = upper($4)))
+             OR ($3 <> '' AND (lower(item.name) = lower($3) OR lower(item.name) % lower($3)))
+             OR ($5 <> '' AND upper(item.manufacturer_part_number) = $5))
       ORDER BY similarity(lower(item.name), lower($3)) DESC LIMIT ${Number(limit) * 2}`,
-    [context.organizationId, code, name, sku, barcode, exclude, SIMILAR],
+    [context.organizationId, code, name, barcode, partNumber, exclude, SIMILAR, manufacturer],
   );
-  // A variant's barcode or SKU is as taken as an item's.
-  const variants = barcode || sku ? (await client.query(
-    `SELECT variant.id, variant.sku, variant.barcode, variant.name, item.id AS item_id, item.code AS item_code
-       FROM tenant.item_variants variant JOIN tenant.items item ON item.organization_id = variant.organization_id AND item.id = variant.item_id
-      WHERE variant.organization_id = $1 AND ($4::uuid IS NULL OR variant.item_id <> $4) AND (($2 <> '' AND variant.barcode = $2) OR ($3 <> '' AND upper(variant.sku) = $3)) LIMIT 3`,
-    [context.organizationId, barcode, sku, exclude])).rows : [];
-  const matches = [
-    ...rows.filter((row) => row.signals.length).map((row) => {
-      const strong = row.signals.some((signal) => ["code", "sku", "barcode"].includes(signal));
-      return {
-        id: row.id, code: row.code, name: row.name, type: productTypeOf(row), status: row.status, strength: strong ? "strong" : "possible",
-        reasons: row.signals.map((signal) => ({ signal, label: LABELS[signal] })), href: `/sales/products/${row.id}`,
-      };
-    }),
-    ...variants.map((variant) => ({
-      id: variant.item_id, code: variant.item_code, name: `${variant.name} (variant)`, type: "stock", status: "active", strength: "strong",
-      reasons: [barcode && variant.barcode === barcode ? { signal: "barcode", label: LABELS.barcode } : { signal: "sku", label: LABELS.sku }], href: `/sales/products/${variant.item_id}`,
-    })),
-  ].sort((left, right) => (left.strength === right.strength ? 0 : left.strength === "strong" ? -1 : 1)).slice(0, Number(limit));
+  const matches = rows.filter((row) => row.signals.length).map((row) => {
+    const strong = row.signals.some((signal) => ["sku", "barcode"].includes(signal));
+    return {
+      id: row.id, code: row.code, name: row.name, type: productTypeOf(row), status: row.lifecycle_status, strength: strong ? "strong" : "possible",
+      reasons: row.signals.map((signal) => ({ signal, label: LABELS[signal], ...(signal === "barcode" ? { value: barcode } : {}) })), href: `/inventory/items/${row.id}`,
+    };
+  }).sort((left, right) => (left.strength === right.strength ? 0 : left.strength === "strong" ? -1 : 1)).slice(0, Number(limit));
   return { matches, hasBlockingMatch: matches.some((match) => match.strength === "strong") };
 }

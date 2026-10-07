@@ -463,11 +463,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Items",
         featureRange: "F097-F102",
         items: [
-          available("Items", "/inventory/items"),
-          available("Variants", "/inventory/variants"),
-          available("Categories", "/inventory/categories"),
-          available("Units of Measure", "/inventory/units-of-measure"),
-          available("Unit Conversions", "/inventory/conversions"),
+          { ...available("Items", "/inventory/items"), aliases: ["item master", "products", "sku", "barcode", "variants", "unit conversions"] },
+          { ...available("Item Categories", "/inventory/item-categories"), aliases: ["categories", "item groups", "category tree", "category reports"] },
+          { ...available("Units of Measure", "/inventory/units-of-measure"), aliases: ["uom", "units"] },
         ],
       },
       {
@@ -526,6 +524,13 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Costing", "/inventory/costing"),
           available("Inventory Valuation", "/inventory/valuation"),
           available("Movement", "/inventory/movement"),
+        ],
+      },
+      {
+        id: "settings",
+        label: "Settings",
+        items: [
+          { ...available("Item Numbering", "/inventory/settings/item-numbering"), aliases: ["sku numbering", "sku settings", "item codes", "sku prefix"] },
         ],
       },
     ],

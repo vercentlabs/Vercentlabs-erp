@@ -6,7 +6,6 @@ import { StatusBadge } from "@vercentlabs/design-system";
 
 import {
   act,
-  type InvOptions,
   type Row,
 } from "@/features/inventory/shared/client";
 import type { FieldDef } from "@/features/inventory/shared/FieldInput";
@@ -51,10 +50,6 @@ const name = (
   const found = list?.find((entry) => entry.id === id);
   return found ? found.name : id ? "…" : "—";
 };
-const itemName = (options: InvOptions | undefined, id: unknown) => {
-  const found = options?.items.find((entry) => entry.id === id);
-  return found ? `${found.name} (${found.code})` : id ? "…" : "—";
-};
 const text = (row: Row, keys: string[]) =>
   keys.map((key) => String(row[key] ?? "")).join(" ");
 
@@ -63,234 +58,7 @@ const yes = (value: unknown) =>
 const QTY_STEP = 0.001;
 
 // ---------------------------------------------------------------- master data
-// Items are the shared product master (features/sales/products); the
-// Inventory Items page shows it, filtered to what Inventory cares about.
-
-
-const categories: RegisterConfig = {
-  key: "item-groups",
-  title: "Item categories",
-  description:
-    "Group items into categories (and nest them) for reporting and pricing.",
-  searchLabel: "Search categories",
-  emptyTitle: "No categories yet",
-  emptyDescription: "Add a category to organise items.",
-  source: { kind: "master", resource: "item-groups" },
-  createLabel: "Add category",
-  createPermission: "items.manage",
-  archive: true,
-  save: { master: "item-groups" },
-  fields: [
-    {
-      name: "code",
-      label: "Code",
-      kind: "text",
-      required: true,
-      createOnly: true,
-    },
-    { name: "name", label: "Name", kind: "text", required: true },
-    {
-      name: "parentId",
-      label: "Parent category",
-      kind: "select",
-      options: "groups",
-    },
-    { name: "description", label: "Description", kind: "textarea" },
-  ],
-  columns: (o) => [
-    strong("code", "Code", (r) => String(r.code)),
-    col("name", "Name", (r) => String(r.name)),
-    col("parent", "Parent", (r) =>
-      r.parentId ? name(o?.groups, r.parentId) : "—",
-    ),
-    badge("status", "Status", (r) => r.status),
-  ],
-  searchText: (r) => text(r, ["code", "name", "description"]),
-};
-
-const variants: RegisterConfig = {
-  key: "item-variants",
-  title: "Variants and SKUs",
-  description:
-    "Sellable variants of an item (size, colour, pack) with their own SKU and barcode.",
-  searchLabel: "Search variants",
-  emptyTitle: "No variants yet",
-  emptyDescription: "Add a variant to give an item more than one SKU.",
-  source: { kind: "master", resource: "item-variants" },
-  createLabel: "Add variant",
-  createPermission: "items.manage",
-  archive: true,
-  save: { master: "item-variants" },
-  fields: [
-    {
-      name: "itemId",
-      label: "Item",
-      kind: "select",
-      required: true,
-      options: "items",
-      createOnly: true,
-    },
-    {
-      name: "sku",
-      label: "SKU",
-      kind: "text",
-      required: true,
-      createOnly: true,
-    },
-    { name: "name", label: "Variant name", kind: "text", required: true },
-    { name: "barcode", label: "Barcode", kind: "text" },
-    { name: "salesPrice", label: "Sales price", kind: "number", step: 0.01 },
-    {
-      name: "purchasePrice",
-      label: "Purchase price",
-      kind: "number",
-      step: 0.01,
-    },
-    {
-      name: "standardCost",
-      label: "Standard cost",
-      kind: "number",
-      step: 0.01,
-    },
-  ],
-  columns: (o) => [
-    strong("sku", "SKU", (r) => String(r.sku)),
-    col("name", "Variant", (r) => String(r.name)),
-    col("item", "Item", (r) => itemName(o, r.itemId)),
-    col("attributes", "Attributes", (r) =>
-      r.attributes && typeof r.attributes === "object"
-        ? Object.entries(r.attributes as Record<string, string>)
-            .map(([k, v]) => `${k}: ${v}`)
-            .join(", ")
-        : "—",
-    ),
-    col("barcode", "Barcode", (r) => String(r.barcode ?? "—")),
-    col("price", "Sales price", (r) => amount(r.salesPrice)),
-    badge("status", "Status", (r) => r.status),
-  ],
-  searchText: (r) => text(r, ["sku", "name", "barcode"]),
-};
-
-const uoms: RegisterConfig = {
-  key: "units-of-measure",
-  title: "Units of measure",
-  description:
-    "The units quantities are counted in, and how many decimals each allows.",
-  searchLabel: "Search units",
-  emptyTitle: "No units yet",
-  emptyDescription: "Add a unit of measure, such as Each or Kilogram.",
-  source: { kind: "master", resource: "units-of-measure" },
-  createLabel: "Add unit",
-  createPermission: "inventory_setup.manage",
-  archive: true,
-  save: { master: "units-of-measure" },
-  fields: [
-    {
-      name: "code",
-      label: "Code",
-      kind: "text",
-      required: true,
-      createOnly: true,
-    },
-    { name: "name", label: "Name", kind: "text", required: true },
-    {
-      name: "category",
-      label: "Category",
-      kind: "select",
-      defaultValue: "quantity",
-      options: [
-        "quantity",
-        "weight",
-        "volume",
-        "length",
-        "area",
-        "time",
-        "packaging",
-        "other",
-      ].map((value) => ({ value, label: label(value) })),
-    },
-    {
-      name: "decimalPlaces",
-      label: "Decimal places",
-      kind: "number",
-      step: 1,
-      defaultValue: 3,
-    },
-    {
-      name: "isBase",
-      label: "Base unit of its category",
-      kind: "bool",
-      defaultValue: "false",
-    },
-  ],
-  columns: () => [
-    strong("code", "Code", (r) => String(r.code)),
-    col("name", "Name", (r) => String(r.name)),
-    col("category", "Category", (r) => label(r.category)),
-    col("decimals", "Decimals", (r) => String(r.decimalPlaces)),
-    col("base", "Base unit", (r) => yes(r.isBase)),
-    badge("status", "Status", (r) => r.status),
-  ],
-  searchText: (r) => text(r, ["code", "name", "category"]),
-};
-
-const conversions: RegisterConfig = {
-  key: "item-uom-conversions",
-  title: "Unit conversions",
-  description:
-    "How many of one unit make another for a given item, e.g. 1 carton = 12 each.",
-  searchLabel: "Search conversions",
-  emptyTitle: "No conversions yet",
-  emptyDescription:
-    "Add a conversion when an item is bought or sold in a different unit than it is stocked.",
-  source: { kind: "master", resource: "item-uom-conversions" },
-  createLabel: "Add conversion",
-  createPermission: "items.manage",
-  archive: true,
-  save: { master: "item-uom-conversions" },
-  fields: [
-    {
-      name: "itemId",
-      label: "Item",
-      kind: "select",
-      required: true,
-      options: "items",
-      createOnly: true,
-    },
-    {
-      name: "fromUomId",
-      label: "From unit",
-      kind: "select",
-      required: true,
-      options: "uoms",
-      createOnly: true,
-    },
-    {
-      name: "toUomId",
-      label: "To unit",
-      kind: "select",
-      required: true,
-      options: "uoms",
-      createOnly: true,
-    },
-    {
-      name: "conversionFactor",
-      label: "Conversion factor",
-      kind: "number",
-      required: true,
-      step: 0.0001,
-      defaultValue: 1,
-    },
-  ],
-  columns: (o) => [
-    col("item", "Item", (r) => itemName(o, r.itemId)),
-    col("from", "From", (r) => name(o?.uoms, r.fromUomId)),
-    col("to", "To", (r) => name(o?.uoms, r.toUomId)),
-    col("factor", "1 from = … to", (r) => quantity(r.conversionFactor)),
-    badge("status", "Status", (r) => r.status),
-  ],
-  searchText: () => "",
-};
+// Items, categories, units of measure, unit conversions and variants are the Item Master (features/items).
 
 const warehouses: RegisterConfig = {
   key: "warehouses",
@@ -415,6 +183,24 @@ const locations: RegisterConfig = {
 };
 
 // ---------------------------------------------------------------- stock views
+
+// A quantity may be entered in one of the item's inventory units; the ledger always records the base quantity, shown here before saving.
+const unitField: FieldDef = { name: "uomId", label: "Unit", kind: "select", options: "itemUnits", dependsOn: "itemId", placeholder: "Base unit" };
+const baseImpact = (sign = ""): FieldDef => ({
+  name: "baseImpact", label: "Base quantity", kind: "info", wide: true,
+  info: (values, options) => {
+    const item = options?.items.find((entry) => entry.id === values.itemId);
+    const quantity = Number(values.quantity ?? 0);
+    if (!item || !quantity) return null;
+    const unit = (item.units ?? []).find((entry) => entry.uomId === values.uomId);
+    const base = quantity * (unit ? Number(unit.factor) : 1);
+    const direction = sign || (values.adjustmentDirection === "decrease" ? "−" : values.adjustmentDirection ? "+" : "");
+    const shown = (value: number) => value.toLocaleString("en-IN", { maximumFractionDigits: 6 });
+    return unit ? `Base quantity impact: ${direction}${shown(base)} ${item.base_uom ?? ""} (${shown(quantity)} ${unit.code} × ${shown(Number(unit.factor))})`
+      : `Base quantity impact: ${direction}${shown(base)} ${item.base_uom ?? ""}`;
+  },
+});
+
 const stockDims = (extra: FieldDef[] = []): FieldDef[] => [
   {
     name: "itemId",
@@ -531,7 +317,9 @@ const receipts: RegisterConfig = {
       required: true,
       step: QTY_STEP,
     },
-    { name: "unitCost", label: "Unit cost", kind: "number", step: 0.01 },
+    unitField,
+    baseImpact(),
+    { name: "unitCost", label: "Unit cost (per unit entered)", kind: "number", step: 0.01 },
     { name: "reason", label: "Reason / note", kind: "text", wide: true },
   ]),
   columns: ledgerColumns,
@@ -563,6 +351,8 @@ const issues: RegisterConfig = {
       required: true,
       step: QTY_STEP,
     },
+    unitField,
+    baseImpact(),
     { name: "reason", label: "Reason / note", kind: "text", wide: true },
   ]),
   columns: ledgerColumns,
@@ -609,6 +399,8 @@ const adjustments: RegisterConfig = {
       required: true,
       step: QTY_STEP,
     },
+    unitField,
+    baseImpact(),
     {
       name: "unitCost",
       label: "Unit cost",
@@ -730,6 +522,8 @@ const transfers: RegisterConfig = {
       required: true,
       step: QTY_STEP,
     },
+    unitField,
+    baseImpact(),
   ],
   columns: () => [
     strong("no", "Transfer", (r) => String(r.transfer_number)),
@@ -1148,10 +942,6 @@ const movement: RegisterConfig = {
 };
 
 export const REGISTERS: Record<string, RegisterConfig> = {
-  categories,
-  variants,
-  "units-of-measure": uoms,
-  conversions,
   warehouses,
   locations,
   availability: balances,

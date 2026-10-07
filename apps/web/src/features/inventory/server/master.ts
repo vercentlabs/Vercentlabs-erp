@@ -2,17 +2,10 @@ import "server-only";
 
 import { HttpError } from "@/core/http";
 
-// Inventory maintains its master data through the shared business-data engine. Only these
-// resources are reachable from here, each behind the permission the seeded roles already hold.
+// Inventory maintains its warehouse master data through the shared business-data engine. Only these resources are reachable from
+// here, each behind the permission the seeded roles already hold. Items, item categories, units of measure, unit conversions and
+// variants belong to the Item Master (/api/products) and its rules.
 export const INVENTORY_MASTER = {
-  items: { permission: "items.manage", label: "Item" },
-  "item-groups": { permission: "items.manage", label: "Category" },
-  "item-variants": { permission: "items.manage", label: "Variant" },
-  "item-uom-conversions": { permission: "items.manage", label: "Conversion" },
-  "units-of-measure": {
-    permission: "inventory_setup.manage",
-    label: "Unit of measure",
-  },
   warehouses: { permission: "inventory_setup.manage", label: "Warehouse" },
   "warehouse-locations": {
     permission: "inventory_setup.manage",
@@ -27,36 +20,9 @@ export function masterResource(resource: string): InventoryMasterResource {
   return resource as InventoryMasterResource;
 }
 
-// Items are read here for Inventory's pickers but created and changed only
-// through the product master, so its rules apply to every module.
-export function assertItemsReadOnly(resource: InventoryMasterResource) {
-  if (resource === "items")
-    throw new HttpError(410, "Products are created and changed under Products & Services.", "INVENTORY_ITEMS_MOVED");
-}
-
 // The engine writes every mapped column, so anything omitted would be inserted as NULL and hit a
 // NOT NULL constraint. These are the tables' own defaults, applied here for a create.
 const DEFAULTS: Record<InventoryMasterResource, Record<string, unknown>> = {
-  items: {
-    status: "active",
-    itemType: "product",
-    trackInventory: true,
-    trackingType: "none",
-    allowNegativeStock: false,
-    valuationMethod: "moving_average",
-    standardCost: 0,
-    salesPrice: 0,
-    purchasePrice: 0,
-  },
-  "item-groups": { status: "active" },
-  "item-variants": { status: "active" },
-  "item-uom-conversions": { status: "active" },
-  "units-of-measure": {
-    status: "active",
-    decimalPlaces: 3,
-    isBase: false,
-    category: "quantity",
-  },
   warehouses: {
     status: "active",
     warehouseType: "stores",
@@ -66,30 +32,6 @@ const DEFAULTS: Record<InventoryMasterResource, Record<string, unknown>> = {
 };
 
 const REQUIRED: Record<InventoryMasterResource, Array<[string, string]>> = {
-  items: [
-    ["code", "Code"],
-    ["name", "Name"],
-    ["uomId", "Unit of measure"],
-  ],
-  "item-groups": [
-    ["code", "Code"],
-    ["name", "Name"],
-  ],
-  "item-variants": [
-    ["itemId", "Item"],
-    ["sku", "SKU"],
-    ["name", "Name"],
-  ],
-  "item-uom-conversions": [
-    ["itemId", "Item"],
-    ["fromUomId", "From unit"],
-    ["toUomId", "To unit"],
-    ["conversionFactor", "Conversion factor"],
-  ],
-  "units-of-measure": [
-    ["code", "Code"],
-    ["name", "Name"],
-  ],
   warehouses: [
     ["code", "Code"],
     ["name", "Name"],
@@ -102,9 +44,6 @@ const REQUIRED: Record<InventoryMasterResource, Array<[string, string]>> = {
 };
 
 const ENUMS: Record<string, string[]> = {
-  itemType: ["product", "service", "consumable", "asset"],
-  trackingType: ["none", "batch", "serial"],
-  valuationMethod: ["moving_average", "fifo", "standard"],
   warehouseType: [
     "stores",
     "raw_material",
@@ -115,24 +54,9 @@ const ENUMS: Record<string, string[]> = {
     "virtual",
   ],
   locationType: ["zone", "aisle", "rack", "bin", "staging", "quality", "other"],
-  category: [
-    "quantity",
-    "weight",
-    "volume",
-    "length",
-    "area",
-    "time",
-    "packaging",
-    "other",
-  ],
   status: ["active", "inactive"],
 };
-const NON_NEGATIVE = [
-  "standardCost",
-  "salesPrice",
-  "purchasePrice",
-  "capacity",
-];
+const NON_NEGATIVE = ["capacity"];
 
 function normalise(input: Record<string, unknown>) {
   const next: Record<string, unknown> = {};
@@ -161,23 +85,6 @@ function validate(input: Record<string, unknown>) {
     if (!Number.isFinite(n) || n < 0)
       throw new HttpError(400, `${key} must be zero or greater.`);
   }
-  if (
-    input.conversionFactor !== undefined &&
-    input.conversionFactor !== null &&
-    !(Number(input.conversionFactor) > 0)
-  )
-    throw new HttpError(
-      400,
-      "The conversion factor must be greater than zero.",
-    );
-  if (input.decimalPlaces !== undefined && input.decimalPlaces !== null) {
-    const n = Number(input.decimalPlaces);
-    if (!Number.isInteger(n) || n < 0 || n > 6)
-      throw new HttpError(
-        400,
-        "Decimal places must be a whole number from 0 to 6.",
-      );
-  }
 }
 
 export function shapeMasterCreate(
@@ -202,6 +109,3 @@ export function shapeMasterUpdate(raw: Record<string, unknown>) {
   validate(input);
   return input;
 }
-
-// Refuses identity changes (tracking, unit of measure, valuation) once an item has movements; the rule
-// lives in the Stock domain.

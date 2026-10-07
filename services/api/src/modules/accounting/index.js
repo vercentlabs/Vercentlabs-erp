@@ -19,3 +19,4 @@ export * from "./subledger-approvals.js";
 export * from "./refunds/index.js";
 
 export * from "./vendor-credits.js";
+export * from "./item-profiles.js";

@@ -1,7 +1,7 @@
 import { deleteProduct, getProduct, updateProduct } from "@vercentlabs/api/products";
 import { PRODUCT_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { type ProductRouteParams, productRead, productWrite } from "@/features/sales/products/server/product-http";
+import { type ProductRouteParams, productRead, productWrite } from "@/features/items/server/item-http";
 
 export async function GET(request: Request, { params }: ProductRouteParams) {
   const { id } = await params;

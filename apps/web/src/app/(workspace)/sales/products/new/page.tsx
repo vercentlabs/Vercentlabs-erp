@@ -1,7 +1,7 @@
-import { ProductFormScreen } from "@/features/sales/products/screens/ProductFormScreen";
+import { ItemFormScreen } from "@/features/items/screens/ItemFormScreen";
 
-export const metadata = { title: "New product or service" };
+export const metadata = { title: "New Product or Service" };
 
 export default function Page() {
-  return <ProductFormScreen />;
+  return <ItemFormScreen lens="sales" />;
 }

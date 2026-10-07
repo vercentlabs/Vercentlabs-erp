@@ -7,13 +7,13 @@
 //   Product + unit -> the price valid on the document date
 //            -> otherwise the price for the base unit, scaled by the
 //               product's conversion
-//            -> otherwise the product's default price, as a reference
-//               fallback (only when it is above zero)
-//            -> otherwise the price is missing: never a silent zero.
+//            -> otherwise the price is missing: never a silent zero. A product
+//               carries no price of its own.
 //
 // Discounts and tax are applied by the document afterwards; the price list
 // supplies only the list price and whether it includes tax.
 import { PRICE_SOURCES, PriceListError, isUuid, requireUuid, text, today } from "./constants.js";
+import { resolveItemUnit } from "../../products/uom.js";
 
 const LIST_COLUMNS = "id, code, name, currency_code, tax_inclusive, is_default";
 const toList = (row) => (row ? { id: row.id, code: row.code, name: row.name, currencyCode: row.currency_code.trim(), taxInclusive: row.tax_inclusive, isDefault: row.is_default } : null);
@@ -46,50 +46,41 @@ export async function resolveSalesPriceList(client, context, { priceListId = nul
   return rows[0] ? { ...toList(rows[0]), basis: "default" } : null;
 }
 
-// How many base units one `uomId` holds for the item, or null without a conversion.
+// How many base units one `uomId` holds for the item, or null without a conversion (the shared conversion service).
 export async function unitFactor(client, context, itemId, uomId, baseUomId) {
   if (!uomId || uomId === baseUomId) return 1;
-  const { rows } = await client.query(
-    `SELECT conversion_factor AS factor FROM tenant.item_uom_conversions WHERE organization_id = $1 AND item_id = $2 AND from_uom_id = $3 AND to_uom_id = $4 AND status = 'active'
-     UNION ALL
-     SELECT 1 / conversion_factor FROM tenant.item_uom_conversions WHERE organization_id = $1 AND item_id = $2 AND from_uom_id = $4 AND to_uom_id = $3 AND status = 'active'
-     LIMIT 1`,
-    [context.organizationId, itemId, uomId, baseUomId]);
-  return rows[0] ? Number(rows[0].factor) : null;
+  const resolved = await resolveItemUnit(client, context.organizationId, itemId, uomId, { allowInactive: true });
+  return resolved.ok ? Number(resolved.unit.factor) : null;
 }
 
 const ENTRY_FOR = `SELECT id, rate FROM tenant.price_list_items
   WHERE organization_id = $1 AND price_list_id = $2 AND item_id = $3 AND uom_id = $4 AND status = 'active'
-    AND (variant_id IS NULL OR variant_id = $6::uuid)
     AND (valid_from IS NULL OR valid_from <= $5::date) AND (valid_to IS NULL OR valid_to >= $5::date)
-  ORDER BY (variant_id IS NOT NULL) DESC LIMIT 1`;
+  ORDER BY valid_from DESC NULLS LAST LIMIT 1`;
 
-// input: priceList (from resolveSalesPriceList, or null), itemId, variantId,
+// The price comes from the price list only — an item carries no price of its own. Without a matching row the price is missing and the
+// user enters one.
+// input: priceList (from resolveSalesPriceList, or null), itemId,
 // uomId (the document's unit; base unit when empty), documentDate.
 // Returns { listPrice (a decimal string, per `uomId`), source, entryId,
 // priceList, uomId, factor, missing, message }.
-export async function resolveSalesPrice(client, context, { priceList = null, itemId, variantId = null, uomId = null, documentDate = today() } = {}) {
-  const item = (await client.query(`SELECT id, code, name, uom_id, sales_price FROM tenant.items WHERE organization_id = $1 AND id = $2`,
+export async function resolveSalesPrice(client, context, { priceList = null, itemId, uomId = null, documentDate = today() } = {}) {
+  const item = (await client.query(`SELECT id, code, name, uom_id FROM tenant.items WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, requireUuid(itemId, "Product")])).rows[0];
   if (!item) throw new PriceListError(404, "Product not found.", "PRODUCT_NOT_FOUND");
-  const variant = variantId
-    ? (await client.query(`SELECT id, sales_price FROM tenant.item_variants WHERE organization_id = $1 AND id = $2 AND item_id = $3`, [context.organizationId, variantId, item.id])).rows[0] ?? null
-    : null;
   const unit = uomId || item.uom_id;
   const factor = await unitFactor(client, context, item.id, unit, item.uom_id);
   if (factor === null) throw new PriceListError(409, `${item.name} has no conversion to its base unit for this unit.`, "SALES_UOM_NO_CONVERSION");
   const date = text(documentDate).slice(0, 10) || today();
   const result = (listPrice, source, entryId = null) => ({ listPrice: String(listPrice), source, entryId, priceList, uomId: unit, factor, missing: false, message: null });
   if (priceList) {
-    const exact = (await client.query(ENTRY_FOR, [context.organizationId, priceList.id, item.id, unit, date, variant?.id ?? null])).rows[0];
+    const exact = (await client.query(ENTRY_FOR, [context.organizationId, priceList.id, item.id, unit, date])).rows[0];
     if (exact) return result(exact.rate, PRICE_SOURCES.priceList, exact.id);
     if (unit !== item.uom_id) {
-      const base = (await client.query(ENTRY_FOR, [context.organizationId, priceList.id, item.id, item.uom_id, date, variant?.id ?? null])).rows[0];
+      const base = (await client.query(ENTRY_FOR, [context.organizationId, priceList.id, item.id, item.uom_id, date])).rows[0];
       if (base) return result(Number(base.rate) * factor, PRICE_SOURCES.priceListBaseUnit, base.id);
     }
   }
-  const fallback = Number(variant?.sales_price ?? item.sales_price ?? 0);
-  if (fallback > 0) return result(fallback * factor, PRICE_SOURCES.productDefault);
   return {
     listPrice: "0", source: PRICE_SOURCES.missing, entryId: null, priceList, uomId: unit, factor, missing: true,
     message: priceList ? `No price found for ${item.name} in ${priceList.name}.` : `No price found for ${item.name}: there is no price list for this currency.`,

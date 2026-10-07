@@ -26,7 +26,6 @@ export const PRICE_LIST_PERMISSIONS = Object.freeze({
 export const PRICE_SOURCES = Object.freeze({
   priceList: "price_list",
   priceListBaseUnit: "price_list_base_unit",
-  productDefault: "product_default",
   missing: "missing",
 });
 

@@ -92,11 +92,11 @@ export const completePosCart = (id: string, input: Record<string, unknown>) =>
 
 export type PosProductMatch = {
   itemId: string;
-  variantId: string | null;
   name: string;
   code: string;
   barcode: string | null;
-  salesPrice: string;
+  // The store's price list price, or null when the item has none there.
+  salesPrice: string | null;
   // F295 -- "none" | "batch" | "serial" (tenant.items.tracking_type). Lets
   // the checkout UI require a serial/batch before completing a sale of a
   // tracked item, instead of only discovering the requirement from the

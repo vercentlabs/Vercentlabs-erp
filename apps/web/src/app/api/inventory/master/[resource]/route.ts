@@ -7,7 +7,6 @@ import {
 } from "@vercentlabs/api";
 
 import {
-  assertItemsReadOnly,
   INVENTORY_MASTER,
   masterResource,
   shapeMasterCreate,
@@ -35,23 +34,6 @@ export async function GET(
       limit: Number(url.searchParams.get("limit") ?? 500),
       offset: Number(url.searchParams.get("offset") ?? 0),
     });
-    // Item and variant rows carry cost. Cost is valuation information: without
-    // stock.valuation.view it is removed here, server-side.
-    const canSeeCost =
-      context.roleSlugs.includes("organization_owner") ||
-      context.roleSlugs.includes("system_administrator") ||
-      context.permissions.includes("stock.valuation.view");
-    if ((name === "items" || name === "item-variants") && !canSeeCost) {
-      return {
-        ...result,
-        rows: result.rows.map((row: Record<string, unknown>) => {
-          const safe = { ...row };
-          delete safe.standardCost;
-          delete safe.purchasePrice;
-          return safe;
-        }),
-      };
-    }
     return result;
   });
 }
@@ -66,7 +48,6 @@ export async function POST(
     z.record(z.string(), z.unknown()),
     async (client, context, input, session) => {
       const name = masterResource(resource);
-      assertItemsReadOnly(name);
       requireSessionPermission(session, INVENTORY_MASTER[name].permission);
       return {
         record: await createBusinessDataRecord(

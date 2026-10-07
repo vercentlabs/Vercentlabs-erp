@@ -84,3 +84,13 @@ export declare function unapplyVendorCreditNote(client: any, context: any, ...ar
 export declare function reverseVendorCreditNote(client: any, context: any, ...args: any[]): Promise<any>;
 export declare function reduceBillSchedules(client: any, context: any, ...args: any[]): Promise<any>;
 export declare function restoreBillSchedules(client: any, context: any, ...args: any[]): Promise<any>;
+
+// Item accounting profiles (inventory and accounting accounts for items).
+export declare const ITEM_PROFILE_KINDS: ReadonlyArray<{ code: string; label: string }>;
+export declare const ITEM_PROFILE_ACCOUNTS: Readonly<Record<string, { kind: string; column: string; field: string; label: string }>>;
+export declare function listItemProfiles(client: any, context: any, options?: { kind?: string | null; includeInactive?: boolean }): Promise<any[]>;
+export declare function getItemProfile(client: any, context: any, profileId: string): Promise<any>;
+export declare function createItemProfile(client: any, context: any, input: Record<string, unknown>): Promise<any>;
+export declare function updateItemProfile(client: any, context: any, profileId: string, input: Record<string, unknown>): Promise<any>;
+export declare function setItemProfileStatus(client: any, context: any, profileId: string, status: string): Promise<any>;
+export declare function itemProfileAccount(client: any, organizationId: string, itemId: string, mappingKey: string): Promise<any>;

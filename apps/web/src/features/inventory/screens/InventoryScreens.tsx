@@ -3,10 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
 import {
   Button,
-  IconButton,
   MetricStrip,
   PageHeader,
   PermissionState,
@@ -18,10 +16,8 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
   act,
-  createMaster,
   InvApiError,
   readStock,
-  useInvOptions,
 } from "@/features/inventory/shared/client";
 import { amount, label, quantity } from "@/features/inventory/shared/format";
 import { InvAlert, InvPanel, useCan } from "@/features/inventory/shared/InvUi";
@@ -29,13 +25,12 @@ import { InvAlert, InvPanel, useCan } from "@/features/inventory/shared/InvUi";
 type LookupResult = {
   kind: string;
   item: { id: string; code: string; name: string; tracking_type?: string };
-  variant?: { sku: string; name: string };
   batch?: { batch_number: string; status: string; expires_on: string | null };
   serial?: { serial_number: string; status: string };
   stock: { on_hand: string; reserved: string; available: string };
 };
 
-// Scan or type a code: an item code or barcode, a variant SKU, a batch number or a serial number.
+// Scan or type a code: an item SKU or any of its barcodes, a batch number or a serial number.
 export function ScanLookup() {
   const [code, setCode] = useState("");
   const find = useMutation({
@@ -91,11 +86,6 @@ export function ScanLookup() {
               — matched {label(result.kind)}
             </span>
           </p>
-          {result.variant && (
-            <p className="text-text-secondary">
-              Variant {result.variant.name} · SKU {result.variant.sku}
-            </p>
-          )}
           {result.batch && (
             <p className="text-text-secondary">
               Batch {result.batch.batch_number} · {label(result.batch.status)}
@@ -117,222 +107,6 @@ export function ScanLookup() {
           </p>
         </div>
       )}
-    </InvPanel>
-  );
-}
-
-type AttributeDraft = { key: number; name: string; valuesText: string };
-let attrKey = 0;
-const nextAttrKey = () => ++attrKey;
-
-function cartesian<T>(lists: T[][]): T[][] {
-  return lists.reduce<T[][]>(
-    (combos, list) =>
-      combos.flatMap((combo) => list.map((value) => [...combo, value])),
-    [[]],
-  );
-}
-const skuSlug = (value: string) =>
-  value
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-// F033: top ERPs (SAP's variant configuration, NetSuite's matrix items, Dynamics'
-// product dimensions, Odoo's attribute lines) all generate the full variant
-// matrix from a set of attributes instead of hand-creating every SKU -- this
-// is that generator for our item_variants table (which already had an
-// `attributes` jsonb column with nothing writing to it).
-export function GenerateVariantsPanel() {
-  const workspace = useWorkspaceContext();
-  const queryClient = useQueryClient();
-  const can = useCan();
-  const options = useInvOptions();
-  const [itemId, setItemId] = useState("");
-  const [attributes, setAttributes] = useState<AttributeDraft[]>([
-    { key: nextAttrKey(), name: "", valuesText: "" },
-  ]);
-  const [result, setResult] = useState<{
-    created: number;
-    skipped: Array<{ sku: string; message: string }>;
-  } | null>(null);
-
-  const item = options.data?.items.find((candidate) => candidate.id === itemId);
-  const parsedAttributes = attributes
-    .map((a) => ({
-      name: a.name.trim(),
-      values: Array.from(
-        new Set(
-          a.valuesText
-            .split(",")
-            .map((v) => v.trim())
-            .filter(Boolean),
-        ),
-      ),
-    }))
-    .filter((a) => a.name && a.values.length);
-  const combinations = parsedAttributes.length
-    ? cartesian(parsedAttributes.map((a) => a.values))
-    : [];
-
-  const generate = useMutation({
-    mutationFn: async () => {
-      if (!item) throw new InvApiError("Choose an item first.", 400);
-      let created = 0;
-      const skipped: Array<{ sku: string; message: string }> = [];
-      for (const combo of combinations) {
-        const attributeMap = Object.fromEntries(
-          parsedAttributes.map((a, i) => [a.name, combo[i]]),
-        );
-        const sku = `${item.code}-${combo.map(skuSlug).join("-")}`;
-        const name = `${item.name} - ${combo.join(" / ")}`;
-        try {
-          await createMaster("item-variants", {
-            itemId,
-            sku,
-            name,
-            attributes: JSON.stringify(attributeMap),
-            status: "active",
-          });
-          created += 1;
-        } catch (err) {
-          skipped.push({
-            sku,
-            message:
-              err instanceof InvApiError
-                ? err.message
-                : "Could not create this variant.",
-          });
-        }
-      }
-      return { created, skipped };
-    },
-    onSuccess: (summary) => {
-      setResult(summary);
-      queryClient.invalidateQueries({
-        queryKey: scopedQueryKey(workspace, "inventory"),
-      });
-    },
-  });
-
-  if (!can("items.manage")) return null;
-
-  return (
-    <InvPanel
-      title="Generate variants"
-      description="Define attributes (e.g. Size, Color) and every combination is created as its own SKU at once, instead of one at a time."
-    >
-      <div className="flex flex-col gap-3">
-        <Select
-          label="Item"
-          options={(options.data?.items ?? []).map((i) => ({
-            value: i.id,
-            label: `${i.name} (${i.code})`,
-          }))}
-          selectedKey={itemId || null}
-          onSelectionChange={(key) => setItemId(String(key ?? ""))}
-          placeholder="Select an item"
-          className="max-w-md"
-        />
-        {attributes.map((attr, index) => (
-          <div
-            key={attr.key}
-            className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]"
-          >
-            <TextField
-              aria-label={`Attribute ${index + 1} name`}
-              label={index === 0 ? "Attribute" : undefined}
-              placeholder="e.g. Size"
-              value={attr.name}
-              onChange={(value) =>
-                setAttributes((current) =>
-                  current.map((a) =>
-                    a.key === attr.key ? { ...a, name: value } : a,
-                  ),
-                )
-              }
-            />
-            <TextField
-              aria-label={`Attribute ${index + 1} values`}
-              label={index === 0 ? "Values (comma-separated)" : undefined}
-              placeholder="e.g. S, M, L"
-              value={attr.valuesText}
-              onChange={(value) =>
-                setAttributes((current) =>
-                  current.map((a) =>
-                    a.key === attr.key ? { ...a, valuesText: value } : a,
-                  ),
-                )
-              }
-            />
-            <IconButton
-              aria-label={`Remove attribute ${index + 1}`}
-              variant="ghost"
-              isDisabled={attributes.length === 1}
-              onPress={() =>
-                setAttributes((current) =>
-                  current.filter((a) => a.key !== attr.key),
-                )
-              }
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-            </IconButton>
-          </div>
-        ))}
-        <Button
-          variant="secondary"
-          size="compact"
-          className="self-start"
-          onPress={() =>
-            setAttributes((current) => [
-              ...current,
-              { key: nextAttrKey(), name: "", valuesText: "" },
-            ])
-          }
-        >
-          <Plus className="size-3.5" aria-hidden="true" />
-          Add attribute
-        </Button>
-
-        {combinations.length > 0 && (
-          <p className="text-sm text-text-secondary">
-            {combinations.length} combination
-            {combinations.length === 1 ? "" : "s"} will be created
-            {item
-              ? `, e.g. ${item.code}-${combinations[0].map(skuSlug).join("-")}`
-              : ""}
-            .
-          </p>
-        )}
-        {generate.error && (
-          <InvAlert>
-            {generate.error instanceof InvApiError
-              ? generate.error.message
-              : "Could not generate variants."}
-          </InvAlert>
-        )}
-        {result && (
-          <InvAlert tone={result.skipped.length ? "warning" : "success"}>
-            Created {result.created} variant{result.created === 1 ? "" : "s"}.
-            {result.skipped.length > 0 &&
-              ` ${result.skipped.length} skipped: ${result.skipped.map((s) => `${s.sku} (${s.message})`).join("; ")}`}
-          </InvAlert>
-        )}
-        <Button
-          variant="primary"
-          className="self-start"
-          onPress={() => {
-            setResult(null);
-            generate.mutate();
-          }}
-          isLoading={generate.isPending}
-          isDisabled={!item || combinations.length === 0}
-        >
-          Generate {combinations.length || ""} variant
-          {combinations.length === 1 ? "" : "s"}
-        </Button>
-      </div>
     </InvPanel>
   );
 }

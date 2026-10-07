@@ -1,7 +1,7 @@
 import { listProductFiles, prepareProductFileUpload, uploadProductFile } from "@vercentlabs/api/products";
 import { PRODUCT_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { type ProductRouteParams, productRead, productUpload, readFile } from "@/features/sales/products/server/product-http";
+import { type ProductRouteParams, productRead, productUpload, readFile } from "@/features/items/server/item-http";
 
 export async function GET(request: Request, { params }: ProductRouteParams) {
   const { id } = await params;

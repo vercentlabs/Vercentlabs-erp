@@ -169,7 +169,7 @@ export type OpportunityProductLine = {
   id: string; productId: string; productCode: string | null; productName: string | null; description: string | null; quantity: number; unitPrice: number;
   discountPercent: number; lineTotal: number;
 };
-export type OpportunityProductOption = { id: string; code: string; name: string; type: string; salesPrice: number };
+export type OpportunityProductOption = { id: string; code: string; name: string; type: string };
 export type OpportunityContact = {
   id: string; contactId: string; name: string; jobTitle: string | null; email: string | null; mobile: string | null; role: string | null; roleLabel: string | null;
   isPrimary: boolean; notes: string | null; isInactive: boolean;
