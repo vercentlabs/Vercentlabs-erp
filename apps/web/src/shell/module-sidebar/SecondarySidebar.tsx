@@ -107,9 +107,15 @@ function subscribeStorage(onChange: () => void) {
     window.removeEventListener(STORAGE_EVENT, onChange);
   };
 }
-function readStorage(key: string): string | null {
+// Modules whose sections all start open on every visit: a section the person folds stays folded only for this browser tab (session
+// storage), so the next visit shows every section open again. Other modules start folded and remember what was opened (local storage).
+const OPEN_ON_ARRIVAL = new Set(["crm", "sales", "procurement", "stock"]);
+function sidebarStorage(moduleKey: string): Storage {
+  return OPEN_ON_ARRIVAL.has(moduleKey) ? window.sessionStorage : window.localStorage;
+}
+function readStorage(moduleKey: string, key: string): string | null {
   try {
-    return window.localStorage.getItem(key);
+    return sidebarStorage(moduleKey).getItem(key);
   } catch {
     return null;
   }
@@ -129,7 +135,7 @@ function SidebarBodyWithQuery(props: { module: ModuleNavigation; pathname: strin
 }
 
 // One section per work area. A flat section is a single link; a collapsible one folds its items under its label — open while one of them
-// is active or when the person opens it (remembered per module in this browser). PLANNED items render disabled, never as dead links.
+// is active, when the person opens it, or by default in the modules listed in OPEN_ON_ARRIVAL. PLANNED items render disabled, never as dead links.
 // Items with a badge show the module's attention count (sidebar-badges.ts).
 function SidebarBody({ module, pathname, search, open, viewer }: { module: ModuleNavigation; pathname: string; search: string; open: boolean; viewer: Viewer }) {
   const workspace = useWorkspaceContext();
@@ -150,13 +156,14 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
   // Which folded sections the person opened: remembered in this browser (read through useSyncExternalStore, so the server render and the
   // first client render agree), kept in memory when storage is unavailable.
   const [memory, setMemory] = useState<Record<string, boolean>>({});
-  const stored = useSyncExternalStore(subscribeStorage, () => readStorage(storageKey), () => null);
+  const stored = useSyncExternalStore(subscribeStorage, () => readStorage(module.moduleKey, storageKey), () => null);
   const opened: Record<string, boolean> = { ...parseOpened(stored), ...memory };
+  const openByDefault = OPEN_ON_ARRIVAL.has(module.moduleKey);
   const toggle = (id: string, next: boolean) => {
     const value = { ...opened, [id]: next };
     setMemory(value);
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify(value));
+      sidebarStorage(module.moduleKey).setItem(storageKey, JSON.stringify(value));
       window.dispatchEvent(new Event(STORAGE_EVENT));
     } catch {
       // Storage unavailable: the in-memory state above keeps it for this page.
@@ -195,7 +202,7 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
           );
         }
         const containsActive = section.items.some((item) => item.id === activeItemId);
-        const expanded = !section.collapsible || containsActive || Boolean(opened[section.id]);
+        const expanded = !section.collapsible || containsActive || (opened[section.id] ?? openByDefault);
         const foldedBadge = section.collapsible && !expanded ? section.items.map((item) => badgeOf(item.badge)).find(Boolean) : null;
         return (
           <div key={section.id}>

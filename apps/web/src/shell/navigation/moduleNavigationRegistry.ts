@@ -7,7 +7,6 @@
 // authority.
 import {
   Home,
-  ListChecks,
   Search,
   CheckSquare,
   Bell,
@@ -71,15 +70,6 @@ export const GLOBAL_NAV_TOP: readonly GlobalNavEntry[] = [
     requiredPermission: null,
     availability: "implemented",
     keywords: ["home", "dashboard"],
-  },
-  {
-    key: "work",
-    label: "Work",
-    href: "/work",
-    icon: ListChecks,
-    requiredPermission: null,
-    availability: "implemented",
-    keywords: ["my work", "tasks", "assigned"],
   },
   {
     key: "search",

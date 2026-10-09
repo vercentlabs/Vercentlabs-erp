@@ -1,12 +1,10 @@
 "use client";
 
 // The Inventory Overview, in CRM's shape: what needs attention today. Four headline stock figures, today's operations and what needs attention
-// side by side, the stock by disposition, and recent activity — with the Inventory search and the negative-stock alert at the top. Every number
+// side by side, the stock by disposition, and recent activity — with the negative-stock alert at the top. Every number
 // opens the list behind it; each part shows only what the user may see (null figures are left out).
-import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
 import { ErrorState, PermissionState } from "@vercentlabs/design-system";
 
 import { quantity } from "@/features/items/item-format";
@@ -26,7 +24,6 @@ type Overview = {
     uom: string | null; from: string; to: string; postedAt: string; href: string }> | null;
   actions: Record<"goodsIssue" | "transfer" | "adjustment" | "stockCount" | "qualityHold", boolean>;
 };
-type SearchResult = { kind: string; kindLabel: string; id: string; title: string; subtitle: string | null; href: string };
 
 class ApiError extends Error { constructor(message: string, public status: number) { super(message); } }
 async function read<T>(path: string): Promise<T> {
@@ -47,7 +44,6 @@ export function InventoryOverviewScreen() {
       <OverviewHeader description="What needs your attention today, across the warehouses you can see. Every number opens the list behind it."
         action={<ModuleCreateMenu moduleKey="stock" />} />
       <NegativeStockAlert />
-      <InventorySearch />
       {overview.isLoading ? <LoadingState label="Loading inventory" rows={5} />
         : overview.isError || !data ? <ErrorState title="Could not load the inventory overview" description={overview.error instanceof Error ? overview.error.message : ""} action={{ label: "Try again", onPress: () => void overview.refetch() }} />
         : (
@@ -105,36 +101,6 @@ export function InventoryOverviewScreen() {
             )}
           </>
         )}
-    </div>
-  );
-}
-
-// One search for SKU, item, barcode, warehouse, location, batch, serial and every stock document; each result opens its own page.
-export function InventorySearch() {
-  const workspace = useWorkspaceContext();
-  const [term, setTerm] = useState("");
-  const query = term.trim();
-  const results = useQuery({
-    queryKey: scopedQueryKey(workspace, "inventory", "search", query),
-    queryFn: () => read<{ results: SearchResult[] }>(`/api/inventory/search?q=${encodeURIComponent(query)}`).then((r) => r.results),
-    enabled: query.length >= 2, staleTime: 15_000,
-  });
-  return (
-    <div className="relative">
-      <label className="flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 focus-within:border-brand">
-        <Search aria-hidden="true" className="size-4 text-text-muted" />
-        <input type="search" aria-label="Search inventory" placeholder="Search SKU, item, barcode, warehouse, location, batch, serial, GRN, issue, transfer, count, hold, PO or SO"
-          value={term} onChange={(event) => setTerm(event.target.value)} className="w-full bg-transparent text-sm outline-none" />
-      </label>
-      {query.length >= 2 && (
-        <div className="absolute z-10 mt-1 max-h-96 w-full overflow-y-auto rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-subtle)]">
-          {results.isLoading ? <p className="px-3 py-2 text-sm text-text-muted">Searching…</p>
-            : !results.data?.length ? <p className="px-3 py-2 text-sm text-text-muted">Nothing found.</p>
-            : <ul className="divide-y divide-border">{results.data.map((entry) => (
-              <li key={`${entry.kind}-${entry.id}`}><Link href={entry.href} className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-surface-muted">
-                <span><span className="font-medium">{entry.title}</span>{entry.subtitle && <span className="ml-2 text-text-muted">{entry.subtitle}</span>}</span>
-                <span className="text-xs text-text-muted">{entry.kindLabel}</span></Link></li>))}</ul>}
-        </div>)}
     </div>
   );
 }
