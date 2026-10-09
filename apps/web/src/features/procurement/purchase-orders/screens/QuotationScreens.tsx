@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import {
   Button, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, LinkButton, NoResultsState, PageHeader, RecordDetailsPage, SearchField, Select, StatusBadge, TextArea,
   TextField,
@@ -18,12 +18,12 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcFacts, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, money, quantity, statusLabel, statusTone } from "@/features/procurement/shared/format";
 
 import {
   cancelQuotation, convertQuotation, createQuotation, errorMessage, getPurchaseOrderOptions, getQuotation, listQuotations, updateQuotation, type QuotationDetail, type QuotationRow,
 } from "../api/purchase-orders-api";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 export function SupplierQuotationsScreen() {
   const workspace = useWorkspaceContext();
@@ -101,8 +101,8 @@ function QuotationForm({ options, existing }: { options: NonNullable<Awaited<Ret
       <PageHeader title={existing ? `Edit ${existing.quotation.quotationNumber}` : "Record supplier quotation"}
         secondaryActions={<Button variant="secondary" onPress={() => router.push(existing ? `/procurement/purchase-orders/quotations/${existing.quotation.id}` : "/procurement/purchase-orders/quotations")}>Cancel</Button>}
         primaryAction={<Button variant="primary" isLoading={save.isPending || save.isSuccess} isDisabled={!values.supplierId} onPress={() => save.mutate()}>Save</Button>} />
-      {save.error && <ProcAlert>{errorMessage(save.error)}</ProcAlert>}
-      <ProcPanel title="Quotation">
+      {save.error && <Notice>{errorMessage(save.error)}</Notice>}
+      <Panel title="Quotation">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select label="Supplier" isRequired selectedKey={values.supplierId || null} onSelectionChange={(value) => set("supplierId")(String(value))}
             options={options.suppliers.filter((supplier) => supplier.status === "active").map((supplier) => ({ value: supplier.id, label: `${supplier.name} · ${supplier.supplier_number}` }))} />
@@ -118,8 +118,8 @@ function QuotationForm({ options, existing }: { options: NonNullable<Awaited<Ret
             options={[{ value: "exclusive", label: "Exclusive of tax" }, { value: "inclusive", label: "Inclusive of tax" }]} />
           <TextField label="Delivery lead time (days)" inputMode="numeric" value={values.deliveryLeadDays} onChange={set("deliveryLeadDays")} />
         </div>
-      </ProcPanel>
-      <ProcPanel title="Quoted lines" actions={<Button size="compact" variant="secondary" onPress={() => setLines((current) => [...current, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add line</Button>}>
+      </Panel>
+      <Panel title="Quoted lines" actions={<Button size="compact" variant="secondary" onPress={() => setLines((current) => [...current, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add line</Button>}>
         {lines.map((line, index) => (
           <div key={line.key} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto]">
             <Select label={`Line ${index + 1} product`} selectedKey={line.productId || null} onSelectionChange={(value) => {
@@ -137,8 +137,8 @@ function QuotationForm({ options, existing }: { options: NonNullable<Awaited<Ret
             </IconButton>
           </div>
         ))}
-      </ProcPanel>
-      <ProcPanel title="Notes"><TextArea label="Notes" value={values.notes} onChange={set("notes")} /></ProcPanel>
+      </Panel>
+      <Panel title="Notes"><TextArea label="Notes" value={values.notes} onChange={set("notes")} /></Panel>
     </div>
   );
 }
@@ -156,9 +156,8 @@ export function SupplierQuotationDetailScreen({ quotationId }: { quotationId: st
   const { quotation, lines, actions } = query.data;
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/purchase-orders/quotations" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />All supplier quotations</Link>
-      {(convert.error || cancel.error) && <ProcAlert>{errorMessage(convert.error ?? cancel.error)}</ProcAlert>}
-      {quotation.expired && quotation.status === "received" && <ProcAlert tone="warning">This quotation expired on {calendarDate(quotation.validUntil)}. Check the prices with the supplier before ordering.</ProcAlert>}
+      {(convert.error || cancel.error) && <Notice>{errorMessage(convert.error ?? cancel.error)}</Notice>}
+      {quotation.expired && quotation.status === "received" && <Notice tone="warning">This quotation expired on {calendarDate(quotation.validUntil)}. Check the prices with the supplier before ordering.</Notice>}
       <RecordDetailsPage header={{
         title: quotation.quotationNumber,
         status: <StatusBadge tone={statusTone(quotation.status)}>{statusLabel(quotation.status)}</StatusBadge>,
@@ -178,16 +177,16 @@ export function SupplierQuotationDetailScreen({ quotationId }: { quotationId: st
         ),
       }}>
         <div className="flex flex-col gap-4 pt-2">
-          <ProcPanel title="Terms">
-            <ProcFacts columns={3} items={[
+          <Panel title="Terms">
+            <Facts columns={3} items={[
               { label: "Currency", value: quotation.currencyCode },
               { label: "Payment terms", value: quotation.paymentTermName ?? "Supplier's terms" },
               { label: "Prices", value: quotation.priceMode === "inclusive" ? "Inclusive of tax" : "Exclusive of tax" },
               { label: "Delivery lead time", value: quotation.deliveryLeadDays != null ? `${quotation.deliveryLeadDays} days` : "—" },
               { label: "RFQ reference", value: quotation.rfqReference ?? "—" },
             ]} />
-          </ProcPanel>
-          <ProcPanel title="Quoted lines">
+          </Panel>
+          <Panel title="Quoted lines">
             <ul className="flex flex-col divide-y divide-border text-sm">
               {lines.map((line) => (
                 <li key={line.id} className="flex flex-wrap justify-between gap-2 py-2"><span>{line.lineNumber}. {line.productName} ({line.productCode})</span>
@@ -195,8 +194,8 @@ export function SupplierQuotationDetailScreen({ quotationId }: { quotationId: st
                     {line.discountType ? ` − ${line.discountType === "percent" ? `${Number(line.discountValue)}%` : money(quotation.currencyCode, line.discountValue)}` : ""}</span></li>
               ))}
             </ul>
-          </ProcPanel>
-          {quotation.notes && <ProcPanel title="Notes"><p className="whitespace-pre-line text-sm">{quotation.notes}</p></ProcPanel>}
+          </Panel>
+          {quotation.notes && <Panel title="Notes"><p className="whitespace-pre-line text-sm">{quotation.notes}</p></Panel>}
         </div>
       </RecordDetailsPage>
     </div>

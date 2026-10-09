@@ -6,6 +6,8 @@ import { pushMeetingCalendarEventHandler, JOB_TYPE as MEETING_CALENDAR_PUSH_JOB_
 import { reportRunHandler, JOB_TYPE as REPORT_RUN_JOB_TYPE, payloadSchema as reportRunPayloadSchema } from "./platform-report-run.js";
 import { captureForecastSnapshotsHandler, JOB_TYPE as FORECAST_SNAPSHOT_JOB_TYPE, payloadSchema as forecastSnapshotPayloadSchema } from "./crm-forecast-snapshot-capture.js";
 import { syncCalendarAccountsHandler, JOB_TYPE as CALENDAR_SYNC_JOB_TYPE, payloadSchema as calendarSyncPayloadSchema } from "./crm-calendar-sync.js";
+import { reconcileReorderHandler, JOB_TYPE as REORDER_RECONCILE_JOB_TYPE, payloadSchema as reorderReconcilePayloadSchema } from "./stock-reorder-reconcile.js";
+import { dispatchLowStockNotificationsHandler, JOB_TYPE as LOW_STOCK_DISPATCH_JOB_TYPE, payloadSchema as lowStockDispatchPayloadSchema } from "./stock-low-stock-dispatch.js";
 
 // Registers every currently-wired job type. Called once at worker
 // startup (bin/start.mjs) and by tests that need a populated registry.
@@ -67,6 +69,20 @@ export function registerBuiltinHandlers() {
     handler: captureForecastSnapshotsHandler,
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // UNIQUE(organization, period, capture_key='scheduled:<date>') makes a re-run a no-op
+    maxAttempts: 3,
+  });
+  registerJobHandler(REORDER_RECONCILE_JOB_TYPE, {
+    schema: reorderReconcilePayloadSchema,
+    handler: reconcileReorderHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // recalculates a rebuildable projection from its sources
+    maxAttempts: 3,
+  });
+  registerJobHandler(LOW_STOCK_DISPATCH_JOB_TYPE, {
+    schema: lowStockDispatchPayloadSchema,
+    handler: dispatchLowStockNotificationsHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // each queued transition is claimed and marked dispatched once
     maxAttempts: 3,
   });
 }

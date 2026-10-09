@@ -10,9 +10,10 @@ import {
 } from "@vercentlabs/design-system";
 
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
+import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
 import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
-import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { PropertyList } from "@/shared/ui/PropertyList";
 import { formatDate, formatDateTime, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -45,7 +46,7 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
   const [dialog, setDialog] = useState<DialogKind>(null);
   // ?tab=notes or ?tab=attachments opens that tab (links from search and from Notes & Files).
   const requestedTab = useSearchParams().get("tab");
-  const [tab, setTab] = useState(requestedTab === "notes" || requestedTab === "attachments" ? requestedTab : "overview");
+  const [tab, setTab] = useState(requestedTab === "notes" || requestedTab === "attachments" || requestedTab === "related" ? requestedTab : "overview");
   const [error, setError] = useState<string | null>(null);
 
   const key = scopedQueryKey(workspace, "crm", "opportunity", opportunityId);
@@ -202,6 +203,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
             <Tab id="tasks">Tasks</Tab>
             <Tab id="followUps">Follow-ups</Tab>
             <Tab id="quotations">Quotations{opportunity.quotationCount ? ` (${opportunity.quotationCount})` : ""}</Tab>
+            <Tab id="related">Related</Tab>
             <Tab id="notes">Notes</Tab>
             <Tab id="attachments">Attachments</Tab>
             <Tab id="history">History</Tab>
@@ -258,6 +260,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
           <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "opportunity", id: opportunity.id, name: opportunity.name, accountId: opportunity.accountId }} canCreate={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="quotations"><OpportunityQuotationsPanel opportunity={{ id: opportunity.id, status: opportunity.status, archivedAt: opportunity.archivedAt, estimatedValue: opportunity.amount, currencyCode: opportunity.currencyCode }} canCreate={can.createQuotation} canEdit={can.edit && !archived} onChanged={refresh}
             onMarkWon={can.markWon ? (quotationId) => { setWinningQuotationId(quotationId); setDialog("won"); } : undefined} /></TabPanel>
+          <TabPanel id="related"><RelatedDocuments type="opportunity" id={opportunity.id} /></TabPanel>
           <TabPanel id="notes"><RecordNotesPanel relatedType="opportunity" relatedId={opportunity.id} /></TabPanel>
           <TabPanel id="attachments"><RecordAttachmentsPanel relatedType="opportunity" relatedId={opportunity.id} /></TabPanel>
           <TabPanel id="history">

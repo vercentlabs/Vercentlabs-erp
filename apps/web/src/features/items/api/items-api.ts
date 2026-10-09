@@ -60,8 +60,8 @@ export type Item = {
   trackingLabel: string;
   requiresExpiryDate: boolean;
   shelfLifeDays: number | null;
-  allowNegativeStock: boolean;
-  valuationMethod: "moving_average" | "fifo" | "standard";
+  negativeStockPolicy: "inherit" | "block";
+  valuationMethod: "moving_average" | "fifo";
   valuationLabel: string;
   hsnSacCode: string | null;
   hsnSacLabel: "HSN" | "SAC";
@@ -89,6 +89,8 @@ export type Item = {
   standardCost?: number;
   onHand?: number;
   available?: number;
+  reserved?: number;
+  reorderStatus?: "ok" | "below_reorder_covered" | "reorder_required" | "out_of_stock" | null;
   createdByName: string | null;
   createdAt: string;
   updatedByName: string | null;
@@ -101,7 +103,7 @@ export type ItemInput = Partial<{
   type: ItemType; code: string; name: string; categoryId: string | null; description: string | null; salesDescription: string | null; purchaseDescription: string | null;
   brand: string | null; manufacturerName: string | null; manufacturerPartNumber: string | null; baseUomId: string; salesUomId: string | null; salesUomFactor: number | null;
   purchaseUomId: string | null; purchaseUomFactor: number | null; isSellable: boolean; isPurchasable: boolean; hsnSacCode: string | null; taxCategoryId: string | null;
-  standardCost: number | null; inventoryProfileId: string | null; accountingProfileId: string | null; trackingType: string; allowNegativeStock: boolean; requiresExpiryDate: boolean; shelfLifeDays: number | null; valuationMethod: string;
+  standardCost: number | null; inventoryProfileId: string | null; accountingProfileId: string | null; trackingType: string; requiresExpiryDate: boolean; shelfLifeDays: number | null; valuationMethod: string;
   netWeight: number | null; grossWeight: number | null; weightUomId: string | null; length: number | null; width: number | null; height: number | null; dimensionUomId: string | null;
   barcode: string | null; alternateBarcodes: string[]; isVariantTemplate: boolean; variantAttributes: Record<string, string>; status: Lifecycle; expectedVersion: number;
 }>;
@@ -275,6 +277,20 @@ export const removeIdentifier = (id: string, identifierId: string) => call<{ ide
 export const makePrimaryIdentifier = (id: string, identifierId: string) => call<{ identifiers: Identifier[] }>(`/${id}/identifiers/${identifierId}/primary`, { method: "POST", json: {} });
 
 export const getItemUnits = (id: string) => call<{ units: ItemUnits }>(`/${id}/units`).then((response) => response.units);
+export type UnitConversion = { ok: boolean; quantity?: string; exact?: boolean; baseQuantity?: string; from?: string; to?: string; code?: string; message?: string };
+export const convertItemUnits = (id: string, input: { quantity: string; from: string; to: string; unitPrice?: string }) =>
+  call<{ conversion: UnitConversion; price: { ok: boolean; unitPrice?: string; baseUnitPrice?: string; message?: string } | null }>(`/${id}/units/convert${query(input)}`);
+export type UnitImportResult = { dryRun: boolean; total: number; created: number; updated: number; skipped: number; failed: number;
+  results: Array<{ rowNumber: number; sku: string; uom: string; outcome: "created" | "updated" | "skipped" | "failed"; message: string; code?: string }> };
+export const unitConversionsExportUrl = `${BASE}/unit-conversions/export`;
+export const unitConversionsTemplateUrl = `${BASE}/unit-conversions/template`;
+export function importUnitConversions(file: File, options: { dryRun: boolean; acknowledgeHistory: boolean }) {
+  const form = new FormData();
+  form.set("file", file);
+  form.set("dryRun", String(options.dryRun));
+  form.set("acknowledgeHistory", String(options.acknowledgeHistory));
+  return upload<{ result: UnitImportResult }>("/unit-conversions/import", form).then((response) => response.result);
+}
 export const getItemUomHistory = (id: string) => call<{ history: UomHistoryEntry[] }>(`/${id}/units/history`).then((response) => response.history);
 export const setItemDefaultUnits = (id: string, input: { purchaseUomId?: string; salesUomId?: string; reason?: string }) =>
   call<{ units: ItemUnits }>(`/${id}/units/defaults`, { method: "POST", json: input }).then((response) => response.units);

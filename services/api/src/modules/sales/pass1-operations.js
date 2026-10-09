@@ -110,7 +110,7 @@ export async function getSalesSettings(client, c) {
 // The active warehouses Sales Settings → Fulfillment can start new orders from.
 export async function listSalesSettingsWarehouses(client, c) {
   need(c, "sales.view");
-  return (await client.query(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND status = 'active' ORDER BY name LIMIT 500`, [c.organizationId])).rows;
+  return (await client.query(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND status = 'active' AND system_role IS NULL ORDER BY name LIMIT 500`, [c.organizationId])).rows;
 }
 
 function boundedNumber(value, label, { min, max }) {

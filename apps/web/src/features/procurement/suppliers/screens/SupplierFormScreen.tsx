@@ -6,9 +6,7 @@
 // supplier is typed, possible existing suppliers are shown; a save the
 // server refuses as a duplicate shows its matches and how to go on.
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, PermissionState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
@@ -16,7 +14,6 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
 
 import {
@@ -24,6 +21,7 @@ import {
   type DuplicateMatch, type Supplier, type SupplierOptions,
 } from "../api/suppliers-api";
 import { DuplicateWarning } from "../components/DuplicateWarning";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 type Values = Record<
   | "supplierName" | "legalName" | "supplierType" | "category" | "primaryEmail" | "primaryPhone" | "website" | "countryCode" | "notes" | "gstRegistrationType" | "gstin" | "pan"
@@ -144,11 +142,8 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
       }}
       banner={
         <div className="flex flex-col gap-3">
-          <Link href={editing ? `/procurement/suppliers/${existing!.id}` : "/procurement/suppliers"} className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
-            <ArrowLeft className="size-3.5" aria-hidden="true" />{editing ? existing!.supplierName : "All suppliers"}
-          </Link>
-          {error && <ProcAlert>{error}</ProcAlert>}
-          {existing?.isCustomer && <ProcAlert tone="info">This company is also customer {existing.customerNumber}: its name, legal name and tax details are shared with that role.</ProcAlert>}
+          {error && <Notice>{error}</Notice>}
+          {existing?.isCustomer && <Notice tone="info">This company is also customer {existing.customerNumber}: its name, legal name and tax details are shared with that role.</Notice>}
           {refusedMatches ? (
             <DuplicateWarning matches={refusedMatches} refused onUseOrganization={editing ? undefined : (match) => save.mutate({ partyId: match.partyId })}>
               {canOverride && can.create && (
@@ -173,7 +168,7 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
         </>
       }
     >
-      <ProcPanel title="Supplier" description={editing && !can.edit ? "You can view these details. Changing them needs the Edit suppliers permission." : undefined}>
+      <Panel title="Supplier" description={editing && !can.edit ? "You can view these details. Changing them needs the Edit suppliers permission." : undefined}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {text("supplierName", "Supplier name", { isRequired: true, description: "The name people search for, like Tata Steel." })}
           {text("legalName", "Legal name", { description: "As registered, like Tata Steel Limited. Defaults to the supplier name." })}
@@ -185,8 +180,8 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
           {text("countryCode", "Country code", { description: "Two letters, like IN, DE or US." })}
         </div>
         <TextArea label="Internal notes" description="Never printed on a purchase order." value={values.notes} onChange={set("notes")} isDisabled={!editable("notes")} />
-      </ProcPanel>
-      <ProcPanel title="Tax" description={editing && !can.tax ? "Changing tax details needs the Manage supplier tax information permission." : "Other GST registrations go on the supplier's locations."}>
+      </Panel>
+      <Panel title="Tax" description={editing && !can.tax ? "Changing tax details needs the Manage supplier tax information permission." : "Other GST registrations go on the supplier's locations."}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {select("gstRegistrationType", "GST registration type", options.gstRegistrationTypes.map((entry) => ({ value: entry.code, label: entry.label })))}
           {text("gstin", "GSTIN", { isRequired: Boolean(gstType?.needsGstin), description: "The registered state and PAN are read from it." })}
@@ -205,17 +200,17 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
           {values.writtenPaymentAgreement && text("agreedPaymentDays", "Agreed payment days", { inputMode: "numeric", description: "The statutory limit is 45 days from acceptance." })}
           {values.writtenPaymentAgreement && text("paymentAgreementReference", "Agreement reference")}
         </div>
-      </ProcPanel>
-      <ProcPanel title="Commercial defaults" description={editing && !can.commercial ? "Changing these needs the Manage supplier commercial defaults permission." : "New RFQs and purchase orders start from these; documents keep what they were given."}>
+      </Panel>
+      <Panel title="Commercial defaults" description={editing && !can.commercial ? "Changing these needs the Manage supplier commercial defaults permission." : "New RFQs and purchase orders start from these; documents keep what they were given."}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {select("defaultCurrency", "Default currency", options.currencies.map((currency) => ({ value: currency.code, label: `${currency.code} · ${currency.name}` })), { isRequired: true })}
           {select("paymentTermId", "Default payment terms", options.paymentTerms.map((term) => ({ value: term.id, label: term.name })), { isRequired: true })}
           {select("assignedBuyerId", "Buyer", [{ value: "", label: "Unassigned" }, ...options.buyers.map((user) => ({ value: user.id, label: user.name }))])}
         </div>
-      </ProcPanel>
+      </Panel>
       {!editing && (
         <>
-          <ProcPanel title="Registered address" description="Optional now; more locations can be added on the supplier.">
+          <Panel title="Registered address" description="Optional now; more locations can be added on the supplier.">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {text("line1", "Address")}
               {text("line2", "Address line 2")}
@@ -223,15 +218,15 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
               {text("state", "State")}
               {text("postalCode", "PIN / postal code")}
             </div>
-          </ProcPanel>
-          <ProcPanel title="Primary contact" description="Optional now; more people can be added on the supplier.">
+          </Panel>
+          <Panel title="Primary contact" description="Optional now; more people can be added on the supplier.">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {text("contactFirstName", "First name")}
               {text("contactLastName", "Last name")}
               {text("contactEmail", "Email", { type: "email" })}
               {text("contactPhone", "Phone")}
             </div>
-          </ProcPanel>
+          </Panel>
         </>
       )}
     </RecordFormPage>

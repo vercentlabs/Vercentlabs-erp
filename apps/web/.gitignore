@@ -11,3 +11,5 @@ next-env.d.ts
 /e2e/visual-qa-screenshots/
 /storybook-static/
 .env*.local
+# Extra Next.js output folders (NEXT_DIST_DIR=.next-…): never scanned by Tailwind or committed.
+/.next-*/

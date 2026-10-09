@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Check, FileText, MapPin, Pencil, Printer, Truck, Upload } from "lucide-react";
+import { Check, FileText, MapPin, Pencil, Printer, Truck, Upload } from "lucide-react";
 import {
   Button, EnterpriseDataGrid, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, buttonVariants,
 } from "@vercentlabs/design-system";
@@ -21,7 +21,6 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
-import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 import type { SalesDocumentEvent } from "@/features/sales/quotations/api/quotations-api";
 
 import {
@@ -34,6 +33,7 @@ import {
 import { DeliveryInvoicingBadge, DeliveryStatusBadge } from "../components/DeliveryStatusBadge";
 import { DeliveryInvoiceDialog } from "@/features/sales/invoices/components/InvoiceDialogs";
 import { CreateReturnDialog } from "@/features/sales/returns/components/ReturnDialogs";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -127,19 +127,15 @@ export function DeliveryDetailScreen({ deliveryId }: { deliveryId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/sales/deliveries" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
-        <ArrowLeft className="size-3.5" aria-hidden="true" />
-        All deliveries
-      </Link>
-      {error && <SalesAlert>{error}</SalesAlert>}
-      {notice && <SalesAlert tone="info" className="whitespace-pre-line">{notice}</SalesAlert>}
+      {error && <Notice>{error}</Notice>}
+      {notice && <Notice tone="info" className="whitespace-pre-line">{notice}</Notice>}
       {delivery.status === "cancelled" && (
-        <SalesAlert tone="warning">
+        <Notice tone="warning">
           This delivery was cancelled {by(delivery.cancelled_at, delivery.cancelled_by_name)}.{delivery.cancel_reason ? ` ${delivery.cancel_reason}` : ""}
-        </SalesAlert>
+        </Notice>
       )}
       {["draft", "ready"].includes(delivery.status) && delivery.order_status !== "confirmed" && (
-        <SalesAlert tone="warning">The order is no longer confirmed, so this delivery cannot be dispatched.</SalesAlert>
+        <Notice tone="warning">The order is no longer confirmed, so this delivery cannot be dispatched.</Notice>
       )}
 
       <RecordDetailsPage
@@ -219,8 +215,8 @@ function Overview({ detail }: { detail: DeliveryDetail }) {
   const contact = delivery.contact_snapshot;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Customer and ship-to">
-        <SalesFacts items={[
+      <Panel title="Customer and ship-to">
+        <Facts items={[
           { label: "Customer", value: delivery.customer_snapshot?.displayName ?? "—" },
           { label: "Customer number", value: delivery.customer_snapshot?.customerNumber ?? delivery.customer_number ?? "—" },
           { label: "Customer PO", value: delivery.customer_po_number ?? "—" },
@@ -228,9 +224,9 @@ function Overview({ detail }: { detail: DeliveryDetail }) {
           { label: "Contact", value: [personName(contact), contact?.phone ?? contact?.mobile, contact?.email].filter(Boolean).join(" · ") || "—" },
           { label: "Salesperson", value: delivery.owner_name ?? "—" },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Delivery">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Delivery">
+        <Facts items={[
           { label: "Status", value: delivery.statusLabel },
           { label: "Warehouse", value: delivery.warehouse_name ?? "—" },
           { label: "Items", value: `${delivery.line_count} line(s) · ${quantity(delivery.total_quantity)} in all` },
@@ -238,16 +234,16 @@ function Overview({ detail }: { detail: DeliveryDetail }) {
           { label: "Expected delivery", value: delivery.expected_delivery_date ? calendarDate(delivery.expected_delivery_date) : "—" },
           { label: "Invoicing", value: ["dispatched", "delivered"].includes(delivery.status) ? delivery.invoicingLabel : "—" },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Status history">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Status history">
+        <Facts items={[
           { label: "Created", value: by(delivery.requested_at, delivery.created_by_name) },
           { label: "Ready to dispatch", value: by(delivery.ready_at, delivery.ready_by_name) },
           { label: "Dispatched", value: by(delivery.dispatched_at, delivery.dispatched_by_name) },
           { label: "Delivered", value: delivery.delivered_at ? `${dateTime(delivery.delivered_at)}${delivery.received_by ? ` · received by ${delivery.received_by}` : ""}` : "—" },
           { label: "Cancelled", value: by(delivery.cancelled_at, delivery.cancelled_by_name) },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -295,8 +291,8 @@ function Shipment({ detail }: { detail: DeliveryDetail }) {
   const delivery = detail.delivery;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Shipment">
-        <SalesFacts items={[
+      <Panel title="Shipment">
+        <Facts items={[
           { label: "Carrier / transporter", value: delivery.carrier ?? "—" },
           {
             label: "Tracking", value: delivery.tracking_url
@@ -310,8 +306,8 @@ function Shipment({ detail }: { detail: DeliveryDetail }) {
           { label: "Received by", value: delivery.received_by ?? "—" },
           { label: "Delivery note", value: delivery.delivery_note ?? "—" },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Stock movements" description="Stock is issued when the delivery is dispatched, from what is reserved for the order first.">
+      </Panel>
+      <Panel title="Stock movements" description="Stock is issued when the delivery is dispatched, from what is reserved for the order first.">
         {!detail.stockMovements.length ? <p className="text-sm text-text-muted">{["draft", "ready"].includes(delivery.status) ? "No stock moves until the delivery is dispatched." : "No stock-tracked items on this delivery."}</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.stockMovements.map((movement) => (
@@ -323,7 +319,7 @@ function Shipment({ detail }: { detail: DeliveryDetail }) {
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -331,7 +327,7 @@ function Shipment({ detail }: { detail: DeliveryDetail }) {
 function Invoice({ detail, onInvoice }: { detail: DeliveryDetail; onInvoice: () => void }) {
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Invoices" description="Each invoice line records the delivery line it bills; a delivery is never invoiced beyond what it delivered."
+      <Panel title="Invoices" description="Each invoice line records the delivery line it bills; a delivery is never invoiced beyond what it delivered."
         actions={detail.actions.createInvoice ? <Button variant="primary" size="compact" onPress={onInvoice}>Create Invoice</Button> : undefined}>
         {!detail.invoices.length ? <p className="text-sm text-text-muted">{["dispatched", "delivered"].includes(detail.delivery.status) ? "Not invoiced yet." : "A delivery is invoiced once it is dispatched."}</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
@@ -345,7 +341,7 @@ function Invoice({ detail, onInvoice }: { detail: DeliveryDetail; onInvoice: () 
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -354,8 +350,8 @@ function Related({ detail }: { detail: DeliveryDetail }) {
   const delivery = detail.delivery;
   return (
     <div className="pt-4">
-      <SalesPanel title="Related documents">
-        <SalesFacts items={[
+      <Panel title="Related documents">
+        <Facts items={[
           { label: "Sales order", value: <Link className="text-brand hover:underline" href={`/sales/orders/${delivery.sales_order_id}`}>{delivery.sales_order_number}</Link> },
           { label: "Quotation", value: delivery.source_quotation_id ? <Link className="text-brand hover:underline" href={`/sales/quotations/${delivery.source_quotation_id}`}>{delivery.source_quotation_number}</Link> : "—" },
           { label: "Customer", value: delivery.party_id ? <Link className="text-brand hover:underline" href={`/sales/customers/${delivery.party_id}`}>{delivery.customer_snapshot?.displayName ?? "Customer"}</Link> : "—" },
@@ -363,7 +359,7 @@ function Related({ detail }: { detail: DeliveryDetail }) {
           { label: "Returns", value: detail.returns.length ? <span className="flex flex-wrap gap-2">{detail.returns.map((item) => <Link key={item.id} className="text-brand hover:underline" href={`/sales/returns/${item.id}`}>{item.return_number}</Link>)}</span> : "None" },
           { label: "Stock movements", value: detail.stockMovements.length ? detail.stockMovements.map((movement) => movement.movement_number ?? "Issue").join(", ") : "None" },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -381,13 +377,13 @@ function Notes({ detail, onChanged }: { detail: DeliveryDetail; onChanged: () =>
   const remove = useMutation({ mutationFn: (fileId: string) => removeDeliveryFile(delivery.id, fileId), onSuccess: after, onError: (failure) => setError(failureText(failure, "The file could not be removed.")) });
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Delivery instructions" description="Printed on the delivery note.">
+      <Panel title="Delivery instructions" description="Printed on the delivery note.">
         <p className="text-sm whitespace-pre-line">{delivery.delivery_instructions ?? "None"}</p>
-      </SalesPanel>
-      <SalesPanel title="Internal notes" description="Never printed or shown to the customer.">
+      </Panel>
+      <Panel title="Internal notes" description="Never printed or shown to the customer.">
         <p className="text-sm whitespace-pre-line">{delivery.internal_notes ?? "None"}</p>
-      </SalesPanel>
-      <SalesPanel title="Proof of delivery" description="The signed delivery note, a photo of the goods received, or the customer's acknowledgement (PDF or image, up to 10 MB)."
+      </Panel>
+      <Panel title="Proof of delivery" description="The signed delivery note, a photo of the goods received, or the customer's acknowledgement (PDF or image, up to 10 MB)."
         actions={detail.actions.uploadProof ? (
           <>
             <input ref={input} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden"
@@ -395,7 +391,7 @@ function Notes({ detail, onChanged }: { detail: DeliveryDetail; onChanged: () =>
             <Button variant="secondary" size="compact" isLoading={upload.isPending} onPress={() => input.current?.click()}><Upload className="size-4" aria-hidden="true" />Upload</Button>
           </>
         ) : undefined}>
-        {error && <SalesAlert>{error}</SalesAlert>}
+        {error && <Notice>{error}</Notice>}
         {!files.data?.length ? <p className="text-sm text-text-muted">{["draft", "ready"].includes(delivery.status) ? "Proof is added once the delivery is dispatched." : "No files yet."}</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {files.data.map((file) => (
@@ -407,7 +403,7 @@ function Notes({ detail, onChanged }: { detail: DeliveryDetail; onChanged: () =>
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -415,7 +411,7 @@ function Notes({ detail, onChanged }: { detail: DeliveryDetail; onChanged: () =>
 function History({ detail }: { detail: DeliveryDetail }) {
   return (
     <div className="pt-4">
-      <SalesPanel title="History">
+      <Panel title="History">
         {!detail.events.length ? <p className="text-sm text-text-muted">No history yet.</p> : (
           <ol className="flex flex-col divide-y divide-border text-sm">
             {detail.events.map((event) => (
@@ -429,7 +425,7 @@ function History({ detail }: { detail: DeliveryDetail }) {
             ))}
           </ol>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }

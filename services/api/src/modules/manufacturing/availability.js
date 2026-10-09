@@ -11,7 +11,7 @@ export async function getMaterialAvailability(client, c, input = {}) {
   const unit = await explodeBom(client, c, { bomId: input.bomId, itemId: input.itemId, quantity: 1, asOf: input.asOf });
   const lines = [];
   for (const total of explosion.purchasedTotals) {
-    const stock = (await client.query(`SELECT COALESCE(sum(quantity),0) AS q,COALESCE(sum(quantity-reserved_quantity),0) AS free FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2`, [c.organizationId, total.itemId])).rows[0];
+    const stock = (await client.query(`SELECT COALESCE(sum(quantity),0) AS q,COALESCE(sum(greatest(quantity-reserved_quantity,0)),0) AS free FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2`, [c.organizationId, total.itemId])).rows[0];
     const incoming = (await client.query(
       `SELECT COALESCE(sum(status.remaining_to_receive * line.conversion_factor),0) AS q FROM tenant.purchase_order_line_status status
         JOIN tenant.purchase_order_lines line ON line.organization_id=status.organization_id AND line.id=status.purchase_order_line_id

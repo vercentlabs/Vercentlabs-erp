@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Badge, Button, Checkbox, Dialog, Radio, RadioGroup, Select, TextArea } from "@vercentlabs/design-system";
 
-import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { PropertyList } from "@/shared/ui/PropertyList";
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";

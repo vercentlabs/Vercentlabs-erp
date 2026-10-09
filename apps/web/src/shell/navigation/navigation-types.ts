@@ -37,11 +37,19 @@ export type SecondaryNavItem = {
   group?: string;
   /** One task-oriented line, shown where the item is offered as a destination card. */
   description?: string;
+  /** Key of an attention badge the module's badge provider supplies (shell/module-sidebar/sidebar-badges.ts) — counts that need action, never totals. */
+  badge?: string;
 };
 
 type SecondaryNavSection = {
   id: string;
   label: string;
+  /** Shown beside the section label. */
+  icon?: NavIcon;
+  /** The section's items fold under its label (open while one of them is active, or when the person opens it). */
+  collapsible?: boolean;
+  /** A one-destination section rendered as a single link (its label is the link). */
+  flat?: boolean;
   /** Coarse F-id range this section maps to, for traceability. Not a claim that every item is 1:1 with one F-id. */
   featureRange?: string;
   items: SecondaryNavItem[];

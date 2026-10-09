@@ -9,6 +9,7 @@ import { add, decimal, div, formatDecimal, mul, roundMoney } from "../../../core
 import { createJournalEntry, getAccountMapping, getExchangeRate, getPrimaryLedger, loadOrganization, postJournalEntry, reverseJournalEntry } from "../../accounting/index.js";
 import { AccountingError } from "../../accounting/core.js";
 import { PurchaseOrderError, dayOf } from "./constants.js";
+import { valuationOfMovements } from "../../stock/valuation-engine.js";
 
 // Accounting runs these on the receipt's behalf; the receipt's own permissions were checked by the caller.
 const accountingContext = (context) => ({ ...context, permissions: [...(context.permissions ?? []), "accounting.view", "accounting.journal.create", "accounting.journal.reverse"] });
@@ -100,9 +101,10 @@ export async function grniAccountFor(client, context, order, receiptLineIds) {
 }
 
 
-// A purchase return of goods whose receipt accrued them takes them back out of stock at the value they were accrued at: Dr GRNI, Cr
-// Inventory. Unbilled, that undoes the receipt's accrual for those goods; billed, the debit note that corrects the bill credits GRNI (the
-// account the bill debited), so GRNI is cleared exactly once either way. lines: [{ receiptLine, orderLine, quantity }].
+// A purchase return of goods whose receipt accrued them: Dr GRNI at the value they were accrued at (the commercial value, in the company's
+// base currency), Cr Inventory at the value Inventory Valuation took out (the carrying cost — never the supplier's credit), and the difference
+// to purchase price variance. Unbilled, that undoes the receipt's accrual for those goods; billed, the debit note that corrects the bill credits
+// GRNI (the account the bill debited), so GRNI is cleared exactly once either way. lines: [{ receiptLine, orderLine, quantity, movementIds }].
 export async function postReturnAccrual(client, context, purchaseReturn, order, lines) {
   const accrued = [];
   for (const entry of lines) {
@@ -118,25 +120,37 @@ export async function postReturnAccrual(client, context, purchaseReturn, order, 
     const organization = await loadOrganization(client, ctx);
     const date = dayOf(purchaseReturn.dispatch_date ?? purchaseReturn.return_date);
     const grni = await getAccountMapping(client, ctx, ledger.id, "grni", { partyId: order.party_id, date });
+    const currency = order.currency_code.trim();
+    const base = organization.base_currency.trim();
+    const rate = await getExchangeRate(client, ctx, currency, base, date);
     const journalLines = [];
-    let total = 0n;
-    for (const { receiptLine, orderLine, quantity } of accrued) {
-      const amount = roundMoney(div(mul(orderLine.taxable_amount, quantity), orderLine.ordered_quantity), 2);
-      if (amount <= 0n) continue;
+    let accruedTotal = 0n;
+    let carried = 0n;
+    for (const { receiptLine, orderLine, quantity, movementIds } of accrued) {
+      const amount = roundMoney(mul(div(mul(orderLine.taxable_amount, quantity), orderLine.ordered_quantity), rate), 2);
+      const value = decimal(String(-(await valuationOfMovements(client, context.organizationId, movementIds)).total));
+      if (amount <= 0n && value <= 0n) continue;
       const inventory = await getAccountMapping(client, ctx, ledger.id, "inventory", { itemId: receiptLine.product_id, date });
-      total += amount;
-      journalLines.push({ accountId: inventory.account_id, description: `${purchaseReturn.return_number} · ${receiptLine.description}`, debit: 0, credit: formatDecimal(amount),
+      accruedTotal += amount;
+      carried += value;
+      if (value > 0n) journalLines.push({ accountId: inventory.account_id, description: `${purchaseReturn.return_number} · ${receiptLine.description}`, debit: 0, credit: formatDecimal(value, 2),
         referenceType: "purchase_return", referenceId: purchaseReturn.id });
     }
-    if (total <= 0n) return null;
-    journalLines.unshift({ accountId: grni.account_id, partyId: order.party_id, description: `Goods returned to the supplier · ${purchaseReturn.return_number}`, debit: formatDecimal(total), credit: 0,
+    if (accruedTotal <= 0n && carried <= 0n) return null;
+    journalLines.unshift({ accountId: grni.account_id, partyId: order.party_id, description: `Goods returned to the supplier · ${purchaseReturn.return_number}`, debit: formatDecimal(accruedTotal, 2), credit: 0,
       referenceType: "purchase_return", referenceId: purchaseReturn.id });
-    const currency = order.currency_code.trim();
-    const rate = await getExchangeRate(client, ctx, currency, organization.base_currency, date);
+    const variance = carried - accruedTotal;
+    if (variance !== 0n) {
+      // The configured purchase price variance account; without one, the cost of goods sold carries the difference (never Inventory).
+      const ppv = await getAccountMapping(client, ctx, ledger.id, "purchase_price_variance", { date }).catch(() => getAccountMapping(client, ctx, ledger.id, "cogs", { date }));
+      journalLines.push({ accountId: ppv.account_id, description: `Return value different from the carrying cost · ${purchaseReturn.return_number}`,
+        debit: variance > 0n ? formatDecimal(variance, 2) : 0, credit: variance < 0n ? formatDecimal(-variance, 2) : 0, referenceType: "purchase_return", referenceId: purchaseReturn.id });
+    }
+    const total = accruedTotal;
     const journal = await createJournalEntry(client, ctx, {
       ledgerId: ledger.id, journalId: await journalOf(client, context.organizationId, ledger.id), entryDate: date, accountingDate: date, documentDate: date, entryType: "subledger",
-      reference: purchaseReturn.return_number, description: `Purchase return ${purchaseReturn.return_number} (${order.purchase_order_number})`, currencyCode: currency,
-      exchangeRate: formatDecimal(rate), lines: journalLines,
+      reference: purchaseReturn.return_number, description: `Purchase return ${purchaseReturn.return_number} (${order.purchase_order_number})`, currencyCode: base,
+      exchangeRate: "1", lines: journalLines,
     }, { internal: true, sourceModule: "procurement", sourceType: "purchase_return", sourceId: purchaseReturn.id, sourceNumber: purchaseReturn.return_number });
     await postJournalEntry(client, ctx, journal.entry.id, { internal: true, allowDraft: true });
     return { journalEntryId: journal.entry.id, amount: formatDecimal(total) };

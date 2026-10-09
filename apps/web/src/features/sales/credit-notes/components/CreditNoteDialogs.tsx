@@ -13,12 +13,12 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { money } from "@/features/sales/shared/format";
-import { SalesAlert } from "@/features/sales/shared/SalesUi";
 
 import {
   cancelCreditNote, createCreditNote, getCreditProposal, markCreditNoteSent, postCreditNote, reverseCreditNote, sendCreditNote, updateDraftCreditNote,
   validateCreditNote, type CreditLineInput, type CreditNoteDetail, type CreditProposal, type CreditType,
 } from "../api/credit-notes-api";
+import { Notice } from "@/shared/ui/Panel";
 
 export function failureText(failure: unknown, fallback: string) {
   return failure instanceof SalesApiError || failure instanceof Error ? failure.message || fallback : fallback;
@@ -35,7 +35,7 @@ function Shell({ title, description, size, error, fallback, onClose, label, isLo
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={title} description={description} size={size}>
       <div className="flex flex-col gap-3">
-        {Boolean(error) && <SalesAlert>{failureText(error, fallback)}</SalesAlert>}
+        {Boolean(error) && <Notice>{failureText(error, fallback)}</Notice>}
         {children}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>
@@ -137,7 +137,7 @@ export function CreateCreditNoteDialog({ invoiceId, onClose, onDone }: { invoice
             <span className="tabular-nums">{money(data.currencyCode, data.creditedTotal)}</span> · still owed <span className="tabular-nums">{money(data.currencyCode, data.outstanding)}</span></p>
           <CreditLines proposal={data} values={values} onChange={setValues} allowAmount={data.canCreditAmount} />
           {data.lines.some((line) => line.draftCreditNotes.length > 0) && (
-            <SalesAlert tone="warning">Other draft credit notes already credit some of these lines. Drafts credit nothing yet: whichever is posted first goes through.</SalesAlert>
+            <Notice tone="warning">Other draft credit notes already credit some of these lines. Drafts credit nothing yet: whichever is posted first goes through.</Notice>
           )}
           <ReasonFields reasons={data.reasons} reasonCode={reasonCode} setReasonCode={setReasonCode} reasonNote={reasonNote} setReasonNote={setReasonNote} />
           <TextField label="Credit note date" type="date" value={creditDate} onChange={setCreditDate} />
@@ -182,7 +182,7 @@ export function EditCreditNoteDialog({ detail, onClose, onDone }: { detail: Cred
       isLoading={save.isPending} isDisabled={(editLines && !lines.length) || (reasonCode === "other" && !reasonNote.trim())} onPress={() => save.mutate()}>
       {editLines ? (withOwn ? <CreditLines proposal={withOwn} values={values} onChange={setValues} allowAmount={detail.actions.creditAmount} exceptNumber={creditNote.invoice_number} />
         : <p className="text-sm text-text-muted">Loading the invoice lines…</p>)
-        : creditNote.sales_return_id ? <SalesAlert tone="info">The lines follow return {creditNote.return_number}. To change them, cancel this draft and credit the return again.</SalesAlert> : null}
+        : creditNote.sales_return_id ? <Notice tone="info">The lines follow return {creditNote.return_number}. To change them, cancel this draft and credit the return again.</Notice> : null}
       <ReasonFields reasons={detail.reasons.filter((reason) => reason.code !== "sales_return")} reasonCode={reasonCode} setReasonCode={setReasonCode} reasonNote={reasonNote}
         setReasonNote={setReasonNote} fixed={Boolean(creditNote.sales_return_id)} />
       <TextField label="Credit note date" type="date" value={creditDate} onChange={setCreditDate} />
@@ -215,9 +215,9 @@ export function PostCreditNoteDialog({ detail, onClose, onDone }: { detail: Cred
       isDisabled={check.isLoading || problems.length > 0} onPress={() => save.mutate()}>
       <p className="text-sm">Total credit <span className="font-medium tabular-nums">{money(currency, creditNote.grand_total)}</span> · against {creditNote.sourceInvoice.invoiceNumber} · posting date {day(creditNote.accounting_date)}</p>
       {check.isLoading ? <p className="text-sm text-text-muted">Checking the credit note…</p> : problems.length ? (
-        <SalesAlert tone="warning"><ul className="list-disc pl-4">{problems.map((problem, index) => <li key={index}>{problem.message}</li>)}</ul></SalesAlert>
-      ) : <SalesAlert tone="success">Quantities, value left on the invoice, period and totals are in order.</SalesAlert>}
-      {(check.data?.warnings ?? []).map((warning, index) => <SalesAlert key={index} tone="info">{warning.message}</SalesAlert>)}
+        <Notice tone="warning"><ul className="list-disc pl-4">{problems.map((problem, index) => <li key={index}>{problem.message}</li>)}</ul></Notice>
+      ) : <Notice tone="success">Quantities, value left on the invoice, period and totals are in order.</Notice>}
+      {(check.data?.warnings ?? []).map((warning, index) => <Notice key={index} tone="info">{warning.message}</Notice>)}
     </Shell>
   );
 }

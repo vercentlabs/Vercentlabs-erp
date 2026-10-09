@@ -1,10 +1,8 @@
 import { requireWorkspace } from "@/core/session";
-import { FollowUpListScreen } from "@/features/crm/follow-ups/screens/FollowUpListScreen";
+import { redirectWithQuery } from "@/shared/routing/redirect-with-query";
 
-export const metadata = { title: "Follow-ups" };
-
-// CRM Follow-ups. Due Today is the default; ?view=overdue | upcoming | mine | … opens another view.
-export default async function Page() {
+// A tab of CRM Activities: this address keeps working (bookmarks, back links, ?view= drill-downs) and opens that tab with its query intact.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireWorkspace();
-  return <FollowUpListScreen />;
+  redirectWithQuery("/crm/activities", await searchParams, { tab: "follow-ups" });
 }

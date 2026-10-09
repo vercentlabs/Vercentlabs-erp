@@ -18,6 +18,7 @@ export const SALES_PERMISSIONS = Object.freeze({
   orderReopen: "sales.order.reopen",
   orderCancelRemaining: "sales.order.cancel_remaining",
   orderReserve: "sales.order.reserve",
+  orderReservePartial: "sales.order.reserve_partial",
   orderExport: "sales.order.export",
   orderConfirmationSend: "sales.order.confirmation.send",
   orderConfirmationMarkSent: "sales.order.confirmation.mark_sent",

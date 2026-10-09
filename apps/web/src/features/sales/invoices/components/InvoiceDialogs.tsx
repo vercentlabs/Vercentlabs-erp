@@ -13,12 +13,12 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { money } from "@/features/sales/shared/format";
 import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
-import { SalesAlert } from "@/features/sales/shared/SalesUi";
 
 import {
   cancelInvoice, changeInvoiceDueDate, createInvoiceFromDelivery, createInvoiceFromOrder, getInvoiceProposal, markInvoiceSent, postInvoice, reverseInvoice, sendInvoice,
   updateDraftInvoice, validateInvoice, type InvoiceDetail,
 } from "../api/invoices-api";
+import { Notice } from "@/shared/ui/Panel";
 
 export function failureText(failure: unknown, fallback: string) {
   return failure instanceof SalesApiError || failure instanceof Error ? failure.message || fallback : fallback;
@@ -34,7 +34,7 @@ function Shell({ title, description, size, error, fallback, onClose, label, isLo
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={title} description={description} size={size}>
       <div className="flex flex-col gap-3">
-        {Boolean(error) && <SalesAlert>{failureText(error, fallback)}</SalesAlert>}
+        {Boolean(error) && <Notice>{failureText(error, fallback)}</Notice>}
         {children}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>
@@ -101,7 +101,7 @@ export function CreateInvoiceDialog({ orderId, number, onClose, onDone }: { orde
           : <QuantityRows rows={rows} values={values} onChange={setValues} />}
       {waiting.length > 0 && rows.length > 0 && <p className="text-xs text-text-muted">{waiting.map((line) => line.itemName).join(", ")}: nothing to invoice now.</p>}
       {(proposal.data?.lines ?? []).some((line) => line.onDrafts > 0 && line.eligible > 0) && (
-        <SalesAlert tone="warning">Other draft invoices already bill some of these lines. Drafts are not invoiced: whichever is posted first goes through, and the rest are refused for what is no longer left.</SalesAlert>
+        <Notice tone="warning">Other draft invoices already bill some of these lines. Drafts are not invoiced: whichever is posted first goes through, and the rest are refused for what is no longer left.</Notice>
       )}
       <TextArea label="Customer notes" description="Printed on the invoice. Left empty, the order's customer notes are used." value={customerNotes} onChange={setCustomerNotes} />
       <TextArea label="Internal notes" description="Never printed." value={internalNotes} onChange={setInternalNotes} />
@@ -232,11 +232,11 @@ export function PostInvoiceDialog({ detail, onClose, onDone }: { detail: Invoice
       isDisabled={check.isLoading || problems.length > 0} onPress={() => save.mutate()}>
       <p className="text-sm">Total <span className="font-medium tabular-nums">{money(invoice.currency_code, invoice.grand_total)}</span> · due {day(invoice.due_date)} · posting date {day(invoice.accounting_date)}</p>
       {check.isLoading ? <p className="text-sm text-text-muted">Checking the invoice…</p> : problems.length ? (
-        <SalesAlert tone="warning">
+        <Notice tone="warning">
           <ul className="list-disc pl-4">{problems.map((problem, index) => <li key={index}>{problem.message}</li>)}</ul>
-        </SalesAlert>
-      ) : <SalesAlert tone="success">Quantities, tax, period and totals are in order.</SalesAlert>}
-      {(check.data?.warnings ?? []).map((warning, index) => <SalesAlert key={index} tone="info">{warning.message}</SalesAlert>)}
+        </Notice>
+      ) : <Notice tone="success">Quantities, tax, period and totals are in order.</Notice>}
+      {(check.data?.warnings ?? []).map((warning, index) => <Notice key={index} tone="info">{warning.message}</Notice>)}
       {(check.data?.taxDifferences.length ?? 0) > 0 && detail.actions.edit && (
         <Button variant="secondary" isLoading={recalculate.isPending} onPress={() => recalculate.mutate()}>Recalculate Tax</Button>
       )}

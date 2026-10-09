@@ -11,6 +11,7 @@
 // A dispatched delivery is never cancelled or edited (its quantities are
 // locked by the database too); goods coming back use a sales return.
 import { StockError } from "../../stock/index.js";
+import { validateWarehouseOperation } from "../../stock/warehouses.js";
 import { changeSalesOrderLineWarehouse } from "../availability/warehouse.js";
 import { STATUS, dayOf, requireUuid, text } from "../orders/constants.js";
 import { loadOrderLineProgress, refreshSalesOrderProgress } from "../orders/progress.js";
@@ -20,6 +21,8 @@ import { deliveryCan, loadDelivery, requireDeliveryPermission } from "./access.j
 import { DELIVERY_CANCEL_REASONS, DELIVERY_PERMISSIONS, DELIVERY_STATUS, DeliveryError, OPEN, SHIPPED } from "./constants.js";
 import { recordDeliveryEvent } from "./records.js";
 import { SHIPMENT_FIELDS, readPackageCount, readTrackingUrl } from "./shipment.js";
+import { carryNegativeStock } from "../../stock/negative-stock-control.js";
+import { postCostOfGoodsJournal } from "../../stock/valuation-engine.js";
 
 const EPSILON = 1e-6;
 const round = (value) => Math.round(Number(value) * 1e6) / 1e6;
@@ -110,6 +113,9 @@ export async function dispatchDelivery(client, context, deliveryId, input = {}) 
     if (state.stockTracked && line.warehouse_id !== state.warehouseId)
       throw new DeliveryError(409, `${line.item_name_snapshot} now ships from another warehouse. Change the delivery's warehouse first.`, "SALES_DELIVERY_WAREHOUSE_MISMATCH");
   }
+  // Goods leave only a warehouse that ships, and only by someone allowed to ship from it.
+  if (delivery.warehouse_id && lines.some((line) => progress.get(line.sales_order_line_id)?.stockTracked))
+    await validateWarehouseOperation(client, context, delivery.warehouse_id, "ship", { label: "Delivery" });
   const consumption = [];
   for (const line of lines) {
     const state = progress.get(line.sales_order_line_id);
@@ -121,7 +127,7 @@ export async function dispatchDelivery(client, context, deliveryId, input = {}) 
       consumption.push({ item: state.itemName, unit: state.unit, reservations: used.consumed, fromFreeStock: used.fromFreeStock });
     } catch (error) {
       if (!(error instanceof StockError)) throw error;
-      throw new DeliveryError(409, `${state.itemName}: ${error.message}`, error.code ?? "SALES_ORDER_STOCK_UNAVAILABLE");
+      throw carryNegativeStock(error, new DeliveryError(409, `${state.itemName}: ${error.message}`, error.code ?? "SALES_ORDER_STOCK_UNAVAILABLE"));
     }
   }
   await client.query(
@@ -135,6 +141,12 @@ export async function dispatchDelivery(client, context, deliveryId, input = {}) 
       WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, delivery.id, dispatchDate, context.userId ?? null, shipment.carrier, shipment.tracking_number, shipment.vehicle_reference,
       shipment.tracking_url, shipment.package_count]);
+  // Finance: the stock that left goes to the cost of goods sold at the value Inventory Valuation gave it (never the selling price).
+  const shipped = (await client.query(`SELECT id FROM tenant.stock_movements WHERE organization_id = $1 AND reference_type = 'sales_delivery' AND reference_id = $2`,
+    [context.organizationId, delivery.id])).rows.map((row) => row.id);
+  const cogs = await postCostOfGoodsJournal(client, context, { movementIds: shipped, date: dispatchDate, reference: delivery.request_number,
+    description: `Delivery ${delivery.request_number}: cost of goods sold`, sourceType: "sales_delivery", sourceId: delivery.id, sourceNumber: delivery.request_number });
+  if (cogs) await client.query(`UPDATE tenant.sales_fulfillment_requests SET cogs_journal_entry_id = $3 WHERE organization_id = $1 AND id = $2`, [context.organizationId, delivery.id, cogs.journalEntryId]);
   const summary = lines.map((line) => ({ item: line.item_name_snapshot, quantity: Number(line.quantity), unit: line.uom_snapshot }));
   await recordDeliveryEvent(client, context, delivery.id, "sales_delivery.dispatched", delivery.delivery_status, DELIVERY_STATUS.dispatched, {
     dispatchDate, carrier: shipment.carrier, trackingNumber: shipment.tracking_number, lines: summary,
@@ -240,10 +252,11 @@ export async function changeDeliveryWarehouse(client, context, deliveryId, input
   const delivery = await loadDelivery(client, context, deliveryId, { lock: true });
   if (delivery.delivery_status !== DELIVERY_STATUS.draft) throw new DeliveryError(409, "Return the delivery to Draft to change its warehouse.", "SALES_DELIVERY_LOCKED");
   if (delivery.warehouse_id === warehouseId) return { deliveryId: delivery.id, changed: false };
-  const warehouse = (await client.query(`SELECT id, name, status, sales_fulfillment FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [context.organizationId, warehouseId])).rows[0];
+  const warehouse = (await client.query(`SELECT id, name, status, shipping_enabled AND sales_fulfillment AS shipping_enabled FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [context.organizationId, warehouseId])).rows[0];
   if (!warehouse) throw new DeliveryError(404, "Warehouse not found.", "SALES_WAREHOUSE_NOT_FOUND");
-  if (warehouse.status !== "active" || !warehouse.sales_fulfillment)
-    throw new DeliveryError(409, `${warehouse.name} is inactive or not used for sales fulfillment.`, "SALES_WAREHOUSE_NOT_ELIGIBLE");
+  if (warehouse.status !== "active" || !warehouse.shipping_enabled)
+    throw new DeliveryError(409, `${warehouse.name} is inactive or does not ship.`, "SALES_WAREHOUSE_NOT_ELIGIBLE");
+  await validateWarehouseOperation(client, context, warehouse.id, "ship", { label: "Delivery" });
   const lines = (await client.query(
     `SELECT line.id, line.sales_order_line_id, line.item_name_snapshot, COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AS stock_tracked
        FROM tenant.sales_delivery_lines line JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id

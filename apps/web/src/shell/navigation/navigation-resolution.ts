@@ -4,9 +4,12 @@
 // these functions, so "which workspace owns this route" is decided once.
 import type {
   ModuleNavigation,
+  NavIcon,
   SecondaryNavItem,
   WorkspaceGroup,
 } from "./navigation-types";
+
+type SecondaryNavSectionIcon = NavIcon;
 
 export type NavViewer = {
   permissions: readonly string[];
@@ -14,8 +17,26 @@ export type NavViewer = {
   isOwner?: boolean;
 };
 
+// A route may carry a query (a tab or view of one page, e.g. /inventory/replenishment?tab=alerts): it matches on its path; the query only
+// decides which of several items sharing that path is active.
+const pathOf = (route: string) => route.split("?")[0];
+const queryOf = (route: string) => new URLSearchParams(route.includes("?") ? route.slice(route.indexOf("?") + 1) : "");
+
 export function matchesRoute(pathname: string, route: string): boolean {
-  return pathname === route || pathname.startsWith(`${route}/`);
+  const path = pathOf(route);
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+// How well an item's query fits the current one: every parameter it names present with the same value (−1 if not; more named = better).
+function queryFit(route: string, search: string): number {
+  const wanted = queryOf(route);
+  const current = new URLSearchParams(search);
+  let fit = 0;
+  for (const [key, value] of wanted) {
+    if (current.get(key) !== value) return -1;
+    fit += 1;
+  }
+  return fit;
 }
 
 export function allItems(module: ModuleNavigation): SecondaryNavItem[] {
@@ -46,12 +67,18 @@ export function isItemPermitted(
 export function matchRoute(
   module: ModuleNavigation,
   pathname: string,
+  search = "",
 ): SecondaryNavItem | undefined {
   let best: SecondaryNavItem | undefined;
+  let bestFit = -2;
   for (const item of allItems(module)) {
     if (item.status !== "AVAILABLE") continue;
     if (!matchesRoute(pathname, item.route)) continue;
-    if (!best || item.route.length > best.route.length) best = item;
+    const fit = queryFit(item.route, search);
+    const length = pathOf(item.route).length;
+    const bestLength = best ? pathOf(best.route).length : -1;
+    // The longest path wins; among items of the same path, the one whose query fits best (an unfitting query only when nothing fits).
+    if (!best || length > bestLength || (length === bestLength && fit > bestFit)) { best = item; bestFit = fit; }
   }
   return best;
 }
@@ -71,19 +98,23 @@ export function owningWorkspace(
 export function activeWorkspaceId(
   module: ModuleNavigation,
   pathname: string,
+  search = "",
 ): string | null {
-  const match = matchRoute(module, pathname);
+  const match = matchRoute(module, pathname, search);
   return match ? owningWorkspace(module, match).id : null;
 }
 
 export function sidebarItems(
   module: ModuleNavigation,
   viewer: NavViewer,
-): Array<{ id: string; label: string; items: SecondaryNavItem[] }> {
+): Array<{ id: string; label: string; icon?: SecondaryNavSectionIcon; collapsible?: boolean; flat?: boolean; items: SecondaryNavItem[] }> {
   return module.sections
     .map((section) => ({
       id: section.id,
       label: section.label,
+      icon: section.icon,
+      collapsible: section.collapsible,
+      flat: section.flat,
       items: section.items.filter(
         (item) =>
           isSidebarItem(item) &&
@@ -125,13 +156,17 @@ export type Crumb = { label: string; href?: string };
 export function breadcrumbTrail(
   module: ModuleNavigation,
   pathname: string,
+  search = "",
 ): Crumb[] {
-  const match = matchRoute(module, pathname);
+  const match = matchRoute(module, pathname, search);
   const root = allItems(module)[0];
   const moduleCrumb: Crumb = { label: module.label, href: root?.route };
   if (!match) return [moduleCrumb];
   const workspace = owningWorkspace(module, match);
   const trail: Crumb[] = [moduleCrumb];
+  // A collapsible section (e.g. Inventory › Stock Operations) is part of the path to its workspaces.
+  const section = module.sections.find((entry) => entry.items.some((item) => item.id === workspace.id));
+  if (section?.collapsible && workspace.id !== root?.id) trail.push({ label: section.label });
   if (workspace.id !== root?.id)
     trail.push({ label: workspace.label, href: workspace.route });
   if (match.id !== workspace.id) {

@@ -13,6 +13,13 @@
 import { decimal, div, formatDecimal, mul, roundMoney } from "../../core/decimal.js";
 
 export const UOM_PURPOSES = Object.freeze(["purchase", "sales", "inventory"]);
+// The conversion engine's errors, as stable codes (each refusal also has a reason and a message for people).
+export const UOM_ERROR_CODES = Object.freeze({
+  item_not_found: "ITEM_NOT_FOUND", unit_not_found: "UOM_NOT_FOUND", no_conversion: "CONVERSION_NOT_DEFINED", unit_inactive: "UOM_INACTIVE",
+  not_enabled: "UOM_NOT_ALLOWED_FOR_ITEM", quantity_invalid: "INVALID_QUANTITY", precision: "FRACTION_NOT_ALLOWED", conversion_loss: "CONVERSION_PRECISION_EXCEEDED",
+  base_precision: "CONVERSION_PRECISION_EXCEEDED", serial_fraction: "SERIAL_QUANTITY_NOT_INTEGER", inexact: "CONVERSION_PRECISION_EXCEEDED",
+  dimension: "UOM_DIMENSION_MISMATCH", factor: "INVALID_CONVERSION_FACTOR", base_change: "BASE_UOM_CHANGE_RESTRICTED", historical: "HISTORICAL_CONVERSION_IMMUTABLE",
+});
 const MEASURES = new Set(["weight", "volume", "length", "area", "time"]);
 const SCALE = 1_000_000n;
 
@@ -141,18 +148,18 @@ const PURPOSE_LABEL = { purchase: "purchasing", sales: "sales", inventory: "inve
 // "unit_not_found" | "unit_inactive" | "no_conversion" | "not_enabled". `allowInactive` keeps a unit an existing document already uses.
 export async function resolveItemUnit(client, organizationId, itemOrId, uomId, { purpose = null, allowInactive = false } = {}) {
   const item = await loadItem(client, organizationId, itemOrId);
-  if (!item) return { ok: false, reason: "item_not_found", message: "The item was not found." };
+  if (!item) return { ok: false, reason: "item_not_found", code: UOM_ERROR_CODES.item_not_found, message: "The item was not found." };
   const wanted = uomId || item.uom_id;
   const units = await itemUnits(client, organizationId, item, { includeInactive: true });
   const unit = units.find((entry) => entry.uomId === wanted);
   if (!unit) {
     const known = (await client.query(`SELECT code FROM tenant.units_of_measure WHERE organization_id = $1 AND id = $2`, [organizationId, wanted])).rows[0];
-    if (!known) return { ok: false, reason: "unit_not_found", message: "The unit of measure was not found.", item };
-    return { ok: false, reason: "no_conversion", message: `${item.name} has no conversion from ${known.code} to its base unit ${item.base_code}.`, item };
+    if (!known) return { ok: false, reason: "unit_not_found", code: UOM_ERROR_CODES.unit_not_found, message: "The unit of measure was not found.", item };
+    return { ok: false, reason: "no_conversion", code: UOM_ERROR_CODES.no_conversion, message: `${item.name} has no conversion from ${known.code} to its base unit ${item.base_code}.`, item };
   }
-  if (!unit.isActive && !allowInactive) return { ok: false, reason: "unit_inactive", message: `${unit.code} is no longer in use for ${item.name}.`, item, unit };
+  if (!unit.isActive && !allowInactive) return { ok: false, reason: "unit_inactive", code: UOM_ERROR_CODES.unit_inactive, message: `${unit.code} is no longer in use for ${item.name}.`, item, unit };
   if (purpose && !unit[PURPOSE_FLAG[purpose]] && !allowInactive)
-    return { ok: false, reason: "not_enabled", message: `${unit.code} is not enabled for ${PURPOSE_LABEL[purpose]} on ${item.name}.`, item, unit };
+    return { ok: false, reason: "not_enabled", code: UOM_ERROR_CODES.not_enabled, message: `${unit.code} is not enabled for ${PURPOSE_LABEL[purpose]} on ${item.name}.`, item, unit };
   return { ok: true, unit, item };
 }
 
@@ -172,18 +179,18 @@ export async function normalizeQuantityToBase(client, organizationId, itemOrId, 
   if (!resolved.ok) return resolved;
   const { unit, item } = resolved;
   let amount;
-  try { amount = decimal(quantity); } catch { return { ok: false, reason: "quantity_invalid", message: "Enter the quantity as a number." }; }
+  try { amount = decimal(quantity); } catch { return { ok: false, reason: "quantity_invalid", code: UOM_ERROR_CODES.quantity_invalid, message: "Enter the quantity as a number." }; }
   if (!fitsPrecision(amount, unit.decimals))
-    return { ok: false, reason: "precision", message: `${unit.code} allows ${unit.decimals} decimal place${unit.decimals === 1 ? "" : "s"}${unit.decimals === 0 ? " (whole numbers only)" : ""}.`, unit };
+    return { ok: false, reason: "precision", code: unit.decimals === 0 ? UOM_ERROR_CODES.precision : "CONVERSION_PRECISION_EXCEEDED", message: `${unit.code} allows ${unit.decimals} decimal place${unit.decimals === 1 ? "" : "s"}${unit.decimals === 0 ? " (whole numbers only)" : ""}.`, unit };
   const factor = factorOf(unit);
   const baseQuantity = toBaseQuantity(amount, factor);
   const exact = exactConversion(amount, factor, decimal(1));
-  if (exact === null || exact !== baseQuantity) return { ok: false, reason: "conversion_loss", message: `${formatDecimal(amount)} ${unit.code} cannot be converted exactly.`, unit };
+  if (exact === null || exact !== baseQuantity) return { ok: false, reason: "conversion_loss", code: UOM_ERROR_CODES.conversion_loss, message: `${formatDecimal(amount)} ${unit.code} cannot be converted exactly.`, unit };
   const baseDecimals = Number(item.base_decimals ?? 6);
   if (!fitsPrecision(baseQuantity, baseDecimals))
-    return { ok: false, reason: "base_precision", message: `${formatDecimal(amount).replace(/\.?0+$/, "")} ${unit.code} is ${formatDecimal(baseQuantity).replace(/\.?0+$/, "")} ${item.base_code}, but ${item.base_code} allows ${baseDecimals} decimal place${baseDecimals === 1 ? "" : "s"}.`, unit };
+    return { ok: false, reason: "base_precision", code: UOM_ERROR_CODES.base_precision, message: `${formatDecimal(amount).replace(/\.?0+$/, "")} ${unit.code} is ${formatDecimal(baseQuantity).replace(/\.?0+$/, "")} ${item.base_code}, but ${item.base_code} allows ${baseDecimals} decimal place${baseDecimals === 1 ? "" : "s"}.`, unit };
   if (item.tracking_type === "serial" && baseQuantity % SCALE !== 0n)
-    return { ok: false, reason: "serial_fraction", message: `${item.name} is serial-numbered: ${formatDecimal(amount).replace(/\.?0+$/, "")} ${unit.code} must be a whole number of ${item.base_code}.`, unit };
+    return { ok: false, reason: "serial_fraction", code: UOM_ERROR_CODES.serial_fraction, message: `${item.name} is serial-numbered: ${formatDecimal(amount).replace(/\.?0+$/, "")} ${unit.code} must be a whole number of ${item.base_code}.`, unit };
   return { ok: true, quantity: amount, baseQuantity, factor, unit, item };
 }
 
@@ -218,7 +225,7 @@ export async function convertBetweenUnits(client, organizationId, itemOrId, quan
   if (!to.ok) return to;
   const converted = exactConversion(from.quantity, from.factor, factorOf(to.unit));
   if (converted === null)
-    return { ok: false, reason: "inexact", message: `${formatDecimal(from.quantity).replace(/\.?0+$/, "")} ${from.unit.code} is not an exact quantity of ${to.unit.code} (1 ${to.unit.code} = ${to.unit.factor} ${from.item.base_code}). Enter it in ${to.unit.code} or in a quantity that converts exactly.` };
+    return { ok: false, reason: "inexact", code: UOM_ERROR_CODES.inexact, message: `${formatDecimal(from.quantity).replace(/\.?0+$/, "")} ${from.unit.code} is not an exact quantity of ${to.unit.code} (1 ${to.unit.code} = ${to.unit.factor} ${from.item.base_code}). Enter it in ${to.unit.code} or in a quantity that converts exactly.` };
   return { ok: true, quantity: converted, baseQuantity: from.baseQuantity, entered: from, target: to.unit };
 }
 
@@ -237,4 +244,101 @@ export async function validateUomDimension(client, unit, base) {
   if (MEASURES.has(unit.category) && !MEASURES.has(base.category))
     return { needsReason: `${unit.code} measures ${unit.category} while ${base.code} is a count: say why this item has a fixed conversion (such as a cut length).` };
   return {};
+}
+
+// ------------------------------------------------------------------ the engine's named operations
+
+const trimmed = (value) => formatDecimal(value).replace(/\.?0+$/, "") || "0";
+
+// normalizeToBase: { transactionQuantity, transactionUomId, transactionUom, conversionToBase, baseQuantity, baseUomId, baseUom } as decimal
+// strings — the snapshot a document line keeps — or the refusal ({ ok: false, code, reason, message }).
+export async function normalizeToBase(client, organizationId, itemOrId, quantity, uomId, options = {}) {
+  const result = await normalizeQuantityToBase(client, organizationId, itemOrId, uomId, quantity, options);
+  if (!result.ok) return result;
+  return { ok: true, ...snapshotOf(result) };
+}
+export const getConversionSnapshot = normalizeToBase;
+function snapshotOf(result) {
+  return {
+    transactionQuantity: trimmed(result.quantity), transactionUomId: result.unit.uomId, transactionUom: result.unit.code, conversionToBase: result.unit.factor,
+    baseQuantity: trimmed(result.baseQuantity), baseUomId: result.item.uom_id, baseUom: result.item.base_code, source: result.unit.source,
+  };
+}
+
+// convertFromBase: a base quantity expressed in a unit. exact is false when it does not divide evenly (1 PCS is 0.333333 BOX of 3): that
+// value is for display only — the base quantity stays the authoritative one.
+export async function convertFromBase(client, organizationId, itemOrId, baseQuantity, uomId) {
+  const converted = await convertBaseToUom(client, organizationId, itemOrId, uomId, baseQuantity);
+  if (!converted) return { ok: false, reason: "no_conversion", code: UOM_ERROR_CODES.no_conversion, message: "The item has no conversion to that unit." };
+  return { ok: true, quantity: trimmed(converted.quantity), exact: converted.exact, uom: converted.unit.code, conversionToBase: converted.unit.factor };
+}
+
+// convertBetweenUoms: source quantity × source factor ÷ target factor, always through the base (5 CARTON of 200 = 1000 PCS = 50 BOX of 20).
+// { exact: true } refuses a result that is not exact; otherwise an inexact result is returned for display with exact: false.
+export async function convertBetweenUoms(client, organizationId, itemOrId, quantity, fromUomId, toUomId, { exact = false, purpose = null } = {}) {
+  if (exact) {
+    const result = await convertBetweenUnits(client, organizationId, itemOrId, quantity, fromUomId, toUomId, { purpose });
+    if (!result.ok) return result;
+    return { ok: true, quantity: trimmed(result.quantity), exact: true, baseQuantity: trimmed(result.baseQuantity), from: result.entered.unit.code, to: result.target.code };
+  }
+  const from = await normalizeQuantityToBase(client, organizationId, itemOrId, fromUomId, quantity, { purpose, allowInactive: true });
+  if (!from.ok) return from;
+  const to = await resolveItemUnit(client, organizationId, from.item, toUomId, { allowInactive: true });
+  if (!to.ok) return to;
+  const exactValue = exactConversion(from.quantity, from.factor, factorOf(to.unit));
+  return { ok: true, quantity: trimmed(exactValue ?? div(from.baseQuantity, factorOf(to.unit))), exact: exactValue !== null, baseQuantity: trimmed(from.baseQuantity), from: from.unit.code, to: to.unit.code };
+}
+export const convertQuantity = convertBetweenUoms;
+
+// normalizeUnitPrice: a price per unit as the price of one base unit (₹1,000 / BOX of 20 = ₹50 / PCS).
+export async function normalizeUnitPrice(client, organizationId, itemOrId, unitPrice, uomId) {
+  const price = await normalizeUnitPriceToBase(client, organizationId, itemOrId, uomId, unitPrice);
+  return price === null ? { ok: false, reason: "no_conversion", code: UOM_ERROR_CODES.no_conversion, message: "The item has no conversion to that unit." } : { ok: true, baseUnitPrice: trimmed(price) };
+}
+
+// convertUnitPrice: a price per one unit as a price per another (₹50 / PCS = ₹1,000 / BOX of 20): base price × target factor.
+export async function convertUnitPrice(client, organizationId, itemOrId, unitPrice, fromUomId, toUomId) {
+  const from = await resolveItemUnit(client, organizationId, itemOrId, fromUomId, { allowInactive: true });
+  if (!from.ok) return from;
+  const to = await resolveItemUnit(client, organizationId, from.item, toUomId, { allowInactive: true });
+  if (!to.ok) return to;
+  const basePrice = baseUnitPrice(unitPrice, factorOf(from.unit));
+  return { ok: true, unitPrice: trimmed(mul(basePrice, factorOf(to.unit))), baseUnitPrice: trimmed(basePrice), from: from.unit.code, to: to.unit.code };
+}
+
+// Whether two representations of a line are worth the same: quantity × price in one unit against the other, within the money rounding
+// of the currency (10 BOX × ₹1,000 = 200 PCS × ₹50 = ₹10,000).
+export function amountsEquivalent(leftQuantity, leftPrice, rightQuantity, rightPrice, places = 2) {
+  const left = roundMoney(mul(leftQuantity, leftPrice), places);
+  const right = roundMoney(mul(rightQuantity, rightPrice), places);
+  const tolerance = 10n ** BigInt(6 - places);
+  const difference = left > right ? left - right : right - left;
+  return { equivalent: difference <= tolerance, left: formatDecimal(left, places), right: formatDecimal(right, places), difference: formatDecimal(difference, places) };
+}
+
+// validateQuantityPrecision / validateSerialConversion: the checks normalizeQuantityToBase applies, on their own.
+export async function validateQuantityPrecision(client, organizationId, itemOrId, quantity, uomId) {
+  const result = await normalizeQuantityToBase(client, organizationId, itemOrId, uomId, quantity, { allowInactive: true });
+  return result.ok ? { ok: true } : result;
+}
+export async function validateSerialConversion(client, organizationId, itemOrId, factor) {
+  const item = await loadItem(client, organizationId, itemOrId);
+  if (!item || item.tracking_type !== "serial") return { ok: true };
+  return decimalsUsed(decimal(String(factor))) === 0 ? { ok: true }
+    : { ok: false, reason: "serial_fraction", code: UOM_ERROR_CODES.serial_fraction, message: "A serial-numbered item converts in whole units." };
+}
+export const resolveItemConversion = resolveItemUnit;
+
+// A display of a base quantity in the item's packaging: whole packages of the largest unit that fits, and the rest in the base
+// (53 PCS with BOX of 20 = 2 BOX + 13 PCS). Presentation only: stock stays in the base unit.
+export async function describeInPackages(client, organizationId, itemOrId, baseQuantity) {
+  const units = (await itemUnits(client, organizationId, itemOrId)).filter((unit) => unit.isActive && !unit.isBase && unit.source === "item" && decimal(unit.factor) > decimal(1));
+  const amount = decimal(baseQuantity);
+  const baseUnit = (await itemUnits(client, organizationId, itemOrId)).find((unit) => unit.isBase);
+  if (!units.length || amount <= 0n || !baseUnit) return null;
+  const largest = units.sort((left, right) => (decimal(right.factor) > decimal(left.factor) ? 1 : -1)).find((unit) => amount >= decimal(unit.factor));
+  if (!largest) return null;
+  const whole = amount / decimal(largest.factor);
+  const rest = amount - whole * decimal(largest.factor);
+  return { text: `${whole} ${largest.code}${rest > 0n ? ` + ${trimmed(rest)} ${baseUnit.code}` : ""}`, approximately: `≈ ${trimmed(div(amount, decimal(largest.factor)))} ${largest.code}` };
 }

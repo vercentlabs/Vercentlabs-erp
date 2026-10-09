@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -24,7 +25,7 @@ import {
   money,
   statusLabel,
 } from "@/features/sales/shared/format";
-import { SalesPanel } from "@/features/sales/shared/SalesUi";
+import { Panel } from "@/shared/ui/Panel";
 
 type ReportRow = Record<string, unknown> & { _row: number };
 
@@ -67,6 +68,8 @@ const LINKS: Record<string, { idKey: string; href: (id: string) => string }> = {
     href: (id) => `/sales/orders/${id}`,
   },
   quotation_number: { idKey: "id", href: (id) => `/sales/quotations/${id}` },
+  customer: { idKey: "customer_id", href: (id) => `/sales/customers/${id}` },
+  product: { idKey: "item_id", href: (id) => `/sales/products/${id}` },
 };
 
 function ReportTable({ reportKey }: { reportKey: string }) {
@@ -150,6 +153,7 @@ function ReportTable({ reportKey }: { reportKey: string }) {
 }
 
 export type ReportSpec = { key: string; label: string; description: string };
+// ?report=<key> selects the report (the sidebar links straight to one), and switching tabs keeps it in the URL.
 export function SalesReportScreen({
   title,
   description,
@@ -159,10 +163,14 @@ export function SalesReportScreen({
   description: string;
   reports: ReportSpec[];
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const selected = reports.find((report) => report.key === params.get("report"))?.key ?? reports[0]?.key;
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={title} description={description} />
-      <Tabs>
+      <Tabs selectedKey={selected} onSelectionChange={(key) => router.replace(`${pathname}?report=${String(key)}`, { scroll: false })}>
         <TabList aria-label={`${title} reports`}>
           {reports.map((report) => (
             <Tab key={report.key} id={report.key}>
@@ -176,9 +184,9 @@ export function SalesReportScreen({
             id={report.key}
             className="flex flex-col gap-3"
           >
-            <SalesPanel title={report.label} description={report.description}>
+            <Panel title={report.label} description={report.description}>
               <ReportTable reportKey={report.key} />
-            </SalesPanel>
+            </Panel>
           </TabPanel>
         ))}
       </Tabs>
@@ -187,6 +195,21 @@ export function SalesReportScreen({
 }
 
 export const SALES_REPORTS: ReportSpec[] = [
+  {
+    key: "sales-by-period",
+    label: "Sales by period",
+    description: "Posted invoices less credit notes, by month: invoices, credit notes, net sales before tax, tax and total, per currency.",
+  },
+  {
+    key: "sales-by-customer",
+    label: "Sales by customer",
+    description: "Net sales per customer from posted invoices less credit notes, with what is still outstanding and the last invoice date.",
+  },
+  {
+    key: "sales-by-item",
+    label: "Sales by item",
+    description: "Quantities and net sales per product from posted invoice lines less credit-note lines.",
+  },
   {
     key: "order-status",
     label: "Order status",
@@ -224,3 +247,8 @@ export const SALES_REPORTS: ReportSpec[] = [
     description: "Sent quotations about to lapse.",
   },
 ];
+
+// Sales › Planning & Control › Order Fulfillment: what is left to deliver and invoice.
+export const FULFILLMENT_REPORTS: ReportSpec[] = SALES_REPORTS.filter((report) => ["fulfillment", "remaining-by-product", "billing-readiness", "delivery-performance"].includes(report.key));
+// Sales › Inquiries › Order Status.
+export const ORDER_STATUS_REPORTS: ReportSpec[] = SALES_REPORTS.filter((report) => report.key === "order-status");

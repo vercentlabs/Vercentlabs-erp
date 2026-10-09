@@ -8,11 +8,11 @@ import { useMutation } from "@tanstack/react-query";
 import { Button, Checkbox, Dialog, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { useSubmitKey } from "@/shared/http/submit-once";
-import { ProcAlert } from "@/features/procurement/shared/ProcUi";
 
 import {
   addBankAccount, changeSupplierStatus, errorMessage, fieldIssuesOf, updateBankAccount, type BankAccount, type Supplier, type SupplierOptions,
 } from "../api/suppliers-api";
+import { Notice } from "@/shared/ui/Panel";
 
 function Actions({ onCancel, onConfirm, label, busy, disabled, danger }: { onCancel: () => void; onConfirm: () => void; label: string; busy: boolean; disabled?: boolean; danger?: boolean }) {
   return (
@@ -46,7 +46,7 @@ export function StatusDialog({ supplier, action, onClose, onDone }: { supplier: 
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={`${text.title}: ${supplier.supplierNumber}`} description={text.description}>
       <div className="flex flex-col gap-3">
-        {change.error && <ProcAlert>{errorMessage(change.error)}</ProcAlert>}
+        {change.error && <Notice>{errorMessage(change.error)}</Notice>}
         <TextArea label={text.reason === "required" ? "Reason" : "Reason (optional)"} isRequired={text.reason === "required"} value={reason} onChange={setReason}
           description={action === "block" ? "For example: quality dispute, fraud concern, contract issue, management hold." : undefined} />
         {action === "unblock" && <Checkbox isSelected={stayInactive} onChange={setStayInactive}>Leave it inactive (not for new business)</Checkbox>}
@@ -81,7 +81,7 @@ export function BankAccountDialog({ supplier, account, options, onClose, onDone 
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={account ? "Change bank account" : "Add bank account"}
       description="Where this supplier is paid. Check the details against the supplier's own written confirmation before saving.">
       <div className="flex flex-col gap-3">
-        {save.error && <ProcAlert>{errorMessage(save.error)}</ProcAlert>}
+        {save.error && <Notice>{errorMessage(save.error)}</Notice>}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {field("accountHolder", "Account holder", { isRequired: true })}
           {field("bankName", "Bank", { isRequired: true })}

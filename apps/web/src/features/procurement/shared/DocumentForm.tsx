@@ -10,8 +10,8 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { ProcApiError } from "@/features/procurement/shared/http";
 import { createRecord, getOptions, getRecord, updateRecord, type ProcOptions, type ProcRecord } from "@/features/procurement/shared/api";
 import { FieldInput, type FieldDef, type FieldValue } from "@/features/procurement/shared/FieldInput";
-import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { useSubmitKey } from "@/shared/http/submit-once";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 // A simple Procurement configuration record (a supplier category, a policy):
 // a few fields, created or edited as a whole. The server validates every field.
@@ -60,8 +60,8 @@ function FormBody({ config, id, existing, options }: { config: FormConfig; id?: 
       <PageHeader title={id ? `Edit ${config.noun}` : `New ${config.noun}`}
         secondaryActions={<Button variant="secondary" onPress={() => router.push(config.backHref)}>Cancel</Button>}
         primaryAction={<Button variant="primary" onPress={() => save.mutate()} isLoading={save.isPending || save.isSuccess}>{id ? "Save changes" : `Save ${config.noun}`}</Button>} />
-      {error && <ProcAlert>{error}</ProcAlert>}
-      <ProcPanel title="Details">
+      {error && <Notice>{error}</Notice>}
+      <Panel title="Details">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {config.fields.map((field) => (
             <div key={field.name} className={field.wide || field.kind === "textarea" ? "sm:col-span-2" : undefined}>
@@ -69,7 +69,7 @@ function FormBody({ config, id, existing, options }: { config: FormConfig; id?: 
             </div>
           ))}
         </div>
-      </ProcPanel>
+      </Panel>
     </div>
   );
 }

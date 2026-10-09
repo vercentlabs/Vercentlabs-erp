@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Download, Eye, Pencil, Plus } from "lucide-react";
+import { Download, Eye, Pencil, Plus } from "lucide-react";
 import {
   Button, Checkbox, CheckboxGroup, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, RecordDetailsPage, SearchField, Select, StatusBadge, Tab, TabList,
   TabPanel, Tabs, TextArea, TextField, buttonVariants,
@@ -20,7 +20,6 @@ import {
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcFacts, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, dateTime, quantity, statusLabel, statusTone } from "@/features/procurement/shared/format";
 
 import {
@@ -31,6 +30,7 @@ import { ReceiptRejectionDialog, ReceivingIssuesGrid, RejectionTable } from "./R
 import { useListState, useTabParam } from "@/features/procurement/shared/navigation";
 import { REJECTION_REASON_OPTIONS } from "../api/purchase-orders-api";
 import { getReceiptBilling } from "@/features/procurement/supplier-bills/api/supplier-bills-api";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 const ANY = "any";
 const RECEIPT_TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = { draft: "neutral", posted: "success", cancelled: "neutral", reversed: "danger" };
@@ -129,10 +129,9 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
   const { receipt, lines, actions } = detail;
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/goods-receipts" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />All goods receipts</Link>
-      {notice && <ProcAlert tone="success">{notice}</ProcAlert>}
-      {cancel.error && <ProcAlert>{errorMessage(cancel.error)}</ProcAlert>}
-      {receipt.status === "reversed" && <ProcAlert tone="warning">Reversed {dateTime(receipt.reversedAt)}{receipt.reversedByName ? ` by ${receipt.reversedByName}` : ""}: {receipt.reversalReason}. Its stock was taken back out; it no longer counts as received.</ProcAlert>}
+      {notice && <Notice tone="success">{notice}</Notice>}
+      {cancel.error && <Notice>{errorMessage(cancel.error)}</Notice>}
+      {receipt.status === "reversed" && <Notice tone="warning">Reversed {dateTime(receipt.reversedAt)}{receipt.reversedByName ? ` by ${receipt.reversedByName}` : ""}: {receipt.reversalReason}. Its stock was taken back out; it no longer counts as received.</Notice>}
       <RecordDetailsPage header={{
         title: receipt.receiptNumber,
         status: <ReceiptStatus status={receipt.status} />,
@@ -171,8 +170,8 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
           </TabList>
           <TabPanel id="overview">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Receipt">
-                <ProcFacts columns={3} items={[
+              <Panel title="Receipt">
+                <Facts columns={3} items={[
                   { label: "Supplier challan", value: [receipt.supplierChallanNumber, receipt.supplierChallanDate && calendarDate(receipt.supplierChallanDate)].filter(Boolean).join(" · ") || "—" },
                   { label: "Goods arrived", value: receipt.physicalReceivedAt ? dateTime(receipt.physicalReceivedAt) : "—" },
                   { label: "Transport", value: [receipt.vehicleNumber && `Vehicle ${receipt.vehicleNumber}`, receipt.carrierName, receipt.trackingReference && `Ref ${receipt.trackingReference}`].filter(Boolean).join(" · ") || "—" },
@@ -182,8 +181,8 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                   { label: "Posted", value: receipt.postedAt ? `${dateTime(receipt.postedAt)}${receipt.postedByName ? ` by ${receipt.postedByName}` : ""}` : "Not posted" },
                   ...(receipt.accrual ? [{ label: "GRNI accrual", value: `${receipt.accrual.entryNumber} · ${receipt.currencyCode ?? ""} ${receipt.accrual.amount}${receipt.accrual.reversalEntryNumber ? ` (reversed by ${receipt.accrual.reversalEntryNumber})` : ""}` }] : []),
                 ]} />
-              </ProcPanel>
-              <ProcPanel title="Received">
+              </Panel>
+              <Panel title="Received">
                 <ul className="flex flex-col divide-y divide-border text-sm">
                   {lines.map((line) => (
                     <li key={line.id} className="flex flex-wrap justify-between gap-2 py-2">
@@ -192,9 +191,9 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                     </li>
                   ))}
                 </ul>
-              </ProcPanel>
+              </Panel>
               {detail.discrepancies.length > 0 && (
-                <ProcPanel title="Discrepancies">
+                <Panel title="Discrepancies">
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.discrepancies.map((entry) => (
                       <li key={entry.id} className="py-2"><span className="font-medium">{entry.label}</span>{entry.lineNumber ? ` · line ${entry.lineNumber}` : ""}{entry.quantity ? ` · ${quantity(entry.quantity)}` : ""} — {entry.notes}
@@ -203,13 +202,13 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                         <span className="block text-xs text-text-muted">{dateTime(entry.at)}{entry.by ? ` by ${entry.by}` : ""}</span></li>
                     ))}
                   </ul>
-                </ProcPanel>
+                </Panel>
               )}
             </div>
           </TabPanel>
           <TabPanel id="items">
             <div className="pt-4">
-              <ProcPanel title="Items and disposition" description="Accepted goods are usable stock; held (inspection or damaged) goods sit in the quality location until released or returned; refused goods were not taken in.">
+              <Panel title="Items and disposition" description="Accepted goods are usable stock; held (inspection or damaged) goods sit in the quality location until released or returned; refused goods were not taken in.">
                 <ul className="flex flex-col divide-y divide-border text-sm">
                   {lines.map((line) => (
                     <li key={line.id} className="flex flex-col gap-1 py-3">
@@ -231,16 +230,16 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                     </li>
                   ))}
                 </ul>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="rejections">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Rejections" description="Refused at the dock: never received, still owed on the order. Rejected after receipt: received here, then blocked until returned, disposed of or accepted back."
+              <Panel title="Rejections" description="Refused at the dock: never received, still owed on the order. Rejected after receipt: received here, then blocked until returned, disposed of or accepted back."
                 actions={actions.recordRejection || actions.recordQualityRejection ? <Button size="compact" variant="secondary" onPress={() => setDialog("rejection")}>Record rejection</Button> : undefined}>
                 <RejectionTable rows={detail.rejections} empty="Nothing was refused or rejected on this receipt." />
-              </ProcPanel>
-              <ProcPanel title="Discrepancies" description="What the supplier is told about that is not rejected goods: a shortage that never arrived, a wrong item described, an excess."
+              </Panel>
+              <Panel title="Discrepancies" description="What the supplier is told about that is not rejected goods: a shortage that never arrived, a wrong item described, an excess."
                 actions={actions.recordDiscrepancy ? <Button size="compact" variant="ghost" onPress={() => setDialog("discrepancy")}>Record discrepancy</Button> : undefined}>
                 {!detail.discrepancies.length ? <p className="text-sm text-text-muted">No discrepancies.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
@@ -250,36 +249,40 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                     ))}
                   </ul>
                 )}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="movements">
             <div className="pt-4">
-              <ProcPanel title="Inventory movements" description="Posted by Inventory for this receipt: the receipt itself, releases from hold, returns and any reversal.">
+              <Panel title="Inventory movements" description="Posted by Inventory for this receipt: the receipt itself, releases from hold, returns and any reversal. Each is a Stock Ledger entry, effective on the receipt date.">
+                {receipt.status !== "draft" && <div className="flex flex-wrap gap-3 text-sm">
+                  <Link className="text-brand hover:underline" href={`/inventory/transactions?tab=ledger&sourceId=${receipt.id}`}>View in Stock Ledger</Link>
+                  {[...new Set(detail.movements.map((movement) => movement.itemId))].map((itemId) => <Link key={itemId} className="text-brand hover:underline" href={`/inventory/stock/items/${itemId}`}>Current stock{new Set(detail.movements.map((movement) => movement.itemId)).size > 1 ? ` (${detail.lines.find((line) => line.productId === itemId)?.description ?? "item"})` : ""}</Link>)}
+                </div>}
                 {detail.reconciliation && (
-                  <ProcAlert tone={detail.reconciliation.matched ? "success" : "warning"}>
+                  <Notice tone={detail.reconciliation.matched ? "success" : "warning"}>
                     {detail.reconciliation.matched ? "Inventory reconciles with this receipt: every line's stock movements match what it received."
                       : `Inventory does not match: ${detail.reconciliation.lines.filter((line) => !line.matched).map((line) => `line ${line.lineNumber} expected ${quantity(line.expectedBaseQuantity)}, posted ${quantity(line.postedBaseQuantity)}`).join("; ")}.`}
-                  </ProcAlert>
+                  </Notice>
                 )}
                 {!detail.movements.length ? <p className="text-sm text-text-muted">{receipt.status === "draft" ? "A draft moves no stock." : "No stock movements (non-stock goods)."}</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.movements.map((movement) => (
                       <li key={movement.id} className="flex flex-wrap justify-between gap-2 py-2">
-                        <span><span className="font-medium tabular-nums">{movement.number}</span> · {statusLabel(movement.type)} · {movement.warehouseName}{movement.locationCode ? ` / ${movement.locationCode}` : ""}
+                        <span><Link className="font-medium tabular-nums text-brand hover:underline" href={`/inventory/stock-ledger/${movement.id}`}>{movement.number}</Link> · {movement.type} · {movement.warehouseName}{movement.locationCode ? ` / ${movement.locationCode}` : ""}
                           <span className="block text-xs text-text-muted">{movement.reason}</span></span>
                         <span className="tabular-nums">{quantity(movement.quantity)}{movement.unitCost !== null ? ` @ ${movement.unitCost}` : ""} · {dateTime(movement.at)}</span>
                       </li>
                     ))}
                   </ul>
                 )}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="billing"><div className="pt-4"><ReceiptBillMatching receiptId={receipt.id} /></div></TabPanel>
           <TabPanel id="returns">
             <div className="pt-4">
-              <ProcPanel title="Related documents">
+              <Panel title="Related documents">
                 <ul className="flex flex-col gap-2 text-sm">
                   <li>Purchase order <Link className="text-brand hover:underline" href={`/procurement/purchase-orders/${receipt.purchaseOrderId}`}>{receipt.purchaseOrderNumber}</Link> ({statusLabel(receipt.orderStatus)})</li>
                   {detail.returns.map((entry) => (
@@ -288,13 +291,13 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                   ))}
                   {[...new Map(detail.billMatching.map((entry) => [entry.billId, entry])).values()].map((entry) => <li key={entry.billId}>Supplier bill {entry.billNumber} ({statusLabel(entry.status)})</li>)}
                 </ul>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="notes"><div className="flex flex-col gap-4 pt-4"><ReceiptNotes detail={detail} /></div></TabPanel>
           <TabPanel id="history">
             <div className="pt-4">
-              <ProcPanel title="History">
+              <Panel title="History">
                 <ol className="flex flex-col divide-y divide-border text-sm">
                   {detail.history.map((entry) => (
                     <li key={entry.id} className="grid grid-cols-1 gap-x-3 gap-y-0.5 py-2 sm:grid-cols-[11rem_minmax(0,1fr)]">
@@ -302,7 +305,7 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                     </li>
                   ))}
                 </ol>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
         </Tabs>
@@ -327,15 +330,15 @@ function ReceiptNotes({ detail }: { detail: GoodsReceiptDetail }) {
   const remove = useMutation({ mutationFn: (fileId: string) => removeReceiptFile(detail.receipt.id, fileId), onSuccess: refresh });
   return (
     <>
-      <ProcPanel title="Receiving notes"><p className="whitespace-pre-line text-sm">{detail.receipt.notes ?? <span className="text-text-muted">None</span>}</p></ProcPanel>
-      <ProcPanel title="Attachments" description="The supplier's challan, packing slips, photos of damaged goods."
+      <Panel title="Receiving notes"><p className="whitespace-pre-line text-sm">{detail.receipt.notes ?? <span className="text-text-muted">None</span>}</p></Panel>
+      <Panel title="Attachments" description="The supplier's challan, packing slips, photos of damaged goods."
         actions={detail.actions.attach ? (
           <>
             <input ref={input} type="file" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
             <Button size="compact" variant="secondary" isLoading={upload.isPending} onPress={() => input.current?.click()}>Add file</Button>
           </>
         ) : undefined}>
-        {(upload.error || remove.error) && <ProcAlert>{errorMessage(upload.error ?? remove.error)}</ProcAlert>}
+        {(upload.error || remove.error) && <Notice>{errorMessage(upload.error ?? remove.error)}</Notice>}
         {!files.data?.length ? <p className="text-sm text-text-muted">No files.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {files.data.map((file) => (
@@ -347,7 +350,7 @@ function ReceiptNotes({ detail }: { detail: GoodsReceiptDetail }) {
             ))}
           </ul>
         )}
-      </ProcPanel>
+      </Panel>
     </>
   );
 }
@@ -359,7 +362,7 @@ function Shell({ title, description, error, onClose, label, isLoading, isDisable
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={title} description={description} size="lg">
       <div className="flex flex-col gap-3">
-        {Boolean(error) && <ProcAlert>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>}
+        {Boolean(error) && <Notice>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
         {children}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>
@@ -383,7 +386,7 @@ function PostDialog({ detail, onClose, onDone }: { detail: GoodsReceiptDetail; o
             <span className="tabular-nums">{quantity(line.receivedQuantity)} {line.uom.code}{Number(line.heldQuantity) > 0 ? ` (${quantity(line.heldQuantity)} held)` : ""}{Number(line.refusedQuantity) > 0 ? ` · ${quantity(line.refusedQuantity)} refused` : ""}</span></li>
         ))}
       </ul>
-      {validation.data && !validation.data.ready && <ProcAlert tone="warning"><ul className="list-disc pl-5">{validation.data.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul></ProcAlert>}
+      {validation.data && !validation.data.ready && <Notice tone="warning"><ul className="list-disc pl-5">{validation.data.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul></Notice>}
     </Shell>
   );
 }
@@ -445,10 +448,10 @@ function ReceiptBillMatching({ receiptId }: { receiptId: string }) {
   const workspace = useWorkspaceContext();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "receipt-billing", receiptId), queryFn: () => getReceiptBilling(receiptId) });
   if (query.isLoading) return <LoadingState label="Loading bill matching" />;
-  if (!query.data) return <ProcAlert>{query.error instanceof Error ? query.error.message : "Could not load bill matching."}</ProcAlert>;
+  if (!query.data) return <Notice>{query.error instanceof Error ? query.error.message : "Could not load bill matching."}</Notice>;
   const billing = query.data;
   return (
-    <ProcPanel title="Supplier bill matching" description={billing.note ?? `${billing.matchingPolicy.label}: each bill draws on the receipt lines it bills, so received goods are never billed twice. Eligible follows the order's policy.`}
+    <Panel title="Supplier bill matching" description={billing.note ?? `${billing.matchingPolicy.label}: each bill draws on the receipt lines it bills, so received goods are never billed twice. Eligible follows the order's policy.`}
       actions={billing.canBill ? <Link className="text-sm font-medium text-brand hover:underline" href={`/procurement/supplier-bills/new?source=grn&goodsReceiptIds=${billing.receipt.id}`}>Create Supplier Bill</Link> : undefined}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -480,6 +483,6 @@ function ReceiptBillMatching({ receiptId }: { receiptId: string }) {
           ))}
         </ul>
       )}
-    </ProcPanel>
+    </Panel>
   );
 }

@@ -24,7 +24,8 @@
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, decimal, div, formatDecimal, mul, roundMoney, sub } from "../../../core/decimal.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
-import { StockError, completeStockTransfer, createStockTransfer, postStockMovement, receiveSerializedStock } from "../../stock/index.js";
+import { StockError, moveStockWithinWarehouse, postStockMovement, reverseStockMovements, receiveSerializedStock } from "../../stock/index.js";
+import { defaultLocationOf, validateWarehouseOperation } from "../../stock/warehouses.js";
 import { QualityError } from "../../quality/common.js";
 import { cancelInspection, createInspection } from "../../quality/inspections.js";
 import { loadPurchaseOrder, requirePoAccess, requirePoPermission } from "./access.js";
@@ -35,6 +36,9 @@ import { recordPoEvent } from "./persist.js";
 import { REJECTION_REASONS, openRejectionCase } from "./rejection-core.js";
 import { loadLineProgress } from "./progress.js";
 import { convertBetweenUnits, factorOf, resolveItemUnit } from "../../products/uom.js";
+import { carryNegativeStock } from "../../stock/negative-stock-control.js";
+import { getExchangeRate } from "../../accounting/index.js";
+import { registerHeldStock } from "../../stock/quality-holds.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -58,7 +62,7 @@ async function stocked(work, label = "") {
   try {
     return await work();
   } catch (error) {
-    if (error instanceof StockError) throw new PurchaseOrderError(error.status, `${label}${error.message}`, error.code);
+    if (error instanceof StockError) throw carryNegativeStock(error, new PurchaseOrderError(error.status, `${label}${error.message}`, error.code));
     throw error;
   }
 }
@@ -78,16 +82,16 @@ function readQuantity(value, label) {
   return decimal(raw);
 }
 
-// Who may receive into a warehouse: anyone allowed to receive, unless the warehouse names its receivers.
-export async function assertWarehouseAccess(client, context, warehouseId, label) {
-  if (!warehouseId || context.roleSlugs?.some((slug) => ["organization_owner", "system_administrator"].includes(slug))) return;
-  const { rows } = await client.query(`SELECT user_id FROM tenant.warehouse_receiving_users WHERE organization_id = $1 AND warehouse_id = $2`, [context.organizationId, warehouseId]);
-  if (rows.length && !rows.some((row) => row.user_id === context.userId))
-    throw new PurchaseOrderError(403, `${label}: you may not receive goods into this warehouse.`, "GOODS_RECEIPT_WAREHOUSE_FORBIDDEN");
+// Warehouses decides: the warehouse allows the operation (receiving, returns) and the user may do it there. capability: false checks only
+// the user (goods already in custody are handled where they are). Whether the warehouse is active is checked by the caller.
+export async function assertWarehouseOperation(client, context, warehouseId, operation, label, { capability = true } = {}) {
+  if (!warehouseId) return;
+  await validateWarehouseOperation(client, context, warehouseId, operation, { label, allowInactive: true, skipCapability: !capability });
 }
 
 export async function qualityLocation(client, organizationId, warehouseId) {
-  return (await client.query(`SELECT id FROM tenant.warehouse_locations WHERE organization_id = $1 AND warehouse_id = $2 AND location_type = 'quality' AND status = 'active' ORDER BY code LIMIT 1`,
+  return (await client.query(`SELECT id FROM tenant.warehouse_locations WHERE organization_id = $1 AND warehouse_id = $2 AND status = 'active' AND allow_stock
+      AND (disposition = 'quality_hold' OR location_type = 'quality') ORDER BY (disposition = 'quality_hold') DESC, code LIMIT 1`,
     [organizationId, warehouseId])).rows[0]?.id ?? null;
 }
 
@@ -115,13 +119,15 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
       .map((line) => ({ purchaseOrderLineId: line.lineId, acceptedQuantity: formatDecimal(line.remainingToReceive) }));
   if (!requested.length) throw new PurchaseOrderError(409, "Nothing is left to receive on this order.", "GOODS_RECEIPT_NOTHING_TO_RECEIVE");
   const result = [];
-  const seen = new Set();
-  for (const entry of requested) {
+  const seen = new Map();
+  const taken = new Map();
+  for (const entry of splitIntoLots(requested, lines)) {
     const line = lines.get(requireUuid(entry.purchaseOrderLineId, "Order line"));
     if (!line) throw new PurchaseOrderError(404, "That line is not on this order.", "PURCHASE_ORDER_LINE_NOT_FOUND");
-    if (seen.has(line.id)) fail(`Line ${line.line_number} is entered twice.`, "purchaseOrderLineId");
-    seen.add(line.id);
-    const label = `Line ${line.line_number}`;
+    // One entry per order line, except the lots of one line.
+    if (seen.has(line.id) && (!entry.lotGroup || seen.get(line.id) !== entry.lotGroup)) fail(`Line ${line.line_number} is entered twice.`, "purchaseOrderLineId");
+    seen.set(line.id, entry.lotGroup ?? Symbol("line"));
+    const label = entry.lotGroup ? `Line ${line.line_number} (lot ${entry.batchNumber})` : `Line ${line.line_number}`;
     // No substitution: a line receives the product it ordered, or the order is amended first.
     if (entry.productId && entry.productId !== line.product_id)
       fail(`${label}: only ${line.description} can be received against this line. Amend the order to receive another product.`, "productId", "GOODS_RECEIPT_PRODUCT_MISMATCH", 409);
@@ -164,6 +170,8 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
     }
     const received = add(accepted, inspection, damaged);
     if (inspection + damaged > 0n && line.product_type !== "stock") fail(`${label}: only stock items can be held.`, "heldQuantity");
+    // Taking goods into custody on hold or damaged (restricted stock) is its own permission.
+    if (inspection + damaged > 0n) requirePoPermission(context, PO_PERMISSIONS.acceptRestricted, `${label}: you do not have permission to take goods in on hold or damaged.`);
     if (inspection + damaged > 0n && line.tracking_type === "serial") fail(`${label}: serial-numbered items are accepted or refused at receipt; hold them through Quality.`, "heldQuantity");
     const refusalText = text(entry.refusalReason ?? entry.rejectionReason, 500);
     let refusalCode = text(entry.refusalReasonCode, 40) ?? (refusalText ? "other" : null);
@@ -178,12 +186,15 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
       fail(`${label}: of the ${formatDecimal(presented)} presented, ${formatDecimal(received)} taken in and ${formatDecimal(refused)} refused do not add up. Record a shortage as a discrepancy.`,
         "presentedQuantity", "GOODS_RECEIPT_PRESENTED_MISMATCH");
     if (received > 0n && !warehouseId) fail("Choose the receiving warehouse.", "warehouseId", "GOODS_RECEIPT_WAREHOUSE_REQUIRED");
-    const locationId = optionalUuid(entry.warehouseLocationId, "Location");
+    // No location chosen: the warehouse's default receiving location, else MAIN. MAIN is the ledger's "no location".
+    let locationId = optionalUuid(entry.warehouseLocationId, "Location") ?? (warehouseId ? await defaultLocationOf(client, organizationId, warehouseId, "receiving") : null);
     if (locationId) {
-      const location = (await client.query(`SELECT location_type FROM tenant.warehouse_locations WHERE organization_id = $1 AND id = $2 AND warehouse_id = $3 AND status = 'active'`,
+      const location = (await client.query(`SELECT location_type, disposition, allow_stock, is_default_storage FROM tenant.warehouse_locations WHERE organization_id = $1 AND id = $2 AND warehouse_id = $3 AND status = 'active'`,
         [organizationId, locationId, warehouseId])).rows[0];
       if (!location) fail(`${label}: the location is not in the receiving warehouse.`, "warehouseLocationId", "GOODS_RECEIPT_LOCATION_INVALID", 409);
-      if (location.location_type === "quality") fail(`${label}: accepted goods cannot go into a quality location; enter them as on hold instead.`, "warehouseLocationId");
+      if (location.location_type === "quality" || location.disposition !== "available") fail(`${label}: accepted goods cannot go into a location for held stock; enter them as on hold instead.`, "warehouseLocationId");
+      if (!location.allow_stock) fail(`${label}: the location does not hold stock; choose a bin inside it.`, "warehouseLocationId", "GOODS_RECEIPT_LOCATION_INVALID", 409);
+      if (location.is_default_storage) locationId = null;
     }
     const tracked = line.product_type === "stock";
     const serials = serialsOf(entry.serialNumbers);
@@ -204,7 +215,9 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
     if (expiryDate && receiptDate && expiryDate < receiptDate && accepted > 0n)
       fail(`${label}: the lot expired on ${expiryDate}. Receive it as damaged, or refuse it.`, "expiryDate", "GOODS_RECEIPT_LOT_EXPIRED");
     // The entitlement is compared in base units (what is still owed × the order's own factor), whatever unit the receipt is entered in.
-    const owed = progress.get(line.id).remainingToReceive;
+    // What the order line still owes, less what earlier lots of this receipt already take.
+    const owed = sub(progress.get(line.id).remainingToReceive, taken.get(line.id) ?? 0n);
+    taken.set(line.id, add(taken.get(line.id) ?? 0n, received));
     const factor = line.conversion_factor ?? ONE;
     if (mul(received, factor) > mul(owed, factor)) {
       const owedBase = formatDecimal(mul(owed, factor)).replace(/\.?0+$/, "");
@@ -220,6 +233,64 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
   }
   if (!result.length) fail("Enter what was received.", "lines", "GOODS_RECEIPT_EMPTY");
   return result;
+}
+
+// A lot-tracked line received in several lots (input batches: [{ batchNumber, quantity, heldQuantity?, damagedQuantity?, expiryDate?, manufacturedDate?,
+// warehouseLocationId? }]) becomes one receipt line per lot. The lots must account for exactly what the line says was received (and held, and
+// damaged); the refused and presented quantities belong to the line and go with its first lot.
+function splitIntoLots(requested, lines) {
+  const out = [];
+  const given = (value) => value !== undefined && value !== null && value !== "";
+  const plain = (value) => formatDecimal(value).replace(/\.?0+$/, "") || "0";
+  for (const [index, entry] of requested.entries()) {
+    const lots = Array.isArray(entry.batches) ? entry.batches.filter((lot) => lot && (lot.batchNumber || lot.quantity)) : [];
+    if (lots.length === 0) { out.push(entry); continue; }
+    const line = lines.get(requireUuid(entry.purchaseOrderLineId, "Order line"));
+    if (!line) throw new PurchaseOrderError(404, "That line is not on this order.", "PURCHASE_ORDER_LINE_NOT_FOUND");
+    const label = `Line ${line.line_number}`;
+    if (lots.length === 1) {
+      const [lot] = lots;
+      out.push({ ...entry, batches: undefined, batchNumber: lot.batchNumber ?? entry.batchNumber, expiryDate: lot.expiryDate ?? entry.expiryDate,
+        manufacturedDate: lot.manufacturedDate ?? entry.manufacturedDate, warehouseLocationId: lot.warehouseLocationId ?? entry.warehouseLocationId });
+      continue;
+    }
+    if (line.tracking_type !== "batch") fail(`${label}: only a lot-tracked product is received in several lots.`, "batches", "GOODS_RECEIPT_LOTS_INVALID");
+    const names = lots.map((lot) => text(lot.batchNumber, 120));
+    if (names.some((name) => !name)) fail(`${label}: enter the lot number of every lot.`, "batches", "GOODS_RECEIPT_BATCH_REQUIRED");
+    if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) fail(`${label}: a lot is entered twice.`, "batches", "GOODS_RECEIPT_LOT_DUPLICATE");
+    const amounts = lots.map((lot, position) => ({
+      received: readQuantity(lot.quantity ?? lot.receivedQuantity, `${label} lot ${names[position]}`),
+      held: readQuantity(lot.heldQuantity, `${label} lot ${names[position]} on hold`),
+      damaged: readQuantity(lot.damagedQuantity, `${label} lot ${names[position]} damaged`),
+    }));
+    const total = (key) => amounts.reduce((sum, amount) => add(sum, amount[key]), 0n);
+    const held = readQuantity(entry.heldQuantity ?? entry.inspectionQuantity, `${label} inspection hold`);
+    const damaged = readQuantity(entry.damagedQuantity, `${label} damaged quantity`);
+    const received = given(entry.receivedQuantity) ? readQuantity(entry.receivedQuantity, `${label} received quantity`)
+      : given(entry.acceptedQuantity) ? add(readQuantity(entry.acceptedQuantity, `${label} accepted quantity`), held, damaged) : total("received");
+    const mismatch = (what, lotTotal, lineTotal) =>
+      fail(`${label}: the lots add up to ${plain(lotTotal)} ${what}, but the line has ${plain(lineTotal)}. Allocate every unit to a lot.`, "batches", "GOODS_RECEIPT_LOT_TOTAL_MISMATCH");
+    if (total("received") !== received) mismatch("received", total("received"), received);
+    if (given(entry.heldQuantity ?? entry.inspectionQuantity) && total("held") !== held) mismatch("on hold", total("held"), held);
+    if (given(entry.damagedQuantity) && total("damaged") !== damaged) mismatch("damaged", total("damaged"), damaged);
+    const refused = entry.refusedQuantity ?? entry.rejectedQuantity;
+    let presented = null;
+    if (given(entry.presentedQuantity)) {
+      presented = readQuantity(entry.presentedQuantity, `${label} presented quantity`);
+      if (presented !== add(received, readQuantity(refused, `${label} refused quantity`)))
+        fail(`${label}: of the ${plain(presented)} presented, the lots and the refused quantity do not add up. Record a shortage as a discrepancy.`, "presentedQuantity", "GOODS_RECEIPT_PRESENTED_MISMATCH");
+    }
+    lots.forEach((lot, position) => out.push({
+      purchaseOrderLineId: entry.purchaseOrderLineId, productId: entry.productId, uomId: entry.uomId ?? entry.receiptUomId, lotGroup: `lots-${index}`,
+      receivedQuantity: formatDecimal(amounts[position].received), heldQuantity: formatDecimal(amounts[position].held), damagedQuantity: formatDecimal(amounts[position].damaged),
+      refusedQuantity: position === 0 ? refused : undefined, refusalReasonCode: position === 0 ? entry.refusalReasonCode : undefined,
+      refusalReason: position === 0 ? entry.refusalReason ?? entry.rejectionReason : undefined,
+      presentedQuantity: presented === null ? undefined : formatDecimal(position === 0 ? sub(presented, sub(received, amounts[0].received)) : amounts[position].received),
+      batchNumber: names[position], expiryDate: lot.expiryDate ?? entry.expiryDate, manufacturedDate: lot.manufacturedDate ?? entry.manufacturedDate,
+      warehouseLocationId: lot.warehouseLocationId ?? entry.warehouseLocationId, discrepancyNotes: position === 0 ? entry.discrepancyNotes : undefined,
+    }));
+  }
+  return out;
 }
 
 async function writeReceiptLines(client, context, receiptId, orderId, warehouseId, lines) {
@@ -276,7 +347,7 @@ async function receivingWarehouse(client, context, warehouseId) {
   if (!warehouseId) return null;
   const warehouse = (await client.query(`SELECT id FROM tenant.warehouses WHERE organization_id = $1 AND id = $2 AND status = 'active'`, [context.organizationId, warehouseId])).rows[0];
   if (!warehouse) fail("Choose an active receiving warehouse.", "warehouseId", "GOODS_RECEIPT_WAREHOUSE_INVALID", 409);
-  await assertWarehouseAccess(client, context, warehouseId, "Receiving warehouse");
+  await assertWarehouseOperation(client, context, warehouseId, "receive", "Receiving warehouse");
   return warehouse.id;
 }
 
@@ -373,12 +444,21 @@ export async function validateGoodsReceiptForPosting(client, context, receiptId,
     else {
       const warehouse = (await client.query(`SELECT status FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [organizationId, receipt.warehouse_id])).rows[0];
       if (warehouse?.status !== "active") issues.push("The receiving warehouse is inactive.");
-      try { await assertWarehouseAccess(client, context, receipt.warehouse_id, "Receiving warehouse"); } catch (error) { issues.push(error.message); }
+      try { await assertWarehouseOperation(client, context, receipt.warehouse_id, "receive", "Receiving warehouse"); } catch (error) { issues.push(error.message); }
     }
   }
   const orderLines = await orderLinesById(client, organizationId, order.id);
   const progress = new Map((await loadLineProgress(client, organizationId, order.id)).map((line) => [line.lineId, line]));
   const receiptDate = dayOf(receipt.receipt_date);
+  // Never into a closed or locked accounting period: the receipt date is when its stock and accrual take effect.
+  const period = (await client.query(
+    `SELECT name, status FROM tenant.fiscal_periods WHERE organization_id = $1 AND $2::date BETWEEN start_date AND end_date ORDER BY period_type = 'standard' DESC, start_date DESC LIMIT 1`,
+    [organizationId, receiptDate])).rows[0];
+  if (period && period.status !== "open") issues.push(`The accounting period ${period.name} is ${period.status}; a receipt dated ${receiptDate} cannot be posted into it.`);
+  // An order line's entitlement is checked once, against everything this receipt brings for it (all its lots).
+  const onReceipt = new Map();
+  for (const line of lines) onReceipt.set(line.purchase_order_line_id, add(onReceipt.get(line.purchase_order_line_id) ?? 0n, add(line.accepted_quantity, line.held_quantity)));
+  const checkedOrderLines = new Set();
   for (const line of lines) {
     const orderLine = orderLines.get(line.purchase_order_line_id);
     const label = `Line ${orderLine?.line_number ?? line.line_number}`;
@@ -387,7 +467,10 @@ export async function validateGoodsReceiptForPosting(client, context, receiptId,
     const received = add(line.accepted_quantity, line.held_quantity);
     if (received + decimal(line.rejected_quantity) <= 0n) issues.push(`${label}: nothing is entered.`);
     const owed = progress.get(orderLine.id)?.remainingToReceive ?? 0n;
-    if (received > owed) issues.push(owed === 0n ? `${label} has meanwhile been received in full (or cancelled).` : `${label}: only ${dec(owed)} is still to be received; this receipt has ${dec(received)}.`);
+    const total = onReceipt.get(orderLine.id) ?? received;
+    if (!checkedOrderLines.has(orderLine.id) && total > owed)
+      issues.push(owed === 0n ? `${label} has meanwhile been received in full (or cancelled).` : `${label}: only ${dec(owed)} is still to be received; this receipt has ${dec(total)}.`);
+    checkedOrderLines.add(orderLine.id);
     if (decimal(line.conversion_factor) !== decimal(orderLine.conversion_factor) || line.receipt_uom_id !== orderLine.purchase_uom_id)
       issues.push(`${label}: the unit or its conversion changed on the order; re-enter the line.`);
     if (line.warehouse_id && line.warehouse_id !== receipt.warehouse_id) issues.push(`${label}: re-enter the line for the receipt's warehouse.`);
@@ -419,11 +502,20 @@ export async function validateGoodsReceiptForPosting(client, context, receiptId,
   return { ready: issues.length === 0, issues };
 }
 
-// The stock value of one base unit: the line's taxable value per base unit, when the order is in the company currency (Inventory's valuation does the rest).
-async function unitCostOf(client, organizationId, order, line) {
-  const base = (await client.query(`SELECT base_currency FROM public.organizations WHERE id = $1`, [organizationId])).rows[0]?.base_currency?.trim();
-  if (!base || base !== order.currency_code?.trim() || decimal(line.base_quantity) <= 0n) return undefined;
-  return formatDecimal(roundMoney(div(line.taxable_amount, line.base_quantity), 6));
+// The capitalisable cost of one base unit for Inventory Valuation: the line's taxable value per base unit (recoverable tax is not inventory cost),
+// in the company's base currency. An order in another currency is converted at the Finance exchange rate of the receipt date, and the source
+// currency, unit cost and rate are kept with the valuation (never recalculated later). Without a rate the receipt is valued as missing cost
+// (a valuation exception), never at an invented one.
+async function receiptCostOf(client, context, order, line, receiptDate) {
+  const base = (await client.query(`SELECT base_currency FROM public.organizations WHERE id = $1`, [context.organizationId])).rows[0]?.base_currency?.trim();
+  if (!base || decimal(line.base_quantity) <= 0n) return {};
+  const sourceUnit = div(line.taxable_amount, line.base_quantity);
+  const currency = order.currency_code?.trim();
+  if (base === currency) return { unitCost: formatDecimal(roundMoney(sourceUnit, 6)), costSource: "receipt_cost" };
+  const rate = await getExchangeRate(client, { ...context, permissions: [...(context.permissions ?? []), "accounting.view"] }, currency, base, receiptDate).catch(() => null);
+  if (rate === null) return {};
+  return { unitCost: formatDecimal(roundMoney(mul(sourceUnit, rate), 6)), costSource: "receipt_cost",
+    costSnapshot: { sourceCurrency: currency, sourceUnitCost: formatDecimal(sourceUnit), exchangeRate: formatDecimal(rate) } };
 }
 
 async function findOrCreateBatch(client, context, line) {
@@ -467,21 +559,24 @@ async function postInventoryReceipt(client, context, receipt, order, line, order
   const held = decimal(line.held_quantity);
   const damaged = decimal(line.damaged_quantity);
   const inspection = sub(held, damaged);
-  const unitCost = await unitCostOf(client, context.organizationId, order, orderLine);
+  const cost = await receiptCostOf(client, context, order, orderLine, dayOf(receipt.receipt_date));
   const factor = decimal(line.conversion_factor);
   const batchId = line.batch_number ? await findOrCreateBatch(client, context, line) : null;
   const holdLocationId = held > 0n ? await qualityLocation(client, context.organizationId, line.warehouse_id) : null;
   const movements = [];
-  const reference = (part) => ({ referenceType: "goods_receipt_line", referenceId: line.id, reason: `${receipt.receipt_number} · ${order.purchase_order_number} line ${orderLine.line_number}${part}` });
+  // The stock takes effect on the receipt date (the ledger keeps the posting time beside it).
+  const reference = (part) => ({ referenceType: "goods_receipt_line", referenceId: line.id, occurredOn: dayOf(receipt.receipt_date),
+    reason: `${receipt.receipt_number} · ${order.purchase_order_number} line ${orderLine.line_number}${part}` });
   const post = async (quantity, locationId, part, key) => {
     if (quantity <= 0n) return;
     if (orderLine.tracking_type === "serial") {
       const result = await stocked(() => receiveSerializedStock(client, stock, { itemId: line.product_id, warehouseId: line.warehouse_id, warehouseLocationId: locationId, batchId,
-        serialNumbers: line.serial_numbers, unitCost, ...reference(part), idempotencyKey: `grn:${line.id}:${key}` }), label);
-      movements.push(result.movement.id);
+        serialNumbers: line.serial_numbers, ...cost, ...reference(part), idempotencyKey: `grn:${line.id}:${key}` }), label);
+      movements.push(...result.movements.map((movement) => movement.id));
     } else {
       const movement = await stocked(() => postStockMovement(client, stock, { movementType: "receipt", itemId: line.product_id, warehouseId: line.warehouse_id,
-        warehouseLocationId: locationId, batchId, quantity: formatDecimal(roundMoney(mul(quantity, factor), 6)), unitCost, ...reference(part), idempotencyKey: `grn:${line.id}:${key}` }), label);
+        warehouseLocationId: locationId, batchId, quantity: formatDecimal(roundMoney(mul(quantity, factor), 6)), ...cost, ...reference(part), idempotencyKey: `grn:${line.id}:${key}`,
+        transaction: { uomId: line.receipt_uom_id, quantity: formatDecimal(quantity), factor: formatDecimal(factor) } }), label);
       movements.push(movement.id);
     }
   };
@@ -540,6 +635,18 @@ export async function postGoodsReceipt(client, context, receiptId) {
     if (line.product_type === "stock" && add(line.accepted_quantity, line.held_quantity) > 0n) {
       const posted = await postInventoryReceipt(client, context, receipt, order, line, orderLine);
       dispositions = await recordReceiptDispositions(client, context, receipt, order, line, orderLine, posted);
+      // What the receipt put on hold (inspection hold, and goods that came in damaged) is explained by an Inventory Quality Hold opened for it.
+      const held = add(posted.inspection, posted.damaged);
+      if (held > 0n && posted.holdLocationId) {
+        const serials = orderLine.tracking_type === "serial" ? (await client.query(
+          `SELECT id FROM tenant.stock_serials WHERE organization_id = $1 AND item_id = $2 AND warehouse_location_id = $3 AND status = available AND lower(serial_number) = ANY($4::text[])`,
+          [organizationId, line.product_id, posted.holdLocationId, (line.serial_numbers ?? []).map((value) => value.toLowerCase())])).rows : [];
+        await registerHeldStock(client, context, { sourceType: "goods_receipt", sourceId: receipt.id, sourceNumber: receipt.receipt_number, sourceLineId: line.id, warehouseId: line.warehouse_id,
+          reasonCode: posted.inspection > 0n ? "RECEIVING_INSPECTION" : "DAMAGE_SUSPECTED",
+          notes: `Received on hold: ${formatDecimal(posted.inspection)} for inspection${posted.damaged > 0n ? `, ${formatDecimal(posted.damaged)} damaged` : ""} (line ${line.line_number})`,
+          positions: serials.length ? serials.map((serial) => ({ itemId: line.product_id, locationId: posted.holdLocationId, batchId: posted.batchId, serialId: serial.id, quantity: 1 }))
+            : [{ itemId: line.product_id, locationId: posted.holdLocationId, batchId: posted.batchId, quantity: formatDecimal(roundMoney(mul(held, decimal(line.conversion_factor)), 6)) }] }, { internal: true });
+      }
       stockLine = { ...line, batch_id: posted.batchId, hold_location_id: posted.holdLocationId };
     }
     // Rejections, in the same transaction as the receipt: what was refused at the dock (no stock) and what came in damaged (blocked).
@@ -621,28 +728,21 @@ export async function reversePostedGoodsReceipt(client, context, receiptId, inpu
     if (state && state.billingBasis === "receipt" && state.receiptRequired && state.billed > sub(state.billable, decimal(line.accepted_quantity)))
       throw new PurchaseOrderError(409, `Line ${line.line_number}: what is billed would exceed what remains received. Finance must correct the bill first.`, "GOODS_RECEIPT_IN_USE");
   }
+  // Each movement the receipt posted is reversed by a compensating one (the receipt's own stays in the ledger): the same location, batch and
+  // serial number, so goods taken back are exactly the goods received.
   const stock = stockContextFor(context);
   for (const line of lines) {
     if (line.product_type !== "stock") continue;
     const label = `Line ${line.line_number}: `;
-    const factor = decimal(line.conversion_factor);
-    const base = { movementType: "issue", itemId: line.product_id, warehouseId: line.warehouse_id, batchId: line.batch_id, referenceType: "goods_receipt_reversal", referenceId: line.id,
-      reason: `${receipt.receipt_number} reversed: ${reason}` };
     if (line.tracking_type === "serial") {
       for (const serialNumber of line.serial_numbers) {
         const serial = (await client.query(`SELECT id FROM tenant.stock_serials WHERE organization_id = $1 AND item_id = $2 AND lower(serial_number) = lower($3) AND status = 'available'`,
           [organizationId, line.product_id, serialNumber])).rows[0];
         if (!serial) throw new PurchaseOrderError(409, `${label}serial number ${serialNumber} is no longer in stock.`, "GOODS_RECEIPT_STOCK_USED");
-        await stocked(() => postStockMovement(client, stock, { ...base, warehouseLocationId: line.warehouse_location_id, serialId: serial.id, quantity: "1", idempotencyKey: `grn-reversal:${line.id}:${serial.id}` }), label);
       }
-      continue;
     }
-    if (decimal(line.accepted_quantity) > 0n)
-      await stocked(() => postStockMovement(client, stock, { ...base, warehouseLocationId: line.warehouse_location_id, quantity: formatDecimal(roundMoney(mul(line.accepted_quantity, factor), 6)),
-        idempotencyKey: `grn-reversal:${line.id}:accepted` }), label);
-    if (decimal(line.held_quantity) > 0n)
-      await stocked(() => postStockMovement(client, stock, { ...base, warehouseLocationId: line.hold_location_id, quantity: formatDecimal(roundMoney(mul(line.held_quantity, factor), 6)),
-        idempotencyKey: `grn-reversal:${line.id}:held` }), label);
+    await stocked(() => reverseStockMovements(client, stock, line.stock_movement_ids, { referenceType: "goods_receipt_reversal", referenceId: line.id,
+      reason: `${receipt.receipt_number} reversed: ${reason}`, keyPrefix: "grn-reversal" }), label);
   }
   // Inspections opened for this receipt's held goods are no longer needed.
   const drafts = (await client.query(
@@ -717,18 +817,18 @@ export async function releaseHeldGoods(client, context, dispositionId, input = {
   if (line.expiry_date && dayOf(line.expiry_date) < await databaseToday(client)) fail(`The lot expired on ${dayOf(line.expiry_date)}; it cannot be released to usable stock.`, "quantity", "GOODS_RECEIPT_LOT_EXPIRED", 409);
   const destination = optionalUuid(input.warehouseLocationId, "Location") ?? line.warehouse_location_id ?? null;
   const stock = stockContextFor(context);
-  const transfer = await stocked(() => createStockTransfer(client, stock, {
-    itemId: line.product_id, sourceWarehouseId: line.warehouse_id, sourceLocationId: disposition.location_id, destinationWarehouseId: line.warehouse_id, destinationLocationId: destination,
-    batchId: line.batch_id, quantity: formatDecimal(roundMoney(mul(quantity, line.conversion_factor), 6)),
-    idempotencyKey: `grn-release:${disposition.id}:${dec(disposition.released_quantity)}:${dec(quantity)}`,
+  // Released from hold: a disposition change inside the warehouse, posted as the receipt line's own movement.
+  const moved = await stocked(() => moveStockWithinWarehouse(client, stock, {
+    itemId: line.product_id, warehouseId: line.warehouse_id, fromLocationId: disposition.location_id, toLocationId: destination, batchId: line.batch_id,
+    quantity: formatDecimal(roundMoney(mul(quantity, line.conversion_factor), 6)), referenceType: "goods_receipt_line", referenceId: line.id,
+    reason: `${receipt.receipt_number} line ${line.line_number}: released from hold`, idempotencyKey: `grn-release:${disposition.id}:${dec(disposition.released_quantity)}:${dec(quantity)}`,
   }));
-  await stocked(() => completeStockTransfer(client, stock, transfer.id));
   await client.query(`UPDATE tenant.goods_receipt_dispositions SET released_quantity = released_quantity + $3, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, disposition.id, formatDecimal(quantity)]);
   const note = text(input.note, 1000);
   await client.query(`INSERT INTO tenant.goods_receipt_disposition_events (organization_id, disposition_id, action, quantity, note, actor_user_id) VALUES ($1, $2, 'released', $3, $4, $5)`,
     [context.organizationId, disposition.id, formatDecimal(quantity), note, context.userId ?? null]);
   await recordReceiptEvent(client, context, receipt.id, "goods_receipt.held_released",
-    `${dec(quantity)} ${disposition.disposition === "damaged" ? "damaged" : "held"} released into stock (line ${line.line_number})${note ? `: ${note}` : ""}`, { dispositionId: disposition.id, transferId: transfer.id });
+    `${dec(quantity)} ${disposition.disposition === "damaged" ? "damaged" : "held"} released into stock (line ${line.line_number})${note ? `: ${note}` : ""}`, { dispositionId: disposition.id, movementIds: moved.movements.map((movement) => movement.id) });
   return { dispositionId: disposition.id, released: dec(quantity) };
 }

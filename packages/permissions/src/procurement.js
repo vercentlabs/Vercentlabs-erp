@@ -49,7 +49,7 @@ export const PROCUREMENT_PERMISSIONS = Object.freeze({
   receiptsPost: "procurement.receipts.post",
   receiptsReverse: "procurement.receipts.reverse",
   receiptsRelease: "procurement.receipts.release",
-  receiptsAccess: "procurement.receipts.access",
+  receiptsAcceptRestricted: "procurement.receipts.accept_restricted",
   inspectionManage: "procurement.inspection.manage",
   rejectionsView: "procurement.rejections.view",
   rejectionsViewAll: "procurement.rejections.view_all",

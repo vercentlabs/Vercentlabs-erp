@@ -9,11 +9,11 @@ import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button, Menu, MenuItem, MenuTrigger, SearchField, Select, StatusBadge } from "@vercentlabs/design-system";
 
-import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
 
 import { errorMessage, setDefault, updateAddress, updateContact, updateRegistration, type SupplierAddress, type SupplierContact, type SupplierDetail, type SupplierOptions } from "../api/suppliers-api";
 import { formatAddress } from "../supplier-format";
 import { AddressDialog, ContactDialog, RegistrationDialog } from "./LocationContactDialogs";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 const ANY = "any";
 const DEFAULT_LABEL: Record<string, string> = {
@@ -76,10 +76,10 @@ export function AddressesContactsPanel({ detail, options, onChanged, onShowHisto
 
   return (
     <div className="flex flex-col gap-4">
-      {error && <ProcAlert>{error}</ProcAlert>}
-      {warning && <ProcAlert tone="warning">{warning}</ProcAlert>}
+      {error && <Notice>{error}</Notice>}
+      {warning && <Notice tone="warning">{warning}</Notice>}
 
-      {actions.viewAddresses && show !== "contacts" && <ProcPanel title="Addresses" description="Each location with what it is used for. A purpose has one default; documents start from it and can choose another active location."
+      {actions.viewAddresses && show !== "contacts" && <Panel title="Addresses" description="Each location with what it is used for. A purpose has one default; documents start from it and can choose another active location."
         actions={actions.manageAddresses ? <Button size="compact" variant="secondary" onPress={() => setAddress("new")}>Add address</Button> : undefined}>
         <div className="flex flex-wrap gap-2">
           <SearchField aria-label="Search addresses" placeholder="Label, city, state, PIN or GSTIN" className="w-full sm:w-72" value={addressSearch} onChange={setAddressSearch} />
@@ -126,9 +126,9 @@ export function AddressesContactsPanel({ detail, options, onChanged, onShowHisto
             ))}
           </ul>
         )}
-      </ProcPanel>}
+      </Panel>}
 
-      {actions.viewContacts && show !== "addresses" && <ProcPanel title="Contacts" description="The people at this supplier. One person can hold several roles; documents keep the person they named even if they leave."
+      {actions.viewContacts && show !== "addresses" && <Panel title="Contacts" description="The people at this supplier. One person can hold several roles; documents keep the person they named even if they leave."
         actions={actions.manageContacts ? <Button size="compact" variant="secondary" onPress={() => setContact("new")}>Add contact</Button> : undefined}>
         <div className="flex flex-wrap gap-2">
           <SearchField aria-label="Search contacts" placeholder="Name, email, phone, designation or location" className="w-full sm:w-72" value={contactSearch} onChange={setContactSearch} />
@@ -170,9 +170,9 @@ export function AddressesContactsPanel({ detail, options, onChanged, onShowHisto
             ))}
           </ul>
         )}
-      </ProcPanel>}
+      </Panel>}
 
-      {actions.viewAddresses && <ProcPanel title="GST registrations" description="One supplier can hold a registration per state, and one registration can cover several locations."
+      {actions.viewAddresses && <Panel title="GST registrations" description="One supplier can hold a registration per state, and one registration can cover several locations."
         actions={actions.manageTaxRegistrations ? <Button size="compact" variant="secondary" onPress={() => setRegistering(true)}>Add registration</Button> : undefined}>
         {!taxRegistrations.length ? <p className="text-sm text-text-muted">No GST registrations.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
@@ -196,7 +196,7 @@ export function AddressesContactsPanel({ detail, options, onChanged, onShowHisto
             })}
           </ul>
         )}
-      </ProcPanel>}
+      </Panel>}
 
       {address && <AddressDialog supplierId={supplier.id} countryCode={supplier.countryCode} address={address === "new" ? null : address} registrations={taxRegistrations} options={options}
         access={access} onClose={() => setAddress(null)} onDone={(message) => { setAddress(null); done(message); }} />}

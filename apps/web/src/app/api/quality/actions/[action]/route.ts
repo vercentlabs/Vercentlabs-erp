@@ -11,9 +11,6 @@ import {
   completeQualityInspection,
   releaseQualityInspection,
   cancelQualityInspection,
-  createQualityHold,
-  cancelQualityHold,
-  releaseQualityHold,
   createQualityNonconformance,
   transitionNonconformance,
   setDisposition,
@@ -103,29 +100,6 @@ export async function POST(
               context,
               idOf(input),
               String(input.reason ?? ""),
-            ),
-          };
-        case "hold-create":
-          return { record: await createQualityHold(client, context, input) };
-        case "hold-cancel":
-          return {
-            record: await cancelQualityHold(
-              client,
-              context,
-              idOf(input),
-              String(input.reason ?? ""),
-            ),
-          };
-        case "hold-release":
-          // Crossing into this folder's original, more strictly typed index.d.ts declaration for the
-          // one legacy function reused as-is; the domain itself validates the shape at runtime.
-          return {
-            record: await releaseQualityHold(
-              client,
-              context,
-              idOf(input),
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              input as any,
             ),
           };
         case "nc-create":

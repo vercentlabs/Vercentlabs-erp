@@ -4,7 +4,7 @@
 // caller-supplied verdict, a real integrity improvement over this folder's original thin stub.
 import { QualityError, has, need, needAny, nonNegative, oneOf, qx, recordEvent, text, textOrNull, uuid, uuidOrNull } from "./common.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
-import { createQualityHold } from "./nonconformance.js";
+import { noteInspectionOnHold } from "../stock/quality-holds.js";
 
 const MANAGE = "quality.manage";
 const VIEW = ["quality.view", MANAGE];
@@ -225,17 +225,10 @@ export async function completeInspection(client, c, id, input = {}) {
   await qx(client, `UPDATE tenant.quality_inspections SET status=$3,overall_result=$3,accepted_quantity=$4,rejected_quantity=$5,inspected_by=$6,inspected_at=now(),notes=$7,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
     [c.organizationId, inspection.id, overall, String(acceptedQuantity), String(rejectedQuantity), c.userId, textOrNull(input.notes, 2000)]);
 
-  if (overall === "failed") {
-    const settings = await loadSettings(client, c);
-    if (settings.auto_hold_on_failure && inspection.item_id) {
-      await createQualityHold(client, c, {
-        holdType: inspection.batch_id ? "batch" : inspection.serial_id ? "serial" : "inventory",
-        sourceType: inspection.source_type, sourceId: inspection.source_id || inspection.id,
-        itemId: inspection.item_id, warehouseId: inspection.warehouse_id, batchId: inspection.batch_id, serialId: inspection.serial_id,
-        quantity: rejectedQuantity || 0, reason: `Automatic hold: inspection ${inspection.inspection_number} failed.`,
-      }, { internal: true });
-    }
-  }
+  // The inspected stock is on an Inventory Quality Hold (a goods receipt puts it there): the outcome is recorded on that hold, where Quality
+  // releases, escalates or disposes of it.
+  if (inspection.source_id && inspection.item_id) await noteInspectionOnHold(client, c, { sourceDocumentId: inspection.source_id, itemId: inspection.item_id, result: overall === "failed" ? (acceptedQuantity > 0 ? "partial_pass" : "fail") : "pass",
+    inspectionNumber: inspection.inspection_number, accepted: acceptedQuantity, rejected: rejectedQuantity });
   await recordEvent(client, c, "inspection", inspection.id, "quality.inspection.completed", { overall });
   return getInspection(client, c, inspection.id);
 }

@@ -12,7 +12,6 @@ import { Button, Dialog, NumberField, Select, TextArea, TextField } from "@verce
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
-import { SalesAlert } from "@/features/sales/shared/SalesUi";
 import { listCustomerAddresses, listCustomerContacts } from "@/features/sales/customers/api/customers-api";
 import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 
@@ -20,6 +19,7 @@ import {
   cancelDelivery, changeDeliveryWarehouse, createDelivery, dispatchDelivery, getDeliveryProposal, markDeliveryDelivered, updateDraftDelivery,
   updateShipmentDetails, type DeliveryDetail,
 } from "../api/deliveries-api";
+import { Notice } from "@/shared/ui/Panel";
 
 export function failureText(failure: unknown, fallback: string) {
   return failure instanceof SalesApiError || failure instanceof Error ? failure.message || fallback : fallback;
@@ -39,7 +39,7 @@ function Shell({ title, description, size, error, fallback, onClose, label, isLo
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={title} description={description} size={size}>
       <div className="flex flex-col gap-3">
-        {Boolean(error) && <SalesAlert>{failureText(error, fallback)}</SalesAlert>}
+        {Boolean(error) && <Notice>{failureText(error, fallback)}</Notice>}
         {children}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>

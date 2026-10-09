@@ -9,12 +9,16 @@
 // Receiving twice receives once (each stock return carries its own key). A
 // received return is never cancelled: goods are corrected through inventory.
 import { StockError, postStockMovement } from "../../stock/index.js";
+import { postCostOfGoodsJournal } from "../../stock/valuation-engine.js";
+import { registerHeldStock } from "../../stock/quality-holds.js";
+import { defaultLocationOf, validateWarehouseOperation } from "../../stock/warehouses.js";
 import { dayOf, text } from "../orders/constants.js";
 import { refreshSalesOrderProgress } from "../orders/progress.js";
 import { lockOrder } from "../orders/versions.js";
 import { loadReturn, recordReturnEvent, requireReturnPermission } from "./access.js";
 import { RETURN_PERMISSIONS, RETURN_STATUS, ReturnError, dispositionOf, reasonLabel } from "./constants.js";
 import { returnableLines } from "./records.js";
+import { carryNegativeStock } from "../../stock/negative-stock-control.js";
 
 const EPSILON = 1e-6;
 const stockContext = (context) => ({ organizationId: context.organizationId, userId: context.userId ?? null, permissions: ["stock.view", "stock.receive"], roleSlugs: [] });
@@ -22,16 +26,17 @@ const stockContext = (context) => ({ organizationId: context.organizationId, use
 // The warehouse's quality location for held returns, made the first time it is needed.
 async function holdLocation(client, context, warehouseId, disposition) {
   const { code, name } = dispositionOf(disposition).location;
-  const existing = (await client.query(`SELECT id, location_type, status FROM tenant.warehouse_locations WHERE organization_id = $1 AND warehouse_id = $2 AND code = $3`,
+  const existing = (await client.query(`SELECT id, location_type, disposition, allow_allocation, status FROM tenant.warehouse_locations WHERE organization_id = $1 AND warehouse_id = $2 AND code = $3`,
     [context.organizationId, warehouseId, code])).rows[0];
   if (existing) {
-    if (existing.location_type !== "quality" || existing.status !== "active")
-      throw new ReturnError(409, `The location ${code} of the return warehouse must be an active quality location to hold returned goods.`, "SALES_RETURN_HOLD_LOCATION_INVALID");
+    if (existing.disposition === "available" || existing.allow_allocation || existing.status !== "active")
+      throw new ReturnError(409, `The location ${code} of the return warehouse must be an active location that holds held (never allocated) stock.`, "SALES_RETURN_HOLD_LOCATION_INVALID");
     return existing.id;
   }
   return (await client.query(
-    `INSERT INTO tenant.warehouse_locations (organization_id, warehouse_id, name, code, location_type, status, created_by, updated_by) VALUES ($1, $2, $3, $4, 'quality', 'active', $5, $5) RETURNING id`,
-    [context.organizationId, warehouseId, name, code, context.userId ?? null])).rows[0].id;
+    `INSERT INTO tenant.warehouse_locations (organization_id, warehouse_id, name, code, location_type, purpose, disposition, allow_allocation, status, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, 'quality', 'quality_hold', $6, false, 'active', $5, $5) RETURNING id`,
+    [context.organizationId, warehouseId, name, code, context.userId ?? null, disposition === "damaged" ? "damaged" : "quality_hold"])).rows[0].id;
 }
 
 // input: { expectedVersion? }. Returns { returnId, returnNumber, status, replayed }.
@@ -58,6 +63,10 @@ export async function receiveSalesReturn(client, context, returnId, input = {}) 
   }
   const warehouse = (await client.query(`SELECT id, name, status FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [context.organizationId, salesReturn.warehouse_id])).rows[0];
   if (!warehouse || warehouse.status !== "active") throw new ReturnError(409, "The return warehouse is inactive. Choose another warehouse.", "SALES_WAREHOUSE_NOT_ELIGIBLE");
+  // The warehouse must take returns and the user must be allowed to receive returns there. Restocked goods go to its default returns
+  // location (when it has one), else its general stock.
+  if (lines.some((line) => line.stock_tracked)) await validateWarehouseOperation(client, context, warehouse.id, "sales_return", { label: "Return warehouse" });
+  const restockLocation = await defaultLocationOf(client, context.organizationId, warehouse.id, "returns");
   const received = [];
   for (const line of lines) {
     const condition = dispositionOf(line.disposition);
@@ -65,31 +74,45 @@ export async function receiveSalesReturn(client, context, returnId, input = {}) 
       received.push({ item: line.item_name_snapshot, quantity: Number(line.quantity), unit: line.uom_snapshot, condition: condition.label, stock: "not stock tracked" });
       continue;
     }
-    const locationId = condition.sellable ? null : await holdLocation(client, context, warehouse.id, line.disposition);
-    // Back at the cost it left with.
-    const issue = (await client.query(
-      `SELECT unit_cost FROM tenant.stock_movements WHERE organization_id = $1 AND reference_type = 'sales_delivery' AND reference_id = $2 AND item_id = $3 ORDER BY created_at LIMIT 1`,
-      [context.organizationId, salesReturn.delivery_id, line.item_id])).rows[0];
+    const locationId = condition.sellable ? restockLocation : await holdLocation(client, context, warehouse.id, line.disposition);
+    // Back at the cost it left with: the delivery's own valuation of this item (value per unit over every movement that shipped it). A return
+    // with no delivery to go back to takes the current valuation cost (Inventory Valuation records which).
+    const issue = salesReturn.delivery_id ? (await client.query(
+      `SELECT CASE WHEN sum(-entry.base_quantity_delta) > 0 THEN sum(-(entry.value_delta + COALESCE((SELECT sum(restatement.value_delta) FROM tenant.inventory_valuation_entries restatement
+                WHERE restatement.organization_id = entry.organization_id AND restatement.restates_entry_id = entry.id), 0))) / sum(-entry.base_quantity_delta) END AS unit_cost
+         FROM tenant.stock_movements movement JOIN tenant.inventory_valuation_entries entry ON entry.organization_id = movement.organization_id AND entry.movement_id = movement.id
+        WHERE movement.organization_id = $1 AND movement.reference_type = 'sales_delivery' AND movement.reference_id = $2 AND movement.item_id = $3`,
+      [context.organizationId, salesReturn.delivery_id, line.item_id])).rows[0] : null;
     let movement;
     try {
       movement = await postStockMovement(client, stockContext(context), {
         movementType: "return", itemId: line.item_id, warehouseId: warehouse.id, warehouseLocationId: locationId, quantity: Number(line.base_quantity),
-        unitCost: issue?.unit_cost ?? undefined, referenceType: "sales_return", referenceId: salesReturn.id,
+        unitCost: issue?.unit_cost ?? undefined, costSource: issue?.unit_cost ? "original_delivery_cost" : undefined, referenceType: "sales_return", referenceId: salesReturn.id,
         reason: `Sales return ${salesReturn.return_number} (${condition.label}): ${reasonLabel(line.reason_code ?? salesReturn.reason_code)}`,
         idempotencyKey: `sales-return:${salesReturn.id}:${line.id}`,
+        transaction: line.uom_id && Number(line.quantity) > 0 ? { uomId: line.uom_id, quantity: line.quantity, factor: String(Number(line.base_quantity) / Number(line.quantity)) } : null,
       });
     } catch (error) {
       if (!(error instanceof StockError)) throw error;
-      throw new ReturnError(409, `${line.item_name_snapshot}: ${error.message}`, error.code ?? "SALES_RETURN_STOCK_FAILED");
+      throw carryNegativeStock(error, new ReturnError(409, `${line.item_name_snapshot}: ${error.message}`, error.code ?? "SALES_RETURN_STOCK_FAILED"));
     }
     await client.query(`UPDATE tenant.sales_return_lines SET warehouse_location_id = $3, stock_movement_id = $4, updated_at = now() WHERE organization_id = $1 AND id = $2`,
       [context.organizationId, line.id, locationId, movement.id]);
+    // Returned goods kept for inspection are explained by an Inventory Quality Hold opened for them (damaged goods are not held: they are disposed of).
+    if (!condition.sellable) await registerHeldStock(client, context, { sourceType: "sales_return", sourceId: salesReturn.id, sourceNumber: salesReturn.return_number, sourceLineId: line.id,
+      warehouseId: warehouse.id, reasonCode: "CUSTOMER_RETURN_INSPECTION", notes: `Customer return ${salesReturn.return_number}: ${line.item_name_snapshot}`,
+      positions: [{ itemId: line.item_id, locationId, quantity: Number(line.base_quantity) }] }, { internal: true });
     received.push({ item: line.item_name_snapshot, quantity: Number(line.quantity), unit: line.uom_snapshot, condition: condition.label, movement: movement.movement_number,
       stock: condition.sellable ? "available to sell" : "held in quality" });
   }
+  // Finance: the stock back in Inventory, out of the cost of goods sold, at the value it came back with.
+  const restocked = (await client.query(`SELECT stock_movement_id FROM tenant.sales_return_lines WHERE organization_id = $1 AND sales_return_id = $2 AND stock_movement_id IS NOT NULL`,
+    [context.organizationId, salesReturn.id])).rows.map((row) => row.stock_movement_id);
+  const cogs = await postCostOfGoodsJournal(client, context, { movementIds: restocked, date: dayOf(salesReturn.return_date), reference: salesReturn.return_number,
+    description: `Sales return ${salesReturn.return_number}: cost of goods sold reversed`, sourceType: "sales_return", sourceId: salesReturn.id, sourceNumber: salesReturn.return_number });
   await client.query(
-    `UPDATE tenant.sales_returns SET status = 'received', received_at = clock_timestamp(), received_by = $3, version = version + 1, updated_at = now() WHERE organization_id = $1 AND id = $2`,
-    [context.organizationId, salesReturn.id, context.userId ?? null]);
+    `UPDATE tenant.sales_returns SET status = 'received', received_at = clock_timestamp(), received_by = $3, cogs_journal_entry_id = $4, version = version + 1, updated_at = now() WHERE organization_id = $1 AND id = $2`,
+    [context.organizationId, salesReturn.id, context.userId ?? null, cogs?.journalEntryId ?? null]);
   await recordReturnEvent(client, context, salesReturn.id, "sales_return.received", RETURN_STATUS.draft, RETURN_STATUS.received, { warehouse: warehouse.name, lines: received });
   await client.query(
     `INSERT INTO tenant.sales_document_events (organization_id, entity_type, entity_id, event_type, from_status, to_status, metadata, actor_user_id, occurred_at)

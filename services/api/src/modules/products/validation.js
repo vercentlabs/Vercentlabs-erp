@@ -39,7 +39,6 @@ export const PRODUCT_COLUMNS = Object.freeze({
   trackingType: "tracking_type",
   requiresExpiryDate: "requires_expiry_date",
   shelfLifeDays: "shelf_life_days",
-  allowNegativeStock: "allow_negative_stock",
   valuationMethod: "valuation_method",
   inventoryProfileId: "inventory_profile_id",
   accountingProfileId: "accounting_profile_id",
@@ -58,7 +57,7 @@ export const PRODUCT_FIELD_LABELS = Object.freeze({
   code: "SKU", name: "Name", type: "Item type", description: "Description", salesDescription: "Sales description", purchaseDescription: "Purchase description",
   categoryId: "Category", brand: "Brand", manufacturerName: "Manufacturer", manufacturerPartNumber: "Manufacturer part number", baseUomId: "Base unit",
   salesUomId: "Sales unit", purchaseUomId: "Purchase unit", isSellable: "Sellable", isPurchasable: "Purchasable", hsnSacCode: "HSN / SAC", taxCategoryId: "Tax category",
-  trackingType: "Tracking mode", requiresExpiryDate: "Expiry tracking", shelfLifeDays: "Shelf life", allowNegativeStock: "Allow negative stock", valuationMethod: "Valuation method",
+  trackingType: "Tracking mode", requiresExpiryDate: "Expiry tracking", shelfLifeDays: "Shelf life", valuationMethod: "Valuation method",
   standardCost: "Standard cost", inventoryProfileId: "Inventory profile", accountingProfileId: "Accounting profile", netWeight: "Net weight", grossWeight: "Gross weight", weightUomId: "Weight unit", length: "Length", width: "Width", height: "Height",
   dimensionUomId: "Dimension unit", variantAttributes: "Variant attributes", salesUomFactor: "Sales unit conversion", purchaseUomFactor: "Purchase unit conversion",
   imageAttachmentId: "Image", barcode: "Barcode",
@@ -104,7 +103,7 @@ export function normalizeProductInput(input = {}) {
   if (has(input, "type")) normalized.type = text(input.type).toLowerCase() || null;
   for (const field of ["categoryId", "baseUomId", "salesUomId", "purchaseUomId", "taxCategoryId", "imageAttachmentId", "weightUomId", "dimensionUomId", "inventoryProfileId", "accountingProfileId"])
     if (has(input, field)) normalized[field] = text(input[field]) || null;
-  for (const field of ["isSellable", "isPurchasable", "allowNegativeStock", "requiresExpiryDate"]) if (has(input, field)) normalized[field] = bool(input[field]);
+  for (const field of ["isSellable", "isPurchasable", "requiresExpiryDate"]) if (has(input, field)) normalized[field] = bool(input[field]);
   for (const field of ["trackingType", "valuationMethod"]) if (has(input, field)) normalized[field] = text(input[field]).toLowerCase() || null;
   for (const field of ["standardCost", "salesUomFactor", "purchaseUomFactor", "netWeight", "grossWeight", "length", "width", "height"]) if (has(input, field)) normalized[field] = decimalInput(input[field]);
   if (has(input, "shelfLifeDays")) normalized.shelfLifeDays = input.shelfLifeDays === null || text(input.shelfLifeDays) === "" ? null : Number(text(input.shelfLifeDays));
@@ -141,7 +140,7 @@ export function validateProduct(normalized, candidate) {
       issue(factor, "Enter how many base units one of this unit holds.");
   }
   if (normalized.trackingType && !TRACKING.has(normalized.trackingType)) issue("trackingType", "Choose None, Batch / lot or Serial number.");
-  if (normalized.valuationMethod && !VALUATION.has(normalized.valuationMethod)) issue("valuationMethod", "Choose Moving average, FIFO or Standard cost.");
+  if (normalized.valuationMethod && !VALUATION.has(normalized.valuationMethod)) issue("valuationMethod", "Choose Moving average or FIFO.");
   // Batch, serial and expiry describe physical stock: only a Stock Item has them.
   if (candidate.type !== "stock" && candidate.trackingType && candidate.trackingType !== "none")
     issue("trackingType", candidate.type === "service" ? "A service cannot be batch or serial tracked." : "Only a Stock Item can be batch or serial tracked.");

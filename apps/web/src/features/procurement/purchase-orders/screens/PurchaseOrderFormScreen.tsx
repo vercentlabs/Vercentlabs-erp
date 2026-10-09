@@ -6,17 +6,15 @@
 // totals. A product's purchase cost is offered as a starting price only: the
 // agreed price is what is entered, and a missing price is never zero.
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
-import { Button, Checkbox, ErrorState, IconButton, PageHeader, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { Plus, Trash2 } from "lucide-react";
+import { Button, Checkbox, ErrorState, IconButton, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { money } from "@/features/procurement/shared/format";
 import { getSupplier } from "@/features/procurement/suppliers/api/suppliers-api";
 import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
@@ -24,6 +22,9 @@ import { useFormChangesWarning } from "@/features/procurement/shared/navigation"
 import {
   createPurchaseOrder, errorMessage, getPurchaseOrder, getPurchaseOrderOptions, issuesOf, previewPurchaseOrder, updatePurchaseOrder, type PurchaseOrderDetail, type PurchaseOrderOptions,
 } from "../api/purchase-orders-api";
+import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
+import { FormSection } from "@/shared/ui/FormSection";
+import { Notice } from "@/shared/ui/Panel";
 
 const NONE = "none";
 const DEFAULT = "default";
@@ -150,19 +151,23 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
   const issues = issuesOf(failure);
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link href={detail ? `/procurement/purchase-orders/${detail.order.id}` : "/procurement/purchase-orders"} className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
-        <ArrowLeft className="size-3.5" aria-hidden="true" />{detail ? detail.order.purchaseOrderNumber : "All purchase orders"}
-      </Link>
-      <PageHeader
-        title={detail ? `${detail.order.amending ? "Amend" : "Edit"} ${detail.order.purchaseOrderNumber}` : "New Purchase Order"}
-        description={detail?.order.amending ? `Amendment: ${detail.order.amendmentReason}. Confirming it makes version ${detail.order.versionNumber + 1}.` : "The server sets the number and the totals when you save."}
-        secondaryActions={<Button variant="secondary" onPress={() => router.push(detail ? `/procurement/purchase-orders/${detail.order.id}` : "/procurement/purchase-orders")}>Cancel</Button>}
-        primaryAction={<Button variant="primary" isLoading={save.isPending || save.isSuccess} isDisabled={!header.supplierId} onPress={() => save.mutate()}>Save draft</Button>}
-      />
-      {Boolean(failure) && <ProcAlert>{errorMessage(failure)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>}
-
-      <ProcPanel title="Supplier and terms" description="Choosing the supplier proposes its currency, payment terms, buyer, contact and locations. Change what differs.">
+    <>
+    <DocumentFormPage
+      header={{
+        title: detail ? `${detail.order.amending ? "Amend" : "Edit"} ${detail.order.purchaseOrderNumber}` : "New Purchase Order",
+        description: detail?.order.amending ? `Amendment: ${detail.order.amendmentReason}. Confirming it makes version ${detail.order.versionNumber + 1}.` : "The server sets the number and the totals when you save.",
+      }}
+      banner={<div className="flex flex-col gap-3">
+        {Boolean(failure) && <Notice>{errorMessage(failure)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
+      </div>}
+      formActions={
+        <>
+          <Button variant="secondary" onPress={() => router.push(detail ? `/procurement/purchase-orders/${detail.order.id}` : "/procurement/purchase-orders")}>Cancel</Button>
+          <Button variant="primary" isLoading={save.isPending || save.isSuccess} isDisabled={!header.supplierId} onPress={() => save.mutate()}>Save draft</Button>
+        </>
+      }
+    >
+      <FormSection columns={1} title="Supplier and terms" description="Choosing the supplier proposes its currency, payment terms, buyer, contact and locations. Change what differs.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select label="Supplier" isRequired selectedKey={header.supplierId || null} isDisabled={Boolean(detail?.order.sourceQuotationId)}
             onSelectionChange={(value) => setHeader((current) => ({ ...current, supplierId: String(value), supplierContactId: DEFAULT, supplierAddressId: DEFAULT, supplierBillingAddressId: DEFAULT,
@@ -186,10 +191,10 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
           <Select label="Prices" selectedKey={header.priceMode} onSelectionChange={(value) => set("priceMode")(String(value))}
             options={[{ value: "exclusive", label: "Exclusive of tax" }, { value: "inclusive", label: "Inclusive of tax" }]} />
         </div>
-      </ProcPanel>
+      </FormSection>
 
       {supplier && (
-        <ProcPanel title="Supplier contact and locations" description="From the supplier's defaults unless chosen here. The order keeps a copy of what it was placed with.">
+        <FormSection columns={1} title="Supplier contact and locations" description="From the supplier's defaults unless chosen here. The order keeps a copy of what it was placed with.">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Select label="Contact" selectedKey={header.supplierContactId} onSelectionChange={(value) => set("supplierContactId")(String(value))}
               options={[{ value: DEFAULT, label: `Default (${preview?.contact?.name ?? "none"})` }, ...choosePerson, { value: NONE, label: "No contact" }]} />
@@ -201,10 +206,10 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
               options={[{ value: DEFAULT, label: `Default (${preview?.shipFrom?.label ?? "none"})` }, ...chooseLocation, { value: NONE, label: "Not known" }]} />
           </div>
           {preview?.supplierTaxRegistration?.gstin && <p className="text-sm text-text-secondary">Supplier GSTIN {preview.supplierTaxRegistration.gstin}{preview.supplyType === "non_gst" ? " · no GST charged" : ""}</p>}
-        </ProcPanel>
+        </FormSection>
       )}
 
-      <ProcPanel title="Buying company and delivery" description="The registration the order is placed from, and where the goods are received.">
+      <FormSection columns={1} title="Buying company and delivery" description="The registration the order is placed from, and where the goods are received.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select label="Company registration" selectedKey={header.buyingRegistrationId} onSelectionChange={(value) => set("buyingRegistrationId")(String(value))}
             options={[{ value: DEFAULT, label: "Default registration" }, ...options.registrations.map((entry) => ({ value: entry.id, label: `${entry.name}${entry.gstin ? ` · ${entry.gstin}` : ""}` }))]} />
@@ -215,9 +220,9 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
           <TextField label="Ship to (state code)" value={header.shipToStateCode} onChange={set("shipToStateCode")} description="Decides intra- or inter-state GST." />
           <TextField label="Ship to (PIN)" value={header.shipToPostalCode} onChange={set("shipToPostalCode")} />
         </div>
-      </ProcPanel>
+      </FormSection>
 
-      <ProcPanel title="Items" actions={(
+      <FormSection columns={1} title="Items" actions={(
         <span className="flex gap-2">
           <Button size="compact" variant="secondary" onPress={() => setLines((current) => [...current, blankLine(header.defaultWarehouseId === NONE ? "" : header.defaultWarehouseId)])}>
             <Plus className="size-3.5" aria-hidden="true" />Add product
@@ -280,15 +285,15 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
             );
           })}
         </div>
-      </ProcPanel>
+      </FormSection>
 
-      <ProcPanel title="Discount and totals" description="Calculated by the server with the shared tax engine.">
+      <FormSection columns={1} title="Discount and totals" description="Calculated by the server with the shared tax engine.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select label="Order discount" selectedKey={header.documentDiscountType} onSelectionChange={(value) => set("documentDiscountType")(String(value))}
             options={[{ value: NONE, label: "None" }, { value: "percent", label: "Percent" }, { value: "amount", label: "Amount" }]} />
           {header.documentDiscountType !== NONE && <TextField label="Discount value" inputMode="decimal" value={header.documentDiscountValue} onChange={set("documentDiscountValue")} />}
         </div>
-        {previewQuery.isError && <ProcAlert tone="warning">{errorMessage(previewQuery.error)}</ProcAlert>}
+        {previewQuery.isError && <Notice tone="warning">{errorMessage(previewQuery.error)}</Notice>}
         {preview && (
           <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:max-w-md">
             <dt className="text-text-muted">Subtotal</dt><dd className="text-right tabular-nums">{money(preview.currencyCode, preview.totals.grossTotal)}</dd>
@@ -299,14 +304,16 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
           </dl>
         )}
         {preview?.warnings.map((warning) => <p key={`${warning.line}-${warning.code}`} className="text-sm text-warning">{warning.message}</p>)}
-      </ProcPanel>
+      </FormSection>
 
-      <ProcPanel title="Notes">
+      <FormSection columns={1} title="Notes">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <TextArea label="Notes for the supplier" value={header.supplierNotes} onChange={set("supplierNotes")} description="Printed on the purchase order." />
           <TextArea label="Internal notes" value={header.internalNotes} onChange={set("internalNotes")} description="Never shown to the supplier." />
         </div>
-      </ProcPanel>
-    </div>
+      </FormSection>
+    </DocumentFormPage>
+    
+    </>
   );
 }

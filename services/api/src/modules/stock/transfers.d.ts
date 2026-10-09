@@ -1,0 +1,22 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+type Client = any;
+export declare class TransferError extends Error { status: number; code: string; details?: unknown }
+export declare const TRANSFER_REASONS: ReadonlyArray<{ id: string; label: string }>;
+export declare const TRANSFER_STATUSES: ReadonlyArray<{ id: string; label: string }>;
+export declare function createInventoryTransfer(client: Client, context: StockContext, input: Row): Promise<Row>;
+export declare function updateDraftTransfer(client: Client, context: StockContext, transferId: string, input: Row): Promise<Row>;
+export declare function validateInventoryTransfer(client: Client, context: StockContext, transferId: string): Promise<{ ready: boolean; errors: Array<{ message: string; code: string }> }>;
+export declare function confirmInventoryTransfer(client: Client, context: StockContext, transferId: string): Promise<Row>;
+export declare function returnTransferToDraft(client: Client, context: StockContext, transferId: string): Promise<Row>;
+export declare function cancelInventoryTransfer(client: Client, context: StockContext, transferId: string, input?: { reason?: string }): Promise<Row>;
+export declare function dispatchInventoryTransfer(client: Client, context: StockContext, transferId: string): Promise<Row>;
+export declare function completeInventoryTransfer(client: Client, context: StockContext, transferId: string): Promise<Row>;
+export declare function receiveInventoryTransfer(client: Client, context: StockContext, transferId: string, input?: Row): Promise<Row>;
+export declare function writeOffTransitLoss(client: Client, context: StockContext, transferId: string, input: Row): Promise<Row>;
+export declare function reverseInventoryTransfer(client: Client, context: StockContext, transferId: string, input: { reason: string }): Promise<Row>;
+export declare function getInventoryTransfer(client: Client, context: StockContext, transferId: string): Promise<Row>;
+export declare function listInventoryTransfers(client: Client, context: StockContext, filters?: Row): Promise<Row>;
+export declare function exportInventoryTransfers(client: Client, context: StockContext, filters?: Row): Promise<{ fileName: string; body: string }>;
+export declare function getInventoryTransferOptions(client: Client, context: StockContext): Promise<Row>;
+export declare function getTransferAvailability(client: Client, context: StockContext, input: { warehouseId: string; itemId: string }): Promise<Row>;

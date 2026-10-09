@@ -1,66 +1,11 @@
-// F321-F329: quality holds (and the F323 stock-movement gate they feed -- enforced inside Stock's own
-// postStockMovement, which reads this exact table/status contract) and non-conformance records with
-// containment and disposition (rework/scrap/return-to-supplier/use-as-is, the last with a genuine
-// second-person approval).
+// F321, F325-F329: non-conformance records with containment and disposition (rework/scrap/return-to-supplier/use-as-is, the last with a genuine
+// second-person approval). Holding stock is Inventory's Quality Holds (modules/stock/quality-holds.js): one workflow, disposition movements.
 import { QualityError, need, needAny, nonNegative, oneOf, qx, recordEvent, text, textOrNull, uuid, uuidOrNull } from "./common.js";
-import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
-import { lockInventoryItem } from "../../core/inventory-lock.js";
 
 const MANAGE = "quality.manage";
 const VIEW = ["quality.view", MANAGE];
-const HOLD_TYPES = ["inventory", "batch", "serial", "receipt", "work_order", "shipment", "return"];
 const DISPOSITIONS = ["accept", "accept_with_deviation", "rework", "repair", "return_to_supplier", "scrap", "use_as_is"];
 const SEVERITIES = ["minor", "major", "critical"];
-
-// ---------------------------------------------------------------- F322-324: quality holds
-export async function listQualityHolds(client, c, filters = {}) {
-  needAny(c, VIEW);
-  const params = [c.organizationId];
-  let where = "";
-  if (filters.status) { params.push(String(filters.status)); where += ` AND status=$${params.length}`; }
-  if (filters.itemId) { params.push(uuid(filters.itemId, "Item")); where += ` AND item_id=$${params.length}`; }
-  const { rows } = await qx(client, `SELECT * FROM tenant.quality_holds WHERE organization_id=$1${where} ORDER BY placed_at DESC LIMIT 1000`, params);
-  return rows;
-}
-export async function getQualityHold(client, c, id) {
-  needAny(c, VIEW);
-  const { rows } = await qx(client, `SELECT * FROM tenant.quality_holds WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(id, "Hold")]);
-  if (!rows[0]) throw new QualityError(404, "Quality hold was not found.", "QUALITY_HOLD_NOT_FOUND");
-  return rows[0];
-}
-// F322/F323: place a hold -- manually (quality.hold) or automatically from a failed inspection
-// ({internal: true}, called from inspections.js). Either way it lands in the exact table/status shape
-// Stock's postStockMovement already gates real stock decreases against.
-export async function createQualityHold(client, c, input, { internal = false } = {}) {
-  if (!internal) need(c, "quality.hold");
-  const holdType = oneOf(String(input.holdType ?? "inventory"), HOLD_TYPES, "Hold type");
-  const reason = text(input.reason, 500);
-  if (!reason) throw new QualityError(400, "A hold needs a reason.", "QUALITY_HOLD_REASON_REQUIRED");
-  const itemId = uuidOrNull(input.itemId, "Item");
-  if (itemId) await lockInventoryItem(client, c, itemId);
-  const holdNumber = await nextDocumentNumber(client, c, { documentType: "quality_hold", prefix: "QH" });
-  // source_id is NOT NULL (every hold traces to a record) but a manual, ad-hoc hold has no specific
-  // receipt/work-order/inspection behind it; the hold's own id (generated up front) fills that role.
-  const holdId = crypto.randomUUID();
-  const { rows } = await qx(client, `INSERT INTO tenant.quality_holds(id,organization_id,hold_number,hold_type,source_type,source_id,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,reason,placed_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-    [holdId, c.organizationId, holdNumber, holdType, text(input.sourceType, 60) || "manual", uuidOrNull(input.sourceId, "Source") ?? holdId, itemId, uuidOrNull(input.warehouseId, "Warehouse"), uuidOrNull(input.warehouseLocationId, "Location"), uuidOrNull(input.batchId, "Batch"), uuidOrNull(input.serialId, "Serial"), String(nonNegative(input.quantity ?? 0, "Quantity")), reason, c.userId]);
-  await recordEvent(client, c, "hold", rows[0].id, "quality.hold.placed", { holdType, itemId });
-  return rows[0];
-}
-export async function cancelQualityHold(client, c, id, reason) {
-  need(c, "quality.hold");
-  if (!text(reason)) throw new QualityError(400, "Give a reason for cancelling this hold.", "QUALITY_REASON_REQUIRED");
-  const { rows } = await qx(client, `UPDATE tenant.quality_holds SET status='cancelled',released_by=$3,released_at=now(),release_reason=$4 WHERE organization_id=$1 AND id=$2 AND status='active' RETURNING *`,
-    [c.organizationId, uuid(id, "Hold"), c.userId, text(reason, 500)]);
-  if (!rows[0]) throw new QualityError(409, "Only an active hold can be cancelled.", "QUALITY_HOLD_STATE_INVALID");
-  await recordEvent(client, c, "hold", rows[0].id, "quality.hold.cancelled", { reason: text(reason, 300) });
-  return rows[0];
-}
-// F324: release (in full or in part) -- this folder's original thin index.js already built this
-// correctly (idempotent via beginIdempotentOperation/completeIdempotentOperation, optimistic version
-// locking, partial-release aware, row-locked before Stock could race it) and is EXACTLY the contract
-// Stock's own movement gate depends on, so it is re-exported as-is rather than reimplemented.
 
 // ---------------------------------------------------------------- F321,325-329: non-conformance
 export async function listNonconformances(client, c, filters = {}) {

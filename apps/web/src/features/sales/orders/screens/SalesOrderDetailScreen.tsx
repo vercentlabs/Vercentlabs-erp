@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Check, Eye, FileText, Pencil, Send, Truck, Upload } from "lucide-react";
+import { Check, Eye, FileText, Pencil, Send, Truck, Upload } from "lucide-react";
 import {
   Button, EnterpriseDataGrid, ErrorState, LinkButton, MetricStrip, PermissionState, ProgressBar, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, buttonVariants,
 } from "@vercentlabs/design-system";
@@ -25,7 +25,6 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { StoredTotals, discountReasonLabel } from "@/features/sales/shared/DocumentDiscounts";
-import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 import { getOrderTracking, type OrderTracking } from "@/features/sales/order-tracking/api/order-tracking-api";
 import { OrderProgress, OrderReturnsCredits, OrderTrackingSummary, RelatedDocuments } from "@/features/sales/order-tracking/components/OrderTrackingPanel";
 import type { SalesDocumentEvent } from "@/features/sales/quotations/api/quotations-api";
@@ -44,6 +43,7 @@ import { CreateInvoiceDialog } from "@/features/sales/invoices/components/Invoic
 
 import { CancelOrderDialog, CancelRemainingDialog, ReopenOrderDialog, failureText } from "../components/OrderDialogs";
 import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge, ReservationStatusBadge } from "../components/OrderStatusBadges";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -154,25 +154,21 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/sales/orders" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
-        <ArrowLeft className="size-3.5" aria-hidden="true" />
-        All sales orders
-      </Link>
-      {error && <SalesAlert>{error}</SalesAlert>}
-      {notice && <SalesAlert tone="info" className="whitespace-pre-line">{notice}</SalesAlert>}
+      {error && <Notice>{error}</Notice>}
+      {notice && <Notice tone="info" className="whitespace-pre-line">{notice}</Notice>}
       {order.status === "cancelled" && (
-        <SalesAlert tone="warning">
+        <Notice tone="warning">
           This order was cancelled{order.cancelled_at ? ` on ${dateTime(order.cancelled_at)}` : ""}{order.cancelled_by_name ? ` by ${order.cancelled_by_name}` : ""}.
           {" "}{[detail.cancelReasons.find((reason) => reason.code === order.cancel_reason_code)?.label, order.cancel_reason].filter(Boolean).join(": ")}
-        </SalesAlert>
+        </Notice>
       )}
       {detail.duplicatePurchaseOrders.length > 0 && order.status !== "cancelled" && (
-        <SalesAlert tone="warning">
+        <Notice tone="warning">
           Customer PO {order.customer_po_number} is also on{" "}
           {detail.duplicatePurchaseOrders.map((other, index) => (
             <span key={other.id}>{index > 0 ? ", " : ""}<Link className="underline" href={`/sales/orders/${other.id}`}>{other.number}</Link></span>
           ))}. Check that this is not a duplicate order.
-        </SalesAlert>
+        </Notice>
       )}
 
       <RecordDetailsPage
@@ -294,8 +290,8 @@ function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: O
   return (
     <div className="flex flex-col gap-4 pt-4">
       {tracking && <OrderProgress tracking={tracking} />}
-      <SalesPanel title="Customer">
-        <SalesFacts items={[
+      <Panel title="Customer">
+        <Facts items={[
           { label: "Customer", value: order.customer_snapshot?.displayName ?? "—" },
           { label: "Customer number", value: order.customer_snapshot?.customerNumber ?? order.customer_number ?? "—" },
           { label: "GSTIN", value: order.customer_snapshot?.gstin ?? "—" },
@@ -303,9 +299,9 @@ function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: O
           { label: "Bill to", value: <span className="whitespace-pre-line">{addressText(order.billing_address_snapshot)}</span> },
           { label: "Ship to", value: <span className="whitespace-pre-line">{addressText(order.shipping_address_snapshot)}</span> },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Order">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Order">
+        <Facts items={[
           { label: "Order date", value: calendarDate(order.order_date) },
           { label: "Customer PO", value: [order.customer_po_number, order.customer_po_date && `dated ${calendarDate(order.customer_po_date)}`].filter(Boolean).join(" ") || "—" },
           { label: "Customer reference", value: order.customer_reference ?? "—" },
@@ -313,9 +309,9 @@ function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: O
           { label: "Default warehouse", value: order.default_warehouse_name ?? "—" },
           { label: "Salesperson", value: order.owner_name ?? "—" },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Commercial terms" description={order.source_quotation_id ? "Carried from the accepted quotation; quoted prices, discounts and tax are executed as agreed." : undefined}>
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Commercial terms" description={order.source_quotation_id ? "Carried from the accepted quotation; quoted prices, discounts and tax are executed as agreed." : undefined}>
+        <Facts items={[
           { label: "Currency", value: order.currency_code },
           { label: "Price list", value: order.price_list_name ? `${order.price_list_name} (${order.price_list_tax_inclusive ? "tax inclusive" : "tax exclusive"})` : "None" },
           { label: "Payment terms", value: order.payment_term_snapshot?.name
@@ -331,16 +327,16 @@ function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: O
             ? `${Number(order.document_discount_value)}% (${money(order.currency_code, order.document_discount_amount)})` : money(order.currency_code, order.document_discount_amount) },
           { label: "Discount reason", value: discountReasonLabel(order.discount_reason_code, order.discount_reason_text) ?? "—" },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Status history">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Status history">
+        <Facts items={[
           { label: "Created", value: `${dateTime(order.created_at)}${order.created_by_name ? ` by ${order.created_by_name}` : ""}` },
           { label: "Confirmed", value: order.confirmed_at ? `${dateTime(order.confirmed_at)}${order.confirmed_by_name ? ` by ${order.confirmed_by_name}` : ""}` : "—" },
           { label: "Confirmation", value: order.confirmation === "none" ? "—" : `${order.confirmationLabel}${order.confirmation_version > 1 ? ` (revision ${order.confirmation_version})` : ""}` },
           { label: "Closed", value: order.closed_at ? dateTime(order.closed_at) : "—" },
           { label: "Cancelled", value: order.cancelled_at ? `${dateTime(order.cancelled_at)}${order.cancelled_by_name ? ` by ${order.cancelled_by_name}` : ""}` : "—" },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -397,14 +393,14 @@ function Items({ detail }: { detail: SalesOrderDetail }) {
     <div className="flex flex-col gap-4 pt-4">
       <EnterpriseDataGrid<SalesOrderLine> aria-label="Order lines" columns={columns} data={detail.lines} getRowId={(row) => row.id} state="ready" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <SalesPanel title="Tax breakdown">
+        <Panel title="Tax breakdown">
           {detail.taxLines.length ? (
-            <SalesFacts columns={2} items={detail.taxLines.map((tax) => ({ label: `${tax.label ?? tax.tax_type.toUpperCase()} ${Number(tax.rate)}% on ${money(currency, tax.taxable_amount)}`, value: money(currency, tax.tax_amount) }))} />
+            <Facts columns={2} items={detail.taxLines.map((tax) => ({ label: `${tax.label ?? tax.tax_type.toUpperCase()} ${Number(tax.rate)}% on ${money(currency, tax.taxable_amount)}`, value: money(currency, tax.tax_amount) }))} />
           ) : <p className="text-sm text-text-muted">No tax on this order.</p>}
-        </SalesPanel>
-        <SalesPanel title="Totals" description="Calculated by the server when the order was saved. Tax is posted by the invoice, not by the order.">
+        </Panel>
+        <Panel title="Totals" description="Calculated by the server when the order was saved. Tax is posted by the invoice, not by the order.">
           <StoredTotals currencyCode={currency} document={order} taxLines={detail.taxLines} />
-        </SalesPanel>
+        </Panel>
       </div>
     </div>
   );
@@ -424,7 +420,7 @@ function Fulfillment({ detail, orderId, autoCheck, reserving, onReserve, onDeliv
       )}
       {detail.delivery.deliverable && order.status !== "draft" && <DeliveryProgress detail={detail} canDeliver={actions.deliver} onDeliver={onDeliver} />}
       <ReservationPanel orderId={orderId} detail={detail} reserving={reserving} onReserveRemaining={onReserve} onDeliver={onDeliver} onChanged={onChanged} />
-      <SalesPanel title="Deliveries" description="An order can be delivered in several parts, each from one warehouse. Stock is issued when a delivery is dispatched.">
+      <Panel title="Deliveries" description="An order can be delivered in several parts, each from one warehouse. Stock is issued when a delivery is dispatched.">
         {!detail.deliveries.length ? <p className="text-sm text-text-muted">No deliveries yet.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.deliveries.map((delivery) => (
@@ -448,7 +444,7 @@ function Fulfillment({ detail, orderId, autoCheck, reserving, onReserve, onDeliv
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -461,7 +457,7 @@ function DeliveryProgress({ detail, canDeliver, onDeliver }: { detail: SalesOrde
   const returns = goods.some((line) => Number(line.returned_quantity) > 0);
   const requested = detail.order.requested_delivery_date;
   return (
-    <SalesPanel title="Delivery progress"
+    <Panel title="Delivery progress"
       description={`${quantity(progress.delivered)} of ${quantity(progress.ordered - progress.cancelled)} delivered${progress.cancelled ? ` (${quantity(progress.cancelled)} cancelled)` : ""}${progress.remaining ? ` · ${quantity(progress.remaining)} left to deliver` : ""}${requested ? ` · requested by ${calendarDate(requested)}` : ""}`}
       actions={(
         <span className="flex flex-wrap items-center gap-2">
@@ -472,7 +468,7 @@ function DeliveryProgress({ detail, canDeliver, onDeliver }: { detail: SalesOrde
       <ProgressBar label="Delivered" value={progress.percent} />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[40rem] text-sm">
-          <thead className="text-left text-xs text-text-muted">
+          <thead className="bg-surface-muted text-left text-text-secondary">
             <tr className="border-b border-border">
               <th className="py-2 pr-3 font-medium">Product</th>
               <th className="py-2 pr-3 text-right font-medium">Ordered</th>
@@ -500,7 +496,7 @@ function DeliveryProgress({ detail, canDeliver, onDeliver }: { detail: SalesOrde
           </tbody>
         </table>
       </div>
-    </SalesPanel>
+    </Panel>
   );
 }
 
@@ -523,7 +519,7 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
   const onDrafts = detail.lines.some((line) => line.on_draft_invoices > 0);
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Invoicing progress"
+      <Panel title="Invoicing progress"
         description={`Invoiced on ${detail.invoicing.basis === "delivered" ? "delivered" : "ordered"} quantities (Sales settings). Only posted invoices count as invoiced; payment is recorded against each invoice by Finance.`}
         actions={(
           <span className="flex flex-wrap items-center gap-2">
@@ -531,7 +527,7 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
             {detail.actions.invoice && <Button variant="primary" size="compact" onPress={onInvoice}>Create Invoice</Button>}
           </span>
         )}>
-        <SalesFacts columns={4} items={[
+        <Facts columns={4} items={[
           { label: "Order value", value: money(currency, detail.invoicing.orderedValue) },
           { label: "Invoiced", value: money(currency, detail.invoicing.invoicedValue) },
           { label: "Credited", value: money(currency, detail.invoicing.creditedValue) },
@@ -539,9 +535,9 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
           { label: "Remaining to invoice", value: money(currency, detail.invoicing.remainingValue) },
           { label: "Invoiceable now", value: money(currency, detail.invoicing.invoiceableNowValue) },
         ]} />
-        {onDrafts && <SalesAlert tone="info">Draft invoices bill part of what is left. They are not invoiced until posted, and only what is left at posting can be posted.</SalesAlert>}
-      </SalesPanel>
-      <SalesPanel title="Invoices" description="An order can be invoiced in several parts. Each invoice bills its quantity with the discount and tax in proportion; only posted invoices count as invoiced.">
+        {onDrafts && <Notice tone="info">Draft invoices bill part of what is left. They are not invoiced until posted, and only what is left at posting can be posted.</Notice>}
+      </Panel>
+      <Panel title="Invoices" description="An order can be invoiced in several parts. Each invoice bills its quantity with the discount and tax in proportion; only posted invoices count as invoiced.">
         {!detail.invoices.length ? <p className="text-sm text-text-muted">No invoices yet.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.invoices.map((invoice) => (
@@ -558,8 +554,8 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
             ))}
           </ul>
         )}
-      </SalesPanel>
-      <SalesPanel title="Credit notes" description="Credits against the order's posted invoices: returned goods, price adjustments and corrections. Invoices keep their totals; posted credit notes reduce what was billed.">
+      </Panel>
+      <Panel title="Credit notes" description="Credits against the order's posted invoices: returned goods, price adjustments and corrections. Invoices keep their totals; posted credit notes reduce what was billed.">
         {!detail.creditNotes.length ? <p className="text-sm text-text-muted">No credit notes.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.creditNotes.map((credit) => (
@@ -572,10 +568,10 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
             ))}
           </ul>
         )}
-      </SalesPanel>
-      <SalesPanel title="Invoiced by line">
+      </Panel>
+      <Panel title="Invoiced by line">
         <EnterpriseDataGrid<SalesOrderLine> aria-label="Invoicing by line" columns={columns} data={detail.lines} getRowId={(row) => row.id} state="ready" />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -587,7 +583,7 @@ function Confirmation({ detail, onSend, onMarkSent, onAcknowledge }: {
   const actions = detail.actions;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Order Confirmation"
+      <Panel title="Order Confirmation"
         description="The Order Confirmation is this order's own number, as confirmed. Each confirmation is kept unchanged; reopening the order supersedes it and confirming again makes the next revision. Sending it never changes the order's status, and delivery and invoicing never wait for an acknowledgement."
         actions={(
           <div className="flex flex-wrap gap-2">
@@ -596,7 +592,7 @@ function Confirmation({ detail, onSend, onMarkSent, onAcknowledge }: {
             {actions.acknowledgeConfirmation && <Button variant="secondary" size="compact" onPress={onAcknowledge}>Record Acknowledgement</Button>}
           </div>
         )}>
-        {order.status === "draft" && <SalesAlert tone="info">{detail.confirmations.length ? "The order was reopened: its earlier confirmation is superseded. Confirm the order again to issue the next revision." : "The order is a draft: it has no Order Confirmation until it is confirmed."}</SalesAlert>}
+        {order.status === "draft" && <Notice tone="info">{detail.confirmations.length ? "The order was reopened: its earlier confirmation is superseded. Confirm the order again to issue the next revision." : "The order is a draft: it has no Order Confirmation until it is confirmed."}</Notice>}
         {!detail.confirmations.length ? <p className="text-sm text-text-muted">Not confirmed yet.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.confirmations.map((confirmation) => (
@@ -629,16 +625,16 @@ function Confirmation({ detail, onSend, onMarkSent, onAcknowledge }: {
             ))}
           </ul>
         )}
-      </SalesPanel>
-      <SalesPanel title="Related documents">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Related documents">
+        <Facts items={[
           { label: "Quotation", value: order.source_quotation_id ? <Link className="text-brand hover:underline" href={`/sales/quotations/${order.source_quotation_id}`}>{order.source_quotation_number}</Link> : "None (direct order)" },
           { label: "Deliveries", value: detail.deliveries.length ? detail.deliveries.map((delivery) => delivery.delivery_number).join(", ") : "None" },
           { label: "Returns", value: detail.returns.length ? <span className="flex flex-wrap gap-2">{detail.returns.map((item) => <Link key={item.id} className="text-brand hover:underline" href={`/sales/returns/${item.id}`}>{item.return_number}</Link>)}</span> : "None" },
           { label: "Invoices", value: detail.invoices.length ? detail.invoices.map((invoice) => invoice.invoice_number).join(", ") : "None" },
           { label: "Credit notes", value: detail.creditNotes.length ? <span className="flex flex-wrap gap-2">{detail.creditNotes.map((credit) => <Link key={credit.id} className="text-brand hover:underline" href={`/sales/credit-notes/${credit.id}`}>{credit.invoice_number}</Link>)}</span> : "None" },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -649,14 +645,14 @@ function Related({ detail, tracking }: { detail: SalesOrderDetail; tracking?: Or
     <div className="flex flex-col gap-4 pt-4">
       {/* The documents the order led to come from the order tracking service: one source for this page, the list and the reports. */}
       {tracking && <RelatedDocuments tracking={tracking} />}
-      <SalesPanel title="Where it came from">
-        <SalesFacts items={[
+      <Panel title="Where it came from">
+        <Facts items={[
           { label: "Customer", value: <Link className="text-brand hover:underline" href={`/sales/customers/${order.party_id}`}>{order.customer_snapshot?.displayName ?? "Open customer"}</Link> },
           { label: "Quotation", value: order.source_quotation_id ? <Link className="text-brand hover:underline" href={`/sales/quotations/${order.source_quotation_id}`}>{order.source_quotation_number}</Link> : "None (direct order)" },
           { label: "Opportunity", value: order.source_opportunity_id ? <Link className="text-brand hover:underline" href={`/crm/opportunities/${order.source_opportunity_id}`}>{[order.source_opportunity_code, order.source_opportunity_name].filter(Boolean).join(" · ")}</Link> : "None" },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Saved versions" description="Each save of the draft is kept.">
+      </Panel>
+      <Panel title="Saved versions" description="Each save of the draft is kept.">
         <ul className="flex flex-col divide-y divide-border text-sm">
           {detail.versions.map((version) => (
             <li key={version.id} className="flex flex-wrap items-center gap-3 py-2">
@@ -666,7 +662,7 @@ function Related({ detail, tracking }: { detail: SalesOrderDetail; tracking?: Or
             </li>
           ))}
         </ul>
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -686,9 +682,9 @@ function Notes({ detail, orderId, canEdit, onChanged }: { detail: SalesOrderDeta
   const notes = detail.events.filter((event) => event.event_type === "sales_order.note_added");
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Notes for the customer" description="Printed on the order confirmation."><p className="whitespace-pre-line text-sm">{order.customer_notes || "—"}</p></SalesPanel>
-      <SalesPanel title="Terms and conditions" description="Printed on the order confirmation."><p className="whitespace-pre-line text-sm">{order.terms_and_conditions || "—"}</p></SalesPanel>
-      <SalesPanel title="Internal notes" description="Never printed or sent to the customer.">
+      <Panel title="Notes for the customer" description="Printed on the order confirmation."><p className="whitespace-pre-line text-sm">{order.customer_notes || "—"}</p></Panel>
+      <Panel title="Terms and conditions" description="Printed on the order confirmation."><p className="whitespace-pre-line text-sm">{order.terms_and_conditions || "—"}</p></Panel>
+      <Panel title="Internal notes" description="Never printed or sent to the customer.">
         {order.internal_notes && <p className="whitespace-pre-line text-sm">{order.internal_notes}</p>}
         {notes.length > 0 && (
           <ul className="flex flex-col divide-y divide-border text-sm">
@@ -700,11 +696,11 @@ function Notes({ detail, orderId, canEdit, onChanged }: { detail: SalesOrderDeta
             ))}
           </ul>
         )}
-        {save.isError && <SalesAlert>{failureText(save.error, "The note could not be saved.")}</SalesAlert>}
+        {save.isError && <Notice>{failureText(save.error, "The note could not be saved.")}</Notice>}
         <TextArea aria-label="Note" placeholder="Add an internal note" value={note} onChange={setNote} />
         <div><Button variant="secondary" size="compact" isDisabled={!note.trim()} isLoading={save.isPending} onPress={() => save.mutate()}>Add note</Button></div>
-      </SalesPanel>
-      <SalesPanel title="Attachments" description="The customer's purchase order, an agreement or a drawing. Files are internal and never added to the order PDF."
+      </Panel>
+      <Panel title="Attachments" description="The customer's purchase order, an agreement or a drawing. Files are internal and never added to the order PDF."
         actions={canEdit ? (
           <>
             <input ref={input} type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp"
@@ -712,7 +708,7 @@ function Notes({ detail, orderId, canEdit, onChanged }: { detail: SalesOrderDeta
             <Button variant="secondary" size="compact" isLoading={upload.isPending} onPress={() => input.current?.click()}><Upload className="size-3.5" aria-hidden="true" />Add file</Button>
           </>
         ) : undefined}>
-        {(upload.isError || remove.isError) && <SalesAlert>{failureText(upload.error ?? remove.error, "The file could not be saved.")}</SalesAlert>}
+        {(upload.isError || remove.isError) && <Notice>{failureText(upload.error ?? remove.error, "The file could not be saved.")}</Notice>}
         {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : !query.data?.length ? <p className="text-sm text-text-muted">No files.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {query.data.map((file) => (
@@ -724,7 +720,7 @@ function Notes({ detail, orderId, canEdit, onChanged }: { detail: SalesOrderDeta
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -732,7 +728,7 @@ function Notes({ detail, orderId, canEdit, onChanged }: { detail: SalesOrderDeta
 function History({ detail }: { detail: SalesOrderDetail }) {
   return (
     <div className="flex flex-col gap-3 pt-4">
-      <SalesPanel title="History" description="Who did what, and when. Entries are never edited or removed.">
+      <Panel title="History" description="Who did what, and when. Entries are never edited or removed.">
         <ol className="flex flex-col divide-y divide-border text-sm">
           {detail.events.map((event, index) => (
             <li key={event.id ?? index} className="flex flex-col gap-0.5 py-2">
@@ -742,7 +738,7 @@ function History({ detail }: { detail: SalesOrderDetail }) {
             </li>
           ))}
         </ol>
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }

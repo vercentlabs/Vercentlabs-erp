@@ -7,7 +7,7 @@ import { Button, Checkbox, ErrorState, MultiSelect, RecordFormPage, Select, Text
 
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
-import { FormSection } from "@/features/crm/shared/ui/FormSection";
+import { FormSection } from "@/shared/ui/FormSection";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";

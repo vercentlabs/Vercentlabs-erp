@@ -1,0 +1,28 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+type Client = any;
+export declare class HoldError extends Error { status: number; code: string; details?: unknown }
+export declare const HOLD_TYPES: ReadonlyArray<{ id: "quality_hold" | "quarantine"; label: string; disposition: string }>;
+export declare const HOLD_STATUSES: ReadonlyArray<{ id: string; label: string }>;
+export declare const INSPECTION_RESULTS: ReadonlyArray<{ id: string; label: string }>;
+export declare function listHoldReasons(client: Client, context: StockContext, options?: { includeInactive?: boolean }): Promise<Row[]>;
+export declare function createHoldReason(client: Client, context: StockContext, input: Row): Promise<Row>;
+export declare function updateHoldReason(client: Client, context: StockContext, reasonId: string, input: Row): Promise<Row>;
+export declare function createStockHold(client: Client, context: StockContext, input: Row): Promise<Row>;
+export declare function updateDraftStockHold(client: Client, context: StockContext, holdId: string, input: Row): Promise<Row>;
+export declare function cancelStockHold(client: Client, context: StockContext, holdId: string, input?: { reason?: string | null }): Promise<Row>;
+export declare function validateStockHold(client: Client, context: StockContext, holdId: string): Promise<{ ready: boolean; errors: Array<{ message: string; code: string }>; reservationConflicts: Row[] }>;
+export declare function placeStockOnHold(client: Client, context: StockContext, holdId: string, input?: Row): Promise<Row>;
+export declare function resolveStockHold(client: Client, context: StockContext, holdId: string, input: Row): Promise<Row>;
+export declare function recordHoldReview(client: Client, context: StockContext, holdId: string, input: Row): Promise<Row>;
+export declare function registerHeldStock(client: Client, context: StockContext, input: Row, options?: { internal?: boolean }): Promise<string | null>;
+export declare function listStockHolds(client: Client, context: StockContext, filters?: Row): Promise<{ rows: Row[]; canCreate: boolean }>;
+export declare function getStockHold(client: Client, context: StockContext, holdId: string): Promise<Row>;
+export declare function getHoldOptions(client: Client, context: StockContext): Promise<Row>;
+export declare function listHeldStock(client: Client, context: StockContext, filters?: Row): Promise<{ rows: Row[]; unexplained: number }>;
+export declare function noteInspectionOnHold(client: Client, context: StockContext, input: Row): Promise<string | null>;
+export declare function prepareStockHoldFileUpload(input: { fileName: string; bytes: Uint8Array }, env?: Record<string, string | undefined>): Promise<unknown>;
+export declare function listStockHoldFiles(client: Client, context: StockContext, holdId: string): Promise<Row[]>;
+export declare function uploadStockHoldFile(client: Client, context: StockContext, holdId: string, input: { prepared: unknown }, options?: Row): Promise<Row>;
+export declare function removeStockHoldFile(client: Client, context: StockContext, holdId: string, fileId: string): Promise<Row>;
+export declare function readStockHoldFile(client: Client, context: StockContext, holdId: string, fileId: string, options?: Row): Promise<{ fileName: string; mimeType: string; body: Uint8Array }>;

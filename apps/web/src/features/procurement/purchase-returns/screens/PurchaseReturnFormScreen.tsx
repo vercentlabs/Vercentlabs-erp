@@ -3,16 +3,13 @@
 // New (or draft) purchase return: the goods of one purchase order's posted receipts that go back to the supplier — from usable stock, goods
 // on hold, or a rejection case — each with its reason. Saving keeps a draft (no stock moves); posting the dispatch happens on the return.
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
-import { Button, Checkbox, ErrorState, PageHeader, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Checkbox, ErrorState, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { quantity } from "@/features/procurement/shared/format";
 import { listPurchaseOrders } from "@/features/procurement/purchase-orders/api/purchase-orders-api";
 import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
@@ -20,6 +17,9 @@ import { useFormChangesWarning } from "@/features/procurement/shared/navigation"
 import {
   createReturn, errorMessage, getEligible, getReturn, getReturnOptions, issuesOf, updateReturn, type EligibleLine, type ReturnDetail, type ReturnOptions,
 } from "../api/purchase-returns-api";
+import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
+import { FormSection } from "@/shared/ui/FormSection";
+import { Notice } from "@/shared/ui/Panel";
 
 type Row = { include: boolean; source: string; quantity: string; reason: string; reasonNotes: string; serialNumbers: string; billingAllocation: string };
 
@@ -32,6 +32,9 @@ export function PurchaseReturnFormScreen({ orderId, receiptId, returnId }: { ord
   if (existing.data && existing.data.purchaseReturn.status !== "draft") return <ErrorState title="This return cannot be edited" description="Only a draft is edited." />;
   return <ReturnForm options={options.data} existing={existing.data ?? null} presetOrderId={existing.data?.purchaseReturn.purchaseOrderId ?? orderId} receiptId={receiptId} />;
 }
+
+// What is physically here to send back (usable stock, held goods, open rejections): the supplier owing a return never makes up for stock that is not here.
+const physicalOf = (line: EligibleLine) => Number(line.usable) + line.holds.reduce((sum, hold) => sum + Number(hold.open), 0) + line.rejections.reduce((sum, rejection) => sum + Number(rejection.open), 0);
 
 function sourcesOf(line: EligibleLine) {
   return [
@@ -80,24 +83,33 @@ function ReturnForm({ options, existing, presetOrderId, receiptId }: { options: 
   const issues = issuesOf(save.error);
   const anySelected = (eligible.data?.lines ?? []).some((line) => rowOf(line).include && Number(rowOf(line).quantity) > 0);
   return (
-    <div className="flex flex-col gap-6">
-      <Link href="/procurement/purchase-returns" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Purchase Returns</Link>
-      <PageHeader title={saved ? `Edit ${saved.returnNumber}` : "Create Purchase Return"}
-        description="Goods received on posted receipts going back to the supplier. Saving keeps a draft — no stock moves until the dispatch is posted."
-        primaryAction={<Button variant="primary" isLoading={save.isPending} isDisabled={!anySelected} onPress={() => save.mutate()}>Save Draft</Button>} />
-      {Boolean(save.error) && <ProcAlert>{errorMessage(save.error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>}
-
+    <>
+    <DocumentFormPage
+      header={{
+        title: saved ? `Edit ${saved.returnNumber}` : "Create Purchase Return",
+        description: "Goods received on posted receipts going back to the supplier. Saving keeps a draft — no stock moves until the dispatch is posted.",
+      }}
+      banner={<div className="flex flex-col gap-3">
+        {Boolean(save.error) && <Notice>{errorMessage(save.error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
+      </div>}
+      formActions={
+        <>
+          <Button variant="secondary" onPress={() => router.push(saved ? `/procurement/purchase-returns/${saved.id}` : "/procurement/purchase-returns")}>Cancel</Button>
+          <Button variant="primary" isLoading={save.isPending} isDisabled={!anySelected} onPress={() => save.mutate()}>Save Draft</Button>
+        </>
+      }
+    >
       {!presetOrderId && !receiptId && !saved && (
-        <ProcPanel title="Purchase order">
+        <FormSection columns={1} title="Purchase order">
           <Select label="Purchase order" selectedKey={orderId || null} onSelectionChange={(value) => { setOrderId(String(value)); setRows({}); }}
             options={(orders.data?.rows ?? []).filter((order) => ["confirmed", "closed"].includes(order.status)).map((order) => ({ value: order.id, label: `${order.purchaseOrderNumber} · ${order.supplierName}` }))} />
-        </ProcPanel>
+        </FormSection>
       )}
 
       {eligible.isLoading && <LoadingState label="Loading what can be returned" />}
-      {eligible.error && <ProcAlert>{errorMessage(eligible.error)}</ProcAlert>}
+      {eligible.error && <Notice>{errorMessage(eligible.error)}</Notice>}
       {eligible.data && (
-        <ProcPanel title={`Return items — ${eligible.data.order.purchaseOrderNumber}`} description="Never more than a receipt line still has — received less what was already returned — and what is physically there.">
+        <FormSection columns={1} title={`Return items — ${eligible.data.order.purchaseOrderNumber}`} description="Never more than a receipt line still has — received less what was already returned — and what is physically there.">
           {!lines.length && <p className="text-sm text-text-muted">No posted receipt of this order has goods left to return.</p>}
           <div className="flex flex-col gap-3">
             {lines.map((line) => {
@@ -109,7 +121,7 @@ function ReturnForm({ options, existing, presetOrderId, receiptId }: { options: 
                     <Checkbox isSelected={row.include} isDisabled={!sources.length} onChange={(value) => change(line, { include: value })}>
                       <span className="font-medium">{line.receiptNumber} line {line.lineNumber}: {line.description}</span>
                     </Checkbox>
-                    <span className="text-sm tabular-nums text-text-secondary">Received {quantity(line.received)} · Returned {quantity(line.returned)} · <span className="font-medium text-text">Returnable {quantity(line.entitlement)} {line.uom ?? ""}</span>
+                    <span className="text-sm tabular-nums text-text-secondary">Received {quantity(line.received)} · Returned {quantity(line.returned)} · Return entitlement {quantity(line.entitlement)} · Physical stock {quantity(physicalOf(line))} · <span className="font-medium text-text">Returnable now {quantity(Math.min(Number(line.entitlement), physicalOf(line)))} {line.uom ?? ""}</span>
                       {line.warehouseName ? ` · ${line.warehouseName}${line.locationCode ? ` / ${line.locationCode}` : ""}` : ""}</span>
                   </div>
                   {line.draftReturns.length > 0 && <p className="text-xs text-text-muted">{quantity(line.draftQuantity)} is also on draft return{line.draftReturns.length === 1 ? "" : "s"} {line.draftReturns.join(", ")}.</p>}
@@ -131,10 +143,10 @@ function ReturnForm({ options, existing, presetOrderId, receiptId }: { options: 
               );
             })}
           </div>
-        </ProcPanel>
+        </FormSection>
       )}
 
-      <ProcPanel title="Return details">
+      <FormSection columns={1} title="Return details">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <TextField label="Return date" type="date" value={header.returnDate} onChange={set("returnDate")} description="Today if empty." />
           <Select label="Expected resolution" selectedKey={header.expectedResolution} onSelectionChange={(value) => set("expectedResolution")(String(value))}
@@ -146,7 +158,9 @@ function ReturnForm({ options, existing, presetOrderId, receiptId }: { options: 
         </div>
         <TextArea label="Summary (printed)" value={header.reason} onChange={set("reason")} description="Defaults to the lines' reasons." />
         <TextArea label="Internal notes (never printed)" value={header.internalNotes} onChange={set("internalNotes")} />
-      </ProcPanel>
-    </div>
+      </FormSection>
+    </DocumentFormPage>
+    
+    </>
   );
 }

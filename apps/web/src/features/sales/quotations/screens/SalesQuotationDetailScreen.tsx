@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Check, Copy, Pencil, Upload, X } from "lucide-react";
+import { Check, Copy, Pencil, Upload, X } from "lucide-react";
 import {
   Button, Dialog, EnterpriseDataGrid, ErrorState, LinkButton, MetricStrip, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea,
 } from "@vercentlabs/design-system";
@@ -20,7 +20,6 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money } from "@/features/sales/shared/format";
 import { StoredTotals, discountReasonLabel } from "@/features/sales/shared/DocumentDiscounts";
-import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 
 import {
   addSalesQuotationNote, approveSalesQuotation, confirmSalesQuotation, duplicateSalesQuotation, getSalesQuotation, listSalesQuotationFiles,
@@ -28,6 +27,7 @@ import {
 } from "../api/quotations-api";
 import { QuotationLifecycleActions, failureText } from "../components/QuotationLifecycleActions";
 import { QuotationStatusBadge } from "../components/QuotationStatusBadge";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -102,15 +102,11 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/sales/quotations" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
-        <ArrowLeft className="size-3.5" aria-hidden="true" />
-        All quotations
-      </Link>
-      {error && <SalesAlert>{error}</SalesAlert>}
+      {error && <Notice>{error}</Notice>}
       {quote.status === "superseded" && quote.superseded_by_quotation_id && (
-        <SalesAlert tone="info">This quotation was superseded by <Link className="underline" href={`/sales/quotations/${quote.superseded_by_quotation_id}`}>{quote.superseded_by_number}</Link>.</SalesAlert>
+        <Notice tone="info">This quotation was superseded by <Link className="underline" href={`/sales/quotations/${quote.superseded_by_quotation_id}`}>{quote.superseded_by_number}</Link>.</Notice>
       )}
-      {quote.is_expired && <SalesAlert tone="warning">The validity of this quotation has passed. Create a revision with a new valid-until date to offer it again.</SalesAlert>}
+      {quote.is_expired && <Notice tone="warning">The validity of this quotation has passed. Create a revision with a new valid-until date to offer it again.</Notice>}
 
       <RecordDetailsPage
         header={{
@@ -183,8 +179,8 @@ function Overview({ detail }: { detail: SalesQuotationDetail }) {
   const quote = detail.quotation;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Customer">
-        <SalesFacts items={[
+      <Panel title="Customer">
+        <Facts items={[
           { label: "Customer", value: quote.customer_snapshot?.displayName ?? "—" },
           { label: "Customer number", value: quote.customer_snapshot?.customerNumber ?? quote.customer_number ?? "—" },
           { label: "GSTIN", value: quote.customer_snapshot?.gstin ?? "—" },
@@ -192,9 +188,9 @@ function Overview({ detail }: { detail: SalesQuotationDetail }) {
           { label: "Bill to", value: <span className="whitespace-pre-line">{addressText(quote.billing_address_snapshot)}</span> },
           { label: "Ship to", value: <span className="whitespace-pre-line">{addressText(quote.shipping_address_snapshot)}</span> },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Commercial terms">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Commercial terms">
+        <Facts items={[
           { label: "Currency", value: quote.currency_code },
           { label: "Price list", value: quote.price_list_name ? `${quote.price_list_name} (${quote.price_list_tax_inclusive ? "tax inclusive" : "tax exclusive"})` : "None" },
           { label: "Payment terms", value: quote.payment_term_snapshot?.name
@@ -214,9 +210,9 @@ function Overview({ detail }: { detail: SalesQuotationDetail }) {
             ? `${Number(quote.document_discount_value)}% (${money(quote.currency_code, quote.document_discount_amount)})` : money(quote.currency_code, quote.document_discount_amount) },
           { label: "Discount reason", value: discountReasonLabel(quote.discount_reason_code, quote.discount_reason_text) ?? "—" },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Status history">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Status history">
+        <Facts items={[
           { label: "Created", value: `${dateTime(quote.created_at)}${quote.created_by_name ? ` by ${quote.created_by_name}` : ""}` },
           { label: "Confirmed", value: quote.confirmed_at ? `${dateTime(quote.confirmed_at)}${quote.confirmed_by_name ? ` by ${quote.confirmed_by_name}` : ""}` : "—" },
           { label: "Sent", value: quote.sent_at ? `${dateTime(quote.sent_at)}${quote.sent_by_name ? ` by ${quote.sent_by_name}` : ""}${quote.sent_to ? ` to ${quote.sent_to}` : ""}` : "—" },
@@ -224,7 +220,7 @@ function Overview({ detail }: { detail: SalesQuotationDetail }) {
           { label: "Rejected", value: quote.rejected_at ? `${dateTime(quote.rejected_at)}${quote.decision_notes ? `: ${quote.decision_notes}` : ""}` : "—" },
           { label: "Cancelled", value: quote.cancelled_at ? `${dateTime(quote.cancelled_at)}${quote.cancel_reason ? `: ${quote.cancel_reason}` : ""}` : "—" },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -280,14 +276,14 @@ function Lines({ detail }: { detail: SalesQuotationDetail }) {
     <div className="flex flex-col gap-4 pt-4">
       <EnterpriseDataGrid<SalesQuotationLine> aria-label="Quotation lines" columns={columns} data={detail.lines} getRowId={(row) => row.id} state="ready" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <SalesPanel title="Tax breakdown">
+        <Panel title="Tax breakdown">
           {detail.taxLines.length ? (
-            <SalesFacts columns={2} items={detail.taxLines.map((tax) => ({ label: `${tax.label ?? tax.tax_type.toUpperCase()} ${Number(tax.rate)}% on ${money(currency, tax.taxable_amount)}`, value: money(currency, tax.tax_amount) }))} />
+            <Facts columns={2} items={detail.taxLines.map((tax) => ({ label: `${tax.label ?? tax.tax_type.toUpperCase()} ${Number(tax.rate)}% on ${money(currency, tax.taxable_amount)}`, value: money(currency, tax.tax_amount) }))} />
           ) : <p className="text-sm text-text-muted">No tax on this quotation.</p>}
-        </SalesPanel>
-        <SalesPanel title="Totals" description="Calculated by the server when the quotation was saved.">
+        </Panel>
+        <Panel title="Totals" description="Calculated by the server when the quotation was saved.">
           <StoredTotals currencyCode={currency} document={quote} taxLines={detail.taxLines} />
-        </SalesPanel>
+        </Panel>
       </div>
     </div>
   );
@@ -297,9 +293,9 @@ function Notes({ detail }: { detail: SalesQuotationDetail }) {
   const quote = detail.quotation;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Notes for the customer" description="Printed on the quotation."><p className="whitespace-pre-line text-sm">{quote.customer_notes || "—"}</p></SalesPanel>
-      <SalesPanel title="Terms and conditions" description="Printed on the quotation."><p className="whitespace-pre-line text-sm">{quote.terms_and_conditions || "—"}</p></SalesPanel>
-      <SalesPanel title="Internal notes" description="Never printed or sent to the customer."><p className="whitespace-pre-line text-sm">{quote.internal_notes || "—"}</p></SalesPanel>
+      <Panel title="Notes for the customer" description="Printed on the quotation."><p className="whitespace-pre-line text-sm">{quote.customer_notes || "—"}</p></Panel>
+      <Panel title="Terms and conditions" description="Printed on the quotation."><p className="whitespace-pre-line text-sm">{quote.terms_and_conditions || "—"}</p></Panel>
+      <Panel title="Internal notes" description="Never printed or sent to the customer."><p className="whitespace-pre-line text-sm">{quote.internal_notes || "—"}</p></Panel>
     </div>
   );
 }
@@ -308,14 +304,14 @@ function Related({ detail }: { detail: SalesQuotationDetail }) {
   const quote = detail.quotation;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Related documents">
-        <SalesFacts items={[
+      <Panel title="Related documents">
+        <Facts items={[
           { label: "Opportunity", value: quote.source_opportunity_id ? <Link className="text-brand hover:underline" href={`/crm/opportunities/${quote.source_opportunity_id}`}>{[quote.source_opportunity_code, quote.source_opportunity_name].filter(Boolean).join(" · ")}</Link> : "None (created directly)" },
           { label: "Sales order", value: quote.converted_order_id ? <Link className="text-brand hover:underline" href={`/sales/orders/${quote.converted_order_id}`}>{quote.converted_order_number}</Link> : "None" },
           { label: "Customer", value: <Link className="text-brand hover:underline" href={`/sales/customers/${quote.party_id}`}>{quote.customer_snapshot?.displayName ?? "Open customer"}</Link> },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Revisions" description="Each revision is its own quotation. When a revision is sent, the one it revises is superseded.">
+      </Panel>
+      <Panel title="Revisions" description="Each revision is its own quotation. When a revision is sent, the one it revises is superseded.">
         {detail.revisions.length <= 1 ? <p className="text-sm text-text-muted">This quotation has no revisions.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.revisions.map((revision) => (
@@ -329,8 +325,8 @@ function Related({ detail }: { detail: SalesQuotationDetail }) {
             ))}
           </ul>
         )}
-      </SalesPanel>
-      <SalesPanel title="Saved versions" description="Each save of the draft is kept.">
+      </Panel>
+      <Panel title="Saved versions" description="Each save of the draft is kept.">
         <ul className="flex flex-col divide-y divide-border text-sm">
           {detail.versions.map((version) => (
             <li key={version.id} className="flex flex-wrap items-center gap-3 py-2">
@@ -341,7 +337,7 @@ function Related({ detail }: { detail: SalesQuotationDetail }) {
             </li>
           ))}
         </ul>
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -357,7 +353,7 @@ function Files({ quotationId, canEdit, onChanged }: { quotationId: string; canEd
   const remove = useMutation({ mutationFn: (fileId: string) => removeSalesQuotationFile(quotationId, fileId), onSuccess: done });
   return (
     <div className="flex flex-col gap-3 pt-4">
-      <SalesPanel title="Files" description="The customer's enquiry, drawings or a signed copy. Files are internal and never added to the quotation PDF."
+      <Panel title="Files" description="The customer's enquiry, drawings or a signed copy. Files are internal and never added to the quotation PDF."
         actions={canEdit ? (
           <>
             <input ref={input} type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp"
@@ -365,7 +361,7 @@ function Files({ quotationId, canEdit, onChanged }: { quotationId: string; canEd
             <Button variant="secondary" size="compact" isLoading={upload.isPending} onPress={() => input.current?.click()}><Upload className="size-3.5" aria-hidden="true" />Add file</Button>
           </>
         ) : undefined}>
-        {(upload.isError || remove.isError) && <SalesAlert>{failureText(upload.error ?? remove.error, "The file could not be saved.")}</SalesAlert>}
+        {(upload.isError || remove.isError) && <Notice>{failureText(upload.error ?? remove.error, "The file could not be saved.")}</Notice>}
         {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : !query.data?.length ? <p className="text-sm text-text-muted">No files.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {query.data.map((file) => (
@@ -377,7 +373,7 @@ function Files({ quotationId, canEdit, onChanged }: { quotationId: string; canEd
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -387,12 +383,12 @@ function Timeline({ detail, quotationId, onChanged }: { detail: SalesQuotationDe
   const save = useMutation({ mutationFn: () => addSalesQuotationNote(quotationId, note.trim()), onSuccess: () => { setNote(""); onChanged(); } });
   return (
     <div className="flex flex-col gap-3 pt-4">
-      <SalesPanel title="Add a note" description="Internal: kept on the timeline, never printed.">
-        {save.isError && <SalesAlert>{failureText(save.error, "The note could not be saved.")}</SalesAlert>}
+      <Panel title="Add a note" description="Internal: kept on the timeline, never printed.">
+        {save.isError && <Notice>{failureText(save.error, "The note could not be saved.")}</Notice>}
         <TextArea aria-label="Note" value={note} onChange={setNote} />
         <div><Button variant="secondary" size="compact" isDisabled={!note.trim()} isLoading={save.isPending} onPress={() => save.mutate()}>Add note</Button></div>
-      </SalesPanel>
-      <SalesPanel title="Timeline">
+      </Panel>
+      <Panel title="Timeline">
         <ol className="flex flex-col divide-y divide-border text-sm">
           {detail.events.map((event, index) => (
             <li key={event.id ?? index} className="flex flex-col gap-0.5 py-2">
@@ -402,7 +398,7 @@ function Timeline({ detail, quotationId, onChanged }: { detail: SalesQuotationDe
             </li>
           ))}
         </ol>
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -413,7 +409,7 @@ function RejectApprovalDialog({ quotationId, onClose, onDone }: { quotationId: s
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title="Send back to draft" description="The quotation returns to Draft for changes. Say why.">
       <div className="flex flex-col gap-3">
-        {save.isError && <SalesAlert>{failureText(save.error, "The approval could not be rejected.")}</SalesAlert>}
+        {save.isError && <Notice>{failureText(save.error, "The approval could not be rejected.")}</Notice>}
         <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>

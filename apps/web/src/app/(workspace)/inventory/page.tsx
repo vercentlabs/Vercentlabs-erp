@@ -1,7 +1,7 @@
-import { InventoryHomeScreen } from "@/features/inventory/screens/InventoryScreens";
+import { InventoryOverviewScreen } from "@/features/inventory-overview/screens/InventoryOverviewScreen";
 
 export const metadata = { title: "Inventory" };
 
 export default function InventoryPage() {
-  return <InventoryHomeScreen />;
+  return <InventoryOverviewScreen />;
 }

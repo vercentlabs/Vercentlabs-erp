@@ -1,16 +1,8 @@
 import { requireWorkspace } from "@/core/session";
-import { CrmSetupScreen } from "@/features/crm/setup/hub/screens/CrmSetupScreen";
+import { redirectWithQuery } from "@/shared/routing/redirect-with-query";
 
-export const metadata = { title: "CRM Settings" };
-
-export default async function CrmSetupPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ section?: string | string[] }>;
-}) {
+// CRM configuration is Lead Setup, Opportunity Setup, Assignment Rules and Duplicate Detection; the earlier settings hub opens Lead Setup.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireWorkspace();
-  const { section } = await searchParams;
-  return (
-    <CrmSetupScreen section={typeof section === "string" ? section : null} />
-  );
+  redirectWithQuery("/crm/settings/leads", await searchParams, { section: undefined });
 }

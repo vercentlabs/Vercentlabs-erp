@@ -11,7 +11,13 @@ import { conversionText, decimalsUsed, itemUnits, resolveItemUnit, validateUomDi
 import { has, requireUuid, text } from "./validation.js";
 
 const FACTOR = /^\d{1,14}(\.\d{1,10})?$/;
-const issue = (field, message, code = "PRODUCT_CONVERSION_INVALID", status = 400) => new ProductError(status, message, code, { issues: [{ field, message }] });
+// Each refusal also carries the conversion engine's stable code (uomError).
+const UOM_ERROR_OF = Object.freeze({
+  PRODUCT_CONVERSION_INVALID: "INVALID_CONVERSION_FACTOR", PRODUCT_CONVERSION_DIMENSION: "UOM_DIMENSION_MISMATCH", PRODUCT_CONVERSION_EXISTS: "DUPLICATE_CONVERSION",
+  PRODUCT_CONVERSION_REASON_REQUIRED: "UOM_DIMENSION_MISMATCH", PRODUCT_DEFAULT_UOM_INVALID: "UOM_NOT_ALLOWED_FOR_ITEM", PRODUCT_DEFAULT_UOM_DISABLED: "UOM_NOT_ALLOWED_FOR_ITEM",
+  PRODUCT_CONVERSION_IN_USE: "CONVERSION_IN_USE",
+});
+const issue = (field, message, code = "PRODUCT_CONVERSION_INVALID", status = 400) => new ProductError(status, message, code, { issues: [{ field, message }], uomError: UOM_ERROR_OF[code] ?? null });
 const flag = (value, fallback) => (value === undefined || value === null ? fallback : value === true || value === "true");
 // Transactions that mean the item's stock or documents already count in its units.
 const USED = `EXISTS (SELECT 1 FROM tenant.stock_movements WHERE organization_id = $1::uuid AND item_id = $2::uuid)
@@ -140,7 +146,7 @@ export async function addItemUomConversion(client, context, itemId, input = {}) 
     requireProductPermission(context, P.changeUomConversions, "You do not have permission to change unit conversions.");
     if (await usedOnTransactions(client, context, item.id) && input.acknowledgeHistory !== true)
       throw new ProductError(409, `${uomCode} was 1 ${uomCode} = ${Number(existing.conversion_factor)} ${item.base_code} on documents already entered; they keep that. Confirm to bring it back as ${factorString(factor)} ${item.base_code} for new documents.`,
-        "PRODUCT_CONVERSION_CONFIRM", { requiresAcknowledgement: true });
+        "PRODUCT_CONVERSION_CONFIRM", { requiresAcknowledgement: true, uomError: "CONVERSION_CHANGE_UNCONFIRMED" });
   }
   const params = [context.organizationId, item.id, uomId, item.uom_id, factorString(factor), flags.purchasing, flags.sales, flags.inventory, precision, context.userId ?? null];
   const id = existing
@@ -169,7 +175,7 @@ export async function updateItemUomConversion(client, context, itemId, conversio
     [context.organizationId, item.id, requireUuid(conversionId, "Conversion")])).rows[0];
   if (!row) throw new ProductError(404, "Conversion not found.", "PRODUCT_CONVERSION_NOT_FOUND");
   if (has(input, "expectedVersion") && input.expectedVersion !== null && input.expectedVersion !== undefined && Number(input.expectedVersion) !== Number(row.version))
-    throw new ProductError(409, "Someone else changed this unit after you opened it. Reload it and make your change again.", "PRODUCT_CONVERSION_VERSION_CONFLICT");
+    throw new ProductError(409, "Someone else changed this unit after you opened it. Reload it and make your change again.", "PRODUCT_CONVERSION_VERSION_CONFLICT", { uomError: "CONVERSION_VERSION_CONFLICT" });
   const { factor, precision } = await checkConversion(client, context, item, input, { existing: row });
   const before = { factor: decimal(formatDecimal(decimal(String(row.conversion_factor).match(/^\d+(?:\.\d{1,6})?/)?.[0] ?? "0"))), ...usage(row), precision: row.quantity_precision };
   const flags = { purchasing: flag(input.purchasingEnabled, row.purchasing_enabled), sales: flag(input.salesEnabled, row.sales_enabled), inventory: flag(input.inventoryEnabled, row.inventory_enabled) };
@@ -185,7 +191,7 @@ export async function updateItemUomConversion(client, context, itemId, conversio
     requireProductPermission(context, P.changeUomConversions, "You do not have permission to change unit conversions.");
     if (await usedOnTransactions(client, context, item.id) && input.acknowledgeHistory !== true)
       throw new ProductError(409, `${item.code} is already on documents or in stock. Documents keep 1 ${row.uom_code} = ${factorString(before.factor)} ${item.base_code} and stock stays as counted; only what is entered from now on uses the new factor. If both packagings are in use, add a separate unit instead.`,
-        "PRODUCT_CONVERSION_CONFIRM", { requiresAcknowledgement: true });
+        "PRODUCT_CONVERSION_CONFIRM", { requiresAcknowledgement: true, uomError: "CONVERSION_CHANGE_UNCONFIRMED" });
   }
   if (usageChanged || precisionChanged) requireProductPermission(context, P.changeUomConversions, "You do not have permission to change unit conversions.");
   await client.query(

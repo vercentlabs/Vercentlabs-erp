@@ -8,12 +8,12 @@ import { useMutation } from "@tanstack/react-query";
 import { Button, Dialog, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { useSubmitKey } from "@/shared/http/submit-once";
-import { ProcAlert } from "@/features/procurement/shared/ProcUi";
 import { quantity } from "@/features/procurement/shared/format";
 
 import {
   errorMessage, issuesOf, orderAction, type PurchaseOrderDetail, type PurchaseOrderOptions,
 } from "../api/purchase-orders-api";
+import { Notice } from "@/shared/ui/Panel";
 
 const trim = (value: string | null | undefined) => (value == null ? "" : String(Number(value)));
 
@@ -24,7 +24,7 @@ function Shell({ title, description, error, onClose, label, isLoading, isDisable
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={title} description={description} size={size}>
       <div className="flex flex-col gap-3">
-        {Boolean(error) && <ProcAlert>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>}
+        {Boolean(error) && <Notice>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
         {children}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>

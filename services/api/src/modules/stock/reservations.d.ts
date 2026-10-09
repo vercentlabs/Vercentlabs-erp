@@ -1,0 +1,12 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+type Client = any;
+export declare const RESERVATION_SOURCE_TYPES: ReadonlyArray<{ id: string; label: string }>;
+export declare function reservationSourceHref(type: string, id: string): string | null;
+export declare function listInventoryReservations(client: Client, context: StockContext, filters?: Row): Promise<Row>;
+export declare function getInventoryReservation(client: Client, context: StockContext, reservationId: string): Promise<Row>;
+export declare function getReservationsForSource(client: Client, context: StockContext, input: { sourceType: string; sourceId: string }): Promise<Row[]>;
+export declare function getReservationBreakdown(client: Client, context: StockContext, input: { itemId: string; warehouseId?: string | null }): Promise<Row>;
+export declare function releaseInventoryReservation(client: Client, context: StockContext, reservationId: string, input: { quantity?: string | number | null; reason: string }): Promise<Row>;
+export declare function reconcileInventoryReservations(client: Client, context: StockContext): Promise<Row>;
+export declare function rebuildReservedStockProjection(client: Client, context: StockContext, input: { reason: string }): Promise<Row>;

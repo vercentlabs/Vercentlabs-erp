@@ -5,17 +5,15 @@
 //   Direct bill (no PO)     rent, utilities, internet, subscriptions, fees, repairs: expense or asset lines, never stock
 // Every amount shown is the server's preview (tax engine, TDS, matching, duplicates, due date); nothing is calculated here.
 import { useDeferredValue, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, FileText, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { FileText, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { Button, Checkbox, ErrorState, PageHeader, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, money, quantity } from "@/features/procurement/shared/format";
 import { listPurchaseOrders } from "@/features/procurement/purchase-orders/api/purchase-orders-api";
 import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
@@ -24,6 +22,9 @@ import {
   billAction, createBill, errorMessage, getBill, getBillOptions, getEligibility, getSupplierBillDefaults, issuesOf, previewBill, updateBill, type BillDetail, type BillOptions,
 } from "../api/supplier-bills-api";
 import { MatchBadge } from "./TwoWayMatching";
+import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
+import { FormSection } from "@/shared/ui/FormSection";
+import { Notice } from "@/shared/ui/Panel";
 
 type Source = "purchase_order" | "goods_receipt" | "direct";
 type OrderRow = { include: boolean; quantity: string; unitPrice: string; byAmount?: boolean; amount?: string; discountType?: string; discountValue?: string };
@@ -52,7 +53,6 @@ function SourceChooser({ onChoose }: { onChoose: (source: Source) => void }) {
   const card = "flex flex-1 flex-col items-start gap-2 rounded-[var(--radius-card)] border border-border p-5 text-left transition hover:border-brand hover:bg-surface-raised";
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/procurement/supplier-bills" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Supplier Bills</Link>
       <PageHeader title="Create Supplier Bill" description="Record what a supplier has charged. Posting records the payable through Finance; it never pays the supplier." />
       <div className="flex flex-col gap-4 sm:flex-row">
         <button type="button" className={card} onClick={() => onChoose("purchase_order")}>
@@ -162,16 +162,25 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
 
   if (!source) return <SourceChooser onChoose={setSource} />;
   return (
-    <div className="flex flex-col gap-6">
-      <Link href="/procurement/supplier-bills" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Supplier Bills</Link>
-      <PageHeader title={saved ? `Edit ${saved.billNumber}` : source === "direct" ? "New Supplier Bill — Direct (without PO)" : "New Supplier Bill — From Purchase Order"}
-        description="Enter the supplier's invoice as issued. Totals are calculated by the server; posting checks everything again and records the payable through Finance."
-        secondaryActions={<Button variant="secondary" isLoading={save.isPending && save.variables === false} isDisabled={!ready} onPress={() => save.mutate(false)}>Save Draft</Button>}
-        primaryAction={options.capabilities.manage ? <Button variant="primary" isLoading={save.isPending && save.variables === true} isDisabled={!ready} onPress={() => save.mutate(true)}>Validate &amp; Post</Button> : undefined} />
-      {!options.capabilities.manage && <ProcAlert tone="info">You can record drafts; Accounts Payable validates and posts them.</ProcAlert>}
-      {Boolean(save.error) && <ProcAlert>{errorMessage(save.error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>}
-
-      <ProcPanel title="Bill source" actions={!saved ? <Button size="compact" variant="ghost" onPress={() => setSource(null)}>Change</Button> : undefined}>
+    <>
+    <DocumentFormPage
+      header={{
+        title: saved ? `Edit ${saved.billNumber}` : source === "direct" ? "New Supplier Bill — Direct (without PO)" : "New Supplier Bill — From Purchase Order",
+        description: "Enter the supplier's invoice as issued. Totals are calculated by the server; posting checks everything again and records the payable through Finance.",
+      }}
+      banner={<div className="flex flex-col gap-3">
+        {!options.capabilities.manage && <Notice tone="info">You can record drafts; Accounts Payable validates and posts them.</Notice>}
+      {Boolean(save.error) && <Notice>{errorMessage(save.error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
+      </div>}
+      formActions={
+        <>
+          <Button variant="secondary" onPress={() => router.push(saved ? `/procurement/supplier-bills/${saved.id}` : "/procurement/supplier-bills")}>Cancel</Button>
+          <Button variant="secondary" isLoading={save.isPending && save.variables === false} isDisabled={!ready} onPress={() => save.mutate(false)}>Save Draft</Button>
+          {options.capabilities.manage ? <Button variant="primary" isLoading={save.isPending && save.variables === true} isDisabled={!ready} onPress={() => save.mutate(true)}>Validate &amp; Post</Button> : undefined}
+        </>
+      }
+    >
+      <FormSection columns={1} title="Bill source" actions={!saved ? <Button size="compact" variant="ghost" onPress={() => setSource(null)}>Change</Button> : undefined}>
         {source !== "direct" && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {!saved && (
@@ -200,12 +209,12 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
               options={[{ value: "default", label: defaults.data?.currencyCode ? `Supplier's default (${defaults.data.currencyCode})` : "Supplier's default" }, ...options.currencies.map((entry) => ({ value: entry.code, label: `${entry.code} · ${entry.name}` }))]} />
             <Select label="Prices on the invoice" selectedKey={header.priceMode} onSelectionChange={(value) => set("priceMode")(String(value))}
               options={[{ value: "exclusive", label: "Exclusive of tax" }, { value: "inclusive", label: "Inclusive of tax" }]} />
-            {defaults.data?.warnings.map((warning) => <ProcAlert key={warning} tone="warning">{warning}</ProcAlert>)}
+            {defaults.data?.warnings.map((warning) => <Notice key={warning} tone="warning">{warning}</Notice>)}
           </div>
         )}
-      </ProcPanel>
+      </FormSection>
 
-      <ProcPanel title="Supplier invoice">
+      <FormSection columns={1} title="Supplier invoice">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <TextField label="Supplier invoice number" isRequired value={header.supplierInvoiceNumber} onChange={set("supplierInvoiceNumber")} description="Exactly as on the supplier's invoice." />
           <TextField label="Supplier invoice date" type="date" isRequired value={header.supplierInvoiceDate} onChange={set("supplierInvoiceDate")} />
@@ -238,15 +247,15 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
             <TextField label="Exchange rate" inputMode="decimal" value={header.exchangeRate} onChange={set("exchangeRate")} description="Finance's rate for the posting date if empty; posting needs one." />
           )}
         </div>
-      </ProcPanel>
+      </FormSection>
 
       {source !== "direct" && eligibility.data && (
         <>
         {eligibility.data.order.matchingPolicy && (
-          <ProcAlert tone="info">Matching policy: {({ three_way_accepted: "3-Way — acceptance required", three_way_received: "3-Way — physical receipt", two_way: "2-Way — PO-based billing" } as Record<string, string>)[eligibility.data.order.matchingPolicy]}.
-            {eligibility.data.order.matchingPolicy !== "two_way" ? " Goods are billed only against posted goods receipts." : " Goods may be billed before they arrive."}</ProcAlert>
+          <Notice tone="info">Matching policy: {({ three_way_accepted: "3-Way — acceptance required", three_way_received: "3-Way — physical receipt", two_way: "2-Way — PO-based billing" } as Record<string, string>)[eligibility.data.order.matchingPolicy]}.
+            {eligibility.data.order.matchingPolicy !== "two_way" ? " Goods are billed only against posted goods receipts." : " Goods may be billed before they arrive."}</Notice>
         )}
-        <ProcPanel title="Lines billed" description="Enter exactly what the supplier's invoice bills — prefilled with what may be billed now, never more than the order still commits. A quantity not yet received is kept as a pending draft until its goods receipt. The agreed price is the matching basis; a different price is a variance.">
+        <FormSection columns={1} title="Lines billed" description="Enter exactly what the supplier's invoice bills — prefilled with what may be billed now, never more than the order still commits. A quantity not yet received is kept as a pending draft until its goods receipt. The agreed price is the matching basis; a different price is a variance.">
           <div className="flex flex-col gap-3">
             {eligibility.data.lines.filter((line) => !line.zeroPrice).map((line) => {
               const rowDefaults = { include: false, quantity: trim(line.remainingToBill), unitPrice: trim(line.orderedUnitPrice) };
@@ -297,12 +306,12 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
               );
             })}
           </div>
-        </ProcPanel>
+        </FormSection>
         </>
       )}
 
       {source === "direct" && (
-        <ProcPanel title="Expenses and services" description="Each line posts to its expense category's (or the chosen) account. Stock is bought on a purchase order and received — never on a direct bill."
+        <FormSection columns={1} title="Expenses and services" description="Each line posts to its expense category's (or the chosen) account. Stock is bought on a purchase order and received — never on a direct bill."
           actions={<Button size="compact" variant="secondary" onPress={() => setDirectRows((current) => [...current, blankDirect()])}><Plus className="size-4" aria-hidden="true" />Add line</Button>}>
           <div className="flex flex-col gap-3">
             {directRows.map((row, index) => (
@@ -345,16 +354,16 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
               {header.documentDiscountType !== "none" && <TextField label="Bill discount value" inputMode="decimal" value={header.documentDiscountValue} onChange={set("documentDiscountValue")} />}
             </div>
           </div>
-        </ProcPanel>
+        </FormSection>
       )}
 
-      <ProcPanel title="Totals" description="Calculated by the server from the lines, the shared tax engine and the TDS section.">
+      <FormSection columns={1} title="Totals" description="Calculated by the server from the lines, the shared tax engine and the TDS section.">
         {!ready && <p className="text-sm text-text-muted">{source === "direct" ? "Choose the supplier and enter at least one line with its account." : "Choose the order and lines to see the totals."}</p>}
-        {preview.error && <ProcAlert>{errorMessage(preview.error)}</ProcAlert>}
+        {preview.error && <Notice>{errorMessage(preview.error)}</Notice>}
         {preview.data && (
           <>
-            {preview.data.warnings.map((warning) => <ProcAlert key={warning} tone="warning">{warning}</ProcAlert>)}
-            {preview.data.duplicates.length > 0 && <ProcAlert tone="warning">Possible duplicate supplier invoice: {preview.data.duplicates.map((entry) => `${entry.billNumber} (${entry.status})`).join(", ")}.</ProcAlert>}
+            {preview.data.warnings.map((warning) => <Notice key={warning} tone="warning">{warning}</Notice>)}
+            {preview.data.duplicates.length > 0 && <Notice tone="warning">Possible duplicate supplier invoice: {preview.data.duplicates.map((entry) => `${entry.billNumber} (${entry.status})`).join(", ")}.</Notice>}
             {preview.data.twoWay && preview.data.twoWay.result !== "not_applicable" && (
               <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -391,11 +400,13 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
             </dl>
           </>
         )}
-      </ProcPanel>
+      </FormSection>
 
-      <ProcPanel title="Notes" description="Attach the supplier's original invoice from the bill once it is saved.">
+      <FormSection columns={1} title="Notes" description="Attach the supplier's original invoice from the bill once it is saved.">
         <TextArea label="Internal notes" value={header.notes} onChange={set("notes")} />
-      </ProcPanel>
-    </div>
+      </FormSection>
+    </DocumentFormPage>
+    
+    </>
   );
 }

@@ -3,16 +3,22 @@
 // Units of measure: the organization's list — each unit's dimension, symbol and precision (decimal places a quantity may have). Standard
 // units of one dimension convert by their standard factor (1 KG = 1000 G); what a box or a roll holds is each item's own conversion, kept on
 // the item under Units & Identifiers. A unit is never deleted: an inactive one stays on every document that used it.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
-import { Badge, Button, Dialog, EmptyState, ErrorState, PageHeader, PermissionState, Select, TextField } from "@vercentlabs/design-system";
+import type { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontal, Plus } from "lucide-react";
+import {
+  Button, buttonVariants, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, Menu, MenuItem, MenuTrigger, NoResultsState, PermissionState, SearchField, Select,
+  StatusBadge, TextField,
+} from "@vercentlabs/design-system";
 
+import { useDebouncedValue, usePagedRows } from "@/shared/ui/list";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { createUnit, errorCode, errorMessage, fieldErrors, getItemOptions, listUnits, setUnitStatus, updateUnit, type UnitOfMeasure } from "../api/items-api";
+import { createUnit, errorCode, errorMessage, fieldErrors, getItemOptions, listUnits, setUnitStatus, unitConversionsExportUrl, updateUnit, type UnitOfMeasure } from "../api/items-api";
+import { UnitConversionsImport } from "../components/UnitConversionsImport";
 import { ErrorBanner } from "../item-format";
 
 type Draft = { code: string; name: string; symbol: string; category: string; decimalPlaces: string };
@@ -25,6 +31,10 @@ export function UnitsScreen() {
   const [draft, setDraft] = useState<Draft>(blank);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [view, setView] = useState("all");
+  const [search, setSearch] = useState("");
+  const submitted = useDebouncedValue(search).toLowerCase();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "products", "units"), queryFn: listUnits });
   const options = useQuery({ queryKey: scopedQueryKey(workspace, "products", "options"), queryFn: getItemOptions, staleTime: 60_000 });
   const can = options.data?.capabilities;
@@ -41,55 +51,77 @@ export function UnitsScreen() {
   });
   const status = useMutation({ mutationFn: (unit: UnitOfMeasure) => setUnitStatus(unit.id, unit.isActive ? "inactive" : "active"), onSuccess: refresh, onError: fail });
 
-  if (query.isError && errorCode(query.error) === "PERMISSION_DENIED") return <PermissionState title="You don't have access to units of measure" description="Ask an administrator for access." />;
-  const units = query.data ?? [];
+  const units = useMemo(() => query.data ?? [], [query.data]);
+  const label = (code: string) => categories.find((entry) => entry.code === code)?.label ?? code;
+  const shown = useMemo(() => units.filter((unit) => (view === "all" || (view === "inactive" ? !unit.isActive : unit.category === view))
+    && (!submitted || `${unit.code} ${unit.name} ${unit.symbol ?? ""}`.toLowerCase().includes(submitted))), [units, view, submitted]);
+  const paged = usePagedRows(shown, { initialSorting: [{ id: "code", desc: false }] });
+  // "1 KG = 1000 G": the unit against its dimension's reference unit.
+  const standardText = (unit: UnitOfMeasure) => {
+    const reference = units.find((entry) => entry.category === unit.category && entry.standardFactor === "1" && entry.code !== unit.code);
+    return unit.standardFactor === "1" || !reference ? "Reference unit" : `1 ${unit.code} = ${unit.standardFactor} ${reference.code}`;
+  };
   const open = (unit: UnitOfMeasure | "new") => {
     setErrors({}); setError(null);
     setDraft(unit === "new" ? blank : { code: unit.code, name: unit.name, symbol: unit.symbol ?? "", category: unit.category, decimalPlaces: String(unit.decimalPlaces) });
     setEditing(unit);
   };
-  // "1 KG = 1000 G": the unit against its dimension's reference unit.
-  const standardText = (unit: UnitOfMeasure, all: UnitOfMeasure[]) => {
-    const reference = all.find((entry) => entry.category === unit.category && entry.standardFactor === "1" && entry.code !== unit.code);
-    return unit.standardFactor === "1" || !reference ? "reference unit" : `1 ${unit.code} = ${unit.standardFactor} ${reference.code}`;
-  };
-  const label = (code: string) => categories.find((entry) => entry.code === code)?.label ?? code;
-  const groups = [...new Set(units.map((unit) => unit.category))];
+  const columns: ColumnDef<UnitOfMeasure, unknown>[] = [
+    { id: "code", accessorKey: "code", header: "Code", cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.code}</span> },
+    { id: "name", accessorKey: "name", header: "Unit", cell: ({ row }) => <>{row.original.name}{row.original.symbol && <span className="text-text-muted"> ({row.original.symbol})</span>}</> },
+    { id: "category", accessorKey: "category", header: "Dimension", cell: ({ row }) => label(row.original.category) },
+    { id: "decimalPlaces", accessorKey: "decimalPlaces", header: "Precision", cell: ({ row }) => (row.original.decimalPlaces === 0 ? "Whole numbers" : `${row.original.decimalPlaces} decimal place${row.original.decimalPlaces === 1 ? "" : "s"}`) },
+    { id: "standard", header: "Standard conversion", enableSorting: false, cell: ({ row }) => (row.original.standardFactor ? standardText(row.original) : "") },
+    { id: "itemCount", accessorKey: "itemCount", header: "Items", cell: ({ row }) => <span className="tabular-nums">{row.original.itemCount}</span> },
+    { id: "isActive", accessorKey: "isActive", header: "Status", cell: ({ row }) => <StatusBadge tone={row.original.isActive ? "success" : "neutral"}>{row.original.isActive ? "Active" : "Inactive"}</StatusBadge> },
+  ];
+
+  if (query.isError && errorCode(query.error) === "PERMISSION_DENIED") return <PermissionState title="You don't have access to units of measure" description="Ask an administrator for access." />;
+  const dimensions = [...new Set(units.map((unit) => unit.category))];
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Units of Measure" description="Precision is how many decimals a quantity may have: 0 for whole pieces, 3 for kilograms to the gram. It can be raised any time, lowered only before items record quantities. Units of one dimension convert by their standard factor; packaging converts per item."
-        primaryAction={can?.manageUomMaster ? <Button variant="primary" onPress={() => open("new")}><Plus className="size-4" aria-hidden="true" />New unit</Button> : undefined} />
-      <ErrorBanner message={editing ? null : error} />
-      {query.isLoading ? <LoadingState label="Loading units" rows={5} /> : query.isError ? <ErrorState title="Could not load units" action={{ label: "Try again", onPress: () => void query.refetch() }} /> :
-        units.length === 0 ? <EmptyState title="No units yet" description="Add Piece, Kilogram, Box and the other units you count in." /> : (
-          <div className="flex flex-col gap-4">
-            {groups.map((group) => (
-              <section key={group} aria-label={label(group)} className="rounded-[var(--radius-card)] border border-border bg-surface">
-                <h3 className="border-b border-border px-4 py-2 text-sm font-semibold">{label(group)}</h3>
-                <ul className="flex flex-col divide-y divide-border text-sm">
-                  {units.filter((unit) => unit.category === group).map((unit) => (
-                    <li key={unit.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium tabular-nums">{unit.code}</span><span>{unit.name}</span>
-                        {unit.symbol && <span className="text-text-muted">({unit.symbol})</span>}
-                        <span className="text-xs text-text-muted">{unit.decimalPlaces === 0 ? "Whole numbers" : `${unit.decimalPlaces} decimal place${unit.decimalPlaces === 1 ? "" : "s"}`} · {unit.itemCount} item{unit.itemCount === 1 ? "" : "s"}
-                          {unit.standardFactor ? ` · standard: ${standardText(unit, units)}` : ""}</span>
-                        {!unit.isActive && <Badge tone="neutral">Inactive</Badge>}
-                      </span>
-                      {can?.manageUomMaster && (
-                        <span className="flex gap-1">
-                          <Button size="compact" variant="ghost" onPress={() => open(unit)}>Edit</Button>
-                          <Button size="compact" variant="ghost" isLoading={status.isPending && status.variables?.id === unit.id} onPress={() => status.mutate(unit)}>{unit.isActive ? "Deactivate" : "Activate"}</Button>
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        )}
+      <EnterpriseListPage
+        header={{
+          title: "Units of Measure",
+          description: "Precision is how many decimals a quantity may have: 0 for whole pieces, 3 for kilograms to the gram. It can be raised any time, lowered only before items record quantities. Units of one dimension convert by their standard factor; packaging converts per item.",
+          primaryAction: can?.manageUomMaster ? <Button variant="primary" onPress={() => open("new")}><Plus className="size-4" aria-hidden="true" />New unit</Button> : undefined,
+          secondaryActions: (
+            <>
+              {can?.export && <a className={buttonVariants({ variant: "outline" })} href={unitConversionsExportUrl} download>Export item conversions</a>}
+              {can?.import && can.manageUnits && <Button variant="outline" onPress={() => setImporting(true)}>Import item conversions</Button>}
+            </>
+          ),
+        }}
+        savedViews={{ views: [{ id: "all", label: "All" }, ...dimensions.map((code) => ({ id: code, label: label(code) })), { id: "inactive", label: "Inactive" }],
+          activeViewId: view, onSelect: (id) => { setView(id); paged.resetPage(); } }}
+        actionBar={{ start: <SearchField aria-label="Search units" placeholder="Code, name or symbol" className="w-full sm:w-80" value={search} onChange={setSearch} /> }}
+      >
+        <ErrorBanner message={editing ? null : error} />
+        <EnterpriseDataGrid<UnitOfMeasure>
+          aria-label="Units of measure"
+          columns={columns}
+          data={paged.pageRows}
+          getRowId={(row) => row.id}
+          state={query.isLoading ? "loading" : query.isError ? "error" : shown.length === 0 ? (units.length ? "no-results" : "empty") : "ready"}
+          loadingContent={<LoadingState label="Loading units" rows={6} />}
+          errorContent={<ErrorState title="Could not load units" action={{ label: "Try again", onPress: () => void query.refetch() }} />}
+          emptyContent={<EmptyState title="No units yet" description="Add Piece, Kilogram, Box and the other units you count in." />}
+          noResultsContent={<NoResultsState title="No units match" description="Try another view or search." />}
+          {...paged.grid}
+          rowActions={can?.manageUomMaster ? (unit) => (
+            <MenuTrigger>
+              <Button size="compact" variant="ghost" aria-label={`Actions for ${unit.code}`}><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
+              <Menu onAction={(key) => (key === "edit" ? open(unit) : status.mutate(unit))}>
+                <MenuItem id="edit">Edit</MenuItem>
+                <MenuItem id="status">{unit.isActive ? "Deactivate" : "Activate"}</MenuItem>
+              </Menu>
+            </MenuTrigger>
+          ) : undefined}
+          onRowClick={can?.manageUomMaster ? (unit) => open(unit) : undefined}
+        />
+      </EnterpriseListPage>
+      <UnitConversionsImport isOpen={importing} onClose={() => setImporting(false)} />
       <Dialog isOpen={editing !== null} onOpenChange={(next) => !next && setEditing(null)} title={editing === "new" ? "New unit" : `Edit ${typeof editing === "object" && editing ? editing.code : ""}`}>
         <div className="flex flex-col gap-3">
           <ErrorBanner message={error} />

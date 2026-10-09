@@ -23,7 +23,8 @@
 // Every reservation, consumption and release is on the order's history.
 // Inventory owns the reservation records; nothing here edits a quantity.
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
-import { StockError, consumeStockReservation, reconcileStockReservations, releaseStockReservation, reserveAvailableStock } from "../../stock/index.js";
+import { StockError, consumeStockReservation, releaseStockReservation, reserveAvailableStock } from "../../stock/index.js";
+import { reconcileReservedProjection } from "../../stock/balances.js";
 import { assertOrderVisible, orderCan, orderScopeSql, requireOrderAccess, requireOrderPermission } from "../orders/access.js";
 import { OrderError, STATUS, requireUuid, text } from "../orders/constants.js";
 import { loadOrderLineProgress, refreshSalesOrderProgress } from "../orders/progress.js";
@@ -58,9 +59,9 @@ async function reserveLine(client, context, order, line, wanted, defaultWarehous
   const outcome = { lineId: line.lineId, itemName: line.itemName, unit: line.unit, wanted: round(wanted), reserved: 0, shortage: round(wanted), reservations: [], warehouseId: null, problem: null };
   const warehouseId = line.warehouseId ?? defaultWarehouseId;
   if (!warehouseId) return { ...outcome, problem: "Warehouse required before reservation." };
-  const warehouse = (await client.query(`SELECT id, name, status, sales_fulfillment FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [context.organizationId, warehouseId])).rows[0];
-  if (!warehouse || warehouse.status !== "active" || !warehouse.sales_fulfillment)
-    return { ...outcome, warehouseId, problem: `${warehouse?.name ?? "The warehouse"} is inactive or not used for sales fulfillment.` };
+  const warehouse = (await client.query(`SELECT id, name, status, shipping_enabled AND sales_fulfillment AS shipping_enabled FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [context.organizationId, warehouseId])).rows[0];
+  if (!warehouse || warehouse.status !== "active" || !warehouse.shipping_enabled)
+    return { ...outcome, warehouseId, problem: `${warehouse?.name ?? "The warehouse"} is inactive or does not ship.` };
   // The order's default warehouse becomes the line's fulfillment warehouse once stock is held there.
   if (!line.warehouseId)
     await client.query(`UPDATE tenant.sales_order_line_progress SET fulfillment_warehouse_id = $3, updated_at = now() WHERE organization_id = $1 AND sales_order_line_id = $2`,
@@ -79,7 +80,7 @@ async function reserveLine(client, context, order, line, wanted, defaultWarehous
   return {
     ...outcome, warehouseId, warehouseName: warehouse.name, reserved, shortage: round(Math.max(0, wanted - reserved)),
     reservations: result.reservations.map((reservation) => reservation.reservation_number),
-    problem: result.blockedByQuality ? "This product is on quality hold in this warehouse." : reserved + EPSILON < wanted ? (reserved > EPSILON ? "Stock is short: reserved what is available." : "No stock available.") : null,
+    problem: reserved + EPSILON < wanted ? (reserved > EPSILON ? "Stock is short: reserved what is available." : "No stock available.") : null,
   };
 }
 
@@ -113,6 +114,15 @@ async function idempotent(client, context, operation, key, payload, run) {
   return { ...response, replayed: false };
 }
 
+// Reserving by hand: without the partial-reservation permission a line is reserved in full or not at all.
+function requireFullUnlessPartial(context, outcome) {
+  if (orderCan(context, RESERVATION_PERMISSIONS.reservePartial)) return;
+  const short = outcome.find((line) => line.shortage > EPSILON);
+  if (short)
+    throw new OrderError(409, `${short.itemName}: only ${short.reserved} ${short.unit ?? ""} of ${short.wanted} can be reserved now. Reserving part of a line needs the partial reservation permission; nothing was reserved.`.replace("  ", " "),
+      "SALES_RESERVATION_PARTIAL_NOT_ALLOWED", { lines: outcome.filter((line) => line.shortage > EPSILON).map((line) => ({ lineId: line.lineId, wanted: line.wanted, available: line.reserved })) });
+}
+
 async function finish(client, context, order, outcome) {
   if (outcome.some((line) => line.reserved > EPSILON))
     await recordOrderEvent(client, context, order.id, "sales_order.stock_reserved", order.lifecycle_status, order.lifecycle_status, reservedEvent(outcome));
@@ -130,8 +140,11 @@ export async function reserveSalesOrderStock(client, context, orderId, input = {
   requireOrderPermission(context, RESERVATION_PERMISSIONS.reserve, "You do not have permission to reserve stock for sales orders.");
   const lineIds = Array.isArray(input.lineIds) && input.lineIds.length ? input.lineIds.map((id) => requireUuid(id, "Order line")) : null;
   const order = await confirmedOrder(client, context, orderId);
-  return idempotent(client, context, "sales.order.reserve", input.idempotencyKey, { orderId: order.id, lineIds }, async () =>
-    finish(client, context, order, await reserveOrderLines(client, context, order, { lineIds })));
+  return idempotent(client, context, "sales.order.reserve", input.idempotencyKey, { orderId: order.id, lineIds }, async () => {
+    const outcome = await reserveOrderLines(client, context, order, { lineIds });
+    requireFullUnlessPartial(context, outcome);
+    return finish(client, context, order, outcome);
+  });
 }
 
 // Reserves a chosen quantity of one line (all of its unreserved demand when no quantity is given).
@@ -154,7 +167,9 @@ export async function reserveSalesOrderLine(client, context, orderId, input = {}
     if (wanted > unreserved + EPSILON)
       throw new OrderError(409, `${line.itemName}: only ${unreserved} ${line.unit ?? ""} is still to reserve (ordered ${line.ordered}, delivered ${line.delivered}, cancelled ${line.cancelled}, reserved ${round(line.reserved)}).`.replace("  ", " "),
         "SALES_RESERVATION_EXCEEDS_DEMAND");
-    return finish(client, context, order, [await reserveLine(client, context, order, line, wanted, await defaultWarehouseOf(client, context, order))]);
+    const outcome = [await reserveLine(client, context, order, line, wanted, await defaultWarehouseOf(client, context, order))];
+    requireFullUnlessPartial(context, outcome);
+    return finish(client, context, order, outcome);
   });
 }
 
@@ -238,11 +253,15 @@ export async function consumeReservationForDelivery(client, context, { order, li
     throw new OrderError(409, `${line.itemName} is reserved in ${elsewhere.warehouse_name}. Deliver from there, or change the line's warehouse (which releases that reservation) first.`, "SALES_DELIVERY_WAREHOUSE_MISMATCH");
   let left = round(quantity * factor);
   const consumed = [];
-  const issue = (id) => ({ deliveryId, deliveryLineId, issue: { referenceType: "sales_delivery", referenceId: deliveryId, idempotencyKey: `sales-delivery:${deliveryId}:${id}` } });
+  // The ledger keeps the line's unit beside the base quantity (2 BOX of 12 = 24 PCS).
+  const deliveryUnit = deliveryLineId
+    ? (await client.query(`SELECT uom_id FROM tenant.sales_delivery_lines WHERE organization_id = $1 AND id = $2`, [context.organizationId, deliveryLineId])).rows[0]?.uom_id ?? null : null;
+  const issue = (id, base) => ({ deliveryId, deliveryLineId, issue: { referenceType: "sales_delivery", referenceId: deliveryId, sourceLineId: deliveryLineId,
+    idempotencyKey: `sales-delivery:${deliveryId}:${id}`, transaction: deliveryUnit ? { uomId: deliveryUnit, quantity: round(base / factor), factor } : null } });
   for (const reservation of reservations) {
     if (left <= EPSILON) break;
     const take = round(Math.min(left, Number(reservation.active_quantity)));
-    await consumeStockReservation(client, stock, reservation.id, take, issue(reservation.id));
+    await consumeStockReservation(client, stock, reservation.id, take, issue(reservation.id, take));
     consumed.push({ reservation: reservation.reservation_number, quantity: round(take / factor) });
     left = round(left - take);
   }
@@ -255,7 +274,7 @@ export async function consumeReservationForDelivery(client, context, { order, li
     });
     if (extra.reserved + EPSILON < left)
       throw new OrderError(409, `${line.itemName}: only ${round((quantity * factor - left + extra.reserved) / factor)} ${line.unit ?? ""} can be delivered from this warehouse now.`.replace("  ", " "), "SALES_ORDER_STOCK_UNAVAILABLE");
-    for (const reservation of extra.reservations) await consumeStockReservation(client, stock, reservation.id, Number(reservation.quantity), issue(reservation.id));
+    for (const reservation of extra.reservations) await consumeStockReservation(client, stock, reservation.id, Number(reservation.quantity), issue(reservation.id, Number(reservation.quantity)));
     fromFreeStock = round(left / factor);
   }
   return { consumed, fromFreeStock };
@@ -269,7 +288,7 @@ export async function getSalesOrderReservations(client, context, orderId) {
   await assertOrderVisible(client, context, id);
   const [reservations, consumptions] = [
     await client.query(
-      `SELECT reservation.id, reservation.reservation_number, reservation.status, reservation.sales_order_line_id, line.item_name_snapshot, line.uom_snapshot,
+      `SELECT reservation.id, reservation.inventory_reservation_id, reservation.reservation_number, reservation.status, reservation.sales_order_line_id, line.item_name_snapshot, line.uom_snapshot,
               COALESCE(NULLIF(line.conversion_factor, 0), 1) AS factor, reservation.quantity, reservation.active_quantity, reservation.consumed_quantity, reservation.released_quantity,
               warehouse.name AS warehouse_name, location.code AS location_code, batch.batch_number, reservation.created_at AS reserved_at, reserver.full_name AS reserved_by_name,
               reservation.released_at, releaser.full_name AS released_by_name, reservation.release_reason, reservation.release_reason_code,
@@ -293,7 +312,7 @@ export async function getSalesOrderReservations(client, context, orderId) {
   // Quantities in the line's unit, as the order shows them.
   const unit = (row, value) => round(Number(value) / Number(row.factor));
   return reservations.rows.map((row) => ({
-    id: row.id, reservationNumber: row.reservation_number, status: row.status, statusLabel: RECORD_STATUS_LABELS[row.status] ?? row.status, lineId: row.sales_order_line_id,
+    id: row.id, reservationId: row.inventory_reservation_id, reservationNumber: row.reservation_number, status: row.status, statusLabel: RECORD_STATUS_LABELS[row.status] ?? row.status, lineId: row.sales_order_line_id,
     itemName: row.item_name_snapshot, unit: row.uom_snapshot, reserved: unit(row, row.quantity), active: unit(row, row.active_quantity), consumed: unit(row, row.consumed_quantity),
     released: unit(row, row.released_quantity), warehouseName: row.warehouse_name, location: row.location_code, batch: row.batch_number, reservedAt: row.reserved_at,
     reservedByName: row.reserved_by_name, releasedAt: row.released_at, releasedByName: row.released_by_name, releaseReason: row.release_reason,
@@ -331,7 +350,7 @@ export async function reconcileSalesReservations(client, context, { repair = fal
       await refreshSalesOrderProgress(client, context.organizationId, order.id, context.userId ?? null);
     }
   }
-  const stock = await reconcileStockReservations(client, repair && orderCan(context, "stock.adjust") ? { ...orderStockContext(context), permissions: ["stock.view", "stock.adjust"] } : orderStockContext(context), { repair: repair && orderCan(context, "stock.adjust") });
+  const stock = await reconcileReservedProjection(client, repair && orderCan(context, "stock.adjust") ? { ...orderStockContext(context), permissions: ["stock.view", "stock.adjust"] } : orderStockContext(context), { repair: repair && orderCan(context, "stock.adjust") });
   return { salesExcess: excess, stock };
 }
 

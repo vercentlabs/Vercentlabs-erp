@@ -1,7 +1,6 @@
-import { ItemNumberingScreen } from "@/features/items/screens/ItemNumberingScreen";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Item Numbering" };
-
+// Item numbering is a section of Inventory Settings.
 export default function Page() {
-  return <ItemNumberingScreen />;
+  redirect("/inventory/settings?section=item-numbering");
 }

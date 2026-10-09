@@ -4,11 +4,12 @@
 // used from a quotation), creating one from a CRM account, and editing.
 // Sections: Identity, Commercial, Tax, and on creation the first address and
 // the primary contact. Duplicates are checked while typing and again on save.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Badge, Button, Checkbox, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
+import { FormSection } from "@/shared/ui/FormSection";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
@@ -64,17 +65,6 @@ function toInput(values: Values): CustomerInput {
 const addressInput = (address: AddressValues, fallbackCountry: string): AddressInput | null =>
   address.line1.trim() ? { ...address, label: address.label.trim() || null, countryCode: address.countryCode || fallbackCountry } : null;
 
-function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
-  return (
-    <section aria-label={title} className="flex flex-col gap-3 border-t border-border pt-5 first:border-t-0 first:pt-0">
-      <div>
-        <h3 className="text-sm font-semibold text-text">{title}</h3>
-        {description && <p className="text-xs text-text-muted">{description}</p>}
-      </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
-    </section>
-  );
-}
 
 function AddressFields({ value, onChange, errors }: { value: AddressValues; onChange: (next: AddressValues) => void; errors: Record<string, string> }) {
   const set = (key: keyof AddressValues) => (text: string) => onChange({ ...value, [key]: text });
@@ -223,7 +213,7 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
     <div className="flex flex-col gap-5">
       <ErrorBanner message={error} />
 
-      <Section title="Identity">
+      <FormSection title="Identity">
         <TextField label="Customer name" isRequired value={values.displayName} onChange={set("displayName")} errorMessage={errors.displayName} autoFocus={!editing} />
         <Select label="Customer type" isRequired selectedKey={values.customerKind} onSelectionChange={(key) => set("customerKind")(String(key))} options={kindOptions} errorMessage={errors.customerKind} />
         {!compact && <TextField label="Legal name" description="The registered name, as it should print on invoices." value={values.legalName} onChange={set("legalName")} errorMessage={errors.legalName} />}
@@ -240,11 +230,11 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
           <Select label="Salesperson" selectedKey={values.ownerUserId} onSelectionChange={(key) => set("ownerUserId")(String(key))}
             options={withNone(options.salespeople.map((user) => ({ value: user.id, label: user.name })), "Unassigned")} errorMessage={errors.ownerUserId} />
         )}
-      </Section>
+      </FormSection>
 
       {duplicates && <DuplicatePanel result={duplicates} reason={reason} onReasonChange={setReason} acknowledged={acknowledged} onAcknowledge={setAcknowledged} />}
 
-      <Section title="Commercial" description={editing ? "Changing these affects new documents only. Documents already issued keep their terms." : "The defaults a new quotation or order starts with."}>
+      <FormSection title="Commercial" description={editing ? "Changing these affects new documents only. Documents already issued keep their terms." : "The defaults a new quotation or order starts with."}>
         <Select label="Currency" isRequired selectedKey={values.currencyCode} onSelectionChange={(key) => set("currencyCode")(String(key))}
           options={options.currencies.map((currency) => ({ value: currency.code, label: `${currency.code} – ${currency.name}` }))}
           isDisabled={editing && !can.changeCurrency} errorMessage={errors.currencyCode} />
@@ -256,9 +246,9 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
               options={withNone(options.priceLists.map((list) => ({ value: list.id, label: list.name })), "Standard prices")} isDisabled={editing && !can.changePriceList} errorMessage={errors.priceListId} />
           </>
         )}
-      </Section>
+      </FormSection>
 
-      <Section title="Tax" description={india ? undefined : "GST details apply to customers in India."}>
+      <FormSection title="Tax" description={india ? undefined : "GST details apply to customers in India."}>
         <Select label="GST registration type" selectedKey={values.gstRegistrationType} onSelectionChange={(key) => set("gstRegistrationType")(String(key))}
           options={withNone(options.gstRegistrationTypes.map((entry) => ({ value: entry.code, label: entry.label })))} isDisabled={editing && !can.editGstin} errorMessage={errors.gstRegistrationType} />
         {india && (
@@ -271,21 +261,21 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
             )}
           </>
         )}
-      </Section>
+      </FormSection>
 
       {!editing && (
         <>
-          <Section title="Billing address" description={accountId ? "Add one only if the account has no address yet." : "Optional now; a quotation needs one."}>
+          <FormSection title="Billing address" description={accountId ? "Add one only if the account has no address yet." : "Optional now; a quotation needs one."}>
             <AddressFields value={billing} onChange={setBilling} errors={errors} />
             {!compact && <div className="sm:col-span-2"><Checkbox isSelected={sameShipping} onChange={setSameShipping}>Deliver to the billing address</Checkbox></div>}
-          </Section>
-          {!sameShipping && !compact && <Section title="Shipping address"><AddressFields value={shipping} onChange={setShipping} errors={{}} /></Section>}
-          <Section title="Primary contact" description="Optional. The person quotations and invoices are addressed to.">
+          </FormSection>
+          {!sameShipping && !compact && <FormSection title="Shipping address"><AddressFields value={shipping} onChange={setShipping} errors={{}} /></FormSection>}
+          <FormSection title="Primary contact" description="Optional. The person quotations and invoices are addressed to.">
             <TextField label="First name" value={contact.firstName} onChange={(value) => setContact({ ...contact, firstName: value })} errorMessage={errors.firstName} />
             <TextField label="Last name" value={contact.lastName} onChange={(value) => setContact({ ...contact, lastName: value })} />
             <TextField label="Email" type="email" value={contact.email} onChange={(value) => setContact({ ...contact, email: value })} />
             <TextField label="Phone" value={contact.phone} onChange={(value) => setContact({ ...contact, phone: value })} />
-          </Section>
+          </FormSection>
         </>
       )}
 

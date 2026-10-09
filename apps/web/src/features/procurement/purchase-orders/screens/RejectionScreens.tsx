@@ -11,7 +11,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft } from "lucide-react";
 import {
   Button, Dialog, EmptyState, EnterpriseDataGrid, ErrorState, NoResultsState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs,
   TextArea, TextField,
@@ -20,7 +19,6 @@ import {
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcFacts, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, dateTime, quantity, statusLabel, statusTone } from "@/features/procurement/shared/format";
 
 import {
@@ -28,6 +26,7 @@ import {
   rejectFromInspection, rejectionFileUrl, resolveRejection, returnRejection, updateRejection, uploadRejectionFile, type GoodsReceiptDetail, type OrderLine, type RejectionDetail,
   type RejectionRow,
 } from "../api/purchase-orders-api";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 const ANY = "any";
 const EXPECTED_DOCK = [{ value: "replacement_expected", label: "Supplier to send a replacement" }, { value: "cancel_outstanding", label: "Cancel the outstanding quantity" },
@@ -52,7 +51,7 @@ function Shell({ title, description, error, onClose, label, isLoading, isDisable
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={title} description={description} size="lg">
       <div className="flex flex-col gap-3">
-        {Boolean(error) && <ProcAlert>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>}
+        {Boolean(error) && <Notice>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
         {children}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>
@@ -138,10 +137,9 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
   const otherOptions = resolution.options.filter((option) => option.type !== "purchase_return_posted" && option.enabled);
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/goods-receipts?view=receiving-issues" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Receiving issues</Link>
-      {notice && <ProcAlert tone="success">{notice}</ProcAlert>}
-      {rejection.status === "cancelled" && <ProcAlert tone="warning">Cancelled {dateTime(rejection.cancelledAt)}{rejection.cancelledByName ? ` by ${rejection.cancelledByName}` : ""}: {rejection.cancelReason}</ProcAlert>}
-      {detail.financial?.note && <ProcAlert tone="warning">{detail.financial.note}</ProcAlert>}
+      {notice && <Notice tone="success">{notice}</Notice>}
+      {rejection.status === "cancelled" && <Notice tone="warning">Cancelled {dateTime(rejection.cancelledAt)}{rejection.cancelledByName ? ` by ${rejection.cancelledByName}` : ""}: {rejection.cancelReason}</Notice>}
+      {detail.financial?.note && <Notice tone="warning">{detail.financial.note}</Notice>}
       <RecordDetailsPage header={{
         title: rejection.rejectionNumber,
         status: <span className="flex gap-2"><RejectionStatus status={rejection.status} /><StageBadge stage={rejection.stage} /></span>,
@@ -174,8 +172,8 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
           </TabList>
           <TabPanel id="overview">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="What happened">
-                <ProcFacts columns={3} items={[
+              <Panel title="What happened">
+                <Facts columns={3} items={[
                   { label: "Stage", value: rejection.stageLabel },
                   { label: "Where it came from", value: rejection.sourceLabel },
                   { label: "Product", value: `${rejection.product?.code ? `${rejection.product.code} · ` : ""}${rejection.description}` },
@@ -190,15 +188,15 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
                   { label: "Found", value: `${dateTime(rejection.observedAt)}${rejection.reportedBy ? ` by ${rejection.reportedBy}` : ""}` },
                   { label: "Recorded", value: `${dateTime(rejection.createdAt)}${rejection.createdByName ? ` by ${rejection.createdByName}` : ""}` },
                 ]} />
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="resolution">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Resolution" description={rejection.stage === "before_custody"
+              <Panel title="Resolution" description={rejection.stage === "before_custody"
                 ? "Refused goods were never received: the order still owes them until a replacement arrives on a normal receipt, or the outstanding quantity is cancelled."
                 : "Received goods stay received on the GRN. Blocked goods are returned to the supplier, disposed of with evidence, or exceptionally accepted back."}>
-                <ProcFacts columns={4} items={[
+                <Facts columns={4} items={[
                   { label: "Open", value: quantity(rejection.open) }, { label: "Returned", value: quantity(rejection.returned) },
                   { label: "Disposed of", value: quantity(rejection.disposed) }, { label: "Accepted back", value: quantity(rejection.released) },
                 ]} />
@@ -212,13 +210,13 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
                     ))}
                   </ul>
                 )}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="stock">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Where the goods are">
-                <ProcFacts columns={3} items={[
+              <Panel title="Where the goods are">
+                <Facts columns={3} items={[
                   { label: "Warehouse", value: rejection.warehouseName ?? "—" },
                   { label: "Held in", value: rejection.stage === "before_custody" ? "Not taken in" : rejection.locationCode ?? (Number(rejection.held) > 0 ? "—" : "Not stocked") },
                   { label: "Still blocked", value: quantity(rejection.held) },
@@ -227,8 +225,8 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
                   { label: "Quality inspection", value: rejection.inspection
                     ? <Link className="text-brand hover:underline" href={`/quality/inspection/${rejection.inspection.id}`}>{rejection.inspection.number} ({statusLabel(rejection.inspection.status)}, {quantity(rejection.inspection.rejected)} rejected)</Link> : "—" },
                 ]} />
-              </ProcPanel>
-              <ProcPanel title="Inventory movements" description="Posted by Inventory: quarantine, return, disposal or acceptance. A refusal at the dock moves nothing.">
+              </Panel>
+              <Panel title="Inventory movements" description="Posted by Inventory: quarantine, return, disposal or acceptance. A refusal at the dock moves nothing.">
                 {!detail.movements.length ? <p className="text-sm text-text-muted">No stock moved for this case.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.movements.map((movement) => (
@@ -237,15 +235,15 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
                     ))}
                   </ul>
                 )}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="evidence"><div className="pt-4"><Evidence detail={detail} /></div></TabPanel>
           {detail.financial && (
             <TabPanel id="finance">
               <div className="pt-4">
-                <ProcPanel title="Supplier bills on this line" description="Bills are never changed by a rejection. A posted bill for goods that are not acceptable is corrected by a vendor credit.">
-                  <ProcFacts columns={4} items={[
+                <Panel title="Supplier bills on this line" description="Bills are never changed by a rejection. A posted bill for goods that are not acceptable is corrected by a vendor credit.">
+                  <Facts columns={4} items={[
                     { label: "Billing basis", value: statusLabel(detail.financial.billingBasis) }, { label: "Billed (posted)", value: quantity(detail.financial.postedBilled) },
                     { label: "May be billed", value: quantity(detail.financial.billable) }, { label: "Mismatch", value: detail.financial.mismatch ? quantity(detail.financial.mismatch) : "None" },
                   ]} />
@@ -255,13 +253,13 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
                         <StatusBadge tone={statusTone(bill.status)}>{statusLabel(bill.status)}</StatusBadge><span className="tabular-nums">{statusLabel(bill.type)} × {quantity(bill.quantity)}</span></li>
                     ))}
                   </ul>
-                </ProcPanel>
+                </Panel>
               </div>
             </TabPanel>
           )}
           <TabPanel id="history">
             <div className="pt-4">
-              <ProcPanel title="History">
+              <Panel title="History">
                 <ol className="flex flex-col divide-y divide-border text-sm">
                   {detail.history.map((entry) => (
                     <li key={entry.id} className="grid grid-cols-1 gap-x-3 gap-y-0.5 py-2 sm:grid-cols-[11rem_minmax(0,1fr)]">
@@ -269,7 +267,7 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
                     </li>
                   ))}
                 </ol>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
         </Tabs>
@@ -289,14 +287,14 @@ function Evidence({ detail }: { detail: RejectionDetail }) {
   const upload = useMutation({ mutationFn: (file: File) => uploadRejectionFile(detail.rejection.id, file),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement", "rejection", detail.rejection.id) }) });
   return (
-    <ProcPanel title="Evidence" description="Photos, inspection records and supplier correspondence. Files cited from the goods receipt are listed too; evidence is kept once the case is resolved."
+    <Panel title="Evidence" description="Photos, inspection records and supplier correspondence. Files cited from the goods receipt are listed too; evidence is kept once the case is resolved."
       actions={detail.actions.attach ? (
         <>
           <input ref={input} type="file" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
           <Button size="compact" variant="secondary" isLoading={upload.isPending} onPress={() => input.current?.click()}>Add file</Button>
         </>
       ) : undefined}>
-      {upload.error && <ProcAlert>{errorMessage(upload.error)}</ProcAlert>}
+      {upload.error && <Notice>{errorMessage(upload.error)}</Notice>}
       {!detail.files.length ? <p className="text-sm text-text-muted">No evidence attached.</p> : (
         <ul className="flex flex-col divide-y divide-border text-sm">
           {detail.files.map((file) => (
@@ -307,7 +305,7 @@ function Evidence({ detail }: { detail: RejectionDetail }) {
           ))}
         </ul>
       )}
-    </ProcPanel>
+    </Panel>
   );
 }
 
@@ -513,10 +511,10 @@ export function InspectionRejectionsPanel({ inspectionId }: { inspectionId: stri
   if (!visible || !query.data?.linked) return null;
   const { rows, decided, canRecord } = query.data;
   return (
-    <ProcPanel title="Receiving rejections" description="Goods this inspection rejected stay blocked in the quality location; the case is resolved by a purchase return, a disposal or an exceptional acceptance."
+    <Panel title="Receiving rejections" description="Goods this inspection rejected stay blocked in the quality location; the case is resolved by a purchase return, a disposal or an exceptional acceptance."
       actions={canRecord ? <Button size="compact" variant="primary" isLoading={record.isPending} onPress={() => record.mutate()}>Record Quality Rejection</Button> : undefined}>
-      {record.error && <ProcAlert>{errorMessage(record.error)}</ProcAlert>}
+      {record.error && <Notice>{errorMessage(record.error)}</Notice>}
       <RejectionTable rows={rows} empty={decided ? "No rejection recorded for this inspection yet." : "When the inspection fails goods, record the rejection here."} />
-    </ProcPanel>
+    </Panel>
   );
 }

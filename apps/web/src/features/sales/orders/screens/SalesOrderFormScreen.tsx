@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { AlertDialog, Button, ErrorState, IconButton, NumberField, PageHeader, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import { AlertDialog, Button, ErrorState, IconButton, NumberField, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -19,7 +19,6 @@ import { money, statusLabel } from "@/features/sales/shared/format";
 import {
   BILLING_ADDRESS_TYPES, SHIPPING_ADDRESS_TYPES, contactLabel, defaultAddress, defaultLineDescription, defaultLineUom, usableAddresses,
 } from "@/features/sales/shared/document-defaults";
-import { SalesAlert, SalesPanel } from "@/features/sales/shared/SalesUi";
 import { getSalesOptions, previewSalesDocument, type SalesDocumentInput, type SalesOptions } from "@/features/sales/quotations/api/quotations-api";
 import { AUTOMATIC_TAX, DocumentTaxPanel, taxDraftOf, taxInput, type DocumentTaxDraft } from "@/features/sales/shared/DocumentTax";
 import {
@@ -30,6 +29,9 @@ import {
   createSalesOrder, getSalesOrder, getSalesOrderDefaults, previewSalesOrder, updateSalesOrder, type SalesOrderDefaults, type SalesOrderDetail, type SalesOrderDocumentInput,
 } from "../api/orders-api";
 import { useSubmitKey } from "@/shared/http/submit-once";
+import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
+import { FormSection } from "@/shared/ui/FormSection";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 type LineDraft = {
   key: number;
@@ -305,25 +307,38 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
   });
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title={existing ? `Edit ${order?.sales_order_number}` : "New Sales Order"}
-        description={fromQuotation
+    <>
+    <DocumentFormPage
+      header={{
+        title: existing ? `Edit ${order?.sales_order_number}` : "New Sales Order",
+        description: fromQuotation
           ? `Made from quotation ${order?.source_quotation_number}: quoted prices, discounts and tax are kept as agreed.`
-          : "Saved as a draft. Totals update as you edit and are calculated by the server; confirm the order when it is ready."}
-        secondaryActions={<Button variant="secondary" onPress={onCancel}>Cancel</Button>}
-        primaryAction={
+          : "Saved as a draft. Totals update as you edit and are calculated by the server; confirm the order when it is ready.",
+      }}
+      banner={<div className="flex flex-col gap-3">
+        {error && <Notice>{error}</Notice>}
+      {blocked && <Notice>{blocked} An order cannot be placed for this customer.</Notice>}
+      </div>}
+      formActions={
+        <>
+          <Button variant="secondary" onPress={onCancel}>Cancel</Button>
+          {
           <Button variant="primary" onPress={() => save.mutate()} isLoading={save.isPending || save.isSuccess} isDisabled={!input || Boolean(previewError) || Boolean(blocked)}>
             {existing ? "Save Draft" : "Save as Draft"}
           </Button>
         }
-      />
-      {error && <SalesAlert>{error}</SalesAlert>}
-      {blocked && <SalesAlert>{blocked} An order cannot be placed for this customer.</SalesAlert>}
+        </>
+      }
+      aside={<>
+        <Panel title="Totals" description="Calculated by the server.">
+            {previewError ? <Notice tone="warning">{previewError}</Notice>
+              : !preview ? <p className="text-sm text-text-muted">Choose a customer and add an item to see pricing.</p>
+                : <DocumentTotals currencyCode={currencyCode} preview={preview} />}
+          </Panel>
+      </>}
+    >
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <SalesPanel title="Customer">
+          <FormSection columns={1} title="Customer">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select label="Customer" isRequired options={partyOptions} selectedKey={partyId || null} onSelectionChange={(key) => selectParty(String(key ?? ""))}
                 placeholder="Select a customer" isDisabled={fromQuotation} description={fromQuotation ? "An order made from a quotation keeps the quotation's customer." : undefined} />
@@ -331,9 +346,9 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
               <Select label="Billing address" options={addressOptionsFor(BILLING_ADDRESS_TYPES)} selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key ?? ""))} isDisabled={!partyId} />
               <Select label="Shipping address" options={addressOptionsFor(SHIPPING_ADDRESS_TYPES)} selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key ?? ""))} isDisabled={!partyId} />
             </div>
-          </SalesPanel>
+          </FormSection>
 
-          <SalesPanel title="Order">
+          <FormSection columns={1} title="Order">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <TextField label="Order date" type="date" isRequired value={orderDate} onChange={setOrderDate} />
               <TextField label="Requested delivery date" type="date" value={deliveryDate} onChange={setDeliveryDate} />
@@ -344,9 +359,9 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
               <Select label="Default warehouse" description="Used for goods lines without their own warehouse."
                 options={[{ value: "", label: "None" }, ...warehouseOptions]} selectedKey={defaultWarehouseId} onSelectionChange={(key) => setDefaultWarehouseId(String(key ?? ""))} />
             </div>
-          </SalesPanel>
+          </FormSection>
 
-          <SalesPanel title="Commercial terms" description={fromQuotation ? "Kept from the quotation." : undefined}>
+          <FormSection columns={1} title="Commercial terms" description={fromQuotation ? "Kept from the quotation." : undefined}>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select label="Currency" options={currencyOptions} selectedKey={currencyCode} isDisabled={fromQuotation}
                 onSelectionChange={(key) => { setCurrencyCode(String(key ?? baseCurrency)); setPriceListId(""); }} />
@@ -364,11 +379,11 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
                 description={options.paymentTerms.find((term) => term.id === paymentTermId)?.description ?? "When payment is due. Each invoice of the order gets its own due date."} />
               <TextField label="Additional payment terms" description="Optional, for this order only. Printed with the payment terms." value={paymentTermsNote} onChange={setPaymentTermsNote} />
             </div>
-          </SalesPanel>
+          </FormSection>
 
           <DocumentTaxPanel tax={options.tax} value={documentTax} onChange={setDocumentTax} preview={preview} />
 
-          <SalesPanel title="Items" actions={<Button variant="secondary" size="compact" onPress={() => setLines((current) => [...current, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add item</Button>}>
+          <FormSection columns={1} title="Items" actions={<Button variant="secondary" size="compact" onPress={() => setLines((current) => [...current, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add item</Button>}>
             <div className="flex flex-col gap-3">
               {lines.map((line, index) => {
                 const priced = preview?.lines.find((candidate) => candidate.sequence === validLines.findIndex((valid) => valid.key === line.key) + 1);
@@ -428,9 +443,9 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
                 );
               })}
             </div>
-          </SalesPanel>
+          </FormSection>
 
-          <SalesPanel title="Charges" description="Freight, packing or handling, added to the order total."
+          <FormSection columns={1} title="Charges" description="Freight, packing or handling, added to the order total."
             actions={<Button variant="secondary" size="compact" onPress={() => setCharges((current) => [...current, { key: nextKey(), label: "", calculationType: "fixed", value: 0 }])}><Plus className="size-3.5" aria-hidden="true" />Add charge</Button>}>
             {charges.length === 0 && <p className="text-sm text-text-muted">No charges.</p>}
             {charges.map((charge) => (
@@ -443,35 +458,26 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
                 <IconButton aria-label="Remove charge" variant="ghost" onPress={() => setCharges((current) => current.filter((c) => c.key !== charge.key))}><Trash2 className="size-4" aria-hidden="true" /></IconButton>
               </div>
             ))}
-          </SalesPanel>
+          </FormSection>
 
           {fromQuotation ? (
-            <SalesPanel title="Additional discount" description="Kept from the quotation.">
+            <FormSection columns={1} title="Additional discount" description="Kept from the quotation.">
               <p className="text-sm">{Number(order?.document_discount_amount) ? `${order?.document_discount_type === "percent" ? `${Number(order?.document_discount_value)}% · ` : ""}${money(currencyCode, order?.document_discount_amount)}` : "None"}</p>
-            </SalesPanel>
+            </FormSection>
           ) : (
             <DocumentDiscountPanel discounts={options.discounts} currencyCode={currencyCode} value={documentDiscount} onChange={setDocumentDiscount} preview={preview}
               hasAnyDiscount={documentDiscount.value > 0 || lines.some((line) => line.discountValue > 0)} />
           )}
 
-          <SalesPanel title="Notes & terms">
+          <FormSection columns={1} title="Notes & terms">
             <TextArea label="Notes for the customer" description="Printed on the order confirmation." value={customerNotes} onChange={setCustomerNotes} />
             <TextArea label="Terms and conditions" description="Printed on the order confirmation." value={terms} onChange={setTerms} />
             <TextArea label="Internal notes" description="Never printed or sent to the customer." value={internalNotes} onChange={setInternalNotes} />
-          </SalesPanel>
-        </div>
-
-        <div className="flex flex-col gap-4 lg:sticky lg:top-4">
-          <SalesPanel title="Totals" description="Calculated by the server.">
-            {previewError ? <SalesAlert tone="warning">{previewError}</SalesAlert>
-              : !preview ? <p className="text-sm text-text-muted">Choose a customer and add an item to see pricing.</p>
-                : <DocumentTotals currencyCode={currencyCode} preview={preview} />}
-          </SalesPanel>
-        </div>
-      </div>
-      <AlertDialog isOpen={pendingPriceList !== null} onOpenChange={(open) => !open && setPendingPriceList(null)} tone="primary"
+          </FormSection>
+    </DocumentFormPage>
+    <AlertDialog isOpen={pendingPriceList !== null} onOpenChange={(open) => !open && setPendingPriceList(null)} tone="primary"
         title="Re-price the lines with the new price list?" description="Every line without a manual price takes its price from the new list. Choose Cancel to keep the current price list."
         confirmLabel="Re-price lines" onConfirm={() => { setPriceListId(pendingPriceList ?? ""); setPendingPriceList(null); }} />
-    </div>
+    </>
   );
 }

@@ -32,10 +32,26 @@ export * from "./core/release/governance.js";
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
 export * from "./modules/accounting/record-lookups.js";
-export * from "./modules/stock/read-models.js";
-export * from "./modules/stock/counts.js";
+export * from "./modules/stock/stock-counts.js";
 export * from "./modules/stock/valuation.js";
-export * from "./modules/stock/quarantine.js";
+export * from "./modules/stock/quality-holds.js";
+export * from "./modules/stock/warehouses.js";
+export * from "./modules/stock/opening-stock.js";
+export * from "./modules/stock/balances.js";
+export * from "./modules/stock/ledger.js";
+export * from "./modules/stock/movement-history.js";
+export * from "./modules/stock/reorder.js";
+export * from "./modules/stock/low-stock-alerts.js";
+export * from "./modules/stock/overview.js";
+export * from "./modules/stock/tracking-detail.js";
+export * from "./modules/stock/inventory-reports.js";
+export * from "./modules/related/index.js";
+export * from "./modules/stock/goods-issues.js";
+export * from "./modules/stock/transfers.js";
+export * from "./modules/stock/adjustments.js";
+export * from "./modules/stock/reservations.js";
+export * from "./modules/stock/negative-stock.js";
+export { NEGATIVE_OVERRIDE_REASONS, NEGATIVE_STOCK_POLICIES, NEGATIVE_STOCK_CODES, recordBlockedNegativeStockAttempt } from "./modules/stock/negative-stock-control.js";
 export { MfgError } from "./modules/manufacturing/common.js";
 export * from "./modules/manufacturing/engineering.js";
 export * from "./modules/manufacturing/options.js";
@@ -46,13 +62,12 @@ export * from "./modules/manufacturing/costing.js";
 export * from "./modules/projects/desk.js";
 export * from "./modules/assets/desk.js";
 export * from "./modules/point-of-sale/index.js";
-export { releaseQualityHold } from "./modules/quality/hold-release.js";
 export { qualityContext } from "./modules/quality/common.js";
 export {
   getQualitySettings, saveQualitySettings, listQualityPlans, getQualityPlan, createQualityPlan as defineQualityPlan, approveQualityPlan, reviseQualityPlan, retireQualityPlan, listInspections, getInspection, createInspection as createQualityInspection, recordInspectionResults, completeInspection as completeQualityInspection, releaseInspection as releaseQualityInspection, cancelInspection as cancelQualityInspection,
 } from "./modules/quality/inspections.js";
 export {
-  listQualityHolds, getQualityHold, createQualityHold, cancelQualityHold, listNonconformances, getNonconformance, createNonconformance as createQualityNonconformance, transitionNonconformance, setDisposition, approveUseAsIs, closeNonconformance, cancelNonconformance,
+  listNonconformances, getNonconformance, createNonconformance as createQualityNonconformance, transitionNonconformance, setDisposition, approveUseAsIs, closeNonconformance, cancelNonconformance,
 } from "./modules/quality/nonconformance.js";
 export {
   getQualityKpiDashboard, listQualityOptions,

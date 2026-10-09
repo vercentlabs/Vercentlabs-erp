@@ -1228,6 +1228,124 @@ function withProductPermissions(role) {
   };
 }
 
+// Warehouses follow the stock roles (by the migration that added them): whoever sees stock sees warehouses and their stock; whoever
+// sets up inventory maintains warehouses, their locations and access; whoever sees stock valuation sees warehouse value; whoever adjusts
+// stock may post opening stock.
+function withWarehousePermissions(role) {
+  if (!Array.isArray(role.permissions)) return role;
+  const has = (key) => role.permissions.includes(key);
+  return {
+    ...role,
+    permissions: unique([
+      ...role.permissions,
+      ...(has("stock.view") ? ["warehouses.view", "warehouses.view_stock"] : []),
+      ...(has("inventory_setup.manage") ? ["warehouses.view", "warehouses.create", "warehouses.edit", "warehouses.change_code", "warehouses.status", "warehouses.manage_locations",
+        "warehouses.manage_access"] : []),
+      ...(has("stock.valuation.view") ? ["warehouses.view_value"] : []),
+      // Opening Stock (as migration 0063 grants): prepared by whoever adjusts stock, posted, reversed, loaded at zero cost and backdated by
+      // whoever manages inventory set-up, costed and reconciled by whoever sees stock value.
+      ...(has("stock.adjust") ? ["stock.opening"] : []),
+      ...(has("stock.view") ? ["stock.opening.view"] : []),
+      ...(has("stock.valuation.view") ? ["stock.opening.view_cost", "stock.opening.edit_cost", "stock.opening.reconcile"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.opening.view", "stock.opening", "stock.opening.post", "stock.opening.reverse", "stock.opening.zero_cost", "stock.opening.backdate"] : []),
+      ...(has("accounting.view") ? ["stock.opening.reconcile"] : []),
+      // Real-Time Stock Balance (as migration 0064 grants): backdating a movement and rebuilding the balances belong to inventory set-up.
+      ...(has("inventory_setup.manage") ? ["stock.backdate", "stock.balance.rebuild"] : []),
+      // Reserved Stock (as migration 0066 grants): releasing or reallocating another document's reservation belongs to inventory set-up.
+      ...(has("inventory_setup.manage") ? ["stock.reservation.release", "stock.reservation.reallocate"] : []),
+      // Stock Reservations (as migration 0072 grants): seen with stock; warehouse reallocation with reallocation, exceptions with release; reconciled by
+      // stock adjusters and inventory set-up, rebuilt by inventory set-up; purchase returns reserve with their posting.
+      ...(has("stock.view") ? ["stock.reservations.view", "stock.reservations.view_sources", "stock.reservations.view_allocations"] : []),
+      ...(has("procurement.returns.post") ? ["stock.reservations.reserve_purchase_return"] : []),
+      ...(has("stock.reservation.reallocate") || has("inventory_setup.manage") ? ["stock.reservations.reallocate_warehouse"] : []),
+      ...(has("stock.reservation.release") || has("inventory_setup.manage") ? ["stock.reservations.resolve_exceptions"] : []),
+      ...(has("stock.adjust") || has("inventory_setup.manage") ? ["stock.reservations.reconcile"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.reservations.rebuild"] : []),
+      // Stock Counts (as migration 0073 grants): counters count and submit; stock adjusters create, start, review and complete; values with stock value;
+      // reservation conflicts and cancelling a started count with inventory set-up.
+      ...(has("stock.view") || has("stock.count") ? ["stock.counts.view", "stock.counts.view_history"] : []),
+      ...(has("stock.count") ? ["stock.counts.count", "stock.counts.count_batch", "stock.counts.count_serial", "stock.counts.add_unexpected", "stock.counts.import",
+        "stock.counts.submit", "stock.counts.recount", "stock.counts.export"] : []),
+      ...(has("stock.adjust") ? ["stock.counts.create", "stock.counts.configure", "stock.counts.start", "stock.counts.request_recount", "stock.counts.review",
+        "stock.counts.view_system_quantity", "stock.counts.complete", "stock.counts.export"] : []),
+      ...(has("stock.valuation.view") ? ["stock.counts.view_value"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.counts.resolve_reservations", "stock.counts.cancel"] : []),
+      // Quality Holds (as migration 0076 grants): seen with stock; prepared, placed and released by stock adjusters; quarantine, escalation and damage by
+      // Quality holders and inventory set-up; releasing quarantine by Quality managers and inventory set-up; values with stock value.
+      ...(has("stock.view") ? ["stock.holds.view", "stock.holds.view_history"] : []),
+      ...(has("stock.adjust") ? ["stock.holds.view", "stock.holds.create", "stock.holds.edit_draft", "stock.holds.place", "stock.holds.release", "stock.holds.partial_release",
+        "stock.holds.batch", "stock.holds.serial", "stock.holds.view_history"] : []),
+      ...(has("quality.hold") ? ["stock.holds.view", "stock.holds.create", "stock.holds.edit_draft", "stock.holds.place", "stock.holds.place_quarantine", "stock.holds.escalate",
+        "stock.holds.damage", "stock.holds.batch", "stock.holds.serial", "stock.holds.view_history"] : []),
+      ...(has("quality.release") ? ["stock.holds.release", "stock.holds.partial_release"] : []),
+      ...(has("quality.manage") ? ["stock.holds.release_quarantine"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.holds.place_quarantine", "stock.holds.escalate", "stock.holds.damage", "stock.holds.release_quarantine",
+        "stock.holds.resolve_reservations", "stock.holds.manage_reasons"] : []),
+      ...(has("stock.valuation.view") ? ["stock.holds.view_value"] : []),
+      // Low-Stock Alerts (as migration 0079 grants): seen with stock; acknowledged by stock adjusters, inventory set-up, buyers and transfer creators;
+      // history with stock; export by inventory set-up and buyers.
+      ...(has("stock.view") ? ["stock.alerts.view", "stock.alerts.view_history"] : []),
+      ...(has("stock.adjust") ? ["stock.alerts.acknowledge"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.alerts.view", "stock.alerts.acknowledge", "stock.alerts.view_history", "stock.alerts.export"] : []),
+      ...(has("procurement.po.create") ? ["stock.alerts.view", "stock.alerts.acknowledge", "stock.alerts.view_history", "stock.alerts.export"] : []),
+      ...(has("stock.transfers.create") ? ["stock.alerts.view", "stock.alerts.acknowledge"] : []),
+      // Reorder Level (as migration 0078 grants): rules, requirements, demand, incoming and other warehouses' stock with stock; rules kept, imported,
+      // dismissed and exported by inventory set-up; purchase drafts by buyers, transfer drafts by those who create transfers.
+      ...(has("stock.view") ? ["stock.reorder.view", "stock.reorder.view_requirements", "stock.reorder.view_demand", "stock.reorder.view_incoming", "stock.reorder.view_other_stock"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.reorder.view", "stock.reorder.view_requirements", "stock.reorder.create", "stock.reorder.edit", "stock.reorder.disable",
+        "stock.reorder.import", "stock.reorder.dismiss", "stock.reorder.export"] : []),
+      ...(has("procurement.po.create") ? ["stock.reorder.view", "stock.reorder.view_requirements", "stock.reorder.view_incoming", "stock.reorder.create_purchase_draft",
+        "stock.reorder.dismiss", "stock.reorder.export"] : []),
+      ...(has("stock.transfers.create") ? ["stock.reorder.view", "stock.reorder.view_requirements", "stock.reorder.view_other_stock", "stock.reorder.create_transfer_draft"] : []),
+      // Inventory Valuation (as migration 0075 grants): rates, layers, value movements, cost sources, exchange rates, reconciliation view and export
+      // with stock value; choosing the method with inventory set-up or item accounting; running reconciliation with inventory set-up; the GL
+      // comparison with accounting; the rebuild with the stock balance rebuild.
+      ...(has("stock.valuation.view") ? ["stock.valuation.view_rate", "stock.valuation.view_layers", "stock.valuation.view_movements", "stock.valuation.view_cost_source",
+        "stock.valuation.view_exchange_rate", "stock.valuation.reconcile_view", "stock.valuation.export"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.valuation.configure_method", "stock.valuation.reconcile_view", "stock.valuation.reconcile_run"] : []),
+      ...(has("products.configure_accounting") ? ["stock.valuation.configure_method"] : []),
+      ...(has("accounting.view") ? ["stock.valuation.finance_reconcile", "stock.valuation.reconcile_view"] : []),
+      ...(has("stock.balance.rebuild") || has("inventory_setup.manage") ? ["stock.valuation.rebuild"] : []),
+      // Negative-Stock Control (as migration 0074 grants): warnings with stock; the report and its export with stock adjusters; the audit, policy and
+      // item block with inventory set-up; stock audit sees the report and the audit. Overriding is granted to no role.
+      ...(has("stock.view") || has("inventory_setup.manage") ? ["stock.negative.view_warnings"] : []),
+      ...(has("stock.adjust") ? ["stock.negative.view_exceptions", "stock.negative.export"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.negative.view_exceptions", "stock.negative.view_audit", "stock.negative.configure", "stock.negative.item_block",
+        "stock.negative.export"] : []),
+      ...(has("stock.audit.view") ? ["stock.negative.view_exceptions", "stock.negative.view_audit"] : []),
+      // Stock Ledger (as migration 0067 grants): seen by whoever sees stock, valued by whoever sees stock value, exported by whoever reports
+      // on stock, reconciled by inventory set-up and stock audit.
+      ...(has("stock.view") ? ["stock.ledger.view"] : []),
+      ...(has("stock.valuation.view") ? ["stock.ledger.view_cost"] : []),
+      ...(has("stock.reports.view") || has("inventory_setup.manage") ? ["stock.ledger.export"] : []),
+      ...(has("inventory_setup.manage") || has("stock.audit.view") ? ["stock.ledger.reconcile"] : []),
+      // Goods Issues (as migration 0069 grants): seen with stock, prepared and posted by whoever issues stock, restricted stock and disposal by
+      // whoever adjusts stock, reversed and configured by inventory set-up, valued by whoever sees stock value.
+      ...(has("stock.view") || has("stock.issue") ? ["stock.goods_issue.view"] : []),
+      ...(has("stock.issue") ? ["stock.goods_issue.create", "stock.goods_issue.post"] : []),
+      ...(has("stock.adjust") || has("inventory_setup.manage") ? ["stock.goods_issue.issue_restricted", "stock.goods_issue.dispose"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.goods_issue.reverse", "stock.goods_issue.manage_reasons"] : []),
+      ...(has("stock.valuation.view") ? ["stock.goods_issue.view_cost"] : []),
+      // Internal Transfers (as migration 0070 grants): seen with stock, prepared, confirmed, dispatched and received by whoever transfers stock,
+      // restricted stock and transit losses by whoever adjusts stock or sets up inventory, reversed by inventory set-up, exported by stock reporting.
+      ...(has("stock.view") || has("stock.transfer") ? ["stock.transfers.view"] : []),
+      ...(has("stock.transfer") ? ["stock.transfers.create", "stock.transfers.confirm", "stock.transfers.dispatch", "stock.transfers.receive"] : []),
+      ...(has("stock.adjust") || has("inventory_setup.manage") ? ["stock.transfers.restricted", "stock.transfers.write_off"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.transfers.reverse"] : []),
+      ...(has("stock.reports.view") || has("inventory_setup.manage") ? ["stock.transfers.export"] : []),
+      // Stock Adjustments (as migration 0071 grants): seen with stock; prepared, counted and posted by whoever adjusts stock; large values,
+      // reservation conflicts, entered or zero costs, backdating, reversal and reasons by inventory set-up; value and journals with their own.
+      ...(has("stock.view") || has("stock.adjust") ? ["stock.adjustments.view"] : []),
+      ...(has("stock.adjust") ? ["stock.adjustments.create", "stock.adjustments.edit", "stock.adjustments.count", "stock.adjustments.post_increase",
+        "stock.adjustments.post_decrease", "stock.adjustments.batch", "stock.adjustments.serial", "stock.adjustments.restricted"] : []),
+      ...(has("inventory_setup.manage") ? ["stock.adjustments.post_large", "stock.adjustments.resolve_reservations", "stock.adjustments.manual_cost",
+        "stock.adjustments.zero_cost", "stock.adjustments.backdate", "stock.adjustments.reverse", "stock.adjustments.manage_reasons"] : []),
+      ...(has("stock.valuation.view") ? ["stock.adjustments.view_cost"] : []),
+      ...(has("accounting.view") ? ["stock.adjustments.view_accounting"] : []),
+    ]),
+  };
+}
+
 function withCustomerPermissions(role) {
   if (!Array.isArray(role.permissions)) return role;
   const has = (key) => role.permissions.includes(key);
@@ -1333,7 +1451,7 @@ function withOrderPermissions(role) {
       // orders or manages Sales settings.
       ...(has("sales.order.confirm") ? ["sales.order.close"] : []),
       ...(has("sales.order.approve") || has("sales.settings.manage") ? ["sales.order.reopen_closed"] : []),
-      ...(has("sales.order.confirm") || has("sales.fulfillment.request") ? ["sales.order.reserve"] : []),
+      ...(has("sales.order.confirm") || has("sales.fulfillment.request") ? ["sales.order.reserve", "sales.order.reserve_partial"] : []),
       ...(has("sales.order.approve") || has("sales.settings.manage") ? ["sales.order.view_team"] : []),
       // Order confirmations: sent and acknowledged by whoever creates or confirms orders.
       ...(has("sales.order.create") || has("sales.order.confirm") ? ["sales.order.confirmation.send", "sales.order.confirmation.mark_sent", "sales.order.confirmation.acknowledge"] : []),
@@ -1411,11 +1529,12 @@ function withOrderPermissions(role) {
       ...(has("procurement.po.manage") ? ["procurement.po.change_warehouse", "procurement.po.update_dates", "procurement.po.descriptive_lines"] : []),
       ...(has("procurement.sourcing.manage") ? ["procurement.quotations.manage"] : []),
       // Receiving (as migration 0046 grants): posted by whoever records receipts, reversed by whoever approved them, held goods released by whoever
-      // inspects, receiving warehouses assigned by whoever manages procurement settings.
+      // inspects. Who may work in which warehouse is Warehouses' access list (warehouses.manage_access).
       ...(has("procurement.receipts.manage") ? ["procurement.receipts.post"] : []),
+      // Goods Receipts (as migration 0068 grants): taking goods in on inspection hold or damaged, by whoever records receipts.
+      ...(has("procurement.receipts.manage") ? ["procurement.receipts.accept_restricted"] : []),
       ...(has("procurement.receipts.approve") ? ["procurement.receipts.reverse"] : []),
       ...(has("procurement.inspection.manage") ? ["procurement.receipts.release"] : []),
-      ...(has("procurement.settings.manage") ? ["procurement.receipts.access"] : []),
       // Receiving rejections (as migration 0048 grants): seen by procurement, Accounts Payable and Quality; recorded by whoever records receipts;
       // quality rejections by whoever inspects; cancelled, accepted back and disposed of by whoever approves receipts (disposal also by whoever
       // adjusts stock, acceptance also by whoever releases quality); resolved by receiving, approvers and buyers; financial links by payables.
@@ -1461,7 +1580,7 @@ function withOrderPermissions(role) {
 
 export const ROLE_TEMPLATES = Object.freeze(
   ROLE_DEFINITIONS.map(withCustomerPermissions).map(withProductPermissions).map(withPriceListPermissions).map(withQuotationPermissions).map(withDiscountPermissions)
-    .map(withTaxPermissions).map(withOrderPermissions),
+    .map(withTaxPermissions).map(withOrderPermissions).map(withWarehousePermissions),
 );
 
 export const ROLE_TEMPLATE_BY_SLUG = new Map(

@@ -398,7 +398,7 @@ export async function reportProduction(client, c, id, input = {}) {
   // Make-to-order: the goods just made are held for the sales order that asked for them.
   let reservedForOrder = 0;
   if (wo.source_type === "make_to_order" && wo.source_id && !serialNumbers) {
-    const balance = (await client.query(`SELECT warehouse_location_id,batch_id,(quantity-reserved_quantity) AS free FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3 AND warehouse_location_id IS NOT DISTINCT FROM $4 AND batch_id IS NOT DISTINCT FROM $5`, [c.organizationId, wo.item_id, wo.finished_goods_warehouse_id, locationId, batchId])).rows[0];
+    const balance = (await client.query(`SELECT warehouse_location_id,batch_id,greatest(quantity-reserved_quantity,0) AS free FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3 AND warehouse_location_id IS NOT DISTINCT FROM $4 AND batch_id IS NOT DISTINCT FROM $5`, [c.organizationId, wo.item_id, wo.finished_goods_warehouse_id, locationId, batchId])).rows[0];
     if (balance && Number(balance.free) >= quantity) {
       await reserveStock(client, asStock(c), { itemId: wo.item_id, warehouseId: wo.finished_goods_warehouse_id, warehouseLocationId: locationId, batchId, quantity, referenceType: "sales_order", referenceId: wo.source_id, idempotencyKey: `${key}:mto` });
       reservedForOrder = quantity;

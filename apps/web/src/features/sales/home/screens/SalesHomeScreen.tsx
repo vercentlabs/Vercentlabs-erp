@@ -1,18 +1,18 @@
 "use client";
 
-// The Sales home: what needs doing now and what happened last. Each figure
-// is the count of a list view and opens that view, so the home never keeps a
-// second copy of the records. Figures the person may not see are left out.
-import Link from "next/link";
+// The Sales Overview, in CRM's shape: what needs doing now and what happened last. Four headline figures, the order work in progress and what
+// needs attention side by side, the order pipeline by stage, and recent activity. Each figure is the count of a list view and opens that view,
+// so the home never keeps a second copy of the records. Figures the person may not see are left out.
 import { useQuery } from "@tanstack/react-query";
-import { ErrorState, PageHeader, PermissionState } from "@vercentlabs/design-system";
+import { ErrorState, PermissionState } from "@vercentlabs/design-system";
 
-import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { request, SalesApiError } from "@/features/sales/shared/http";
 import { dateTime, money } from "@/features/sales/shared/format";
-import { SalesPanel } from "@/features/sales/shared/SalesUi";
+import { request, SalesApiError } from "@/features/sales/shared/http";
 import { SalesCreateMenu } from "@/features/sales/shared/SalesCreateMenu";
+import { LoadingState } from "@/shared/ui/LoadingState";
+import { ActivityList, CountList, OverviewCards, OverviewHeader, OverviewPanel, TileGrid } from "@/shared/ui/overview";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 type Activity = { id: string; at: string; kind: "quotation" | "order" | "delivery" | "invoice" | "return" | "credit_note"; documentId: string; number: string; verb: string; actor: string | null };
 type SalesHome = {
@@ -22,18 +22,6 @@ type SalesHome = {
   activity: Activity[];
 };
 
-// The order list views the home counts (HOME_ORDER_VIEWS on the server), with the label and hint shown here.
-const ORDER_TILES: Array<{ view: string; label: string; hint: string; attention?: boolean }> = [
-  { view: "confirmed", label: "Confirmed orders", hint: "In execution" },
-  { view: "awaiting_reservation", label: "Awaiting reservation", hint: "Nothing reserved yet", attention: true },
-  { view: "partially_reserved", label: "Partially reserved", hint: "Stock short for part of the order", attention: true },
-  { view: "awaiting_delivery", label: "Awaiting delivery", hint: "Nothing delivered yet" },
-  { view: "partially_delivered", label: "Partially delivered", hint: "Part still to deliver" },
-  { view: "overdue_delivery", label: "Overdue deliveries", hint: "Requested date has passed", attention: true },
-  { view: "ready_to_invoice", label: "Ready to invoice", hint: "Something can be invoiced now", attention: true },
-  { view: "partially_invoiced", label: "Partially invoiced", hint: "Part still to invoice" },
-  { view: "needs_attention", label: "Needs attention", hint: "Short stock, late, or ready to bill", attention: true },
-];
 const DOCUMENT_HREF: Record<Activity["kind"], (id: string) => string> = {
   quotation: (id) => `/sales/quotations/${id}`,
   order: (id) => `/sales/orders/${id}`,
@@ -45,20 +33,14 @@ const DOCUMENT_HREF: Record<Activity["kind"], (id: string) => string> = {
 const KIND_LABELS: Record<Activity["kind"], string> = {
   quotation: "Quotation", order: "Sales order", delivery: "Delivery", invoice: "Invoice", return: "Return", credit_note: "Credit note",
 };
-
-function Tile({ href, label, value, hint, attention }: { href: string; label: string; value: string; hint: string; attention?: boolean }) {
-  const active = attention && value !== "0";
-  return (
-    <li>
-      <Link href={href}
-        className="flex h-full flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none">
-        <span className="text-sm text-text-secondary">{label}</span>
-        <span className={`text-2xl font-semibold tabular-nums ${active ? "text-warning" : "text-text"}`}>{value}</span>
-        <span className="text-xs text-text-muted">{hint}</span>
-      </Link>
-    </li>
-  );
-}
+// The order pipeline, in the order an order moves through it (HOME_ORDER_VIEWS on the server).
+const STAGES: Array<{ view: string; label: string; caption: string }> = [
+  { view: "awaiting_reservation", label: "Awaiting reservation", caption: "Nothing reserved yet" },
+  { view: "awaiting_delivery", label: "Awaiting delivery", caption: "Nothing delivered yet" },
+  { view: "partially_delivered", label: "Partially delivered", caption: "Part still to deliver" },
+  { view: "ready_to_invoice", label: "Ready to invoice", caption: "Something can be invoiced" },
+  { view: "partially_invoiced", label: "Partially invoiced", caption: "Part still to invoice" },
+];
 
 export function SalesHomeScreen() {
   const workspace = useWorkspaceContext();
@@ -69,44 +51,59 @@ export function SalesHomeScreen() {
   if (query.isError && query.error instanceof SalesApiError && query.error.status === 403)
     return <PermissionState title="You don't have access to Sales" description="Ask an administrator to grant sales.view." />;
   const home = query.data;
-  const count = (value: number | null | undefined) => (value === null || value === undefined ? "…" : String(value));
+  const orders = home?.orders ?? null;
+  const order = (view: string) => (orders ? orders[view] ?? 0 : null);
+  const balance = home?.invoiceBalance ?? null;
+  const currency = balance?.currencyCode ?? "";
+
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="Sales" description="What needs doing now. Each figure opens the list it counts." primaryAction={<SalesCreateMenu />} />
-      {query.isError ? (
-        <ErrorState title="Could not load the Sales home" action={{ label: "Retry", onPress: () => query.refetch() }} />
-      ) : (
-        <>
-          <ul aria-label="Sales work" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {(!home || home.quotationsAwaitingResponse !== null) && (
-              <Tile href="/sales/quotations?view=awaiting" label="Quotations awaiting response" value={count(home?.quotationsAwaitingResponse)} hint="Sent and still valid" />
+    <div className="flex flex-1 flex-col gap-6">
+      <OverviewHeader description="What needs doing now in Sales. Every number opens the list behind it." action={<SalesCreateMenu />} />
+      {query.isLoading ? <LoadingState label="Loading Sales" rows={5} />
+        : query.isError || !home ? <ErrorState title="Could not load the Sales overview" description="Refresh to try again." action={{ label: "Try again", onPress: () => void query.refetch() }} />
+        : (
+          <>
+            <OverviewCards label="Overview" cards={[
+              { label: "Quotations awaiting response", value: home.quotationsAwaitingResponse, href: "/sales/quotations?view=awaiting" },
+              { label: "Confirmed orders", value: order("confirmed"), href: "/sales/orders?view=confirmed" },
+              { label: "Ready to invoice", value: order("ready_to_invoice"), href: "/sales/orders?view=ready_to_invoice" },
+              { label: "Outstanding invoices", value: balance ? money(currency, balance.outstanding) : null, href: "/sales/invoices?view=balance_due" },
+            ]} />
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <OverviewPanel title="Order work">
+                <CountList empty="You cannot see sales orders." rows={[
+                  { label: "Awaiting reservation", value: order("awaiting_reservation"), href: "/sales/orders?view=awaiting_reservation" },
+                  { label: "Awaiting delivery", value: order("awaiting_delivery"), href: "/sales/orders?view=awaiting_delivery" },
+                  { label: "Partially delivered", value: order("partially_delivered"), href: "/sales/orders?view=partially_delivered" },
+                  { label: "Partially invoiced", value: order("partially_invoiced"), href: "/sales/orders?view=partially_invoiced" },
+                ]} />
+              </OverviewPanel>
+
+              <OverviewPanel title="Needs attention">
+                <CountList rows={[
+                  { label: "Orders needing attention (short stock, late or ready to bill)", value: order("needs_attention"), href: "/sales/orders?view=needs_attention", tone: "warning" },
+                  { label: "Overdue deliveries", value: order("overdue_delivery"), href: "/sales/orders?view=overdue_delivery", tone: "danger" },
+                  { label: "Partially reserved (stock short)", value: order("partially_reserved"), href: "/sales/orders?view=partially_reserved", tone: "warning" },
+                  { label: "Overdue invoice balance", value: balance ? money(currency, balance.overdue) : null, href: "/sales/invoices?view=overdue", tone: balance && balance.overdue > 0.005 ? "danger" : undefined },
+                ]} />
+              </OverviewPanel>
+            </div>
+
+            {orders && (
+              <OverviewPanel title="Order pipeline">
+                <TileGrid tiles={STAGES.map((stage) => ({ key: stage.view, label: stage.label, value: String(order(stage.view) ?? 0), caption: stage.caption, href: `/sales/orders?view=${stage.view}` }))} />
+              </OverviewPanel>
             )}
-            {(!home || home.orders) && ORDER_TILES.map((tile) => (
-              <Tile key={tile.view} href={`/sales/orders?view=${tile.view}`} label={tile.label} value={count(home?.orders?.[tile.view])} hint={tile.hint} attention={tile.attention} />
-            ))}
-            {home?.invoiceBalance && (
-              <Tile href="/sales/invoices?view=balance_due" label="Outstanding invoice balance" value={money(home.invoiceBalance.currencyCode ?? "", home.invoiceBalance.outstanding)}
-                hint={`${home.invoiceBalance.invoices} invoice${home.invoiceBalance.invoices === 1 ? "" : "s"}${home.invoiceBalance.overdue > 0.005 ? ` · ${money(home.invoiceBalance.currencyCode ?? "", home.invoiceBalance.overdue)} overdue` : ""}`} />
-            )}
-          </ul>
-          <SalesPanel title="Recent activity" description="Confirmations, dispatches, postings, received returns and credit notes.">
-            {!home ? <p className="text-sm text-text-muted">Loading…</p> : !home.activity.length ? <p className="text-sm text-text-muted">Nothing yet.</p> : (
-              <ol className="flex flex-col divide-y divide-border text-sm">
-                {home.activity.map((entry) => (
-                  <li key={`${entry.kind}:${entry.id}`} className="grid grid-cols-1 gap-x-3 gap-y-0.5 py-2 sm:grid-cols-[11rem_minmax(0,1fr)]">
-                    <span className="whitespace-nowrap tabular-nums text-text-muted">{dateTime(entry.at)}</span>
-                    <span>
-                      <span className="text-text-muted">{KIND_LABELS[entry.kind]} </span>
-                      <Link className="font-medium tabular-nums text-brand hover:underline" href={DOCUMENT_HREF[entry.kind](entry.documentId)}>{entry.number}</Link>
-                      {" "}{entry.verb}{entry.actor ? <span className="text-text-muted"> · {entry.actor}</span> : null}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </SalesPanel>
-        </>
-      )}
+
+            <OverviewPanel title="Recent activity">
+              <ActivityList empty="Nothing has happened yet." entries={home.activity.map((entry) => ({
+                key: `${entry.kind}:${entry.id}`, href: DOCUMENT_HREF[entry.kind](entry.documentId), title: `${KIND_LABELS[entry.kind]} ${entry.number}`, summary: entry.verb,
+                meta: [entry.actor, dateTime(entry.at)].filter(Boolean).join(" · "),
+              }))} />
+            </OverviewPanel>
+          </>
+        )}
     </div>
   );
 }

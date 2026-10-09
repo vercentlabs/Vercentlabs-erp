@@ -11,10 +11,10 @@ import { Button, Dialog, LinkButton, StatusBadge, TextArea } from "@vercentlabs/
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { dateTime, money, quantity, statusLabel } from "@/features/procurement/shared/format";
 
 import { MATCH_LABELS, MATCH_TONES, approveMatchException, errorMessage, getBillMatching, issuesOf, recheckBillMatching, type MatchEvaluation, type MatchResult } from "../api/supplier-bills-api";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 export const MatchBadge = ({ result }: { result: MatchResult }) => <StatusBadge tone={MATCH_TONES[result] ?? "neutral"}>{MATCH_LABELS[result] ?? result}</StatusBadge>;
 
@@ -31,11 +31,11 @@ export function TwoWayMatching({ billId, currencyCode, editHref }: { billId: str
   const recheck = useMutation({ mutationFn: () => recheckBillMatching(billId), onSuccess: refresh });
   const approve = useMutation({ mutationFn: () => approveMatchException(billId, reason), onSuccess: () => { setApproving(false); setReason(""); refresh(); } });
   if (query.isLoading) return <LoadingState label="Checking the bill against its order" />;
-  if (!query.data) return <ProcAlert>{errorMessage(query.error)}</ProcAlert>;
+  if (!query.data) return <Notice>{errorMessage(query.error)}</Notice>;
   const matching = query.data;
   const c = (value: string | null | undefined) => (value === null || value === undefined ? "—" : money(currencyCode, value));
   if (matching.result === "not_applicable")
-    return <ProcPanel title="Matching"><p className="text-sm text-text-muted">Not applicable: a direct bill without a purchase order is checked by its own financial and tax validation.</p></ProcPanel>;
+    return <Panel title="Matching"><p className="text-sm text-text-muted">Not applicable: a direct bill without a purchase order is checked by its own financial and tax validation.</p></Panel>;
   const evaluation: MatchEvaluation | null = matching.evidence ?? matching.evaluation;
   const title = evaluation?.matchingType === "three_way" ? "3-Way Matching" : "2-Way Matching";
   const receiptLines = (evaluation?.lines ?? []).filter((line) => line.matchingBasis?.startsWith("three_way"));
@@ -45,7 +45,7 @@ export function TwoWayMatching({ billId, currencyCode, editHref }: { billId: str
     : "The bill against its purchase order as it stands now; posting checks it again. A match is commercial only — not that goods arrived, the tax is right or the bill may be paid.";
   return (
     <div className="flex flex-col gap-4">
-      <ProcPanel title={title} description={evaluation?.matchingType === "three_way"
+      <Panel title={title} description={evaluation?.matchingType === "three_way"
         ? `${description} Goods are checked against posted goods receipts (${evaluation.receiptBasis === "physical_received" ? "physically received" : "accepted"} quantities).` : description}
         actions={
           <div className="flex flex-wrap gap-2">
@@ -60,7 +60,7 @@ export function TwoWayMatching({ billId, currencyCode, editHref }: { billId: str
           {matching.stale && !matching.evidence && <StatusBadge tone="info">Not checked since the order changed</StatusBadge>}
           {evaluation && <span className="text-sm text-text-secondary">Expected {c(evaluation.expectedAmount)} · invoiced {c(evaluation.actualAmount)} · difference {c(evaluation.varianceAmount)} (before tax)</span>}
         </div>
-        {recheck.error && <ProcAlert>{errorMessage(recheck.error)}</ProcAlert>}
+        {recheck.error && <Notice>{errorMessage(recheck.error)}</Notice>}
         {evaluation && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -78,10 +78,10 @@ export function TwoWayMatching({ billId, currencyCode, editHref }: { billId: str
             </table>
           </div>
         )}
-      </ProcPanel>
+      </Panel>
 
       {evaluation && (
-        <ProcPanel title="Lines against the order" description="Per line: what the order still allows, what was invoiced, and the net value after discounts (agreed against invoiced).">
+        <Panel title="Lines against the order" description="Per line: what the order still allows, what was invoiced, and the net value after discounts (agreed against invoiced).">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-left text-text-muted">
@@ -109,11 +109,11 @@ export function TwoWayMatching({ billId, currencyCode, editHref }: { billId: str
             </table>
           </div>
           <p className="text-xs text-text-muted">Tax is shown for comparison only: the invoice&apos;s tax is validated separately by the tax engine.</p>
-        </ProcPanel>
+        </Panel>
       )}
 
       {receiptLines.length > 0 && (
-        <ProcPanel title="Goods receipts" description="Per line: received, eligible under the order's policy, already billed by posted bills, eligible now — and the receipts this bill draws on.">
+        <Panel title="Goods receipts" description="Per line: received, eligible under the order's policy, already billed by posted bills, eligible now — and the receipts this bill draws on.">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-left text-text-muted">{["Line", "Received", "Eligible", "Billed by others", "Eligible now", "Bill qty", "Receipts"].map((name, index) =>
@@ -133,11 +133,11 @@ export function TwoWayMatching({ billId, currencyCode, editHref }: { billId: str
               </tbody>
             </table>
           </div>
-        </ProcPanel>
+        </Panel>
       )}
 
       {evaluation && evaluation.discrepancies.length > 0 && (
-        <ProcPanel title={`Discrepancies (${evaluation.discrepancies.length})`}
+        <Panel title={`Discrepancies (${evaluation.discrepancies.length})`}
           description={open.length ? "Posting is blocked until each is resolved: correct the draft, amend the order, ask for a corrected invoice, or — for a price, discount or charge — have an authorised approver accept it." : "Every discrepancy was accepted as an exception."}>
           <ul className="flex flex-col divide-y divide-border text-sm">
             {evaluation.discrepancies.map((entry, index) => (
@@ -150,11 +150,11 @@ export function TwoWayMatching({ billId, currencyCode, editHref }: { billId: str
               </li>
             ))}
           </ul>
-        </ProcPanel>
+        </Panel>
       )}
 
       {matching.exceptions.length > 0 && (
-        <ProcPanel title="Accepted exceptions" description="Who accepted which variance, why, and how it is accounted. An exception expires when its line changes.">
+        <Panel title="Accepted exceptions" description="Who accepted which variance, why, and how it is accounted. An exception expires when its line changes.">
           <ul className="flex flex-col divide-y divide-border text-sm">
             {matching.exceptions.map((entry) => (
               <li key={entry.id} className="flex flex-col gap-1 py-2">
@@ -164,14 +164,14 @@ export function TwoWayMatching({ billId, currencyCode, editHref }: { billId: str
               </li>
             ))}
           </ul>
-        </ProcPanel>
+        </Panel>
       )}
 
       {approving && (
         <Dialog isOpen onOpenChange={(value) => !value && setApproving(false)} title="Accept the variance"
           description="Accepts the bill's open price, discount and charge differences as an approved exception, kept with your name and reason. It expires if the line changes." size="lg">
           <div className="flex flex-col gap-3">
-            {approve.error && <ProcAlert>{errorMessage(approve.error)}{issuesOf(approve.error).length > 1 && <ul className="mt-1 list-disc pl-5">{issuesOf(approve.error).map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>}
+            {approve.error && <Notice>{errorMessage(approve.error)}{issuesOf(approve.error).length > 1 && <ul className="mt-1 list-disc pl-5">{issuesOf(approve.error).map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
             <ul className="list-disc pl-5 text-sm">{open.map((entry, index) => <li key={index}>{entry.message}</li>)}</ul>
             <TextArea label="Reason (at least a sentence)" value={reason} onChange={setReason} />
             <div className="flex justify-end gap-2">

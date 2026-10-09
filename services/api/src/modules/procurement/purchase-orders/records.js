@@ -473,7 +473,7 @@ export async function getPurchaseOrderOptions(client, context) {
     products: await q(`SELECT item.id, item.code, item.name, item.item_type, item.track_inventory, item.purchase_uom_id, item.uom_id, ${LAST_PRICE_SQL("item", null)} AS last_purchase_price, item.tax_category_id
                          FROM tenant.items item WHERE item.organization_id = $1 AND item.status = 'active' AND item.is_purchasable ORDER BY item.name LIMIT 5000`),
     uoms: await q(`SELECT id, code, name, decimal_places FROM tenant.units_of_measure WHERE organization_id = $1 AND status = 'active' ORDER BY code`),
-    warehouses: await q(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND status = 'active' ORDER BY name`),
+    warehouses: await q(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND status = 'active' AND system_role IS NULL ORDER BY name`),
     currencies: await q(`SELECT code, name FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`),
     paymentTerms: await q(`SELECT term.id, term.code, term.name, term.term_type, term.advance_percentage, (settings.default_payment_term_id = term.id) AS is_default FROM tenant.payment_terms term
                            LEFT JOIN tenant.procurement_settings settings ON settings.organization_id = term.organization_id

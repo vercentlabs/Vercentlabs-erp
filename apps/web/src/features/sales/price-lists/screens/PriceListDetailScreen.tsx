@@ -7,13 +7,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, MoreHorizontal, Plus, Upload } from "lucide-react";
+import { Download, Plus, Upload } from "lucide-react";
 import {
-  AlertDialog, Badge, Button, EmptyState, ErrorState, LinkButton, Menu, MenuItem, MenuTrigger, PermissionState, SearchField, Select, Tab, TabList, TabPanel, Tabs, buttonVariants,
+  AlertDialog, Badge, Button, EmptyState, ErrorState, LinkButton, PermissionState, RecordDetailsPage, SearchField, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, buttonVariants,
 } from "@vercentlabs/design-system";
 
 import { formatDateTime, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
+import { Notice } from "@/shared/ui/Panel";
+import { MoreActions } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
@@ -82,33 +84,39 @@ export function PriceListDetailScreen({ priceListId }: { priceListId: string }) 
   const total = entries.data?.total ?? 0;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <LinkButton href="/sales/price-lists" variant="ghost" size="compact" className="self-start">Price Lists</LinkButton>
-          <h1 className="text-2xl font-semibold">{list.name}</h1>
-          <p className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
-            <span>{list.code}</span><span>·</span><span>{list.currencyCode}</span><span>·</span><span>{list.taxModeLabel}</span><span>·</span><span>{validity(list)}</span>
-            <Badge tone={list.isActive ? "success" : "neutral"}>{list.isActive ? "Active" : "Inactive"}</Badge>
+    <>
+    <RecordDetailsPage
+      header={{
+        title: <>{list.name} <span className="text-base font-normal whitespace-nowrap text-text-muted">{list.code}</span></>,
+        status: (
+          <span className="flex flex-wrap items-center gap-2">
+            <StatusBadge tone={list.isActive ? "success" : "neutral"}>{list.isActive ? "Active" : "Inactive"}</StatusBadge>
             {list.isDefault && <Badge tone="info">Default {list.currencyCode}</Badge>}
-          </p>
+          </span>
+        ),
+        fields: [
+          { label: "Currency", value: list.currencyCode },
+          { label: "Tax mode", value: list.taxModeLabel },
+          { label: "Validity", value: validity(list) },
+          { label: "Prices", value: String(list.entryCount) },
+        ],
+        primaryAction: can.managePrices && list.isActive ? <Button variant="primary" onPress={() => setDialog("add")}><Plus className="size-4" aria-hidden="true" />Add product</Button> : undefined,
+        secondaryActions: (
+          <>
+            {can.import && can.managePrices && <LinkButton href={`/sales/price-lists/${list.id}/import`} variant="outline"><Upload className="size-4" aria-hidden="true" />Import prices</LinkButton>}
+            {can.export && <a className={buttonVariants({ variant: "outline" })} href={priceExportUrl(list.id)} download><Download className="size-4" aria-hidden="true" />Export</a>}
+            <MoreActions actions={menu} />
+          </>
+        ),
+      }}
+      tabs={
+        <div className="flex flex-col gap-3">
           {list.description && <p className="max-w-3xl text-sm text-text-secondary">{list.description}</p>}
+          {error && <Notice>{error}</Notice>}
+          {!list.isActive && <Notice tone="neutral">Inactive. Documents priced from it keep their prices; it cannot be chosen for new ones.</Notice>}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {can.managePrices && list.isActive && <Button variant="primary" onPress={() => setDialog("add")}><Plus className="size-4" aria-hidden="true" />Add Product</Button>}
-          {can.import && can.managePrices && <LinkButton href={`/sales/price-lists/${list.id}/import`} variant="outline"><Upload className="size-4" aria-hidden="true" />Import Prices</LinkButton>}
-          {can.export && <a className={buttonVariants({ variant: "outline" })} href={priceExportUrl(list.id)} download><Download className="size-4" aria-hidden="true" />Export</a>}
-          {menu.length > 0 && (
-            <MenuTrigger>
-              <Button variant="outline" aria-label="More actions"><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
-              <Menu onAction={(key) => menu.find((entry) => entry.id === key)?.run()}>{menu.map((entry) => <MenuItem key={entry.id} id={entry.id}>{entry.label}</MenuItem>)}</Menu>
-            </MenuTrigger>
-          )}
-        </div>
-      </div>
-      {error && <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
-      {!list.isActive && <p role="status" className="rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm text-text-secondary">Inactive. Documents priced from it keep their prices; it cannot be chosen for new ones.</p>}
-
+      }
+    >
       <Tabs defaultSelectedKey="prices">
         <TabList aria-label="Price list sections">
           <Tab id="prices">Prices ({list.entryCount})</Tab>
@@ -126,7 +134,7 @@ export function PriceListDetailScreen({ priceListId }: { priceListId: string }) 
             ) : (
               <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface">
                 <table className="w-full text-left text-sm">
-                  <thead className="text-xs text-text-secondary">
+                  <thead className="bg-surface-muted text-left text-text-secondary">
                     <tr>{["Product", "Category", "Unit", "Price", "Validity", "Status", ""].map((heading) => <th key={heading} scope="col" className="px-3 py-2 font-medium">{heading}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -170,6 +178,7 @@ export function PriceListDetailScreen({ priceListId }: { priceListId: string }) 
         </TabPanel>
         <TabPanel id="history"><HistoryPanel priceListId={list.id} /></TabPanel>
       </Tabs>
+    </RecordDetailsPage>
 
       {(dialog === "edit" || dialog === "copy") && currencies.data && (
         <PriceListFormDialog mode={dialog} priceList={list} currencies={currencies.data.currencies} capabilities={can} onClose={() => setDialog(null)}
@@ -182,7 +191,7 @@ export function PriceListDetailScreen({ priceListId }: { priceListId: string }) 
       <AlertDialog isOpen={dialog === "delete"} onOpenChange={(open) => !open && setDialog(null)} title={`Delete ${list.name}?`}
         description="Removes the price list and its prices permanently. A list used by documents, customers, opportunities or POS stores cannot be deleted; deactivate it instead."
         confirmLabel="Delete" isConfirming={remove.isPending} onConfirm={() => remove.mutate()} />
-    </div>
+    </>
   );
 }
 

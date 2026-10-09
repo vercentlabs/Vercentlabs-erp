@@ -41,7 +41,7 @@ const BUCKETS: Bucket[] = [
     title: "Overdue tasks",
     empty: "No overdue tasks.",
     detail: (id) => `/crm/tasks/${id}`,
-    allHref: "/crm/tasks?view=overdue",
+    allHref: "/crm/activities?tab=tasks&view=overdue",
     load: async () => {
       const result = await listTasks({ view: "overdue", limit: LIMIT, offset: 0 });
       return {
@@ -60,7 +60,7 @@ const BUCKETS: Bucket[] = [
     title: "Tasks due today",
     empty: "No tasks due today.",
     detail: (id) => `/crm/tasks/${id}`,
-    allHref: "/crm/tasks?view=due_today",
+    allHref: "/crm/activities?tab=tasks&view=due_today",
     load: async () => {
       const result = await listTasks({ view: "due_today", limit: LIMIT, offset: 0 });
       return {
@@ -79,7 +79,7 @@ const BUCKETS: Bucket[] = [
     title: "Calls due today",
     empty: "No calls due today.",
     detail: (id) => `/crm/calls/${id}`,
-    allHref: "/crm/work?view=calls",
+    allHref: "/crm/activities?tab=calls",
     load: async () => {
       const result = await listCalls({ due: "today", limit: LIMIT, offset: 0 });
       return {
@@ -98,7 +98,7 @@ const BUCKETS: Bucket[] = [
     title: "Today's meetings",
     empty: "No meetings today.",
     detail: (id) => `/crm/meetings/${id}`,
-    allHref: "/crm/work?view=meetings",
+    allHref: "/crm/activities?tab=meetings",
     load: async () => {
       const result = await listMeetings({
         due: "today",
@@ -121,7 +121,7 @@ const BUCKETS: Bucket[] = [
     title: "Follow-ups due",
     empty: "No follow-ups due today or overdue.",
     detail: (id) => `/crm/follow-ups/${id}`,
-    allHref: "/crm/follow-ups",
+    allHref: "/crm/activities?tab=follow-ups",
     load: async () => {
       const [overdue, today] = await Promise.all([
         listFollowUps({ view: "overdue", limit: LIMIT, offset: 0 }),

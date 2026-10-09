@@ -194,7 +194,7 @@ export type GoodsReceiptDetail = {
     accrual: { journalEntryId: string; entryNumber: string; amount: string; reversalJournalEntryId: string | null; reversalEntryNumber: string | null } | null;
   };
   lines: ReceiptLine[];
-  movements: Array<{ id: string; number: string; type: string; quantity: string; unitCost: string | null; at: string; warehouseName: string | null; locationCode: string | null; reason: string | null }>;
+  movements: Array<{ id: string; number: string; type: string; itemId: string; quantity: string; unitCost: string | null; at: string; postedAt: string; warehouseName: string | null; locationCode: string | null; reason: string | null }>;
   billMatching: Array<{ lineNumber: number | null; quantity: string; billId: string; billNumber: string; supplierInvoiceNumber: string | null; status: string }>;
   returns: Array<{ id: string; number: string; date: string; reason: string; replacementPurchaseOrderId: string | null; replacementNumber: string | null }>;
   discrepancies: Array<{ id: string; lineNumber: number | null; type: string; label: string; quantity: string | null; notes: string; at: string; by: string | null;
@@ -243,9 +243,6 @@ export const uploadReceiptFile = (id: string, file: File) => {
 };
 export const removeReceiptFile = (id: string, fileId: string) => call<{ result: { removed: boolean } }>(`/goods-receipts/${id}/files/${fileId}`, { method: "DELETE", body: "{}" });
 export const receiptFileUrl = (id: string, fileId: string) => `/api/procurement/goods-receipts/${id}/files/${fileId}`;
-export const getReceivingAccess = () =>
-  get<{ warehouses: Array<{ warehouseId: string; code: string; name: string; userIds: string[] }> }>("/purchase-orders/receiving-access").then((result) => result.warehouses);
-export const setReceivingAccess = (warehouseId: string, userIds: string[]) => call<{ result: unknown }>("/purchase-orders/receiving-access", { method: "PUT", body: JSON.stringify({ warehouseId, userIds }) });
 
 // Supplier quotations
 export type QuotationRow = { id: string; quotationNumber: string; status: string; quotationDate: string; validUntil: string | null; currencyCode: string; supplierReference: string | null;

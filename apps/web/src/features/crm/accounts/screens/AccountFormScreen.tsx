@@ -7,7 +7,7 @@ import { Button, ErrorState, MultiSelect, RecordFormPage, Select, TextArea, Text
 
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import { CurrencySelect } from "@/features/crm/shared/ui/CurrencySelect";
-import { FormSection } from "@/features/crm/shared/ui/FormSection";
+import { FormSection } from "@/shared/ui/FormSection";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";

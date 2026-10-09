@@ -4,6 +4,7 @@
 // Inventory reconciliation — what each posted line should have put into stock
 // against what Inventory actually holds for it. Costs are shown only to those
 // who may see payables; warehouse staff see quantities.
+import { LEDGER_TYPE_LABELS } from "../../stock/ledger-posting.js";
 import { add, decimal, formatDecimal, mul, sub } from "../../../core/decimal.js";
 import { allowedItemUnits } from "../../products/uom.js";
 import { loadPurchaseOrder, poCan, poScopeSql, requirePoAccess } from "./access.js";
@@ -106,14 +107,14 @@ export async function getGoodsReceipt(client, context, receiptId) {
       WHERE disposition.organization_id = $1 AND disposition.goods_receipt_id = $2 ORDER BY disposition.created_at`, [organizationId, receipt.id])).rows;
   const movementIds = lines.flatMap((line) => line.stock_movement_ids ?? []);
   const movements = (await client.query(
-    `SELECT movement.id, movement.movement_number, movement.movement_type, movement.quantity, movement.unit_cost, movement.occurred_at, movement.reason, movement.reference_type,
-            warehouse.name AS warehouse_name, location.code AS location_code
+    `SELECT movement.id, movement.movement_number, movement.movement_type, movement.ledger_type, movement.item_id, movement.quantity, movement.unit_cost, movement.occurred_at, movement.created_at,
+            movement.reason, movement.reference_type, warehouse.name AS warehouse_name, location.code AS location_code
        FROM tenant.stock_movements movement
        LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = movement.organization_id AND warehouse.id = movement.warehouse_id
        LEFT JOIN tenant.warehouse_locations location ON location.organization_id = movement.organization_id AND location.id = movement.warehouse_location_id
-      WHERE movement.organization_id = $1 AND (movement.id = ANY($2::uuid[]) OR (movement.reference_type IN ('goods_receipt_line', 'goods_receipt_reversal') AND movement.reference_id = ANY($3::uuid[]))
-             OR (movement.reference_type = 'stock_transfer' AND movement.reference_id IN (SELECT (details->>'transferId')::uuid FROM tenant.goods_receipt_events WHERE organization_id = $1 AND goods_receipt_id = $4 AND details ? 'transferId')))
-      ORDER BY movement.occurred_at, movement.movement_number`, [organizationId, movementIds, lines.map((line) => line.id), receipt.id])).rows;
+      WHERE movement.organization_id = $1 AND (movement.id = ANY($2::uuid[])
+             OR (movement.reference_type IN ('goods_receipt_line', 'goods_receipt_reversal', 'receiving_rejection') AND movement.reference_id = ANY($3::uuid[])))
+      ORDER BY movement.ledger_sequence`, [organizationId, movementIds, lines.map((line) => line.id)])).rows;
   const allocations = (await client.query(
     `SELECT allocation.goods_receipt_line_id, allocation.quantity, bill.id AS bill_id, bill.bill_number, COALESCE(bill.supplier_invoice_reference, bill.supplier_invoice_number) AS supplier_invoice_number, bill.status
        FROM tenant.supplier_bill_receipt_allocations allocation JOIN tenant.accounting_vendor_bills bill ON bill.organization_id = allocation.organization_id AND bill.id = allocation.vendor_bill_id
@@ -173,8 +174,10 @@ export async function getGoodsReceipt(client, context, receiptId) {
           inspection: entry.quality_inspection_id ? { id: entry.quality_inspection_id, number: entry.inspection_number, status: entry.inspection_status } : null })),
       };
     }),
-    movements: movements.map((movement) => ({ id: movement.id, number: movement.movement_number, type: movement.movement_type, quantity: dec(movement.quantity),
-      unitCost: showCost ? dec(movement.unit_cost) : null, at: movement.occurred_at, warehouseName: movement.warehouse_name, locationCode: movement.location_code, reason: movement.reason })),
+    // From the Stock Ledger: what each movement means (Purchase Receipt, Disposition In/Out, Reversal…), effective on the receipt date, posted when it was.
+    movements: movements.map((movement) => ({ id: movement.id, number: movement.movement_number, type: LEDGER_TYPE_LABELS[movement.ledger_type] ?? movement.movement_type, itemId: movement.item_id,
+      quantity: dec(movement.quantity), unitCost: showCost ? dec(movement.unit_cost) : null, at: movement.occurred_at, postedAt: movement.created_at, warehouseName: movement.warehouse_name,
+      locationCode: movement.location_code, reason: movement.reason })),
     billMatching: allocations.map((entry) => ({ lineNumber: lineNumberOf(entry.goods_receipt_line_id), quantity: dec(entry.quantity), billId: entry.bill_id, billNumber: entry.bill_number,
       supplierInvoiceNumber: entry.supplier_invoice_number, status: entry.status })),
     returns: returns.map((entry) => ({ id: entry.id, number: entry.return_number, date: dayOf(entry.return_date), reason: entry.reason, replacementPurchaseOrderId: entry.replacement_purchase_order_id,

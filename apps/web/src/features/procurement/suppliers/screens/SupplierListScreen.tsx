@@ -16,10 +16,10 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { useListState } from "@/features/procurement/shared/navigation";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert } from "@/features/procurement/shared/ProcUi";
 
 import { errorCode, exportUrl, getSupplierOptions, listSuppliers, type Supplier, type SupplierListFilters } from "../api/suppliers-api";
 import { SupplierStatusBadge, placeOf } from "../supplier-format";
+import { Notice } from "@/shared/ui/Panel";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -113,7 +113,7 @@ export function SupplierListScreen() {
 
   return (
     <div className="flex flex-col gap-4">
-      {optionsQuery.isError && <ProcAlert>The supplier filters could not be loaded. Refresh the page.</ProcAlert>}
+      {optionsQuery.isError && <Notice>The supplier filters could not be loaded. Refresh the page.</Notice>}
       <EnterpriseListPage
         header={{
           title: "Suppliers",

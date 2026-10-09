@@ -20,11 +20,12 @@ const date = (value, label) => {
 };
 
 // ---------------------------------------------------------------- settings
-const SETTINGS_DEFAULTS = Object.freeze({ costing_method: "moving_average", allow_negative_stock: false });
+// The negative-stock policy has its own setting, permission and audit (negative-stock.js); it is read here for display only.
+const SETTINGS_DEFAULTS = Object.freeze({ costing_method: "moving_average", negative_stock_policy: "block", negative_stock_alerts_enabled: true, adjustment_value_threshold: null });
 
 export async function getStockSettings(client, c) {
   need(c, "stock.view");
-  const { rows } = await client.query(`SELECT costing_method,allow_negative_stock,updated_at FROM tenant.stock_settings WHERE organization_id=$1`, [c.organizationId]);
+  const { rows } = await client.query(`SELECT costing_method,negative_stock_policy,negative_stock_alerts_enabled,adjustment_value_threshold,updated_at FROM tenant.stock_settings WHERE organization_id=$1`, [c.organizationId]);
   return { ...SETTINGS_DEFAULTS, ...(rows[0] || {}), configured: Boolean(rows[0]) };
 }
 
@@ -32,56 +33,22 @@ export async function updateStockSettings(client, c, input = {}) {
   need(c, "stock.settings.manage");
   const current = await getStockSettings(client, c);
   const method = input.costingMethod === undefined ? current.costing_method : String(input.costingMethod);
-  if (!["moving_average", "fifo", "standard"].includes(method)) throw new StockError(400, "Costing method must be moving_average, fifo or standard.", "STOCK_SETTINGS_INVALID");
-  const allowNegative = input.allowNegativeStock === undefined ? current.allow_negative_stock : Boolean(input.allowNegativeStock);
+  if (!["moving_average", "fifo"].includes(method)) throw new StockError(400, "The default valuation method is Moving Average or FIFO.", "STOCK_SETTINGS_INVALID");
+  // Stock Adjustments above this absolute value need the large-adjustment permission to post (empty: no threshold).
+  const rawThreshold = input.adjustmentValueThreshold === undefined ? current.adjustment_value_threshold : input.adjustmentValueThreshold;
+  const threshold = rawThreshold === null || rawThreshold === "" ? null : Number(rawThreshold);
+  if (threshold !== null && (!Number.isFinite(threshold) || threshold < 0))
+    throw new StockError(400, "The adjustment value threshold is an amount of zero or more (or empty for none).", "STOCK_SETTINGS_INVALID");
   const { rows } = await client.query(
-    `INSERT INTO tenant.stock_settings(organization_id,costing_method,allow_negative_stock,updated_by) VALUES($1,$2,$3,$4)
-     ON CONFLICT (organization_id) DO UPDATE SET costing_method=EXCLUDED.costing_method,allow_negative_stock=EXCLUDED.allow_negative_stock,updated_by=EXCLUDED.updated_by,updated_at=now()
-     RETURNING costing_method,allow_negative_stock,updated_at`,
-    [c.organizationId, method, allowNegative, c.userId],
+    `INSERT INTO tenant.stock_settings(organization_id,costing_method,adjustment_value_threshold,updated_by) VALUES($1,$2,$3,$4)
+     ON CONFLICT (organization_id) DO UPDATE SET costing_method=EXCLUDED.costing_method,
+       adjustment_value_threshold=EXCLUDED.adjustment_value_threshold,updated_by=EXCLUDED.updated_by,updated_at=now()
+     RETURNING costing_method,negative_stock_policy,negative_stock_alerts_enabled,adjustment_value_threshold,updated_at`,
+    [c.organizationId, method, threshold, c.userId],
   );
   return { ...rows[0], configured: true };
 }
 
-// ---------------------------------------------------------------- scan / lookup (F119)
-// Resolves whatever a scanner or a person typed: an item SKU or barcode, a batch number, or a
-// serial number -- and says what it found.
-export async function lookupStockByCode(client, c, input = {}) {
-  need(c, "stock.view");
-  const code = text(input.code, 200);
-  if (!code) throw new StockError(400, "Scan or enter a code.", "STOCK_CODE_REQUIRED");
-  const itemColumns = "item.id,item.code,item.name,item.barcode,item.tracking_type,item.track_inventory,item.uom_id,item.status";
-  const summary = async (itemId) => {
-    const r = await client.query(
-      `SELECT COALESCE(sum(quantity),0)::text AS on_hand,COALESCE(sum(reserved_quantity),0)::text AS reserved,COALESCE(sum(quantity-reserved_quantity),0)::text AS available FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2`,
-      [c.organizationId, itemId],
-    );
-    return r.rows[0];
-  };
-  // The SKU or any live barcode / identifier of the item (a variant is an item of its own).
-  const item = (await client.query(
-    `SELECT ${itemColumns} FROM tenant.items item WHERE item.organization_id=$1 AND (lower(item.code)=lower($2) OR EXISTS (SELECT 1 FROM tenant.item_identifiers identifier
-        WHERE identifier.organization_id=item.organization_id AND identifier.item_id=item.id AND identifier.status='active' AND upper(identifier.value)=upper($2))) LIMIT 1`,
-    [c.organizationId, code])).rows[0];
-  if (item) return { kind: "item", item, stock: await summary(item.id) };
-  const batch = (
-    await client.query(
-      `SELECT batch.id AS batch_id,batch.batch_number,batch.expires_on,batch.status AS batch_status,${itemColumns} FROM tenant.stock_batches batch JOIN tenant.items item ON item.organization_id=batch.organization_id AND item.id=batch.item_id
-        WHERE batch.organization_id=$1 AND lower(batch.batch_number)=lower($2) LIMIT 1`,
-      [c.organizationId, code],
-    )
-  ).rows[0];
-  if (batch) return { kind: "batch", item: { id: batch.id, code: batch.code, name: batch.name, tracking_type: batch.tracking_type, uom_id: batch.uom_id, status: batch.status }, batch: { id: batch.batch_id, batch_number: batch.batch_number, expires_on: batch.expires_on, status: batch.batch_status }, stock: await summary(batch.id) };
-  const serial = (
-    await client.query(
-      `SELECT serial.id AS serial_id,serial.serial_number,serial.status AS serial_status,serial.warehouse_id,${itemColumns} FROM tenant.stock_serials serial JOIN tenant.items item ON item.organization_id=serial.organization_id AND item.id=serial.item_id
-        WHERE serial.organization_id=$1 AND lower(serial.serial_number)=lower($2) LIMIT 1`,
-      [c.organizationId, code],
-    )
-  ).rows[0];
-  if (serial) return { kind: "serial", item: { id: serial.id, code: serial.code, name: serial.name, tracking_type: serial.tracking_type, uom_id: serial.uom_id, status: serial.status }, serial: { id: serial.serial_id, serial_number: serial.serial_number, status: serial.serial_status, warehouse_id: serial.warehouse_id }, stock: await summary(serial.id) };
-  throw new StockError(404, `Nothing matches "${code}".`, "STOCK_CODE_NOT_FOUND");
-}
 
 // ---------------------------------------------------------------- batches (F115-F118)
 async function trackedItem(client, c, itemId, expected) {
@@ -115,6 +82,11 @@ export async function setStockBatchStatus(client, c, batchId, status, reason) {
   need(c, "stock.manage");
   if (!["active", "blocked", "expired"].includes(status)) throw new StockError(400, "Batch status must be active, blocked or expired.", "STOCK_BATCH_STATUS_INVALID");
   if (status !== "active" && !text(reason, 1000)) throw new StockError(400, "A reason is required to block or expire a batch.", "STOCK_REASON_REQUIRED");
+  if (status !== "active") {
+    const held = (await client.query(`SELECT count(*)::int AS count, COALESCE(sum(active_quantity), 0) AS quantity FROM tenant.stock_reservations WHERE organization_id=$1 AND batch_id=$2 AND status='active'`,
+      [c.organizationId, uuid(batchId, "Batch")])).rows[0];
+    if (held.count) throw new StockError(409, `${held.count} active reservation${held.count === 1 ? "" : "s"} hold ${Number(held.quantity)} of this batch. Reallocate or release them before it is ${status}.`, "STOCK_BATCH_RESERVED");
+  }
   const { rows } = await client.query(
     `UPDATE tenant.stock_batches SET status=$3,notes=COALESCE(NULLIF($4,''),notes),updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
     [c.organizationId, uuid(batchId, "Batch"), status, text(reason, 1000)],
@@ -123,80 +95,41 @@ export async function setStockBatchStatus(client, c, batchId, status, reason) {
   return rows[0];
 }
 
-// Batches with what is on hand in each, and days to expiry -- the basis of the expiry screen.
-export async function listStockBatchesWithBalance(client, c, { withinDays = null, limit = 250 } = {}) {
-  need(c, "stock.view");
-  const values = [c.organizationId];
-  let filter = "";
-  if (withinDays !== null && withinDays !== undefined && withinDays !== "") {
-    values.push(Math.max(0, Math.trunc(Number(withinDays))));
-    filter = ` AND batch.expires_on IS NOT NULL AND batch.expires_on <= current_date+$${values.length}::int`;
-  }
-  values.push(Math.min(Math.max(Number(limit) || 250, 1), 500));
-  const { rows } = await client.query(
-    `SELECT batch.*,item.code AS item_code,item.name AS item_name,
-            COALESCE(sum(balance.quantity),0)::text AS on_hand_quantity,
-            CASE WHEN batch.expires_on IS NULL THEN NULL ELSE (batch.expires_on-current_date) END AS days_to_expiry
-       FROM tenant.stock_batches batch
-       JOIN tenant.items item ON item.organization_id=batch.organization_id AND item.id=batch.item_id
-       LEFT JOIN tenant.stock_balances balance ON balance.organization_id=batch.organization_id AND balance.batch_id=batch.id
-      WHERE batch.organization_id=$1${filter}
-      GROUP BY batch.id,item.code,item.name
-      ORDER BY batch.expires_on NULLS LAST,batch.created_at DESC
-      LIMIT $${values.length}`,
-    values,
-  );
-  return rows;
-}
-
 // ---------------------------------------------------------------- serials (F117)
 // Receiving serial-tracked stock: ONE receipt movement for the count plus the serial
 // rows, in one transaction, so the balance and the serial register cannot disagree.
+// Serial-numbered stock comes in one unit per serial number: each is registered and received by its own movement, so its history starts
+// with its receipt. A retry with the same idempotency key receives nothing twice.
 export async function receiveSerializedStock(client, c, input = {}) {
   need(c, "stock.receive");
   const item = await trackedItem(client, c, input.itemId, "serial");
   const numbers = [...new Set((Array.isArray(input.serialNumbers) ? input.serialNumbers : String(input.serialNumbers || "").split(/[\s,;]+/)).map((n) => text(n, 120)).filter(Boolean))];
   if (!numbers.length) throw new StockError(400, "Enter at least one serial number.", "STOCK_SERIALS_REQUIRED");
   if (numbers.length > 500) throw new StockError(400, "Receive at most 500 serial numbers at a time.", "STOCK_SERIALS_TOO_MANY");
+  const key = text(input.idempotencyKey, 200) || null;
+  const keyOf = (serialNumber) => (key ? `${key}:${serialNumber.toLowerCase()}` : undefined);
+  if (key) {
+    const done = (await client.query(`SELECT * FROM tenant.stock_movements WHERE organization_id=$1 AND idempotency_key=ANY($2::text[]) ORDER BY ledger_sequence`,
+      [c.organizationId, numbers.map(keyOf)])).rows;
+    if (done.length === numbers.length) return { movement: { ...done[0], replayed: true }, movements: done, serials: [], replayed: true };
+  }
   const existing = await client.query(`SELECT serial_number FROM tenant.stock_serials WHERE organization_id=$1 AND lower(serial_number)=ANY($2::text[])`, [c.organizationId, numbers.map((n) => n.toLowerCase())]);
   if (existing.rows.length) throw new StockError(409, `Serial number ${existing.rows[0].serial_number} is already registered.`, "STOCK_SERIAL_DUPLICATE");
-  const movement = await postStockMovement(client, c, {
-    movementType: "receipt",
-    itemId: item.id,
-    warehouseId: input.warehouseId,
-    warehouseLocationId: input.warehouseLocationId || null,
-    batchId: input.batchId || null,
-    quantity: numbers.length,
-    unitCost: input.unitCost,
-    referenceType: input.referenceType || null,
-    referenceId: input.referenceId || null,
-    reason: text(input.reason, 500) || "Serialized receipt",
-    idempotencyKey: input.idempotencyKey,
-  });
-  if (movement.replayed) return { movement, serials: [], replayed: true };
   const serials = [];
+  const movements = [];
   for (const serialNumber of numbers) {
-    const r = await client.query(
+    const serial = (await client.query(
       `INSERT INTO tenant.stock_serials(organization_id,item_id,serial_number,warehouse_id,warehouse_location_id,status,batch_id) VALUES($1,$2,$3,$4,$5,'available',$6) RETURNING *`,
       [c.organizationId, item.id, serialNumber, input.warehouseId, input.warehouseLocationId || null, input.batchId || null],
-    );
-    serials.push(r.rows[0]);
+    )).rows[0];
+    movements.push(await postStockMovement(client, c, {
+      movementType: "receipt", itemId: item.id, warehouseId: input.warehouseId, warehouseLocationId: input.warehouseLocationId || null, batchId: input.batchId || null,
+      serialId: serial.id, serialRegistered: true, quantity: 1, unitCost: input.unitCost, costSource: input.costSource, costSnapshot: input.costSnapshot, referenceType: input.referenceType || null, referenceId: input.referenceId || null,
+      sourceLineId: input.sourceLineId, ledgerType: input.ledgerType, groupId: input.groupId, occurredOn: input.occurredOn,
+      reason: text(input.reason, 500) || "Serialized receipt", idempotencyKey: keyOf(serialNumber),
+    }));
+    serials.push((await client.query(`SELECT * FROM tenant.stock_serials WHERE organization_id=$1 AND id=$2`, [c.organizationId, serial.id])).rows[0]);
   }
-  return { movement, serials, replayed: false };
-}
-
-export async function listStockSerialsDetailed(client, c, { itemId = null, status = null, limit = 250 } = {}) {
-  need(c, "stock.view");
-  const values = [c.organizationId];
-  let filter = "";
-  if (itemId) { values.push(uuid(itemId, "Item")); filter += ` AND serial.item_id=$${values.length}`; }
-  if (status) { values.push(String(status)); filter += ` AND serial.status=$${values.length}`; }
-  values.push(Math.min(Math.max(Number(limit) || 250, 1), 500));
-  const { rows } = await client.query(
-    `SELECT serial.*,item.code AS item_code,item.name AS item_name FROM tenant.stock_serials serial JOIN tenant.items item ON item.organization_id=serial.organization_id AND item.id=serial.item_id
-      WHERE serial.organization_id=$1${filter} ORDER BY serial.created_at DESC LIMIT $${values.length}`,
-    values,
-  );
-  return rows;
+  return { movement: movements[0], movements, serials, replayed: false };
 }
 

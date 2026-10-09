@@ -43,7 +43,7 @@ export function CustomerRelatedPanel({ customerId, list }: { customerId: string;
   return (
     <div className="mt-3 overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface">
       <table className="w-full text-left text-sm">
-        <thead className="text-xs text-text-secondary">
+        <thead className="bg-surface-muted text-left text-text-secondary">
           <tr>{headings.map((heading, index) => <th key={`${heading}-${index}`} scope="col" className="px-3 py-2 font-medium">{heading}</th>)}</tr>
         </thead>
         <tbody className="divide-y divide-border">

@@ -7,8 +7,8 @@
 import { Button, NumberField, Select, TextField, type SelectOption } from "@vercentlabs/design-system";
 
 import { money } from "@/features/sales/shared/format";
-import { SalesAlert, SalesPanel } from "@/features/sales/shared/SalesUi";
 import type { SalesDocumentPreview, SalesOptions } from "@/features/sales/quotations/api/quotations-api";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 export type DiscountType = "percent" | "amount";
 export type DocumentDiscountDraft = { type: DiscountType; value: number; reasonCode: string; reasonText: string };
@@ -34,7 +34,7 @@ export function DocumentDiscountPanel({ discounts, currencyCode, value, onChange
   const canApply = discounts.allowDocument && discounts.canApplyDocument;
   const check = preview?.discount;
   return (
-    <SalesPanel
+    <Panel
       title="Additional discount"
       description={
         !discounts.allowDocument ? "Document discounts are switched off in Sales settings."
@@ -83,11 +83,11 @@ export function DocumentDiscountPanel({ discounts, currencyCode, value, onChange
           {value.type === "amount" ? ` (${Number(Number(preview.totals.documentDiscountPercent).toFixed(2))}%)` : ""}, shared across the lines.
         </p>
       )}
-      {check?.message && <SalesAlert tone={check.limitExceeded ? "danger" : "warning"}>{check.message}</SalesAlert>}
+      {check?.message && <Notice tone={check.limitExceeded ? "danger" : "warning"}>{check.message}</Notice>}
       {discounts.limitPercent !== null && !check?.limitExceeded && (
         <p className="text-xs text-text-muted">You can give up to {discounts.limitPercent}% discount on a line, including its share of this discount.</p>
       )}
-    </SalesPanel>
+    </Panel>
   );
 }
 

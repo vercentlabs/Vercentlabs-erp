@@ -1,9 +1,8 @@
 import { requireWorkspace } from "@/core/session";
-import { NotesFilesScreen } from "@/features/crm/notes/screens/NotesFilesScreen";
+import { redirectWithQuery } from "@/shared/routing/redirect-with-query";
 
-export const metadata = { title: "Notes & Files" };
-
-export default async function NotesFilesPage() {
+// A tab of CRM Activities: this address keeps working and opens that tab with its query intact.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireWorkspace();
-  return <NotesFilesScreen />;
+  redirectWithQuery("/crm/activities", await searchParams, { tab: "notes-files" });
 }

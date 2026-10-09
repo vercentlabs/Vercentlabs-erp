@@ -8,7 +8,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { Download, Plus, Upload } from "lucide-react";
 import {
-  Checkbox, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, SearchField, Select, buttonVariants, type ActiveFilter,
+  Badge, Checkbox, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, SearchField, Select, buttonVariants, type ActiveFilter,
 } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -103,7 +103,9 @@ export function ItemListScreen({ lens = "inventory" }: { lens?: ItemLens }) {
         { id: "tracking", header: "Tracking", enableSorting: false, cell: ({ row }) => (row.original.type === "stock" ? trackingText(row.original.trackingType) : "") },
         ...(showsStock ? [
           { id: "onHand", header: "On hand", enableSorting: false, cell: ({ row }) => <span className="tabular-nums">{row.original.type === "stock" ? quantity(row.original.onHand ?? 0) : ""}</span> },
+          { id: "reserved", header: "Reserved", enableSorting: false, cell: ({ row }) => <span className="tabular-nums">{row.original.type === "stock" ? quantity(row.original.reserved ?? 0) : ""}</span> },
           { id: "available", header: "Available", enableSorting: false, cell: ({ row }) => <span className="tabular-nums">{row.original.type === "stock" ? quantity(row.original.available ?? 0) : ""}</span> },
+          { id: "reorder", header: "Reorder status", enableSorting: false, cell: ({ row }) => <ReorderStatusBadge status={row.original.reorderStatus ?? null} /> },
         ] as ColumnDef<Item, unknown>[] : []),
         flag("isPurchasable", "Purchasable"), flag("isSellable", "Sellable"), status];
     }
@@ -212,4 +214,12 @@ export function ItemListScreen({ lens = "inventory" }: { lens?: ItemLens }) {
       </EnterpriseListPage>
     </div>
   );
+}
+
+// Reorder Level's worst status for the item across its warehouses (only items with an enabled reorder rule show one).
+const REORDER_LABEL = { out_of_stock: ["Out of stock", "danger"], reorder_required: ["Reorder required", "warning"], below_reorder_covered: ["Covered by incoming", "info"], ok: ["OK", "success"] } as const;
+function ReorderStatusBadge({ status }: { status: keyof typeof REORDER_LABEL | null }) {
+  if (!status) return null;
+  const [label, tone] = REORDER_LABEL[status];
+  return <Badge tone={tone}>{label}</Badge>;
 }

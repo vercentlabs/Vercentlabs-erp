@@ -28,7 +28,7 @@ import {
   formatDateTime,
   humanize,
 } from "@/shared/format/human";
-import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { PropertyList } from "@/shared/ui/PropertyList";
 import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";
 import {
   cancelMeeting,

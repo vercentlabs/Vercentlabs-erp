@@ -19,17 +19,19 @@
 // corrects it with a debit note.
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, decimal, div, formatDecimal, mul, roundMoney, sub } from "../../../core/decimal.js";
-import { StockError, completeStockTransfer, createStockTransfer, postStockMovement } from "../../stock/index.js";
+import { StockError, moveStockWithinWarehouse, postStockMovement } from "../../stock/index.js";
+import { dispositionAt, internalMoveTypes } from "../../stock/ledger-posting.js";
 import { loadPurchaseOrder, poCan, requirePoPermission } from "./access.js";
 import { PO_PERMISSIONS, PurchaseOrderError, STATUS, fail, has, optionalUuid, requireUuid, text } from "./constants.js";
 import { cancelRemainingPurchaseOrderQty } from "./lifecycle.js";
 import { recordPoEvent } from "./persist.js";
-import { assertWarehouseAccess, orderLinesById, qualityLocation, receiptLineCaseFields, recordReceiptEvent, stockContextFor } from "./receipts.js";
+import { assertWarehouseOperation, orderLinesById, qualityLocation, receiptLineCaseFields, recordReceiptEvent, stockContextFor } from "./receipts.js";
 import { createPurchaseReturnFromRejection } from "../purchase-returns/returns.js";
 import {
   RESOLUTION_TYPES, applyResolution, blockedQuantityOf, loadRejection, openQuantityOf, openRejectionCase, readExpectedResolution, readRejectionReason, reasonLabel,
   recordRejectionEvent, requireRejectionAccess,
 } from "./rejection-core.js";
+import { carryNegativeStock } from "../../stock/negative-stock-control.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -65,7 +67,7 @@ async function stocked(work, label = "") {
   try {
     return await work();
   } catch (error) {
-    if (error instanceof StockError) throw new PurchaseOrderError(error.status === 400 ? 409 : error.status, `${label}${error.message}`, error.code);
+    if (error instanceof StockError) throw carryNegativeStock(error, new PurchaseOrderError(error.status === 400 ? 409 : error.status, `${label}${error.message}`, error.code));
     throw error;
   }
 }
@@ -98,7 +100,7 @@ export async function recordDockRejection(client, context, orderId, input = {}) 
   if (order.status !== STATUS.confirmed)
     throw new PurchaseOrderError(409, `Deliveries are received (or refused) only against a confirmed order; this one is ${order.status}.`, "REJECTION_ORDER_NOT_CONFIRMED");
   const warehouseId = optionalUuid(input.warehouseId, "Warehouse") ?? order.default_warehouse_id ?? null;
-  if (warehouseId) await assertWarehouseAccess(client, context, warehouseId, "Receiving warehouse");
+  if (warehouseId) await assertWarehouseOperation(client, context, warehouseId, "receive", "Receiving warehouse");
   if (!Array.isArray(input.lines) || !input.lines.length) fail("Choose the lines whose goods were refused.", "lines");
   const lines = await orderLinesById(client, context.organizationId, order.id);
   const observedAt = readObservedAt(input.observedAt);
@@ -211,7 +213,7 @@ export async function recordPostReceiptRejection(client, context, receiptLineId,
   const { line, receipt, order } = await lockReceiptLine(client, context, receiptLineId);
   const label = `Line ${line.line_number}`;
   if (line.product_type === "service") fail(`${label} is a service; there are no goods to reject.`, "goodsReceiptLineId", "REJECTION_SERVICE_LINE", 409);
-  if (line.warehouse_id) await assertWarehouseAccess(client, context, line.warehouse_id, "Warehouse");
+  if (line.warehouse_id) await assertWarehouseOperation(client, context, line.warehouse_id, "receive", "Warehouse", { capability: false });
   const reason = readRejectionReason(input, { defaultReason: fromHold ? "failed_inspection" : null });
   const quantity = readQuantity(input.quantity, `${label} quantity rejected`);
   const orderLine = (await orderLinesById(client, context.organizationId, order.id)).get(line.purchase_order_line_id);
@@ -265,19 +267,20 @@ export async function recordPostReceiptRejection(client, context, receiptLineId,
           if (!serial) throw new PurchaseOrderError(409, `${label}: serial number ${serialNumber} is no longer in stock (sold, returned or moved).`, "REJECTION_STOCK_UNAVAILABLE");
           if (serial.warehouse_location_id === locationId) fail(`${label}: serial number ${serialNumber} is already in the quality location.`, "serialNumbers", "REJECTION_SERIAL_INVALID", 409);
           const ref = { itemId: line.product_id, warehouseId: line.warehouse_id, serialId: serial.id, quantity: "1", referenceType: "receiving_rejection", referenceId: line.id, reason: reasonText };
-          movements.push((await stocked(() => postStockMovement(client, stock, { ...ref, movementType: "issue", warehouseLocationId: serial.warehouse_location_id,
+          const moves = internalMoveTypes(await dispositionAt(client, context.organizationId, serial.warehouse_location_id), await dispositionAt(client, context.organizationId, locationId));
+          movements.push((await stocked(() => postStockMovement(client, stock, { ...ref, movementType: "issue", ledgerType: moves.out, warehouseLocationId: serial.warehouse_location_id,
             idempotencyKey: `rjr-out:${line.id}:${serial.id}:${base.observedAt}` }), `${label}: `)).id);
-          movements.push((await stocked(() => postStockMovement(client, stock, { ...ref, movementType: "receipt", warehouseLocationId: locationId,
+          movements.push((await stocked(() => postStockMovement(client, stock, { ...ref, movementType: "receipt", ledgerType: moves.in, warehouseLocationId: locationId,
             idempotencyKey: `rjr-in:${line.id}:${serial.id}:${base.observedAt}` }), `${label}: `)).id);
         }
       } else {
-        const transfer = await stocked(() => createStockTransfer(client, stock, {
-          itemId: line.product_id, sourceWarehouseId: line.warehouse_id, sourceLocationId, destinationWarehouseId: line.warehouse_id, destinationLocationId: locationId,
-          batchId: line.batch_id, quantity: formatDecimal(roundMoney(mul(quantity, factor), 6)), idempotencyKey: `rjr:${line.id}:${dec(quantity)}:${base.observedAt}`,
+        // Into the quality location: a disposition change inside the warehouse, posted against the receipt line.
+        const moved = await stocked(() => moveStockWithinWarehouse(client, stock, {
+          itemId: line.product_id, warehouseId: line.warehouse_id, fromLocationId: sourceLocationId, toLocationId: locationId, batchId: line.batch_id,
+          quantity: formatDecimal(roundMoney(mul(quantity, factor), 6)), referenceType: "receiving_rejection", referenceId: line.id, reason: reasonText,
+          idempotencyKey: `rjr:${line.id}:${dec(quantity)}:${base.observedAt}`,
         }), `${label}: `);
-        await stocked(() => completeStockTransfer(client, stock, transfer.id), `${label}: `);
-        movements = (await client.query(`SELECT id FROM tenant.stock_movements WHERE organization_id = $1 AND reference_type = 'stock_transfer' AND reference_id = $2`,
-          [context.organizationId, transfer.id])).rows.map((row) => row.id);
+        movements = moved.movements.map((movement) => movement.id);
       }
     } else if (serials.length) fail(`${label}: the product is not serial-numbered.`, "serialNumbers");
     created = await openRejectionCase(client, context, { ...base, stockSource: "usable_stock", locationId, sourceLocationId, serialNumbers: serials, stockMovementIds: movements,
@@ -420,14 +423,13 @@ async function acceptBack(client, context, rejection, line, quantity, notes) {
   const destination = rejection.source_location_id ?? line.warehouse_location_id ?? null;
   if (rejection.product_type === "stock") {
     if (rejection.serial_numbers.length) fail("Serial-numbered goods are returned or disposed of one by one; accept them back by serial through Inventory.", "type", "REJECTION_RESOLUTION_INVALID", 409);
-    const transfer = await stocked(() => createStockTransfer(client, stock, {
-      itemId: rejection.product_id, sourceWarehouseId: rejection.warehouse_id, sourceLocationId: rejection.location_id, destinationWarehouseId: rejection.warehouse_id,
-      destinationLocationId: destination, batchId: rejection.batch_id, quantity: formatDecimal(roundMoney(mul(quantity, rejection.conversion_factor), 6)),
-      idempotencyKey: `rjr-accept:${rejection.id}:${dec(rejection.released_quantity)}:${dec(quantity)}`,
+    // Accepted back: out of the quality location into usable stock, a disposition change posted against the rejection.
+    const moved = await stocked(() => moveStockWithinWarehouse(client, stock, {
+      itemId: rejection.product_id, warehouseId: rejection.warehouse_id, fromLocationId: rejection.location_id, toLocationId: destination, batchId: rejection.batch_id,
+      quantity: formatDecimal(roundMoney(mul(quantity, rejection.conversion_factor), 6)), referenceType: "receiving_rejection_release", referenceId: rejection.id,
+      reason: `${rejection.rejection_number} accepted back`, idempotencyKey: `rjr-accept:${rejection.id}:${dec(rejection.released_quantity)}:${dec(quantity)}`,
     }));
-    await stocked(() => completeStockTransfer(client, stock, transfer.id));
-    movements.push(...(await client.query(`SELECT id FROM tenant.stock_movements WHERE organization_id = $1 AND reference_type = 'stock_transfer' AND reference_id = $2`,
-      [context.organizationId, transfer.id])).rows.map((row) => row.id));
+    movements.push(...moved.movements.map((movement) => movement.id));
   }
   if (rejection.disposition_id) {
     await client.query(`UPDATE tenant.goods_receipt_dispositions SET released_quantity = released_quantity + $3, blocked_quantity = blocked_quantity - $3, updated_at = now()
@@ -488,7 +490,7 @@ export async function recordRejectionResolution(client, context, rejectionId, in
   const notes = text(input.notes, 2000);
   const line = rejection.goods_receipt_line_id
     ? (await client.query(`SELECT * FROM tenant.goods_receipt_lines WHERE organization_id = $1 AND id = $2 FOR UPDATE`, [context.organizationId, rejection.goods_receipt_line_id])).rows[0] : null;
-  if (rejection.warehouse_id && rejection.rejection_stage === "after_custody") await assertWarehouseAccess(client, context, rejection.warehouse_id, "Warehouse");
+  if (rejection.warehouse_id && rejection.rejection_stage === "after_custody") await assertWarehouseOperation(client, context, rejection.warehouse_id, "purchase_return", "Warehouse", { capability: false });
   let result;
   if (type === "refusal_closed") {
     result = await applyResolution(client, context, rejection, { type, quantity, notes });

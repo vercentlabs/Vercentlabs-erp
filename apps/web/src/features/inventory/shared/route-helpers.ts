@@ -2,7 +2,7 @@ import "server-only";
 
 import type { ZodType } from "zod";
 
-import { ok, readJson } from "@/core/http";
+import { HttpError, ok, readJson } from "@/core/http";
 import type { WorkspaceSessionContext } from "@/core/session";
 import { workspaceRoute } from "@/core/workspace-route";
 import { inventoryContext } from "@/features/inventory/shared/inventory-context";
@@ -69,6 +69,45 @@ export async function inventoryMutation<I, T>(
             input,
             session,
           ),
+        ) as Record<string, unknown>,
+        status,
+      );
+    },
+  );
+}
+
+// Multipart Inventory routes (an import or an attachment): the same chain, reading the uploaded file itself.
+export async function inventoryUpload<T>(
+  request: Request,
+  run: (
+    client: Client,
+    context: Context,
+    upload: { bytes: Buffer; fileName: string; field: (name: string) => string },
+  ) => Promise<T>,
+  status = 200,
+  permission: string = "stock.view",
+) {
+  return workspaceRoute(
+    request,
+    { module: "stock", permission, billingWrite: true },
+    async ({ client, session }) => {
+      const form = await request.formData().catch(() => {
+        throw new HttpError(400, "Choose a file to upload.");
+      });
+      const file = form.get("file");
+      if (!(file instanceof File)) throw new HttpError(400, "Choose a file to upload.");
+      if (file.size > 10 * 1024 * 1024) throw new HttpError(413, "The file is larger than 10 MB.");
+      const field = (name: string) => {
+        const value = form.get(name);
+        return typeof value === "string" ? value : "";
+      };
+      return ok(
+        toWire(
+          await run(client as Client, inventoryContext(session), {
+            bytes: Buffer.from(await file.arrayBuffer()),
+            fileName: file.name.slice(0, 240),
+            field,
+          }),
         ) as Record<string, unknown>,
         status,
       );

@@ -102,6 +102,9 @@ export async function getProcurementOverview(client, context) {
 // ---------------------------------------------------------------- reports
 
 const REPORTS = [
+  { key: "purchases-by-period", title: "Purchases by Period", description: "Posted supplier bills less supplier credit notes, by month: bills, net purchases before tax, tax and total.", see: SEE_BILLS },
+  { key: "purchases-by-supplier", title: "Purchases by Supplier", description: "Net purchases per supplier from posted bills less credit notes, with what is still owed.", see: SEE_BILLS },
+  { key: "purchases-by-item", title: "Purchases by Item", description: "Quantities and net purchases per item from posted bill lines less credit-note lines.", see: SEE_BILLS },
   { key: "purchase-order-progress", title: "Purchase Order Progress", description: "Ordered, cancelled, received, billed and remaining quantities and values per order.", see: SEE_ORDERS },
   { key: "pending-goods-receipts", title: "Pending Goods Receipts", description: "Confirmed order quantities still awaiting physical delivery.", see: SEE_ORDERS },
   { key: "receiving-discrepancies", title: "Receiving Discrepancies", description: "Refused, short, held and rejected deliveries and their resolution.", see: SEE_REJECTIONS },
@@ -259,8 +262,107 @@ export async function getProcurementReport(client, context, name, rawFilters = {
         settlement: row.settlementLabel, currency: row.currencyCode, href: `/procurement/debit-notes-credits/vendor-credits/${row.id}` }));
       break;
     }
+    // Purchases: posted supplier bills less supplier credit notes (Finance's vendor bills), net of discounts, before tax; per currency.
+    case "purchases-by-period":
+    case "purchases-by-supplier":
+    case "purchases-by-item": {
+      const where = `bill.organization_id = $1 AND bill.status IN ('posted','partially_paid','paid','overdue','disputed') AND bill.bill_type IN ('bill','credit_note')`
+        + `${filters.supplierId ? ` AND bill.party_id = (SELECT party_id FROM tenant.procurement_suppliers WHERE organization_id = $1 AND id = ${bind(filters.supplierId)})` : ""}`
+        + `${filters.from ? ` AND bill.bill_date >= ${bind(filters.from)}` : ""}${filters.to ? ` AND bill.bill_date <= ${bind(filters.to)}` : ""}`;
+      const sign = "CASE WHEN bill.bill_type = 'credit_note' THEN -1 ELSE 1 END";
+      if (name === "purchases-by-period") {
+        columns = [col("period", "Month"), col("bills", "Bills", "number"), col("credits", "Credit notes", "number"), col("net", "Net purchases", "money"), col("tax", "Tax", "money"),
+          col("total", "Total", "money")];
+        const result = await client.query(
+          `SELECT to_char(date_trunc('month', bill.bill_date), 'YYYY-MM') AS period, bill.currency_code, count(*) FILTER (WHERE bill.bill_type = 'bill') AS bills,
+                  count(*) FILTER (WHERE bill.bill_type = 'credit_note') AS credits, sum(${sign} * (bill.subtotal - bill.discount_total)) AS net,
+                  sum(${sign} * bill.tax_total) AS tax, sum(${sign} * bill.grand_total) AS total
+             FROM tenant.accounting_vendor_bills bill WHERE ${where} GROUP BY 1, 2 ORDER BY 1 DESC, 2 LIMIT 500`, values);
+        rows = result.rows.map((row) => ({ period: row.period, bills: Number(row.bills), credits: Number(row.credits), net: dec(row.net), tax: dec(row.tax), total: dec(row.total),
+          currency: row.currency_code?.trim(), href: "/procurement/supplier-bills" }));
+      } else if (name === "purchases-by-supplier") {
+        columns = [col("supplier", "Supplier"), col("bills", "Bills", "number"), col("net", "Net purchases", "money"), col("total", "Total", "money"), col("outstanding", "Outstanding", "money"),
+          col("last", "Last bill", "date")];
+        const result = await client.query(
+          `SELECT supplier.id AS supplier_id, COALESCE(party.display_name, bill.supplier_snapshot->>'supplierName') AS supplier, bill.currency_code,
+                  count(*) FILTER (WHERE bill.bill_type = 'bill') AS bills, sum(${sign} * (bill.subtotal - bill.discount_total)) AS net, sum(${sign} * bill.grand_total) AS total,
+                  sum(bill.outstanding_amount) FILTER (WHERE bill.bill_type = 'bill') AS outstanding, max(bill.bill_date) AS last_bill
+             FROM tenant.accounting_vendor_bills bill
+             LEFT JOIN tenant.business_parties party ON party.organization_id = bill.organization_id AND party.id = bill.party_id
+             LEFT JOIN tenant.procurement_suppliers supplier ON supplier.organization_id = bill.organization_id AND supplier.party_id = bill.party_id
+            WHERE ${where} GROUP BY supplier.id, 2, bill.currency_code ORDER BY net DESC LIMIT 500`, values);
+        rows = result.rows.map((row) => ({ supplier: row.supplier, bills: Number(row.bills), net: dec(row.net), total: dec(row.total), outstanding: dec(row.outstanding ?? 0),
+          last: dayOf(row.last_bill), currency: row.currency_code?.trim(), href: row.supplier_id ? `/procurement/suppliers/${row.supplier_id}` : "/procurement/supplier-bills" }));
+      } else {
+        columns = [col("code", "SKU"), col("item", "Item"), col("bills", "Bills", "number"), col("quantity", "Quantity", "number"), col("net", "Net purchases", "money"), col("total", "Total", "money")];
+        const result = await client.query(
+          `SELECT line.item_id, item.code, COALESCE(item.name, line.description) AS item, bill.currency_code, count(DISTINCT bill.id) FILTER (WHERE bill.bill_type = 'bill') AS bills,
+                  sum(${sign} * line.quantity) AS quantity, sum(${sign} * line.net_amount) AS net, sum(${sign} * line.line_total) AS total
+             FROM tenant.accounting_vendor_bills bill
+             JOIN tenant.accounting_vendor_bill_lines line ON line.organization_id = bill.organization_id AND line.vendor_bill_id = bill.id
+             LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+            WHERE ${where} GROUP BY line.item_id, item.code, item.name, line.description, bill.currency_code ORDER BY net DESC LIMIT 500`, values);
+        rows = result.rows.map((row) => ({ code: row.code ?? "—", item: row.item, bills: Number(row.bills), quantity: dec(row.quantity), net: dec(row.net), total: dec(row.total),
+          currency: row.currency_code?.trim(), href: row.item_id ? `/inventory/items/${row.item_id}` : "/procurement/supplier-bills" }));
+      }
+      break;
+    }
     default:
       break;
   }
   return { key: report.key, title: report.title, description: report.description, columns, rows, filters };
 }
+
+// ---------------------------------------------------------------- invoice matching workbench
+// One place for 2-Way (PO ↔ bill) and 3-Way (PO ↔ GRN ↔ bill) matching: every PO-based supplier bill with its latest evaluation — the
+// scope, the result, ordered, received and billed quantities of the lines it bills, the value expected and billed, the variance and the
+// variances approved on it (Exceptions: bills whose match fails). Matching itself runs on the bill (recheck, approve an exception); this lists and opens.
+// filters: view (all | two_way | three_way | matched | exceptions), supplierId, search.
+export const INVOICE_MATCHING_VIEWS = Object.freeze([
+  { key: "all", label: "All bills" }, { key: "two_way", label: "2-Way match" }, { key: "three_way", label: "3-Way match" },
+  { key: "matched", label: "Matched" }, { key: "exceptions", label: "Exceptions" },
+]);
+export async function getInvoiceMatchingWorkbench(client, context, filters = {}) {
+  if (!can(context, ...SEE_BILLS)) throw new PurchaseOrderError(403, "You do not have permission to view supplier bill matching.", "PERMISSION_DENIED");
+  const view = INVOICE_MATCHING_VIEWS.some((entry) => entry.key === filters.view) ? filters.view : "all";
+  const values = [context.organizationId];
+  const bind = (value) => `$${values.push(value)}`;
+  const where = ["bill.organization_id = $1", "bill.source_purchase_order_id IS NOT NULL", "bill.status NOT IN ('cancelled', 'reversed')", "bill.bill_type = 'bill'"];
+  if (isUuid(filters.supplierId)) where.push(`bill.party_id = (SELECT party_id FROM tenant.procurement_suppliers WHERE organization_id = $1 AND id = ${bind(filters.supplierId)})`);
+  const search = String(filters.search ?? "").trim();
+  if (search) where.push(`lower(concat_ws(' ', bill.bill_number, bill.supplier_invoice_number, po.purchase_order_number, party.display_name)) LIKE ${bind(`%${search.toLowerCase()}%`)}`);
+  const { rows } = await client.query(
+    `SELECT bill.id, bill.bill_number, bill.supplier_invoice_number, bill.bill_date, bill.status, bill.matching_status, bill.currency_code, bill.grand_total,
+            po.id AS po_id, po.purchase_order_number, party.display_name AS supplier,
+            evaluation.match_scope, evaluation.result, evaluation.expected_amount, evaluation.actual_amount, evaluation.variance_amount, evaluation.evaluated_at,
+            (SELECT count(*) FROM tenant.supplier_bill_match_exceptions exception WHERE exception.organization_id = bill.organization_id AND exception.vendor_bill_id = bill.id
+               AND exception.status = 'approved') AS approved_exceptions,
+            quantities.ordered, quantities.received, quantities.billed
+       FROM tenant.accounting_vendor_bills bill
+       JOIN tenant.purchase_orders po ON po.organization_id = bill.organization_id AND po.id = bill.source_purchase_order_id
+       LEFT JOIN tenant.business_parties party ON party.organization_id = bill.organization_id AND party.id = bill.party_id
+       LEFT JOIN LATERAL (SELECT * FROM tenant.supplier_bill_match_evaluations entry WHERE entry.organization_id = bill.organization_id AND entry.vendor_bill_id = bill.id
+                           ORDER BY entry.evaluated_at DESC LIMIT 1) evaluation ON true
+       LEFT JOIN LATERAL (
+         SELECT sum(status.ordered_quantity) AS ordered, sum(status.received_quantity) AS received, sum(line.quantity) AS billed
+           FROM tenant.accounting_vendor_bill_lines line
+           LEFT JOIN tenant.purchase_order_line_status status ON status.organization_id = line.organization_id AND status.purchase_order_line_id = line.purchase_order_line_id
+          WHERE line.organization_id = bill.organization_id AND line.vendor_bill_id = bill.id AND line.purchase_order_line_id IS NOT NULL) quantities ON true
+      WHERE ${where.join(" AND ")}
+      ORDER BY bill.bill_date DESC, bill.bill_number DESC LIMIT 1000`, values);
+  const list = rows.map((row) => {
+    const approvedVariances = Number(row.approved_exceptions);
+    const result = row.result ?? (row.matching_status === "pending" ? "pending_receipt" : row.matching_status === "exception" ? "mismatch" : row.matching_status === "matched" ? "matched" : null);
+    return {
+      id: row.id, billNumber: row.bill_number, supplierInvoiceNumber: row.supplier_invoice_number, billDate: dayOf(row.bill_date), status: row.status, supplier: row.supplier,
+      purchaseOrderId: row.po_id, purchaseOrderNumber: row.purchase_order_number, scope: row.match_scope ?? null, result, approvedVariances,
+      ordered: dec(row.ordered ?? 0), received: dec(row.received ?? 0), billed: dec(row.billed ?? 0),
+      expected: dec(row.expected_amount), actual: dec(row.actual_amount), variance: dec(row.variance_amount), currency: row.currency_code?.trim(), evaluatedAt: row.evaluated_at,
+      href: `/procurement/supplier-bills/${row.id}?tab=matching`, orderHref: `/procurement/purchase-orders/${row.po_id}`,
+    };
+  });
+  const counts = Object.fromEntries(INVOICE_MATCHING_VIEWS.map((entry) => [entry.key, list.filter((row) => inView(row, entry.key)).length]));
+  return { rows: list.filter((row) => inView(row, view)), counts, views: INVOICE_MATCHING_VIEWS, view };
+}
+const inView = (row, view) => view === "all" || (view === "two_way" && row.scope === "two_way") || (view === "three_way" && row.scope === "three_way")
+  || (view === "matched" && ["matched", "approved_exception"].includes(row.result)) || (view === "exceptions" && row.result === "mismatch");

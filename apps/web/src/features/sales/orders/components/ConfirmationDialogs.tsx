@@ -12,12 +12,12 @@ import { Button, Dialog, Select, TextArea, TextField } from "@vercentlabs/design
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { dateTime, money } from "@/features/sales/shared/format";
-import { SalesAlert } from "@/features/sales/shared/SalesUi";
 
 import {
   confirmSalesOrder, getConfirmationCheck, markConfirmationSent, recordConfirmationAcknowledgement, sendOrderConfirmation, type ConfirmResult,
 } from "../api/orders-api";
 import { failureText } from "./OrderDialogs";
+import { Notice } from "@/shared/ui/Panel";
 
 const amount = (value: number | null | undefined) => (value == null ? "—" : Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 }));
 const SENT_CHANNELS = [
@@ -60,17 +60,17 @@ export function ConfirmOrderDialog({ orderId, number, versionNumber, onClose, on
       description="Confirming commits the order: it is priced and taxed again by the server, recorded as the Order Confirmation, and opens it to reservation, delivery and invoicing.">
       <div className="flex flex-col gap-4">
         {check.isLoading && <p className="text-sm text-text-muted">Checking the order…</p>}
-        {check.isError && <SalesAlert>{failureText(check.error, "The order could not be checked.")}</SalesAlert>}
-        {confirm.isError && <SalesAlert>{failureText(confirm.error, "The order could not be confirmed.")}</SalesAlert>}
+        {check.isError && <Notice>{failureText(check.error, "The order could not be checked.")}</Notice>}
+        {confirm.isError && <Notice>{failureText(confirm.error, "The order could not be confirmed.")}</Notice>}
         {problems.length > 0 && (
-          <SalesAlert>
+          <Notice>
             <span className="font-medium">The order cannot be confirmed yet:</span>
             <ul className="mt-1 list-disc pl-5">{problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>
-          </SalesAlert>
+          </Notice>
         )}
         {data && (
           <>
-            {data.ready && !refused && <SalesAlert tone="success">Everything needed is on the order. This becomes Order Confirmation {number}{data.nextConfirmationVersion > 1 ? `, revision ${data.nextConfirmationVersion}` : ""}.</SalesAlert>}
+            {data.ready && !refused && <Notice tone="success">Everything needed is on the order. This becomes Order Confirmation {number}{data.nextConfirmationVersion > 1 ? `, revision ${data.nextConfirmationVersion}` : ""}.</Notice>}
             <Section title="Total">
               <p className="text-sm">
                 {money(data.totals.currencyCode, data.totals.saved)}
@@ -82,12 +82,12 @@ export function ConfirmOrderDialog({ orderId, number, versionNumber, onClose, on
                 <p className="text-sm">Quotation {quotation.quotationNumber}: {money(data.totals.currencyCode, quotation.quotationTotal)} · this order: {money(data.totals.currencyCode, quotation.orderTotal)}</p>
                 {quotation.differs ? (
                   <>
-                    <SalesAlert tone="warning">
+                    <Notice tone="warning">
                       This order differs from the accepted quotation.
                       {quotation.changes.length > 0 && <ul className="mt-1 list-disc pl-5">{quotation.changes.map((change) => (
                         <li key={`${change.item}-${change.change}`}>{change.item}: {change.change === "added" ? `added, ${amount(change.to)}` : change.change === "removed" ? "removed" : `${amount(change.from)} → ${amount(change.to)}`}{change.unit ? ` ${change.unit}` : ""}</li>
                       ))}</ul>}
-                    </SalesAlert>
+                    </Notice>
                     {data.varianceNeedsPermission
                       ? <p className="text-sm text-danger">Confirming an order that differs from its quotation needs a manager&apos;s permission.</p>
                       : <TextArea label="Why the order differs from the quotation" isRequired value={reason} onChange={setReason} />}
@@ -138,7 +138,7 @@ export function SendConfirmationDialog({ orderId, number, version, contactName, 
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Send Order Confirmation ${number}${revision}`} size="lg"
       description="The confirmation PDF is attached and kept with the order. The order's status does not change.">
       <div className="flex flex-col gap-3">
-        {send.isError && <SalesAlert>{failureText(send.error, "The email could not be sent.")}</SalesAlert>}
+        {send.isError && <Notice>{failureText(send.error, "The email could not be sent.")}</Notice>}
         <TextField label="To" type="email" isRequired value={to} onChange={setTo} />
         <TextField label="CC" description="Optional. Separate addresses with commas." value={cc} onChange={setCc} />
         <TextField label="Subject" value={subject} onChange={setSubject} />
@@ -159,7 +159,7 @@ export function MarkConfirmationSentDialog({ orderId, number, contactName, onClo
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Mark the confirmation of ${number} as sent`} description="For a confirmation sent outside Vercentlabs: from Outlook or Gmail, on WhatsApp, or on paper.">
       <div className="flex flex-col gap-3">
-        {save.isError && <SalesAlert>{failureText(save.error, "The confirmation could not be marked as sent.")}</SalesAlert>}
+        {save.isError && <Notice>{failureText(save.error, "The confirmation could not be marked as sent.")}</Notice>}
         <Select label="How it was sent" options={SENT_CHANNELS} selectedKey={channel} onSelectionChange={(key) => setChannel(String(key ?? "external_email"))} />
         <TextField label="Sent to" value={recipient} onChange={setRecipient} />
         <TextField label="Note" value={note} onChange={setNote} />
@@ -176,7 +176,7 @@ export function AcknowledgeConfirmationDialog({ orderId, number, onClose, onDone
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Customer acknowledged ${number}`} description="Optional: delivery and invoicing never wait for it.">
       <div className="flex flex-col gap-3">
-        {save.isError && <SalesAlert>{failureText(save.error, "The acknowledgement could not be recorded.")}</SalesAlert>}
+        {save.isError && <Notice>{failureText(save.error, "The acknowledgement could not be recorded.")}</Notice>}
         <TextField label="Reference" isRequired value={reference} onChange={setReference} />
         <TextField label="Note" value={note} onChange={setNote} />
         <Footer onClose={onClose} label="Record Acknowledgement" isLoading={save.isPending} isDisabled={!reference.trim() && !note.trim()} onPress={() => save.mutate()} />

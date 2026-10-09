@@ -1,8 +1,8 @@
 "use client";
 
-// Sales Settings: every Sales configuration page on one screen, grouped under
+// Sales Setup: every Sales configuration page on one screen, grouped under
 // its heading, in the main content area. Sales' own pages come from the
-// navigation registry (module-navigation-registry.ts, parent "sales-settings"),
+// navigation registry (module-navigation-registry.ts, parent "sales-setup"),
 // so each card opens a real route and only pages the person may open are
 // shown. Configuration Sales shares with the rest of the platform (taxes,
 // document numbering, imports) is linked, never copied: those cards open the
@@ -16,7 +16,7 @@ import { isItemPermitted, workspaceChildren, type NavViewer } from "@/shell/navi
 import type { NavIcon, SecondaryNavItem } from "@/shell/navigation/navigation-types";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-const SETTINGS_WORKSPACE = "sales-settings";
+const SETTINGS_WORKSPACE = "sales-setup";
 type Card = { id: string; label: string; route: string; description?: string; shared?: boolean };
 
 // Shared configuration Sales uses. Each entry is checked against the permission of the page it opens.
@@ -91,10 +91,10 @@ export function SalesSettingsScreen() {
     .map((group) => ({ group, items: destinations.filter((item) => item.group === group.id) }))
     .filter((entry) => entry.items.length > 0);
   const shared = SHARED.map((entry) => ({ ...entry, cards: entry.cards.filter((card) => isItemPermitted(card, viewer)) })).filter((entry) => entry.cards.length > 0);
-  if (own.length === 0 && shared.length === 0) return <PermissionState title="You do not have access to Sales Settings" />;
+  if (own.length === 0 && shared.length === 0) return <PermissionState title="You do not have access to Sales Setup" />;
   return (
     <div className="flex flex-1 flex-col gap-8">
-      <PageHeader title="Sales Settings" description="Commercial rules, fulfillment, and the shared settings Sales documents use." />
+      <PageHeader title="Sales Setup" description="Quotation and order rules, fulfillment, and the shared settings Sales documents use. Discounts and payment terms have their own pages under Configuration." />
       {own.map(({ group, items }) => <Section key={group.id} id={group.id} label={group.label} description={group.description} icon={group.icon} items={items} />)}
       {shared.map((entry) => <Section key={entry.id} id={entry.id} label={entry.label} description={entry.description} icon={entry.icon} items={entry.cards} />)}
     </div>

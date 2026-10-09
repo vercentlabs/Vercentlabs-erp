@@ -1,10 +1,8 @@
 import { requireWorkspace } from "@/core/session";
-import { TaskListScreen } from "@/features/crm/tasks/screens/TaskListScreen";
+import { redirectWithQuery } from "@/shared/routing/redirect-with-query";
 
-export const metadata = { title: "Tasks" };
-
-// CRM Tasks. ?view=overdue | due_today | upcoming | … opens a view; My Tasks is the default.
-export default async function Page() {
+// A tab of CRM Activities: this address keeps working (bookmarks, back links, ?view= drill-downs) and opens that tab with its query intact.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireWorkspace();
-  return <TaskListScreen />;
+  redirectWithQuery("/crm/activities", await searchParams, { tab: "tasks" });
 }

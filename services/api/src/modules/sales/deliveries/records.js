@@ -14,6 +14,8 @@
 // customer PO, instructions, product details), so later changes to the
 // customer or the product never rewrite it.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
+import { formatDecimal } from "../../../core/decimal.js";
+import { convertBetweenUnits, factorOf, resolveItemUnit } from "../../products/uom.js";
 import { assertOrderVisible, requireOrderAccess } from "../orders/access.js";
 import { STATUS, dayOf, requireUuid, text } from "../orders/constants.js";
 import { loadOrderLineProgress } from "../orders/progress.js";
@@ -50,7 +52,7 @@ async function deliverableLines(client, organizationId, order, exceptDeliveryId 
   const open = await openQuantities(client, organizationId, order.id, exceptDeliveryId);
   const snapshots = new Map((await client.query(
     `SELECT line.id, line.item_code_snapshot, line.item_name_snapshot, line.description_snapshot, line.uom_id, warehouse.name AS warehouse_name, warehouse.status AS warehouse_status,
-            warehouse.sales_fulfillment
+            warehouse.shipping_enabled AND warehouse.sales_fulfillment AS shipping_enabled
        FROM tenant.sales_order_lines line
        LEFT JOIN tenant.sales_order_line_progress progress ON progress.organization_id = line.organization_id AND progress.sales_order_line_id = line.id
        LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = line.organization_id AND warehouse.id = COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id)
@@ -101,9 +103,24 @@ export async function getDeliveryProposal(client, context, orderId) {
 // Checks the lines a delivery would carry and settles its warehouse.
 async function settleLines(client, context, order, lines, requested, warehouseHint) {
   const byId = new Map(lines.map((line) => [line.lineId, line]));
-  const chosen = requested
-    .map((entry) => ({ line: byId.get(requireUuid(entry.salesOrderLineId, "Order line")), quantity: Number(entry.quantity) }))
-    .filter((entry) => entry.quantity !== 0);
+  const chosen = [];
+  for (const entry of requested) {
+    const line = byId.get(requireUuid(entry.salesOrderLineId, "Order line"));
+    let quantity = Number(entry.quantity);
+    let entered = null;
+    // Delivered in another of the item's sales units than the order line's (125 M against 4 ROLL of 50): kept as entered, and turned
+    // exactly into the line's unit by the shared conversion engine, so what is still to deliver stays exact in base units.
+    if (line && entry.uomId && entry.uomId !== (line.uom_id ?? null) && Number(entry.quantity) !== 0) {
+      const target = line.uom_id ?? null;
+      const converted = await convertBetweenUnits(client, context.organizationId, line.itemId, String(entry.quantity), entry.uomId, target, { purpose: "sales" });
+      if (!converted.ok)
+        throw new DeliveryError(converted.reason === "inexact" ? 409 : 400, `${line.itemName}: ${converted.message}`, converted.reason === "inexact" ? "SALES_DELIVERY_UOM_INEXACT" : "SALES_DELIVERY_UOM_INVALID");
+      const unit = (await resolveItemUnit(client, context.organizationId, line.itemId, entry.uomId, { purpose: "sales" })).unit;
+      quantity = Number(formatDecimal(converted.quantity));
+      entered = { uomId: entry.uomId, quantity: formatDecimal(converted.entered.quantity), factor: formatDecimal(factorOf(unit)) };
+    }
+    if (quantity !== 0) chosen.push({ line, quantity, entered });
+  }
   if (!chosen.length) throw new DeliveryError(409, "Nothing is left to deliver on this order.", "SALES_ORDER_NOTHING_TO_DELIVER");
   const seen = new Set();
   for (const { line, quantity } of chosen) {
@@ -136,13 +153,15 @@ async function settleLines(client, context, order, lines, requested, warehouseHi
 }
 
 async function insertLines(client, context, order, deliveryId, chosen, warehouseId) {
-  for (const { line, quantity } of chosen)
+  for (const { line, quantity, entered } of chosen)
     await client.query(
       `INSERT INTO tenant.sales_delivery_lines (organization_id, delivery_id, sales_order_id, sales_order_line_id, item_id, warehouse_id, quantity, base_quantity, uom_snapshot, uom_id,
-          stock_issued, sequence, item_code_snapshot, item_name_snapshot, description_snapshot, ordered_quantity, previously_delivered_quantity)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, $11, $12, $13, $14, $15, $16)`,
+          stock_issued, sequence, item_code_snapshot, item_name_snapshot, description_snapshot, ordered_quantity, previously_delivered_quantity, entered_uom_id, entered_quantity,
+          entered_conversion_factor)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
       [context.organizationId, deliveryId, order.id, line.lineId, line.itemId, line.stockTracked ? warehouseId : null, quantity, round(quantity * line.conversionFactor), line.unit,
-        line.uom_id ?? null, line.sequence, line.item_code_snapshot ?? null, line.itemName, line.description_snapshot ?? null, line.ordered, line.delivered]);
+        line.uom_id ?? null, line.sequence, line.item_code_snapshot ?? null, line.itemName, line.description_snapshot ?? null, line.ordered, line.delivered,
+        entered?.uomId ?? null, entered?.quantity ?? null, entered?.factor ?? null]);
 }
 
 // A new delivery for a confirmed order, as a Draft: no stock moves until it is dispatched.
@@ -359,7 +378,7 @@ export async function getDelivery(client, context, deliveryId) {
          JOIN tenant.items item ON item.organization_id = movement.organization_id AND item.id = movement.item_id
          JOIN tenant.warehouses warehouse ON warehouse.organization_id = movement.organization_id AND warehouse.id = movement.warehouse_id
          LEFT JOIN tenant.warehouse_locations location ON location.organization_id = movement.organization_id AND location.id = movement.warehouse_location_id
-        WHERE movement.organization_id = $1 AND movement.reference_type = 'sales_delivery' AND movement.reference_id = $2 ORDER BY movement.created_at`, [context.organizationId, delivery.id]),
+        WHERE movement.organization_id = $1 AND movement.reference_type = 'sales_delivery' AND movement.reference_id = $2 ORDER BY movement.ledger_sequence`, [context.organizationId, delivery.id]),
     await client.query(
       `SELECT event.id, event.event_type, event.from_status, event.to_status, event.metadata, event.occurred_at, actor.full_name AS actor_name
          FROM tenant.sales_document_events event LEFT JOIN public.users actor ON actor.id = event.actor_user_id

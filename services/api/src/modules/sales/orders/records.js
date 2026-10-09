@@ -12,6 +12,7 @@
 // list), but the agreed price of a quoted line cannot be edited here.
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
+import { restrictedStockSql } from "../../stock/rules.js";
 import { SalesError, previewSalesDocument, redactMargin } from "../index.js";
 import { CONFIRMATION_STATUS_LABELS, confirmationStatus } from "../order-confirmations/constants.js";
 import { DELIVERY_STATUS_LABELS } from "../deliveries/constants.js";
@@ -355,8 +356,16 @@ export async function getSalesOrder(client, context, orderId) {
   const invoicingByLine = new Map(progress.map((line) => [line.lineId, invoicingOfLine(line, basis)]));
   const [lines, taxLines, deliveries, deliveryLines, invoices, versions, events] = await inOrder([
     () => client.query(
-      // The warehouse shown is where the line ships from now (changed after confirmation, else as ordered).
-      `SELECT line.*, COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id) AS warehouse_id, warehouse.name AS warehouse_name FROM tenant.sales_order_lines line
+      // The warehouse shown is where the line ships from now (changed after confirmation, else as ordered), with what is available there now in the
+      // line's unit (eligible stock no one has reserved).
+      `SELECT line.*, COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id) AS warehouse_id, warehouse.name AS warehouse_name,
+              (SELECT greatest(COALESCE(sum(CASE WHEN ${restrictedStockSql("location", "batch")} THEN 0 ELSE greatest(balance.quantity - balance.reserved_quantity, 0) END), 0), 0)
+                      / COALESCE(NULLIF(line.conversion_factor, 0), 1)
+                 FROM tenant.stock_balances balance
+                 LEFT JOIN tenant.warehouse_locations location ON location.organization_id = balance.organization_id AND location.id = balance.warehouse_location_id
+                 LEFT JOIN tenant.stock_batches batch ON batch.organization_id = balance.organization_id AND batch.id = balance.batch_id
+                WHERE balance.organization_id = line.organization_id AND balance.item_id = line.item_id AND balance.warehouse_id = COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id)) AS available_in_warehouse
+         FROM tenant.sales_order_lines line
          LEFT JOIN tenant.sales_order_line_progress progress ON progress.organization_id = line.organization_id AND progress.sales_order_line_id = line.id
          LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = line.organization_id AND warehouse.id = COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id)
         WHERE line.organization_id = $1 AND line.sales_order_version_id = $2 ORDER BY line.sequence`, [context.organizationId, order.current_version_id]),

@@ -8,6 +8,7 @@
 //   accounts                       Finance's account mappings for the item and its category
 import { getAccountMapping, getPrimaryLedger } from "../accounting/core.js";
 import { getStockAvailability } from "../stock/index.js";
+import { getStockLedger } from "../stock/ledger.js";
 import { canViewProductCost, canViewProductStock, productCan, requireProductPermission } from "./access.js";
 import { PRODUCT_PERMISSIONS, ProductError } from "./constants.js";
 import { listItemUomConversions } from "./conversions.js";
@@ -85,22 +86,16 @@ export async function getItemWarehouseBalances(client, context, itemId) {
   return (await getItemInventorySummary(client, context, itemId)).warehouses;
 }
 
+// The item's latest stock movements: the Stock Ledger itself (one canonical query), seen here with the item's own View Stock permission.
 export async function getItemInventoryMovements(client, context, itemId, { limit = 50 } = {}) {
   requireProductPermission(context, PRODUCT_PERMISSIONS.viewStock, "You do not have permission to view item stock.");
   const product = toProduct(await loadProductRow(client, context, itemId));
   const cost = canViewProductCost(context);
-  const { rows } = await client.query(
-    `SELECT movement.id, movement.movement_number, movement.movement_type, movement.quantity, movement.unit_cost, movement.reference_type, movement.occurred_at,
-            warehouse.name AS warehouse_name, batch.batch_number, serial.serial_number
-       FROM tenant.stock_movements movement
-       LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = movement.organization_id AND warehouse.id = movement.warehouse_id
-       LEFT JOIN tenant.stock_batches batch ON batch.organization_id = movement.organization_id AND batch.id = movement.batch_id
-       LEFT JOIN tenant.stock_serials serial ON serial.organization_id = movement.organization_id AND serial.id = movement.serial_id
-      WHERE movement.organization_id = $1 AND movement.item_id = $2 ORDER BY movement.occurred_at DESC, movement.created_at DESC LIMIT ${Math.min(Math.max(Number(limit) || 50, 1), 500)}`,
-    [context.organizationId, product.id]);
-  return rows.map((row) => ({
-    id: row.id, number: row.movement_number, type: row.movement_type, quantity: num(row.quantity), uom: product.baseUom?.code ?? null, warehouse: row.warehouse_name,
-    batch: row.batch_number ?? null, serial: row.serial_number ?? null, reference: row.reference_type, occurredAt: row.occurred_at, ...(cost ? { unitCost: num(row.unit_cost) } : {}),
+  const ledger = await getStockLedger(client, { ...context, permissions: [...(context.permissions ?? []), "stock.ledger.view", ...(cost ? ["stock.ledger.view_cost"] : [])] },
+    { itemId: product.id, order: "desc", limit: Math.min(Math.max(Number(limit) || 50, 1), 500) });
+  return ledger.rows.map((row) => ({
+    id: row.id, number: row.number, type: row.typeLabel, quantity: row.quantity, uom: row.baseUom ?? product.baseUom?.code ?? null, warehouse: row.warehouseName, batch: row.batch, serial: row.serial,
+    reference: row.source.number, occurredAt: row.effectiveAt, ...(cost ? { unitCost: row.unitCost } : {}),
   }));
 }
 

@@ -4,19 +4,17 @@
 // goods rejected after they were received (after custody — against the posted goods receipt). The source chosen here only prefills; the
 // server checks what may be refused or rejected.
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
 import { ErrorState, PageHeader, Select } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcPanel } from "@/features/procurement/shared/ProcUi";
 
 import { getGoodsReceipt, getPurchaseOrder, listGoodsReceipts, listPurchaseOrders } from "../api/purchase-orders-api";
 import { DockRejectionDialog, ReceiptRejectionDialog } from "./RejectionScreens";
+import { Panel } from "@/shared/ui/Panel";
 
 export function NewReceivingIssueScreen({ purchaseOrderId, goodsReceiptId }: { purchaseOrderId?: string; goodsReceiptId?: string }) {
   const workspace = useWorkspaceContext();
@@ -32,9 +30,8 @@ export function NewReceivingIssueScreen({ purchaseOrderId, goodsReceiptId }: { p
   const back = () => router.push("/procurement/goods-receipts?view=receiving-issues");
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/goods-receipts?view=receiving-issues" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Receiving issues</Link>
       <PageHeader title="Report Receiving Issue" description="A refusal at the dock is recorded against the purchase order and creates no goods receipt; a rejection after receipt is recorded against the posted goods receipt. Neither moves stock twice." />
-      <ProcPanel title="What happened">
+      <Panel title="What happened">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="Custody stage" selectedKey={stage} onSelectionChange={(value) => setStage(String(value))}
             options={[{ value: "before_custody", label: "Refused at the dock (before custody)" }, { value: "after_custody", label: "Rejected after receipt (after custody)" }]} />
@@ -46,7 +43,7 @@ export function NewReceivingIssueScreen({ purchaseOrderId, goodsReceiptId }: { p
               options={(receipts.data ?? []).map((row) => ({ value: row.id, label: `${row.receiptNumber} · ${row.supplierName} · ${row.purchaseOrderNumber}` }))} />
           )}
         </div>
-      </ProcPanel>
+      </Panel>
       {(order.isLoading || receipt.isLoading) && <LoadingState label="Loading the document" />}
       {(order.isError || receipt.isError) && <ErrorState title="Could not load the document" description={((order.error ?? receipt.error) as Error | null)?.message} />}
       {stage === "before_custody" && order.data && <DockRejectionDialog orderId={order.data.order.id} lines={order.data.lines} onClose={back} onDone={done} />}

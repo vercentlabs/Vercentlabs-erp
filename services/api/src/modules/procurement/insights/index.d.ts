@@ -9,3 +9,5 @@ export interface ProcurementReport {
 export declare function getProcurementOverview(client: any, context: any): Promise<{ today: string; metrics: ProcurementMetric[]; attention: ProcurementAttentionItem[] }>;
 export declare function getProcurementReportCatalog(context: any): Array<{ key: string; title: string; description: string }>;
 export declare function getProcurementReport(client: any, context: any, name: string, filters?: Record<string, unknown>): Promise<ProcurementReport>;
+export declare const INVOICE_MATCHING_VIEWS: ReadonlyArray<{ key: string; label: string }>;
+export declare function getInvoiceMatchingWorkbench(client: any, context: any, filters?: Record<string, unknown>): Promise<Record<string, unknown>>;

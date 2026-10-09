@@ -48,27 +48,6 @@ const qs = (params: Record<string, string | undefined>) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Row = { id: string } & Record<string, any>;
 
-export const listMaster = (
-  resource: string,
-  params: Record<string, string | undefined> = {},
-) => call<{ rows: Row[]; total: number }>(`/master/${resource}${qs(params)}`);
-export const createMaster = (
-  resource: string,
-  input: Record<string, unknown>,
-) =>
-  call<{ record: Row }>(`/master/${resource}`, {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-export const updateMaster = (
-  resource: string,
-  id: string,
-  input: Record<string, unknown>,
-) =>
-  call<{ record: Row }>(`/master/${resource}/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify(input),
-  });
 export const readStock = <T = { rows: Row[] }>(
   kind: string,
   params: Record<string, string | undefined> = {},
@@ -83,7 +62,7 @@ export const act = <T = { record: Row }>(
   });
 
 export type InvOptions = {
-  items: Array<{ id: string; code: string; name: string; uom_id?: string; base_uom?: string | null; units?: Array<{ uomId: string; code: string; factor: string; decimals: number }> }>;
+  items: Array<{ id: string; code: string; name: string; uom_id?: string; tracking_type?: "none" | "batch" | "serial"; requires_expiry_date?: boolean; base_uom?: string | null; units?: Array<{ uomId: string; code: string; factor: string; decimals: number }> }>;
   warehouses: Array<{ id: string; code: string; name: string }>;
   locations: Array<{
     id: string;
@@ -92,6 +71,10 @@ export type InvOptions = {
     warehouse_id: string;
   }>;
   batches: Array<{ id: string; code: string; name: string; item_id: string }>;
+  // The user's preferred warehouse, else the company default: where new stock documents start.
+  defaultWarehouseId: string | null;
+  // Per item and warehouse: on hand and what is available now (eligible on hand less reservations), in the base unit.
+  availability: Array<{ item_id: string; warehouse_id: string; on_hand: number; available: number }>;
 };
 
 // Names for pickers, and for the ids stored on documents.

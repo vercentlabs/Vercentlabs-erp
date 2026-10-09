@@ -6,15 +6,15 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Download, Eye, Pencil, Send, Truck } from "lucide-react";
+import { Download, Eye, Pencil, Send, Truck } from "lucide-react";
 import {
   Button, Dialog, ErrorState, LinkButton, MetricStrip, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField, buttonVariants,
 } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
+import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcFacts, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, dateTime, money, quantity, statusLabel, statusTone } from "@/features/procurement/shared/format";
 
 import {
@@ -29,12 +29,13 @@ import { DockRejectionDialog, RejectionTable } from "./RejectionScreens";
 import { getOrderBilling } from "@/features/procurement/supplier-bills/api/supplier-bills-api";
 import { MatchBadge } from "@/features/procurement/supplier-bills/screens/TwoWayMatching";
 import { useTabParam } from "@/features/procurement/shared/navigation";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 type DialogName = "confirm" | "amend" | "cancel" | "cancelRemaining" | "close" | "send" | "markSent" | "acknowledge" | "dates" | "rejection";
 const addressText = (address: Address | null | undefined) =>
   address ? [address.label, address.line1, address.line2, [address.city, address.stateName ?? address.state, address.postalCode].filter(Boolean).join(", ")].filter(Boolean).join(" · ") : "—";
 
-const ORDER_TABS = ["overview", "items", "receipts", "rejections", "bills", "returns-credits", "notes", "history"] as const;
+const ORDER_TABS = ["overview", "items", "receipts", "rejections", "bills", "returns-credits", "related", "notes", "history"] as const;
 
 export function PurchaseOrderDetailScreen({ orderId }: { orderId: string }) {
   const workspace = useWorkspaceContext();
@@ -68,11 +69,10 @@ function Detail({ detail, options, notice, onChanged }: { detail: PurchaseOrderD
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/purchase-orders" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />All purchase orders</Link>
-      {notice && <ProcAlert tone="success">{notice}</ProcAlert>}
-      {order.amending && <ProcAlert tone="warning">Being amended: {order.amendmentReason}. Version {order.versionNumber} stays in force until the amendment is confirmed.</ProcAlert>}
-      {order.status === "cancelled" && <ProcAlert tone="warning">Cancelled{order.cancelledAt ? ` on ${dateTime(order.cancelledAt)}` : ""}{order.cancelledByName ? ` by ${order.cancelledByName}` : ""}: {options.cancelReasons.find((entry) => entry.code === order.cancelReasonCode)?.label ?? order.cancelReasonCode}{order.cancelReason ? ` (${order.cancelReason})` : ""}.</ProcAlert>}
-      {order.status === "closed" && <ProcAlert tone="success">Closed{order.closedAt ? ` on ${dateTime(order.closedAt)}` : ""}{order.closedByName ? ` by ${order.closedByName}` : ""}. {tracking.payment !== "paid" && tracking.payment !== "no_payable" ? "Payment of its bills is with Finance." : ""}</ProcAlert>}
+      {notice && <Notice tone="success">{notice}</Notice>}
+      {order.amending && <Notice tone="warning">Being amended: {order.amendmentReason}. Version {order.versionNumber} stays in force until the amendment is confirmed.</Notice>}
+      {order.status === "cancelled" && <Notice tone="warning">Cancelled{order.cancelledAt ? ` on ${dateTime(order.cancelledAt)}` : ""}{order.cancelledByName ? ` by ${order.cancelledByName}` : ""}: {options.cancelReasons.find((entry) => entry.code === order.cancelReasonCode)?.label ?? order.cancelReasonCode}{order.cancelReason ? ` (${order.cancelReason})` : ""}.</Notice>}
+      {order.status === "closed" && <Notice tone="success">Closed{order.closedAt ? ` on ${dateTime(order.closedAt)}` : ""}{order.closedByName ? ` by ${order.closedByName}` : ""}. {tracking.payment !== "paid" && tracking.payment !== "no_payable" ? "Payment of its bills is with Finance." : ""}</Notice>}
       <RecordDetailsPage
         header={{
           title: `${order.purchaseOrderNumber}${order.versionNumber > 1 ? ` · version ${order.versionNumber}` : ""}`,
@@ -124,6 +124,7 @@ function Detail({ detail, options, notice, onChanged }: { detail: PurchaseOrderD
             {detail.rejections && <Tab id="rejections">Rejections &amp; Discrepancies{detail.rejections.summary.open ? ` (${detail.rejections.summary.open})` : ""}</Tab>}
             <Tab id="bills">Supplier Bills</Tab>
             <Tab id="returns-credits">Returns &amp; Credits</Tab>
+            <Tab id="related">Related</Tab>
             <Tab id="notes">Notes &amp; Attachments</Tab>
             <Tab id="history">History</Tab>
           </TabList>
@@ -134,6 +135,7 @@ function Detail({ detail, options, notice, onChanged }: { detail: PurchaseOrderD
           <TabPanel id="bills"><div className="pt-4"><Bills detail={detail} /></div></TabPanel>
           <TabPanel id="returns-credits"><div className="pt-4"><Returns detail={detail} /></div></TabPanel>
           <TabPanel id="notes"><div className="flex flex-col gap-4 pt-4"><Notes detail={detail} onChanged={onChanged} /></div></TabPanel>
+          <TabPanel id="related"><div className="pt-4"><RelatedDocuments type="purchase_order" id={detail.order.id} /></div></TabPanel>
           <TabPanel id="history"><div className="pt-4"><History detail={detail} /></div></TabPanel>
         </Tabs>
       </RecordDetailsPage>
@@ -169,12 +171,12 @@ function Overview({ detail }: { detail: PurchaseOrderDetail }) {
         ]} />
       )}
       {tracking.closureBlockers.length > 0 && order.status === "confirmed" && (
-        <ProcPanel title="Before it can be closed" description="Closing needs nothing left to receive or bill.">
+        <Panel title="Before it can be closed" description="Closing needs nothing left to receive or bill.">
           <ul className="list-disc pl-5 text-sm text-text-secondary">{tracking.closureBlockers.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-        </ProcPanel>
+        </Panel>
       )}
-      <ProcPanel title="Commercial summary" description="As agreed with the supplier. Confirmed versions keep these values even if the supplier, products or tax rates change later.">
-        <ProcFacts columns={3} items={[
+      <Panel title="Commercial summary" description="As agreed with the supplier. Confirmed versions keep these values even if the supplier, products or tax rates change later.">
+        <Facts columns={3} items={[
           { label: "Subtotal", value: money(currency, order.grossTotal) },
           { label: "Discounts", value: money(currency, Number(order.lineDiscountTotal) + Number(order.documentDiscountAmount)) },
           { label: "Taxable value", value: money(currency, order.taxableTotal) },
@@ -185,9 +187,9 @@ function Overview({ detail }: { detail: PurchaseOrderDetail }) {
           { label: "Supplier reference", value: order.supplierReference ?? "—" },
           { label: "Supplier quotation", value: order.sourceQuotationId ? <Link className="text-brand hover:underline" href={`/procurement/purchase-orders/quotations/${order.sourceQuotationId}`}>{order.sourceQuotationNumber}</Link> : order.supplierQuotationReference ?? "—" },
         ]} />
-      </ProcPanel>
-      <ProcPanel title="Supplier">
-        <ProcFacts columns={2} items={[
+      </Panel>
+      <Panel title="Supplier">
+        <Facts columns={2} items={[
           { label: "Supplier", value: `${order.supplier?.supplierName ?? order.supplierName} · ${order.supplierNumber}` },
           { label: "GST registration", value: order.supplierTaxRegistration?.gstin ? `${order.supplierTaxRegistration.gstin}${order.supplierTaxRegistration.stateName ? ` · ${order.supplierTaxRegistration.stateName}` : ""}` : "Unregistered" },
           { label: "Contact", value: order.contact ? [order.contact.name, order.contact.email, order.contact.phone].filter(Boolean).join(" · ") : "—" },
@@ -195,17 +197,17 @@ function Overview({ detail }: { detail: PurchaseOrderDetail }) {
           { label: "Billing address", value: addressText(order.billingAddress) },
           { label: "Ships from", value: addressText(order.shipFrom) },
         ]} />
-      </ProcPanel>
-      <ProcPanel title="Buying company and delivery">
-        <ProcFacts columns={2} items={[
+      </Panel>
+      <Panel title="Buying company and delivery">
+        <Facts columns={2} items={[
           { label: "Placed from", value: order.buyerRegistration ? `${order.buyerRegistration.legalName ?? order.buyerRegistration.name ?? ""}${order.buyerRegistration.gstin ? ` · GSTIN ${order.buyerRegistration.gstin}` : ""}` : "—" },
           { label: "Bill to", value: order.billTo ? [order.billTo.name, order.billTo.line1].filter(Boolean).join(" · ") : "—" },
           { label: "Ship to", value: order.shipTo ? addressText(order.shipTo) : "Company address" },
           { label: "Receiving warehouse", value: order.defaultWarehouseName ?? "—" },
         ]} />
-      </ProcPanel>
+      </Panel>
       {detail.confirmations.length > 0 && (
-        <ProcPanel title="Confirmed versions" description="Each confirmation is kept exactly as it was authorised.">
+        <Panel title="Confirmed versions" description="Each confirmation is kept exactly as it was authorised.">
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.confirmations.map((entry) => (
               <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -216,17 +218,17 @@ function Overview({ detail }: { detail: PurchaseOrderDetail }) {
               </li>
             ))}
           </ul>
-        </ProcPanel>
+        </Panel>
       )}
       {detail.communications.length > 0 && (
-        <ProcPanel title="Sent to the supplier">
+        <Panel title="Sent to the supplier">
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.communications.map((entry) => (
               <li key={entry.id} className="py-2">{entry.kind === "acknowledged" ? "Acknowledged" : `Sent (${entry.channel.replace(/_/g, " ")})`} · version {entry.version} · {dateTime(entry.at)}{entry.by ? ` by ${entry.by}` : ""}
                 {(entry.recipients || entry.note) && <span className="block text-xs text-text-muted">{[entry.recipients, entry.note].filter(Boolean).join(" · ")}</span>}</li>
             ))}
           </ul>
-        </ProcPanel>
+        </Panel>
       )}
     </>
   );
@@ -237,7 +239,7 @@ function Items({ detail }: { detail: PurchaseOrderDetail }) {
   const currency = detail.order.currencyCode;
   const executing = !["draft", "cancelled"].includes(detail.order.status);
   return (
-    <ProcPanel title="Items" description={executing ? "Select a line to see the receipts and bills behind its figures." : undefined}>
+    <Panel title="Items" description={executing ? "Select a line to see the receipts and bills behind its figures." : undefined}>
       <ul className="flex flex-col divide-y divide-border">
         {detail.lines.map((line: OrderLine) => (
           <li key={line.id} className="py-3">
@@ -264,7 +266,7 @@ function Items({ detail }: { detail: PurchaseOrderDetail }) {
             </button>
             {open === line.id && line.progress && (
               <div className="mt-2 grid grid-cols-1 gap-3 rounded-[var(--radius-control)] bg-surface-muted p-3 text-sm sm:grid-cols-3">
-                <ProcFacts columns={2} items={[
+                <Facts columns={2} items={[
                   { label: "Ordered", value: quantity(line.progress.ordered) },
                   { label: "Received", value: line.progress.receiptRequired ? `${quantity(line.progress.received)}${Number(line.progress.held) > 0 ? ` (${quantity(line.progress.held)} on hold)` : ""}` : "Not required" },
                   { label: "Rejected at receipt", value: quantity(line.progress.rejected) },
@@ -292,7 +294,7 @@ function Items({ detail }: { detail: PurchaseOrderDetail }) {
           </li>
         ))}
       </ul>
-    </ProcPanel>
+    </Panel>
   );
 }
 
@@ -304,7 +306,7 @@ function Rejections({ detail, onRecord }: { detail: PurchaseOrderDetail; onRecor
   const cases = detail.rejections?.cases ?? [];
   return (
     <>
-      <ProcPanel title="Rejection summary" description={`${detail.rejections?.summary.open ?? 0} open · ${detail.rejections?.summary.resolved ?? 0} resolved. Refused goods do not count as received; rejected goods stay received.`}
+      <Panel title="Rejection summary" description={`${detail.rejections?.summary.open ?? 0} open · ${detail.rejections?.summary.resolved ?? 0} resolved. Refused goods do not count as received; rejected goods stay received.`}
         actions={detail.actions.recordRejection ? <Button size="compact" variant="secondary" onPress={onRecord}>Record rejection</Button> : undefined}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -328,10 +330,10 @@ function Rejections({ detail, onRecord }: { detail: PurchaseOrderDetail; onRecor
             </tbody>
           </table>
         </div>
-      </ProcPanel>
-      <ProcPanel title="Rejection cases">
+      </Panel>
+      <Panel title="Rejection cases">
         <RejectionTable rows={cases} empty="Nothing has been refused or rejected on this order." />
-      </ProcPanel>
+      </Panel>
     </>
   );
 }
@@ -340,7 +342,7 @@ function Receipts({ detail }: { detail: PurchaseOrderDetail }) {
   const goods = detail.lines.filter((line) => line.progress?.receiptRequired);
   return (
     <>
-    <ProcPanel title="Receipt summary" description={detail.tracking.receivingComplete ? "Receiving is complete." : "Received from posted goods receipts; cancelled quantities are no longer owed."}
+    <Panel title="Receipt summary" description={detail.tracking.receivingComplete ? "Receiving is complete." : "Received from posted goods receipts; cancelled quantities are no longer owed."}
       actions={detail.actions.receive ? <LinkButton size="compact" variant="primary" href={`/procurement/goods-receipts/new?purchaseOrderId=${detail.order.id}`}>Create Goods Receipt</LinkButton> : undefined}>
       {!goods.length ? <p className="text-sm text-text-muted">Nothing on this order is received physically.</p> : (
         <div className="overflow-x-auto">
@@ -365,8 +367,8 @@ function Receipts({ detail }: { detail: PurchaseOrderDetail }) {
         </div>
       )}
       {goods.some((line) => Number(line.progress!.draftReceipt) > 0) && <p className="text-xs text-warning">Draft receipts hold {goods.filter((line) => Number(line.progress!.draftReceipt) > 0).map((line) => `${quantity(line.progress!.draftReceipt)} ${line.uom.code} of ${line.description}`).join(", ")}; they count only once posted.</p>}
-    </ProcPanel>
-    <ProcPanel title="Previous goods receipts" description="Each delivery is its own receipt; its stock moved when it was posted.">
+    </Panel>
+    <Panel title="Previous goods receipts" description="Each delivery is its own receipt; its stock moved when it was posted.">
       {!detail.related.receipts.length ? <p className="text-sm text-text-muted">Nothing received yet.</p> : (
         <ul className="flex flex-col divide-y divide-border text-sm">
           {detail.related.receipts.map((receipt) => (
@@ -380,7 +382,7 @@ function Receipts({ detail }: { detail: PurchaseOrderDetail }) {
           ))}
         </ul>
       )}
-    </ProcPanel>
+    </Panel>
     </>
   );
 }
@@ -399,10 +401,10 @@ function PaymentTermsPanel({ detail }: { detail: PurchaseOrderDetail }) {
   if (!view) return null;
   const c = (value: string | null | undefined) => money(detail.order.currencyCode, value);
   return (
-    <ProcPanel title="Payment terms" description="Agreed with the supplier and kept as confirmed. The bill's payment schedule comes from them; the order itself owes nothing until a bill is posted."
+    <Panel title="Payment terms" description="Agreed with the supplier and kept as confirmed. The bill's payment schedule comes from them; the order itself owes nothing until a bill is posted."
       actions={view.actions.recordAdvance ? <Button size="compact" variant="secondary" onPress={() => setOpen(true)}>Record advance</Button> : undefined}>
-      {view.statutory?.exceeds && <ProcAlert tone="warning">{view.statutory.message}</ProcAlert>}
-      <ProcFacts columns={3} items={[
+      {view.statutory?.exceeds && <Notice tone="warning">{view.statutory.message}</Notice>}
+      <Facts columns={3} items={[
         { label: "Payment term", value: view.paymentTerm ? `${view.paymentTerm.name}${view.paymentTerm.version > 1 ? ` (v${view.paymentTerm.version})` : ""}` : "—" },
         { label: "Payment agreement", value: view.paymentTerm?.summary ?? "—" },
         { label: "Counted", value: view.paymentAgreement ?? "—" },
@@ -421,7 +423,7 @@ function PaymentTermsPanel({ detail }: { detail: PurchaseOrderDetail }) {
       {open && (
         <Dialog isOpen onOpenChange={(value) => !value && setOpen(false)} title="Record the supplier advance" description={`Finance pays the advance the terms expect (${c(view.advance?.remaining)} still to pay). It is applied to the bill when the bill posts.`} size="md">
           <div className="flex flex-col gap-3">
-            {record.error && <ProcAlert>{record.error instanceof Error ? record.error.message : "Could not record the advance."}</ProcAlert>}
+            {record.error && <Notice>{record.error instanceof Error ? record.error.message : "Could not record the advance."}</Notice>}
             <TextField label="Amount" inputMode="decimal" value={values.amount} onChange={(value) => setValues((current) => ({ ...current, amount: value }))} />
             <TextField label="Payment date" type="date" value={values.paymentDate} onChange={(value) => setValues((current) => ({ ...current, paymentDate: value }))} description="Today if empty." />
             <TextField label="Bank reference" value={values.reference} onChange={(value) => setValues((current) => ({ ...current, reference: value }))} />
@@ -430,7 +432,7 @@ function PaymentTermsPanel({ detail }: { detail: PurchaseOrderDetail }) {
           </div>
         </Dialog>
       )}
-    </ProcPanel>
+    </Panel>
   );
 }
 
@@ -444,13 +446,13 @@ function MatchingPolicy({ detail, label }: { detail: PurchaseOrderDetail; label:
   const change = useMutation({ mutationFn: () => orderAction(detail.order.id, "matching-policy", { policy, reason }),
     onSuccess: () => { setOpen(false); setReason(""); void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement") }); } });
   return (
-    <ProcPanel title="Matching policy" description="How this order's supplier bills are matched: 3-Way against posted goods receipts, or 2-Way against the order alone (billing before receipt). Fixed when the order was confirmed."
+    <Panel title="Matching policy" description="How this order's supplier bills are matched: 3-Way against posted goods receipts, or 2-Way against the order alone (billing before receipt). Fixed when the order was confirmed."
       actions={detail.actions.changeMatchingPolicy ? <Button size="compact" variant="ghost" onPress={() => setOpen(true)}>Change policy</Button> : undefined}>
       <p className="text-sm"><span className="font-medium">{label}</span>{detail.order.matchingPolicyReason ? <span className="text-text-secondary"> — {detail.order.matchingPolicyReason}</span> : null}</p>
       {open && (
         <Dialog isOpen onOpenChange={(value) => !value && setOpen(false)} title="Change the matching policy" description="Draft bills are matched again under the new policy; posted bills keep the policy they were posted with. The change and your reason are kept on the order." size="lg">
           <div className="flex flex-col gap-3">
-            {change.error && <ProcAlert>{change.error instanceof Error ? change.error.message : "Could not change the policy."}</ProcAlert>}
+            {change.error && <Notice>{change.error instanceof Error ? change.error.message : "Could not change the policy."}</Notice>}
             <Select label="Matching policy" selectedKey={policy} onSelectionChange={(value) => setPolicy(String(value))}
               options={[{ value: "three_way_accepted", label: "3-Way — acceptance required" }, { value: "three_way_received", label: "3-Way — physical receipt" }, { value: "two_way", label: "2-Way — PO-based billing (before receipt)" }]} />
             <TextArea label="Business reason (at least a sentence)" value={reason} onChange={setReason} />
@@ -459,7 +461,7 @@ function MatchingPolicy({ detail, label }: { detail: PurchaseOrderDetail; label:
           </div>
         </Dialog>
       )}
-    </ProcPanel>
+    </Panel>
   );
 }
 
@@ -479,7 +481,7 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
     <div className="flex flex-col gap-4">
       <PaymentTermsPanel detail={detail} />
       <MatchingPolicy detail={detail} label={billing.matchingPolicy.label} />
-      <ProcPanel title="Billing progress" description={`Only posted bills count as billed. Matching: ${billing.matchingPolicy.label}.`}
+      <Panel title="Billing progress" description={`Only posted bills count as billed. Matching: ${billing.matchingPolicy.label}.`}
         actions={createAction}>
         <div className="flex flex-wrap items-center gap-2"><BillingBadge status={billing.status} />
           <span className="text-sm text-text-secondary">{quantity(billing.totals.billed)} of the original {quantity(billing.totals.ordered)} billed
@@ -494,9 +496,9 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
           { label: "Committed", value: quantity(billing.totals.committed) }, { label: "Billed", value: quantity(billing.totals.billed) },
           { label: "Remaining commitment", value: quantity(billing.totals.remainingCommitment) }, { label: "Eligible to bill now", value: quantity(billing.totals.eligibleNow) },
         ]} />
-        {billing.warnings.map((warning) => <ProcAlert key={warning} tone="warning">{warning}</ProcAlert>)}
-      </ProcPanel>
-      <ProcPanel title="Billing by item">
+        {billing.warnings.map((warning) => <Notice key={warning} tone="warning">{warning}</Notice>)}
+      </Panel>
+      <Panel title="Billing by item">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-text-muted">
@@ -515,9 +517,9 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
             </tbody>
           </table>
         </div>
-      </ProcPanel>
+      </Panel>
       {billing.bills && (
-        <ProcPanel title="Related supplier bills" description="Each bill is its own payable with its own due date; payments come from Finance.">
+        <Panel title="Related supplier bills" description="Each bill is its own payable with its own due date; payments come from Finance.">
           {!billing.bills.length ? <p className="text-sm text-text-muted">No bills yet.</p> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -547,10 +549,10 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
           {billing.payments && billing.payments.bills > 0 && (
             <p className="text-sm text-text-secondary">From Accounts Payable: {money(currency, billing.payments.payable)} payable, {money(currency, billing.payments.paid)} paid, {money(currency, billing.payments.outstanding)} outstanding.</p>
           )}
-        </ProcPanel>
+        </Panel>
       )}
       {billing.matching && (
-        <ProcPanel title="Matching results" description="2-Way Matching of the order's bills: each bill against the order's agreed quantities, prices and discounts.">
+        <Panel title="Matching results" description="2-Way Matching of the order's bills: each bill against the order's agreed quantities, prices and discounts.">
           <div className="flex flex-wrap gap-3 text-sm">
             {(["matched", "mismatch", "approved_exception", "not_checked"] as const).map((result) => (
               <span key={result} className="flex items-center gap-1"><MatchBadge result={result} /><span className="tabular-nums">{billing.matching?.counts[result] ?? 0}</span></span>
@@ -564,9 +566,9 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
               ))}
             </ul>
           )}
-        </ProcPanel>
+        </Panel>
       )}
-      <ProcPanel title="Pending billing" description="What the order still commits that the supplier has not invoiced yet.">
+      <Panel title="Pending billing" description="What the order still commits that the supplier has not invoiced yet.">
         {!pending.length ? <p className="text-sm text-text-muted">Nothing left to bill.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {pending.map((line) => (
@@ -578,7 +580,7 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
             ))}
           </ul>
         )}
-      </ProcPanel>
+      </Panel>
     </div>
   );
 }
@@ -586,7 +588,7 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
 function Returns({ detail }: { detail: PurchaseOrderDetail }) {
   return (
     <>
-      <ProcPanel title="Purchase returns" description="Goods sent back after receipt. The original receipt is kept and the order is not reopened; a replacement is its own purchase order."
+      <Panel title="Purchase returns" description="Goods sent back after receipt. The original receipt is kept and the order is not reopened; a replacement is its own purchase order."
         actions={detail.actions.returnGoods ? <LinkButton size="compact" variant="secondary" href={`/procurement/purchase-returns/new?purchaseOrderId=${detail.order.id}`}>Create Purchase Return</LinkButton> : undefined}>
         {!detail.related.returns.length ? <p className="text-sm text-text-muted">No returns.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
@@ -601,9 +603,9 @@ function Returns({ detail }: { detail: PurchaseOrderDetail }) {
             ))}
           </ul>
         )}
-      </ProcPanel>
+      </Panel>
       <div className="h-4" />
-      <ProcPanel title="Vendor credits" description="The supplier's credits correcting this order's bills; a return does not post one by itself.">
+      <Panel title="Vendor credits" description="The supplier's credits correcting this order's bills; a return does not post one by itself.">
         {!detail.related.vendorCredits.length ? <p className="text-sm text-text-muted">None.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.related.vendorCredits.map((note) => (
@@ -612,7 +614,7 @@ function Returns({ detail }: { detail: PurchaseOrderDetail }) {
             ))}
           </ul>
         )}
-      </ProcPanel>
+      </Panel>
     </>
   );
 }
@@ -628,7 +630,7 @@ function Related({ detail }: { detail: PurchaseOrderDetail }) {
     { title: "Payments", items: related.payments.map((entry) => ({ id: entry.id, number: entry.number, href: entry.href, extra: money(entry.currencyCode, entry.amount) })) },
   ];
   return (
-    <ProcPanel title="Related documents">
+    <Panel title="Related documents">
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         {groups.map((group) => (
           <div key={group.title}>
@@ -639,7 +641,7 @@ function Related({ detail }: { detail: PurchaseOrderDetail }) {
           </div>
         ))}
       </dl>
-    </ProcPanel>
+    </Panel>
   );
 }
 
@@ -654,16 +656,16 @@ function Notes({ detail, onChanged }: { detail: PurchaseOrderDetail; onChanged: 
   const remove = useMutation({ mutationFn: (fileId: string) => removeOrderFile(detail.order.id, fileId), onSuccess: refresh });
   return (
     <>
-      <ProcPanel title="Notes for the supplier" description="Printed on the purchase order."><p className="whitespace-pre-line text-sm">{detail.order.supplierNotes ?? <span className="text-text-muted">None</span>}</p></ProcPanel>
-      <ProcPanel title="Internal notes" description="Never shown to the supplier."><p className="whitespace-pre-line text-sm">{detail.order.internalNotes ?? <span className="text-text-muted">None</span>}</p></ProcPanel>
-      <ProcPanel title="Attachments" description="Quotations, specifications, drawings, contracts and correspondence. Never sent with the order. Emailed PDFs are kept here too."
+      <Panel title="Notes for the supplier" description="Printed on the purchase order."><p className="whitespace-pre-line text-sm">{detail.order.supplierNotes ?? <span className="text-text-muted">None</span>}</p></Panel>
+      <Panel title="Internal notes" description="Never shown to the supplier."><p className="whitespace-pre-line text-sm">{detail.order.internalNotes ?? <span className="text-text-muted">None</span>}</p></Panel>
+      <Panel title="Attachments" description="Quotations, specifications, drawings, contracts and correspondence. Never sent with the order. Emailed PDFs are kept here too."
         actions={detail.actions.attach ? (
           <>
             <input ref={input} type="file" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
             <Button size="compact" variant="secondary" isLoading={upload.isPending} onPress={() => input.current?.click()}>Add file</Button>
           </>
         ) : undefined}>
-        {(upload.error || remove.error) && <ProcAlert>{errorMessage(upload.error ?? remove.error)}</ProcAlert>}
+        {(upload.error || remove.error) && <Notice>{errorMessage(upload.error ?? remove.error)}</Notice>}
         {files.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : !files.data?.length ? <p className="text-sm text-text-muted">No files.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {files.data.map((file) => (
@@ -675,14 +677,14 @@ function Notes({ detail, onChanged }: { detail: PurchaseOrderDetail; onChanged: 
             ))}
           </ul>
         )}
-      </ProcPanel>
+      </Panel>
     </>
   );
 }
 
 function History({ detail }: { detail: PurchaseOrderDetail }) {
   return (
-    <ProcPanel title="Timeline" description="Confirmations, amendments, sending, receipts, bills, cancellations, returns and closure.">
+    <Panel title="Timeline" description="Confirmations, amendments, sending, receipts, bills, cancellations, returns and closure.">
       <ol className="flex flex-col divide-y divide-border text-sm">
         {detail.history.map((entry) => (
           <li key={entry.id} className="grid grid-cols-1 gap-x-3 gap-y-0.5 py-2 sm:grid-cols-[11rem_minmax(0,1fr)]">
@@ -691,6 +693,6 @@ function History({ detail }: { detail: PurchaseOrderDetail }) {
           </li>
         ))}
       </ol>
-    </ProcPanel>
+    </Panel>
   );
 }

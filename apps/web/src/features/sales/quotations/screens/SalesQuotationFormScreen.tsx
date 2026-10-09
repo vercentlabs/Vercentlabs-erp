@@ -10,7 +10,6 @@ import {
   ErrorState,
   IconButton,
   NumberField,
-  PageHeader,
   Select,
   TextArea,
   TextField,
@@ -31,10 +30,6 @@ import {
   defaultLineDescription,
   defaultLineUom,
 } from "@/features/sales/shared/document-defaults";
-import {
-  SalesAlert,
-  SalesPanel,
-} from "@/features/sales/shared/SalesUi";
 import { AUTOMATIC_TAX, DocumentTaxPanel, taxDraftOf, taxInput, type DocumentTaxDraft } from "@/features/sales/shared/DocumentTax";
 import {
   DocumentDiscountPanel,
@@ -56,6 +51,9 @@ import {
   type SalesQuotationDetail,
 } from "@/features/sales/quotations/api/quotations-api";
 import { useSubmitKey } from "@/shared/http/submit-once";
+import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
+import { FormSection } from "@/shared/ui/FormSection";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 type LineDraft = {
   key: number;
@@ -580,24 +578,31 @@ function FormBody({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title={
+    <>
+    <DocumentFormPage
+      header={{
+        title: 
           editing
             ? `Edit ${existing?.quotation.quotation_number}`
             : "New quotation"
-        }
-        description={
+        ,
+        description: 
           editing
             ? "A draft can be changed until it is confirmed. Each save is kept in the quotation's history."
             : "Build a priced offer for a customer. Totals update as you edit and are calculated by the server."
-        }
-        secondaryActions={
+        ,
+      }}
+      banner={<div className="flex flex-col gap-3">
+        {error && <Notice>{error}</Notice>}
+      </div>}
+      formActions={
+        <>
+          {
           <Button variant="secondary" onPress={onCancel}>
             Cancel
           </Button>
         }
-        primaryAction={
+          {
           <Button
             variant="primary"
             onPress={() => saveMutation.mutate()}
@@ -607,13 +612,24 @@ function FormBody({
             {editing ? "Save changes" : "Save draft"}
           </Button>
         }
-      />
+        </>
+      }
+      aside={<>
+        <Panel title="Totals" description="Calculated by the server.">
+            {previewError ? (
+              <Notice tone="warning">{previewError}</Notice>
+            ) : !preview ? (
+              <p className="text-sm text-text-muted">
+                Choose a customer and add an item to see pricing.
+              </p>
+            ) : (
+              <DocumentTotals currencyCode={currencyCode} preview={preview} />
+            )}
+          </Panel>
+      </>}
+    >
 
-      {error && <SalesAlert>{error}</SalesAlert>}
-
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <SalesPanel title="Customer & terms">
+          <FormSection columns={1} title="Customer & terms">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select
                 label="Customer"
@@ -734,9 +750,9 @@ function FormBody({
                 />
               )}
             </div>
-          </SalesPanel>
+          </FormSection>
 
-          <SalesPanel title="Delivery">
+          <FormSection columns={1} title="Delivery">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <TextField
                 label="Shipping method"
@@ -754,11 +770,11 @@ function FormBody({
                 onChange={setIncoterm}
               />
             </div>
-          </SalesPanel>
+          </FormSection>
 
           <DocumentTaxPanel tax={options.tax} value={documentTax} onChange={setDocumentTax} preview={preview} />
 
-          <SalesPanel
+          <FormSection columns={1}
             title="Items"
             actions={
               <Button
@@ -909,9 +925,9 @@ function FormBody({
                 );
               })}
             </div>
-          </SalesPanel>
+          </FormSection>
 
-          <SalesPanel
+          <FormSection columns={1}
             title="Charges"
             description="Freight, handling and other charges."
             actions={
@@ -1001,7 +1017,7 @@ function FormBody({
                 </IconButton>
               </div>
             ))}
-          </SalesPanel>
+          </FormSection>
 
           <DocumentDiscountPanel
             discounts={options.discounts}
@@ -1012,7 +1028,7 @@ function FormBody({
             hasAnyDiscount={documentDiscount.value > 0 || lines.some((line) => line.discountValue > 0)}
           />
 
-          <SalesPanel title="Notes & terms">
+          <FormSection columns={1} title="Notes & terms">
             <TextArea
               label="Notes for the customer"
               value={customerNotes}
@@ -1028,24 +1044,9 @@ function FormBody({
               value={internalNotes}
               onChange={setInternalNotes}
             />
-          </SalesPanel>
-        </div>
-
-        <div className="flex flex-col gap-4 lg:sticky lg:top-4">
-          <SalesPanel title="Totals" description="Calculated by the server.">
-            {previewError ? (
-              <SalesAlert tone="warning">{previewError}</SalesAlert>
-            ) : !preview ? (
-              <p className="text-sm text-text-muted">
-                Choose a customer and add an item to see pricing.
-              </p>
-            ) : (
-              <DocumentTotals currencyCode={currencyCode} preview={preview} />
-            )}
-          </SalesPanel>
-        </div>
-      </div>
-      <CustomerQuickCreateDialog
+          </FormSection>
+    </DocumentFormPage>
+    <CustomerQuickCreateDialog
         isOpen={creatingCustomer}
         onClose={() => setCreatingCustomer(false)}
         onCreated={(customer) => {
@@ -1065,6 +1066,6 @@ function FormBody({
           setPendingPriceList(null);
         }}
       />
-    </div>
+    </>
   );
 }

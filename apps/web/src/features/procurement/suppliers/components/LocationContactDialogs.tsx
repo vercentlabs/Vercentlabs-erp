@@ -9,12 +9,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, Checkbox, CheckboxGroup, Dialog, Select, TextField } from "@vercentlabs/design-system";
 
 import { useSubmitKey } from "@/shared/http/submit-once";
-import { ProcAlert } from "@/features/procurement/shared/ProcUi";
 
 import {
   addAddress, addContact, addRegistration, checkAddressDuplicates, checkContactDuplicates, errorMessage, fieldIssuesOf, updateAddress, updateContact,
   type AddressMatch, type ContactMatch, type SupplierAddress, type SupplierContact, type SupplierOptions, type TaxRegistration,
 } from "../api/suppliers-api";
+import { Notice } from "@/shared/ui/Panel";
 
 const NEW_GSTIN = "__new__";
 const NONE = "none";
@@ -85,10 +85,10 @@ export function AddressDialog({ supplierId, countryCode, address, registrations,
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={address ? `Edit ${address.label}` : "Add address"}
       description="One place can serve several purposes. Documents that used this address keep the address they used.">
       <div className="flex flex-col gap-3">
-        {save.error && <ProcAlert>{errorMessage(save.error)}</ProcAlert>}
+        {save.error && <Notice>{errorMessage(save.error)}</Notice>}
         {matches.length > 0 && (
-          <ProcAlert tone="warning">This place may already be on file: {matches.map((match) => `${match.label} (${match.reason.toLowerCase()}${match.status !== "active" ? ", inactive" : ""})`).join(", ")}.
-            Add it only if it is a different location.</ProcAlert>
+          <Notice tone="warning">This place may already be on file: {matches.map((match) => `${match.label} (${match.reason.toLowerCase()}${match.status !== "active" ? ", inactive" : ""})`).join(", ")}.
+            Add it only if it is a different location.</Notice>
         )}
         {field("label", "Label", { isRequired: true, description: "What people call it, like Nashik Plant or Pune Head Office." })}
         <CheckboxGroup label="Used for" value={purposes} onChange={setPurposes} orientation="horizontal" errorMessage={issues.purposes} isInvalid={Boolean(issues.purposes)}>
@@ -170,7 +170,7 @@ export function ContactDialog({ supplierId, contact, addresses, options, access,
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={contact ? `Edit ${contact.name}` : "Add contact"}
       description={contact ? "The person's details are a shared contact: a change shows wherever they appear. Documents keep the details they were sent with." : "A person at this supplier, what they do for you, and where."}>
       <div className="flex flex-col gap-3">
-        {save.error && <ProcAlert>{errorMessage(save.error)}</ProcAlert>}
+        {save.error && <Notice>{errorMessage(save.error)}</Notice>}
         {!contact && matches.length > 0 && (
           <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft p-3 text-sm">
             <span className="font-medium text-text">This person may already exist</span>
@@ -186,7 +186,7 @@ export function ContactDialog({ supplierId, contact, addresses, options, access,
             ))}
           </div>
         )}
-        {linked && <ProcAlert tone="info">{linked.name} will be linked to this supplier as they are; no new contact is created.</ProcAlert>}
+        {linked && <Notice tone="info">{linked.name} will be linked to this supplier as they are; no new contact is created.</Notice>}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {field("firstName", "First name", { isRequired: true })}
           {field("lastName", "Last name")}
@@ -227,7 +227,7 @@ export function RegistrationDialog({ supplierId, options, onClose, onDone }: { s
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Add GST registration" description="Another state registration of this supplier. Link it to the locations that trade under it.">
       <div className="flex flex-col gap-3">
-        {save.error && <ProcAlert>{errorMessage(save.error)}</ProcAlert>}
+        {save.error && <Notice>{errorMessage(save.error)}</Notice>}
         <TextField label="GSTIN" isRequired value={gstin} onChange={setGstin} errorMessage={issues.gstin} isInvalid={Boolean(issues.gstin)} description="The state is read from its first two digits." />
         <Select label="Registration type" selectedKey={type} onSelectionChange={(value) => setType(String(value))}
           options={options.gstRegistrationTypes.filter((entry) => entry.needsGstin || entry.code === "deemed_export").map((entry) => ({ value: entry.code, label: entry.label }))} />

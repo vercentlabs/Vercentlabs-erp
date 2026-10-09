@@ -13,7 +13,7 @@ import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/Re
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
-import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { PropertyList } from "@/shared/ui/PropertyList";
 import { countryName, formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";

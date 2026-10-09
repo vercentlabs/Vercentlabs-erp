@@ -12,7 +12,7 @@ export async function listProcurementFormOptions(client, c) {
        FROM tenant.procurement_suppliers supplier JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
       WHERE supplier.organization_id = $1 ORDER BY (supplier.status = 'active') DESC, party.display_name LIMIT 2000`, values);
   const items = await client.query(`SELECT id, code, name FROM tenant.items WHERE organization_id = $1 AND status = 'active' AND is_purchasable ORDER BY name LIMIT 1000`, values);
-  const warehouses = await client.query(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND status = 'active' ORDER BY name LIMIT 1000`, values);
+  const warehouses = await client.query(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND status = 'active' AND system_role IS NULL ORDER BY name LIMIT 1000`, values);
   const uoms = await client.query(`SELECT id, code, name FROM tenant.units_of_measure WHERE organization_id = $1 AND status = 'active' ORDER BY name LIMIT 200`, values);
   const categories = await client.query(
     `SELECT id, COALESCE(data->>'name', data->>'code', id::text) AS label, status FROM tenant.procurement_categories WHERE organization_id = $1 AND status = 'active' ORDER BY 2 LIMIT 1000`, values);

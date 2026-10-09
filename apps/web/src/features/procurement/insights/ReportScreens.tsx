@@ -5,18 +5,18 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ChevronRight, Download } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
 import { Button, EmptyState, ErrorState, PageHeader, PermissionState, Select, TextField } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { ProcApiError } from "@/features/procurement/shared/http";
 import { calendarDate, money, quantity } from "@/features/procurement/shared/format";
 import { getPurchaseOrderOptions } from "@/features/procurement/purchase-orders/api/purchase-orders-api";
 
 import { getReport, getReportCatalog, type ReportColumn, type ReportFilters, type ReportRow } from "./api";
+import { Panel } from "@/shared/ui/Panel";
 
 const ALL = "__all";
 // The statuses each report can be narrowed to (the server applies them).
@@ -112,11 +112,10 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
   const missing = report.error instanceof ProcApiError && report.error.status === 404;
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/reports" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Procurement reports</Link>
       <PageHeader title={report.data?.title ?? "Report"} description={report.data?.description}
         secondaryActions={report.data ? <Button variant="secondary" onPress={() => downloadCsv(reportKey, report.data.columns, report.data.rows)} isDisabled={!report.data.rows.length}>
           <Download className="size-4" aria-hidden="true" />Export CSV</Button> : undefined} />
-      <ProcPanel title="Filters" actions={related ? <Link className="text-sm text-brand hover:underline" href={related.href}>{related.label}</Link> : undefined}>
+      <Panel title="Filters" actions={related ? <Link className="text-sm text-brand hover:underline" href={related.href}>{related.label}</Link> : undefined}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Select label="Company" selectedKey={filters.buyingRegistrationId ?? ALL} onSelectionChange={(value) => setFilter("buyingRegistrationId", String(value))}
             options={[{ value: ALL, label: "All registrations" }, ...(options.data?.registrations ?? []).map((entry) => ({ value: entry.id, label: `${entry.name}${entry.gstin ? ` · ${entry.gstin}` : ""}` }))]} />
@@ -127,13 +126,13 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
           {statuses && <Select label="Status" selectedKey={filters.status ?? ALL} onSelectionChange={(value) => setFilter("status", String(value))}
             options={[{ value: ALL, label: "Any status" }, ...statuses.map(([value, label]) => ({ value, label }))]} />}
         </div>
-      </ProcPanel>
+      </Panel>
       {report.isLoading && <LoadingState label="Running the report" />}
       {denied && <PermissionState title="You don't have access to this report" description="Ask an administrator for the permission this report needs." />}
       {missing && <EmptyState title="Report not found" description="Choose a report from the list." action={{ label: "All reports", onPress: () => router.push("/procurement/reports") }} />}
       {report.isError && !denied && !missing && <ErrorState title="Could not run the report" description={report.error instanceof Error ? report.error.message : undefined} action={{ label: "Retry", onPress: () => report.refetch() }} />}
       {report.data && (
-        <ProcPanel title={`${report.data.rows.length} ${report.data.rows.length === 1 ? "row" : "rows"}`}>
+        <Panel title={`${report.data.rows.length} ${report.data.rows.length === 1 ? "row" : "rows"}`}>
           {!report.data.rows.length ? <EmptyState title="Nothing to report" description="No documents match these filters." /> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -156,7 +155,7 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
               </table>
             </div>
           )}
-        </ProcPanel>
+        </Panel>
       )}
     </div>
   );

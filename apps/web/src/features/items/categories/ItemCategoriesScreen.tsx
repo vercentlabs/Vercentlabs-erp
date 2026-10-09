@@ -8,8 +8,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
-import { Badge, Button, DatePicker, EmptyState, ErrorState, NoResultsState, PageHeader, PermissionState, SearchField, Select } from "@vercentlabs/design-system";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Badge, Button, DatePicker, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, Select, StatusBadge } from "@vercentlabs/design-system";
 
+import { filterBarOf, usePagedRows } from "@/shared/ui/list";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -57,33 +59,41 @@ export function ItemCategoriesScreen({ categoryId }: { categoryId?: string }) {
 
   if (all.isError && errorCode(all.error) === "PERMISSION_DENIED") return <PermissionState title="You don't have access to item categories" description="Ask an administrator for access." />;
   const profiles = [...(options.data?.inventoryProfiles ?? []), ...(options.data?.accountingProfiles ?? [])];
-  const yesNo = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }];
+
+  const profileName = (id: string) => profiles.find((entry) => entry.id === id)?.name ?? id;
+  const filterBar = view === "reports" ? undefined : filterBarOf([
+    { id: "status", active: status !== ANY, label: status === "active" ? "Active" : "Inactive", clear: () => setStatus(ANY) },
+    { id: "items", active: hasItems !== ANY, label: hasItems === "yes" ? "Has items" : "No items", clear: () => setHasItems(ANY) },
+    { id: "children", active: hasChildren !== ANY, label: hasChildren === "yes" ? "Has sub-categories" : "No sub-categories", clear: () => setHasChildren(ANY) },
+    { id: "profile", active: profileId !== ANY, label: `Default profile: ${profileName(profileId)}`, clear: () => setProfileId(ANY) },
+  ]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader title="Item Categories" description="One hierarchy for Sales, Procurement, Inventory and Finance. Defaults apply to items created afterwards; existing items keep their own settings."
-        primaryAction={can?.manageCategories ? <Button variant="primary" onPress={() => setForm({ mode: "new", parentId: null })}><Plus className="size-4" aria-hidden="true" />New category</Button> : undefined} />
-      <div className="flex flex-wrap items-center gap-2">
-        <div role="tablist" aria-label="View" className="inline-flex rounded-[var(--radius-control)] border border-border p-0.5">
-          {VIEWS.map((entry) => (
-            <button key={entry.id} type="button" role="tab" aria-selected={view === entry.id} onClick={() => setView(entry.id)}
-              className={`rounded-[calc(var(--radius-control)-2px)] px-3 py-1 text-sm ${view === entry.id ? "bg-surface-muted font-medium text-text" : "text-text-muted hover:text-text"}`}>{entry.label}</button>
-          ))}
-        </div>
-        {view !== "reports" && (
+    <>
+    <EnterpriseListPage
+      header={{
+        title: "Item Categories",
+        description: "One hierarchy for Sales, Procurement, Inventory and Finance. Defaults apply to items created afterwards; existing items keep their own settings.",
+        primaryAction: can?.manageCategories ? <Button variant="primary" onPress={() => setForm({ mode: "new", parentId: null })}><Plus className="size-4" aria-hidden="true" />New category</Button> : undefined,
+      }}
+      savedViews={{ views: VIEWS, activeViewId: view, onSelect: (id) => setView(id as View) }}
+      actionBar={view === "reports" ? undefined : {
+        start: (
           <>
-            <SearchField aria-label="Search categories" placeholder="Search code, name or path" className="w-full sm:w-72" value={search} onChange={setSearch} />
+            <SearchField aria-label="Search categories" placeholder="Search code, name or path" className="w-full sm:w-80" value={search} onChange={setSearch} />
             <Select aria-label="Status" size="compact" selectedKey={status} onSelectionChange={(key) => setStatus(String(key))}
               options={[{ value: ANY, label: "Any status" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} />
-            <Select aria-label="Has items" size="compact" selectedKey={hasItems} onSelectionChange={(key) => setHasItems(String(key))} options={[{ value: ANY, label: "With or without items" }, ...yesNo.map((entry) => ({ ...entry, label: entry.value === "yes" ? "Has items" : "No items" }))]} />
+            <Select aria-label="Has items" size="compact" selectedKey={hasItems} onSelectionChange={(key) => setHasItems(String(key))}
+              options={[{ value: ANY, label: "With or without items" }, { value: "yes", label: "Has items" }, { value: "no", label: "No items" }]} />
             <Select aria-label="Has sub-categories" size="compact" selectedKey={hasChildren} onSelectionChange={(key) => setHasChildren(String(key))}
               options={[{ value: ANY, label: "With or without sub-categories" }, { value: "yes", label: "Has sub-categories" }, { value: "no", label: "No sub-categories" }]} />
             {profiles.length > 0 && <Select aria-label="Default profile" size="compact" selectedKey={profileId} onSelectionChange={(key) => setProfileId(String(key))}
               options={[{ value: ANY, label: "Any default profile" }, ...profiles.map((entry) => ({ value: entry.id, label: entry.name }))]} />}
           </>
-        )}
-      </div>
-
+        ),
+      }}
+      filterBar={filterBar}
+    >
       {view === "reports" ? <ReportsView reports={options.data?.categoryReports ?? []} /> :
         all.isLoading || (filtered && matches.isLoading) ? <LoadingState label="Loading categories" rows={6} /> :
         all.isError || matches.isError ? <ErrorState title="Could not load categories" description={errorMessage(all.error ?? matches.error)} action={{ label: "Try again", onPress: () => { void all.refetch(); void matches.refetch(); } }} /> :
@@ -111,8 +121,9 @@ export function ItemCategoriesScreen({ categoryId }: { categoryId?: string }) {
             </section>
           </div>
         )}
-      <CategoryFormDialog target={form} categories={categories} options={options.data} onClose={() => setForm(null)} onSaved={saved} />
-    </div>
+    </EnterpriseListPage>
+    <CategoryFormDialog target={form} categories={categories} options={options.data} onClose={() => setForm(null)} onSaved={saved} />
+    </>
   );
 }
 
@@ -164,31 +175,33 @@ function Tree({ categories, selectedId, onOpen }: { categories: Category[]; sele
 }
 
 function TableView({ rows, onOpen }: { rows: Category[]; onOpen: (id: string) => void }) {
-  if (!rows.length) return <NoResultsState title="Nothing matches" description="Try another search or filter." />;
+  const paged = usePagedRows(rows, { initialSorting: [{ id: "path", desc: false }] });
+  const columns: ColumnDef<Category, unknown>[] = [
+    { id: "code", accessorKey: "code", header: "Code", cell: ({ row }) => <span className="tabular-nums">{row.original.code}</span> },
+    { id: "path", accessorKey: "path", header: "Category", cell: ({ row }) => (
+      <span className="flex flex-col"><span className="font-medium text-text">{row.original.name}</span>{row.original.parentId && <span className="text-xs text-text-muted">{row.original.path}</span>}</span>
+    ) },
+    { id: "isActive", accessorKey: "isActive", header: "Status", cell: ({ row }) => <StatusBadge tone={row.original.isActive ? "success" : "neutral"}>{row.original.isActive ? "Active" : "Inactive"}</StatusBadge> },
+    { id: "allowedItemTypesLabel", accessorKey: "allowedItemTypesLabel", header: "Item types", cell: ({ row }) => (row.original.allowedItemTypes?.length ? row.original.allowedItemTypesLabel : <span className="text-text-muted">All</span>) },
+    { id: "directItems", accessorKey: "directItems", header: "Items (direct)", cell: ({ row }) => <span className="tabular-nums">{row.original.directItems}</span> },
+    { id: "totalItems", accessorKey: "totalItems", header: "Items (total)", cell: ({ row }) => <span className="tabular-nums">{row.original.totalItems}</span> },
+    { id: "childCount", accessorKey: "childCount", header: "Sub-categories", cell: ({ row }) => <span className="tabular-nums">{row.original.childCount}</span> },
+    { id: "defaults", header: "Defaults", enableSorting: false, cell: ({ row }) => (
+      <span className="text-xs text-text-secondary">{[row.original.defaultValuationLabel, row.original.defaultInventoryProfileName, row.original.defaultAccountingProfileName,
+        row.original.defaultTaxCategoryName, row.original.defaultHsnSacCode ? `HSN ${row.original.defaultHsnSacCode}` : null].filter(Boolean).join(" · ")}</span>
+    ) },
+  ];
   return (
-    <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface">
-      <table className="w-full text-sm">
-        <thead className="border-b border-border text-left text-xs text-text-muted">
-          <tr>{["Code", "Category", "Status", "Item types", "Items (direct)", "Items (total)", "Sub-categories", "Defaults"].map((label) => <th key={label} className="px-3 py-2 font-medium whitespace-nowrap">{label}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {rows.map((row) => (
-            <tr key={row.id} className="cursor-pointer hover:bg-surface-muted" onClick={() => onOpen(row.id)}>
-              <td className="px-3 py-2 tabular-nums">{row.code}</td>
-              <td className="px-3 py-2"><Link href={`${CATEGORY_BASE}/${row.id}`} className="font-medium text-brand hover:underline" onClick={(event) => event.stopPropagation()}>{row.name}</Link>
-                {row.parentId && <span className="block text-xs text-text-muted">{row.path}</span>}</td>
-              <td className="px-3 py-2">{row.isActive ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Inactive</Badge>}</td>
-              <td className="px-3 py-2">{row.allowedItemTypes?.length ? row.allowedItemTypesLabel : <span className="text-text-muted">All</span>}</td>
-              <td className="px-3 py-2 tabular-nums">{row.directItems}</td>
-              <td className="px-3 py-2 tabular-nums">{row.totalItems}</td>
-              <td className="px-3 py-2 tabular-nums">{row.childCount}</td>
-              <td className="px-3 py-2 text-xs text-text-secondary">{[row.defaultValuationLabel, row.defaultInventoryProfileName, row.defaultAccountingProfileName, row.defaultTaxCategoryName,
-                row.defaultHsnSacCode ? `HSN ${row.defaultHsnSacCode}` : null].filter(Boolean).join(" · ")}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <EnterpriseDataGrid<Category>
+      aria-label="Item categories"
+      columns={columns}
+      data={paged.pageRows}
+      getRowId={(row) => row.id}
+      state={rows.length === 0 ? "no-results" : "ready"}
+      noResultsContent={<NoResultsState title="Nothing matches" description="Try another search or filter." />}
+      {...paged.grid}
+      onRowClick={(row) => onOpen(row.id)}
+    />
   );
 }
 
@@ -214,7 +227,7 @@ function ReportsView({ reports }: { reports: Array<{ key: string; title: string;
         rows.length === 0 && !report.uncategorized ? <EmptyState title="Nothing to report" description="No figures for this report yet." /> : (
           <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface">
             <table className="w-full text-sm">
-              <thead className="border-b border-border text-left text-xs text-text-muted">
+              <thead className="bg-surface-muted text-left text-text-secondary">
                 <tr><th className="px-3 py-2 font-medium">Category</th>
                   <th className="px-3 py-2 text-right font-medium">{key === "movements" ? "In (direct)" : "Direct"}</th><th className="px-3 py-2 text-right font-medium">{key === "movements" ? "In (with sub-categories)" : "With sub-categories"}</th>
                   {key === "movements" && <><th className="px-3 py-2 text-right font-medium">Out (direct)</th><th className="px-3 py-2 text-right font-medium">Out (with sub-categories)</th></>}</tr>

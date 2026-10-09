@@ -9,11 +9,11 @@ import { useMutation } from "@tanstack/react-query";
 import { Button, Dialog, NumberField, Select, TextArea } from "@vercentlabs/design-system";
 
 import { SalesApiError } from "@/features/sales/shared/http";
-import { SalesAlert } from "@/features/sales/shared/SalesUi";
 
 import {
   cancelSalesOrder, cancelSalesOrderRemaining, reopenSalesOrder, type SalesOrderDetail,
 } from "../api/orders-api";
+import { Notice } from "@/shared/ui/Panel";
 
 export function failureText(failure: unknown, fallback: string) {
   return failure instanceof SalesApiError || failure instanceof Error ? failure.message || fallback : fallback;
@@ -27,7 +27,7 @@ function Shell({ title, description, size, error, fallback, onClose, label, isLo
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={title} description={description} size={size}>
       <div className="flex flex-col gap-3">
-        {Boolean(error) && <SalesAlert>{failureText(error, fallback)}</SalesAlert>}
+        {Boolean(error) && <Notice>{failureText(error, fallback)}</Notice>}
         {children}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>

@@ -1,0 +1,26 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+type Client = any;
+export declare class AdjustmentError extends Error { status: number; code: string; details?: unknown }
+export declare const ADJUSTMENT_DISPOSITIONS: ReadonlyArray<{ id: string; label: string }>;
+export declare const VALUATION_SOURCES: ReadonlyArray<{ id: string; label: string }>;
+export declare function listAdjustmentReasons(client: Client, context: StockContext, input?: { includeInactive?: boolean }): Promise<Row[]>;
+export declare function createAdjustmentReason(client: Client, context: StockContext, input: Row): Promise<Row>;
+export declare function updateAdjustmentReason(client: Client, context: StockContext, reasonId: string, input: Row): Promise<Row>;
+export declare function getAdjustmentStock(client: Client, context: StockContext, input: { warehouseId: string; itemId: string }): Promise<Row>;
+export declare function createInventoryAdjustment(client: Client, context: StockContext, input: Row, options?: { physicalCountId?: string }): Promise<Row>;
+export declare function updateDraftAdjustment(client: Client, context: StockContext, adjustmentId: string, input: Row): Promise<Row>;
+export declare function refreshAdjustmentSnapshot(client: Client, context: StockContext, adjustmentId: string): Promise<Row>;
+export declare function cancelDraftAdjustment(client: Client, context: StockContext, adjustmentId: string, input?: { reason?: string }): Promise<Row>;
+export declare function getAdjustmentImpact(client: Client, context: StockContext, adjustmentId: string, input?: Row): Promise<Row>;
+export declare function validateInventoryAdjustment(client: Client, context: StockContext, adjustmentId: string): Promise<{ ready: boolean; errors: Array<{ message: string; code: string }> }>;
+export declare function postInventoryAdjustment(client: Client, context: StockContext, adjustmentId: string, input?: Row): Promise<Row>;
+export declare function reverseInventoryAdjustment(client: Client, context: StockContext, adjustmentId: string, input: { reason: string }): Promise<Row>;
+export declare function getInventoryAdjustment(client: Client, context: StockContext, adjustmentId: string): Promise<Row>;
+export declare function listInventoryAdjustments(client: Client, context: StockContext, filters?: Row): Promise<Row>;
+export declare function getAdjustmentOptions(client: Client, context: StockContext): Promise<Row>;
+export declare function prepareAdjustmentFileUpload(input: { fileName: string; bytes: Uint8Array }, env?: Record<string, string | undefined>): Promise<unknown>;
+export declare function listAdjustmentFiles(client: Client, context: StockContext, adjustmentId: string): Promise<Row[]>;
+export declare function uploadAdjustmentFile(client: Client, context: StockContext, adjustmentId: string, input: { prepared: unknown }, options?: Row): Promise<Row>;
+export declare function removeAdjustmentFile(client: Client, context: StockContext, adjustmentId: string, fileId: string): Promise<{ removed: boolean }>;
+export declare function readAdjustmentFile(client: Client, context: StockContext, adjustmentId: string, fileId: string, options?: Row): Promise<{ fileName: string; mimeType: string; body: Uint8Array }>;

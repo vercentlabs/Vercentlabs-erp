@@ -50,7 +50,7 @@ export const PO_PERMISSIONS = Object.freeze({
   post: "procurement.receipts.post",
   reverse: "procurement.receipts.reverse",
   release: "procurement.receipts.release",
-  receivingAccess: "procurement.receipts.access",
+  acceptRestricted: "procurement.receipts.accept_restricted",
   returns: "procurement.returns.manage",
   quotations: "procurement.quotations.manage",
   bill: "accounting.payables.manage",

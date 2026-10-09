@@ -5,7 +5,7 @@
 // Stock's own postStockMovement (see sale-completion.js/return-lifecycle.js,
 // which already call it as postCanonicalStockMovement). This module only
 // reads those same tables, scoped to a POS store's mapped warehouse, the
-// same way Stock's own getStockDashboard/listStockResource read them for
+// same way Stock's own getStockDashboard/getStockBalance read them for
 // Stock's own screens.
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { posError } from "../shared/errors.js";
@@ -44,13 +44,7 @@ export async function listPosStoreInventory(client, context, { storeId, search =
             b.reserved_quantity::text AS reserved_quantity,
             (b.quantity - b.reserved_quantity)::text AS available_quantity,
             b.updated_at,
-            EXISTS (
-              SELECT 1 FROM tenant.quality_holds qh
-              WHERE qh.organization_id = b.organization_id
-                AND qh.item_id = b.item_id AND qh.status = 'active'
-                AND qh.hold_type IN ('inventory','batch','serial')
-                AND (qh.warehouse_id IS NULL OR qh.warehouse_id = b.warehouse_id)
-            ) AS quality_held
+            COALESCE(wl.disposition IN ('quality_hold', 'quarantined'), false) AS quality_held
        FROM tenant.stock_balances b
        JOIN tenant.items i ON i.organization_id = b.organization_id AND i.id = b.item_id
        LEFT JOIN tenant.warehouse_locations wl ON wl.organization_id = b.organization_id AND wl.id = b.warehouse_location_id

@@ -7,7 +7,7 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Download, Eye, Pencil, Trash2 } from "lucide-react";
+import { Download, Eye, Pencil, Trash2 } from "lucide-react";
 import {
   Button, Dialog, ErrorState, LinkButton, PageHeader, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField, buttonVariants,
 } from "@vercentlabs/design-system";
@@ -16,7 +16,6 @@ import { useTabParam, useFormChangesWarning } from "@/features/procurement/share
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcFacts, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, dateTime, money, quantity, statusLabel } from "@/features/procurement/shared/format";
 import { billFileUrl, getBill, listBillFiles, removeBillFile, uploadBillFile } from "@/features/procurement/supplier-bills/api/supplier-bills-api";
 import { getReturn } from "@/features/procurement/purchase-returns/api/purchase-returns-api";
@@ -26,6 +25,7 @@ import {
   type CreditDetail, type CreditOptions, type CreditPreview,
 } from "../api/vendor-credits-api";
 import { CREDIT_TONE, SETTLEMENT_TONE } from "./DebitNotesCreditsScreens";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 type Row = {
   key: string; kind: "bill" | "return" | "other"; billLineId: string | null; purchaseReturnLineId: string | null; label: string; hint: string; basis: "quantity" | "amount";
@@ -37,7 +37,7 @@ const nextKey = () => `credit-row-${(seq += 1)}`;
 function Errors({ error }: { error: unknown }) {
   if (!error) return null;
   const issues = issuesOf(error);
-  return <ProcAlert>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>;
+  return <Notice>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>;
 }
 
 // ---------------------------------------------------------------- form
@@ -135,11 +135,10 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
   const claimLines = header.origin === "accepted_claim" && header.debitClaimId && !rows.length;
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/debit-notes-credits" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Debit Notes &amp; Vendor Credits</Link>
       <PageHeader title={existing ? `Edit ${existing.credit.number}` : "Record Vendor Credit"}
         description="The supplier's financial credit. Saved as a draft; posted through Finance it reduces what you owe — then applied to bills or refunded. Posting never applies it by itself." />
       <Errors error={save.error} />
-      <ProcPanel title="Credit">
+      <Panel title="Credit">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <Select label="Supplier" isDisabled={Boolean(existing)} selectedKey={supplierId} onSelectionChange={(value) => { setSupplierId(String(value)); setRows([]); setPreview(null); }}
             options={data.suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.name} (${supplier.number})` }))} />
@@ -160,11 +159,11 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
           <TextField label="Credit date" type="date" value={header.creditDate} onChange={set("creditDate")} />
           <TextField label="Posting date" type="date" value={header.postingDate} onChange={set("postingDate")} />
         </div>
-        {duplicate && <ProcAlert tone="warning">Supplier credit note {header.supplierCreditNoteNumber}: {duplicate}</ProcAlert>}
+        {duplicate && <Notice tone="warning">Supplier credit note {header.supplierCreditNoteNumber}: {duplicate}</Notice>}
         <TextArea label="Reason" value={header.reason} onChange={set("reason")} />
         {header.origin === "other_authorized" && <TextArea label="Documented basis for this credit (required — e.g. the rebate agreement)" value={header.authorizationReason} onChange={set("authorizationReason")} />}
-      </ProcPanel>
-      <ProcPanel title="What is credited" description="Lines of the supplier's posted bills (several bills of one company and currency may share a credit), the billed part of posted returns, or an amount on account."
+      </Panel>
+      <Panel title="What is credited" description="Lines of the supplier's posted bills (several bills of one company and currency may share a credit), the billed part of posted returns, or an amount on account."
         actions={
           <div className="flex flex-wrap gap-2">
             <Select aria-label="Add a bill line" size="compact" selectedKey={null} placeholder="Add bill line…" isDisabled={!supplierId}
@@ -182,7 +181,7 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
               label: "On account", hint: "", basis: "amount", quantity: "", amount: "", taxAmount: "", reason: "commercial_settlement", description: "" }])}>Add on-account line</Button>
           </div>
         }>
-        {claimLines && <ProcAlert tone="info">No lines: the credit takes the accepted debit claim&apos;s lines, scaled to what is still to be credited.</ProcAlert>}
+        {claimLines && <Notice tone="info">No lines: the credit takes the accepted debit claim&apos;s lines, scaled to what is still to be credited.</Notice>}
         {!rows.length ? (!claimLines && <p className="text-sm text-text-muted">{supplierId ? "Add what the supplier credited." : "Choose the supplier first."}</p>) : (
           <div className="flex flex-col divide-y divide-border">
             {rows.map((row) => (
@@ -202,24 +201,24 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
             ))}
           </div>
         )}
-      </ProcPanel>
-      <ProcPanel title="Taxes and totals" description="Calculated by the server: GST components proportional to the bill lines (none for a financial-only credit); TDS follows the credited value."
+      </Panel>
+      <Panel title="Taxes and totals" description="Calculated by the server: GST components proportional to the bill lines (none for a financial-only credit); TDS follows the credited value."
         actions={<Button size="compact" variant="secondary" isLoading={calculate.isPending} isDisabled={!supplierId || (!rows.length && !claimLines)} onPress={() => calculate.mutate()}>Calculate</Button>}>
         <Errors error={calculate.error} />
         {preview ? (
           <>
-            {preview.warnings.map((warning) => <ProcAlert key={warning} tone="warning">{warning}</ProcAlert>)}
+            {preview.warnings.map((warning) => <Notice key={warning} tone="warning">{warning}</Notice>)}
             <ul className="flex flex-col divide-y divide-border text-sm">
               {preview.lines.map((line, index) => <li key={index} className="flex flex-wrap justify-between gap-2 py-2"><span>{line.description}{line.billNumber ? ` · ${line.billNumber}` : ""}
                 <span className="block text-xs text-text-muted">{line.components.map((component) => `${component.label} ${Number(component.rate)}%: ${component.amount}`).join(" · ") || "No tax"}</span></span>
                 <span className="tabular-nums">{money(preview.currencyCode, line.taxable)} + {money(preview.currencyCode, line.tax)}</span></li>)}
             </ul>
-            <ProcFacts columns={4} items={[{ label: "Taxable", value: money(preview.currencyCode, preview.totals.taxable) }, { label: "Tax", value: money(preview.currencyCode, preview.totals.tax) },
+            <Facts columns={4} items={[{ label: "Taxable", value: money(preview.currencyCode, preview.totals.taxable) }, { label: "Tax", value: money(preview.currencyCode, preview.totals.tax) },
               { label: "TDS", value: money(preview.currencyCode, preview.totals.withholding) }, { label: "Credit total", value: <span className="font-semibold">{money(preview.currencyCode, preview.totals.total)}</span> }]} />
           </>
         ) : <p className="text-sm text-text-muted">Calculate to see the credit&apos;s taxes and total.</p>}
-      </ProcPanel>
-      <ProcPanel title="Notes"><TextArea aria-label="Notes" value={header.notes} onChange={set("notes")} /></ProcPanel>
+      </Panel>
+      <Panel title="Notes"><TextArea aria-label="Notes" value={header.notes} onChange={set("notes")} /></Panel>
       <div className="flex flex-wrap justify-end gap-2">
         <LinkButton variant="secondary" href={existing ? `/procurement/debit-notes-credits/vendor-credits/${existing.credit.id}` : "/procurement/debit-notes-credits"}>Cancel</LinkButton>
         <Button variant="secondary" isLoading={save.isPending && save.variables === false} isDisabled={!supplierId || (!rows.length && !claimLines)} onPress={() => save.mutate(false)}>Save Draft</Button>
@@ -251,12 +250,11 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
   const c = (value: string | null | undefined) => money(credit.currencyCode, value);
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/debit-notes-credits" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Debit Notes &amp; Vendor Credits</Link>
-      {notice && <ProcAlert tone="success">{notice}</ProcAlert>}
+      {notice && <Notice tone="success">{notice}</Notice>}
       <Errors error={approve.error} />
-      {credit.status === "reversed" && <ProcAlert tone="warning">Reversed{credit.reversalReason ? `: ${credit.reversalReason}` : ""}. Its bills, returns and debit claim can be credited again.</ProcAlert>}
-      {credit.status === "cancelled" && <ProcAlert tone="info">Cancelled{credit.cancelReason ? `: ${credit.cancelReason}` : ""}.</ProcAlert>}
-      {credit.status === "posted" && credit.settlementStatus === "unapplied" && <ProcAlert tone="info">Posted and unapplied: apply it to the supplier&apos;s open bills, or record the supplier&apos;s refund.</ProcAlert>}
+      {credit.status === "reversed" && <Notice tone="warning">Reversed{credit.reversalReason ? `: ${credit.reversalReason}` : ""}. Its bills, returns and debit claim can be credited again.</Notice>}
+      {credit.status === "cancelled" && <Notice tone="info">Cancelled{credit.cancelReason ? `: ${credit.cancelReason}` : ""}.</Notice>}
+      {credit.status === "posted" && credit.settlementStatus === "unapplied" && <Notice tone="info">Posted and unapplied: apply it to the supplier&apos;s open bills, or record the supplier&apos;s refund.</Notice>}
       <RecordDetailsPage header={{
         title: credit.number,
         status: <span className="flex flex-wrap gap-2"><StatusBadge tone={CREDIT_TONE[credit.status] ?? "neutral"}>{credit.statusLabel}</StatusBadge>
@@ -296,8 +294,8 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
           </TabList>
           <TabPanel id="overview">
             <div className="pt-4">
-              <ProcPanel title="Vendor credit">
-                <ProcFacts columns={3} items={[
+              <Panel title="Vendor credit">
+                <Facts columns={3} items={[
                   { label: "Supplier", value: `${credit.supplier?.legalName ?? credit.supplierName ?? "—"}${credit.supplier?.gstin ? ` · ${credit.supplier.gstin}` : ""}` },
                   { label: "Origin", value: credit.originLabel },
                   { label: "Supplier credit note", value: [credit.supplierCreditNoteNumber, credit.supplierCreditNoteDate && calendarDate(credit.supplierCreditNoteDate)].filter(Boolean).join(" dated ") || "—" },
@@ -309,12 +307,12 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
                   { label: "Applied to bills", value: c(credit.applied) }, { label: "Refunded", value: c(credit.refunded) }, { label: "Unapplied", value: c(credit.available) },
                   { label: "Reason", value: credit.reason ?? "—" },
                 ]} />
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="lines">
             <div className="pt-4">
-              <ProcPanel title="Credit lines">
+              <Panel title="Credit lines">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="text-left text-text-muted">{["Description", "Source", "Reason", "Quantity", "Taxable", "Tax", "TDS", "Total"].map((name, index) =>
@@ -336,12 +334,12 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
                     </tbody>
                   </table>
                 </div>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="sources">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Bills corrected" description="The bills stay as posted; the credit corrects them.">
+              <Panel title="Bills corrected" description="The bills stay as posted; the credit corrects them.">
                 {!detail.sourceBills.length ? <p className="text-sm text-text-muted">On account — no bill.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.sourceBills.map((bill) => <li key={bill.id} className="flex flex-wrap justify-between gap-2 py-2"><span><Link className="text-brand hover:underline" href={bill.href}>{bill.number}</Link>
@@ -349,39 +347,39 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
                       <span className="tabular-nums">credited here {c(bill.creditedHere)} · bill {c(bill.total)} · outstanding {c(bill.outstanding)}</span></li>)}
                   </ul>
                 )}
-              </ProcPanel>
-              <ProcPanel title="Purchase returns">
+              </Panel>
+              <Panel title="Purchase returns">
                 {!detail.sourceReturns.length ? <p className="text-sm text-text-muted">None.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.sourceReturns.map((entry) => <li key={entry.id} className="py-2"><Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link> · {calendarDate(entry.date)} · {quantity(entry.quantity)} credited</li>)}
                   </ul>
                 )}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="taxes">
             <div className="pt-4">
-              <ProcPanel title="Taxes and withholding" description={credit.taxTreatment === "financial_only" ? "A financial-only credit: no GST is adjusted." : "GST components reduced in proportion to the credited value of each bill line."}>
+              <Panel title="Taxes and withholding" description={credit.taxTreatment === "financial_only" ? "A financial-only credit: no GST is adjusted." : "GST components reduced in proportion to the credited value of each bill line."}>
                 <ul className="flex flex-col divide-y divide-border text-sm">
                   {detail.lines.map((line) => <li key={line.id} className="py-2"><span className="font-medium">{line.description}</span>
                     <span className="block text-xs text-text-muted">{line.components.map((component) => `${component.label} ${Number(component.rate)}% on ${component.taxable}: ${component.amount}`).join(" · ") || "No tax components"}
                       {Number(line.withholding) > 0 ? ` · TDS ${line.withholding}` : ""}</span></li>)}
                 </ul>
-                <ProcFacts columns={3} items={[{ label: "Tax", value: c(credit.tax) }, { label: "TDS adjusted", value: c(credit.withholding) }, { label: "Credit total", value: c(credit.total) }]} />
-              </ProcPanel>
+                <Facts columns={3} items={[{ label: "Tax", value: c(credit.tax) }, { label: "TDS adjusted", value: c(credit.withholding) }, { label: "Credit total", value: c(credit.total) }]} />
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="settlement">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Applied to bills">
+              <Panel title="Applied to bills">
                 {!detail.allocations.length ? <p className="text-sm text-text-muted">Not applied.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.allocations.map((entry) => <li key={entry.billId} className="flex flex-wrap justify-between gap-2 py-2"><span><Link className="text-brand hover:underline" href={entry.href}>{entry.billNumber}</Link>
                       {entry.supplierInvoice ? ` (${entry.supplierInvoice})` : ""} · {dateTime(entry.at)}</span><span className="tabular-nums">{c(entry.amount)}</span></li>)}
                   </ul>
                 )}
-              </ProcPanel>
-              <ProcPanel title="Supplier refunds">
+              </Panel>
+              <Panel title="Supplier refunds">
                 {!detail.refunds.length ? <p className="text-sm text-text-muted">No refunds.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.refunds.map((entry) => <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 py-2"><span><span className="font-medium tabular-nums">{entry.refundNumber}</span> · {calendarDate(entry.date)}
@@ -390,18 +388,18 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
                         {entry.status === "posted" && actions.reverseRefund && <Button size="compact" variant="ghost" onPress={() => setRefundToReverse(entry.id)}>Reverse</Button>}</span></li>)}
                   </ul>
                 )}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="accounting">
             <div className="flex flex-col gap-4 pt-4">
               {[["Posting", detail.accounting.journal], ["Reversal", detail.accounting.reversal]].map(([title, journal]) => journal && typeof journal === "object" ? (
-                <ProcPanel key={String(title)} title={`${title} · ${journal.number}`} description={`${statusLabel(journal.status)} · ${calendarDate(journal.date)}`}>
+                <Panel key={String(title)} title={`${title} · ${journal.number}`} description={`${statusLabel(journal.status)} · ${calendarDate(journal.date)}`}>
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {journal.lines.map((line, index) => <li key={index} className="flex flex-wrap justify-between gap-2 py-2"><span>{line.account}<span className="block text-xs text-text-muted">{line.description}</span></span>
                       <span className="tabular-nums">{Number(line.debit) > 0 ? `Dr ${line.debit}` : `Cr ${line.credit}`}</span></li>)}
                   </ul>
-                </ProcPanel>
+                </Panel>
               ) : null)}
               {!detail.accounting.journal && <p className="text-sm text-text-muted">Nothing posted yet: a draft has no accounting.</p>}
             </div>
@@ -409,18 +407,18 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
           <TabPanel id="documents"><div className="pt-4"><CreditFiles creditId={credit.id} canEdit={actions.edit || actions.allocate || actions.post} /></div></TabPanel>
           <TabPanel id="notes">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Notes">{credit.notes ? <p className="whitespace-pre-wrap text-sm">{credit.notes}</p> : <p className="text-sm text-text-muted">No notes.</p>}</ProcPanel>
-              {credit.authorizationReason && <ProcPanel title="Authorised basis" description="Why this credit was recognised without a supplier credit note or an accepted debit claim."><p className="text-sm">{credit.authorizationReason}</p></ProcPanel>}
+              <Panel title="Notes">{credit.notes ? <p className="whitespace-pre-wrap text-sm">{credit.notes}</p> : <p className="text-sm text-text-muted">No notes.</p>}</Panel>
+              {credit.authorizationReason && <Panel title="Authorised basis" description="Why this credit was recognised without a supplier credit note or an accepted debit claim."><p className="text-sm">{credit.authorizationReason}</p></Panel>}
             </div>
           </TabPanel>
           <TabPanel id="history">
             <div className="pt-4">
-              <ProcPanel title="History">
+              <Panel title="History">
                 <ul className="flex flex-col divide-y divide-border text-sm">
                   {detail.history.map((entry, index) => <li key={index} className="py-2">{statusLabel(entry.type.replace(/^accounting\./, "").replace(/\./g, "_"))}{entry.to ? ` → ${statusLabel(entry.to)}` : ""}
                     <span className="block text-xs text-text-muted">{dateTime(entry.at)}{entry.actor ? ` · ${entry.actor}` : ""}</span></li>)}
                 </ul>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
         </Tabs>
@@ -448,7 +446,7 @@ function PostDialog({ creditId, total, onClose, onDone }: { creditId: string; to
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Post the vendor credit" description={`${total} is posted through Finance (Dr Accounts Payable). It is not applied to any bill by itself.`} size="md">
       <div className="flex flex-col gap-3">
         <Errors error={mutation.error ?? check.error} />
-        {issues.length > 0 && <ProcAlert>{issues.map((issue) => <p key={issue.message}>{issue.message}</p>)}</ProcAlert>}
+        {issues.length > 0 && <Notice>{issues.map((issue) => <p key={issue.message}>{issue.message}</p>)}</Notice>}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Back</Button>
           <Button variant="primary" isLoading={mutation.isPending || check.isLoading} isDisabled={issues.length > 0} onPress={() => mutation.mutate()}>Post</Button>
@@ -544,7 +542,7 @@ function CreditFiles({ creditId, canEdit }: { creditId: string; canEdit: boolean
   const upload = useMutation({ mutationFn: (file: File) => uploadBillFile(creditId, file), onSuccess: () => void queryClient.invalidateQueries({ queryKey: key }) });
   const remove = useMutation({ mutationFn: (fileId: string) => removeBillFile(creditId, fileId), onSuccess: () => void queryClient.invalidateQueries({ queryKey: key }) });
   return (
-    <ProcPanel title="Supplier documents" description="The supplier's credit note (the tax document), correspondence and the agreement behind the credit."
+    <Panel title="Supplier documents" description="The supplier's credit note (the tax document), correspondence and the agreement behind the credit."
       actions={canEdit ? <Button size="compact" variant="secondary" isLoading={upload.isPending} onPress={() => input.current?.click()}>Add file</Button> : undefined}>
       <input ref={input} type="file" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
       <Errors error={upload.error ?? files.error} />
@@ -559,6 +557,6 @@ function CreditFiles({ creditId, canEdit }: { creditId: string; canEdit: boolean
           ))}
         </ul>
       )}
-    </ProcPanel>
+    </Panel>
   );
 }

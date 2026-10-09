@@ -70,8 +70,6 @@ export declare function listGoodsReceiptFiles(client: QueryClient, context: any,
 export declare function readGoodsReceiptFile(client: QueryClient, context: any, ...args: any[]): Promise<any>;
 export declare function removeGoodsReceiptFile(client: QueryClient, context: any, ...args: any[]): Promise<any>;
 export declare function uploadGoodsReceiptFile(client: QueryClient, context: any, ...args: any[]): Promise<any>;
-export declare function getReceivingWarehouseUsers(client: QueryClient, context: any, ...args: any[]): Promise<any>;
-export declare function setReceivingWarehouseUsers(client: QueryClient, context: any, ...args: any[]): Promise<any>;
 export declare const GOODS_RECEIPT_DISCREPANCY_TYPES: any;
 export declare const GOODS_RECEIPT_FILE_ENTITY: string;
 export declare function prepareGoodsReceiptFileUpload(input: { fileName: string; bytes: Uint8Array }, env?: Record<string, string | undefined>): Promise<any>;

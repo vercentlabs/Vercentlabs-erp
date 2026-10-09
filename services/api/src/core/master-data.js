@@ -100,38 +100,8 @@ const resources = Object.freeze({
     archiveStatus: "inactive",
   },
   // Units of measure, item categories, items, variants and unit conversions are the Item Master's
-  // (modules/products): maintained there, with its rules, never through this generic engine.
-  warehouses: {
-    table: "tenant.warehouses",
-    searchColumns: ["code", "name", "warehouse_type"],
-    orderBy: "name ASC, code ASC",
-    fields: {
-      name: "name",
-      code: "code",
-      warehouseType: "warehouse_type",
-      allowNegativeStock: "allow_negative_stock",
-      status: "status",
-    },
-    scope: "organization",
-    archiveStatus: "inactive",
-  },
-  "warehouse-locations": {
-    table: "tenant.warehouse_locations",
-    searchColumns: ["code", "name", "location_type"],
-    orderBy: "warehouse_id ASC, parent_location_id NULLS FIRST, name ASC",
-    fields: {
-      warehouseId: "warehouse_id",
-      parentLocationId: "parent_location_id",
-      name: "name",
-      code: "code",
-      locationType: "location_type",
-      capacity: "capacity",
-      status: "status",
-    },
-    scope: "organization",
-    relationField: "warehouseId",
-    archiveStatus: "inactive",
-  },
+  // (modules/products): maintained there, with its rules, never through this generic engine. Warehouses and their locations are
+  // Inventory's (modules/stock/warehouses.js) for the same reason.
   "price-lists": {
     table: "tenant.price_lists",
     searchColumns: ["code", "name", "price_list_type", "currency_code"],
@@ -1114,13 +1084,14 @@ export async function seedBusinessDataFoundation(client, context) {
     );
   }
 
-  const warehouseResult = await client.query(
+  await client.query(
     `
       INSERT INTO tenant.warehouses (
         organization_id, name, code,
-        warehouse_type, created_by, updated_by
+        warehouse_type, is_default, created_by, updated_by
       )
-      VALUES ($1, 'Main Warehouse', 'MAIN', 'stores', $2, $2)
+      VALUES ($1, 'Main Warehouse', 'MAIN', 'stores',
+        NOT EXISTS (SELECT 1 FROM tenant.warehouses WHERE organization_id = $1 AND is_default), $2, $2)
       ON CONFLICT (organization_id, code) DO UPDATE SET
         updated_by = EXCLUDED.updated_by,
         updated_at = now()
@@ -1128,18 +1099,7 @@ export async function seedBusinessDataFoundation(client, context) {
     `,
     [context.organizationId, context.userId],
   );
-
-  await client.query(
-    `
-      INSERT INTO tenant.warehouse_locations (
-        organization_id, warehouse_id, name, code,
-        location_type, created_by, updated_by
-      )
-      VALUES ($1, $2, 'Main', 'MAIN', 'zone', $3, $3)
-      ON CONFLICT (organization_id, warehouse_id, code) DO NOTHING
-    `,
-    [context.organizationId, warehouseResult.rows[0].id, context.userId],
-  );
+  // The database gives the warehouse its MAIN storage location.
 
   await client.query(
     `

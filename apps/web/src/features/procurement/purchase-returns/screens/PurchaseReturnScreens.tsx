@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Download, Eye, Pencil, Plus } from "lucide-react";
+import { Download, Eye, Pencil, Plus } from "lucide-react";
 import {
   Button, Checkbox, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, RecordDetailsPage, SearchField, Select, StatusBadge, Tab,
   TabList, TabPanel, Tabs, TextArea, TextField, buttonVariants,
@@ -18,13 +18,13 @@ import { useListState, useTabParam } from "@/features/procurement/shared/navigat
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcFacts, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, dateTime, money, quantity, statusLabel } from "@/features/procurement/shared/format";
 
 import {
   errorMessage, getReturn, getReturnOptions, issuesOf, listReturnFiles, listReturns, removeReturnFile, returnAction, returnFileUrl, returnNoteUrl, uploadReturnFile,
   type ReturnDetail, type ReturnRow,
 } from "../api/purchase-returns-api";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 const DOC_TONE: Record<string, Tone> = { draft: "neutral", posted: "success", cancelled: "neutral", reversed: "danger" };
@@ -99,7 +99,7 @@ function Shell({ title, description, error, onClose, label, isLoading, isDisable
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={title} description={description} size="lg">
       <div className="flex flex-col gap-3">
-        {Boolean(error) && <ProcAlert>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>}
+        {Boolean(error) && <Notice>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
         {children}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>
@@ -128,12 +128,11 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
   const validation = validate.data as { ready?: boolean; issues?: string[]; warnings?: string[] } | undefined;
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/purchase-returns" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />All purchase returns</Link>
-      {notice && <ProcAlert tone="success">{notice}</ProcAlert>}
-      {validation && (validation.ready ? <ProcAlert tone="success">Ready to post: every quantity and the stock check out.{validation.warnings?.length ? ` ${validation.warnings.join(" ")}` : ""}</ProcAlert>
-        : <ProcAlert>{(validation.issues ?? []).map((issue) => <p key={issue}>{issue}</p>)}</ProcAlert>)}
-      {ret.status === "reversed" && <ProcAlert tone="warning">Reversed {dateTime(ret.reversedAt)}{ret.reversedByName ? ` by ${ret.reversedByName}` : ""}: {ret.reversalReason}. The goods came back; the return no longer counts.</ProcAlert>}
-      {ret.status === "cancelled" && <ProcAlert tone="info">Cancelled {dateTime(ret.cancelledAt)}{ret.cancelReason ? `: ${ret.cancelReason}` : ""}.</ProcAlert>}
+      {notice && <Notice tone="success">{notice}</Notice>}
+      {validation && (validation.ready ? <Notice tone="success">Ready to post: every quantity and the stock check out.{validation.warnings?.length ? ` ${validation.warnings.join(" ")}` : ""}</Notice>
+        : <Notice>{(validation.issues ?? []).map((issue) => <p key={issue}>{issue}</p>)}</Notice>)}
+      {ret.status === "reversed" && <Notice tone="warning">Reversed {dateTime(ret.reversedAt)}{ret.reversedByName ? ` by ${ret.reversedByName}` : ""}: {ret.reversalReason}. The goods came back; the return no longer counts.</Notice>}
+      {ret.status === "cancelled" && <Notice tone="info">Cancelled {dateTime(ret.cancelledAt)}{ret.cancelReason ? `: ${ret.cancelReason}` : ""}.</Notice>}
       <RecordDetailsPage header={{
         title: ret.returnNumber,
         status: <span className="flex flex-wrap gap-2"><StatusBadge tone={DOC_TONE[ret.status] ?? "neutral"}>{ret.statusLabel}</StatusBadge>
@@ -176,8 +175,8 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
           </TabList>
           <TabPanel id="overview">
             <div className="pt-4">
-              <ProcPanel title="Return">
-                <ProcFacts columns={3} items={[
+              <Panel title="Return">
+                <Facts columns={3} items={[
                   { label: "Supplier (as returned to)", value: `${ret.supplier?.legalName ?? ret.supplierName ?? "—"}${ret.supplier?.gstin ? ` · ${ret.supplier.gstin}` : ""}` },
                   { label: "Return to", value: ret.returnTo ? [ret.returnTo.line1, ret.returnTo.city, ret.returnTo.state, ret.returnTo.postalCode].filter(Boolean).join(", ") : "—" },
                   { label: "Expected resolution", value: ret.expectedResolutionLabel ?? "—" },
@@ -190,12 +189,12 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
                   { label: "Posted", value: ret.postedAt ? `${dateTime(ret.postedAt)}${ret.postedByName ? ` by ${ret.postedByName}` : ""}` : "Not posted" },
                   { label: "Summary", value: ret.reason },
                 ]} />
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="items">
             <div className="pt-4">
-              <ProcPanel title="Returned items" description="Each line against the receipt line it draws on. What was received stays received.">
+              <Panel title="Returned items" description="Each line against the receipt line it draws on. What was received stays received.">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="text-left text-text-muted">{["Item", "Source", "Received", "Returned elsewhere", "Returned now", "Reason", "From"].map((name, index) =>
@@ -216,12 +215,12 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
                     </tbody>
                   </table>
                 </div>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="movements">
             <div className="pt-4">
-              <ProcPanel title="Inventory movements" description="Out when the return posted; back in only if it was reversed because the goods came back. Physical non-stock goods move no stock.">
+              <Panel title="Inventory movements" description="Out when the return posted; back in only if it was reversed because the goods came back. Physical non-stock goods move no stock.">
                 {!detail.movements.length ? <p className="text-sm text-text-muted">{ret.status === "draft" ? "A draft moves no stock." : "No stock movements (non-stock goods)."}</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.movements.map((movement) => (
@@ -233,12 +232,12 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
                     ))}
                   </ul>
                 )}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="quality">
             <div className="pt-4">
-              <ProcPanel title="Quality and rejection" description="The rejection cases and inspections the returned goods came from.">
+              <Panel title="Quality and rejection" description="The rejection cases and inspections the returned goods came from.">
                 {!detail.related.rejections.length ? <p className="text-sm text-text-muted">The goods were returned from usable stock: no rejection case.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.related.rejections.map((entry) => <li key={entry.id} className="py-2">Receiving issue <Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link></li>)}
@@ -247,13 +246,13 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
                 <ul className="mt-2 flex flex-col gap-1 text-sm">
                   {detail.lines.map((line) => <li key={line.id}>{line.description}: {line.reasonLabel}{line.reasonNotes ? ` — ${line.reasonNotes}` : ""}{line.rejectionNumber ? ` (from ${line.rejectionNumber})` : ` (${statusLabel(line.stockDisposition ?? "usable_stock")})`}</li>)}
                 </ul>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="resolution">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Supplier resolution" description="What the supplier actually did. A promise is not a resolution.">
-                <ProcFacts columns={3} items={[
+              <Panel title="Supplier resolution" description="What the supplier actually did. A promise is not a resolution.">
+                <Facts columns={3} items={[
                   { label: "Expected", value: ret.expectedResolutionLabel ?? "—" }, { label: "Status", value: detail.resolution.resolutionLabel },
                   { label: "Returned / resolved", value: `${quantity(detail.resolution.figures.returned ?? "0")} / ${quantity(detail.resolution.figures.resolvedQuantity ?? "0")}` },
                 ]} />
@@ -265,19 +264,19 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
                     ))}
                   </ul>
                 )}
-              </ProcPanel>
-              <ProcPanel title="Replacement" description="A replacement is its own purchase order, received on its own goods receipt; the original order is never reopened.">
+              </Panel>
+              <Panel title="Replacement" description="A replacement is its own purchase order, received on its own goods receipt; the original order is never reopened.">
                 {detail.resolution.replacementOrder ? (
                   <p className="text-sm"><Link className="font-medium text-brand hover:underline" href={`/procurement/purchase-orders/${detail.resolution.replacementOrder.purchaseOrderId}`}>{detail.resolution.replacementOrder.purchaseOrderNumber}</Link>
                     {" "}({statusLabel(detail.resolution.replacementOrder.orderStatus)}{ret.replacementNoCharge ? ", no charge" : ""}) · ordered {quantity(detail.resolution.replacementOrder.ordered)}, received {quantity(detail.resolution.replacementOrder.received)}</p>
                 ) : <p className="text-sm text-text-muted">{ret.replacementStatus === "awaiting" ? "A replacement is expected; no replacement order yet." : "None."}</p>}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="financial">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Financial adjustment" description="Returned goods that were not billed need no credit (they are simply not billed). Billed goods are corrected by a vendor credit, or a refund Finance received — never twice.">
-                <ProcFacts columns={3} items={[
+              <Panel title="Financial adjustment" description="Returned goods that were not billed need no credit (they are simply not billed). Billed goods are corrected by a vendor credit, or a refund Finance received — never twice.">
+                <Facts columns={3} items={[
                   { label: "Status", value: detail.financial.label }, { label: "Unbilled returned", value: quantity(detail.financial.figures.unbilledQuantity ?? "0") },
                   { label: "Billed returned", value: `${quantity(detail.financial.figures.billedQuantity ?? "0")} (${detail.financial.figures.billedValue ?? "0"})` },
                   { label: "Credited (posted vendor credits)", value: `${quantity(detail.financial.figures.creditedQuantity ?? "0")} (${detail.financial.figures.creditedValue ?? "0"})` },
@@ -291,19 +290,19 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
                     ))}
                   </ul>
                 )}
-              </ProcPanel>
-              <ProcPanel title="Bills and vendor credits">
+              </Panel>
+              <Panel title="Bills and vendor credits">
                 <ul className="flex flex-col gap-1 text-sm">
                   {detail.financial.bills.map((bill) => <li key={bill.id}>Bill <Link className="text-brand hover:underline" href={bill.href}>{bill.billNumber}</Link>{bill.supplierInvoiceNumber ? ` (${bill.supplierInvoiceNumber})` : ""} · {statusLabel(bill.status)} · outstanding {bill.outstanding}</li>)}
                   {detail.financial.vendorCredits.map((note) => <li key={note.id}>Vendor credit <Link className="text-brand hover:underline" href={note.href}>{note.number}</Link> · {statusLabel(note.status)} · {note.total}</li>)}
                   {!detail.financial.bills.length && !detail.financial.vendorCredits.length && <li className="text-text-muted">No bills yet for these goods.</li>}
                 </ul>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="related">
             <div className="pt-4">
-              <ProcPanel title="Related documents">
+              <Panel title="Related documents">
                 <ul className="flex flex-col gap-2 text-sm">
                   <li>Purchase order <Link className="text-brand hover:underline" href={detail.related.purchaseOrder.href}>{detail.related.purchaseOrder.number}</Link></li>
                   {detail.related.receipts.map((entry) => <li key={entry.id}>Goods receipt <Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link></li>)}
@@ -311,17 +310,17 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
                   {detail.related.replacement && <li>Replacement order <Link className="text-brand hover:underline" href={detail.related.replacement.href}>{detail.related.replacement.number}</Link></li>}
                   {detail.financial.vendorCredits.map((note) => <li key={note.id}>Vendor credit <Link className="text-brand hover:underline" href={note.href}>{note.number}</Link></li>)}
                 </ul>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="notes"><div className="flex flex-col gap-4 pt-4"><ReturnFiles detail={detail} /></div></TabPanel>
           <TabPanel id="history">
             <div className="pt-4">
-              <ProcPanel title="History">
+              <Panel title="History">
                 <ul className="flex flex-col divide-y divide-border text-sm">
                   {detail.history.map((entry) => <li key={entry.id} className="py-2">{entry.summary}<span className="block text-xs text-text-muted">{dateTime(entry.at)}{entry.actor ? ` · ${entry.actor}` : ""}</span></li>)}
                 </ul>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
         </Tabs>
@@ -454,11 +453,11 @@ function ReturnFiles({ detail }: { detail: ReturnDetail }) {
   const remove = useMutation({ mutationFn: (fileId: string) => removeReturnFile(detail.purchaseReturn.id, fileId), onSuccess: () => void queryClient.invalidateQueries({ queryKey: key }) });
   return (
     <>
-      {detail.purchaseReturn.internalNotes && <ProcPanel title="Internal notes" description="Never printed on the return note."><p className="whitespace-pre-wrap text-sm">{detail.purchaseReturn.internalNotes}</p></ProcPanel>}
-      <ProcPanel title="Attachments" description="Inspection reports, photographs, the supplier's correspondence and dispatch documents."
+      {detail.purchaseReturn.internalNotes && <Panel title="Internal notes" description="Never printed on the return note."><p className="whitespace-pre-wrap text-sm">{detail.purchaseReturn.internalNotes}</p></Panel>}
+      <Panel title="Attachments" description="Inspection reports, photographs, the supplier's correspondence and dispatch documents."
         actions={detail.actions.edit || detail.actions.acknowledge ? <Button size="compact" variant="secondary" isLoading={upload.isPending} onPress={() => input.current?.click()}>Add file</Button> : undefined}>
         <input ref={input} type="file" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
-        {upload.error && <ProcAlert>{errorMessage(upload.error)}</ProcAlert>}
+        {upload.error && <Notice>{errorMessage(upload.error)}</Notice>}
         {!files.data?.length ? <p className="text-sm text-text-muted">No files.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {files.data.map((file) => (
@@ -470,7 +469,7 @@ function ReturnFiles({ detail }: { detail: ReturnDetail }) {
             ))}
           </ul>
         )}
-      </ProcPanel>
+      </Panel>
     </>
   );
 }

@@ -100,7 +100,7 @@ export function ItemImportScreen({ lens = "inventory" }: { lens?: ItemLens }) {
           {outcome?.errorFile && <div><Button variant="secondary" size="compact" onPress={downloadErrors}><Download className="size-4" aria-hidden="true" />Download rows to fix</Button></div>}
           <div className="overflow-x-auto rounded-[var(--radius-control)] border border-border">
             <table className="w-full text-left text-sm">
-              <thead className="text-xs text-text-secondary"><tr>{["Row", "Name", "Result", "Details"].map((heading) => <th key={heading} className="px-3 py-2 font-medium">{heading}</th>)}</tr></thead>
+              <thead className="bg-surface-muted text-left text-text-secondary"><tr>{["Row", "Name", "Result", "Details"].map((heading) => <th key={heading} className="px-3 py-2 font-medium">{heading}</th>)}</tr></thead>
               <tbody className="divide-y divide-border">
                 {result.results.map((row) => (
                   <tr key={row.rowNumber}>

@@ -1,0 +1,13 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+type Client = any;
+export declare const NEGATIVE_STOCK_EVENT_LABELS: Readonly<Record<string, string>>;
+export declare function getNegativeStockSettings(client: Client, context: StockContext): Promise<Row>;
+export declare function updateNegativeStockPolicy(client: Client, context: StockContext, input: { policy?: string; alertsEnabled?: boolean; reason?: string | null }): Promise<Row>;
+export declare function setItemNegativeStockPolicy(client: Client, context: StockContext, itemId: string, input: { alwaysBlock?: boolean; policy?: string; reason?: string | null }): Promise<Row>;
+export declare function listNegativeStock(client: Client, context: StockContext, filters?: Row): Promise<Row>;
+export declare function getNegativeStockSummary(client: Client, context: StockContext): Promise<Row>;
+export declare function getNegativeStockException(client: Client, context: StockContext, id: string): Promise<Row>;
+export declare function listNegativeStockAudit(client: Client, context: StockContext, filters?: Row): Promise<Row>;
+export declare function reconcileNegativeStockExceptions(client: Client, context: StockContext, input?: { repair?: boolean }): Promise<Row>;
+export declare function exportNegativeStock(client: Client, context: StockContext, filters?: Row, format?: "csv" | "xlsx"): Promise<{ fileName: string; contentType: string; body: string | Uint8Array; rowCount: number }>;

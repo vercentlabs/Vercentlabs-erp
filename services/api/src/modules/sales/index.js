@@ -930,8 +930,15 @@ export async function getSalesReport(client, context, key) {
     "delivery-performance",
     "billing-readiness",
     "order-status",
+    "sales-by-period",
+    "sales-by-customer",
+    "sales-by-item",
   ]);
   if (!allowed.has(key)) throw new SalesError(404, "Unknown Sales report.");
+  // Sales from posted invoices less credit notes (Finance's customer invoices: what was actually billed), net of discounts, before tax;
+  // per currency, never converted here.
+  const POSTED_INVOICE = `invoice.organization_id=$1 AND invoice.status IN ('posted','partially_paid','paid','overdue','disputed') AND invoice.invoice_type IN ('invoice','credit_note')`;
+  const SIGN = `CASE WHEN invoice.invoice_type='credit_note' THEN -1 ELSE 1 END`;
   const queries = {
     "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('approved','sent') AND quotation.valid_until>=current_date AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,
     "pending-approvals": `SELECT id,quotation_number,lifecycle_status,approval_status,updated_at FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending' ORDER BY updated_at`,
@@ -979,6 +986,27 @@ export async function getSalesReport(client, context, key) {
       JOIN tenant.sales_orders orders ON orders.id=delivery.sales_order_id
      WHERE delivery.organization_id=$1 AND delivery.delivery_status IN ('dispatched','delivered')
      ORDER BY delivery.dispatch_date DESC NULLS LAST,delivery.request_number DESC LIMIT 500`,
+    "sales-by-period": `SELECT date_trunc('month',invoice.invoice_date)::date AS period,invoice.currency_code AS currency,
+        count(*) FILTER (WHERE invoice.invoice_type='invoice') AS invoices,count(*) FILTER (WHERE invoice.invoice_type='credit_note') AS credit_notes,
+        sum(invoice.subtotal-invoice.discount_total) FILTER (WHERE invoice.invoice_type='invoice')::numeric(20,6) AS invoiced,
+        COALESCE(sum(invoice.subtotal-invoice.discount_total) FILTER (WHERE invoice.invoice_type='credit_note'),0)::numeric(20,6) AS credited,
+        sum(${SIGN}*(invoice.subtotal-invoice.discount_total))::numeric(20,6) AS net_sales,sum(${SIGN}*invoice.tax_total)::numeric(20,6) AS tax,
+        sum(${SIGN}*invoice.grand_total)::numeric(20,6) AS total
+      FROM tenant.accounting_customer_invoices invoice WHERE ${POSTED_INVOICE}
+     GROUP BY 1,2 ORDER BY 1 DESC,2 LIMIT 500`,
+    "sales-by-customer": `SELECT invoice.party_id AS customer_id,COALESCE(party.display_name,invoice.customer_snapshot->>'displayName') AS customer,invoice.currency_code AS currency,
+        count(*) FILTER (WHERE invoice.invoice_type='invoice') AS invoices,sum(${SIGN}*(invoice.subtotal-invoice.discount_total))::numeric(20,6) AS net_sales,
+        sum(${SIGN}*invoice.grand_total)::numeric(20,6) AS total,sum(invoice.outstanding_amount) FILTER (WHERE invoice.invoice_type='invoice')::numeric(20,6) AS outstanding,
+        max(invoice.invoice_date) AS last_invoiced
+      FROM tenant.accounting_customer_invoices invoice LEFT JOIN tenant.business_parties party ON party.organization_id=invoice.organization_id AND party.id=invoice.party_id
+     WHERE ${POSTED_INVOICE} GROUP BY invoice.party_id,2,3 ORDER BY net_sales DESC LIMIT 500`,
+    "sales-by-item": `SELECT line.item_id,COALESCE(item.code,'—') AS product_code,COALESCE(item.name,line.description) AS product,invoice.currency_code AS currency,
+        count(DISTINCT invoice.id) FILTER (WHERE invoice.invoice_type='invoice') AS invoices,sum(${SIGN}*line.quantity)::numeric(20,3) AS quantity,
+        sum(${SIGN}*line.net_amount)::numeric(20,6) AS net_sales,sum(${SIGN}*line.line_total)::numeric(20,6) AS total
+      FROM tenant.accounting_customer_invoices invoice
+      JOIN tenant.accounting_customer_invoice_lines line ON line.organization_id=invoice.organization_id AND line.customer_invoice_id=invoice.id
+      LEFT JOIN tenant.items item ON item.organization_id=line.organization_id AND item.id=line.item_id
+     WHERE ${POSTED_INVOICE} GROUP BY line.item_id,item.code,item.name,line.description,invoice.currency_code ORDER BY net_sales DESC LIMIT 500`,
     "billing-readiness": `SELECT id AS sales_order_id,sales_order_number,billing_status,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status='confirmed' AND billing_status IN ('ready','partially_invoiced') ORDER BY updated_at DESC`,
   };
   // Order status: each dimension of every order's progress, from the tracking service (never one squeezed "stage").
@@ -1051,7 +1079,7 @@ export async function getSalesOptions(
       [context.organizationId],
     ),
     client.query(
-      `SELECT id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 500`,
+      `SELECT id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' AND system_role IS NULL ORDER BY name LIMIT 500`,
       [context.organizationId],
     ),
     client.query(

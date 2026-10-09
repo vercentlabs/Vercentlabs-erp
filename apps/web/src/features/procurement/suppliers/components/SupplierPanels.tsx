@@ -10,7 +10,6 @@ import { Button, StatusBadge } from "@vercentlabs/design-system";
 
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/procurement/shared/format";
 
 import {
@@ -18,6 +17,7 @@ import {
   type BankAccount, type SupplierDetail, type SupplierDocument, type SupplierOptions,
 } from "../api/suppliers-api";
 import { BankAccountDialog } from "./SupplierDialogs";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 const Row = ({ children, inactive }: { children: React.ReactNode; inactive?: boolean }) => (
   <li className={`flex flex-wrap items-start justify-between gap-3 py-3 ${inactive ? "opacity-60" : ""}`}>{children}</li>
@@ -38,8 +38,8 @@ export function DocumentsPanel({ supplierId, kind }: { supplierId: string; kind:
   const link = (document: SupplierDocument) => (document.href ? <Link className="font-medium tabular-nums text-brand hover:underline" href={document.href}>{document.number}</Link>
     : <span className="font-medium tabular-nums">{document.number}</span>);
   return (
-    <ProcPanel title={text.title} description={text.description}>
-      {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : query.isError ? <ProcAlert>{errorMessage(query.error)}</ProcAlert> : !query.data?.length
+    <Panel title={text.title} description={text.description}>
+      {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : query.isError ? <Notice>{errorMessage(query.error)}</Notice> : !query.data?.length
         ? <p className="text-sm text-text-muted">{text.empty}</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {query.data.map((document) => (
@@ -60,7 +60,7 @@ export function DocumentsPanel({ supplierId, kind }: { supplierId: string; kind:
             ))}
           </ul>
         )}
-    </ProcPanel>
+    </Panel>
   );
 }
 
@@ -75,10 +75,10 @@ export function PaymentDetailsPanel({ detail, options, onChanged }: { detail: Su
   });
   const canManage = query.data?.canManage ?? false;
   return (
-    <ProcPanel title="Payment details" description="Finance's: where this supplier is paid. Only Finance may change it, and every change is recorded. Not needed for RFQs or purchase orders."
+    <Panel title="Payment details" description="Finance's: where this supplier is paid. Only Finance may change it, and every change is recorded. Not needed for RFQs or purchase orders."
       actions={canManage ? <Button size="compact" variant="secondary" onPress={() => setEditing("new")}>Add bank account</Button> : undefined}>
-      {deactivate.error && <ProcAlert>{errorMessage(deactivate.error)}</ProcAlert>}
-      {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : query.isError ? <ProcAlert>{errorMessage(query.error)}</ProcAlert> : !query.data?.accounts.length
+      {deactivate.error && <Notice>{errorMessage(deactivate.error)}</Notice>}
+      {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : query.isError ? <Notice>{errorMessage(query.error)}</Notice> : !query.data?.accounts.length
         ? <p className="text-sm text-text-muted">No bank accounts recorded.</p> : (
           <ul className="flex flex-col divide-y divide-border">
             {query.data.accounts.map((account) => (
@@ -107,7 +107,7 @@ export function PaymentDetailsPanel({ detail, options, onChanged }: { detail: Su
         )}
       {editing && <BankAccountDialog supplier={supplier} account={editing === "new" ? null : editing} options={options} onClose={() => setEditing(null)}
         onDone={(message) => { setEditing(null); void query.refetch(); onChanged(message); }} />}
-    </ProcPanel>
+    </Panel>
   );
 }
 
@@ -122,14 +122,14 @@ export function FilesPanel({ detail }: { detail: SupplierDetail }) {
   const remove = useMutation({ mutationFn: (fileId: string) => removeFile(detail.supplier.id, fileId), onSuccess: refresh });
   const canEdit = detail.capabilities.edit;
   return (
-    <ProcPanel title="Attachments" description="Contracts, rate cards, tax and quality certificates, company profile, correspondence. Internal: never sent with a purchase order."
+    <Panel title="Attachments" description="Contracts, rate cards, tax and quality certificates, company profile, correspondence. Internal: never sent with a purchase order."
       actions={canEdit ? (
         <>
           <input ref={input} type="file" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
           <Button size="compact" variant="secondary" isLoading={upload.isPending} onPress={() => input.current?.click()}>Add file</Button>
         </>
       ) : undefined}>
-      {(upload.error || remove.error) && <ProcAlert>{errorMessage(upload.error ?? remove.error)}</ProcAlert>}
+      {(upload.error || remove.error) && <Notice>{errorMessage(upload.error ?? remove.error)}</Notice>}
       {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : !query.data?.length ? <p className="text-sm text-text-muted">No files yet.</p> : (
         <ul className="flex flex-col divide-y divide-border text-sm">
           {query.data.map((file) => (
@@ -143,7 +143,7 @@ export function FilesPanel({ detail }: { detail: SupplierDetail }) {
           ))}
         </ul>
       )}
-    </ProcPanel>
+    </Panel>
   );
 }
 
@@ -151,7 +151,7 @@ export function HistoryPanel({ supplierId }: { supplierId: string }) {
   const workspace = useWorkspaceContext();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "supplier", supplierId, "history"), queryFn: () => getHistory(supplierId) });
   return (
-    <ProcPanel title="History" description="What changed and who changed it: the supplier's business events, not every edit.">
+    <Panel title="History" description="What changed and who changed it: the supplier's business events, not every edit.">
       {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : !query.data?.length ? <p className="text-sm text-text-muted">Nothing yet.</p> : (
         <ol className="flex flex-col divide-y divide-border text-sm">
           {query.data.map((entry) => (
@@ -162,6 +162,6 @@ export function HistoryPanel({ supplierId }: { supplierId: string }) {
           ))}
         </ol>
       )}
-    </ProcPanel>
+    </Panel>
   );
 }

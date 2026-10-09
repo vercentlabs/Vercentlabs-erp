@@ -18,6 +18,7 @@ export declare const SALES_PERMISSIONS: Readonly<{
   orderReopen: "sales.order.reopen";
   orderCancelRemaining: "sales.order.cancel_remaining";
   orderReserve: "sales.order.reserve";
+  orderReservePartial: "sales.order.reserve_partial";
   orderExport: "sales.order.export";
   orderConfirmationSend: "sales.order.confirmation.send";
   orderConfirmationMarkSent: "sales.order.confirmation.mark_sent";

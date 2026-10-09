@@ -72,6 +72,8 @@ export type SalesOrderLine = {
   uom_id: string | null;
   warehouse_id: string | null;
   warehouse_name: string | null;
+  // Eligible, unreserved stock at the line's warehouse now, in the line's unit.
+  available_in_warehouse?: string | number | null;
   item_code_snapshot: string;
   item_name_snapshot: string;
   description_snapshot: string | null;
@@ -338,7 +340,7 @@ export type ReservationStatusKey = "not_required" | "not_reserved" | "partially_
 export type ReservationResult = { orderId: string; lines: ReservationOutcome[]; reservedLines: number; reservationStatus: ReservationStatusKey; replayed: boolean };
 // One reservation record: what it reserved, still holds, consumed (by which delivery) and released, in the line's unit.
 export type StockReservationRecord = {
-  id: string; reservationNumber: string | null; status: "active" | "consumed" | "released" | "cancelled"; statusLabel: string; lineId: string; itemName: string; unit: string | null;
+  id: string; reservationId: string | null; reservationNumber: string | null; status: "active" | "consumed" | "released" | "cancelled"; statusLabel: string; lineId: string; itemName: string; unit: string | null;
   reserved: number; active: number; consumed: number; released: number; warehouseName: string; location: string | null; batch: string | null;
   reservedAt: string; reservedByName: string | null; releasedAt: string | null; releasedByName: string | null; releaseReason: string | null; daysHeld: number | null; stale: boolean;
   consumptions: Array<{ deliveryNumber: string | null; quantity: number; consumedAt: string }>;

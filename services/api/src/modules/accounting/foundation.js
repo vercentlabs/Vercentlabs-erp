@@ -20,11 +20,13 @@ const ACCOUNT_SEED = Object.freeze([
   ["3000", "Equity", "equity", "group", "credit", true, false, false],
   ["3100", "Capital", "equity", "equity", "credit", false, true, false],
   ["3200", "Retained earnings", "equity", "retained_earnings", "credit", false, false, false],
+  ["3900", "Opening balance equity", "equity", "equity", "credit", false, true, false],
   ["4000", "Revenue", "revenue", "group", "credit", true, false, false],
   ["4100", "Sales revenue", "revenue", "revenue", "credit", false, true, false],
   ["4200", "Service revenue", "revenue", "revenue", "credit", false, true, false],
   ["4900", "Other income", "revenue", "other_income", "credit", false, true, false],
   ["4950", "Purchase discounts and settlement gains", "revenue", "other_income", "credit", false, false, false],
+  ["4960", "Inventory adjustment gain", "revenue", "other_income", "credit", false, true, false],
   ["5000", "Cost of sales", "expense", "cogs", "debit", false, true, false],
   ["6000", "Operating expenses", "expense", "group", "debit", true, false, false],
   ["6100", "General expense", "expense", "expense", "debit", false, true, false],
@@ -32,6 +34,7 @@ const ACCOUNT_SEED = Object.freeze([
   ["6300", "Depreciation expense", "expense", "expense", "debit", false, true, false],
   ["6400", "Bank charges", "expense", "expense", "debit", false, true, false],
   ["6500", "Bad debt and write-off", "expense", "expense", "debit", false, true, false],
+  ["6550", "Inventory adjustment loss", "expense", "expense", "debit", false, true, false],
   ["6900", "Rounding differences", "expense", "rounding", "debit", false, true, false],
   ["7000", "Foreign exchange", "revenue", "group", "credit", true, false, false],
   ["7100", "Realized FX gain", "revenue", "fx_gain", "credit", false, false, false],
@@ -49,6 +52,7 @@ const JOURNAL_SEED = Object.freeze([
   ["TAX", "Tax journal", "tax", "1400", "2200", true],
   ["AST", "Asset journal", "asset", "1500", "1590", true],
   ["CLS", "Closing journal", "closing", null, null, true],
+  ["OPN", "Opening balance journal", "opening", "1300", "3900", false],
 ]);
 
 const MAPPING_SEED = Object.freeze([
@@ -62,6 +66,10 @@ const MAPPING_SEED = Object.freeze([
   ["unrealized_fx_gain", "7110"], ["realized_fx_loss", "7200"],
   ["unrealized_fx_loss", "7210"],
 ]);
+
+// Defaults a company's own mappings override (they rank by priority, lowest first): Inventory, the opening-balance counter-account and the
+// inventory adjustment gain and loss accounts.
+const DEFAULT_MAPPING_SEED = Object.freeze([["inventory", "1300"], ["opening_balance_equity", "3900"], ["inventory_adjustment_gain", "4960"], ["inventory_adjustment_loss", "6550"]]);
 
 const PARENT_CODE_BY_PREFIX = Object.freeze([
   ["11", "1100"], ["1", "1000"], ["2", "2000"], ["3", "3000"],
@@ -152,6 +160,16 @@ export async function initializeAccountingOrganization(client, input) {
          organization_id,ledger_id,mapping_key,account_id,priority,status,created_by,updated_by
        ) VALUES ($1,$2,$3,$4,100,'active',$5,$5)
        ON CONFLICT DO NOTHING`,
+      [organizationId, ledgerId, mappingKey, accountIds.get(accountCode), userId],
+    );
+  }
+
+  for (const [mappingKey, accountCode] of DEFAULT_MAPPING_SEED) {
+    await client.query(
+      `INSERT INTO tenant.accounting_account_mappings (
+         organization_id,ledger_id,mapping_key,account_id,priority,status,created_by,updated_by
+       ) SELECT $1,$2,$3,$4,1000,'active',$5,$5
+         WHERE NOT EXISTS (SELECT 1 FROM tenant.accounting_account_mappings WHERE organization_id=$1 AND ledger_id=$2 AND mapping_key=$3 AND priority=1000)`,
       [organizationId, ledgerId, mappingKey, accountIds.get(accountCode), userId],
     );
   }

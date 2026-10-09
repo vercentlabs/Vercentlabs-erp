@@ -10,8 +10,8 @@ import { ErrorState, PageHeader, Select, StatusBadge } from "@vercentlabs/design
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, money } from "@/features/procurement/shared/format";
+import { Panel } from "@/shared/ui/Panel";
 
 type Obligation = { scheduleId: string; billId: string; billNumber: string; supplierInvoice: string | null; supplierName: string; installment: number; installments: number; currencyCode: string;
   dueDate: string; originalDueDate: string; scheduled: string; outstanding: string; daysOverdue: number; dueToday?: boolean; href: string };
@@ -63,21 +63,21 @@ export function ObligationsScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader title="Payment Obligations & AP Aging" description={`What posted supplier bills still owe, by instalment due date, as of ${calendarDate(overdue.today)} (the company's local date). Payments are recorded by Finance.`} />
       {overdue.statutory.length > 0 && (
-        <ProcPanel title="Statutory deadlines breached (MSMED Act)" description="Micro and small suppliers past their legal payment deadline. Statutory interest is for Finance and Compliance to assess.">
+        <Panel title="Statutory deadlines breached (MSMED Act)" description="Micro and small suppliers past their legal payment deadline. Statutory interest is for Finance and Compliance to assess.">
           <ul className="flex flex-col divide-y divide-border text-sm">
             {overdue.statutory.map((entry) => <li key={entry.id} className="flex flex-wrap justify-between gap-2 py-2"><span><Link className="text-brand hover:underline" href={entry.href}>{entry.billNumber}</Link>
               {" "}· {entry.supplierName} ({entry.classification}) · {entry.sourceReference} · deadline {calendarDate(entry.statutoryDueDate)}</span><span className="font-medium tabular-nums">{entry.outstanding}</span></li>)}
           </ul>
-        </ProcPanel>
+        </Panel>
       )}
-      <ProcPanel title="Overdue instalments" description="Only the instalments past due — a bill's later instalments are not overdue with them.">
+      <Panel title="Overdue instalments" description="Only the instalments past due — a bill's later instalments are not overdue with them.">
         <ObligationTable rows={overdue.obligations} overdue />
-      </ProcPanel>
-      <ProcPanel title="Due soon" actions={<Select aria-label="Period" size="compact" selectedKey={days} onSelectionChange={(value) => setDays(String(value))}
+      </Panel>
+      <Panel title="Due soon" actions={<Select aria-label="Period" size="compact" selectedKey={days} onSelectionChange={(value) => setDays(String(value))}
         options={[["7", "Next 7 days"], ["15", "Next 15 days"], ["30", "Next 30 days"], ["60", "Next 60 days"], ["90", "Next 90 days"]].map(([value, label]) => ({ value, label }))} />}>
         <ObligationTable rows={upcoming.obligations} overdue={false} />
-      </ProcPanel>
-      <ProcPanel title="AP aging by instalment" description="Each instalment in the bucket of its own due date.">
+      </Panel>
+      <Panel title="AP aging by instalment" description="Each instalment in the bucket of its own due date.">
         {!aging.data.rows.length ? <p className="text-sm text-text-muted">Nothing owed.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -95,7 +95,7 @@ export function ObligationsScreen() {
             </table>
           </div>
         )}
-      </ProcPanel>
+      </Panel>
     </div>
   );
 }

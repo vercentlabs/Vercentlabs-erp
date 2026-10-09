@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Download, Eye, Pencil, Trash2 } from "lucide-react";
+import { Download, Eye, Pencil, Trash2 } from "lucide-react";
 import {
   Button, Dialog, ErrorState, LinkButton, PageHeader, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField, buttonVariants,
 } from "@vercentlabs/design-system";
@@ -15,7 +15,6 @@ import { useTabParam, useFormChangesWarning } from "@/features/procurement/share
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcFacts, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, dateTime, money, quantity, statusLabel } from "@/features/procurement/shared/format";
 import { getBill } from "@/features/procurement/supplier-bills/api/supplier-bills-api";
 
@@ -23,6 +22,7 @@ import {
   claimAction, claimPdfUrl, createClaim, errorMessage, getClaim, getCreditOptions, issuesOf, updateClaim, type ClaimDetail,
 } from "../api/vendor-credits-api";
 import { CLAIM_TONE, CREDIT_TONE } from "./DebitNotesCreditsScreens";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 type Row = { key: string; billLineId: string | null; label: string; basis: "amount" | "quantity"; quantity: string; unitValue: string; amount: string; taxAmount: string; reason: string;
   description: string };
@@ -32,7 +32,7 @@ const nextKey = () => `row-${(seq += 1)}`;
 function Errors({ error }: { error: unknown }) {
   if (!error) return null;
   const issues = issuesOf(error);
-  return <ProcAlert>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>;
+  return <Notice>{errorMessage(error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>;
 }
 
 // ---------------------------------------------------------------- form
@@ -87,11 +87,10 @@ function ClaimForm({ existing, presetSupplierId, presetBillId }: { existing: Cla
   const reasons = options.data.reasons.map((reason) => ({ value: reason.code, label: reason.label }));
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/debit-notes-credits" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Debit Notes &amp; Vendor Credits</Link>
       <PageHeader title={existing ? `Edit ${existing.claim.claimNumber}` : "New Debit Claim to Supplier"}
         description="A documented claim to the supplier. It is not a credit: nothing changes in Accounts Payable or tax until the supplier's credit is recorded." />
       <Errors error={save.error} />
-      <ProcPanel title="Claim">
+      <Panel title="Claim">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <Select label="Supplier" isDisabled={Boolean(existing)} selectedKey={supplierId} onSelectionChange={(value) => { setSupplierId(String(value)); setRows([]); }}
             options={options.data.suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.name} (${supplier.number})` }))} />
@@ -99,8 +98,8 @@ function ClaimForm({ existing, presetSupplierId, presetBillId }: { existing: Cla
           <TextField label="Supplier reference (if any)" value={header.supplierReference} onChange={set("supplierReference")} />
         </div>
         <TextArea label="Reason for the claim" value={header.reason} onChange={set("reason")} />
-      </ProcPanel>
-      <ProcPanel title="What is claimed" description="An amount (or a quantity at a unit value) on a posted bill line, or another claim with no bill. Tax on bill lines is estimated from the bill."
+      </Panel>
+      <Panel title="What is claimed" description="An amount (or a quantity at a unit value) on a posted bill line, or another claim with no bill. Tax on bill lines is estimated from the bill."
         actions={
           <div className="flex flex-wrap gap-2">
             <Select aria-label="Add a bill line" size="compact" selectedKey={null} placeholder="Add bill line…" isDisabled={!supplierId}
@@ -137,8 +136,8 @@ function ClaimForm({ existing, presetSupplierId, presetBillId }: { existing: Cla
             ))}
           </div>
         )}
-      </ProcPanel>
-      <ProcPanel title="Notes"><TextArea aria-label="Notes" value={header.notes} onChange={set("notes")} /></ProcPanel>
+      </Panel>
+      <Panel title="Notes"><TextArea aria-label="Notes" value={header.notes} onChange={set("notes")} /></Panel>
       <div className="flex flex-wrap justify-end gap-2">
         <LinkButton variant="secondary" href={existing ? `/procurement/debit-notes-credits/claims/${existing.claim.id}` : "/procurement/debit-notes-credits"}>Cancel</LinkButton>
         <Button variant="secondary" isLoading={save.isPending && save.variables === false} isDisabled={!supplierId || !rows.length} onPress={() => save.mutate(false)}>Save Draft</Button>
@@ -168,11 +167,10 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
   const c = (value: string | null | undefined) => money(claim.currencyCode, value);
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/debit-notes-credits" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Debit Notes &amp; Vendor Credits</Link>
-      {notice && <ProcAlert tone="success">{notice}</ProcAlert>}
+      {notice && <Notice tone="success">{notice}</Notice>}
       <Errors error={issue.error} />
-      {claim.status === "closed" && <ProcAlert tone="info">Closed {dateTime(claim.closedAt)}{claim.closeReason ? `: ${claim.closeReason}` : ""}.</ProcAlert>}
-      <ProcAlert tone="info">A debit claim is a claim to the supplier. It changes nothing in Accounts Payable or tax; the supplier&apos;s credit, recorded as a vendor credit, does.</ProcAlert>
+      {claim.status === "closed" && <Notice tone="info">Closed {dateTime(claim.closedAt)}{claim.closeReason ? `: ${claim.closeReason}` : ""}.</Notice>}
+      <Notice tone="info">A debit claim is a claim to the supplier. It changes nothing in Accounts Payable or tax; the supplier&apos;s credit, recorded as a vendor credit, does.</Notice>
       <RecordDetailsPage header={{
         title: claim.claimNumber,
         status: <StatusBadge tone={CLAIM_TONE[claim.status] ?? "neutral"}>{claim.statusLabel}</StatusBadge>,
@@ -208,8 +206,8 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
           </TabList>
           <TabPanel id="overview">
             <div className="pt-4">
-              <ProcPanel title="Claim">
-                <ProcFacts columns={3} items={[
+              <Panel title="Claim">
+                <Facts columns={3} items={[
                   { label: "Supplier", value: `${claim.supplier?.legalName ?? claim.supplierName ?? "—"}${claim.supplier?.gstin ? ` · ${claim.supplier.gstin}` : ""}` },
                   { label: "Issue date", value: calendarDate(claim.issueDate) }, { label: "Issued", value: claim.issuedAt ? dateTime(claim.issuedAt) : "Not issued" },
                   { label: "Supplier reference", value: claim.supplierReference ?? "—" }, { label: "Currency", value: claim.currencyCode },
@@ -218,12 +216,12 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
                   { label: "Reason", value: claim.reason },
                 ]} />
                 {claim.notes && <p className="mt-3 whitespace-pre-wrap text-sm">{claim.notes}</p>}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="lines">
             <div className="pt-4">
-              <ProcPanel title="Claim lines">
+              <Panel title="Claim lines">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="text-left text-text-muted">{["Description", "Bill / line", "Reason", "Quantity", "Amount", "Tax (est.)", "Total"].map((name, index) =>
@@ -243,12 +241,12 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
                     </tbody>
                   </table>
                 </div>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="sources">
             <div className="pt-4">
-              <ProcPanel title="Original bills and returns" description="The posted bills (and returned goods) the claim is about.">
+              <Panel title="Original bills and returns" description="The posted bills (and returned goods) the claim is about.">
                 {!detail.lines.some((line) => line.billId || line.purchaseReturnLineId) ? <p className="text-sm text-text-muted">The claim is not tied to a bill.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {[...new Map(detail.lines.filter((line) => line.billId).map((line) => [line.billId, line])).values()].map((line) => (
@@ -257,17 +255,17 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
                     {claim.purchaseReturnId && <li className="py-2">Purchase return <Link className="text-brand hover:underline" href={`/procurement/purchase-returns/${claim.purchaseReturnId}`}>open</Link></li>}
                   </ul>
                 )}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="notes">
             <div className="pt-4">
-              <ProcPanel title="Notes">{claim.notes ? <p className="whitespace-pre-wrap text-sm">{claim.notes}</p> : <p className="text-sm text-text-muted">No notes.</p>}</ProcPanel>
+              <Panel title="Notes">{claim.notes ? <p className="whitespace-pre-wrap text-sm">{claim.notes}</p> : <p className="text-sm text-text-muted">No notes.</p>}</Panel>
             </div>
           </TabPanel>
           <TabPanel id="responses">
             <div className="pt-4">
-              <ProcPanel title="Supplier responses" description="Each decision as recorded. A partial acceptance leaves the rest disputed.">
+              <Panel title="Supplier responses" description="Each decision as recorded. A partial acceptance leaves the rest disputed.">
                 {!detail.responses.length ? <p className="text-sm text-text-muted">{claim.status === "draft" ? "Issue the debit claim first." : "Awaiting the supplier."}</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.responses.map((entry) => (
@@ -277,12 +275,12 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
                     ))}
                   </ul>
                 )}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="credits">
             <div className="pt-4">
-              <ProcPanel title="Vendor credits" description="The supplier's credits recorded against this claim. Posted credits covering the accepted amount resolve it.">
+              <Panel title="Vendor credits" description="The supplier's credits recorded against this claim. Posted credits covering the accepted amount resolve it.">
                 {!detail.credits.length ? <p className="text-sm text-text-muted">None yet.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.credits.map((entry) => <li key={entry.id} className="flex flex-wrap justify-between gap-2 py-2"><Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link>
@@ -290,16 +288,16 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
                         {statusLabel(entry.status)}</StatusBadge><span className="tabular-nums">{c(entry.total)}</span></span></li>)}
                   </ul>
                 )}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="history">
             <div className="pt-4">
-              <ProcPanel title="History">
+              <Panel title="History">
                 <ul className="flex flex-col divide-y divide-border text-sm">
                   {detail.history.map((entry) => <li key={entry.id} className="py-2">{entry.summary}<span className="block text-xs text-text-muted">{dateTime(entry.at)}{entry.actor ? ` · ${entry.actor}` : ""}</span></li>)}
                 </ul>
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
         </Tabs>

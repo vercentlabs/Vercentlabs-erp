@@ -4,7 +4,7 @@
 // only what a flat data sheet needs is read: shared strings, inline strings,
 // numbers and booleans. Formulas use their cached value; dates arrive as the
 // text or number the cell holds.
-import { inflateRawSync } from "node:zlib";
+import { crc32, deflateRawSync, inflateRawSync } from "node:zlib";
 
 import { CSV_LIMITS, DataExchangeError } from "./csv.js";
 
@@ -135,4 +135,53 @@ export function parseXlsxUpload(bytes, limits = {}) {
 // Picks the parser from the file name.
 export function isXlsxFileName(fileName) {
   return /\.xlsx$/i.test(String(fileName ?? ""));
+}
+
+// Writes a one-sheet workbook: columns [{ key, label }], rows of plain values (numbers stay numbers; text is neutralized against formula
+// injection, like a CSV export).
+export function buildXlsxWorkbook({ sheetName = "Sheet1", columns, rows }) {
+  const escape = (value) => String(value).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch])
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+  const letters = (index) => { let out = ""; for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) out = String.fromCharCode(65 + ((n - 1) % 26)) + out; return out; };
+  const cell = (value, ref) => {
+    if (value === null || value === undefined || value === "") return "";
+    if (typeof value === "number" && Number.isFinite(value)) return `<c r="${ref}"><v>${value}</v></c>`;
+    const text = String(value);
+    return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escape(/^[=+\-@\t\r]/.test(text) ? `'${text}` : text)}</t></is></c>`;
+  };
+  const sheetRows = [columns.map((column) => column.label), ...rows.map((row) => columns.map((column) => row[column.key]))]
+    .map((values, r) => `<row r="${r + 1}">${values.map((value, i) => cell(value, `${letters(i)}${r + 1}`)).join("")}</row>`).join("");
+  const name = escape(String(sheetName).replace(/[\\/?*[\]:]/g, " ").slice(0, 31) || "Sheet1");
+  const header = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const parts = [
+    ["[Content_Types].xml", `${header}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`],
+    ["_rels/.rels", `${header}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ["xl/workbook.xml", `${header}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${name}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+    ["xl/_rels/workbook.xml.rels", `${header}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`],
+    ["xl/worksheets/sheet1.xml", `${header}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheetRows}</sheetData></worksheet>`],
+  ];
+  const locals = [];
+  const centrals = [];
+  let offset = 0;
+  for (const [path, xml] of parts) {
+    const data = Buffer.from(xml, "utf8");
+    const packed = deflateRawSync(data);
+    const fileName = Buffer.from(path, "utf8");
+    const sum = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0x0800, 6); local.writeUInt16LE(8, 8);
+    local.writeUInt32LE(sum, 14); local.writeUInt32LE(packed.length, 18); local.writeUInt32LE(data.length, 22); local.writeUInt16LE(fileName.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(CENTRAL_FILE_HEADER, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6); central.writeUInt16LE(0x0800, 8); central.writeUInt16LE(8, 10);
+    central.writeUInt32LE(sum, 16); central.writeUInt32LE(packed.length, 20); central.writeUInt32LE(data.length, 24); central.writeUInt16LE(fileName.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, fileName, packed);
+    centrals.push(central, fileName);
+    offset += local.length + fileName.length + packed.length;
+  }
+  const directory = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(END_OF_CENTRAL_DIRECTORY, 0); end.writeUInt16LE(parts.length, 8); end.writeUInt16LE(parts.length, 10);
+  end.writeUInt32LE(directory.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, directory, end]);
 }

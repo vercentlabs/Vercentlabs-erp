@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Check, Eye, FileMinus, Pencil, Send, Upload, Wallet } from "lucide-react";
+import { Check, Eye, FileMinus, Pencil, Send, Upload, Wallet } from "lucide-react";
 import {
   Button, EnterpriseDataGrid, ErrorState, LinkButton, MetricStrip, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, buttonVariants,
 } from "@vercentlabs/design-system";
@@ -22,7 +22,6 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
-import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 import type { SalesDocumentEvent } from "@/features/sales/quotations/api/quotations-api";
 
 import {
@@ -33,6 +32,7 @@ import {
 } from "../components/InvoiceDialogs";
 import { InvoiceStatusBadges } from "../components/InvoiceStatusBadges";
 import { CreateCreditNoteDialog } from "@/features/sales/credit-notes/components/CreditNoteDialogs";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -104,20 +104,16 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/sales/invoices" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
-        <ArrowLeft className="size-3.5" aria-hidden="true" />
-        All invoices
-      </Link>
-      {notice && <SalesAlert tone="info" className="whitespace-pre-line">{notice}</SalesAlert>}
-      {invoice.financeStatus === "pending_approval" && <SalesAlert tone="warning">This invoice is waiting for Finance approval. It is posted once approved.</SalesAlert>}
+      {notice && <Notice tone="info" className="whitespace-pre-line">{notice}</Notice>}
+      {invoice.financeStatus === "pending_approval" && <Notice tone="warning">This invoice is waiting for Finance approval. It is posted once approved.</Notice>}
       {invoice.status === "reversed" && (
-        <SalesAlert tone="warning">This invoice was reversed {by(invoice.reversed_at, invoice.reversed_by_name)}{invoice.reversal_reason ? `: ${invoice.reversal_reason}` : ""}. It is kept for the record; nothing is owed on it.</SalesAlert>
+        <Notice tone="warning">This invoice was reversed {by(invoice.reversed_at, invoice.reversed_by_name)}{invoice.reversal_reason ? `: ${invoice.reversal_reason}` : ""}. It is kept for the record; nothing is owed on it.</Notice>
       )}
-      {invoice.status === "cancelled" && <SalesAlert tone="warning">This draft was cancelled. It never reached the books.</SalesAlert>}
+      {invoice.status === "cancelled" && <Notice tone="warning">This draft was cancelled. It never reached the books.</Notice>}
       {invoice.status === "draft" && invoice.dueDateRequired && (
-        <SalesAlert tone="warning">Payment terms &quot;{invoice.paymentTerm?.name}&quot; do not set a due date. Enter the due date (Edit) before posting this invoice.</SalesAlert>
+        <Notice tone="warning">Payment terms &quot;{invoice.paymentTerm?.name}&quot; do not set a due date. Enter the due date (Edit) before posting this invoice.</Notice>
       )}
-      {detail.draftWarnings.map((warning, index) => <SalesAlert key={index} tone="warning">{warning.message}</SalesAlert>)}
+      {detail.draftWarnings.map((warning, index) => <Notice key={index} tone="warning">{warning.message}</Notice>)}
 
       <RecordDetailsPage
         header={{
@@ -206,8 +202,8 @@ function Overview({ detail }: { detail: InvoiceDetail }) {
   const seller = invoice.seller_snapshot;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Customer" description="As invoiced: later changes to the customer do not change this invoice.">
-        <SalesFacts items={[
+      <Panel title="Customer" description="As invoiced: later changes to the customer do not change this invoice.">
+        <Facts items={[
           { label: "Customer", value: customer?.legalName ?? customer?.displayName ?? "—" },
           { label: "Customer number", value: customer?.customerNumber ?? invoice.customer_number ?? "—" },
           { label: "GSTIN", value: customer?.gstin ?? "—" },
@@ -215,9 +211,9 @@ function Overview({ detail }: { detail: InvoiceDetail }) {
           { label: "Bill to", value: <span className="whitespace-pre-line">{addressText(invoice.billing_address_snapshot)}</span> },
           { label: "Ship to", value: <span className="whitespace-pre-line">{addressText(invoice.shipping_address_snapshot)}</span> },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Invoice">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Invoice">
+        <Facts items={[
           { label: "Invoice date", value: calendarDate(invoice.invoice_date) },
           { label: "Posting date", value: calendarDate(invoice.accounting_date) },
           { label: "Payment terms", value: invoice.paymentTerm
@@ -235,22 +231,22 @@ function Overview({ detail }: { detail: InvoiceDetail }) {
           { label: "Salesperson", value: invoice.owner_name ?? "—" },
           { label: "Sent", value: invoice.sent ? `${dateTime(invoice.sent_at)}${invoice.sent_to ? ` to ${invoice.sent_to}` : ""}` : "Not sent" },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Tax">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Tax">
+        <Facts items={[
           { label: "Issued by", value: seller?.name ? `${seller.legalName ?? seller.name}${seller.gstin ? ` · GSTIN ${seller.gstin}` : ""}` : "—" },
           { label: "Place of supply", value: invoice.place_of_supply ? `${invoice.place_of_supply_name ?? ""} (${invoice.place_of_supply})`.trim() : "—" },
           { label: "GST", value: ({ intra_state: "Within the state: CGST + SGST", inter_state: "Between states: IGST" } as Record<string, string>)[invoice.supply_nature ?? ""] ?? "—" },
           { label: "e-Invoice", value: invoice.e_invoice_reference ? `IRN ${invoice.e_invoice_reference}` : statusLabel(invoice.e_invoice_status) },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Status history">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Status history">
+        <Facts items={[
           { label: "Created", value: by(invoice.created_at, invoice.created_by_name) },
           { label: "Posted", value: by(invoice.posted_at, invoice.posted_by_name) },
           { label: "Reversed", value: by(invoice.reversed_at, invoice.reversed_by_name) },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -294,10 +290,10 @@ function Taxes({ detail }: { detail: InvoiceDetail }) {
   const currency = invoice.currency_code;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Tax by component" description="Worked out by the central tax engine for each line, from its tax category, the seller's registration and the place of supply.">
+      <Panel title="Tax by component" description="Worked out by the central tax engine for each line, from its tax category, the seller's registration and the place of supply.">
         {!detail.taxSummary.length ? <p className="text-sm text-text-muted">No tax is charged on this invoice.</p> : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-text-muted"><tr className="border-b border-border"><th className="py-2 pr-3 font-medium">Tax</th><th className="py-2 pr-3 text-right font-medium">Taxable value</th><th className="py-2 text-right font-medium">Amount</th></tr></thead>
+            <thead className="bg-surface-muted text-left text-text-secondary"><tr className="border-b border-border"><th className="py-2 pr-3 font-medium">Tax</th><th className="py-2 pr-3 text-right font-medium">Taxable value</th><th className="py-2 text-right font-medium">Amount</th></tr></thead>
             <tbody>
               {detail.taxSummary.map((tax) => (
                 <tr key={`${tax.taxType}-${tax.rate}`} className="border-b border-border">
@@ -309,9 +305,9 @@ function Taxes({ detail }: { detail: InvoiceDetail }) {
             </tbody>
           </table>
         )}
-      </SalesPanel>
-      <SalesPanel title="Totals">
-        <SalesFacts columns={4} items={[
+      </Panel>
+      <Panel title="Totals">
+        <Facts columns={4} items={[
           { label: "Subtotal", value: money(currency, invoice.subtotal) },
           { label: "Discounts", value: money(currency, invoice.discount_total) },
           { label: "Taxable value", value: money(currency, Number(invoice.subtotal) - Number(invoice.discount_total)) },
@@ -319,7 +315,7 @@ function Taxes({ detail }: { detail: InvoiceDetail }) {
           { label: "Round off", value: money(currency, invoice.rounding_adjustment) },
           { label: "Grand total", value: money(currency, invoice.grand_total) },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -329,8 +325,8 @@ function Payments({ detail }: { detail: InvoiceDetail }) {
   const currency = invoice.currency_code;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Payments" description="Receipts are recorded and applied by Finance; the paid amount and balance follow from them.">
-        <SalesFacts items={[
+      <Panel title="Payments" description="Receipts are recorded and applied by Finance; the paid amount and balance follow from them.">
+        <Facts items={[
           { label: "Invoice total", value: money(currency, invoice.grand_total) },
           { label: "Paid", value: money(currency, invoice.amountPaid ?? 0) },
           { label: "Balance due", value: money(currency, invoice.balanceDue) },
@@ -346,7 +342,7 @@ function Payments({ detail }: { detail: InvoiceDetail }) {
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -356,9 +352,9 @@ function Credits({ detail, onCredit }: { detail: InvoiceDetail; onCredit?: () =>
   const currency = invoice.currency_code;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Credit notes" description="A posted invoice is corrected by a credit note, never edited: its total stays as invoiced. Posting a credit note applies it to this invoice."
+      <Panel title="Credit notes" description="A posted invoice is corrected by a credit note, never edited: its total stays as invoiced. Posting a credit note applies it to this invoice."
         actions={onCredit ? <Button variant="secondary" size="compact" onPress={onCredit}>Create Credit Note</Button> : undefined}>
-        <SalesFacts items={[
+        <Facts items={[
           { label: "Credit status", value: invoice.creditStatusLabel },
           { label: "Invoice total", value: money(currency, invoice.grand_total) },
           { label: "Credited (posted credit notes)", value: money(currency, invoice.creditedTotal) },
@@ -380,7 +376,7 @@ function Credits({ detail, onCredit }: { detail: InvoiceDetail; onCredit?: () =>
         {detail.credits.length > 0 && (
           <p className="text-xs text-text-muted">Applied to this invoice: {detail.credits.map((credit) => `${credit.credit_note_number} ${money(currency, credit.allocated_amount)}`).join(", ")}</p>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -390,8 +386,8 @@ function Related({ detail }: { detail: InvoiceDetail }) {
   const link = (href: string, label: string) => <Link className="text-brand hover:underline" href={href}>{label}</Link>;
   return (
     <div className="pt-4">
-      <SalesPanel title="Related documents">
-        <SalesFacts items={[
+      <Panel title="Related documents">
+        <Facts items={[
           { label: "Opportunity", value: invoice.source_opportunity_id ? link(`/crm/opportunities/${invoice.source_opportunity_id}`, invoice.source_opportunity_name ?? "Opportunity") : "—" },
           { label: "Quotation", value: invoice.source_quotation_id ? link(`/sales/quotations/${invoice.source_quotation_id}`, invoice.source_quotation_number ?? "Quotation") : "—" },
           { label: "Sales order", value: link(`/sales/orders/${invoice.sales_order_id}`, invoice.sales_order_number) },
@@ -400,7 +396,7 @@ function Related({ detail }: { detail: InvoiceDetail }) {
           { label: "Credit notes", value: detail.creditNotes.length ? <span className="flex flex-wrap gap-2">{detail.creditNotes.map((credit) => <span key={credit.id}>{link(`/sales/credit-notes/${credit.id}`, credit.invoice_number)}</span>)}</span> : "—" },
           { label: "Receipts", value: detail.receipts.length ? detail.receipts.map((receipt) => receipt.receipt_number).join(", ") : "—" },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -418,17 +414,17 @@ function Notes({ detail, canEdit, onChanged }: { detail: InvoiceDetail; canEdit:
   const remove = useMutation({ mutationFn: (fileId: string) => removeInvoiceFile(invoice.id, fileId), onSuccess: after, onError: (failure) => setError(failureText(failure, "The file could not be removed.")) });
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Customer notes" description="Printed on the invoice."><p className="text-sm whitespace-pre-line">{invoice.customer_notes ?? "None"}</p></SalesPanel>
-      <SalesPanel title="Internal notes" description="Never printed or shown to the customer."><p className="text-sm whitespace-pre-line">{invoice.internal_notes ?? "None"}</p></SalesPanel>
-      {invoice.terms_and_conditions && <SalesPanel title="Terms and conditions"><p className="text-sm whitespace-pre-line">{invoice.terms_and_conditions}</p></SalesPanel>}
-      <SalesPanel title="Attachments" description="Files kept with the invoice, including each PDF that was emailed."
+      <Panel title="Customer notes" description="Printed on the invoice."><p className="text-sm whitespace-pre-line">{invoice.customer_notes ?? "None"}</p></Panel>
+      <Panel title="Internal notes" description="Never printed or shown to the customer."><p className="text-sm whitespace-pre-line">{invoice.internal_notes ?? "None"}</p></Panel>
+      {invoice.terms_and_conditions && <Panel title="Terms and conditions"><p className="text-sm whitespace-pre-line">{invoice.terms_and_conditions}</p></Panel>}
+      <Panel title="Attachments" description="Files kept with the invoice, including each PDF that was emailed."
         actions={canEdit ? (
           <>
             <input ref={input} type="file" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
             <Button variant="secondary" size="compact" isLoading={upload.isPending} onPress={() => input.current?.click()}><Upload className="size-4" aria-hidden="true" />Upload</Button>
           </>
         ) : undefined}>
-        {error && <SalesAlert>{error}</SalesAlert>}
+        {error && <Notice>{error}</Notice>}
         {!files.data?.length ? <p className="text-sm text-text-muted">No files.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {files.data.map((file) => (
@@ -440,7 +436,7 @@ function Notes({ detail, canEdit, onChanged }: { detail: InvoiceDetail; canEdit:
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -449,13 +445,13 @@ function Accounting({ detail }: { detail: InvoiceDetail }) {
   const invoice = detail.invoice;
   return (
     <div className="pt-4">
-      <SalesPanel title="Accounting" description="Posting debits the customer's receivable and credits revenue and output tax.">
-        <SalesFacts items={[
+      <Panel title="Accounting" description="Posting debits the customer's receivable and credits revenue and output tax.">
+        <Facts items={[
           { label: "Journal entry", value: invoice.journal_entry_number ? <Link className="text-brand hover:underline" href="/accounting/journals">{invoice.journal_entry_number}</Link> : "Not posted yet" },
           { label: "Posting date", value: calendarDate(invoice.accounting_date) },
           { label: "Finance status", value: statusLabel(invoice.financeStatus) },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -463,7 +459,7 @@ function Accounting({ detail }: { detail: InvoiceDetail }) {
 function History({ detail }: { detail: InvoiceDetail }) {
   return (
     <div className="pt-4">
-      <SalesPanel title="History">
+      <Panel title="History">
         {!detail.events.length ? <p className="text-sm text-text-muted">No history yet.</p> : (
           <ol className="flex flex-col divide-y divide-border text-sm">
             {detail.events.map((event) => (
@@ -477,7 +473,7 @@ function History({ detail }: { detail: InvoiceDetail }) {
             ))}
           </ol>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }

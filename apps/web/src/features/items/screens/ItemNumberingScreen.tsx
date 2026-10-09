@@ -5,9 +5,10 @@
 // are never set by hand, so a generated SKU is never issued twice; a SKU that identified one item is never reused for another.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Checkbox, ErrorState, NumberField, PageHeader, PermissionState, Radio, RadioGroup, Select, TextField } from "@vercentlabs/design-system";
+import { Button, Checkbox, ErrorState, NumberField, PermissionState, Radio, RadioGroup, Select, TextField } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
+import { Notice, Panel } from "@/shared/ui/Panel";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
@@ -48,11 +49,10 @@ function NumberingForm({ settings, canEdit }: { settings: SkuSettings; canEdit: 
   const example = `${draft.includeYear ? `${new Date().getFullYear()}${draft.separator}` : ""}${draft.defaultPrefix || "ITEM"}${draft.separator}${number}`;
 
   return (
-    <div className="flex max-w-3xl flex-col gap-5">
-      <PageHeader title="Item Numbering" description="How items get their SKU. A SKU identifies the item everywhere — Sales, Procurement and Inventory — and is never reused for another item." />
+    <Panel className="max-w-3xl" title="Item numbering" description="How items get their SKU. A SKU identifies the item everywhere — Sales, Procurement and Inventory — and is never reused for another item.">
       <ErrorBanner message={error} />
-      {saved && <p role="status" className="rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">Saved. New items follow the new numbering; existing SKUs do not change.</p>}
-      <section className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+      {saved && <Notice tone="success">Saved. New items follow the new numbering; existing SKUs do not change.</Notice>}
+      <div className="flex flex-col gap-4">
         <RadioGroup label="SKU mode" value={draft.mode} isDisabled={!canEdit} onChange={(value) => set("mode")(value as SkuMode)} errorMessage={errors.mode}>
           {settings.modes.map((mode) => <Radio key={mode.code} value={mode.code}>{mode.label}<span className="ml-1 text-xs text-text-muted">— {mode.description}</span></Radio>)}
         </RadioGroup>
@@ -77,7 +77,7 @@ function NumberingForm({ settings, canEdit }: { settings: SkuSettings; canEdit: 
           <li>Changing the numbering never changes existing SKUs.</li>
         </ul>
         {canEdit && <div className="flex justify-end"><Button variant="primary" isLoading={save.isPending} onPress={() => { setError(null); save.mutate(); }}>Save</Button></div>}
-      </section>
-    </div>
+      </div>
+    </Panel>
   );
 }

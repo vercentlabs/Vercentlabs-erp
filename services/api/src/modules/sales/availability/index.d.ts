@@ -23,7 +23,7 @@ export function checkSalesOrderAvailability(client: QueryClient, context: Contex
 export function checkLineAvailability(client: QueryClient, context: Context, orderId: string, lineId: string): Promise<OrderAvailability>;
 export function checkWarehouseAvailability(client: QueryClient, context: Context, itemId: string): Promise<{
   itemId: string; itemName: string; unit: string | null; stockTracked: boolean; checkedAt: string;
-  warehouses: Array<{ warehouseId: string; warehouseCode: string; warehouseName: string; onHand: number; reserved: number; unusable: number; available: number; qualityBlocked: boolean }>;
+  warehouses: Array<{ warehouseId: string; warehouseCode: string; warehouseName: string; onHand: number; reserved: number; unusable: number; available: number; held: number }>;
   totals: { onHand: number; reserved: number; available: number };
 }>;
 export function checkItemsAvailability(client: QueryClient, context: Context, input: { lines: Array<{ itemId: string; warehouseId?: string | null; quantity: number | string; uomId?: string | null }> }): Promise<{ checkedAt: string; lines: any[] }>;

@@ -64,7 +64,6 @@ export const TRACKING_MODES = Object.freeze([
 export const VALUATION_METHODS = Object.freeze([
   { code: "moving_average", label: "Moving average" },
   { code: "fifo", label: "FIFO" },
-  { code: "standard", label: "Standard cost" },
 ]);
 export const IDENTIFIER_TYPES = Object.freeze([
   { code: "barcode", label: "Barcode (UPC / EAN)" },

@@ -264,7 +264,7 @@ async function validate(client, context, values, { categoryId = null, parentId =
   if (values.name.length > 160) throw issue("name", "Must be 160 characters or fewer.");
   if (!Number.isInteger(values.sortOrder ?? 0) || Math.abs(values.sortOrder ?? 0) > 100000) throw issue("sortOrder", "Enter a whole number.");
   if (values.allowedItemTypes?.some((type) => !TYPE_CODES.includes(type))) throw issue("allowedItemTypes", "Choose Stock Item, Non-Stock Item or Service.");
-  if (values.defaultValuationMethod && !VALUATION.has(values.defaultValuationMethod)) throw issue("defaultValuationMethod", "Choose Moving average, FIFO or Standard cost.");
+  if (values.defaultValuationMethod && !VALUATION.has(values.defaultValuationMethod)) throw issue("defaultValuationMethod", "Choose Moving average or FIFO.");
   if (values.skuPrefix && !/^[A-Z0-9]{1,12}$/.test(values.skuPrefix)) throw issue("skuPrefix", "Use 1 to 12 letters or digits, such as PUMP.");
   if (values.defaultHsnSacCode && !/^[0-9]{4}([0-9]{2}){0,2}$/.test(values.defaultHsnSacCode)) throw issue("defaultHsnSacCode", "Enter a 4, 6 or 8-digit HSN or a 6-digit SAC.");
   const active = async (sql, id, field, message) => { if (id && !(isUuid(id) && (await client.query(sql, [context.organizationId, id])).rows[0])) throw issue(field, message); };
@@ -495,7 +495,7 @@ export async function getCategoryStockSummary(client, context, categoryId, { inc
   const cost = canViewProductCost(context);
   const { rows } = await client.query(
     `SELECT warehouse.id, warehouse.name, sum(balance.quantity) AS on_hand, sum(balance.reserved_quantity) AS reserved,
-            sum(CASE WHEN ${USABLE_ROW} THEN balance.quantity - balance.reserved_quantity ELSE 0 END) AS available, sum(balance.quantity * balance.average_cost) AS value
+            sum(CASE WHEN ${USABLE_ROW} THEN greatest(balance.quantity - balance.reserved_quantity, 0) ELSE 0 END) AS available, sum(balance.quantity * balance.average_cost) AS value
        FROM tenant.stock_balances balance
        JOIN tenant.items item ON item.organization_id = balance.organization_id AND item.id = balance.item_id
        JOIN tenant.warehouses warehouse ON warehouse.organization_id = balance.organization_id AND warehouse.id = balance.warehouse_id

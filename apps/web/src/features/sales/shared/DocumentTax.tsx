@@ -7,8 +7,8 @@
 // permission and a reason. Nobody types a tax amount.
 import { Select, TextField } from "@vercentlabs/design-system";
 
-import { SalesAlert, SalesPanel } from "@/features/sales/shared/SalesUi";
 import type { SalesDocumentPreview, SalesOptions } from "@/features/sales/quotations/api/quotations-api";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 // "" means "worked out automatically".
 export type DocumentTaxDraft = { sellerRegistrationId: string; supplyType: string; taxOverrideReason: string; placeOfSupply: string; placeOfSupplyReason: string };
@@ -40,13 +40,13 @@ const NATURE: Record<string, string> = { intra_state: "Within the state: CGST + 
 export function DocumentTaxPanel({ tax, value, onChange, preview }: {
   tax: SalesOptions["tax"]; value: DocumentTaxDraft; onChange: (next: DocumentTaxDraft) => void; preview: SalesDocumentPreview | undefined;
 }) {
-  if (!tax.enabled) return <SalesPanel title="Tax"><p className="text-sm text-text-muted">Tax is switched off for this organization: documents are calculated without tax.</p></SalesPanel>;
+  if (!tax.enabled) return <Panel title="Tax"><p className="text-sm text-text-muted">Tax is switched off for this organization: documents are calculated without tax.</p></Panel>;
   const result = preview?.tax;
   const derivedSupply = tax.supplyTypes.find((entry) => entry.code === result?.derivedSupplyType)?.label;
   const place = result?.placeOfSupply;
   return (
-    <SalesPanel title="Tax" description="Worked out from the company registration, the customer and the addresses.">
-      {tax.registrations.length === 0 && <SalesAlert tone="warning">Add the company&apos;s GST registration in Settings → Taxes so GST can be calculated.</SalesAlert>}
+    <Panel title="Tax" description="Worked out from the company registration, the customer and the addresses.">
+      {tax.registrations.length === 0 && <Notice tone="warning">Add the company&apos;s GST registration in Settings → Taxes so GST can be calculated.</Notice>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {tax.registrations.length > 1 && (
           <Select
@@ -89,6 +89,6 @@ export function DocumentTaxPanel({ tax, value, onChange, preview }: {
           ].filter(Boolean).join(" · ")}
         </p>
       )}
-    </SalesPanel>
+    </Panel>
   );
 }

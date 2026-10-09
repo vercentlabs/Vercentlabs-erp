@@ -4,8 +4,6 @@ import {
   getQualityPlan,
   listInspections,
   getInspection,
-  listQualityHolds,
-  getQualityHold,
   listNonconformances,
   getNonconformance,
   getQualityKpiDashboard,
@@ -55,17 +53,6 @@ export async function GET(
         case "inspection":
           return {
             inspection: await getInspection(client, context, get("id") ?? ""),
-          };
-        case "holds":
-          return {
-            rows: await listQualityHolds(client, context, {
-              status: get("status"),
-              itemId: get("itemId"),
-            }),
-          };
-        case "hold":
-          return {
-            hold: await getQualityHold(client, context, get("id") ?? ""),
           };
         case "nonconformances":
           return {

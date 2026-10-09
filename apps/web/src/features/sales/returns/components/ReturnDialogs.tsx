@@ -12,12 +12,12 @@ import { Button, Dialog, NumberField, Select, TextArea, TextField } from "@verce
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
-import { SalesAlert } from "@/features/sales/shared/SalesUi";
 import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 
 import {
   cancelReturn, createReturn, creditReturn, getReturnProposal, receiveReturn, updateReturn, type Disposition, type ReturnDetail,
 } from "../api/returns-api";
+import { Notice } from "@/shared/ui/Panel";
 
 export function failureText(failure: unknown, fallback: string) {
   return failure instanceof SalesApiError || failure instanceof Error ? failure.message || fallback : fallback;
@@ -32,7 +32,7 @@ function Shell({ title, description, size, error, fallback, onClose, label, isLo
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={title} description={description} size={size}>
       <div className="flex flex-col gap-3">
-        {Boolean(error) && <SalesAlert>{failureText(error, fallback)}</SalesAlert>}
+        {Boolean(error) && <Notice>{failureText(error, fallback)}</Notice>}
         {children}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>
@@ -182,7 +182,7 @@ export function ReceiveReturnDialog({ detail, onClose, onDone }: { detail: Retur
             <span className="text-text-muted"> · {line.dispositionLabel}: {CONDITION_HINT[line.disposition]}</span></li>
         ))}
       </ul>
-      {detail.draftWarnings.map((warning, index) => <SalesAlert key={index} tone="warning">{warning.message}</SalesAlert>)}
+      {detail.draftWarnings.map((warning, index) => <Notice key={index} tone="warning">{warning.message}</Notice>)}
     </Shell>
   );
 }

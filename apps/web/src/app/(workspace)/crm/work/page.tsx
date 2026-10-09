@@ -1,18 +1,10 @@
 import { requireWorkspace } from "@/core/session";
-import { MyWorkScreen } from "@/features/crm/work/screens/MyWorkScreen";
-import { isMyWorkView } from "@/features/crm/work/my-work-views";
+import { isActivityTab } from "@/features/crm/activities/activity-tabs";
+import { redirectWithQuery } from "@/shared/routing/redirect-with-query";
 
-export const metadata = { title: "My Work" };
-
-export default async function MyWorkPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ view?: string | string[] }>;
-}) {
+// The earlier My Work workspace is CRM Activities: ?view=<tab> becomes ?tab=<tab>, the rest of the query is kept.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireWorkspace();
-  const { view } = await searchParams;
-  // Keyed by view so a switch mounts that view fresh (its own filters read
-  // from the URL once, as each list screen does).
-  const selected = isMyWorkView(view) ? view : "today";
-  return <MyWorkScreen key={selected} view={selected} />;
+  const params = await searchParams;
+  redirectWithQuery("/crm/activities", params, { view: undefined, tab: isActivityTab(params.view) ? String(params.view) : "today" });
 }

@@ -1,0 +1,27 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+type Client = any;
+export declare class CountError extends Error { status: number; code: string; details?: unknown }
+export declare const COUNT_TYPES: ReadonlyArray<{ id: string; label: string }>;
+export declare const COUNT_STATUSES: ReadonlyArray<{ id: string; label: string }>;
+export declare const RESOLUTION_TYPES: ReadonlyArray<{ id: string; label: string }>;
+export declare function activeCountLock(client: Client, organizationId: string, input: { warehouseId: string; locationId?: string | null; itemId: string; exceptCountId?: string | null }): Promise<Row | null>;
+export declare function createStockCount(client: Client, context: StockContext, input: Row): Promise<Row>;
+export declare function updateDraftCount(client: Client, context: StockContext, countId: string, input: Row): Promise<Row>;
+export declare function previewCountScope(client: Client, context: StockContext, countId: string): Promise<Row>;
+export declare function startStockCount(client: Client, context: StockContext, countId: string): Promise<Row>;
+export declare function enterCount(client: Client, context: StockContext, countId: string, input: Row): Promise<Row>;
+export declare function enterSerialCount(client: Client, context: StockContext, countId: string, input: Row): Promise<Row>;
+export declare function addUnexpectedStock(client: Client, context: StockContext, countId: string, input: Row): Promise<Row>;
+export declare function requestRecount(client: Client, context: StockContext, countId: string, input: Row): Promise<Row>;
+export declare function submitStockCount(client: Client, context: StockContext, countId: string): Promise<Row>;
+export declare function acceptCountLines(client: Client, context: StockContext, countId: string, input?: Row): Promise<Row>;
+export declare function setLineResolution(client: Client, context: StockContext, countId: string, input: Row): Promise<Row>;
+export declare function previewCountAdjustment(client: Client, context: StockContext, countId: string): Promise<Row>;
+export declare function completeStockCount(client: Client, context: StockContext, countId: string, input?: Row): Promise<Row>;
+export declare function cancelStockCount(client: Client, context: StockContext, countId: string, input?: Row): Promise<Row>;
+export declare function exportCountSheet(client: Client, context: StockContext, countId: string, format?: string): Promise<{ fileName: string; contentType: string; body: string | Uint8Array }>;
+export declare function importCountEntries(client: Client, context: StockContext, countId: string, input: { bytes: Uint8Array; fileName: string }): Promise<Row>;
+export declare function getStockCount(client: Client, context: StockContext, countId: string): Promise<Row>;
+export declare function listStockCounts(client: Client, context: StockContext, filters?: Row): Promise<Row>;
+export declare function getStockCountOptions(client: Client, context: StockContext): Promise<Row>;

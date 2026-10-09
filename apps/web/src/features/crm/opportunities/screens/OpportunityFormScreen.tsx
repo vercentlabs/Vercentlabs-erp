@@ -10,7 +10,7 @@ import { getAccount } from "@/features/crm/accounts/api/accounts-api";
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { DateInput, DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
-import { FormSection } from "@/features/crm/shared/ui/FormSection";
+import { FormSection } from "@/shared/ui/FormSection";
 import { formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";

@@ -38,14 +38,14 @@ import { lockCapturedCartPaymentLegs } from "../tender-and-payment-execution/pay
 // (services/api/src/modules/stock/index.js) rather than a local fork, so
 // stock_balances and stock_valuation_layers stay authoritative after a
 // completed sale. The augmented-permissions pattern below mirrors the
-// precedent in stock/index.js's own completeStockTransfer(): the caller
+// precedent in stock/index.js's own moveStockWithinWarehouse(): the caller
 // already passed requirePermission(context, "pos.sale.create") above, so
 // this business operation is what authorizes the resulting stock
 // movement — the caller does not need to separately hold stock.issue.
 
 async function stockAvailable(client, context, itemId, warehouseId) {
   const result = await client.query(
-    `SELECT coalesce(sum(quantity-reserved_quantity),0)::text AS available
+    `SELECT coalesce(sum(greatest(quantity-reserved_quantity,0)),0)::text AS available
      FROM tenant.stock_balances
      WHERE organization_id=$1
        AND item_id=$2 AND warehouse_id=$3`,
@@ -58,7 +58,7 @@ async function stockAvailable(client, context, itemId, warehouseId) {
 // (services/api/src/modules/stock/index.js) rather than a local fork, so
 // stock_balances and stock_valuation_layers stay authoritative after a
 // completed sale. The augmented-permissions pattern below mirrors the
-// precedent in stock/index.js's own completeStockTransfer(): the caller
+// precedent in stock/index.js's own moveStockWithinWarehouse(): the caller
 // already passed requirePermission(context, "pos.sale.create") above, so
 // this business operation is what authorizes the resulting stock
 // movement — the caller does not need to separately hold stock.issue.

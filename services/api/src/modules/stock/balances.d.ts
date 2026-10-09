@@ -1,0 +1,16 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+type Client = any;
+export declare const STOCK_BALANCE_VIEWS: ReadonlyArray<{ id: string; label: string }>;
+export declare function visibleWarehouseIds(client: Client, context: StockContext): Promise<string[] | null>;
+export declare function getStockBalance(client: Client, context: StockContext, filters?: Row): Promise<Row>;
+export declare function getItemStock(client: Client, context: StockContext, itemId: string): Promise<Row>;
+export declare function reconcileInventoryBalances(client: Client, context: StockContext): Promise<Row>;
+export declare function reconcileReservedProjection(client: Client, context: StockContext, options?: { repair?: boolean }): Promise<{ mismatchCount: number; mismatches: Row[]; repaired: number }>;
+export declare function rebuildInventoryBalanceProjection(client: Client, context: StockContext, input?: { reason?: string }): Promise<Row>;
+export declare function listStockBalanceRebuilds(client: Client, context: StockContext): Promise<Row[]>;
+export declare function getStockBalanceOptions(client: Client, context: StockContext): Promise<Row>;
+export declare function getAvailabilityBreakdown(client: Client, context: StockContext, filters: { itemId: string; warehouseId?: string | null }): Promise<Row>;
+export declare function validateAvailableStock(client: Client, context: StockContext, input: { itemId: string; warehouseId: string; quantity: string | number; uomId?: string | null; locationId?: string | null; batchId?: string | null; purpose?: string | null }): Promise<Row>;
+export declare function getReservation(client: Client, context: StockContext, reservationId: string): Promise<Row>;
+export declare function getReservationExceptions(client: Client, context: StockContext): Promise<Row>;

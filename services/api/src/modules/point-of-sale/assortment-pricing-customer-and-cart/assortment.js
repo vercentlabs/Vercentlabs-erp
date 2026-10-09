@@ -27,7 +27,7 @@ function toPosProduct(row, availableByItem) {
 async function availableAt(client, context, warehouseId, itemIds) {
   if (!itemIds.length) return new Map();
   const { rows } = await client.query(
-    `SELECT item_id,coalesce(sum(quantity-reserved_quantity),0)::text AS available FROM tenant.stock_balances
+    `SELECT item_id,coalesce(sum(greatest(quantity-reserved_quantity,0)),0)::text AS available FROM tenant.stock_balances
       WHERE organization_id=$1 AND warehouse_id=$2 AND item_id=ANY($3::uuid[]) GROUP BY item_id`,
     [context.organizationId, warehouseId, itemIds]);
   return new Map(rows.map((row) => [row.item_id, Number(row.available)]));

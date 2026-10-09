@@ -1,7 +1,8 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 
 import { MODULE_NAVIGATION } from "@/shell/navigation/module-navigation-registry";
@@ -27,20 +28,33 @@ const GLOBAL_ENTRIES = [
 // the secondary sidebar uses (navigation-resolution.ts): /crm/pipeline reads
 // CRM > Opportunities > Pipeline and /crm/settings/leads/stages reads
 // CRM > CRM Settings > Lead Management > Lead Stages & Statuses.
-function crumbsForPathname(pathname: string): Crumb[] {
+function crumbsForPathname(pathname: string, search = ""): Crumb[] {
   const activeModule = MODULE_NAVIGATION.find((entry) =>
     matchRoute(entry, pathname),
   );
-  if (activeModule) return breadcrumbTrail(activeModule, pathname);
+  if (activeModule) return breadcrumbTrail(activeModule, pathname, search);
   const global = GLOBAL_ENTRIES.filter((entry) =>
     matchesRoute(pathname, entry.href),
   ).sort((a, b) => b.href.length - a.href.length)[0];
   return global && global.href !== "/" ? [{ label: global.label }] : [];
 }
 
+// The query (a tab or section of one page) is read inside Suspense, so pages rendered without it still show their trail.
 export function Breadcrumbs() {
   const pathname = usePathname();
-  const crumbs = crumbsForPathname(pathname);
+  return (
+    <Suspense fallback={<Trail crumbs={crumbsForPathname(pathname)} />}>
+      <BreadcrumbsWithQuery pathname={pathname} />
+    </Suspense>
+  );
+}
+
+function BreadcrumbsWithQuery({ pathname }: { pathname: string }) {
+  const search = useSearchParams()?.toString() ?? "";
+  return <Trail crumbs={crumbsForPathname(pathname, search)} />;
+}
+
+function Trail({ crumbs }: { crumbs: Crumb[] }) {
   if (!crumbs.length) return null;
 
   return (

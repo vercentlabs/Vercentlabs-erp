@@ -24,6 +24,11 @@ import {
   setItemStatus, setPrimaryImage, uploadItemFile, type Item, type ItemDetails, type ItemOptions,
 } from "../api/items-api";
 import { ChangeSkuDialog, SkuHistoryList } from "../components/ChangeSkuDialog";
+import { ItemNegativeStockSetting } from "@/features/negative-stock/components/ItemNegativeStockSetting";
+import { ItemReplenishmentPanel } from "@/features/replenishment/components/ItemReplenishmentPanel";
+import { ItemValuationCard } from "@/features/valuation/components/ValuationCards";
+import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
+
 import { ItemUnitsCard } from "../components/ItemUnitsCard";
 import { ReclassifyDialog } from "../components/ReclassifyDialog";
 import { CategoryPath, CopySkuButton, ErrorBanner, ItemTypeBadge, LENS, LifecycleBadge, attributesText, money, quantity, taxLine, unitLine, yesNo, type ItemLens } from "../item-format";
@@ -49,7 +54,7 @@ function Facts({ items }: { items: Array<[string, ReactNode]> }) {
   );
 }
 const unit = (value: Item["baseUom"]) => (value ? `${value.name} (${value.code})` : null);
-const TABS = ["overview", "inventory", "units", "tracking", "purchasing", "sales", "tax", "variants", "attachments", "history"] as const;
+const TABS = ["overview", "inventory", "units", "tracking", "replenishment", "valuation", "purchasing", "sales", "tax", "variants", "related", "attachments", "history"] as const;
 
 export function ItemDetailScreen({ itemId, lens = "inventory" }: { itemId: string; lens?: ItemLens }) {
   const workspace = useWorkspaceContext();
@@ -88,6 +93,7 @@ export function ItemDetailScreen({ itemId, lens = "inventory" }: { itemId: strin
   const details = detailsQuery.data;
   const options = optionsQuery.data;
   const stock = item.type === "stock";
+  const has = (permission: string) => workspace.roleSlugs.includes("organization_owner") || workspace.roleSlugs.includes("system_administrator") || workspace.permissions.includes(permission);
   const menu = [
     ...(can.changeSku ? [{ id: "sku", label: "Change SKU", run: () => setDialog("sku") }] : []),
     ...(can.reclassify && !item.parent ? [{ id: "reclassify", label: "Reclassify", run: () => setDialog("reclassify") }] : []),
@@ -140,10 +146,13 @@ export function ItemDetailScreen({ itemId, lens = "inventory" }: { itemId: strin
             {stock && details?.access.stock && <Tab id="inventory">Inventory</Tab>}
             <Tab id="units">Units &amp; Identifiers</Tab>
             {stock && <Tab id="tracking">Tracking</Tab>}
+            {stock && has("stock.reorder.view") && <Tab id="replenishment">Replenishment</Tab>}
+            {stock && has("stock.valuation.view") && <Tab id="valuation">Valuation</Tab>}
             <Tab id="purchasing">Purchasing</Tab>
             <Tab id="sales">Sales</Tab>
             <Tab id="tax">Tax &amp; Accounting</Tab>
             {(item.isVariantTemplate || item.parent) && <Tab id="variants">Variants</Tab>}
+            <Tab id="related">Related</Tab>
             <Tab id="attachments">Attachments</Tab>
             <Tab id="history">History</Tab>
           </TabList>
@@ -151,10 +160,13 @@ export function ItemDetailScreen({ itemId, lens = "inventory" }: { itemId: strin
           <TabPanel id="inventory"><InventoryPanel item={item} details={details} /></TabPanel>
           <TabPanel id="units"><UnitsPanel item={item} details={details} options={options} /></TabPanel>
           <TabPanel id="tracking"><TrackingPanel item={item} canSeeStock={Boolean(details?.access.stock)} /></TabPanel>
+          <TabPanel id="replenishment"><ItemReplenishmentPanel itemId={item.id} /></TabPanel>
+          <TabPanel id="valuation"><div className="pt-3"><ItemValuationCard itemId={item.id} /></div></TabPanel>
           <TabPanel id="purchasing"><PurchasingPanel item={item} details={details} /></TabPanel>
           <TabPanel id="sales"><SalesPanel item={item} details={details} /></TabPanel>
           <TabPanel id="tax"><TaxPanel item={item} details={details} /></TabPanel>
           <TabPanel id="variants"><VariantsPanel item={item} base={base} /></TabPanel>
+          <TabPanel id="related"><div className="pt-3"><RelatedDocuments type="item" id={item.id} /></div></TabPanel>
           <TabPanel id="attachments"><FilesPanel item={item} canEdit={can.edit} /></TabPanel>
           <TabPanel id="history"><HistoryPanel itemId={item.id} /></TabPanel>
         </Tabs>
@@ -234,12 +246,7 @@ function InventoryPanel({ item, details }: { item: Item; details?: ItemDetails }
   const uom = inventory.uom;
   return (
     <div className="flex flex-col gap-4 pt-3">
-      <div className="flex flex-wrap gap-2">
-        <LinkButton size="compact" variant="outline" href={`/inventory/ledger?itemId=${item.id}`}>View stock ledger</LinkButton>
-        <LinkButton size="compact" variant="outline" href={`/inventory/transfers?itemId=${item.id}`}>Transfer stock</LinkButton>
-        <LinkButton size="compact" variant="outline" href={`/inventory/adjustments?itemId=${item.id}`}>Adjust stock</LinkButton>
-        <LinkButton size="compact" variant="outline" href={`/inventory/receipts?itemId=${item.id}&reason=opening`}>Set opening stock</LinkButton>
-      </div>
+      <ItemStockActions itemId={item.id} />
       {totals && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           {([["On hand", totals.onHand], ["Reserved", totals.reserved], ["Available", totals.available], ["Incoming", totals.incoming], ["Outgoing", totals.outgoing]] as Array<[string, number]>).map(([label, value]) => (
@@ -252,7 +259,7 @@ function InventoryPanel({ item, details }: { item: Item; details?: ItemDetails }
         {inventory.warehouses.length === 0 ? <p className="text-sm text-text-muted">No stock yet. Opening stock is entered as an Inventory transaction.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="text-xs text-text-secondary"><tr>{["Warehouse", "On hand", "Reserved", "Available", "Incoming", "Outgoing", ...(details.access.cost ? ["Average cost", "Value"] : [])].map((heading) => <th key={heading} className="py-1 pr-3 font-medium">{heading}</th>)}</tr></thead>
+              <thead className="bg-surface-muted text-left text-text-secondary"><tr>{["Warehouse", "On hand", "Reserved", "Available", "Incoming", "Outgoing", ...(details.access.cost ? ["Average cost", "Value"] : [])].map((heading) => <th key={heading} className="py-1 pr-3 font-medium">{heading}</th>)}</tr></thead>
               <tbody className="divide-y divide-border">
                 {inventory.warehouses.map((entry) => (
                   <tr key={entry.warehouseId}>
@@ -344,14 +351,15 @@ function TrackingPanel({ item, canSeeStock }: { item: Item; canSeeStock: boolean
     <div className="flex flex-col gap-4 pt-3">
       <Card title="Tracking rules">
         <Facts items={[["Tracking mode", item.trackingLabel], ...(item.trackingType === "batch" ? [["Expiry tracking", yesNo(item.requiresExpiryDate)] as [string, ReactNode],
-          ["Typical shelf life", item.shelfLifeDays ? `${item.shelfLifeDays} days` : null] as [string, ReactNode]] : []), ["Allow negative stock", yesNo(item.allowNegativeStock)]]} />
+          ["Typical shelf life", item.shelfLifeDays ? `${item.shelfLifeDays} days` : null] as [string, ReactNode]] : [])]} />
+        {item.inventoryTracked && <ItemNegativeStockSetting itemId={item.id} policy={item.negativeStockPolicy} trackingType={item.trackingType} />}
         <p className="text-xs text-text-muted">The item says what must be recorded; the batches and serial numbers themselves are Inventory records, created by goods receipts and other stock transactions. The tracking mode cannot change once stock has moved.</p>
       </Card>
       {item.trackingType === "batch" && canSeeStock && (
         <Card title="Batches">
           {batches.isLoading ? <LoadingState label="Loading" rows={2} /> : !(batches.data ?? []).length ? <p className="text-sm text-text-muted">No batches yet.</p> : (
             <table className="w-full text-left text-sm">
-              <thead className="text-xs text-text-secondary"><tr>{["Batch", "Manufactured", "Expires", "On hand", "Status"].map((heading) => <th key={heading} className="py-1 pr-3 font-medium">{heading}</th>)}</tr></thead>
+              <thead className="bg-surface-muted text-left text-text-secondary"><tr>{["Batch", "Manufactured", "Expires", "On hand", "Status"].map((heading) => <th key={heading} className="py-1 pr-3 font-medium">{heading}</th>)}</tr></thead>
               <tbody className="divide-y divide-border">
                 {(batches.data ?? []).map((batch) => (
                   <tr key={batch.id}><td className="py-1.5 pr-3 font-medium">{batch.batchNumber}</td><td className="pr-3">{batch.manufacturedOn ? formatDate(batch.manufacturedOn) : ""}</td>
@@ -428,8 +436,7 @@ function TaxPanel({ item, details }: { item: Item; details?: ItemDetails }) {
       </Card>
       <Card title="Inventory accounting">
         <Facts items={[["Category", <CategoryPath key="category" item={item} />], ["Valuation method", item.type === "stock" ? item.valuationLabel : "Not valued"],
-          ...(item.type !== "service" ? [["Inventory profile", item.inventoryProfileName] as [string, ReactNode]] : []), ["Accounting profile", item.accountingProfileName],
-          ...(item.standardCost !== undefined && item.valuationMethod === "standard" ? [["Standard cost", money(item.standardCost)] as [string, ReactNode]] : [])]} />
+          ...(item.type !== "service" ? [["Inventory profile", item.inventoryProfileName] as [string, ReactNode]] : []), ["Accounting profile", item.accountingProfileName]]} />
         {details?.accounting.accounts.length ? (
           <ul className="flex flex-col divide-y divide-border border-t border-border text-sm">
             {details.accounting.accounts.map((account) => <li key={account.key} className="flex justify-between gap-2 py-1.5"><span className="text-text-secondary">{account.label}</span><span>{account.code ? `${account.code} · ${account.name}` : <span className="text-text-muted">Not mapped</span>}</span></li>)}
@@ -469,7 +476,7 @@ function VariantsPanel({ item, base }: { item: Item; base: string }) {
         )}
         {query.isLoading ? <LoadingState label="Loading" rows={2} /> : variants.length === 0 ? <p className="text-sm text-text-muted">No variants yet.</p> : (
           <table className="w-full text-left text-sm">
-            <thead className="text-xs text-text-secondary"><tr>{["SKU", "Variant", "Attributes", ...(query.data?.showsStock ? ["On hand"] : []), "Status"].map((heading) => <th key={heading} className="py-1 pr-3 font-medium">{heading}</th>)}</tr></thead>
+            <thead className="bg-surface-muted text-left text-text-secondary"><tr>{["SKU", "Variant", "Attributes", ...(query.data?.showsStock ? ["On hand"] : []), "Status"].map((heading) => <th key={heading} className="py-1 pr-3 font-medium">{heading}</th>)}</tr></thead>
             <tbody className="divide-y divide-border">
               {variants.map((variant) => (
                 <tr key={variant.id} className={variant.id === item.id ? "bg-surface-muted" : undefined}>
@@ -513,7 +520,7 @@ function TransactionsPanel({ itemId, tabs }: { itemId: string; tabs: Array<{ id:
       {query.isLoading ? <LoadingState label="Loading" rows={3} /> : query.isError ? <ErrorBanner message={errorMessage(query.error)} /> : rows.length === 0 ? <p className="text-sm text-text-muted">Nothing yet.</p> : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-xs text-text-secondary"><tr>{["Document", "Party", "Status", "Quantity", "Amount", "Date"].map((heading) => <th key={heading} className="py-1 pr-3 font-medium">{heading}</th>)}</tr></thead>
+            <thead className="bg-surface-muted text-left text-text-secondary"><tr>{["Document", "Party", "Status", "Quantity", "Amount", "Date"].map((heading) => <th key={heading} className="py-1 pr-3 font-medium">{heading}</th>)}</tr></thead>
             <tbody className="divide-y divide-border">
               {rows.map((row) => (
                 <tr key={`${row.id}-${row.code}`}>
@@ -601,5 +608,27 @@ function HistoryPanel({ itemId }: { itemId: string }) {
         );
       })}
     </ol>
+  );
+}
+
+// Where to go from the item's stock: its views elsewhere in Inventory and the operations that start from it (each page checks its own
+// permission; a link the person may not open is not offered).
+function ItemStockActions({ itemId }: { itemId: string }) {
+  const { permissions, roleSlugs } = useWorkspaceContext();
+  const has = (permission: string) => roleSlugs.includes("organization_owner") || roleSlugs.includes("system_administrator") || permissions.includes(permission);
+  const views: Array<[string, string, string]> = [
+    ["View stock", `/inventory/stock/items/${itemId}`, "stock.view"], ["View reservations", `/inventory/reservations?itemId=${itemId}`, "stock.reservations.view"],
+    ["View movements", `/inventory/transactions?tab=movements&itemId=${itemId}`, "stock.ledger.view"], ["View ledger", `/inventory/transactions?tab=ledger&itemId=${itemId}`, "stock.ledger.view"],
+    ["View valuation", `/inventory/valuation?itemId=${itemId}`, "stock.valuation.view"], ["View replenishment", `/inventory/replenishment?tab=rules&itemId=${itemId}`, "stock.reorder.view"],
+  ];
+  const actions: Array<[string, string, string]> = [
+    ["Start stock count", `/inventory/stock-counts/new?itemId=${itemId}`, "stock.counts.create"], ["Create transfer", `/inventory/transfers/new?itemId=${itemId}`, "stock.transfers.create"],
+    ["Create adjustment", `/inventory/adjustments/new?itemId=${itemId}`, "stock.adjustments.create"],
+  ];
+  return (
+    <div className="flex flex-wrap gap-2">
+      {views.filter(([, , permission]) => has(permission)).map(([label, href]) => <LinkButton key={href} size="compact" variant="outline" href={href}>{label}</LinkButton>)}
+      {actions.filter(([, , permission]) => has(permission)).map(([label, href]) => <LinkButton key={href} size="compact" variant="secondary" href={href}>{label}</LinkButton>)}
+    </div>
   );
 }

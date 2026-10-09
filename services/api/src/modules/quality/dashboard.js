@@ -11,10 +11,10 @@ export async function getQualityKpiDashboard(client, c) {
     () => qx(client, `SELECT count(*) FILTER (WHERE status IN ('draft','in_progress'))::int AS open_inspections, count(*) FILTER (WHERE status='failed')::int AS failed_inspections, count(*) FILTER (WHERE created_at::date=current_date)::int AS inspections_today,
         round(100.0 * count(*) FILTER (WHERE status IN ('passed','conditionally_accepted')) / NULLIF(count(*) FILTER (WHERE status IN ('passed','failed','conditionally_accepted')),0), 2) AS first_pass_yield
       FROM tenant.quality_inspections WHERE organization_id=$1`, [c.organizationId]),
-    () => qx(client, `SELECT count(*) FILTER (WHERE status='active')::int AS active_holds,
+    () => qx(client, `SELECT count(*) FILTER (WHERE status IN ('active','partially_resolved'))::int AS active_holds,
         (SELECT count(*)::int FROM tenant.quality_nonconformances WHERE organization_id=$1 AND status NOT IN ('closed','cancelled')) AS open_nonconformances,
         (SELECT count(*)::int FROM tenant.quality_nonconformances WHERE organization_id=$1 AND severity='critical' AND status NOT IN ('closed','cancelled')) AS open_critical_nonconformances
-      FROM tenant.quality_holds WHERE organization_id=$1`, [c.organizationId]),
+      FROM tenant.inventory_stock_holds WHERE organization_id=$1`, [c.organizationId]),
   ]);
   return { ...inspections.rows[0], ...issues.rows[0] };
 }

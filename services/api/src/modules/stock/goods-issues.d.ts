@@ -1,0 +1,26 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+type Client = any;
+export declare class GoodsIssueError extends Error { status: number; code: string; details?: unknown }
+export declare const GOODS_ISSUE_DISPOSITIONS: ReadonlyArray<{ id: string; label: string }>;
+export declare const GOODS_ISSUE_TO_TYPES: ReadonlyArray<{ id: string; label: string }>;
+export declare function listGoodsIssueReasons(client: Client, context: StockContext, options?: { includeInactive?: boolean }): Promise<Row[]>;
+export declare function createGoodsIssueReason(client: Client, context: StockContext, input: Row): Promise<Row>;
+export declare function updateGoodsIssueReason(client: Client, context: StockContext, reasonId: string, input: Row): Promise<Row>;
+export declare function getGoodsIssueAvailability(client: Client, context: StockContext, input: { warehouseId: string; itemId: string }): Promise<Row>;
+export declare function createGoodsIssue(client: Client, context: StockContext, input: Row): Promise<Row>;
+export declare function updateDraftGoodsIssue(client: Client, context: StockContext, issueId: string, input: Row): Promise<Row>;
+export declare function cancelDraftGoodsIssue(client: Client, context: StockContext, issueId: string, input?: { reason?: string }): Promise<Row>;
+export type NegativeShortage = { lineId: string; lineNumber: number; sku: string; location: string; uom: string; onHand: string; requested: string; projected: string };
+export declare function validateGoodsIssue(client: Client, context: StockContext, issueId: string): Promise<{ ready: boolean; errors: Array<{ message: string; code: string }>; negative: NegativeShortage[];
+  canOverrideNegative: boolean; overrideReasons: ReadonlyArray<{ id: string; label: string }> }>;
+export declare function postGoodsIssue(client: Client, context: StockContext, issueId: string, options?: { negativeOverride?: { reasonCode: string; notes: string } | null }): Promise<Row>;
+export declare function reverseGoodsIssue(client: Client, context: StockContext, issueId: string, input: Row): Promise<Row>;
+export declare function getGoodsIssue(client: Client, context: StockContext, issueId: string): Promise<Row>;
+export declare function listGoodsIssues(client: Client, context: StockContext, filters?: Row): Promise<Row>;
+export declare function getGoodsIssueOptions(client: Client, context: StockContext): Promise<Row>;
+export declare function prepareGoodsIssueFileUpload(input: { fileName: string; bytes: Uint8Array }, env?: Record<string, string | undefined>): Promise<unknown>;
+export declare function listGoodsIssueFiles(client: Client, context: StockContext, issueId: string): Promise<Row[]>;
+export declare function uploadGoodsIssueFile(client: Client, context: StockContext, issueId: string, input: { prepared: unknown }, options?: Row): Promise<Row>;
+export declare function removeGoodsIssueFile(client: Client, context: StockContext, issueId: string, fileId: string): Promise<{ removed: boolean }>;
+export declare function readGoodsIssueFile(client: Client, context: StockContext, issueId: string, fileId: string, options?: Row): Promise<{ fileName: string; mimeType: string; body: Uint8Array }>;

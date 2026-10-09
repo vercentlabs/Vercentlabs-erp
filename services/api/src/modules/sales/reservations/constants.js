@@ -10,6 +10,8 @@ export const RESERVATION_PERMISSIONS = Object.freeze({
   view: "sales.reservation.view",
   viewAll: "sales.reservation.view_all",
   reserve: "sales.order.reserve",
+  // Reserving what is available when a line cannot be reserved in full (the rest stays backordered).
+  reservePartial: "sales.order.reserve_partial",
   release: "sales.reservation.release",
 });
 

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, FileMinus, Plus, ReceiptText } from "lucide-react";
+import { FileMinus, Plus, ReceiptText } from "lucide-react";
 import {
   EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PageHeader, SearchField, Select, StatusBadge,
 } from "@vercentlabs/design-system";
@@ -54,7 +54,7 @@ export function DebitNotesCreditsScreen() {
   ], []);
   const filtered = search || view !== "all" || supplierId !== "any";
   return (
-    <EnterpriseListPage header={{ title: "Debit Notes & Vendor Credits",
+    <EnterpriseListPage header={{ title: "Supplier Credits / Debit Notes",
       description: "Claims raised with suppliers and the credits suppliers give. A debit claim is a claim — it changes nothing in Accounts Payable; a vendor credit is posted through Finance and then applied to bills or refunded.",
       primaryAction: canCreate ? <LinkButton variant="primary" href="/procurement/debit-notes-credits/new"><Plus className="size-4" aria-hidden="true" />New</LinkButton> : undefined }}
       savedViews={{ views: (query.data?.views ?? options.data?.views ?? [{ key: "all", label: "All" }]).map((entry) => ({ id: entry.key,
@@ -90,7 +90,6 @@ export function NewDebitNoteOrCreditScreen({ billId, returnId, supplierId }: { b
   const card = "flex flex-col gap-2 rounded-lg border border-border bg-surface p-5 text-left transition hover:border-brand";
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/debit-notes-credits" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Debit Notes &amp; Vendor Credits</Link>
       <PageHeader title="What are you recording?" description="A claim you raise with the supplier is not a credit: the payable changes only when the supplier's credit is recorded and posted." />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {options.data.permissions.claimsManage && (

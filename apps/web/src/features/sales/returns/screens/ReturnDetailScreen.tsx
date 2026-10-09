@@ -9,18 +9,18 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Eye, FileMinus, Pencil, Upload } from "lucide-react";
+import { Check, Eye, FileMinus, Pencil, Upload } from "lucide-react";
 import { Button, ErrorState, LinkButton, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, buttonVariants } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, statusLabel, statusTone } from "@/features/sales/shared/format";
-import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 
 import { getReturn, listReturnFiles, removeReturnFile, returnFileUrl, returnNotePdfUrl, uploadReturnFile, type ReturnDetail } from "../api/returns-api";
 import { CancelReturnDialog, EditReturnDialog, ReceiveReturnDialog, ReturnCreditDialog, failureText } from "../components/ReturnDialogs";
 import { ReturnCreditBadge, ReturnStatusBadge } from "../components/ReturnStatusBadge";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 const quantity = (value: number | string | null | undefined) => Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const by = (at: string | null, name: string | null) => (at ? `${dateTime(at)}${name ? ` by ${name}` : ""}` : "—");
@@ -65,11 +65,10 @@ export function ReturnDetailScreen({ returnId }: { returnId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/sales/returns" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />All returns</Link>
-      {notice && <SalesAlert tone="info">{notice}</SalesAlert>}
-      {detail.draftWarnings.map((warning, index) => <SalesAlert key={index} tone="warning">{warning.message}</SalesAlert>)}
-      {salesReturn.status === "cancelled" && <SalesAlert tone="warning">This draft was cancelled {by(salesReturn.cancelled_at, salesReturn.cancelled_by_name)}. Nothing came back into stock.</SalesAlert>}
-      {salesReturn.creditStatus === "awaiting" && <SalesAlert tone="info">Part of what came back had been invoiced: a credit note against the original invoice is owed.</SalesAlert>}
+      {notice && <Notice tone="info">{notice}</Notice>}
+      {detail.draftWarnings.map((warning, index) => <Notice key={index} tone="warning">{warning.message}</Notice>)}
+      {salesReturn.status === "cancelled" && <Notice tone="warning">This draft was cancelled {by(salesReturn.cancelled_at, salesReturn.cancelled_by_name)}. Nothing came back into stock.</Notice>}
+      {salesReturn.creditStatus === "awaiting" && <Notice tone="info">Part of what came back had been invoiced: a credit note against the original invoice is owed.</Notice>}
 
       <RecordDetailsPage
         header={{
@@ -130,8 +129,8 @@ function Overview({ detail }: { detail: ReturnDetail }) {
   const salesReturn = detail.salesReturn;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Return">
-        <SalesFacts items={[
+      <Panel title="Return">
+        <Facts items={[
           { label: "Customer", value: salesReturn.customer_snapshot?.displayName ?? "—" },
           { label: "Customer PO", value: salesReturn.customer_po_number ?? "—" },
           { label: "Sales order", value: salesReturn.sales_order_number },
@@ -142,14 +141,14 @@ function Overview({ detail }: { detail: ReturnDetail }) {
           { label: "Quantity", value: `${quantity(salesReturn.total_quantity)} in ${detail.lines.length} line(s)` },
           { label: "Credit", value: salesReturn.creditStatusLabel },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Status history">
-        <SalesFacts items={[
+      </Panel>
+      <Panel title="Status history">
+        <Facts items={[
           { label: "Created", value: by(salesReturn.created_at, salesReturn.created_by_name) },
           { label: "Received", value: by(salesReturn.received_at, salesReturn.received_by_name) },
           { label: "Cancelled", value: by(salesReturn.cancelled_at, salesReturn.cancelled_by_name) },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -159,7 +158,7 @@ function Items({ detail }: { detail: ReturnDetail }) {
   return (
     <div className="overflow-x-auto pt-4">
       <table className="w-full min-w-[44rem] text-sm">
-        <thead className="text-left text-xs text-text-muted">
+        <thead className="bg-surface-muted text-left text-text-secondary">
           <tr className="border-b border-border">
             <th className="py-2 pr-3 font-medium">Product</th><th className="py-2 pr-3 text-right font-medium">Delivered</th>
             <th className="py-2 pr-3 text-right font-medium">{received ? "Returned before" : "Already returned"}</th><th className="py-2 pr-3 text-right font-medium">This return</th>
@@ -186,7 +185,7 @@ function Items({ detail }: { detail: ReturnDetail }) {
 function Inventory({ detail }: { detail: ReturnDetail }) {
   return (
     <div className="pt-4">
-      <SalesPanel title="Stock returned" description="Stock comes back only when the return is received. Restocked goods are sellable; held and damaged goods sit in a quality location and are not available to sell.">
+      <Panel title="Stock returned" description="Stock comes back only when the return is received. Restocked goods are sellable; held and damaged goods sit in a quality location and are not available to sell.">
         {!detail.movements.length ? <p className="text-sm text-text-muted">{detail.salesReturn.status === "draft" ? "Nothing has come back into stock yet." : "No stock-tracked items on this return."}</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.movements.map((movement) => (
@@ -199,7 +198,7 @@ function Inventory({ detail }: { detail: ReturnDetail }) {
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -207,7 +206,7 @@ function Inventory({ detail }: { detail: ReturnDetail }) {
 function Credit({ detail, onCredit }: { detail: ReturnDetail; onCredit?: () => void }) {
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Credit" description="A return moves stock; a credit note corrects what the customer owes. Goods returned before they were invoiced need no credit note. A refund is separate."
+      <Panel title="Credit" description="A return moves stock; a credit note corrects what the customer owes. Goods returned before they were invoiced need no credit note. A refund is separate."
         actions={onCredit ? <Button variant="primary" size="compact" onPress={onCredit}>Create Credit Note</Button> : undefined}>
         <p className="text-sm">{detail.credit.label}</p>
         {detail.credit.lines.length > 0 && (
@@ -217,8 +216,8 @@ function Credit({ detail, onCredit }: { detail: ReturnDetail; onCredit?: () => v
             ))}
           </ul>
         )}
-      </SalesPanel>
-      <SalesPanel title="Credit notes" description="A return is not refunded directly: the credit note makes the customer's credit, and Finance refunds that credit or applies it to another invoice.">
+      </Panel>
+      <Panel title="Credit notes" description="A return is not refunded directly: the credit note makes the customer's credit, and Finance refunds that credit or applies it to another invoice.">
         {!detail.credits.length ? <p className="text-sm text-text-muted">No credit notes.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.credits.map((credit) => (
@@ -234,7 +233,7 @@ function Credit({ detail, onCredit }: { detail: ReturnDetail; onCredit?: () => v
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -244,14 +243,14 @@ function Related({ detail }: { detail: ReturnDetail }) {
   const link = (href: string, label: string) => <Link className="text-brand hover:underline" href={href}>{label}</Link>;
   return (
     <div className="pt-4">
-      <SalesPanel title="Related documents">
-        <SalesFacts items={[
+      <Panel title="Related documents">
+        <Facts items={[
           { label: "Sales order", value: link(`/sales/orders/${salesReturn.sales_order_id}`, salesReturn.sales_order_number) },
           { label: "Delivery", value: link(`/sales/deliveries/${salesReturn.delivery_id}`, salesReturn.delivery_number) },
           { label: "Invoices", value: detail.invoices.length ? <span className="flex flex-wrap gap-2">{detail.invoices.map((invoice) => <span key={invoice.id}>{link(`/sales/invoices/${invoice.id}`, invoice.invoice_number)}</span>)}</span> : "—" },
           { label: "Credit notes", value: detail.credits.length ? <span className="flex flex-wrap gap-2">{detail.credits.map((credit) => <span key={credit.id}>{link(`/sales/credit-notes/${credit.id}`, credit.invoice_number)}</span>)}</span> : "—" },
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -269,16 +268,16 @@ function Notes({ detail, canEdit, onChanged }: { detail: ReturnDetail; canEdit: 
   const remove = useMutation({ mutationFn: (fileId: string) => removeReturnFile(salesReturn.id, fileId), onSuccess: after, onError: (failure) => setError(failureText(failure, "The file could not be removed.")) });
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Customer notes" description="Printed on the return note."><p className="text-sm whitespace-pre-line">{salesReturn.customer_notes ?? "None"}</p></SalesPanel>
-      <SalesPanel title="Internal notes" description="Never printed or shown to the customer."><p className="text-sm whitespace-pre-line">{salesReturn.internal_notes ?? "None"}</p></SalesPanel>
-      <SalesPanel title="Attachments" description="The customer's return request, photos of the goods, a signed return receipt."
+      <Panel title="Customer notes" description="Printed on the return note."><p className="text-sm whitespace-pre-line">{salesReturn.customer_notes ?? "None"}</p></Panel>
+      <Panel title="Internal notes" description="Never printed or shown to the customer."><p className="text-sm whitespace-pre-line">{salesReturn.internal_notes ?? "None"}</p></Panel>
+      <Panel title="Attachments" description="The customer's return request, photos of the goods, a signed return receipt."
         actions={canEdit ? (
           <>
             <input ref={input} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.txt" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
             <Button variant="secondary" size="compact" isLoading={upload.isPending} onPress={() => input.current?.click()}><Upload className="size-4" aria-hidden="true" />Upload</Button>
           </>
         ) : undefined}>
-        {error && <SalesAlert>{error}</SalesAlert>}
+        {error && <Notice>{error}</Notice>}
         {!files.data?.length ? <p className="text-sm text-text-muted">No files.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {files.data.map((file) => (
@@ -290,7 +289,7 @@ function Notes({ detail, canEdit, onChanged }: { detail: ReturnDetail; canEdit: 
             ))}
           </ul>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -298,7 +297,7 @@ function Notes({ detail, canEdit, onChanged }: { detail: ReturnDetail; canEdit: 
 function History({ detail }: { detail: ReturnDetail }) {
   return (
     <div className="pt-4">
-      <SalesPanel title="History">
+      <Panel title="History">
         {!detail.events.length ? <p className="text-sm text-text-muted">No history yet.</p> : (
           <ol className="flex flex-col divide-y divide-border text-sm">
             {detail.events.map((event) => (
@@ -310,7 +309,7 @@ function History({ detail }: { detail: ReturnDetail }) {
             ))}
           </ol>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }

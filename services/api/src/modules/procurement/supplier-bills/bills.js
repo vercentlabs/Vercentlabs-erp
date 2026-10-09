@@ -10,7 +10,7 @@
 // payable, the input tax, reverse-charge and withholding, exactly once. A bill never moves stock and never changes the order.
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, decimal, div, formatDecimal, mul, roundMoney, sub } from "../../../core/decimal.js";
-import { factorOf, resolveItemUnit } from "../../products/uom.js";
+import { amountsEquivalent, factorOf, resolveItemUnit } from "../../products/uom.js";
 import { loadTaxContext } from "../../../core/tax/index.js";
 import { PaymentTermError, getSupplierDefaultPaymentTerm, purchaseTermSnapshot, readTermSnapshot } from "../../../core/payment-terms/index.js";
 import { generateComplianceDeadlines, validateStatutoryPaymentDeadline, voidComplianceDeadlines } from "../payment-terms/statutory.js";
@@ -263,6 +263,9 @@ async function orderBillLines(client, context, order, requested, { excludeBillId
         if (factor) {
           quantity = mul(quantity, factor);
           if (raw !== null) raw = formatDecimal(div(decimal(raw), factor));
+          // Re-expressed in the order's unit, the line must be worth the same (quantity × price), apart from the currency's rounding.
+          if (raw !== null && !amountsEquivalent(invoiced.quantity, invoiced.unitPrice, quantity, raw, places).equivalent)
+            warnings.push(`${label}: the invoiced amount changes when converted to the order's unit; check the invoice unit and price.`);
         } else { uomId = invoiceUom; uomOk = false; }
       }
       billedAmount = roundMoney(mul(quantity, line.unit_price), places);
@@ -643,7 +646,7 @@ export const createSupplierBillFromPurchaseOrder = createBillFromPurchaseOrder;
 export async function updateDraftSupplierBill(client, context, billId, input = {}) {
   requireBillCreate(context, "You do not have permission to edit supplier bills.");
   const current = await loadBill(client, context, billId, { lock: true });
-  if (current.bill_type !== "bill") fail("Vendor credits are changed in Debit Notes & Vendor Credits.", "billType", "SUPPLIER_BILL_LOCKED", 409);
+  if (current.bill_type !== "bill") fail("Vendor credits are changed in Supplier Credits / Debit Notes.", "billType", "SUPPLIER_BILL_LOCKED", 409);
   if (current.status !== "draft") throw new SupplierBillError(409, "Only a draft supplier bill can be changed. Correct a posted bill with a vendor credit or a reversal.", "SUPPLIER_BILL_LOCKED");
   if (input.expectedUpdatedAt && new Date(input.expectedUpdatedAt).getTime() !== new Date(current.updated_at).getTime())
     throw new SupplierBillError(409, "Someone else changed this draft. Reload it and enter your change again.", "SUPPLIER_BILL_STALE");

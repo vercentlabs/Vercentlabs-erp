@@ -14,12 +14,12 @@ import { Button, Dialog, NumberField, Select, StatusBadge, TextField } from "@ve
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { dateTime } from "@/features/sales/shared/format";
-import { SalesAlert, SalesPanel } from "@/features/sales/shared/SalesUi";
 
 import {
   RELEASE_REASONS, listSalesOrderReservations, releaseSalesOrderReservation, reserveSalesOrderLine, type SalesOrderDetail, type SalesOrderLine,
 } from "../api/orders-api";
 import { failureText } from "./OrderDialogs";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 const amount = (value: number | string | null | undefined) => Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const withUnit = (value: number | string | null | undefined, unit: string | null) => `${amount(value)}${unit ? ` ${unit}` : ""}`;
@@ -50,7 +50,7 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
   const history = detail.events.filter((event) => HISTORY.has(event.event_type));
   return (
     <>
-      <SalesPanel title="Reservation"
+      <Panel title="Reservation"
         description={order.status === "draft" ? "Stock is reserved once the order is confirmed; a draft never holds stock."
           : "Reserved stock is set aside in the line's warehouse: it is no longer available to other orders but stays on hand until it is delivered."}
         actions={(
@@ -64,12 +64,12 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
         {!goods.length ? <p className="text-sm text-text-muted">This order has only services: there is nothing to reserve or deliver.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[48rem] text-sm">
-              <thead className="text-left text-xs text-text-muted">
+              <thead className="bg-surface-muted text-left text-text-secondary">
                 <tr className="border-b border-border">
                   <th className="py-2 pr-3 font-medium">Product</th><th className="py-2 pr-3 font-medium">Warehouse</th>
                   <th className="py-2 pr-3 text-right font-medium">Ordered</th><th className="py-2 pr-3 text-right font-medium">Delivered</th>
                   <th className="py-2 pr-3 text-right font-medium">Cancelled</th><th className="py-2 pr-3 text-right font-medium">Reserved</th>
-                  <th className="py-2 pr-3 text-right font-medium">Unreserved</th><th className="py-2 font-medium" />
+                  <th className="py-2 pr-3 text-right font-medium">Unreserved</th><th className="py-2 pr-3 text-right font-medium">Available</th><th className="py-2 font-medium" />
                 </tr>
               </thead>
               <tbody>
@@ -84,6 +84,7 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
                       <td className="py-2 pr-3 text-right tabular-nums">{line.cancelled_quantity ? amount(line.cancelled_quantity) : ""}</td>
                       <td className="py-2 pr-3 text-right tabular-nums">{line.is_stock_tracked ? amount(line.reserved_quantity) : "—"}</td>
                       <td className="py-2 pr-3 text-right font-medium tabular-nums">{line.is_stock_tracked ? amount(unreserved) : "Not required"}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-text-muted">{line.is_stock_tracked && line.available_in_warehouse != null ? amount(line.available_in_warehouse) : "—"}</td>
                       <td className="py-2">
                         <span className="flex justify-end gap-1">
                           {line.is_stock_tracked && canReserve && unreserved > 0 && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "reserve", line })}>Reserve</Button>}
@@ -97,14 +98,14 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
             </table>
           </div>
         )}
-      </SalesPanel>
+      </Panel>
 
       {detail.capabilities.viewReservations && (records.data?.length ?? 0) > 0 && (
-        <SalesPanel title="Reservations" description="Each reservation keeps what it reserved; deliveries consume it and releases give it back, never by rewriting it.">
-          {records.isError && <SalesAlert>{failureText(records.error, "The reservations could not be loaded.")}</SalesAlert>}
+        <Panel title="Reservations" description="Each reservation keeps what it reserved; deliveries consume it and releases give it back, never by rewriting it.">
+          {records.isError && <Notice>{failureText(records.error, "The reservations could not be loaded.")}</Notice>}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[48rem] text-sm">
-              <thead className="text-left text-xs text-text-muted">
+              <thead className="bg-surface-muted text-left text-text-secondary">
                 <tr className="border-b border-border">
                   <th className="py-2 pr-3 font-medium">Reservation</th><th className="py-2 pr-3 font-medium">Product</th><th className="py-2 pr-3 font-medium">Warehouse</th>
                   <th className="py-2 pr-3 text-right font-medium">Reserved</th><th className="py-2 pr-3 text-right font-medium">Still held</th>
@@ -141,6 +142,7 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
                             <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
                               <div><dt className="inline text-text-muted">Reserved: </dt><dd className="inline">{dateTime(record.reservedAt)}{record.reservedByName ? ` by ${record.reservedByName}` : ""}</dd></div>
                               <div><dt className="inline text-text-muted">Order: </dt><dd className="inline">{order.sales_order_number}</dd></div>
+                              {record.reservationId && <div><a className="text-brand hover:underline" href={`/inventory/reservations/${record.reservationId}`}>View allocation in Stock Reservations</a></div>}
                               {record.consumptions.map((consumption, index) => (
                                 <div key={index}><dt className="inline text-text-muted">Consumed: </dt><dd className="inline">{withUnit(consumption.quantity, record.unit)} by {consumption.deliveryNumber ?? "a delivery"} on {dateTime(consumption.consumedAt)}</dd></div>
                               ))}
@@ -157,11 +159,11 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
               </tbody>
             </table>
           </div>
-        </SalesPanel>
+        </Panel>
       )}
 
       {history.length > 0 && (
-        <SalesPanel title="Reservation history">
+        <Panel title="Reservation history">
           <ol className="flex flex-col divide-y divide-border text-sm">
             {history.map((event, index) => {
               const m = (event.metadata ?? {}) as Record<string, unknown>;
@@ -181,7 +183,7 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
               );
             })}
           </ol>
-        </SalesPanel>
+        </Panel>
       )}
 
       {dialog?.kind === "reserve" && dialog.line && <ReserveLineDialog orderId={orderId} line={dialog.line} onClose={() => setDialog(null)} onDone={(message) => { setDialog(null); onChanged(message); }} />}
@@ -207,7 +209,7 @@ function ReserveLineDialog({ orderId, line, onClose, onDone }: { orderId: string
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Reserve ${line.item_name_snapshot}`}
       description={`Up to ${withUnit(unreserved, line.uom_snapshot)} is still unreserved in ${line.warehouse_name ?? "the line's warehouse"}. Stock is checked again now; if less is available, what is available is reserved.`}>
       <div className="flex flex-col gap-3">
-        {save.isError && <SalesAlert>{failureText(save.error, "The stock could not be reserved.")}</SalesAlert>}
+        {save.isError && <Notice>{failureText(save.error, "The stock could not be reserved.")}</Notice>}
         <NumberField label={`Quantity (${line.uom_snapshot ?? "units"})`} value={quantity} minValue={0} maxValue={unreserved} step={1} onChange={(value) => setQuantity(Number.isFinite(value) ? value : 0)} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>
@@ -231,7 +233,7 @@ function ReleaseDialog({ orderId, line, onClose, onDone }: { orderId: string; li
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={line ? `Release ${line.item_name_snapshot}` : "Release all reserved stock"}
       description="The stock becomes available to other orders. The order stays confirmed and can be reserved again.">
       <div className="flex flex-col gap-3">
-        {save.isError && <SalesAlert>{failureText(save.error, "The reservation could not be released.")}</SalesAlert>}
+        {save.isError && <Notice>{failureText(save.error, "The reservation could not be released.")}</Notice>}
         {line && <NumberField label={`Quantity (${line.uom_snapshot ?? "units"})`} value={quantity} minValue={0} maxValue={held} step={1} onChange={(value) => setQuantity(Number.isFinite(value) ? value : 0)} />}
         <Select label="Reason" isRequired placeholder="Choose a reason" options={RELEASE_REASONS.map((entry) => ({ value: entry.code, label: entry.label }))}
           selectedKey={reasonCode || null} onSelectionChange={(key) => setReasonCode(String(key ?? ""))} />

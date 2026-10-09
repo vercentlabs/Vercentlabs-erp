@@ -78,9 +78,10 @@ async function readWarehouse(client, context, value, defaultId) {
   const id = value ? requireUuid(value, "Return warehouse") : defaultId;
   if (!id) throw new ReturnError(400, "Choose the warehouse the goods come back to.", "SALES_RETURN_WAREHOUSE_REQUIRED", { field: "warehouseId" });
   if (id !== defaultId) requireReturnPermission(context, RETURN_PERMISSIONS.selectWarehouse, "You do not have permission to receive returns into another warehouse.");
-  const warehouse = (await client.query(`SELECT id, name, status FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [context.organizationId, id])).rows[0];
+  const warehouse = (await client.query(`SELECT id, name, status, returns_enabled FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [context.organizationId, id])).rows[0];
   if (!warehouse) throw new ReturnError(404, "Warehouse not found.", "SALES_WAREHOUSE_NOT_FOUND");
   if (warehouse.status !== "active") throw new ReturnError(409, `${warehouse.name} is inactive.`, "SALES_WAREHOUSE_NOT_ELIGIBLE");
+  if (!warehouse.returns_enabled) throw new ReturnError(409, `${warehouse.name} does not take returns.`, "WAREHOUSE_OPERATION_DISABLED", { field: "warehouseId" });
   return warehouse;
 }
 
@@ -282,7 +283,7 @@ export async function getSalesReturn(client, context, returnId) {
          JOIN tenant.items item ON item.id = movement.item_id
          JOIN tenant.warehouses warehouse ON warehouse.id = movement.warehouse_id
          LEFT JOIN tenant.warehouse_locations location ON location.id = movement.warehouse_location_id
-        WHERE movement.organization_id = $1 AND movement.reference_type = 'sales_return' AND movement.reference_id = $2 ORDER BY movement.created_at`, [context.organizationId, salesReturn.id])).rows,
+        WHERE movement.organization_id = $1 AND movement.reference_type = 'sales_return' AND movement.reference_id = $2 ORDER BY movement.ledger_sequence`, [context.organizationId, salesReturn.id])).rows,
     (await client.query(
       `SELECT DISTINCT credit_note.id, credit_note.invoice_number, credit_note.status, credit_note.invoice_date, source.id AS source_invoice_id, source.invoice_number AS source_invoice_number,
               (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', refund.id, 'refundNumber', refund.refund_number, 'status', refund.status, 'amount', allocation.amount,

@@ -37,7 +37,6 @@ export {
 } from "./receipt-records.js";
 export { accrualEnabled as isReceiptAccrualEnabled, postReceiptAccrual, reverseReceiptAccrual } from "./accrual.js";
 export { GOODS_RECEIPT_FILE_ENTITY, listGoodsReceiptFiles, prepareGoodsReceiptFileUpload, readGoodsReceiptFile, removeGoodsReceiptFile, uploadGoodsReceiptFile } from "./receipt-files.js";
-export { getReceivingWarehouseUsers, setReceivingWarehouseUsers } from "./receiving-access.js";
 export { getProcurementSettings, updateProcurementSettings } from "./settings.js";
 export {
   EXPECTED_RESOLUTIONS as REJECTION_EXPECTED_RESOLUTIONS, REJECTION_REASONS, RESOLUTION_TYPES as REJECTION_RESOLUTION_TYPES,

@@ -6,8 +6,6 @@
 // sales.view, changing needs sales.settings.manage (and, for discounts,
 // sales.discount.manage_settings). The server checks both again.
 import { useState, type ReactNode } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, NumberField, PageHeader, PermissionState, Select, Switch, TextArea, TextField } from "@vercentlabs/design-system";
 import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
@@ -15,7 +13,7 @@ import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { request, SalesApiError } from "@/features/sales/shared/http";
-import { SalesAlert, SalesPanel } from "@/features/sales/shared/SalesUi";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 type Settings = {
   default_quote_validity_days: number;
@@ -58,10 +56,6 @@ function SettingsPage({ title, description, children }: { title: string; descrip
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "settings"), queryFn: () => request<Loaded>("/settings") });
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/sales/settings" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
-        <ArrowLeft className="size-3.5" aria-hidden="true" />
-        Sales Settings
-      </Link>
       {query.isLoading ? <p className="px-4 py-8 text-sm text-text-secondary">Loading settings…</p>
         : query.isError || !query.data ? (
           query.error instanceof SalesApiError && query.error.status === 403
@@ -92,9 +86,9 @@ function SaveBar({ canManage, save, onSave, saved, readOnlyText }: {
 }) {
   return (
     <div className="flex flex-col gap-3">
-      {!canManage && <SalesAlert tone="info">{readOnlyText}</SalesAlert>}
-      {save.error && <SalesAlert>{save.error instanceof SalesApiError ? save.error.message : "Settings could not be saved."}</SalesAlert>}
-      {saved && <SalesAlert tone="success">Saved. The change applies to documents from now on.</SalesAlert>}
+      {!canManage && <Notice tone="info">{readOnlyText}</Notice>}
+      {save.error && <Notice>{save.error instanceof SalesApiError ? save.error.message : "Settings could not be saved."}</Notice>}
+      {saved && <Notice tone="success">Saved. The change applies to documents from now on.</Notice>}
       {canManage && <div><Button variant="primary" isLoading={save.isPending} onPress={onSave}>Save</Button></div>}
     </div>
   );
@@ -124,25 +118,25 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
   const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
   return (
     <div className="flex flex-col gap-4">
-      <SalesPanel title="Quotation approval" description="A quotation needs approval by someone other than its author when any trigger below is met. Set an amount to 0 to switch that trigger off.">
+      <Panel title="Quotation approval" description="A quotation needs approval by someone other than its author when any trigger below is met. Set an amount to 0 to switch that trigger off.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <NumberField label="Approval above amount" value={quoteAmount} onChange={touch(setQuoteAmount)} minValue={0} step={0.01} isDisabled={!canManage} />
           <NumberField label="Approval above discount (%)" value={quoteDiscount} onChange={touch(setQuoteDiscount)} minValue={0} maxValue={100} step={1} isDisabled={!canManage} />
           <NumberField label="Approval below margin (%)" value={margin} onChange={touch(setMargin)} minValue={-100} maxValue={100} step={1} isDisabled={!canManage} />
         </div>
-      </SalesPanel>
-      <SalesPanel title="Quotations">
+      </Panel>
+      <Panel title="Quotations">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <NumberField label="Quotation validity (days)" value={validity} onChange={touch(setValidity)} minValue={1} maxValue={365} step={1} isDisabled={!canManage} />
         </div>
         <TextArea label="Standard terms and conditions for quotations" description="Copied onto each new quotation, where it can be changed. Printed on the quotation."
           value={quotationTerms} onChange={touch(setQuotationTerms)} isDisabled={!canManage} />
-      </SalesPanel>
-      <SalesPanel title="Sales orders" description="Orders are confirmed by someone with the Confirm sales orders permission; there is no order approval.">
+      </Panel>
+      <Panel title="Sales orders" description="Orders are confirmed by someone with the Confirm sales orders permission; there is no order approval.">
         <Switch isSelected={direct} onChange={touch(setDirect)} isDisabled={!canManage}>Allow orders without a quotation</Switch>
         <Switch isSelected={requirePo} onChange={touch(setRequirePo)} isDisabled={!canManage}>Require the customer&apos;s PO number before an order is confirmed</Switch>
         <Switch isSelected={requireDelivery} onChange={touch(setRequireDelivery)} isDisabled={!canManage}>Require a requested delivery date before an order is confirmed</Switch>
-      </SalesPanel>
+      </Panel>
       <SaveBar canManage={canManage} save={save} saved={saved} readOnlyText="You can view these rules. Changing them needs the Sales settings permission."
         onSave={() => save.mutate({
           defaultQuoteValidityDays: validity, quotationApprovalAmount: quoteAmount, quotationApprovalDiscount: quoteDiscount, minimumMarginPercent: margin,
@@ -174,28 +168,28 @@ function FulfillmentForm({ settings, warehouses }: Loaded) {
   const inactiveDefault = Boolean(settings.default_warehouse_id) && !warehouses.some((warehouse) => warehouse.id === settings.default_warehouse_id);
   return (
     <div className="flex flex-col gap-4">
-      <SalesPanel title="Invoicing">
+      <Panel title="Invoicing">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="Invoice based on" description="Sales Order: anything ordered can be invoiced. Delivery: goods only once delivered (services as ordered)."
             options={[{ value: "ordered", label: "Sales Order" }, { value: "fulfilled", label: "Delivery" }]}
             selectedKey={basis} onSelectionChange={(key) => touch(setBasis)(String(key ?? "ordered"))} isDisabled={!canManage} />
         </div>
-      </SalesPanel>
-      <SalesPanel title="Availability and reservation" description="Availability is on hand minus reserved, in each warehouse; stock under quality hold is not available. Checking availability never blocks an order.">
+      </Panel>
+      <Panel title="Availability and reservation" description="Availability is on hand minus reserved, in each warehouse; stock under quality hold is not available. Checking availability never blocks an order.">
         <Switch isSelected={checkOnConfirm} onChange={touch(setCheckOnConfirm)} isDisabled={!canManage}>Check availability when an order is confirmed</Switch>
         <Switch isSelected={reserveOnConfirm} onChange={touch(setReserveOnConfirm)} isDisabled={!canManage}>Reserve available stock when an order is confirmed</Switch>
-      </SalesPanel>
-      <SalesPanel title="Default warehouse" description="Where a new sales order's goods come from unless the order or a line says otherwise. Only a starting value: it can be changed on the order.">
-        {inactiveDefault && <SalesAlert tone="warning">The warehouse chosen here is no longer active, so new orders start without one.</SalesAlert>}
+      </Panel>
+      <Panel title="Default warehouse" description="Where a new sales order's goods come from unless the order or a line says otherwise. Only a starting value: it can be changed on the order.">
+        {inactiveDefault && <Notice tone="warning">The warehouse chosen here is no longer active, so new orders start without one.</Notice>}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="Default warehouse" options={[{ value: "", label: "None" }, ...warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.name} (${warehouse.code})` }))]}
             selectedKey={inactiveDefault ? "" : warehouseId} onSelectionChange={(key) => touch(setWarehouseId)(String(key ?? ""))} isDisabled={!canManage} />
         </div>
-      </SalesPanel>
-      <SalesPanel title="Delivery note" description="Deliveries are dispatched by sales managers and the warehouse; stock is issued at dispatch.">
+      </Panel>
+      <Panel title="Delivery note" description="Deliveries are dispatched by sales managers and the warehouse; stock is issued at dispatch.">
         <Switch isSelected={notePrices} onChange={touch(setNotePrices)} isDisabled={!canManage}>Show prices on the delivery note</Switch>
         <p className="text-sm text-text-secondary">Only unit prices are printed. A delivery note never shows tax or totals, and never internal notes.</p>
-      </SalesPanel>
+      </Panel>
       <SaveBar canManage={canManage} save={save} saved={saved} readOnlyText="You can view these settings. Changing them needs the Sales settings permission."
         onSave={() => save.mutate({
           invoiceQuantityBasis: basis, checkAvailabilityOnConfirm: checkOnConfirm, reserveStockOnConfirm: reserveOnConfirm,
@@ -230,15 +224,15 @@ function DiscountForm({ settings }: { settings: Settings }) {
   const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
   return (
     <div className="flex flex-col gap-4">
-      <SalesPanel title="Allowed discounts" description="A discount is given on a line or on the whole document, as a percentage or a fixed amount. Standard customer prices belong in price lists, not here.">
+      <Panel title="Allowed discounts" description="A discount is given on a line or on the whole document, as a percentage or a fixed amount. Standard customer prices belong in price lists, not here.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Switch isSelected={lineDiscounts} onChange={touch(setLineDiscounts)} isDisabled={!canManage}>Allow line discounts</Switch>
           <Switch isSelected={documentDiscounts} onChange={touch(setDocumentDiscounts)} isDisabled={!canManage}>Allow document discounts</Switch>
           <Switch isSelected={percentDiscounts} onChange={touch(setPercentDiscounts)} isDisabled={!canManage}>Percentage discounts</Switch>
           <Switch isSelected={amountDiscounts} onChange={touch(setAmountDiscounts)} isDisabled={!canManage}>Fixed amount discounts</Switch>
         </div>
-      </SalesPanel>
-      <SalesPanel title="Limits and reasons" description="The limit applies to each line's total discount: its own discount plus its share of the document discount. Users who may override the limit are not restricted; a price override needs its own permission.">
+      </Panel>
+      <Panel title="Limits and reasons" description="The limit applies to each line's total discount: its own discount plus its share of the document discount. Users who may override the limit are not restricted; a price override needs its own permission.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <TextField label="Salesperson maximum discount (%)" description="Leave empty for no limit." inputMode="decimal" value={discountLimit}
             onChange={(value) => touch(setDiscountLimit)(percentInput(value))} isDisabled={!canManage} />
@@ -247,7 +241,7 @@ function DiscountForm({ settings }: { settings: Settings }) {
           <TextField label="Require a reason above (%)" description="Leave empty to never require a reason." inputMode="decimal" value={reasonAbove}
             onChange={(value) => touch(setReasonAbove)(percentInput(value))} isDisabled={!canManage} />
         </div>
-      </SalesPanel>
+      </Panel>
       <SaveBar canManage={canManage} save={save} saved={saved} readOnlyText="You can view these controls. Changing them needs the Sales settings and Manage discount settings permissions."
         onSave={() => save.mutate({
           allowLineDiscounts: lineDiscounts, allowDocumentDiscounts: documentDiscounts, allowPercentDiscounts: percentDiscounts, allowAmountDiscounts: amountDiscounts,

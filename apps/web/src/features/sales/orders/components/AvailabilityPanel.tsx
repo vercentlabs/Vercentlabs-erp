@@ -13,10 +13,10 @@ import { Button, Dialog, StatusBadge, TextField } from "@vercentlabs/design-syst
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { dateTime } from "@/features/sales/shared/format";
-import { SalesAlert, SalesPanel } from "@/features/sales/shared/SalesUi";
 
 import { changeLineWarehouse, getSalesOrderAvailability, type AlternativeWarehouse, type LineAvailability } from "../api/orders-api";
 import { failureText } from "./OrderDialogs";
+import { Notice, Panel } from "@/shared/ui/Panel";
 
 const amount = (value: number | null | undefined) => (value == null ? "—" : Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 }));
 const withUnit = (value: number | null | undefined, unit: string | null | undefined) => `${amount(value)}${unit ? ` ${unit}` : ""}`;
@@ -46,7 +46,7 @@ export function AvailabilityPanel({ orderId, autoCheck, canReserve, reserving, o
   const stockLines = data?.lines.filter((line) => line.stockTracked) ?? [];
   const otherLines = data?.lines.filter((line) => !line.stockTracked) ?? [];
   return (
-    <SalesPanel title="Availability"
+    <Panel title="Availability"
       description="On hand minus reserved, in the warehouse each line ships from; stock under quality hold is not counted. A check is for now only: only a reservation commits stock."
       actions={(
         <div className="flex flex-wrap gap-2">
@@ -54,7 +54,7 @@ export function AvailabilityPanel({ orderId, autoCheck, canReserve, reserving, o
           {canReserve && data && !data.informational && <Button variant="primary" size="compact" isLoading={reserving} onPress={onReserve}>Reserve Available</Button>}
         </div>
       )}>
-      {query.isError && <SalesAlert>{failureText(query.error, "Availability could not be checked.")}</SalesAlert>}
+      {query.isError && <Notice>{failureText(query.error, "Availability could not be checked.")}</Notice>}
       {!data && !query.isFetching && !query.isError && <p className="text-sm text-text-muted">Check what is available now for this order&apos;s stock lines.</p>}
       {data && (
         <>
@@ -63,11 +63,11 @@ export function AvailabilityPanel({ orderId, autoCheck, canReserve, reserving, o
             <ResultBadge result={data.summary === "fully_available" ? "available" : data.summary} label={data.summaryLabel} />
             <span className="text-text-muted">Availability checked {dateTime(data.checkedAt)}</span>
           </div>
-          {data.informational && <SalesAlert tone="info">This order is a draft: the result is for information. Stock can be reserved once the order is confirmed.</SalesAlert>}
+          {data.informational && <Notice tone="info">This order is a draft: the result is for information. Stock can be reserved once the order is confirmed.</Notice>}
           {stockLines.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[56rem] text-sm">
-                <thead className="text-left text-xs text-text-muted">
+                <thead className="bg-surface-muted text-left text-text-secondary">
                   <tr className="border-b border-border">
                     <th className="py-2 pr-3 font-medium">Product</th><th className="py-2 pr-3 font-medium">Warehouse</th>
                     <th className="py-2 pr-3 text-right font-medium">Required</th><th className="py-2 pr-3 text-right font-medium">Reserved for this order</th>
@@ -140,7 +140,7 @@ export function AvailabilityPanel({ orderId, autoCheck, canReserve, reserving, o
         </>
       )}
       {moving && <ChangeWarehouseDialog orderId={orderId} line={moving.line} to={moving.to} onClose={() => setMoving(null)} onDone={() => { setMoving(null); onChanged(); }} />}
-    </SalesPanel>
+    </Panel>
   );
 }
 
@@ -151,7 +151,7 @@ function ChangeWarehouseDialog({ orderId, line, to, onClose, onDone }: { orderId
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Ship ${line.itemName} from ${to.warehouseName}?`}
       description={`The line will ship from ${to.warehouseName} instead of ${line.warehouseName ?? "its current warehouse"}. Stock reserved for it in ${line.warehouseName ?? "the old warehouse"} is released; reserve again afterwards.`}>
       <div className="flex flex-col gap-3">
-        {save.isError && <SalesAlert>{failureText(save.error, "The warehouse could not be changed.")}</SalesAlert>}
+        {save.isError && <Notice>{failureText(save.error, "The warehouse could not be changed.")}</Notice>}
         <TextField label="Reason" value={reason} onChange={setReason} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>

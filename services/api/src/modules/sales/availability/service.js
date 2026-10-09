@@ -87,11 +87,11 @@ function evaluate(lines, positions, { showOtherWarehouses }) {
       warehouseId: line.fulfillmentWarehouseId, warehouseName: position?.warehouseName ?? null, warehouseSource: line.warehouseSource,
       onHand: position ? toUnit(position.onHand, factor) : 0,
       reservedByOthers: position ? toUnit(Math.max(0, position.reserved - (own.get(key) ?? 0)), factor) : 0,
-      unusable: position ? toUnit(position.unusable + (position.held ?? 0), factor) : 0,
+      unusable: position ? toUnit(position.unusable, factor) : 0,
       available: position && eligible ? toUnit(position.available, factor) : 0,
       reservable, shortage, result, resultLabel: RESULT_LABELS[result],
       baseRequired: round(remaining * factor), baseAvailable: position && eligible ? position.available : 0,
-      problem: !eligible ? "This warehouse is inactive or not used for sales fulfillment." : position?.qualityBlocked ? "This product is on quality hold in this warehouse." : null,
+      problem: !eligible ? "This warehouse is inactive or does not ship." : null,
       alternatives: showOtherWarehouses ? suggestAlternativeWarehouses(positions, line.itemId, line.fulfillmentWarehouseId).map((alternative) => ({ ...alternative, available: toUnit(alternative.available, factor), onHand: toUnit(alternative.onHand, factor) })) : [],
     };
   });
@@ -159,7 +159,7 @@ export async function checkWarehouseAvailability(client, context, itemId) {
   return {
     itemId: item.id, itemName: item.name, unit: item.base_unit, stockTracked: tracked, checkedAt: await checkedAt(client),
     warehouses: positions.map((position) => ({ warehouseId: position.warehouseId, warehouseCode: position.warehouseCode, warehouseName: position.warehouseName, onHand: position.onHand,
-      reserved: position.reserved, unusable: round(position.unusable + (position.held ?? 0)), available: position.available, qualityBlocked: position.qualityBlocked })),
+      reserved: position.reserved, unusable: round(position.unusable), held: position.held, available: position.available })),
     totals: { onHand: total("onHand"), reserved: total("reserved"), available: total("available") },
   };
 }

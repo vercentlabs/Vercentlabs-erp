@@ -1,0 +1,18 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+type Client = any;
+export declare const STOCK_LEDGER_MOVEMENT_TYPES: ReadonlyArray<{ id: string; label: string; direction: "in" | "out" | "either" }>;
+export declare const STOCK_LEDGER_DISPOSITIONS: ReadonlyArray<{ id: string; label: string }>;
+export declare function getStockLedger(client: Client, context: StockContext, filters?: Row): Promise<Row>;
+export declare function getItemLedger(client: Client, context: StockContext, itemId: string, filters?: Row): Promise<Row>;
+export declare function getWarehouseLedger(client: Client, context: StockContext, warehouseId: string, filters?: Row): Promise<Row>;
+export declare function getBatchLedger(client: Client, context: StockContext, batchId: string, filters?: Row): Promise<Row>;
+export declare function getStockBalanceAsOf(client: Client, context: StockContext, input: { itemId: string; warehouseId?: string | null; locationId?: string | null; batchId?: string | null; serialId?: string | null; at?: string | null }): Promise<{ itemId: string; at: string; quantity: number }>;
+export declare function getMovementDetail(client: Client, context: StockContext, movementId: string): Promise<Row>;
+export declare function getSerialHistory(client: Client, context: StockContext, input: { serialId?: string | null; serialNumber?: string | null }): Promise<Row>;
+export declare function reconcileStockLedger(client: Client, context: StockContext, filters?: { itemId?: string | null; warehouseId?: string | null }): Promise<Row>;
+export declare function reconcileBatchBalances(client: Client, context: StockContext, filters?: { itemId?: string | null; warehouseId?: string | null }): Promise<Row[]>;
+export declare function reconcileSerialBalances(client: Client, context: StockContext, filters?: { itemId?: string | null; warehouseId?: string | null }): Promise<Row[]>;
+export declare function listStockLedgerReconciliations(client: Client, context: StockContext): Promise<Row[]>;
+export declare function exportStockLedger(client: Client, context: StockContext, filters?: Row, format?: "csv" | "xlsx"): Promise<{ fileName: string; contentType: string; body: string | Uint8Array; rowCount: number }>;
+export declare function getStockLedgerOptions(client: Client, context: StockContext): Promise<Row>;

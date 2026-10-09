@@ -9,12 +9,13 @@ import {
 } from "@vercentlabs/design-system";
 
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
+import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
 import { ConversionSummary } from "@/features/crm/conversion/components/ConversionSummary";
 import { ConvertLeadDialog } from "@/features/crm/conversion/components/ConvertLeadDialog";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
-import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { PropertyList } from "@/shared/ui/PropertyList";
 import { countryName, formatDateTime, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -41,7 +42,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const [dialog, setDialog] = useState<DialogKind>(null);
   // ?tab=notes or ?tab=attachments opens that tab (links from search and from Notes & Files).
   const requestedTab = useSearchParams().get("tab");
-  const [tab, setTab] = useState(requestedTab === "notes" || requestedTab === "attachments" ? requestedTab : "overview");
+  const [tab, setTab] = useState(requestedTab === "notes" || requestedTab === "attachments" || requestedTab === "related" ? requestedTab : "overview");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -176,7 +177,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             <Tab id="notes">Notes</Tab>
             <Tab id="attachments">Attachments</Tab>
             <Tab id="history">Activity history</Tab>
-            {lead.status === "converted" && <Tab id="related">Related records</Tab>}
+            <Tab id="related">Related</Tab>
           </TabList>
 
           <TabPanel id="overview">
@@ -244,7 +245,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
               <AuditTrail leadId={lead.id} />
             </div>
           </TabPanel>
-          {lead.status === "converted" && <TabPanel id="related"><ConversionSummary lead={lead} /></TabPanel>}
+          <TabPanel id="related"><div className="flex flex-col gap-4">{lead.status === "converted" && <ConversionSummary lead={lead} />}<RelatedDocuments type="lead" id={lead.id} /></div></TabPanel>
         </Tabs>
       </RecordDetailsPage>
 

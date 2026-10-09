@@ -1,0 +1,34 @@
+import type { StockContext } from "./index.js";
+type Row = Record<string, unknown>;
+type Client = any;
+export declare class OpeningStockError extends Error {
+  status: number;
+  code: string;
+  details?: unknown;
+  constructor(status: number, message: string, code?: string, details?: unknown);
+}
+export declare const OPENING_STOCK_FILE_ENTITY: string;
+export declare const OPENING_DISPOSITIONS: ReadonlyArray<{ code: string; label: string }>;
+export declare const OPENING_STOCK_IMPORT_COLUMNS: readonly string[];
+export declare function openingCan(context: StockContext, permission: string): boolean;
+export declare function openingStockCapabilities(context: StockContext): Record<string, boolean>;
+export declare function listOpeningStocks(client: Client, context: StockContext, filters?: Row): Promise<Row>;
+export declare function getOpeningStock(client: Client, context: StockContext, documentId: string): Promise<Row>;
+export declare function getOpeningStockHistory(client: Client, context: StockContext, documentId: string): Promise<Row[]>;
+export declare function createOpeningStock(client: Client, context: StockContext, input?: Row): Promise<Row>;
+export declare function updateDraftOpeningStock(client: Client, context: StockContext, documentId: string, input?: Row): Promise<Row>;
+export declare function validateOpeningStock(client: Client, context: StockContext, documentId: string): Promise<Row>;
+export declare function postOpeningStock(client: Client, context: StockContext, documentId: string, input?: Row): Promise<Row>;
+export declare function cancelOpeningStock(client: Client, context: StockContext, documentId: string, input?: Row): Promise<Row>;
+export declare function validateOpeningStockReversal(client: Client, context: StockContext, documentId: string): Promise<Array<{ code: string; message: string }>>;
+export declare function reverseOpeningStock(client: Client, context: StockContext, documentId: string, input?: Row): Promise<Row>;
+export declare function getOpeningStockReconciliation(client: Client, context: StockContext): Promise<Row>;
+export declare function buildOpeningStockTemplate(): string;
+export declare function importOpeningStock(client: Client, context: StockContext, documentId: string, input: { bytes: Buffer | Uint8Array; fileName: string; dryRun?: boolean }): Promise<Row>;
+export declare function listOpeningStockImports(client: Client, context: StockContext): Promise<Row[]>;
+export declare function prepareOpeningStockFileUpload(input: { fileName: string; bytes: Buffer | Uint8Array }, env?: Record<string, string | undefined>): Promise<unknown>;
+export declare function listOpeningStockFiles(client: Client, context: StockContext, documentId: string): Promise<Row[]>;
+export declare function uploadOpeningStockFile(client: Client, context: StockContext, documentId: string, input?: { prepared?: unknown }, options?: Row): Promise<Row>;
+export declare function removeOpeningStockFile(client: Client, context: StockContext, documentId: string, fileId: string): Promise<{ removed: boolean }>;
+export declare function readOpeningStockFile(client: Client, context: StockContext, documentId: string, fileId: string, options?: Row): Promise<{ fileName: string; mimeType: string; body: Buffer }>;
+export declare function getOpeningStockOptions(client: Client, context: StockContext): Promise<Row>;

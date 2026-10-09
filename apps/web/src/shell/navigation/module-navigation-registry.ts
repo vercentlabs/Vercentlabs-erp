@@ -12,6 +12,13 @@
 // F-id-per-item mapping; each is annotated with the coarse F-id range it
 // corresponds to.
 import {
+  ArrowLeftRight,
+  BarChart3,
+  Database,
+  Gauge,
+  Search,
+  LayoutDashboard,
+  Settings,
   Users,
   ShoppingCart,
   Truck,
@@ -25,10 +32,8 @@ import {
   Landmark,
   Building2,
   CalendarClock,
-  ShieldCheck,
   SlidersHorizontal,
   UserSearch,
-  Workflow,
 } from "lucide-react";
 
 import type { ModuleNavigation, SecondaryNavItem } from "./navigation-types";
@@ -54,204 +59,197 @@ function adminOnly(
 }
 
 export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
+  // ---------------------------------------------------------------------------------------------------------------------------------------
+  // CRM, Sales, Procurement and Inventory share one sidebar shape: Overview, Master Data, Operations, Planning & Control, Inquiries, Reports,
+  // Configuration — in that order, a section only when it has something to show (empty sections are hidden). Overview is a single link;
+  // the other sections fold. Every capability is a page, a tab, a view, an action, a field or a configuration: only pages are sidebar
+  // entries. Everything else routed in the module is registered with `parent` (the page it belongs to): reachable, searchable and
+  // breadcrumbed, never a sidebar entry of its own.
   {
     moduleKey: "crm",
     label: "CRM",
     icon: Users,
     requiredPermission: "crm.view",
-    // The CRM sidebar: twelve destinations in five groups. Everything else is
-    // a view, an action or a configuration page inside one of them, registered
-    // with `parent`: still routed, searchable and breadcrumbed, never a
-    // sidebar entry of its own. Qualification, assignment, conversion, stage
-    // changes, duplicate handling and won/lost happen on the records.
     sections: [
       {
         id: "overview",
         label: "Overview",
+        icon: LayoutDashboard,
+        flat: true,
         items: [
-          available("Home", "/crm"),
-          { ...available("Dashboard", "/crm/dashboard"), parent: "home", aliases: ["kpi", "metrics"] },
+          { ...available("Overview", "/crm"), aliases: ["crm home", "dashboard", "kpi", "metrics"] },
+          { ...available("Dashboard", "/crm/dashboard"), parent: "overview" },
+        ],
+      },
+      {
+        id: "master-data",
+        label: "Master Data",
+        icon: Database,
+        collapsible: true,
+        items: [
+          { ...available("Accounts", "/crm/accounts"), aliases: ["companies", "customers", "account 360"] },
+          { ...available("Contacts", "/crm/contacts"), aliases: ["people", "contact persons"] },
+          {
+            ...available("Data Quality", "/crm/data-quality"),
+            parent: "accounts",
+            description: "Potential duplicate leads, contacts and accounts to review and merge.",
+            aliases: ["duplicates", "merge", "potential duplicates"],
+            requiredPermission: "crm.duplicates.review",
+          },
+        ],
+      },
+      {
+        id: "operations",
+        label: "Operations",
+        icon: ArrowLeftRight,
+        collapsible: true,
+        items: [
+          { ...available("Leads", "/crm/leads"), aliases: ["prospects", "enquiries", "lead conversion", "qualification"] },
           { ...available("Lead Dashboard", "/crm/leads/dashboard"), parent: "leads" },
+          { ...available("Opportunities", "/crm/opportunities"), aliases: ["deals", "won", "lost", "win rate"] },
           { ...available("Opportunity Dashboard", "/crm/opportunities/dashboard"), parent: "opportunities", aliases: ["win rate", "won and lost"] },
+          { ...available("Activities", "/crm/activities"), aliases: ["my work", "today", "tasks", "follow-ups", "calls", "meetings", "notes", "files", "inbox", "reminders"] },
+          // The tabs of Activities and their records (/crm/tasks/<id>, /crm/calls/<id>, …); each list address opens its tab.
+          { ...available("Tasks", "/crm/tasks"), parent: "activities", requiredPermission: "crm.tasks.view" },
+          { ...available("Follow-ups", "/crm/follow-ups"), parent: "activities", requiredPermission: "crm.follow_ups.view" },
+          { ...available("Calls", "/crm/calls"), parent: "activities" },
+          { ...available("Meetings", "/crm/meetings"), parent: "activities" },
+          { ...available("Notes & Files", "/crm/notes-files"), parent: "activities", aliases: ["attachments", "documents"] },
+          { ...available("Inbox", "/crm/communications"), parent: "activities", aliases: ["communications", "email", "conversations"] },
+          { ...available("My Work", "/crm/work"), parent: "activities" },
         ],
       },
       {
-        id: "customers-sales",
-        label: "Customers & Sales",
+        id: "planning",
+        label: "Planning & Control",
+        icon: Gauge,
+        collapsible: true,
         items: [
-          available("Leads", "/crm/leads"),
-          available("Accounts", "/crm/accounts"),
-          available("Contacts", "/crm/contacts"),
-          available("Opportunities", "/crm/opportunities"),
-          { ...available("Pipeline", "/crm/pipeline"), aliases: ["board", "kanban", "deals"] },
-        ],
-      },
-      {
-        id: "work",
-        label: "Work",
-        items: [
-          { ...available("Tasks", "/crm/tasks"), requiredPermission: "crm.tasks.view" },
-          { ...available("Follow-ups", "/crm/follow-ups"), requiredPermission: "crm.follow_ups.view", aliases: ["reminders"] },
-          { ...available("Notes & Files", "/crm/notes-files"), aliases: ["notes", "attachments", "documents", "files"] },
-          // Earlier work screens: reachable by search and link, not sidebar entries.
-          { ...available("My Work", "/crm/work"), parent: "tasks", aliases: ["today"] },
-          { ...available("Calls", "/crm/calls"), parent: "follow-ups" },
-          { ...available("Meetings", "/crm/meetings"), parent: "follow-ups" },
-          { ...available("Inbox", "/crm/communications"), parent: "follow-ups", aliases: ["communications", "email", "conversations"] },
-        ],
-      },
-      {
-        id: "insights",
-        label: "Insights",
-        items: [
-          { ...available("Reports", "/crm/reports"), aliases: ["leads by status", "opportunities by stage"] },
+          { ...available("Pipeline", "/crm/pipeline"), aliases: ["board", "kanban", "deals by stage"] },
           {
             ...available("Forecast", "/crm/forecast"),
-            parent: "reports",
+            parent: "pipeline",
             requiredAnyPermission: ["crm.forecast.submit", "crm.forecast.review", "crm.forecast.manage"],
           },
         ],
       },
       {
-        id: "administration",
-        label: "Administration",
+        id: "reports",
+        label: "Reports",
+        icon: BarChart3,
+        collapsible: true,
+        items: [
+          { ...available("Leads by Status", "/crm/reports?report=leads"), aliases: ["lead report", "crm reports"] },
+          { ...available("Opportunities by Stage", "/crm/reports?report=opportunities"), aliases: ["opportunity report", "pipeline report"] },
+        ],
+      },
+      {
+        id: "configuration",
+        label: "Configuration",
+        icon: Settings,
+        collapsible: true,
         items: [
           {
-            ...available("Data Quality", "/crm/data-quality"),
-            aliases: ["duplicates", "merge", "potential duplicates"],
-            requiredPermission: "crm.duplicates.review",
+            ...available("Lead Setup", "/crm/settings/leads"),
+            aliases: ["crm settings", "setup", "configuration", "lead configuration"],
+            requiredAnyPermission: ["crm.settings.manage", "crm.import"],
           },
-          {
-            ...available("CRM Settings", "/crm/settings"),
-            aliases: ["setup", "configuration", "administration"],
-            // Shown to anyone who can open at least one destination inside it;
-            // each destination keeps its own permission below.
-            requiredAnyPermission: [
-              "crm.settings.manage",
-              "crm.opportunities.manage_close_reasons",
-              "crm.leads.manage_stages",
-              "crm.leads.manage_assignment_rules",
-              "crm.import",
-            ],
-          },
-          // ---- Lead Management
           {
             ...available("Lead Stages & Statuses", "/crm/settings/leads/stages"),
-            parent: "crm-settings",
-            group: "lead-management",
+            parent: "lead-setup",
+            group: "lead-process",
             description: "The steps a lead moves through, and the four statuses it can end in.",
             aliases: ["lead stages", "lead pipeline", "lead process"],
             requiredPermission: "crm.settings.manage",
           },
           {
             ...available("Qualification Criteria", "/crm/settings/leads/qualification"),
-            parent: "crm-settings",
-            group: "lead-management",
+            parent: "lead-setup",
+            group: "lead-process",
             description: "What must be known about a lead before it can be qualified.",
             aliases: ["qualification requirements", "bant", "lead qualification"],
             requiredPermission: "crm.settings.manage",
           },
           {
-            ...available("Assignment Rules", "/crm/settings/leads/assignment"),
-            parent: "crm-settings",
-            group: "lead-management",
-            description: "Route new leads to owners and teams, with round robin and a fallback queue.",
-            aliases: ["routing", "round robin", "lead assignment"],
-            requiredPermission: "crm.settings.manage",
-          },
-          {
             ...available("Lead Sources", "/crm/settings/leads/sources"),
-            parent: "crm-settings",
-            group: "lead-management",
+            parent: "lead-setup",
+            group: "lead-process",
             description: "Where leads come from, for routing and attribution.",
             requiredPermission: "crm.settings.manage",
           },
-          // ---- Opportunity Management
+          {
+            ...available("Task Defaults", "/crm/settings/defaults/tasks"),
+            parent: "lead-setup",
+            group: "activity-defaults",
+            description: "The priority and reminder a new task starts with.",
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Follow-up Defaults", "/crm/settings/defaults/follow-ups"),
+            parent: "lead-setup",
+            group: "activity-defaults",
+            description: "The type and reminder a new follow-up starts with.",
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Imports & Exports", "/crm/data/import-export"),
+            parent: "lead-setup",
+            group: "data-management",
+            description: "Import leads from a file and export CRM data.",
+            aliases: ["import", "export", "csv"],
+          },
+          {
+            ...available("Opportunity Setup", "/crm/settings/opportunities"),
+            aliases: ["pipeline setup", "sales stages", "opportunity configuration"],
+            requiredAnyPermission: ["crm.settings.manage", "crm.opportunities.manage_close_reasons"],
+          },
           {
             ...available("Sales Stages", "/crm/settings/opportunities/stages"),
-            parent: "crm-settings",
-            group: "opportunity-management",
+            parent: "opportunity-setup",
             description: "The stages of the pipeline and their default probabilities.",
             aliases: ["pipeline stages", "probability"],
             requiredPermission: "crm.settings.manage",
           },
           {
             ...available("Won / Lost Reasons", "/crm/settings/opportunities/close-reasons"),
-            parent: "crm-settings",
-            group: "opportunity-management",
+            parent: "opportunity-setup",
             description: "The reasons a deal can be won or lost.",
             aliases: ["outcome reasons", "close reasons", "lost reasons", "won reasons"],
             requiredPermission: "crm.opportunities.manage_close_reasons",
           },
-          // ---- Data Quality
           {
-            ...available("Duplicate Detection Rules", "/crm/settings/data-quality"),
-            parent: "crm-settings",
-            group: "data-quality",
-            description: "What makes two leads, contacts or accounts a strong or a possible duplicate.",
-            aliases: ["duplicate rules", "matching"],
-            requiredPermission: "crm.settings.manage",
-          },
-          // ---- Defaults
-          {
-            ...available("Task Defaults", "/crm/settings/defaults/tasks"),
-            parent: "crm-settings",
-            group: "defaults",
-            description: "The priority and reminder a new task starts with.",
+            ...available("Assignment Rules", "/crm/settings/leads/assignment"),
+            aliases: ["routing", "round robin", "lead assignment"],
             requiredPermission: "crm.settings.manage",
           },
           {
-            ...available("Follow-up Defaults", "/crm/settings/defaults/follow-ups"),
-            parent: "crm-settings",
-            group: "defaults",
-            description: "The type and reminder a new follow-up starts with.",
+            ...available("Duplicate Detection", "/crm/settings/data-quality"),
+            aliases: ["duplicate rules", "matching rules"],
             requiredPermission: "crm.settings.manage",
-          },
-          // ---- Data Management
-          {
-            ...available("Imports & Exports", "/crm/data/import-export"),
-            parent: "crm-settings",
-            group: "data-management",
-            description: "Import leads from a file and export CRM data.",
-            aliases: ["import", "export", "csv"],
           },
         ],
       },
     ],
     groups: [
       {
-        id: "lead-management",
-        workspace: "crm-settings",
-        label: "Lead Management",
-        description: "Lead stages and statuses, qualification, assignment and sources.",
+        id: "lead-process",
+        workspace: "lead-setup",
+        label: "Lead Process",
+        description: "Lead stages and statuses, qualification and sources.",
         icon: UserSearch,
       },
       {
-        id: "opportunity-management",
-        workspace: "crm-settings",
-        label: "Opportunity Management",
-        description: "Sales stages and the reasons deals are won or lost.",
-        icon: Workflow,
-      },
-      {
-        id: "data-quality",
-        workspace: "crm-settings",
-        label: "Data Quality",
-        description: "How duplicate leads, contacts and accounts are detected.",
-        icon: ShieldCheck,
-      },
-      {
-        id: "defaults",
-        workspace: "crm-settings",
-        label: "Defaults",
+        id: "activity-defaults",
+        workspace: "lead-setup",
+        label: "Activity Defaults",
         description: "What a new task or follow-up starts with.",
         icon: CalendarClock,
       },
       {
         id: "data-management",
-        workspace: "crm-settings",
+        workspace: "lead-setup",
         label: "Data Management",
-        description: "Bring CRM data in from a file and take it out.",
+        description: "Bring leads in from a file and take CRM data out.",
         icon: SlidersHorizontal,
       },
     ],
@@ -261,58 +259,42 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     label: "Sales",
     icon: ShoppingCart,
     requiredPermission: "sales.view",
-    // The Sales sidebar: eleven destinations in eight groups. Everything else
-    // happens on a record or inside Sales Settings: addresses and contacts on
-    // the customer; confirmation, availability, reservation, partial delivery,
-    // partial invoicing and order tracking on the sales order; shipment on the
-    // delivery; discounts and taxes on each document. Routes inside a
-    // workspace are registered with `parent`: routed, searchable and
-    // breadcrumbed, never a sidebar entry of their own.
+    // Addresses and contacts live on the customer; confirmation, availability, reservation, partial delivery, partial invoicing and order
+    // tracking on the sales order; shipment on the delivery; discounts and taxes on each document.
     sections: [
       {
         id: "overview",
         label: "Overview",
-        items: [available("Home", "/sales")],
+        icon: LayoutDashboard,
+        flat: true,
+        items: [{ ...available("Overview", "/sales"), aliases: ["sales home", "sales dashboard"] }],
       },
       {
-        id: "customers-catalog",
-        label: "Customers & Catalog",
+        id: "master-data",
+        label: "Master Data",
+        icon: Database,
+        collapsible: true,
         featureRange: "F031-F034",
         items: [
-          { ...available("Customers", "/sales/customers"), aliases: ["customer master", "addresses", "contacts", "customer 360"] },
+          { ...available("Customers", "/sales/customers"), aliases: ["customer master", "addresses", "contacts", "customer 360", "import customers"] },
           { ...available("Products & Services", "/sales/products"), aliases: ["catalog", "items", "services", "sku", "hsn", "sac"] },
           { ...available("Price Lists", "/sales/price-lists"), aliases: ["prices", "default price list"] },
         ],
       },
       {
-        id: "selling",
-        label: "Sales",
-        featureRange: "F035-F040",
+        id: "operations",
+        label: "Operations",
+        icon: ArrowLeftRight,
+        collapsible: true,
+        featureRange: "F035-F058",
         items: [
           { ...available("Quotations", "/sales/quotations"), aliases: ["quotes", "estimates", "revisions"] },
           {
             ...available("Sales Orders", "/sales/orders"),
-            aliases: ["orders", "order tracking", "order status", "order confirmation", "availability", "stock reservation", "partial delivery", "partial invoicing", "customer po"],
+            aliases: ["orders", "order tracking", "order confirmation", "availability", "stock reservation", "partial delivery", "partial invoicing", "customer po"],
           },
-        ],
-      },
-      {
-        id: "fulfillment",
-        label: "Fulfillment",
-        featureRange: "F041-F046",
-        items: [{ ...available("Deliveries", "/sales/deliveries"), aliases: ["shipment", "delivery note", "dispatch", "tracking number", "carrier", "proof of delivery"] }],
-      },
-      {
-        id: "billing",
-        label: "Billing",
-        featureRange: "F047-F052",
-        items: [{ ...available("Invoices", "/sales/invoices"), aliases: ["sales invoices", "billing", "balance due", "overdue invoices"] }],
-      },
-      {
-        id: "returns-credits",
-        label: "Returns & Credits",
-        featureRange: "F053-F058",
-        items: [
+          { ...available("Deliveries", "/sales/deliveries"), aliases: ["shipment", "delivery note", "dispatch", "tracking number", "carrier", "proof of delivery"] },
+          { ...available("Sales Invoices", "/sales/invoices"), aliases: ["invoices", "billing", "balance due", "overdue invoices"] },
           { ...available("Sales Returns", "/sales/returns"), aliases: ["returns", "return note", "rma"] },
           { ...available("Credit Notes", "/sales/credit-notes"), aliases: ["credits", "price adjustment"] },
           // The customer refunds Finance owns, the same records as Finance → Customer Refunds.
@@ -320,33 +302,55 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         ],
       },
       {
-        id: "insights",
-        label: "Insights",
-        featureRange: "F059-F062",
+        id: "planning",
+        label: "Planning & Control",
+        icon: Gauge,
+        collapsible: true,
         items: [
           {
-            ...available("Reports", "/sales/reports"),
-            aliases: ["order status", "remaining by order", "remaining by product", "delivery performance", "billing readiness", "expiring quotations"],
+            ...available("Order Fulfillment", "/sales/fulfillment"),
+            aliases: ["remaining by order", "remaining by product", "delivery performance", "billing readiness", "backorders"],
             requiredPermission: "sales.reports.view",
           },
         ],
       },
       {
-        id: "administration",
-        label: "Administration",
+        id: "inquiries",
+        label: "Inquiries",
+        icon: Search,
+        collapsible: true,
         items: [
-          { ...available("Sales Settings", "/sales/settings"), aliases: ["setup", "configuration", "settings"] },
+          { ...available("Order Status", "/sales/order-status"), aliases: ["where is my order", "order inquiry"], requiredPermission: "sales.reports.view" },
+        ],
+      },
+      {
+        id: "reports",
+        label: "Reports",
+        icon: BarChart3,
+        collapsible: true,
+        featureRange: "F059-F062",
+        items: [
+          { ...available("Sales by Period", "/sales/reports?report=sales-by-period"), aliases: ["sales reports", "monthly sales", "revenue"], requiredPermission: "sales.reports.view" },
+          { ...available("Sales by Customer", "/sales/reports?report=sales-by-customer"), aliases: ["top customers"], requiredPermission: "sales.reports.view" },
+          { ...available("Sales by Item", "/sales/reports?report=sales-by-item"), aliases: ["top products", "product sales"], requiredPermission: "sales.reports.view" },
+          {
+            ...available("Sales Order Status", "/sales/reports?report=order-status"),
+            aliases: ["pending approvals", "expiring quotations"],
+            requiredPermission: "sales.reports.view",
+          },
+        ],
+      },
+      {
+        id: "configuration",
+        label: "Configuration",
+        icon: Settings,
+        collapsible: true,
+        items: [
+          { ...available("Sales Setup", "/sales/settings"), aliases: ["sales settings", "setup", "configuration"] },
           // ---- Commercial
           {
-            ...available("Discount Controls", "/sales/settings/discounts"),
-            parent: "sales-settings",
-            group: "commercial",
-            description: "Which discounts are allowed, salesperson and manager limits, and when a reason is required.",
-            aliases: ["discounts", "discount limits", "maximum discount"],
-          },
-          {
             ...available("Quotation & Order Rules", "/sales/settings/quotations-orders"),
-            parent: "sales-settings",
+            parent: "sales-setup",
             group: "commercial",
             description: "Quotation approval and validity, standard terms, and what an order needs before it is confirmed.",
             aliases: ["quotation approval", "quotation validity", "direct orders", "customer po required"],
@@ -354,10 +358,18 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           // ---- Fulfillment
           {
             ...available("Fulfillment Settings", "/sales/settings/fulfillment"),
-            parent: "sales-settings",
+            parent: "sales-setup",
             group: "fulfillment",
             description: "Invoice based on order or delivery, availability and reservation on confirmation, default warehouse, delivery note.",
             aliases: ["invoice based on", "invoicing basis", "auto reserve", "default warehouse", "delivery note prices"],
+          },
+          {
+            ...available("Discounts", "/sales/settings/discounts"),
+            aliases: ["discount controls", "discount limits", "maximum discount"],
+          },
+          {
+            ...available("Payment Terms", "/sales/settings/payment-terms"),
+            aliases: ["credit terms", "net 30", "due date"],
           },
         ],
       },
@@ -365,14 +377,14 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     groups: [
       {
         id: "commercial",
-        workspace: "sales-settings",
+        workspace: "sales-setup",
         label: "Commercial",
-        description: "Payment terms, discount controls, and the rules for quotations and orders.",
+        description: "The rules for quotations and orders.",
         icon: Store,
       },
       {
         id: "fulfillment",
-        workspace: "sales-settings",
+        workspace: "sales-setup",
         label: "Fulfillment",
         description: "How orders are reserved, delivered and invoiced.",
         icon: Truck,
@@ -384,70 +396,103 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     label: "Procurement",
     icon: Truck,
     requiredPermission: "procurement.view",
+    // Partial receipts, rejections, partial billing, matching, direct bills and payment schedules live inside their documents (tabs and
+    // contextual actions); the cross-document views are Receiving Exceptions and Invoice Matching.
     sections: [
-      // Nine workspaces in seven sections. Partial receipts, rejections, partial billing, matching, direct bills and payment schedules
-      // live inside their documents (tabs and contextual actions), never as their own sidebar entries.
-      { id: "overview", label: "Overview", items: [{ ...available("Home", "/procurement"), aliases: ["procurement dashboard", "requires attention"] }] },
       {
-        id: "purchasing",
-        label: "Purchasing",
+        id: "overview",
+        label: "Overview",
+        icon: LayoutDashboard,
+        flat: true,
+        items: [{ ...available("Overview", "/procurement"), aliases: ["procurement home", "procurement dashboard", "requires attention"] }],
+      },
+      {
+        id: "master-data",
+        label: "Master Data",
+        icon: Database,
+        collapsible: true,
         items: [
           { ...available("Suppliers", "/procurement/suppliers"), aliases: ["supplier master", "vendors", "vendor", "supplier import", "gstin", "supplier contacts", "supplier addresses"],
             requiredAnyPermission: ["procurement.suppliers.view", "procurement.suppliers.view_all"] },
+        ],
+      },
+      {
+        id: "operations",
+        label: "Operations",
+        icon: ArrowLeftRight,
+        collapsible: true,
+        items: [
           { ...available("Purchase Orders", "/procurement/purchase-orders"), aliases: ["po", "purchase order", "buy", "partial receipts", "partial billing"],
             requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
           { ...available("Supplier Quotations", "/procurement/purchase-orders/quotations"), parent: "purchase-orders", aliases: ["quotation", "supplier quote", "rfq response"],
             description: "Supplier quotations an order can be created from.", requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
-        ],
-      },
-      {
-        id: "receiving",
-        label: "Receiving",
-        items: [
-          { ...available("Goods Receipts", "/procurement/goods-receipts"), aliases: ["grn", "goods received", "receiving issues", "rejected receipts", "dock refusal", "discrepancies"],
+          { ...available("Goods Receipts", "/procurement/goods-receipts"), aliases: ["grn", "goods received", "rejected receipts", "dock refusal"],
             requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
-          { ...available("Receiving Issues", "/procurement/receiving-issues"), parent: "goods-receipts", aliases: ["refused goods", "quarantine", "shortage"],
-            description: "Dock refusals, shortages, wrong deliveries and post-receipt rejections.", requiredAnyPermission: ["procurement.rejections.view", "procurement.rejections.view_all"] },
-        ],
-      },
-      {
-        id: "billing",
-        label: "Billing",
-        items: [
-          { ...available("Supplier Bills", "/procurement/supplier-bills"), aliases: ["supplier invoice", "vendor bill", "purchase invoice", "direct bill", "2-way matching", "3-way matching", "payment schedule"],
+          { ...available("Supplier Bills", "/procurement/supplier-bills"), aliases: ["supplier invoice", "vendor bill", "purchase invoice", "direct bill", "payment schedule"],
             requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
-        ],
-      },
-      {
-        id: "returns-credits",
-        label: "Returns & Credits",
-        items: [
+          { ...available("Payment Obligations & AP Aging", "/procurement/reports/payment-obligations"), parent: "supplier-bills", aliases: ["payment obligations", "due payments", "msme payments", "ap aging"],
+            description: "Overdue and upcoming instalments, AP aging and statutory deadlines.", requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
           { ...available("Purchase Returns", "/procurement/purchase-returns"), aliases: ["return to supplier", "rtv", "replacement"],
             requiredAnyPermission: ["procurement.returns.view", "procurement.po.view", "procurement.po.view_all"] },
-          { ...available("Debit Notes & Vendor Credits", "/procurement/debit-notes-credits"), aliases: ["debit note", "debit claim", "vendor credit", "supplier credit", "supplier credit note", "supplier refund"],
+          { ...available("Supplier Credits / Debit Notes", "/procurement/debit-notes-credits"),
+            aliases: ["debit note", "debit claim", "vendor credit", "supplier credit", "supplier credit note", "supplier refund"],
             requiredAnyPermission: ["procurement.claims.view", "procurement.claims.manage", "procurement.credits.manage", "procurement.bills.view", "accounting.payables.manage"] },
         ],
       },
       {
-        id: "insights",
-        label: "Insights",
+        id: "planning",
+        label: "Planning & Control",
+        icon: Gauge,
+        collapsible: true,
         items: [
-          { ...available("Reports", "/procurement/reports"), aliases: ["procurement reports", "ap aging", "overdue bills", "vendor credit balances", "unbilled receipts"] },
-          { ...available("Payment Obligations & AP Aging", "/procurement/reports/payment-obligations"), parent: "reports", aliases: ["payment obligations", "due payments", "msme payments"],
-            description: "Overdue and upcoming instalments, AP aging and statutory deadlines.", requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("Receiving Exceptions", "/procurement/receiving-issues"), aliases: ["receiving issues", "refused goods", "quarantine", "shortage", "discrepancies", "wrong delivery"],
+            description: "Dock refusals, shortages, wrong deliveries and post-receipt rejections.", requiredAnyPermission: ["procurement.rejections.view", "procurement.rejections.view_all"] },
+          { ...available("Invoice Matching", "/procurement/invoice-matching"), aliases: ["2-way matching", "3-way matching", "matching exceptions", "price variance", "quantity variance"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
         ],
       },
       {
-        id: "administration",
-        label: "Administration",
+        id: "inquiries",
+        label: "Inquiries",
+        icon: Search,
+        collapsible: true,
         items: [
-          { ...available("Procurement Settings", "/procurement/settings"), aliases: ["procurement configuration", "matching rules", "receiving rules"] },
-          { ...available("Supplier Categories", "/procurement/settings/categories"), parent: "procurement-settings", description: "Categories suppliers are grouped by." },
+          { ...available("Purchase Status", "/procurement/purchase-status"), aliases: ["purchase order progress", "open orders", "what is outstanding"] },
+        ],
+      },
+      {
+        id: "reports",
+        label: "Reports",
+        icon: BarChart3,
+        collapsible: true,
+        items: [
+          { ...available("Purchases by Period", "/procurement/reports/purchases-by-period"), aliases: ["monthly purchases", "spend"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("Purchases by Supplier", "/procurement/reports/purchases-by-supplier"), aliases: ["supplier spend", "top suppliers"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("Purchases by Item", "/procurement/reports/purchases-by-item"), aliases: ["item spend"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          // The report catalogue and its other reports (pending receipts, discrepancies, bills due, return summary, vendor credit balances).
+          { ...available("All Procurement Reports", "/procurement/reports"), parent: "purchases-by-period",
+            aliases: ["procurement reports", "overdue bills", "vendor credit balances", "unbilled receipts", "pending goods receipts"] },
+        ],
+      },
+      {
+        id: "configuration",
+        label: "Configuration",
+        icon: Settings,
+        collapsible: true,
+        items: [
+          { ...available("Procurement Setup", "/procurement/settings"), aliases: ["procurement settings", "procurement configuration", "matching rules", "receiving rules"] },
+          { ...available("Supplier Categories", "/procurement/settings/categories"), parent: "procurement-setup", description: "Categories suppliers are grouped by." },
+          { ...available("Payment Terms", "/procurement/settings/payment-terms"), aliases: ["credit terms", "supplier payment terms"] },
         ],
       },
     ],
   },
   {
+    // Views (Available, Reserved, Restricted, Negative), item identity (SKU, units, tracking), batch and serial drill-downs are tabs,
+    // filters and detail pages inside these pages — never sidebar entries of their own.
     moduleKey: "stock",
     label: "Inventory",
     icon: Boxes,
@@ -456,81 +501,94 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "overview",
         label: "Overview",
-        items: [available("Home", "/inventory")],
+        icon: LayoutDashboard,
+        flat: true,
+        items: [{ ...available("Overview", "/inventory"), aliases: ["inventory home", "needs attention", "inventory search"] }],
       },
       {
-        id: "items",
-        label: "Items",
-        featureRange: "F097-F102",
+        id: "master-data",
+        label: "Master Data",
+        icon: Database,
+        collapsible: true,
+        featureRange: "F097-F102, F109-F111",
         items: [
-          { ...available("Items", "/inventory/items"), aliases: ["item master", "products", "sku", "barcode", "variants", "unit conversions"] },
-          { ...available("Item Categories", "/inventory/item-categories"), aliases: ["categories", "item groups", "category tree", "category reports"] },
-          { ...available("Units of Measure", "/inventory/units-of-measure"), aliases: ["uom", "units"] },
-        ],
-      },
-      {
-        id: "stock",
-        label: "Stock",
-        featureRange: "F103-F108",
-        items: [
-          available("Availability", "/inventory/availability"),
-          available("Stock Ledger", "/inventory/ledger"),
-          available("Reservations", "/inventory/reservations"),
-        ],
-      },
-      {
-        id: "warehouses",
-        label: "Warehouses",
-        featureRange: "F109-F111",
-        items: [
-          available("Warehouses", "/inventory/warehouses"),
-          available("Locations / Bins", "/inventory/locations"),
+          { ...available("Items", "/inventory/items"), requiredPermission: "products.view", aliases: ["item master", "products", "sku", "barcode", "variants", "unit conversions", "multiple uom"] },
+          { ...available("Item Categories", "/inventory/item-categories"), requiredPermission: "products.view", aliases: ["categories", "item groups", "category tree"] },
+          { ...available("Warehouses", "/inventory/warehouses"), requiredPermission: "warehouses.view", aliases: ["locations", "bins", "warehouse locations"] },
+          { ...available("Units of Measure", "/inventory/units-of-measure"), aliases: ["uom", "units", "uom conversions"] },
         ],
       },
       {
         id: "operations",
         label: "Operations",
-        featureRange: "F112-F118",
+        icon: ArrowLeftRight,
+        collapsible: true,
+        featureRange: "F112-F128",
         items: [
-          available("Receipts", "/inventory/receipts"),
-          available("Issues", "/inventory/issues"),
-          available("Transfers", "/inventory/transfers"),
-          available("Adjustments", "/inventory/adjustments"),
+          // The one Goods Receipt is Procurement's: this entry opens the same list; each receipt is /procurement/goods-receipts/<id>.
+          { ...available("Goods Receipts", "/inventory/goods-receipts"), requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"], aliases: ["grn", "receive goods"] },
+          { ...available("Goods Issues", "/inventory/goods-issues"), requiredPermission: "stock.goods_issue.view", aliases: ["goods issue", "issue stock", "consumption", "scrap", "disposal", "samples", "maintenance issue"] },
+          { ...available("Internal Transfers", "/inventory/transfers"), requiredPermission: "stock.transfers.view", aliases: ["transfers", "warehouse transfer", "location transfer", "in transit"] },
+          { ...available("Inventory Journals", "/inventory/journals"), requiredAnyPermission: ["stock.adjustments.view", "stock.opening.view"], aliases: ["journals", "write off", "found stock"] },
+          { ...available("Stock Adjustments", "/inventory/adjustments"), parent: "inventory-journals", requiredPermission: "stock.adjustments.view", aliases: ["adjustments", "adjustment"] },
+          { ...available("Opening Stock", "/inventory/opening-stock"), parent: "inventory-journals", requiredPermission: "stock.opening.view", aliases: ["opening balance", "stock migration", "go live"] },
+          { ...available("Stock Counts", "/inventory/stock-counts"), requiredPermission: "stock.counts.view", badge: "stockCounts", aliases: ["physical inventory", "stocktake", "cycle count", "count sheet"] },
+          { ...available("Quality Holds", "/inventory/quality-holds"), requiredPermission: "stock.holds.view", badge: "qualityHolds", aliases: ["quarantine", "quality hold", "held stock", "inspection hold", "damaged stock"] },
         ],
       },
       {
-        id: "traceability",
-        label: "Traceability",
-        featureRange: "F119-F125",
+        id: "planning",
+        label: "Planning & Control",
+        icon: Gauge,
+        collapsible: true,
         items: [
-          available("Lots / Batches", "/inventory/lots"),
-          available("Serial Numbers", "/inventory/serial-numbers"),
-          available("Quarantine", "/inventory/quarantine"),
+          { ...available("Reservations", "/inventory/reservations"), requiredPermission: "stock.reservations.view", aliases: ["stock reservations", "allocations"] },
+          {
+            ...available("Replenishment", "/inventory/replenishment"),
+            requiredAnyPermission: ["stock.reorder.view", "stock.alerts.view"],
+            badge: "replenishment",
+            aliases: ["reorder required", "requirements", "covered by incoming", "low stock alerts", "out of stock", "reorder level", "reorder point", "min max", "reorder rules"],
+          },
         ],
       },
       {
-        id: "counting",
-        label: "Counting",
-        featureRange: "F126-F128",
+        id: "inquiries",
+        label: "Inquiries",
+        icon: Search,
+        collapsible: true,
+        featureRange: "F103-F108",
         items: [
-          available("Physical Inventory", "/inventory/physical-inventory"),
+          { ...available("On-Hand Inventory", "/inventory/stock"), badge: "stock",
+            aliases: ["stock overview", "stock balance", "available stock", "reserved stock", "restricted stock", "in transit", "negative stock", "by batch"] },
+          { ...available("Negative Stock", "/inventory/negative-stock"), parent: "on-hand-inventory", aliases: ["negative stock exceptions", "overrides", "negative balance"] },
+          { ...available("Inventory Transactions", "/inventory/transactions"), requiredPermission: "stock.ledger.view",
+            aliases: ["movement history", "stock ledger", "ledger entries", "movements", "stock history", "serial journey", "batch history", "traceability"] },
+          { ...available("Movement History", "/inventory/movements"), parent: "inventory-transactions", requiredPermission: "stock.ledger.view" },
+          { ...available("Stock Ledger", "/inventory/stock-ledger"), parent: "inventory-transactions", requiredPermission: "stock.ledger.view", aliases: ["ledger", "reconciliation"] },
+          { ...available("Inventory Valuation", "/inventory/valuation"), requiredPermission: "stock.valuation.view", aliases: ["valuation", "fifo layers", "stock value", "cogs"] },
         ],
       },
       {
-        id: "valuation",
-        label: "Valuation",
-        featureRange: "F133-F138",
+        id: "reports",
+        label: "Reports",
+        icon: BarChart3,
+        collapsible: true,
         items: [
-          available("Costing", "/inventory/costing"),
-          available("Inventory Valuation", "/inventory/valuation"),
-          available("Movement", "/inventory/movement"),
+          { ...available("Stock Balance", "/inventory/reports?report=stock-balance"), aliases: ["inventory reports", "stock as of", "closing stock"] },
+          { ...available("Stock Valuation", "/inventory/reports?report=stock-valuation"), requiredPermission: "stock.valuation.view", aliases: ["valuation report", "stock value as of"] },
+          { ...available("Stock Movement", "/inventory/reports?report=stock-movement"), requiredPermission: "stock.ledger.view", aliases: ["movement report", "opening in out closing"] },
         ],
       },
       {
-        id: "settings",
-        label: "Settings",
+        id: "configuration",
+        label: "Configuration",
+        icon: Settings,
+        collapsible: true,
         items: [
-          { ...available("Item Numbering", "/inventory/settings/item-numbering"), aliases: ["sku numbering", "sku settings", "item codes", "sku prefix"] },
+          { ...available("Inventory Policies", "/inventory/settings?section=policies"), aliases: ["inventory settings", "negative stock policy", "allow negative stock"] },
+          { ...available("Valuation Setup", "/inventory/settings?section=valuation"), aliases: ["valuation defaults", "costing method", "fifo", "moving average", "adjustment threshold"] },
+          { ...available("Reason Codes", "/inventory/settings?section=reasons"), aliases: ["goods issue reasons", "hold reasons", "quarantine reasons", "adjustment reasons"] },
+          { ...available("Item Numbering", "/inventory/settings?section=item-numbering"), parent: "inventory-policies", aliases: ["sku numbering", "sku prefix", "item codes"] },
         ],
       },
     ],
@@ -885,7 +943,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F319-F329",
         items: [
           available("Non-Conformances", "/quality/nonconformances"),
-          available("Quality Holds", "/quality/holds"),
+          available("Quality Holds", "/inventory/quality-holds"),
         ],
       },
     ],

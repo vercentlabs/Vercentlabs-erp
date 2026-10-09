@@ -8,14 +8,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Pencil, ShoppingCart } from "lucide-react";
+import { Pencil, ShoppingCart } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Dialog, ErrorState, LinkButton, PermissionState, RecordDetailsPage, Tab, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcFacts, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, dateTime, money } from "@/features/procurement/shared/format";
 
 import { deleteSupplier, errorCode, errorMessage, getSummary, getSupplier, getSupplierOptions, type SupplierDetail, type SupplierOptions } from "../api/suppliers-api";
@@ -25,6 +24,7 @@ import { DocumentsPanel, FilesPanel, HistoryPanel, PaymentDetailsPanel } from ".
 import { AddressesContactsPanel } from "../components/AddressesContactsPanel";
 import { useTabParam } from "@/features/procurement/shared/navigation";
 import { listDebitNotesAndCredits } from "@/features/procurement/vendor-credits/api/vendor-credits-api";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 const SUPPLIER_TABS = ["overview", "contacts", "addresses", "tax", "purchase-orders", "goods-receipts", "supplier-bills", "returns-credits", "payment-details", "notes", "history"] as const;
 
@@ -34,7 +34,7 @@ function SupplierCreditsPanel({ supplierId }: { supplierId: string }) {
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "supplier-credits", supplierId), queryFn: () => listDebitNotesAndCredits({ supplierId }) });
   const rows = query.data?.rows ?? [];
   return (
-    <ProcPanel title="Debit claims and vendor credits" description="Claims raised with this supplier and the credits it gave."
+    <Panel title="Debit claims and vendor credits" description="Claims raised with this supplier and the credits it gave."
       actions={<LinkButton size="compact" variant="secondary" href={`/procurement/debit-notes-credits/new?supplierId=${supplierId}`}>New Credit / Claim</LinkButton>}>
       {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : !rows.length ? <p className="text-sm text-text-muted">None.</p> : (
         <ul className="flex flex-col divide-y divide-border text-sm">
@@ -43,7 +43,7 @@ function SupplierCreditsPanel({ supplierId }: { supplierId: string }) {
             <span className="tabular-nums">{money(row.currencyCode, row.total)}</span></li>)}
         </ul>
       )}
-    </ProcPanel>
+    </Panel>
   );
 }
 
@@ -84,18 +84,15 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/procurement/suppliers" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
-        <ArrowLeft className="size-3.5" aria-hidden="true" />All suppliers
-      </Link>
-      {notice && <ProcAlert tone="success">{notice}</ProcAlert>}
+      {notice && <Notice tone="success">{notice}</Notice>}
       {supplier.status === "blocked" && (
-        <ProcAlert>
+        <Notice>
           Blocked{supplier.blockedAt ? ` on ${dateTime(supplier.blockedAt)}` : ""}{supplier.blockedByName ? ` by ${supplier.blockedByName}` : ""}: {supplier.blockedReason}.
           {" "}No new purchase orders, and draft orders cannot go forward. Bills already owed can still be paid by Finance.
-        </ProcAlert>
+        </Notice>
       )}
       {supplier.status === "inactive" && (
-        <ProcAlert tone="warning">Inactive{supplier.statusReason ? `: ${supplier.statusReason}` : ""}. Not offered for new business; its documents stay as they are.</ProcAlert>
+        <Notice tone="warning">Inactive{supplier.statusReason ? `: ${supplier.statusReason}` : ""}. Not offered for new business; its documents stay as they are.</Notice>
       )}
       <RecordDetailsPage
         header={{
@@ -141,8 +138,8 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
           </TabList>
           <TabPanel id="overview">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Supplier">
-                <ProcFacts columns={3} items={[
+              <Panel title="Supplier">
+                <Facts columns={3} items={[
                   { label: "Supplier name", value: supplier.supplierName },
                   { label: "Legal name", value: supplier.legalName ?? "—" },
                   { label: "Type", value: supplier.supplierTypeLabel },
@@ -153,20 +150,20 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                   { label: "Primary location", value: supplier.primaryAddress ? `${supplier.primaryAddress.label ?? "Registered"}: ${formatAddress(supplier.primaryAddress)}` : "—" },
                   { label: "Country", value: supplier.countryCode ?? "—" },
                 ]} />
-              </ProcPanel>
-              <ProcPanel title="Purchasing" description="From the procurement documents themselves.">
+              </Panel>
+              <Panel title="Purchasing" description="From the procurement documents themselves.">
                 {summary.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : purchases ? (
-                  <ProcFacts columns={4} items={[
+                  <Facts columns={4} items={[
                     { label: "Purchase orders", value: purchases.purchaseOrders },
                     { label: "Open purchase orders", value: purchases.openPurchaseOrders },
                     { label: "Last purchase", value: purchases.lastPurchaseAt ? calendarDate(purchases.lastPurchaseAt) : "None yet" },
                     { label: "Open goods receipts", value: purchases.openGoodsReceipts },
                   ]} />
-                ) : <ProcAlert>{errorMessage(summary.error)}</ProcAlert>}
-              </ProcPanel>
-              <ProcPanel title="Payables" description="From Accounts Payable. Procurement keeps no balance of its own.">
+                ) : <Notice>{errorMessage(summary.error)}</Notice>}
+              </Panel>
+              <Panel title="Payables" description="From Accounts Payable. Procurement keeps no balance of its own.">
                 {payables ? (
-                  <ProcFacts columns={4} items={[
+                  <Facts columns={4} items={[
                     { label: "Open bills", value: payables.openBills },
                     { label: "Overdue bills", value: payables.overdueBills },
                     ...(payables.amountsVisible ? [
@@ -178,9 +175,9 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                   ]} />
                 ) : <p className="text-sm text-text-muted">Loading…</p>}
                 {payables && !payables.amountsVisible && <p className="text-xs text-text-muted">Amounts are shown to people who may see supplier payables.</p>}
-              </ProcPanel>
-              <ProcPanel title="Commercial defaults" description="New RFQs and purchase orders start from these. A document keeps what it was given: changing them here never changes an existing order or bill.">
-                <ProcFacts columns={3} items={[
+              </Panel>
+              <Panel title="Commercial defaults" description="New RFQs and purchase orders start from these. A document keeps what it was given: changing them here never changes an existing order or bill.">
+                <Facts columns={3} items={[
                   { label: "Default currency", value: supplier.defaultCurrency },
                   { label: "Default payment terms", value: supplier.paymentTermName ?? "—" },
                   { label: "MSME classification", value: supplier.msme?.classification ? `${{ micro: "Micro", small: "Small", medium: "Medium", not_msme: "Not an MSME" }[supplier.msme.classification] ?? supplier.msme.classification}${supplier.msme.registrationNumber ? ` · ${supplier.msme.registrationNumber}` : ""}${supplier.msme.effectiveFrom ? ` (from ${supplier.msme.effectiveFrom})` : ""}` : "Not recorded" },
@@ -196,15 +193,15 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                     value: detail.addresses.find((address) => address.id === detail.defaults.addresses[purpose])?.label ?? "—",
                   })),
                 ]} />
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           {actions.viewContacts && <TabPanel id="contacts"><div className="pt-4"><AddressesContactsPanel detail={detail} options={options} onChanged={onChanged} onShowHistory={() => setTab("history")} show="contacts" /></div></TabPanel>}
           {actions.viewAddresses && <TabPanel id="addresses"><div className="pt-4"><AddressesContactsPanel detail={detail} options={options} onChanged={onChanged} onShowHistory={() => setTab("history")} show="addresses" /></div></TabPanel>}
           <TabPanel id="tax">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Tax identity" description="Master data: each document keeps a snapshot, so a change here never rewrites a posted bill.">
-                <ProcFacts columns={3} items={[
+              <Panel title="Tax identity" description="Master data: each document keeps a snapshot, so a change here never rewrites a posted bill.">
+                <Facts columns={3} items={[
                   { label: "GST registration type", value: supplier.gstRegistrationLabel ?? "—" },
                   { label: "GSTIN", value: supplier.gstin ?? "—" },
                   { label: "PAN / Tax ID", value: supplier.pan ?? "—" },
@@ -212,8 +209,8 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                   { label: "Country", value: supplier.countryCode ?? "—" },
                   { label: "Supplier type", value: supplier.supplierTypeLabel },
                 ]} />
-              </ProcPanel>
-              <ProcPanel title="GST registrations" description="Every registration of this supplier and the locations it covers. Managed under Addresses & Contacts.">
+              </Panel>
+              <Panel title="GST registrations" description="Every registration of this supplier and the locations it covers. Managed under Addresses & Contacts.">
                 {detail.taxRegistrations.length ? (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.taxRegistrations.map((registration) => {
@@ -229,7 +226,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                     })}
                   </ul>
                 ) : <p className="text-sm text-text-muted">No GST registrations.</p>}
-              </ProcPanel>
+              </Panel>
             </div>
           </TabPanel>
           <TabPanel id="purchase-orders"><div className="pt-4"><DocumentsPanel supplierId={supplier.id} kind="orders" /></div></TabPanel>
@@ -244,9 +241,9 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
           {actions.viewPaymentDetails && <TabPanel id="payment-details"><div className="pt-4"><PaymentDetailsPanel detail={detail} options={options} onChanged={onChanged} /></div></TabPanel>}
           <TabPanel id="notes">
             <div className="flex flex-col gap-4 pt-4">
-              <ProcPanel title="Internal notes" description="Never printed on a purchase order.">
+              <Panel title="Internal notes" description="Never printed on a purchase order.">
                 <p className="whitespace-pre-line text-sm">{supplier.notes ?? <span className="text-text-muted">None</span>}</p>
-              </ProcPanel>
+              </Panel>
               <FilesPanel detail={detail} />
             </div>
           </TabPanel>
@@ -259,7 +256,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
         <Dialog isOpen onOpenChange={(open) => !open && setDeleting(false)} title={`Delete ${supplier.supplierNumber}?`}
           description="Only a supplier created by mistake and never used can be deleted. One that has been used is deactivated or blocked instead.">
           <div className="flex flex-col gap-3">
-            {remove.error && <ProcAlert>{errorMessage(remove.error)}</ProcAlert>}
+            {remove.error && <Notice>{errorMessage(remove.error)}</Notice>}
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onPress={() => setDeleting(false)}>Cancel</Button>
               <Button variant="danger" isLoading={remove.isPending || remove.isSuccess} onPress={() => remove.mutate()}>Delete supplier</Button>

@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 
 import { CrmCreateMenu } from "@/features/crm/shared/CrmCreateMenu";
 import { SalesCreateMenu } from "@/features/sales/shared/SalesCreateMenu";
+import { ModuleCreateMenu } from "@/shell/app-shell/ModuleCreateMenu";
 import { Breadcrumbs } from "@/shell/navigation/Breadcrumbs";
 import {
   GLOBAL_NAV_TOP,
@@ -131,6 +132,17 @@ export function WorkspaceTopBar() {
         {isActive(pathname, "/sales") && pathname !== "/sales" ? (
           <span className="hidden lg:flex">
             <SalesCreateMenu size="compact" />
+          </span>
+        ) : null}
+        {/* Inside Procurement and Inventory: start a master record or a document from any page. */}
+        {isActive(pathname, "/procurement") && pathname !== "/procurement" ? (
+          <span className="hidden lg:flex">
+            <ModuleCreateMenu moduleKey="procurement" size="compact" />
+          </span>
+        ) : null}
+        {isActive(pathname, "/inventory") && pathname !== "/inventory" ? (
+          <span className="hidden lg:flex">
+            <ModuleCreateMenu moduleKey="stock" size="compact" />
           </span>
         ) : null}
         {SEARCH_ENTRY ? (

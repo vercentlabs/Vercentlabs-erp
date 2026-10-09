@@ -59,7 +59,7 @@ function csvCell(value) {
   if (/^[=+\-@\t\r]/.test(cell)) cell = `'${cell}`;
   return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
 }
-const toCsv = (rows) => `﻿${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
+export const toCsv = (rows) => `﻿${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
 
 export function buildProductImportTemplate() {
   return toCsv([PRODUCT_IMPORT_FIELDS.map((field) => field.label), PRODUCT_IMPORT_FIELDS.map((field) => field.sample)]);
@@ -91,11 +91,19 @@ export async function analyzeProductImport(_client, context, { bytes, fileName }
 // that matches nothing is an error on the row.
 async function makeLookups(client, context) {
   const load = async (sql) => (await client.query(sql, [context.organizationId])).rows;
+  // A code matches exactly; a name only when one record has it (two units both named "Hour" are told apart by their codes).
   const index = (rows, label) => {
-    const map = new Map();
-    for (const row of rows) for (const key of [row.code, row.name]) if (key) map.set(String(key).trim().toLowerCase(), row.id);
+    const codes = new Map();
+    const names = new Map();
+    for (const row of rows) {
+      if (row.code) codes.set(String(row.code).trim().toLowerCase(), row.id);
+      if (row.name) { const key = String(row.name).trim().toLowerCase(); names.set(key, [...new Set([...(names.get(key) ?? []), row.id])]); }
+    }
     return (value) => {
-      const id = map.get(text(value).toLowerCase());
+      const key = text(value).toLowerCase();
+      const byName = names.get(key) ?? [];
+      const id = codes.get(key) ?? (byName.length === 1 ? byName[0] : null);
+      if (!id && byName.length > 1) throw new ProductError(400, `${label} “${text(value)}” matches ${byName.length} records. Use its code instead.`, "PRODUCT_IMPORT_ROW");
       if (!id) throw new ProductError(400, `${label} “${text(value)}” was not found. Add it first or correct the spelling.`, "PRODUCT_IMPORT_ROW");
       return id;
     };

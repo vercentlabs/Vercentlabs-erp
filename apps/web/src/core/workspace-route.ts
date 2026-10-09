@@ -10,6 +10,7 @@ import {
   denialToError,
   logAccessDenial,
   recordAccessDenial,
+  recordBlockedNegativeStockAttempt,
   requireBillingWriteAccess,
 } from "@vercentlabs/api";
 import { createLogger, runWithContext } from "@vercentlabs/observability";
@@ -118,8 +119,19 @@ export async function workspaceRoute(
   const secureRoute = createSecureRoute<WorkspaceSessionContext, PoolClient>({
     assertOrigin: (incoming) => assertSameOriginOrMobile(incoming, process.env),
     requireSession: () => requireApiWorkspace(),
-    runTenant: (organizationId, work) =>
-      tenantTransaction(organizationId, work),
+    // A stock movement refused by Negative-Stock Control is audited in its own short transaction once the request's has rolled back.
+    runTenant: async (organizationId, work) => {
+      try {
+        return await tenantTransaction(organizationId, work);
+      } catch (error) {
+        if ((error as { negativeStockEvent?: unknown } | null)?.negativeStockEvent) {
+          await tenantTransaction(organizationId, (client) => recordBlockedNegativeStockAttempt(client, organizationId, null, error)).catch((auditError) => {
+            console.error("negative_stock_audit_failed", { error: auditError instanceof Error ? auditError.message : "unknown" });
+          });
+        }
+        throw error;
+      }
+    },
     runOrganizationConnection: (organizationId, work) =>
       organizationConnection(organizationId, work),
     createPrincipal: (session) => createAccessPrincipal(session),

@@ -5,6 +5,5 @@ export const QUALITY_PAGES: Record<string, { title: string }> = {
   "inspection-new": { title: "New inspection" },
   inspections: { title: "Inspections" },
   "open-inspections": { title: "Open inspections" },
-  holds: { title: "Quality holds" },
   nonconformances: { title: "Non-conformances" },
 };

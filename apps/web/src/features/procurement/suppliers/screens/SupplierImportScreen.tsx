@@ -12,9 +12,9 @@ import { Badge, Button, LinkButton, PageHeader, PermissionState, Select, buttonV
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert } from "@/features/procurement/shared/ProcUi";
 
 import { analyzeImport, errorMessage, getSupplierOptions, runImport, templateUrl, type ImportAnalysis, type ImportResult } from "../api/suppliers-api";
+import { Notice } from "@/shared/ui/Panel";
 
 const SKIP = "skip-column";
 const NONE = "none";
@@ -75,7 +75,7 @@ export function SupplierImportScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader title="Import suppliers" description="Upload a CSV or Excel file of your existing suppliers."
         secondaryActions={<LinkButton href="/procurement/suppliers" variant="outline">Back to suppliers</LinkButton>} />
-      {error && <ProcAlert>{error}</ProcAlert>}
+      {error && <Notice>{error}</Notice>}
 
       <section className={card} aria-label="File">
         <h2 className="text-base font-semibold">1. Choose the file</h2>
@@ -130,7 +130,7 @@ export function SupplierImportScreen() {
           </div>
           <div className="overflow-x-auto rounded-[var(--radius-control)] border border-border">
             <table className="w-full text-left text-sm">
-              <thead className="text-xs text-text-secondary"><tr>{["Row", "Supplier", "Result", "Details"].map((heading) => <th key={heading} scope="col" className="px-3 py-2 font-medium">{heading}</th>)}</tr></thead>
+              <thead className="bg-surface-muted text-left text-text-secondary"><tr>{["Row", "Supplier", "Result", "Details"].map((heading) => <th key={heading} scope="col" className="px-3 py-2 font-medium">{heading}</th>)}</tr></thead>
               <tbody className="divide-y divide-border">
                 {result.results.map((row) => (
                   <tr key={row.rowNumber}>

@@ -1,10 +1,6 @@
 type C = Record<string, unknown>;
 type Q = unknown;
 type R = Record<string, any>;
-export declare function listQualityHolds(client: Q, c: C, filters?: R): Promise<any[]>;
-export declare function getQualityHold(client: Q, c: C, id: string): Promise<any>;
-export declare function createQualityHold(client: Q, c: C, input: R, opts?: { internal?: boolean }): Promise<any>;
-export declare function cancelQualityHold(client: Q, c: C, id: string, reason: string): Promise<any>;
 export declare function listNonconformances(client: Q, c: C, filters?: R): Promise<any[]>;
 export declare function getNonconformance(client: Q, c: C, id: string): Promise<any>;
 export declare function createNonconformance(client: Q, c: C, input: R): Promise<any>;

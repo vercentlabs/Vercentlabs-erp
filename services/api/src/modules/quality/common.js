@@ -1,8 +1,4 @@
-// Shared helpers for the Quality domain modules (inspections, nonconformance/CAPA, management). The
-// pre-existing `index.js` of this folder is the original thin module and is left untouched, except
-// that its well-built, already race-safe `releaseQualityHold` (idempotent, optimistically versioned,
-// partial-release aware, and the exact function Stock's own movement gate depends on) is reused as-is
-// rather than reimplemented -- see nonconformance.js.
+// Shared helpers for the Quality domain modules (inspections, nonconformance/CAPA, management).
 export class QualityError extends Error {
   constructor(status, message, code = "QUALITY_ERROR") {
     super(message);

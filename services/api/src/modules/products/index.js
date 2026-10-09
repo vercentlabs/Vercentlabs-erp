@@ -15,7 +15,10 @@ export {
 export {
   UOM_PURPOSES, allowedItemUnits, baseUnitPrice, convertBaseToUom, convertBetweenUnits, exactConversion, getAllowedInventoryUoms, getAllowedPurchaseUoms, getAllowedSalesUoms,
   itemUnits, normalizeQuantityToBase, normalizeUnitPriceToBase, resolveItemUnit, standardUnitFactor, toBaseQuantity, unitRatio, validateUomDimension,
+  UOM_ERROR_CODES, amountsEquivalent, convertBetweenUoms, convertFromBase, convertQuantity, convertUnitPrice, describeInPackages, getConversionSnapshot, normalizeToBase,
+  normalizeUnitPrice, resolveItemConversion, validateQuantityPrecision, validateSerialConversion,
 } from "./uom.js";
+export { UOM_CONVERSION_COLUMNS, buildUomConversionTemplate, exportItemUomConversions, importItemUomConversions } from "./uom-import-export.js";
 export { createItemVariant, getItemVariants } from "./variants.js";
 export {
   CATEGORY_REPORTS, createItemCategory, deleteItemCategory, deleteUnusedItemCategory, getCategoryActivity, getCategoryBreadcrumb, getCategoryInventoryValue, getCategoryItems,

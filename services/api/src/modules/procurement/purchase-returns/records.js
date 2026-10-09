@@ -163,7 +163,7 @@ export async function getPurchaseReturnInventoryMovements(client, context, retur
        LEFT JOIN tenant.items item ON item.organization_id = movement.organization_id AND item.id = movement.item_id
        LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = movement.organization_id AND warehouse.id = movement.warehouse_id
        LEFT JOIN tenant.warehouse_locations location ON location.organization_id = movement.organization_id AND location.id = movement.warehouse_location_id
-      WHERE movement.organization_id = $1 AND movement.reference_id = $2 AND movement.reference_type IN ('purchase_return', 'purchase_return_reversal') ORDER BY movement.created_at`,
+      WHERE movement.organization_id = $1 AND movement.reference_id = $2 AND movement.reference_type IN ('purchase_return', 'purchase_return_reversal') ORDER BY movement.ledger_sequence`,
     [context.organizationId, returnId]);
   return rows.map((row) => ({ id: row.id, number: row.movement_number, type: row.movement_type, direction: row.reference_type === "purchase_return" ? "out" : "in",
     quantity: dec(row.quantity), item: row.item_name, itemCode: row.item_code, warehouseName: row.warehouse_name, locationCode: row.location_code, reason: row.reason,

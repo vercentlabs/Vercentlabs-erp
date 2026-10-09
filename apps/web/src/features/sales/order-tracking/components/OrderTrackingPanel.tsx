@@ -12,9 +12,9 @@ import { Button, Dialog, ProgressBar, StatusBadge, TextArea } from "@vercentlabs
 
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
-import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 
 import { closeOrder, reopenClosedOrder, type OrderTracking, type TrackingLine } from "../api/order-tracking-api";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 type Tone = "success" | "neutral" | "info" | "warning" | "danger";
 const TONES: Record<string, Tone> = {
@@ -91,9 +91,9 @@ export function OrderTrackingSummary({ tracking, onChanged }: { tracking: OrderT
   return (
     <div className="flex flex-col gap-3">
       {order.outcome === "closed_with_cancellations" && (
-        <SalesAlert tone="info">This order is closed: {quantity(fulfillment.delivered)} of {quantity(fulfillment.ordered)} delivered and {quantity(fulfillment.cancelled)} cancelled. It was not cancelled as a whole.</SalesAlert>
+        <Notice tone="info">This order is closed: {quantity(fulfillment.delivered)} of {quantity(fulfillment.ordered)} delivered and {quantity(fulfillment.cancelled)} cancelled. It was not cancelled as a whole.</Notice>
       )}
-      {order.outcome === "closed_manually" && <SalesAlert tone="info">This order was closed by hand{order.closeReason ? `: ${order.closeReason}` : ""}.</SalesAlert>}
+      {order.outcome === "closed_manually" && <Notice tone="info">This order was closed by hand{order.closeReason ? `: ${order.closeReason}` : ""}.</Notice>}
       {tracking.warnings.length > 0 && (
         <section aria-label="Needs attention" className="flex flex-col gap-1.5">
           <div className="flex flex-wrap gap-2">
@@ -128,11 +128,11 @@ export function OrderProgress({ tracking }: { tracking: OrderTracking }) {
   const { order } = tracking;
   return (
     <div className="flex flex-col gap-4">
-      <SalesPanel title="Progress by line" description="Ordered = delivered + cancelled + still to deliver. A return never reduces what was delivered, and a credit note never reduces what was invoiced.">
+      <Panel title="Progress by line" description="Ordered = delivered + cancelled + still to deliver. A return never reduces what was delivered, and a credit note never reduces what was invoiced.">
         <LineTable lines={tracking.lines} showInventory={tracking.applies.inventory} showDelivery={tracking.applies.fulfillment} confirmed={order.status === "confirmed"} />
-      </SalesPanel>
-      <SalesPanel title="Milestones">
-        <SalesFacts columns={4} items={[
+      </Panel>
+      <Panel title="Milestones">
+        <Facts columns={4} items={[
           { label: "Created", value: dateTime(tracking.milestones.createdAt) },
           { label: "Confirmed", value: tracking.milestones.confirmedAt ? dateTime(tracking.milestones.confirmedAt) : "—" },
           ...(tracking.applies.inventory ? [{ label: "First reserved", value: tracking.milestones.firstReservedAt ? dateTime(tracking.milestones.firstReservedAt) : "—" }] : []),
@@ -144,8 +144,8 @@ export function OrderProgress({ tracking }: { tracking: OrderTracking }) {
           { label: "Fully invoiced", value: tracking.milestones.fullyInvoicedAt ? dateTime(tracking.milestones.fullyInvoicedAt) : "—" },
           { label: order.status === "cancelled" ? "Cancelled" : "Closed", value: (tracking.milestones.cancelledAt ?? tracking.milestones.closedAt) ? dateTime(tracking.milestones.cancelledAt ?? tracking.milestones.closedAt) : "—" },
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Timeline" description="What happened, from the order, its reservations, deliveries, invoices, receipts, returns, credit notes and refunds. Edits and notes are in History.">
+      </Panel>
+      <Panel title="Timeline" description="What happened, from the order, its reservations, deliveries, invoices, receipts, returns, credit notes and refunds. Edits and notes are in History.">
         {!tracking.timeline.length ? <p className="text-sm text-text-muted">Nothing yet.</p> : (
           <ol className="flex flex-col divide-y divide-border text-sm">
             {tracking.timeline.map((event) => (
@@ -157,7 +157,7 @@ export function OrderProgress({ tracking }: { tracking: OrderTracking }) {
             ))}
           </ol>
         )}
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -173,8 +173,8 @@ export function OrderReturnsCredits({ tracking }: { tracking: OrderTracking }) {
     rows.length ? <span className="flex flex-col gap-1">{rows.map((row) => <span key={row.id} className="flex flex-wrap items-center gap-2">{render(row)}</span>)}</span> : "None";
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <SalesPanel title="Returns and credits" description="What came back and what was credited afterwards. Delivered and invoiced stay as they happened.">
-        <SalesFacts columns={4} items={[
+      <Panel title="Returns and credits" description="What came back and what was credited afterwards. Delivered and invoiced stay as they happened.">
+        <Facts columns={4} items={[
           ...(tracking.applies.fulfillment ? [
             { label: "Delivered", value: quantity(tracking.returns.delivered) },
             { label: "Returned", value: quantity(tracking.returns.returned) },
@@ -190,9 +190,9 @@ export function OrderReturnsCredits({ tracking }: { tracking: OrderTracking }) {
             { label: "Customer credit left", value: money(currency, tracking.refunds.remainingCustomerCredit) },
           ] : []),
         ]} />
-      </SalesPanel>
-      <SalesPanel title="Documents">
-        <SalesFacts columns={2} items={[
+      </Panel>
+      <Panel title="Documents">
+        <Facts columns={2} items={[
           { label: `Returns (${documents.counts.returns})`, value: list(documents.returns, (entry) => <>
             {link(`/sales/returns/${entry.id}`, entry.number)}<StatusBadge tone={statusTone(entry.status)}>{statusLabel(entry.status)}</StatusBadge>
             <span className="text-text-muted">{quantity(entry.quantity)} · {calendarDate(entry.return_date)}{entry.awaiting_credit ? " · awaiting credit note" : ""}</span></>) },
@@ -203,7 +203,7 @@ export function OrderReturnsCredits({ tracking }: { tracking: OrderTracking }) {
             {tracking.actions.openRefunds ? link(`/sales/refunds/${refund.id}`, refund.number) : <span className="font-medium tabular-nums">{refund.number}</span>}
             <StatusBadge tone={statusTone(refund.status)}>{statusLabel(refund.status)}</StatusBadge>{amount(refund.amount)}<span className="text-text-muted">from {refund.credit_note_number}</span></>) }] : []),
         ]} />
-      </SalesPanel>
+      </Panel>
     </div>
   );
 }
@@ -215,7 +215,7 @@ function LineTable({ lines, showInventory, showDelivery, confirmed }: { lines: T
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[44rem] text-sm">
-        <thead className="text-left text-xs text-text-muted">
+        <thead className="bg-surface-muted text-left text-text-secondary">
           <tr className="border-b border-border">
             <th className="py-2 pr-3 font-medium">Product / service</th>
             <th className={head}>Ordered</th>
@@ -259,8 +259,8 @@ export function RelatedDocuments({ tracking }: { tracking: OrderTracking }) {
     rows.length ? <span className="flex flex-col gap-1">{rows.map((row) => <span key={row.id} className="flex flex-wrap items-center gap-2">{render(row)}</span>)}</span> : "None";
   const amount = (value: number | null) => (value === null ? null : <span className="tabular-nums">{money(currency, value)}</span>);
   return (
-    <SalesPanel title="Related documents" description={`Deliveries ${documents.counts.deliveries} · Invoices ${documents.counts.invoices} · Receipts ${documents.counts.receipts} · Returns ${documents.counts.returns} · Credit notes ${documents.counts.creditNotes} · Refunds ${documents.counts.refunds}`}>
-      <SalesFacts columns={2} items={[
+    <Panel title="Related documents" description={`Deliveries ${documents.counts.deliveries} · Invoices ${documents.counts.invoices} · Receipts ${documents.counts.receipts} · Returns ${documents.counts.returns} · Credit notes ${documents.counts.creditNotes} · Refunds ${documents.counts.refunds}`}>
+      <Facts columns={2} items={[
         { label: "Source quotation", value: documents.quotation ? link(`/sales/quotations/${documents.quotation.id}`, documents.quotation.number) : "None (direct order)" },
         { label: "Reservations", value: documents.reservations.total ? `${documents.reservations.active} active of ${documents.reservations.total}` : "None" },
         { label: `Deliveries (${documents.counts.deliveries})`, value: list(documents.deliveries, (delivery) => <>
@@ -281,7 +281,7 @@ export function RelatedDocuments({ tracking }: { tracking: OrderTracking }) {
           {tracking.actions.openRefunds ? link(`/sales/refunds/${refund.id}`, refund.number) : <span className="font-medium tabular-nums">{refund.number}</span>}
           <StatusBadge tone={statusTone(refund.status)}>{statusLabel(refund.status)}</StatusBadge>{amount(refund.amount)}<span className="text-text-muted">from {refund.credit_note_number}</span></>) }] : []),
       ]} />
-    </SalesPanel>
+    </Panel>
   );
 }
 
@@ -299,9 +299,9 @@ function ReasonDialog({ kind, tracking, onClose, onDone }: { kind: "close" | "re
         ? "An order closes by itself when nothing is left to deliver or invoice. Close it by hand only when the work is done and that will not happen on its own. Payment does not need to be complete: Finance keeps collecting."
         : "The order becomes Confirmed again with whatever was left on it."}>
       <div className="flex flex-col gap-3">
-        {Boolean(save.error) && <SalesAlert>{save.error instanceof SalesApiError || save.error instanceof Error ? save.error.message : "That could not be done."}</SalesAlert>}
+        {Boolean(save.error) && <Notice>{save.error instanceof SalesApiError || save.error instanceof Error ? save.error.message : "That could not be done."}</Notice>}
         {closing && waived && (
-          <SalesAlert tone="warning">{Number(tracking.invoicing.remaining).toLocaleString(undefined, { maximumFractionDigits: 3 })} is still to invoice ({money(tracking.order.currencyCode, tracking.invoicing.remainingValue)}). Closing means it will not be invoiced.</SalesAlert>
+          <Notice tone="warning">{Number(tracking.invoicing.remaining).toLocaleString(undefined, { maximumFractionDigits: 3 })} is still to invoice ({money(tracking.order.currencyCode, tracking.invoicing.remainingValue)}). Closing means it will not be invoiced.</Notice>
         )}
         <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
         <div className="flex justify-end gap-2">

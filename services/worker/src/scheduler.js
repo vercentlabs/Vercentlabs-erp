@@ -6,6 +6,8 @@ import { JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE } from "./handlers/crm-automation
 import { JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE } from "./handlers/crm-follow-up-reminder-dispatch.js";
 import { JOB_TYPE as CALENDAR_SYNC_JOB_TYPE } from "./handlers/crm-calendar-sync.js";
 import { JOB_TYPE as FORECAST_SNAPSHOT_JOB_TYPE } from "./handlers/crm-forecast-snapshot-capture.js";
+import { JOB_TYPE as REORDER_RECONCILE_JOB_TYPE } from "./handlers/stock-reorder-reconcile.js";
+import { JOB_TYPE as LOW_STOCK_DISPATCH_JOB_TYPE } from "./handlers/stock-low-stock-dispatch.js";
 
 const logger = createLogger("worker-scheduler");
 
@@ -94,6 +96,35 @@ export async function runSchedulerTick(pool, config) {
       else enqueued += 1;
     } catch (error) {
       logger.error("forecast snapshot tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // Reorder Level daily reconciliation (calendar-date key): every rule's status recalculated from its sources.
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, {
+          jobType: REORDER_RECONCILE_JOB_TYPE,
+          idempotencyKey: `reorder-reconcile-tick:${snapshotDay}`,
+          payload: { date: snapshotDay },
+          maxAttempts: 3,
+        }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("reorder reconciliation tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // Low-stock alert notifications: per tick (an idle tick finds nothing pending and is a no-op).
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, {
+          jobType: LOW_STOCK_DISPATCH_JOB_TYPE,
+          idempotencyKey: `low-stock-dispatch-tick:${bucket}`,
+          maxAttempts: 3,
+        }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("low-stock notification tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
   }
   logger.info("scheduler tick complete", { organizations: organizationIds.length, enqueued, deduped, bucket });

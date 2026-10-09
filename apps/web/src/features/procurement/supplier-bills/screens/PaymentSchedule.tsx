@@ -9,8 +9,8 @@ import { Button, Dialog, Select, StatusBadge, TextArea, TextField } from "@verce
 
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcFacts, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { calendarDate, dateTime, money, statusLabel } from "@/features/procurement/shared/format";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 export type BillPaymentSchedule = {
   billId: string; billNumber: string; currencyCode: string; status: string; today: string;
@@ -51,17 +51,17 @@ export function PaymentSchedulePanel({ schedule }: { schedule: BillPaymentSchedu
   const term = schedule.paymentTerm;
   return (
     <div className="flex flex-col gap-4">
-      <ProcPanel title="Payment terms" description="The terms the bill was posted with, kept as they were; changing the master never moves them.">
-        <ProcFacts columns={3} items={[
+      <Panel title="Payment terms" description="The terms the bill was posted with, kept as they were; changing the master never moves them.">
+        <Facts columns={3} items={[
           { label: "Payment term", value: term ? `${term.name}${term.version > 1 ? ` (v${term.version})` : ""}` : "—" },
           { label: "Rule", value: term?.summary ?? "—" },
           { label: "Invoice date / received / posted", value: `${calendarDate(schedule.invoiceDate)} / ${schedule.invoiceReceivedDate ? calendarDate(schedule.invoiceReceivedDate) : "—"} / ${calendarDate(schedule.postingDate)}` },
           ...(schedule.supplierStatedTerms ? [{ label: "Terms on the supplier's invoice", value: schedule.supplierStatedTerms }] : []),
           ...(schedule.paymentTermChangeReason ? [{ label: "Why the agreed terms were changed", value: schedule.paymentTermChangeReason }] : []),
         ]} />
-      </ProcPanel>
-      <ProcPanel title="Payment schedule" description="One payable, due in these parts. What remains of each part is what Finance's payments, advances and credits left — the oldest due first.">
-        {!schedule.totals.reconciled && <ProcAlert tone="warning">The instalments ({c(schedule.totals.outstanding)}) do not add up to what Accounts Payable says is owed ({c(schedule.totals.billOutstanding)}).</ProcAlert>}
+      </Panel>
+      <Panel title="Payment schedule" description="One payable, due in these parts. What remains of each part is what Finance's payments, advances and credits left — the oldest due first.">
+        {!schedule.totals.reconciled && <Notice tone="warning">The instalments ({c(schedule.totals.outstanding)}) do not add up to what Accounts Payable says is owed ({c(schedule.totals.billOutstanding)}).</Notice>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-text-muted">{["#", "Due date", "Counted from", "Scheduled", "Settled", "Outstanding", "Status", ""].map((name, index) =>
@@ -86,10 +86,10 @@ export function PaymentSchedulePanel({ schedule }: { schedule: BillPaymentSchedu
             </tbody>
           </table>
         </div>
-      </ProcPanel>
+      </Panel>
       {schedule.reschedules.length > 0 && (
-        <ProcPanel title="Reschedules">
-          {decide.error && <ProcAlert>{decide.error instanceof Error ? decide.error.message : "Could not decide the reschedule."}</ProcAlert>}
+        <Panel title="Reschedules">
+          {decide.error && <Notice>{decide.error instanceof Error ? decide.error.message : "Could not decide the reschedule."}</Notice>}
           <ul className="flex flex-col divide-y divide-border text-sm">
             {schedule.reschedules.map((entry) => (
               <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -102,10 +102,10 @@ export function PaymentSchedulePanel({ schedule }: { schedule: BillPaymentSchedu
               </li>
             ))}
           </ul>
-        </ProcPanel>
+        </Panel>
       )}
       {schedule.compliance.length > 0 && (
-        <ProcPanel title="Statutory payment deadlines (MSMED Act)" description="For a micro or small supplier: payment within the written agreement's days (at most 45) or 15 days from acceptance. Separate from the commercial schedule; a reschedule never moves it.">
+        <Panel title="Statutory payment deadlines (MSMED Act)" description="For a micro or small supplier: payment within the written agreement's days (at most 45) or 15 days from acceptance. Separate from the commercial schedule; a reschedule never moves it.">
           <ul className="flex flex-col divide-y divide-border text-sm">
             {schedule.compliance.map((entry) => (
               <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -117,7 +117,7 @@ export function PaymentSchedulePanel({ schedule }: { schedule: BillPaymentSchedu
               </li>
             ))}
           </ul>
-        </ProcPanel>
+        </Panel>
       )}
       {rejecting && (
         <Dialog isOpen onOpenChange={(open) => !open && setRejecting(null)} title="Reject the reschedule" size="md">
@@ -140,7 +140,7 @@ function RescheduleDialog({ billId, scheduleId, onClose, onDone }: { billId: str
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Request a reschedule" description="Finance approves it (not whoever requests it). The original due date is kept; the statutory deadline does not move." size="md">
       <div className="flex flex-col gap-3">
-        {run.error && <ProcAlert>{run.error instanceof Error ? run.error.message : "Could not request the reschedule."}</ProcAlert>}
+        {run.error && <Notice>{run.error instanceof Error ? run.error.message : "Could not request the reschedule."}</Notice>}
         <TextField label="New due date" type="date" value={values.newDueDate} onChange={(value) => setValues((current) => ({ ...current, newDueDate: value }))} />
         <TextArea label="Reason (the supplier's agreement and its reference)" value={values.reason} onChange={(value) => setValues((current) => ({ ...current, reason: value }))} />
         <div className="flex justify-end gap-2"><Button variant="secondary" onPress={onClose}>Close</Button>
@@ -157,7 +157,7 @@ function DisputeDialog({ deadlineId, onClose, onDone }: { deadlineId: string; on
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Record an objection to the goods or services" description="A documented objection. Once it is resolved, the statutory deadline counts from the day it was resolved." size="md">
       <div className="flex flex-col gap-3">
-        {run.error && <ProcAlert>{run.error instanceof Error ? run.error.message : "Could not record the objection."}</ProcAlert>}
+        {run.error && <Notice>{run.error instanceof Error ? run.error.message : "Could not record the objection."}</Notice>}
         <TextField label="Objection reference" value={values.reference} onChange={(value) => setValues((current) => ({ ...current, reference: value }))} />
         <TextField label="Raised on" type="date" value={values.raisedOn} onChange={(value) => setValues((current) => ({ ...current, raisedOn: value }))} />
         <Select label="State" selectedKey={values.state} onSelectionChange={(value) => setValues((current) => ({ ...current, state: String(value) }))}

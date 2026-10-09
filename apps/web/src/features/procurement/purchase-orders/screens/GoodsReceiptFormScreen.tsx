@@ -11,17 +11,14 @@
 // server and moves the stock. A line may be received in another of the item's purchase units (30 PCS against an order in BOX of 20): the
 // server converts it exactly into the order's unit and checks what is still owed in base units.
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
 import { Button, Checkbox, ErrorState, PageHeader, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { ProcAlert, ProcFacts, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { quantity } from "@/features/procurement/shared/format";
 import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
 
@@ -29,11 +26,17 @@ import {
   createGoodsReceipt, errorMessage, getGoodsReceipt, getPurchaseOrderOptions, getReceivable, issuesOf, listPurchaseOrders, receiptAction, updateGoodsReceipt, type GoodsReceiptDetail,
   REJECTION_REASON_OPTIONS, type PurchaseOrderOptions, type Receivable,
 } from "../api/purchase-orders-api";
+import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
+import { FormSection } from "@/shared/ui/FormSection";
+import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
+// A lot of a lot-tracked line received in several lots: its number, how much of the line it is, and its dates.
+type Lot = { batch: string; quantity: string; expiry: string; manufactured: string };
 type Row = {
   include: boolean; presented: string; received: string; hold: string; damaged: string; refused: string; refusalCode: string; refusalReason: string; batch: string; expiry: string;
-  manufactured: string; serials: string; notes: string; uomId: string;
+  manufactured: string; serials: string; notes: string; uomId: string; lots: Lot[];
 };
+const sumOf = (values: string[]) => values.reduce((total, value) => total + Number(value || 0), 0);
 // quantity × factor ÷ orderFactor, for the "in the order's unit" hint (the server does the authoritative, exact conversion).
 const inOrderUnit = (value: string, factor: string, orderFactor: string) => (Number(value || 0) * Number(factor || 1)) / Number(orderFactor || 1);
 const trim = (value: string | null | undefined) => (value == null ? "" : String(Number(value)));
@@ -68,12 +71,11 @@ function OrderPicker({ onPick }: { onPick: (id: string) => void }) {
   const orders = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "receivable-orders", search), queryFn: () => listPurchaseOrders({ view: "receivable", search, limit: 50 }) });
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/procurement/goods-receipts" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text"><ArrowLeft className="size-3.5" aria-hidden="true" />Goods Receipts</Link>
       <PageHeader title="New Goods Receipt" description="Choose the confirmed purchase order the goods arrived against. Only orders with something still to receive are listed." />
-      <ProcPanel title="Purchase order">
+      <Panel title="Purchase order">
         <TextField label="Search" value={search} onChange={setSearch} placeholder="Order number, supplier or reference" />
         {orders.isLoading && <p className="text-sm text-text-secondary">Loading orders…</p>}
-        {orders.error && <ProcAlert>{errorMessage(orders.error)}</ProcAlert>}
+        {orders.error && <Notice>{errorMessage(orders.error)}</Notice>}
         {orders.data && !orders.data.rows.length && <p className="text-sm text-text-secondary">No confirmed purchase order is waiting for goods.</p>}
         <div className="flex flex-col divide-y divide-border">
           {orders.data?.rows.map((order) => (
@@ -86,7 +88,7 @@ function OrderPicker({ onPick }: { onPick: (id: string) => void }) {
             </div>
           ))}
         </div>
-      </ProcPanel>
+      </Panel>
     </div>
   );
 }
@@ -102,14 +104,19 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
   });
   const setField = (key: keyof typeof header) => (value: string) => setHeader((current) => ({ ...current, [key]: value }));
   const [rows, setRows] = useState<Record<string, Row>>(() => Object.fromEntries(goods.map((line) => {
-    const entry = existing?.lines.find((item) => item.purchaseOrderLineId === line.purchaseOrderLineId);
+    // A line saved in several lots is several receipt lines: they are shown as one line with its lots.
+    const entries = existing?.lines.filter((item) => item.purchaseOrderLineId === line.purchaseOrderLineId) ?? [];
+    const entry = entries[0];
+    const sum = (pick: (item: (typeof entries)[number]) => string | null) => trim(String(sumOf(entries.map((item) => pick(item) ?? "0"))));
     return [line.purchaseOrderLineId, entry ? {
-      include: true, presented: trim(entry.presentedQuantity), received: trim(entry.receivedQuantity), hold: trim(entry.inspectionQuantity), damaged: trim(entry.damagedQuantity),
-      refused: trim(entry.refusedQuantity), refusalCode: entry.refusalReasonCode ?? "damaged_goods", refusalReason: entry.refusalReason ?? "", batch: entry.batchNumber ?? "", expiry: entry.expiryDate ?? "", manufactured: entry.manufacturedDate ?? "",
+      include: true, presented: entries.some((item) => item.presentedQuantity) ? sum((item) => item.presentedQuantity) : "", received: sum((item) => item.receivedQuantity),
+      hold: sum((item) => item.inspectionQuantity), damaged: sum((item) => item.damagedQuantity), refused: sum((item) => item.refusedQuantity),
+      refusalCode: entry.refusalReasonCode ?? "damaged_goods", refusalReason: entry.refusalReason ?? "", batch: entry.batchNumber ?? "", expiry: entry.expiryDate ?? "", manufactured: entry.manufacturedDate ?? "",
       serials: entry.serialNumbers.join(", "), notes: entry.discrepancyNotes ?? "", uomId: line.uomId ?? "",
+      lots: entries.length > 1 ? entries.map((item) => ({ batch: item.batchNumber ?? "", quantity: trim(item.receivedQuantity), expiry: item.expiryDate ?? "", manufactured: item.manufacturedDate ?? "" })) : [],
     } : { uomId: line.uomId ?? "", include: !existing && Number(line.remaining) > 0, presented: "", received: Number(line.remaining) > 0 ? trim(line.remaining) : "", hold: "", damaged: "", refused: "",
       refusalCode: "damaged_goods", refusalReason: "",
-      batch: "", expiry: "", manufactured: "", serials: "", notes: "" }];
+      batch: "", expiry: "", manufactured: "", serials: "", notes: "", lots: [] }];
   })));
   const set = (id: string, change: Partial<Row>) => setRows((current) => ({ ...current, [id]: { ...current[id], ...change } }));
   const payload = useMemo(() => ({
@@ -122,7 +129,10 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
         receivedQuantity: row.received || "0", heldQuantity: row.hold || "0",
         damagedQuantity: row.damaged || "0", refusedQuantity: row.refused || "0", presentedQuantity: row.presented || undefined,
         refusalReasonCode: Number(row.refused) > 0 ? row.refusalCode : undefined, refusalReason: row.refusalReason || undefined, batchNumber: row.batch || undefined,
-        expiryDate: row.expiry || undefined, manufacturedDate: row.manufactured || undefined, serialNumbers: row.serials || undefined, discrepancyNotes: row.notes || undefined };
+        expiryDate: row.expiry || undefined, manufacturedDate: row.manufactured || undefined, serialNumbers: row.serials || undefined, discrepancyNotes: row.notes || undefined,
+        // Several lots: every unit received is allocated to one (the server refuses lots that do not add up).
+        ...(row.lots.length > 1 ? { batches: row.lots.map((lot) => ({ batchNumber: lot.batch, quantity: lot.quantity || "0", expiryDate: lot.expiry || undefined, manufacturedDate: lot.manufactured || undefined })),
+          batchNumber: undefined, expiryDate: undefined, manufacturedDate: undefined, heldQuantity: undefined, damagedQuantity: undefined } : {}) };
     }),
   }), [goods, rows, header]);
   const submit = useSubmitKey();
@@ -142,17 +152,25 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
   const selected = goods.filter((line) => rows[line.purchaseOrderLineId]?.include);
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link href={`/procurement/purchase-orders/${receivable.order.id}`} className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text">
-        <ArrowLeft className="size-3.5" aria-hidden="true" />{receivable.order.purchaseOrderNumber}
-      </Link>
-      <PageHeader title={existing ? `Edit ${existing.receipt.receiptNumber}` : "Create Goods Receipt"}
-        description="Enter what physically arrived. Saving keeps a draft with no stock effect; posting checks the quantities again and moves the stock."
-        secondaryActions={<Button variant="secondary" isLoading={save.isPending && save.variables === false} isDisabled={!selected.length} onPress={() => save.mutate(false)}>Save draft</Button>}
-        primaryAction={<Button variant="primary" isLoading={save.isPending && save.variables === true} isDisabled={!selected.length} onPress={() => save.mutate(true)}>Post receipt</Button>} />
-      {Boolean(save.error) && <ProcAlert>{errorMessage(save.error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</ProcAlert>}
-      <ProcPanel title="Receipt">
-        <ProcFacts columns={3} items={[
+    <>
+    <DocumentFormPage
+      header={{
+        title: existing ? `Edit ${existing.receipt.receiptNumber}` : "Create Goods Receipt",
+        description: "Enter what physically arrived. Saving keeps a draft with no stock effect; posting checks the quantities again and moves the stock.",
+      }}
+      banner={<div className="flex flex-col gap-3">
+        {Boolean(save.error) && <Notice>{errorMessage(save.error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
+      </div>}
+      formActions={
+        <>
+          <Button variant="secondary" onPress={() => router.push("/procurement/goods-receipts")}>Cancel</Button>
+          <Button variant="secondary" isLoading={save.isPending && save.variables === false} isDisabled={!selected.length} onPress={() => save.mutate(false)}>Save draft</Button>
+          <Button variant="primary" isLoading={save.isPending && save.variables === true} isDisabled={!selected.length} onPress={() => save.mutate(true)}>Post receipt</Button>
+        </>
+      }
+    >
+      <FormSection columns={1} title="Receipt">
+        <Facts columns={3} items={[
           { label: "Purchase order", value: receivable.order.purchaseOrderNumber },
           { label: "Supplier", value: `${receivable.order.supplierName}${receivable.order.supplierNumber ? ` · ${receivable.order.supplierNumber}` : ""}` },
           { label: "Company", value: receivable.order.company ? `${receivable.order.company.legalName ?? receivable.order.company.name ?? ""}${receivable.order.company.gstin ? ` · GSTIN ${receivable.order.company.gstin}` : ""}` : "—" },
@@ -172,8 +190,8 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
           <TextField label="Carrier / transporter" value={header.carrier} onChange={setField("carrier")} />
           <TextField label="Tracking / LR / AWB no." value={header.tracking} onChange={setField("tracking")} />
         </div>
-      </ProcPanel>
-      <ProcPanel title="Items" description="Select the lines that arrived. Each line receives only the product ordered. Quantities are checked again when posted; other open drafts reserve nothing.">
+      </FormSection>
+      <FormSection columns={1} title="Items" description="Select the lines that arrived. Each line receives only the product ordered. Quantities are checked again when posted; other open drafts reserve nothing.">
         <div className="flex flex-col gap-3">
           {goods.map((line) => {
             const row = rows[line.purchaseOrderLineId];
@@ -201,7 +219,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
                     )}
                     <TextField label={`Receive now (${enteredCode})`} inputMode="decimal" value={row.received} onChange={(value) => set(line.purchaseOrderLineId, { received: value })}
                       description={entered && entered.uomId !== line.uomId ? `= ${quantity(orderQuantity)} ${line.uom.code} = ${quantity(Number(row.received || 0) * Number(entered.factor))} ${line.baseUom ?? ""}` : "Everything taken into custody."} />
-                    {line.productType === "stock" && line.trackingType !== "serial" && (
+                    {line.productType === "stock" && line.trackingType !== "serial" && row.lots.length <= 1 && (
                       <>
                         <TextField label="Of which on inspection hold" inputMode="decimal" value={row.hold} onChange={(value) => set(line.purchaseOrderLineId, { hold: value })} />
                         <TextField label="Of which damaged" inputMode="decimal" value={row.damaged} onChange={(value) => set(line.purchaseOrderLineId, { damaged: value })} />
@@ -218,13 +236,39 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
                     )}
                     <TextField label="Presented at the dock" inputMode="decimal" value={row.presented} onChange={(value) => set(line.purchaseOrderLineId, { presented: value })}
                       description="If counted: must equal taken in + refused." />
-                    {line.trackingType === "batch" && (
+                    {line.trackingType === "batch" && row.lots.length <= 1 && (
                       <>
                         <TextField label="Lot / batch number" isRequired value={row.batch} onChange={(value) => set(line.purchaseOrderLineId, { batch: value })} />
                         <TextField label="Expiry date" type="date" isRequired={line.requiresExpiryDate} value={row.expiry} onChange={(value) => set(line.purchaseOrderLineId, { expiry: value })}
                           description={line.requiresExpiryDate ? "Required for this product. An expired lot cannot be accepted." : undefined} />
                         <TextField label="Manufacture date" type="date" value={row.manufactured} onChange={(value) => set(line.purchaseOrderLineId, { manufactured: value })} />
+                        <div className="flex items-end"><Button size="compact" variant="ghost" onPress={() => set(line.purchaseOrderLineId, {
+                          lots: [{ batch: row.batch, quantity: row.received, expiry: row.expiry, manufactured: row.manufactured }, { batch: "", quantity: "", expiry: "", manufactured: "" }],
+                          hold: "", damaged: "" })}>Split into lots</Button></div>
                       </>
+                    )}
+                    {line.trackingType === "batch" && row.lots.length > 1 && (
+                      <div className="flex flex-col gap-2 sm:col-span-4">
+                        <p className="text-sm font-medium">Lots <span className="font-normal text-text-muted">· allocated {quantity(sumOf(row.lots.map((lot) => lot.quantity)))} of {quantity(Number(row.received || 0))} {enteredCode}
+                          {sumOf(row.lots.map((lot) => lot.quantity)) !== Number(row.received || 0) && <span className="text-danger"> · every unit received must be in a lot</span>}</span></p>
+                        {row.lots.map((lot, index) => {
+                          const change = (patch: Partial<Lot>) => set(line.purchaseOrderLineId, { lots: row.lots.map((entry, position) => (position === index ? { ...entry, ...patch } : entry)) });
+                          return (
+                            <div key={index} className="grid grid-cols-1 gap-2 sm:grid-cols-5">
+                              <TextField label={`Lot ${index + 1}`} isRequired value={lot.batch} onChange={(value) => change({ batch: value })} />
+                              <TextField label={`Quantity (${enteredCode})`} inputMode="decimal" value={lot.quantity} onChange={(value) => change({ quantity: value })} />
+                              <TextField label="Expiry date" type="date" isRequired={line.requiresExpiryDate} value={lot.expiry} onChange={(value) => change({ expiry: value })} />
+                              <TextField label="Manufacture date" type="date" value={lot.manufactured} onChange={(value) => change({ manufactured: value })} />
+                              <div className="flex items-end"><Button size="compact" variant="ghost" onPress={() => {
+                                const rest = row.lots.filter((_, position) => position !== index);
+                                set(line.purchaseOrderLineId, rest.length === 1 ? { lots: [], batch: rest[0].batch, expiry: rest[0].expiry, manufactured: rest[0].manufactured } : { lots: rest });
+                              }}>Remove</Button></div>
+                            </div>
+                          );
+                        })}
+                        <div><Button size="compact" variant="secondary" onPress={() => set(line.purchaseOrderLineId, { lots: [...row.lots, { batch: "", quantity: "", expiry: "", manufactured: "" }] })}>Add lot</Button></div>
+                        <p className="text-xs text-text-muted">Goods on inspection hold or damaged are received one lot per receipt.</p>
+                      </div>
                     )}
                     {line.trackingType === "serial" && <TextField label="Serial numbers" isRequired value={row.serials} onChange={(value) => set(line.purchaseOrderLineId, { serials: value })} description="One per unit, comma separated; each must be new." />}
                     <TextField label="Discrepancy notes" value={row.notes} onChange={(value) => set(line.purchaseOrderLineId, { notes: value })} />
@@ -237,10 +281,12 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
             );
           })}
         </div>
-      </ProcPanel>
-      <ProcPanel title="Receiving notes" description="Attach the challan, packing slips and photos from the receipt once it is saved; they can be cited as evidence on discrepancies.">
+      </FormSection>
+      <FormSection columns={1} title="Receiving notes" description="Attach the challan, packing slips and photos from the receipt once it is saved; they can be cited as evidence on discrepancies.">
         <TextArea label="Notes" value={header.notes} onChange={setField("notes")} />
-      </ProcPanel>
-    </div>
+      </FormSection>
+    </DocumentFormPage>
+    
+    </>
   );
 }

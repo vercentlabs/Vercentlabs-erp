@@ -172,6 +172,16 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     defaultInAppEnabled: true,
     userConfigurable: true,
   },
+  {
+    // Inventory Low-Stock Alerts: a warehouse went out of stock, needs replenishing, or is low (covered by incoming), or got worse. Delivered
+    // only to users who may see that warehouse's alerts.
+    key: "inventory_low_stock",
+    displayName: "Low-stock alerts",
+    description: "When an item at a warehouse you can see goes out of stock, needs replenishing or is low, or gets worse.",
+    moduleKey: "stock",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
 ]);
 
 const BY_KEY = new Map(NOTIFICATION_CATEGORIES.map((category) => [category.key, category]));

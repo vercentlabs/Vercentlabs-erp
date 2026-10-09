@@ -14,17 +14,19 @@
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, decimal, div, formatDecimal, mul, roundMoney, sub } from "../../../core/decimal.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
-import { StockError, postStockMovement } from "../../stock/index.js";
+import { StockError, postStockMovement, reverseStockMovements } from "../../stock/index.js";
 import { convertBetweenUnits, factorOf, resolveItemUnit } from "../../products/uom.js";
 import { loadPurchaseOrder, poCan } from "../purchase-orders/access.js";
 import { postReturnAccrual, reverseReturnAccrual } from "../purchase-orders/accrual.js";
 import { databaseToday } from "../purchase-orders/document.js";
 import { recordPoEvent } from "../purchase-orders/persist.js";
-import { assertWarehouseAccess, recordReceiptEvent, stockContextFor } from "../purchase-orders/receipts.js";
+import { ledgerLocation } from "../../stock/warehouses.js";
+import { assertWarehouseOperation, recordReceiptEvent, stockContextFor } from "../purchase-orders/receipts.js";
 import { applyResolution, blockedQuantityOf, recordRejectionEvent } from "../purchase-orders/rejection-core.js";
 import {
   COMMERCIAL_REASONS, EXPECTED_RESOLUTIONS, PurchaseReturnError, REASON_LABELS, RETURN_PERMISSIONS, dayOf, fail, has, optionalUuid, readDate, requireUuid, text,
 } from "./constants.js";
+import { carryNegativeStock } from "../../stock/negative-stock-control.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -187,7 +189,9 @@ async function buildLines(client, context, requested, { orderId = null, excludeR
     const warehouseId = optionalUuid(entry.warehouseId, "Warehouse") ?? returnWarehouse ?? line.warehouse_id ?? null;
     // Moved to another warehouse since: from the location given there (or its general stock), never the receipt's old location.
     const moved = warehouseId !== line.warehouse_id;
-    const locationId = optionalUuid(entry.warehouseLocationId, "Location") ?? (moved ? null : rejection?.location_id ?? disposition?.location_id ?? line.warehouse_location_id ?? null);
+    const chosenLocation = optionalUuid(entry.warehouseLocationId, "Location");
+    // A chosen MAIN is the ledger's "no location" (the warehouse's general stock).
+    const locationId = (chosenLocation && warehouseId ? await ledgerLocation(client, context.organizationId, warehouseId, chosenLocation) : chosenLocation) ?? (moved ? null : rejection?.location_id ?? disposition?.location_id ?? line.warehouse_location_id ?? null);
     const billingAllocation = ["unbilled", "billed"].includes(entry.billingAllocation) ? entry.billingAllocation : "auto";
     const other = drafts.get(line.id);
     if (other && !posting) warnings.push(`${label}: ${dec(other.quantity)} is also on draft return${other.numbers.length === 1 ? "" : "s"} ${other.numbers.join(", ")} — whichever posts first is returned.`);
@@ -214,7 +218,7 @@ async function stockIssues(client, context, entries, warehouseId) {
   }
   for (const { entry, quantity } of need.values()) {
     const row = (await client.query(
-      `SELECT COALESCE(sum(quantity - reserved_quantity), 0) AS free FROM tenant.stock_balances WHERE organization_id = $1 AND item_id = $2 AND warehouse_id = $3
+      `SELECT COALESCE(sum(greatest(quantity - reserved_quantity, 0)), 0) AS free FROM tenant.stock_balances WHERE organization_id = $1 AND item_id = $2 AND warehouse_id = $3
           AND warehouse_location_id IS NOT DISTINCT FROM $4 AND batch_id IS NOT DISTINCT FROM $5`,
       [context.organizationId, entry.line.product_id, warehouseId, entry.locationId, entry.line.batch_id])).rows[0];
     if (decimal(row.free) < quantity)
@@ -315,8 +319,8 @@ async function resolveHeader(client, context, input, { order, entries, current =
   if (warehouseId) {
     const warehouse = (await client.query(`SELECT status FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [context.organizationId, warehouseId])).rows[0];
     if (!warehouse || warehouse.status !== "active") fail("Choose an active warehouse the goods leave from.", "warehouseId", "PURCHASE_RETURN_WAREHOUSE_INVALID", 409);
-    // Goods leave only from a warehouse the user may work in.
-    await assertWarehouseAccess(client, context, warehouseId, "Returning warehouse");
+    // Goods leave only from a warehouse that takes returns, and one the user may return from.
+    await assertWarehouseOperation(client, context, warehouseId, "purchase_return", "Returning warehouse");
   }
   if (stockWarehouses.some((id) => id !== warehouseId))
     fail("A return ships from one warehouse: return the goods of each warehouse on its own return.", "warehouseId", "PURCHASE_RETURN_WAREHOUSE_MIXED", 409);
@@ -448,7 +452,8 @@ export async function postPurchaseReturn(client, context, returnId, input = {}) 
     const movements = [];
     if (line.product_type === "stock") {
       const base = { movementType: "issue", itemId: line.product_id, warehouseId: current.warehouse_id, warehouseLocationId: entry.locationId, batchId: line.batch_id,
-        referenceType: "purchase_return", referenceId: current.id, reason: `${current.return_number} · return to supplier (${line.receipt_number}) · ${REASON_LABELS[entry.reason]}` };
+        referenceType: "purchase_return", referenceId: current.id, sourceLineId: storedLine.id,
+        reason: `${current.return_number} · return to supplier (${line.receipt_number}) · ${REASON_LABELS[entry.reason]}` };
       try {
         if (line.tracking_type === "serial") {
           for (const serialNumber of serials) {
@@ -458,10 +463,12 @@ export async function postPurchaseReturn(client, context, returnId, input = {}) 
             movements.push((await postStockMovement(client, stock, { ...base, serialId: serial.id, quantity: "1", idempotencyKey: `prn:${current.id}:${storedLine.id}:${serial.id}` })).id);
           }
         } else {
-          movements.push((await postStockMovement(client, stock, { ...base, quantity: dec(entry.baseQuantity), idempotencyKey: `prn:${current.id}:${storedLine.id}` })).id);
+          movements.push((await postStockMovement(client, stock, { ...base, quantity: dec(entry.baseQuantity), idempotencyKey: `prn:${current.id}:${storedLine.id}`,
+            transaction: storedLine.entered_uom_id ? { uomId: storedLine.entered_uom_id, quantity: storedLine.entered_quantity, factor: storedLine.entered_conversion_factor }
+              : line.receipt_uom_id ? { uomId: line.receipt_uom_id, quantity: storedLine.quantity, factor: storedLine.conversion_factor ?? "1" } : null })).id);
         }
       } catch (error) {
-        if (error instanceof StockError) throw new PurchaseReturnError(error.status, `${line.receipt_number} line ${line.line_number}: ${error.message}`, error.code);
+        if (error instanceof StockError) throw carryNegativeStock(error, new PurchaseReturnError(error.status, `${line.receipt_number} line ${line.line_number}: ${error.message}`, error.code));
         throw error;
       }
     }
@@ -483,7 +490,8 @@ export async function postPurchaseReturn(client, context, returnId, input = {}) 
   await allocateToBilling(client, context, current, movementsByLine);
   const orderLines = new Map((await client.query(`SELECT * FROM tenant.purchase_order_lines WHERE organization_id = $1 AND purchase_order_id = $2`, [organizationId, order.id])).rows.map((row) => [row.id, row]));
   const accrual = await postReturnAccrual(client, context, { ...current, dispatch_date: current.return_date }, order,
-    entries.map((entry) => ({ receiptLine: entry.line, orderLine: orderLines.get(entry.line.purchase_order_line_id), quantity: entry.quantity })));
+    entries.map((entry) => ({ receiptLine: entry.line, orderLine: orderLines.get(entry.line.purchase_order_line_id), quantity: entry.quantity,
+      movementIds: movementsByLine.find((posted) => posted.entry === entry)?.movements ?? [] })));
   await client.query(
     `UPDATE tenant.purchase_returns SET document_status = 'posted', posted_by = $3, posted_at = now(), dispatched_at = $4, accrual_journal_entry_id = $5,
        carrier_reference = COALESCE($6, carrier_reference), tracking_reference = COALESCE($7, tracking_reference), dispatch_reference = COALESCE($8, dispatch_reference),
@@ -597,20 +605,13 @@ export async function reversePostedPurchaseReturn(client, context, returnId, inp
   const movements = [];
   for (const line of lines) {
     if (line.product_type !== "stock") continue;
-    const base = { movementType: "receipt", itemId: line.product_id, warehouseId: current.warehouse_id, warehouseLocationId: line.warehouse_location_id, batchId: line.batch_id,
-      referenceType: "purchase_return_reversal", referenceId: current.id, reason: `${current.return_number} reversed — goods back from the supplier: ${reason}` };
+    // The goods come back exactly where, and as what, they left: each return movement reversed by a compensating one.
     try {
-      if (line.tracking_type === "serial") {
-        for (const serialNumber of line.serial_numbers) {
-          const serial = (await client.query(`SELECT id FROM tenant.stock_serials WHERE organization_id = $1 AND item_id = $2 AND lower(serial_number) = lower($3)`,
-            [organizationId, line.product_id, serialNumber])).rows[0];
-          movements.push((await postStockMovement(client, stock, { ...base, serialId: serial?.id, quantity: "1", idempotencyKey: `prn-rev:${current.id}:${line.id}:${serialNumber}` })).id);
-        }
-      } else {
-        movements.push((await postStockMovement(client, stock, { ...base, quantity: formatDecimal(line.base_quantity ?? line.quantity), idempotencyKey: `prn-rev:${current.id}:${line.id}` })).id);
-      }
+      const reversed = await reverseStockMovements(client, stock, line.stock_movement_ids, { referenceType: "purchase_return_reversal", referenceId: current.id,
+        reason: `${current.return_number} reversed — goods back from the supplier: ${reason}`, keyPrefix: `prn-rev:${current.id}` });
+      movements.push(...reversed.movements.map((movement) => movement.id));
     } catch (error) {
-      if (error instanceof StockError) throw new PurchaseReturnError(error.status, `Line ${line.line_number}: ${error.message}`, error.code);
+      if (error instanceof StockError) throw carryNegativeStock(error, new PurchaseReturnError(error.status, `Line ${line.line_number}: ${error.message}`, error.code));
       throw error;
     }
     if (line.disposition_id)

@@ -78,10 +78,15 @@ export const PRODUCT_SELECT = `
 // The stock columns the list adds for callers who may see stock: read from Inventory's balances, never stored on the item.
 const STOCK_COLUMNS = `,
     (SELECT COALESCE(sum(balance.quantity), 0) FROM tenant.stock_balances balance WHERE balance.organization_id = item.organization_id AND balance.item_id = item.id) AS stock_on_hand,
-    (SELECT COALESCE(sum(CASE WHEN ${USABLE_ROW} THEN balance.quantity - balance.reserved_quantity ELSE 0 END), 0) FROM tenant.stock_balances balance
+    (SELECT COALESCE(sum(CASE WHEN ${USABLE_ROW} THEN greatest(balance.quantity - balance.reserved_quantity, 0) ELSE 0 END), 0) FROM tenant.stock_balances balance
        LEFT JOIN tenant.warehouse_locations location ON location.organization_id = balance.organization_id AND location.id = balance.warehouse_location_id
        LEFT JOIN tenant.stock_batches batch ON batch.organization_id = balance.organization_id AND batch.id = balance.batch_id
-      WHERE balance.organization_id = item.organization_id AND balance.item_id = item.id) AS stock_available`;
+      WHERE balance.organization_id = item.organization_id AND balance.item_id = item.id) AS stock_available,
+    (SELECT COALESCE(sum(balance.reserved_quantity), 0) FROM tenant.stock_balances balance WHERE balance.organization_id = item.organization_id AND balance.item_id = item.id) AS stock_reserved,
+    -- The item's worst reorder status across its warehouses (Reorder Level's projection; null with no enabled rule).
+    (SELECT status.status FROM tenant.inventory_reorder_status status JOIN tenant.inventory_reorder_rules rule ON rule.id = status.rule_id AND rule.enabled
+      WHERE status.organization_id = item.organization_id AND status.item_id = item.id
+      ORDER BY CASE status.status WHEN 'out_of_stock' THEN 0 WHEN 'reorder_required' THEN 1 WHEN 'below_reorder_covered' THEN 2 ELSE 3 END LIMIT 1) AS stock_reorder_status`;
 
 const unit = (code, name, decimals) => (code ? { code, name: name ?? code, ...(decimals === undefined ? {} : { decimalPlaces: decimals === null ? null : Number(decimals) }) } : null);
 
@@ -130,7 +135,8 @@ export function toProduct(row, { cost = false, stock = false } = {}) {
     trackingLabel: trackingLabel(row.tracking_type),
     requiresExpiryDate: Boolean(row.requires_expiry_date),
     shelfLifeDays: row.shelf_life_days ?? null,
-    allowNegativeStock: row.allow_negative_stock,
+    // Negative-Stock Control: the item inherits the company policy or always blocks (set through the negative-stock item setting, audited).
+    negativeStockPolicy: row.negative_stock_policy_override ?? "inherit",
     valuationMethod: row.valuation_method,
     valuationLabel: valuationLabel(row.valuation_method),
     inventoryProfileId: row.inventory_profile_id ?? null,
@@ -167,7 +173,10 @@ export function toProduct(row, { cost = false, stock = false } = {}) {
     activatedAt: row.activated_at ?? null,
   };
   if (cost) product.standardCost = num(row.standard_cost) ?? 0;
-  if (stock && type === "stock") { product.onHand = num(row.stock_on_hand) ?? 0; product.available = num(row.stock_available) ?? 0; }
+  if (stock && type === "stock") {
+    product.onHand = num(row.stock_on_hand) ?? 0; product.available = num(row.stock_available) ?? 0; product.reserved = num(row.stock_reserved) ?? 0;
+    product.reorderStatus = row.stock_reorder_status ?? null;
+  }
   return product;
 }
 
@@ -418,8 +427,9 @@ const TAX = [PRODUCT_PERMISSIONS.editTax, "You do not have permission to change 
 const FIELD_PERMISSION = Object.freeze({
   type: INVENTORY, baseUomId: INVENTORY, code: [PRODUCT_PERMISSIONS.changeSku, "You do not have permission to change SKUs."],
   salesUomId: DEFAULT_UNITS, purchaseUomId: DEFAULT_UNITS, salesUomFactor: CONVERSIONS, purchaseUomFactor: CONVERSIONS,
-  trackingType: TRACKING, requiresExpiryDate: TRACKING, shelfLifeDays: TRACKING, allowNegativeStock: TRACKING,
-  valuationMethod: ACCOUNTING, inventoryProfileId: ACCOUNTING, accountingProfileId: ACCOUNTING,
+  trackingType: TRACKING, requiresExpiryDate: TRACKING, shelfLifeDays: TRACKING,
+  // The valuation method is Inventory Valuation's: Moving Average or FIFO, chosen before any stock history.
+  valuationMethod: ["stock.valuation.configure_method", "You do not have permission to configure valuation methods."], inventoryProfileId: ACCOUNTING, accountingProfileId: ACCOUNTING,
   categoryId: [PRODUCT_PERMISSIONS.reclassify, "You do not have permission to reclassify items."], standardCost: [PRODUCT_PERMISSIONS.editCost, "You do not have permission to change costs."],
   hsnSacCode: TAX, taxCategoryId: TAX,
 });
@@ -636,7 +646,7 @@ export async function updateProduct(client, context, productId, input = {}) {
   }
   if (changed.includes("baseUomId")) {
     const used = await productUses(client, context, row.id, { only: TRANSACTIONS });
-    if (used.length) throw new ProductError(409, `This item is already used on ${used.join(", ")}, so its base unit cannot change. Every quantity recorded so far is in ${before.baseUom?.code}.`, "PRODUCT_UOM_LOCKED");
+    if (used.length) throw new ProductError(409, `This item is already used on ${used.join(", ")}, so its base unit cannot change. Every quantity recorded so far is in ${before.baseUom?.code}.`, "PRODUCT_UOM_LOCKED", { uomError: "BASE_UOM_CHANGE_RESTRICTED" });
   }
   // The category must hold the item's type; moving between categories never changes the item's profiles, valuation or tax.
   if ((changed.includes("categoryId") || changed.includes("type")) && candidate.categoryId)
@@ -772,6 +782,11 @@ export async function deactivateProduct(client, context, productId, input = {}) 
   const row = await loadProductRow(client, context, productId, { lock: true });
   if (row.lifecycle_status === LIFECYCLE.inactive) throw new ProductError(409, "This item is already inactive.", "PRODUCT_STATUS_UNCHANGED");
   if (row.lifecycle_status === LIFECYCLE.draft) throw new ProductError(409, "A draft item is not in use: delete it instead.", "PRODUCT_DRAFT");
+  const reserved = (await client.query(`SELECT count(*)::int AS count, COALESCE(sum(active_quantity), 0) AS quantity FROM tenant.stock_reservations WHERE organization_id = $1 AND item_id = $2 AND status = 'active'`,
+    [context.organizationId, row.id])).rows[0];
+  if (reserved.count && input.acknowledgeReservations !== true)
+    throw new ProductError(409, `${Number(reserved.quantity)} of this item ${reserved.count === 1 ? "is" : "are"} reserved for open orders or transfers (${reserved.count} reservation${reserved.count === 1 ? "" : "s"}). Review them, or confirm to deactivate anyway: the reservations stay.`,
+      "PRODUCT_HAS_RESERVATIONS", { reservations: reserved.count, quantity: Number(reserved.quantity) });
   await client.query(`UPDATE tenant.items SET lifecycle_status = 'inactive', updated_by = $3, updated_at = now(), version = version + 1 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, row.id, context.userId ?? null]);
   const note = text(input.reason).slice(0, 300);
