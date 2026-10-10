@@ -13,6 +13,7 @@
 // posting status, audit trail) a receipt document doesn't carry.
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess, accessiblePosStoreIds } from "../shared/access-control.js";
+import { assertPosAction } from "../permissions/index.js";
 
 const SORT_COLUMNS = Object.freeze({
   sale_date: "sale.sale_date",
@@ -23,6 +24,9 @@ const SORT_COLUMNS = Object.freeze({
 
 export async function listPosTransactions(client, context, options = {}) {
   requirePermission(context, "pos.view");
+  const administrator = context.roleSlugs?.some((slug) => ["organization_owner", "system_administrator"].includes(slug))
+    || context.permissions?.includes("pos.store.manage") || context.permissions?.includes("pos.settings.manage") || context.permissions?.includes("pos.reports.view");
+  if (!administrator) await assertPosAction(client, context, { permission: "TRANSACTION_LOOKUP" });
   const values = [context.organizationId];
   const clauses = [];
 
@@ -50,6 +54,10 @@ export async function listPosTransactions(client, context, options = {}) {
     values.push(options.customerId);
     clauses.push(`sale.customer_id=$${values.length}`);
   }
+  if (options.customerMode === "walk_in" || options.customerMode === "registered") {
+    values.push(options.customerMode);
+    clauses.push(`sale.customer_mode=$${values.length}`);
+  }
   if (options.status) {
     values.push(options.status);
     clauses.push(`sale.status=$${values.length}`);
@@ -69,9 +77,7 @@ export async function listPosTransactions(client, context, options = {}) {
     );
   }
 
-  // Same store-scoping convention as listPointOfSaleResource/
-  // assertPosStoreAccess: permissive until an organization configures
-  // tenant.pos_store_access, then a real row-level filter.
+  // Only sales at the outlets the person works at (everywhere for outlet administrators).
   const accessibleStoreIds = await accessiblePosStoreIds(client, context);
   if (accessibleStoreIds) {
     values.push(accessibleStoreIds);
@@ -91,7 +97,7 @@ export async function listPosTransactions(client, context, options = {}) {
 
   const pagedValues = [...values, limit, offset];
   const result = await client.query(
-    `SELECT sale.id, sale.receipt_number, sale.store_id, sale.terminal_id, sale.shift_id, sale.customer_id, sale.customer_name,
+    `SELECT sale.id, sale.receipt_number, sale.store_id, sale.terminal_id, sale.shift_id, sale.customer_id, sale.customer_name, sale.customer_mode,
             sale.sale_date, sale.completed_at, sale.status, sale.currency_code, sale.grand_total, sale.tax_total, sale.discount_total,
             sale.accounting_posting_status, sale.created_by,
             store.name AS store_name, store.code AS store_code, terminal.name AS terminal_name, terminal.code AS terminal_code,

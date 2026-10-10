@@ -116,6 +116,7 @@ export const DOCUMENT_TYPES = Object.freeze(
     std("hr_bank_file", "hr-payroll", "Bank file", "BNK"),
     std("hr_final_settlement", "hr-payroll", "Final settlement", "FS"),
     // Point of sale (formats owned by store / terminal settings)
+    std("pos_cart", "point-of-sale", "POS bill (cart) reference", "CART", { configurable: false }),
     std("pos_receipt", "point-of-sale", "POS receipt", "RCPT", { configurable: false }),
     std("pos_return", "point-of-sale", "POS return", "RET", { configurable: false }),
     std("pos_cash_movement", "point-of-sale", "Cash movement", "CASH", { configurable: false }),

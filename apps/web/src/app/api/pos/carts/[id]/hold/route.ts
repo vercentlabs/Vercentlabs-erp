@@ -6,7 +6,8 @@ import { ok, readJson } from "@/core/http";
 import { posContext } from "@/features/pos/shared/pos-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-const holdSchema = z.object({ expectedVersion: z.number().int().optional() });
+// A short note for whoever resumes the bill ("gone to fetch wallet").
+const holdSchema = z.object({ expectedVersion: z.number().int().optional(), note: z.string().trim().max(200).optional().nullable(), idempotencyKey: z.string().min(8).max(100).optional() });
 
 export async function POST(
   request: Request,

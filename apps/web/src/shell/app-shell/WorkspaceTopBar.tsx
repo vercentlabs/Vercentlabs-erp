@@ -4,9 +4,11 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Search } from "lucide-react";
 
 import { CrmCreateMenu } from "@/features/crm/shared/CrmCreateMenu";
 import { SalesCreateMenu } from "@/features/sales/shared/SalesCreateMenu";
+import { useSearchDialog } from "@/features/platform/search/SearchDialog";
 import { ModuleCreateMenu } from "@/shell/app-shell/ModuleCreateMenu";
 import { Breadcrumbs } from "@/shell/navigation/Breadcrumbs";
 import {
@@ -16,13 +18,12 @@ import {
 import { ProfileMenu } from "@/shell/primary-sidebar/ProfileMenu";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-// Search/Settings are the registry entries flagged `placement: "topbar"` —
+// Settings is the registry entry flagged `placement: "topbar"` —
 // the primary sidebar filters those same entries out, so each renders in
 // exactly one place on desktop.
 const TOPBAR_ENTRIES = [...GLOBAL_NAV_TOP, ...UTILITY_NAV].filter(
   (entry) => entry.placement === "topbar",
 );
-const SEARCH_ENTRY = TOPBAR_ENTRIES.find((entry) => entry.key === "search");
 const SETTINGS_ENTRY = TOPBAR_ENTRIES.find((entry) => entry.key === "settings");
 
 function isActive(pathname: string, href: string) {
@@ -111,6 +112,7 @@ function TopBarIconLink({
 export function WorkspaceTopBar() {
   const pathname = usePathname();
   const { fullName, email, organizationName } = useWorkspaceContext();
+  const { openSearch } = useSearchDialog();
 
   return (
     // Horizontal padding must match <main>'s (AppShell.tsx: px-6 md:px-8) so
@@ -145,19 +147,17 @@ export function WorkspaceTopBar() {
             <ModuleCreateMenu moduleKey="stock" size="compact" />
           </span>
         ) : null}
-        {SEARCH_ENTRY ? (
-          <Link
-            href={SEARCH_ENTRY.href}
-            aria-label={SEARCH_ENTRY.label}
-            aria-current={
-              isActive(pathname, SEARCH_ENTRY.href) ? "page" : undefined
-            }
-            className="hidden h-9 w-56 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-canvas px-3 text-sm text-text-muted outline-none transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 lg:flex"
-          >
-            <SEARCH_ENTRY.icon aria-hidden="true" className="size-4 shrink-0" />
-            <span className="truncate">Search…</span>
-          </Link>
-        ) : null}
+        <button
+          type="button"
+          onClick={openSearch}
+          aria-label="Search"
+          aria-keyshortcuts="Control+K Meta+K"
+          className="hidden h-9 w-56 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-canvas px-3 text-sm text-text-muted outline-none transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 lg:flex"
+        >
+          <Search aria-hidden="true" className="size-4 shrink-0" />
+          <span className="flex-1 truncate text-left">Search…</span>
+          <kbd className="rounded border border-border px-1.5 font-sans text-[11px] text-text-muted">Ctrl K</kbd>
+        </button>
         <span className="hidden max-w-[220px] truncate px-2 text-sm font-medium text-text md:inline">
           {organizationName || "Workspace"}
         </span>

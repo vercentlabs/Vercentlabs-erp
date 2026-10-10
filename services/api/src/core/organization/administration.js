@@ -128,6 +128,12 @@ export async function setMemberStatus(client, session, targetUserId, status) {
     actorRoleSlugs: session.roleSlugs || [],
     targetUserId,
   });
+  // A cashier's open POS session must be closed (or closed by a supervisor) first: disabling the user would orphan its cash drawer.
+  if (status === "disabled") {
+    const open = (await client.query(`SELECT shift_number FROM tenant.pos_shifts WHERE organization_id = $1 AND cashier_user_id = $2 AND status IN ('open', 'closing') LIMIT 1`,
+      [session.organizationId, targetUserId])).rows[0];
+    if (open) throw new OrganizationAdministrationError(409, `This user has an open POS session (${open.shift_number}). Close it before disabling them.`, "ORG_ADMIN_POS_SESSION_OPEN");
+  }
   let previousStatus = null;
   const updated = await withSeatLock(client, session.organizationId, async () => {
     const current = (await client.query(`SELECT status FROM organization_memberships WHERE organization_id=$1 AND user_id=$2`, [session.organizationId, targetUserId])).rows[0];

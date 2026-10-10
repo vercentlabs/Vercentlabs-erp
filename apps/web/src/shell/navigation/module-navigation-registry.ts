@@ -803,110 +803,81 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     label: "POS",
     icon: Store,
     requiredPermission: "pos.view",
+    // The standard sections (as CRM, Sales, Procurement and Inventory). Checkout ("Point of Sale") is a focused selling mode, reached from
+    // Operations like any other page.
     sections: [
-      { id: "overview", label: "Overview", items: [available("Home", "/pos")] },
-      // In-transaction checkout mode hides ordinary ERP nav for a focused
-      // surface — "Open POS" is deliberately not a normal
-      // secondary-nav destination among these, it's a distinct mode.
       {
-        id: "sell",
-        label: "Sell",
-        featureRange: "F277-F282",
+        id: "overview",
+        label: "Overview",
+        icon: LayoutDashboard,
+        flat: true,
+        items: [{ ...available("Overview", "/pos"), aliases: ["pos home", "pos dashboard", "retail overview"] }],
+      },
+      {
+        id: "master-data",
+        label: "Master Data",
+        icon: Database,
+        collapsible: true,
         items: [
-          available("Open POS", "/pos/checkout"),
-          available("Transactions", "/pos/transactions"),
+          { ...available("Stores & Outlets", "/pos/outlets"), aliases: ["stores", "outlets", "shops", "showroom", "kiosk", "retail locations"], requiredPermission: "pos.outlets.view" },
+          { ...available("POS Terminals", "/pos/terminals"), aliases: ["terminals", "counters", "tills", "registers"], requiredPermission: "pos.terminals.view" },
+          { ...available("Cashiers", "/pos/cashiers"), aliases: ["cashier access", "cashier profiles", "operators", "store access"], requiredPermission: "pos.cashiers.view" },
         ],
       },
       {
-        id: "stores",
-        label: "Stores",
-        featureRange: "F268-F271",
+        id: "operations",
+        label: "Operations",
+        icon: ArrowLeftRight,
+        collapsible: true,
         items: [
-          {
-            ...available("Stores", "/pos/stores"),
-            requiredPermission: "pos.store.manage",
-          },
-          {
-            ...available("Terminals", "/pos/terminals"),
-            requiredPermission: "pos.terminal.manage",
-          },
-          {
-            ...available("Cashiers", "/pos/cashiers"),
-            requiredPermission: "pos.store.manage",
-          },
-          {
-            ...available("Settings", "/pos/settings"),
-            requiredPermission: "pos.settings.manage",
-          },
+          { ...available("Point of Sale", "/pos/checkout"), aliases: ["open pos", "checkout", "sell", "billing counter"] },
+          { ...available("Sessions / Shifts", "/pos/shifts"), aliases: ["shifts", "sessions", "open shift", "close shift", "z report"] },
+          { ...available("Cash Movement", "/pos/cash-movement"), parent: "sessions-shifts", aliases: ["cash in", "cash out", "petty cash", "float"] },
+          { ...available("Returns & Refunds", "/pos/returns"), aliases: ["returns", "refunds", "exchanges"] },
+          { ...available("Payment Reconciliation", "/pos/reconciliation"), aliases: ["reconciliation", "settlements", "card settlement", "upi settlement"],
+            requiredPermission: "pos.reconciliation.view" },
         ],
       },
       {
-        id: "discounts",
-        label: "Discounts",
-        featureRange: "F279-F281",
+        id: "planning",
+        label: "Planning & Control",
+        icon: Gauge,
+        collapsible: true,
         items: [
-          {
-            ...available("Discount Approvals", "/pos/discount-approvals"),
-            requiredPermission: "pos.discount.approve",
-          },
+          { ...available("Supervisor Approvals", "/pos/approvals"), aliases: ["discount approval", "price override approval", "refund approval", "cash approval", "exceptions"] },
+          { ...available("Accounting Posting", "/pos/accounting"), aliases: ["gl posting", "posting failures", "retry posting"], requiredPermission: "pos.accounting.view" },
         ],
       },
       {
-        id: "cash",
-        label: "Cash",
-        featureRange: "F278-F282",
-        // "Day Close" was removed as a separate nav destination
-        // (consolidation, not a build): closing a day's business is already
-        // two real, complete operations elsewhere -- ending a shift (Shifts,
-        // pos.shift.close) and generating/reviewing/finalizing that day's
-        // immutable Z report (/pos/reports/day-end, F303) -- and a third
-        // screen for the same underlying "close the day" operation would
-        // just be a second front door onto one of those, not new capability.
+        id: "inquiries",
+        label: "Inquiries",
+        icon: Search,
+        collapsible: true,
         items: [
-          available("Shifts", "/pos/shifts"),
-          available("Cash Movement", "/pos/cash-movement"),
+          { ...available("Transactions & Receipts", "/pos/transactions"), aliases: ["transactions", "receipts", "sales", "pos sales"] },
+          { ...available("POS Inventory", "/pos/inventory"), aliases: ["store stock", "availability", "batches at store"] },
+          { ...available("Scan Diagnostics", "/pos/scan-diagnostics"), aliases: ["barcode errors", "unknown barcodes", "scanner", "scan failures"],
+            requiredPermission: "pos.terminals.view_transactions" },
         ],
       },
       {
-        id: "returns",
-        label: "Returns",
-        featureRange: "F291-F292",
-        items: [available("Returns", "/pos/returns")],
-      },
-      {
-        id: "inventory",
-        label: "Inventory",
-        featureRange: "F291-F294",
+        id: "reports",
+        label: "Reports",
+        icon: BarChart3,
+        collapsible: true,
         items: [
-          // F294/F295/F296: one consolidated read-only workspace (store
-          // availability + lot/batch + real-time stock-sync activity) --
-          // a single coherent inventory-visibility capability, not two
-          // destinations.
-          available("POS Inventory", "/pos/inventory"),
+          { ...available("Day-end (Z) Reports", "/pos/reports/day-end"), aliases: ["z report", "day end", "daily sales"] },
         ],
       },
       {
-        id: "insights",
-        label: "Insights",
-        featureRange: "F295-F307",
-        // F303: day-end (Z) reports has a real screen now (list, generate,
-        // review/finalize, print) -- flipped to AVAILABLE. Ordinary ad hoc
-        // POS reporting (pos.reports.view) still has no screen yet.
+        id: "configuration",
+        label: "Configuration",
+        icon: Settings,
+        collapsible: true,
         items: [
-          available("Day-end (Z) Reports", "/pos/reports/day-end"),
-          // F304: cross-report exception queue + settlement-evidence
-          // import; generating a report's own reconciliation happens from
-          // that report's detail screen.
-          {
-            ...available("Reconciliation", "/pos/reconciliation"),
-            requiredPermission: "pos.reconciliation.view",
-          },
-          // F305: every completed sale/return's GL posting status, with
-          // retry for anything failed.
-          {
-            ...available("Accounting Posting", "/pos/accounting"),
-            requiredPermission: "pos.accounting.view",
-          },
+          { ...available("POS Setup", "/pos/settings"), aliases: ["pos settings", "pos policy", "return rules"], requiredPermission: "pos.settings.manage" },
+          { ...available("Cashier Permissions", "/pos/settings/cashier-permissions"), aliases: ["permission profiles", "discount limits", "refund limits", "cashier limits"],
+            requiredPermission: "pos.permission_profiles.view" },
         ],
       },
     ],

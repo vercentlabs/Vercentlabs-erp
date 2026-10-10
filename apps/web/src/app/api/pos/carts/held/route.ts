@@ -11,8 +11,12 @@ export async function GET(request: Request) {
     async ({ client, session }) => {
       const url = new URL(request.url);
       const search = url.searchParams.get("q") || undefined;
+      // mine | all; held between from and to (dates).
+      const scope = url.searchParams.get("scope") === "mine" ? "mine" : "all";
+      const from = url.searchParams.get("from") || undefined;
+      const to = url.searchParams.get("to") || undefined;
       const rows = await listHeldPosCarts(client, posContext(session), {
-        search,
+        search, scope, from, to,
       });
       return ok({ rows });
     },

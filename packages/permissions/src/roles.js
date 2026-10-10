@@ -1578,9 +1578,44 @@ function withOrderPermissions(role) {
   };
 }
 
+// Stores & Outlets follow the POS roles (as migration 0080 grants): whoever sees POS sees outlets; store administrators maintain them, their
+// stock source, who works there, their transactions and sessions; POS settings administrators own tax, payments and accounts; whoever sees
+// POS reports sees the transactions and sessions of an outlet.
+function withOutletPermissions(role) {
+  if (!Array.isArray(role.permissions)) return role;
+  const has = (key) => role.permissions.includes(key);
+  return {
+    ...role,
+    permissions: unique([
+      ...role.permissions,
+      ...(has("pos.view") ? ["pos.outlets.view"] : []),
+      ...(has("pos.store.manage") ? ["pos.outlets.view", "pos.outlets.create", "pos.outlets.edit", "pos.outlets.status", "pos.outlets.manage_inventory",
+        "pos.outlets.manage_access", "pos.outlets.view_transactions", "pos.outlets.view_sessions"] : []),
+      ...(has("pos.settings.manage") ? ["pos.outlets.view", "pos.outlets.manage_tax", "pos.outlets.manage_payments", "pos.outlets.view_finance"] : []),
+      ...(has("pos.reports.view") || has("pos.report.view") ? ["pos.outlets.view_transactions", "pos.outlets.view_sessions"] : []),
+      // POS Terminals (as migration 0081 grants).
+      ...(has("pos.view") ? ["pos.terminals.view"] : []),
+      ...(has("pos.terminal.manage") ? ["pos.terminals.view", "pos.terminals.create", "pos.terminals.edit", "pos.terminals.status", "pos.terminals.configure_inventory",
+        "pos.terminals.configure_numbering", "pos.terminals.configure_hardware", "pos.terminals.view_sessions", "pos.terminals.view_transactions"] : []),
+      ...(has("pos.settings.manage") ? ["pos.terminals.view", "pos.terminals.configure_cash", "pos.terminals.configure_payments"] : []),
+      ...(has("pos.reports.view") || has("pos.report.view") ? ["pos.terminals.view_sessions", "pos.terminals.view_transactions"] : []),
+      // Cashiers (as migration 0082 grants).
+      ...(has("pos.view") ? ["pos.cashiers.view"] : []),
+      ...(has("pos.store.manage") ? ["pos.cashiers.view", "pos.cashiers.create", "pos.cashiers.edit", "pos.cashiers.status", "pos.cashiers.assign_outlets",
+        "pos.cashiers.view_sessions", "pos.cashiers.view_transactions"] : []),
+      ...(has("pos.reports.view") || has("pos.report.view") ? ["pos.cashiers.view_sessions", "pos.cashiers.view_transactions"] : []),
+      ...(has("pos.settings.manage") ? ["pos.cashiers.view_cash"] : []),
+      // Cashier Permissions administration (as migration 0083 grants).
+      ...(has("pos.settings.manage") ? ["pos.permission_profiles.view", "pos.permission_profiles.manage", "pos.permission_profiles.status", "pos.permission_profiles.assign",
+        "pos.permission_profiles.configure_unlimited", "pos.permission_profiles.view_history"] : []),
+      ...(has("pos.store.manage") ? ["pos.permission_profiles.view", "pos.permission_profiles.assign"] : []),
+    ]),
+  };
+}
+
 export const ROLE_TEMPLATES = Object.freeze(
   ROLE_DEFINITIONS.map(withCustomerPermissions).map(withProductPermissions).map(withPriceListPermissions).map(withQuotationPermissions).map(withDiscountPermissions)
-    .map(withTaxPermissions).map(withOrderPermissions).map(withWarehousePermissions),
+    .map(withTaxPermissions).map(withOrderPermissions).map(withWarehousePermissions).map(withOutletPermissions),
 );
 
 export const ROLE_TEMPLATE_BY_SLUG = new Map(

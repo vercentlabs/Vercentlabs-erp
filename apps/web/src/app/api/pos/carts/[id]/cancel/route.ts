@@ -8,6 +8,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 const cancelSchema = z.object({
   reason: z.string().trim().max(500).optional(),
+  idempotencyKey: z.string().min(8).max(100).optional(),
 });
 
 export async function POST(

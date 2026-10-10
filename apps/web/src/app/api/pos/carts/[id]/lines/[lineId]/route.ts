@@ -6,9 +6,12 @@ import { ok, readJson } from "@/core/http";
 import { posContext } from "@/features/pos/shared/pos-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
+// A quantity typed or stepped, in the line's unit (decimals only where the unit allows them); the version the cashier saw, so a stale tab
+// cannot overwrite a newer bill; a request key so a retry is applied once.
 const quantitySchema = z.object({
-  quantity: z.number().positive(),
-  expectedVersion: z.number().int().optional(),
+  quantity: z.union([z.number(), z.string().regex(/^-?d{1,9}(.d{1,6})?$/).transform(Number)]),
+  expectedVersion: z.number().int(),
+  idempotencyKey: z.string().min(8).max(100).optional(),
 });
 
 export async function PATCH(
@@ -61,6 +64,7 @@ export async function DELETE(
           expectedVersion: expectedVersion
             ? Number(expectedVersion)
             : undefined,
+          idempotencyKey: url.searchParams.get("idempotencyKey")?.slice(0, 100) || undefined,
         },
       );
       return ok({ cart: result });

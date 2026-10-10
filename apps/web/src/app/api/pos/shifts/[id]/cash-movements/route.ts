@@ -11,6 +11,8 @@ const movementSchema = z.object({
   amount: z.number().positive(),
   reason: z.string().trim().min(1).max(500),
   idempotencyKey: z.string().trim().min(1).max(200),
+  // A supervisor approval for a cash movement above the cashier's limit (Cashier Permissions).
+  approvalId: z.string().uuid().optional(),
 });
 
 export async function GET(

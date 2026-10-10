@@ -8,7 +8,8 @@ export {
   reclassifyItem, updateProduct, validateItemForActivation,
 } from "./records.js";
 export { findDuplicateProducts } from "./duplicates.js";
-export { addItemIdentifier, findItemByIdentifier, listItemIdentifiers, removeItemIdentifier, setPrimaryBarcode } from "./identifiers.js";
+export { addItemIdentifier, findItemByIdentifier, listItemIdentifiers, removeItemIdentifier, setPrimaryBarcode, updateItemIdentifier } from "./identifiers.js";
+export { BARCODE_FORMATS, expandUpcE, validGtinCheckDigit } from "./validation.js";
 export {
   addItemUomConversion, getItemUnits, getItemUomHistory, listItemUomConversions, removeItemUomConversion, setItemDefaultUoms, updateItemUomConversion, validateUomConversion,
 } from "./conversions.js";

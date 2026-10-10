@@ -17,7 +17,7 @@ import { assertLeadLinkedContentAllowed, assertLifecycleUpdate, assertOwnerAssig
 import { addParameter, camelizeRow } from "./record-utils.js";
 import { getCrmRecord, nextCode } from "./resource-query-service.js";
 import { auditColumns, definitionFor } from "./resource-registry.js";
-import { GENERIC_VERSIONED_RESOURCES, assertGenericLeadLinkedTarget, assertRecordExpectedVersion, mutableEntries, normalizeStorageInput, validateOrganizationUserReferences } from "./resource-validation.js";
+import { GENERIC_VERSIONED_RESOURCES, assertGenericLeadLinkedTarget, assertRecordExpectedVersion, assertSalesTeamMembershipInput, mutableEntries, normalizeStorageInput, validateOrganizationUserReferences } from "./resource-validation.js";
 
 // The audit stamps an UPDATE may write on this resource's table.
 function updateStamps(resource, userParameter) {
@@ -73,6 +73,7 @@ export async function createCrmRecord(client, context, resource, input) {
   assertLeadLinkedContentAllowed(context, resource, input);
   await assertOwnerAssignmentAllowed(client, definition, context, input);
   const prepared = normalizeStorageInput(resource, input);
+  await assertSalesTeamMembershipInput(client, context, resource, prepared);
   if (definition.codeEntity && !prepared[definition.codeField])
     prepared[definition.codeField] = await nextCode(
       client,
@@ -192,6 +193,7 @@ export async function updateCrmRecord(
   assertLifecycleUpdate(resource, before, input, context);
   const prepared = normalizeStorageInput(resource, input);
   await assertSalesTeamParentAllowed(client, context, resource, id, prepared);
+  await assertSalesTeamMembershipInput(client, context, resource, prepared, before);
   await assertGenericLeadLinkedTarget(client, context, resource, {
     ...before,
     ...prepared,

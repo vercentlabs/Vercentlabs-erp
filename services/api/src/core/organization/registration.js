@@ -170,6 +170,8 @@ export async function registerOrganization(client, input) {
   await seedBusinessDataFoundation(client, { organizationId, userId });
   // The organization's books: primary ledger, chart of accounts and mappings.
   await initializeAccountingOrganization(client, { organizationId, userId });
+  // POS starter permission profiles (Standard Cashier, Senior Cashier, POS Supervisor, POS Manager) as Drafts, sensitive grants off.
+  await client.query("SELECT tenant.seed_pos_permission_profiles($1)", [organizationId]);
 
   return { userId, organizationId, email, fullName };
 }

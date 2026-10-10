@@ -14,8 +14,8 @@
 // share the private helpers below.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
-import { add, sub, mul, div, percent, max, roundMoney, asDatabaseDecimal, decimal } from "../../../core/decimal.js";
-import { postStockMovement as postCanonicalStockMovement } from "../../stock/index.js";
+import { add, sub, mul, div, percent, max, roundMoney, asDatabaseDecimal, decimal, formatDecimal } from "../../../core/decimal.js";
+import { getStockAvailability, postStockMovement as postCanonicalStockMovement } from "../../stock/index.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
@@ -28,11 +28,13 @@ import {
   priceCartLines,
   applyCustomerPricingRules,
 } from "./cart-pricing.js";
-import { loadPosSettingsPolicy, loadPosCartLines, toPosCartPricingInputLines, assertPosCartDiscountsApproved } from "./cart.js";
+import { loadPosSettingsPolicy, loadPosCartLines, toPosCartPricingInputLines, assertPosCartDiscountsAuthorized, cartEvent, buildPosBuyerSnapshot } from "./cart.js";
+import { assertPosAction } from "../permissions/index.js";
 import { commitPosPromotionApplications } from "./promotions.js";
 import { commitPosCouponRedemption } from "./coupons.js";
 import { resolveActivePosLoyaltyProgram, computePosLoyaltyEarnPoints, commitPosLoyaltyForSale } from "./loyalty.js";
 import { lockCapturedCartPaymentLegs } from "../tender-and-payment-execution/payments.js";
+import { isTerminalPaymentMethodEnabled, resolveTerminalStockSource } from "../terminals/index.js";
 
 // Sale-line stock issue routes through Stock's own postStockMovement
 // (services/api/src/modules/stock/index.js) rather than a local fork, so
@@ -43,15 +45,12 @@ import { lockCapturedCartPaymentLegs } from "../tender-and-payment-execution/pay
 // this business operation is what authorizes the resulting stock
 // movement — the caller does not need to separately hold stock.issue.
 
-async function stockAvailable(client, context, itemId, warehouseId) {
-  const result = await client.query(
-    `SELECT coalesce(sum(greatest(quantity-reserved_quantity,0)),0)::text AS available
-     FROM tenant.stock_balances
-     WHERE organization_id=$1
-       AND item_id=$2 AND warehouse_id=$3`,
-    [context.organizationId, itemId, warehouseId],
-  );
-  return Number(result.rows[0].available);
+// Sellable stock comes from Inventory's own availability engine: on hand less reserved, never quality-held, quarantined, damaged, expired or
+// blocked stock, at the location the sale issues from when there is one.
+async function stockAvailable(client, context, itemId, warehouseId, warehouseLocationId = null) {
+  const availability = await getStockAvailability(client, { ...context, permissions: [...new Set([...(context.permissions || []), "stock.view"])] },
+    { itemId, warehouseId, warehouseLocationId: warehouseLocationId || undefined });
+  return Number(availability.availableQuantity ?? availability.available_quantity ?? 0);
 }
 
 // Sale-line stock issue routes through Stock's own postStockMovement
@@ -88,11 +87,16 @@ async function resolvePointOfSaleUnitPrice(client, context, shift, policy, line,
   }
 
   if (line.priceOverride) {
-    if (!policy.allow_price_override) {
-      throw posError(409, "Price override is disabled for this organization.", "POS_PRICE_OVERRIDE_DISABLED");
-    }
-    requirePermission(context, "pos.price.override");
-    return decimal(requestedPrice);
+    const listRate = shift.price_list_id ? (await client.query(
+      `SELECT price_item.rate FROM tenant.price_list_items price_item
+        WHERE price_item.organization_id=$1 AND price_item.price_list_id=$2 AND price_item.item_id=$3 AND price_item.status='active'
+          AND (price_item.valid_from IS NULL OR price_item.valid_from<=current_date) AND (price_item.valid_to IS NULL OR price_item.valid_to>=current_date)
+        ORDER BY price_item.minimum_quantity LIMIT 1`, [context.organizationId, shift.price_list_id, line.itemId])).rows[0]?.rate : null;
+    const requested = decimal(requestedPrice);
+    const list = listRate === null || listRate === undefined ? null : decimal(listRate);
+    const deviation = list && list > 0n ? div(mul(max(sub(requested, list), sub(list, requested)), decimal(100)), list) : decimal(100);
+    await assertPosAction(client, context, { permission: "PRICE_OVERRIDE", outletId: shift.store_id, reason: line.overrideReason ?? line.reason, percentage: formatDecimal(deviation) });
+    return requested;
   }
 
   if (!shift.price_list_id) {
@@ -188,6 +192,11 @@ export async function completePointOfSale(client, context, input) {
     throw posError(409, "An open POS shift with a valid store and terminal is required.", "POS_SHIFT_NOT_OPEN");
   }
   await assertPosStoreAccess(client, context, shift.store_id, shift.terminal_id);
+  await assertPosAction(client, context, { permission: "SALE_CREATE", outletId: shift.store_id });
+  await assertPosAction(client, context, { permission: "SALE_COMPLETE", outletId: shift.store_id });
+  // Cash is taken only where the outlet accepts it and the terminal manages cash.
+  if (!(await isTerminalPaymentMethodEnabled(client, context.organizationId, shift.terminal_id, "cash")))
+    throw posError(409, 'Payment method "cash" is not available on this terminal.', "PAYMENT_METHOD_NOT_AVAILABLE");
 
   // SECURITY (consolidated pass): this used to SELECT only
   // allow_negative_stock/allow_price_override, so the discount check below
@@ -292,8 +301,10 @@ export async function completePointOfSale(client, context, input) {
     // A variant is an item of its own: the line names the variant's item.
     if (line.variantId) throw posError(409, "Choose the variant item itself.", "POS_SALE_VARIANT_IS_ITEM");
 
-    const warehouseId = line.warehouseId || shift.warehouse_id;
-    const available = await stockAvailable(client, context, line.itemId, warehouseId);
+    // Stock comes from the outlet's warehouse, at the terminal's selling location (else the outlet's): never a warehouse the caller names.
+    if (line.warehouseId && line.warehouseId !== shift.warehouse_id) throw posError(409, "Stock is sold from this outlet's selling warehouse only.", "INVALID_SELLING_LOCATION");
+    const { warehouseId, locationId: warehouseLocationId } = await resolveTerminalStockSource(client, context.organizationId, shift.terminal_id, line.warehouseLocationId || null);
+    const available = await stockAvailable(client, context, line.itemId, warehouseId, warehouseLocationId);
     if (!policy.allow_negative_stock && available < quantity) {
       const error = posError(409, "Insufficient stock for POS sale.", "INSUFFICIENT_STOCK");
       error.itemId = line.itemId;
@@ -317,24 +328,10 @@ export async function completePointOfSale(client, context, input) {
         policy.max_line_discount_percent ?? 100,
         `Line ${index + 1}`,
       );
-      // SECURITY (consolidated pass): this legacy flat-lines path has no
-      // cart to bind a real maker-checker approval to (F279's approval
-      // engine is keyed on a cart id + cart version) -- rather than build
-      // a second, weaker approval mechanism just for this deprecated path,
-      // an above-threshold discount fails closed here with a clear error
-      // directing the caller to the cart-based checkout, which DOES have
-      // real supervisor approval. Effective-percent-of-gross computed with
-      // fixed-point decimals, the same way the cart path computes it, so a
-      // flat amount can't bypass this by not being expressed as a percent.
-      if (lineSubtotal > 0n) {
-        const percentOfGross = div(mul(discountAmount, decimal(100)), lineSubtotal);
-        if (percentOfGross > decimal(policy.discount_approval_threshold_percent ?? 10)) {
-          throw posError(
-            409,
-            `Line ${index + 1} discount above ${policy.discount_approval_threshold_percent ?? 10}% requires supervisor approval — use the cart-based checkout for discounts that need approval.`,
-            "POS_DISCOUNT_APPROVAL_REQUIRED",
-          );
-        }
+      if (discountAmount > 0n) {
+        const percentOfGross = lineSubtotal > 0n ? div(mul(discountAmount, decimal(100)), lineSubtotal) : decimal(100);
+        await assertPosAction(client, context, { permission: "DISCOUNT_LINE_MANUAL", outletId: shift.store_id, reason: line.discountReason,
+          percentage: formatDecimal(percentOfGross), amount: formatDecimal(add(discountTotal, discountAmount)) });
       }
     }
     const taxableAmount = max(0, sub(lineSubtotal, discountAmount));
@@ -376,6 +373,7 @@ export async function completePointOfSale(client, context, input) {
       })),
       lineTotal: asDatabaseDecimal(lineTotal),
       warehouseId,
+      warehouseLocationId,
       description: line.description || item.name,
       loyaltyPointsEarned: linePointsEarned,
     });
@@ -644,6 +642,9 @@ export async function completePosCart(client, context, cartId, input = {}) {
   // query is a bespoke SELECT rather than a call into lockCart, so it needs
   // its own check.
   await assertPosStoreAccess(client, context, cart.store_id, cart.terminal_id);
+  // Cash is taken only where the outlet accepts it and the terminal manages cash (card, UPI and the rest are checked when initiated).
+  if (cashLegs.length && !(await isTerminalPaymentMethodEnabled(client, context.organizationId, cart.terminal_id, "cash")))
+    throw posError(409, 'Payment method "cash" is not available on this terminal.', "PAYMENT_METHOD_NOT_AVAILABLE");
   if (cart.status !== "priced") {
     throw posError(409, `This cart is ${cart.status} and cannot be completed.`, "POS_CART_NOT_PRICED");
   }
@@ -658,19 +659,17 @@ export async function completePosCart(client, context, cartId, input = {}) {
   }
 
   const policy = await loadPosSettingsPolicy(client, context);
-  // F279 requirement K: fail closed on any above-threshold discount that
-  // is not backed by a genuine, currently-valid approval decision (see
-  // assertPosCartDiscountsApproved in features/cart.js). Checked against
-  // `cart` as loaded by the FOR UPDATE query above, so this always sees
-  // the cart's authoritative current version.
-  await assertPosCartDiscountsApproved(client, context, cart, policy);
+  // Cashier Permissions, as of this moment (a permission revoked during the session counts): completing the sale, and every manual
+  // discount and price override on the cart within the cashier's limits or allowed by the approval recorded when it was applied.
+  await assertPosAction(client, context, { permission: "SALE_COMPLETE", outletId: cart.store_id });
+  await assertPosCartDiscountsAuthorized(client, context, cart);
 
   const existingLines = await loadPosCartLines(client, context, cartId);
   if (!existingLines.length) throw posError(400, "At least one sale line is required.", "POS_SALE_LINES_REQUIRED");
 
   for (const line of existingLines) {
-    const available = await stockAvailable(client, context, line.item_id, line.warehouse_id);
-    if (!policy.allow_negative_stock && available < Number(line.quantity)) {
+    const available = await stockAvailable(client, context, line.item_id, line.warehouse_id, line.warehouse_location_id);
+    if (!policy.allow_negative_stock && available < Number(line.base_quantity ?? line.quantity)) {
       const error = posError(409, "Insufficient stock for POS sale.", "INSUFFICIENT_STOCK");
       error.itemId = line.item_id;
       throw error;
@@ -720,14 +719,17 @@ export async function completePosCart(client, context, cartId, input = {}) {
     prefix: safeDocumentPrefix(cart.receipt_prefix, "POS"),
   });
 
+  // The buyer as they are now — kept on the sale and never changed afterwards (walk-in: no customer, optional name and address; registered: the
+  // customer's billing details and GST registration).
+  const buyer = await buildPosBuyerSnapshot(client, context, cart);
   const sale = await client.query(
     `INSERT INTO tenant.pos_sales
       (organization_id,store_id,terminal_id,shift_id,receipt_number,
        customer_id,currency_code,subtotal,discount_total,tax_total,rounding_adjustment,
        grand_total,paid_total,change_total,status,idempotency_key,created_by,completed_at,
        cart_id,coupon_code,loyalty_program_id,loyalty_points_earned,loyalty_redeem_points,loyalty_redeem_amount,
-       loyalty_redemption_value_per_point_snapshot)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'completed',$15,$16,now(),$17,$18,$19,$20,$21,$22,$23)
+       loyalty_redemption_value_per_point_snapshot,customer_mode,customer_name,buyer_name_snapshot,buyer_tax_details,billing_address_snapshot,tax_treatment_snapshot)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'completed',$15,$16,now(),$17,$18,$19,$20,$21,$22,$23,$24,$25,$25,$26::jsonb,$27::jsonb,$28)
      RETURNING *`,
     [
       context.organizationId,
@@ -753,9 +755,20 @@ export async function completePosCart(client, context, cartId, input = {}) {
       priced.loyalty.redeemPointsApplied,
       priced.loyalty.redeemAmount,
       priced.loyalty.redemptionValuePerPoint,
+      buyer.mode,
+      buyer.name,
+      buyer.taxDetails ? JSON.stringify(buyer.taxDetails) : null,
+      buyer.billingAddress ? JSON.stringify(buyer.billingAddress) : null,
+      buyer.taxTreatment,
     ],
   );
   const saleId = sale.rows[0].id;
+  // A digital receipt the customer agreed to, queued for sending once the sale is saved (sending never touches the sale itself).
+  for (const [channel, destination] of [["email", cart.receipt_contact_email], ["sms", cart.receipt_contact_phone]]) {
+    if (destination && cart.receipt_delivery_consent)
+      await client.query(`INSERT INTO tenant.pos_receipt_deliveries (organization_id, sale_id, channel, destination, consent, requested_by) VALUES ($1,$2,$3,$4,true,$5)`,
+        [context.organizationId, saleId, channel, destination, context.userId]);
+  }
 
   const saleLineIdByLineNumber = new Map();
   for (const line of priced.lines) {
@@ -769,7 +782,8 @@ export async function completePosCart(client, context, cartId, input = {}) {
         warehouseLocationId: line.warehouseLocationId,
         batchId: line.batchId,
         serialId: line.serialId,
-        quantity: line.quantity,
+        // Stock moves in the base unit: the line's quantity times its unit's factor.
+        quantity: line.baseQuantity,
         unitCost: line.standardCost || 0,
         referenceType: "pos_sale",
         referenceId: saleId,
@@ -788,8 +802,8 @@ export async function completePosCart(client, context, cartId, input = {}) {
         (organization_id,sale_id,line_number,item_id,description,quantity,unit_price,
          discount_amount,tax_amount,line_total,warehouse_id,warehouse_location_id,batch_id,serial_id,
          stock_movement_id,manual_discount_amount,promotion_discount_amount,coupon_discount_amount,tax_components,
-         loyalty_points_earned,loyalty_redeem_points,loyalty_redeem_amount)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20,$21,$22)
+         loyalty_points_earned,loyalty_redeem_points,loyalty_redeem_amount,uom_id,uom_factor,base_quantity,scanned_barcode,sku)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20,$21,$22,$23,$24,$25,$26,$27)
        RETURNING id`,
       [
         context.organizationId,
@@ -814,6 +828,11 @@ export async function completePosCart(client, context, cartId, input = {}) {
         line.loyaltyPointsEarned,
         line.loyaltyRedeemPoints,
         line.loyaltyRedeemAmount,
+        line.uomId,
+        line.uomFactor,
+        line.baseQuantity,
+        line.scannedBarcode,
+        line.sku,
       ],
     );
     saleLineIdByLineNumber.set(line.lineNumber, saleLine.rows[0].id);
@@ -873,10 +892,12 @@ export async function completePosCart(client, context, cartId, input = {}) {
   }
 
   await client.query(
-    `UPDATE tenant.pos_carts SET status='completed',completed_sale_id=$3,completed_at=now(),version=version+1,updated_at=now(),updated_by=$4
+    `UPDATE tenant.pos_carts SET status='completed',completed_sale_id=$3,completed_at=now(),version=version+1,updated_at=now(),updated_by=$4,
+            checkout_started_at=NULL,checkout_expires_at=NULL,checkout_started_by=NULL
      WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, cartId, saleId, context.userId],
   );
+  await cartEvent(client, context, cartId, "completed", `Completed as receipt ${receiptNumber}`, { saleId, grandTotal: priced.totals.grandTotal });
 
   await event(client, context, "sale", saleId, "pos.sale.completed", { receiptNumber, grandTotal: priced.totals.grandTotal, cartId });
   const response = { ...sale.rows[0], replayed: false };

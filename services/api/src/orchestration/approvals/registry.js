@@ -15,7 +15,6 @@ import {
   approveVendorPayment, rejectVendorPaymentApproval,
 } from "../../modules/accounting/subledger-approvals.js";
 import {
-  approvePosCartDiscountApproval, rejectPosCartDiscountApproval,
   approvePosPaymentOverride, rejectPosPaymentOverrideApproval,
 } from "../../modules/point-of-sale/index.js";
 import {
@@ -48,11 +47,6 @@ const HANDLERS = Object.freeze({
     approve: (client, context, p) => approveQuotation(client, context, p.quotationId, p.quotationVersionId),
     reject: (client, context, p) => rejectQuotationApproval(client, context, p.quotationId, p.note),
     href: (p) => `/sales/quotations/${p.quotationId}`,
-  },
-  "pos.discount.approve": {
-    approve: (client, context, p) => approvePosCartDiscountApproval(client, context, p),
-    reject: (client, context, p) => rejectPosCartDiscountApproval(client, context, p),
-    href: () => "/pos/discount-approvals",
   },
   "pos.payment.override.approve": {
     approve: (client, context, p) => approvePosPaymentOverride(client, context, p),

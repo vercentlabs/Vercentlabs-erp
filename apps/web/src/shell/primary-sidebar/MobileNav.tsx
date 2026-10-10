@@ -5,9 +5,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { clearOfflineSecrets } from "@/shared/offline/clear-offline-secrets";
-import { LogOut, Menu as MenuIcon, Lock, User } from "lucide-react";
+import { LogOut, Menu as MenuIcon, Lock, Search, User } from "lucide-react";
 import { Drawer, IconButton } from "@vercentlabs/design-system";
 import type { ModuleAccess } from "@vercentlabs/api";
+
+import { useSearchDialog } from "@/features/platform/search/SearchDialog";
 
 import {
   MODULE_NAV_ENTRIES,
@@ -150,6 +152,7 @@ export function MobileNav({
   const counts = { pendingApprovalCount, unreadNotificationCount };
 
   const queryClient = useQueryClient();
+  const { openSearch } = useSearchDialog();
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -173,9 +176,12 @@ export function MobileNav({
         >
           <MenuIcon aria-hidden="true" className="size-5" />
         </IconButton>
-        <span className="truncate text-sm font-semibold text-text">
+        <span className="flex-1 truncate text-sm font-semibold text-text">
           {organizationName || "Vercentlabs ERP"}
         </span>
+        <IconButton aria-label="Search" variant="ghost" onPress={openSearch}>
+          <Search aria-hidden="true" className="size-5" />
+        </IconButton>
       </header>
 
       <Drawer

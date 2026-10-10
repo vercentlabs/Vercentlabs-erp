@@ -26,8 +26,8 @@ import {
   generatePosDayEndReport,
   listPosDayEndReports,
 } from "@/features/pos/day-end-reports/api/day-end-reports-api";
-import { listPosStores } from "@/features/pos/stores/api/stores-api";
-import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
+import { listPosStores } from "@/features/pos/shared/stores";
+import { listPosTerminals } from "@/features/pos/shared/terminals";
 import { listPosShifts } from "@/features/pos/overview/api/overview-api";
 import { calendarDate, money, statusLabel } from "@/features/pos/shared/format";
 

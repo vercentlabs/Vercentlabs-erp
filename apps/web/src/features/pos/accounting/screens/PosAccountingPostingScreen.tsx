@@ -26,7 +26,7 @@ import {
   type PosAccountingMappingRow,
   type PosAccountingPostingRow,
 } from "@/features/pos/accounting/api/accounting-api";
-import { listPosStores } from "@/features/pos/stores/api/stores-api";
+import { listPosStores } from "@/features/pos/shared/stores";
 import { dateTime, money, statusLabel } from "@/features/pos/shared/format";
 import { PosAlert, PosLoading, PosPanel } from "@/features/pos/shared/PosUi";
 

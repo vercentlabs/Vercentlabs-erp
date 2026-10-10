@@ -1,54 +1,20 @@
 import { z } from "zod";
 
-import { createTerminal, listPointOfSaleResource } from "@vercentlabs/api";
+import { createTerminal, listTerminals } from "@vercentlabs/api";
 
-import { ok, readJson } from "@/core/http";
-import { posContext } from "@/features/pos/shared/pos-context";
-import { workspaceRoute } from "@/core/workspace-route";
+import { posMutation, posRead } from "@/features/pos/shared/route-helpers";
 
-const createTerminalSchema = z.object({
-  storeId: z.string().uuid(),
-  code: z.string().trim().min(1).max(40),
-  name: z.string().trim().min(1).max(200),
-  receiptPrefix: z.string().trim().min(1).max(20).optional(),
-});
+const FILTERS = ["view", "search", "status", "state", "outletId", "cash"] as const;
 
+// ?view=all|active|inactive|session_open|available, ?search=, ?outletId=, ?state=available|session_open, ?cash=yes|no
 export async function GET(request: Request) {
-  return workspaceRoute(
-    request,
-    { module: "point-of-sale" },
-    async ({ client, session }) => {
-      const url = new URL(request.url);
-      const rows = await listPointOfSaleResource(
-        client,
-        posContext(session),
-        "terminals",
-        {
-          limit: url.searchParams.get("limit")
-            ? Number(url.searchParams.get("limit"))
-            : undefined,
-          offset: url.searchParams.get("offset")
-            ? Number(url.searchParams.get("offset"))
-            : undefined,
-        },
-      );
-      return ok({ rows });
-    },
-  );
+  const url = new URL(request.url);
+  const filters = Object.fromEntries(FILTERS.map((key) => [key, url.searchParams.get(key) ?? undefined]));
+  return posRead(request, (client, context) => listTerminals(client, context, filters), "pos.terminals.view");
 }
 
+// Active when its outlet is; inherits everything it does not override.
 export async function POST(request: Request) {
-  return workspaceRoute(
-    request,
-    {
-      module: "point-of-sale",
-      permission: "pos.terminal.manage",
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const input = createTerminalSchema.parse(await readJson(request));
-      const result = await createTerminal(client, posContext(session), input);
-      return ok({ terminal: result }, 201);
-    },
-  );
+  return posMutation(request, z.record(z.string(), z.unknown()), async (client, context, input) => ({ terminal: await createTerminal(client, context, input) }), 201,
+    "pos.terminals.view");
 }

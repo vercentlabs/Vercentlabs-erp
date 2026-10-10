@@ -1,36 +1,23 @@
 import { z } from "zod";
 
-import { setPosTerminalStatus } from "@vercentlabs/api";
+import { setTerminalStatus, validateTerminalForDeactivation, validateTerminalSetup } from "@vercentlabs/api";
 
-import { ok, readJson } from "@/core/http";
-import { posContext } from "@/features/pos/shared/pos-context";
-import { workspaceRoute } from "@/core/workspace-route";
+import { posMutation, posRead } from "@/features/pos/shared/route-helpers";
 
-const setStatusSchema = z.object({
-  status: z.enum(["active", "inactive", "maintenance"]),
-});
+type Params = { params: Promise<{ terminalId: string }> };
 
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ terminalId: string }> },
-) {
-  return workspaceRoute(
-    request,
-    {
-      module: "point-of-sale",
-      permission: "pos.terminal.manage",
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { terminalId } = await context.params;
-      const { status } = setStatusSchema.parse(await readJson(request));
-      const result = await setPosTerminalStatus(
-        client,
-        posContext(session),
-        terminalId,
-        status,
-      );
-      return ok({ terminal: result });
-    },
-  );
+// What is missing before activation (setup) and what stands between the terminal and Inactive (blockers).
+export async function GET(request: Request, { params }: Params) {
+  const { terminalId } = await params;
+  return posRead(request, async (client, context) => ({
+    setup: await validateTerminalSetup(client, context, terminalId),
+    blockers: await validateTerminalForDeactivation(client, context, terminalId),
+  }), "pos.terminals.view");
+}
+
+// body: { status: active | inactive, reason? }
+export async function POST(request: Request, { params }: Params) {
+  const { terminalId } = await params;
+  return posMutation(request, z.object({ status: z.string(), reason: z.string().optional() }),
+    async (client, context, input) => ({ terminal: await setTerminalStatus(client, context, terminalId, input.status, input) }), 200, "pos.terminals.view");
 }

@@ -25,9 +25,9 @@ import type {
   PosTransactionListFilters,
   PosTransactionRow,
 } from "@/features/pos/transactions/types/transactions";
-import { listPosStores } from "@/features/pos/stores/api/stores-api";
-import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
-import { listPosEligibleCashiers } from "@/features/pos/cashiers/api/cashiers-api";
+import { listPosStores } from "@/features/pos/shared/stores";
+import { listPosTerminals } from "@/features/pos/shared/terminals";
+import { listPosEligibleCashiers } from "@/features/pos/shared/cashiers";
 import { dateTime, money, statusLabel } from "@/features/pos/shared/format";
 
 const PAGE_SIZE = 25;
@@ -163,6 +163,8 @@ export function PosTransactionsScreen() {
         id: "paymentMethod",
         label: `Payment: ${filters.paymentMethod}`,
       });
+    if (filters.customerMode)
+      active.push({ id: "customerMode", label: `Customer: ${filters.customerMode === "walk_in" ? "Walk-in" : "Registered"}` });
     if (filters.dateFrom)
       active.push({ id: "dateFrom", label: `From: ${filters.dateFrom}` });
     if (filters.dateTo)
@@ -202,7 +204,8 @@ export function PosTransactionsScreen() {
       {
         id: "customer_name",
         header: "Customer",
-        accessorFn: (row) => row.customer_name ?? "Walk-in",
+        // A walk-in sale has no customer record; a buyer name given for its invoice is shown with it.
+        accessorFn: (row) => (row.customer_mode === "walk_in" || !row.customer_id ? (row.customer_name ? `Walk-in · ${row.customer_name}` : "Walk-in") : row.customer_name ?? "Customer"),
         enableSorting: false,
       },
       {
@@ -328,6 +331,17 @@ export function PosTransactionsScreen() {
               onSelectionChange={(key) =>
                 setFilter("paymentMethod", key ? String(key) : undefined)
               }
+            />
+            <Select
+              aria-label="Customer"
+              size="compact"
+              options={[
+                { value: "", label: "Walk-in and registered" },
+                { value: "walk_in", label: "Walk-in" },
+                { value: "registered", label: "Registered customers" },
+              ]}
+              selectedKey={filters.customerMode ?? ""}
+              onSelectionChange={(key) => setFilter("customerMode", key ? (String(key) as "walk_in" | "registered") : undefined)}
             />
             <TextField
               aria-label="From date"

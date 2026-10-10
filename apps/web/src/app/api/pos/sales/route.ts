@@ -72,6 +72,8 @@ export async function GET(request: Request) {
         cashierId: params.get("cashierId") || undefined,
         shiftId: params.get("shiftId") || undefined,
         customerId: params.get("customerId") || undefined,
+        // Walk-in or registered sales (Walk-In Customer).
+        customerMode: params.get("customerMode") || undefined,
         status: params.get("status") || undefined,
         dateFrom: params.get("dateFrom") || undefined,
         dateTo: params.get("dateTo") || undefined,

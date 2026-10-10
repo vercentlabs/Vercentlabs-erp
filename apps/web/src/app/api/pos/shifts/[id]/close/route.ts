@@ -9,6 +9,8 @@ import { workspaceRoute } from "@/core/workspace-route";
 const closeShiftSchema = z.object({
   countedCash: z.number().min(0),
   closeNotes: z.string().trim().max(2_000).optional().nullable(),
+  // Why a supervisor closes another cashier's session (Cashier Permissions: SESSION_CLOSE_OTHER).
+  reason: z.string().trim().max(500).optional(),
 });
 
 export async function POST(

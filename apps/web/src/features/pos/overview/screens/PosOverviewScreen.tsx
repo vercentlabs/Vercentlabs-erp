@@ -20,9 +20,10 @@ import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { WalkInSummary } from "@/features/pos/overview/components/WalkInSummary";
 import { PosApiError } from "@/features/pos/shared/http";
-import { listPosStores } from "@/features/pos/stores/api/stores-api";
-import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
+import { listPosStores } from "@/features/pos/shared/stores";
+import { listPosTerminals } from "@/features/pos/shared/terminals";
 import {
   closePosShift,
   getPosDashboard,
@@ -416,6 +417,7 @@ export function PosOverviewScreen() {
           description="You are not authorized to open one. Ask a supervisor to open a shift."
         />
       )}
+      <WalkInSummary />
     </div>
   );
 }

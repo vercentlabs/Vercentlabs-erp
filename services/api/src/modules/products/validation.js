@@ -69,6 +69,42 @@ const TEXT_LIMITS = Object.freeze({
 export const SKU_PATTERN = /^[A-Z0-9][A-Z0-9._/-]*$/;
 export const IDENTIFIER_PATTERN = /^[0-9A-Za-z._/-]{3,64}$/;
 
+// The GS1 check digit (EAN-8, UPC-A, EAN-13, GTIN-14): the last digit makes the weighted sum (3,1,3,1... from the right, before it) a multiple
+// of ten. Only for values meant to be one of those numbers.
+export function validGtinCheckDigit(value) {
+  if (!/^(\d{8}|\d{12}|\d{13}|\d{14})$/.test(String(value))) return false;
+  const digits = String(value).split("").map(Number);
+  const check = digits.pop();
+  const sum = digits.reverse().reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1), 0);
+  return (10 - (sum % 10)) % 10 === check;
+}
+
+// UPC-E (8 digits, number system 0 or 1) written out as its UPC-A, or null when the value is not a valid UPC-E.
+export function expandUpcE(value) {
+  const text = String(value);
+  if (!/^[01]\d{7}$/.test(text)) return null;
+  const [system, d1, d2, d3, d4, d5, d6, check] = text.split("");
+  let body;
+  if (["0", "1", "2"].includes(d6)) body = `${d1}${d2}${d6}0000${d3}${d4}${d5}`;
+  else if (d6 === "3") body = `${d1}${d2}${d3}00000${d4}${d5}`;
+  else if (d6 === "4") body = `${d1}${d2}${d3}${d4}00000${d5}`;
+  else body = `${d1}${d2}${d3}${d4}${d5}0000${d6}`;
+  const upcA = `${system}${body}${check}`;
+  return validGtinCheckDigit(upcA) ? upcA : null;
+}
+
+// Formats and what a value in each must look like (checked when a format is given).
+export const BARCODE_FORMATS = Object.freeze({
+  ean13: { label: "EAN-13", test: (value) => /^\d{13}$/.test(value) && validGtinCheckDigit(value), message: "An EAN-13 has 13 digits and a valid check digit." },
+  ean8: { label: "EAN-8", test: (value) => /^\d{8}$/.test(value) && validGtinCheckDigit(value), message: "An EAN-8 has 8 digits and a valid check digit." },
+  upca: { label: "UPC-A", test: (value) => /^\d{12}$/.test(value) && validGtinCheckDigit(value), message: "A UPC-A has 12 digits and a valid check digit." },
+  upce: { label: "UPC-E", test: (value) => expandUpcE(value) !== null, message: "A UPC-E has 8 digits starting with 0 or 1 and a valid check digit." },
+  code128: { label: "Code 128", test: () => true, message: "" },
+  code39: { label: "Code 39", test: (value) => /^[0-9A-Z.\/-]+$/.test(value), message: "Code 39 uses capital letters, digits, dots, dashes and slashes." },
+  qr: { label: "QR code", test: () => true, message: "" },
+  other: { label: "Other", test: () => true, message: "" },
+});
+
 // A decimal from a form or a file: commas and currency signs are formatting; anything else that is not a number stays invalid.
 function decimalInput(value) {
   if (value === null || value === undefined || text(value) === "") return null;

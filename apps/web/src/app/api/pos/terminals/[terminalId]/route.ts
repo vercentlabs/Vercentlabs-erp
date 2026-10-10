@@ -1,38 +1,25 @@
 import { z } from "zod";
 
-import { updatePosTerminal } from "@vercentlabs/api";
+import { deleteTerminal, getTerminal, updateTerminal } from "@vercentlabs/api";
 
-import { ok, readJson } from "@/core/http";
-import { posContext } from "@/features/pos/shared/pos-context";
-import { workspaceRoute } from "@/core/workspace-route";
+import { posMutation, posRead } from "@/features/pos/shared/route-helpers";
 
-const updateTerminalSchema = z.object({
-  name: z.string().trim().min(1).max(200).optional(),
-  receiptPrefix: z.string().trim().min(1).max(20).optional(),
-  storeId: z.string().uuid().optional(),
-});
+type Params = { params: Promise<{ terminalId: string }> };
 
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ terminalId: string }> },
-) {
-  return workspaceRoute(
-    request,
-    {
-      module: "point-of-sale",
-      permission: "pos.terminal.manage",
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { terminalId } = await context.params;
-      const input = updateTerminalSchema.parse(await readJson(request));
-      const result = await updatePosTerminal(
-        client,
-        posContext(session),
-        terminalId,
-        input,
-      );
-      return ok({ terminal: result });
-    },
-  );
+export async function GET(request: Request, { params }: Params) {
+  const { terminalId } = await params;
+  return posRead(request, async (client, context) => ({ terminal: await getTerminal(client, context, terminalId) }), "pos.terminals.view");
+}
+
+// Any terminal field, expectedVersion, reason. Posting-critical settings wait for an open session to close.
+export async function PATCH(request: Request, { params }: Params) {
+  const { terminalId } = await params;
+  return posMutation(request, z.record(z.string(), z.unknown()), async (client, context, input) => ({ terminal: await updateTerminal(client, context, terminalId, input) }), 200,
+    "pos.terminals.view");
+}
+
+// Only a terminal nothing has used; anything else is deactivated.
+export async function DELETE(request: Request, { params }: Params) {
+  const { terminalId } = await params;
+  return posMutation(request, z.record(z.string(), z.unknown()), (client, context) => deleteTerminal(client, context, terminalId), 200, "pos.terminals.view");
 }

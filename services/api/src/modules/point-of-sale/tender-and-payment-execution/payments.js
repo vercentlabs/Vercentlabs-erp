@@ -24,6 +24,10 @@ import { createApprovalRequest, finalizeApprovalRequest } from "../../../core/pl
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, decimal, asDatabaseDecimal, sub } from "../../../core/decimal.js";
 import { resolvePaymentAdapter, PaymentAdapterError } from "./adapter.js";
+import { isTerminalPaymentMethodEnabled } from "../terminals/index.js";
+import { assertPosAction } from "../permissions/index.js";
+import { assertPosCartProductsSellable } from "../product-search/index.js";
+import { ensurePosCheckoutStarted } from "../assortment-pricing-customer-and-cart/cart.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
@@ -64,6 +68,10 @@ async function lockOpenCart(client, context, cartId) {
 export async function initiatePosPayment(client, context, input = {}) {
   requirePermission(context, "pos.sale.create");
   const method = String(input.method || "").trim().toLowerCase();
+  if (method === "store_credit" || method === "credit" || method === "account") {
+    const error = posError(409, "Select an eligible registered customer for credit sales.", "POS_WALK_IN_CREDIT_NOT_ALLOWED");
+    throw error;
+  }
   if (!NON_CASH_METHODS.includes(method)) {
     throw posError(400, `Unsupported POS payment method: ${input.method}.`, "POS_PAYMENT_METHOD_INVALID");
   }
@@ -80,14 +88,19 @@ export async function initiatePosPayment(client, context, input = {}) {
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
 
   const cart = await lockOpenCart(client, context, input.cartId);
+  // Money only moves on a bill locked for checkout: nothing on it can change while the payment's outcome is unknown.
+  await ensurePosCheckoutStarted(client, context, cart.id);
+  // Products and stock are checked again before money moves (Product Search); the sale's stock issue checks once more, atomically.
+  await assertPosCartProductsSellable(client, context, cart.id);
 
   const store = await client.query(
-    `SELECT id,allowed_payment_methods,currency_code FROM tenant.pos_stores WHERE organization_id=$1 AND id=$2`,
+    `SELECT id,currency_code FROM tenant.pos_stores WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, cart.store_id],
   );
   const storeRow = store.rows[0];
-  if (!storeRow || !(storeRow.allowed_payment_methods || []).includes(method)) {
-    throw posError(409, `Payment method "${method}" is not enabled for this store.`, "POS_PAYMENT_METHOD_NOT_ALLOWED");
+  // The methods this terminal takes: its outlet's, narrowed by the terminal's own list (Stores & Outlets, POS Terminals).
+  if (!storeRow || !(await isTerminalPaymentMethodEnabled(client, context.organizationId, cart.terminal_id, method))) {
+    throw posError(409, `Payment method "${method}" is not available on this terminal.`, "PAYMENT_METHOD_NOT_AVAILABLE");
   }
 
   const config = await client.query(
@@ -185,6 +198,7 @@ export async function voidPosPayment(client, context, paymentId) {
   );
   const payment = locked.rows[0];
   if (!payment) throw posError(404, "POS payment was not found.", "POS_PAYMENT_NOT_FOUND");
+  await assertPosAction(client, context, { permission: "PAYMENT_VOID_PENDING", outletId: payment.store_id });
   if (payment.sale_id) throw posError(409, "A payment already attached to a completed sale cannot be voided.", "POS_PAYMENT_ALREADY_CONSUMED");
   if (!["initiated", "pending", "authorized", "failed"].includes(payment.status)) {
     throw posError(409, `A ${payment.status} payment cannot be voided; refund it instead.`, "POS_PAYMENT_VOID_INVALID_STATE");
@@ -290,7 +304,8 @@ export async function handlePosPaymentWebhook(client, { providerKey, rawBody, si
 // alternate/default method. Idempotent on retry; cannot exceed the
 // captured (minus already-refunded) amount.
 export async function refundPosPayment(client, context, input = {}) {
-  requirePermission(context, "pos.payment.refund");
+  // POS module access; refunding is the cashier's REFUND_INITIATE grant and limit, checked below.
+  requirePermission(context, "pos.view");
   if (!input.paymentId) throw posError(400, "A payment id is required to refund.", "POS_REFUND_PAYMENT_REQUIRED");
   const amount = decimal(input.amount);
   if (amount <= 0n) throw posError(400, "Refund amount must be greater than zero.", "POS_REFUND_AMOUNT_INVALID");
@@ -309,6 +324,8 @@ export async function refundPosPayment(client, context, input = {}) {
   );
   const payment = locked.rows[0];
   if (!payment) throw posError(404, "POS payment was not found.", "POS_PAYMENT_NOT_FOUND");
+  await assertPosAction(client, context, { permission: "REFUND_INITIATE", outletId: payment.store_id, amount: asDatabaseDecimal(amount), approvalId: input.approvalId,
+    resource: payment.sale_id ? { type: "pos_sale", id: payment.sale_id } : undefined });
   if (payment.payment_method === "cash") {
     throw posError(409, "Refund a cash tender through the POS return workflow, not this endpoint.", "POS_REFUND_USE_RETURN_WORKFLOW");
   }

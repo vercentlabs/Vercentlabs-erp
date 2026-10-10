@@ -142,7 +142,13 @@ export type ItemFilters = Partial<Record<
 export type ItemList = { products: Item[]; total: number; views: Array<{ key: string; label: string }>; showsCost: boolean; showsStock: boolean; capabilities: ItemCapabilities };
 
 export type DuplicateMatch = { id: string; code: string; name: string; type: ItemType; status: string; strength: "strong" | "possible"; reasons: Array<{ signal: string; label: string }>; href: string };
-export type Identifier = { id: string; type: string; typeLabel: string; value: string; uomId: string | null; uom: string | null; isPrimary: boolean; createdAt: string; createdByName: string | null };
+export type Identifier = { id: string; type: string; typeLabel: string; value: string; uomId: string | null; uom: string | null; format: string | null; formatLabel: string | null;
+  isPrimary: boolean; createdAt: string; createdByName: string | null; version: number };
+// Barcode formats the registry knows; EAN, UPC and GTIN values are checked for their check digit.
+export const BARCODE_FORMAT_OPTIONS = [
+  { value: "none", label: "Not specified" }, { value: "ean13", label: "EAN-13" }, { value: "ean8", label: "EAN-8" }, { value: "upca", label: "UPC-A" }, { value: "upce", label: "UPC-E" },
+  { value: "code128", label: "Code 128" }, { value: "code39", label: "Code 39" }, { value: "qr", label: "QR code" }, { value: "other", label: "Other" },
+];
 export type Conversion = { id: string; uomId: string; uom: string; uomName: string; factor: string; baseUomId: string; baseUom: string; isSalesDefault: boolean; isPurchaseDefault: boolean; text: string };
 export type WarehouseStock = { warehouseId: string; code: string | null; name: string; onHand: number; reserved: number; available: number; incoming: number; outgoing: number; averageCost?: number | null; value?: number };
 export type InventorySummary = {
@@ -271,8 +277,10 @@ export const getItemSerials = (id: string) => call<{ serials: Serial[] }>(`/${id
 
 export const listIdentifiers = (id: string, includeRemoved = false) =>
   call<{ identifiers: Identifier[] }>(`/${id}/identifiers${query({ includeRemoved: includeRemoved || undefined })}`).then((response) => response.identifiers);
-export const addIdentifier = (id: string, input: { value: string; type: string; uomId?: string | null; isPrimary?: boolean }) =>
+export const addIdentifier = (id: string, input: { value: string; type: string; uomId?: string | null; format?: string | null; isPrimary?: boolean }) =>
   call<{ identifiers: Identifier[] }>(`/${id}/identifiers`, { method: "POST", json: input });
+export const updateIdentifier = (id: string, identifierId: string, input: { uomId?: string | null; format?: string | null; expectedVersion?: number }) =>
+  call<{ identifiers: Identifier[] }>(`/${id}/identifiers/${identifierId}`, { method: "PATCH", json: input });
 export const removeIdentifier = (id: string, identifierId: string) => call<{ identifiers: Identifier[] }>(`/${id}/identifiers/${identifierId}`, { method: "DELETE", json: {} });
 export const makePrimaryIdentifier = (id: string, identifierId: string) => call<{ identifiers: Identifier[] }>(`/${id}/identifiers/${identifierId}/primary`, { method: "POST", json: {} });
 

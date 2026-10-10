@@ -6,12 +6,11 @@ import { ok, readJson } from "@/core/http";
 import { posContext } from "@/features/pos/shared/pos-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F295 -- lets the cashier set/change the batch or serial number on an
-// already-added cart line. Validation against the real
-// tenant.stock_batches/stock_serials rows happens once, authoritatively,
-// in Stock's own postStockMovement at sale completion, not here -- this
-// endpoint only records what the cashier scanned/typed.
+// The batch or serial number of a tracked cart line, as scanned or typed (or its id). Inventory checks it before it is recorded: the serial
+// must be this product's, in this store's selling stock and on no other open sale; the batch must be eligible here.
 const trackingSchema = z.object({
+  serialNumber: z.string().trim().min(1).max(64).optional().nullable(),
+  batchNumber: z.string().trim().min(1).max(64).optional().nullable(),
   batchId: z.string().uuid().optional().nullable(),
   serialId: z.string().uuid().optional().nullable(),
   expectedVersion: z.number().int().optional(),

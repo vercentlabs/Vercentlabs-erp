@@ -32,7 +32,7 @@ import {
   resolvePosReconciliation,
   type PosReconciliation,
 } from "@/features/pos/reconciliation/api/reconciliation-api";
-import { listPosStores } from "@/features/pos/stores/api/stores-api";
+import { listPosStores } from "@/features/pos/shared/stores";
 import {
   dateTime,
   money,

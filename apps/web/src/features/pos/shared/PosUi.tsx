@@ -26,6 +26,7 @@ export function PosPanel({
   children,
   className,
   padding = "md",
+  scanZone,
 }: {
   title?: ReactNode;
   description?: ReactNode;
@@ -33,9 +34,12 @@ export function PosPanel({
   children: ReactNode;
   className?: string;
   padding?: "none" | "sm" | "md" | "lg";
+  // "off": a barcode scanner's keystrokes here are never taken as product scans (payment, customer details).
+  scanZone?: "off";
 }) {
   return (
     <section
+      data-scan-zone={scanZone}
       className={cn(
         surfaceVariants({ padding }),
         "flex flex-col gap-3",

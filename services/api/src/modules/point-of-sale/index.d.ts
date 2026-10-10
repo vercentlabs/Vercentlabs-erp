@@ -24,7 +24,6 @@ export declare function listPointOfSaleResource(
     withTotal?: boolean;
   },
 ): Promise<any[] | { rows: any[]; total: number }>;
-export declare function listPosStoreSetupOptions(client: any, context: PointOfSaleContext): Promise<{ warehouses: any[]; priceLists: any[] }>;
 export type PosSettingsValues = {
   require_shift_reconciliation: boolean;
   allow_negative_stock: boolean;
@@ -36,43 +35,104 @@ export type PosSettingsValues = {
   max_cart_discount_percent: string;
   discount_approval_threshold_percent: string;
   cart_expiry_minutes: number;
+  held_cart_retention_hours: number;
+  checkout_lock_minutes: number;
+  walk_in_buyer_details_required_above: string | null;
 };
 export type PosSettings = { configured: boolean; updatedAt: string | null; settings: PosSettingsValues };
 export declare const POS_SETTINGS_DEFAULTS: Readonly<PosSettingsValues>;
 export declare function getPosSettings(client: any, context: PointOfSaleContext): Promise<PosSettings>;
-export declare function updatePosSettings(client: any, context: PointOfSaleContext, input: Partial<Record<keyof PosSettingsValues, string | number | boolean>>): Promise<PosSettings>;
-export type PosStorePaymentConfig = {
-  storeId: string;
-  storeName: string;
-  allowedMethods: string[];
-  providers: Array<{ payment_method: string; provider_key: string; credential_env_var: string | null; active: boolean }>;
-  availableProviders: string[];
-};
-export declare function getPosStorePaymentConfig(client: any, context: PointOfSaleContext, storeId: string): Promise<PosStorePaymentConfig>;
-export declare function setPosStorePaymentConfig(
-  client: any,
-  context: PointOfSaleContext,
-  storeId: string,
-  input: { allowedMethods: string[]; providers?: Record<string, { providerKey?: string; credentialEnvVar?: string | null }> },
-): Promise<PosStorePaymentConfig>;
-export declare function createStore(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
-export declare function updatePosStore(client: any, context: PointOfSaleContext, id: string, input: Record<string, any>): Promise<any>;
-export declare function setPosStoreActive(client: any, context: PointOfSaleContext, id: string, active: boolean): Promise<any>;
+export declare function updatePosSettings(client: any, context: PointOfSaleContext, input: Partial<Record<keyof PosSettingsValues, string | number | boolean | null>>): Promise<PosSettings>;
+// Stores & Outlets (outlets/index.js).
+export declare class PosOutletError extends Error {
+  status: number;
+  code: string;
+  details?: unknown;
+  constructor(status: number, message: string, code?: string, details?: unknown);
+}
+export type PosOutletOption = { code: string; label: string };
+export declare const OUTLET_TYPES: readonly PosOutletOption[];
+export declare const OUTLET_PAYMENT_METHODS: readonly PosOutletOption[];
+export declare function normalizeOutletCode(value: unknown): string;
+export declare function outletCapabilities(context: PointOfSaleContext): Record<string, boolean>;
+export declare function listOutlets(client: any, context: PointOfSaleContext, filters?: Record<string, string | undefined>): Promise<{ outlets: any[]; capabilities: Record<string, boolean> }>;
+export declare function getOutlet(client: any, context: PointOfSaleContext, outletId: string): Promise<any>;
+export declare function getOutletOptions(client: any, context: PointOfSaleContext): Promise<any>;
+export declare function createOutlet(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
+export declare function updateOutlet(client: any, context: PointOfSaleContext, outletId: string, input: Record<string, any>): Promise<any>;
+export declare function validateOutletSetup(client: any, context: PointOfSaleContext, outletId: string): Promise<Array<{ code: string; field: string; message: string }>>;
+export declare function validateOutletForDeactivation(client: any, context: PointOfSaleContext, outletId: string): Promise<Array<{ code: string; count: number; message: string }>>;
+export declare function setOutletStatus(client: any, context: PointOfSaleContext, outletId: string, status: string, input?: { reason?: string }): Promise<any>;
+export declare function deleteOutlet(client: any, context: PointOfSaleContext, outletId: string): Promise<{ deleted: true }>;
+export declare function getOutletPaymentMethods(client: any, context: PointOfSaleContext, outletId: string): Promise<any[]>;
+export declare function configureOutletPaymentMethods(client: any, context: PointOfSaleContext, outletId: string, methods: Array<{ method: string; enabled: boolean; accountId?: string | null; providerKey?: string | null }>): Promise<any[]>;
+export declare function isOutletPaymentMethodEnabled(client: any, organizationId: string, outletId: string, method: string): Promise<boolean>;
+export declare function getOutletAccess(client: any, context: PointOfSaleContext, outletId: string): Promise<any[]>;
+export declare function getOutletInventorySummary(client: any, context: PointOfSaleContext, outletId: string): Promise<any>;
+export declare function getOutletTerminals(client: any, context: PointOfSaleContext, outletId: string): Promise<any[]>;
+export declare function getOutletSessions(client: any, context: PointOfSaleContext, outletId: string, filters?: Record<string, string>): Promise<any[]>;
+export declare function getOutletTransactions(client: any, context: PointOfSaleContext, outletId: string, filters?: Record<string, string>): Promise<any[]>;
+export declare function getOutletHistory(client: any, context: PointOfSaleContext, outletId: string): Promise<any[]>;
+// POS Terminals (terminals/index.js).
+export declare class PosTerminalError extends Error {
+  status: number;
+  code: string;
+  details?: unknown;
+  constructor(status: number, message: string, code?: string, details?: unknown);
+}
+export declare function normalizeTerminalCode(value: unknown): string;
+export declare function terminalCapabilities(context: PointOfSaleContext): Record<string, boolean>;
+export declare function listTerminals(client: any, context: PointOfSaleContext, filters?: Record<string, string | undefined>): Promise<{ terminals: any[]; capabilities: Record<string, boolean> }>;
+export declare function getTerminal(client: any, context: PointOfSaleContext, terminalId: string): Promise<any>;
+export declare function getTerminalOptions(client: any, context: PointOfSaleContext): Promise<any>;
 export declare function createTerminal(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
-export declare function updatePosTerminal(client: any, context: PointOfSaleContext, id: string, input: Record<string, any>): Promise<any>;
-export declare function setPosTerminalStatus(client: any, context: PointOfSaleContext, id: string, status: "active" | "inactive" | "maintenance"): Promise<any>;
+export declare function updateTerminal(client: any, context: PointOfSaleContext, terminalId: string, input: Record<string, any>): Promise<any>;
+export declare function validateTerminalSetup(client: any, context: PointOfSaleContext, terminalId: string): Promise<Array<{ code: string; field: string; message: string }>>;
+export declare function validateTerminalForDeactivation(client: any, context: PointOfSaleContext, terminalId: string): Promise<Array<{ code: string; count: number; message: string }>>;
+export declare function setTerminalStatus(client: any, context: PointOfSaleContext, terminalId: string, status: string, input?: { reason?: string }): Promise<any>;
+export declare function deleteTerminal(client: any, context: PointOfSaleContext, terminalId: string): Promise<{ deleted: true }>;
+export declare function getEffectiveTerminalConfiguration(client: any, context: PointOfSaleContext, terminalId: string): Promise<any>;
+export declare function isTerminalPaymentMethodEnabled(client: any, organizationId: string, terminalId: string, method: string): Promise<boolean>;
+export declare function resolveTerminalStockSource(client: any, organizationId: string, terminalId: string, requestedLocationId?: string | null): Promise<{ warehouseId: string; locationId: string | null }>;
+export declare function validateTerminalOperationAccess(client: any, context: PointOfSaleContext, terminalId: string): Promise<any>;
+export declare function openPosForTerminal(client: any, context: PointOfSaleContext, terminalId: string): Promise<{ action: "resume" | "open_session"; terminal: any; sessionId: string | null; configuration: any }>;
+export declare function assertTerminalCanOpenSession(client: any, context: PointOfSaleContext, terminalId: string, options?: { openingCash?: number | string }): Promise<any>;
+export declare function getTerminalSessions(client: any, context: PointOfSaleContext, terminalId: string): Promise<any[]>;
+export declare function getCurrentTerminalSession(client: any, context: PointOfSaleContext, terminalId: string): Promise<any | null>;
+export declare function getTerminalTransactions(client: any, context: PointOfSaleContext, terminalId: string, filters?: Record<string, string>): Promise<any[]>;
+export declare function getTerminalHistory(client: any, context: PointOfSaleContext, terminalId: string): Promise<any[]>;
 export declare function openShift(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
 
-// F270/F271 cashier eligibility administration
-export type PosEligibleCashier = { id: string; fullName: string; email: string; roleSlugs: string[]; assignedStoreIds: string[] };
-export declare function listPosEligibleCashiers(client: any, context: PointOfSaleContext): Promise<PosEligibleCashier[]>;
-// F270/F271: terminalId null/omitted = a store-wide grant (all terminals);
-// a real terminalId = a narrower, terminal-specific grant. See migration
-// 128 and shared/access-control.js's assertPosStoreAccess.
-export type PosStoreAccessGrant = { id: string; userId: string; storeId: string; terminalId: string | null; terminalName: string | null; fullName: string; email: string; createdAt: string };
-export declare function listPosStoreAccess(client: any, context: PointOfSaleContext, storeId?: string | null): Promise<PosStoreAccessGrant[]>;
-export declare function grantPosStoreAccess(client: any, context: PointOfSaleContext, input: { userId: string; storeId: string; terminalId?: string | null }): Promise<any>;
-export declare function revokePosStoreAccess(client: any, context: PointOfSaleContext, input: { userId: string; storeId: string; terminalId?: string | null }): Promise<{ revoked: true }>;
+// Cashiers (cashiers/index.js).
+export declare class PosCashierError extends Error {
+  status: number;
+  code: string;
+  details?: unknown;
+  constructor(status: number, message: string, code?: string, details?: unknown);
+}
+export declare function normalizeCashierCode(value: unknown): string;
+export declare function cashierCapabilities(context: PointOfSaleContext): Record<string, boolean>;
+export declare function listCashiers(client: any, context: PointOfSaleContext, filters?: Record<string, string | undefined>): Promise<{ cashiers: any[]; capabilities: Record<string, boolean> }>;
+export declare function getCashier(client: any, context: PointOfSaleContext, cashierId: string): Promise<any>;
+export declare function getCashierOptions(client: any, context: PointOfSaleContext): Promise<any>;
+export declare function createCashier(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
+export declare function updateCashier(client: any, context: PointOfSaleContext, cashierId: string, input: Record<string, any>): Promise<any>;
+export declare function setCashierOutlets(client: any, context: PointOfSaleContext, cashierId: string, outletIds: string[], options?: { defaultOutletId?: string | null }): Promise<any>;
+export declare function assignOutletAccess(client: any, context: PointOfSaleContext, cashierId: string, outletId: string): Promise<any>;
+export declare function removeOutletAccess(client: any, context: PointOfSaleContext, cashierId: string, outletId: string): Promise<any>;
+export declare function setDefaultOutlet(client: any, context: PointOfSaleContext, cashierId: string, outletId: string | null): Promise<any>;
+export declare function validateCashierSetup(client: any, context: PointOfSaleContext, cashierId: string): Promise<Array<{ code: string; field: string; message: string }>>;
+export declare function validateCashierForDeactivation(client: any, context: PointOfSaleContext, cashierId: string): Promise<Array<{ code: string; message: string }>>;
+export declare function setCashierStatus(client: any, context: PointOfSaleContext, cashierId: string, status: string, input?: { reason?: string }): Promise<any>;
+export declare function deleteCashier(client: any, context: PointOfSaleContext, cashierId: string): Promise<{ deleted: true }>;
+export declare function validateCashierOperationAccess(client: any, context: PointOfSaleContext, outletId: string, userId?: string | null): Promise<any>;
+export declare function assertCashierCanOpenSession(client: any, context: PointOfSaleContext, input: { outletId: string; userId?: string | null }): Promise<any>;
+export declare function openPosForCashier(client: any, context: PointOfSaleContext, cashierId: string): Promise<any>;
+export declare function getCurrentCashierSession(client: any, context: PointOfSaleContext, cashierId: string): Promise<any | null>;
+export declare function getCashierSessions(client: any, context: PointOfSaleContext, cashierId: string): Promise<any[]>;
+export declare function getCashierTransactions(client: any, context: PointOfSaleContext, cashierId: string, filters?: Record<string, string>): Promise<any[]>;
+export declare function getCashierHistory(client: any, context: PointOfSaleContext, cashierId: string): Promise<any[]>;
+export declare function listOutletCashiers(client: any, context: PointOfSaleContext, outletId: string): Promise<any[]>;
 export declare function completePointOfSale(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
 export declare function findPosSaleForReturn(client: any, context: PointOfSaleContext, input: { receiptNumber: string }): Promise<{ sale: Record<string, any>; lines: Record<string, any>[] }>;
 export declare function createPointOfSaleReturn(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
@@ -177,18 +237,71 @@ export type PosAccountingMappingRow = PosMappingKeyDefinition & { configured: bo
 export declare function getPosAccountingMappingConfig(client: any, context: PointOfSaleContext): Promise<{ ledger: Record<string, any> | null; accounts: Record<string, any>[]; mappings: PosAccountingMappingRow[] }>;
 export declare function upsertPosAccountingMapping(client: any, context: PointOfSaleContext, input: { mappingKey: string; accountId: string }): Promise<Record<string, any>>;
 
-export type PointOfSaleProductMatch = {
-  itemId: string;
-  variantId: string | null;
-  name: string;
-  code: string;
-  barcode: string | null;
-  salesPrice: string;
-  trackingType: "none" | "batch" | "serial";
-  availableQuantity: number;
+// Product Search (migration 0084).
+export type PosProductReasonCode = "POS_PRODUCT_NOT_FOUND" | "POS_PRODUCT_INACTIVE" | "POS_PRODUCT_NOT_SELLABLE" | "POS_PRODUCT_OUTLET_RESTRICTED" | "POS_PRODUCT_OUT_OF_STOCK"
+  | "POS_PRODUCT_INSUFFICIENT_STOCK" | "POS_PRODUCT_PRICE_MISSING" | "POS_PRODUCT_BARCODE_AMBIGUOUS" | "POS_PRODUCT_UOM_INVALID" | "POS_PRODUCT_SELECTION_REQUIRED"
+  | "POS_PRODUCT_CHANGED" | "POS_SEARCH_UNAVAILABLE" | "POS_SESSION_REQUIRED" | "POS_PERMISSION_DENIED";
+export type PosProductResult = {
+  itemId: string; variantId: string | null; parentItemId: string | null; parentName: string | null; variantLabel: string | null; sku: string; name: string; brand: string | null;
+  description: string | null; imageUrl: string | null; categoryId: string | null; categoryName: string | null; itemType: string; isVariantGroup: boolean; saleUomId: string;
+  saleUomCode: string | null; saleUomName: string | null; uomFactor: string; barcodeMatchType: "barcode" | "sku" | null; matchRank: number | null; displayPrice: string | null;
+  currency: string; taxInclusive: boolean; stockStatus: "in_stock" | "low_stock" | "out_of_stock" | "unavailable" | "not_tracked" | null; availableQuantity: string | null;
+  requiresTracking: "batch" | "serial" | null; isSellableNow: boolean; unavailableReason: { code: PosProductReasonCode; message: string } | null; catalogVersion: number;
+  priceQuoteVersion: string | null; source?: "configured" | "frequent";
 };
-export declare function searchPointOfSalePosProducts(client: any, context: PointOfSaleContext, storeId: string, input?: Record<string, any>): Promise<PointOfSaleProductMatch[]>;
-export declare function lookupPointOfSaleBarcode(client: any, context: PointOfSaleContext, storeId: string, barcode: string): Promise<PointOfSaleProductMatch>;
+export type PosProductOutlet = { id: string; code: string; name: string; currency: string; showStockStatus: boolean; showQuantity: boolean;
+  priceList: { id: string; name: string; taxInclusive: boolean } | null };
+export type PosProductLocator = { cartId?: string | null; outletId?: string | null };
+export type PosBarcodeLookup = { barcode: string; outlet?: PosProductOutlet; message: string | null } & (
+  | { status: "matched"; product: PosProductResult; autoAdd: boolean }
+  | { status: "ambiguous"; code: "POS_PRODUCT_BARCODE_AMBIGUOUS"; candidates: PosProductResult[] }
+  | { status: "selection_required"; code: "POS_PRODUCT_SELECTION_REQUIRED"; product: PosProductResult; variants: PosProductResult[] }
+  | { status: "not_found"; code: "POS_PRODUCT_NOT_FOUND" });
+export type PosOutletProductSettings = {
+  outlet: { id: string; code: string; name: string };
+  allCategories: Array<{ id: string; name: string; parentId: string | null }>;
+  settings: { assortmentPolicy: "all_sellable" | "selected_categories"; categoryIds: string[]; categories: Array<{ id: string; name: string; parentId: string | null }>;
+    showStockStatus: boolean; showExactStock: boolean; lowStockThreshold: string; suggestFrequent: boolean; version: number };
+  quickProducts: Array<{ id: string; itemId: string; uomId: string | null; uomCode: string | null; sku: string; name: string; sortOrder: number; sellable: boolean }>;
+  capabilities: { edit: boolean };
+};
+export declare const POS_PRODUCT_MESSAGES: Readonly<Record<PosProductReasonCode, string>>;
+export declare function searchPosProducts(client: any, context: PointOfSaleContext, input?: PosProductLocator & { query?: string; categoryId?: string | null; cursor?: string | null; limit?: number }):
+  Promise<{ products: PosProductResult[]; nextCursor: string | null; outlet: PosProductOutlet; sessionOpen?: boolean; unavailable?: { code: "POS_SEARCH_UNAVAILABLE"; message: string } }>;
+export declare function lookupPosProductByBarcode(client: any, context: PointOfSaleContext, input: PosProductLocator & { barcode: string }): Promise<PosBarcodeLookup>;
+export declare function getPosProductDetails(client: any, context: PointOfSaleContext, itemId: string, input?: PosProductLocator):
+  Promise<{ product: PosProductResult; units: PosProductResult[]; variants: PosProductResult[]; outlet: PosProductOutlet }>;
+export declare function listPosProductCategories(client: any, context: PointOfSaleContext, input?: PosProductLocator):
+  Promise<{ categories: Array<{ id: string; name: string; parentId: string | null; sortOrder: number }>; outlet: PosProductOutlet }>;
+export declare function getPosQuickProducts(client: any, context: PointOfSaleContext, input?: PosProductLocator): Promise<{ products: PosProductResult[]; outlet: PosProductOutlet }>;
+export declare function getPosOutletProductSettings(client: any, context: PointOfSaleContext, outletId: string): Promise<PosOutletProductSettings>;
+export declare function updatePosOutletProductSettings(client: any, context: PointOfSaleContext, outletId: string, input: Record<string, any>): Promise<PosOutletProductSettings>;
+export declare function setPosQuickProducts(client: any, context: PointOfSaleContext, outletId: string, entries: Array<{ itemId: string; uomId?: string | null }>): Promise<PosOutletProductSettings>;
+export declare function validatePosProductSelection(client: any, context: PointOfSaleContext, ctx: any, input: Record<string, any>): Promise<Record<string, any>>;
+export declare function resolvePosProductContext(client: any, context: PointOfSaleContext, input?: PosProductLocator): Promise<Record<string, any>>;
+export declare function assertPosCartProductsSellable(client: any, context: PointOfSaleContext, cartId: string): Promise<void>;
+// Barcode Scanning (migration 0085).
+export type PosScanProduct = Pick<PosProductResult, "itemId" | "sku" | "name" | "variantLabel" | "saleUomCode" | "uomFactor" | "displayPrice" | "currency" | "imageUrl" | "requiresTracking">;
+export type PosScanLine = { id: string; quantity: string; uomCode: string | null; unitPrice: string; lineTotal: string; serialId: string | null; batchId: string | null };
+export type PosScanOutcome = { barcode: string; scanActionId: string; message: string; replayed?: boolean; cart?: PosCart } & (
+  | { status: "added"; code: null; product: PosScanProduct; line: PosScanLine | null }
+  | { status: "selection_required"; reason: "ambiguous" | "variant"; code: string; candidates: PosProductResult[] }
+  | { status: "serial_required"; code: string; product: PosScanProduct; reason?: string | null }
+  | { status: "batch_required"; code: "POS_BATCH_REQUIRED"; product: PosScanProduct; options: Array<{ batchId: string; batch: string; expiresOn: string | null; available: number }> }
+  | { status: "rejected"; code: string; product?: PosScanProduct; detail?: string });
+export type PosScannerSettings = { terminalId: string; enabled: boolean; inputMode: "keyboard_wedge"; prefix: string | null; suffix: "enter" | "tab" | "custom"; suffixCustom: string | null;
+  successSound: boolean; errorSound: boolean; version: number; capabilities?: { edit: boolean } };
+export declare const POS_SCAN_MESSAGES: Readonly<Record<string, string>>;
+export declare function processPosScan(client: any, context: PointOfSaleContext, cartId: string, input: { barcode: string; scanActionId: string; itemId?: string | null; serialNumber?: string | null;
+  batchId?: string | null; expectedCartVersion?: number }): Promise<PosScanOutcome>;
+export declare function validateScannedSerial(client: any, context: PointOfSaleContext, ctx: any, input: Record<string, any>): Promise<{ serialId: string; batchId: string | null; serialNumber: string }>;
+export declare function allocateScannedBatch(client: any, context: PointOfSaleContext, ctx: any, input: Record<string, any>): Promise<Record<string, any>>;
+export declare function getScannerConfiguration(client: any, context: PointOfSaleContext, terminalId: string): Promise<PosScannerSettings>;
+export declare function updateScannerConfiguration(client: any, context: PointOfSaleContext, terminalId: string, input: Record<string, any>): Promise<PosScannerSettings>;
+export declare function recordScanDiagnostic(client: any, context: PointOfSaleContext, details: Record<string, any>): Promise<void>;
+export declare function listScanDiagnostics(client: any, context: PointOfSaleContext, input?: { result?: string | null; limit?: number }): Promise<Array<Record<string, any>>>;
+export declare function findPosSaleLineByBarcode(client: any, context: PointOfSaleContext, saleId: string, input: { barcode: string; serialNumber?: string | null }):
+  Promise<{ saleLineId: string; itemId: string; description: string; uomCode: string | null; serialNumber: string | null; soldQuantity: string; remainingQuantity: string }>;
 // F276
 export type PointOfSaleCustomerMatch = { id: string; code: string; displayName: string; phone: string | null; email: string | null };
 export declare function searchPointOfSaleCustomers(client: any, context: PointOfSaleContext, input?: { query?: string; limit?: number; offset?: number }): Promise<PointOfSaleCustomerMatch[]>;
@@ -228,9 +341,20 @@ export type PosCartLine = {
   tracking_type?: "none" | "batch" | "serial";
   [key: string]: any;
 };
+export type PosCartLifecycle = "DRAFT" | "CHECKOUT_PENDING" | "HELD" | "COMPLETED" | "CANCELLED" | "EXPIRED";
+export type PosCartIssue = { code: string; message: string; lineId?: string; itemId?: string; previousTotal?: string; currentTotal?: string };
 export type PosCart = {
   id: string;
   status: "draft" | "priced" | "held" | "completed" | "cancelled" | "expired";
+  lifecycle?: PosCartLifecycle;
+  cart_reference?: string | null;
+  notes?: string | null;
+  hold_note?: string | null;
+  checkout_started_at?: string | null;
+  checkout_reference?: string | null;
+  customer_name?: string | null;
+  resumeChanges?: PosCartIssue[];
+  replayed?: boolean;
   version: number;
   store_id: string;
   terminal_id: string;
@@ -268,26 +392,61 @@ export type PosCart = {
 };
 export declare function createPosCart(client: any, context: PointOfSaleContext, input: { storeId: string; terminalId: string; shiftId: string; customerId?: string | null }): Promise<PosCart>;
 export declare function getPosCart(client: any, context: PointOfSaleContext, cartId: string): Promise<PosCart>;
+export declare const POS_CART_MESSAGES: Readonly<Record<string, string>>;
+export declare function cartLifecycle(cart: { status: string; checkout_started_at?: string | null }): PosCartLifecycle;
+export declare function getActivePosCart(client: any, context: PointOfSaleContext): Promise<{ session: { id: string; storeId: string; terminalId: string } | null; cart: PosCart | null; heldCount: number }>;
+export declare function setPosCartNotes(client: any, context: PointOfSaleContext, cartId: string, input: { notes?: string | null; expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
+export declare function overridePosCartLinePrice(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input: Record<string, any>): Promise<PosCart>;
+export type PosCheckoutSnapshot = Record<string, any> & { cartId: string; version: number; checkoutReference: string; totals: Record<string, string> };
+export declare function validatePosCartForCheckout(client: any, context: PointOfSaleContext, cartId: string): Promise<{ ready: boolean; lifecycle: PosCartLifecycle; version: number; issues: PosCartIssue[] }>;
+export declare function beginPosCheckout(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number; idempotencyKey?: string }):
+  Promise<{ ready: boolean; issues: PosCartIssue[]; cart: PosCart; snapshot?: PosCheckoutSnapshot; code?: string; message?: string; replayed?: boolean }>;
+export declare function ensurePosCheckoutStarted(client: any, context: PointOfSaleContext, cartId: string): Promise<PosCart>;
+export declare function releasePosCheckout(client: any, context: PointOfSaleContext, cartId: string, input?: { reason?: string }): Promise<PosCart>;
+export declare function getPosCartHistory(client: any, context: PointOfSaleContext, cartId: string): Promise<Array<{ id: string; eventType: string; summary: string; changes: Record<string, unknown>;
+  version: number | null; at: string; actor: string | null; terminal: string | null }>>;
+// Walk-In Customer (migration 0087).
+export type PosCustomerContext = {
+  cartId: string; cartVersion: number; contextVersion: number; mode: "WALK_IN" | "REGISTERED"; displayName: string | null;
+  customer: { id: string; name: string | null; phone: string | null; gstin: string | null } | null;
+  buyerDetails: { name: string | null; address: { line1?: string; line2?: string; city?: string; stateCode?: string; postalCode?: string } } | null;
+  receiptContact: { phone: string | null; email: string | null; consent: boolean; masked: boolean };
+  policy: { allowWalkIn: boolean; allowBuyerName: boolean; allowReceiptContact: boolean; buyerDetailsRequiredAbove: string | null };
+  buyerDetailsRequired: boolean; buyerDetailsComplete: boolean;
+};
+export declare const POS_CUSTOMER_MESSAGES: Readonly<Record<string, string>>;
+export declare function getPosCustomerContext(client: any, context: PointOfSaleContext, cartId: string): Promise<PosCustomerContext>;
+export declare function setWalkInCustomer(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
+export declare function selectPosCustomer(client: any, context: PointOfSaleContext, cartId: string, input: { customerId: string; expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
+export declare function updateWalkInBuyerDetails(client: any, context: PointOfSaleContext, cartId: string, input: { name?: string | null; address?: Record<string, string | null>;
+  gstin?: string | null; expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
+export declare function setReceiptDeliveryContact(client: any, context: PointOfSaleContext, cartId: string, input: { phone?: string | null; email?: string | null; consent?: boolean;
+  expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
+export declare function buildPosBuyerSnapshot(client: any, context: PointOfSaleContext, cart: any): Promise<Record<string, any>>;
+export type PosReceiptDelivery = { id: string; channel: "email" | "sms"; destination: string; status: "pending" | "sent" | "failed" | "not_configured"; error: string | null; attempts: number;
+  at: string; sentAt: string | null };
+export declare function sendPosDigitalReceipts(client: any, context: PointOfSaleContext, saleId: string, input?: { channel?: "email" | "sms"; destination?: string; consent?: boolean;
+  resend?: boolean }): Promise<PosReceiptDelivery[]>;
+export declare function listPosReceiptDeliveries(client: any, context: PointOfSaleContext, saleId: string): Promise<PosReceiptDelivery[]>;
+export type PosWalkInFigures = { transactions: number; gross: string; discounts: string; tax: string; refunds: string; net: string; averageBill: string };
+export declare function getWalkInSalesSummary(client: any, context: PointOfSaleContext, input?: { from?: string; to?: string; storeId?: string }): Promise<{
+  from: string; to: string; currency: string; walkIn: PosWalkInFigures; registered: PosWalkInFigures; walkInByOutlet: Array<{ code: string; name: string; transactions: number; net: string }>;
+  walkInByPaymentMethod: Array<{ method: string; transactions: number; amount: string }>; note: string }>;
+export declare function quickCreatePosCustomer(client: any, context: PointOfSaleContext, input: { name: string; phone?: string | null; email?: string | null; gstin?: string | null; cartId?: string | null }):
+  Promise<{ id: string; code: string | null; displayName: string; phone: string | null; email: string | null }>;
 export declare function addPosCartLine(client: any, context: PointOfSaleContext, cartId: string, input: Record<string, any>): Promise<PosCart>;
-export declare function updatePosCartLineQuantity(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input: { quantity: number; expectedVersion?: number }): Promise<PosCart>;
-export declare function removePosCartLine(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
-export declare function setPosCartLineTracking(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { batchId?: string | null; serialId?: string | null; expectedVersion?: number }): Promise<PosCart>;
-// F279: `approvedBy` is deliberately NOT part of this input -- a caller
-// can never assert who approved a discount. Above the configured
-// threshold, applying a discount creates a real pending request in
-// public.approval_requests (see assertPosCartDiscountsApproved /
-// approvePosCartDiscountApproval in features/cart.js); only a decision
-// made through decideApproval() by a genuinely separate, permission-
-// holding approver can satisfy it, checked again at completePosCart().
-export declare function applyPosCartLineDiscount(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input: { type: "percent" | "amount"; value: number; reason: string; expectedVersion?: number }): Promise<PosCart>;
-export declare function removePosCartLineDiscount(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
-export declare function setPosCartDiscount(client: any, context: PointOfSaleContext, cartId: string, input: { type?: "percent" | "amount" | null; value?: number; reason?: string; expectedVersion?: number }): Promise<PosCart>;
-export declare function assertPosCartDiscountsApproved(client: any, context: PointOfSaleContext, cart: PosCart, policy: Record<string, any>): Promise<void>;
-export declare function approvePosCartDiscountApproval(client: any, context: Record<string, any>, payload: { discountApprovalId: string }): Promise<{ discountApprovalId: string; cartId: string; status: "approved" }>;
-export declare function rejectPosCartDiscountApproval(client: any, context: Record<string, any>, payload: { discountApprovalId: string }): Promise<{ discountApprovalId: string; cartId: string; status: "rejected" }>;
-export declare function setPosCartCustomer(client: any, context: PointOfSaleContext, cartId: string, input: { customerId: string | null; expectedVersion?: number }): Promise<PosCart>;
-export declare function holdPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
-export declare function resumePosCart(client: any, context: PointOfSaleContext, cartId: string): Promise<PosCart>;
+export declare function addProductToPosCart(client: any, context: PointOfSaleContext, cartId: string, input: Record<string, any>): Promise<PosCart & { replayed?: boolean }>;
+export declare function updatePosCartLineQuantity(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input: { quantity: number | string; expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
+export declare function removePosCartLine(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
+export declare function setPosCartLineTracking(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { batchId?: string | null; serialId?: string | null; serialNumber?: string | null; batchNumber?: string | null; expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
+// Manual discounts are authorized by the cashier's permission profile; above its limits, pass the approvalId of a supervisor approval.
+export declare function applyPosCartLineDiscount(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input: { type: "percent" | "amount"; value: number; reason: string; expectedVersion?: number; approvalId?: string; idempotencyKey?: string }): Promise<PosCart>;
+export declare function removePosCartLineDiscount(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
+export declare function setPosCartDiscount(client: any, context: PointOfSaleContext, cartId: string, input: { type?: "percent" | "amount" | null; value?: number; reason?: string; expectedVersion?: number; approvalId?: string; idempotencyKey?: string }): Promise<PosCart>;
+export declare function assertPosCartDiscountsAuthorized(client: any, context: PointOfSaleContext, cart: PosCart): Promise<void>;
+export declare function setPosCartCustomer(client: any, context: PointOfSaleContext, cartId: string, input: { customerId: string | null; expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
+export declare function holdPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number; note?: string | null; idempotencyKey?: string }): Promise<PosCart>;
+export declare function resumePosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { idempotencyKey?: string }): Promise<PosCart>;
 export type PosHeldCart = {
   id: string;
   store_id: string;
@@ -301,34 +460,15 @@ export type PosHeldCart = {
   store_name: string;
   terminal_name: string;
   line_count: number;
-};
-export declare function listHeldPosCarts(client: any, context: PointOfSaleContext, options?: { search?: string }): Promise<PosHeldCart[]>;
-export type PosDiscountApproval = {
-  id: string;
-  approval_request_id: string | null;
-  cart_id: string;
-  cart_version: number;
-  cart_line_id: string | null;
-  status: "pending" | "approved" | "rejected";
-  reason: string;
-  discount_amount_snapshot: string;
-  discount_percent_snapshot: string | null;
-  cart_subtotal_snapshot: string;
-  requested_by: string;
-  requested_by_name: string | null;
-  approved_by: string | null;
-  approved_by_name: string | null;
-  approved_at: string | null;
-  cart_status: string;
-  current_cart_version: number;
+  cart_reference: string | null;
   currency_code: string;
-  /** True only while this row still matches the cart's live version -- an approval for an earlier version no longer counts at completion. */
-  is_current: boolean;
-  store_name: string;
-  terminal_name: string;
-  line_description: string | null;
+  created_at: string;
+  hold_note: string | null;
+  held_by: string;
+  cashier_name: string | null;
+  own: boolean;
 };
-export declare function listPosDiscountApprovals(client: any, context: PointOfSaleContext, options?: { status?: "pending" | "approved" | "rejected" | "all"; limit?: number }): Promise<PosDiscountApproval[]>;
+export declare function listHeldPosCarts(client: any, context: PointOfSaleContext, options?: { search?: string; scope?: "mine" | "all"; from?: string; to?: string }): Promise<PosHeldCart[]>;
 
 // F289 receipts
 export type PosReceiptPrintEvent = {
@@ -356,6 +496,7 @@ export type PosTransactionListOptions = {
   cashierId?: string;
   shiftId?: string;
   customerId?: string;
+  customerMode?: string;
   status?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -375,7 +516,7 @@ export declare function getPosTransactionDetail(client: any, context: PointOfSal
   stockMovements: Record<string, any>[];
   auditTrail: Record<string, any>[];
 }>;
-export declare function cancelPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { reason?: string }): Promise<PosCart>;
+export declare function cancelPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { reason?: string; idempotencyKey?: string }): Promise<PosCart>;
 export declare function completePosCart(
   client: any,
   context: PointOfSaleContext,
@@ -496,3 +637,43 @@ export type PosStoreStockActivityRow = {
   return_number: string | null;
 };
 export declare function listPosStoreStockActivity(client: any, context: PointOfSaleContext, options: { storeId: string; limit?: number; offset?: number }): Promise<{ store: PosStoreRef; rows: PosStoreStockActivityRow[] }>;
+
+// Cashier Permissions (permissions/index.js).
+export declare class PosPermissionError extends Error {
+  status: number;
+  code: string;
+  details?: unknown;
+  constructor(status: number, message: string, code?: string, details?: unknown);
+}
+export type CashierPermissionEntry = { code: string; area: string; label: string; description: string; limits: Array<"percentage" | "amount">; limitRequired: boolean; reason: boolean; approval: string | null };
+export declare const CASHIER_PERMISSION_CATALOGUE: readonly CashierPermissionEntry[];
+export declare const PERMISSION_AREAS: ReadonlyArray<{ code: string; label: string }>;
+export type PosActionRequest = { permission: string; outletId?: string | null; amount?: string | number | null; percentage?: string | number | null; reason?: string | null; approvalId?: string | null; resource?: { type: string; id: string; version?: number | null } };
+export type PosActionDecision = { decision: "ALLOW" | "DENY" | "REQUIRES_APPROVAL"; reasonCode: string; message?: string; approvalCode?: string | null; approvalId?: string | null; [key: string]: any };
+export declare function normalizeProfileCode(value: unknown): string;
+export declare function permissionProfileCapabilities(context: PointOfSaleContext): Record<string, boolean>;
+export declare function listPermissionProfiles(client: any, context: PointOfSaleContext, filters?: Record<string, string | undefined>): Promise<{ profiles: any[]; capabilities: Record<string, boolean> }>;
+export declare function getPermissionProfile(client: any, context: PointOfSaleContext, profileId: string): Promise<any>;
+export declare function createPermissionProfile(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
+export declare function updatePermissionProfile(client: any, context: PointOfSaleContext, profileId: string, input: Record<string, any>): Promise<any>;
+export declare function clonePermissionProfile(client: any, context: PointOfSaleContext, profileId: string, input?: { code?: string; name?: string }): Promise<any>;
+export declare function validatePermissionProfile(client: any, context: PointOfSaleContext, profileId: string): Promise<Array<{ code: string; message: string }>>;
+export declare function setPermissionProfileStatus(client: any, context: PointOfSaleContext, profileId: string, status: string): Promise<any>;
+export declare function activatePermissionProfile(client: any, context: PointOfSaleContext, profileId: string): Promise<any>;
+export declare function deactivatePermissionProfile(client: any, context: PointOfSaleContext, profileId: string): Promise<any>;
+export declare function deletePermissionProfile(client: any, context: PointOfSaleContext, profileId: string): Promise<{ deleted: true }>;
+export declare function assignPermissionProfile(client: any, context: PointOfSaleContext, cashierId: string, profileId: string | null): Promise<{ cashierId: string; profileId: string | null }>;
+export declare function getPermissionProfileAuditHistory(client: any, context: PointOfSaleContext, profileId: string): Promise<any[]>;
+export declare function getEffectivePosPermissions(client: any, context: PointOfSaleContext, userId?: string | null): Promise<any | null>;
+export declare function getCashierEffectivePermissionSummary(client: any, context: PointOfSaleContext, cashierId: string): Promise<any>;
+export declare function authorizePosAction(client: any, context: PointOfSaleContext, request: PosActionRequest): Promise<PosActionDecision>;
+export declare function assertPosAction(client: any, context: PointOfSaleContext, request: PosActionRequest): Promise<PosActionDecision>;
+export declare function validatePermissionLimits(grant: any, request: PosActionRequest): string | null;
+export declare function requestSupervisorApproval(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
+export declare function getPosApproval(client: any, context: PointOfSaleContext, approvalId: string): Promise<any>;
+export declare function listPosApprovals(client: any, context: PointOfSaleContext, options?: { status?: string; mine?: boolean }): Promise<any[]>;
+export declare function approvePosException(client: any, context: PointOfSaleContext, approvalId: string, input?: { note?: string }): Promise<any>;
+export declare function rejectPosException(client: any, context: PointOfSaleContext, approvalId: string, input?: { note?: string }): Promise<any>;
+export declare function validateApproval(client: any, context: PointOfSaleContext, approvalId: string, expectation: Record<string, any>): Promise<any>;
+export declare function consumeApprovalAtomically(client: any, context: PointOfSaleContext, approvalId: string, expectation: Record<string, any>): Promise<any>;
+export declare function getCashierPermissionCatalogue(): { permissions: readonly CashierPermissionEntry[]; areas: ReadonlyArray<{ code: string; label: string }> };

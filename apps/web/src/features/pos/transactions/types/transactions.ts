@@ -24,6 +24,7 @@ export type PosTransactionRow = {
   shift_id: string;
   customer_id: string | null;
   customer_name: string | null;
+  customer_mode?: "walk_in" | "registered" | null;
   cashier_name: string | null;
   created_by: string;
   sale_date: string;
@@ -45,6 +46,7 @@ export type PosTransactionListFilters = {
   dateFrom?: string;
   dateTo?: string;
   paymentMethod?: string;
+  customerMode?: "walk_in" | "registered";
   sortBy?: "sale_date" | "grand_total" | "receipt_number" | "status";
   sortDir?: "asc" | "desc";
   limit?: number;

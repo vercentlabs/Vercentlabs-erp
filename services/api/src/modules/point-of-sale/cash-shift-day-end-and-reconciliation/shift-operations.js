@@ -9,9 +9,13 @@ import { beginIdempotentOperation, completeIdempotentOperation } from "../../../
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
+import { assertTerminalCanOpenSession, PosTerminalError } from "../terminals/index.js";
+import { assertCashierCanOpenSession, PosCashierError } from "../cashiers/index.js";
+import { assertPosAction } from "../permissions/index.js";
 
 export async function openShift(client, context, input) {
-  requirePermission(context, "pos.shift.open");
+  // POS module access; opening is the cashier's SESSION_OPEN_OWN grant, checked below.
+  requirePermission(context, "pos.view");
   await assertPosStoreAccess(client, context, input.storeId, input.terminalId);
   const store = await requireOrganizationRecord(client, context, "pos_store", input.storeId);
   const terminal = await requireOrganizationRecord(client, context, "pos_terminal", input.terminalId);
@@ -31,11 +35,7 @@ export async function openShift(client, context, input) {
     if (!context.roleSlugs?.includes("organization_owner") && !context.permissions?.includes("pos.terminal.manage") && !context.permissions?.includes("pos.store.manage")) {
       throw posError(403, "You are not authorized to open a shift on behalf of another cashier.", "FORBIDDEN");
     }
-    // Checked against the ASSIGNED cashier's own eligibility, not the
-    // caller's -- deliberately not carrying over the caller's roleSlugs/
-    // permissions (a supervisor's own pos.store.manage must not silently
-    // vouch for someone else's store access).
-    await assertPosStoreAccess(client, { organizationId: context.organizationId, userId: input.cashierUserId, roleSlugs: [], permissions: [] }, store.id, terminal.id);
+    // The assigned cashier's own eligibility is checked below (assertCashierCanOpenSession), never vouched for by the caller's.
   }
   // F301: previously relied only on the DB's one-open-shift-per-terminal
   // unique index to reject a genuine double-attempt -- correct for a
@@ -52,11 +52,20 @@ export async function openShift(client, context, input) {
     required: true,
   });
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
+  // An active terminal at an active outlet, with no session open on it; a terminal that does not manage cash takes no opening float.
+  await assertTerminalCanOpenSession(client, context, terminal.id, { openingCash: input.openingCash });
+  // The session's cashier: an active cashier profile with access to this outlet, an active user, a POS operating permission, and no other
+  // session open anywhere (one drawer at a time).
+  await assertCashierCanOpenSession(client, context, { outletId: store.id, userId: input.cashierUserId || context.userId });
+  // Opening a session is the cashier's own SESSION_OPEN_OWN (their profile, not the opener's when a supervisor opens it for them).
+  await assertPosAction(client, { ...context, userId: input.cashierUserId || context.userId }, { permission: "SESSION_OPEN_OWN", outletId: store.id });
 
   const shiftNumber = input.shiftNumber || await nextDocumentNumber(client, context, {
     documentType: `pos_shift:${input.terminalId}`,
     prefix: "SHIFT",
   });
+  // Two cashiers opening the same terminal at once: the one-open-session-per-terminal index lets exactly one through.
+  await client.query("SAVEPOINT pos_shift_open");
   const shift = await client.query(
     `INSERT INTO tenant.pos_shifts
       (organization_id,store_id,terminal_id,shift_number,
@@ -72,7 +81,15 @@ export async function openShift(client, context, input) {
       String(input.openingCash || 0),
       context.userId,
     ],
-  );
+  ).catch(async (error) => {
+    await client.query("ROLLBACK TO SAVEPOINT pos_shift_open");
+    if (error?.code === "23505" && error.constraint === "pos_terminal_open_shift_uidx")
+      throw new PosTerminalError(409, `Terminal ${terminal.code} already has an active POS session.`, "TERMINAL_SESSION_ALREADY_OPEN");
+    if (error?.code === "23505" && error.constraint === "pos_cashier_open_shift_uidx")
+      throw new PosCashierError(409, "This cashier already has an active POS session.", "CASHIER_SESSION_ALREADY_OPEN");
+    throw error;
+  });
+  await client.query("RELEASE SAVEPOINT pos_shift_open");
   if (Number(input.openingCash || 0) > 0) {
     const cashMovementNumber = await nextDocumentNumber(client, context, {
       documentType: "pos_cash_movement",
@@ -137,7 +154,8 @@ export async function getPosShift(client, context, shiftId) {
 }
 
 export async function closeShift(client, context, shiftId, input) {
-  requirePermission(context, "pos.shift.close");
+  // POS module access; closing is SESSION_CLOSE_OWN (or a supervisor's SESSION_CLOSE_OTHER), checked below.
+  requirePermission(context, "pos.view");
   const shift = await client.query(
     `SELECT * FROM tenant.pos_shifts
      WHERE organization_id=$1 AND id=$2
@@ -146,6 +164,10 @@ export async function closeShift(client, context, shiftId, input) {
   );
   if (!shift.rows[0]) throw posError(404, "Open shift not found.", "POS_SHIFT_NOT_OPEN");
   await assertPosStoreAccess(client, context, shift.rows[0].store_id);
+  // Closing your own session is SESSION_CLOSE_OWN; closing someone else's is a supervisor's SESSION_CLOSE_OTHER, with a reason. Either way
+  // the session keeps its cashier, opening cash and transactions.
+  if (shift.rows[0].cashier_user_id === context.userId) await assertPosAction(client, context, { permission: "SESSION_CLOSE_OWN", outletId: shift.rows[0].store_id });
+  else await assertPosAction(client, context, { permission: "SESSION_CLOSE_OTHER", outletId: shift.rows[0].store_id, reason: input?.reason ?? input?.closeNotes ?? input?.notes });
 
   // F302: a shift must not close out from under a cart still actively
   // being rung up (draft/priced), or an unresolved return (a supervisor

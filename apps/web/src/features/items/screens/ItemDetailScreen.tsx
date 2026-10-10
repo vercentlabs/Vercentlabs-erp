@@ -19,7 +19,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  addIdentifier, checkActivation, createVariant, deleteItem, errorCode, errorMessage, getItem, getItemBatches, getItemDetails, getItemHistory, getItemOptions,
+  BARCODE_FORMAT_OPTIONS, addIdentifier, checkActivation, updateIdentifier, createVariant, deleteItem, errorCode, errorMessage, getItem, getItemBatches, getItemDetails, getItemHistory, getItemOptions,
   getItemSerials, getVariants, itemFileUrl, listItemFiles, listItemMovements, listItemTransactions, makePrimaryIdentifier, removeIdentifier, removeItemFile,
   setItemStatus, setPrimaryImage, uploadItemFile, type Item, type ItemDetails, type ItemOptions,
 } from "../api/items-api";
@@ -297,11 +297,14 @@ function UnitsPanel({ item, details, options }: { item: Item; details?: ItemDeta
   const queryClient = useQueryClient();
   const can = item.capabilities!;
   const [error, setError] = useState<string | null>(null);
-  const [newCode, setNewCode] = useState({ value: "", type: "barcode", uomId: "base" });
+  const [newCode, setNewCode] = useState({ value: "", type: "barcode", uomId: "base", format: "none" });
   const refresh = () => { setError(null); void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "products", "product", item.id) }); void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "products", "list") }); };
   const fail = (failure: unknown) => setError(errorMessage(failure));
-  const addCode = useMutation({ mutationFn: () => addIdentifier(item.id, { value: newCode.value, type: newCode.type, uomId: newCode.uomId === "base" ? null : newCode.uomId }),
-    onSuccess: () => { setNewCode({ value: "", type: "barcode", uomId: "base" }); refresh(); }, onError: fail });
+  const addCode = useMutation({ mutationFn: () => addIdentifier(item.id, { value: newCode.value, type: newCode.type, uomId: newCode.uomId === "base" ? null : newCode.uomId, format: newCode.format === "none" ? null : newCode.format }),
+    onSuccess: () => { setNewCode({ value: "", type: "barcode", uomId: "base", format: "none" }); refresh(); }, onError: fail });
+  // What a barcode sells (a carton barcode) can change; its value never does — remove it and add the right one.
+  const changeUnit = useMutation({ mutationFn: ({ entry, uomId }: { entry: { id: string; version: number }; uomId: string }) =>
+    updateIdentifier(item.id, entry.id, { uomId: uomId === "base" ? null : uomId, expectedVersion: entry.version }), onSuccess: refresh, onError: fail });
   const primary = useMutation({ mutationFn: (id: string) => makePrimaryIdentifier(item.id, id), onSuccess: refresh, onError: fail });
   const dropCode = useMutation({ mutationFn: (id: string) => removeIdentifier(item.id, id), onSuccess: refresh, onError: fail });
   if (!details) return <div className="pt-3"><LoadingState label="Loading" rows={3} /></div>;
@@ -316,9 +319,14 @@ function UnitsPanel({ item, details, options }: { item: Item; details?: ItemDeta
             <ul className="flex flex-col divide-y divide-border text-sm">
               {details.identifiers.map((entry) => (
                 <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
-                  <span className="flex flex-wrap items-center gap-2"><span className="font-medium tabular-nums">{entry.value}</span><span className="text-text-muted">{entry.typeLabel}{entry.uom ? ` · per ${entry.uom}` : ""}</span>{entry.isPrimary && <Badge tone="success">Primary</Badge>}</span>
+                  <span className="flex flex-wrap items-center gap-2"><span className="font-medium tabular-nums">{entry.value}</span><span className="text-text-muted">{entry.typeLabel}{entry.formatLabel ? ` · ${entry.formatLabel}` : ""}{entry.uom ? ` · per ${entry.uom}` : ""}</span>{entry.isPrimary && <Badge tone="success">Primary</Badge>}</span>
                   {can.manageIdentifiers && (
-                    <span className="flex gap-1">
+                    <span className="flex items-center gap-1">
+                      {details.conversions.length > 0 && (
+                        <Select aria-label={`Unit sold by ${entry.value}`} size="compact" className="w-32" selectedKey={entry.uomId ?? "base"}
+                          onSelectionChange={(key) => String(key) !== (entry.uomId ?? "base") && changeUnit.mutate({ entry, uomId: String(key) })}
+                          options={[{ value: "base", label: `${base} (base)` }, ...details.conversions.map((conversion) => ({ value: conversion.uomId, label: conversion.uom }))]} />
+                      )}
                       {!entry.isPrimary && entry.type !== "internal" && <Button size="compact" variant="ghost" onPress={() => primary.mutate(entry.id)}>Make primary</Button>}
                       <Button size="compact" variant="ghost" onPress={() => dropCode.mutate(entry.id)}>Remove</Button>
                     </span>
@@ -328,10 +336,11 @@ function UnitsPanel({ item, details, options }: { item: Item; details?: ItemDeta
             </ul>
           )}
           {can.manageIdentifiers && (
-            <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
               <TextField label="Barcode or code" size="compact" value={newCode.value} onChange={(value) => setNewCode({ ...newCode, value: value.replace(/\s/g, "") })} />
               <Select label="Type" size="compact" selectedKey={newCode.type} onSelectionChange={(key) => setNewCode({ ...newCode, type: String(key) })}
                 options={(options?.identifierTypes ?? []).map((entry) => ({ value: entry.code, label: entry.label }))} />
+              <Select label="Format" size="compact" selectedKey={newCode.format} onSelectionChange={(key) => setNewCode({ ...newCode, format: String(key) })} options={BARCODE_FORMAT_OPTIONS} />
               <Select label="For unit" size="compact" selectedKey={newCode.uomId} onSelectionChange={(key) => setNewCode({ ...newCode, uomId: String(key) })}
                 options={[{ value: "base", label: `${base} (base)` }, ...details.conversions.map((entry) => ({ value: entry.uomId, label: entry.uom }))]} />
               <Button size="compact" variant="secondary" isLoading={addCode.isPending} isDisabled={!newCode.value} onPress={() => addCode.mutate()}>Add</Button>

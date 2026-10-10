@@ -1,7 +1,7 @@
-import { PosCashiersScreen } from "@/features/pos/cashiers/screens/PosCashiersScreen";
+import { CashiersScreen } from "@/features/pos/cashiers/screens/CashiersScreen";
 
-export const metadata = { title: "POS Cashiers" };
+export const metadata = { title: "Cashiers" };
 
-export default function PosCashiersPage() {
-  return <PosCashiersScreen />;
+export default function Page() {
+  return <CashiersScreen />;
 }

@@ -23,6 +23,8 @@ const createReturnSchema = z.object({
   refundTotal: z.number().min(0).optional().nullable(),
   returnNumber: z.string().trim().max(60).optional(),
   idempotencyKey: z.string().trim().min(1).max(200),
+  // A supervisor approval for a refund above the cashier's limit (Cashier Permissions).
+  approvalId: z.string().uuid().optional(),
 });
 
 export async function GET(request: Request) {

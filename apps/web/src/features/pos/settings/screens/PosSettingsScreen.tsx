@@ -36,6 +36,10 @@ type FormState = {
   allow_negative_stock: boolean;
   allow_price_override: boolean;
   cart_expiry_minutes: number;
+  held_cart_retention_hours: number;
+  checkout_lock_minutes: number;
+  // Empty means a walk-in sale never needs buyer details, whatever its total.
+  walk_in_buyer_details_required_above: number | null;
   require_shift_reconciliation: boolean;
   default_currency_code: string;
 };
@@ -52,6 +56,12 @@ function toForm(values: PosSettingsValues): FormState {
     allow_negative_stock: values.allow_negative_stock,
     allow_price_override: values.allow_price_override,
     cart_expiry_minutes: Number(values.cart_expiry_minutes),
+    held_cart_retention_hours: Number(values.held_cart_retention_hours ?? 24),
+    checkout_lock_minutes: Number(values.checkout_lock_minutes ?? 15),
+    walk_in_buyer_details_required_above:
+      values.walk_in_buyer_details_required_above == null
+        ? null
+        : Number(values.walk_in_buyer_details_required_above),
     require_shift_reconciliation: values.require_shift_reconciliation,
     default_currency_code: values.default_currency_code,
   };
@@ -146,13 +156,13 @@ function SettingsForm({
   const saveMutation = useMutation({
     mutationFn: () => {
       // Send only what changed, so an untouched setting is never re-written.
-      const changes: Record<string, string | number | boolean> = {};
+      const changes: Record<string, string | number | boolean | null> = {};
       for (const key of Object.keys(initial) as Array<keyof FormState>) {
         if (form[key] !== initial[key])
           changes[key] =
             key === "default_currency_code"
               ? String(form[key]).trim().toUpperCase()
-              : (form[key] as string | number | boolean);
+              : (form[key] as string | number | boolean | null);
       }
       return updatePosSettings(changes);
     },
@@ -295,6 +305,36 @@ function SettingsForm({
             minValue={5}
             maxValue={10080}
             step={5}
+            className="sm:max-w-xs"
+          />
+          <NumberField
+            label="Held bill kept for (hours)"
+            description="A held bill not resumed in this time expires. 1 hour to 90 days (2,160)."
+            value={form.held_cart_retention_hours}
+            onChange={set("held_cart_retention_hours")}
+            minValue={1}
+            maxValue={2160}
+            className="sm:max-w-xs"
+          />
+          <NumberField
+            label="Checkout lock lasts (minutes)"
+            description="How long a bill at checkout stays locked before it returns to editing. 2 to 240."
+            value={form.checkout_lock_minutes}
+            onChange={set("checkout_lock_minutes")}
+            minValue={2}
+            maxValue={240}
+            className="sm:max-w-xs"
+          />
+          <NumberField
+            label="Walk-in buyer details required above"
+            description="A walk-in bill over this total needs the buyer's name and address. Leave empty to never require them."
+            value={form.walk_in_buyer_details_required_above ?? Number.NaN}
+            onChange={(value) =>
+              set("walk_in_buyer_details_required_above")(
+                Number.isNaN(value) ? null : value,
+              )
+            }
+            minValue={0}
             className="sm:max-w-xs"
           />
         </PosPanel>

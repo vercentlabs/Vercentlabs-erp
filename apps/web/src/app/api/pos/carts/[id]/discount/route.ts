@@ -16,6 +16,10 @@ const discountSchema = z.object({
   value: z.number().positive().optional(),
   reason: z.string().trim().max(500).optional(),
   expectedVersion: z.number().int().optional(),
+  // A retried request with the same key is applied once (Cart, migration 0086).
+  idempotencyKey: z.string().min(8).max(100).optional(),
+  // A supervisor approval for a discount above the cashier's limit (Cashier Permissions).
+  approvalId: z.string().uuid().optional(),
 });
 
 export async function POST(

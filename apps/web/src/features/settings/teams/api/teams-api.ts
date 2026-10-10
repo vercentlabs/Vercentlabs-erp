@@ -6,7 +6,8 @@ import { crmApiClient } from "@/features/crm/shared/http/crm-request";
 
 export class SettingsApiError extends CrmApiError {}
 
-const { request, parseResponse } = crmApiClient(SettingsApiError);
+// Failed responses keep their body, so the members dialog can show which field the server refused.
+const { request, parseResponse } = crmApiClient(SettingsApiError, "body");
 
 // Teams and their members reuse the generic /api/crm/[resource] boundary
 // (crm.teams.manage); there are no dedicated routes.

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { ModuleAccess } from "@vercentlabs/api";
 
+import { SearchDialogProvider } from "@/features/platform/search/SearchDialog";
 import { MobileNav } from "@/shell/primary-sidebar/MobileNav";
 import { ModuleRail } from "@/shell/module-sidebar/ModuleRail";
 import { QueryProvider } from "@/shell/workspace-context/QueryProvider";
@@ -36,6 +37,7 @@ export function AppShell({
   return (
     <QueryProvider>
       <WorkspaceContextProvider value={contextValue}>
+        <SearchDialogProvider>
         <div data-app-shell="" className="flex h-dvh w-full bg-canvas">
           <div className="hidden lg:flex">
             <ModuleRail
@@ -60,6 +62,7 @@ export function AppShell({
             </main>
           </div>
         </div>
+        </SearchDialogProvider>
       </WorkspaceContextProvider>
     </QueryProvider>
   );

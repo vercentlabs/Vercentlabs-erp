@@ -38,6 +38,7 @@ import {
 } from "@/features/pos/returns/api/returns-api";
 import { money, statusLabel } from "@/features/pos/shared/format";
 import { PosAlert } from "@/features/pos/shared/PosUi";
+import { findReturnLine } from "@/features/pos/products/scanner/scanner-api";
 
 const STATUS_TONE: Record<
   PosReturn["status"],
@@ -376,6 +377,29 @@ function NewReturnDialog({
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [restock, setRestock] = useState<Record<string, boolean>>({});
   const [reason, setReason] = useState("");
+  // Scanning a returned product finds its line on this receipt and counts one more unit to return; it proves nothing about the purchase on
+  // its own and refunds nothing — the return below does, with its own checks and approvals.
+  const [productCode, setProductCode] = useState("");
+  const [serialCode, setSerialCode] = useState("");
+  const [needsSerial, setNeedsSerial] = useState(false);
+  const [scanNote, setScanNote] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
+  async function scanReturned() {
+    if (!found || !productCode.trim()) return;
+    try {
+      const match = await findReturnLine(found.sale.id, productCode.trim(), needsSerial ? serialCode.trim() : null);
+      const chosen = quantities[match.saleLineId] ?? 0;
+      if (chosen + 1 > Number(match.remainingQuantity)) {
+        setScanNote({ tone: "danger", text: `Only ${Number(match.remainingQuantity)} of ${match.description} can be returned.` });
+      } else {
+        setQuantities((prev) => ({ ...prev, [match.saleLineId]: chosen + 1 }));
+        setScanNote({ tone: "success", text: `${match.description}${match.serialNumber ? ` (serial ${match.serialNumber})` : ""}: returning ${chosen + 1}.` });
+      }
+      setProductCode(""); setSerialCode(""); setNeedsSerial(false);
+    } catch (err) {
+      if (err instanceof PosApiError && err.code === "POS_SERIAL_REQUIRED") { setNeedsSerial(true); setScanNote({ tone: "danger", text: err.message }); return; }
+      setScanNote({ tone: "danger", text: err instanceof PosApiError ? err.message : "The product could not be matched to this receipt." });
+    }
+  }
   // Generated once per dialog session (not per mutate() call) so a
   // double-click or a client retry of this exact submission reuses the
   // same key instead of minting a new one via Date.now() each time -- the
@@ -469,6 +493,18 @@ function NewReturnDialog({
               <p className="text-text-secondary">
                 Total: {money(found.sale.currency_code, found.sale.grand_total)}
               </p>
+            </div>
+            <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
+              <div className="flex flex-wrap items-end gap-2">
+                <TextField label="Scan returned product" placeholder="Product barcode" value={productCode} onChange={setProductCode} className="min-w-48 flex-1"
+                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void scanReturned(); } }} />
+                {needsSerial && (
+                  <TextField label="Serial number" value={serialCode} onChange={setSerialCode} autoFocus className="min-w-48 flex-1"
+                    onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void scanReturned(); } }} />
+                )}
+                <Button variant="secondary" isDisabled={!productCode.trim()} onPress={() => void scanReturned()}>Find on receipt</Button>
+              </div>
+              {scanNote && <p className={`text-sm ${scanNote.tone === "success" ? "text-success-emphasis" : "text-danger-emphasis"}`}>{scanNote.text}</p>}
             </div>
             <ul className="flex flex-col gap-3">
               {found.lines.map((line) => {

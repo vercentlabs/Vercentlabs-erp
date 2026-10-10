@@ -1,28 +1,11 @@
-// POS-CAP-001 (F268-F271) + POS-CAP-003 (F282-F286) configuration surface.
-//
-// Writes two things the rest of the POS module READS:
-//
-//  1. tenant.pos_settings -- the organization-level policy every checkout, return
-//     and offline-sync path consults (discount limits and the supervisor-
-//     approval threshold, return-approval rules, negative stock, price
-//     override, cart expiry, shift reconciliation). cart.js, sale-completion.js,
-//     offline-sync.js and return-lifecycle.js each SELECT these columns.
-//
-//  2. Per-store payment methods and provider selection. A store can only take
-//     card/UPI/wallet/bank-transfer once BOTH pos_stores.allowed_payment_methods
-//     lists the method AND an active pos_payment_provider_configs row names a
-//     provider for it (payments.js checks both); otherwise the store is
-//     cash-only regardless of the tender UI.
-//
-// Both are configuration, not transactions, so the guarantees here are
-// validation + authorization + an audit event per change -- never a silent
-// overwrite. A provider row records only the PROVIDER KEY (and optionally the
-// NAME of an environment variable a real credential would live in); this code
-// never accepts, stores or returns a credential value.
+// POS-CAP-001 configuration surface: tenant.pos_settings, the organization-level policy every checkout, return and offline-sync path
+// consults (discount limits and the supervisor-approval threshold, return-approval rules, negative stock, price override, cart expiry,
+// shift reconciliation). cart.js, sale-completion.js, offline-sync.js and return-lifecycle.js each SELECT these columns. It is
+// configuration, not a transaction, so the guarantees are validation + authorization + an audit event per change. An outlet's own payment
+// methods and the provider behind each are part of the outlet (outlets/index.js).
 import { posError } from "../shared/errors.js";
-import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
+import { requirePermission } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
-import { registeredPaymentProviderKeys } from "../tender-and-payment-execution/adapter.js";
 
 export const POS_SETTINGS_DEFAULTS = Object.freeze({
   require_shift_reconciliation: true,
@@ -35,14 +18,17 @@ export const POS_SETTINGS_DEFAULTS = Object.freeze({
   max_cart_discount_percent: "100",
   discount_approval_threshold_percent: "10",
   cart_expiry_minutes: 240,
+  // Cart (0086): how long a held bill is kept, and how long an idle checkout lock lasts when no payment is pending.
+  held_cart_retention_hours: 24,
+  checkout_lock_minutes: 15,
+  // Walk-In Customer (0087): from this bill total a walk-in invoice needs the buyer's name and address (tax policy; empty = never).
+  walk_in_buyer_details_required_above: "50000",
 });
 
 const SETTINGS_COLUMNS = Object.keys(POS_SETTINGS_DEFAULTS);
 const BOOLEAN_SETTINGS = ["require_shift_reconciliation", "allow_negative_stock", "allow_price_override", "require_return_approval", "prohibit_self_return_approval"];
 const PERCENT_SETTINGS = ["max_line_discount_percent", "max_cart_discount_percent", "discount_approval_threshold_percent"];
 
-export const NON_CASH_PAYMENT_METHODS = Object.freeze(["card", "upi", "wallet", "bank_transfer"]);
-const ALL_PAYMENT_METHODS = Object.freeze(["cash", ...NON_CASH_PAYMENT_METHODS]);
 
 // --- settings ----------------------------------------------------------------
 
@@ -82,6 +68,21 @@ function normalizeSettingsInput(input) {
       throw posError(400, "cart_expiry_minutes must be a whole number between 5 and 10080 (one week).", "POS_SETTINGS_INVALID");
     }
     changes.cart_expiry_minutes = minutes;
+  }
+  for (const [column, low, high, label] of [["held_cart_retention_hours", 1, 2160, "hours"], ["checkout_lock_minutes", 2, 240, "minutes"]]) {
+    if (input[column] === undefined) continue;
+    const value = Number(input[column]);
+    if (!Number.isInteger(value) || value < low || value > high) throw posError(400, `${column} must be a whole number of ${label} between ${low} and ${high}.`, "POS_SETTINGS_INVALID");
+    changes[column] = value;
+  }
+  if (input.walk_in_buyer_details_required_above !== undefined) {
+    const raw = input.walk_in_buyer_details_required_above;
+    if (raw === null || raw === "") changes.walk_in_buyer_details_required_above = null;
+    else {
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value < 0) throw posError(400, "walk_in_buyer_details_required_above must be zero or more (or empty for never).", "POS_SETTINGS_INVALID");
+      changes.walk_in_buyer_details_required_above = value;
+    }
   }
   if (input.default_currency_code !== undefined) {
     const code = String(input.default_currency_code).trim().toUpperCase();
@@ -129,105 +130,4 @@ export async function updatePosSettings(client, context, input = {}) {
     updatedAt: result.rows[0].updated_at,
     settings: Object.fromEntries(SETTINGS_COLUMNS.map((column) => [column, result.rows[0][column]])),
   };
-}
-
-// --- per-store payment methods and providers ----------------------------------
-
-async function loadStore(client, context, storeId) {
-  const result = await client.query(`SELECT id,name,code,allowed_payment_methods FROM tenant.pos_stores WHERE organization_id=$1 AND id=$2`, [
-    context.organizationId,
-    storeId,
-  ]);
-  if (!result.rows[0]) throw posError(404, "POS store was not found.", "POS_STORE_NOT_FOUND");
-  return result.rows[0];
-}
-
-async function readStorePaymentConfig(client, context, store) {
-  const providers = await client.query(
-    `SELECT payment_method,provider_key,credential_env_var,active FROM tenant.pos_payment_provider_configs
-      WHERE organization_id=$1 AND store_id=$2 ORDER BY payment_method`,
-    [context.organizationId, store.id],
-  );
-  return {
-    storeId: store.id,
-    storeName: store.name,
-    allowedMethods: store.allowed_payment_methods || [],
-    providers: providers.rows,
-    // What the UI may offer -- only adapters this codebase genuinely
-    // implements. Anything else would resolve to "external activation blocked"
-    // at checkout, so it is not offered as a choice.
-    availableProviders: registeredPaymentProviderKeys(),
-  };
-}
-
-export async function getPosStorePaymentConfig(client, context, storeId) {
-  requirePermission(context, "pos.store.manage");
-  const store = await loadStore(client, context, storeId);
-  await assertPosStoreAccess(client, context, store.id);
-  return readStorePaymentConfig(client, context, store);
-}
-
-export async function setPosStorePaymentConfig(client, context, storeId, input = {}) {
-  requirePermission(context, "pos.store.manage");
-  const store = await loadStore(client, context, storeId);
-  await assertPosStoreAccess(client, context, store.id);
-
-  const requested = [...new Set((input.allowedMethods || []).map((method) => String(method).trim().toLowerCase()))];
-  for (const method of requested) {
-    if (!ALL_PAYMENT_METHODS.includes(method)) throw posError(400, `"${method}" is not a supported payment method.`, "POS_PAYMENT_CONFIG_INVALID");
-  }
-  // Cash is the always-available floor: a store that cannot take cash cannot
-  // open a shift float or make change, so it is never removable.
-  const allowedMethods = ["cash", ...requested.filter((method) => method !== "cash")];
-
-  const providerInput = input.providers || {};
-  const registered = registeredPaymentProviderKeys();
-  const desired = [];
-  for (const method of NON_CASH_PAYMENT_METHODS) {
-    if (!allowedMethods.includes(method)) continue;
-    const entry = providerInput[method] || {};
-    const providerKey = String(entry.providerKey || "sandbox").trim().toLowerCase();
-    if (!registered.includes(providerKey)) {
-      throw posError(400, `Payment provider "${providerKey}" is not available. Available: ${registered.join(", ")}.`, "POS_PAYMENT_PROVIDER_UNKNOWN");
-    }
-    const credentialEnvVar = entry.credentialEnvVar ? String(entry.credentialEnvVar).trim() : null;
-    // A value that merely LOOKS like a secret (spaces, a colon-prefixed key,
-    // a long token) is refused: this field names an environment variable, it
-    // is never a place to paste a credential.
-    if (credentialEnvVar && !/^[A-Z][A-Z0-9_]{1,63}$/.test(credentialEnvVar)) {
-      throw posError(400, "credentialEnvVar must be the NAME of an environment variable (e.g. PAYMENT_GATEWAY_KEY), never the credential itself.", "POS_PAYMENT_CONFIG_INVALID");
-    }
-    desired.push({ method, providerKey, credentialEnvVar });
-  }
-
-  const before = await readStorePaymentConfig(client, context, store);
-
-  await client.query(`UPDATE tenant.pos_stores SET allowed_payment_methods=$3::text[],updated_at=now() WHERE organization_id=$1 AND id=$2`, [
-    context.organizationId,
-    store.id,
-    allowedMethods,
-  ]);
-  for (const entry of desired) {
-    await client.query(
-      `INSERT INTO tenant.pos_payment_provider_configs (organization_id,store_id,payment_method,provider_key,credential_env_var,active,created_by)
-       VALUES ($1,$2,$3,$4,$5,true,$6)
-       ON CONFLICT (organization_id,store_id,payment_method) DO UPDATE SET provider_key=EXCLUDED.provider_key,credential_env_var=EXCLUDED.credential_env_var,active=true,updated_at=now()`,
-      [context.organizationId, store.id, entry.method, entry.providerKey, entry.credentialEnvVar, context.userId],
-    );
-  }
-  // A method that was switched off keeps its row (history/intent) but is
-  // deactivated, so re-enabling it later is a clean toggle, not a re-create.
-  const stillWanted = desired.map((entry) => entry.method);
-  await client.query(
-    `UPDATE tenant.pos_payment_provider_configs SET active=false,updated_at=now()
-      WHERE organization_id=$1 AND store_id=$2 AND active=true AND NOT (payment_method = ANY($3::text[]))`,
-    [context.organizationId, store.id, stillWanted],
-  );
-
-  const after = await readStorePaymentConfig(client, context, { ...store, allowed_payment_methods: allowedMethods });
-  await event(client, context, "pos_store", store.id, "pos.store.payment_config_updated", {
-    before: { allowedMethods: before.allowedMethods, providers: before.providers.filter((p) => p.active).map((p) => `${p.payment_method}:${p.provider_key}`) },
-    after: { allowedMethods: after.allowedMethods, providers: after.providers.filter((p) => p.active).map((p) => `${p.payment_method}:${p.provider_key}`) },
-  });
-  return after;
 }

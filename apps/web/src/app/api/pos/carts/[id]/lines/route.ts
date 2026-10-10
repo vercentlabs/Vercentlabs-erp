@@ -8,6 +8,9 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 const addLineSchema = z.object({
   itemId: z.string().uuid(),
+  // The unit sold (the item's sales unit when omitted) and a request key so a retry adds once (Product Search).
+  uomId: z.string().uuid().optional().nullable(),
+  idempotencyKey: z.string().min(8).max(100).optional(),
   quantity: z.number().positive(),
   unitPrice: z.number().min(0).optional(),
   priceOverride: z.boolean().optional(),
@@ -17,6 +20,9 @@ const addLineSchema = z.object({
   batchId: z.string().uuid().optional().nullable(),
   serialId: z.string().uuid().optional().nullable(),
   expectedVersion: z.number().int().optional(),
+  // A price override needs a reason, and above the cashier's limit a supervisor approval (Cashier Permissions).
+  reason: z.string().trim().max(500).optional(),
+  approvalId: z.string().uuid().optional(),
 });
 
 export async function POST(

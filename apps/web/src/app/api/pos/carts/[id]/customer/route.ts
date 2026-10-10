@@ -9,6 +9,8 @@ import { workspaceRoute } from "@/core/workspace-route";
 const customerSchema = z.object({
   customerId: z.string().uuid().nullable(),
   expectedVersion: z.number().int().optional(),
+  // A retried request with the same key is applied once (Cart, migration 0086).
+  idempotencyKey: z.string().min(8).max(100).optional(),
 });
 
 export async function POST(

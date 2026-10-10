@@ -1,4 +1,4 @@
-import { requirePermission, accessiblePosStoreIds, accessiblePosTerminalIds } from "./access-control.js";
+import { requirePermission, accessiblePosStoreIds } from "./access-control.js";
 
 // Generic multi-resource listing (admin/reporting screens that list raw
 // store/terminal/shift/sale/... rows). This is genuinely cross-cutting --
@@ -24,9 +24,8 @@ function table(resource) {
 
 // F268-F273: tables that carry a store_id (or, for 'pos_stores'
 // itself, are keyed by store id directly) get row-filtered to the caller's
-// assigned stores once an organization has opted into pos_store_access --
-// see accessiblePosStoreIds's doc comment in shared/access-control.js for
-// the same "permissive until configured" convention. pos_payments
+// assigned outlets (see accessiblePosStoreIds in shared/access-control.js:
+// outlet administrators see every outlet, everyone else only theirs). pos_payments
 // (migration 120) and pos_reconciliations (migration 127) carry a real
 // store_id column. pos_cash_movements still has no store_id column of
 // its own (only shift_id) -- filtered via a shift_id subquery below instead
@@ -94,17 +93,6 @@ export async function listPointOfSaleResource(
     if (accessibleStoreIds) {
       values.push(accessibleStoreIds);
       filter += ` AND ${storeColumn}=ANY($${values.length}::uuid[])`;
-    }
-    // F270/F271: a further narrowing on top of store-level access -- only
-    // meaningful (non-null) once this user holds at least one
-    // terminal-specific grant somewhere; otherwise every terminal in an
-    // accessible store is visible, the pre-existing behavior.
-    if (target === "pos_terminals") {
-      const accessibleTerminalIds = await accessiblePosTerminalIds(client, context);
-      if (accessibleTerminalIds) {
-        values.push(accessibleTerminalIds);
-        filter += ` AND id=ANY($${values.length}::uuid[])`;
-      }
     }
     if (storeId) {
       values.push(storeId);

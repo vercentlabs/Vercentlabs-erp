@@ -99,7 +99,7 @@ export function EnterpriseDataGrid<TRow>({
         size: 56,
         enableResizing: false,
         header: () => <span className="sr-only">Actions</span>,
-        cell: ({ row }) => rowActions(row.original),
+        cell: ({ row }) => <div className="flex justify-end">{rowActions(row.original)}</div>,
       });
     }
     return cols;
@@ -136,6 +136,7 @@ export function EnterpriseDataGrid<TRow>({
     getSortedRowModel: manualSorting ? undefined : getSortedRowModel(),
     getPaginationRowModel: pageCount !== undefined ? undefined : getPaginationRowModel(),
   });
+  const dataColumnCount = table.getVisibleLeafColumns().filter((column) => !UTILITY_COLUMNS.has(column.id)).length;
 
   const rows = table.getRowModel().rows;
 
@@ -178,8 +179,10 @@ export function EnterpriseDataGrid<TRow>({
         {/* Fixed pixel widths (getTotalSize/getSize) only matter once
             column resizing is actually enabled — otherwise TanStack's
             150px-per-column default forces horizontal scroll even for
-            narrow content (a Priority badge, a Score number). Left to the
-            browser's normal table layout, columns size to their content. */}
+            narrow content (a Priority badge, a Score number). Without
+            resizing, the data columns share the width evenly (a column
+            whose content needs more still grows) and the checkbox and
+            row-action columns shrink to their content. */}
         <table
           className="w-full border-collapse text-sm"
           style={enableColumnResizing ? { width: table.getTotalSize() } : undefined}
@@ -193,8 +196,9 @@ export function EnterpriseDataGrid<TRow>({
                   return (
                     <th
                       key={header.id}
-                      style={enableColumnResizing ? { width: header.getSize() } : undefined}
-                      className="relative px-4 py-2.5 text-left text-[11px] font-semibold tracking-wide text-text-muted uppercase"
+                      style={enableColumnResizing ? { width: header.getSize() } : columnWidth(header.column.id, dataColumnCount)}
+                      className={cn("relative px-4 py-2.5 text-left text-[11px] font-semibold tracking-wide text-text-muted uppercase",
+                        !enableColumnResizing && UTILITY_COLUMNS.has(header.column.id) && "w-px whitespace-nowrap")}
                     >
                       {header.isPlaceholder ? null : canSort ? (
                         <button
@@ -330,6 +334,12 @@ function VirtualOrPlainBody<TRow>({
   );
 }
 
+// Columns that only hold a control, sized to it rather than sharing the row's width.
+const UTILITY_COLUMNS = new Set([SELECT_COLUMN_ID, ACTIONS_COLUMN_ID]);
+function columnWidth(columnId: string, dataColumnCount: number) {
+  return UTILITY_COLUMNS.has(columnId) || dataColumnCount === 0 ? undefined : { width: `${100 / dataColumnCount}%` };
+}
+
 function GridRow<TRow>({ row, onRowClick, rowPaddingClass }: { row: Row<TRow>; onRowClick?: (row: TRow) => void; rowPaddingClass: string }) {
   const resizable = row.getVisibleCells().some((cell) => cell.column.getCanResize());
   return (
@@ -345,7 +355,7 @@ function GridRow<TRow>({ row, onRowClick, rowPaddingClass }: { row: Row<TRow>; o
       {row.getVisibleCells().map((cell) => (
         <td
           key={cell.id}
-          className={cn("px-4 text-text", rowPaddingClass)}
+          className={cn("px-4 text-text", rowPaddingClass, !resizable && UTILITY_COLUMNS.has(cell.column.id) && "w-px whitespace-nowrap")}
           style={resizable ? { width: cell.column.getSize() } : undefined}
         >
           {flexRender(cell.column.columnDef.cell, cell.getContext())}

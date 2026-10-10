@@ -5,7 +5,7 @@
 import { requireProductPermission } from "./access.js";
 import { IDENTIFIER_TYPES, PRODUCT_PERMISSIONS, ProductError } from "./constants.js";
 import { recordProductHistory } from "./history.js";
-import { IDENTIFIER_PATTERN, requireUuid, text } from "./validation.js";
+import { BARCODE_FORMATS, IDENTIFIER_PATTERN, requireUuid, text, validGtinCheckDigit } from "./validation.js";
 import { findItemByPreviousSku } from "./sku.js";
 import { resolveItemUnit } from "./uom.js";
 
@@ -15,7 +15,8 @@ const issue = (field, message, code = "PRODUCT_IDENTIFIER_INVALID", status = 400
 
 const toIdentifier = (row) => ({
   id: row.id, type: row.identifier_type, typeLabel: TYPE_LABELS.get(row.identifier_type) ?? row.identifier_type, value: row.value, uomId: row.uom_id, uom: row.uom_code ?? null,
-  isPrimary: row.is_primary, createdAt: row.created_at, createdByName: row.created_by_name ?? null,
+  format: row.barcode_format ?? null, formatLabel: row.barcode_format ? BARCODE_FORMATS[row.barcode_format]?.label ?? row.barcode_format : null, status: row.status,
+  isPrimary: row.is_primary, createdAt: row.created_at, createdByName: row.created_by_name ?? null, updatedAt: row.updated_at ?? null, version: Number(row.version ?? 1),
 });
 
 async function loadItem(client, context, itemId, { lock = false } = {}) {
@@ -31,16 +32,17 @@ export async function identifierOwner(client, context, value, exceptItemId = nul
   return (await client.query(
     `SELECT item.id, item.code, item.name FROM tenant.item_identifiers identifier
        JOIN tenant.items item ON item.organization_id = identifier.organization_id AND item.id = identifier.item_id
-      WHERE identifier.organization_id = $1 AND upper(identifier.value) = upper($2) AND identifier.status = 'active' AND ($3::uuid IS NULL OR identifier.item_id <> $3) LIMIT 1`,
+      WHERE identifier.organization_id = $1 AND identifier.status = 'active' AND ($3::uuid IS NULL OR identifier.item_id <> $3)
+        AND (upper(identifier.value) = upper($2) OR (identifier.gtin_key IS NOT NULL AND $2 ~ '^[0-9]{12,14}$' AND identifier.gtin_key = lpad($2, 14, '0'))) LIMIT 1`,
     [context.organizationId, value, exceptItemId])).rows[0] ?? null;
 }
 
-async function insert(client, context, item, { type, value, uomId, primary }) {
+async function insert(client, context, item, { type, value, uomId, primary, format = null }) {
   await client.query("SAVEPOINT item_identifier");
   try {
     const row = (await client.query(
-      `INSERT INTO tenant.item_identifiers (organization_id, item_id, identifier_type, value, uom_id, is_primary, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [context.organizationId, item.id, type, value, uomId, primary, context.userId ?? null])).rows[0];
+      `INSERT INTO tenant.item_identifiers (organization_id, item_id, identifier_type, value, uom_id, is_primary, created_by, barcode_format) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [context.organizationId, item.id, type, value, uomId, primary, context.userId ?? null, format])).rows[0];
     await client.query("RELEASE SAVEPOINT item_identifier");
     return row.id;
   } catch (error) {
@@ -69,7 +71,8 @@ export async function listItemIdentifiers(client, context, itemId, { includeRemo
   return rows.map(toIdentifier);
 }
 
-// input: { value, type ("barcode" | "gtin" | "internal"), uomId (the base unit or one the item converts), isPrimary }.
+// input: { value, type ("barcode" | "gtin" | "internal"), format (optional: ean13, ean8, upca, upce, code128, code39, qr, other), uomId (the base unit or
+// one the item sells in), isPrimary }. A GTIN, and a value given a GS1 format, must have a valid check digit.
 // The item's first barcode becomes its primary.
 export async function addItemIdentifier(client, context, itemId, input = {}) {
   requireProductPermission(context, PRODUCT_PERMISSIONS.manageIdentifiers, "You do not have permission to manage barcodes.");
@@ -80,18 +83,61 @@ export async function addItemIdentifier(client, context, itemId, input = {}) {
   if (!TYPES.has(type)) throw issue("type", "Choose Barcode, GTIN or Internal code.");
   if (!IDENTIFIER_PATTERN.test(value)) throw issue("value", "Enter 3 to 64 letters, digits, dots, dashes or slashes.");
   if (type === "gtin" && !/^\d{8}$|^\d{12,14}$/.test(value)) throw issue("value", "A GTIN has 8, 12, 13 or 14 digits.");
+  if (type === "gtin" && !validGtinCheckDigit(value)) throw issue("value", "The GTIN's check digit is wrong; check the number on the label.");
+  const format = checkFormat(input.format, value);
   const uomId = input.uomId ? requireUuid(input.uomId, "Unit") : null;
-  if (uomId && uomId !== item.uom_id && !(await resolveItemUnit(client, context.organizationId, item.id, uomId)).ok) throw issue("uomId", "Choose the base unit or one of this item's units.");
+  if (uomId) await checkUnit(client, context, item, uomId);
   const owner = await identifierOwner(client, context, value);
   if (owner) throw issue("value", owner.id === item.id ? `${value} is already on this item.` : `${value} already belongs to ${owner.name} (${owner.code}).`, "PRODUCT_DUPLICATE", 409);
   const hasPrimary = (await client.query(`SELECT 1 FROM tenant.item_identifiers WHERE organization_id = $1 AND item_id = $2 AND is_primary`, [context.organizationId, item.id])).rows[0];
   const primary = type !== "internal" && (input.isPrimary === true || !hasPrimary);
   if (primary && hasPrimary) await client.query(`UPDATE tenant.item_identifiers SET is_primary = false WHERE organization_id = $1 AND item_id = $2 AND is_primary`, [context.organizationId, item.id]);
-  const id = await insert(client, context, item, { type, value, uomId, primary });
+  const id = await insert(client, context, item, { type, value, uomId, primary, format });
   await touch(client, context, item.id);
   await recordProductHistory(client, context, item.id, "updated", `${TYPE_LABELS.get(type)} ${value} added${primary ? " as the primary barcode" : ""}`,
     { identifier: { label: "Identifier", from: null, to: value, type, primary } });
   return { id, identifiers: await listItemIdentifiers(client, context, item.id) };
+}
+
+// Changes what a barcode means without changing the barcode: the unit it sells (a carton barcode) or its format. The value itself is never
+// edited — remove it and add the right one, so history shows both. input: { uomId, format, expectedVersion }.
+export async function updateItemIdentifier(client, context, itemId, identifierId, input = {}) {
+  requireProductPermission(context, PRODUCT_PERMISSIONS.manageIdentifiers, "You do not have permission to manage barcodes.");
+  const item = await loadItem(client, context, itemId, { lock: true });
+  const row = (await client.query(`SELECT * FROM tenant.item_identifiers WHERE organization_id = $1 AND item_id = $2 AND id = $3 AND status = 'active' FOR UPDATE`,
+    [context.organizationId, item.id, requireUuid(identifierId, "Identifier")])).rows[0];
+  if (!row) throw new ProductError(404, "Identifier not found.", "PRODUCT_IDENTIFIER_NOT_FOUND");
+  if (input.expectedVersion != null && Number(input.expectedVersion) !== Number(row.version))
+    throw new ProductError(409, "This barcode changed since you opened it. Reload and try again.", "PRODUCT_IDENTIFIER_VERSION_CONFLICT");
+  const uomId = input.uomId === undefined ? row.uom_id : input.uomId ? requireUuid(input.uomId, "Unit") : null;
+  if (uomId && uomId !== row.uom_id) await checkUnit(client, context, item, uomId);
+  const format = input.format === undefined ? row.barcode_format : checkFormat(input.format, row.value);
+  if (uomId === row.uom_id && format === row.barcode_format) return { identifiers: await listItemIdentifiers(client, context, item.id) };
+  await client.query(`UPDATE tenant.item_identifiers SET uom_id = $3, barcode_format = $4, version = version + 1, updated_at = now(), updated_by = $5 WHERE organization_id = $1 AND id = $2`,
+    [context.organizationId, row.id, uomId, format, context.userId ?? null]);
+  const unitCode = async (id) => (id ? (await client.query(`SELECT code FROM tenant.units_of_measure WHERE organization_id = $1 AND id = $2`, [context.organizationId, id])).rows[0]?.code : null);
+  const changes = {};
+  if (uomId !== row.uom_id) changes.identifierUnit = { label: `${row.value} unit`, from: await unitCode(row.uom_id), to: await unitCode(uomId) };
+  if (format !== row.barcode_format) changes.identifierFormat = { label: `${row.value} format`, from: row.barcode_format, to: format };
+  await touch(client, context, item.id);
+  await recordProductHistory(client, context, item.id, "updated", `Barcode ${row.value} changed`, changes);
+  return { identifiers: await listItemIdentifiers(client, context, item.id) };
+}
+
+function checkFormat(format, value) {
+  if (format === undefined || format === null || format === "") return null;
+  const definition = BARCODE_FORMATS[String(format).toLowerCase()];
+  if (!definition) throw issue("format", "Choose a known barcode format or leave it empty.");
+  if (!definition.test(value)) throw issue("value", definition.message);
+  return String(format).toLowerCase();
+}
+
+// A barcode's unit must be one the item is sold in, with a conversion to its base unit.
+async function checkUnit(client, context, item, uomId) {
+  if (uomId === item.uom_id) return;
+  const resolved = await resolveItemUnit(client, context.organizationId, item.id, uomId);
+  if (!resolved.ok) throw issue("uomId", "Choose the base unit or one of this item's units.");
+  if (!resolved.unit.sales) throw issue("uomId", `${resolved.unit.code} is not a sales unit of this item, so a barcode cannot sell it.`);
 }
 
 // Removes an identifier; when it was the primary, the oldest remaining barcode becomes primary.

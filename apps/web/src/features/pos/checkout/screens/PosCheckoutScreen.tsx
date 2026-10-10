@@ -13,7 +13,6 @@ import Link from "next/link";
 import { BadgePercent, Minus, Pause, Plus, Trash2, X } from "lucide-react";
 import {
   Button,
-  ComboBox,
   Dialog,
   IconButton,
   NumberField,
@@ -21,6 +20,7 @@ import {
   SearchField,
   Select,
   StatusBadge,
+  TextArea,
   TextField,
 } from "@vercentlabs/design-system";
 import type { PosCart } from "@vercentlabs/api";
@@ -30,10 +30,9 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
 import { listPosShifts } from "@/features/pos/overview/api/overview-api";
-import { listPosStores } from "@/features/pos/stores/api/stores-api";
-import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
+import { listPosStores } from "@/features/pos/shared/stores";
+import { listPosTerminals } from "@/features/pos/shared/terminals";
 import {
-  addPosCartLine,
   cancelPosCart,
   completePosCart,
   createPosCart,
@@ -42,23 +41,29 @@ import {
   listHeldPosCarts,
   getPosPayment,
   initiatePosPayment,
-  lookupPosBarcode,
   removePosCartLine,
   resumePosCart,
-  searchPosCustomers,
-  searchPosProducts,
   setPosCartCustomer,
   setPosCartDiscount,
   setPosCartLineTracking,
   updatePosCartLineQuantity,
   applyPosLineDiscount,
   removePosLineDiscount,
+  beginPosCheckout,
+  releasePosCheckout,
+  setPosCartNotes,
+  overridePosLinePrice,
+  quickCreatePosCustomer,
+  type PosCartIssue,
   type PosCustomerMatch,
   type PosPaymentLeg,
-  type PosProductMatch,
 } from "@/features/pos/checkout/api/checkout-api";
 import { money, statusLabel, statusTone } from "@/features/pos/shared/format";
 import { PosAlert, PosLoading, PosPanel } from "@/features/pos/shared/PosUi";
+import { PosProductFinder } from "@/features/pos/products/components/PosProductFinder";
+import { CustomerPanel } from "@/features/pos/checkout/components/CustomerPanel";
+import { DigitalReceipts } from "@/features/pos/checkout/components/DigitalReceipts";
+import { approvalNeeded, getApproval, requestApproval, type Approval } from "@/features/pos/permission-profiles/api/profiles-api";
 
 // F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple
 // payment methods): one tender line per payment leg. A 'cash' line is
@@ -99,6 +104,10 @@ const SANDBOX_OUTCOME_OPTIONS = [
     label: "Simulate: declines immediately",
   },
 ];
+
+const LIFECYCLE_LABEL: Record<string, string> = {
+  DRAFT: "Open bill", CHECKOUT_PENDING: "In checkout", HELD: "On hold", COMPLETED: "Completed", CANCELLED: "Cancelled", EXPIRED: "Expired",
+};
 
 function newTenderLineId() {
   return crypto.randomUUID();
@@ -143,12 +152,19 @@ export function PosCheckoutScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [barcodeInput, setBarcodeInput] = useState("");
-  const [selectedCustomer, setSelectedCustomer] =
-    useState<PosCustomerMatch | null>(null);
-  const [customerSearchInput, setCustomerSearchInput] = useState("");
-  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
+  // A discount above the cashier's limit: what was asked, and how to apply it once a supervisor approves (Cashier Permissions).
+  const [exception, setException] = useState<{
+    message: string; permission: string; amount: string | null; percentage: string | null; reason: string; cartVersion: number;
+    apply: (approvalId: string) => Promise<{ cart: PosCart }>;
+  } | null>(null);
+  const [exceptionApproval, setExceptionApproval] = useState<Approval | null>(null);
+  const approvalStatus = useQuery({
+    queryKey: ["pos-approval", exceptionApproval?.id],
+    queryFn: () => getApproval(exceptionApproval!.id),
+    enabled: Boolean(exceptionApproval && exceptionApproval.status === "pending"),
+    refetchInterval: 5_000,
+  });
+  const liveApproval = approvalStatus.data ?? exceptionApproval;
   const [cartDiscountOpen, setCartDiscountOpen] = useState(false);
   const [lineDiscountLine, setLineDiscountLine] = useState<
     PosCart["lines"][number] | null
@@ -167,6 +183,13 @@ export function PosCheckoutScreen() {
     crypto.randomUUID(),
   );
   const [heldCartsOpen, setHeldCartsOpen] = useState(false);
+  // Cart (POS Cart MVP): what checkout found to fix, what changed while a resumed bill was held, and the open dialogs.
+  const [checkoutIssues, setCheckoutIssues] = useState<PosCartIssue[]>([]);
+  const [resumeChanges, setResumeChanges] = useState<PosCartIssue[]>([]);
+  const [holdOpen, setHoldOpen] = useState(false);
+  const [priceLine, setPriceLine] = useState<PosCart["lines"][number] | null>(null);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState<string | null>(null);
   // This app has no TanStack Query SSR hydration boundary (no dehydrate/
   // HydrationBoundary anywhere), so shiftsQuery.isLoading is not
   // hydration-safe on its own -- the server never dispatches the fetch at
@@ -262,43 +285,6 @@ export function PosCheckoutScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myOpenShift?.id]);
 
-  const searchQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "search", store?.id, searchTerm),
-    queryFn: () => searchPosProducts(store!.id, searchTerm),
-    enabled: Boolean(store?.id && searchTerm.trim().length > 0),
-  });
-
-  // F276: debounce the customer search-as-you-type so every keystroke
-  // doesn't fire a request — 250ms of no typing before the query updates.
-  useEffect(() => {
-    const handle = setTimeout(
-      () => setDebouncedCustomerSearch(customerSearchInput),
-      250,
-    );
-    return () => clearTimeout(handle);
-  }, [customerSearchInput]);
-
-  const customerSearchQuery = useQuery({
-    queryKey: scopedQueryKey(
-      workspace,
-      "pos",
-      "customer-search",
-      debouncedCustomerSearch,
-    ),
-    queryFn: ({ signal }) =>
-      searchPosCustomers(debouncedCustomerSearch, { signal }),
-    enabled: debouncedCustomerSearch.trim().length > 0,
-  });
-  const customerOptions = (customerSearchQuery.data?.rows ?? []).map(
-    (customer) => ({
-      value: customer.id,
-      label:
-        customer.phone || customer.email
-          ? `${customer.displayName} · ${customer.phone || customer.email}`
-          : customer.displayName,
-    }),
-  );
-
   // Poll a non-cash leg while its outcome is still pending/authorized --
   // there is no client-side "it succeeded," only what the server reports
   // (an adapter's own synchronous response already resolved the sandbox
@@ -353,7 +339,7 @@ export function PosCheckoutScreen() {
     return () => clearInterval(timer);
   }, [cart?.id, hasPendingDiscountApproval]);
 
-  async function run(action: () => Promise<{ cart: PosCart }>) {
+  async function run(action: () => Promise<{ cart: PosCart }>, onApproval?: (err: PosApiError) => void) {
     setLoading(true);
     try {
       const result = await action();
@@ -361,7 +347,9 @@ export function PosCheckoutScreen() {
       setError(null);
       setConflict(null);
     } catch (err) {
-      if (
+      if (onApproval && err instanceof PosApiError && approvalNeeded(err)) {
+        onApproval(err);
+      } else if (
         err instanceof PosApiError &&
         (err.code === "POS_CART_VERSION_CONFLICT" ||
           err.code === "POS_PRICE_CONFLICT")
@@ -378,26 +366,6 @@ export function PosCheckoutScreen() {
     } finally {
       setLoading(false);
     }
-  }
-
-  const addLine = (itemId: string) =>
-    cart &&
-    run(() => addPosCartLine(cart.id, { itemId, quantity: 1 }));
-
-  function scanBarcode() {
-    if (!barcodeInput.trim() || !store?.id) return;
-    lookupPosBarcode(store.id, barcodeInput.trim())
-      .then((product: PosProductMatch) => {
-        setBarcodeInput("");
-        addLine(product.itemId);
-      })
-      .catch((err) =>
-        setError(
-          err instanceof PosApiError
-            ? err.message
-            : "No product matches this barcode.",
-        ),
-      );
   }
 
   const changeQuantity = (lineId: string, quantity: number) =>
@@ -420,20 +388,30 @@ export function PosCheckoutScreen() {
         cart.id,
         lineId,
         trackingType === "serial"
-          ? { serialId: value, expectedVersion: cart.version }
-          : { batchId: value, expectedVersion: cart.version },
+          ? { serialNumber: value, expectedVersion: cart.version }
+          : { batchNumber: value, expectedVersion: cart.version },
       ),
     );
   }
 
+  // Keep what was asked when it needs a supervisor, so the same discount can be applied with the approval.
+  const askApproval = (input: { reason: string }, apply: (approvalId: string, version: number) => Promise<{ cart: PosCart }>) => (err: PosApiError) => {
+    const needed = approvalNeeded(err)!;
+    if (!cart) return;
+    const version = cart.version;
+    setExceptionApproval(null);
+    setException({ message: err.message, permission: needed.permission, amount: needed.amount, percentage: needed.percentage, reason: input.reason, cartVersion: version,
+      apply: (approvalId) => apply(approvalId, version) });
+  };
   const applyCartDiscount = (input: {
     type: "percent" | "amount";
     value: number;
     reason: string;
   }) =>
     cart &&
-    run(() =>
-      setPosCartDiscount(cart.id, { ...input, expectedVersion: cart.version }),
+    run(
+      () => setPosCartDiscount(cart.id, { ...input, expectedVersion: cart.version }),
+      askApproval(input, (approvalId, version) => setPosCartDiscount(cart.id, { ...input, expectedVersion: version, approvalId })),
     );
   const removeCartDiscount = () =>
     cart &&
@@ -448,19 +426,14 @@ export function PosCheckoutScreen() {
     input: { type: "percent" | "amount"; value: number; reason: string },
   ) =>
     cart &&
-    run(() =>
-      applyPosLineDiscount(cart.id, lineId, {
-        ...input,
-        expectedVersion: cart.version,
-      }),
+    run(
+      () => applyPosLineDiscount(cart.id, lineId, { ...input, expectedVersion: cart.version }),
+      askApproval(input, (approvalId, version) => applyPosLineDiscount(cart.id, lineId, { ...input, expectedVersion: version, approvalId })),
     );
   const removeLineDiscount = (lineId: string) =>
     cart && run(() => removePosLineDiscount(cart.id, lineId, cart.version));
   function selectCustomer(customer: PosCustomerMatch | null) {
     if (!cart) return;
-    setSelectedCustomer(customer);
-    setCustomerSearchInput("");
-    setDebouncedCustomerSearch("");
     run(() => setPosCartCustomer(cart.id, customer?.id ?? null, cart.version));
   }
 
@@ -468,14 +441,16 @@ export function PosCheckoutScreen() {
   // effect above re-creates/resumes a cart on this terminal the next time
   // it mounts with nothing else active), so a cashier can start a new sale
   // immediately after holding this one.
-  async function holdCurrentCart() {
+  async function holdCurrentCart(note?: string) {
     if (!cart) return;
     setLoading(true);
     try {
-      await holdPosCart(cart.id, cart.version);
+      await holdPosCart(cart.id, cart.version, note);
+      setHoldOpen(false);
+      setCheckoutIssues([]);
+      setResumeChanges([]);
       setError(null);
       setCart(null);
-      setSelectedCustomer(null);
       setIdempotencyKey(crypto.randomUUID());
       queryClient.invalidateQueries({
         queryKey: scopedQueryKey(workspace, "pos", "held-carts"),
@@ -501,7 +476,8 @@ export function PosCheckoutScreen() {
     try {
       const result = await resumePosCart(heldCartId);
       setCart(result.cart);
-      setSelectedCustomer(null);
+      setResumeChanges(result.cart.resumeChanges ?? []);
+      setCheckoutIssues([]);
       setError(null);
       setHeldCartsOpen(false);
       queryClient.invalidateQueries({
@@ -515,6 +491,59 @@ export function PosCheckoutScreen() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Proceed to checkout: the server checks everything (products, stock, tracking, prices, tax, discounts, permission, session) and locks the
+  // bill for payment, or lists what to fix — a changed total is shown before anyone pays it.
+  async function proceedToCheckout() {
+    if (!cart) return;
+    setLoading(true);
+    try {
+      const result = await beginPosCheckout(cart.id, cart.version);
+      setCart(result.cart);
+      setCheckoutIssues(result.ready ? [] : result.issues);
+      setResumeChanges([]);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof PosApiError ? err.message : "Checkout could not start.");
+      if (err instanceof PosApiError && err.code === "POS_CART_VERSION_CONFLICT") getPosCart(cart.id).then((result) => setCart(result.cart));
+    } finally {
+      setLoading(false);
+    }
+  }
+  async function backToBill() {
+    if (!cart) return;
+    setLoading(true);
+    try {
+      const result = await releasePosCheckout(cart.id);
+      setCart(result.cart);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof PosApiError ? err.message : "The bill could not be reopened.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  const saveNote = () => {
+    if (!cart || noteDraft === null || noteDraft === (cart.notes ?? "")) { setNoteDraft(null); return; }
+    const value = noteDraft;
+    setNoteDraft(null);
+    run(() => setPosCartNotes(cart.id, value.trim() || null, cart.version));
+  };
+  const overridePrice = (lineId: string, input: { unitPrice: string | null; reason: string }) =>
+    cart && run(
+      () => overridePosLinePrice(cart.id, lineId, { ...input, expectedVersion: cart.version }),
+      askApproval({ reason: input.reason }, (approvalId, version) => overridePosLinePrice(cart.id, lineId, { ...input, approvalId, expectedVersion: version })),
+    );
+  async function createCustomerHere(input: { name: string; phone: string; gstin: string }) {
+    if (!cart) return;
+    try {
+      const customer = await quickCreatePosCustomer({ name: input.name, phone: input.phone || null, gstin: input.gstin || null, cartId: cart.id });
+      setNewCustomerOpen(false);
+      selectCustomer({ id: customer.id, code: customer.code ?? "", displayName: customer.displayName, phone: customer.phone, email: customer.email });
+    } catch (err) {
+      setError(err instanceof PosApiError ? err.message : "The customer could not be created.");
     }
   }
 
@@ -580,6 +609,8 @@ export function PosCheckoutScreen() {
         charging: false,
         error: result.payment.failure_reason || undefined,
       });
+      // Taking a card / UPI payment locks the bill for checkout on the server: show it locked.
+      getPosCart(cart.id).then((fresh) => setCart(fresh.cart)).catch(() => undefined);
     } catch (err) {
       updateTenderLine(line.id, {
         charging: false,
@@ -667,9 +698,6 @@ export function PosCheckoutScreen() {
     setConfirmation(null);
     setTenderLines([{ id: newTenderLineId(), method: "cash", amount: 0 }]);
     setTenderOutcome({});
-    setSelectedCustomer(null);
-    setCustomerSearchInput("");
-    setDebouncedCustomerSearch("");
     setIdempotencyKey(crypto.randomUUID());
     setCart(null);
     startFreshCart();
@@ -717,6 +745,7 @@ export function PosCheckoutScreen() {
               </dd>
             </div>
           </dl>
+          <DigitalReceipts saleId={confirmation.saleId} />
           <div className="flex flex-wrap justify-center gap-2 pt-2">
             <Button
               variant="secondary"
@@ -760,7 +789,12 @@ export function PosCheckoutScreen() {
       (line.tracking_type === "serial" && !line.serial_id) ||
       (line.tracking_type === "batch" && !line.batch_id),
   );
-  const completeBlockedReason = pendingApproval
+  const lifecycle = cart ? (cart.lifecycle ?? (["draft", "priced"].includes(cart.status) ? "DRAFT" : cart.status.toUpperCase())) : null;
+  const editable = lifecycle === "DRAFT";
+  const inCheckout = lifecycle === "CHECKOUT_PENDING";
+  const completeBlockedReason = !inCheckout
+    ? "Proceed to checkout first: the bill is checked and locked for payment."
+    : pendingApproval
     ? "Waiting for supervisor approval of the discount."
     : rejectedApproval
       ? "The discount was rejected — remove it to continue."
@@ -783,7 +817,8 @@ export function PosCheckoutScreen() {
         }
         secondaryActions={
           <div className="flex items-center gap-2">
-            <StatusBadge tone="success">Online</StatusBadge>
+            {cart?.cart_reference && <span className="text-sm font-medium tabular-nums text-text-secondary">{cart.cart_reference}</span>}
+            {lifecycle && <StatusBadge tone={lifecycle === "CHECKOUT_PENDING" ? "warning" : lifecycle === "DRAFT" ? "success" : "neutral"}>{LIFECYCLE_LABEL[lifecycle] ?? lifecycle}</StatusBadge>}
             <Button variant="secondary" onPress={() => setHeldCartsOpen(true)}>
               <Pause className="size-4" aria-hidden="true" />
               Held sales
@@ -796,56 +831,16 @@ export function PosCheckoutScreen() {
         <div className="flex min-w-0 flex-col gap-4">
           <PosPanel
             title="Add items"
-            description="Search the catalogue, or scan / type a barcode."
+            description="Scan a barcode, type a name or SKU, or pick from the categories."
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <SearchField
-                label="Search products"
-                placeholder="Search by name, code, barcode…"
-                value={searchTerm}
-                onChange={setSearchTerm}
-                className="flex-1"
-              />
-              <div className="flex items-end gap-2">
-                <TextField
-                  label="Scan / enter barcode"
-                  value={barcodeInput}
-                  onChange={setBarcodeInput}
-                  onKeyDown={(event) => event.key === "Enter" && scanBarcode()}
-                />
-                <Button variant="secondary" onPress={scanBarcode}>
-                  Add
-                </Button>
-              </div>
-            </div>
-
-            {searchTerm.trim() && (
-              <div className="max-h-64 overflow-y-auto rounded-[var(--radius-control)] border border-border">
-                {(searchQuery.data?.rows ?? []).map((product) => (
-                  <button
-                    key={product.itemId}
-                    type="button"
-                    onClick={() => addLine(product.itemId)}
-                    className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none"
-                  >
-                    <span>
-                      {product.name}{" "}
-                      <span className="text-text-muted">({product.code})</span>
-                    </span>
-                    <span className="shrink-0 tabular-nums text-text-secondary">
-                      {product.salesPrice === null ? "No price" : money(currency, product.salesPrice)} ·{" "}
-                      {product.availableQuantity} avail.
-                    </span>
-                  </button>
-                ))}
-                {searchQuery.isFetched &&
-                  !(searchQuery.data?.rows ?? []).length && (
-                    <p className="px-3 py-3 text-sm text-text-muted">
-                      No matches.
-                    </p>
-                  )}
-              </div>
-            )}
+            <PosProductFinder
+              cartId={cart?.id ?? null}
+              terminalId={cart?.terminal_id ?? null}
+              disabled={!editable}
+              // A card or UPI payment in progress: no product is added by a stray scan.
+              paused={completing || tenderLines.some((line) => line.charging || (line.paymentId && ["pending", "authorized", "initiated"].includes(line.status ?? "")))}
+              onCart={(next) => { setCart(next); setError(null); setConflict(null); }}
+            />
           </PosPanel>
 
           <PosPanel
@@ -892,7 +887,7 @@ export function PosCheckoutScreen() {
                             {line.description}
                           </p>
                           <p className="text-xs text-text-muted">
-                            {money(currency, line.unit_price)} each
+                            {money(currency, line.unit_price)} per {(line as { uom_code?: string | null }).uom_code ?? "unit"}
                             {Number(line.manual_discount_amount) > 0 && (
                               <>
                                 {" "}
@@ -918,19 +913,31 @@ export function PosCheckoutScreen() {
                           <IconButton
                             variant="outline"
                             size="large"
+                            isDisabled={!editable}
                             onPress={() =>
-                              changeQuantity(line.id, Number(line.quantity) - 1)
+                              Number(line.quantity) - 1 <= 0
+                                ? window.confirm(`Remove ${line.description} from the bill?`) && changeQuantity(line.id, 0)
+                                : changeQuantity(line.id, Number(line.quantity) - 1)
                             }
                             aria-label="Decrease quantity"
                           >
                             <Minus className="size-4" aria-hidden="true" />
                           </IconButton>
-                          <span className="w-9 text-center text-base font-medium tabular-nums">
-                            {Number(line.quantity)}
-                          </span>
+                          <QuantityInput
+                            key={`${line.id}:${line.quantity}`}
+                            value={Number(line.quantity)}
+                            unit={(line as { uom_code?: string | null }).uom_code ?? null}
+                            isDisabled={!editable}
+                            onCommit={(quantity) =>
+                              quantity <= 0
+                                ? window.confirm(`Remove ${line.description} from the bill?`) && changeQuantity(line.id, 0)
+                                : changeQuantity(line.id, quantity)
+                            }
+                          />
                           <IconButton
                             variant="outline"
                             size="large"
+                            isDisabled={!editable}
                             onPress={() =>
                               changeQuantity(line.id, Number(line.quantity) + 1)
                             }
@@ -945,6 +952,7 @@ export function PosCheckoutScreen() {
                         <IconButton
                           variant="ghost"
                           size="large"
+                          isDisabled={!editable}
                           onPress={() =>
                             cart &&
                             run(() =>
@@ -957,7 +965,14 @@ export function PosCheckoutScreen() {
                         </IconButton>
                       </div>
 
-                      {canDiscount && (
+                      {editable && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button variant="ghost" size="compact" onPress={() => setPriceLine(line)}>
+                            {line.price_override ? "Price changed — edit" : "Change price"}
+                          </Button>
+                        </div>
+                      )}
+                      {canDiscount && editable && (
                         <div className="flex flex-wrap items-center gap-2">
                           {hasManualDiscount ? (
                             <>
@@ -1015,6 +1030,13 @@ export function PosCheckoutScreen() {
                                 [line.id]: value,
                               }))
                             }
+                            // A scanner aimed here fills this box (it has the focus) and its Enter sets the number — never a product lookup.
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                setLineTracking(line.id, needsSerial ? "serial" : "batch");
+                              }
+                            }}
                             className="flex-1"
                           />
                           <Button
@@ -1040,6 +1062,44 @@ export function PosCheckoutScreen() {
 
         <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
           {error && <PosAlert>{error}</PosAlert>}
+          {exception && cart && (
+            <PosAlert tone="warning">
+              <p className="font-medium">{exception.message}</p>
+              {!liveApproval && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" className="font-medium underline" disabled={loading} onClick={() => {
+                    requestApproval({ permission: exception.permission, resource: { type: "pos_cart", id: cart.id }, amount: exception.amount, percentage: exception.percentage,
+                      reason: exception.reason, idempotencyKey: `${cart.id}:${exception.cartVersion}:${exception.permission}` })
+                      .then(setExceptionApproval).catch((err) => setError(err instanceof PosApiError ? err.message : "The approval could not be requested."));
+                  }}>Request supervisor approval</button>
+                  <button type="button" className="underline" onClick={() => setException(null)}>Cancel</button>
+                </div>
+              )}
+              {liveApproval?.status === "pending" && (
+                <p className="mt-1 text-xs">Waiting for a supervisor (Supervisor Approvals). Leave the cart as it is — a change cancels the approval. <Link className="font-medium underline" href="/pos/approvals">Open approvals</Link></p>
+              )}
+              {liveApproval?.status === "approved" && (
+                <p className="mt-2 text-xs">Approved by {liveApproval.approver}.{" "}
+                  <button type="button" className="font-medium underline" disabled={loading} onClick={() => {
+                    const approvalId = liveApproval.id;
+                    run(() => exception.apply(approvalId)).then(() => { setException(null); setExceptionApproval(null); });
+                  }}>Apply the discount</button>
+                </p>
+              )}
+              {(liveApproval?.status === "rejected" || liveApproval?.status === "expired") && (
+                <p className="mt-1 text-xs">The request was {liveApproval.status}. <button type="button" className="underline" onClick={() => { setException(null); setExceptionApproval(null); }}>Dismiss</button></p>
+              )}
+            </PosAlert>
+          )}
+          {resumeChanges.length > 0 && (
+            <PosAlert tone="warning" className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-medium">This bill was on hold — review what changed:</p>
+                <ul className="mt-1 list-disc pl-5 text-xs">{resumeChanges.map((change, index) => <li key={index}>{change.message}</li>)}</ul>
+              </div>
+              <button type="button" onClick={() => setResumeChanges([])} aria-label="Dismiss"><X className="size-4" /></button>
+            </PosAlert>
+          )}
           {conflict && (
             <PosAlert
               tone="warning"
@@ -1066,7 +1126,7 @@ export function PosCheckoutScreen() {
                 Leave the cart as it is — any change restarts the approval.{" "}
                 {canApproveDiscounts && (
                   <Link
-                    href="/pos/discount-approvals"
+                    href="/pos/approvals"
                     className="font-medium underline"
                   >
                     Open the approvals queue
@@ -1087,49 +1147,9 @@ export function PosCheckoutScreen() {
             </PosAlert>
           )}
 
-          <PosPanel title="Customer & discount">
-            {selectedCustomer ? (
-              <div className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium text-text">
-                    {selectedCustomer.displayName}
-                  </p>
-                  {(selectedCustomer.phone || selectedCustomer.email) && (
-                    <p className="text-xs text-text-muted">
-                      {selectedCustomer.phone || selectedCustomer.email}
-                    </p>
-                  )}
-                </div>
-                <IconButton
-                  variant="ghost"
-                  onPress={() => selectCustomer(null)}
-                  aria-label="Clear selected customer"
-                >
-                  <X className="size-4" aria-hidden="true" />
-                </IconButton>
-              </div>
-            ) : (
-              <ComboBox
-                label="Customer (blank = walk-in)"
-                placeholder="Search by name, code or phone…"
-                inputValue={customerSearchInput}
-                onInputChange={setCustomerSearchInput}
-                options={customerOptions}
-                isLoading={customerSearchQuery.isFetching}
-                emptyMessage={
-                  debouncedCustomerSearch.trim()
-                    ? "No matching customers"
-                    : "Type to search customers"
-                }
-                allowsEmptyCollection
-                onSelectionChange={(key) => {
-                  if (key == null) return;
-                  const match = customerSearchQuery.data?.rows.find(
-                    (row) => row.id === key,
-                  );
-                  if (match) selectCustomer(match);
-                }}
-              />
+          <PosPanel title="Customer & discount" scanZone="off">
+            {cart && (
+              <CustomerPanel cart={cart} editable={editable} onCart={(next) => { setCart(next); setError(null); }} onNewCustomer={() => setNewCustomerOpen(true)} />
             )}
 
             {canDiscount && (
@@ -1172,7 +1192,11 @@ export function PosCheckoutScreen() {
             )}
           </PosPanel>
 
-          <PosPanel title="Payment">
+          <PosPanel title="Payment" scanZone="off">
+            {cart && (
+              <TextArea label="Sale note (optional)" rows={2} value={noteDraft ?? cart.notes ?? ""} isDisabled={!editable}
+                onChange={setNoteDraft} onBlur={saveNote} />
+            )}
             <div className="flex flex-col gap-1 text-sm">
               <Row label="Subtotal" value={money(currency, cart?.subtotal)} />
               <Row
@@ -1312,15 +1336,30 @@ export function PosCheckoutScreen() {
             </div>
 
             <div className="flex flex-col gap-2 border-t border-border pt-3">
-              <Button
-                variant="primary"
-                size="large"
-                onPress={completeSale}
-                isDisabled={!canComplete || Boolean(completeBlockedReason)}
-                isLoading={completing}
-              >
-                Complete sale
-              </Button>
+              {checkoutIssues.length > 0 && (
+                <PosAlert tone="warning">
+                  <p className="font-medium">Review before payment:</p>
+                  <ul className="mt-1 list-disc pl-5 text-xs">{checkoutIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul>
+                </PosAlert>
+              )}
+              {editable ? (
+                <Button variant="primary" size="large" onPress={proceedToCheckout} isDisabled={!cart?.lines?.length} isLoading={loading}>
+                  Proceed to checkout
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="primary"
+                    size="large"
+                    onPress={completeSale}
+                    isDisabled={!canComplete || Boolean(completeBlockedReason)}
+                    isLoading={completing}
+                  >
+                    Complete sale
+                  </Button>
+                  {inCheckout && <Button variant="ghost" onPress={backToBill} isLoading={loading}>Back to the bill</Button>}
+                </>
+              )}
               {completeBlockedReason && (
                 <p className="text-center text-xs text-text-muted">
                   {completeBlockedReason}
@@ -1329,8 +1368,8 @@ export function PosCheckoutScreen() {
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="secondary"
-                  onPress={holdCurrentCart}
-                  isDisabled={!cart?.lines?.length}
+                  onPress={() => setHoldOpen(true)}
+                  isDisabled={!cart?.lines?.length || !editable}
                   isLoading={loading}
                 >
                   <Pause className="size-4" aria-hidden="true" />
@@ -1338,12 +1377,12 @@ export function PosCheckoutScreen() {
                 </Button>
                 <Button
                   variant="ghost"
-                  onPress={() =>
-                    cart &&
-                    run(() =>
-                      cancelPosCart(cart.id).then((r) => ({ cart: r.cart })),
-                    )
-                  }
+                  isDisabled={!editable}
+                  onPress={() => {
+                    if (!cart) return;
+                    if (cart.lines?.length && !window.confirm("Cancel this unpaid bill? It is kept in the history but cannot be resumed.")) return;
+                    run(() => cancelPosCart(cart.id).then((r) => ({ cart: r.cart }))).then(() => startNewSale());
+                  }}
                 >
                   Cancel sale
                 </Button>
@@ -1353,6 +1392,12 @@ export function PosCheckoutScreen() {
         </div>
       </div>
 
+      {holdOpen && <HoldDialog onClose={() => setHoldOpen(false)} onHold={(note) => holdCurrentCart(note)} busy={loading} />}
+      {priceLine && (
+        <PriceDialog line={priceLine} currency={currency} onClose={() => setPriceLine(null)}
+          onApply={(input) => { overridePrice(priceLine.id, input); setPriceLine(null); }} />
+      )}
+      {newCustomerOpen && <NewCustomerDialog onClose={() => setNewCustomerOpen(false)} onCreate={createCustomerHere} />}
       {heldCartsOpen && (
         <HeldCartsDialog
           onClose={() => setHeldCartsOpen(false)}
@@ -1470,6 +1515,8 @@ function DiscountDialog({
   );
 }
 
+// Held bills at the outlets the person works at: their own or everyone's, by reference, customer, terminal or note, and held date. Prices
+// and stock are checked again on resume (nothing was reserved while held).
 function HeldCartsDialog({
   onClose,
   onResume,
@@ -1481,70 +1528,146 @@ function HeldCartsDialog({
 }) {
   const workspace = useWorkspaceContext();
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<"mine" | "all">("mine");
+  const [from, setFrom] = useState("");
   const query = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "held-carts", search),
-    queryFn: () => listHeldPosCarts(search || undefined),
+    queryKey: scopedQueryKey(workspace, "pos", "held-carts", search, scope, from),
+    queryFn: () => listHeldPosCarts({ search: search || undefined, scope, from: from || undefined }),
     refetchInterval: 15000,
   });
   const rows = query.data?.rows ?? [];
 
   return (
-    <Dialog
-      isOpen
-      onOpenChange={(open) => !open && onClose()}
-      title="Held sales"
-    >
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Held bills">
       <div className="flex flex-col gap-3">
-        <SearchField
-          label="Search held sales"
-          placeholder="Store, terminal, or customer…"
-          value={search}
-          onChange={setSearch}
-        />
+        <p className="text-xs text-text-muted">Prices and stock may have changed while a bill was on hold; they are checked again when you resume it.</p>
+        <div className="grid gap-2 sm:grid-cols-[1fr_9rem_10rem]">
+          <SearchField label="Search" placeholder="Reference, customer, terminal or note" value={search} onChange={setSearch} />
+          <Select label="Show" selectedKey={scope} onSelectionChange={(value) => setScope(value === "all" ? "all" : "mine")}
+            options={[{ value: "mine", label: "My bills" }, { value: "all", label: "Everyone's" }]} />
+          <TextField label="Held on or after" type="date" value={from} onChange={setFrom} />
+        </div>
         {query.isLoading ? (
-          <p className="p-4 text-center text-sm text-text-secondary">
-            Loading…
-          </p>
+          <p className="p-4 text-center text-sm text-text-secondary">Loading…</p>
+        ) : query.isError ? (
+          <p className="p-4 text-center text-sm text-danger">{query.error instanceof Error ? query.error.message : "Held bills could not be loaded."}</p>
         ) : rows.length === 0 ? (
-          <p className="p-4 text-center text-sm text-text-muted">
-            No held sales right now.
-          </p>
+          <p className="p-4 text-center text-sm text-text-muted">No held bills here.</p>
         ) : (
           <ul className="flex max-h-96 flex-col divide-y divide-border overflow-y-auto rounded-[var(--radius-control)] border border-border">
             {rows.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-center justify-between gap-3 px-3 py-2"
-              >
-                <div>
+              <li key={row.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-text">
-                    {row.customer_name ?? "Walk-in"} · {row.line_count} item
-                    {row.line_count === 1 ? "" : "s"}
+                    {row.cart_reference ?? "Bill"} · {row.customer_name ?? "Walk-in"} · {row.line_count} item{row.line_count === 1 ? "" : "s"} ·{" "}
+                    <span className="tabular-nums">{money(row.currency_code ?? currency, row.grand_total)}</span>
                   </p>
                   <p className="text-xs text-text-muted">
-                    {row.store_name} / {row.terminal_name} · held{" "}
-                    {new Date(row.held_at).toLocaleTimeString()} ·{" "}
-                    {money(currency, row.grand_total)}
+                    {row.cashier_name ?? "—"} · {row.store_name} / {row.terminal_name} · started {new Date(row.created_at).toLocaleString()} · held{" "}
+                    {new Date(row.held_at).toLocaleTimeString()}
                   </p>
+                  {row.hold_note && <p className="truncate text-xs text-text-secondary">“{row.hold_note}”</p>}
                 </div>
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  onPress={() => onResume(row.id)}
-                >
-                  Resume
-                </Button>
+                <Button variant="secondary" size="compact" onPress={() => onResume(row.id)}>Resume</Button>
               </li>
             ))}
           </ul>
         )}
         <div className="flex justify-end">
-          <Button variant="ghost" onPress={onClose}>
-            Close
-          </Button>
+          <Button variant="ghost" onPress={onClose}>Close</Button>
         </div>
       </div>
     </Dialog>
+  );
+}
+
+// Hold the bill with an optional short note for whoever resumes it.
+function HoldDialog({ onClose, onHold, busy }: { onClose: () => void; onHold: (note: string) => void; busy: boolean }) {
+  const [note, setNote] = useState("");
+  return (
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Hold this bill">
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-text-secondary">The bill keeps its items. Nothing is reserved meanwhile, so prices and stock are checked again when it is resumed.</p>
+        <TextField label="Note (optional)" placeholder="e.g. Gone to fetch wallet" value={note} onChange={(value) => setNote(value.slice(0, 200))} autoFocus />
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onPress={onClose}>Cancel</Button>
+          <Button variant="primary" isLoading={busy} onPress={() => onHold(note.trim())}>Hold bill</Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+// A different price for one line: within the cashier's limit with a reason, above it with a supervisor's approval. Clearing goes back to the
+// price list's price. The item and the price list are never changed.
+function PriceDialog({ line, currency, onClose, onApply }: {
+  line: PosCart["lines"][number]; currency: string; onClose: () => void; onApply: (input: { unitPrice: string | null; reason: string }) => void;
+}) {
+  const [price, setPrice] = useState(String(Number(line.unit_price)));
+  const [reason, setReason] = useState("");
+  const valid = /^\d{1,12}(\.\d{1,6})?$/.test(price.trim());
+  return (
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={`Price — ${line.description}`}>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-text-secondary">List price {money(currency, line.list_price)} per unit. Tax is worked out again from the new price.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <TextField label="New unit price" value={price} onChange={setPrice} inputMode="decimal" />
+          <TextField label="Reason" value={reason} onChange={setReason} isRequired />
+        </div>
+        <div className="flex justify-between gap-2">
+          {line.price_override ? <Button variant="ghost" onPress={() => onApply({ unitPrice: null, reason: reason || "Back to list price" })}>Use the list price</Button> : <span />}
+          <span className="flex gap-2">
+            <Button variant="ghost" onPress={onClose}>Cancel</Button>
+            <Button variant="primary" isDisabled={!valid || !reason.trim()} onPress={() => onApply({ unitPrice: price.trim(), reason: reason.trim() })}>Apply</Button>
+          </span>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+// A customer created at the counter, in the shared Customer Master (needs the quick-create permission).
+function NewCustomerDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (input: { name: string; phone: string; gstin: string }) => void }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [gstin, setGstin] = useState("");
+  return (
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="New customer">
+      <div className="flex flex-col gap-3">
+        <TextField label="Name" value={name} onChange={setName} isRequired autoFocus />
+        <div className="grid grid-cols-2 gap-3">
+          <TextField label="Phone" value={phone} onChange={setPhone} inputMode="tel" />
+          <TextField label="GSTIN (business customers)" value={gstin} onChange={(value) => setGstin(value.toUpperCase().slice(0, 15))} />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onPress={onClose}>Cancel</Button>
+          <Button variant="primary" isDisabled={!name.trim()} onPress={() => onCreate({ name: name.trim(), phone: phone.trim(), gstin: gstin.trim() })}>Create and select</Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+// A quantity typed in the line's unit, saved when the field is left or Enter is pressed (decimals only where the unit allows; the server
+// checks).
+function QuantityInput({ value, unit, isDisabled, onCommit }: { value: number; unit: string | null; isDisabled: boolean; onCommit: (quantity: number) => void }) {
+  const [text, setText] = useState(String(value));
+  const commit = () => {
+    const next = Number(text.trim());
+    if (!Number.isFinite(next) || next === value) { setText(String(value)); return; }
+    onCommit(next);
+  };
+  return (
+    <input
+      aria-label={`Quantity${unit ? ` (${unit})` : ""}`}
+      className="h-10 w-14 rounded-[var(--radius-control)] border border-border bg-surface text-center text-base font-medium tabular-nums disabled:opacity-60"
+      inputMode="decimal"
+      value={text}
+      disabled={isDisabled}
+      onChange={(event) => setText(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commit(); } }}
+    />
   );
 }
 

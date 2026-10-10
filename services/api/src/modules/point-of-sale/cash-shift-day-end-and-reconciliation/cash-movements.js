@@ -11,12 +11,14 @@ import { decimal, asDatabaseDecimal } from "../../../core/decimal.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
+import { assertPosAction } from "../permissions/index.js";
 
 // Same sign convention completePointOfSaleReturn's refund movement already
 // uses: positive = cash added to the drawer, negative = cash removed --
 // closeShift sums this column directly to compute expected_cash.
 export async function recordPosCashMovement(client, context, shiftId, input) {
-  requirePermission(context, "pos.cash.adjust");
+  // POS module access; what the cashier may move is their permission profile (CASH_MOVEMENT_IN / OUT and its limit), checked below.
+  requirePermission(context, "pos.view");
   const movementType = input.movementType;
   if (!["paid_in", "paid_out"].includes(movementType)) {
     throw posError(400, "Cash movement type must be paid_in or paid_out.", "POS_CASH_MOVEMENT_TYPE_INVALID");
@@ -31,6 +33,8 @@ export async function recordPosCashMovement(client, context, shiftId, input) {
   );
   if (!shift.rows[0]) throw posError(409, "An open shift is required to record a cash movement.", "POS_SHIFT_NOT_OPEN");
   await assertPosStoreAccess(client, context, shift.rows[0].store_id);
+  await assertPosAction(client, context, { permission: movementType === "paid_in" ? "CASH_MOVEMENT_IN" : "CASH_MOVEMENT_OUT", outletId: shift.rows[0].store_id,
+    amount: asDatabaseDecimal(amount), reason: input.reason, approvalId: input.approvalId, resource: { type: "pos_shift", id: shiftId } });
 
   // SECURITY (consolidated pass, item #23): this financial mutation had no
   // idempotency protection at all -- a client retry (timeout, double-tap)

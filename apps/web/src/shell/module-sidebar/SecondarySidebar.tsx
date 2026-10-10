@@ -109,7 +109,7 @@ function subscribeStorage(onChange: () => void) {
 }
 // Modules whose sections all start open on every visit: a section the person folds stays folded only for this browser tab (session
 // storage), so the next visit shows every section open again. Other modules start folded and remember what was opened (local storage).
-const OPEN_ON_ARRIVAL = new Set(["crm", "sales", "procurement", "stock"]);
+const OPEN_ON_ARRIVAL = new Set(["crm", "sales", "procurement", "stock", "point-of-sale"]);
 function sidebarStorage(moduleKey: string): Storage {
   return OPEN_ON_ARRIVAL.has(moduleKey) ? window.sessionStorage : window.localStorage;
 }

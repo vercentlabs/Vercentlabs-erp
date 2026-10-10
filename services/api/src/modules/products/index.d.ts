@@ -35,6 +35,10 @@ export function listItemIdentifiers(client: Client, context: Context, itemId: st
 export function addItemIdentifier(client: Client, context: Context, itemId: string, input: Input): Promise<any>;
 export function removeItemIdentifier(client: Client, context: Context, itemId: string, identifierId: string): Promise<any>;
 export function setPrimaryBarcode(client: Client, context: Context, itemId: string, identifierId: string): Promise<any>;
+export function updateItemIdentifier(client: Client, context: Context, itemId: string, identifierId: string, input: Record<string, unknown>): Promise<any>;
+export declare const BARCODE_FORMATS: Readonly<Record<string, { label: string; test: (value: string) => boolean; message: string }>>;
+export function validGtinCheckDigit(value: string): boolean;
+export function expandUpcE(value: string): string | null;
 export function findItemByIdentifier(client: Client, context: Context, value: string): Promise<any>;
 export function getItemUnits(client: Client, context: Context, itemId: string, options?: { includeInactive?: boolean }): Promise<any>;
 export function getItemUomHistory(client: Client, context: Context, itemId: string): Promise<any[]>;

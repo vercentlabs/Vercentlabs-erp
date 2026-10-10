@@ -10,7 +10,12 @@
 // could set regardless of real print history.
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
+import { assertPosAction } from "../permissions/index.js";
+
+const posAdministrator = (context) => context.roleSlugs?.some((slug) => ["organization_owner", "system_administrator"].includes(slug))
+  || context.permissions?.includes("pos.store.manage") || context.permissions?.includes("pos.settings.manage");
 import { event } from "../shared/audit.js";
+import { escapeHtml, getMailTransport } from "../../../core/platform/mail/index.js";
 
 export async function getPosSaleReceipt(client, context, saleId) {
   requirePermission(context, "pos.view");
@@ -91,6 +96,7 @@ export async function recordPosReceiptPrintAttempt(client, context, saleId) {
     [context.organizationId, saleId],
   );
   const printType = Number(priorCount.rows[0].count) === 0 ? "original" : "reprint";
+  if (!posAdministrator(context)) await assertPosAction(client, context, { permission: printType === "original" ? "RECEIPT_PRINT" : "RECEIPT_REPRINT", outletId: sale.store_id });
 
   const result = await client.query(
     `INSERT INTO tenant.pos_receipt_print_events (organization_id,sale_id,print_type,requested_by)
@@ -121,4 +127,73 @@ export async function listPosReceiptPrintEvents(client, context, saleId) {
     [context.organizationId, saleId],
   );
   return result.rows;
+}
+
+// ------------------------------------------------------------------ digital receipts (Walk-In Customer, migration 0087)
+
+// Sends a sale's digital receipts: the ones the customer agreed to at checkout (queued with the sale) and, optionally, one more to a new
+// address given now (RECEIPT_REPRINT). Email goes through the company's configured mail transport; there is no SMS provider, so an SMS receipt
+// is recorded as not configured — the screen never claims a receipt was sent when it was not. Sending never changes the sale. A receipt
+// already sent is not sent again unless asked (resend). input: channel + destination + consent (an extra receipt), resend.
+export async function sendPosDigitalReceipts(client, context, saleId, input = {}) {
+  requirePermission(context, "pos.view");
+  const receipt = await getPosSaleReceipt(client, context, saleId);
+  const sale = receipt.sale;
+  if (input.destination) {
+    if (!posAdministrator(context)) await assertPosAction(client, context, { permission: "RECEIPT_REPRINT", outletId: sale.store_id });
+    const channel = input.channel === "sms" ? "sms" : "email";
+    const destination = channel === "sms" ? String(input.destination).replace(/[\s()-]/g, "") : String(input.destination).trim().toLowerCase();
+    if (channel === "sms" ? !/^\+?[0-9]{7,15}$/.test(destination) : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(destination))
+      throw posError(400, "Enter a valid phone number or email.", "POS_RECEIPT_CONTACT_INVALID");
+    if (input.consent !== true) throw posError(400, "Confirm the customer agreed to receive the receipt there.", "POS_RECEIPT_CONTACT_INVALID");
+    await client.query(`INSERT INTO tenant.pos_receipt_deliveries (organization_id, sale_id, channel, destination, consent, requested_by) VALUES ($1,$2,$3,$4,true,$5)`,
+      [context.organizationId, saleId, channel, destination, context.userId ?? null]);
+  }
+  const statuses = input.resend ? ["pending", "failed", "not_configured", "sent"] : ["pending", "failed"];
+  const { rows } = await client.query(`SELECT * FROM tenant.pos_receipt_deliveries WHERE organization_id=$1 AND sale_id=$2 AND status = ANY($3::text[]) ORDER BY created_at`,
+    [context.organizationId, saleId, statuses]);
+  for (const delivery of rows) {
+    let status = "not_configured";
+    let failure = delivery.channel === "sms" ? "No SMS provider is configured." : "Email is not configured for this workspace.";
+    if (delivery.channel === "email") {
+      const mail = getMailTransport();
+      if (mail) {
+        try {
+          await mail.transporter.sendMail({ from: mail.from, replyTo: mail.replyTo ?? undefined, to: delivery.destination,
+            subject: `Receipt ${sale.receipt_number} — ${sale.store_name}`, html: receiptHtml(receipt), text: receiptText(receipt) });
+          status = "sent";
+          failure = null;
+        } catch (error) {
+          status = "failed";
+          failure = String(error?.message ?? "The email could not be sent.").slice(0, 300);
+        }
+      }
+    }
+    await client.query(`UPDATE tenant.pos_receipt_deliveries SET status=$3, error=$4, attempts=attempts+1, sent_at=CASE WHEN $3='sent' THEN now() ELSE sent_at END
+                         WHERE organization_id=$1 AND id=$2`, [context.organizationId, delivery.id, status, failure]);
+  }
+  return listPosReceiptDeliveries(client, context, saleId);
+}
+
+// A sale's digital receipts: channel, where (masked unless the person may see customer contacts), outcome.
+export async function listPosReceiptDeliveries(client, context, saleId) {
+  requirePermission(context, "pos.view");
+  const full = context.roleSlugs?.some((slug) => ["organization_owner", "system_administrator"].includes(slug))
+    || ["sales.customers.view", "pos.settings.manage", "pos.reports.view"].some((key) => context.permissions?.includes(key));
+  const { rows } = await client.query(`SELECT id, channel, destination, status, error, attempts, created_at, sent_at FROM tenant.pos_receipt_deliveries
+     WHERE organization_id=$1 AND sale_id=$2 ORDER BY created_at`, [context.organizationId, saleId]);
+  const mask = (row) => (full ? row.destination : row.channel === "sms" ? `••••${row.destination.slice(-4)}` : row.destination.replace(/^(.)[^@]*(@.*)$/, "$1•••$2"));
+  return rows.map((row) => ({ id: row.id, channel: row.channel, destination: mask(row), status: row.status, error: row.error, attempts: row.attempts, at: row.created_at, sentAt: row.sent_at }));
+}
+
+const money2 = (value) => Number(value ?? 0).toFixed(2);
+function receiptText({ sale, lines }) {
+  return [`${sale.store_name} — receipt ${sale.receipt_number}`, ...lines.map((line) => `${line.description} × ${Number(line.quantity)}  ${money2(line.line_total)}`),
+    `Tax ${money2(sale.tax_total)}`, `Total ${sale.currency_code} ${money2(sale.grand_total)}`].join("\n");
+}
+function receiptHtml({ sale, lines }) {
+  const rows = lines.map((line) => `<tr><td>${escapeHtml(line.description ?? "")}</td><td style="text-align:right">${escapeHtml(String(Number(line.quantity)))}</td>`
+    + `<td style="text-align:right">${money2(line.line_total)}</td></tr>`).join("");
+  return `<h2>${escapeHtml(sale.store_name ?? "")}</h2><p>Receipt ${escapeHtml(sale.receipt_number)} · ${escapeHtml(new Date(sale.completed_at ?? sale.created_at).toLocaleString("en-IN"))}</p>`
+    + `<table cellpadding="4">${rows}</table><p>Tax ${money2(sale.tax_total)}<br/><strong>Total ${escapeHtml(sale.currency_code ?? "")} ${money2(sale.grand_total)}</strong></p>`;
 }

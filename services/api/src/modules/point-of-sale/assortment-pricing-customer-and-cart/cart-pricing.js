@@ -88,12 +88,12 @@ export async function resolveBuyerStateCode(client, context, customerId, sellerS
 async function resolveSaleItem(client, context, itemId, variantId) {
   if (variantId) throw posError(409, "Choose the variant item itself.", "POS_SALE_VARIANT_IS_ITEM");
   const itemResult = await client.query(
-    `SELECT id,code,name,description,standard_cost,tax_category_id,group_id,status,tracking_type,is_sellable
+    `SELECT id,code,name,description,standard_cost,tax_category_id,group_id,status,lifecycle_status,tracking_type,is_sellable,uom_id
      FROM tenant.items WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
-  if (!item || item.status !== "active" || !item.is_sellable) {
+  if (!item || item.status !== "active" || item.lifecycle_status !== "active" || !item.is_sellable) {
     throw posError(404, "One or more POS sale items were not found.", "POS_SALE_ITEM_NOT_FOUND");
   }
   return item;
@@ -134,16 +134,23 @@ export async function applyCustomerPricingRules(client, context, store, customer
   return price;
 }
 
+// The configured selling price of an item at this store (its price list, today, in the unit it is sold in), before customer rules; null
+// when it has none. A price override's deviation is measured against it.
+export async function resolveListUnitPrice(client, context, store, itemId, uomId = null) {
+  if (!store.price_list_id) return null;
+  try {
+    const priceList = await resolveSalesPriceList(client, context, { priceListId: store.price_list_id, currencyCode: store.currency_code });
+    const resolved = await resolveSalesPrice(client, context, { priceList, itemId, uomId });
+    return resolved.missing ? null : decimal(resolved.listPrice);
+  } catch {
+    return null;
+  }
+}
+
 async function resolveUnitPrice(client, context, store, policy, line, item, customerId) {
+  // A price override was authorized when it was entered (Cashier Permissions: PRICE_OVERRIDE, its limit and reason) and is checked again
+  // at checkout; pricing only applies it. Tax is always recomputed from the overridden price.
   if (line.priceOverride) {
-    if (!policy.allow_price_override) {
-      throw posError(409, "Price override is disabled for this organization.", "POS_PRICE_OVERRIDE_DISABLED");
-    }
-    if (!context.permissions?.includes("pos.price.override") && !context.roleSlugs?.includes("organization_owner")) {
-      const error = new Error("Missing permission: pos.price.override");
-      error.code = "FORBIDDEN";
-      throw error;
-    }
     const requested = decimal(line.unitPrice);
     if (requested < 0n) throw posError(400, "POS unit price must be zero or greater.", "POS_UNIT_PRICE_INVALID");
     return requested;
@@ -163,7 +170,8 @@ async function resolveUnitPrice(client, context, store, policy, line, item, cust
   } catch {
     throw posError(409, "The store's price list is inactive, out of date or in another currency.", "POS_PRICE_LIST_REQUIRED");
   }
-  const resolved = await resolveSalesPrice(client, context, { priceList, itemId: item.id });
+  // The price of the unit the line is sold in (a box is priced as a box, or as its pieces at the base unit's price).
+  const resolved = await resolveSalesPrice(client, context, { priceList, itemId: item.id, uomId: line.uomId || null });
   if (resolved.missing) throw posError(409, resolved.message, "POS_PRICE_NOT_FOUND");
   const listUnitPrice = decimal(resolved.listPrice);
   return applyCustomerPricingRules(client, context, store, customerId, item.id, item.group_id, decimal(line.quantity), listUnitPrice);
@@ -435,9 +443,17 @@ export async function priceCartLines(client, context, { store, policy, customerI
         throw posError(400, `Line ${lineNumber} discount requires a reason.`, "POS_DISCOUNT_REASON_REQUIRED");
       }
     }
+    const uomFactor = decimal(rawLine.uomFactor ?? 1);
     priced.push({
       lineNumber,
       itemId: item.id,
+      // The unit sold, its factor and the base quantity stock moves (a box of 12 issues 12 pieces).
+      uomId: rawLine.uomId || item.uom_id,
+      // Snapshots for the receipt: the barcode the line was scanned with and the SKU it was sold under.
+      scannedBarcode: rawLine.scannedBarcode ?? null,
+      sku: item.code,
+      uomFactor,
+      baseQuantity: mul(quantity, uomFactor),
       itemGroupId: item.group_id || null,
       description: rawLine.description || item.name,
       quantity,
@@ -605,6 +621,8 @@ export async function priceCartLines(client, context, { store, policy, customerI
     lines: priced.map((line) => ({
       ...line,
       quantity: asDatabaseDecimal(line.quantity),
+      uomFactor: asDatabaseDecimal(line.uomFactor),
+      baseQuantity: asDatabaseDecimal(line.baseQuantity),
       listPrice: asDatabaseDecimal(line.listPrice),
       unitPrice: asDatabaseDecimal(line.unitPrice),
       grossAmount: asDatabaseDecimal(line.grossAmount),

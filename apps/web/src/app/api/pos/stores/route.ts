@@ -1,20 +1,12 @@
-import { z } from "zod";
+import { listPointOfSaleResource } from "@vercentlabs/api";
 
-import { createStore, listPointOfSaleResource } from "@vercentlabs/api";
-
-import { ok, readJson } from "@/core/http";
+import { ok } from "@/core/http";
 import { posContext } from "@/features/pos/shared/pos-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-const createStoreSchema = z.object({
-  warehouseId: z.string().uuid(),
-  code: z.string().trim().min(1).max(40),
-  name: z.string().trim().min(1).max(200),
-  priceListId: z.string().uuid().optional().nullable(),
-  currencyCode: z.string().trim().length(3).optional(),
-  timezone: z.string().trim().min(1).max(60).optional(),
-});
-
+// The outlets the POS screens pick from (checkout, shifts, terminals, reports), filtered to the outlets the person may work at. Outlets
+// themselves are maintained under /api/pos/outlets.
+//
 // A static "stores" segment always wins over the sibling dynamic
 // [resource]/route.ts for this exact path (Next.js resolves to a FILE
 // first, then checks the method within it — it does not fall through to a
@@ -40,22 +32,6 @@ export async function GET(request: Request) {
         },
       );
       return ok({ rows });
-    },
-  );
-}
-
-export async function POST(request: Request) {
-  return workspaceRoute(
-    request,
-    {
-      module: "point-of-sale",
-      permission: "pos.store.manage",
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const input = createStoreSchema.parse(await readJson(request));
-      const result = await createStore(client, posContext(session), input);
-      return ok({ store: result }, 201);
     },
   );
 }

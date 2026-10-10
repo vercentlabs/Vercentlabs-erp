@@ -21,6 +21,9 @@ const updateSchema = z
     max_cart_discount_percent: z.number().min(0).max(100),
     discount_approval_threshold_percent: z.number().min(0).max(100),
     cart_expiry_minutes: z.number().int().min(5).max(10080),
+    held_cart_retention_hours: z.number().int().min(1).max(2160),
+    checkout_lock_minutes: z.number().int().min(2).max(240),
+    walk_in_buyer_details_required_above: z.number().min(0).nullable(),
   })
   .partial();
 

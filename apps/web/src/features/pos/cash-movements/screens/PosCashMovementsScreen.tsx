@@ -23,9 +23,9 @@ import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
-import { listPosEligibleCashiers } from "@/features/pos/cashiers/api/cashiers-api";
-import { listPosStores } from "@/features/pos/stores/api/stores-api";
-import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
+import { listPosEligibleCashiers } from "@/features/pos/shared/cashiers";
+import { listPosStores } from "@/features/pos/shared/stores";
+import { listPosTerminals } from "@/features/pos/shared/terminals";
 import { listPosShifts } from "@/features/pos/shifts/api/shifts-api";
 import {
   listPosCashMovementHistory,

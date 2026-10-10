@@ -1,13 +1,12 @@
 // The single GLOBAL navigation authority — primary sidebar, mobile drawer,
 // and the command menu must all read from this file
-// for Home/Work/Search/Approvals/Notifications/Jobs/Help/Settings and from
+// for Home/Approvals/Notifications/Jobs/Help/Settings and from
 // module-navigation-registry.ts's MODULE_NAVIGATION for the 12 modules'
 // own entries. MODULE_NAV_ENTRIES below is DERIVED from MODULE_NAVIGATION
 // (icon/label/route), never hand-duplicated — one registry is the
 // authority.
 import {
   Home,
-  Search,
   CheckSquare,
   Bell,
   ListTodo,
@@ -70,16 +69,6 @@ export const GLOBAL_NAV_TOP: readonly GlobalNavEntry[] = [
     requiredPermission: null,
     availability: "implemented",
     keywords: ["home", "dashboard"],
-  },
-  {
-    key: "search",
-    label: "Search",
-    href: "/search",
-    icon: Search,
-    requiredPermission: null,
-    availability: "implemented",
-    keywords: ["search", "find"],
-    placement: "topbar",
   },
 ];
 

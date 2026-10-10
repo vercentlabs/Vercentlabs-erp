@@ -260,3 +260,55 @@ export function isPlainObject(value) {
 
 
 
+
+
+
+// Team memberships: the role is one of the roles assignment and analytics rely on (a seller is assigned leads, a manager sees the team's
+// records), the allocation is a share of the person's time (more than 0, at most 100), the dates are real dates in order, the team is an
+// active team of this company, and a person has one active membership of a team at a time. Checked here so a bad value gets a clear message
+// instead of a database refusal (which reached the screen as "The request could not be completed").
+export const SALES_TEAM_MEMBER_ROLES = Object.freeze(["seller", "manager", "sales_ops", "overlay", "observer"]);
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export async function assertSalesTeamMembershipInput(client, context, resource, prepared, before = null) {
+  if (resource !== "sales-team-members") return;
+  const issues = [];
+  const has = (key) => Object.prototype.hasOwnProperty.call(prepared, key) && prepared[key] !== undefined;
+  if (has("memberRole") && prepared.memberRole !== null) {
+    const role = String(prepared.memberRole).trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (!SALES_TEAM_MEMBER_ROLES.includes(role)) issues.push({ field: "memberRole", message: "Choose Seller, Manager, Sales operations, Overlay or Observer." });
+    else prepared.memberRole = role;
+  }
+  if (has("allocationPercent") && prepared.allocationPercent !== null) {
+    const share = Number(prepared.allocationPercent);
+    if (!Number.isFinite(share) || share <= 0 || share > 100) issues.push({ field: "allocationPercent", message: "Allocation is a percentage above 0 and up to 100." });
+    else prepared.allocationPercent = share;
+  }
+  for (const field of ["effectiveFrom", "effectiveTo"]) {
+    if (!has(field) || prepared[field] === null || prepared[field] === "") { if (has(field)) prepared[field] = null; continue; }
+    const value = String(prepared[field]).trim().slice(0, 10);
+    if (!DATE.test(value) || Number.isNaN(new Date(`${value}T00:00:00Z`).getTime())) issues.push({ field, message: "Enter a date (YYYY-MM-DD)." });
+    else prepared[field] = value;
+  }
+  const from = prepared.effectiveFrom ?? before?.effectiveFrom ?? null;
+  const to = prepared.effectiveTo ?? (has("effectiveTo") ? null : before?.effectiveTo ?? null);
+  const day = (value) => (value ? String(value instanceof Date ? value.toISOString() : value).slice(0, 10) : null);
+  if (from && to && day(to) < day(from)) issues.push({ field: "effectiveTo", message: "The end date cannot be before the start date." });
+  if (issues.length) throw new CrmError(400, issues[0].message, "CRM_TEAM_MEMBERSHIP_INVALID", validationErrorDetails(issues));
+
+  const teamId = prepared.teamId ?? before?.teamId;
+  const userId = prepared.userId ?? before?.userId;
+  if (!before || has("teamId")) {
+    const team = (await client.query(`SELECT status FROM tenant.crm_sales_teams WHERE organization_id = $1 AND id = $2`, [context.organizationId, teamId])).rows[0];
+    if (!team) throw new CrmError(404, "That team was not found.", "CRM_SALES_TEAM_NOT_FOUND");
+    if (team.status !== "active") throw new CrmError(409, "People can only be added to an active team.", "CRM_SALES_TEAM_INACTIVE");
+  }
+  if (!before) {
+    const existing = (await client.query(
+      `SELECT 1 FROM tenant.crm_sales_team_members WHERE organization_id = $1 AND team_id = $2 AND user_id = $3 AND status = 'active'
+          AND (effective_to IS NULL OR effective_to >= COALESCE($4::date, current_date)) LIMIT 1`,
+      [context.organizationId, teamId, userId, prepared.effectiveFrom ?? null])).rows[0];
+    if (existing) throw new CrmError(409, "This person is already an active member of the team. End that membership first to change it.", "CRM_TEAM_MEMBERSHIP_EXISTS",
+      validationErrorDetails([{ field: "userId", message: "Already an active member of this team." }]));
+  }
+}

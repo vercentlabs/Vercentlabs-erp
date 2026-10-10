@@ -9,10 +9,11 @@
 // layering violation.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
-import { add, sub, decimal, asDatabaseDecimal, allocate } from "../../../core/decimal.js";
+import { add, sub, mul, decimal, asDatabaseDecimal, allocate } from "../../../core/decimal.js";
 import { postStockMovement as postCanonicalStockMovement } from "../../stock/index.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
+import { assertPosAction } from "../permissions/index.js";
 import { event } from "../shared/audit.js";
 import { releasePosCouponRedemptionForFullReturn } from "../assortment-pricing-customer-and-cart/coupons.js";
 import { reversePosLoyaltyForReturn } from "../assortment-pricing-customer-and-cart/loyalty.js";
@@ -88,7 +89,8 @@ async function recordReturnPaymentRefund(client, context, { returnId, saleId, pa
 }
 
 export async function createPointOfSaleReturn(client, context, input) {
-  requirePermission(context, "pos.return.create");
+  // POS module access; returning and refunding are the cashier's RETURN_WITH_RECEIPT and REFUND_INITIATE grants, checked below.
+  requirePermission(context, "pos.view");
   if (!Array.isArray(input.lines) || input.lines.length === 0) {
     throw posError(400, "At least one return line is required.", "POS_RETURN_LINES_REQUIRED");
   }
@@ -110,6 +112,7 @@ export async function createPointOfSaleReturn(client, context, input) {
   const sale = saleResult.rows[0];
   if (!sale) throw posError(404, "Eligible sale not found.", "POS_RETURN_SALE_NOT_FOUND");
   await assertPosStoreAccess(client, context, sale.store_id);
+  await assertPosAction(client, context, { permission: "RETURN_WITH_RECEIPT", outletId: sale.store_id });
 
   const uniqueLineIds = [...new Set(input.lines.map((line) => line.saleLineId))];
   if (uniqueLineIds.length !== input.lines.length) {
@@ -157,6 +160,8 @@ export async function createPointOfSaleReturn(client, context, input) {
   if (input.refundTotal != null && Math.abs(Number(input.refundTotal) - refundTotal) > 0.01) {
     throw posError(409, "Client refund total does not match the authoritative return total.", "POS_REFUND_TOTAL_MISMATCH");
   }
+  if (refundTotal > 0) await assertPosAction(client, context, { permission: "REFUND_INITIATE", outletId: sale.store_id, amount: refundTotal.toFixed(6),
+    approvalId: input.approvalId, resource: { type: "pos_sale", id: sale.id } });
 
   const settings = await client.query(
     `SELECT require_return_approval,prohibit_self_return_approval
@@ -339,7 +344,7 @@ export async function completePointOfSaleReturn(client, context, returnId, input
   }
 
   const lines = await client.query(
-    `SELECT return_line.*,sale_line.quantity AS sold_quantity,
+    `SELECT return_line.*,sale_line.quantity AS sold_quantity,sale_line.uom_factor,
             sale_line.returned_quantity,sale_line.item_id,sale_line.warehouse_id,
             sale_line.warehouse_location_id,sale_line.batch_id,sale_line.serial_id,
             sale_line.loyalty_redeem_points AS sale_line_loyalty_redeem_points,
@@ -376,7 +381,8 @@ export async function completePointOfSaleReturn(client, context, returnId, input
           warehouseLocationId: line.warehouse_location_id,
           batchId: line.batch_id,
           serialId: line.serial_id,
-          quantity: line.quantity,
+          // Back into stock in the base unit: returned quantity (in the unit sold) times that unit's factor.
+          quantity: asDatabaseDecimal(mul(decimal(line.quantity), decimal(String(line.uom_factor ?? "1").match(/^\d+(?:\.\d{1,6})?/)[0]))),
           unitCost: Number(line.unit_cost || 0),
           referenceType: "pos_return",
           referenceId: returnId,

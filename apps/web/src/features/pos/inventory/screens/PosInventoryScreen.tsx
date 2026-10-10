@@ -35,7 +35,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
 import { dateTime } from "@/features/pos/shared/format";
-import { listPosStores } from "@/features/pos/stores/api/stores-api";
+import { listPosStores } from "@/features/pos/shared/stores";
 import {
   listPosStoreInventory,
   listPosStoreStockActivity,
