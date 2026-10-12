@@ -29,6 +29,15 @@ export async function getWalkInSalesSummary(client, context, input = {}) {
     `SELECT payment.payment_method AS method, count(DISTINCT sale.id)::int AS transactions, COALESCE(sum(payment.amount), 0)::text AS amount
        FROM tenant.pos_sales sale JOIN tenant.pos_payments payment ON payment.organization_id = sale.organization_id AND payment.sale_id = sale.id AND payment.status = 'captured'
       WHERE ${where} AND sale.customer_mode = 'walk_in' GROUP BY payment.payment_method ORDER BY payment.payment_method`, values)).rows;
+  // Named customers: how many different customers bought, how many bought more than once, and the top five by net sales.
+  const named = (await client.query(
+    `SELECT count(*)::int AS customers, count(*) FILTER (WHERE purchases > 1)::int AS repeat_customers FROM (
+       SELECT sale.customer_id, count(*) AS purchases FROM tenant.pos_sales sale WHERE ${where} AND sale.customer_mode = 'registered' GROUP BY sale.customer_id) per_customer`, values)).rows[0];
+  const topCustomers = (await client.query(
+    `SELECT sale.customer_id AS id, COALESCE(max(party.display_name), max(sale.customer_name)) AS name, max(sale.customer_code_snapshot) AS code, count(*)::int AS transactions,
+            COALESCE(sum(sale.grand_total - ${refunds}), 0)::text AS net
+       FROM tenant.pos_sales sale LEFT JOIN tenant.business_parties party ON party.organization_id = sale.organization_id AND party.id = sale.customer_id
+      WHERE ${where} AND sale.customer_mode = 'registered' GROUP BY sale.customer_id ORDER BY sum(sale.grand_total - ${refunds}) DESC LIMIT 5`, values)).rows;
   const empty = { transactions: 0, gross: "0", discounts: "0", tax: "0", refunds: "0", net: "0", averageBill: "0" };
   const pick = (mode) => {
     const row = byMode.find((entry) => entry.mode === mode);
@@ -37,6 +46,7 @@ export async function getWalkInSalesSummary(client, context, input = {}) {
   const currency = (await client.query(`SELECT base_currency FROM public.organizations WHERE id = $1`, [context.organizationId])).rows[0]?.base_currency?.trim() ?? "INR";
   return {
     from, to, currency, walkIn: pick("walk_in"), registered: pick("registered"), walkInByOutlet: byOutlet, walkInByPaymentMethod: byPayment,
+    namedCustomers: { customers: named.customers, repeatCustomers: named.repeat_customers, top: topCustomers },
     note: "Walk-in figures count transactions, not customers: anonymous purchases cannot be tied to a person.",
   };
 }

@@ -29,8 +29,10 @@ export class PosPermissionError extends Error {
 const entry = (code, area, label, description, extra = {}) => Object.freeze({ code, area, label, description, limits: [], limitRequired: false, reason: false, approval: null, ...extra });
 export const CASHIER_PERMISSION_CATALOGUE = Object.freeze([
   entry("POS_ACCESS", "sessions", "POS access", "Enter the POS workspace at the cashier's outlets."),
-  entry("SESSION_OPEN_OWN", "sessions", "Open own session", "Open a POS session on an active terminal."),
-  entry("SESSION_CLOSE_OWN", "sessions", "Close own session", "Close the cashier's own session. Required with Open own session."),
+  entry("SESSION_OPEN_OWN", "sessions", "Open own session", "Open a POS session on an active terminal. An opening count that differs from the cash handed over needs a supervisor's approval above the outlet's threshold.",
+    { approval: "APPROVE_CASH_MOVEMENT_EXCEPTION" }),
+  entry("SESSION_CLOSE_OWN", "sessions", "Close own session", "Close the cashier's own session. Required with Open own session. A closing cash difference above the outlet's threshold needs a supervisor's approval.",
+    { approval: "APPROVE_CASH_MOVEMENT_EXCEPTION" }),
   entry("SESSION_VIEW_OWN", "sessions", "View own session", "See the summary of the cashier's own session."),
   entry("SESSION_VIEW_EXPECTED_CASH", "sessions", "See expected cash", "See the expected cash of an open session before counting it."),
   entry("SESSION_CLOSE_OTHER", "sessions", "Close another cashier's session", "Supervisor closure of someone else's session, with a reason.", { reason: true }),
@@ -41,10 +43,12 @@ export const CASHIER_PERMISSION_CATALOGUE = Object.freeze([
   entry("SALE_RESUME_ANY", "sales", "Resume any held sale", "Pick up a sale another cashier held."),
   entry("SALE_CANCEL_UNPAID", "sales", "Cancel an unpaid sale", "Cancel a sale that was never completed."),
   entry("PAYMENT_VOID_PENDING", "sales", "Void a pending payment", "Void a payment that is still pending or unsettled."),
-  entry("DISCOUNT_LINE_MANUAL", "discounts", "Manual line discount", "Discount one line by hand. The amount limit caps all manual discounts on the sale.",
-    { limits: ["percentage", "amount"], limitRequired: true, approval: "APPROVE_DISCOUNT_EXCEPTION" }),
-  entry("DISCOUNT_ORDER_MANUAL", "discounts", "Manual order discount", "Discount the whole sale by hand. The amount limit caps all manual discounts on the sale.",
-    { limits: ["percentage", "amount"], limitRequired: true, approval: "APPROVE_DISCOUNT_EXCEPTION" }),
+  entry("DISCOUNT_LINE_MANUAL", "discounts", "Manual line discount",
+    "Discount one line by hand. The amount caps one line's discount; the sale total caps all manual discounts on the sale (the amount, when no total is set).",
+    { limits: ["percentage", "amount", "aggregate"], limitRequired: true, approval: "APPROVE_DISCOUNT_EXCEPTION" }),
+  entry("DISCOUNT_ORDER_MANUAL", "discounts", "Manual order discount",
+    "Discount the whole sale by hand. The amount caps the order discount; the sale total caps all manual discounts on the sale (the amount, when no total is set).",
+    { limits: ["percentage", "amount", "aggregate"], limitRequired: true, approval: "APPROVE_DISCOUNT_EXCEPTION" }),
   entry("PRICE_OVERRIDE", "discounts", "Override a price", "Sell at a price other than the configured one, with a reason. The percentage caps the deviation.",
     { limits: ["percentage"], limitRequired: true, reason: true, approval: "APPROVE_PRICE_OVERRIDE" }),
   entry("CUSTOMER_SELECT", "sales", "Choose a customer", "Attach an existing customer to a sale."),
@@ -115,7 +119,8 @@ function toGrant(row) {
   const item = BY_CODE.get(row.permission_code);
   return {
     code: row.permission_code, area: item?.area ?? "other", label: item?.label ?? row.permission_code, description: item?.description ?? null, enabled: row.enabled,
-    limitMode: row.limit_mode, maxPercentage: num(row.max_percentage), maxAmount: num(row.max_amount), currency: row.amount_currency?.trim() ?? null,
+    limitMode: row.limit_mode, maxPercentage: num(row.max_percentage), maxAmount: num(row.max_amount), maxAggregateAmount: num(row.max_aggregate_amount),
+    currency: row.amount_currency?.trim() ?? null,
     requireReason: row.require_reason || Boolean(item?.reason), reasonForced: Boolean(item?.reason), limits: item?.limits ?? [], limitRequired: Boolean(item?.limitRequired),
     approvalCode: item?.approval ?? null, supported: Boolean(item),
   };
@@ -214,6 +219,9 @@ function validateGrants(grants) {
       if (grant.maxPercentage === null && grant.maxAmount === null) issues.push({ code: grant.code, message: `${grant.label} is limited but states no limit.` });
       if (grant.maxPercentage !== null && !grant.limits.includes("percentage")) issues.push({ code: grant.code, message: `${grant.label} takes no percentage limit.` });
       if (grant.maxAmount !== null && !grant.limits.includes("amount")) issues.push({ code: grant.code, message: `${grant.label} takes no amount limit.` });
+      // A percentage alone is not enough for a discount: 5% of a large sale is a large sum. A missing amount is never unlimited.
+      if (grant.limits.includes("aggregate") && grant.maxAmount === null && grant.maxAggregateAmount === null)
+        issues.push({ code: grant.code, message: `${grant.label} needs an amount or sale total limit, not only a percentage.` });
     }
     if (!grant.limits.length && grant.limitMode !== "not_applicable") issues.push({ code: grant.code, message: `${grant.label} takes no limit.` });
   }
@@ -251,10 +259,14 @@ function readGrant(c, input, currency) {
     throw issue(code, `${item.label} takes no amount limit.`, "POS_PERMISSION_PROFILE_INVALID_LIMIT");
   if (percentage !== null && (!Number.isFinite(percentage) || percentage < 0 || percentage > 100)) throw issue(code, `${item.label}: the percentage must be between 0 and 100.`, "POS_PERMISSION_PROFILE_INVALID_LIMIT");
   if (amount !== null && (!Number.isFinite(amount) || amount < 0)) throw issue(code, `${item.label}: the amount must be zero or more.`, "POS_PERMISSION_PROFILE_INVALID_LIMIT");
+  const aggregate = mode === "limited" && item.limits.includes("aggregate") && input.maxAggregateAmount !== undefined && input.maxAggregateAmount !== null && input.maxAggregateAmount !== ""
+    ? num(input.maxAggregateAmount) : null;
+  if (aggregate !== null && (!Number.isFinite(aggregate) || aggregate < 0)) throw issue(code, `${item.label}: the sale total must be zero or more.`, "POS_PERMISSION_PROFILE_INVALID_LIMIT");
   if (mode === "limited" && percentage === null && amount === null) throw issue(code, `${item.label}: enter its limit, or choose Unlimited.`, "POS_PERMISSION_PROFILE_INVALID_LIMIT");
   return {
     code, enabled, limit_mode: mode, max_percentage: percentage === null ? null : plain(input.maxPercentage), max_amount: amount === null ? null : plain(input.maxAmount),
-    amount_currency: amount === null ? null : currency, require_reason: item.reason || input.requireReason === true,
+    max_aggregate_amount: aggregate === null ? null : plain(input.maxAggregateAmount),
+    amount_currency: amount === null && aggregate === null ? null : currency, require_reason: item.reason || input.requireReason === true,
   };
 }
 
@@ -269,19 +281,23 @@ async function writeGrants(client, c, profileId, grantInputs, { record = true } 
     seen.add(grant.code);
     const old = before.get(grant.code);
     const same = old && old.enabled === grant.enabled && old.limit_mode === grant.limit_mode && String(old.max_percentage ?? "") === String(grant.max_percentage ?? "")
-      && String(old.max_amount ?? "") === String(grant.max_amount ?? "") && old.require_reason === grant.require_reason;
+      && String(old.max_amount ?? "") === String(grant.max_amount ?? "") && String(old.max_aggregate_amount ?? "") === String(grant.max_aggregate_amount ?? "")
+      && old.require_reason === grant.require_reason;
     if (same) continue;
     await client.query(
-      `INSERT INTO tenant.pos_permission_profile_grants (organization_id, profile_id, permission_code, enabled, limit_mode, max_percentage, max_amount, amount_currency, require_reason)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO tenant.pos_permission_profile_grants (organization_id, profile_id, permission_code, enabled, limit_mode, max_percentage, max_amount, amount_currency, require_reason,
+         max_aggregate_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (organization_id, profile_id, permission_code) DO UPDATE SET enabled = EXCLUDED.enabled, limit_mode = EXCLUDED.limit_mode,
          max_percentage = EXCLUDED.max_percentage, max_amount = EXCLUDED.max_amount, amount_currency = EXCLUDED.amount_currency, require_reason = EXCLUDED.require_reason,
-         version = tenant.pos_permission_profile_grants.version + 1, updated_at = now()`,
-      [c.organizationId, profileId, grant.code, grant.enabled, grant.limit_mode, grant.max_percentage, grant.max_amount, grant.amount_currency, grant.require_reason]);
+         max_aggregate_amount = EXCLUDED.max_aggregate_amount, version = tenant.pos_permission_profile_grants.version + 1, updated_at = now()`,
+      [c.organizationId, profileId, grant.code, grant.enabled, grant.limit_mode, grant.max_percentage, grant.max_amount, grant.amount_currency, grant.require_reason,
+        grant.max_aggregate_amount]);
     if (!record) continue;
     const label = BY_CODE.get(grant.code).label;
-    const was = { enabled: old?.enabled ?? false, limitMode: old?.limit_mode ?? "not_applicable", maxPercentage: old?.max_percentage ?? null, maxAmount: old?.max_amount ?? null };
-    const now = { enabled: grant.enabled, limitMode: grant.limit_mode, maxPercentage: grant.max_percentage, maxAmount: grant.max_amount };
+    const was = { enabled: old?.enabled ?? false, limitMode: old?.limit_mode ?? "not_applicable", maxPercentage: old?.max_percentage ?? null, maxAmount: old?.max_amount ?? null,
+      maxAggregateAmount: old?.max_aggregate_amount ?? null };
+    const now = { enabled: grant.enabled, limitMode: grant.limit_mode, maxPercentage: grant.max_percentage, maxAmount: grant.max_amount, maxAggregateAmount: grant.max_aggregate_amount };
     if (was.enabled !== now.enabled) await history(client, c, profileId, "grant_changed", `${label} ${now.enabled ? "granted" : "revoked"}`, { code: grant.code, from: was, to: now });
     else if (now.limitMode === "unlimited" && was.limitMode !== "unlimited") await history(client, c, profileId, "unlimited_configured", `${label}: unlimited`, { code: grant.code, from: was, to: now });
     else await history(client, c, profileId, "limit_changed", `${label}: limits changed`, { code: grant.code, from: was, to: now });
@@ -491,27 +507,34 @@ export async function authorizePosAction(client, c, request) {
   const grant = authority.grants.get(item.code);
   if (!grant?.enabled) return deny(403, `Your permission profile does not allow: ${item.label}.`, "POS_PERMISSION_DENIED", { permission: item.code });
   if (grant.requireReason && !text(request.reason)) return deny(400, `${item.label} needs a reason.`, "POS_REASON_REQUIRED", { permission: item.code });
-  const exceeded = exceeds(grant, request);
+  const limit = exceededLimit(grant, request);
+  const exceeded = limit?.message ?? null;
   if (!exceeded) return { decision: "ALLOW", reasonCode: "POS_ALLOWED", grant, approvalId: null };
-  if (!item.approval) return deny(403, `${item.label}: ${exceeded}.`, "POS_PERMISSION_LIMIT_EXCEEDED", { permission: item.code });
+  if (!item.approval) return deny(403, `${item.label}: ${exceeded}.`, "POS_PERMISSION_LIMIT_EXCEEDED", { permission: item.code, limit: limit.kind });
   if (request.approvalId) {
     const approval = await consumeApprovalAtomically(client, c, request.approvalId, { permission: item.code, approvalCode: item.approval, resource: request.resource,
-      amount: request.amount, percentage: request.percentage });
+      amount: request.amount, percentage: request.percentage, aggregateAmount: request.aggregateAmount, lineId: request.lineId, fingerprint: request.fingerprint });
     return { decision: "ALLOW", reasonCode: "POS_ALLOWED_BY_APPROVAL", grant, approvalId: approval.id };
   }
   return { decision: "REQUIRES_APPROVAL", status: 409, reasonCode: "POS_APPROVAL_REQUIRED", message: `${item.label} above your limit needs a supervisor's approval (${exceeded}).`,
-    grant, approvalCode: item.approval, details: { permission: item.code, approvalCode: item.approval, amount: request.amount ?? null, percentage: request.percentage ?? null } };
+    grant, approvalCode: item.approval, details: { permission: item.code, approvalCode: item.approval, amount: request.amount ?? null, percentage: request.percentage ?? null,
+      aggregateAmount: request.aggregateAmount ?? null, limit: limit.kind } };
 }
 
-// Which limit, if any, the request goes beyond (both the percentage and the amount must hold).
-function exceeds(grant, request) {
+// Which limit, if any, the request goes beyond — the percentage, the amount (one line or the order discount), and the total of all manual
+// discounts on the sale (aggregateAmount, capped by the sale total limit, or by the amount when no total is set). All must hold.
+function exceededLimit(grant, request) {
   if (grant.limitMode !== "limited") return null;
   if (grant.maxPercentage !== null && request.percentage !== undefined && request.percentage !== null && dec(request.percentage) > dec(grant.maxPercentage))
-    return `${formatDecimal(dec(request.percentage))}% is above your ${grant.maxPercentage}%`;
+    return { kind: "percentage", message: `${formatDecimal(dec(request.percentage))}% is above your ${grant.maxPercentage}%` };
   if (grant.maxAmount !== null && request.amount !== undefined && request.amount !== null && dec(request.amount) > dec(grant.maxAmount))
-    return `${formatDecimal(dec(request.amount))} is above your ${grant.maxAmount} ${grant.currency ?? ""}`.trim();
+    return { kind: "amount", message: `${formatDecimal(dec(request.amount))} is above your ${grant.maxAmount} ${grant.currency ?? ""}`.trim() };
+  const aggregateLimit = grant.maxAggregateAmount ?? grant.maxAmount ?? null;
+  if (aggregateLimit !== null && request.aggregateAmount !== undefined && request.aggregateAmount !== null && dec(request.aggregateAmount) > dec(aggregateLimit))
+    return { kind: "aggregate", message: `discounts on this sale of ${formatDecimal(dec(request.aggregateAmount))} are above your ${aggregateLimit} ${grant.currency ?? ""}`.trim() };
   return null;
 }
+const exceeds = (grant, request) => exceededLimit(grant, request)?.message ?? null;
 
 // authorizePosAction, throwing for DENY and REQUIRES_APPROVAL with a stable code the screen can act on.
 export async function assertPosAction(client, c, request) {
@@ -533,8 +556,10 @@ async function contextOfResource(client, c, resource) {
     pos_cart: `SELECT cart.store_id, cart.terminal_id, cart.shift_id, cart.version FROM tenant.pos_carts cart WHERE cart.organization_id = $1 AND cart.id = $2`,
     pos_sale: `SELECT sale.store_id, sale.terminal_id, sale.shift_id, NULL::int AS version FROM tenant.pos_sales sale WHERE sale.organization_id = $1 AND sale.id = $2`,
     pos_shift: `SELECT shift.store_id, shift.terminal_id, shift.id AS shift_id, NULL::int AS version FROM tenant.pos_shifts shift WHERE shift.organization_id = $1 AND shift.id = $2`,
+    // A shift being opened (Shift Opening): the counter, before any session exists.
+    pos_terminal: `SELECT terminal.store_id, terminal.id AS terminal_id, NULL::uuid AS shift_id, NULL::int AS version FROM tenant.pos_terminals terminal WHERE terminal.organization_id = $1 AND terminal.id = $2`,
   };
-  if (!queries[resource?.type]) throw new PosPermissionError(400, "Approvals are for a cart, a sale or a session.", "POS_ACTION_INVALID_FOR_TRANSACTION_STATE");
+  if (!queries[resource?.type]) throw new PosPermissionError(400, "Approvals are for a cart, a sale, a session or a counter being opened.", "POS_ACTION_INVALID_FOR_TRANSACTION_STATE");
   const row = (await client.query(queries[resource.type], [c.organizationId, uuid(resource.id, "Transaction", "POS_ACTION_INVALID_FOR_TRANSACTION_STATE")])).rows[0];
   if (!row) throw new PosPermissionError(404, "That transaction was not found.", "POS_ACTION_INVALID_FOR_TRANSACTION_STATE");
   return row;
@@ -642,7 +667,7 @@ export async function rejectPosException(client, c, approvalId, input = {}) {
 
 // Is this approval good for exactly this action? Requested by the caller, approved, unexpired, unused, for this permission and transaction,
 // the transaction unchanged since the request, and the amount and percentage within what was approved.
-export async function validateApproval(client, c, approvalId, { permission, approvalCode, resource, amount, percentage }) {
+export async function validateApproval(client, c, approvalId, { permission, approvalCode, resource, amount, percentage, aggregateAmount, lineId, fingerprint }) {
   const row = (await client.query(`SELECT * FROM tenant.pos_permission_approvals WHERE organization_id = $1 AND id = $2`,
     [c.organizationId, uuid(approvalId, "Approval", "POS_APPROVAL_NOT_FOUND")])).rows[0];
   if (!row) throw new PosPermissionError(404, "Approval not found.", "POS_APPROVAL_NOT_FOUND");
@@ -658,6 +683,13 @@ export async function validateApproval(client, c, approvalId, { permission, appr
     throw new PosPermissionError(409, "The amount is above what was approved.", "POS_APPROVAL_TRANSACTION_CHANGED");
   if (percentage !== undefined && percentage !== null && row.requested_percentage !== null && dec(percentage) > dec(row.requested_percentage))
     throw new PosPermissionError(409, "The percentage is above what was approved.", "POS_APPROVAL_TRANSACTION_CHANGED");
+  const action = row.requested_action ?? {};
+  // A bill discount approval is for the lines and shares it was asked for (Cart Discounts): a different allocation needs a new one.
+  if (fingerprint && action.fingerprint && action.fingerprint !== fingerprint) throw new PosPermissionError(409, "The bill discount changed after the approval. Request it again.", "POS_APPROVAL_TRANSACTION_CHANGED");
+  if (lineId && action.lineId && action.lineId !== lineId) throw new PosPermissionError(409, "This approval is for another line.", "POS_APPROVAL_TRANSACTION_CHANGED");
+  if (aggregateAmount !== undefined && aggregateAmount !== null && action.aggregateAmount !== undefined && action.aggregateAmount !== null
+      && dec(aggregateAmount) > dec(action.aggregateAmount))
+    throw new PosPermissionError(409, "The sale's total discount is above what was approved.", "POS_APPROVAL_TRANSACTION_CHANGED");
   return row;
 }
 

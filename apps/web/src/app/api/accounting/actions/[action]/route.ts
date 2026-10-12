@@ -28,7 +28,7 @@ import {
   rejectJournalApproval,
   rejectVendorBillApproval,
   rejectVendorPaymentApproval,
-  reverseJournalEntry,
+  reverseManualJournalEntry,
   startBankReconciliation,
   submitCustomerInvoice,
   submitJournalEntry,
@@ -133,7 +133,7 @@ export async function POST(
           };
         case "journal-reverse":
           return {
-            record: await reverseJournalEntry(client, context, idOf(input), {
+            record: await reverseManualJournalEntry(client, context, idOf(input), {
               reason: str(input, "reason"),
             }),
           };

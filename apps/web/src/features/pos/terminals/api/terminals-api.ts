@@ -21,7 +21,7 @@ export type EffectiveConfiguration = {
 export type Terminal = {
   id: string; code: string; name: string; status: "active" | "inactive"; isActive: boolean; outletId: string; outletCode: string; outlet: string | null; outletActive: boolean;
   operable: boolean; operationalState: "available" | "session_open" | "unavailable"; currentSessionId: string | null; currentSession: string | null;
-  currentCashierId: string | null; currentCashier: string | null; sessionOpenedAt: string | null; businessDate: string | null; cashManagementEnabled: boolean;
+  currentCashierId: string | null; currentCashier: string | null; sessionOpenedAt: string | null; businessDate: string | null; cashManagementEnabled: boolean; cashDrawerId?: string | null;
   sellingLocationId: string | null; sellingLocation: string | null; cashAccountId: string | null; cashAccount: string | null; paymentMethods: string[] | null;
   paymentDeviceRef: string | null; receiptPrefix: string; deviceLabel: string | null; receiptPrinter: string | null; cashDrawer: boolean; barcodeScanning: boolean;
   notes: string | null; used: boolean; firstUsedAt: string | null; lastActivity: string | null; lastSaleAt: string | null; version: number; createdAt: string; updatedAt: string;

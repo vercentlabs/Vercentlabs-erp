@@ -6,15 +6,34 @@ import { leadScopeSql, leadCan } from "../leads/access.js";
 import { LEAD_PERMISSIONS, LEAD_STALE_DAYS } from "../leads/constants.js";
 import { opportunityCan, opportunityScopeSql } from "../opportunities/access.js";
 import { OPPORTUNITY_PERMISSIONS, OPPORTUNITY_STALE_DAYS } from "../opportunities/constants.js";
-import { getFollowUpSummary } from "../follow-ups/records.js";
+import { getFollowUpSummary, listFollowUps } from "../follow-ups/records.js";
 import { followUpCan } from "../follow-ups/access.js";
 import { FOLLOW_UP_PERMISSIONS } from "../follow-ups/constants.js";
-import { getTaskSummary } from "../tasks/records.js";
+import { getTaskSummary, listTasks } from "../tasks/records.js";
 import { taskCan } from "../tasks/access.js";
 import { TASK_PERMISSIONS } from "../tasks/constants.js";
 
 const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
 const CLOSING_SOON_DAYS = 14;
+const WIN_RATE_DAYS = 90;
+const MONTH = "date_trunc('month', current_date)";
+
+// Today's agenda: the caller's own overdue and due-today tasks and follow-ups, earliest first.
+async function agendaOf(client, context, sees) {
+  const items = new Map();
+  const add = (entry) => { if (!items.has(entry.kind + entry.id)) items.set(entry.kind + entry.id, entry); };
+  for (const view of ["overdue", "due_today"]) {
+    if (sees.tasks)
+      for (const task of (await listTasks(client, context, { view, limit: 8, sortBy: "dueAt" })).tasks)
+        add({ kind: "task", id: task.id, title: task.title, relatedName: task.relatedName, relatedHref: task.relatedHref, dueAt: task.dueAt, dueTime: task.dueTime,
+          isOverdue: task.isOverdue, priority: task.priority, type: null });
+    if (sees.followUps)
+      for (const followUp of (await listFollowUps(client, context, { view, limit: 8, sortBy: "scheduledAt" })).followUps)
+        add({ kind: "follow_up", id: followUp.id, title: followUp.subject, relatedName: followUp.relatedName ?? followUp.contactName, relatedHref: followUp.relatedHref,
+          dueAt: followUp.scheduledAt, dueTime: followUp.scheduledTime, isOverdue: followUp.isOverdue, priority: null, type: followUp.type });
+  }
+  return [...items.values()].sort((left, right) => new Date(left.dueAt) - new Date(right.dueAt));
+}
 
 export async function getCrmHome(client, context) {
   const sees = {
@@ -31,7 +50,10 @@ export async function getCrmHome(client, context) {
     leads = (await client.query(
       `SELECT count(*) FILTER (WHERE lead.status = 'open')::int AS open,
               count(*) FILTER (WHERE lead.status = 'open' AND lead.owner_user_id IS NULL)::int AS unassigned,
-              count(*) FILTER (WHERE lead.status = 'open' AND lead.owner_user_id IS NOT NULL AND lead.first_activity_at IS NULL)::int AS no_activity
+              count(*) FILTER (WHERE lead.status = 'open' AND lead.owner_user_id IS NOT NULL AND lead.first_activity_at IS NULL)::int AS no_activity,
+              count(*) FILTER (WHERE lead.created_at >= ${MONTH})::int AS new_this_month,
+              count(*) FILTER (WHERE lead.qualified_at >= ${MONTH})::int AS qualified_this_month,
+              count(*) FILTER (WHERE lead.converted_at >= ${MONTH})::int AS converted_this_month
          FROM tenant.crm_leads lead
         WHERE lead.organization_id = $1 AND lead.archived_at IS NULL${scope}`,
       values,
@@ -40,6 +62,8 @@ export async function getCrmHome(client, context) {
 
   let opportunities = null;
   let stages = [];
+  let outcomes = null;
+  let closingSoon = [];
   if (sees.opportunities) {
     const values = [context.organizationId];
     const scope = opportunityScopeSql(context, values, "opportunity");
@@ -62,10 +86,34 @@ export async function getCrmHome(client, context) {
         GROUP BY stage.id, stage.name, stage.sequence ORDER BY stage.sequence`,
       values,
     )).rows;
+    // Won this month, and the win rate over deals closed in the last 90 days.
+    const closed = `opportunity.organization_id = $1 AND opportunity.archived_at IS NULL${scope}`;
+    outcomes = (await client.query(
+      `SELECT count(*) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= ${MONTH})::int AS won_this_month,
+              COALESCE(sum(COALESCE(opportunity.won_amount, opportunity.amount)) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= ${MONTH}), 0)::float8 AS won_value_this_month,
+              count(*) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= current_date - ${WIN_RATE_DAYS})::int AS won_recent,
+              count(*) FILTER (WHERE opportunity.status = 'lost' AND opportunity.actual_close_date >= current_date - ${WIN_RATE_DAYS})::int AS lost_recent
+         FROM tenant.crm_opportunities opportunity WHERE ${closed}`,
+      values,
+    )).rows[0];
+    // The open deals due to close soonest (or already past their date).
+    closingSoon = (await client.query(
+      `SELECT opportunity.id, opportunity.code, opportunity.name, opportunity.amount::float8 AS amount, opportunity.probability::float8 AS probability,
+              to_char(opportunity.expected_close_date, 'YYYY-MM-DD') AS expected_close_date, opportunity.expected_close_date < current_date AS overdue,
+              stage.name AS stage_name, account.display_name AS account_name, owner.full_name AS owner_name
+         FROM tenant.crm_opportunities opportunity
+         LEFT JOIN tenant.crm_pipeline_stages stage ON stage.organization_id = opportunity.organization_id AND stage.id = opportunity.stage_id
+         LEFT JOIN tenant.business_parties account ON account.organization_id = opportunity.organization_id AND account.id = opportunity.party_id
+         LEFT JOIN public.users owner ON owner.id = opportunity.owner_user_id
+        WHERE ${open} AND opportunity.expected_close_date <= current_date + ${CLOSING_SOON_DAYS}
+        ORDER BY opportunity.expected_close_date, opportunity.amount DESC NULLS LAST LIMIT 5`,
+      values,
+    )).rows;
   }
 
   const tasks = sees.tasks ? await getTaskSummary(client, context) : null;
   const followUps = sees.followUps ? await getFollowUpSummary(client, context) : null;
+  const agenda = sees.tasks || sees.followUps ? await agendaOf(client, context, sees) : [];
 
   // The latest things that happened on leads and opportunities the caller can see.
   const recent = [];
@@ -117,6 +165,19 @@ export async function getCrmHome(client, context) {
       followUpsToday: followUps?.dueToday ?? null,
       overdueFollowUps: followUps?.overdue ?? null,
     },
+    leadFlow: leads ? { newThisMonth: leads.new_this_month, qualifiedThisMonth: leads.qualified_this_month, convertedThisMonth: leads.converted_this_month } : null,
+    outcomes: outcomes ? {
+      wonThisMonth: outcomes.won_this_month,
+      wonValueThisMonth: money(outcomes.won_value_this_month),
+      winRate: outcomes.won_recent + outcomes.lost_recent ? Math.round((outcomes.won_recent / (outcomes.won_recent + outcomes.lost_recent)) * 100) : null,
+      winRateDays: WIN_RATE_DAYS,
+    } : null,
+    closingSoon: closingSoon.map((row) => ({
+      id: row.id, code: row.code, name: row.name, amount: row.amount === null ? null : money(row.amount), probability: row.probability,
+      expectedCloseDate: row.expected_close_date, overdue: row.overdue, stageName: row.stage_name ?? null, accountName: row.account_name ?? null, ownerName: row.owner_name ?? null,
+    })),
+    agenda: agenda.slice(0, 8),
+    agendaTotal: agenda.length,
     pipeline: stages.map((row) => ({ stageId: row.id, name: row.name, total: row.total, value: money(row.value) })),
     needsAttention: {
       unassignedLeads: leads?.unassigned ?? null,

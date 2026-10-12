@@ -16,6 +16,7 @@ import { Notice } from "@/shared/ui/Panel";
 import { Cell, FactList, HistoryList, LinesTable, MoreActions } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 
 import {
   ADJUSTMENTS_BASE, DISPOSITION_LABEL, STATUS_LABEL, STATUS_TONE, adjustmentFileUrl, cancelAdjustment, errorCode, errorMessage, errorsOf, getAdjustment, getImpact, getStock, postAdjustment,
@@ -88,7 +89,7 @@ export function AdjustmentDetailScreen({ adjustmentId }: { adjustmentId: string 
           <Tab id="overview">Overview</Tab><Tab id="lines">Lines</Tab><Tab id="tracking">Tracking</Tab>{draft && <Tab id="impact">Impact</Tab>}<Tab id="inventory">Inventory</Tab>
           {can.seesCost && <Tab id="valuation">Valuation</Tab>}{can.seesAccounting && <Tab id="accounting">Accounting</Tab>}<Tab id="files">Attachments</Tab><Tab id="history">History</Tab>
         </TabList>
-        <TabPanel id="overview"><div className="pt-4"><FactList title="Stock adjustment" items={[
+        <TabPanel id="overview"><div className="flex flex-col gap-4 pt-4"><AccountingRecorded sourceType="inventory_adjustment,inventory_adjustment_reversal" sourceId={adjustmentId} noun="adjustment" /><FactList title="Stock adjustment" items={[
           ["Warehouse", `${head.warehouse} · ${head.warehouseName}`], ["Adjustment date", head.adjustmentDate], ["Reason", head.reason], ["Reference", head.reference],
           ["Count / migration reference", head.physicalCountId ? <Link className="text-brand hover:underline" href={`/inventory/stock-counts/${head.physicalCountId}`}>{head.countReference}</Link> : head.countReference],
           ["Notes", head.notes], ["Lines", `${head.lineCount} (${head.increaseLines} up, ${head.decreaseLines} down)`], ["Created", by(head.createdAt, head.createdByName)],

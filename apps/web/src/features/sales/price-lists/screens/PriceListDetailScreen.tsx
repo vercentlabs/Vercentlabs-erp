@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Plus, Upload } from "lucide-react";
 import {
+  ActionBar,
   AlertDialog, Badge, Button, EmptyState, ErrorState, LinkButton, PermissionState, RecordDetailsPage, SearchField, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, buttonVariants,
 } from "@vercentlabs/design-system";
 
@@ -104,7 +105,7 @@ export function PriceListDetailScreen({ priceListId }: { priceListId: string }) 
         secondaryActions: (
           <>
             {can.import && can.managePrices && <LinkButton href={`/sales/price-lists/${list.id}/import`} variant="outline"><Upload className="size-4" aria-hidden="true" />Import prices</LinkButton>}
-            {can.export && <a className={buttonVariants({ variant: "outline" })} href={priceExportUrl(list.id)} download><Download className="size-4" aria-hidden="true" />Export</a>}
+            {can.export && <a className={buttonVariants({ variant: "outline" })} href={priceExportUrl(list.id)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a>}
             <MoreActions actions={menu} />
           </>
         ),
@@ -124,11 +125,11 @@ export function PriceListDetailScreen({ priceListId }: { priceListId: string }) 
         </TabList>
         <TabPanel id="prices">
           <div className="flex flex-col gap-3 pt-3">
-            <div className="flex flex-wrap gap-2">
+            <ActionBar start={<>
               <SearchField aria-label="Search prices" placeholder="Search code, name, SKU, category or unit" className="w-full sm:w-80" value={search} onChange={setSearch} />
               <Select aria-label="Which prices" size="compact" selectedKey={state} onSelectionChange={(key) => { setState(String(key)); setOffset(0); }}
                 options={[{ value: "active", label: "All active prices" }, { value: "current", label: "Valid today" }, { value: "future", label: "Upcoming" }, { value: "expired", label: "Expired" }, { value: "inactive", label: "Removed" }]} />
-            </div>
+            </>} />
             {entries.isLoading ? <LoadingState label="Loading prices" rows={5} /> : rows.length === 0 ? (
               <EmptyState title={submitted || state !== "active" ? "No prices match" : "No prices yet"} description={submitted || state !== "active" ? "Try another search." : "Add products one by one, or import a spreadsheet of prices."} />
             ) : (

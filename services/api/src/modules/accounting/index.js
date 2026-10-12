@@ -20,3 +20,7 @@ export * from "./refunds/index.js";
 
 export * from "./vendor-credits.js";
 export * from "./item-profiles.js";
+
+export * from "./posting-service.js";
+export * from "./input-tax-credit.js";
+export * from "./finance-documents.js";

@@ -9,10 +9,10 @@ export const APPROVALS_BASE = "/pos/approvals";
 
 export type ProfileCapabilities = Record<"view" | "manage" | "status" | "assign" | "configureUnlimited" | "viewHistory", boolean>;
 export type LimitMode = "not_applicable" | "limited" | "unlimited" | "hidden";
-export type CatalogueEntry = { code: string; area: string; label: string; description: string; limits: Array<"percentage" | "amount">; limitRequired: boolean; reason: boolean; approval: string | null };
+export type CatalogueEntry = { code: string; area: string; label: string; description: string; limits: Array<"percentage" | "amount" | "aggregate">; limitRequired: boolean; reason: boolean; approval: string | null };
 export type Area = { code: string; label: string };
 export type Grant = {
-  code: string; area: string; label: string; description: string | null; enabled: boolean; limitMode: LimitMode; maxPercentage: number | null; maxAmount: number | null;
+  code: string; area: string; label: string; description: string | null; enabled: boolean; limitMode: LimitMode; maxPercentage: number | null; maxAmount: number | null; maxAggregateAmount?: number | null;
   currency: string | null; requireReason: boolean; reasonForced: boolean; limits: Array<"percentage" | "amount">; limitRequired: boolean; approvalCode: string | null; supported: boolean;
 };
 export type ProfileSummary = {
@@ -34,7 +34,7 @@ export type Approval = {
   requestedBy: string | null; requestedById: string; approver: string | null; outlet: string | null; terminal: string | null; session: string | null; decisionNote: string | null;
   requestedAt: string; decidedAt: string | null; consumedAt: string | null; expiresAt: string;
 };
-export type GrantInput = { code: string; enabled: boolean; limitMode: Exclude<LimitMode, "hidden">; maxPercentage?: string | number | null; maxAmount?: string | number | null; requireReason?: boolean };
+export type GrantInput = { code: string; enabled: boolean; limitMode: Exclude<LimitMode, "hidden">; maxPercentage?: string | number | null; maxAmount?: string | number | null; maxAggregateAmount?: string | number | null; requireReason?: boolean };
 
 async function parse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
@@ -90,8 +90,9 @@ export const fieldErrors = (error: unknown): Record<string, string> =>
   Object.fromEntries(((payloadOf(error)?.issues as Issue[] | undefined) ?? []).map((issue) => [issue.field, issue.message]));
 export const issuesOf = (error: unknown) => (payloadOf(error)?.issues as Array<{ code: string; message: string }> | undefined) ?? [];
 // When an action needs a supervisor: which permission and approval, with the amount and percentage the server worked out.
-export const approvalNeeded = (error: unknown) => (errorCode(error) === "POS_APPROVAL_REQUIRED"
-  ? (payloadOf(error) as { permission: string; approvalCode: string; amount: string | null; percentage: string | null }) : null);
+// An Item Discount above the cashier's limit also says which line and discount the approval is for (action), so it binds to exactly that.
+export const approvalNeeded = (error: unknown) => (["POS_APPROVAL_REQUIRED", "POS_ITEM_DISCOUNT_APPROVAL_REQUIRED", "POS_CART_DISCOUNT_APPROVAL_REQUIRED"].includes(errorCode(error) ?? "") && payloadOf(error)?.approvalCode
+  ? (payloadOf(error) as { permission: string; approvalCode: string; amount: string | null; percentage: string | null; action?: Record<string, unknown> }) : null);
 
 export const STATUS_TONE: Record<string, "success" | "neutral" | "warning" | "info" | "danger"> = {
   draft: "warning", active: "success", inactive: "neutral", pending: "warning", approved: "info", rejected: "danger", consumed: "success", expired: "neutral",
@@ -102,6 +103,7 @@ export const limitText = (grant: Grant) => {
   if (grant.limitMode === "hidden") return "Granted";
   if (grant.limitMode === "unlimited") return "Unlimited";
   if (grant.limitMode !== "limited") return "Granted";
-  return [grant.maxPercentage !== null ? `up to ${grant.maxPercentage}%` : null, grant.maxAmount !== null ? `up to ${grant.maxAmount.toLocaleString("en-IN")} ${grant.currency ?? ""}`.trim() : null]
+  return [grant.maxPercentage !== null ? `up to ${grant.maxPercentage}%` : null, grant.maxAmount !== null ? `up to ${grant.maxAmount.toLocaleString("en-IN")} ${grant.currency ?? ""}`.trim() : null,
+    grant.maxAggregateAmount !== null && grant.maxAggregateAmount !== undefined ? `${grant.maxAggregateAmount.toLocaleString("en-IN")} ${grant.currency ?? ""} a sale`.trim() : null]
     .filter(Boolean).join(" and ");
 };

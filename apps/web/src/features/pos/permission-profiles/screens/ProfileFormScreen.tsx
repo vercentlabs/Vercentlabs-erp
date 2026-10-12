@@ -20,7 +20,7 @@ import {
   type ProfileCapabilities,
 } from "../api/profiles-api";
 
-type Row = { code: string; enabled: boolean; limitMode: GrantInput["limitMode"]; maxPercentage: string; maxAmount: string; requireReason: boolean };
+type Row = { code: string; enabled: boolean; limitMode: GrantInput["limitMode"]; maxPercentage: string; maxAmount: string; maxAggregateAmount: string; requireReason: boolean };
 
 export function ProfileFormScreen({ profileId }: { profileId?: string }) {
   const workspace = useWorkspaceContext();
@@ -41,7 +41,8 @@ function Form({ entries, areas, capabilities, profile }: { entries: CatalogueEnt
     return [entry.code, {
       code: entry.code, enabled: grant?.enabled ?? false, limitMode: (grant?.limitMode === "hidden" ? "limited" : grant?.limitMode) ?? (entry.limitRequired ? "limited" : "not_applicable"),
       maxPercentage: grant?.maxPercentage === null || grant?.maxPercentage === undefined ? "" : String(grant.maxPercentage),
-      maxAmount: grant?.maxAmount === null || grant?.maxAmount === undefined ? "" : String(grant.maxAmount), requireReason: grant?.requireReason ?? entry.reason,
+      maxAmount: grant?.maxAmount === null || grant?.maxAmount === undefined ? "" : String(grant.maxAmount),
+      maxAggregateAmount: grant?.maxAggregateAmount === null || grant?.maxAggregateAmount === undefined ? "" : String(grant.maxAggregateAmount), requireReason: grant?.requireReason ?? entry.reason,
     }];
   })));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -58,7 +59,8 @@ function Form({ entries, areas, capabilities, profile }: { entries: CatalogueEnt
         const limited = row.limitMode === "limited";
         return { code: entry.code, enabled: row.enabled, limitMode: entry.limits.length ? row.limitMode : "not_applicable", requireReason: row.requireReason,
           maxPercentage: limited && entry.limits.includes("percentage") && row.maxPercentage !== "" ? row.maxPercentage : null,
-          maxAmount: limited && entry.limits.includes("amount") && row.maxAmount !== "" ? row.maxAmount : null };
+          maxAmount: limited && entry.limits.includes("amount") && row.maxAmount !== "" ? row.maxAmount : null,
+          maxAggregateAmount: limited && entry.limits.includes("aggregate") && row.maxAggregateAmount !== "" ? row.maxAggregateAmount : null };
       });
       const input: Record<string, unknown> = { name: head.name, description: head.description, grants };
       if (!profile || (!locked && head.code.trim().toUpperCase() !== profile.code)) input.code = head.code;
@@ -120,8 +122,15 @@ function Form({ entries, areas, capabilities, profile }: { entries: CatalogueEnt
                       onChange={(maxPercentage) => change(entry.code, { maxPercentage })} />
                   ) : <span />}
                   {entry.limits.includes("amount") ? (
-                    <TextField aria-label={`${entry.label} maximum amount`} placeholder="Max amount" value={row.maxAmount} isDisabled={!row.enabled || row.limitMode !== "limited"}
-                      onChange={(maxAmount) => change(entry.code, { maxAmount })} />
+                    <div className="flex flex-col gap-1">
+                      <TextField aria-label={`${entry.label} maximum amount`} placeholder={entry.limits.includes("aggregate") ? "Max per discount" : "Max amount"} value={row.maxAmount}
+                        isDisabled={!row.enabled || row.limitMode !== "limited"} onChange={(maxAmount) => change(entry.code, { maxAmount })} />
+                      {/* Item Discounts: the most this cashier may take off one sale in all (empty: the per-discount amount). */}
+                      {entry.limits.includes("aggregate") && (
+                        <TextField aria-label={`${entry.label} maximum per sale`} placeholder="Max per sale" value={row.maxAggregateAmount}
+                          isDisabled={!row.enabled || row.limitMode !== "limited"} onChange={(maxAggregateAmount) => change(entry.code, { maxAggregateAmount })} />
+                      )}
+                    </div>
                   ) : <span />}
                   <Checkbox isSelected={row.requireReason || entry.reason} isDisabled={entry.reason || !row.enabled} onChange={(requireReason) => change(entry.code, { requireReason })}>Reason</Checkbox>
                   {error && <p className="text-sm text-danger md:col-span-5">{error}</p>}

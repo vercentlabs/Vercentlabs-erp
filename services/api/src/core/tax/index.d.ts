@@ -44,3 +44,15 @@ export function getTaxOptions(client: QueryClient, context: Context): Promise<an
 export function listTaxHistory(client: QueryClient, context: Context, filters?: { entityType?: string; entityId?: string; limit?: number }): Promise<any[]>;
 export declare function listWithholdingSections(client: any, context: any, options?: { includeInactive?: boolean }): Promise<Array<{ id: string; code: string; name: string; rate: string; status: string }>>;
 export declare function saveWithholdingSection(client: any, context: any, sectionId: string | null, input?: Record<string, unknown>): Promise<{ id: string; code: string; name: string; rate: string; status: string }>;
+// POS Taxes (migration 0089): the set-up check and a sample calculation through the engine.
+export type TaxConfigurationIssue = { severity: "error" | "warning"; code: string; message: string; entity?: { type: string; id: string } };
+export declare function validateTaxConfiguration(client: any, context: any): Promise<{ checkedAt: string; today: string; ok: boolean; errors: number; warnings: number; issues: TaxConfigurationIssue[] }>;
+export type TaxPreview = {
+  date: string; classification: string; categoryCode: string | null; seller: { name: string; stateCode: string | null } | null; placeOfSupply: string | null; placeOfSupplyName: string | null;
+  supplyNature: string | null; priceIncludesTax: boolean; taxableAmount: string; taxAmount: string; total: string; components: Array<{ type: string; label: string; rate: string; taxAmount: string }>;
+};
+export declare function previewTaxCalculation(client: any, context: any, input: { taxCategoryId: string; amount: string | number; priceIncludesTax?: boolean; sellerRegistrationId?: string | null;
+  placeOfSupply?: string | null; date?: string | null }): Promise<TaxPreview>;
+export declare const REGISTRATION_TYPES: ReadonlyArray<{ code: string; label: string }>;
+export declare const UTGST_TERRITORIES: ReadonlySet<string>;
+export declare function classifyTax(treatment: string, rate?: bigint, cessRate?: bigint): string;

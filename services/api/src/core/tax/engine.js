@@ -4,7 +4,8 @@
 //
 //   product / service → tax category → the rate in force on the document date
 //   seller registration state + place of supply → intra-state or inter-state
-//   GST: intra-state CGST + SGST, inter-state IGST; CESS on top when set
+//   GST: intra-state CGST + SGST (CGST + UTGST in a Union Territory without a
+//   legislature), inter-state IGST; CESS on top when set
 //   taxable value × component rate = component amount; tax = their sum
 //
 // The caller owns the taxable value (price, quantity, discounts); this module
@@ -48,6 +49,8 @@ export function sellerSnapshot(registration) {
     countryCode: String(registration.country_code ?? "").trim() || null, stateCode: registration.state_code ?? null,
     stateName: registration.state_name ?? gstStateName(registration.state_code),
     address: [registration.address_line1, registration.address_line2, registration.city, registration.postal_code].filter(Boolean).join(", ") || null,
+    registrationType: registration.registration_type ?? "regular",
+    validFrom: registration.valid_from ?? null, validUntil: registration.valid_until ?? null,
   };
 }
 
@@ -63,21 +66,36 @@ export function derivePlaceOfSupply({ shippingStateCode, billingStateCode, custo
   return null;
 }
 
+// Union Territories without their own legislature charge UTGST instead of SGST on an intra-territory supply (Chandigarh, Dadra and Nagar
+// Haveli and Daman and Diu, Lakshadweep, Andaman and Nicobar Islands, Ladakh, and the old Daman and Diu code). Delhi, Puducherry and Jammu
+// and Kashmir have legislatures and charge SGST.
+export const UTGST_TERRITORIES = Object.freeze(new Set(["04", "25", "26", "31", "35", "38"]));
+
+// How a line is classified for reporting — never only "0%": taxable, nil-rated (a GST rate of 0%), exempt, non-GST (outside tax) or
+// zero-rated (export / SEZ). Two lines with no tax can still need different reporting and documents.
+export function classifyTax(treatment, rate = decimal(0), cessRate = decimal(0)) {
+  if (treatment === "taxable") return rate === 0n && cessRate === 0n ? "nil_rated" : "taxable";
+  if (treatment === "non_taxable") return "non_gst";
+  return treatment;
+}
+
 // Which tax applies to one line.
 //   taxCategoryId   the product's tax category (null: no tax)
 //   date            the document date; the rate in force on it is used
 //   sellerStateCode, placeOfSupply   decide intra-state or inter-state
 //   supplyType      the document's supply type (export, SEZ, exempt … charge nothing)
 //   allowInactive   a carried line keeps a category that has since been made inactive
-// Returns { treatment, taxType, categoryId, categoryCode, categoryName, rateId,
+//   requireCategory a line with no tax category is refused (TAX_CATEGORY_REQUIRED) instead of charged no tax — missing tax is not zero tax
+// Returns { treatment, classification, taxType, categoryId, categoryCode, categoryName, rateId,
 //   rate, cessRate, components: [{ type, label, rate }], supplyNature,
 //   reverseCharge, needsPlaceOfSupply }.
-export async function resolveLineTax(client, tax, { taxCategoryId, date, sellerStateCode, placeOfSupply, supplyType = "domestic", allowInactive = false } = {}) {
+export async function resolveLineTax(client, tax, { taxCategoryId, date, sellerStateCode, placeOfSupply, supplyType = "domestic", allowInactive = false, requireCategory = false } = {}) {
   const none = (treatment, extra = {}) => ({
-    treatment, taxType: "none", categoryId: null, categoryCode: null, categoryName: null, rateId: null, rate: decimal(0), cessRate: decimal(0), components: [],
-    supplyNature: null, reverseCharge: false, needsPlaceOfSupply: false, ...extra,
+    treatment, classification: classifyTax(treatment), taxType: "none", categoryId: null, categoryCode: null, categoryName: null, rateId: null, rate: decimal(0), cessRate: decimal(0),
+    components: [], supplyNature: null, reverseCharge: false, needsPlaceOfSupply: false, ...extra,
   });
   if (!tax.enabled) return none("non_taxable");
+  if (!taxCategoryId && requireCategory) throw new TaxError(409, "This product has no tax category.", "TAX_CATEGORY_REQUIRED");
   if (!taxCategoryId) return none(treatmentOfSupply(supplyType) === "taxable" ? "non_taxable" : treatmentOfSupply(supplyType));
   const category = (await client.query(
     `SELECT id, code, name, tax_type, treatment, reverse_charge, status FROM tenant.tax_categories WHERE organization_id = $1 AND id = $2`, [tax.organizationId, taxCategoryId])).rows[0];
@@ -89,6 +107,8 @@ export async function resolveLineTax(client, tax, { taxCategoryId, date, sellerS
   // The document's treatment (export, exempt supply …) wins over the product's.
   if (documentTreatment !== "taxable") return none(documentTreatment, identity);
   if (category.treatment !== "taxable" || category.tax_type === "none") return none(category.treatment === "taxable" ? "non_taxable" : category.treatment, identity);
+  if (tax.registration?.registrationType && tax.registration.registrationType !== "regular")
+    throw new TaxError(409, `The registration ${tax.registration.name} is ${tax.registration.registrationType}: it does not charge GST on a regular tax invoice.`, "TAX_REGIME_UNSUPPORTED");
 
   const day = dayOf(date) ?? dayOf(new Date());
   const rateRow = (await client.query(
@@ -107,12 +127,14 @@ export async function resolveLineTax(client, tax, { taxCategoryId, date, sellerS
     needsPlaceOfSupply = (rate > 0n || cessRate > 0n) && (!seller || !buyer);
     supplyNature = seller && buyer ? (seller === buyer ? "intra_state" : "inter_state") : null;
     if (rate > 0n) {
-      if (supplyNature === "intra_state") components.push({ type: "cgst", label: "CGST", rate: div(rate, 2) }, { type: "sgst", label: "SGST", rate: div(rate, 2) });
+      if (supplyNature === "intra_state" && UTGST_TERRITORIES.has(buyer)) components.push({ type: "cgst", label: "CGST", rate: div(rate, 2) }, { type: "utgst", label: "UTGST", rate: div(rate, 2) });
+      else if (supplyNature === "intra_state") components.push({ type: "cgst", label: "CGST", rate: div(rate, 2) }, { type: "sgst", label: "SGST", rate: div(rate, 2) });
       else components.push({ type: "igst", label: "IGST", rate });
     }
   } else if (rate > 0n) components.push({ type: category.tax_type, label: rateRow.name || category.name, rate });
   if (cessRate > 0n) components.push({ type: "cess", label: "CESS", rate: cessRate });
-  return { treatment: "taxable", taxType: category.tax_type, ...identity, rateId: rateRow.id, rate, cessRate, components, supplyNature, needsPlaceOfSupply };
+  return { treatment: "taxable", classification: classifyTax("taxable", rate, cessRate), taxType: category.tax_type, ...identity, rateId: rateRow.id, rate, cessRate, components, supplyNature,
+    needsPlaceOfSupply };
 }
 
 // The amounts for one line.
@@ -153,6 +175,6 @@ export function summarizeTax(lines) {
     group.taxAmount = add(group.taxAmount, line.taxAmount);
     groups.set(key, group);
   }
-  const order = ["cgst", "sgst", "igst", "cess"];
+  const order = ["cgst", "sgst", "utgst", "igst", "cess"];
   return [...groups.values()].sort((a, b) => (order.indexOf(a.taxType) + 99) % 99 - (order.indexOf(b.taxType) + 99) % 99 || Number(a.rate - b.rate));
 }

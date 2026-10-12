@@ -19,6 +19,7 @@ import { PropertyList } from "@/shared/ui/PropertyList";
 import { Cell, HistoryList, LinesTable, MoreActions, byLine } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 
 import {
   DISPOSITION_LABEL, STATUS_LABEL, cancelGoodsIssue, errorCode, errorMessage, errorsOf, getGoodsIssue, goodsIssueFileUrl, postGoodsIssue, removeGoodsIssueFile, reverseGoodsIssue,
@@ -103,6 +104,7 @@ export function GoodsIssueDetailScreen({ issueId }: { issueId: string }) {
 
           <TabPanel id="overview">
             <div className="flex flex-col gap-6">
+              <AccountingRecorded sourceType="goods_issue" sourceId={issueId} noun="goods issue" />
               <PropertyList title="Goods issue" columns={3} items={[
                 { label: "Warehouse", value: `${head.warehouse} · ${head.warehouseName}` },
                 { label: "Issue date", value: formatDate(head.issueDate) },

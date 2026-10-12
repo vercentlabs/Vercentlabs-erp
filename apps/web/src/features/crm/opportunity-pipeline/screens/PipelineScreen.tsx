@@ -271,7 +271,7 @@ export function PipelineScreen() {
               {can?.manageStages && <LinkButton href="/crm/settings/opportunities/stages" variant="outline"><Settings2 className="size-4" aria-hidden="true" />Sales stages</LinkButton>}
               {can?.export && (
                 <a className={buttonVariants({ variant: "outline" })} href={opportunityExportUrl(listFilters)} download>
-                  <Download className="size-4" aria-hidden="true" />Export
+                  <Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span>
                 </a>
               )}
             </>

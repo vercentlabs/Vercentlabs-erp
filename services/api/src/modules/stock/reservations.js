@@ -21,7 +21,7 @@ const text = (value, max = 500) => { const out = String(value ?? "").trim(); ret
 
 export const RESERVATION_SOURCE_TYPES = Object.freeze([
   { id: "sales_order", label: "Sales order" }, { id: "inventory_transfer", label: "Internal transfer" }, { id: "purchase_return", label: "Purchase return" },
-  { id: "manufacturing_work_order", label: "Work order" },
+  { id: "manufacturing_work_order", label: "Work order" }, { id: "pos_checkout", label: "POS checkout" },
 ]);
 const SOURCE_LABEL = Object.fromEntries(RESERVATION_SOURCE_TYPES.map((entry) => [entry.id, entry.label]));
 const STATUS_LABEL = { active: "Active", consumed: "Consumed", released: "Released", cancelled: "Cancelled", expired: "Expired" };
@@ -31,8 +31,8 @@ export const reservationSourceHref = (type, id) => ({ sales_order: `/sales/order
 // The reservation with its source document's number and line, the item, and where its allocations are.
 const SELECT = `
   SELECT parent.*, item.code AS sku, item.name AS item_name, uom.code AS base_uom,
-         COALESCE(sales_order.sales_order_number, transfer.document_number, purchase_return.return_number, work_order.work_order_number) AS document_number,
-         COALESCE(transfer_line.line_number, return_line.line_number) AS line_number,
+         COALESCE(sales_order.sales_order_number, transfer.document_number, purchase_return.return_number, work_order.work_order_number, pos_cart.cart_reference) AS document_number,
+         COALESCE(transfer_line.line_number, return_line.line_number, pos_line.line_number) AS line_number,
          (SELECT array_agg(DISTINCT warehouse.code) FROM tenant.stock_reservations allocation JOIN tenant.warehouses warehouse ON warehouse.id = allocation.warehouse_id
            WHERE allocation.inventory_reservation_id = parent.id AND (allocation.status = 'active' OR parent.status <> 'active')) AS warehouses,
          (SELECT array_agg(DISTINCT allocation.warehouse_id) FROM tenant.stock_reservations allocation WHERE allocation.inventory_reservation_id = parent.id) AS warehouse_ids,
@@ -51,6 +51,8 @@ const SELECT = `
     LEFT JOIN tenant.purchase_returns purchase_return ON purchase_return.organization_id = parent.organization_id AND parent.source_document_type = 'purchase_return' AND purchase_return.id = parent.source_document_id
     LEFT JOIN tenant.purchase_return_lines return_line ON return_line.organization_id = parent.organization_id AND parent.source_document_type = 'purchase_return' AND return_line.id = parent.source_line_id
     LEFT JOIN tenant.manufacturing_work_orders work_order ON work_order.organization_id = parent.organization_id AND parent.source_document_type = 'manufacturing_work_order' AND work_order.id = parent.source_document_id
+    LEFT JOIN tenant.pos_carts pos_cart ON pos_cart.organization_id = parent.organization_id AND parent.source_document_type = 'pos_checkout' AND pos_cart.checkout_reference = parent.source_document_id
+    LEFT JOIN tenant.pos_cart_lines pos_line ON pos_line.organization_id = parent.organization_id AND parent.source_document_type = 'pos_checkout' AND pos_line.id = parent.source_line_id
     LEFT JOIN public.users creator ON creator.id = parent.created_by`;
 
 function toReservation(row, c) {
@@ -144,7 +146,7 @@ export async function getReservationBreakdown(client, c, { itemId, warehouseId =
   const visible = await visibleWarehouseIds(client, c);
   const rows = (await client.query(
     `SELECT * FROM (SELECT parent.id, parent.source_document_type, parent.source_document_id, warehouse.code AS warehouse, allocation.warehouse_id, sum(allocation.active_quantity) AS active,
-            min(COALESCE(sales_order.sales_order_number, transfer.document_number, purchase_return.return_number, work_order.work_order_number)) AS document_number
+            min(COALESCE(sales_order.sales_order_number, transfer.document_number, purchase_return.return_number, work_order.work_order_number, pos_cart.cart_reference)) AS document_number
        FROM tenant.stock_reservations allocation
        JOIN tenant.inventory_reservations parent ON parent.id = allocation.inventory_reservation_id
        JOIN tenant.warehouses warehouse ON warehouse.id = allocation.warehouse_id
@@ -152,6 +154,7 @@ export async function getReservationBreakdown(client, c, { itemId, warehouseId =
        LEFT JOIN tenant.inventory_transfers transfer ON parent.source_document_type = 'inventory_transfer' AND transfer.id = parent.source_document_id
        LEFT JOIN tenant.purchase_returns purchase_return ON parent.source_document_type = 'purchase_return' AND purchase_return.id = parent.source_document_id
        LEFT JOIN tenant.manufacturing_work_orders work_order ON parent.source_document_type = 'manufacturing_work_order' AND work_order.id = parent.source_document_id
+       LEFT JOIN tenant.pos_carts pos_cart ON parent.source_document_type = 'pos_checkout' AND pos_cart.organization_id = parent.organization_id AND pos_cart.checkout_reference = parent.source_document_id
       WHERE allocation.organization_id = $1 AND allocation.item_id = $2 AND allocation.status = 'active' AND ($3::uuid IS NULL OR allocation.warehouse_id = $3)
         AND ($4::uuid[] IS NULL OR allocation.warehouse_id = ANY($4::uuid[]))
       GROUP BY parent.id, parent.source_document_type, parent.source_document_id, warehouse.code, allocation.warehouse_id) AS sources

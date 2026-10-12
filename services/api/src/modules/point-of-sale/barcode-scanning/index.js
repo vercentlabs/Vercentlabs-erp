@@ -154,8 +154,12 @@ export async function validateScannedSerial(client, context, ctx, { itemId, seri
   if (row.warehouse_id !== ctx.outlet.warehouse_id || (ctx.outlet.location_id && row.warehouse_location_id !== ctx.outlet.location_id))
     throw unavailable("elsewhere", "This serial number is not in this store's selling stock.");
   if (row.disposition !== "available") throw unavailable("restricted", "This serial number is on hold and cannot be sold.");
-  const reserved = (await client.query(`SELECT 1 FROM tenant.stock_reservations WHERE organization_id = $1 AND serial_id = $2 AND status = 'active' LIMIT 1`, [ctx.organizationId, row.id])).rows[0];
-  if (reserved) throw unavailable("reserved", "This serial number is reserved for another order.");
+  // Held by another document or another bill's checkout (this bill's own checkout reservation is its own).
+  const reserved = (await client.query(
+    `SELECT reservation.reference_type FROM tenant.stock_reservations reservation WHERE reservation.organization_id = $1 AND reservation.serial_id = $2 AND reservation.status = 'active'
+        AND NOT (reservation.reference_type = 'pos_checkout' AND reservation.reference_id IS NOT DISTINCT FROM (SELECT checkout_reference FROM tenant.pos_carts WHERE organization_id = $1 AND id = $3))
+      LIMIT 1`, [ctx.organizationId, row.id, cartId])).rows[0];
+  if (reserved) throw unavailable("reserved", reserved.reference_type === "pos_checkout" ? "This serial number is being sold on another bill." : "This serial number is reserved for another order.");
   const elsewhere = (await client.query(
     `SELECT line.cart_id FROM tenant.pos_cart_lines line JOIN tenant.pos_carts cart ON cart.organization_id = line.organization_id AND cart.id = line.cart_id
       WHERE line.organization_id = $1 AND line.serial_id = $2 AND cart.status IN ('draft', 'priced', 'held') AND ($3::uuid IS NULL OR line.id <> $3) LIMIT 1`,

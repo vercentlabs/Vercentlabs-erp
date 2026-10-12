@@ -7,10 +7,11 @@
 // A rate is never edited: "Change rate" ends the current rate the day before
 // and starts the new one, so earlier documents keep the rate they were made
 // with. Categories and registrations are deactivated, not deleted.
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import {
+  ActionBar,
   Button, Dialog, EmptyState, ErrorState, PageHeader, PermissionState, SearchField, Select, StatusBadge, Switch, Tab, TabList, TabPanel, Table, TableBody, TableCell,
   TableHead, TableHeaderCell, TableRow, Tabs, TextArea, TextField,
 } from "@vercentlabs/design-system";
@@ -27,10 +28,17 @@ type TaxCategory = {
 type Registration = {
   id: string; code: string; name: string; legalName: string | null; registrationNumber: string | null; stateCode: string | null; stateName: string | null;
   addressLine1: string | null; city: string | null; postalCode: string | null; isDefault: boolean; isActive: boolean;
+  registrationType: string; validFrom: string | null; validUntil: string | null;
+};
+type ValidationIssue = { severity: "error" | "warning"; code: string; message: string };
+type Validation = { checkedAt: string; today: string; ok: boolean; errors: number; warnings: number; issues: ValidationIssue[] };
+type Preview = {
+  classification: string; placeOfSupply: string | null; placeOfSupplyName: string | null; supplyNature: string | null; taxableAmount: string; taxAmount: string; total: string;
+  components: Array<{ type: string; label: string; rate: string; taxAmount: string }>;
 };
 type Payload = {
   options: {
-    taxTypes: Choice[]; treatments: Choice[]; appliesTo: Choice[]; states: Array<{ code: string; name: string }>;
+    taxTypes: Choice[]; treatments: Choice[]; appliesTo: Choice[]; states: Array<{ code: string; name: string }>; registrationTypes?: Choice[];
     settings: { countryCode: string | null; taxEnabled: boolean; defaultTaxCategoryId: string | null };
     capabilities: Record<"manageCategories" | "manageRates" | "manageRegistrations" | "viewAudit", boolean>;
   };
@@ -97,12 +105,13 @@ export function TaxesScreen({ canView }: { canView: boolean }) {
           <Tab id="categories">Tax categories</Tab>
           <Tab id="registrations">Company registrations</Tab>
           <Tab id="defaults">Defaults</Tab>
+          <Tab id="check">Setup check</Tab>
           {can.viewAudit && <Tab id="history">History</Tab>}
         </TabList>
 
         <TabPanel id="categories">
           <div className="flex flex-col gap-3 pt-4">
-            <div className="flex flex-wrap items-center gap-2">
+            <ActionBar start={<>
               <SearchField aria-label="Search tax categories" placeholder="Search code or name" className="w-full sm:w-72" value={search} onChange={setSearch} />
               <Select aria-label="Status" size="compact" selectedKey={status} onSelectionChange={(value) => setStatus(String(value))}
                 options={[{ value: ANY, label: "Active and inactive" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} />
@@ -110,9 +119,7 @@ export function TaxesScreen({ canView }: { canView: boolean }) {
                 options={[{ value: ANY, label: "Any treatment" }, ...options.treatments.map((entry) => ({ value: entry.code, label: entry.label }))]} />
               <Select aria-label="Rate" size="compact" selectedKey={rate} onSelectionChange={(value) => setRate(String(value))}
                 options={[{ value: ANY, label: "Any rate" }, ...(rate !== ANY && !rates.includes(Number(rate)) ? [Number(rate)] : []).concat(rates).map((value) => ({ value: String(value), label: `${value}%` }))]} />
-              <span className="flex-1" />
-              {can.manageCategories && <Button variant="primary" onPress={() => setDialog({ kind: "category", category: null })}><Plus className="size-4" aria-hidden="true" />New tax category</Button>}
-            </div>
+            </>} end={can.manageCategories && <Button variant="primary" onPress={() => setDialog({ kind: "category", category: null })}><Plus className="size-4" aria-hidden="true" />New tax category</Button>} />
             {categories.length === 0 ? <EmptyState title="No tax categories match" description="Change the filters, or add a tax category." /> : (
               <Table aria-label="Tax categories">
                 <TableHead>
@@ -184,6 +191,12 @@ export function TaxesScreen({ canView }: { canView: boolean }) {
                         <span className="flex flex-wrap gap-1">
                           <StatusBadge tone={registration.isActive ? "success" : "neutral"}>{registration.isActive ? "Active" : "Inactive"}</StatusBadge>
                           {registration.isDefault && <StatusBadge tone="info">Default</StatusBadge>}
+                          {registration.registrationType !== "regular" && (
+                            <StatusBadge tone="warning">{options.registrationTypes?.find((type) => type.code === registration.registrationType)?.label ?? registration.registrationType}</StatusBadge>
+                          )}
+                          {(registration.validFrom || registration.validUntil) && (
+                            <span className="text-xs text-text-muted">{registration.validFrom ?? "…"} – {registration.validUntil ?? "open"}</span>
+                          )}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -204,6 +217,7 @@ export function TaxesScreen({ canView }: { canView: boolean }) {
         </TabPanel>
 
         <TabPanel id="defaults"><Defaults payload={query.data} onSaved={refresh} /></TabPanel>
+        <TabPanel id="check"><SetupCheck active={tab === "check"} payload={query.data} /></TabPanel>
         {can.viewAudit && <TabPanel id="history"><History active={tab === "history"} /></TabPanel>}
       </Tabs>
 
@@ -317,7 +331,11 @@ function RegistrationDialog({ options, registration, onClose, onSaved }: { optio
   const [addressLine1, setAddressLine1] = useState(registration?.addressLine1 ?? "");
   const [city, setCity] = useState(registration?.city ?? "");
   const [postalCode, setPostalCode] = useState(registration?.postalCode ?? "");
-  const json = { code, name, legalName: legalName || null, registrationNumber: gstin || null, stateCode: stateCode || null, addressLine1: addressLine1 || null, city: city || null, postalCode: postalCode || null };
+  const [registrationType, setRegistrationType] = useState(registration?.registrationType ?? "regular");
+  const [validFrom, setValidFrom] = useState(registration?.validFrom ?? "");
+  const [validUntil, setValidUntil] = useState(registration?.validUntil ?? "");
+  const json = { code, name, legalName: legalName || null, registrationNumber: gstin || null, stateCode: stateCode || null, addressLine1: addressLine1 || null, city: city || null, postalCode: postalCode || null,
+    registrationType, validFrom: validFrom || null, validUntil: validUntil || null };
   const save = useMutation({
     mutationFn: () => registration ? requestJson(`${API}/registrations/${registration.id}`, { method: "PATCH", json }) : requestJson(`${API}/registrations`, { method: "POST", json }),
     onSuccess: onSaved,
@@ -337,6 +355,12 @@ function RegistrationDialog({ options, registration, onClose, onSaved }: { optio
           <TextField label="Address" value={addressLine1} onChange={setAddressLine1} />
           <TextField label="City" value={city} onChange={setCity} />
           <TextField label="PIN code" value={postalCode} onChange={setPostalCode} />
+          <Select label="Registration type" description="Only a regular registration bills GST at POS." options={(options.registrationTypes ?? [{ code: "regular", label: "Regular" }]).map((type) => ({ value: type.code, label: type.label }))}
+            selectedKey={registrationType} onSelectionChange={(value) => setRegistrationType(String(value ?? "regular"))} />
+          <div className="grid grid-cols-2 gap-3">
+            <TextField label="Valid from" type="date" value={validFrom} onChange={setValidFrom} />
+            <TextField label="Valid until" type="date" value={validUntil} onChange={setValidUntil} />
+          </div>
         </div>
         <Footer onClose={onClose} label={registration ? "Save" : "Add registration"} isLoading={save.isPending} isDisabled={!code.trim() || !name.trim() || !stateCode} onPress={() => save.mutate()} />
       </div>
@@ -360,11 +384,86 @@ function Defaults({ payload, onSaved }: { payload: Payload; onSaved: () => void 
       <Switch isSelected={taxEnabled} onChange={(value) => { setSaved(false); setTaxEnabled(value); }} isDisabled={!canManage}>Charge tax on documents</Switch>
       <p className="text-sm text-text-secondary">Switch this off only if the business charges no tax at all. Documents are then calculated without tax and need no place of supply.</p>
       <Select label="Default tax category" description="Used for a product that has no tax category of its own."
-        options={[{ value: "", label: "None: a product without a tax category is not taxed" }, ...categories.filter((category) => category.isActive).map((category) => ({ value: category.id, label: `${category.name} (${category.code})` }))]}
+        options={[{ value: "", label: "None: a product needs its own tax category to be sold" }, ...categories.filter((category) => category.isActive).map((category) => ({ value: category.id, label: `${category.name} (${category.code})` }))]}
         selectedKey={defaultCategory} onSelectionChange={(value) => { setSaved(false); setDefaultCategory(String(value ?? "")); }} isDisabled={!canManage} />
       <p className="text-sm text-text-secondary">Whether prices include tax is set on each price list. Amounts are rounded per line to the currency&apos;s decimals; a document&apos;s tax is the sum of its lines.</p>
       {canManage && <div className="flex items-center gap-3"><Button variant="primary" isLoading={save.isPending} onPress={() => save.mutate()}>Save defaults</Button>{saved && <span className="text-sm text-success">Saved</span>}</div>}
     </div>
+  );
+}
+
+// What in the set-up would stop a sale or make its tax wrong, and a sample calculation through the same engine every document uses.
+function SetupCheck({ active, payload }: { active: boolean; payload: Payload }) {
+  const query = useQuery({ queryKey: ["settings", "taxes", "validation"], queryFn: () => requestJson<{ validation: Validation }>(`${API}/validation`).then((response) => response.validation), enabled: active });
+  const validation = query.data;
+  return (
+    <div className="flex flex-col gap-6 pt-4">
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold">Setup check</h2>
+            <p className="text-sm text-text-secondary">Registrations, outlets, rates in force today and every sellable product&apos;s tax category and HSN / SAC.</p>
+          </div>
+          <Button variant="secondary" size="compact" isLoading={query.isFetching} onPress={() => void query.refetch()}>Check again</Button>
+        </div>
+        {query.isLoading ? <p className="text-sm text-text-secondary">Checking…</p>
+          : query.isError || !validation ? <p role="alert" className="text-sm text-danger">{failure(query.error, "The check could not run.")}</p>
+            : validation.issues.length === 0 ? (
+              <p className="rounded-[var(--radius-control)] border border-success/30 bg-success-soft px-3 py-2 text-sm text-success">Everything checks out: sales can be taxed correctly.</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {validation.issues.map((issue, index) => (
+                  <li key={index} className={`flex items-start gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm ${issue.severity === "error" ? "border-danger/30 bg-danger-soft text-danger" : "border-warning-emphasis/30 bg-warning-soft text-warning"}`}>
+                    <StatusBadge tone={issue.severity === "error" ? "danger" : "warning"}>{issue.severity === "error" ? "Blocks sales" : "Check"}</StatusBadge>
+                    <span>{issue.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+      </section>
+      <PreviewCalculator payload={payload} />
+    </div>
+  );
+}
+
+function PreviewCalculator({ payload }: { payload: Payload }) {
+  const [categoryId, setCategoryId] = useState("");
+  const [amount, setAmount] = useState("1000");
+  const [inclusive, setInclusive] = useState(false);
+  const [placeOfSupply, setPlaceOfSupply] = useState("");
+  const preview = useMutation({
+    mutationFn: () => requestJson<{ preview: Preview }>(`${API}/preview`, { method: "POST", json: { taxCategoryId: categoryId, amount, priceIncludesTax: inclusive, placeOfSupply: placeOfSupply || null } })
+      .then((response) => response.preview),
+  });
+  const result = preview.data;
+  return (
+    <section className="flex max-w-2xl flex-col gap-3">
+      <div>
+        <h2 className="text-base font-semibold">Try a calculation</h2>
+        <p className="text-sm text-text-secondary">Runs one amount through the shared tax engine, exactly as a document would. Nothing is saved.</p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Select label="Tax category" options={payload.categories.filter((category) => category.isActive).map((category) => ({ value: category.id, label: `${category.name} (${category.code})` }))}
+          selectedKey={categoryId || null} onSelectionChange={(value) => setCategoryId(String(value ?? ""))} placeholder="Choose a category" />
+        <TextField label="Amount" inputMode="decimal" value={amount} onChange={setAmount} />
+        <Select label="Place of supply" options={[{ value: "", label: "The registration's own state" }, ...payload.options.states.map((state) => ({ value: state.code, label: `${state.name} (${state.code})` }))]}
+          selectedKey={placeOfSupply} onSelectionChange={(value) => setPlaceOfSupply(String(value ?? ""))} />
+        <div className="flex items-end pb-2"><Switch isSelected={inclusive} onChange={setInclusive}>The amount includes tax</Switch></div>
+      </div>
+      <div><Button variant="secondary" isDisabled={!categoryId || !amount.trim()} isLoading={preview.isPending} onPress={() => preview.mutate()}>Calculate</Button></div>
+      {preview.isError && <p role="alert" className="text-sm text-danger">{failure(preview.error, "The calculation failed.")}</p>}
+      {result && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-[var(--radius-control)] border border-border p-3 text-sm">
+          <dt className="text-text-secondary">Treatment</dt><dd>{result.classification.replace(/_/g, " ")}{result.supplyNature ? ` · ${result.supplyNature.replace(/_/g, "-")}` : ""}</dd>
+          <dt className="text-text-secondary">Taxable value</dt><dd className="tabular-nums">{result.taxableAmount}</dd>
+          {result.components.map((component) => (
+            <Fragment key={component.type}><dt className="text-text-secondary">{component.label} {Number(component.rate)}%</dt><dd className="tabular-nums">{component.taxAmount}</dd></Fragment>
+          ))}
+          <dt className="text-text-secondary">Tax</dt><dd className="tabular-nums">{result.taxAmount}</dd>
+          <dt className="font-medium">Total</dt><dd className="font-medium tabular-nums">{result.total}</dd>
+        </dl>
+      )}
+    </section>
   );
 }
 

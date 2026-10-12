@@ -1,6 +1,6 @@
 "use client";
 
-import type { PosCart, PosPayment } from "@vercentlabs/api";
+import type { PosCart } from "@vercentlabs/api";
 
 import { request, post, del } from "@/features/pos/shared/http";
 
@@ -22,12 +22,27 @@ export const setPosCartLineTracking = (id: string, lineId: string, input: { seri
   post<{ cart: PosCart }>(`/carts/${id}/lines/${lineId}/tracking`, input);
 export const removePosLineDiscount = (id: string, lineId: string, expectedVersion?: number) =>
   del<{ cart: PosCart }>(`/carts/${id}/lines/${lineId}/discount${expectedVersion != null ? `?expectedVersion=${expectedVersion}` : ""}`);
+// Item Discounts: what a proposed discount would do (nothing saved), what this line and cashier allow, and the bill's discounts.
+export type { PosLineDiscountPreview, PosLineDiscountEligibility, PosDiscountReason } from "@vercentlabs/api";
+import type { PosLineDiscountPreview, PosLineDiscountEligibility } from "@vercentlabs/api";
+export const previewPosLineDiscount = (id: string, lineId: string, input: { type: "percent" | "amount"; value: string }) =>
+  post<{ preview: PosLineDiscountPreview }>(`/carts/${id}/lines/${lineId}/discount-preview`, input).then((response) => response.preview);
+export const getPosLineDiscountEligibility = (id: string, lineId: string) =>
+  request<{ eligibility: PosLineDiscountEligibility }>(`/carts/${id}/lines/${lineId}/discount-eligibility`).then((response) => response.eligibility);
 // An authorized price for one line (null: back to the list price).
 export const overridePosLinePrice = (id: string, lineId: string, input: { unitPrice: string | null; reason?: string; approvalId?: string; expectedVersion: number }) =>
   post<{ cart: PosCart }>(`/carts/${id}/lines/${lineId}/price`, { idempotencyKey: actionKey(), ...input });
-export const setPosCartDiscount = (id: string, input: Record<string, unknown>) => post<{ cart: PosCart }>(`/carts/${id}/discount`, { idempotencyKey: actionKey(), ...input });
-export const setPosCartCustomer = (id: string, customerId: string | null, expectedVersion: number) =>
-  post<{ cart: PosCart }>(`/carts/${id}/customer`, { customerId, expectedVersion, idempotencyKey: actionKey() });
+// Cart Discounts: one discount on the bill (a new one replaces it), a preview that saves nothing, the terms and history, and removal.
+export type { PosCartDiscountPreview, PosCartDiscountEligibility } from "@vercentlabs/api";
+import type { PosCartDiscountPreview, PosCartDiscountEligibility } from "@vercentlabs/api";
+export const setPosCartDiscount = (id: string, input: { type: "percent" | "amount"; value: string; reasonCode?: string | null; note?: string | null; approvalId?: string; expectedVersion: number }) =>
+  request<{ cart: PosCart }>(`/carts/${id}/discounts/cart`, { method: "PUT", body: JSON.stringify({ idempotencyKey: actionKey(), ...input }) });
+export const removePosCartDiscount = (id: string, expectedVersion: number) =>
+  del<{ cart: PosCart }>(`/carts/${id}/discounts/cart?expectedVersion=${expectedVersion}&idempotencyKey=${actionKey()}`);
+export const previewPosCartDiscount = (id: string, input: { type: "percent" | "amount"; value: string }) =>
+  post<{ preview: PosCartDiscountPreview }>(`/carts/${id}/discounts/preview`, input).then((response) => response.preview);
+export const getPosCartDiscountTerms = (id: string) =>
+  request<{ cart: PosCartDiscountEligibility }>(`/carts/${id}/discounts`).then((response) => response.cart);
 export const setPosCartNotes = (id: string, notes: string | null, expectedVersion: number) =>
   request<{ cart: PosCart }>(`/carts/${id}/notes`, { method: "PUT", body: JSON.stringify({ notes, expectedVersion, idempotencyKey: actionKey() }) });
 export const holdPosCart = (id: string, expectedVersion: number, note?: string | null) =>
@@ -48,7 +63,6 @@ export const listHeldPosCarts = (filters: { search?: string; scope?: "mine" | "a
   return request<{ rows: PosHeldCart[] }>(`/carts/held${text ? `?${text}` : ""}`);
 };
 export const cancelPosCart = (id: string, reason?: string) => post<{ cart: PosCart }>(`/carts/${id}/cancel`, { reason, idempotencyKey: actionKey() });
-export const completePosCart = (id: string, input: Record<string, unknown>) => post<{ sale: Record<string, unknown> }>(`/carts/${id}/complete`, input);
 export type PosCartIssue = { code: string; message: string; lineId?: string; itemId?: string };
 export type PosCheckoutResult = { ready: boolean; issues: PosCartIssue[]; cart: PosCart; snapshot?: Record<string, unknown>; message?: string };
 export const validatePosCheckout = (id: string) => request<{ ready: boolean; issues: PosCartIssue[]; version: number }>(`/carts/${id}/checkout`);
@@ -57,8 +71,16 @@ export const beginPosCheckout = (id: string, expectedVersion: number) =>
 export const releasePosCheckout = (id: string, reason?: string) => post<PosCheckoutResult>(`/carts/${id}/checkout`, { action: "release", reason });
 export type PosCartHistoryEntry = { id: string; eventType: string; summary: string; version: number | null; at: string; actor: string | null; terminal: string | null };
 export const getPosCartHistory = (id: string) => request<{ events: PosCartHistoryEntry[] }>(`/carts/${id}/history`).then((response) => response.events);
-export const quickCreatePosCustomer = (input: { name: string; phone?: string | null; gstin?: string | null; cartId?: string | null }) =>
-  post<{ customer: { id: string; code: string | null; displayName: string; phone: string | null; email: string | null } }>("/customers", input).then((response) => response.customer);
+// Named Customer: a customer made at the counter in the shared Customer Master. A likely duplicate comes back as
+// POS_CUSTOMER_POSSIBLE_DUPLICATE with the matches in the error's details; confirmNotDuplicate creates anyway.
+export type PosQuickCustomerInput = {
+  kind: "individual" | "business"; name: string; legalName?: string | null; phone?: string | null; email?: string | null; gstin?: string | null;
+  billingAddress?: { line1?: string | null; city?: string | null; stateCode?: string | null; postalCode?: string | null } | null;
+  contactPerson?: string | null; cartId?: string | null; idempotencyKey: string; confirmNotDuplicate?: boolean;
+};
+export type PosDuplicateMatch = { id: string; code: string | null; name: string | null; city: string | null; status: string | null; strength: "strong" | "possible"; reasons: string[]; notCustomer?: boolean };
+export const quickCreatePosCustomer = (input: PosQuickCustomerInput) =>
+  post<{ customer: PosCustomerMatch; created: boolean; warnings: string[] }>("/customers", input);
 
 // Walk-In Customer: the bill's customer context and its changes.
 export type { PosCustomerContext, PosReceiptDelivery } from "@vercentlabs/api";
@@ -66,8 +88,16 @@ import type { PosCustomerContext, PosReceiptDelivery } from "@vercentlabs/api";
 export const getPosCustomerContext = (id: string) => request<{ context: PosCustomerContext }>(`/carts/${id}/customer/context`).then((response) => response.context);
 export const setPosWalkIn = (id: string, expectedVersion: number) =>
   request<{ cart: PosCart }>(`/carts/${id}/customer/walk-in`, { method: "PUT", body: JSON.stringify({ expectedVersion, idempotencyKey: actionKey() }) });
-export const selectPosRegisteredCustomer = (id: string, customerId: string, expectedVersion: number) =>
-  request<{ cart: PosCart }>(`/carts/${id}/customer/registered`, { method: "PUT", body: JSON.stringify({ customerId, expectedVersion, idempotencyKey: actionKey() }) });
+export const selectPosRegisteredCustomer = (id: string, customerId: string, expectedVersion: number, billingAddressId?: string | null) =>
+  request<{ cart: PosCart }>(`/carts/${id}/customer/registered`, { method: "PUT", body: JSON.stringify({ customerId, billingAddressId: billingAddressId ?? null, expectedVersion, idempotencyKey: actionKey() }) });
+export const setPosBillingAddress = (id: string, billingAddressId: string, expectedVersion: number) =>
+  request<{ cart: PosCart }>(`/carts/${id}/billing-address`, { method: "PUT", body: JSON.stringify({ billingAddressId, expectedVersion, idempotencyKey: actionKey() }) });
+export type { PosCustomerPreview, PosCustomerPurchase } from "@vercentlabs/api";
+import type { PosCustomerPreview, PosCustomerPurchase } from "@vercentlabs/api";
+export const getPosCustomerPreview = (customerId: string, cartId: string) =>
+  request<{ customer: PosCustomerPreview }>(`/customers/${customerId}/preview?cartId=${cartId}`).then((response) => response.customer);
+export const getPosCustomerPurchases = (customerId: string, cartId: string, offset = 0) =>
+  request<{ rows: PosCustomerPurchase[]; total: number; limit: number; offset: number }>(`/customers/${customerId}/sales?cartId=${cartId}&limit=10&offset=${offset}`);
 export const updatePosBuyerDetails = (id: string, input: { name: string | null; address: Record<string, string | null> }, expectedVersion: number) =>
   request<{ cart: PosCart }>(`/carts/${id}/buyer-details`, { method: "PATCH", body: JSON.stringify({ ...input, expectedVersion, idempotencyKey: actionKey() }) });
 export const setPosReceiptContact = (id: string, input: { phone: string | null; email: string | null; consent: boolean }, expectedVersion: number) =>
@@ -75,34 +105,84 @@ export const setPosReceiptContact = (id: string, input: { phone: string | null; 
 export const sendPosReceipts = (saleId: string, input: { channel?: "email" | "sms"; destination?: string; consent?: boolean; resend?: boolean } = {}) =>
   post<{ deliveries: PosReceiptDelivery[] }>(`/sales/${saleId}/receipt-delivery`, input).then((response) => response.deliveries);
 
-// F276: bounded customer search against tenant.business_parties -- see
-// services/api/src/modules/point-of-sale/assortment-pricing-customer-and-cart/customers.js.
-export type PosCustomerMatch = {
-  id: string;
-  code: string;
-  displayName: string;
-  phone: string | null;
-  email: string | null;
-};
-export const searchPosCustomers = (
-  query: string,
-  options: { signal?: AbortSignal } = {},
-) =>
-  request<{ rows: PosCustomerMatch[] }>(
-    `/customers?q=${encodeURIComponent(query)}`,
+// POS Taxes: the bill's tax from the shared tax engine (or why it cannot be calculated), and how the goods leave the store.
+export type { PosCartTaxes, PosSaleTaxes, PosTaxSummary } from "@vercentlabs/api";
+import type { PosCartTaxes, PosSaleTaxes } from "@vercentlabs/api";
+export const getPosCartTaxes = (id: string) => request<{ taxes: PosCartTaxes }>(`/carts/${id}/taxes`).then((response) => response.taxes);
+export const setPosCartSupply = (id: string, input: { supplyMode: "in_store" | "delivery"; deliveryStateCode?: string | null }, expectedVersion: number) =>
+  request<{ cart: PosCart }>(`/carts/${id}/supply`, { method: "PUT", body: JSON.stringify({ ...input, expectedVersion, idempotencyKey: actionKey() }) });
+export const getPosSaleTaxes = (saleId: string) => request<{ taxes: PosSaleTaxes }>(`/sales/${saleId}/taxes`).then((response) => response.taxes);
+
+// Named Customer search: name, customer number, phone, email or GSTIN, ranked and paged by the server (never the whole list).
+export type { PointOfSaleCustomerMatch as PosCustomerMatch } from "@vercentlabs/api";
+import type { PointOfSaleCustomerMatch as PosCustomerMatch } from "@vercentlabs/api";
+export const searchPosCustomers = (query: string, options: { cartId: string; offset?: number; signal?: AbortSignal }) =>
+  request<{ rows: PosCustomerMatch[]; total: number; limit: number; offset: number }>(
+    `/customers?q=${encodeURIComponent(query)}&cartId=${options.cartId}&limit=10&offset=${options.offset ?? 0}`,
     { signal: options.signal },
   );
 
-// F283/F284/F285/F286 payment tender subsystem.
-export type PosPaymentLeg =
-  | { method: "cash"; amount: number }
-  | { method: "card" | "upi" | "wallet" | "bank_transfer"; paymentId: string };
-export const initiatePosPayment = (input: {
-  cartId: string;
-  method: "card" | "upi" | "wallet" | "bank_transfer";
-  amount: number;
-  idempotencyKey: string;
-  outcome?: string;
-}) => post<{ payment: PosPayment }>("/payments/initiate", input);
-export const getPosPayment = (id: string) =>
-  request<{ payment: PosPayment }>(`/payments/${id}`);
+// POS Cash Payments: the methods and cash options of a checkout (the bill id is the checkout id), a preview that records nothing, the
+// cashier's confirmation of cash received (the server works out the change and finalises the sale), retry, handing cash back, flagging for
+// a supervisor, and the authoritative payment state after a refresh or a lost connection.
+export type { PosCheckoutPaymentMethods, PosCashPreview, PosCashOutcome, PosCheckoutPayments } from "@vercentlabs/api";
+import type { PosCheckoutPaymentMethods, PosCashPreview, PosCashOutcome, PosCheckoutPayments } from "@vercentlabs/api";
+export const getPosPaymentMethods = (cartId: string) =>
+  request<{ paymentMethods: PosCheckoutPaymentMethods }>(`/checkouts/${cartId}/payment-methods`).then((response) => response.paymentMethods);
+export const previewPosCash = (cartId: string, cashReceived: string) =>
+  post<{ preview: PosCashPreview }>(`/checkouts/${cartId}/cash/preview`, { cashReceived }).then((response) => response.preview);
+export const confirmPosCash = (cartId: string, input: { cashReceived: string; changeGiven?: string; split?: boolean; expectedVersion?: number; idempotencyKey: string }) =>
+  post<{ cash: PosCashOutcome }>(`/checkouts/${cartId}/cash/confirm`, input).then((response) => response.cash);
+export const finalizePosCash = (cartId: string) =>
+  post<{ cash: PosCashOutcome }>(`/checkouts/${cartId}/cash/finalize`, { idempotencyKey: actionKey() }).then((response) => response.cash);
+export const returnPosCash = (cartId: string, input: { reason?: string; returnedAmount?: string; cashReturned: boolean }) =>
+  post<{ cash: PosCashOutcome }>(`/checkouts/${cartId}/cash/return`, { ...input, idempotencyKey: actionKey() }).then((response) => response.cash);
+export const flagPosCash = (cartId: string, note: string) =>
+  post<{ cash: PosCashOutcome }>(`/checkouts/${cartId}/cash/reconcile`, { action: "flag", note }).then((response) => response.cash);
+export const getPosCheckoutPayments = (cartId: string) =>
+  request<{ payments: PosCheckoutPayments }>(`/checkouts/${cartId}/payments`).then((response) => response.payments);
+
+// POS Card Payments: the card options of a checkout, sending a payment to a terminal, the authoritative attempt state (polled), cancelling,
+// recording a standalone card machine payment, retrying finalisation and refunding a captured card whose sale could not be finalised.
+export type { PosCheckoutCardOptions, PosCardAttempt, PosPaymentTerminal } from "@vercentlabs/api";
+import type { PosCheckoutCardOptions, PosCardAttempt } from "@vercentlabs/api";
+export const getPosCardOptions = (cartId: string) => request<{ card: PosCheckoutCardOptions }>(`/checkouts/${cartId}/card`).then((response) => response.card);
+export const startPosCard = (cartId: string, input: { terminalId: string; amount?: string | null; idempotencyKey: string; outcome?: string }) =>
+  post<{ attempt: PosCardAttempt }>(`/checkouts/${cartId}/card/attempts`, input).then((response) => response.attempt);
+export const getPosCardAttempt = (attemptId: string) => request<{ attempt: PosCardAttempt }>(`/card-attempts/${attemptId}`).then((response) => response.attempt);
+export const cancelPosCard = (attemptId: string, reason?: string) =>
+  post<{ attempt: PosCardAttempt }>(`/card-attempts/${attemptId}/cancel`, { reason }).then((response) => response.attempt);
+export const recordStandaloneCard = (cartId: string, input: { terminalId: string; amount?: string | null; reference: string; attested: boolean; cardLastFour?: string | null; idempotencyKey: string }) =>
+  post<{ attempt: PosCardAttempt }>(`/checkouts/${cartId}/card/standalone`, input).then((response) => response.attempt);
+export const finalizePosCard = (cartId: string) => post<{ attempt: PosCardAttempt }>(`/checkouts/${cartId}/card/finalize`, {}).then((response) => response.attempt);
+export const refundUnfinalizedCard = (attemptId: string, reason: string) =>
+  post<{ attempt: PosCardAttempt }>(`/card-attempts/${attemptId}/refund`, { reason, idempotencyKey: actionKey() }).then((response) => response.attempt);
+
+// POS UPI & Digital Payments: the UPI options of a checkout, a dynamic QR or payment link from the provider, the request's authoritative
+// state (polled), cancelling it, and recording a payment to the shop's verified static QR with its UTR.
+export type { PosCheckoutUpiOptions, PosDigitalAttempt } from "@vercentlabs/api";
+import type { PosCheckoutUpiOptions, PosDigitalAttempt } from "@vercentlabs/api";
+export const getPosUpiOptions = (cartId: string) => request<{ upi: PosCheckoutUpiOptions }>(`/checkouts/${cartId}/upi`).then((response) => response.upi);
+export const startPosUpiQr = (cartId: string, input: { amount?: string | null; idempotencyKey: string; outcome?: string }) =>
+  post<{ attempt: PosDigitalAttempt }>(`/checkouts/${cartId}/upi/attempts`, { mode: "dynamic_qr", ...input }).then((response) => response.attempt);
+export const createPosPaymentLink = (cartId: string, input: { amount?: string | null; contact?: string | null; consent?: boolean; idempotencyKey: string }) =>
+  post<{ attempt: PosDigitalAttempt }>(`/checkouts/${cartId}/digital/payment-links`, input).then((response) => response.attempt);
+export const getPosUpiAttempt = (attemptId: string) => request<{ attempt: PosDigitalAttempt }>(`/upi-attempts/${attemptId}`).then((response) => response.attempt);
+export const cancelPosUpi = (attemptId: string, reason?: string) =>
+  post<{ attempt: PosDigitalAttempt }>(`/upi-attempts/${attemptId}/cancel`, { reason }).then((response) => response.attempt);
+export const recordStaticUpi = (cartId: string, input: { utr: string; amount?: string | null; attested: boolean; idempotencyKey: string }) =>
+  post<{ attempt: PosDigitalAttempt }>(`/checkouts/${cartId}/upi/static/record`, input).then((response) => response.attempt);
+
+// POS Split Payments: the split plan and each part's authoritative state, saving the plan, collecting one part through its own method,
+// finalising, and cancelling with compensation of every collected part.
+export type { PosSplitStatus, PosSplitComponent } from "@vercentlabs/api";
+import type { PosSplitStatus } from "@vercentlabs/api";
+export const getPosSplit = (cartId: string) => request<{ split: PosSplitStatus }>(`/checkouts/${cartId}/split-plan`).then((response) => response.split);
+export const savePosSplit = (cartId: string, components: Array<{ method: string; amount: string }>, expectedPlanVersion: number) =>
+  post<{ split: PosSplitStatus }>(`/checkouts/${cartId}/split-plan`, { components, expectedPlanVersion, idempotencyKey: actionKey() }).then((response) => response.split);
+export const collectPosSplitPart = (cartId: string, method: string, input: { terminalId?: string; cashReceived?: string; idempotencyKey: string; outcome?: string }) =>
+  post<{ result: unknown; split: PosSplitStatus }>(`/checkouts/${cartId}/payment-components/${method}/initiate`, input);
+export const finalizePosSplit = (cartId: string) => post<{ split: PosSplitStatus }>(`/checkouts/${cartId}/finalize`, {}).then((response) => response.split);
+export const cancelPosSplit = (cartId: string, input: { reason?: string; cashReturned?: boolean }) =>
+  post<{ status: string; code?: string; message?: string; actions: Array<{ method: string; action: string; status: string }>; split: PosSplitStatus }>(`/checkouts/${cartId}/cancel`,
+    { ...input, idempotencyKey: actionKey() });

@@ -12,6 +12,7 @@ import { Badge, Button, Dialog, ErrorState, LinkButton, PageHeader, PermissionSt
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ErrorBanner } from "@/features/crm/opportunities/opportunity-format";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -73,7 +74,7 @@ export function SalesStagesSettingsScreen() {
         {stages.map((stage) => {
           const index = active.findIndex((entry) => entry.id === stage.id);
           return (
-            <li key={stage.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
+            <li key={stage.id} className="flex items-start justify-between gap-3 p-4 sm:gap-2">
               <div className="flex min-w-0 flex-col gap-1 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{stage.isActive ? `${index + 1}. ` : ""}{stage.name}</span>
@@ -86,7 +87,18 @@ export function SalesStagesSettingsScreen() {
                   {stage.isActive ? `Sequence ${stage.sequence} · ` : ""}{stage.openCount} open {stage.openCount === 1 ? "opportunity" : "opportunities"} in this stage
                 </span>
               </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-1">
+              {/* On a phone the actions sit in a menu so each stage stays one compact row. */}
+              <div className="shrink-0 sm:hidden">
+                <MoreMenu label={`Actions for ${stage.name}`} items={[
+                  ...(stage.isActive ? [
+                    { id: "up", label: "Move earlier", isDisabled: index === 0 || busy, onAction: () => move(index, -1) },
+                    { id: "down", label: "Move later", isDisabled: index === active.length - 1 || busy, onAction: () => move(index, 1) },
+                  ] : []),
+                  { id: "edit", label: "Edit", onAction: () => setEditing(stage) },
+                  { id: "active", label: stage.isActive ? "Deactivate" : "Activate", isDisabled: busy, onAction: () => setActive.mutate({ stage, isActive: !stage.isActive }) },
+                ]} />
+              </div>
+              <div className="hidden shrink-0 flex-wrap items-center gap-1 sm:flex">
                 {stage.isActive && (
                   <>
                     <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} earlier`} isDisabled={index === 0 || busy} onPress={() => move(index, -1)}><ArrowUp className="size-4" aria-hidden="true" /></Button>

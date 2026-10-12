@@ -35,9 +35,18 @@ export type PosTransactionRow = {
   tax_total: string;
   discount_total: string;
   accounting_posting_status: PosAccountingPostingStatus;
+  // Receipt Reprinting (0097): what the search shows to pick the right sale — methods paid with, the buyer, a masked phone.
+  payment_methods?: string[] | null;
+  customer_display?: string | null;
+  customer_phone_masked?: string | null;
+  receipt_issued?: boolean;
+  // GST Invoice (0098): the statutory invoice number, when the sale has a GST invoice.
+  invoice_number?: string | null;
 };
 
 export type PosTransactionListFilters = {
+  amount?: string;
+  customer?: string;
   search?: string;
   storeId?: string;
   terminalId?: string;

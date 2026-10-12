@@ -709,14 +709,23 @@ export async function collectPosCartProductIssues(client, context, cartId) {
   if (!rows.length) return [];
   const items = await loadItems(client, ctx.organizationId, rows.map((row) => row.item_id));
   const products = await decorate(client, context, { ...ctx, allowNegativeStock: true, internal: true }, items.map((item) => ({ item })));
+  // Stock this bill's own checkout already holds (Stock Reduction) is its own: added back before comparing with what it needs.
+  const own = new Map((await client.query(
+    `SELECT allocation.item_id, sum(allocation.active_quantity)::text AS held FROM tenant.stock_reservations allocation
+       JOIN tenant.pos_carts cart ON cart.organization_id = allocation.organization_id AND cart.checkout_reference = allocation.reference_id
+      WHERE allocation.organization_id = $1 AND cart.id = $2 AND allocation.reference_type = 'pos_checkout' AND allocation.status = 'active' GROUP BY allocation.item_id`,
+    [ctx.organizationId, cartId])).rows.map((row) => [row.item_id, decimal(row.held)]));
   const issues = [];
   for (const [index, product] of products.entries()) {
     const row = rows.find((candidate) => candidate.item_id === product.itemId);
-    const reason = product.unavailableReason?.code;
+    const available = typeof product.availableBase === "bigint" ? product.availableBase + (own.get(product.itemId) ?? 0n) : product.availableBase;
+    let reason = product.unavailableReason?.code;
+    if (reason === "POS_PRODUCT_OUT_OF_STOCK") reason = null;
     if (reason && !(reason === "POS_PRODUCT_PRICE_MISSING" && row.overridden) && reason !== "POS_PRODUCT_UOM_INVALID") {
       issues.push({ code: reason, itemId: product.itemId, message: `${product.name}: ${POS_PRODUCT_MESSAGES[reason]}` });
-    } else if (!ctx.allowNegativeStock && isStockItem(items[index]) && product.availableBase < decimal(row.needed)) {
-      issues.push({ code: "POS_PRODUCT_INSUFFICIENT_STOCK", itemId: product.itemId, message: `${product.name}: ${POS_PRODUCT_MESSAGES.POS_PRODUCT_INSUFFICIENT_STOCK}` });
+    } else if (!ctx.allowNegativeStock && isStockItem(items[index]) && available < decimal(row.needed)) {
+      issues.push({ code: "POS_PRODUCT_INSUFFICIENT_STOCK", itemId: product.itemId, available: asText(available > 0n ? available : 0n),
+        message: `${product.name}: only ${asText(available > 0n ? available : 0n)} available at this store. Reduce the quantity to continue.` });
     }
   }
   return issues;

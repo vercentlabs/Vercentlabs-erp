@@ -285,6 +285,8 @@ export function listStockOperationOptions(client: QueryClient, context: any): Pr
 // Wave 0 production-integrity primitives.
 export * from "./core/platform/numbering/index.js";
 export * from "./core/tax/index.js";
+export { INVOICE_MESSAGES, validateGstin, financialYearOf, determineRequiredSalesDocument, evaluateEInvoiceApplicability, listInvoiceSeries, saveInvoiceSeries, setEInvoiceApplicability } from "./core/invoicing/index.js";
+export type { GstDocumentType, InvoiceSeriesKind, EInvoiceStatus, InvoiceSeries, InvoiceRegistration } from "./core/invoicing/index.js";
 export * from "./core/idempotency.js";
 export * from "./core/inventory-lock.js";
 export * from "./core/references.js";

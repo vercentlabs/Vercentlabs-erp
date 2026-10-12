@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download } from "lucide-react";
-import { Badge, Button, Dialog, EmptyState, ErrorState, PageHeader, PermissionState, SearchField, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
+import { ActionBar, Badge, Button, Dialog, EmptyState, ErrorState, PageHeader, PermissionState, SearchField, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { useInvOptions } from "@/features/inventory/shared/client";
 import { money, quantity } from "@/features/items/item-format";
@@ -59,7 +59,7 @@ export function ValuationScreen() {
           <Button variant="secondary" onPress={() => window.open(valuationExportUrl({ ...base, view: "summary" }, "csv"), "_blank")}><Download className="size-4" aria-hidden="true" />CSV</Button>
           <Button variant="secondary" onPress={() => window.open(valuationExportUrl({ ...base, view: "summary" }, "xlsx"), "_blank")}><Download className="size-4" aria-hidden="true" />Excel</Button>
         </div> : undefined} />
-      <div className="flex flex-wrap items-center gap-2">
+      <ActionBar start={<>
         <SearchField aria-label="Search" placeholder="SKU or item" className="w-full sm:w-64" value={search} onChange={setSearch} />
         <Select aria-label="Warehouse" size="compact" selectedKey={warehouseId} onSelectionChange={(key) => setWarehouseId(String(key))}
           options={[{ value: ANY, label: "Every warehouse" }, ...(options.data?.warehouses ?? []).map((entry) => ({ value: entry.id, label: `${entry.code} · ${entry.name}` }))]} />
@@ -67,7 +67,7 @@ export function ValuationScreen() {
           options={[{ value: ANY, label: "Any method" }, { value: "moving_average", label: "Moving Average" }, { value: "fifo", label: "FIFO" }]} />
         <TextField aria-label="As of" type="date" value={asOf} onChange={setAsOf} className="w-44" description={asOf ? undefined : "Now"} />
         {asOf && <Button size="compact" variant="secondary" onPress={() => setAsOf("")}>Now</Button>}
-      </div>
+      </>} />
       <div className="flex flex-wrap gap-6 rounded-[var(--radius-card)] border border-border bg-surface px-4 py-3">
         <div><p className="text-xs text-text-muted">Company inventory value{asOf ? ` as of ${formatDate(asOf)}` : ""}</p><p className="text-xl font-semibold tabular-nums">{money(summary.data?.totals.value ?? 0)}</p></div>
         <div><p className="text-xs text-text-muted">Positions</p><p className="text-xl font-semibold tabular-nums">{summary.data?.total ?? "…"}</p></div>

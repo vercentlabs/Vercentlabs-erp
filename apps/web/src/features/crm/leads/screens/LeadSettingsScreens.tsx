@@ -10,6 +10,7 @@ import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, PermissionState
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { gridStates } from "@/features/crm/shared/ui/gridStates";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
@@ -73,19 +74,22 @@ export function LeadSourcesSettingsScreen() {
               <Button variant="ghost" size="compact" onPress={() => toggle.mutate(row)} isDisabled={toggle.isPending}>{row.isActive ? "Deactivate" : "Activate"}</Button>
             </span>
           )}
+          // One compact row per source on a phone: name and use on the left, its actions in a menu.
           renderMobileCard={(row) => (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex min-w-0 flex-col">
-                  <span className="font-medium">{row.name}</span>
-                  {row.description && <span className="text-sm text-text-secondary">{row.description}</span>}
-                  <span className="text-xs text-text-muted">{row.leadCount ?? 0} {row.leadCount === 1 ? "lead" : "leads"}</span>
-                </div>
-                <StatusBadge tone={row.isActive ? "success" : "neutral"}>{row.isActive ? "Active" : "Inactive"}</StatusBadge>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="truncate font-medium">{row.name}</span>
+                {row.description && <span className="line-clamp-2 text-sm text-text-secondary">{row.description}</span>}
+                <span className="flex items-center gap-1.5 text-xs text-text-muted">
+                  <span className={`size-1.5 shrink-0 rounded-full ${row.isActive ? "bg-success" : "bg-border-strong"}`} aria-hidden="true" />
+                  {row.isActive ? "Active" : "Inactive"} · {row.leadCount ?? 0} {row.leadCount === 1 ? "lead" : "leads"}
+                </span>
               </div>
-              <div className="flex gap-2">
-                <Button variant="secondary" size="compact" onPress={() => setEditing(row)}>Edit</Button>
-                <Button variant="secondary" size="compact" onPress={() => toggle.mutate(row)} isDisabled={toggle.isPending}>{row.isActive ? "Deactivate" : "Activate"}</Button>
+              <div className="shrink-0" onClick={(event) => event.stopPropagation()}>
+                <MoreMenu label={`Actions for ${row.name}`} items={[
+                  { id: "edit", label: "Edit", onAction: () => setEditing(row) },
+                  { id: "active", label: row.isActive ? "Deactivate" : "Activate", isDisabled: toggle.isPending, onAction: () => toggle.mutate(row) },
+                ]} />
               </div>
             </div>
           )}

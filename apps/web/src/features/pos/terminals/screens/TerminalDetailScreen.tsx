@@ -17,6 +17,7 @@ import { ScannerSettingsPanel } from "@/features/pos/products/scanner/ScannerSet
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
+import { TerminalDrawerPanel } from "@/features/pos/cash-sessions/components/TerminalDrawerPanel";
 import {
   STATE_LABEL, STATE_TONE, TERMINALS_BASE, blockersOf, deleteTerminal, errorCode, errorMessage, getTerminal, getTerminalHistory, getTerminalSessions, getTerminalStatusCheck,
   getTerminalTransactions, openPos, setTerminalStatus, setupIssuesOf, type Blocker, type SetupIssue, type TerminalDetail,
@@ -53,7 +54,7 @@ export function TerminalDetailScreen({ terminalId, initialTab }: { terminalId: s
   });
   const open = useMutation({
     mutationFn: () => openPos(terminalId),
-    onSuccess: (result) => router.push(result.action === "resume" ? "/pos/checkout" : "/pos/shifts"),
+    onSuccess: (result) => router.push(result.action === "resume" ? "/pos/register" : "/pos/shifts"),
     onError: (failure) => setError(errorMessage(failure)),
   });
   const remove = useMutation({ mutationFn: () => deleteTerminal(terminalId), onSuccess: () => { refresh(); router.push(TERMINALS_BASE); }, onError: (failure) => { setDialog(null); setError(errorMessage(failure)); } });
@@ -179,6 +180,10 @@ function SetupPanel({ terminal }: { terminal: TerminalDetail }) {
         ["Barcode scanning", terminal.barcodeScanning ? "Enabled" : "Off"],
       ]} />
       <ScannerSettingsPanel terminalId={terminal.id} />
+      {/* Opening Cash Float (0104): the logical cash drawer this counter's shifts hold. */}
+      {terminal.cashManagementEnabled && terminal.outletId && (
+        <TerminalDrawerPanel terminalId={terminal.id} outletId={terminal.outletId} drawerId={terminal.cashDrawerId ?? null} />
+      )}
     </div>
   );
 }

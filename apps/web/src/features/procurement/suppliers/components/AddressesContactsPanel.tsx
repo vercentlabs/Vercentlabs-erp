@@ -7,7 +7,7 @@
 // default, and stays on the documents that used it.
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Button, Menu, MenuItem, MenuTrigger, SearchField, Select, StatusBadge } from "@vercentlabs/design-system";
+import { ActionBar, Button, Menu, MenuItem, MenuTrigger, SearchField, Select, StatusBadge } from "@vercentlabs/design-system";
 
 
 import { errorMessage, setDefault, updateAddress, updateContact, updateRegistration, type SupplierAddress, type SupplierContact, type SupplierDetail, type SupplierOptions } from "../api/suppliers-api";
@@ -81,12 +81,12 @@ export function AddressesContactsPanel({ detail, options, onChanged, onShowHisto
 
       {actions.viewAddresses && show !== "contacts" && <Panel title="Addresses" description="Each location with what it is used for. A purpose has one default; documents start from it and can choose another active location."
         actions={actions.manageAddresses ? <Button size="compact" variant="secondary" onPress={() => setAddress("new")}>Add address</Button> : undefined}>
-        <div className="flex flex-wrap gap-2">
+        <ActionBar start={<>
           <SearchField aria-label="Search addresses" placeholder="Label, city, state, PIN or GSTIN" className="w-full sm:w-72" value={addressSearch} onChange={setAddressSearch} />
           <Select aria-label="Purpose" size="compact" selectedKey={purpose} onSelectionChange={(value) => setPurpose(String(value))}
             options={[{ value: ANY, label: "Any purpose" }, ...options.addressPurposes.map((entry) => ({ value: entry.code, label: entry.label }))]} />
           <Select aria-label="Address status" size="compact" selectedKey={addressStatus} onSelectionChange={(value) => setAddressStatus(String(value))} options={statusOptions} />
-        </div>
+        </>} />
         {!shownAddresses.length ? <p className="text-sm text-text-muted">{addresses.length ? "No address matches." : "No addresses yet."}</p> : (
           <ul className="flex flex-col divide-y divide-border">
             {shownAddresses.map((entry) => (
@@ -130,12 +130,12 @@ export function AddressesContactsPanel({ detail, options, onChanged, onShowHisto
 
       {actions.viewContacts && show !== "addresses" && <Panel title="Contacts" description="The people at this supplier. One person can hold several roles; documents keep the person they named even if they leave."
         actions={actions.manageContacts ? <Button size="compact" variant="secondary" onPress={() => setContact("new")}>Add contact</Button> : undefined}>
-        <div className="flex flex-wrap gap-2">
+        <ActionBar start={<>
           <SearchField aria-label="Search contacts" placeholder="Name, email, phone, designation or location" className="w-full sm:w-72" value={contactSearch} onChange={setContactSearch} />
           <Select aria-label="Role" size="compact" selectedKey={role} onSelectionChange={(value) => setRole(String(value))}
             options={[{ value: ANY, label: "Any role" }, ...options.contactRoles.map((entry) => ({ value: entry.code, label: entry.label }))]} />
           <Select aria-label="Contact status" size="compact" selectedKey={contactStatus} onSelectionChange={(value) => setContactStatus(String(value))} options={statusOptions} />
-        </div>
+        </>} />
         {!shownContacts.length ? <p className="text-sm text-text-muted">{contacts.length ? "No contact matches." : "No contacts yet."}</p> : (
           <ul className="flex flex-col divide-y divide-border">
             {shownContacts.map((entry) => (

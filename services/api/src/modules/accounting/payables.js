@@ -26,7 +26,7 @@ import {
 } from "./core.js";
 import { createJournalEntry, postJournalEntry, reverseJournalEntry } from "./journals.js";
 import { sub } from "./money.js";
-import { recordDocumentTaxLedger } from "./tax.js";
+import { itcRequiresConfirmation, recordDocumentTaxLedger, supplyCategory, taxPostingLines } from "./tax.js";
 import { resolvePaymentSchedule, writeDocumentSchedule } from "./schedules.js";
 import { createVendorSettlementAdjustment } from "./settlements.js";
 
@@ -438,15 +438,19 @@ export async function postVendorBill(client, context, idValue) {
   const payable = await getAccountMapping(client, context, bill.ledger_id, "payable", { partyId: bill.party_id, date: bill.accounting_date });
   const journalId = await purchaseJournal(client, context, bill.ledger_id);
   const isCreditNote = bill.bill_type === "credit_note";
+  // Input GST is not claimable merely because a supplier invoice exists: it waits on its own account until the credit is confirmed.
+  const itcPending = await itcRequiresConfirmation(client, context.organizationId);
   let lines = [];
   for (const line of detail.lines) {
     const variance = decimal(line.variance_amount || 0);
     const expensePart = decimal(line.net_amount) - variance;
     if (expensePart !== 0n) lines.push({ accountId: line.expense_account_id, partyId: bill.party_id, departmentId: line.department_id, costCenterId: line.cost_center_id, description: line.description,
-      debit: expensePart > 0n ? asDatabaseDecimal(expensePart) : 0, credit: expensePart < 0n ? asDatabaseDecimal(-expensePart) : 0, referenceType: "vendor_bill", referenceId: bill.id });
+      debit: expensePart > 0n ? asDatabaseDecimal(expensePart) : 0, credit: expensePart < 0n ? asDatabaseDecimal(-expensePart) : 0, referenceType: "vendor_bill", referenceId: bill.id,
+      metadata: { taxRole: "base", sourceLineId: line.id, taxableAmount: String(line.net_amount) } });
     if (variance !== 0n && line.variance_account_id) lines.push({ accountId: line.variance_account_id, partyId: bill.party_id, description: `Price variance ${line.description}`,
       debit: variance > 0n ? asDatabaseDecimal(variance) : 0, credit: variance < 0n ? asDatabaseDecimal(-variance) : 0, referenceType: "vendor_bill", referenceId: bill.id });
-    if (decimal(line.tax_amount) > 0n && line.tax_account_id) lines.push({ accountId: line.tax_account_id, partyId: bill.party_id, description: `Input tax ${line.description}`, debit: line.tax_amount, credit: 0, referenceType: "vendor_bill", referenceId: bill.id, taxBaseAmount: line.net_amount });
+    if (decimal(line.tax_amount) > 0n) lines.push(...await taxPostingLines(client, context, bill.ledger_id, line, { direction: "input", date: bill.accounting_date, partyId: bill.party_id, itcPending,
+      referenceType: "vendor_bill", referenceId: bill.id }));
     if (decimal(line.withholding_amount) > 0n && line.withholding_account_id) lines.push({ accountId: line.withholding_account_id, partyId: bill.party_id, description: `Withholding ${line.description}`, debit: 0, credit: line.withholding_amount, referenceType: "vendor_bill", referenceId: bill.id });
   }
   if (decimal(bill.charge_total) > 0n) {
@@ -469,7 +473,8 @@ export async function postVendorBill(client, context, idValue) {
   const journal = await createJournalEntry(client, context, { ledgerId: bill.ledger_id, journalId, entryDate: bill.bill_date, accountingDate: bill.accounting_date, documentDate: bill.bill_date, entryType: "subledger", reference: bill.supplier_invoice_reference || bill.bill_number, description: `Vendor bill ${bill.bill_number}`, currencyCode: bill.currency_code, exchangeRate: bill.exchange_rate, lines }, { internal: true, sourceModule: "accounting", sourceType, sourceId: bill.id, sourceNumber: bill.bill_number });
   await postJournalEntry(client, context, journal.entry.id, { internal: true, allowDraft: true });
   // Reverse-charge tax has its own ledger rows (postReverseCharge); the tax the supplier charged is ordinary input tax.
-  await recordDocumentTaxLedger(client, context, { ...bill, reverse_charge: false }, detail.lines, journal.entry.id, "input");
+  await recordDocumentTaxLedger(client, context, { ...bill, reverse_charge: false }, detail.lines, journal.entry.id, "input",
+    { supplyCategoryOf: (line) => supplyCategory((Array.isArray(line.tax_details) && line.tax_details.length) || decimal(line.tax_amount || 0) > 0n ? "taxable" : "non_gst", line.tax_amount) });
   await recordWithholdingLedger(client, context, bill, detail.lines, journal.entry.id);
   const reverseChargeJournalId = isCreditNote ? null : await postReverseCharge(client, context, bill, detail);
   await client.query(`UPDATE tenant.accounting_vendor_bills SET status='posted',journal_entry_id=$3,outstanding_amount=grand_total,posted_at=now(),posted_by=$4,updated_by=$4,reverse_charge_journal_entry_id=$5 WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, journal.entry.id, context.userId, reverseChargeJournalId]);
@@ -514,6 +519,10 @@ export async function reverseVendorBill(client, context, idValue, input = {}) {
     [context.organizationId, id])).rows[0];
   if (used.payments || used.credits || used.notes) throw new AccountingError(409, "Payments or vendor credits refer to this bill. Correct them first.", "SUPPLIER_BILL_IN_USE");
   const reversing = { ...context, permissions: [...new Set([...(context.permissions || []), ACCOUNTING_PERMISSIONS.journalReverse, ACCOUNTING_PERMISSIONS.view])] };
+  // A decided input tax credit is undone with the bill: its decision journal is reversed first.
+  const itcDecision = (await client.query(`SELECT journal_entry_id FROM tenant.accounting_postings WHERE organization_id=$1 AND posting_event='itc_decision' AND source_id=$2 AND status='POSTED'`,
+    [context.organizationId, id])).rows[0];
+  if (itcDecision) await reverseJournalEntry(client, reversing, itcDecision.journal_entry_id, { reason: `${bill.bill_number}: ${reason}` });
   const reversal = await reverseJournalEntry(client, reversing, bill.journal_entry_id, { reason: `${bill.bill_number}: ${reason}` });
   if (bill.reverse_charge_journal_entry_id) await reverseJournalEntry(client, reversing, bill.reverse_charge_journal_entry_id, { reason: `${bill.bill_number}: ${reason}` });
   await client.query(`UPDATE tenant.accounting_tax_ledger SET status='reversed' WHERE organization_id=$1 AND source_id=$2 AND status='open'`, [context.organizationId, id]);

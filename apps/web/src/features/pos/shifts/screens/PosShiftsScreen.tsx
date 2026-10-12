@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import {
@@ -13,7 +13,6 @@ import {
   EnterpriseListPage,
   ErrorState,
   NoResultsState,
-  NumberField,
   PermissionState,
   Select,
   type SelectOption,
@@ -28,8 +27,8 @@ import { PosApiError } from "@/features/pos/shared/http";
 import { listPosEligibleCashiers } from "@/features/pos/shared/cashiers";
 import { listPosStores } from "@/features/pos/shared/stores";
 import { listPosTerminals } from "@/features/pos/shared/terminals";
+import { ShiftOpeningPanel } from "@/features/pos/shift-opening/components/ShiftOpeningPanel";
 import {
-  openPosShift,
   listPosShiftsPage,
   type PosShift,
   type PosShiftFilters,
@@ -48,7 +47,7 @@ const statusTone: Record<string, "success" | "info"> = {
 // (nobody with shift-close/cash-adjust/store-manage authority) has no
 // business browsing every other cashier's shift, so their own view is
 // pinned to just their own shifts; a manager sees and filters across
-// everyone the same way the day-end-reports workspace lets them filter
+// everyone the same way the Day-End workspace lets them filter
 // across stores.
 export function PosShiftsScreen() {
   const router = useRouter();
@@ -70,14 +69,6 @@ export function PosShiftsScreen() {
     cashierUserId: isManager ? undefined : workspace.userId,
   }));
   const [openDialog, setOpenDialog] = useState(false);
-  const [openError, setOpenError] = useState<string | null>(null);
-  const [storeId, setStoreId] = useState("");
-  const [terminalId, setTerminalId] = useState("");
-  const [openingCash, setOpeningCash] = useState(0);
-  const [idempotencyKey, setIdempotencyKey] = useState(() =>
-    crypto.randomUUID(),
-  );
-
   const storesQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "pos", "stores"),
     queryFn: listPosStores,
@@ -113,13 +104,6 @@ export function PosShiftsScreen() {
       })),
     [storesQuery.data],
   );
-  const terminalOptions: SelectOption[] = useMemo(
-    () =>
-      (terminalsQuery.data?.rows ?? [])
-        .filter((t) => !storeId || (t.storeId ?? t.store_id) === storeId)
-        .map((t) => ({ value: t.id, label: `${t.name} (${t.code})` })),
-    [terminalsQuery.data, storeId],
-  );
   const filterTerminalOptions: SelectOption[] = useMemo(
     () =>
       (terminalsQuery.data?.rows ?? [])
@@ -151,36 +135,6 @@ export function PosShiftsScreen() {
       new Map((cashiersQuery.data?.rows ?? []).map((c) => [c.id, c.fullName])),
     [cashiersQuery.data],
   );
-
-  const openMutation = useMutation({
-    // F301: same reserve-then-complete idempotency contract as the
-    // overview dashboard's own quick "open a shift" action -- a client
-    // retry safely replays the original response instead of surfacing a
-    // raw unique-constraint error.
-    mutationFn: () =>
-      openPosShift({ storeId, terminalId, openingCash, idempotencyKey }),
-    onSuccess: (result) => {
-      setOpenError(null);
-      setOpenDialog(false);
-      setStoreId("");
-      setTerminalId("");
-      setOpeningCash(0);
-      setIdempotencyKey(crypto.randomUUID());
-      queryClient.invalidateQueries({
-        queryKey: scopedQueryKey(workspace, "pos", "shifts-page"),
-      });
-      queryClient.invalidateQueries({
-        queryKey: scopedQueryKey(workspace, "pos", "shifts"),
-      });
-      router.push(`/pos/shifts/${result.shift.id}`);
-    },
-    onError: (err) =>
-      setOpenError(
-        err instanceof PosApiError
-          ? err.message
-          : "The shift could not be opened.",
-      ),
-  });
 
   const rows = query.data?.rows ?? [];
   const total = query.data?.total ?? 0;
@@ -456,54 +410,14 @@ export function PosShiftsScreen() {
           onOpenChange={(open) => !open && setOpenDialog(false)}
           title="Open a shift"
         >
-          <div className="flex flex-col gap-4">
-            {openError && (
-              <p
-                role="alert"
-                className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
-              >
-                {openError}
-              </p>
-            )}
-            <Select
-              label="Store"
-              options={storeOptions}
-              value={storeId}
-              onChange={(value) => {
-                setStoreId(String(value ?? ""));
-                setTerminalId("");
-              }}
-              placeholder="Select a store"
-            />
-            <Select
-              label="Terminal"
-              options={terminalOptions}
-              value={terminalId}
-              onChange={(value) => setTerminalId(String(value ?? ""))}
-              placeholder="Select a terminal"
-              isDisabled={!storeId}
-            />
-            <NumberField
-              label="Opening cash"
-              value={openingCash}
-              onChange={setOpeningCash}
-              minValue={0}
-              step={0.01}
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onPress={() => setOpenDialog(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onPress={() => openMutation.mutate()}
-                isDisabled={!storeId || !terminalId}
-                isLoading={openMutation.isPending}
-              >
-                Open shift
-              </Button>
-            </div>
-          </div>
+          <ShiftOpeningPanel
+            onOpened={(shift) => {
+              setOpenDialog(false);
+              queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "shifts-page") });
+              queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "shifts") });
+              router.push(`/pos/shifts/${shift.shiftId}`);
+            }}
+          />
         </Dialog>
       )}
     </>

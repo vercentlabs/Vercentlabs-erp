@@ -17,7 +17,7 @@ import {
   CHANNEL_OF_TYPE, FOLLOW_UP_NUMBER_DOCUMENT_TYPE, FOLLOW_UP_OUTCOMES, FOLLOW_UP_PERMISSIONS, FOLLOW_UP_RELATED_TYPES, FOLLOW_UP_REMINDER_OPTIONS,
   FOLLOW_UP_STATUSES, FOLLOW_UP_TYPES, FOLLOW_UP_VIEWS, OPEN_STORED_STATUSES,
 } from "./constants.js";
-import { recordFollowUpHistory } from "./history.js";
+import { formatLocalDate, formatMoment, organizationTimezone, recordFollowUpHistory } from "./history.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -429,7 +429,7 @@ export async function scheduleFollowUp(client, context, input = {}) {
   await replaceActivityReminder(client, context, id, dueAt, reminderOffset);
   const followUp = await readFollowUpForNotice(client, context, id);
   await recordFollowUpHistory(client, context, id, "scheduled",
-    `Scheduled for ${followUp?.scheduledDate ?? dueAt.toISOString().slice(0, 10)}${followUp?.scheduledTime ? ` ${followUp.scheduledTime}` : ""}${assignedTo !== context.userId ? ` — assigned to ${followUp?.assignedName ?? "someone else"}` : ""}`,
+    `Scheduled for ${followUp?.scheduledDate ? formatLocalDate(followUp.scheduledDate, followUp.scheduledTime ?? null) : formatMoment(dueAt, await organizationTimezone(client, context))}${assignedTo !== context.userId ? ` — assigned to ${followUp?.assignedName ?? "someone else"}` : ""}`,
     { type, assignedTo, scheduledAt: dueAt, reminderOffsetMinutes: reminderOffset });
   if (assignedTo !== context.userId && followUp) {
     const { notifyFollowUpAssigned } = await import("./notify.js");

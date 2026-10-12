@@ -245,10 +245,10 @@ export function AccountListScreen() {
           secondaryActions: (
             <>
               <LinkButton href="/crm/accounts/report" variant="outline"><BarChart3 className="size-4" aria-hidden="true" />Report</LinkButton>
-              {can?.import && <LinkButton href="/crm/accounts/import" variant="outline"><Upload className="size-4" aria-hidden="true" />Import</LinkButton>}
+              {can?.import && <LinkButton href="/crm/accounts/import" variant="outline"><Upload className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Import</span></LinkButton>}
               {can?.export && (
                 <a className={buttonVariants({ variant: "outline" })} href={accountExportUrl(listFilters)} download>
-                  <Download className="size-4" aria-hidden="true" />Export
+                  <Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span>
                 </a>
               )}
             </>
@@ -279,7 +279,7 @@ export function AccountListScreen() {
           ),
           end: (
             <PopoverTrigger>
-              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" />Columns</Button>
+              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Columns</span></Button>
               <Popover>
                 <div className="flex flex-col gap-2 p-1">
                   <p className="text-xs font-medium text-text-secondary">Show columns</p>

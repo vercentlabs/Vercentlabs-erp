@@ -297,10 +297,10 @@ export function LeadListScreen() {
           secondaryActions: (
             <>
               <LinkButton href="/crm/leads/dashboard" variant="outline">Dashboard</LinkButton>
-              {can?.import && <LinkButton href="/crm/leads/import" variant="outline"><Upload className="size-4" aria-hidden="true" />Import</LinkButton>}
+              {can?.import && <LinkButton href="/crm/leads/import" variant="outline"><Upload className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Import</span></LinkButton>}
               {can?.export && (
                 <a className={buttonVariants({ variant: "outline" })} href={leadExportUrl(listFilters)} download>
-                  <Download className="size-4" aria-hidden="true" />Export
+                  <Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span>
                 </a>
               )}
             </>
@@ -310,36 +310,40 @@ export function LeadListScreen() {
         actionBar={{
           start: (
             <>
-              <SearchField aria-label="Search leads" placeholder="Search name, company, email, phone or lead number" className="w-full sm:w-80" value={search} onChange={setSearch} onSubmit={(value) => setSubmittedSearch(value.trim())} />
+              <SearchField aria-label="Search leads" placeholder="Search name, company, email, phone or lead number" className="order-last w-full sm:order-none sm:w-auto sm:min-w-64 sm:flex-1" value={search} onChange={setSearch} onSubmit={(value) => setSubmittedSearch(value.trim())} />
               {options && (
                 <>
-                  <Select aria-label="Status" size="compact" selectedKey={filters.status} onSelectionChange={(key) => setFilters({ ...filters, status: String(key) })} options={statusOptions} />
-                  <Select aria-label="Stage" size="compact" selectedKey={filters.stage} onSelectionChange={(key) => setFilters({ ...filters, stage: String(key) })}
-                    options={filterOptions(options.stages.map((entry) => ({ value: entry.code, label: entry.label })), "Any stage")} />
-                  <Select aria-label="Owner" size="compact" selectedKey={filters.ownerId} onSelectionChange={(key) => setFilters({ ...filters, ownerId: String(key) })} options={ownerOptions} />
-                  <Select aria-label="Source" size="compact" selectedKey={filters.sourceId} onSelectionChange={(key) => setFilters({ ...filters, sourceId: String(key) })}
-                    options={filterOptions(options.sources.map((entry) => ({ value: entry.id, label: entry.name })), "Any source")} />
-                  <Select aria-label="Priority" size="compact" selectedKey={filters.priority} onSelectionChange={(key) => setFilters({ ...filters, priority: String(key) })} options={filterOptions(PRIORITY_OPTIONS, "Any priority")} />
-                  <Select aria-label="Qualification" size="compact" selectedKey={filters.qualificationStatus} onSelectionChange={(key) => setFilters({ ...filters, qualificationStatus: String(key) })}
-                    options={filterOptions(options.qualificationStatuses.map((entry) => ({ value: entry.code, label: entry.label })), "Any qualification")} />
-                  <Select aria-label="Rating" size="compact" selectedKey={filters.rating} onSelectionChange={(key) => setFilters({ ...filters, rating: String(key) })} options={filterOptions(RATING_OPTIONS, "Any rating")} />
                   <PopoverTrigger>
-                    <Button variant="outline" size="compact"><Filter className="size-4" aria-hidden="true" />Location, interest and age</Button>
+                    <Button variant={activeFilters.length ? "secondary" : "outline"} size="compact">
+                      <Filter className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Filters</span>
+                      {activeFilters.length > 0 && <span className="rounded-full bg-brand px-1.5 text-xs tabular-nums text-white">{activeFilters.length}</span>}
+                    </Button>
                     <Popover placement="bottom start">
-                      <div className="grid w-[min(22rem,calc(100vw-4rem))] grid-cols-2 gap-3">
-                        <Select label="Team" className="col-span-2" selectedKey={filters.teamId} onSelectionChange={(key) => setFilters({ ...filters, teamId: String(key) })}
+                      <div className="grid w-[min(48rem,calc(100vw-4rem))] grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <Select label="Status" size="compact" selectedKey={filters.status} onSelectionChange={(key) => setFilters({ ...filters, status: String(key) })} options={statusOptions} />
+                        <Select label="Stage" size="compact" selectedKey={filters.stage} onSelectionChange={(key) => setFilters({ ...filters, stage: String(key) })}
+                          options={filterOptions(options.stages.map((entry) => ({ value: entry.code, label: entry.label })), "Any stage")} />
+                        <Select label="Owner" size="compact" selectedKey={filters.ownerId} onSelectionChange={(key) => setFilters({ ...filters, ownerId: String(key) })} options={ownerOptions} />
+                        <Select label="Team" size="compact" selectedKey={filters.teamId} onSelectionChange={(key) => setFilters({ ...filters, teamId: String(key) })}
                           options={filterOptions(options.teams.map((entry) => ({ value: entry.id, label: entry.name })), "Any team")} />
+                        <Select label="Source" size="compact" selectedKey={filters.sourceId} onSelectionChange={(key) => setFilters({ ...filters, sourceId: String(key) })}
+                          options={filterOptions(options.sources.map((entry) => ({ value: entry.id, label: entry.name })), "Any source")} />
+                        <Select label="Priority" size="compact" selectedKey={filters.priority} onSelectionChange={(key) => setFilters({ ...filters, priority: String(key) })} options={filterOptions(PRIORITY_OPTIONS, "Any priority")} />
+                        <Select label="Qualification" size="compact" selectedKey={filters.qualificationStatus} onSelectionChange={(key) => setFilters({ ...filters, qualificationStatus: String(key) })}
+                          options={filterOptions(options.qualificationStatuses.map((entry) => ({ value: entry.code, label: entry.label })), "Any qualification")} />
+                        <Select label="Rating" size="compact" selectedKey={filters.rating} onSelectionChange={(key) => setFilters({ ...filters, rating: String(key) })} options={filterOptions(RATING_OPTIONS, "Any rating")} />
+                        <p className="border-t border-border pt-3 text-xs font-medium text-text-secondary sm:col-span-2 lg:col-span-3">Location, interest and age</p>
                         <TextField label="State" value={queueDraft.state} onChange={(state) => setQueueDraft({ ...queueDraft, state })} />
                         <TextField label="City" value={queueDraft.city} onChange={(city) => setQueueDraft({ ...queueDraft, city })} />
-                        <TextField label="Product / service interest" className="col-span-2" value={queueDraft.productInterest} onChange={(productInterest) => setQueueDraft({ ...queueDraft, productInterest })} />
-                        <Select label="Waiting" className="col-span-2" selectedKey={queueDraft.olderThanDays || ANY}
+                        <TextField label="Product / service interest" value={queueDraft.productInterest} onChange={(productInterest) => setQueueDraft({ ...queueDraft, productInterest })} />
+                        <Select label="Waiting" size="compact" selectedKey={queueDraft.olderThanDays || ANY}
                           onSelectionChange={(key) => setQueueDraft({ ...queueDraft, olderThanDays: String(key) === ANY ? "" : String(key) })} options={AGE_OPTIONS} />
-                        <Checkbox className="col-span-2" isSelected={staleOnly} onChange={setStaleOnly}>
+                        <Checkbox className="sm:col-span-2 lg:col-span-3" isSelected={staleOnly} onChange={setStaleOnly}>
                           Only stale leads (open, no activity for {options.staleDays}+ days)
                         </Checkbox>
-                        <div className="col-span-2 flex justify-end gap-2">
-                          <Button variant="ghost" size="compact" onPress={() => setQueue(NO_QUEUE_FILTERS)}>Clear</Button>
-                          <Button variant="primary" size="compact" onPress={() => setQueue(queueDraft)}>Apply</Button>
+                        <div className="flex justify-end gap-2 sm:col-span-2 lg:col-span-3">
+                          <Button variant="ghost" size="compact" onPress={clearFilters}>Clear all</Button>
+                          <Button variant="primary" size="compact" onPress={() => setQueue(queueDraft)}>Apply location and interest</Button>
                         </div>
                       </div>
                     </Popover>
@@ -350,7 +354,7 @@ export function LeadListScreen() {
           ),
           end: (
             <PopoverTrigger>
-              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" />Columns</Button>
+              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Columns</span></Button>
               <Popover>
                 <div className="flex flex-col gap-2 p-1">
                   <p className="text-xs font-medium text-text-secondary">Show columns</p>

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import {
+  ActionBar,
   AlertDialog, Badge, Button, Checkbox, CheckboxGroup, ComboBox, Dialog, EmptyState, ErrorState, RecordDetailsPage, SearchField, Select, StatusBadge, Tab,
   TabList, TabPanel, Tabs, TextArea, TextField,
 } from "@vercentlabs/design-system";
@@ -196,13 +197,13 @@ function StockPanel({ warehouse }: { warehouse: WarehouseDetail }) {
   const showValue = query.data?.showsValue ?? false;
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
+      <ActionBar start={<>
         <SearchField aria-label="Search items" placeholder="Search SKU or name" className="w-full sm:w-64" value={search} onChange={setSearch} />
         <Select aria-label="Location" size="compact" selectedKey={locationId} onSelectionChange={(key) => setLocationId(String(key))}
           options={withNone(warehouse.locations.map((location) => ({ value: location.id, label: location.code })), "Any location")} />
         <Select aria-label="Status" size="compact" selectedKey={status} onSelectionChange={(key) => setStatus(String(key))}
           options={withNone([{ value: "available", label: "Available" }, { value: "reserved", label: "Reserved" }, { value: "quality_hold", label: "Quality hold" }], "Any status")} />
-      </div>
+      </>} />
       {query.isLoading ? <LoadingState label="Loading stock" rows={4} /> : query.isError ? <ErrorBanner message={errorMessage(query.error)} /> : (
         <LinesTable columns={["SKU", "Item", "Category", "On hand", "Reserved", "Quality hold", "Available", ...(showValue ? ["Value"] : [])]} empty={!query.data?.items.length}>
           {query.data?.items.map((row) => (
@@ -334,12 +335,11 @@ function MovementsPanel({ warehouse }: { warehouse: WarehouseDetail }) {
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "warehouses", "movements", warehouse.id, filters), queryFn: () => getWarehouseMovements(warehouse.id, filters), placeholderData: (previous) => previous });
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
+      <ActionBar end={<Link className="text-sm text-brand hover:underline" href={`/inventory/transactions?tab=movements&warehouseId=${warehouse.id}`}>Full movement history</Link>} start={<>
         <SearchField aria-label="Search movements" placeholder="Movement number or reference" className="w-full sm:w-64" value={reference} onChange={setReference} />
-        <Link className="self-center text-sm text-brand hover:underline" href={`/inventory/transactions?tab=movements&warehouseId=${warehouse.id}`}>Full movement history</Link>
         <Select aria-label="Type" size="compact" selectedKey={type} onSelectionChange={(key) => setType(String(key))}
           options={withNone(["receipt", "issue", "adjustment", "return"].map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) })), "Any type")} />
-      </div>
+      </>} />
       {query.isLoading ? <LoadingState label="Loading movements" rows={4} /> : query.isError ? <ErrorBanner message={errorMessage(query.error)} /> : (
         <LinesTable columns={["When", "Movement", "Type", "Item", "Location", "Batch / Serial", "In", "Out", "Reference"]} empty={!query.data?.length}>
           {query.data?.map((row) => (

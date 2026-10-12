@@ -1,583 +1,86 @@
 "use client";
 
+// POS returns: history by return, receipt, invoice or credit-note number, with each return's status and — separately — its refund status;
+// "New return" starts one against the original sale.
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Check, Plus, RotateCcw } from "lucide-react";
-import {
-  AlertDialog,
-  Button,
-  Checkbox,
-  Dialog,
-  EnterpriseDataGrid,
-  EnterpriseListPage,
-  ErrorState,
-  NoResultsState,
-  NumberField,
-  PermissionState,
-  SearchField,
-  Select,
-  StatusBadge,
-  TextField,
-  type ActiveFilter,
-} from "@vercentlabs/design-system";
-import { POS_PERMISSIONS } from "@vercentlabs/permissions";
+import { Plus } from "lucide-react";
+import { Button, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, SearchField, Select, StatusBadge } from "@vercentlabs/design-system";
 
-import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { REFUND_LABEL, REFUND_TONE, STATUS_LABEL, STATUS_TONE, listReturns, type PosReturnRow } from "@/features/pos/returns/api/returns-api";
+import { NewReturnDialog } from "@/features/pos/returns/components/NewReturnDialog";
 import { PosApiError } from "@/features/pos/shared/http";
-import {
-  approvePosReturn,
-  completePosReturn,
-  createPosReturn,
-  findPosSaleForReturn,
-  listPosReturns,
-  type PosReturn,
-  type PosReturnSale,
-  type PosReturnSaleLine,
-} from "@/features/pos/returns/api/returns-api";
-import { money, statusLabel } from "@/features/pos/shared/format";
-import { PosAlert } from "@/features/pos/shared/PosUi";
-import { findReturnLine } from "@/features/pos/products/scanner/scanner-api";
+import { dateTime, money } from "@/features/pos/shared/format";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-const STATUS_TONE: Record<
-  PosReturn["status"],
-  "success" | "warning" | "neutral" | "danger"
-> = {
-  pending_approval: "warning",
-  approved: "neutral",
-  completed: "success",
-  rejected: "danger",
-};
+const PAGE_SIZE = 25;
 
-// F291/F292 -- returns and refunds against the real F291/F292 backend
-// (createPointOfSaleReturn/approvePointOfSaleReturn/completePointOfSaleReturn,
-// services/api/src/modules/point-of-sale/index.js). A cashier can request
-// a return (pos.return.create); a supervisor approves and completes the
-// refund (pos.return.approve, on a DIFFERENT person than the requester --
-// enforced server-side). "Complete refund" works for every tender the
-// original sale used, not just cash: completePointOfSaleReturn allocates
-// the refund across the sale's real payment legs and refunds each through
-// its own real mechanism (a cash movement, or the same provider-adapter
-// refundPosPayment call the standalone payment-refund action uses) --
-// there is no separate "non-cash" button because there is no separate
-// code path to gate here.
 export function PosReturnsScreen() {
+  const router = useRouter();
   const workspace = useWorkspaceContext();
-  const queryClient = useQueryClient();
-  const canCreate =
-    workspace.roleSlugs.includes("organization_owner") ||
-    workspace.permissions.includes(POS_PERMISSIONS.returnCreate);
-  const canApprove =
-    workspace.roleSlugs.includes("organization_owner") ||
-    workspace.permissions.includes(POS_PERMISSIONS.returnApprove);
-  const canView =
-    canCreate ||
-    canApprove ||
-    workspace.permissions.includes(POS_PERMISSIONS.view);
-
-  const [error, setError] = useState<string | null>(null);
-  const [newReturnOpen, setNewReturnOpen] = useState(false);
-  const [completeTarget, setCompleteTarget] = useState<PosReturn | null>(null);
-
-  const query = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "returns"),
-    queryFn: listPosReturns,
-    enabled: canView,
-  });
-  const allRows = query.data?.rows;
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const rows = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return (allRows ?? []).filter((row) => {
-      if (statusFilter && row.status !== statusFilter) return false;
-      if (!needle) return true;
-      return [row.return_number, row.reason].some((value) =>
-        String(value ?? "")
-          .toLowerCase()
-          .includes(needle),
-      );
-    });
-  }, [allRows, search, statusFilter]);
-  const hasFilters = Boolean(search.trim() || statusFilter);
-  const activeFilters: ActiveFilter[] = [];
-  if (statusFilter)
-    activeFilters.push({
-      id: "status",
-      label: `Status: ${statusLabel(statusFilter)}`,
-    });
-  if (search.trim())
-    activeFilters.push({ id: "search", label: `Search: ${search.trim()}` });
-  function removeFilter(id: string) {
-    if (id === "status") setStatusFilter("");
-    if (id === "search") setSearch("");
-  }
-  function clearFilters() {
-    setSearch("");
-    setStatusFilter("");
-  }
+  const [status, setStatus] = useState("");
+  const [refundStatus, setRefundStatus] = useState("");
+  const [pageIndex, setPageIndex] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const filters = { search: search.trim() || undefined, status: status || undefined, refundStatus: refundStatus || undefined, limit: PAGE_SIZE, offset: pageIndex * PAGE_SIZE };
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "returns", filters), queryFn: () => listReturns(filters), placeholderData: (previous) => previous });
+  const rows = query.data?.rows ?? [];
+  const total = query.data?.total ?? 0;
+  const reset = (set: (value: string) => void) => (value: string) => { setPageIndex(0); set(value); };
 
-  function invalidate() {
-    queryClient.invalidateQueries({
-      queryKey: scopedQueryKey(workspace, "pos", "returns"),
-    });
-  }
-  function handleError(err: unknown) {
-    setError(
-      err instanceof PosApiError
-        ? err.message
-        : "This action could not be completed.",
-    );
-  }
-
-  // Idempotency keys here are derived ONLY from the return's own id, not
-  // wall-clock time (Date.now()) -- approve/complete are each a single,
-  // once-per-return operation with a deterministic request payload
-  // ({returnId}), so a genuine retry of the exact same click (double-tap,
-  // client timeout, network blip) must reuse the SAME key. That's what lets
-  // the backend's beginIdempotentOperation (services/api/src/core/
-  // idempotency.js) recognize the retry and replay the cached result
-  // instead of racing a second transaction against the row lock in
-  // completePointOfSaleReturn. A timestamp-suffixed key defeated that: two
-  // clicks a few milliseconds apart got two different keys, so the
-  // idempotency table never caught the duplicate and correctness fell back
-  // entirely on the FOR UPDATE row lock + status re-check further down.
-  const approveMutation = useMutation({
-    mutationFn: (posReturn: PosReturn) =>
-      approvePosReturn(posReturn.id, {
-        idempotencyKey: `approve-${posReturn.id}`,
-      }),
-    onSuccess: () => {
-      setError(null);
-      invalidate();
-    },
-    onError: handleError,
-  });
-  const completeMutation = useMutation({
-    mutationFn: (posReturn: PosReturn) =>
-      completePosReturn(posReturn.id, {
-        idempotencyKey: `complete-${posReturn.id}`,
-      }),
-    onSuccess: () => {
-      setError(null);
-      setCompleteTarget(null);
-      invalidate();
-    },
-    onError: handleError,
-  });
-
-  const columns: ColumnDef<PosReturn, unknown>[] = useMemo(
-    () => [
-      {
-        id: "number",
-        header: "Return #",
-        accessorKey: "return_number",
-        cell: ({ row }) => (
-          <span className="font-mono font-medium text-text">
-            {row.original.return_number}
-          </span>
-        ),
-      },
-      { id: "reason", header: "Reason", accessorKey: "reason" },
-      {
-        id: "refund",
-        header: "Refund",
-        accessorFn: (row) => money("", row.refund_total),
-      },
-      {
-        id: "status",
-        header: "Status",
-        cell: ({ row }) => (
-          <StatusBadge tone={STATUS_TONE[row.original.status] ?? "neutral"}>
-            {statusLabel(row.original.status)}
-          </StatusBadge>
-        ),
-      },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => {
-          const r = row.original;
-          if (r.status === "pending_approval" && canApprove) {
-            return (
-              <Button
-                variant="secondary"
-                size="compact"
-                onPress={() => approveMutation.mutate(r)}
-                isLoading={approveMutation.isPending}
-              >
-                <Check className="size-4" aria-hidden="true" />
-                Approve
-              </Button>
-            );
-          }
-          if (r.status === "approved" && canApprove) {
-            return (
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="primary"
-                  size="compact"
-                  onPress={() => setCompleteTarget(r)}
-                  isLoading={
-                    completeMutation.isPending && completeTarget?.id === r.id
-                  }
-                >
-                  <RotateCcw className="size-4" aria-hidden="true" />
-                  Complete refund
-                </Button>
-              </div>
-            );
-          }
-          return null;
-        },
-      },
-    ],
-    [canApprove, approveMutation, completeMutation, completeTarget],
-  );
-
-  if (!canView)
-    return (
-      <PermissionState
-        title="You don't have access to POS Returns"
-        description="Ask an administrator to grant pos.return.create or pos.return.approve."
-      />
-    );
+  const columns: ColumnDef<PosReturnRow, unknown>[] = useMemo(() => [
+    { id: "returnNumber", header: "Return", cell: ({ row }) => <span className="font-medium text-text">{row.original.returnNumber}</span> },
+    { id: "sale", header: "Original sale", accessorFn: (row) => row.invoiceNumber ?? row.receiptNumber },
+    { id: "createdAt", header: "Started", accessorFn: (row) => dateTime(row.createdAt) },
+    { id: "requestedBy", header: "By", accessorFn: (row) => row.requestedBy ?? "—" },
+    { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={STATUS_TONE[row.original.status] ?? "neutral"}>{STATUS_LABEL[row.original.status] ?? row.original.status}</StatusBadge> },
+    { id: "refundStatus", header: "Refund", cell: ({ row }) => row.original.status === "POSTED"
+      ? <StatusBadge tone={REFUND_TONE[row.original.refundStatus] ?? "neutral"}>{REFUND_LABEL[row.original.refundStatus] ?? row.original.refundStatus}</StatusBadge> : <span className="text-text-muted">—</span> },
+    { id: "flags", header: "", accessorFn: (row) => [row.receiptPresent ? null : "No receipt", row.exceptions.length ? "Exception" : null, row.creditNoteNumber].filter(Boolean).join(" · ") },
+    { id: "refundDue", header: "Refund due", accessorFn: (row) => money(row.currency, row.refundDue) },
+  ], []);
 
   return (
-    <div className="flex flex-col gap-4">
-      {error && <PosAlert>{error}</PosAlert>}
-
+    <>
       <EnterpriseListPage
-        header={{
-          title: "Returns",
-          description:
-            "Returns and refunds against a completed sale, refunded back through whichever tender(s) the original sale used.",
-          primaryAction: canCreate ? (
-            <Button variant="primary" onPress={() => setNewReturnOpen(true)}>
-              <Plus className="size-4" aria-hidden="true" />
-              New return
-            </Button>
-          ) : undefined,
-        }}
+        header={{ title: "Returns", description: "Goods taken back against a completed sale. A return is posted once; its refund keeps its own status until the money is back with the customer.",
+          primaryAction: <Button variant="primary" onPress={() => setCreating(true)}><Plus size={16} aria-hidden /> New return</Button> }}
         actionBar={{
           start: (
             <>
-              <SearchField
-                aria-label="Search returns"
-                placeholder="Search return number or reason…"
-                value={search}
-                onChange={setSearch}
-                className="min-w-[280px]"
-              />
-              <Select
-                aria-label="Status"
-                size="compact"
-                options={[
-                  { value: "", label: "Any status" },
-                  { value: "pending_approval", label: "Pending approval" },
-                  { value: "approved", label: "Approved" },
-                  { value: "completed", label: "Completed" },
-                  { value: "rejected", label: "Rejected" },
-                  { value: "cancelled", label: "Cancelled" },
-                ]}
-                selectedKey={statusFilter}
-                onSelectionChange={(key) => setStatusFilter(String(key ?? ""))}
-              />
+              <SearchField aria-label="Return, receipt, invoice or credit-note number" placeholder="Return, receipt or invoice number…" value={search} onChange={reset(setSearch)} className="min-w-[240px]" />
+              <Select aria-label="Status" size="compact" selectedKey={status} onSelectionChange={(key) => reset(setStatus)(String(key))}
+                options={[{ value: "", label: "Any status" }, ...["draft", "awaiting_approval", "awaiting_inspection", "approved", "posted", "rejected", "cancelled"].map((value) => ({ value, label: STATUS_LABEL[value.toUpperCase()] }))]} />
+              <Select aria-label="Refund" size="compact" selectedKey={refundStatus} onSelectionChange={(key) => reset(setRefundStatus)(String(key))}
+                options={[{ value: "", label: "Any refund status" }, ...["pending", "processing", "failed", "unknown", "succeeded"].map((value) => ({ value, label: REFUND_LABEL[value.toUpperCase()] }))]} />
             </>
           ),
         }}
-        filterBar={{
-          filters: activeFilters,
-          onRemove: removeFilter,
-          onClearAll: hasFilters ? clearFilters : undefined,
-        }}
       >
-        <EnterpriseDataGrid<PosReturn>
-          aria-label="Returns"
+        <EnterpriseDataGrid<PosReturnRow>
+          aria-label="POS returns"
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={
-            query.isError
-              ? "error"
-              : query.isLoading
-                ? "loading"
-                : rows.length === 0 && hasFilters
-                  ? "no-results"
-                  : rows.length === 0
-                    ? "empty"
-                    : "ready"
-          }
-          emptyContent={
-            <NoResultsState
-              title="No returns yet"
-              description="Returns filed against completed sales appear here."
-            />
-          }
-          noResultsContent={
-            <NoResultsState
-              title="No returns match these filters"
-              description="Try clearing a filter or broadening your search."
-              action={{ label: "Clear filters", onPress: clearFilters }}
-            />
-          }
-          errorContent={
-            <ErrorState
-              title="Could not load returns"
-              description="Something went wrong fetching the returns list."
-              action={{ label: "Retry", onPress: () => query.refetch() }}
-            />
-          }
+          onRowClick={(row) => router.push(`/pos/returns/${row.id}`)}
+          state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? "empty" : "ready"}
+          manualSorting
+          pageIndex={pageIndex}
+          pageSize={PAGE_SIZE}
+          pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          totalRowCount={total}
+          onPageChange={setPageIndex}
+          loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading returns…</p>}
+          emptyContent={<NoResultsState title="No returns" description="Start one with New return." />}
+          errorContent={<ErrorState title="Could not load returns" description={query.error instanceof PosApiError ? query.error.message : "Something went wrong."}
+            action={{ label: "Retry", onPress: () => query.refetch() }} />}
         />
       </EnterpriseListPage>
-
-      {newReturnOpen && (
-        <NewReturnDialog
-          onClose={() => setNewReturnOpen(false)}
-          onCreated={() => {
-            invalidate();
-            setNewReturnOpen(false);
-          }}
-          onError={handleError}
-        />
-      )}
-
-      <AlertDialog
-        isOpen={Boolean(completeTarget)}
-        onOpenChange={(open) => !open && setCompleteTarget(null)}
-        title={`Complete refund for ${completeTarget?.return_number ?? "this return"}?`}
-        description={`This issues a refund of ${completeTarget ? money("", completeTarget.refund_total) : ""} back through the same payment method(s) used on the original sale. This cannot be undone.`}
-        confirmLabel="Complete refund"
-        isConfirming={completeMutation.isPending}
-        onConfirm={() =>
-          completeTarget && completeMutation.mutate(completeTarget)
-        }
-      />
-    </div>
-  );
-}
-
-function NewReturnDialog({
-  onClose,
-  onCreated,
-  onError,
-}: {
-  onClose: () => void;
-  onCreated: () => void;
-  onError: (error: unknown) => void;
-}) {
-  const [receiptNumber, setReceiptNumber] = useState("");
-  const [found, setFound] = useState<{
-    sale: PosReturnSale;
-    lines: PosReturnSaleLine[];
-  } | null>(null);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [restock, setRestock] = useState<Record<string, boolean>>({});
-  const [reason, setReason] = useState("");
-  // Scanning a returned product finds its line on this receipt and counts one more unit to return; it proves nothing about the purchase on
-  // its own and refunds nothing — the return below does, with its own checks and approvals.
-  const [productCode, setProductCode] = useState("");
-  const [serialCode, setSerialCode] = useState("");
-  const [needsSerial, setNeedsSerial] = useState(false);
-  const [scanNote, setScanNote] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
-  async function scanReturned() {
-    if (!found || !productCode.trim()) return;
-    try {
-      const match = await findReturnLine(found.sale.id, productCode.trim(), needsSerial ? serialCode.trim() : null);
-      const chosen = quantities[match.saleLineId] ?? 0;
-      if (chosen + 1 > Number(match.remainingQuantity)) {
-        setScanNote({ tone: "danger", text: `Only ${Number(match.remainingQuantity)} of ${match.description} can be returned.` });
-      } else {
-        setQuantities((prev) => ({ ...prev, [match.saleLineId]: chosen + 1 }));
-        setScanNote({ tone: "success", text: `${match.description}${match.serialNumber ? ` (serial ${match.serialNumber})` : ""}: returning ${chosen + 1}.` });
-      }
-      setProductCode(""); setSerialCode(""); setNeedsSerial(false);
-    } catch (err) {
-      if (err instanceof PosApiError && err.code === "POS_SERIAL_REQUIRED") { setNeedsSerial(true); setScanNote({ tone: "danger", text: err.message }); return; }
-      setScanNote({ tone: "danger", text: err instanceof PosApiError ? err.message : "The product could not be matched to this receipt." });
-    }
-  }
-  // Generated once per dialog session (not per mutate() call) so a
-  // double-click or a client retry of this exact submission reuses the
-  // same key instead of minting a new one via Date.now() each time -- the
-  // latter would let two duplicate return records (each with its own
-  // refund + restock) both go through.
-  const [idempotencyKey] = useState(() =>
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `return-${Date.now()}-${Math.random()}`,
-  );
-
-  async function search() {
-    if (!receiptNumber.trim()) return;
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const result = await findPosSaleForReturn(receiptNumber.trim());
-      setFound(result);
-      setQuantities({});
-      setRestock({});
-    } catch (err) {
-      setFound(null);
-      setSearchError(
-        err instanceof PosApiError
-          ? err.message
-          : "That receipt could not be found.",
-      );
-    } finally {
-      setSearching(false);
-    }
-  }
-
-  const returnLines = found
-    ? found.lines
-        .filter((line) => (quantities[line.id] ?? 0) > 0)
-        .map((line) => ({
-          saleLineId: line.id,
-          quantity: quantities[line.id],
-          restock: Boolean(restock[line.id]),
-        }))
-    : [];
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      createPosReturn({
-        saleId: found!.sale.id,
-        lines: returnLines,
-        reason,
-        idempotencyKey,
-      }),
-    onSuccess: onCreated,
-    onError,
-  });
-
-  return (
-    <Dialog
-      isOpen
-      onOpenChange={(open) => !open && onClose()}
-      title="New return"
-    >
-      <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
-        {!found ? (
-          <>
-            <div className="flex items-end gap-2">
-              <TextField
-                label="Receipt number"
-                value={receiptNumber}
-                onChange={setReceiptNumber}
-                onKeyDown={(event) => event.key === "Enter" && search()}
-                className="flex-1"
-              />
-              <Button
-                variant="secondary"
-                onPress={search}
-                isLoading={searching}
-                isDisabled={!receiptNumber.trim()}
-              >
-                Find sale
-              </Button>
-            </div>
-            {searchError && (
-              <p className="text-sm text-danger">{searchError}</p>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="rounded-[var(--radius-control)] border border-border p-3 text-sm">
-              <p className="font-medium text-text">
-                Receipt {found.sale.receipt_number}
-              </p>
-              <p className="text-text-secondary">
-                Total: {money(found.sale.currency_code, found.sale.grand_total)}
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
-              <div className="flex flex-wrap items-end gap-2">
-                <TextField label="Scan returned product" placeholder="Product barcode" value={productCode} onChange={setProductCode} className="min-w-48 flex-1"
-                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void scanReturned(); } }} />
-                {needsSerial && (
-                  <TextField label="Serial number" value={serialCode} onChange={setSerialCode} autoFocus className="min-w-48 flex-1"
-                    onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void scanReturned(); } }} />
-                )}
-                <Button variant="secondary" isDisabled={!productCode.trim()} onPress={() => void scanReturned()}>Find on receipt</Button>
-              </div>
-              {scanNote && <p className={`text-sm ${scanNote.tone === "success" ? "text-success-emphasis" : "text-danger-emphasis"}`}>{scanNote.text}</p>}
-            </div>
-            <ul className="flex flex-col gap-3">
-              {found.lines.map((line) => {
-                const remaining = Number(line.remaining_quantity);
-                return (
-                  <li
-                    key={line.id}
-                    className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-text">
-                        {line.description}
-                      </span>
-                      <span className="text-xs text-text-muted">
-                        {remaining} returnable of {line.quantity}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <NumberField
-                        aria-label={`Quantity to return for ${line.description}`}
-                        size="compact"
-                        value={quantities[line.id] ?? 0}
-                        onChange={(value) =>
-                          setQuantities((prev) => ({
-                            ...prev,
-                            [line.id]: Math.min(Math.max(0, value), remaining),
-                          }))
-                        }
-                        minValue={0}
-                        maxValue={remaining}
-                        isDisabled={remaining <= 0}
-                      />
-                      <Checkbox
-                        isSelected={Boolean(restock[line.id])}
-                        onChange={(checked) =>
-                          setRestock((prev) => ({
-                            ...prev,
-                            [line.id]: checked,
-                          }))
-                        }
-                        isDisabled={remaining <= 0}
-                      >
-                        Restock
-                      </Checkbox>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-            <TextField
-              label="Reason"
-              isRequired
-              value={reason}
-              onChange={setReason}
-            />
-          </>
-        )}
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="secondary" onPress={onClose}>
-            Cancel
-          </Button>
-          {found && (
-            <Button
-              variant="primary"
-              onPress={() => mutation.mutate()}
-              isLoading={mutation.isPending}
-              isDisabled={!returnLines.length || !reason.trim()}
-            >
-              Request return
-            </Button>
-          )}
-        </div>
-      </div>
-    </Dialog>
+      {creating && <NewReturnDialog onClose={() => setCreating(false)} onCreated={(created) => { setCreating(false); router.push(`/pos/returns/${created.id}`); }} />}
+    </>
   );
 }

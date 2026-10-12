@@ -1,20 +1,10 @@
-import { z } from "zod";
+import { listPointOfSaleResource } from "@vercentlabs/api";
 
-import { listPointOfSaleResource, openShift } from "@vercentlabs/api";
-
-import { ok, readJson } from "@/core/http";
+import { ok } from "@/core/http";
 import { posContext } from "@/features/pos/shared/pos-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-const openShiftSchema = z.object({
-  storeId: z.string().uuid(),
-  terminalId: z.string().uuid(),
-  cashierUserId: z.string().uuid().optional().nullable(),
-  openingCash: z.number().min(0).optional(),
-  shiftNumber: z.string().trim().min(1).max(60).optional(),
-  idempotencyKey: z.string().trim().min(1).max(200),
-});
-
+// The shift list. Shifts are opened through POST /api/pos/shifts/open (Shift Opening).
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
@@ -47,22 +37,6 @@ export async function GET(request: Request) {
           ? (result as { rows: unknown[]; total: number })
           : { rows: result },
       );
-    },
-  );
-}
-
-export async function POST(request: Request) {
-  return workspaceRoute(
-    request,
-    {
-      module: "point-of-sale",
-      permission: "pos.shift.open",
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const input = openShiftSchema.parse(await readJson(request));
-      const result = await openShift(client, posContext(session), input);
-      return ok({ shift: result }, 201);
     },
   );
 }

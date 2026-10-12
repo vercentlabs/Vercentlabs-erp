@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
@@ -9,6 +9,7 @@ import {
   EnterpriseDataGrid,
   EnterpriseListPage,
   ErrorState,
+  LinkButton,
   NoResultsState,
   PermissionState,
   SearchField,
@@ -31,6 +32,16 @@ import { listPosEligibleCashiers } from "@/features/pos/shared/cashiers";
 import { dateTime, money, statusLabel } from "@/features/pos/shared/format";
 
 const PAGE_SIZE = 25;
+const RECEIPT_CODE = /^POSR[0-9A-F]{10}$/i;
+const day = (offset = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+const PRESETS: Record<string, () => { dateFrom?: string; dateTo?: string }> = {
+  today: () => ({ dateFrom: day(), dateTo: day() }), yesterday: () => ({ dateFrom: day(-1), dateTo: day(-1) }), week: () => ({ dateFrom: day(-6), dateTo: day() }),
+  any: () => ({ dateFrom: undefined, dateTo: undefined }),
+};
 
 const statusTone: Record<
   string,
@@ -58,6 +69,9 @@ export function PosTransactionsScreen() {
   const workspace = useWorkspaceContext();
 
   const [search, setSearch] = useState("");
+  const [customer, setCustomer] = useState("");
+  const [amount, setAmount] = useState("");
+  const [preset, setPreset] = useState("any");
   const [filters, setFilters] = useState<
     Omit<
       PosTransactionListFilters,
@@ -86,13 +100,15 @@ export function PosTransactionsScreen() {
     () => ({
       ...filters,
       search: search.trim() || undefined,
+      customer: customer.trim() || undefined,
+      amount: /^\d+(\.\d{1,2})?$/.test(amount.trim()) ? amount.trim() : undefined,
       sortBy:
         (sorting[0]?.id as PosTransactionListFilters["sortBy"]) || "sale_date",
       sortDir: sorting[0]?.desc === false ? "asc" : "desc",
       limit: PAGE_SIZE,
       offset: pageIndex * PAGE_SIZE,
     }),
-    [filters, search, sorting, pageIndex],
+    [filters, search, customer, amount, sorting, pageIndex],
   );
 
   const query = useQuery({
@@ -138,6 +154,9 @@ export function PosTransactionsScreen() {
 
   const rows = query.data?.rows ?? [];
   const total = query.data?.total ?? 0;
+  // A scanned receipt code finds one sale: open it. An amount or a name never opens a sale on its own.
+  const scanned = RECEIPT_CODE.test(search.trim()) && rows.length === 1 && !query.isFetching ? rows[0].id : null;
+  useEffect(() => { if (scanned) router.push(`/pos/transactions/${scanned}`); }, [scanned, router]);
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
@@ -179,8 +198,9 @@ export function PosTransactionsScreen() {
         header: "Receipt #",
         accessorKey: "receipt_number",
         cell: ({ row }) => (
-          <span className="font-medium text-text">
-            {row.original.receipt_number}
+          <span className="flex flex-col">
+            <span className="font-medium text-text">{row.original.invoice_number ?? row.original.receipt_number}</span>
+            {row.original.invoice_number && <span className="text-xs text-text-muted">{row.original.receipt_number}</span>}
           </span>
         ),
       },
@@ -205,7 +225,17 @@ export function PosTransactionsScreen() {
         id: "customer_name",
         header: "Customer",
         // A walk-in sale has no customer record; a buyer name given for its invoice is shown with it.
-        accessorFn: (row) => (row.customer_mode === "walk_in" || !row.customer_id ? (row.customer_name ? `Walk-in · ${row.customer_name}` : "Walk-in") : row.customer_name ?? "Customer"),
+        accessorFn: (row) => {
+          const name = row.customer_mode === "walk_in" || !row.customer_id ? (row.customer_display && row.customer_display !== "Walk-in customer" ? `Walk-in · ${row.customer_display}` : "Walk-in")
+            : row.customer_display ?? row.customer_name ?? "Customer";
+          return row.customer_phone_masked ? `${name} · ${row.customer_phone_masked}` : name;
+        },
+        enableSorting: false,
+      },
+      {
+        id: "payment_methods",
+        header: "Paid by",
+        accessorFn: (row) => (row.payment_methods ?? []).map((method) => (method === "upi" ? "UPI" : method.replace("_", " ").replace(/^./, (c) => c.toUpperCase()))).join(" + ") || "—",
         enableSorting: false,
       },
       {
@@ -234,6 +264,16 @@ export function PosTransactionsScreen() {
         header: "Total",
         accessorFn: (row) => money(row.currency_code, row.grand_total),
       },
+      {
+        id: "receipt",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} role="presentation">
+            <LinkButton variant="ghost" size="compact" href={`/pos/receipts/${row.original.id}`}>View receipt</LinkButton>
+          </div>
+        ),
+      },
     ],
     [],
   );
@@ -255,20 +295,47 @@ export function PosTransactionsScreen() {
       header={{
         title: "Transactions",
         description:
-          "Search completed POS sales and drill into a single transaction's payments, stock movement, accounting posting and returns.",
+          "Find a sale by receipt number, reference, scanned receipt code, date, amount or customer — then view or reprint its receipt.",
       }}
       actionBar={{
         start: (
           <>
             <SearchField
-              aria-label="Search by receipt number"
-              placeholder="Search receipt #…"
+              aria-label="Search by receipt number, sale reference or scanned receipt code"
+              placeholder="Receipt number, reference or scan…"
               value={search}
               onChange={(value) => {
                 setPageIndex(0);
                 setSearch(value);
               }}
               className="min-w-[220px]"
+            />
+            <SearchField
+              aria-label="Customer name, code or phone"
+              placeholder="Customer…"
+              value={customer}
+              onChange={(value) => { setPageIndex(0); setCustomer(value); }}
+              className="min-w-[160px]"
+            />
+            <TextField
+              aria-label="Exact amount"
+              placeholder="Amount"
+              inputMode="decimal"
+              size="compact"
+              value={amount}
+              onChange={(value) => { setPageIndex(0); setAmount(value); }}
+            />
+            <Select
+              aria-label="Date range"
+              size="compact"
+              options={[{ value: "any", label: "Any date" }, { value: "today", label: "Today" }, { value: "yesterday", label: "Yesterday" }, { value: "week", label: "Last 7 days" },
+                { value: "custom", label: "Custom dates" }]}
+              selectedKey={preset}
+              onSelectionChange={(key) => {
+                const next = String(key);
+                setPreset(next);
+                if (PRESETS[next]) { setPageIndex(0); setFilters((current) => ({ ...current, ...PRESETS[next]() })); }
+              }}
             />
             <Select
               aria-label="Store"
@@ -323,6 +390,7 @@ export function PosTransactionsScreen() {
                 { value: "cash", label: "Cash" },
                 { value: "card", label: "Card" },
                 { value: "upi", label: "UPI" },
+                { value: "split", label: "Split (several methods)" },
                 { value: "bank_transfer", label: "Bank transfer" },
                 { value: "wallet", label: "Wallet" },
                 { value: "store_credit", label: "Store credit" },
@@ -343,20 +411,24 @@ export function PosTransactionsScreen() {
               selectedKey={filters.customerMode ?? ""}
               onSelectionChange={(key) => setFilter("customerMode", key ? (String(key) as "walk_in" | "registered") : undefined)}
             />
-            <TextField
-              aria-label="From date"
-              type="date"
-              size="compact"
-              value={filters.dateFrom ?? ""}
-              onChange={(value) => setFilter("dateFrom", value || undefined)}
-            />
-            <TextField
-              aria-label="To date"
-              type="date"
-              size="compact"
-              value={filters.dateTo ?? ""}
-              onChange={(value) => setFilter("dateTo", value || undefined)}
-            />
+            {preset === "custom" && (
+              <>
+                <TextField
+                  aria-label="From date"
+                  type="date"
+                  size="compact"
+                  value={filters.dateFrom ?? ""}
+                  onChange={(value) => setFilter("dateFrom", value || undefined)}
+                />
+                <TextField
+                  aria-label="To date"
+                  type="date"
+                  size="compact"
+                  value={filters.dateTo ?? ""}
+                  onChange={(value) => setFilter("dateTo", value || undefined)}
+                />
+              </>
+            )}
           </>
         ),
       }}

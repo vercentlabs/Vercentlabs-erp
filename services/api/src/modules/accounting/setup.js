@@ -63,6 +63,8 @@ export async function updateAccountingSettings(client, context, input) {
     ["cashBasisEnabled", "cash_basis_enabled"],
     ["autoPostSalesInvoices", "auto_post_sales_invoices"],
     ["autoPostVendorBills", "auto_post_vendor_bills"],
+    ["itcRequiresConfirmation", "itc_requires_confirmation"],
+    ["expenseApprovalRequired", "expense_approval_required"],
     ["hardCloseRequiresAllTasks", "hard_close_requires_all_tasks"],
     ["customerInvoiceApprovalRequired", "customer_invoice_approval_required"],
     ["vendorBillApprovalRequired", "vendor_bill_approval_required"],

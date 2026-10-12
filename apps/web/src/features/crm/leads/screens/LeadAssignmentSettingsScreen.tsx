@@ -7,12 +7,13 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2, Users } from "lucide-react";
 import {
   AlertDialog, Button, Checkbox, Dialog, ErrorState, LinkButton, PageHeader, PermissionState, Radio, RadioGroup, Select, StatusBadge, TextField,
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import { countryName } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -91,11 +92,16 @@ export function LeadAssignmentSettingsScreen() {
       <PageHeader
         title="Lead assignment"
         description="Every lead has one owner who is responsible for it. Decide how new leads get that owner, and what happens when nothing matches."
-        primaryAction={<Button variant="primary" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New rule</Button>}
+        // On a phone the three actions share one row: shorter labels, Teams as an icon.
+        primaryAction={<Button variant="primary" className="max-sm:px-3" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New rule</Button>}
         secondaryActions={
           <>
-            <Button variant="outline" onPress={() => setTransferring(true)}>Transfer a user&apos;s leads</Button>
-            <LinkButton variant="outline" href="/settings/teams">Teams</LinkButton>
+            <Button variant="outline" className="max-sm:px-3" onPress={() => setTransferring(true)}>
+              Transfer<span className="max-sm:hidden"> a user&apos;s</span> leads
+            </Button>
+            <LinkButton variant="outline" href="/settings/teams" className="max-sm:px-2.5" aria-label="Teams">
+              <Users className="size-4 sm:hidden" aria-hidden="true" /><span className="max-sm:hidden">Teams</span>
+            </LinkButton>
           </>
         }
       />
@@ -124,7 +130,7 @@ export function LeadAssignmentSettingsScreen() {
         ) : (
           <ol className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
             {rules.map((rule, index) => (
-              <li key={rule.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <li key={rule.id} className="flex items-start justify-between gap-3 p-4">
                 <div className="flex min-w-0 flex-col gap-1 text-sm">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{index + 1}. {rule.name}</span>
@@ -134,7 +140,17 @@ export function LeadAssignmentSettingsScreen() {
                   <p><span className="text-text-secondary">Assign to: </span>{targetText(rule)}</p>
                   <p className="text-xs text-text-muted">{rule.leadCount} {rule.leadCount === 1 ? "lead" : "leads"} currently assigned by this rule</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-1">
+                {/* On a phone the actions sit in a menu beside the rule. */}
+                <div className="shrink-0 sm:hidden">
+                  <MoreMenu label={`Actions for ${rule.name}`} items={[
+                    { id: "up", label: "Move up", isDisabled: index === 0 || change.isPending, onAction: () => move(index, -1) },
+                    { id: "down", label: "Move down", isDisabled: index === rules.length - 1 || change.isPending, onAction: () => move(index, 1) },
+                    { id: "edit", label: "Edit", onAction: () => setEditing(rule) },
+                    { id: "active", label: rule.isActive ? "Deactivate" : "Activate", isDisabled: change.isPending, onAction: () => change.mutate(() => setLeadAssignmentRuleActive(rule.id, !rule.isActive)) },
+                    { id: "delete", label: "Delete", danger: true, onAction: () => setDeleting(rule) },
+                  ]} />
+                </div>
+                <div className="hidden flex-wrap items-center gap-1 sm:flex">
                   <Button variant="ghost" size="compact" aria-label={`Move ${rule.name} up`} isDisabled={index === 0 || change.isPending} onPress={() => move(index, -1)}><ArrowUp className="size-4" aria-hidden="true" /></Button>
                   <Button variant="ghost" size="compact" aria-label={`Move ${rule.name} down`} isDisabled={index === rules.length - 1 || change.isPending} onPress={() => move(index, 1)}><ArrowDown className="size-4" aria-hidden="true" /></Button>
                   <Button variant="ghost" size="compact" onPress={() => setEditing(rule)}>Edit</Button>
@@ -356,7 +372,26 @@ function WorkloadSection() {
         <p className="text-sm text-text-secondary">Active leads per salesperson, to share work evenly when assigning by hand.</p>
       </div>
       {query.isLoading ? <LoadingState label="Loading workload" rows={3} /> : query.isError ? <ErrorBanner message="Could not load the workload." /> : (
-        <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border">
+        <>
+        {/* On a phone each salesperson is a card with their figures in a grid, instead of a table that scrolls sideways. */}
+        <ul className="flex flex-col gap-2 sm:hidden">
+          {rows.length === 0 && <li className="rounded-[var(--radius-card)] border border-border px-3 py-6 text-center text-sm text-text-secondary">Nobody has CRM access yet.</li>}
+          {rows.map((row) => (
+            <li key={row.userId} className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3">
+              <span className="text-sm font-medium">{row.name}</span>
+              <dl className="grid grid-cols-3 gap-2">
+                {([["Open", row.openLeads], ["Qualified", row.qualifiedLeads], ["Today", row.assignedToday], ["No activity", row.noActivity], ["Overdue", row.overdueFollowUps]] as const).map(([label, value]) => (
+                  <div key={label} className="flex flex-col rounded-[var(--radius-control)] bg-surface-muted px-2 py-1.5">
+                    <dt className="truncate text-xs text-text-muted">{label}</dt>
+                    <dd className={`text-base font-semibold tabular-nums ${label === "Overdue" && value > 0 ? "text-danger" : ""}`}>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </li>
+          ))}
+          {rows.length > 0 && <li className="text-xs text-text-muted">Today: assigned today. No activity: open leads untouched for 2+ days. Overdue: follow-ups past due.</li>}
+        </ul>
+        <div className="hidden overflow-x-auto rounded-[var(--radius-card)] border border-border sm:block">
           <table className="w-full text-sm">
             <thead className="bg-surface-muted text-left text-text-secondary">
               <tr>
@@ -379,6 +414,7 @@ function WorkloadSection() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </section>
   );

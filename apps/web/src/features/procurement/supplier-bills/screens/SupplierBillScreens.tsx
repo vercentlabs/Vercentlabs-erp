@@ -28,6 +28,7 @@ import { PaymentSchedulePanel } from "./PaymentSchedule";
 
 import { MatchBadge, TwoWayMatching } from "./TwoWayMatching";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 
 type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 const DOC_TONE: Record<string, Tone> = { draft: "neutral", awaiting_approval: "warning", posted: "success", cancelled: "neutral", reversed: "danger" };
@@ -203,6 +204,7 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
           </TabList>
           <TabPanel id="overview">
             <div className="flex flex-col gap-4 pt-4">
+              <AccountingRecorded sourceType="vendor_bill,vendor_credit_note,vendor_bill_reverse_charge" sourceId={billId} noun="bill" />
               <Panel title="Supplier invoice">
                 <Facts columns={3} items={[
                   { label: "Supplier (as invoiced)", value: `${bill.supplier?.legalName ?? bill.supplierName}${bill.supplier?.supplierNumber ? ` · ${bill.supplier.supplierNumber}` : ""}` },

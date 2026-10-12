@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
-import { clearOfflineSecrets } from "@/shared/offline/clear-offline-secrets";
-import { LogOut, Menu as MenuIcon, Lock, Search, User } from "lucide-react";
-import { Drawer, IconButton } from "@vercentlabs/design-system";
+import { usePathname } from "next/navigation";
+import { Menu as MenuIcon, Lock, Search, Settings } from "lucide-react";
+import { Drawer, IconButton, IconLinkButton } from "@vercentlabs/design-system";
 import type { ModuleAccess } from "@vercentlabs/api";
 
 import { useSearchDialog } from "@/features/platform/search/SearchDialog";
@@ -15,8 +13,8 @@ import {
   MODULE_NAV_ENTRIES,
   GLOBAL_NAV_TOP,
   GLOBAL_NAV_BOTTOM,
-  UTILITY_NAV,
 } from "@/shell/navigation/moduleNavigationRegistry";
+import { ProfileMenu } from "@/shell/primary-sidebar/ProfileMenu";
 import { getModuleNavigation } from "@/shell/navigation/module-navigation-registry";
 import {
   activeWorkspaceId,
@@ -33,34 +31,6 @@ const MODULE_ACCESS_REASON_LABEL: Record<string, string> = {
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-// ProfileMenu (the sign-out entry point) lives in PrimarySidebar, which is
-// `hidden lg:flex` — so below 1024px the drawer needs its own sign-out
-// control. DrawerRow's Link-only shape can't express
-// an action, so this is a small, separate row type for it.
-function DrawerActionRow({
-  label,
-  icon,
-  onPress,
-  isLoading,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  onPress: () => void;
-  isLoading?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onPress}
-      disabled={isLoading}
-      className="flex items-center gap-3 rounded-[var(--radius-control)] px-3 py-2.5 text-left text-sm text-text transition-colors hover:bg-surface-muted disabled:opacity-60"
-    >
-      {icon}
-      <span className="flex-1">{isLoading ? "Signing out…" : label}</span>
-    </button>
-  );
 }
 
 function DrawerRow({
@@ -130,12 +100,16 @@ const BADGE_SOURCE_VALUE: Record<
 };
 
 export function MobileNav({
+  fullName,
+  email,
   organizationName,
   accessibleModules,
   permissions,
   pendingApprovalCount,
   unreadNotificationCount,
 }: {
+  fullName: string;
+  email: string;
   organizationName: string | null;
   accessibleModules: ModuleAccess[];
   permissions: string[];
@@ -143,28 +117,13 @@ export function MobileNav({
   unreadNotificationCount: number;
 }) {
   const [open, setOpen] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
   const accessByModuleKey = new Map(
     accessibleModules.map((access) => [access.moduleId, access]),
   );
   const counts = { pendingApprovalCount, unreadNotificationCount };
 
-  const queryClient = useQueryClient();
   const { openSearch } = useSearchDialog();
-
-  async function handleSignOut() {
-    setSigningOut(true);
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } finally {
-      queryClient.clear();
-      await clearOfflineSecrets();
-      router.push("/login");
-      router.refresh();
-    }
-  }
 
   return (
     <div className="flex lg:hidden">
@@ -179,15 +138,27 @@ export function MobileNav({
         <span className="flex-1 truncate text-sm font-semibold text-text">
           {organizationName || "Vercentlabs ERP"}
         </span>
-        <IconButton aria-label="Search" variant="ghost" onPress={openSearch}>
-          <Search aria-hidden="true" className="size-5" />
-        </IconButton>
+        {/* Search, Settings and the account menu (profile, help, sign out) sit here, not in the drawer. */}
+        <div className="flex shrink-0 items-center gap-0.5">
+          <IconButton aria-label="Search" variant="ghost" onPress={openSearch}>
+            <Search aria-hidden="true" className="size-5" />
+          </IconButton>
+          <IconLinkButton
+            href="/settings"
+            aria-label="Settings"
+            variant="ghost"
+            className={isActive(pathname, "/settings") ? "text-brand" : undefined}
+          >
+            <Settings aria-hidden="true" className="size-5" />
+          </IconLinkButton>
+          <ProfileMenu fullName={fullName} email={email} showHelp />
+        </div>
       </header>
 
       <Drawer
         isOpen={open}
         onOpenChange={setOpen}
-        title="Navigation"
+        title={organizationName || "Vercentlabs ERP"}
         side="left"
         size="sm"
       >
@@ -292,38 +263,6 @@ export function MobileNav({
               />
             ))}
 
-            <div aria-hidden="true" className="my-2 h-px bg-border" />
-
-            {UTILITY_NAV.map((entry) => (
-              <DrawerRow
-                key={entry.key}
-                href={entry.href}
-                label={entry.label}
-                icon={<entry.icon aria-hidden="true" className="size-4" />}
-                disabled={entry.availability === "planned"}
-                disabledReason={
-                  entry.availability === "planned" ? "Coming soon" : undefined
-                }
-                active={isActive(pathname, entry.href)}
-                onNavigate={close}
-              />
-            ))}
-
-            <div aria-hidden="true" className="my-2 h-px bg-border" />
-
-            <DrawerRow
-              href="/settings/profile"
-              label="Profile"
-              icon={<User aria-hidden="true" className="size-4" />}
-              active={isActive(pathname, "/settings/profile")}
-              onNavigate={close}
-            />
-            <DrawerActionRow
-              label="Sign out"
-              icon={<LogOut aria-hidden="true" className="size-4" />}
-              onPress={handleSignOut}
-              isLoading={signingOut}
-            />
           </nav>
         )}
       </Drawer>

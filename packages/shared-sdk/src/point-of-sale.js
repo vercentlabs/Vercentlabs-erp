@@ -82,7 +82,11 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
     applyLineDiscount: (id, lineId, input) => post(`/carts/${encodeURIComponent(id)}/lines/${encodeURIComponent(lineId)}/discount`, input),
     removeLineDiscount: (id, lineId, expectedVersion) =>
       del(`/carts/${encodeURIComponent(id)}/lines/${encodeURIComponent(lineId)}/discount${expectedVersion != null ? `?expectedVersion=${expectedVersion}` : ""}`),
-    setCartDiscount: (id, input) => post(`/carts/${encodeURIComponent(id)}/discount`, input),
+    // Cart Discounts: one bill discount (PUT replaces it), a preview that saves nothing, and removal.
+    setCartDiscount: (id, input) => request(`/carts/${encodeURIComponent(id)}/discounts/cart`, { method: "PUT", body: JSON.stringify(input ?? {}) }),
+    previewCartDiscount: (id, input) => post(`/carts/${encodeURIComponent(id)}/discounts/preview`, input),
+    removeCartDiscount: (id, expectedVersion) => del(`/carts/${encodeURIComponent(id)}/discounts/cart${expectedVersion != null ? `?expectedVersion=${expectedVersion}` : ""}`),
+    getCartDiscounts: (id) => request(`/carts/${encodeURIComponent(id)}/discounts`),
     setCartCustomer: (id, customerId, expectedVersion) => post(`/carts/${encodeURIComponent(id)}/customer`, { customerId, expectedVersion }),
     applyCoupon: (id, code, expectedVersion) => post(`/carts/${encodeURIComponent(id)}/coupon`, { code, expectedVersion }),
     removeCoupon: (id, expectedVersion) => del(`/carts/${encodeURIComponent(id)}/coupon${expectedVersion != null ? `?expectedVersion=${expectedVersion}` : ""}`),
@@ -151,18 +155,23 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
     completeSale: (input) => post("/sales", input),
     createReturn: (input) => post("/returns", input),
 
-    // F303 Day-end / Z report
-    listDayEndReports: (query = {}) => {
-      const params = new URLSearchParams(
-        Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== "").map(([key, value]) => [key, String(value)]),
-      );
-      return request(`/reports/day-end${params.size ? `?${params}` : ""}`);
+    // Day-End / Z Report (0107)
+    getDayEndContext: (query = {}) => {
+      const params = new URLSearchParams(Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== "").map(([key, value]) => [key, String(value)]));
+      return request(`/day-end/current${params.size ? `?${params}` : ""}`);
     },
-    getDayEndReport: (id) => request(`/reports/day-end/${encodeURIComponent(id)}`),
-    generateDayEndReport: (input) => post("/reports/day-end", input),
-    reviewDayEndReport: (id, input) => post(`/reports/day-end/${encodeURIComponent(id)}/review`, input),
-    finalizeDayEndReport: (id, input) => post(`/reports/day-end/${encodeURIComponent(id)}/finalize`, input),
-    recordDayEndVariance: (id, input) => post(`/reports/day-end/${encodeURIComponent(id)}/variance`, input),
+    getDayEndPreview: (dayId) => request(`/day-end/${encodeURIComponent(dayId)}/preview`),
+    getDayEndReadiness: (dayId) => request(`/day-end/${encodeURIComponent(dayId)}/readiness`),
+    beginDayEndClosing: (dayId, input = {}) => post(`/day-end/${encodeURIComponent(dayId)}/begin-closing`, input),
+    requestDayEndApproval: (dayId, input) => post(`/day-end/${encodeURIComponent(dayId)}/request-approval`, input),
+    approveDayEndExceptions: (dayId, input) => post(`/day-end/${encodeURIComponent(dayId)}/approve`, input),
+    finalizeDayEnd: (dayId, input) => post(`/day-end/${encodeURIComponent(dayId)}/finalize`, input),
+    getDayEndOutcome: (dayId) => request(`/day-end/${encodeURIComponent(dayId)}/outcome`),
+    listZReports: (query = {}) => {
+      const params = new URLSearchParams(Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== "").map(([key, value]) => [key, String(value)]));
+      return request(`/z-reports${params.size ? `?${params}` : ""}`);
+    },
+    getZReport: (id) => request(`/z-reports/${encodeURIComponent(id)}`),
 
     // F306 Loyalty
     redeemCartLoyaltyPoints: (id, points, expectedVersion) => post(`/carts/${encodeURIComponent(id)}/loyalty`, { points, expectedVersion }),
@@ -187,18 +196,8 @@ export function createPointOfSaleClient({ baseUrl = "", fetchImpl = globalThis.f
       return request(`/invoices${params.size ? `?${params}` : ""}`);
     },
 
-    // F304 Payment reconciliation
-    importSettlementBatch: (input) => post("/settlements", input),
-    generateReconciliation: (reportId, input) => post(`/reports/day-end/${encodeURIComponent(reportId)}/reconciliation`, input),
-    listReconciliations: (query = {}) => {
-      const params = new URLSearchParams(
-        Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== "").map(([key, value]) => [key, String(value)]),
-      );
-      return request(`/reconciliations${params.size ? `?${params}` : ""}`);
-    },
-    getReconciliation: (id) => request(`/reconciliations/${encodeURIComponent(id)}`),
-    resolveReconciliation: (id, resolutionNotes) => post(`/reconciliations/${encodeURIComponent(id)}/resolve`, { resolutionNotes }),
-    recordReconciliationCorrection: (id, input) => post(`/reconciliations/${encodeURIComponent(id)}/correction`, input),
+    // Payment Reconciliation (0108): a payment's plain reconciliation status at the counter (the Finance workspace is on the web).
+    getPaymentReconciliationStatus: (paymentId) => request(`/payments/${encodeURIComponent(paymentId)}/reconciliation`),
 
     // F305 Accounting posting
     postSaleToAccounting: (saleId) => post(`/sales/${encodeURIComponent(saleId)}/accounting-post`),

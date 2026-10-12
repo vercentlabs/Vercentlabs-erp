@@ -37,3 +37,6 @@ export function ViewToggle({
     </div>
   );
 }
+
+// A list toolbar keeps this in its row rather than in the Filters menu.
+ViewToggle.toolbarInline = true;

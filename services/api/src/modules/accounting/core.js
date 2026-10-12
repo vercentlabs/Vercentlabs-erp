@@ -3,6 +3,7 @@ import { ACCOUNTING_PERMISSIONS } from "@vercentlabs/permissions";
 import { decimal, asDatabaseDecimal, mul, roundMoney } from "./money.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { itemProfileAccount } from "./item-profiles.js";
+import { postingAccountLabel } from "./posting-accounts.js";
 
 export class AccountingError extends Error {
   constructor(status, message, code = "ACCOUNTING_ERROR") {
@@ -61,7 +62,10 @@ export function isoDate(value, label = "Date") {
   // browser E2E run against a live Postgres database -- this repo's
   // existing test suite never caught it because every other test uses a
   // fake DB client that only ever returns the string it was told to.
-  const result = (value instanceof Date ? value.toISOString() : String(value || "")).slice(0, 10);
+  // A DATE column arrives as local midnight: read its local calendar day (toISOString would move it a day back east of UTC, e.g. in India).
+  const result = (value instanceof Date
+    ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
+    : String(value || "")).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(result) || Number.isNaN(Date.parse(`${result}T00:00:00Z`))) {
     throw new AccountingError(400, `${label} is invalid.`);
   }
@@ -179,7 +183,7 @@ export async function getExchangeRate(client, context, fromCurrency, toCurrency,
 // the mappings for the party, category or tax category, then the company default.
 export async function getAccountMapping(client, context, ledgerId, mappingKey, selectors = {}) {
   const result = await client.query(
-    `SELECT mapping.account_id,mapping.item_id,account.code,account.name,account.account_type,account.account_class
+    `SELECT mapping.account_id,mapping.item_id,account.code,account.name,account.account_type,account.account_class,account.status AS account_status,account.is_group
        FROM tenant.accounting_account_mappings mapping
        JOIN tenant.accounting_accounts account ON account.id=mapping.account_id
       WHERE mapping.organization_id=$1 AND mapping.ledger_id=$2
@@ -205,7 +209,16 @@ export async function getAccountMapping(client, context, ledgerId, mappingKey, s
     const fromProfile = await itemProfileAccount(client, context.organizationId, selectors.itemId, mappingKey);
     if (fromProfile) return fromProfile;
   }
-  if (!mapped) throw new AccountingError(409, `Account mapping ${mappingKey} is not configured.`);
+  // Plain words for the person who has to fix it: which account is missing, and where it is chosen.
+  const label = postingAccountLabel(mappingKey);
+  if (!mapped) {
+    throw new AccountingError(409, `Select ${/^[aeiou]/.test(label) ? "an" : "a"} ${label} account${selectors.itemId ? " for this product" : ""} in Accounting › Posting accounts.`,
+      "ACCOUNTING_MAPPING_MISSING");
+  }
+  if (mapped.account_status !== "active" || mapped.is_group) {
+    throw new AccountingError(409, `The ${label} account ${mapped.code} · ${mapped.name} is ${mapped.is_group ? "a group heading" : "disabled"}. Choose another in Accounting › Posting accounts.`,
+      "ACCOUNTING_ACCOUNT_UNUSABLE");
+  }
   return mapped;
 }
 

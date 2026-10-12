@@ -73,7 +73,7 @@ export async function commitPosCouponRedemption(client, context, cartId, saleId,
 // F281 reversal dependency: releasing a coupon's committed_count when a
 // sale it was redeemed on is FULLY returned. Only implemented for the
 // full-return case (an already-supported, already-lockable path through
-// completePointOfSaleReturn); a partial return leaves the redemption
+// postPosReturn); a partial return leaves the redemption
 // committed as-is -- proportional partial-reversal is intentionally not
 // implemented, since it would require deciding how to re-derive a
 // *fractional* coupon usage credit, which is an unspecified business rule.

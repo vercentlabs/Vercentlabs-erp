@@ -13,6 +13,7 @@ import {
 import type { ModuleNavigation } from "@/shell/navigation/navigation-types";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { PosCounterStatus } from "./PosCounterStatus";
 import { SIDEBAR_BADGES } from "./sidebar-badges";
 import { useSecondarySidebarState } from "./SecondarySidebarState";
 
@@ -184,8 +185,11 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
       </span>
     ) : null;
 
+  // A module whose workspaces are one flat list (POS) reads as a list, not as separate sections.
+  const allFlat = sections.every((section) => section.flat);
   return (
-    <div className="flex flex-col gap-4 px-2">
+    <div className={`flex flex-col ${allFlat ? "gap-0.5" : "gap-4"} px-2`}>
+      {module.moduleKey === "point-of-sale" && <div className="-mx-2 mb-2"><PosCounterStatus tabIndex={tab} /></div>}
       {sections.map((section) => {
         const Icon = section.icon;
         const first = section.items[0];

@@ -2,6 +2,12 @@
 export const ACCOUNTING_PAGES: Record<string, { title: string }> = {
   "chart-of-accounts": { title: "Chart of accounts" },
   journals: { title: "Journal entries" },
+  postings: { title: "Automatic postings" },
+  expenses: { title: "Expenses" },
+  "fund-transfers": { title: "Bank and cash transfers" },
+  "opening-balances": { title: "Opening balances" },
+  "input-tax-credit": { title: "Input tax credit" },
+  settings: { title: "Posting accounts" },
   "journal-new": { title: "New journal entry" },
   "customer-invoices": { title: "Customer invoices" },
   "invoice-new": { title: "New customer invoice" },

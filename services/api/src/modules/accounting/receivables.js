@@ -26,7 +26,7 @@ import {
 } from "./core.js";
 import { createJournalEntry, postJournalEntry, reverseJournalEntry } from "./journals.js";
 import { div, sub } from "./money.js";
-import { recordDocumentTaxLedger } from "./tax.js";
+import { optionalMapping, recordDocumentTaxLedger, supplyCategory, taxPostingLines } from "./tax.js";
 import { refreshSalesOrderProgress } from "../sales/orders/progress.js";
 import { resolvePaymentSchedule } from "./schedules.js";
 import { createCustomerSettlementAdjustment } from "./settlements.js";
@@ -423,9 +423,13 @@ export async function postCustomerInvoice(client, context, idValue, options = {}
   if (isCreditNote && invoice.source_invoice_id)
     await assertCreditWithinSource(client, context, invoice.source_invoice_id, decimal(invoice.subtotal) - decimal(invoice.discount_total), decimal(invoice.tax_total), invoice.id);
   let lines = [{ accountId: receivable.account_id, partyId: invoice.party_id, description: `Receivable ${invoice.invoice_number}`, debit: invoice.grand_total, credit: 0, dueDate: invoice.due_date, referenceType: "customer_invoice", referenceId: invoice.id }];
+  // A credit note reverses revenue to the sales-returns account when the company keeps one, otherwise to the revenue the invoice used.
+  const salesReturns = isCreditNote ? await optionalMapping(client, context, invoice.ledger_id, "sales_returns", { partyId: invoice.party_id, date: invoice.accounting_date }) : null;
   for (const line of detail.lines) {
-    if (decimal(line.net_amount) > 0n) lines.push({ accountId: line.revenue_account_id, partyId: invoice.party_id, departmentId: line.department_id, costCenterId: line.cost_center_id, description: line.description, debit: 0, credit: line.net_amount, referenceType: "customer_invoice", referenceId: invoice.id });
-    if (decimal(line.tax_amount) > 0n && line.tax_account_id) lines.push({ accountId: line.tax_account_id, partyId: invoice.party_id, description: `Output tax ${line.description}`, debit: 0, credit: line.tax_amount, referenceType: "customer_invoice", referenceId: invoice.id, taxBaseAmount: line.net_amount });
+    if (decimal(line.net_amount) > 0n) lines.push({ accountId: salesReturns?.account_id ?? line.revenue_account_id, partyId: invoice.party_id, departmentId: line.department_id, costCenterId: line.cost_center_id, description: line.description, debit: 0, credit: line.net_amount, referenceType: "customer_invoice", referenceId: invoice.id,
+      metadata: { taxRole: "base", sourceLineId: line.id, taxableAmount: String(line.net_amount) } });
+    // Output GST by component: CGST, SGST, IGST and cess each to its own account.
+    if (decimal(line.tax_amount) > 0n) lines.push(...await taxPostingLines(client, context, invoice.ledger_id, line, { direction: "output", date: invoice.accounting_date, partyId: invoice.party_id, referenceType: "customer_invoice", referenceId: invoice.id }));
   }
   if (decimal(invoice.charge_total) > 0n) {
     const chargeAccount = await getAccountMapping(client, context, invoice.ledger_id, "revenue", { partyId: invoice.party_id, date: invoice.accounting_date });
@@ -450,7 +454,10 @@ export async function postCustomerInvoice(client, context, idValue, options = {}
     currencyCode: invoice.currency_code, exchangeRate: invoice.exchange_rate, lines,
   }, { internal: true, sourceModule: "accounting", sourceType, sourceId: invoice.id, sourceNumber: invoice.invoice_number });
   await postJournalEntry(client, context, journal.entry.id, { internal: true, allowDraft: true });
-  await recordDocumentTaxLedger(client, context, invoice, detail.lines, journal.entry.id, "output");
+  // The supply category of each line (taxable, nil-rated, exempt, zero-rated, non-GST) from the treatment Sales invoiced it with.
+  const treatments = new Map((await client.query(`SELECT customer_invoice_line_id, tax_treatment FROM tenant.sales_invoice_lines WHERE organization_id=$1 AND customer_invoice_id=$2`,
+    [context.organizationId, invoice.source_invoice_id && isCreditNote ? invoice.source_invoice_id : invoice.id])).rows.map((row) => [row.customer_invoice_line_id, row.tax_treatment]));
+  await recordDocumentTaxLedger(client, context, invoice, detail.lines, journal.entry.id, "output", { supplyCategoryOf: (line) => supplyCategory(treatments.get(line.id), line.tax_amount) });
   await client.query(`UPDATE tenant.accounting_customer_invoices SET status='posted',journal_entry_id=$3,outstanding_amount=grand_total,posted_at=now(),posted_by=$4,updated_by=$4 WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, journal.entry.id, context.userId]);
   // The order's invoiced quantities and invoice status follow from its invoices.
   if (invoice.source_sales_order_id) await refreshSalesOrderProgress(client, context.organizationId, invoice.source_sales_order_id, context.userId ?? null);

@@ -29,7 +29,7 @@ export const RESERVATIONS_BASE = "/inventory/reservations";
 const ANY = "any";
 const VIEWS = [{ id: "active", label: "Active" }, { id: "all", label: "All" }, { id: "consumed", label: "Consumed" }, { id: "released", label: "Released" },
   { id: "cancelled", label: "Cancelled" }, { id: "exceptions", label: "Exceptions" }];
-const SOURCES: Record<string, string> = { sales_order: "Sales orders", inventory_transfer: "Transfers", purchase_return: "Purchase returns", manufacturing_work_order: "Work orders" };
+const SOURCES: Record<string, string> = { sales_order: "Sales orders", inventory_transfer: "Transfers", purchase_return: "Purchase returns", manufacturing_work_order: "Work orders", pos_checkout: "POS checkouts" };
 const OPTIONAL: OptionalColumn[] = [
   { id: "warehouses", label: "Warehouse" }, { id: "requested", label: "Requested" }, { id: "reserved", label: "Reserved" }, { id: "consumed", label: "Consumed" },
   { id: "released", label: "Released" }, { id: "allocation", label: "Batch / Serial" }, { id: "createdAt", label: "Created" }, { id: "expiresAt", label: "Expires" },

@@ -22,6 +22,7 @@ import {
   toBaseAmount,
   uuid,
 } from "./core.js";
+import { attachPostingJournal, markPostingPosted, markPostingReversed, openManualPosting, openPosting } from "./posting-service.js";
 
 async function loadJournal(client, context, ledgerId, journalIdValue) {
   const journalId = uuid(journalIdValue, "Journal");
@@ -215,6 +216,17 @@ export async function createJournalEntry(client, context, input, options = {}) {
   const accountingDate = isoDate(input.accountingDate || input.entryDate, "Accounting date");
   const period = await getOpenPeriod(client, context, accountingDate);
   const normalized = await normalizeLines(client, context, organization, ledger, input, accountingDate, options);
+  // Every journal is a posting of the shared posting service: a module's event (one live posting per event per document — a second one is
+  // refused before anything is written), or a manual journal.
+  const entryType = text(input.entryType, 50) || "standard";
+  const sourceType = text(options.sourceType || input.sourceType, 100) || null;
+  const sourceIdValue = options.sourceId || input.sourceId || null;
+  const posting = entryType !== "reversal" && sourceType && sourceIdValue
+    // A posting is keyed by its document; a journal may carry its own source (an input tax credit decision is one journal per decision).
+    ? await openPosting(client, context, { postingEvent: options.postingEvent, sourceModule: options.sourceModule || input.sourceModule, sourceType: options.postingSourceType || sourceType,
+      sourceId: options.postingSourceId || sourceIdValue,
+      sourceNumber: options.sourceNumber || input.sourceNumber, transactionDate: input.documentDate || input.entryDate || accountingDate, postingDate: accountingDate, automatic: Boolean(options.internal) })
+    : null;
   const entryNumber = await allocateNumber(client, context.organizationId, "journal_entry");
   const contentHash = hashPayload({ input, lines: normalized.lines.map((line) => ({ ...line, debit: String(line.debit), credit: String(line.credit) })) });
   const result = await client.query(
@@ -235,6 +247,8 @@ export async function createJournalEntry(client, context, input, options = {}) {
   );
   const entry = result.rows[0];
   await insertJournalLines(client, context, entry.id, normalized.lines);
+  if (posting) await attachPostingJournal(client, context, posting, entry, asDatabaseDecimal(normalized.totalDebit));
+  else if (entryType !== "reversal") await openManualPosting(client, context, entry, asDatabaseDecimal(normalized.totalDebit));
   await event(client, context, "journal_entry", entry.id, "accounting.journal.created", null, "draft", { entryNumber });
   return { entry, lines: normalized.lines.map((line) => ({ ...line, debit: asDatabaseDecimal(line.debit), credit: asDatabaseDecimal(line.credit) })) };
 }
@@ -394,6 +408,7 @@ export async function postJournalEntry(client, context, idValue, options = {}) {
       WHERE organization_id=$1 AND id=$2 RETURNING *`,
     [context.organizationId, entry.id, context.userId],
   );
+  await markPostingPosted(client, context, updated.rows[0]);
   await event(client, context, "journal_entry", entry.id, "accounting.journal.posted", entry.status, "posted", {});
   return updated.rows[0];
 }
@@ -437,6 +452,7 @@ export async function reverseJournalEntry(client, context, idValue, input = {}) 
   await client.query(`UPDATE tenant.accounting_journal_entries SET reversal_of_id=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, reversal.entry.id, original.id]);
   await postJournalEntry(client, context, reversal.entry.id, { internal: true, allowDraft: true });
   await client.query(`UPDATE tenant.accounting_journal_entries SET status='reversed',reversed_by_id=$3,reversal_reason=$4,updated_by=$5 WHERE organization_id=$1 AND id=$2`, [context.organizationId, original.id, reversal.entry.id, text(input.reason, 1000), context.userId]);
+  await markPostingReversed(client, context, original, reversal.entry.id, input.reason);
   await event(client, context, "journal_entry", original.id, "accounting.journal.reversed", "posted", "reversed", { reversalEntryId: reversal.entry.id });
   return getJournalEntry(client, context, reversal.entry.id);
 }

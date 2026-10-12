@@ -1,9 +1,8 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Printer } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Download } from "lucide-react";
 import {
-  Button,
   ErrorState,
   LinkButton,
   PageHeader,
@@ -14,44 +13,33 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
   getPosSaleReceipt,
-  recordPosReceiptPrint,
   type PosReceiptLine,
   type PosReceiptPayment,
   type PosReceiptPromotionEvidence,
   type PosReceiptReturn,
 } from "@/features/pos/receipts/api/receipts-api";
+import { getPosSaleTaxes } from "@/features/pos/checkout/api/checkout-api";
 import { PosApiError } from "@/features/pos/shared/http";
 import { dateTime, money, statusLabel } from "@/features/pos/shared/format";
-import { PosAlert, PosBackLink, PosLoading } from "@/features/pos/shared/PosUi";
+import { PosBackLink, PosLoading } from "@/features/pos/shared/PosUi";
+import { ReceiptPrintActions } from "@/features/pos/receipts/components/ReceiptPrintActions";
 
 // F289 -- a deterministic receipt built entirely from persisted sale facts
 // (getPosSaleReceipt / tenant.pos_sales+pos_sale_lines+pos_payments+
-// pos_returns). Printing uses the browser's own print dialog
-// (window.print()); this screen only proves the RECEIPT DOCUMENT is
-// correct and reproducible from stored data -- it makes no claim about
-// physical printer hardware, which browser printing cannot observe.
+// pos_returns). Printing (0096) prints the server-rendered snapshot of the finalized document through the browser's print dialog
+// (ReceiptPrintActions): original first, then copies; it makes no claim about physical paper, which a browser cannot observe.
 export function PosReceiptScreen({ saleId }: { saleId: string }) {
   const workspace = useWorkspaceContext();
-  const queryClient = useQueryClient();
 
   const receiptQueryKey = scopedQueryKey(workspace, "pos", "receipt", saleId);
   const query = useQuery({
     queryKey: receiptQueryKey,
     queryFn: () => getPosSaleReceipt(saleId),
   });
-  // F289 gap closure: Original/Reprint is now derived from the server's own
-  // durable print-attempt log (tenant.pos_receipt_print_events), never from
-  // a client-supplied `?original=1` URL parameter — that was trivially
-  // forgeable and proved nothing about real print history.
-  const recordPrint = useMutation({
-    mutationFn: () => recordPosReceiptPrint(saleId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: receiptQueryKey }),
-  });
-  function handlePrint() {
-    recordPrint.mutate(undefined, { onSuccess: () => window.print() });
-  }
-
+  // The sale's tax exactly as charged (its snapshot): the document title, seller and buyer GSTIN, place of supply, HSN/SAC and rates.
+  const taxQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "sale-taxes", saleId), queryFn: () => getPosSaleTaxes(saleId) });
+  const taxes = taxQuery.data;
+  const taxLine = new Map((taxes?.lines ?? []).map((line) => [line.id, line]));
   if (query.isLoading) return <PosLoading label="Loading receipt…" />;
   if (query.isError || !query.data) {
     if (query.error instanceof PosApiError && query.error.status === 404) {
@@ -80,19 +68,6 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
   const currency = sale.currency_code as string;
   const lastPrint = printEvents[0] ?? null;
   const isReprint = lastPrint?.print_type === "reprint";
-  // F289 browser-side recovery: a failed print-attempt record (network
-  // blip, permission change, server error) previously failed silently --
-  // onSuccess fired window.print() but nothing ever reported a failure, so
-  // a cashier had no way to know the click didn't work. The Print button
-  // itself IS the retry action (react-query's mutate can simply be
-  // re-invoked); this banner makes the failure and the retry path visible
-  // instead of a silent no-op.
-  const printError = recordPrint.isError
-    ? recordPrint.error instanceof PosApiError
-      ? recordPrint.error.message
-      : "The print attempt could not be recorded."
-    : null;
-
   const printStatus = !lastPrint ? (
     <span title="Reflects a recorded print request, not confirmation from the physical printer — the browser has no way to observe that.">
       <StatusBadge tone="neutral">Not yet printed</StatusBadge>
@@ -101,8 +76,8 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
     <span title="Reflects a recorded print request, not confirmation from the physical printer — the browser has no way to observe that.">
       <StatusBadge tone={isReprint ? "warning" : "success"}>
         {isReprint
-          ? `Reprint attempted (${printEvents.length}×)`
-          : "Print attempted — original"}
+          ? `Copies sent to print (${printEvents.length}×)`
+          : "Original sent to print"}
       </StatusBadge>
     </span>
   );
@@ -129,20 +104,14 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
               </LinkButton>
             </div>
           }
-          primaryAction={
-            <Button
-              variant="primary"
-              onPress={handlePrint}
-              isLoading={recordPrint.isPending}
-            >
-              <Printer className="size-4" aria-hidden="true" />
-              {printError ? "Retry print" : "Print"}
-            </Button>
-          }
         />
-        {printError && (
-          <PosAlert>{printError} — click Retry print to try again.</PosAlert>
-        )}
+        <ReceiptPrintActions source="pos_sale" sourceId={saleId} />
+        {returns.filter((ret: PosReceiptReturn) => ret.status === "completed").map((ret: PosReceiptReturn) => (
+          <div key={ret.id} className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border p-3">
+            <p className="text-sm font-medium">Return receipt {ret.return_number}</p>
+            <ReceiptPrintActions source="pos_return" sourceId={ret.id} />
+          </div>
+        ))}
       </div>
 
       <div className="mx-auto flex w-full max-w-md flex-col gap-4 print:max-w-full">
@@ -152,9 +121,14 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
               — Reprint —
             </p>
           )}
+          {taxes?.documentType && (
+            <p className="text-center text-xs font-semibold uppercase tracking-wide">{DOCUMENT_TITLE[taxes.documentType] ?? "Receipt"}</p>
+          )}
           <div className="text-center">
-            <p className="text-base font-semibold">{sale.store_name}</p>
+            <p className="text-base font-semibold">{taxes?.seller?.legalName || sale.store_name}</p>
+            {taxes?.seller?.legalName && <p className="text-text-secondary">{sale.store_name}</p>}
             <p className="text-text-secondary">{sale.terminal_name}</p>
+            {taxes?.seller?.gstin && <p className="text-xs text-text-secondary">GSTIN {taxes.seller.gstin} · {taxes.seller.stateName} ({taxes.seller.stateCode})</p>}
           </div>
           <div className="flex justify-between text-xs text-text-secondary">
             <span>Receipt {sale.receipt_number}</span>
@@ -164,6 +138,12 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
             <span>Cashier: {sale.cashier_name ?? "—"}</span>
             <span>{sale.customer_display_name ?? "Walk-in"}</span>
           </div>
+          {(taxes?.buyer?.gstin || taxes?.placeOfSupply) && (
+            <div className="flex justify-between gap-2 text-xs text-text-secondary">
+              <span>{taxes?.buyer?.gstin ? `Buyer GSTIN ${taxes.buyer.gstin}` : ""}</span>
+              <span>{taxes?.placeOfSupply ? `Place of supply ${taxes.placeOfSupply}${taxes.supplyMode === "delivery" ? " (delivery)" : ""}` : ""}</span>
+            </div>
+          )}
 
           <div className="border-t border-dashed border-border" />
 
@@ -179,9 +159,14 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
                 <div className="flex justify-between text-xs text-text-muted">
                   <span>
                     {Number(line.quantity)} × {money(currency, line.unit_price)}
+                    {taxLine.get(line.id) && <> · {lineTaxLabel(taxLine.get(line.id)!)}</>}
                   </span>
                   {Number(line.discount_amount) > 0 && (
-                    <span>−{money(currency, line.discount_amount)}</span>
+                    <span>
+                      {Number(line.manual_discount_amount) > 0 && line.manual_discount_type === "percent" && line.manual_discount_value
+                        ? `Discount ${Number(line.manual_discount_value)}% ` : Number(line.manual_discount_amount) > 0 ? "Discount " : ""}
+                      −{money(currency, line.discount_amount)}
+                    </span>
                   )}
                 </div>
               </li>
@@ -198,6 +183,13 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
                 value={`−${money(currency, sale.discount_total)}`}
               />
             )}
+            {Number(sale.cart_discount_amount ?? 0) > 0 && (
+              <Row
+                label={`Cart discount${sale.cart_discount_type === "percent" && sale.cart_discount_value ? ` (${Number(sale.cart_discount_value)}%)` : ""}`}
+                value={`−${money(currency, sale.cart_discount_amount)}`}
+                muted
+              />
+            )}
             {promotionEvidence.map(
               (application: PosReceiptPromotionEvidence) => (
                 <Row
@@ -211,7 +203,12 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
             {sale.coupon_code && (
               <Row label={`Coupon ${sale.coupon_code}`} value="" muted />
             )}
-            <Row label="Tax" value={money(currency, sale.tax_total)} />
+            {taxes?.taxableTotal != null && <Row label="Taxable value" value={money(currency, taxes.taxableTotal)} />}
+            {taxes && taxes.breakdown.length > 0
+              ? taxes.breakdown.map((entry) => (
+                <Row key={`${entry.type}-${entry.rate}`} label={`${entry.label} ${Number(entry.rate)}%`} value={money(currency, entry.taxAmount)} />
+              ))
+              : <Row label="Tax" value={money(currency, sale.tax_total)} />}
             {Number(sale.rounding_adjustment) !== 0 && (
               <Row
                 label="Rounding"
@@ -230,13 +227,35 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
 
           <div className="flex flex-col gap-1">
             {payments.map((payment: PosReceiptPayment) => (
-              <Row
-                key={payment.id}
-                label={`Paid (${payment.payment_method})`}
-                value={money(currency, payment.amount)}
-              />
+              <div key={payment.id} className="flex flex-col gap-1">
+                {payment.payment_method === "cash" && payment.cash_received_amount ? (
+                  <>
+                    <Row label="Cash received" value={money(currency, payment.cash_received_amount)} />
+                    {Number(payment.change_given_amount ?? 0) > 0 && <Row label="Change given" value={money(currency, payment.change_given_amount)} muted />}
+                    <Row label="Cash applied" value={money(currency, payment.amount)} />
+                  </>
+                ) : (
+                  <>
+                    <Row label={`Paid (${payment.payment_method})`} value={money(currency, payment.amount)} />
+                    {payment.payment_method !== "card" && payment.payment_method !== "cash" && (payment.provider_transaction_reference || payment.provider_reference) && (
+                      <p className="text-xs text-text-muted">
+                        {[payment.instrument && payment.instrument !== payment.payment_method ? payment.instrument.toUpperCase() : null,
+                          payment.provider_transaction_reference ? `UTR ${payment.provider_transaction_reference}` : `Ref …${String(payment.provider_reference).slice(-8)}`,
+                          payment.verification_status === "externally_attested" ? "Recorded against shop QR" : "Payment confirmed"].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                    {payment.payment_method === "card" && (payment.card_last_four || payment.provider_reference || payment.external_reference) && (
+                      <p className="text-xs text-text-muted">
+                        {[payment.card_network, payment.card_last_four ? `**** ${payment.card_last_four}` : null,
+                          payment.external_reference ? `Machine ref ${payment.external_reference}` : payment.provider_reference ? `Ref …${payment.provider_reference.slice(-8)}` : null,
+                          payment.verification_status === "externally_attested" ? "Recorded from card machine" : null].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
             ))}
-            <Row label="Change" value={money(currency, sale.change_total)} />
+            {!payments.some((payment: PosReceiptPayment) => payment.cash_received_amount) && <Row label="Change" value={money(currency, sale.change_total)} />}
           </div>
 
           {returns.length > 0 && (
@@ -263,6 +282,18 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
       </div>
     </div>
   );
+}
+
+const DOCUMENT_TITLE: Record<string, string> = {
+  tax_invoice: "Tax invoice", bill_of_supply: "Bill of supply", invoice_cum_bill_of_supply: "Tax invoice cum bill of supply",
+};
+const CLASS_LABEL: Record<string, string> = { nil_rated: "Nil-rated", exempt: "Exempt", non_gst: "Non-GST", zero_rated: "Zero-rated" };
+
+// "HSN 8413 · GST 18%", or the treatment of a line that carries no GST.
+function lineTaxLabel(line: { hsnSac: string | null; classification: string | null; rate: string | null }) {
+  const code = line.hsnSac ? `HSN/SAC ${line.hsnSac}` : null;
+  const gst = line.classification && line.classification !== "taxable" ? CLASS_LABEL[line.classification] ?? line.classification : line.rate != null ? `GST ${Number(line.rate)}%` : null;
+  return [code, gst].filter(Boolean).join(" · ");
 }
 
 function Row({

@@ -30,9 +30,44 @@ export async function listPosTransactions(client, context, options = {}) {
   const values = [context.organizationId];
   const clauses = [];
 
-  if (options.search) {
-    values.push(`%${options.search}%`);
-    clauses.push(`sale.receipt_number ILIKE $${values.length}`);
+  // Receipt Reprinting (0097): one search box takes a receipt / invoice number (exact first, then numbers starting with it — leading zeros
+  // kept, it is text), a sale reference (the sale's id), or a scanned receipt code (POSR…). An amount alone never picks a sale: it only filters.
+  let exactRank = null;
+  const search = String(options.search ?? "").trim();
+  if (search) {
+    if (/^POSR[0-9A-F]{10}$/i.test(search)) {
+      values.push(search.toUpperCase());
+      clauses.push(`sale.id IN (SELECT CASE WHEN document.source_type = 'pos_sale' THEN document.source_id ELSE (SELECT ret.sale_id FROM tenant.pos_returns ret WHERE ret.organization_id = document.organization_id AND ret.id = document.source_id) END
+        FROM tenant.pos_document_snapshots document WHERE document.organization_id = sale.organization_id AND document.lookup_reference = $${values.length})`);
+    } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search)) {
+      values.push(search.toLowerCase());
+      clauses.push(`sale.id = $${values.length}::uuid`);
+    } else {
+      values.push(search);
+      exactRank = values.length;
+      values.push(`${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`);
+      clauses.push(`(sale.receipt_number = $${exactRank} OR sale.receipt_number LIKE $${values.length} OR sale.invoice_number = $${exactRank} OR sale.invoice_number LIKE $${values.length})`);
+    }
+  }
+  if (options.amount !== undefined && options.amount !== null && options.amount !== "") {
+    if (!/^\d{1,12}(\.\d{1,6})?$/.test(String(options.amount))) throw posError(400, "Enter the amount as a number, e.g. 2500 or 2500.00.", "POS_TRANSACTION_AMOUNT_INVALID");
+    values.push(String(options.amount));
+    clauses.push(`sale.grand_total = $${values.length}::numeric`);
+  }
+  // Customer search: by name (starting with), customer code, or the last digits of a phone number — for people allowed to select customers.
+  const customer = String(options.customer ?? "").trim();
+  if (customer) {
+    if (!administrator) await assertPosAction(client, context, { permission: "CUSTOMER_SELECT" });
+    values.push(`${customer.toLowerCase().replace(/[\\%_]/g, (char) => `\\${char}`)}%`);
+    const name = values.length;
+    values.push(customer);
+    const code = values.length;
+    const digits = customer.replace(/\D/g, "");
+    values.push(digits.length >= 4 ? `%${digits}` : null);
+    const phone = values.length;
+    clauses.push(`(lower(sale.buyer_name_snapshot) LIKE $${name} OR lower(sale.customer_name) LIKE $${name} OR sale.customer_code_snapshot = $${code}
+      OR ($${phone}::text IS NOT NULL AND EXISTS (SELECT 1 FROM tenant.business_parties party WHERE party.organization_id = sale.organization_id AND party.id = sale.customer_id
+        AND regexp_replace(COALESCE(party.phone, ''), '\\D', '', 'g') LIKE $${phone})))`);
   }
   if (options.storeId) {
     values.push(options.storeId);
@@ -62,15 +97,19 @@ export async function listPosTransactions(client, context, options = {}) {
     values.push(options.status);
     clauses.push(`sale.status=$${values.length}`);
   }
+  // Whole days: the sale date is a timestamp, so "to" includes all of that day.
   if (options.dateFrom) {
     values.push(options.dateFrom);
-    clauses.push(`sale.sale_date >= $${values.length}`);
+    clauses.push(`sale.sale_date >= $${values.length}::date`);
   }
   if (options.dateTo) {
     values.push(options.dateTo);
-    clauses.push(`sale.sale_date <= $${values.length}`);
+    clauses.push(`sale.sale_date < $${values.length}::date + 1`);
   }
-  if (options.paymentMethod) {
+  if (options.paymentMethod === "split") {
+    clauses.push(`(SELECT count(DISTINCT payment.payment_method) FROM tenant.pos_payments payment WHERE payment.organization_id=sale.organization_id AND payment.sale_id=sale.id
+      AND payment.status NOT IN ('failed', 'voided')) > 1`);
+  } else if (options.paymentMethod) {
     values.push(options.paymentMethod);
     clauses.push(
       `EXISTS (SELECT 1 FROM tenant.pos_payments payment WHERE payment.organization_id=sale.organization_id AND payment.sale_id=sale.id AND payment.payment_method=$${values.length})`,
@@ -87,6 +126,7 @@ export async function listPosTransactions(client, context, options = {}) {
   const whereSql = clauses.length ? ` AND ${clauses.join(" AND ")}` : "";
   const sortColumn = SORT_COLUMNS[options.sortBy] || SORT_COLUMNS.sale_date;
   const sortDir = options.sortDir === "asc" ? "ASC" : "DESC";
+  const rankSql = exactRank ? `(sale.receipt_number = $${exactRank} OR sale.invoice_number = $${exactRank}) DESC, ` : "";
   const limit = Math.min(Number(options.limit) || 25, 100);
   const offset = Math.max(Number(options.offset) || 0, 0);
 
@@ -99,15 +139,22 @@ export async function listPosTransactions(client, context, options = {}) {
   const result = await client.query(
     `SELECT sale.id, sale.receipt_number, sale.store_id, sale.terminal_id, sale.shift_id, sale.customer_id, sale.customer_name, sale.customer_mode,
             sale.sale_date, sale.completed_at, sale.status, sale.currency_code, sale.grand_total, sale.tax_total, sale.discount_total,
-            sale.accounting_posting_status, sale.created_by,
+            sale.accounting_posting_status, sale.created_by, sale.buyer_name_snapshot, sale.invoice_number, sale.tax_document_type,
+            COALESCE(sale.buyer_name_snapshot, sale.customer_name, CASE WHEN sale.customer_mode = 'walk_in' THEN 'Walk-in customer' END) AS customer_display,
+            CASE WHEN length(regexp_replace(COALESCE(party.phone, ''), '\\D', '', 'g')) >= 4 THEN '••••••' || right(regexp_replace(party.phone, '\\D', '', 'g'), 4) END AS customer_phone_masked,
+            (SELECT array_agg(DISTINCT payment.payment_method ORDER BY payment.payment_method) FROM tenant.pos_payments payment
+              WHERE payment.organization_id = sale.organization_id AND payment.sale_id = sale.id AND payment.status NOT IN ('failed', 'voided')) AS payment_methods,
+            EXISTS (SELECT 1 FROM tenant.pos_document_snapshots document WHERE document.organization_id = sale.organization_id AND document.source_type = 'pos_sale'
+              AND document.source_id = sale.id) AS receipt_issued,
             store.name AS store_name, store.code AS store_code, terminal.name AS terminal_name, terminal.code AS terminal_code,
             cashier.full_name AS cashier_name
        FROM tenant.pos_sales sale
        JOIN tenant.pos_stores store ON store.organization_id=sale.organization_id AND store.id=sale.store_id
        JOIN tenant.pos_terminals terminal ON terminal.organization_id=sale.organization_id AND terminal.id=sale.terminal_id
        LEFT JOIN public.users cashier ON cashier.id=sale.created_by
+       LEFT JOIN tenant.business_parties party ON party.organization_id=sale.organization_id AND party.id=sale.customer_id
       WHERE sale.organization_id=$1${whereSql}
-      ORDER BY ${sortColumn} ${sortDir}, sale.id DESC
+      ORDER BY ${rankSql}${sortColumn} ${sortDir}, sale.id DESC
       LIMIT $${pagedValues.length - 1} OFFSET $${pagedValues.length}`,
     pagedValues,
   );

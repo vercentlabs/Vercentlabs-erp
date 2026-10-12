@@ -41,7 +41,7 @@ export function ItemPicker({ value, onChange, label = "Item" }: { value: string 
     staleTime: 15_000,
   });
   return (
-    <ComboBox aria-label={label} label={label === "Item" ? undefined : label} placeholder="Item (SKU or name)" className="w-full sm:w-64"
+    <ComboBox label={label} placeholder="Item (SKU or name)" className="w-full sm:w-64"
       options={(items.data?.products ?? []).map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))}
       selectedKey={value} onSelectionChange={(key) => onChange(key ? String(key) : null)} onInputChange={setText} isLoading={items.isFetching}
       emptyMessage={items.isError ? "Search failed. Try again." : "No matching stock items"} allowsEmptyCollection />

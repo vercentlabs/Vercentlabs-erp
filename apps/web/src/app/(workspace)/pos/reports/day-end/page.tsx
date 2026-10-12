@@ -1,7 +1,8 @@
-import { PosDayEndReportsScreen } from "@/features/pos/day-end-reports/screens/PosDayEndReportsScreen";
+import { requireWorkspace } from "@/core/session";
+import { redirectWithQuery } from "@/shared/routing/redirect-with-query";
 
-export const metadata = { title: "Day-end (Z) Reports" };
-
-export default function PosDayEndReportsPage() {
-  return <PosDayEndReportsScreen />;
+// Day-End is its own workspace now. This address keeps working for bookmarks and links.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  await requireWorkspace();
+  redirectWithQuery("/pos/day-end", await searchParams);
 }

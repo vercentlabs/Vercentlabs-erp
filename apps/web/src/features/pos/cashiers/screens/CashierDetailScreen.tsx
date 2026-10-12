@@ -52,7 +52,7 @@ export function CashierDetailScreen({ cashierId, initialTab }: { cashierId: stri
   });
   const open = useMutation({
     mutationFn: () => openPosForCashier(cashierId),
-    onSuccess: (result) => { if (result.action === "resume") router.push("/pos/checkout"); else setChoice(result); },
+    onSuccess: (result) => { if (result.action === "resume") router.push("/pos/register"); else setChoice(result); },
     onError: (failure) => setError(errorMessage(failure)),
   });
   const remove = useMutation({ mutationFn: () => deleteCashier(cashierId), onSuccess: () => { refresh(); router.push(CASHIERS_BASE); }, onError: (failure) => { setDialog(null); setError(errorMessage(failure)); } });

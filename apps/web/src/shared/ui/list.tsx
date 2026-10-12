@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { SortingState, VisibilityState } from "@tanstack/react-table";
 import { Columns3 } from "lucide-react";
 import {
-  ActionBar, BulkActionBar, Button, Checkbox, FilterBar, Popover, PopoverTrigger, SavedViewBar, type ActionBarProps, type BulkActionBarProps, type FilterBarProps, type SavedViewBarProps,
+  Button, Checkbox, Popover, PopoverTrigger,
 } from "@vercentlabs/design-system";
 
 export const LIST_PAGE_SIZE = 25;
@@ -85,7 +85,7 @@ export function useColumnVisibility(storageKey: string, columns: OptionalColumn[
 export function ColumnsMenu({ columns, visibility, onChange }: { columns: OptionalColumn[]; visibility: VisibilityState; onChange: (next: VisibilityState) => void }) {
   return (
     <PopoverTrigger>
-      <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" />Columns</Button>
+      <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Columns</span></Button>
       <Popover>
         <div className="flex flex-col gap-2 p-1">
           <p className="text-xs font-medium text-text-secondary">Show columns</p>
@@ -117,17 +117,5 @@ export const optionLabel = (list: Array<{ id: string; code?: string; name?: stri
   return (prefer === "code" ? found.code ?? found.label ?? found.name : found.label ?? found.name ?? found.code) ?? id;
 };
 
-// The toolbar card of EnterpriseListPage, for a list inside a page (a view of a workspace that already has its header): saved views, the
-// action bar (or the bulk-action bar while rows are selected) and the active-filter chips, in the same surface and spacing.
-export function ListToolbar({ savedViews, actionBar, bulkActionBar, filterBar }: {
-  savedViews?: SavedViewBarProps; actionBar?: ActionBarProps; bulkActionBar?: BulkActionBarProps; filterBar?: FilterBarProps;
-}) {
-  if (!savedViews && !actionBar && !bulkActionBar && !filterBar) return null;
-  return (
-    <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-[var(--shadow-subtle)]">
-      {savedViews && <SavedViewBar {...savedViews} />}
-      {bulkActionBar && bulkActionBar.selectedCount > 0 ? <BulkActionBar {...bulkActionBar} /> : actionBar ? <ActionBar {...actionBar} /> : null}
-      {filterBar && <FilterBar {...filterBar} />}
-    </div>
-  );
-}
+// The toolbar card of EnterpriseListPage, for a list inside a page (a view of a workspace that already has its header).
+export { ListToolbar } from "@vercentlabs/design-system";

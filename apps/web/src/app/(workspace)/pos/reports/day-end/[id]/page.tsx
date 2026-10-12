@@ -1,14 +1,9 @@
 import { requireWorkspace } from "@/core/session";
-import { PosDayEndReportDetailScreen } from "@/features/pos/day-end-reports/screens/PosDayEndReportDetailScreen";
+import { redirectWithQuery } from "@/shared/routing/redirect-with-query";
 
-export const metadata = { title: "Day-end (Z) Report" };
-
-export default async function PosDayEndReportDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+// A Z report's address is /pos/day-end/z-reports/<id> now. This address keeps working for bookmarks and links.
+export default async function Page({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireWorkspace();
   const { id } = await params;
-  return <PosDayEndReportDetailScreen reportId={id} />;
+  redirectWithQuery(`/pos/day-end/z-reports/${id}`, await searchParams);
 }

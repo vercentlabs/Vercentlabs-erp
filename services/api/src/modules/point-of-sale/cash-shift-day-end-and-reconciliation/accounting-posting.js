@@ -33,6 +33,8 @@ import {
   postJournalEntry,
   getAccountMapping,
   getPrimaryLedger,
+  recordPostingFailure,
+  registerPostingRetry,
 } from "../../accounting/index.js";
 import { add, sub, mul, div, decimal, asDatabaseDecimal, allocate } from "../../../core/decimal.js";
 import { posError } from "../shared/errors.js";
@@ -93,10 +95,9 @@ async function buildSaleJournalLines(client, context, accountingContext, ledger,
 
   const cogsRow = await client.query(
     `SELECT coalesce(sum(abs(movement.quantity)*movement.unit_cost),0)::numeric(20,6)::text AS cogs_total
-       FROM tenant.pos_sale_lines line
-       JOIN tenant.stock_movements movement
-         ON movement.organization_id=line.organization_id AND movement.id=line.stock_movement_id
-      WHERE line.organization_id=$1 AND line.sale_id=$2`,
+       FROM tenant.stock_movements movement
+      -- Every issue the sale posted (Stock Reduction may issue one line from several reserved locations or batches), not only each line's first.
+      WHERE movement.organization_id=$1 AND movement.reference_type='pos_sale' AND movement.reference_id=$2 AND movement.quantity<0`,
     [context.organizationId, sale.id],
   );
   const cogsTotal = decimal(cogsRow.rows[0].cogs_total);
@@ -281,10 +282,13 @@ async function buildReturnJournalLines(client, context, accountingContext, ledge
   const refundTotal = decimal(posReturn.refund_total);
   if (refundTotal > 0n) {
     const persistedRefunds = await client.query(
-      `SELECT payment_method,sum(refund_amount)::numeric(20,6) AS amount
-         FROM tenant.pos_return_payment_refunds
-        WHERE organization_id=$1 AND return_id=$2
-        GROUP BY payment_method`,
+      `SELECT payment_method, sum(amount)::numeric(20,6) AS amount FROM (
+         SELECT component.refund_method AS payment_method, component.allocated_amount AS amount
+           FROM tenant.payment_refunds refund JOIN tenant.payment_refund_components component ON component.organization_id = refund.organization_id AND component.refund_id = refund.id
+          WHERE refund.organization_id=$1 AND refund.source_type='pos_return' AND refund.source_id=$2 AND refund.status <> 'cancelled' AND component.status <> 'cancelled'
+         UNION ALL
+         SELECT payment_method, refund_amount FROM tenant.pos_return_payment_refunds WHERE organization_id=$1 AND return_id=$2 AND refund_component_id IS NULL
+       ) refunds GROUP BY payment_method`,
       [context.organizationId, posReturn.id],
     );
     if (persistedRefunds.rows.length) {
@@ -445,6 +449,9 @@ export async function postPosSaleToAccounting(client, context, saleId) {
     const message = String(error?.message || error).slice(0, 1000);
     await client.query("ROLLBACK TO SAVEPOINT pos_accounting_sale_posting");
     await client.query("RELEASE SAVEPOINT pos_accounting_sale_posting");
+    // The failure is visible on Accounting's Automatic postings screen too, and retried from there.
+    await recordPostingFailure(client, context, { postingEvent: "pos_sale", sourceModule: "point_of_sale", sourceType: "pos_sale", sourceId: sale.id, sourceNumber: sale.receipt_number,
+      transactionDate: sale.completed_at, amount: sale.grand_total, currencyCode: sale.currency_code }, error);
     await client.query(
       `UPDATE tenant.pos_sales SET accounting_posting_status='failed',accounting_posting_error=$3 WHERE organization_id=$1 AND id=$2`,
       [context.organizationId, sale.id, message],
@@ -493,6 +500,8 @@ export async function postPosReturnToAccounting(client, context, returnId) {
     const message = String(error?.message || error).slice(0, 1000);
     await client.query("ROLLBACK TO SAVEPOINT pos_accounting_return_posting");
     await client.query("RELEASE SAVEPOINT pos_accounting_return_posting");
+    await recordPostingFailure(client, context, { postingEvent: "pos_return", sourceModule: "point_of_sale", sourceType: "pos_return", sourceId: posReturn.id, sourceNumber: posReturn.return_number,
+      transactionDate: posReturn.completed_at, amount: posReturn.refund_total }, error);
     await client.query(
       `UPDATE tenant.pos_returns SET accounting_posting_status='failed',accounting_posting_error=$3 WHERE organization_id=$1 AND id=$2`,
       [context.organizationId, posReturn.id, message],
@@ -575,3 +584,9 @@ export async function listPosAccountingPostingQueue(client, context, options = {
   );
   return [...sales.rows, ...returns.rows].sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
 }
+
+// The shared posting service retries a failed POS sale or return from Accounting's Automatic postings screen (or when a Z report is
+// finalized): Finance acts on a closed sale there, so it posts with POS's posting permission and outlet reach.
+export const posPostingContext = (context) => ({ ...context, permissions: [...new Set([...(context.permissions ?? []), "pos.accounting.post", "pos.store.manage"])] });
+registerPostingRetry("pos_sale", (client, context, saleId) => postPosSaleToAccounting(client, posPostingContext(context), saleId));
+registerPostingRetry("pos_return", (client, context, returnId) => postPosReturnToAccounting(client, posPostingContext(context), returnId));

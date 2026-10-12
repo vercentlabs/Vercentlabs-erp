@@ -31,6 +31,7 @@ import { useListState, useTabParam } from "@/features/procurement/shared/navigat
 import { REJECTION_REASON_OPTIONS } from "../api/purchase-orders-api";
 import { getReceiptBilling } from "@/features/procurement/supplier-bills/api/supplier-bills-api";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 
 const ANY = "any";
 const RECEIPT_TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = { draft: "neutral", posted: "success", cancelled: "neutral", reversed: "danger" };
@@ -170,6 +171,7 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
           </TabList>
           <TabPanel id="overview">
             <div className="flex flex-col gap-4 pt-4">
+              <AccountingRecorded sourceType="goods_receipt" sourceId={receiptId} noun="goods receipt" />
               <Panel title="Receipt">
                 <Facts columns={3} items={[
                   { label: "Supplier challan", value: [receipt.supplierChallanNumber, receipt.supplierChallanDate && calendarDate(receipt.supplierChallanDate)].filter(Boolean).join(" · ") || "—" },

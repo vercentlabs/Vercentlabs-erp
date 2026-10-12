@@ -133,7 +133,7 @@ export function AlertsPanel({ options }: { options: Options | undefined }) {
             <>
               <Select aria-label="Sort" size="compact" selectedKey={sort} onSelectionChange={(key) => setSort(String(key))}
                 options={[{ value: "urgency", label: "Most urgent first" }, { value: "age", label: "Oldest first" }, { value: "shortage", label: "Largest requirement first" }]} />
-              {can?.export && <a className={buttonVariants({ variant: "outline", size: "compact" })} href={alertExportUrl(filters, "csv")} download><Download className="size-4" aria-hidden="true" />Export</a>}
+              {can?.export && <a className={buttonVariants({ variant: "outline", size: "compact" })} href={alertExportUrl(filters, "csv")} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a>}
             </>
           ),
         }}

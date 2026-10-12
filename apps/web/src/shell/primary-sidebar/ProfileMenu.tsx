@@ -12,14 +12,17 @@ import {
   MenuSeparator,
   IconButton,
 } from "@vercentlabs/design-system";
-import { LogOut, User } from "lucide-react";
+import { HelpCircle, LogOut, User } from "lucide-react";
 
 export function ProfileMenu({
   fullName,
   email,
+  showHelp = false,
 }: {
   fullName: string;
   email: string;
+  /** On a phone Help lives here (on a desktop it is in the primary sidebar). */
+  showHelp?: boolean;
 }) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
@@ -114,6 +117,13 @@ export function ProfileMenu({
             <span className="text-xs text-text-muted">{email}</span>
           </span>
         </MenuItem>
+        {showHelp ? (
+          <MenuItem id="help" isDisabled textValue="Help">
+            <HelpCircle aria-hidden="true" className="size-4" />
+            <span className="flex-1">Help</span>
+            <span className="text-xs text-text-muted">Coming soon</span>
+          </MenuItem>
+        ) : null}
         <MenuSeparator />
         <MenuItem
           id="sign-out"

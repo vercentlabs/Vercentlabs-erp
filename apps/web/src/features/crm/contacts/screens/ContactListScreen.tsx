@@ -212,10 +212,10 @@ export function ContactListScreen() {
           primaryAction: can?.create ? <LinkButton href="/crm/contacts/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New contact</LinkButton> : undefined,
           secondaryActions: (
             <>
-              {can?.import && <LinkButton href="/crm/contacts/import" variant="outline"><Upload className="size-4" aria-hidden="true" />Import</LinkButton>}
+              {can?.import && <LinkButton href="/crm/contacts/import" variant="outline"><Upload className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Import</span></LinkButton>}
               {can?.export && (
                 <a className={buttonVariants({ variant: "outline" })} href={contactExportUrl(listFilters)} download>
-                  <Download className="size-4" aria-hidden="true" />Export
+                  <Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span>
                 </a>
               )}
             </>
@@ -229,10 +229,8 @@ export function ContactListScreen() {
                 onSubmit={(value) => setSubmittedSearch(value.trim())} />
               {options && (
                 <>
-                  <div className="w-full sm:w-56">
-                    <AccountPicker label="" placeholder="Any company" value={account?.id ?? null}
-                      onChange={(id, name) => { setAccount(id ? { id, name: name ?? "Company" } : null); restart(); }} />
-                  </div>
+                  <AccountPicker label="Company" placeholder="Any company" value={account?.id ?? null}
+                    onChange={(id, name) => { setAccount(id ? { id, name: name ?? "Company" } : null); restart(); }} />
                   <Select aria-label="Owner" size="compact" selectedKey={filters.ownerId} onSelectionChange={(key) => setFilters({ ...filters, ownerId: String(key) })} options={ownerOptions} />
                   <Select aria-label="Role" size="compact" selectedKey={filters.role} onSelectionChange={(key) => setFilters({ ...filters, role: String(key) })}
                     options={filterOptions(options.roles.map((entry) => ({ value: entry.code, label: entry.label })), "Any role")} />
@@ -250,7 +248,7 @@ export function ContactListScreen() {
           ),
           end: (
             <PopoverTrigger>
-              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" />Columns</Button>
+              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Columns</span></Button>
               <Popover>
                 <div className="flex flex-col gap-2 p-1">
                   <p className="text-xs font-medium text-text-secondary">Show columns</p>

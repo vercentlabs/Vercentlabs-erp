@@ -1,6 +1,15 @@
 "use client";
 
+import { Suspense } from "react";
+
 import { REGISTERS } from "@/features/accounting/configs-all";
+import { ExpensesScreen } from "@/features/accounting/automatic/screens/ExpensesScreen";
+import { FundTransfersScreen } from "@/features/accounting/automatic/screens/FundTransfersScreen";
+import { InputTaxCreditScreen } from "@/features/accounting/automatic/screens/InputTaxCreditScreen";
+import { JournalsScreen } from "@/features/accounting/automatic/screens/JournalsScreen";
+import { OpeningBalancesScreen } from "@/features/accounting/automatic/screens/OpeningBalancesScreen";
+import { PostingAccountsScreen } from "@/features/accounting/automatic/screens/PostingAccountsScreen";
+import { PostingsScreen } from "@/features/accounting/automatic/screens/PostingsScreen";
 import { AccountingDashboardScreen } from "@/features/accounting/screens/DashboardScreen";
 import { DocumentBuilder } from "@/features/accounting/screens/DocumentBuilder";
 import {
@@ -13,6 +22,14 @@ import { Register } from "@/features/accounting/shared/Register";
 // Resolves a page name (from the URL) to its screen. Server pages pass only the name, never config
 // objects, because those hold functions that cannot cross the server/client boundary.
 export function AccountingPage({ name }: { name: string }) {
+  // Automatic Accounting Posting.
+  if (name === "journals") return <JournalsScreen />;
+  if (name === "postings") return <PostingsScreen />;
+  if (name === "expenses") return <Suspense><ExpensesScreen /></Suspense>;
+  if (name === "fund-transfers") return <FundTransfersScreen />;
+  if (name === "opening-balances") return <OpeningBalancesScreen />;
+  if (name === "input-tax-credit") return <InputTaxCreditScreen />;
+  if (name === "settings") return <PostingAccountsScreen />;
   if (name === "journal-new") return <DocumentBuilder kind="journal" />;
   if (name === "invoice-new") return <DocumentBuilder kind="invoice" />;
   if (name === "bill-new") return <DocumentBuilder kind="bill" />;

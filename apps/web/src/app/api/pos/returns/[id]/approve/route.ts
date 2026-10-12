@@ -1,37 +1,15 @@
 import { z } from "zod";
 
-import { approvePointOfSaleReturn } from "@vercentlabs/api";
+import { approvePosReturn } from "@vercentlabs/api";
 
-import { ok, readJson } from "@/core/http";
-import { posContext } from "@/features/pos/shared/pos-context";
-import { workspaceRoute } from "@/core/workspace-route";
+import { posMutation } from "@/features/pos/shared/route-helpers";
 
-const approveReturnSchema = z.object({
-  reason: z.string().trim().max(1_000).optional().nullable(),
-  idempotencyKey: z.string().trim().min(1).max(200),
-});
+type Params = { params: Promise<{ id: string }> };
 
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  return workspaceRoute(
-    request,
-    {
-      module: "point-of-sale",
-      permission: "pos.return.approve",
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const input = approveReturnSchema.parse(await readJson(request));
-      const result = await approvePointOfSaleReturn(
-        client,
-        posContext(session),
-        id,
-        input,
-      );
-      return ok({ posReturn: result });
-    },
-  );
+// POST: a supervisor approves exactly this version — never the person who started it; with the grant for every exception it carries.
+const schema = z.object({ expectedVersion: z.number().int().optional(), note: z.string().trim().max(300).optional() });
+
+export async function POST(request: Request, { params }: Params) {
+  const { id } = await params;
+  return posMutation(request, schema, async (client, context, input) => ({ posReturn: await approvePosReturn(client, context, id, input) }), 200, "pos.view");
 }

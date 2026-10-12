@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import { PageHeader, type PageHeaderProps } from "./PageHeader.tsx";
-import { ActionBar, type ActionBarProps } from "./ActionBar.tsx";
-import { FilterBar, type FilterBarProps } from "./FilterBar.tsx";
-import { SavedViewBar, type SavedViewBarProps } from "./SavedViewBar.tsx";
-import { BulkActionBar, type BulkActionBarProps } from "./BulkActionBar.tsx";
+import type { ActionBarProps } from "./ActionBar.tsx";
+import type { FilterBarProps } from "./FilterBar.tsx";
+import type { SavedViewBarProps } from "./SavedViewBar.tsx";
+import type { BulkActionBarProps } from "./BulkActionBar.tsx";
+import { ListToolbar } from "./ListToolbar.tsx";
 import { Stack } from "../layout/Stack.tsx";
 
 export interface EnterpriseListPageProps {
@@ -27,7 +28,6 @@ export interface EnterpriseListPageProps {
  * this component has no knowledge of any specific record type.
  */
 export function EnterpriseListPage({ header, savedViews, actionBar, filterBar, bulkActionBar, children }: EnterpriseListPageProps) {
-  const hasToolbar = Boolean(savedViews || actionBar || bulkActionBar || filterBar);
   return (
     // The header sits on the page canvas as its own chrome, deliberately
     // more separated (gap-6) from the work area below than that work
@@ -36,13 +36,7 @@ export function EnterpriseListPage({ header, savedViews, actionBar, filterBar, b
     <Stack gap={6}>
       <PageHeader {...header} />
       <Stack gap={3}>
-        {hasToolbar ? (
-          <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-[var(--shadow-subtle)]">
-            {savedViews && <SavedViewBar {...savedViews} />}
-            {bulkActionBar && bulkActionBar.selectedCount > 0 ? <BulkActionBar {...bulkActionBar} /> : actionBar ? <ActionBar {...actionBar} /> : null}
-            {filterBar && <FilterBar {...filterBar} />}
-          </div>
-        ) : null}
+        <ListToolbar savedViews={savedViews} actionBar={actionBar} filterBar={filterBar} bulkActionBar={bulkActionBar} />
         {children}
       </Stack>
     </Stack>

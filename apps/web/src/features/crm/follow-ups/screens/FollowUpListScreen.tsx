@@ -184,7 +184,7 @@ export function FollowUpListScreen() {
           title: "Follow-ups",
           description: "Who to contact, how, for which deal and why: overdue first, then today, then what is coming up.",
           primaryAction: can?.create ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />Schedule follow-up</Button> : undefined,
-          secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={followUpExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" />Export</a> : undefined,
+          secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={followUpExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a> : undefined,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as FollowUpViewKey) } : undefined}
         actionBar={{

@@ -523,6 +523,8 @@ export const RESERVATION_SOURCES = Object.freeze({
   stock_transfer: { label: "Internal transfer", sql: `SELECT 1 FROM tenant.inventory_transfers WHERE organization_id=$1 AND id=$2 AND status IN ('draft','confirmed')` },
   purchase_return: { label: "Purchase return", sql: `SELECT 1 FROM tenant.purchase_returns WHERE organization_id=$1 AND id=$2 AND document_status='draft'` },
   manufacturing_work_order: { label: "Work order", sql: `SELECT 1 FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND id=$2` },
+  // A POS bill in checkout (named by its checkout reference) while it is still open: POS Stock Reduction's short lease on what it sells.
+  pos_checkout: { label: "POS checkout", sql: `SELECT 1 FROM tenant.pos_carts WHERE organization_id=$1 AND checkout_reference=$2 AND status IN ('draft','priced')` },
 });
 async function assertReservationSource(client, c, input) {
   if (!input.referenceType || !input.referenceId)
@@ -570,6 +572,15 @@ async function reservationDemand(client, c, input) {
       // The return's lines were validated against what the goods receipt may still return: the reservation never exceeds that entitlement.
       const line = await lineFor("purchase_return_lines", "purchase_return_id", input.referenceId, "base_quantity", "product_id");
       return { documentType: "purchase_return", documentId: input.referenceId, ...line };
+    }
+    case "pos_checkout": {
+      // One bill line: its base quantity is the whole demand (the bill is locked in checkout, so it cannot change underneath).
+      const line = (await client.query(
+        `SELECT line.id, COALESCE(line.base_quantity, line.quantity) AS quantity, line.item_id FROM tenant.pos_cart_lines line
+           JOIN tenant.pos_carts cart ON cart.organization_id = line.organization_id AND cart.id = line.cart_id
+          WHERE line.organization_id = $1 AND cart.checkout_reference = $2 AND line.id = $3`, [c.organizationId, input.referenceId, input.sourceLineId ?? null])).rows[0];
+      if (!line || line.item_id !== input.itemId) throw new StockError(409, "That line is not on the bill in checkout.", "STOCK_RESERVATION_SOURCE_LINE_INVALID");
+      return { documentType: "pos_checkout", documentId: input.referenceId, lineId: line.id, open: Number(line.quantity) };
     }
     default:
       return { documentType: "manufacturing_work_order", documentId: input.referenceId, lineId: input.sourceLineId || null, open: null };
@@ -713,15 +724,23 @@ export async function reserveAvailableStock(client, c, rawInput = {}) {
   await lockInventoryItem(client, c, input.itemId);
   const reservation = await ensureReservation(client, c, input, wanted, { exact: false });
   input = { ...input, inventoryReservationId: reservation.id };
+  // Optionally only one location (a POS terminal's selling location) and one batch.
+  const values = [c.organizationId, input.itemId, input.warehouseId];
+  let dimensionFilter = "";
+  if (input.warehouseLocationId) {
+    const locationId = await ledgerLocation(client, c.organizationId, input.warehouseId, input.warehouseLocationId);
+    dimensionFilter += locationId ? ` AND balance.warehouse_location_id=$${values.push(locationId)}` : " AND balance.warehouse_location_id IS NULL";
+  }
+  if (input.batchId) dimensionFilter += ` AND balance.batch_id=$${values.push(input.batchId)}`;
   const rows = (await client.query(
     `SELECT balance.* FROM tenant.stock_balances balance
        LEFT JOIN tenant.warehouse_locations location ON location.organization_id=balance.organization_id AND location.id=balance.warehouse_location_id
        LEFT JOIN tenant.stock_batches batch ON batch.organization_id=balance.organization_id AND batch.id=balance.batch_id
-      WHERE balance.organization_id=$1 AND balance.item_id=$2 AND balance.warehouse_id=$3 AND balance.quantity-balance.reserved_quantity > 0 AND ${USABLE_ROW}
+      WHERE balance.organization_id=$1 AND balance.item_id=$2 AND balance.warehouse_id=$3 AND balance.quantity-balance.reserved_quantity > 0 AND ${USABLE_ROW}${dimensionFilter}
         AND NOT ${UNDER_COUNT_SQL("balance.warehouse_id", "balance.warehouse_location_id", "balance.item_id")}
       ORDER BY (balance.quantity-balance.reserved_quantity) DESC,balance.updated_at ASC
       FOR UPDATE OF balance`,
-    [c.organizationId, input.itemId, input.warehouseId],
+    values,
   )).rows;
   const free = Math.max(0, rows.reduce((total, row) => total + Number(row.quantity) - Number(row.reserved_quantity), 0));
   let left = Math.min(wanted, free, reservation.room);
@@ -811,11 +830,30 @@ export async function consumeStockReservation(client, c, id, quantity, reference
     : null;
   await reservationEvent(client, c, id, "consumed", amount, { details: { movementId: movement?.id ?? null, deliveryId: reference.deliveryId ?? null } });
   await client.query(
-    `INSERT INTO tenant.stock_reservation_consumptions (organization_id, reservation_id, quantity, delivery_id, delivery_line_id, stock_movement_id, consumed_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [c.organizationId, id, amount, reference.deliveryId ?? null, reference.deliveryLineId ?? null, movement?.id ?? null, c.userId ?? null],
+    `INSERT INTO tenant.stock_reservation_consumptions (organization_id, reservation_id, quantity, delivery_id, delivery_line_id, stock_movement_id, consumed_by, pos_sale_id, pos_sale_line_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [c.organizationId, id, amount, reference.deliveryId ?? null, reference.deliveryLineId ?? null, movement?.id ?? null, c.userId ?? null, reference.posSaleId ?? null,
+      reference.posSaleLineId ?? null],
   );
   return { ...rows[0], stockMovementId: movement?.id ?? null };
+}
+
+// Extends a temporary reservation's lease (a POS checkout while payment is under way): only an active one whose stock is still eligible, and only
+// to a later time. Counted on the allocation; the caller decides how far a lease may go.
+export async function renewStockReservation(client, c, id, expiresAt) {
+  need(c, "stock.reserve");
+  if (!expiresAt || Number.isNaN(Date.parse(String(expiresAt)))) throw new StockError(400, "The new expiry is not a valid date and time.", "STOCK_RESERVATION_EXPIRY_INVALID");
+  const reservation = (await client.query(
+    `SELECT reservation.*, ${restrictedStockSql("location", "batch")} AS restricted FROM tenant.stock_reservations reservation
+       LEFT JOIN tenant.warehouse_locations location ON location.organization_id = reservation.organization_id AND location.id = reservation.warehouse_location_id
+       LEFT JOIN tenant.stock_batches batch ON batch.organization_id = reservation.organization_id AND batch.id = reservation.batch_id
+      WHERE reservation.organization_id=$1 AND reservation.id=$2 FOR UPDATE OF reservation`, [c.organizationId, id])).rows[0];
+  if (!reservation) throw new StockError(404, "Reservation not found.", "STOCK_RESERVATION_NOT_FOUND");
+  if (reservation.status !== "active") throw new StockError(409, "Only an active reservation can be renewed.", "STOCK_RESERVATION_NOT_ACTIVE");
+  if (reservation.restricted) throw new StockError(409, `The stock reserved on ${reservation.reservation_number} is no longer eligible (held, expired or blocked).`, "STOCK_RESERVATION_INELIGIBLE");
+  return (await client.query(
+    `UPDATE tenant.stock_reservations SET expires_at=greatest(COALESCE(expires_at, $3::timestamptz), $3::timestamptz), renewal_count=renewal_count+1, renewed_at=now(), updated_at=now()
+      WHERE organization_id=$1 AND id=$2 RETURNING *`, [c.organizationId, id, expiresAt])).rows[0];
 }
 
 async function adjustReservedBalance(client, c, reservation, amount) {

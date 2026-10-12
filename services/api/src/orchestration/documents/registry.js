@@ -7,6 +7,7 @@
 import { formatDateTime } from "@vercentlabs/localization";
 
 import { getPosSaleReceipt } from "../../modules/point-of-sale/transaction-continuity-and-documents/receipts.js";
+import { getPosSaleTaxes } from "../../modules/point-of-sale/pos-analytics/taxes.js";
 import { getRefundVoucher } from "../../modules/accounting/index.js";
 import { getCreditNoteDocument, getDeliveryNote, getOrderConfirmation, getQuotation, getReturnNote, getSalesInvoiceDocument, getSalesOrder } from "../../modules/sales/index.js";
 import { getGoodsReceipt, getPurchaseOrderDocument } from "../../modules/procurement/purchase-orders/index.js";
@@ -825,33 +826,58 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     permission: "pos.view",
     label: "POS receipt",
     async load(client, session, id) {
-      return getPosSaleReceipt(client, posContext(session), id);
+      const receipt = await getPosSaleReceipt(client, posContext(session), id);
+      return { ...receipt, taxes: await getPosSaleTaxes(client, posContext(session), id) };
     },
     async toModel(client, session, data) {
-      const { sale, lines, payments } = data;
+      const { sale, lines, payments, taxes } = data;
       const currency = String(sale.currency_code || "").trim();
+      // The document the sale is (from its own tax snapshot) and what a GST invoice prints: seller and buyer GSTIN, place of supply, HSN/SAC,
+      // the rate on each line and the tax by component — never recomputed.
+      const title = { tax_invoice: "Tax invoice", bill_of_supply: "Bill of supply", invoice_cum_bill_of_supply: "Tax invoice cum bill of supply" }[taxes?.documentType] ?? "Receipt";
+      const taxLine = new Map((taxes?.lines ?? []).map((line) => [line.id, line]));
+      const classLabel = { nil_rated: "Nil", exempt: "Exempt", non_gst: "Non-GST", zero_rated: "Zero" };
+      const seller = taxes?.seller ?? null;
       return {
-        title: "Receipt",
+        title,
         documentNumber: sale.receipt_number,
         issuedAt: date(sale.completed_at || sale.sale_date, sale.store_timezone),
-        organizationName: await organizationName(client, session.organizationId),
+        organizationName: seller?.legalName || await organizationName(client, session.organizationId),
         status: sale.status === "completed" ? null : `Status: ${sale.status}`,
-        parties: [{ label: "Store", lines: [sale.store_name, sale.terminal_name].filter(Boolean) }, ...(sale.customer_display_name || sale.customer_name ? [{ label: "Customer", lines: [sale.customer_display_name || sale.customer_name] }] : [])],
-        fields: [{ label: "Cashier", value: sale.cashier_name ?? "" }],
+        parties: [
+          { label: "Store", lines: [sale.store_name, sale.terminal_name, seller?.gstin ? `GSTIN ${seller.gstin}` : null, seller?.stateName ? `${seller.stateName} (${seller.stateCode})` : null].filter(Boolean) },
+          ...(sale.customer_display_name || sale.customer_name || sale.buyer_name_snapshot
+            ? [{ label: "Customer", lines: [sale.customer_display_name || sale.customer_name || sale.buyer_name_snapshot, taxes?.buyer?.gstin ? `GSTIN ${taxes.buyer.gstin}` : null].filter(Boolean) }] : []),
+        ],
+        fields: [
+          { label: "Cashier", value: sale.cashier_name ?? "" },
+          ...(taxes?.placeOfSupply ? [{ label: "Place of supply", value: `${taxes.placeOfSupply}${taxes.supplyMode === "delivery" ? " (delivery)" : ""}` }] : []),
+        ],
         table: {
           columns: [
-            { key: "item", label: "Item", width: "46%" },
-            { key: "quantity", label: "Qty", align: "right", width: "12%" },
-            { key: "price", label: `Price (${currency})`, align: "right", width: "14%" },
-            { key: "discount", label: "Discount", align: "right", width: "14%" },
+            { key: "item", label: "Item", width: "34%" },
+            { key: "hsn", label: "HSN/SAC", width: "12%" },
+            { key: "quantity", label: "Qty", align: "right", width: "8%" },
+            { key: "price", label: `Price (${currency})`, align: "right", width: "12%" },
+            { key: "discount", label: "Discount", align: "right", width: "11%" },
+            { key: "gst", label: "GST", align: "right", width: "9%" },
             { key: "total", label: "Amount", align: "right", width: "14%" },
           ],
-          rows: lines.map((line) => ({ item: line.description, quantity: Number(line.quantity), price: amount(line.unit_price), discount: Number(line.discount_amount) ? amount(line.discount_amount) : "", total: amount(line.line_total) })),
+          rows: lines.map((line) => {
+            const tax = taxLine.get(line.id);
+            return { item: line.description, hsn: tax?.hsnSac ?? "", quantity: Number(line.quantity), price: amount(line.unit_price),
+              discount: Number(line.discount_amount) ? amount(line.discount_amount) : "",
+              gst: tax ? (tax.classification && tax.classification !== "taxable" ? classLabel[tax.classification] ?? tax.classification : `${Number(tax.rate ?? 0)}%`) : "",
+              total: amount(line.line_total) };
+          }),
         },
         totals: [
           { label: "Subtotal", value: amount(sale.subtotal) },
           ...(Number(sale.discount_total) ? [{ label: "Discount", value: `-${amount(sale.discount_total)}` }] : []),
-          { label: "Tax", value: amount(sale.tax_total) },
+          ...(taxes?.taxableTotal != null ? [{ label: "Taxable value", value: amount(taxes.taxableTotal) }] : []),
+          ...((taxes?.breakdown ?? []).length
+            ? taxes.breakdown.map((entry) => ({ label: `${entry.label} ${Number(entry.rate)}%`, value: amount(entry.taxAmount) }))
+            : [{ label: "Tax", value: amount(sale.tax_total) }]),
           ...(Number(sale.rounding_adjustment) ? [{ label: "Rounding", value: amount(sale.rounding_adjustment) }] : []),
           { label: `Total (${currency})`, value: amount(sale.grand_total), emphasis: true },
           ...payments.map((payment) => ({ label: `Paid (${String(payment.payment_method ?? "payment").replace(/_/g, " ")})`, value: amount(payment.amount) })),

@@ -1,27 +1,23 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Button,
   ErrorState,
   MetricStrip,
-  NumberField,
   PermissionState,
   RecordDetailsPage,
   StatusBadge,
-  TextArea,
 } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
-import {
-  closePosShift,
-  getPosShift,
-} from "@/features/pos/shifts/api/shifts-api";
+import { ShiftReviewPanel } from "@/features/pos/shift-opening/components/ShiftReviewPanel";
+import { CashSessionPanel } from "@/features/pos/cash-sessions/components/CashSessionPanel";
+import { ShiftClosingPanel } from "@/features/pos/shift-closing/components/ShiftClosingPanel";
+import { getPosShift } from "@/features/pos/shifts/api/shifts-api";
 import {
   dateTime,
   money,
@@ -29,7 +25,6 @@ import {
   statusTone,
 } from "@/features/pos/shared/format";
 import {
-  PosAlert,
   PosBackLink,
   PosDataTable,
   PosLoading,
@@ -43,9 +38,6 @@ export function PosShiftDetailScreen({ shiftId }: { shiftId: string }) {
     workspace.roleSlugs.includes("organization_owner") ||
     workspace.permissions.includes(POS_PERMISSIONS.shiftClose);
 
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [countedCash, setCountedCash] = useState(0);
-  const [closeNotes, setCloseNotes] = useState("");
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "pos", "shift", shiftId),
@@ -55,37 +47,6 @@ export function PosShiftDetailScreen({ shiftId }: { shiftId: string }) {
         error instanceof PosApiError &&
         (error.status === 403 || error.status === 404)
       ) && failureCount < 2,
-  });
-
-  const closeMutation = useMutation({
-    // F301/F302: same closeShift domain call and request shape the
-    // overview dashboard's own quick-close action uses -- no separate
-    // idempotency key here because closeShift itself never accepted one
-    // (see shift-operations.js); this reuses that exact contract rather
-    // than inventing a second one for this screen.
-    mutationFn: () =>
-      closePosShift(shiftId, {
-        countedCash,
-        closeNotes: closeNotes.trim() || undefined,
-      }),
-    onSuccess: () => {
-      setActionError(null);
-      queryClient.invalidateQueries({
-        queryKey: scopedQueryKey(workspace, "pos", "shift", shiftId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: scopedQueryKey(workspace, "pos", "shifts-page"),
-      });
-      queryClient.invalidateQueries({
-        queryKey: scopedQueryKey(workspace, "pos", "shifts"),
-      });
-    },
-    onError: (err) =>
-      setActionError(
-        err instanceof PosApiError
-          ? err.message
-          : "The shift could not be closed.",
-      ),
   });
 
   if (query.isLoading) return <PosLoading label="Loading shift…" />;
@@ -113,6 +74,10 @@ export function PosShiftDetailScreen({ shiftId }: { shiftId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <PosBackLink href="/pos/shifts">All shifts</PosBackLink>
+      {/* Shift Opening (0103): a supervisor pauses, stops for review or clears a review of another cashier's shift. */}
+      <ShiftReviewPanel shiftId={shiftId} />
+      {/* Opening Cash Float (0104): the confirmed opening count, corrections and expected drawer cash. */}
+      {shift.cash_session_id && <CashSessionPanel cashSessionId={shift.cash_session_id} cashierUserId={shift.cashier_user_id} />}
       <RecordDetailsPage
         header={{
           title: `Shift ${shift.shift_number}`,
@@ -131,7 +96,6 @@ export function PosShiftDetailScreen({ shiftId }: { shiftId: string }) {
           ],
         }}
       >
-        {actionError && <PosAlert>{actionError}</PosAlert>}
 
         <MetricStrip
           metrics={[
@@ -279,35 +243,9 @@ export function PosShiftDetailScreen({ shiftId }: { shiftId: string }) {
           />
         </PosPanel>
 
-        {shift.status === "open" && canCloseShift && (
-          <PosPanel
-            title="Close this shift"
-            description="Count the cash in the drawer. Any difference from the expected cash is recorded as the shift variance."
-          >
-            <div className="flex max-w-md flex-col gap-3">
-              <NumberField
-                label="Counted cash"
-                value={countedCash}
-                onChange={setCountedCash}
-                minValue={0}
-                step={0.01}
-              />
-              <TextArea
-                label="Close notes (optional)"
-                value={closeNotes}
-                onChange={setCloseNotes}
-              />
-              <div>
-                <Button
-                  variant="primary"
-                  onPress={() => closeMutation.mutate()}
-                  isLoading={closeMutation.isPending}
-                >
-                  Close shift
-                </Button>
-              </div>
-            </div>
-          </PosPanel>
+        {/* Shift Closing (0105): the four-step close of this shift (its cashier, or a supervisor with a reason), or its closing report once closed. */}
+        {canCloseShift && (["open", "closing"].includes(shift.status) || shift.closing_id) && (
+          <ShiftClosingPanel shiftId={shiftId} onClosed={() => { void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "shift", shiftId) }); }} />
         )}
       </RecordDetailsPage>
     </div>

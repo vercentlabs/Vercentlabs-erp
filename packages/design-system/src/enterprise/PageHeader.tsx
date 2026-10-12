@@ -30,7 +30,8 @@ export function PageHeader({ className, breadcrumbs, title, description, primary
           {description && <p className="text-sm text-text-secondary">{description}</p>}
         </div>
         {(primaryAction || secondaryActions) && (
-          <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
+          // On a phone the buttons are a little narrower so a page's actions fit on one row.
+          <div className="flex flex-wrap items-center gap-2 max-sm:[&>a]:px-3 max-sm:[&>button]:px-3 sm:shrink-0 sm:justify-end">
             {secondaryActions}
             {primaryAction}
           </div>

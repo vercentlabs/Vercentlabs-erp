@@ -1,7 +1,7 @@
-import { PosReconciliationScreen } from "@/features/pos/reconciliation/screens/PosReconciliationScreen";
+import { PaymentReconciliationScreen } from "@/features/pos/payment-reconciliation/screens/PaymentReconciliationScreen";
 
-export const metadata = { title: "POS Reconciliation" };
+export const metadata = { title: "Payment Reconciliation" };
 
-export default function PosReconciliationPage() {
-  return <PosReconciliationScreen />;
+export default function PaymentReconciliationPage() {
+  return <PaymentReconciliationScreen />;
 }

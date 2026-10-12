@@ -21,12 +21,74 @@ export const POS_SETTINGS_DEFAULTS = Object.freeze({
   // Cart (0086): how long a held bill is kept, and how long an idle checkout lock lasts when no payment is pending.
   held_cart_retention_hours: 24,
   checkout_lock_minutes: 15,
+  // Stock Reduction (0101): the longest a checkout may hold its stock reservation while payment is under way (renewals stop there).
+  stock_reservation_max_hold_minutes: 30,
+  // Shift Opening (0103): an opening count that differs from the cash handed over by more than this needs a supervisor (empty = never; 0 = any
+  // difference); the notes and coins counted; when an open shift is reported as open too long.
+  opening_variance_approval_above: 0,
+  // Opening Cash Float (0104): above this difference from the handover the drawer cannot open until a manager resolves it (empty = no hard limit).
+  opening_variance_block_above: null,
+  opening_count_denominations: [500, 200, 100, 50, 20, 10, 5, 2, 1],
+  long_open_shift_hours: 14,
+  // Shift Closing (0105): a closing difference above this needs a supervisor (empty = never; 0 = any difference); above the hard limit only a
+  // supervisor can reconcile and close (empty = none); the blind count, and whether the counter sees the comparison after counting; the reasons.
+  closing_variance_approval_above: 0,
+  closing_variance_block_above: null,
+  closing_blind_count: true,
+  closing_reveal_expected_after_count: true,
+  closing_variance_reasons: ["COUNTING_ERROR", "INCORRECT_CHANGE", "CASH_REFUND_ERROR", "MISSING_CASH_MOVEMENT", "CASH_RECEIPT_ERROR", "DRAWER_SHORTAGE", "DRAWER_OVERAGE", "PREVIOUS_HANDOVER_MISMATCH", "UNKNOWN", "OTHER"],
+  // Cash Difference (0106): separate tolerances / hard limits for shortages and overages (empty = the general ones), and whether "I am not sure"
+  // needs a note.
+  closing_shortage_approval_above: null,
+  closing_overage_approval_above: null,
+  closing_shortage_block_above: null,
+  closing_overage_block_above: null,
+  cash_difference_unknown_note_required: true,
+  // Payment Reconciliation (0108): when an in-flight payment counts as unknown, when a provider refund is overdue, and above which amount a manual
+  // match or resolution needs a second person.
+  reconciliation_unknown_after_minutes: 30,
+  reconciliation_refund_overdue_days: 7,
+  reconciliation_manual_approval_above: "10000",
   // Walk-In Customer (0087): from this bill total a walk-in invoice needs the buyer's name and address (tax policy; empty = never).
   walk_in_buyer_details_required_above: "50000",
+  // Item Discounts (0090): how a manual line discount meets an automatic promotion, whether a line may be discounted in full, whether a
+  // reason is always required.
+  manual_discount_stacking: "non_stackable",
+  allow_full_line_discount: false,
+  discount_reason_required: false,
+  // Cart Discounts (0091): whether discounts may bring a bill to a zero total.
+  allow_zero_total_sale: false,
+  // Cash Payments (0092): cash on or off, quick tender amounts, a ceiling on one cash tender and a large-cash warning (empty = none).
+  cash_payments_enabled: true,
+  cash_quick_amounts_enabled: true,
+  max_cash_tender_amount: null,
+  large_cash_warning_amount: null,
+  // Split Payments (0095): paying one bill with several tenders, and how a return refund is shared across them.
+  split_payments_enabled: true,
+  refund_allocation_policy: "proportional",
+  // Receipt Reprinting (0097): whether every reprint needs a reason.
+  receipt_reprint_reason_required: false,
+  // Returns (0099): the return policy.
+  returns_enabled: true,
+  return_window_days: 30,
+  allow_no_receipt_returns: true,
+  require_return_reason: true,
+  require_return_condition: true,
+  allow_partial_returns: true,
+  allow_cross_outlet_returns: false,
+  require_inspection_before_refund: false,
+  return_approval_above: null,
+  return_reasons: ["damaged_product", "defective_product", "wrong_item", "wrong_size_variant", "customer_changed_mind", "quality_issue", "not_as_described", "other"],
+  return_restrictions: [],
 });
+const RETURN_REASON_CODES = ["damaged_product", "defective_product", "wrong_item", "wrong_size_variant", "customer_changed_mind", "quality_issue", "not_as_described", "other"];
 
 const SETTINGS_COLUMNS = Object.keys(POS_SETTINGS_DEFAULTS);
-const BOOLEAN_SETTINGS = ["require_shift_reconciliation", "allow_negative_stock", "allow_price_override", "require_return_approval", "prohibit_self_return_approval"];
+const BOOLEAN_SETTINGS = ["require_shift_reconciliation", "allow_negative_stock", "allow_price_override", "require_return_approval", "prohibit_self_return_approval",
+  "allow_full_line_discount", "discount_reason_required", "allow_zero_total_sale", "cash_payments_enabled", "cash_quick_amounts_enabled", "split_payments_enabled",
+  "receipt_reprint_reason_required", "returns_enabled", "allow_no_receipt_returns", "require_return_reason", "require_return_condition", "allow_partial_returns",
+  "allow_cross_outlet_returns", "require_inspection_before_refund", "closing_blind_count", "closing_reveal_expected_after_count", "cash_difference_unknown_note_required"];
+const CLOSING_REASON_CODES = ["CASH_REFUND_DISCREPANCY", "COUNTING_ERROR", "INCORRECT_CHANGE", "CASH_REFUND_ERROR", "MISSING_CASH_MOVEMENT", "CASH_RECEIPT_ERROR", "DRAWER_SHORTAGE", "DRAWER_OVERAGE", "PREVIOUS_HANDOVER_MISMATCH", "UNKNOWN", "OTHER"];
 const PERCENT_SETTINGS = ["max_line_discount_percent", "max_cart_discount_percent", "discount_approval_threshold_percent"];
 
 
@@ -69,7 +131,8 @@ function normalizeSettingsInput(input) {
     }
     changes.cart_expiry_minutes = minutes;
   }
-  for (const [column, low, high, label] of [["held_cart_retention_hours", 1, 2160, "hours"], ["checkout_lock_minutes", 2, 240, "minutes"]]) {
+  for (const [column, low, high, label] of [["held_cart_retention_hours", 1, 2160, "hours"], ["checkout_lock_minutes", 2, 240, "minutes"], ["stock_reservation_max_hold_minutes", 5, 240, "minutes"],
+    ["reconciliation_unknown_after_minutes", 1, 10080, "minutes"], ["reconciliation_refund_overdue_days", 1, 90, "days"]]) {
     if (input[column] === undefined) continue;
     const value = Number(input[column]);
     if (!Number.isInteger(value) || value < low || value > high) throw posError(400, `${column} must be a whole number of ${label} between ${low} and ${high}.`, "POS_SETTINGS_INVALID");
@@ -83,6 +146,99 @@ function normalizeSettingsInput(input) {
       if (!Number.isFinite(value) || value < 0) throw posError(400, "walk_in_buyer_details_required_above must be zero or more (or empty for never).", "POS_SETTINGS_INVALID");
       changes.walk_in_buyer_details_required_above = value;
     }
+  }
+  for (const column of ["max_cash_tender_amount", "large_cash_warning_amount"]) {
+    if (input[column] === undefined) continue;
+    const raw = input[column];
+    if (raw === null || raw === "") { changes[column] = null; continue; }
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value <= 0) throw posError(400, `${column} must be more than zero (or empty for none).`, "POS_SETTINGS_INVALID");
+    changes[column] = value;
+  }
+  if (input.refund_allocation_policy !== undefined) {
+    if (!["proportional", "electronic_first"].includes(input.refund_allocation_policy))
+      throw posError(400, "refund_allocation_policy must be proportional or electronic_first.", "POS_SETTINGS_INVALID");
+    changes.refund_allocation_policy = input.refund_allocation_policy;
+  }
+  if (input.manual_discount_stacking !== undefined) {
+    if (!["non_stackable", "stackable", "manual_replaces_automatic"].includes(input.manual_discount_stacking))
+      throw posError(400, "manual_discount_stacking must be non_stackable, stackable or manual_replaces_automatic.", "POS_SETTINGS_INVALID");
+    changes.manual_discount_stacking = input.manual_discount_stacking;
+  }
+  // Returns (0099): the window (empty = no limit), approval above an amount, the allowed reasons, and item / category restrictions.
+  if (input.return_window_days !== undefined) {
+    const raw = input.return_window_days;
+    if (raw === null || raw === "") changes.return_window_days = null;
+    else {
+      const days = Number(raw);
+      if (!Number.isInteger(days) || days < 0 || days > 3650) throw posError(400, "return_window_days must be a whole number of days from 0 to 3650 (or empty for no limit).", "POS_SETTINGS_INVALID");
+      changes.return_window_days = days;
+    }
+  }
+  if (input.return_approval_above !== undefined) {
+    const raw = input.return_approval_above;
+    if (raw === null || raw === "") changes.return_approval_above = null;
+    else {
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value <= 0) throw posError(400, "return_approval_above must be more than zero (or empty for none).", "POS_SETTINGS_INVALID");
+      changes.return_approval_above = value;
+    }
+  }
+  if (input.opening_variance_approval_above !== undefined) {
+    const raw = input.opening_variance_approval_above;
+    if (raw === null || raw === "") changes.opening_variance_approval_above = null;
+    else {
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value < 0) throw posError(400, "opening_variance_approval_above must be zero or more (or empty for never).", "POS_SETTINGS_INVALID");
+      changes.opening_variance_approval_above = value;
+    }
+  }
+  if (input.opening_variance_block_above !== undefined) {
+    const raw = input.opening_variance_block_above;
+    if (raw === null || raw === "") changes.opening_variance_block_above = null;
+    else {
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value <= 0) throw posError(400, "opening_variance_block_above must be more than zero (or empty for no hard limit).", "POS_SETTINGS_INVALID");
+      changes.opening_variance_block_above = value;
+    }
+  }
+  for (const [column, minimum] of [["reconciliation_manual_approval_above", 0], ["closing_variance_approval_above", 0], ["closing_variance_block_above", 0.01], ["closing_shortage_approval_above", 0], ["closing_overage_approval_above", 0],
+    ["closing_shortage_block_above", 0.01], ["closing_overage_block_above", 0.01]]) {
+    if (input[column] === undefined) continue;
+    const raw = input[column];
+    if (raw === null || raw === "") { changes[column] = null; continue; }
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < minimum) throw posError(400, `${column} must be ${minimum ? "more than zero" : "zero or more"} (or empty).`, "POS_SETTINGS_INVALID");
+    changes[column] = value;
+  }
+  if (input.closing_variance_reasons !== undefined) {
+    const list = Array.isArray(input.closing_variance_reasons) ? [...new Set(input.closing_variance_reasons.map(String))] : [];
+    if (!list.length || list.some((code) => !CLOSING_REASON_CODES.includes(code)))
+      throw posError(400, `closing_variance_reasons must be chosen from ${CLOSING_REASON_CODES.join(", ")}.`, "POS_SETTINGS_INVALID");
+    changes.closing_variance_reasons = JSON.stringify(list.includes("OTHER") ? list : [...list, "OTHER"]);
+  }
+  if (input.opening_count_denominations !== undefined) {
+    const list = Array.isArray(input.opening_count_denominations) ? [...new Set(input.opening_count_denominations.map(Number))].sort((a, b) => b - a) : [];
+    if (!list.length || list.length > 20 || list.some((value) => !Number.isFinite(value) || value <= 0 || Math.round(value * 100) !== value * 100))
+      throw posError(400, "opening_count_denominations must list the notes and coins counted (positive amounts).", "POS_SETTINGS_INVALID");
+    changes.opening_count_denominations = JSON.stringify(list);
+  }
+  if (input.long_open_shift_hours !== undefined) {
+    const hours = Number(input.long_open_shift_hours);
+    if (!Number.isInteger(hours) || hours < 1 || hours > 72) throw posError(400, "long_open_shift_hours must be a whole number of hours from 1 to 72.", "POS_SETTINGS_INVALID");
+    changes.long_open_shift_hours = hours;
+  }
+  if (input.return_reasons !== undefined) {
+    const reasons = Array.isArray(input.return_reasons) ? [...new Set(input.return_reasons.map((code) => String(code).toLowerCase()))] : [];
+    if (!reasons.length || reasons.some((code) => !RETURN_REASON_CODES.includes(code))) throw posError(400, "return_reasons must list one or more known reasons.", "POS_SETTINGS_INVALID");
+    changes.return_reasons = JSON.stringify(reasons);
+  }
+  if (input.return_restrictions !== undefined) {
+    const list = Array.isArray(input.return_restrictions) ? input.return_restrictions : null;
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!list || list.length > 500 || list.some((entry) => !["item", "category"].includes(entry?.type) || !uuid.test(String(entry?.id ?? "")) || !["blocked", "approval"].includes(entry?.mode)))
+      throw posError(400, "return_restrictions is a list of { type: item | category, id, mode: blocked | approval }.", "POS_SETTINGS_INVALID");
+    changes.return_restrictions = JSON.stringify(list.map((entry) => ({ type: entry.type, id: entry.id, mode: entry.mode })));
   }
   if (input.default_currency_code !== undefined) {
     const code = String(input.default_currency_code).trim().toUpperCase();

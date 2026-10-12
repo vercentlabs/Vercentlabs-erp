@@ -167,60 +167,6 @@ const accounts: RegisterConfig = {
   searchText: (r) => text(r, ["code", "name", "account_class", "account_type"]),
 };
 
-const journals: RegisterConfig = {
-  key: "journals",
-  title: "Journal entries",
-  description:
-    "Every entry balances (debits equal credits) and posts only into an open fiscal period. Entries above the approval threshold need a second person; you cannot approve your own.",
-  searchLabel: "Search journals",
-  emptyTitle: "No journal entries",
-  emptyDescription: "Create an entry, or post an invoice, bill or payment.",
-  source: { kind: "view", view: "journals" },
-  filters: [
-    {
-      name: "status",
-      label: "Status",
-      options: opts(
-        "draft",
-        "pending_approval",
-        "approved",
-        "posted",
-        "reversed",
-        "rejected",
-      ),
-    },
-  ],
-  createLabel: "New journal entry",
-  newHref: "/accounting/journal-new",
-  createPermission: "accounting.journal.create",
-  columns: () => [
-    strong("number", "Entry", (r) => String(r.entry_number)),
-    col("date", "Date", (r) => calendarDate(r.accounting_date)),
-    col("journal", "Journal", (r) => String(r.journal_code ?? "")),
-    col("description", "Description", (r) => String(r.description ?? "")),
-    col("debit", "Amount", (r) => money(r.total_debit)),
-    badge("status", "Status", (r) => r.status),
-  ],
-  searchText: (r) =>
-    text(r, [
-      "entry_number",
-      "description",
-      "reference",
-      "status",
-      "journal_code",
-    ]),
-  rowActions: documentActions(
-    "journal",
-    {
-      manage: "accounting.journal.submit",
-      approve: "accounting.journal.approve",
-    },
-    { reverse: true },
-  ).map((a) =>
-    a.label === "Post" ? { ...a, permission: "accounting.journal.post" } : a,
-  ),
-};
-
 const invoices: RegisterConfig = {
   key: "customer-invoices",
   title: "Customer invoices",
@@ -575,7 +521,6 @@ const closeRuns: RegisterConfig = {
 
 export const CORE_REGISTERS: Record<string, RegisterConfig> = {
   "chart-of-accounts": accounts,
-  journals,
   "customer-invoices": invoices,
   "supplier-invoices": bills,
   "bank-accounts": bankAccounts,

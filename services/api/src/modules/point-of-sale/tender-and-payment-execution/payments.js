@@ -31,6 +31,7 @@ import { ensurePosCheckoutStarted } from "../assortment-pricing-customer-and-car
 import { posError } from "../shared/errors.js";
 import { requirePermission } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
+import { applyProviderStatus, recordPaymentException } from "./card-status.js";
 
 // Re-exported so the web app's webhook route (which must resolve+verify an
 // adapter BEFORE it knows which organization's tenant client to open) can
@@ -40,7 +41,6 @@ import { event } from "../shared/audit.js";
 export { resolvePaymentAdapter, PaymentAdapterError };
 
 const NON_CASH_METHODS = Object.freeze(["card", "upi", "wallet", "bank_transfer"]);
-const TERMINAL_STATUSES = Object.freeze(["captured", "failed", "voided", "refunded", "partially_refunded"]);
 
 async function lockOpenCart(client, context, cartId) {
   const result = await client.query(
@@ -68,9 +68,15 @@ async function lockOpenCart(client, context, cartId) {
 export async function initiatePosPayment(client, context, input = {}) {
   requirePermission(context, "pos.sale.create");
   const method = String(input.method || "").trim().toLowerCase();
+  // No credit at the counter: a walk-in bill has nobody to give credit to, and a named customer is identified, not credit-approved (credit
+  // terms and limits belong to Finance and are not part of POS).
   if (method === "store_credit" || method === "credit" || method === "account") {
-    const error = posError(409, "Select an eligible registered customer for credit sales.", "POS_WALK_IN_CREDIT_NOT_ALLOWED");
-    throw error;
+    const mode = input.cartId
+      ? (await client.query(`SELECT customer_mode FROM tenant.pos_carts WHERE organization_id=$1 AND id=$2`, [context.organizationId, input.cartId])).rows[0]?.customer_mode
+      : null;
+    if (mode === "registered")
+      throw posError(409, "Credit is not available at the counter: a customer account is not credit approval. Take cash, UPI or card.", "POS_CREDIT_NOT_AVAILABLE");
+    throw posError(409, "Select an eligible registered customer for credit sales.", "POS_WALK_IN_CREDIT_NOT_ALLOWED");
   }
   if (!NON_CASH_METHODS.includes(method)) {
     throw posError(400, `Unsupported POS payment method: ${input.method}.`, "POS_PAYMENT_METHOD_INVALID");
@@ -121,8 +127,8 @@ export async function initiatePosPayment(client, context, input = {}) {
   const inserted = await client.query(
     `INSERT INTO tenant.pos_payments
       (organization_id,cart_id,store_id,shift_id,payment_method,amount,currency_code,
-       provider_key,idempotency_key,status,initiated_by,initiated_at,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'initiated',$10,now(),$10)
+       provider_key,idempotency_key,status,initiated_by,initiated_at,created_by,attempt_status,verification_status,terminal_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'initiated',$10,now(),$10,'created','unresolved',$11)
      RETURNING *`,
     [
       context.organizationId,
@@ -135,6 +141,7 @@ export async function initiatePosPayment(client, context, input = {}) {
       providerKey,
       idempotency.key,
       context.userId,
+      cart.terminal_id,
     ],
   );
   const paymentRow = inserted.rows[0];
@@ -151,24 +158,20 @@ export async function initiatePosPayment(client, context, input = {}) {
     });
   } catch (error) {
     if (error instanceof PaymentAdapterError) throw error;
-    await client.query(
-      `UPDATE tenant.pos_payments SET status='failed',failure_reason=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`,
-      [context.organizationId, paymentRow.id, String(error.message || "Provider error.")],
-    );
-    throw posError(502, "The payment provider could not be reached.", "POS_PAYMENT_PROVIDER_UNAVAILABLE");
+    // Card Payments (0093): no answer is not a "no" -- the attempt is UNKNOWN until the provider is asked again (never failed, never retried).
+    const unknown = await applyProviderStatus(client, context, { ...paymentRow, attempt_status: "created" }, { status: "unknown", source: "initiate_timeout" });
+    await event(client, context, "payment", paymentRow.id, "pos.payment.initiated", { method, amount: asDatabaseDecimal(amount), status: "unknown" });
+    const response = { ...unknown, replayed: false };
+    await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "pos_payment", aggregateId: paymentRow.id });
+    return response;
   }
 
-  const status = ["pending", "authorized", "captured", "failed"].includes(outcome.status) ? outcome.status : "pending";
-  const updated = await client.query(
-    `UPDATE tenant.pos_payments
-     SET status=$3,provider_reference=$4,failure_reason=$5,
-         captured_at=CASE WHEN $3='captured' THEN now() ELSE captured_at END,
-         updated_at=now()
-     WHERE organization_id=$1 AND id=$2
-     RETURNING *`,
-    [context.organizationId, paymentRow.id, status, outcome.providerReference || null, outcome.failureReason || null],
-  );
-  await event(client, context, "payment", paymentRow.id, "pos.payment.initiated", { method, amount: asDatabaseDecimal(amount), status });
+  const applied = await applyProviderStatus(client, context, { ...paymentRow, attempt_status: "created" }, {
+    status: outcome.providerStatus ?? outcome.status, providerReference: outcome.providerReference, card: outcome.card, failureCode: outcome.failureCode, source: "initiate" });
+  const updated = { rows: [(await client.query(
+    `UPDATE tenant.pos_payments SET failure_reason=COALESCE($3, failure_reason) WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [context.organizationId, applied.id, outcome.failureReason || null])).rows[0]] };
+  await event(client, context, "payment", paymentRow.id, "pos.payment.initiated", { method, amount: asDatabaseDecimal(amount), status: updated.rows[0].status });
 
   const response = { ...updated.rows[0], replayed: false };
   await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "pos_payment", aggregateId: paymentRow.id });
@@ -188,7 +191,7 @@ export async function getPosPaymentStatus(client, context, paymentId) {
 // A cashier may abandon a card/UPI tender before it is ever consumed by a
 // completed sale (terminal glitch, customer changed their mind). Only a
 // leg that never reached a real captured state may be voided this way --
-// a captured leg must instead be refunded (refundPosPayment), which is
+// a captured leg must instead be refunded (through the refund service), which is
 // the only path that ever moves real captured money.
 export async function voidPosPayment(client, context, paymentId) {
   requirePermission(context, "pos.sale.create");
@@ -200,8 +203,20 @@ export async function voidPosPayment(client, context, paymentId) {
   if (!payment) throw posError(404, "POS payment was not found.", "POS_PAYMENT_NOT_FOUND");
   await assertPosAction(client, context, { permission: "PAYMENT_VOID_PENDING", outletId: payment.store_id });
   if (payment.sale_id) throw posError(409, "A payment already attached to a completed sale cannot be voided.", "POS_PAYMENT_ALREADY_CONSUMED");
+  // Cash in hand is handed back (and recorded), never just voided: returnPosCashTender.
+  if (payment.payment_method === "cash") throw posError(409, "Return the retained cash to cancel this payment.", "POS_CASH_RETURN_REQUIRED");
   if (!["initiated", "pending", "authorized", "failed"].includes(payment.status)) {
     throw posError(409, `A ${payment.status} payment cannot be voided; refund it instead.`, "POS_PAYMENT_VOID_INVALID_STATE");
+  }
+  // Card Payments (0093): a provider attempt still in progress is cancelled through the provider -- a request, not proof. Until the
+  // provider confirms it, the attempt is cancel_pending and the bill stays locked; if the provider says it was captured, it was.
+  if (payment.provider_key !== "standalone" && ["created", "awaiting_customer", "processing", "authorized", "capture_pending", "unknown", "cancel_pending"].includes(payment.attempt_status)) {
+    const adapter = resolvePaymentAdapter(payment.provider_key);
+    let answer = { status: "cancel_pending" };
+    if (adapter.cancel) answer = await adapter.cancel(context, { merchantReference: payment.id, providerReference: payment.provider_reference }).catch(() => ({ status: "cancel_pending" }));
+    const applied = await applyProviderStatus(client, context, payment, { status: answer.status, source: "void" });
+    await event(client, context, "payment", paymentId, "pos.payment.void_requested", { answer: answer.status });
+    return applied;
   }
   const updated = await client.query(
     `UPDATE tenant.pos_payments SET status='voided',voided_at=now(),updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
@@ -266,24 +281,24 @@ export async function handlePosPaymentWebhook(client, { providerKey, rawBody, si
     // to transition.
     return { replayed: false, event: parsedEvent, payment: null };
   }
-  if (TERMINAL_STATUSES.includes(payment.status)) {
-    // Already in a terminal state (e.g. a second, different event id for
-    // an already-captured payment) -- a no-op, never a double effect.
-    return { replayed: false, event: parsedEvent, payment };
+  if (payment.payment_method === "cash") return { replayed: false, event: parsedEvent, payment: null };
+  if (parsedEvent.providerReference && payment.provider_reference && parsedEvent.providerReference !== payment.provider_reference) {
+    // A notification for another provider transaction never completes this one. If it is money received (the customer paid twice, or a
+    // second payment against the same request), it is kept as an exception for reconciliation and refund -- never ignored, never applied.
+    if (["captured", "succeeded", "paid", "success"].includes(String(parsedEvent.status ?? "").toLowerCase())) {
+      await recordPaymentException(client, { organizationId: parsedEvent.organizationId, userId: null }, payment, payment.attempt_status === "captured" ? "duplicate" : "conflicting", {
+        providerReference: parsedEvent.providerReference, transactionReference: parsedEvent.transactionReference ?? null, amount: parsedEvent.amount ?? null,
+        detail: "A second provider payment arrived for this request." });
+    }
+    return { replayed: false, event: parsedEvent, payment: null };
   }
-
-  const nextStatus = ["pending", "authorized", "captured", "failed"].includes(parsedEvent.status) ? parsedEvent.status : payment.status;
-  const updated = await client.query(
-    `UPDATE tenant.pos_payments
-     SET status=$3,
-         provider_reference=coalesce(provider_reference,$4),
-         failure_reason=$5,
-         captured_at=CASE WHEN $3='captured' THEN now() ELSE captured_at END,
-         updated_at=now()
-     WHERE organization_id=$1 AND id=$2
-     RETURNING *`,
-    [parsedEvent.organizationId, payment.id, nextStatus, parsedEvent.providerReference || null, parsedEvent.failureReason || null],
-  );
+  // Card Payments (0093): the shared rules -- a capture is never downgraded by a late or older event, an amount or currency that does not
+  // match becomes reconciliation, a capture after a decline is flagged, never guessed.
+  const applied = await applyProviderStatus(client, { organizationId: parsedEvent.organizationId, userId: null }, payment, {
+    status: parsedEvent.status, providerReference: parsedEvent.providerReference, amount: parsedEvent.amount, currency: parsedEvent.currency, card: parsedEvent.card,
+    transactionReference: parsedEvent.transactionReference ?? null, merchantAccount: parsedEvent.merchantAccount ?? null, instrument: parsedEvent.instrument ?? null, source: "webhook" });
+  const nextStatus = applied.status;
+  const updated = { rows: [applied] };
   await client.query(
     `UPDATE tenant.pos_payment_webhook_events SET payment_id=$2 WHERE organization_id=$1 AND provider_key=$3 AND event_id=$4`,
     [parsedEvent.organizationId, payment.id, providerKey, parsedEvent.eventId],
@@ -299,77 +314,7 @@ export async function handlePosPaymentWebhook(client, { providerKey, rawBody, si
   return { replayed: false, event: parsedEvent, payment: updated.rows[0] };
 }
 
-// F283/F284/F285/F286 refund -- routes back to the ORIGINAL captured
-// payment's own provider reference and tender method, never an
-// alternate/default method. Idempotent on retry; cannot exceed the
-// captured (minus already-refunded) amount.
-export async function refundPosPayment(client, context, input = {}) {
-  // POS module access; refunding is the cashier's REFUND_INITIATE grant and limit, checked below.
-  requirePermission(context, "pos.view");
-  if (!input.paymentId) throw posError(400, "A payment id is required to refund.", "POS_REFUND_PAYMENT_REQUIRED");
-  const amount = decimal(input.amount);
-  if (amount <= 0n) throw posError(400, "Refund amount must be greater than zero.", "POS_REFUND_AMOUNT_INVALID");
-
-  const idempotency = await beginIdempotentOperation(client, context, {
-    operation: "pos.payment.refund",
-    key: input.idempotencyKey,
-    payload: { paymentId: input.paymentId, amount: asDatabaseDecimal(amount) },
-    required: true,
-  });
-  if (idempotency.replayed) return { ...idempotency.response, replayed: true };
-
-  const locked = await client.query(
-    `SELECT * FROM tenant.pos_payments WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
-    [context.organizationId, input.paymentId],
-  );
-  const payment = locked.rows[0];
-  if (!payment) throw posError(404, "POS payment was not found.", "POS_PAYMENT_NOT_FOUND");
-  await assertPosAction(client, context, { permission: "REFUND_INITIATE", outletId: payment.store_id, amount: asDatabaseDecimal(amount), approvalId: input.approvalId,
-    resource: payment.sale_id ? { type: "pos_sale", id: payment.sale_id } : undefined });
-  if (payment.payment_method === "cash") {
-    throw posError(409, "Refund a cash tender through the POS return workflow, not this endpoint.", "POS_REFUND_USE_RETURN_WORKFLOW");
-  }
-  if (!["captured", "partially_refunded"].includes(payment.status)) {
-    throw posError(409, `A ${payment.status} payment cannot be refunded.`, "POS_REFUND_STATE_INVALID");
-  }
-  const capturedAmount = decimal(payment.amount);
-  const alreadyRefunded = decimal(payment.refunded_amount || 0);
-  const refundable = sub(capturedAmount, alreadyRefunded);
-  if (amount > refundable) {
-    throw posError(
-      409,
-      `Refund of ${asDatabaseDecimal(amount)} exceeds the remaining refundable amount of ${asDatabaseDecimal(refundable)}.`,
-      "POS_REFUND_EXCEEDS_CAPTURED",
-    );
-  }
-
-  const adapter = resolvePaymentAdapter(payment.provider_key);
-  const providerResult = await adapter.refund(context, {
-    providerReference: payment.provider_reference,
-    amount: asDatabaseDecimal(amount),
-    currency: payment.currency_code,
-    outcome: input.outcome,
-  });
-
-  const newRefundedAmount = add(alreadyRefunded, amount);
-  const fullyRefunded = newRefundedAmount >= capturedAmount;
-  const updated = await client.query(
-    `UPDATE tenant.pos_payments
-     SET refunded_amount=$3,status=$4,updated_at=now()
-     WHERE organization_id=$1 AND id=$2
-     RETURNING *`,
-    [context.organizationId, payment.id, asDatabaseDecimal(newRefundedAmount), fullyRefunded ? "refunded" : "partially_refunded"],
-  );
-  await event(client, context, "payment", payment.id, "pos.payment.refunded", {
-    amount: asDatabaseDecimal(amount),
-    providerRefundReference: providerResult.providerRefundReference,
-  });
-
-  const response = { ...updated.rows[0], providerRefundReference: providerResult.providerRefundReference, replayed: false };
-  await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "pos_payment", aggregateId: payment.id });
-  return response;
-}
-
+// Refunds are made only through the refund service (refunds.js, migration 0100): always for an authorized source — never an amount on a payment.
 // Manual force-capture override (SEM-04 segregation of duties): used only
 // when a provider is genuinely unreachable and a supervisor/manager
 // chooses to accept the tender manually pending later reconciliation. This

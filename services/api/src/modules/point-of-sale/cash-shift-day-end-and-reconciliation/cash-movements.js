@@ -6,6 +6,7 @@
 // update/delete function exists for this table anywhere in the module);
 // correcting a mistake means recording an offsetting movement with its own
 // reason, never editing history.
+import { assertShiftCashSession } from "./shift-opening.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { decimal, asDatabaseDecimal } from "../../../core/decimal.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
@@ -13,9 +14,9 @@ import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { assertPosAction } from "../permissions/index.js";
 
-// Same sign convention completePointOfSaleReturn's refund movement already
+// Same sign convention postPosReturn's cash refund movement already
 // uses: positive = cash added to the drawer, negative = cash removed --
-// closeShift sums this column directly to compute expected_cash.
+// Shift Closing (computeExpectedCash in cash-sessions.js) sums this column to compute expected cash.
 export async function recordPosCashMovement(client, context, shiftId, input) {
   // POS module access; what the cashier may move is their permission profile (CASH_MOVEMENT_IN / OUT and its limit), checked below.
   requirePermission(context, "pos.view");
@@ -32,6 +33,8 @@ export async function recordPosCashMovement(client, context, shiftId, input) {
     [context.organizationId, shiftId],
   );
   if (!shift.rows[0]) throw posError(409, "An open shift is required to record a cash movement.", "POS_SHIFT_NOT_OPEN");
+  // Shift Opening (0103): cash moves only in and out of an open cash session.
+  await assertShiftCashSession(client, context, shiftId);
   await assertPosStoreAccess(client, context, shift.rows[0].store_id);
   await assertPosAction(client, context, { permission: movementType === "paid_in" ? "CASH_MOVEMENT_IN" : "CASH_MOVEMENT_OUT", outletId: shift.rows[0].store_id,
     amount: asDatabaseDecimal(amount), reason: input.reason, approvalId: input.approvalId, resource: { type: "pos_shift", id: shiftId } });
@@ -52,9 +55,10 @@ export async function recordPosCashMovement(client, context, shiftId, input) {
   const signedAmount = movementType === "paid_out" ? -amount : amount;
   const movementNumber = await nextDocumentNumber(client, context, { documentType: "pos_cash_movement", prefix: "CASH" });
   const result = await client.query(
-    `INSERT INTO tenant.pos_cash_movements (organization_id,shift_id,movement_number,movement_type,amount,reason,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-    [context.organizationId, shiftId, movementNumber, movementType, asDatabaseDecimal(signedAmount), String(input.reason).trim(), context.userId],
+    `INSERT INTO tenant.pos_cash_movements (organization_id,shift_id,movement_number,movement_type,amount,reason,created_by,cash_event,store_id,idempotency_key)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [context.organizationId, shiftId, movementNumber, movementType, asDatabaseDecimal(signedAmount), String(input.reason).trim(), context.userId,
+      movementType === "paid_in" ? "cash_movement_in" : "cash_movement_out", shift.rows[0].store_id, input.idempotencyKey ?? null],
   );
   const response = result.rows[0];
   await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "pos_cash_movement", aggregateId: response.id });

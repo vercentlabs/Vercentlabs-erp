@@ -269,7 +269,19 @@ const toRegistration = (row) => ({
   countryCode: row.country_code?.trim() ?? null, stateCode: row.state_code ?? null, stateName: row.state_name ?? gstStateName(row.state_code),
   addressLine1: row.address_line1 ?? null, addressLine2: row.address_line2 ?? null, city: row.city ?? null, postalCode: row.postal_code ?? null,
   isDefault: Boolean(row.is_default), isActive: row.status === "active", createdAt: row.created_at, updatedAt: row.updated_at,
+  registrationType: row.registration_type ?? "regular", validFrom: dayOf(row.valid_from) ?? null, validUntil: dayOf(row.valid_until) ?? null,
 });
+
+// The GST regimes a registration can be under. Only a regular registration charges GST on a tax invoice at POS; the others are recorded so
+// they are never mistaken for one.
+export const REGISTRATION_TYPES = Object.freeze([
+  { code: "regular", label: "Regular" },
+  { code: "composition", label: "Composition scheme" },
+  { code: "casual_taxable", label: "Casual taxable person" },
+  { code: "non_resident", label: "Non-resident taxable person" },
+  { code: "input_service_distributor", label: "Input service distributor" },
+  { code: "unregistered", label: "Unregistered" },
+]);
 
 export async function listTaxRegistrations(client, context, filters = {}) {
   requireTaxPermission(context, TAX_PERMISSIONS.view, "You do not have permission to view tax configuration.");
@@ -295,7 +307,13 @@ function readRegistration(input, current = null) {
     if (registrationNumber && registrationNumber.slice(0, 2) !== stateCode)
       throw invalid(`The GSTIN belongs to ${gstStateName(registrationNumber.slice(0, 2)) ?? "another state"}, not ${gstStateName(stateCode)}.`, "registrationNumber");
   }
+  const registrationType = text(pick("registrationType", "registration_type"), 40) ?? "regular";
+  if (!REGISTRATION_TYPES.some((entry) => entry.code === registrationType)) throw invalid("Choose the registration type.", "registrationType");
+  const validFrom = pick("validFrom", "valid_from") ? dayOf(pick("validFrom", "valid_from")) : null;
+  const validUntil = pick("validUntil", "valid_until") ? dayOf(pick("validUntil", "valid_until")) : null;
+  if (validFrom && validUntil && validUntil < validFrom) throw invalid("The registration cannot end before it starts.", "validUntil");
   return {
+    registrationType, validFrom, validUntil,
     code, name, legalName: text(pick("legalName", "legal_name"), 200), registrationNumber, countryCode, stateCode,
     stateName: countryCode === "IN" ? gstStateName(stateCode) : text(pick("stateName", "state_name"), 120),
     addressLine1: text(pick("addressLine1", "address_line1"), 200), addressLine2: text(pick("addressLine2", "address_line2"), 200), city: text(pick("city", "city"), 120),
@@ -324,10 +342,10 @@ export async function createTaxRegistration(client, context, input = {}) {
   if (makeDefault) await client.query(`UPDATE tenant.tax_registrations SET is_default = false WHERE organization_id = $1 AND is_default`, [context.organizationId]);
   const row = (await client.query(
     `INSERT INTO tenant.tax_registrations (organization_id, code, name, legal_name, registration_number, country_code, state_code, state_name, address_line1, address_line2, city,
-        postal_code, is_default, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14) RETURNING *`,
+        postal_code, is_default, created_by, updated_by, registration_type, valid_from, valid_until)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17) RETURNING *`,
     [context.organizationId, values.code, values.name, values.legalName, values.registrationNumber, values.countryCode, values.stateCode, values.stateName, values.addressLine1,
-      values.addressLine2, values.city, values.postalCode, makeDefault, context.userId ?? null])).rows[0];
+      values.addressLine2, values.city, values.postalCode, makeDefault, context.userId ?? null, values.registrationType, values.validFrom, values.validUntil])).rows[0];
   await record(client, context, "tax_registration", row.id, "created", `Tax registration ${row.name}${row.registration_number ? ` (${row.registration_number})` : ""} added`,
     { code: row.code, registrationNumber: row.registration_number, stateCode: row.state_code, isDefault: makeDefault });
   return toRegistration(row);
@@ -352,17 +370,20 @@ export async function updateTaxRegistration(client, context, registrationId, inp
   if (isDefault && !current.is_default) await client.query(`UPDATE tenant.tax_registrations SET is_default = false WHERE organization_id = $1 AND is_default`, [context.organizationId]);
   const changes = {};
   for (const [key, column] of [["code", "code"], ["name", "name"], ["legalName", "legal_name"], ["registrationNumber", "registration_number"], ["stateCode", "state_code"],
-    ["addressLine1", "address_line1"], ["addressLine2", "address_line2"], ["city", "city"], ["postalCode", "postal_code"]])
+    ["addressLine1", "address_line1"], ["addressLine2", "address_line2"], ["city", "city"], ["postalCode", "postal_code"], ["registrationType", "registration_type"]])
     if ((values[key] ?? null) !== (current[column] ?? null)) changes[key] = { from: current[column] ?? null, to: values[key] ?? null };
+  for (const [key, column] of [["validFrom", "valid_from"], ["validUntil", "valid_until"]])
+    if ((values[key] ?? null) !== (dayOf(current[column]) ?? null)) changes[key] = { from: dayOf(current[column]) ?? null, to: values[key] ?? null };
   if (status !== current.status) changes.status = { from: current.status, to: status };
   if (isDefault !== current.is_default) changes.isDefault = { from: current.is_default, to: isDefault };
   const row = (await client.query(
     `UPDATE tenant.tax_registrations
         SET code = $3, name = $4, legal_name = $5, registration_number = $6, country_code = $7, state_code = $8, state_name = $9, address_line1 = $10, address_line2 = $11, city = $12,
-            postal_code = $13, is_default = $14, status = $15, updated_by = $16, updated_at = now()
+            postal_code = $13, is_default = $14, status = $15, updated_by = $16, updated_at = now(), registration_type = $17, valid_from = $18, valid_until = $19
       WHERE organization_id = $1 AND id = $2 RETURNING *`,
     [context.organizationId, current.id, values.code, values.name, values.legalName, values.registrationNumber, values.countryCode, values.stateCode, values.stateName,
-      values.addressLine1, values.addressLine2, values.city, values.postalCode, isDefault, status, context.userId ?? null])).rows[0];
+      values.addressLine1, values.addressLine2, values.city, values.postalCode, isDefault, status, context.userId ?? null, values.registrationType, values.validFrom,
+      values.validUntil])).rows[0];
   if (Object.keys(changes).length)
     await record(client, context, "tax_registration", row.id, changes.status ? (status === "active" ? "activated" : "deactivated") : "updated",
       `Tax registration ${row.name} changed: ${Object.keys(changes).join(", ")}`, changes);
@@ -410,6 +431,7 @@ export async function getTaxOptions(client, context) {
   requireTaxPermission(context, TAX_PERMISSIONS.view, "You do not have permission to view tax configuration.");
   return {
     taxTypes: TAX_TYPES, treatments: TAX_TREATMENTS, appliesTo: TAX_APPLIES_TO, supplyTypes: SUPPLY_TYPES.map(({ code, label }) => ({ code, label })), states: GST_STATES,
+    registrationTypes: REGISTRATION_TYPES,
     settings: await getTaxSettings(client, context),
     registrations: await listTaxRegistrations(client, context, { status: "active" }),
     capabilities: Object.fromEntries(Object.entries(TAX_PERMISSIONS).map(([name, permission]) => [name, can(context, permission)])),

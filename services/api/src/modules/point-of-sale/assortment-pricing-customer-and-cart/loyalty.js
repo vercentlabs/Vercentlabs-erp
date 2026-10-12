@@ -38,7 +38,7 @@
 //    redemption reversal are computed per RETURNED sale line, as
 //    originalLineValue * (returnedQuantityThisEvent / originalSoldQuantity),
 //    using services/api/src/core/decimal.js exact arithmetic throughout —
-//    the same per-unit-proportional model createPointOfSaleReturn already
+//    the same per-unit-proportional model postPosReturn already
 //    uses for the cash refund amount itself (perUnitRefund =
 //    line_total/soldQuantity), applied here to points instead of
 //    currency. A full return (returnedQuantity == soldQuantity) reverses
@@ -200,7 +200,7 @@ export async function commitPosLoyaltyForSale(client, context, { saleId, custome
   return { earnTotal: asDatabaseDecimal(earnTotal), redeemPoints: asDatabaseDecimal(redeemPoints), replayed: false };
 }
 
-// Called from completePointOfSaleReturn, inside the SAME transaction as
+// Called from postPosReturn, inside the SAME transaction as
 // the return's own completion. That function's own idempotency-key check
 // plus its status='completed' short-circuit guarantee this only ever
 // actually runs once per return; the unique ledger indexes are defense in

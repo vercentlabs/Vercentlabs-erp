@@ -3,11 +3,8 @@
 // pos_sale_lines/pos_payments/pos_returns) -- nothing here is computed
 // fresh or trusted from a client; it is a read of what completePosCart
 // already committed. getPosSaleReceipt itself has no side effects and can
-// be called any number of times safely; recordPosReceiptPrintAttempt
-// (below) is the actual audited action, backed by
-// tenant.pos_receipt_print_events (migration 129) rather than the
-// previous client-supplied `?original=1` URL parameter, which any viewer
-// could set regardless of real print history.
+// be called any number of times safely. Printing lives in receipt-printing.js (migration 0096): the finalized
+// document snapshot, print jobs, printers; printEvents below is that print history.
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { assertPosAction } from "../permissions/index.js";
@@ -54,11 +51,13 @@ export async function getPosSaleReceipt(client, context, saleId) {
     [context.organizationId, saleId],
   );
   const printEvents = await client.query(
-    `SELECT print_event.id, print_event.print_type, print_event.requested_at, printer.full_name AS requested_by_name
-       FROM tenant.pos_receipt_print_events print_event
-       LEFT JOIN public.users printer ON printer.id = print_event.requested_by
-      WHERE print_event.organization_id=$1 AND print_event.sale_id=$2
-      ORDER BY print_event.requested_at DESC`,
+    `SELECT job.id, CASE WHEN job.copy_label = 'copy' THEN 'reprint' ELSE 'original' END AS print_type, job.request_type, job.status, job.created_at AS requested_at,
+            printer.full_name AS requested_by_name
+       FROM tenant.pos_receipt_print_jobs job
+       JOIN tenant.pos_document_snapshots document ON document.organization_id = job.organization_id AND document.id = job.document_id
+       LEFT JOIN public.users printer ON printer.id = job.requested_by
+      WHERE job.organization_id=$1 AND document.source_type='pos_sale' AND document.source_id=$2
+      ORDER BY job.created_at DESC`,
     [context.organizationId, saleId],
   );
 
@@ -70,63 +69,6 @@ export async function getPosSaleReceipt(client, context, saleId) {
     promotionEvidence: promotions.rows,
     printEvents: printEvents.rows,
   };
-}
-
-// F289 gap closure: records that a print was REQUESTED for this sale's
-// receipt. print_type is derived server-side (never from client input) --
-// the first ever recorded attempt for a sale is 'original', every
-// subsequent one is 'reprint'. This can only ever claim the print DIALOG
-// was invoked by an authenticated, store-access-checked user at a known
-// time -- never that physical paper came out, which nothing in a browser
-// can observe. Rows are immutable (migration 129's trigger) -- correcting
-// a mistake means nothing here, since a print request is simply a fact
-// that did or didn't happen.
-export async function recordPosReceiptPrintAttempt(client, context, saleId) {
-  requirePermission(context, "pos.view");
-  const saleResult = await client.query(
-    `SELECT id, store_id FROM tenant.pos_sales WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, saleId],
-  );
-  const sale = saleResult.rows[0];
-  if (!sale) throw posError(404, "Sale was not found.", "POS_SALE_NOT_FOUND");
-  await assertPosStoreAccess(client, context, sale.store_id);
-
-  const priorCount = await client.query(
-    `SELECT count(*)::int AS count FROM tenant.pos_receipt_print_events WHERE organization_id=$1 AND sale_id=$2`,
-    [context.organizationId, saleId],
-  );
-  const printType = Number(priorCount.rows[0].count) === 0 ? "original" : "reprint";
-  if (!posAdministrator(context)) await assertPosAction(client, context, { permission: printType === "original" ? "RECEIPT_PRINT" : "RECEIPT_REPRINT", outletId: sale.store_id });
-
-  const result = await client.query(
-    `INSERT INTO tenant.pos_receipt_print_events (organization_id,sale_id,print_type,requested_by)
-     VALUES ($1,$2,$3,$4) RETURNING *`,
-    [context.organizationId, saleId, printType, context.userId],
-  );
-  const response = result.rows[0];
-  await event(client, context, "pos_sale", saleId, "pos.receipt.print_requested", { printType });
-  return response;
-}
-
-export async function listPosReceiptPrintEvents(client, context, saleId) {
-  requirePermission(context, "pos.view");
-  const saleResult = await client.query(
-    `SELECT id, store_id FROM tenant.pos_sales WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, saleId],
-  );
-  const sale = saleResult.rows[0];
-  if (!sale) throw posError(404, "Sale was not found.", "POS_SALE_NOT_FOUND");
-  await assertPosStoreAccess(client, context, sale.store_id);
-
-  const result = await client.query(
-    `SELECT print_event.id, print_event.print_type, print_event.requested_at, printer.full_name AS requested_by_name
-       FROM tenant.pos_receipt_print_events print_event
-       LEFT JOIN public.users printer ON printer.id = print_event.requested_by
-      WHERE print_event.organization_id=$1 AND print_event.sale_id=$2
-      ORDER BY print_event.requested_at DESC`,
-    [context.organizationId, saleId],
-  );
-  return result.rows;
 }
 
 // ------------------------------------------------------------------ digital receipts (Walk-In Customer, migration 0087)

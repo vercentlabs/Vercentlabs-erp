@@ -7,7 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { BadgePercent, Minus, Pause, Plus, Trash2, X } from "lucide-react";
@@ -15,7 +15,6 @@ import {
   Button,
   Dialog,
   IconButton,
-  NumberField,
   PageHeader,
   SearchField,
   Select,
@@ -34,17 +33,14 @@ import { listPosStores } from "@/features/pos/shared/stores";
 import { listPosTerminals } from "@/features/pos/shared/terminals";
 import {
   cancelPosCart,
-  completePosCart,
   createPosCart,
   getPosCart,
   holdPosCart,
   listHeldPosCarts,
-  getPosPayment,
-  initiatePosPayment,
   removePosCartLine,
   resumePosCart,
-  setPosCartCustomer,
   setPosCartDiscount,
+  removePosCartDiscount,
   setPosCartLineTracking,
   updatePosCartLineQuantity,
   applyPosLineDiscount,
@@ -53,65 +49,31 @@ import {
   releasePosCheckout,
   setPosCartNotes,
   overridePosLinePrice,
-  quickCreatePosCustomer,
   type PosCartIssue,
-  type PosCustomerMatch,
-  type PosPaymentLeg,
 } from "@/features/pos/checkout/api/checkout-api";
 import { money, statusLabel, statusTone } from "@/features/pos/shared/format";
 import { PosAlert, PosLoading, PosPanel } from "@/features/pos/shared/PosUi";
 import { PosProductFinder } from "@/features/pos/products/components/PosProductFinder";
 import { CustomerPanel } from "@/features/pos/checkout/components/CustomerPanel";
+import { TaxSummary } from "@/features/pos/checkout/components/TaxSummary";
+import { CashTender } from "@/features/pos/checkout/components/CashTender";
+import { CardTender } from "@/features/pos/checkout/components/CardTender";
+import { UpiTender } from "@/features/pos/checkout/components/UpiTender";
+import { SplitTender } from "@/features/pos/checkout/components/SplitTender";
+import { ReceiptPrintActions } from "@/features/pos/receipts/components/ReceiptPrintActions";
+import { InvoicePreviewPanel } from "@/features/pos/invoices/components/InvoicePreviewPanel";
+import { CheckoutStockPanel } from "@/features/pos/stock/components/CheckoutStockPanel";
+import { CartStockPanel } from "@/features/pos/live-inventory/CartStockPanel";
+import { LiveInventoryProvider } from "@/features/pos/live-inventory/LiveInventory";
+import { SaleInvoicePanel } from "@/features/pos/invoices/components/SaleInvoicePanel";
+import { ItemDiscountDialog, type ItemDiscountInput } from "@/features/pos/checkout/components/ItemDiscountDialog";
+import { CartDiscountDialog, type CartDiscountInput } from "@/features/pos/checkout/components/CartDiscountDialog";
 import { DigitalReceipts } from "@/features/pos/checkout/components/DigitalReceipts";
 import { approvalNeeded, getApproval, requestApproval, type Approval } from "@/features/pos/permission-profiles/api/profiles-api";
-
-// F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple
-// payment methods): one tender line per payment leg. A 'cash' line is
-// final the moment its amount is entered (unchanged from before -- a
-// physical exchange). Any other method must be independently "charged"
-// (initiatePosPayment) and reach a server-confirmed 'captured' status
-// before Complete Sale will accept it -- there is no client-side "mark as
-// paid."
-type TenderMethod = "cash" | "card" | "upi" | "wallet" | "bank_transfer";
-type TenderLine = {
-  id: string;
-  method: TenderMethod;
-  amount: number;
-  paymentId?: string;
-  status?: string;
-  error?: string;
-  charging?: boolean;
-};
-const NON_CASH_METHOD_OPTIONS = [
-  { value: "card" as const, label: "Card" },
-  { value: "upi" as const, label: "UPI" },
-  { value: "wallet" as const, label: "Wallet" },
-  { value: "bank_transfer" as const, label: "Bank transfer" },
-];
-// This environment has no live merchant/gateway credentials -- only the
-// deterministic sandbox adapter is registered (see
-// services/api/src/modules/point-of-sale/tender-and-payment-execution/sandbox-adapter.js).
-// This selector is a SANDBOX TEST-SCRIPTING INSTRUCTION only: it is never
-// read as a truth claim about payment state, and a real adapter would
-// ignore it entirely.
-const SANDBOX_OUTCOME_OPTIONS = [
-  {
-    value: "immediate_success" as const,
-    label: "Simulate: succeeds immediately",
-  },
-  {
-    value: "immediate_decline" as const,
-    label: "Simulate: declines immediately",
-  },
-];
 
 const LIFECYCLE_LABEL: Record<string, string> = {
   DRAFT: "Open bill", CHECKOUT_PENDING: "In checkout", HELD: "On hold", COMPLETED: "Completed", CANCELLED: "Cancelled", EXPIRED: "Expired",
 };
-
-function newTenderLineId() {
-  return crypto.randomUUID();
-}
 
 // Hydration-safe "has this rendered on the client yet" flag, same
 // useSyncExternalStore pattern SecondarySidebarState.tsx already uses for
@@ -141,6 +103,7 @@ function getMountedServerSnapshot() {
 export function PosCheckoutScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const canDiscount =
     workspace.roleSlugs.includes("organization_owner") ||
     workspace.permissions.includes(POS_PERMISSIONS.discountApply);
@@ -154,7 +117,7 @@ export function PosCheckoutScreen() {
   const [conflict, setConflict] = useState<string | null>(null);
   // A discount above the cashier's limit: what was asked, and how to apply it once a supervisor approves (Cashier Permissions).
   const [exception, setException] = useState<{
-    message: string; permission: string; amount: string | null; percentage: string | null; reason: string; cartVersion: number;
+    message: string; permission: string; amount: string | null; percentage: string | null; reason: string; cartVersion: number; action?: Record<string, unknown>;
     apply: (approvalId: string) => Promise<{ cart: PosCart }>;
   } | null>(null);
   const [exceptionApproval, setExceptionApproval] = useState<Approval | null>(null);
@@ -169,26 +132,21 @@ export function PosCheckoutScreen() {
   const [lineDiscountLine, setLineDiscountLine] = useState<
     PosCart["lines"][number] | null
   >(null);
-  const [tenderLines, setTenderLines] = useState<TenderLine[]>([
-    { id: newTenderLineId(), method: "cash", amount: 0 },
-  ]);
-  const [completing, setCompleting] = useState(false);
+  // Payment tabs: cash (the default), card, UPI, and a split across them — each collected through its own method.
+  const [payMode, setPayMode] = useState<"cash" | "card" | "upi" | "split">("cash");
   const [confirmation, setConfirmation] = useState<{
     saleId: string;
     receiptNumber: string;
     grandTotal: string;
     changeTotal: string;
+    cashReceived?: string | null;
   } | null>(null);
-  const [idempotencyKey, setIdempotencyKey] = useState(() =>
-    crypto.randomUUID(),
-  );
   const [heldCartsOpen, setHeldCartsOpen] = useState(false);
   // Cart (POS Cart MVP): what checkout found to fix, what changed while a resumed bill was held, and the open dialogs.
   const [checkoutIssues, setCheckoutIssues] = useState<PosCartIssue[]>([]);
   const [resumeChanges, setResumeChanges] = useState<PosCartIssue[]>([]);
   const [holdOpen, setHoldOpen] = useState(false);
   const [priceLine, setPriceLine] = useState<PosCart["lines"][number] | null>(null);
-  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
   // This app has no TanStack Query SSR hydration boundary (no dehydrate/
   // HydrationBoundary anywhere), so shiftsQuery.isLoading is not
@@ -285,41 +243,16 @@ export function PosCheckoutScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myOpenShift?.id]);
 
-  // Poll a non-cash leg while its outcome is still pending/authorized --
-  // there is no client-side "it succeeded," only what the server reports
-  // (an adapter's own synchronous response already resolved the sandbox
-  // outcomes this UI offers, but polling is what a real async provider's
-  // webhook-driven capture would need).
+  // Held Carts › Resume opens the Register with ?resume=<cart>: once this counter's cart is ready the held bill is resumed here (prices, stock
+  // and GST are checked again by the server), and the address goes back to plain /pos/register so a refresh does not resume it twice.
+  const resumeRequested = searchParams?.get("resume") ?? null;
+  const resumeHandledRef = useRef<string | null>(null);
   useEffect(() => {
-    const pendingLines = tenderLines.filter(
-      (line) =>
-        line.paymentId &&
-        (line.status === "pending" ||
-          line.status === "authorized" ||
-          line.status === "initiated"),
-    );
-    if (!pendingLines.length) return;
-    const timer = setInterval(() => {
-      pendingLines.forEach((line) => {
-        getPosPayment(line.paymentId!)
-          .then((result) => {
-            setTenderLines((lines) =>
-              lines.map((l) =>
-                l.id === line.id
-                  ? {
-                      ...l,
-                      status: result.payment.status,
-                      error: result.payment.failure_reason || undefined,
-                    }
-                  : l,
-              ),
-            );
-          })
-          .catch(() => undefined);
-      });
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [tenderLines]);
+    if (!resumeRequested || !cart || resumeHandledRef.current === resumeRequested) return;
+    resumeHandledRef.current = resumeRequested;
+    void Promise.resolve().then(() => resumeHeldCart(resumeRequested)).finally(() => router.replace("/pos/register"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeRequested, cart?.id]);
 
   // F279-APP-001: while a discount is waiting on a supervisor, re-read the
   // cart (read-only -- getPosCart never bumps the version) so the cashier sees
@@ -400,31 +333,20 @@ export function PosCheckoutScreen() {
     if (!cart) return;
     const version = cart.version;
     setExceptionApproval(null);
-    setException({ message: err.message, permission: needed.permission, amount: needed.amount, percentage: needed.percentage, reason: input.reason, cartVersion: version,
+    setException({ message: err.message, permission: needed.permission, amount: needed.amount, percentage: needed.percentage, reason: input.reason, cartVersion: version, action: needed.action,
       apply: (approvalId) => apply(approvalId, version) });
   };
-  const applyCartDiscount = (input: {
-    type: "percent" | "amount";
-    value: number;
-    reason: string;
-  }) =>
-    cart &&
-    run(
-      () => setPosCartDiscount(cart.id, { ...input, expectedVersion: cart.version }),
-      askApproval(input, (approvalId, version) => setPosCartDiscount(cart.id, { ...input, expectedVersion: version, approvalId })),
+  // Cart Discounts: one discount on the bill; above the cashier's limit the same discount is applied once a supervisor approves it.
+  const applyCartDiscount = (input: CartDiscountInput) => {
+    if (!cart) return;
+    const body = { type: input.type, value: input.value, reasonCode: input.reasonCode, note: input.note };
+    return run(
+      () => setPosCartDiscount(cart.id, { ...body, expectedVersion: cart.version }),
+      askApproval(input, (approvalId, version) => setPosCartDiscount(cart.id, { ...body, expectedVersion: version, approvalId })),
     );
-  const removeCartDiscount = () =>
-    cart &&
-    run(() =>
-      setPosCartDiscount(cart.id, {
-        type: null,
-        expectedVersion: cart.version,
-      }),
-    );
-  const applyLineDiscount = (
-    lineId: string,
-    input: { type: "percent" | "amount"; value: number; reason: string },
-  ) =>
+  };
+  const removeCartDiscount = () => cart && run(() => removePosCartDiscount(cart.id, cart.version));
+  const applyLineDiscount = (lineId: string, input: ItemDiscountInput) =>
     cart &&
     run(
       () => applyPosLineDiscount(cart.id, lineId, { ...input, expectedVersion: cart.version }),
@@ -432,11 +354,6 @@ export function PosCheckoutScreen() {
     );
   const removeLineDiscount = (lineId: string) =>
     cart && run(() => removePosLineDiscount(cart.id, lineId, cart.version));
-  function selectCustomer(customer: PosCustomerMatch | null) {
-    if (!cart) return;
-    run(() => setPosCartCustomer(cart.id, customer?.id ?? null, cart.version));
-  }
-
   // F287: hold releases this terminal's active-cart slot (the checkout
   // effect above re-creates/resumes a cart on this terminal the next time
   // it mounts with nothing else active), so a cashier can start a new sale
@@ -451,7 +368,6 @@ export function PosCheckoutScreen() {
       setResumeChanges([]);
       setError(null);
       setCart(null);
-      setIdempotencyKey(crypto.randomUUID());
       queryClient.invalidateQueries({
         queryKey: scopedQueryKey(workspace, "pos", "held-carts"),
       });
@@ -536,140 +452,6 @@ export function PosCheckoutScreen() {
       () => overridePosLinePrice(cart.id, lineId, { ...input, expectedVersion: cart.version }),
       askApproval({ reason: input.reason }, (approvalId, version) => overridePosLinePrice(cart.id, lineId, { ...input, approvalId, expectedVersion: version })),
     );
-  async function createCustomerHere(input: { name: string; phone: string; gstin: string }) {
-    if (!cart) return;
-    try {
-      const customer = await quickCreatePosCustomer({ name: input.name, phone: input.phone || null, gstin: input.gstin || null, cartId: cart.id });
-      setNewCustomerOpen(false);
-      selectCustomer({ id: customer.id, code: customer.code ?? "", displayName: customer.displayName, phone: customer.phone, email: customer.email });
-    } catch (err) {
-      setError(err instanceof PosApiError ? err.message : "The customer could not be created.");
-    }
-  }
-
-  // F283/F284/F285/F286 tender-line helpers.
-  const tenderTotal = tenderLines.reduce(
-    (sum, line) => sum + (Number.isFinite(line.amount) ? line.amount : 0),
-    0,
-  );
-  const grandTotalNumber = Number(cart?.grand_total ?? 0);
-  const remainingToAllocate =
-    Math.round((grandTotalNumber - tenderTotal) * 100) / 100;
-  const isSingleCashTender =
-    tenderLines.length === 1 && tenderLines[0].method === "cash";
-  const allNonCashCaptured = tenderLines.every(
-    (line) => line.method === "cash" || line.status === "captured",
-  );
-  const canComplete =
-    Boolean(cart?.lines?.length) &&
-    tenderLines.every((line) => line.amount > 0) &&
-    allNonCashCaptured &&
-    (isSingleCashTender
-      ? tenderTotal >= grandTotalNumber
-      : remainingToAllocate === 0);
-
-  function updateTenderLine(id: string, patch: Partial<TenderLine>) {
-    setTenderLines((lines) =>
-      lines.map((line) => (line.id === id ? { ...line, ...patch } : line)),
-    );
-  }
-  function addTenderLine() {
-    setTenderLines((lines) => [
-      ...lines,
-      {
-        id: newTenderLineId(),
-        method: "card",
-        amount: Math.max(0, remainingToAllocate),
-      },
-    ]);
-  }
-  function removeTenderLine(id: string) {
-    setTenderLines((lines) =>
-      lines.length > 1 ? lines.filter((line) => line.id !== id) : lines,
-    );
-  }
-  const [tenderOutcome, setTenderOutcome] = useState<Record<string, string>>(
-    {},
-  );
-
-  async function chargeTenderLine(line: TenderLine) {
-    if (!cart || line.method === "cash" || line.amount <= 0) return;
-    updateTenderLine(line.id, { charging: true, error: undefined });
-    try {
-      const result = await initiatePosPayment({
-        cartId: cart.id,
-        method: line.method,
-        amount: line.amount,
-        idempotencyKey: line.id,
-        outcome: tenderOutcome[line.id] || "immediate_success",
-      });
-      updateTenderLine(line.id, {
-        paymentId: result.payment.id,
-        status: result.payment.status,
-        charging: false,
-        error: result.payment.failure_reason || undefined,
-      });
-      // Taking a card / UPI payment locks the bill for checkout on the server: show it locked.
-      getPosCart(cart.id).then((fresh) => setCart(fresh.cart)).catch(() => undefined);
-    } catch (err) {
-      updateTenderLine(line.id, {
-        charging: false,
-        error:
-          err instanceof PosApiError
-            ? err.message
-            : "The payment could not be started.",
-      });
-    }
-  }
-
-  async function completeSale() {
-    if (!cart) return;
-    setCompleting(true);
-    try {
-      const payments: PosPaymentLeg[] = tenderLines.map((line) =>
-        line.method === "cash"
-          ? { method: "cash", amount: line.amount }
-          : { method: line.method, paymentId: line.paymentId! },
-      );
-      const result = await completePosCart(cart.id, {
-        payments,
-        idempotencyKey,
-        expectedVersion: cart.version,
-        expectedGrandTotal: cart.grand_total,
-      });
-      const sale = result.sale as {
-        id: string;
-        receipt_number: string;
-        grand_total: string;
-        change_total: string;
-      };
-      setConfirmation({
-        saleId: sale.id,
-        receiptNumber: sale.receipt_number,
-        grandTotal: sale.grand_total,
-        changeTotal: sale.change_total,
-      });
-      setError(null);
-    } catch (err) {
-      if (
-        err instanceof PosApiError &&
-        (err.code === "POS_CART_VERSION_CONFLICT" ||
-          err.code === "POS_PRICE_CONFLICT")
-      ) {
-        setConflict(err.message);
-        getPosCart(cart.id).then((result) => setCart(result.cart));
-      } else {
-        setError(
-          err instanceof PosApiError
-            ? err.message
-            : "The sale could not be completed.",
-        );
-      }
-    } finally {
-      setCompleting(false);
-    }
-  }
-
   // Extracted because the mount effect above only fires on myOpenShift.id
   // changing, not on `cart` becoming null again -- without this, both
   // "New sale" and "Hold sale" would clear the cart and then leave the
@@ -696,9 +478,7 @@ export function PosCheckoutScreen() {
 
   function startNewSale() {
     setConfirmation(null);
-    setTenderLines([{ id: newTenderLineId(), method: "cash", amount: 0 }]);
-    setTenderOutcome({});
-    setIdempotencyKey(crypto.randomUUID());
+    setPayMode("cash");
     setCart(null);
     startFreshCart();
   }
@@ -727,7 +507,7 @@ export function PosCheckoutScreen() {
         <PosPanel padding="lg" className="items-center text-center">
           <StatusBadge tone="success">Sale complete</StatusBadge>
           <h1 className="text-2xl font-semibold text-text">
-            Receipt {confirmation.receiptNumber}
+            {confirmation.receiptNumber ? `Receipt ${confirmation.receiptNumber}` : "Payment completed"}
           </h1>
           <dl className="grid w-full grid-cols-2 gap-3 rounded-[var(--radius-control)] bg-surface-muted p-4">
             <div className="flex flex-col gap-0.5">
@@ -744,7 +524,15 @@ export function PosCheckoutScreen() {
                 {money(currency, confirmation.changeTotal)}
               </dd>
             </div>
+            {confirmation.cashReceived && (
+              <div className="col-span-2 flex flex-col gap-0.5">
+                <dt className="text-xs font-medium text-text-muted">Cash received</dt>
+                <dd className="text-base tabular-nums text-text">{money(currency, confirmation.cashReceived)}</dd>
+              </div>
+            )}
           </dl>
+          <SaleInvoicePanel saleId={confirmation.saleId} compact />
+          <ReceiptPrintActions source="pos_sale" sourceId={confirmation.saleId} autoPrint showHistory={false} size="large" terminalId={myOpenShift?.terminal_id ?? null} />
           <DigitalReceipts saleId={confirmation.saleId} />
           <div className="flex flex-wrap justify-center gap-2 pt-2">
             <Button
@@ -754,7 +542,7 @@ export function PosCheckoutScreen() {
                 router.push(`/pos/receipts/${confirmation.saleId}`)
               }
             >
-              View / print receipt
+              View receipt
             </Button>
             <Button variant="primary" size="large" onPress={startNewSale}>
               New sale
@@ -792,15 +580,15 @@ export function PosCheckoutScreen() {
   const lifecycle = cart ? (cart.lifecycle ?? (["draft", "priced"].includes(cart.status) ? "DRAFT" : cart.status.toUpperCase())) : null;
   const editable = lifecycle === "DRAFT";
   const inCheckout = lifecycle === "CHECKOUT_PENDING";
-  const completeBlockedReason = !inCheckout
-    ? "Proceed to checkout first: the bill is checked and locked for payment."
-    : pendingApproval
+  // Each payment tab starts checkout itself (the bill is checked and locked when payment begins); only these stop it.
+  const cashBlockedReason = pendingApproval
     ? "Waiting for supervisor approval of the discount."
     : rejectedApproval
       ? "The discount was rejected — remove it to continue."
       : trackingIncomplete
         ? "Enter the required serial or batch numbers."
         : null;
+  const blockedReason = cashBlockedReason;
 
   return (
     <div className="flex flex-col gap-4">
@@ -838,7 +626,7 @@ export function PosCheckoutScreen() {
               terminalId={cart?.terminal_id ?? null}
               disabled={!editable}
               // A card or UPI payment in progress: no product is added by a stray scan.
-              paused={completing || tenderLines.some((line) => line.charging || (line.paymentId && ["pending", "authorized", "initiated"].includes(line.status ?? "")))}
+              paused={!editable}
               onCart={(next) => { setCart(next); setError(null); setConflict(null); }}
             />
           </PosPanel>
@@ -891,7 +679,7 @@ export function PosCheckoutScreen() {
                             {Number(line.manual_discount_amount) > 0 && (
                               <>
                                 {" "}
-                                · manual −
+                                · discount{line.manual_discount_type === "percent" && line.manual_discount_value ? ` ${Number(line.manual_discount_value)}%` : ""} −
                                 {money(currency, line.manual_discount_amount)}
                               </>
                             )}
@@ -976,7 +764,7 @@ export function PosCheckoutScreen() {
                         <div className="flex flex-wrap items-center gap-2">
                           {hasManualDiscount ? (
                             <>
-                              <StatusBadge tone="warning">{`Discount −${money(currency, line.manual_discount_amount)}`}</StatusBadge>
+                              <StatusBadge tone="warning">{`Discount${line.manual_discount_type === "percent" && line.manual_discount_value ? ` ${Number(line.manual_discount_value)}%` : ""} −${money(currency, line.manual_discount_amount)}`}</StatusBadge>
                               {lineApproval && (
                                 <StatusBadge
                                   tone={statusTone(lineApproval.status)}
@@ -986,6 +774,9 @@ export function PosCheckoutScreen() {
                                     : statusLabel(lineApproval.status)}
                                 </StatusBadge>
                               )}
+                              <Button variant="ghost" size="compact" onPress={() => setLineDiscountLine(line)}>
+                                Edit discount
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="compact"
@@ -1069,14 +860,14 @@ export function PosCheckoutScreen() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button type="button" className="font-medium underline" disabled={loading} onClick={() => {
                     requestApproval({ permission: exception.permission, resource: { type: "pos_cart", id: cart.id }, amount: exception.amount, percentage: exception.percentage,
-                      reason: exception.reason, idempotencyKey: `${cart.id}:${exception.cartVersion}:${exception.permission}` })
+                      action: exception.action, reason: exception.reason, idempotencyKey: `${cart.id}:${exception.cartVersion}:${exception.permission}` })
                       .then(setExceptionApproval).catch((err) => setError(err instanceof PosApiError ? err.message : "The approval could not be requested."));
                   }}>Request supervisor approval</button>
                   <button type="button" className="underline" onClick={() => setException(null)}>Cancel</button>
                 </div>
               )}
               {liveApproval?.status === "pending" && (
-                <p className="mt-1 text-xs">Waiting for a supervisor (Supervisor Approvals). Leave the cart as it is — a change cancels the approval. <Link className="font-medium underline" href="/pos/approvals">Open approvals</Link></p>
+                <p className="mt-1 text-xs">Waiting for a supervisor (Supervisor Approvals). Leave the cart as it is — a change cancels the approval. <Link className="font-medium underline" href="/pos/returns?tab=approvals">Open approvals</Link></p>
               )}
               {liveApproval?.status === "approved" && (
                 <p className="mt-2 text-xs">Approved by {liveApproval.approver}.{" "}
@@ -1126,7 +917,7 @@ export function PosCheckoutScreen() {
                 Leave the cart as it is — any change restarts the approval.{" "}
                 {canApproveDiscounts && (
                   <Link
-                    href="/pos/approvals"
+                    href="/pos/returns?tab=approvals"
                     className="font-medium underline"
                   >
                     Open the approvals queue
@@ -1149,40 +940,40 @@ export function PosCheckoutScreen() {
 
           <PosPanel title="Customer & discount" scanZone="off">
             {cart && (
-              <CustomerPanel cart={cart} editable={editable} onCart={(next) => { setCart(next); setError(null); }} onNewCustomer={() => setNewCustomerOpen(true)} />
+              <CustomerPanel cart={cart} editable={editable} onCart={(next) => { setCart(next); setError(null); }} />
             )}
 
             {canDiscount && (
               <div className="flex flex-col gap-2 border-t border-border pt-3">
                 <p className="text-sm font-medium text-text">Cart discount</p>
                 {cart?.cart_discount_type ? (
-                  <div className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">
-                    <span className="text-text">
-                      {cart.cart_discount_type === "percent"
-                        ? `${Number(cart.cart_discount_value)}% off`
-                        : `${money(currency, cart.cart_discount_value)} off`}
-                      {cart.cart_discount_reason ? (
-                        <span className="text-text-muted">
-                          {" "}
-                          — {cart.cart_discount_reason}
-                        </span>
-                      ) : null}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="compact"
-                      onPress={removeCartDiscount}
-                    >
-                      Remove
-                    </Button>
+                  <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-text">
+                        {cart.cart_discount_type === "percent" ? `${Number(cart.cart_discount_value)}% off` : `${money(currency, cart.cart_discount_value)} off`}
+                        {Number(cart.cart_discount_total ?? 0) > 0 && <span className="font-medium tabular-nums"> · −{money(currency, cart.cart_discount_total)}</span>}
+                        {cart.cart_discount_reason ? <span className="text-text-muted"> — {cart.cart_discount_reason}</span> : null}
+                      </span>
+                      {cart.cart_discount_approval_id && <StatusBadge tone="info">Approved</StatusBadge>}
+                    </div>
+                    {cart.lines.some((line) => line.cart_discount_excluded_reason) && (
+                      <p className="text-xs text-text-muted">
+                        {cart.lines.filter((line) => line.cart_discount_excluded_reason).length === 1
+                          ? "1 product is excluded from this discount."
+                          : `${cart.lines.filter((line) => line.cart_discount_excluded_reason).length} products are excluded from this discount.`}
+                      </p>
+                    )}
+                    {cart.cart_discount_issue_message && <p className="text-xs text-danger-emphasis">{cart.cart_discount_issue_message} Change or remove the discount.</p>}
+                    {editable && (
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="compact" onPress={() => setCartDiscountOpen(true)}>Edit</Button>
+                        <Button variant="ghost" size="compact" onPress={removeCartDiscount}>Remove</Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div>
-                    <Button
-                      variant="secondary"
-                      onPress={() => setCartDiscountOpen(true)}
-                      isDisabled={!cart?.lines?.length}
-                    >
+                    <Button variant="secondary" onPress={() => setCartDiscountOpen(true)} isDisabled={!cart?.lines?.length || !editable}>
                       <BadgePercent className="size-4" aria-hidden="true" />
                       Add cart discount
                     </Button>
@@ -1197,143 +988,57 @@ export function PosCheckoutScreen() {
               <TextArea label="Sale note (optional)" rows={2} value={noteDraft ?? cart.notes ?? ""} isDisabled={!editable}
                 onChange={setNoteDraft} onBlur={saveNote} />
             )}
-            <div className="flex flex-col gap-1 text-sm">
-              <Row label="Subtotal" value={money(currency, cart?.subtotal)} />
-              <Row
-                label="Discounts"
-                value={`−${money(currency, cart?.discount_total)}`}
-              />
-              <Row label="Tax" value={money(currency, cart?.tax_total)} />
-              <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-lg font-semibold text-text">
-                <span>Total</span>
-                <span className="tabular-nums">
-                  {money(currency, cart?.grand_total)}
-                </span>
-              </div>
-            </div>
+            <TaxSummary cart={cart} currency={currency} editable={editable} onCart={(next) => { setCart(next); setError(null); }} />
+            {/* GST Invoice (0098): the invoice this bill will become — decided by the rules, numbered when the sale completes. */}
+            {cart && cart.lines.length > 0 && <InvoicePreviewPanel cartId={cart.id} version={Number(cart.version)} currency={currency} />}
+            {/* Stock Reduction (0101): what this checkout holds at the store's warehouse; consumed automatically when the sale completes. */}
+            {cart && cart.lines.length > 0 && <CheckoutStockPanel cartId={cart.id} version={Number(cart.version)} inCheckout={inCheckout} />}
+            {/* Real-Time Inventory (0102): the bill's items against the store's stock, kept live across terminals. */}
+            {cart && <LiveInventoryProvider terminalId={cart.terminal_id ?? null}><CartStockPanel cartId={cart.id} version={Number(cart.version)} /></LiveInventoryProvider>}
 
-            <div className="flex flex-col gap-3 border-t border-border pt-3">
-              <p className="text-sm font-medium text-text">Tender</p>
-              {tenderLines.map((line) => (
-                <div
-                  key={line.id}
-                  className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3"
-                >
-                  <div className="flex items-end gap-2">
-                    {line.method === "cash" ? (
-                      <span className="flex-1 pb-2 text-sm font-medium text-text">
-                        Cash
-                      </span>
-                    ) : (
-                      <Select
-                        label="Method"
-                        className="flex-1"
-                        options={NON_CASH_METHOD_OPTIONS}
-                        selectedKey={line.method}
-                        onSelectionChange={(key) =>
-                          updateTenderLine(line.id, {
-                            method: key as TenderMethod,
-                          })
-                        }
-                        isDisabled={Boolean(line.paymentId)}
-                      />
-                    )}
-                    <NumberField
-                      label="Amount"
-                      value={line.amount}
-                      onChange={(value) =>
-                        updateTenderLine(line.id, { amount: value })
-                      }
-                      minValue={0}
-                      step={0.01}
-                      isDisabled={Boolean(line.paymentId)}
-                      className="w-32"
-                    />
-                    {tenderLines.length > 1 && !line.paymentId && (
-                      <IconButton
-                        variant="ghost"
-                        onPress={() => removeTenderLine(line.id)}
-                        aria-label="Remove tender line"
-                      >
-                        <Trash2 className="size-4" aria-hidden="true" />
-                      </IconButton>
-                    )}
-                  </div>
-                  {line.method !== "cash" && (
-                    <div className="flex items-end gap-2">
-                      {!line.paymentId && (
-                        <Select
-                          label="Sandbox outcome"
-                          className="flex-1"
-                          options={SANDBOX_OUTCOME_OPTIONS}
-                          selectedKey={
-                            (tenderOutcome[line.id] ||
-                              "immediate_success") as (typeof SANDBOX_OUTCOME_OPTIONS)[number]["value"]
-                          }
-                          onSelectionChange={(key) =>
-                            setTenderOutcome((prev) => ({
-                              ...prev,
-                              [line.id]: String(key),
-                            }))
-                          }
-                        />
-                      )}
-                      {!line.paymentId ? (
-                        <Button
-                          variant="secondary"
-                          onPress={() => chargeTenderLine(line)}
-                          isLoading={line.charging}
-                          isDisabled={line.amount <= 0}
-                        >
-                          Charge {line.method}
-                        </Button>
-                      ) : (
-                        <StatusBadge
-                          tone={
-                            line.status === "captured"
-                              ? "success"
-                              : line.status === "failed"
-                                ? "danger"
-                                : "warning"
-                          }
-                        >
-                          {line.status === "captured"
-                            ? "Captured"
-                            : line.status === "failed"
-                              ? "Declined"
-                              : "Processing…"}
-                        </StatusBadge>
-                      )}
-                    </div>
-                  )}
-                  {line.error && (
-                    <p className="text-xs text-danger">{line.error}</p>
-                  )}
-                </div>
-              ))}
-              <div>
-                <Button variant="ghost" size="compact" onPress={addTenderLine}>
-                  <Plus className="size-3.5" aria-hidden="true" />
-                  Add tender line (split payment)
-                </Button>
+            {cart && cart.lines.length > 0 && (
+              <div className="flex gap-2 border-t border-border pt-3" role="group" aria-label="Payment method">
+                <Button variant={payMode === "cash" ? "primary" : "secondary"} size="compact" onPress={() => setPayMode("cash")}>Cash</Button>
+                <Button variant={payMode === "card" ? "primary" : "secondary"} size="compact" onPress={() => setPayMode("card")}>Card</Button>
+                <Button variant={payMode === "upi" ? "primary" : "secondary"} size="compact" onPress={() => setPayMode("upi")}>UPI</Button>
+                <Button variant={payMode === "split" ? "primary" : "secondary"} size="compact" onPress={() => setPayMode("split")}>Split</Button>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-text-secondary">
-                  Remaining to allocate
-                </span>
-                <span
-                  className={`font-medium tabular-nums ${remainingToAllocate === 0 ? "text-success" : "text-text"}`}
-                >
-                  {money(currency, remainingToAllocate)}
-                </span>
+            )}
+            {payMode === "upi" && cart && cart.lines.length > 0 ? (
+              <UpiTender
+                cart={cart}
+                currency={currency}
+                disabled={Boolean(cashBlockedReason)}
+                onCompleted={(sale) => { setConfirmation(sale); setError(null); }}
+                onCart={() => { void getPosCart(cart.id).then((result) => setCart(result.cart)).catch(() => undefined); }}
+              />
+            ) : payMode === "card" && cart && cart.lines.length > 0 ? (
+              <CardTender
+                cart={cart}
+                currency={currency}
+                disabled={Boolean(cashBlockedReason)}
+                onCompleted={(sale) => { setConfirmation(sale); setError(null); }}
+                onCart={() => { void getPosCart(cart.id).then((result) => setCart(result.cart)).catch(() => undefined); }}
+              />
+            ) : payMode === "cash" && cart && cart.lines.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                <CashTender
+                  cart={cart}
+                  currency={currency}
+                  disabled={Boolean(cashBlockedReason)}
+                  onCompleted={(sale) => { setConfirmation(sale); setError(null); }}
+                  onCart={() => { void getPosCart(cart.id).then((result) => setCart(result.cart)).catch(() => undefined); }}
+                />
               </div>
-              {isSingleCashTender && (
-                <p className="text-sm text-text-secondary">
-                  Change:{" "}
-                  {money(currency, Math.max(0, tenderTotal - grandTotalNumber))}
-                </p>
-              )}
-            </div>
+            ) : payMode === "split" && cart && cart.lines.length > 0 ? (
+              <SplitTender
+                cart={cart}
+                currency={currency}
+                disabled={Boolean(cashBlockedReason)}
+                onCompleted={(sale) => { setConfirmation(sale); setError(null); }}
+                onCart={() => { void getPosCart(cart.id).then((result) => setCart(result.cart)).catch(() => undefined); }}
+              />
+            ) : null}
 
             <div className="flex flex-col gap-2 border-t border-border pt-3">
               {checkoutIssues.length > 0 && (
@@ -1342,27 +1047,13 @@ export function PosCheckoutScreen() {
                   <ul className="mt-1 list-disc pl-5 text-xs">{checkoutIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul>
                 </PosAlert>
               )}
-              {editable ? (
-                <Button variant="primary" size="large" onPress={proceedToCheckout} isDisabled={!cart?.lines?.length} isLoading={loading}>
-                  Proceed to checkout
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="primary"
-                    size="large"
-                    onPress={completeSale}
-                    isDisabled={!canComplete || Boolean(completeBlockedReason)}
-                    isLoading={completing}
-                  >
-                    Complete sale
-                  </Button>
-                  {inCheckout && <Button variant="ghost" onPress={backToBill} isLoading={loading}>Back to the bill</Button>}
-                </>
-              )}
-              {completeBlockedReason && (
+              {editable && cart?.lines?.length ? (
+                <Button variant="ghost" onPress={proceedToCheckout} isLoading={loading}>Check the bill before payment</Button>
+              ) : null}
+              {inCheckout && <Button variant="ghost" onPress={backToBill} isLoading={loading}>Back to the bill</Button>}
+              {blockedReason && (
                 <p className="text-center text-xs text-text-muted">
-                  {completeBlockedReason}
+                  {blockedReason}
                 </p>
               )}
               <div className="grid grid-cols-2 gap-2">
@@ -1397,7 +1088,6 @@ export function PosCheckoutScreen() {
         <PriceDialog line={priceLine} currency={currency} onClose={() => setPriceLine(null)}
           onApply={(input) => { overridePrice(priceLine.id, input); setPriceLine(null); }} />
       )}
-      {newCustomerOpen && <NewCustomerDialog onClose={() => setNewCustomerOpen(false)} onCreate={createCustomerHere} />}
       {heldCartsOpen && (
         <HeldCartsDialog
           onClose={() => setHeldCartsOpen(false)}
@@ -1405,113 +1095,43 @@ export function PosCheckoutScreen() {
           currency={currency}
         />
       )}
-      {lineDiscountLine && (
-        <DiscountDialog
+      {lineDiscountLine && cart && (
+        <ItemDiscountDialog
+          cartId={cart.id}
+          cartVersion={cart.version}
+          lineId={lineDiscountLine.id}
           title={`Discount — ${lineDiscountLine.description}`}
-          baseLabel="Line total before discount"
-          baseAmount={money(
-            currency,
-            lineDiscountLine.gross_amount ?? lineDiscountLine.line_total,
-          )}
+          currency={currency}
+          busy={loading}
           onClose={() => setLineDiscountLine(null)}
           onApply={(input) => {
             applyLineDiscount(lineDiscountLine.id, input);
             setLineDiscountLine(null);
           }}
+          onRemove={() => {
+            removeLineDiscount(lineDiscountLine.id);
+            setLineDiscountLine(null);
+          }}
         />
       )}
-      {cartDiscountOpen && (
-        <DiscountDialog
-          title="Cart discount"
-          baseLabel="Cart subtotal"
-          baseAmount={money(currency, cart?.subtotal)}
+      {cartDiscountOpen && cart && (
+        <CartDiscountDialog
+          cartId={cart.id}
+          cartVersion={cart.version}
+          currency={currency}
+          busy={loading}
           onClose={() => setCartDiscountOpen(false)}
           onApply={(input) => {
             applyCartDiscount(input);
             setCartDiscountOpen(false);
           }}
+          onRemove={() => {
+            removeCartDiscount();
+            setCartDiscountOpen(false);
+          }}
         />
       )}
     </div>
-  );
-}
-
-// F279: manual discount, line- or cart-level. Type/value/reason go to the
-// same applyPosCartLineDiscount / setPosCartDiscount the API has always
-// exposed; the server decides whether the resulting percentage needs a
-// supervisor (the threshold is organization policy -- pos_settings -- not
-// something the client should second-guess), so this only explains that
-// possibility rather than trying to predict it.
-function DiscountDialog({
-  title,
-  baseLabel,
-  baseAmount,
-  onClose,
-  onApply,
-}: {
-  title: string;
-  baseLabel: string;
-  baseAmount: string;
-  onClose: () => void;
-  onApply: (input: {
-    type: "percent" | "amount";
-    value: number;
-    reason: string;
-  }) => void;
-}) {
-  const [type, setType] = useState<"percent" | "amount">("percent");
-  const [value, setValue] = useState(0);
-  const [reason, setReason] = useState("");
-  return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={title}>
-      <div className="flex flex-col gap-4">
-        <p className="text-sm text-text-secondary">
-          {baseLabel}:{" "}
-          <span className="tabular-nums text-text">{baseAmount}</span>. A larger
-          discount needs a supervisor&apos;s approval before the sale can be
-          completed.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <Select
-            label="Type"
-            options={[
-              { value: "percent", label: "Percent (%)" },
-              { value: "amount", label: "Amount" },
-            ]}
-            selectedKey={type}
-            onSelectionChange={(key) =>
-              setType(key === "amount" ? "amount" : "percent")
-            }
-          />
-          <NumberField
-            label={type === "percent" ? "Percent off" : "Amount off"}
-            value={value}
-            onChange={setValue}
-            minValue={0}
-            maxValue={type === "percent" ? 100 : undefined}
-            step={type === "percent" ? 1 : 0.01}
-          />
-        </div>
-        <TextField
-          label="Reason"
-          isRequired
-          value={reason}
-          onChange={setReason}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            isDisabled={value <= 0 || !reason.trim()}
-            onPress={() => onApply({ type, value, reason: reason.trim() })}
-          >
-            Apply discount
-          </Button>
-        </div>
-      </div>
-    </Dialog>
   );
 }
 
@@ -1626,28 +1246,6 @@ function PriceDialog({ line, currency, onClose, onApply }: {
   );
 }
 
-// A customer created at the counter, in the shared Customer Master (needs the quick-create permission).
-function NewCustomerDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (input: { name: string; phone: string; gstin: string }) => void }) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [gstin, setGstin] = useState("");
-  return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="New customer">
-      <div className="flex flex-col gap-3">
-        <TextField label="Name" value={name} onChange={setName} isRequired autoFocus />
-        <div className="grid grid-cols-2 gap-3">
-          <TextField label="Phone" value={phone} onChange={setPhone} inputMode="tel" />
-          <TextField label="GSTIN (business customers)" value={gstin} onChange={(value) => setGstin(value.toUpperCase().slice(0, 15))} />
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" isDisabled={!name.trim()} onPress={() => onCreate({ name: name.trim(), phone: phone.trim(), gstin: gstin.trim() })}>Create and select</Button>
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
 // A quantity typed in the line's unit, saved when the field is left or Enter is pressed (decimals only where the unit allows; the server
 // checks).
 function QuantityInput({ value, unit, isDisabled, onCommit }: { value: number; unit: string | null; isDisabled: boolean; onCommit: (quantity: number) => void }) {
@@ -1671,11 +1269,3 @@ function QuantityInput({ value, unit, isDisabled, onCommit }: { value: number; u
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between text-text-secondary">
-      <span>{label}</span>
-      <span className="tabular-nums">{value}</span>
-    </div>
-  );
-}

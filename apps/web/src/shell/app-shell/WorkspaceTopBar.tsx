@@ -107,8 +107,8 @@ function TopBarIconLink({
 // place for all of it rather than each page building its own header.
 //
 // Search/Settings/Profile are desktop-only here (`hidden lg:flex`): below
-// 1024px MobileNav's drawer already lists Search, Settings, Profile and Sign
-// out, and this strip has no room for them beside the context switcher.
+// 1024px MobileNav's own top bar carries Search, Settings and the account
+// menu (profile, help, sign out).
 export function WorkspaceTopBar() {
   const pathname = usePathname();
   const { fullName, email, organizationName } = useWorkspaceContext();

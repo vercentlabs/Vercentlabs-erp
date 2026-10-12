@@ -54,45 +54,81 @@ function BreadcrumbsWithQuery({ pathname }: { pathname: string }) {
   return <Trail crumbs={crumbsForPathname(pathname, search)} />;
 }
 
+// A phone has no room for the whole trail: it shows the last two levels, the
+// section and the page (the section opens its page when it has one).
 function Trail({ crumbs }: { crumbs: Crumb[] }) {
   if (!crumbs.length) return null;
+  const current = crumbs[crumbs.length - 1];
+  const parent = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
 
   return (
     <nav
       aria-label="Breadcrumb"
       className="flex min-w-0 items-center gap-1 text-sm text-text-secondary"
     >
-      {crumbs.map((crumb, index) => {
-        const last = index === crumbs.length - 1;
-        return (
-          <span
-            key={`${crumb.label}-${index}`}
-            className="flex min-w-0 items-center gap-1"
-          >
-            {index > 0 ? (
-              <ChevronRight
-                aria-hidden="true"
-                className="size-3.5 shrink-0 text-text-muted"
-              />
-            ) : null}
-            {last || !crumb.href ? (
-              <span
-                aria-current={last ? "page" : undefined}
-                className={last ? "truncate font-medium text-text" : "truncate"}
-              >
-                {crumb.label}
-              </span>
-            ) : (
+      <span className="flex min-w-0 items-center gap-1 sm:hidden">
+        {parent ? (
+          <>
+            {parent.href ? (
               <Link
-                href={crumb.href}
-                className="truncate hover:text-text hover:underline"
+                href={parent.href}
+                className="min-w-0 shrink-[2] truncate hover:text-text hover:underline"
               >
-                {crumb.label}
+                {parent.label}
               </Link>
+            ) : (
+              <span className="min-w-0 shrink-[2] truncate">
+                {parent.label}
+              </span>
             )}
-          </span>
-        );
-      })}
+            <ChevronRight
+              aria-hidden="true"
+              className="size-3.5 shrink-0 text-text-muted"
+            />
+          </>
+        ) : null}
+        <span
+          aria-current="page"
+          className="min-w-0 truncate font-medium text-text"
+        >
+          {current.label}
+        </span>
+      </span>
+      <span className="hidden min-w-0 items-center gap-1 sm:flex">
+        {crumbs.map((crumb, index) => {
+          const last = index === crumbs.length - 1;
+          return (
+            <span
+              key={`${crumb.label}-${index}`}
+              className="flex min-w-0 items-center gap-1"
+            >
+              {index > 0 ? (
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-3.5 shrink-0 text-text-muted"
+                />
+              ) : null}
+              {last || !crumb.href ? (
+                <span
+                  aria-current={last ? "page" : undefined}
+                  className={
+                    last ? "truncate font-medium text-text" : "truncate"
+                  }
+                >
+                  {crumb.label}
+                </span>
+              ) : (
+                <Link
+                  href={crumb.href}
+                  className="truncate hover:text-text hover:underline"
+                >
+                  {crumb.label}
+                </Link>
+              )}
+            </span>
+          );
+        })}
+      </span>
     </nav>
   );
 }

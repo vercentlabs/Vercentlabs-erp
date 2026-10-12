@@ -1,6 +1,6 @@
 "use client";
 
-import { request, post } from "@/features/pos/shared/http";
+import { request } from "@/features/pos/shared/http";
 
 // F301/F302 -- shift open/close. Shared by the overview dashboard's quick
 // actions (which re-export these same functions rather than owning a
@@ -11,6 +11,8 @@ export type PosShift = {
   terminal_id: string;
   shift_number: string;
   cashier_user_id: string;
+  // Shift Opening (0103): the linked cash session (none on a card / UPI shift).
+  cash_session_id?: string | null;
   status: "open" | "closed";
   opening_cash: string;
   expected_cash: string;
@@ -34,10 +36,7 @@ export type PosShiftFilters = {
   offset?: number;
 };
 
-export const openPosShift = (input: Record<string, unknown>) =>
-  post<{ shift: PosShift }>("/shifts", input);
-export const closePosShift = (id: string, input: Record<string, unknown>) =>
-  post<{ shift: PosShift }>(`/shifts/${id}/close`, input);
+// Shifts are opened through features/pos/shift-opening (POST /shifts/open) and closed through features/pos/shift-closing.
 
 export const listPosShifts = (query: PosShiftFilters = {}) => {
   const params = new URLSearchParams(
@@ -89,6 +88,7 @@ type PosCashMovement = {
 };
 
 export type PosShiftDetail = PosShift & {
+  closing_id?: string | null;
   cashMovements: PosCashMovement[];
   sales: PosShiftSaleSummary[];
   paymentBreakdown: PosShiftPaymentBreakdown[];

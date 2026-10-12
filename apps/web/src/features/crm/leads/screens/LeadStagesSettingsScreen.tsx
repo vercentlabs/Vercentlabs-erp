@@ -16,6 +16,8 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import { createLeadStage, errorMessage, listLeadStages, reorderLeadStages, updateLeadStage, type LeadStageDefinition } from "../api/leads-api";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
+
 import { ErrorBanner } from "../lead-format";
 
 export function LeadStagesSettingsScreen() {
@@ -60,7 +62,7 @@ export function LeadStagesSettingsScreen() {
       <ErrorBanner message={error} />
       <ol className="flex max-w-3xl flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
         {stages.map((stage, index) => (
-          <li key={stage.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <li key={stage.id} className="flex items-center justify-between gap-3 p-4 sm:gap-2">
             <div className="flex min-w-0 flex-col gap-1 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{index + 1}. {stage.name}</span>
@@ -69,7 +71,17 @@ export function LeadStagesSettingsScreen() {
               </div>
               <span className="text-xs text-text-muted">{stage.leadCount ?? 0} open {stage.leadCount === 1 ? "lead" : "leads"} in this stage</span>
             </div>
-            <div className="flex flex-wrap items-center gap-1">
+            {/* On a phone the actions sit in a menu so each stage stays one compact row. */}
+            <div className="shrink-0 sm:hidden">
+              <MoreMenu label={`Actions for ${stage.name}`} items={[
+                { id: "up", label: "Move up", isDisabled: index === 0 || change.isPending, onAction: () => move(index, -1) },
+                { id: "down", label: "Move down", isDisabled: index === stages.length - 1 || change.isPending, onAction: () => move(index, 1) },
+                { id: "rename", label: "Rename", onAction: () => setEditing(stage) },
+                ...(!stage.isSystem ? [{ id: "active", label: stage.isActive ? "Deactivate" : "Activate", isDisabled: change.isPending,
+                  onAction: () => change.mutate(() => updateLeadStage(stage.id, { isActive: !stage.isActive })) }] : []),
+              ]} />
+            </div>
+            <div className="hidden flex-wrap items-center gap-1 sm:flex">
               <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} up`} isDisabled={index === 0 || change.isPending} onPress={() => move(index, -1)}><ArrowUp className="size-4" aria-hidden="true" /></Button>
               <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} down`} isDisabled={index === stages.length - 1 || change.isPending} onPress={() => move(index, 1)}><ArrowDown className="size-4" aria-hidden="true" /></Button>
               <Button variant="ghost" size="compact" onPress={() => setEditing(stage)}>Rename</Button>

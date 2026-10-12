@@ -33,6 +33,7 @@ import {
 import { InvoiceStatusBadges } from "../components/InvoiceStatusBadges";
 import { CreateCreditNoteDialog } from "@/features/sales/credit-notes/components/CreditNoteDialogs";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -171,7 +172,7 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
             {actions.viewAccounting && <Tab id="accounting">Accounting</Tab>}
             <Tab id="history">History</Tab>
           </TabList>
-          <TabPanel id="overview"><Overview detail={detail} /></TabPanel>
+          <TabPanel id="overview"><div className="flex flex-col gap-4"><Overview detail={detail} /><AccountingRecorded sourceType="customer_invoice" sourceId={invoiceId} noun="invoice" /></div></TabPanel>
           <TabPanel id="items"><Items detail={detail} /></TabPanel>
           <TabPanel id="taxes"><Taxes detail={detail} /></TabPanel>
           {actions.viewPayments && <TabPanel id="payments"><Payments detail={detail} /></TabPanel>}

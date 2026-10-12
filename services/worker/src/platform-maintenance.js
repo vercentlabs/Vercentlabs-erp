@@ -4,16 +4,21 @@
 //          the metadata row stays as evidence and downloads answer 410.
 //   report schedules  queues one run per recipient for every due scheduled
 //          report (each executed later with that recipient's own authority).
-import { enqueueDueReportSchedules, purgeExpiredFileContent } from "@vercentlabs/api";
+//   POS checkout holds  releases stock reserved by POS checkouts whose lease has passed (never one with a payment under way, within the
+//          outlet's maximum hold), so expired reservations never keep stock from other bills.
+//   live stock events  removes availability-changed events older than two days (they only drive live delivery).
+import { enqueueDueReportSchedules, prunePosInventoryEvents, purgeExpiredFileContent, sweepExpiredPosCheckoutReservations } from "@vercentlabs/api";
 import { createLogger, redact } from "@vercentlabs/observability";
 
 import { listActiveOrganizationIds, withTenantClient } from "./db.js";
+import { buildSystemContext } from "./system-context.js";
 
 const logger = createLogger("worker-platform");
 
 // Per organisation, each in its own organisation-context transaction.
 export async function runPlatformMaintenanceTick(pool, { limit = 100 } = {}) {
   let removed = 0;
+  let holdsReleased = 0;
   const reports = { schedules: 0, queued: 0, skipped: 0 };
   for (const organizationId of await listActiveOrganizationIds(pool)) {
     try {
@@ -31,9 +36,21 @@ export async function runPlatformMaintenanceTick(pool, { limit = 100 } = {}) {
     } catch (error) {
       logger.error("expired artifact purge failed", { organizationId, error: redact(String(error?.message || error)) });
     }
+    try {
+      const holds = await withTenantClient(pool, organizationId, (client) => sweepExpiredPosCheckoutReservations(client, buildSystemContext(organizationId)));
+      holdsReleased += holds.released;
+    } catch (error) {
+      logger.error("POS checkout reservation sweep failed", { organizationId, error: redact(String(error?.message || error)) });
+    }
+    try {
+      await withTenantClient(pool, organizationId, (client) => prunePosInventoryEvents(client, organizationId));
+    } catch (error) {
+      logger.error("inventory change event prune failed", { organizationId, error: redact(String(error?.message || error)) });
+    }
   }
   if (removed) logger.info("expired artifacts purged", { removed });
-  return { files: { removed }, reports };
+  if (holdsReleased) logger.info("expired POS checkout reservations released", { released: holdsReleased });
+  return { files: { removed }, reports, posCheckoutHolds: { released: holdsReleased } };
 }
 
 export function createPlatformMaintenanceLoop(getPool, config) {

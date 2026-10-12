@@ -1,4 +1,4 @@
-import { getPosPaymentStatus } from "@vercentlabs/api";
+import { getPosPaymentDetail, getPosPaymentStatus } from "@vercentlabs/api";
 
 import { ok } from "@/core/http";
 import { posContext } from "@/features/pos/shared/pos-context";
@@ -18,7 +18,8 @@ export async function GET(
     async ({ client, session }) => {
       const { id } = await context.params;
       const result = await getPosPaymentStatus(client, posContext(session), id);
-      return ok({ payment: result });
+      // Cash Payments: the tender (received, change, applied, custody) and its cash movements.
+      return ok({ payment: result, detail: await getPosPaymentDetail(client, posContext(session), id) });
     },
   );
 }

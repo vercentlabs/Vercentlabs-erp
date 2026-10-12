@@ -41,7 +41,7 @@ function ItemFilter({ value, onChange }: { value: string | null; onChange: (id: 
   });
   const rows = items.data?.products ?? [];
   return (
-    <ComboBox aria-label="Item" placeholder="Item (SKU or name)" className="w-full sm:w-64" options={rows.map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))}
+    <ComboBox label="Item" placeholder="Item (SKU or name)" className="w-full sm:w-64" options={rows.map((row) => ({ value: row.id, label: `${row.code} · ${row.name}` }))}
       selectedKey={value} onSelectionChange={(key) => onChange(key ? String(key) : null)} onInputChange={setText} isLoading={items.isFetching}
       emptyMessage={items.isError ? "Search failed. Try again." : "No matching items"} allowsEmptyCollection />
   );

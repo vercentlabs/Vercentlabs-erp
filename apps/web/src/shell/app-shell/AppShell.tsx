@@ -50,6 +50,8 @@ export function AppShell({
           </div>
           <div className="relative flex min-w-0 flex-1 flex-col overflow-y-auto">
             <MobileNav
+              fullName={contextValue.fullName}
+              email={contextValue.email}
               organizationName={contextValue.organizationName}
               accessibleModules={accessibleModules}
               permissions={contextValue.permissions}

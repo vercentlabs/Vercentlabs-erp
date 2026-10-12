@@ -181,7 +181,7 @@ export function TaskListScreen() {
           description: "The work you have to do: overdue first, then today, then what is coming up.",
           primaryAction: can?.create ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />New task</Button> : undefined,
           secondaryActions: can?.export ? (
-            <a className={buttonVariants({ variant: "outline" })} href={taskExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" />Export</a>
+            <a className={buttonVariants({ variant: "outline" })} href={taskExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a>
           ) : undefined,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as TaskViewKey) } : undefined}

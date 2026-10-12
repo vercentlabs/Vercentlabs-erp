@@ -91,7 +91,7 @@ function toTerminal(row, c) {
     currentSessionId: row.session_id ?? null, currentSession: row.session_number ?? null, currentCashierId: row.session_cashier_id ?? null, currentCashier: row.session_cashier_name ?? null,
     sessionOpenedAt: row.session_opened_at ?? null,
     businessDate: row.session_opened_at ? new Intl.DateTimeFormat("en-CA", { timeZone: row.timezone || "Asia/Kolkata" }).format(new Date(row.session_opened_at)) : null,
-    cashManagementEnabled: row.cash_management_enabled, sellingLocationId: row.selling_location_id, sellingLocation: label(row.location_code, row.location_name),
+    cashManagementEnabled: row.cash_management_enabled, cashDrawerId: row.cash_drawer_id ?? null, sellingLocationId: row.selling_location_id, sellingLocation: label(row.location_code, row.location_name),
     cashAccountId: finance ? row.cash_account_id : null, cashAccount: finance ? label(row.cash_account_code, row.cash_account_name) : null,
     paymentMethods: row.payment_methods ?? null, paymentDeviceRef: row.payment_device_ref, receiptPrefix: row.receipt_prefix,
     deviceLabel: row.device_label, receiptPrinter: row.receipt_printer, cashDrawer: row.cash_drawer, barcodeScanning: row.barcode_scanning, notes: row.notes,

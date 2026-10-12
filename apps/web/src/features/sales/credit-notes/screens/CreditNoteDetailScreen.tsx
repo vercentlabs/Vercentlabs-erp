@@ -31,6 +31,7 @@ import {
 } from "../components/CreditNoteDialogs";
 import { CreditNoteStatusBadges } from "../components/CreditNoteStatusBadges";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -165,7 +166,7 @@ export function CreditNoteDetailScreen({ creditNoteId }: { creditNoteId: string 
             {actions.viewAccounting && <Tab id="accounting">Accounting</Tab>}
             <Tab id="history">History</Tab>
           </TabList>
-          <TabPanel id="overview"><Overview detail={detail} /></TabPanel>
+          <TabPanel id="overview"><div className="flex flex-col gap-4"><Overview detail={detail} /><AccountingRecorded sourceType="customer_credit_note" sourceId={creditNoteId} noun="credit note" /></div></TabPanel>
           <TabPanel id="items"><Items detail={detail} /></TabPanel>
           <TabPanel id="taxes"><Taxes detail={detail} /></TabPanel>
           {actions.viewApplication && <TabPanel id="application"><Application detail={detail} /></TabPanel>}

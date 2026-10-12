@@ -21,6 +21,7 @@ import { getReturn, listReturnFiles, removeReturnFile, returnFileUrl, returnNote
 import { CancelReturnDialog, EditReturnDialog, ReceiveReturnDialog, ReturnCreditDialog, failureText } from "../components/ReturnDialogs";
 import { ReturnCreditBadge, ReturnStatusBadge } from "../components/ReturnStatusBadge";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 
 const quantity = (value: number | string | null | undefined) => Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const by = (at: string | null, name: string | null) => (at ? `${dateTime(at)}${name ? ` by ${name}` : ""}` : "—");
@@ -104,7 +105,7 @@ export function ReturnDetailScreen({ returnId }: { returnId: string }) {
             <Tab id="notes">Notes &amp; attachments</Tab>
             <Tab id="history">History</Tab>
           </TabList>
-          <TabPanel id="overview"><Overview detail={detail} /></TabPanel>
+          <TabPanel id="overview"><div className="flex flex-col gap-4"><Overview detail={detail} /><AccountingRecorded sourceType="sales_return" sourceId={returnId} noun="return" /></div></TabPanel>
           <TabPanel id="items"><Items detail={detail} /></TabPanel>
           <TabPanel id="inventory"><Inventory detail={detail} /></TabPanel>
           <TabPanel id="credit"><Credit detail={detail} onCredit={actions.creditNote ? () => setDialog("credit") : undefined} /></TabPanel>

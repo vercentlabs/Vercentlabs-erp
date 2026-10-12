@@ -151,8 +151,8 @@ export function ItemListScreen({ lens = "inventory" }: { lens?: ItemLens }) {
           primaryAction: can?.create ? <LinkButton href={`${meta.base}/new`} variant="primary"><Plus className="size-4" aria-hidden="true" />{meta.newLabel}</LinkButton> : undefined,
           secondaryActions: (
             <>
-              {can?.import && can.create && <LinkButton href={`${meta.base}/import`} variant="outline"><Upload className="size-4" aria-hidden="true" />Import</LinkButton>}
-              {can?.export && <a className={buttonVariants({ variant: "outline" })} href={itemExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" />Export</a>}
+              {can?.import && can.create && <LinkButton href={`${meta.base}/import`} variant="outline"><Upload className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Import</span></LinkButton>}
+              {can?.export && <a className={buttonVariants({ variant: "outline" })} href={itemExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a>}
             </>
           ),
         }}

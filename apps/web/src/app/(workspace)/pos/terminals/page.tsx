@@ -1,8 +1,8 @@
-import { TerminalsScreen } from "@/features/pos/terminals/screens/TerminalsScreen";
+import { requireWorkspace } from "@/core/session";
+import { redirectWithQuery } from "@/shared/routing/redirect-with-query";
 
-export const metadata = { title: "POS Terminals" };
-
-export default async function Page({ searchParams }: { searchParams: Promise<{ outletId?: string }> }) {
-  const { outletId } = await searchParams;
-  return <TerminalsScreen initialOutletId={outletId ?? null} />;
+// Terminals are POS Settings › Terminals now. This address keeps working for bookmarks and links.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  await requireWorkspace();
+  redirectWithQuery("/pos/settings", await searchParams, {"tab":"terminals"});
 }

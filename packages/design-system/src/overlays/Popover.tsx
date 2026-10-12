@@ -17,7 +17,7 @@ export function Popover({ className, children, ...props }: PopoverProps) {
   return (
     // React Aria caps the panel's height to the space left in the viewport;
     // the panel scrolls so tall content never spills out of its frame.
-    <AriaPopover className={cn(popoverChrome, "overflow-y-auto p-4")} {...props}>
+    <AriaPopover className={cn(popoverChrome, "overflow-y-auto overscroll-contain p-4")} {...props}>
       <Dialog className={cn("outline-none", className)}>{children}</Dialog>
     </AriaPopover>
   );

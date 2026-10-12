@@ -18,6 +18,9 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
 import { getPosTransaction } from "@/features/pos/transactions/api/transactions-api";
+import { ReceiptPrintActions } from "@/features/pos/receipts/components/ReceiptPrintActions";
+import { SaleInvoicePanel } from "@/features/pos/invoices/components/SaleInvoicePanel";
+import { SaleStockMovements } from "@/features/pos/stock/components/SaleStockMovements";
 import { dateTime, money } from "@/features/pos/shared/format";
 import {
   PosBackLink,
@@ -164,13 +167,23 @@ export function PosTransactionDetailScreen({ saleId }: { saleId: string }) {
           sale.accounting_invoice_id ? (
             <Button
               variant="secondary"
-              onPress={() => router.push("/pos/invoices")}
+              onPress={() => router.push("/pos/transactions?tab=documents")}
             >
               View invoice
             </Button>
           ) : undefined
         }
       />
+
+      {/* Receipt Reprinting (0097): preview and print another copy of the original receipt — the sale never changes. */}
+      <PosPanel title="Receipt" description="The original receipt as issued. A copy is marked COPY — REPRINTED; the invoice number, date and amounts stay the original.">
+        <ReceiptPrintActions source="pos_sale" sourceId={sale.id} />
+      </PosPanel>
+
+      <SaleInvoicePanel saleId={sale.id} />
+
+      {/* Stock Reduction (0101): the Inventory movements this sale posted, with their cost and reservation. */}
+      <SaleStockMovements saleId={sale.id} currency={currency} />
 
       <PosPanel title="Customer">
         {sale.customer_id ? (

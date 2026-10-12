@@ -7,11 +7,13 @@ export type PosDashboard = {
   revenue_today: string;
   open_shifts: number;
   returns_today: number;
+  tenders: Array<{ method: string; amount: string; payments: number }>;
+  activeShifts: Array<{ id: string; number: string; status: string; openedAt: string; terminal: string; outlet: string; cashier: string | null }>;
+  attention: { pendingPayments: number; pendingCheckouts: number; openRefunds: number; openCashDifferences: number; openPaymentExceptions: number; heldCarts: number };
+  businessDays: Array<{ outletId: string; outlet: string; businessDate: string; status: string; zReportId: string | null }>;
 };
 export const getPosDashboard = () => request<PosDashboard>("/dashboard");
 export {
-  openPosShift,
-  closePosShift,
   listPosShifts,
 } from "@/features/pos/shifts/api/shifts-api";
 export {

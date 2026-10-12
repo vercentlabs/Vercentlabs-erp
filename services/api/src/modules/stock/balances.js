@@ -572,12 +572,12 @@ export async function validateAvailableStock(client, c, input = {}) {
 // ------------------------------------------------------------------ Reserved Stock
 
 const SOURCE_LABEL = Object.freeze({ sales_order_line: "Sales order", sales_order: "Sales order", stock_transfer: "Internal transfer", purchase_return: "Purchase return",
-  manufacturing_work_order: "Work order" });
+  manufacturing_work_order: "Work order", pos_checkout: "POS checkout" });
 const RESERVATION_SELECT = `
   SELECT reservation.*, item.code AS sku, item.name AS item_name, uom.code AS base_uom, warehouse.code AS warehouse_code, warehouse.status AS warehouse_status, COALESCE(location.code, 'MAIN') AS location_code,
          batch.batch_number, serial.serial_number, serial.status AS serial_status, serial.warehouse_id AS serial_warehouse_id, reserver.full_name AS reserved_by_name,
-         COALESCE(sales_order.sales_order_number, line_order.sales_order_number, transfer.document_number, purchase_return.return_number, work_order.work_order_number) AS document_number,
-         COALESCE(sales_order.id, line_order.id, transfer.id, purchase_return.id, work_order.id) AS document_id,
+         COALESCE(sales_order.sales_order_number, line_order.sales_order_number, transfer.document_number, purchase_return.return_number, work_order.work_order_number, pos_cart.cart_reference) AS document_number,
+         COALESCE(sales_order.id, line_order.id, transfer.id, purchase_return.id, work_order.id, pos_cart.id) AS document_id,
          ${restrictedStockSql("location", "batch")} AS ineligible, ${restrictionReasonSql("location", "batch")} AS ineligible_reason
     FROM tenant.stock_reservations reservation
     JOIN tenant.items item ON item.organization_id = reservation.organization_id AND item.id = reservation.item_id
@@ -591,7 +591,8 @@ const RESERVATION_SELECT = `
     LEFT JOIN tenant.sales_orders line_order ON line_order.organization_id = reservation.organization_id AND reservation.reference_type = 'sales_order_line' AND line_order.id = reservation.sales_order_id
     LEFT JOIN tenant.inventory_transfers transfer ON transfer.organization_id = reservation.organization_id AND reservation.reference_type = 'stock_transfer' AND transfer.id = reservation.reference_id
     LEFT JOIN tenant.purchase_returns purchase_return ON purchase_return.organization_id = reservation.organization_id AND reservation.reference_type = 'purchase_return' AND purchase_return.id = reservation.reference_id
-    LEFT JOIN tenant.manufacturing_work_orders work_order ON work_order.organization_id = reservation.organization_id AND reservation.reference_type = 'manufacturing_work_order' AND work_order.id = reservation.reference_id`;
+    LEFT JOIN tenant.manufacturing_work_orders work_order ON work_order.organization_id = reservation.organization_id AND reservation.reference_type = 'manufacturing_work_order' AND work_order.id = reservation.reference_id
+    LEFT JOIN tenant.pos_carts pos_cart ON pos_cart.organization_id = reservation.organization_id AND reservation.reference_type = 'pos_checkout' AND pos_cart.checkout_reference = reservation.reference_id`;
 
 function toReservation(row) {
   return {
@@ -645,6 +646,8 @@ export async function getReservationExceptions(client, c) {
   for (const row of rows) {
     if (row.ineligible) add(row, "ineligible", `Reserved stock is no longer eligible (${String(row.ineligible_reason).replace(/_/g, " ")}): reallocate or release it.`);
     if (row.warehouse_status !== "active") add(row, "warehouse_inactive", "The warehouse is inactive.");
+    // A temporary hold (a POS checkout) past its lease still holds stock until it is released or renewed.
+    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) add(row, "expired_hold", "This temporary reservation has expired but still holds stock: it is released by the next sweep.");
     if (row.serial_id && (row.serial_status !== "available" || row.serial_warehouse_id !== row.warehouse_id))
       add(row, "serial_missing", `Serial ${row.serial_number ?? ""} is no longer in stock here: reallocate the reservation to another serial number or release it.`.replace("Serial  ", "The serial "));
   }
@@ -653,10 +656,12 @@ export async function getReservationExceptions(client, c) {
        LEFT JOIN tenant.sales_orders sales_order ON sales_order.organization_id = reservation.organization_id AND sales_order.id = COALESCE(reservation.sales_order_id, CASE WHEN reservation.reference_type = 'sales_order' THEN reservation.reference_id END)
        LEFT JOIN tenant.inventory_transfers transfer ON transfer.organization_id = reservation.organization_id AND reservation.reference_type = 'stock_transfer' AND transfer.id = reservation.reference_id
        LEFT JOIN tenant.purchase_returns purchase_return ON purchase_return.organization_id = reservation.organization_id AND reservation.reference_type = 'purchase_return' AND purchase_return.id = reservation.reference_id
+       LEFT JOIN tenant.pos_carts pos_cart ON pos_cart.organization_id = reservation.organization_id AND reservation.reference_type = 'pos_checkout' AND pos_cart.checkout_reference = reservation.reference_id
       WHERE reservation.organization_id = $1 AND reservation.status = 'active' AND ${scope}
         AND ((reservation.reference_type IN ('sales_order', 'sales_order_line') AND COALESCE(sales_order.lifecycle_status, 'missing') <> 'confirmed')
           OR (reservation.reference_type = 'stock_transfer' AND COALESCE(transfer.status, 'missing') NOT IN ('draft', 'confirmed'))
-          OR (reservation.reference_type = 'purchase_return' AND COALESCE(purchase_return.document_status, 'missing') <> 'draft'))`, [c.organizationId, visible])).rows.map((row) => row.id);
+          OR (reservation.reference_type = 'purchase_return' AND COALESCE(purchase_return.document_status, 'missing') <> 'draft')
+          OR (reservation.reference_type = 'pos_checkout' AND (pos_cart.id IS NULL OR pos_cart.checkout_started_at IS NULL OR pos_cart.status NOT IN ('draft', 'priced'))))`, [c.organizationId, visible])).rows.map((row) => row.id);
   for (const row of rows.filter((entry) => stale.includes(entry.id))) add(row, "source_closed", "The source document is no longer open, but the reservation is still active.");
   const excess = (await client.query(
     `SELECT reservation.sales_order_line_id, sum(reservation.active_quantity) AS reserved,

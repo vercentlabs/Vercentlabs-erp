@@ -7,14 +7,25 @@ const ACCOUNT_SEED = Object.freeze([
   ["1200", "Trade receivables", "asset", "receivable", "debit", false, false, true],
   ["1300", "Inventory", "asset", "inventory", "debit", false, false, true],
   ["1400", "Input tax receivable", "asset", "tax_input", "debit", false, false, true],
+  ["1411", "Input CGST", "asset", "tax_input", "debit", false, false, true],
+  ["1412", "Input SGST", "asset", "tax_input", "debit", false, false, true],
+  ["1413", "Input IGST", "asset", "tax_input", "debit", false, false, true],
+  ["1414", "Input GST cess", "asset", "tax_input", "debit", false, false, true],
+  ["1419", "Input GST awaiting ITC confirmation", "asset", "tax_input", "debit", false, false, true],
   ["1500", "Fixed assets", "asset", "fixed_asset", "debit", false, false, true],
   ["1590", "Accumulated depreciation", "asset", "accumulated_depreciation", "credit", false, false, true],
   ["1900", "Other current assets", "asset", "current_asset", "debit", false, true, false],
   ["2000", "Liabilities", "liability", "group", "credit", true, false, false],
   ["2100", "Trade payables", "liability", "payable", "credit", false, false, true],
+  ["2160", "Goods received not invoiced", "liability", "current_liability", "credit", false, false, true],
   ["2200", "Output tax payable", "liability", "tax_output", "credit", false, false, true],
+  ["2211", "Output CGST", "liability", "tax_output", "credit", false, false, true],
+  ["2212", "Output SGST", "liability", "tax_output", "credit", false, false, true],
+  ["2213", "Output IGST", "liability", "tax_output", "credit", false, false, true],
+  ["2214", "Output GST cess", "liability", "tax_output", "credit", false, false, true],
   ["2300", "Withholding taxes payable", "liability", "tax_output", "credit", false, false, true],
   ["2400", "Other current liabilities", "liability", "current_liability", "credit", false, true, false],
+  ["2410", "Expense claims payable", "liability", "current_liability", "credit", false, false, true],
   ["2500", "Long-term liabilities", "liability", "non_current_liability", "credit", false, true, false],
   ["2900", "Suspense and clearing", "liability", "suspense", "credit", false, true, true],
   ["3000", "Equity", "equity", "group", "credit", true, false, false],
@@ -30,6 +41,7 @@ const ACCOUNT_SEED = Object.freeze([
   ["5000", "Cost of sales", "expense", "cogs", "debit", false, true, false],
   ["6000", "Operating expenses", "expense", "group", "debit", true, false, false],
   ["6100", "General expense", "expense", "expense", "debit", false, true, false],
+  ["6150", "Ineligible input tax", "expense", "expense", "debit", false, false, false],
   ["6200", "Payroll expense", "expense", "expense", "debit", false, true, false],
   ["6300", "Depreciation expense", "expense", "expense", "debit", false, true, false],
   ["6400", "Bank charges", "expense", "expense", "debit", false, true, false],
@@ -69,7 +81,10 @@ const MAPPING_SEED = Object.freeze([
 
 // Defaults a company's own mappings override (they rank by priority, lowest first): Inventory, the opening-balance counter-account and the
 // inventory adjustment gain and loss accounts.
-const DEFAULT_MAPPING_SEED = Object.freeze([["inventory", "1300"], ["opening_balance_equity", "3900"], ["inventory_adjustment_gain", "4960"], ["inventory_adjustment_loss", "6550"]]);
+const DEFAULT_MAPPING_SEED = Object.freeze([["inventory", "1300"], ["opening_balance_equity", "3900"], ["inventory_adjustment_gain", "4960"], ["inventory_adjustment_loss", "6550"],
+  // The Indian chart's GST accounts, input tax credit awaiting confirmation, goods received not invoiced and expense claims.
+  ["output_cgst", "2211"], ["output_sgst", "2212"], ["output_igst", "2213"], ["output_cess", "2214"], ["input_cgst", "1411"], ["input_sgst", "1412"], ["input_igst", "1413"],
+  ["input_cess", "1414"], ["input_tax_pending", "1419"], ["itc_ineligible", "6150"], ["grni", "2160"], ["expense_payable", "2410"]]);
 
 const PARENT_CODE_BY_PREFIX = Object.freeze([
   ["11", "1100"], ["1", "1000"], ["2", "2000"], ["3", "3000"],

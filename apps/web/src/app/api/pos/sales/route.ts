@@ -78,6 +78,9 @@ export async function GET(request: Request) {
         dateFrom: params.get("dateFrom") || undefined,
         dateTo: params.get("dateTo") || undefined,
         paymentMethod: params.get("paymentMethod") || undefined,
+        // Receipt Reprinting (0097): an exact amount, and a customer (name, code or phone digits — for people allowed to select customers).
+        amount: params.get("amount") || undefined,
+        customer: params.get("customer") || undefined,
         sortBy:
           (params.get("sortBy") as
             "sale_date" | "grand_total" | "receipt_number" | "status") ||

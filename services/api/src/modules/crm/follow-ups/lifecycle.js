@@ -10,7 +10,7 @@ import { queueOutboxEvent } from "../data-management/outbox.js";
 import { cancelPendingRemindersForActivity, replaceActivityReminder, snoozeActivityReminder } from "../reminders/index.js";
 import { requireFollowUpPermission } from "./access.js";
 import { ACTIVITY_OF_TYPE, FOLLOW_UP_OUTCOMES, FOLLOW_UP_PERMISSIONS } from "./constants.js";
-import { listFollowUpHistoryEntries, recordFollowUpHistory } from "./history.js";
+import { formatLocalDate, formatMoment, listFollowUpHistoryEntries, organizationTimezone, recordFollowUpHistory } from "./history.js";
 import { notifyFollowUpAssigned } from "./notify.js";
 import {
   assertNotStale, assertOpen, getFollowUp, isOpenRow, lockFollowUp, readFollowUpForNotice, requireAssigneeFor, resolveReminder, resolveSchedule, scheduleFollowUp, toFollowUp, typeLabel,
@@ -18,7 +18,7 @@ import {
 
 const text = (value) => String(value ?? "").trim();
 const OUTCOME_CODES = FOLLOW_UP_OUTCOMES.map((entry) => entry.code);
-const when = (followUp) => `${followUp.scheduledDate}${followUp.scheduledTime ? ` ${followUp.scheduledTime}` : ""}`;
+const when = (followUp) => formatLocalDate(followUp.scheduledDate, followUp.scheduledTime ?? null);
 
 // ------------------------------------------------------------------ reschedule
 
@@ -40,7 +40,7 @@ export async function rescheduleFollowUp(client, context, followUpId, input = {}
   await replaceActivityReminder(client, context, row.id, dueAt, reminderOffset);
   const after = await getFollowUp(client, context, row.id).catch(() => null);
   const reason = text(input.reason).slice(0, 500) || null;
-  await recordFollowUpHistory(client, context, row.id, "rescheduled", `Rescheduled: ${when(before)} → ${after ? when(after) : dueAt.toISOString()}${reason ? ` — ${reason}` : ""}`,
+  await recordFollowUpHistory(client, context, row.id, "rescheduled", `Rescheduled: ${when(before)} → ${after ? when(after) : formatMoment(dueAt, await organizationTimezone(client, context))}${reason ? ` — ${reason}` : ""}`,
     { from: row.due_at, to: dueAt, reason });
   return { changed: true };
 }
@@ -176,7 +176,7 @@ export async function snoozeFollowUpReminder(client, context, followUpId, input 
   if (!until || Number.isNaN(until.getTime())) throw new CrmError(400, "Choose how long to snooze.", "CRM_FOLLOW_UP_VALIDATION");
   const reminder = await snoozeActivityReminder(client, context, row.id, until);
   await client.query(`UPDATE tenant.crm_activities SET follow_up_snooze_count = follow_up_snooze_count + 1 WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id]);
-  await recordFollowUpHistory(client, context, row.id, "snoozed", `Reminder snoozed until ${until.toISOString()}`, { until });
+  await recordFollowUpHistory(client, context, row.id, "snoozed", `Reminder snoozed until ${formatMoment(until, await organizationTimezone(client, context))}`, { until });
   return { changed: true, remindAt: reminder.fireAt };
 }
 
