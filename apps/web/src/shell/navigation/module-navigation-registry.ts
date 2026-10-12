@@ -34,12 +34,6 @@ import {
   CalendarClock,
   SlidersHorizontal,
   UserSearch,
-  PauseCircle,
-  ReceiptText,
-  Undo2,
-  Wallet,
-  CalendarCheck,
-  Scale,
 } from "lucide-react";
 
 import type { ModuleNavigation, SecondaryNavItem } from "./navigation-types";
@@ -809,28 +803,89 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     label: "POS",
     icon: Store,
     requiredPermission: "pos.view",
-    // One flat list of eleven workspaces (the POS navigation standard): cashiers see Sell, Find a Transaction and Manage My Shift; the rest is
-    // for supervisors, managers and Finance, each shown only to those it applies to. Smaller features are tabs, dialogs or actions inside a
-    // workspace (Barcode Scanning in Register, Split Payments in Checkout, Cash Difference in Shift Closing); every other POS route is
-    // registered with its parent workspace below: searchable and breadcrumbed, never a sidebar entry of its own.
+    // The standard sections (as CRM, Sales, Procurement and Inventory). Smaller POS features are tabs, dialogs or actions inside these pages:
+    // barcode scanning, discounts and split payments in the Register; refunds and approvals in Returns & Refunds; cash movements and cash
+    // differences in Shifts & Cash; sales, payments and documents in Transactions.
     sections: [
-      { id: "overview", label: "Overview", icon: LayoutDashboard, flat: true, items: [{ ...available("Overview", "/pos"), aliases: ["pos home", "pos dashboard", "retail overview", "today"], requiredAnyPermission: ["pos.report.view", "pos.reports.view", "pos.store.manage", "pos.view"] }] },
-      { id: "register", label: "Register", icon: ShoppingCart, flat: true, items: [{ ...available("Register", "/pos/register"), aliases: ["sell", "checkout", "point of sale", "billing counter", "new sale", "scan barcode", "split payment", "cart discount"], requiredAnyPermission: ["pos.sale.create", "pos.operate"] }] },
-      { id: "held-carts", label: "Held Carts", icon: PauseCircle, flat: true, items: [{ ...available("Held Carts", "/pos/held-carts"), aliases: ["held bills", "resume sale", "parked sale", "on hold"], requiredAnyPermission: ["pos.sale.create", "pos.operate"] }] },
-      { id: "transactions", label: "Transactions", icon: ReceiptText, flat: true, items: [{ ...available("Transactions", "/pos/transactions"), aliases: ["sales", "receipts", "reprint", "gst invoice", "credit notes", "payment status", "pos sales"] }] },
-      { id: "returns-refunds", label: "Returns & Refunds", icon: Undo2, flat: true, items: [{ ...available("Returns & Refunds", "/pos/returns"), aliases: ["returns", "exchanges", "refunds", "refund status", "return approval"] }] },
-      { id: "stock-lookup", label: "Stock Lookup", icon: Boxes, flat: true, items: [{ ...available("Stock Lookup", "/pos/stock"), aliases: ["store stock", "availability", "in stock", "batches at store"] }] },
-      { id: "shifts-cash", label: "Shifts & Cash", icon: Wallet, flat: true, items: [{ ...available("Shifts & Cash", "/pos/shifts"), aliases: ["shifts", "open shift", "close shift", "cash in", "cash out", "float", "cash difference", "handover"] }] },
-      { id: "day-end-z-reports", label: "Day-End / Z Reports", icon: CalendarCheck, flat: true, items: [{ ...available("Day-End / Z Reports", "/pos/day-end"), aliases: ["z report", "x report", "day end", "close day"], requiredAnyPermission: ["pos.report.view", "pos.report.generate", "pos.report.finalize"] }] },
-      { id: "reports", label: "Reports", icon: BarChart3, flat: true, items: [{ ...available("Reports", "/pos/reports"), aliases: ["pos reports", "sales report", "payment report", "cash report", "gst summary"], requiredAnyPermission: ["pos.report.view", "pos.reports.view"] }] },
-      { id: "payment-reconciliation", label: "Payment Reconciliation", icon: Scale, flat: true, items: [{ ...available("Payment Reconciliation", "/pos/reconciliation"), aliases: ["reconciliation", "settlements", "card settlement", "upi settlement", "bank match"], requiredPermission: "pos.reconciliation.view" }] },
-      { id: "pos-settings", label: "POS Settings", icon: Settings, flat: true, items: [{ ...available("POS Settings", "/pos/settings"), aliases: ["pos settings", "outlets", "stores", "terminals", "counters", "cashiers", "cashier permissions", "receipt printer", "pos policy"],
-        requiredAnyPermission: ["pos.settings.manage", "pos.outlets.view", "pos.terminals.view", "pos.cashiers.view", "pos.permission_profiles.view"] }] },
       {
-        id: "pos-routes",
-        label: "POS",
+        id: "overview",
+        label: "Overview",
+        icon: LayoutDashboard,
+        flat: true,
+        items: [{ ...available("Overview", "/pos"), aliases: ["pos home", "pos dashboard", "retail overview", "today"] }],
+      },
+      {
+        id: "master-data",
+        label: "Master Data",
+        icon: Database,
+        collapsible: true,
         items: [
-          { ...available("Accounting Posting", "/pos/accounting"), parent: "payment-reconciliation", aliases: ["gl posting", "posting failures", "retry posting"], requiredPermission: "pos.accounting.view" },
+          { ...available("Stores & Outlets", "/pos/outlets"), aliases: ["stores", "outlets", "shops", "showroom", "kiosk", "retail locations"], requiredPermission: "pos.outlets.view" },
+          { ...available("POS Terminals", "/pos/terminals"), aliases: ["terminals", "counters", "tills"], requiredPermission: "pos.terminals.view" },
+          { ...available("Cashiers", "/pos/cashiers"), aliases: ["cashier access", "cashier profiles", "operators", "store access"], requiredPermission: "pos.cashiers.view" },
+        ],
+      },
+      {
+        id: "operations",
+        label: "Operations",
+        icon: ArrowLeftRight,
+        collapsible: true,
+        items: [
+          { ...available("Register", "/pos/register"), aliases: ["sell", "checkout", "point of sale", "billing counter", "new sale", "scan barcode", "split payment", "cart discount"],
+            requiredAnyPermission: ["pos.sale.create", "pos.operate"] },
+          { ...available("Held Carts", "/pos/held-carts"), aliases: ["held bills", "resume sale", "parked sale", "on hold"], requiredAnyPermission: ["pos.sale.create", "pos.operate"] },
+          { ...available("Returns & Refunds", "/pos/returns"), aliases: ["returns", "exchanges", "refunds", "refund status", "return approval", "supervisor approvals"] },
+          { ...available("Shifts & Cash", "/pos/shifts"), aliases: ["shifts", "sessions", "open shift", "close shift", "cash in", "cash out", "float", "cash difference", "handover"] },
+        ],
+      },
+      {
+        id: "planning",
+        label: "Planning & Control",
+        icon: Gauge,
+        collapsible: true,
+        items: [
+          { ...available("Day-End / Z Reports", "/pos/day-end"), aliases: ["z report", "x report", "day end", "close day"], requiredAnyPermission: ["pos.report.view", "pos.report.generate", "pos.report.finalize"] },
+          { ...available("Payment Reconciliation", "/pos/reconciliation"), aliases: ["reconciliation", "settlements", "card settlement", "upi settlement", "bank match"],
+            requiredPermission: "pos.reconciliation.view" },
+          { ...available("Accounting Posting", "/pos/accounting"), aliases: ["gl posting", "posting failures", "retry posting"], requiredPermission: "pos.accounting.view" },
+        ],
+      },
+      {
+        id: "inquiries",
+        label: "Inquiries",
+        icon: Search,
+        collapsible: true,
+        items: [
+          { ...available("Transactions", "/pos/transactions"), aliases: ["sales", "receipts", "reprint", "gst invoice", "credit notes", "payment status", "pos sales"] },
+          { ...available("Stock Lookup", "/pos/stock"), aliases: ["store stock", "availability", "in stock", "batches at store"] },
+          { ...available("Scan Diagnostics", "/pos/scan-diagnostics"), aliases: ["barcode errors", "unknown barcodes", "scanner", "scan failures"],
+            requiredPermission: "pos.terminals.view_transactions" },
+        ],
+      },
+      {
+        id: "reports",
+        label: "Reports",
+        icon: BarChart3,
+        collapsible: true,
+        items: [
+          { ...available("Sales Reports", "/pos/reports?tab=sales"), aliases: ["pos reports", "walk-in sales", "discount summary"], requiredAnyPermission: ["pos.report.view", "pos.reports.view"] },
+          { ...available("Payment Reports", "/pos/reports?tab=payments"), aliases: ["cash collections", "card collections", "upi collections", "split payments"], requiredAnyPermission: ["pos.report.view", "pos.reports.view"] },
+          { ...available("Returns & Refund Reports", "/pos/reports?tab=returns-refunds"), aliases: ["returns by reason", "refunds by method"], requiredAnyPermission: ["pos.report.view", "pos.reports.view"] },
+          { ...available("Cash & Shift Reports", "/pos/reports?tab=cash-shifts"), aliases: ["shift summary", "cash differences report"], requiredAnyPermission: ["pos.report.view", "pos.reports.view"] },
+          { ...available("Inventory Reports", "/pos/reports?tab=inventory"), aliases: ["quantity sold", "stock reduced"], requiredAnyPermission: ["pos.report.view", "pos.reports.view"] },
+          { ...available("GST & Document Reports", "/pos/reports?tab=tax-documents"), aliases: ["gst summary", "tax breakdown", "reprints"], requiredAnyPermission: ["pos.report.view", "pos.reports.view"] },
+        ],
+      },
+      {
+        id: "configuration",
+        label: "Configuration",
+        icon: Settings,
+        collapsible: true,
+        items: [
+          { ...available("POS Setup", "/pos/settings"), aliases: ["pos settings", "pos policy", "return rules", "receipt printer", "payment settings"], requiredPermission: "pos.settings.manage" },
+          { ...available("Cashier Permissions", "/pos/settings/cashier-permissions"), aliases: ["permission profiles", "discount limits", "refund limits", "cashier limits"],
+            requiredPermission: "pos.permission_profiles.view" },
+          // Every other POS route belongs to one of the pages above: searchable and breadcrumbed, never a sidebar entry of its own.
           { ...available("Supervisor Approvals", "/pos/returns?tab=approvals"), parent: "returns-refunds", aliases: ["discount approval", "price override approval", "refund approval", "cash approval"] },
           { ...available("Refunds", "/pos/returns?tab=refunds"), parent: "returns-refunds", aliases: ["refund status", "cash refund", "card refund", "upi refund"] },
           { ...available("Refund", "/pos/refunds"), parent: "returns-refunds" },
@@ -838,11 +893,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("GST Documents", "/pos/transactions?tab=documents"), parent: "transactions", aliases: ["invoices", "bill of supply", "invoice number"] },
           { ...available("Payments Needing a Decision", "/pos/transactions?tab=payments"), parent: "transactions", aliases: ["payment exceptions", "duplicate payment", "excess payment", "unknown payment"] },
           { ...available("Cash Movements", "/pos/shifts?tab=cash-movements"), parent: "shifts-cash", aliases: ["cash in", "cash out", "petty cash"] },
-          { ...available("Stores & Outlets", "/pos/outlets"), parent: "pos-settings", aliases: ["shops", "showroom", "kiosk", "retail locations"], requiredPermission: "pos.outlets.view" },
-          { ...available("POS Terminals", "/pos/terminals"), parent: "pos-settings", aliases: ["tills", "counters"], requiredPermission: "pos.terminals.view" },
-          { ...available("Cashiers", "/pos/cashiers"), parent: "pos-settings", aliases: ["cashier profiles", "operators", "store access"], requiredPermission: "pos.cashiers.view" },
-          { ...available("Cashier Permissions", "/pos/settings/cashier-permissions"), parent: "pos-settings", aliases: ["permission profiles", "discount limits", "refund limits"],
-            requiredPermission: "pos.permission_profiles.view" },
         ],
       },
     ],
