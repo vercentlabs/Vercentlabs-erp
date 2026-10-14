@@ -2,7 +2,7 @@
 
 // Deals: every deal, any status, as a list. The common views are chips (My deals, Closing this month, Overdue, Won, Lost) with the rest under
 // More views; one Filters button holds every filter, each applying the moment it changes, and the active ones show as chips. New deal is the
-// primary action; Export and the dashboard sit in the "…" menu.
+// primary action; Export sits in the "…" menu and the dashboard is under Insights.
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -296,7 +296,6 @@ export function OpportunityListScreen() {
           primaryAction: can?.create ? <LinkButton href="/crm/opportunities/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New deal</LinkButton> : undefined,
           secondaryActions: <MoreMenu label="More deal actions" items={[
             ...(can?.export ? [{ id: "export", label: "Export", onAction: () => { window.location.href = opportunityExportUrl(listFilters); } }] : []),
-            { id: "dashboard", label: "Dashboard", onAction: () => router.push("/crm/opportunities/dashboard") },
           ]} />,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as OpportunityViewKey), pinned: PINNED_VIEWS } : undefined}

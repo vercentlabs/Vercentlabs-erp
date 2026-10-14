@@ -2,7 +2,7 @@
 
 // CRM Leads: opens on the user's own leads (managers and admins on all of them), with the five most used views as chips and the rest under
 // More views; search first; every filter in one popover, applying at once; eight columns by default with the status shown beside the name;
-// and a call link, an email link and Log activity on a row on hover. Import, Export and the lead dashboard sit in the "…" menu.
+// and a call link, an email link and Log activity on a row on hover. Import and Export sit in the "…" menu; the dashboard is under Insights.
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -326,7 +326,6 @@ export function LeadListScreen() {
           secondaryActions: <MoreMenu label="More lead actions" items={[
             ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=leads") }] : []),
             ...(can?.export ? [{ id: "export", label: "Export", onAction: () => { window.location.href = leadExportUrl(listFilters); } }] : []),
-            { id: "dashboard", label: "Dashboard", onAction: () => router.push("/crm/leads/dashboard") },
           ]} />,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as LeadViewKey), pinned: PINNED_VIEWS } : undefined}

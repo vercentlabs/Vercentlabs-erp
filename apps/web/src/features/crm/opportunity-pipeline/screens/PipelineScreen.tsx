@@ -200,7 +200,6 @@ export function PipelineScreen() {
           primaryAction: can?.create ? <LinkButton href="/crm/opportunities/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New deal</LinkButton> : undefined,
           secondaryActions: (
             <>
-              <LinkButton href="/crm/opportunities/dashboard" variant="outline">Dashboard</LinkButton>
               {can?.manageStages && (
                 <LinkButton href="/crm/settings/opportunities/stages" variant="ghost" aria-label="Sales stages (Setup)"><Settings2 className="size-4" aria-hidden="true" /></LinkButton>
               )}
