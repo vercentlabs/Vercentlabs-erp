@@ -29,6 +29,8 @@ const QUICK_LIMIT = 12;
 const SLOW_SEARCH_MS = 350;
 const SLOW_BARCODE_MS = 150;
 const SUPPORTED_TYPES = new Set(["product", "service", "consumable"]);
+const HSN_PATTERN = /^[0-9]{4}([0-9]{2}){0,2}$/;
+const SAC_PATTERN = /^99[0-9]{4}$/;
 
 export const POS_PRODUCT_MESSAGES = Object.freeze({
   POS_PRODUCT_NOT_FOUND: "Product not found. Try another name or code.",
@@ -45,6 +47,8 @@ export const POS_PRODUCT_MESSAGES = Object.freeze({
   POS_SEARCH_UNAVAILABLE: "Search is temporarily unavailable. Please retry.",
   POS_SESSION_REQUIRED: "Open a POS session to add products.",
   POS_PERMISSION_DENIED: "You do not have permission for this action.",
+  POS_TAX_ITEM_CLASSIFICATION_MISSING: "No tax category is set. Set one on the item before selling it.",
+  POS_TAX_HSN_SAC_INVALID: "No valid HSN/SAC code is set. Add one on the item before selling it.",
 });
 const BARCODE_NOT_FOUND = "Product not found. Search by name or SKU.";
 const BARCODE_INVALID = "Barcode could not be read. Please scan again.";
@@ -120,7 +124,7 @@ export async function resolvePosProductContext(client, context, { cartId = null,
   }
   await assertPosStoreAccess(client, context, source.store_id, source.terminal_id);
   const outlet = (await client.query(
-    `SELECT outlet.id, outlet.code, outlet.name, outlet.active, outlet.warehouse_id, outlet.price_list_id, outlet.currency_code,
+    `SELECT outlet.id, outlet.code, outlet.name, outlet.active, outlet.warehouse_id, outlet.price_list_id, outlet.currency_code, outlet.tax_registration_id,
             COALESCE(terminal.selling_location_id, outlet.selling_location_id) AS location_id
        FROM tenant.pos_stores outlet
        LEFT JOIN tenant.pos_terminals terminal ON terminal.organization_id = outlet.organization_id AND terminal.id = $3
@@ -133,19 +137,40 @@ export async function resolvePosProductContext(client, context, { cartId = null,
     try { priceList = await resolveSalesPriceList(client, context, { priceListId: outlet.price_list_id, currencyCode: outlet.currency_code }); } catch { priceList = null; }
   }
   const policy = (await client.query(`SELECT allow_negative_stock FROM tenant.pos_settings WHERE organization_id = $1`, [context.organizationId])).rows[0];
+  // The company's tax settings, so a product its tax cannot be worked out for is shown as unavailable instead of being refused on add. The
+  // seller is the outlet's registration, else the company default (as the bill resolves it): an unregistered one charges no GST at all.
+  const tax = (await client.query(
+    `SELECT COALESCE(settings.tax_enabled, true) AS enabled, settings.default_tax_category_id, btrim(organization.country_code) AS country_code,
+            (SELECT registration.registration_type FROM tenant.tax_registrations registration
+              WHERE registration.organization_id = organization.id AND (registration.id = $2 OR ($2::uuid IS NULL AND registration.status = 'active'))
+              ORDER BY registration.is_default DESC, registration.created_at LIMIT 1) AS seller_registration_type
+       FROM public.organizations organization LEFT JOIN tenant.tax_settings settings ON settings.organization_id = organization.id WHERE organization.id = $1`,
+    [context.organizationId, outlet.tax_registration_id ?? null])).rows[0] ?? null;
+  if (tax?.seller_registration_type === "unregistered") tax.enabled = false;
   return {
     organizationId: context.organizationId, outlet, settings, assortment, priceList, currency: outlet.currency_code.trim(),
     cartId: source.cart_id ?? null, terminalId: source.terminal_id ?? null, shiftId: source.shift_id ?? null, sessionOpen: source.shift_status === "open",
     customerId: source.customer_id ?? null, allowNegativeStock: Boolean(policy?.allow_negative_stock),
+    tax: tax ? { enabled: tax.enabled !== false, defaultTaxCategoryId: tax.default_tax_category_id ?? null, countryCode: tax.country_code || null } : null,
     showQuantity: Boolean(settings.show_exact_stock_if_authorized) && can(context, "stock.view"),
   };
+}
+
+// The same item checks the bill's tax engine makes (cart-pricing resolvePosLineTax): a tax category (the item's, else the company default)
+// and, in India, an HSN code for goods or a SAC code for services.
+function taxGap(tax, item) {
+  if (!tax?.enabled) return null;
+  if (!(item.tax_category_id ?? tax.defaultTaxCategoryId)) return "POS_TAX_ITEM_CLASSIFICATION_MISSING";
+  const code = String(item.hsn_sac_code ?? "").replace(/[s.]/g, "");
+  if (tax.countryCode === "IN" && !(item.item_type === "service" ? SAC_PATTERN : HSN_PATTERN).test(code)) return "POS_TAX_HSN_SAC_INVALID";
+  return null;
 }
 
 // ------------------------------------------------------------------ reading products
 
 const ITEM_COLUMNS = `item.id, item.code, item.name, item.item_type, item.track_inventory, item.tracking_type, item.uom_id, item.sales_uom_id, item.status,
   item.lifecycle_status, item.is_sellable, item.is_variant_template, item.parent_item_id, item.variant_attributes, item.image_attachment_id, item.version,
-  item.sales_description, item.brand, COALESCE(item.group_id, parent.group_id) AS category_id, category.name AS category_name, parent.name AS parent_name`;
+  item.sales_description, item.brand, item.tax_category_id, item.hsn_sac_code, COALESCE(item.group_id, parent.group_id) AS category_id, category.name AS category_name, parent.name AS parent_name`;
 const ITEM_JOINS = `LEFT JOIN tenant.items parent ON parent.organization_id = item.organization_id AND parent.id = item.parent_item_id
   LEFT JOIN tenant.item_groups category ON category.organization_id = item.organization_id AND category.id = COALESCE(item.group_id, parent.group_id)`;
 
@@ -248,6 +273,7 @@ async function decorate(client, context, ctx, entries) {
     else if (!visibleHere) reason = "POS_PRODUCT_OUTLET_RESTRICTED";
     else if (!unit.ok || !uom) reason = "POS_PRODUCT_UOM_INVALID";
     else if (price === null) reason = "POS_PRODUCT_PRICE_MISSING";
+    else if (taxGap(ctx.tax, item)) reason = taxGap(ctx.tax, item);
     else if (stockStatus === "out_of_stock" && !ctx.allowNegativeStock) reason = "POS_PRODUCT_OUT_OF_STOCK";
     const variantLabel = item.parent_item_id ? Object.values(item.variant_attributes ?? {}).map(String).filter(Boolean).join(" / ") || null : null;
     out.push({
@@ -567,7 +593,8 @@ export async function validatePosProductSelection(client, context, ctx, { itemId
   if (item.is_variant_template) throw posProductError("POS_PRODUCT_SELECTION_REQUIRED", { itemId, variants: (await variantsOf(client, context, ctx, item.id)).map((variant) => variant.itemId) });
   const [product] = await decorate(client, context, { ...ctx, settings: { ...ctx.settings, show_stock_status: true }, allowNegativeStock: true, internal: true }, [{ item, uomId }]);
   const reason = product.unavailableReason?.code;
-  if (reason) throw posProductError(reason, { itemId, uomId: product.saleUomId });
+  // A tax gap is refused by the bill's tax engine instead (assertPosProductTaxable), whose message names the product and the exact problem.
+  if (reason && !reason.startsWith("POS_TAX_")) throw posProductError(reason, { itemId, uomId: product.saleUomId });
   const normalized = await normalizeQuantityToBase(client, ctx.organizationId, item.id, product.saleUomId, String(quantity), { purpose: "sales" });
   if (!normalized.ok) throw posProductError("POS_PRODUCT_UOM_INVALID", { itemId, uomId: product.saleUomId, reason: normalized.reason }, normalized.message);
   const factor = decimal(product.uomFactor);

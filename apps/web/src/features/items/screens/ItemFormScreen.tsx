@@ -33,7 +33,7 @@ export function ItemFormScreen({ itemId, lens = "inventory" }: { itemId?: string
   const saved = (item: Item) => {
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "products") });
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "options") });
-    router.push(`${base}/${item.id}`);
+    router.replace(`${base}/${item.id}`);
   };
   const item = itemQuery.data;
   return (
@@ -41,7 +41,7 @@ export function ItemFormScreen({ itemId, lens = "inventory" }: { itemId?: string
       <PageHeader title={item ? `Edit ${item.name}` : LENS[lens].newLabel}
         description={item ? `${item.code}. Changes apply to new documents; issued documents keep their own copy.` : "Name, type and base unit are required; a stock item also needs a category to be activated."} />
       <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:p-6">
-        <ItemForm key={itemId ?? "new"} options={options} item={item} onSaved={saved} onCancel={() => router.push(item ? `${base}/${item.id}` : base)} />
+        <ItemForm key={itemId ?? "new"} options={options} item={item} onSaved={saved} onCancel={() => router.replace(item ? `${base}/${item.id}` : base)} />
       </div>
     </div>
   );

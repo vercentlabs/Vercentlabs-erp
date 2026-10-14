@@ -1040,7 +1040,7 @@ export async function getSalesOptions(
     opportunities,
   ] = await Promise.all([
     client.query(
-      `SELECT id,code,party_type,display_name,legal_name,currency_code,credit_limit,payment_term_id,default_price_list_id,tax_treatment,default_shipping_method,default_delivery_terms,default_incoterm,sales_block,sales_block_reason FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both') ORDER BY display_name LIMIT 500`,
+      `SELECT id,code,party_type,display_name,legal_name,currency_code,owner_user_id,credit_limit,payment_term_id,default_price_list_id,tax_treatment,default_shipping_method,default_delivery_terms,default_incoterm,sales_block,sales_block_reason FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both') ORDER BY display_name LIMIT 500`,
       [context.organizationId],
     ),
     client.query(

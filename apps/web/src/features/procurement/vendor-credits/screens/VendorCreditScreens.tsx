@@ -26,6 +26,7 @@ import {
 } from "../api/vendor-credits-api";
 import { CREDIT_TONE, SETTLEMENT_TONE } from "./DebitNotesCreditsScreens";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Row = {
   key: string; kind: "bill" | "return" | "other"; billLineId: string | null; purchaseReturnLineId: string | null; label: string; hint: string; basis: "quantity" | "amount";
@@ -107,8 +108,9 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
     return { ...header, debitClaimId: header.origin === "accepted_claim" || header.debitClaimId ? header.debitClaimId || undefined : undefined, supplierId, lines };
   };
   useFormChangesWarning({ supplierId, header, rows }, seeded);
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: async (post: boolean) => {
+    mutationFn: (post: boolean) => submit.run(async () => {
       const input = body();
       if (existing) {
         await updateCredit(existing.credit.id, input);
@@ -117,8 +119,8 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
       }
       const fromClaim = input.lines.length === 0 && input.debitClaimId ? { fromClaimId: input.debitClaimId } : {};
       return (await createCredit({ ...input, ...fromClaim, post })).id;
-    },
-    onSuccess: (id) => router.push(`/procurement/debit-notes-credits/vendor-credits/${id}`),
+    }),
+    onSuccess: (id) => router.replace(`/procurement/debit-notes-credits/vendor-credits/${id}`),
   });
   const calculate = useMutation({ mutationFn: () => previewCredit({ ...body(), creditId: existing?.credit.id }), onSuccess: setPreview });
   if (options.isLoading && !data) return <LoadingState label="Loading" />;
@@ -221,8 +223,8 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
       <Panel title="Notes"><TextArea aria-label="Notes" value={header.notes} onChange={set("notes")} /></Panel>
       <div className="flex flex-wrap justify-end gap-2">
         <LinkButton variant="secondary" href={existing ? `/procurement/debit-notes-credits/vendor-credits/${existing.credit.id}` : "/procurement/debit-notes-credits"}>Cancel</LinkButton>
-        <Button variant="secondary" isLoading={save.isPending && save.variables === false} isDisabled={!supplierId || (!rows.length && !claimLines)} onPress={() => save.mutate(false)}>Save Draft</Button>
-        {data.permissions.post && <Button variant="primary" isLoading={save.isPending && save.variables === true} isDisabled={!supplierId || (!rows.length && !claimLines)} onPress={() => save.mutate(true)}>Save &amp; Post</Button>}
+        <Button variant="secondary" isLoading={(save.isPending || save.isSuccess) && save.variables === false} isDisabled={save.isPending || save.isSuccess || !supplierId || (!rows.length && !claimLines)} onPress={() => save.mutate(false)}>Save Draft</Button>
+        {data.permissions.post && <Button variant="primary" isLoading={(save.isPending || save.isSuccess) && save.variables === true} isDisabled={save.isPending || save.isSuccess || !supplierId || (!rows.length && !claimLines)} onPress={() => save.mutate(true)}>Save &amp; Post</Button>}
       </div>
     </div>
   );

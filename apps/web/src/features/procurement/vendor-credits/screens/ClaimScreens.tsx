@@ -23,6 +23,7 @@ import {
 } from "../api/vendor-credits-api";
 import { CLAIM_TONE, CREDIT_TONE } from "./DebitNotesCreditsScreens";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Row = { key: string; billLineId: string | null; label: string; basis: "amount" | "quantity"; quantity: string; unitValue: string; amount: string; taxAmount: string; reason: string;
   description: string };
@@ -66,8 +67,9 @@ function ClaimForm({ existing, presetSupplierId, presetBillId }: { existing: Cla
     setSeeded(true);
   }
   useFormChangesWarning({ supplierId, header, rows }, Boolean(existing) || !presetBillId || seeded);
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: async (issue: boolean) => {
+    mutationFn: (issue: boolean) => submit.run(async () => {
       const body = { ...header, supplierId, lines: rows.map((row) => ({ billLineId: row.billLineId ?? undefined, basis: row.basis, quantity: row.basis === "quantity" ? row.quantity : undefined,
         unitValue: row.basis === "quantity" && row.unitValue ? row.unitValue : undefined, amount: row.basis === "amount" ? row.amount : undefined,
         taxAmount: row.billLineId ? undefined : row.taxAmount || "0", reason: row.reason, description: row.description || undefined })) };
@@ -77,8 +79,8 @@ function ClaimForm({ existing, presetSupplierId, presetBillId }: { existing: Cla
         return existing.claim.id;
       }
       return (await createClaim({ ...body, issue })).id;
-    },
-    onSuccess: (id) => router.push(`/procurement/debit-notes-credits/claims/${id}`),
+    }),
+    onSuccess: (id) => router.replace(`/procurement/debit-notes-credits/claims/${id}`),
   });
   if (options.isLoading && !options.data) return <LoadingState label="Loading" />;
   if (!options.data) return <ErrorState title="Could not load the form" description={errorMessage(options.error)} />;
@@ -140,8 +142,8 @@ function ClaimForm({ existing, presetSupplierId, presetBillId }: { existing: Cla
       <Panel title="Notes"><TextArea aria-label="Notes" value={header.notes} onChange={set("notes")} /></Panel>
       <div className="flex flex-wrap justify-end gap-2">
         <LinkButton variant="secondary" href={existing ? `/procurement/debit-notes-credits/claims/${existing.claim.id}` : "/procurement/debit-notes-credits"}>Cancel</LinkButton>
-        <Button variant="secondary" isLoading={save.isPending && save.variables === false} isDisabled={!supplierId || !rows.length} onPress={() => save.mutate(false)}>Save Draft</Button>
-        <Button variant="primary" isLoading={save.isPending && save.variables === true} isDisabled={!supplierId || !rows.length} onPress={() => save.mutate(true)}>Save &amp; Issue</Button>
+        <Button variant="secondary" isLoading={(save.isPending || save.isSuccess) && save.variables === false} isDisabled={save.isPending || save.isSuccess || !supplierId || !rows.length} onPress={() => save.mutate(false)}>Save Draft</Button>
+        <Button variant="primary" isLoading={(save.isPending || save.isSuccess) && save.variables === true} isDisabled={save.isPending || save.isSuccess || !supplierId || !rows.length} onPress={() => save.mutate(true)}>Save &amp; Issue</Button>
       </div>
     </div>
   );

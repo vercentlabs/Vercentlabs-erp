@@ -23,6 +23,7 @@ import {
   type GoodsIssueOptions, type LineInput,
 } from "../api/goods-issues-api";
 import { GOODS_ISSUES_BASE } from "./GoodsIssuesScreen";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Line = { key: string; itemId: string; quantity: string; uomId: string; locationId: string; disposition: Disposition; batches: Array<{ batchId: string; quantity: string }>; serialIds: string[]; notes: string };
 const blank = (): Line => ({ key: crypto.randomUUID(), itemId: "", quantity: "", uomId: "", locationId: "", disposition: "available", batches: [], serialIds: [], notes: "" });
@@ -70,12 +71,13 @@ function Form({ options, existing, prefill }: { options: GoodsIssueOptions; exis
         ...(item?.tracking_type === "serial" ? { serialIds: line.serialIds } : {}), notes: line.notes || null };
     }),
   }), [header, lines, inv.data, recipients]);
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: async (post: boolean) => {
+    mutationFn: (post: boolean) => submit.run(async () => {
       const detail = existing ? await updateGoodsIssue(existing.goodsIssue.id, { ...payload, expectedVersion: existing.goodsIssue.version }) : await createGoodsIssue(payload);
       return post ? postGoodsIssue(detail.goodsIssue.id).catch((error) => { throw Object.assign(error, { savedId: detail.goodsIssue.id }); }) : detail;
-    },
-    onSuccess: (detail) => router.push(`${GOODS_ISSUES_BASE}/${detail.goodsIssue.id}`),
+    }),
+    onSuccess: (detail) => router.replace(`${GOODS_ISSUES_BASE}/${detail.goodsIssue.id}`),
     onError: (error: Error & { savedId?: string }) => { if (error.savedId && !existing) router.replace(`${GOODS_ISSUES_BASE}/${error.savedId}/edit`); },
   });
   const errors = errorsOf(save.error);
@@ -89,8 +91,8 @@ function Form({ options, existing, prefill }: { options: GoodsIssueOptions; exis
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(saved ? `${GOODS_ISSUES_BASE}/${saved.id}` : GOODS_ISSUES_BASE)}>Cancel</Button>
-          <Button variant={options.capabilities.post ? "secondary" : "primary"} isLoading={save.isPending && save.variables === false} onPress={() => save.mutate(false)}>Save draft</Button>
-          {options.capabilities.post && <Button variant="primary" isLoading={save.isPending && save.variables === true} onPress={() => save.mutate(true)}>Post goods issue</Button>}
+          <Button isDisabled={save.isPending || save.isSuccess} variant={options.capabilities.post ? "secondary" : "primary"} isLoading={(save.isPending || save.isSuccess) && save.variables === false} onPress={() => save.mutate(false)}>Save draft</Button>
+          {options.capabilities.post && <Button isDisabled={save.isPending || save.isSuccess} variant="primary" isLoading={(save.isPending || save.isSuccess) && save.variables === true} onPress={() => save.mutate(true)}>Post goods issue</Button>}
         </>
       }
       banner={save.error ? <Notice>

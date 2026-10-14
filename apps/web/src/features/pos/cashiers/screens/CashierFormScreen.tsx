@@ -18,6 +18,7 @@ import { listProfiles } from "@/features/pos/permission-profiles/api/profiles-ap
 import {
   CASHIERS_BASE, createCashier, errorMessage, fieldErrors, getCashier, getCashierOptions, setCashierOutlets, updateCashier, type CashierDetail, type CashierOptions,
 } from "../api/cashiers-api";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Draft = { userId: string; code: string; displayName: string; employeeId: string; outletIds: string[]; defaultOutletId: string; permissionProfileId: string; notes: string; activate: boolean };
 
@@ -53,8 +54,9 @@ function Form({ options, cashier, initialOutletId }: { options: CashierOptions; 
   const employees = options.employees.filter((employee) => !employee.userId || employee.userId === (orNull(draft.userId) ?? ""));
   const defaults = options.outlets.filter((outlet) => draft.outletIds.includes(outlet.id)).map((outlet) => ({ value: outlet.id, label: outlet.label }));
 
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => submit.run(async () => {
       const common = { displayName: draft.displayName, employeeId: orNull(draft.employeeId), notes: draft.notes };
       if (!cashier) {
         return createCashier({ ...common, userId: orNull(draft.userId), code: draft.code.trim() || undefined, outletIds: draft.outletIds,
@@ -67,11 +69,11 @@ function Form({ options, cashier, initialOutletId }: { options: CashierOptions; 
       const outletsChanged = JSON.stringify([...draft.outletIds].sort()) !== JSON.stringify([...cashier.outletIds].sort()) || (orNull(draft.defaultOutletId) ?? null) !== (cashier.defaultOutletId ?? null);
       if (can.assignOutlets && outletsChanged) saved = await setCashierOutlets(cashier.id, draft.outletIds, orNull(draft.defaultOutletId));
       return saved;
-    },
+    }),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos-cashiers") });
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos-outlets") });
-      router.push(`${CASHIERS_BASE}/${saved.id}`);
+      router.replace(`${CASHIERS_BASE}/${saved.id}`);
     },
     onError: (failure) => { setErrors(fieldErrors(failure)); setError(errorMessage(failure)); window.scrollTo({ top: 0, behavior: "smooth" }); },
   });
@@ -87,7 +89,7 @@ function Form({ options, cashier, initialOutletId }: { options: CashierOptions; 
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(cashier ? `${CASHIERS_BASE}/${cashier.id}` : CASHIERS_BASE)}>Cancel</Button>
-          <Button variant="primary" isLoading={save.isPending} onPress={() => { setError(null); save.mutate(); }}>{cashier ? "Save changes" : "Create cashier"}</Button>
+          <Button isDisabled={save.isPending || save.isSuccess} variant="primary" isLoading={save.isPending || save.isSuccess} onPress={() => { setError(null); save.mutate(); }}>{cashier ? "Save changes" : "Create cashier"}</Button>
         </>
       }
     >

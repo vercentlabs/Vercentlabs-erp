@@ -7,7 +7,7 @@ import { type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Badge, Button, EmptyState, ErrorState, LinkButton, MetricCard, RecordDetailsPage } from "@vercentlabs/design-system";
+import { Badge, Button, EmptyState, ErrorState, LinkButton, RecordDetailsPage } from "@vercentlabs/design-system";
 
 import { quantity } from "@/features/items/item-format";
 import { formatDateTime } from "@/shared/format/human";
@@ -21,7 +21,7 @@ import { getSummary, listAlerts } from "@/features/replenishment/api/replenishme
 import { AlertBadges } from "@/features/replenishment/screens/AlertsPanel";
 import { ReorderStatusBadge } from "@/features/replenishment/screens/ReplenishmentScreen";
 
-import { errorCode, errorMessage, getAvailability, getItemStock, type AvailabilityWarehouse } from "../api/stock-balance-api";
+import { errorCode, errorMessage, getAvailability, getItemStock, type AvailabilityWarehouse, type ItemStock } from "../api/stock-balance-api";
 import { STOCK_BASE } from "./StockBalanceScreen";
 
 const KIND_LABEL: Record<string, string> = {
@@ -38,8 +38,55 @@ function Table({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
     <LinesTable columns={headers}>{rows.map((cells, index) => <tr key={index}>{cells.map((value, column) => <Cell key={column}>{value}</Cell>)}</tr>)}</LinesTable>
   );
 }
-function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return <MetricCard label={hint ? `${label} · ${hint}` : label} value={value} />;
+// The item's stock position, read as the availability sum: on hand, less what is restricted and what is reserved, is available. Restrictions
+// and the pipeline (in transit, incoming, outgoing) are grouped beneath it; zero figures stay quiet so the ones that matter stand out.
+type Summary = NonNullable<ItemStock["summary"]>;
+function StockPosition({ summary, q }: { summary: Summary | null; q: (value: number | null | undefined) => string }) {
+  const restricted = summary?.restricted ?? 0;
+  const available = summary?.available ?? 0;
+  const onHand = summary?.onHand ?? 0;
+  const headline = (label: string, value: number, caption: string, tone: "default" | "brand" | "warning" = "default") => (
+    <div className={`flex min-w-0 flex-1 flex-col gap-1 rounded-[var(--radius-card)] p-4 ${tone === "brand" ? "bg-brand-soft" : tone === "warning" ? "bg-warning-soft" : "bg-surface-muted"}`}>
+      <span className="text-xs font-medium tracking-wide text-text-secondary uppercase">{label}</span>
+      <span className={`text-3xl font-semibold tabular-nums ${tone === "brand" ? "text-brand" : tone === "warning" ? "text-warning-emphasis" : "text-text"}`}>{q(value)}</span>
+      <span className="text-xs text-text-muted">{caption}</span>
+    </div>
+  );
+  const operator = (symbol: string) => <span aria-hidden="true" className="hidden self-center text-xl font-light text-text-muted md:block">{symbol}</span>;
+  const row = (label: string, value: number, caption?: string, warn = false) => (
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <span className="flex min-w-0 flex-col"><span className="text-sm text-text">{label}</span>{caption && <span className="text-xs text-text-muted">{caption}</span>}</span>
+      <span className={`shrink-0 text-sm tabular-nums ${value === 0 ? "text-text-muted" : warn ? "font-semibold text-warning-emphasis" : "font-semibold text-text"}`}>{q(value)}</span>
+    </div>
+  );
+  return (
+    <section aria-label="Stock position" className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-stretch">
+        {headline("On hand", onHand, "Physical stock in every warehouse")}
+        {operator("−")}
+        {headline("Restricted", restricted, restricted ? "Held, quarantined, damaged or expired" : "Nothing held back", restricted ? "warning" : "default")}
+        {operator("−")}
+        {headline("Reserved", summary?.reserved ?? 0, "Committed to orders")}
+        {operator("=")}
+        {headline("Available", available, available > 0 ? "Can be committed now" : onHand > 0 ? "Nothing free to commit" : "No stock", available > 0 ? "brand" : "warning")}
+      </div>
+      <div className="grid gap-x-8 gap-y-2 border-t border-border pt-3 md:grid-cols-2">
+        <div className="flex flex-col divide-y divide-border">
+          <span className="pb-1 text-xs font-medium tracking-wide text-text-secondary uppercase">Restricted stock</span>
+          {row("Quality hold", summary?.qualityHold ?? 0, undefined, true)}
+          {row("Quarantined", summary?.quarantined ?? 0, undefined, true)}
+          {row("Damaged", summary?.damaged ?? 0, undefined, true)}
+          {(summary?.expired ?? 0) > 0 && row("Expired", summary?.expired ?? 0, "Past its batch expiry", true)}
+        </div>
+        <div className="flex flex-col divide-y divide-border">
+          <span className="pb-1 text-xs font-medium tracking-wide text-text-secondary uppercase">Pipeline · not on hand</span>
+          {row("In transit", summary?.inTransit ?? 0, "Dispatched between warehouses")}
+          {row("Incoming", summary?.incoming ?? 0, "Expected from purchase orders and transfers")}
+          {row("Other outgoing", summary?.otherOutgoing ?? 0, "Planned beyond reservations")}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export function ItemStockScreen({ itemId }: { itemId: string }) {
@@ -100,18 +147,7 @@ export function ItemStockScreen({ itemId }: { itemId: string }) {
       </div>}
     >
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5 lg:grid-cols-10">
-        <Figure label="On hand" value={q(summary?.onHand)} />
-        <Figure label="Reserved" value={q(summary?.reserved)} />
-        <Figure label="Available" value={q(summary?.available)} hint="Eligible on hand − reserved" />
-        <Figure label="Restricted" value={q(summary?.restricted)} hint={summary?.expired ? `${quantity(summary.expired)} expired` : undefined} />
-        <Figure label="Quality hold" value={q(summary?.qualityHold)} />
-        <Figure label="Quarantined" value={q(summary?.quarantined)} />
-        <Figure label="Damaged" value={q(summary?.damaged)} />
-        <Figure label="In transit" value={q(summary?.inTransit)} />
-        <Figure label="Incoming" value={q(summary?.incoming)} hint="Expected, not on hand" />
-        <Figure label="Other outgoing" value={q(summary?.otherOutgoing)} hint="Planned beyond reservations" />
-      </div>
+      <StockPosition summary={summary} q={q} />
 
       <Section title="Available stock">
         <p className="text-xs text-text-muted">Available is what can be committed now: eligible on hand (not held, expired or blocked) less what is reserved. Incoming and in-transit stock is never available.</p>

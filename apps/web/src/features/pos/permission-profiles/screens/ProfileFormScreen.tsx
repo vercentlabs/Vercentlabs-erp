@@ -19,6 +19,8 @@ import {
   PROFILES_BASE, createProfile, errorMessage, fieldErrors, getCatalogue, getProfile, issuesOf, updateProfile, type Area, type CatalogueEntry, type GrantInput, type Profile,
   type ProfileCapabilities,
 } from "../api/profiles-api";
+import { slugCode } from "../../shared/codes";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Row = { code: string; enabled: boolean; limitMode: GrantInput["limitMode"]; maxPercentage: string; maxAmount: string; maxAggregateAmount: string; requireReason: boolean };
 
@@ -36,6 +38,7 @@ function Form({ entries, areas, capabilities, profile }: { entries: CatalogueEnt
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [head, setHead] = useState({ code: profile?.code ?? "", name: profile?.name ?? "", description: profile?.description ?? "" });
+  const [codeTyped, setCodeTyped] = useState(Boolean(profile));
   const [rows, setRows] = useState<Record<string, Row>>(() => Object.fromEntries(entries.map((entry) => {
     const grant = profile?.grants.find((item) => item.code === entry.code);
     return [entry.code, {
@@ -52,8 +55,9 @@ function Form({ entries, areas, capabilities, profile }: { entries: CatalogueEnt
   const grouped = useMemo(() => areas.map((area) => ({ area, items: entries.filter((entry) => entry.area === area.code) })), [areas, entries]);
   const locked = Boolean(profile && (profile.status !== "draft" || profile.assignedCashiers > 0));
 
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: () => submit.run(async () => {
       const grants: GrantInput[] = entries.map((entry) => {
         const row = rows[entry.code];
         const limited = row.limitMode === "limited";
@@ -65,10 +69,10 @@ function Form({ entries, areas, capabilities, profile }: { entries: CatalogueEnt
       const input: Record<string, unknown> = { name: head.name, description: head.description, grants };
       if (!profile || (!locked && head.code.trim().toUpperCase() !== profile.code)) input.code = head.code;
       return profile ? updateProfile(profile.id, { ...input, expectedVersion: profile.version }) : createProfile(input);
-    },
+    }),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos-profiles") });
-      router.push(`${PROFILES_BASE}/${saved.id}`);
+      router.replace(`${PROFILES_BASE}/${saved.id}`);
     },
     onError: (failure) => { setErrors(fieldErrors(failure)); setProblems(issuesOf(failure)); setError(errorMessage(failure)); window.scrollTo({ top: 0, behavior: "smooth" }); },
   });
@@ -89,14 +93,17 @@ function Form({ entries, areas, capabilities, profile }: { entries: CatalogueEnt
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(profile ? `${PROFILES_BASE}/${profile.id}` : PROFILES_BASE)}>Cancel</Button>
-          <Button variant="primary" isLoading={save.isPending} onPress={() => { setError(null); setProblems([]); save.mutate(); }}>{profile ? "Save changes" : "Create profile"}</Button>
+          <Button isDisabled={save.isPending || save.isSuccess} variant="primary" isLoading={save.isPending || save.isSuccess} onPress={() => { setError(null); setProblems([]); save.mutate(); }}>{profile ? "Save changes" : "Create profile"}</Button>
         </>
       }
     >
       <FormSection title="Profile">
-        <TextField label="Name" isRequired value={head.name} onChange={(name) => setHead((current) => ({ ...current, name }))} errorMessage={errors.name} description="Such as Senior Cashier." />
-        <TextField label="Code" isRequired value={head.code} onChange={(code) => setHead((current) => ({ ...current, code: code.toUpperCase().replace(/\s/g, "") }))}
-          errorMessage={errors.code} isDisabled={locked} description={locked ? "Fixed once activated or assigned." : "Unique in the company, such as SENIOR-CASHIER."} />
+        {/* A new profile's code follows its name (Senior Cashier -> SENIOR-CASHIER) until the person types one. */}
+        <TextField label="Name" isRequired value={head.name} errorMessage={errors.name} description="Such as Senior Cashier."
+          onChange={(name) => setHead((current) => ({ ...current, name, code: codeTyped ? current.code : slugCode(name) }))} />
+        <TextField label="Code" isRequired value={head.code} onChange={(code) => { setCodeTyped(true); setHead((current) => ({ ...current, code: code.toUpperCase().replace(/\s/g, "") })); }}
+          errorMessage={errors.code} isDisabled={locked}
+          description={locked ? "Fixed once activated or assigned." : codeTyped ? "Unique in the company, such as SENIOR-CASHIER." : "Proposed from the name. Type your own to change it."} />
         <TextArea className="sm:col-span-2" label="Description" rows={2} value={head.description} onChange={(description) => setHead((current) => ({ ...current, description }))} />
       </FormSection>
 

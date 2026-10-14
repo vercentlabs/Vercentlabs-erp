@@ -31,7 +31,7 @@ export type Blocker = { code: string; count: number; message: string };
 export type TerminalDetail = Terminal & { effective: EffectiveConfiguration; setup: SetupIssue[]; capabilities: TerminalCapabilities };
 export type TerminalList = { terminals: Terminal[]; capabilities: TerminalCapabilities };
 export type TerminalOptions = {
-  outlets: Array<{ id: string; label: string; code: string; active: boolean; warehouseId: string; methods: string[] }>;
+  outlets: Array<{ id: string; label: string; code: string; active: boolean; warehouseId: string; methods: string[]; terminalCodes: string[] }>;
   locations: Array<{ id: string; warehouseId: string; label: string }>; cashAccounts: Array<{ id: string; label: string }>;
   paymentMethods: Array<{ code: string; label: string }>; capabilities: TerminalCapabilities;
 };

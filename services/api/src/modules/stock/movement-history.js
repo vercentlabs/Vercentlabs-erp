@@ -239,7 +239,7 @@ const LEG_COLUMNS = (cost) => `movement.id, movement.movement_number, movement.l
 const SOURCE_LABEL = Object.freeze({
   opening_stock: "Opening Stock", goods_receipt: "Goods Receipt", purchase_return: "Purchase Return", sales_delivery: "Sales Delivery", sales_return: "Sales Return",
   stock_transfer: "Stock Transfer", stock_count: "Stock Count", stock_adjustment: "Manual adjustment", receiving_rejection: "Receiving Rejection",
-  manufacturing_work_order: "Production Order", pos_sale: "POS Sale", pos_return: "POS Return", goods_issue: "Goods Issue", inventory_transfer: "Transfer",
+  manufacturing_work_order: "Manufacturing Order", pos_sale: "POS Sale", pos_return: "POS Return", goods_issue: "Goods Issue", inventory_transfer: "Transfer",
   inventory_adjustment: "Stock Adjustment", inventory_stock_hold: "Quality Hold",
 });
 // Where stock was: "PUN-01 / RACK-A", with its disposition when it is not available stock, or "In transit".

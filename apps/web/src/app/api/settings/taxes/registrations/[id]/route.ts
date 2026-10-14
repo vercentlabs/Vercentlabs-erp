@@ -16,8 +16,8 @@ const schema = z.object({
   city: z.string().trim().max(120).nullish(),
   postalCode: z.string().trim().max(20).nullish(),
   registrationType: z.enum(["regular", "composition", "casual_taxable", "non_resident", "input_service_distributor", "unregistered"]).optional(),
-  validFrom: z.string().regex(/^d{4}-d{2}-d{2}$/).nullish(),
-  validUntil: z.string().regex(/^d{4}-d{2}-d{2}$/).nullish(),
+  validFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });

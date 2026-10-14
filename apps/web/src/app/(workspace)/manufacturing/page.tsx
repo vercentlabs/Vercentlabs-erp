@@ -1,7 +1,7 @@
-import { ManufacturingHomeScreen } from "@/features/manufacturing/screens/AnalyticsScreens";
+import { ManufacturingHomeScreen } from "@/features/manufacturing/orders/screens/ManufacturingHomeScreen";
 
 export const metadata = { title: "Manufacturing" };
 
-export default function ManufacturingPage() {
+export default function Page() {
   return <ManufacturingHomeScreen />;
 }

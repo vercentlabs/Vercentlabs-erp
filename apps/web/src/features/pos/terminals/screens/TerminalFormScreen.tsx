@@ -17,6 +17,8 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import {
   TERMINALS_BASE, createTerminal, errorMessage, fieldErrors, getTerminal, getTerminalOptions, updateTerminal, type TerminalDetail, type TerminalOptions,
 } from "../api/terminals-api";
+import { useSubmitKey } from "@/shared/http/submit-once";
+import { nextNumberedCode } from "../../shared/codes";
 
 type Draft = {
   outletId: string; code: string; name: string; notes: string; sellingLocationId: string; cashManagementEnabled: boolean; cashAccountId: string;
@@ -37,9 +39,16 @@ function Form({ options, terminal, initialOutletId }: { options: TerminalOptions
   const router = useRouter();
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
+  // A new terminal proposes the outlet's next code and a matching name (T03, Counter 3) until the person types their own.
+  const [typed, setTyped] = useState({ code: Boolean(terminal), name: Boolean(terminal) });
+  const proposal = (outletId: string) => {
+    const code = nextNumberedCode("T", options.outlets.find((entry) => entry.id === outletId)?.terminalCodes ?? []);
+    return { code, name: `Counter ${Number(code.slice(1))}` };
+  };
+  const firstOutlet = terminal?.outletId ?? initialOutletId ?? options.outlets.find((entry) => entry.active)?.id ?? options.outlets[0]?.id ?? "";
   const [draft, setDraft] = useState<Draft>(() => ({
-    outletId: terminal?.outletId ?? initialOutletId ?? options.outlets.find((entry) => entry.active)?.id ?? options.outlets[0]?.id ?? "",
-    code: terminal?.code ?? "", name: terminal?.name ?? "", notes: terminal?.notes ?? "", sellingLocationId: terminal?.sellingLocationId ?? NONE,
+    outletId: firstOutlet,
+    code: terminal?.code ?? proposal(firstOutlet).code, name: terminal?.name ?? proposal(firstOutlet).name, notes: terminal?.notes ?? "", sellingLocationId: terminal?.sellingLocationId ?? NONE,
     cashManagementEnabled: terminal?.cashManagementEnabled ?? true, cashAccountId: terminal?.cashAccountId ?? NONE,
     allMethods: !terminal?.paymentMethods, paymentMethods: terminal?.paymentMethods ?? [], paymentDeviceRef: terminal?.paymentDeviceRef ?? "",
     receiptPrefix: terminal?.receiptPrefix ?? "", deviceLabel: terminal?.deviceLabel ?? "", receiptPrinter: terminal?.receiptPrinter ?? "",
@@ -60,8 +69,9 @@ function Form({ options, terminal, initialOutletId }: { options: TerminalOptions
   const locked = Boolean(terminal?.used);
   const codeChanged = Boolean(terminal && draft.code.trim().toUpperCase() !== terminal.code);
 
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: () => submit.run(async () => {
       const input: Record<string, unknown> = { name: draft.name.trim(), notes: draft.notes };
       if (creating || (!locked && draft.outletId !== terminal?.outletId)) input.outletId = draft.outletId;
       if (creating || codeChanged) input.code = draft.code.trim();
@@ -71,11 +81,11 @@ function Form({ options, terminal, initialOutletId }: { options: TerminalOptions
       if (edit.numbering && draft.receiptPrefix.trim()) input.receiptPrefix = draft.receiptPrefix.trim();
       if (edit.hardware) Object.assign(input, { deviceLabel: draft.deviceLabel, receiptPrinter: draft.receiptPrinter, cashDrawer: draft.cashDrawer, barcodeScanning: draft.barcodeScanning });
       return terminal ? updateTerminal(terminal.id, { ...input, expectedVersion: terminal.version, reason: draft.reason.trim() || undefined }) : createTerminal(input);
-    },
+    }),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos-terminals") });
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos-outlets") });
-      router.push(`${TERMINALS_BASE}/${saved.id}`);
+      router.replace(`${TERMINALS_BASE}/${saved.id}`);
     },
     onError: (failure) => { setErrors(fieldErrors(failure)); setError(errorMessage(failure)); window.scrollTo({ top: 0, behavior: "smooth" }); },
   });
@@ -96,18 +106,21 @@ function Form({ options, terminal, initialOutletId }: { options: TerminalOptions
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(terminal ? `${TERMINALS_BASE}/${terminal.id}` : TERMINALS_BASE)}>Cancel</Button>
-          <Button variant="primary" isLoading={save.isPending} onPress={() => { setError(null); save.mutate(); }}>{terminal ? "Save changes" : "Create terminal"}</Button>
+          <Button isDisabled={save.isPending || save.isSuccess} variant="primary" isLoading={save.isPending || save.isSuccess} onPress={() => { setError(null); save.mutate(); }}>{terminal ? "Save changes" : "Create terminal"}</Button>
         </>
       }
     >
       <FormSection title="General">
         <Select label="Outlet" isRequired selectedKey={draft.outletId} isDisabled={!edit.general || locked} errorMessage={errors.outletId}
-          onSelectionChange={(key) => setDraft((current) => ({ ...current, outletId: String(key), sellingLocationId: NONE, paymentMethods: [] }))}
+          onSelectionChange={(key) => setDraft((current) => {
+            const next = proposal(String(key));
+            return { ...current, outletId: String(key), sellingLocationId: NONE, paymentMethods: [], code: typed.code ? current.code : next.code, name: typed.name ? current.name : next.name };
+          })}
           options={options.outlets.map((entry) => ({ value: entry.id, label: `${entry.label}${entry.active ? "" : " (inactive)"}` }))}
           description={locked ? "A terminal that has been used stays at its outlet." : "Its company, warehouse, prices and tax come from here."} />
-        <TextField label="Code" isRequired value={draft.code} onChange={(value) => set("code")(value.toUpperCase().replace(/\s/g, ""))} errorMessage={errors.code}
-          isDisabled={!edit.general || locked} description={locked ? "Fixed once used: reports identify the register by it." : "Unique at the outlet, such as T01."} />
-        <TextField label="Name" isRequired value={draft.name} onChange={set("name")} errorMessage={errors.name} isDisabled={!edit.general} description="Such as Counter 1." />
+        <TextField label="Code" isRequired value={draft.code} onChange={(value) => { setTyped((current) => ({ ...current, code: true })); set("code")(value.toUpperCase().replace(/\s/g, "")); }} errorMessage={errors.code}
+          isDisabled={!edit.general || locked} description={locked ? "Fixed once used: reports identify the register by it." : "The outlet's next code is proposed. Unique at the outlet."} />
+        <TextField label="Name" isRequired value={draft.name} onChange={(value) => { setTyped((current) => ({ ...current, name: true })); set("name")(value); }} errorMessage={errors.name} isDisabled={!edit.general} description="Such as Counter 1." />
         {codeChanged && <TextField label="Reason for the new code" value={draft.reason} onChange={set("reason")} />}
         <TextArea label="Notes" rows={2} value={draft.notes} onChange={set("notes")} isDisabled={!edit.general} />
       </FormSection>

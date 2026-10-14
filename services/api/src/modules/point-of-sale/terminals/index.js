@@ -601,6 +601,7 @@ export async function getTerminalOptions(client, c) {
   require(c, P.view, "You do not have permission to view POS terminals.");
   const outlets = (await client.query(
     `SELECT outlet.id, outlet.code, outlet.name, outlet.active, outlet.warehouse_id,
+            COALESCE((SELECT array_agg(terminal.code) FROM tenant.pos_terminals terminal WHERE terminal.organization_id = outlet.organization_id AND terminal.store_id = outlet.id), ARRAY[]::text[]) AS terminal_codes,
             COALESCE((SELECT array_agg(method.method) FROM tenant.pos_store_payment_methods method WHERE method.organization_id = outlet.organization_id AND method.store_id = outlet.id AND method.enabled), ARRAY[]::text[]) AS methods
        FROM tenant.pos_stores outlet WHERE outlet.organization_id = $1 ORDER BY outlet.active DESC, lower(outlet.name)`, [c.organizationId])).rows;
   const visible = await visibleOutletIds(client, c);
@@ -613,6 +614,8 @@ export async function getTerminalOptions(client, c) {
     outlets: outlets.filter((outlet) => !visible || visible.includes(outlet.id)).map((outlet) => ({
       id: outlet.id, label: label(outlet.code, outlet.name), code: outlet.code, active: outlet.active, warehouseId: outlet.warehouse_id,
       methods: METHOD_CODES.filter((method) => outlet.methods.includes(method)),
+      // The codes already used at the outlet, so a new terminal can propose the next one (T01, T02...).
+      terminalCodes: outlet.terminal_codes,
     })),
     locations: locations.map((row) => ({ id: row.id, warehouseId: row.warehouse_id, label: label(row.code, row.name) })),
     cashAccounts: accounts.map((row) => ({ id: row.id, label: label(row.code, row.name) })),

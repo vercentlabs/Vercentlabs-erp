@@ -21,6 +21,7 @@ import {
   DISPOSITION_LABEL, TRANSFERS_BASE, completeTransfer, confirmTransfer, createTransfer, errorMessage, errorsOf, getAvailability, getTransfer, getTransferOptions, updateTransfer,
   type Disposition, type LineInput, type TransferDetail, type TransferLocation, type TransferMode, type TransferOptions, type TransferType,
 } from "../api/transfers-api";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Line = {
   key: string; itemId: string; quantity: string; uomId: string; sourceLocationId: string; destinationLocationId: string; disposition: Disposition;
@@ -78,13 +79,14 @@ function Form({ options, existing, prefill }: { options: TransferOptions; existi
   }), [header, lines, inv.data, destinationId, isLocation]);
   // The next step after saving: confirm (reserve) a warehouse transfer, or complete a location transfer at once.
   const next = isLocation ? (options.capabilities.dispatch ? "complete" : null) : (options.capabilities.confirm ? "confirm" : null);
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: async (advance: boolean) => {
+    mutationFn: (advance: boolean) => submit.run(async () => {
       const detail = existing ? await updateTransfer(existing.transfer.id, { ...payload, expectedVersion: existing.transfer.version }) : await createTransfer(payload);
       if (!advance) return detail;
       return (next === "complete" ? completeTransfer : confirmTransfer)(detail.transfer.id).catch((error) => { throw Object.assign(error, { savedId: detail.transfer.id }); });
-    },
-    onSuccess: (detail) => router.push(`${TRANSFERS_BASE}/${detail.transfer.id}`),
+    }),
+    onSuccess: (detail) => router.replace(`${TRANSFERS_BASE}/${detail.transfer.id}`),
     onError: (error: Error & { savedId?: string }) => { if (error.savedId && !existing) router.replace(`${TRANSFERS_BASE}/${error.savedId}/edit`); },
   });
   const errors = errorsOf(save.error);
@@ -104,8 +106,8 @@ function Form({ options, existing, prefill }: { options: TransferOptions; existi
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(saved ? `${TRANSFERS_BASE}/${saved.id}` : TRANSFERS_BASE)}>Cancel</Button>
-          <Button variant={next ? "secondary" : "primary"} isLoading={save.isPending && save.variables === false} onPress={() => save.mutate(false)}>Save draft</Button>
-          {next && <Button variant="primary" isLoading={save.isPending && save.variables === true} onPress={() => save.mutate(true)}>{next === "complete" ? "Save and complete" : "Save and confirm"}</Button>}
+          <Button isDisabled={save.isPending || save.isSuccess} variant={next ? "secondary" : "primary"} isLoading={(save.isPending || save.isSuccess) && save.variables === false} onPress={() => save.mutate(false)}>Save draft</Button>
+          {next && <Button isDisabled={save.isPending || save.isSuccess} variant="primary" isLoading={(save.isPending || save.isSuccess) && save.variables === true} onPress={() => save.mutate(true)}>{next === "complete" ? "Save and complete" : "Save and confirm"}</Button>}
         </>
       }
     >

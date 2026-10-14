@@ -1,0 +1,24 @@
+// Manufacturing Finished-Goods Receipt (0118).
+type Client = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> };
+type Ctx = { organizationId: string; userId: string; permissions: string[]; roleSlugs: string[] };
+type Rec = Record<string, unknown>;
+export declare const FINISHED_GOODS_RECEIPT_PERMISSIONS: Readonly<Record<string, string>>;
+export declare function createFinishedGoodsReceiptDraft(client: Client, c: Ctx, input: Rec): Promise<any>;
+export declare function updateFinishedGoodsReceiptDraft(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function previewFinishedGoodsReceipt(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function requestFinishedGoodsReceiptApproval(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function decideFinishedGoodsReceiptApproval(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function postFinishedGoodsReceipt(client: Client, c: Ctx, id: string, input?: Rec): Promise<any>;
+export declare function cancelFinishedGoodsReceipt(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function receiveThroughNote(client: Client, c: Ctx, orderId: string, input: Rec): Promise<any>;
+export declare function requestFinishedGoodsReceiptCorrection(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function decideFinishedGoodsReceiptCorrection(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function recordFinishedGoodsReceiptPrint(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function recoverFinishedGoodsReceipt(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function getFinishedGoodsReceipt(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function listFinishedGoodsReceipts(client: Client, c: Ctx, filters?: Rec): Promise<any[]>;
+export declare function getMoFinishedGoodsReceiptHistory(client: Client, c: Ctx, orderId: string): Promise<any[]>;
+export declare function getReceivableManufacturingOutput(client: Client, c: Ctx, orderId: string): Promise<any>;
+export declare function checkFinishedGoodsReceiptPosting(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function getFinishedGoodsReceiptExceptions(client: Client, c: Ctx): Promise<any[]>;
+export declare function getFinishedGoodsReceiptReport(client: Client, c: Ctx, kind?: string, filters?: Rec): Promise<any[]>;

@@ -303,7 +303,7 @@ export declare function upsertPosAccountingMapping(client: any, context: PointOf
 // Product Search (migration 0084).
 export type PosProductReasonCode = "POS_PRODUCT_NOT_FOUND" | "POS_PRODUCT_INACTIVE" | "POS_PRODUCT_NOT_SELLABLE" | "POS_PRODUCT_OUTLET_RESTRICTED" | "POS_PRODUCT_OUT_OF_STOCK"
   | "POS_PRODUCT_INSUFFICIENT_STOCK" | "POS_PRODUCT_PRICE_MISSING" | "POS_PRODUCT_BARCODE_AMBIGUOUS" | "POS_PRODUCT_UOM_INVALID" | "POS_PRODUCT_SELECTION_REQUIRED"
-  | "POS_PRODUCT_CHANGED" | "POS_SEARCH_UNAVAILABLE" | "POS_SESSION_REQUIRED" | "POS_PERMISSION_DENIED";
+  | "POS_PRODUCT_CHANGED" | "POS_SEARCH_UNAVAILABLE" | "POS_SESSION_REQUIRED" | "POS_PERMISSION_DENIED" | "POS_TAX_ITEM_CLASSIFICATION_MISSING" | "POS_TAX_HSN_SAC_INVALID";
 export type PosProductResult = {
   itemId: string; variantId: string | null; parentItemId: string | null; parentName: string | null; variantLabel: string | null; sku: string; name: string; brand: string | null;
   description: string | null; imageUrl: string | null; categoryId: string | null; categoryName: string | null; itemType: string; isVariantGroup: boolean; saleUomId: string;

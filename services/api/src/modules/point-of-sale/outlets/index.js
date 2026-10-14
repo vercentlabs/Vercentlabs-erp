@@ -14,6 +14,7 @@ import { POS_OUTLET_PERMISSIONS as P } from "@vercentlabs/permissions";
 import { restrictedStockSql } from "../../stock/rules.js";
 import { registeredPaymentProviderKeys } from "../tender-and-payment-execution/adapter.js";
 import { listOutletCashiers } from "../cashiers/index.js";
+import { GST_STATES } from "../../../core/tax/index.js";
 
 export class PosOutletError extends Error {
   constructor(status, message, code = "POS_OUTLET_ERROR", details = undefined) {
@@ -743,6 +744,7 @@ export async function getOutletOptions(client, c) {
         AND account_type IN ('cash', 'bank', 'current_asset') ORDER BY code`)
     : [];
   const organization = await one(`SELECT timezone, country_code, base_currency FROM public.organizations WHERE id = $1`);
+  const takenCodes = (await one(`SELECT code FROM tenant.pos_stores WHERE organization_id = $1`)).map((row) => row.code);
   const outlets = await one(`SELECT DISTINCT state, city FROM tenant.pos_stores WHERE organization_id = $1 AND (state IS NOT NULL OR city IS NOT NULL)`);
   const unique = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
   return {
@@ -754,7 +756,7 @@ export async function getOutletOptions(client, c) {
     priceLists: priceLists.map((row) => ({ id: row.id, label: `${row.code} · ${row.name}` })),
     customers: customers.map((row) => ({ id: row.id, label: row.customer_number ? `${row.customer_number} · ${row.name}` : row.name })),
     accounts: accounts.map((row) => ({ id: row.id, label: `${row.code} · ${row.name}`, type: row.account_type })),
-    states: unique(outlets.map((row) => row.state)), cities: unique(outlets.map((row) => row.city)),
+    states: unique(outlets.map((row) => row.state)), gstStates: GST_STATES, takenCodes, cities: unique(outlets.map((row) => row.city)),
     defaults: { timezone: organization[0]?.timezone ?? "Asia/Kolkata", countryCode: organization[0]?.country_code ?? "IN", currencyCode: organization[0]?.base_currency?.trim() ?? "INR" },
     capabilities: outletCapabilities(c),
   };

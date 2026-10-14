@@ -239,6 +239,7 @@ export type SalesOptions = {
     payment_term_id: string | null;
     credit_limit: string | null;
     default_price_list_id?: string | null;
+    owner_user_id?: string | null;
     tax_treatment?: string | null;
     default_shipping_method?: string | null;
     default_delivery_terms?: string | null;

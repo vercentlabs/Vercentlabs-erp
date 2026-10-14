@@ -37,7 +37,7 @@ export type OutletOptions = {
   types: Array<{ code: string; label: string }>; paymentMethods: Array<{ code: string; label: string }>; weekdays: string[]; providers: string[];
   members: Array<{ id: string; name: string }>; warehouses: Choice[]; locations: Array<Choice & { warehouseId: string; purpose: string }>;
   registrations: Array<Choice & { stateCode: string | null; gstin: string | null }>; priceLists: Choice[]; customers: Choice[]; accounts: Array<Choice & { type: string }>;
-  states: string[]; cities: string[]; defaults: { timezone: string; countryCode: string; currencyCode: string }; capabilities: OutletCapabilities;
+  states: string[]; gstStates: Array<{ code: string; name: string }>; takenCodes: string[]; cities: string[]; defaults: { timezone: string; countryCode: string; currencyCode: string }; capabilities: OutletCapabilities;
 };
 // A cashier who may work at the outlet (Cashiers), with what their POS role lets them do.
 export type AccessEntry = {

@@ -1,0 +1,24 @@
+// Manufacturing Scrap (0119).
+type Client = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> };
+type Ctx = { organizationId: string; userId: string; permissions: string[]; roleSlugs: string[] };
+type Rec = Record<string, unknown>;
+export declare const SCRAP_PERMISSIONS: Readonly<Record<string, string>>;
+export declare function createScrapDraft(client: Client, c: Ctx, input: Rec): Promise<any>;
+export declare function updateScrapDraft(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function previewScrap(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function submitScrap(client: Client, c: Ctx, id: string, input?: Rec): Promise<any>;
+export declare function decideScrap(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function postScrap(client: Client, c: Ctx, id: string, input?: Rec): Promise<any>;
+export declare function cancelScrap(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function recordMaterialScrapThroughNote(client: Client, c: Ctx, orderId: string, input: Rec): Promise<any>;
+export declare function requestScrapCorrection(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function decideScrapCorrection(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function recordScrapPrint(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function recoverScrap(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function getManufacturingScrap(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function listManufacturingScraps(client: Client, c: Ctx, filters?: Rec): Promise<any[]>;
+export declare function getMoScrapHistory(client: Client, c: Ctx, orderId: string): Promise<any[]>;
+export declare function getScrappableSources(client: Client, c: Ctx, orderId: string): Promise<any>;
+export declare function checkScrapPosting(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function getScrapExceptions(client: Client, c: Ctx): Promise<any[]>;
+export declare function getScrapReport(client: Client, c: Ctx, kind?: string, filters?: Rec): Promise<any[]>;

@@ -155,10 +155,10 @@ export function SalesQuotationFormScreen({
         queryClient.invalidateQueries({
           queryKey: scopedQueryKey(workspace, "sales", "quotation", id),
         });
-        router.push(`/sales/quotations/${id}`);
+        router.replace(`/sales/quotations/${id}`);
       }}
       onCancel={() =>
-        router.push(
+        router.replace(
           quotationId
             ? `/sales/quotations/${quotationId}`
             : "/sales/quotations",
@@ -432,6 +432,8 @@ function FormBody({
     // The customer's terms, else the company default.
     setPaymentTermId(party?.payment_term_id && options.paymentTerms.some((term) => term.id === party.payment_term_id) ? party.payment_term_id : "");
     setPriceListId("");
+    // The customer's salesperson owns their documents; with none, whoever is creating it.
+    if (party?.owner_user_id && options.users.some((user) => user.id === party.owner_user_id)) setOwnerUserId(party.owner_user_id);
     setShippingMethod(party?.default_shipping_method ?? "");
     setDeliveryTerms(party?.default_delivery_terms ?? "");
     setIncoterm(party?.default_incoterm ?? "");

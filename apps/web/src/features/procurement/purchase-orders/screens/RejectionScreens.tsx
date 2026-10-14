@@ -322,7 +322,7 @@ function EditDialog({ detail, onClose, onDone }: { detail: RejectionDetail; onCl
   });
   return (
     <Shell title={`Edit ${rejection.rejectionNumber}`} description="Quantities and links are not edited: record, resolve or cancel instead." error={run.error} onClose={onClose} label="Save"
-      isLoading={run.isPending} onPress={() => run.mutate()}>
+      isLoading={run.isPending || run.isSuccess} onPress={() => run.mutate()}>
       <Select label="Reason" selectedKey={reason} onSelectionChange={(value) => setReason(String(value))} options={REJECTION_REASON_OPTIONS} />
       <TextArea label="Explanation" isRequired={reason === "other"} value={description} onChange={setDescription} />
       {reason === "wrong_product" && <TextField label="Product delivered instead" value={delivered} onChange={setDelivered} />}
@@ -337,7 +337,7 @@ function CancelDialog({ detail, onClose, onDone }: { detail: RejectionDetail; on
   const run = useMutation({ mutationFn: () => cancelRejection(detail.rejection.id, reason), onSuccess: () => onDone("Cancelled as invalid. Nothing it pointed at was undone.") });
   return (
     <Shell title={`Cancel ${detail.rejection.rejectionNumber}`} description="Only for a report made in error or twice. Receipts, inspections and stock are not changed." error={run.error}
-      onClose={onClose} label="Cancel rejection" isLoading={run.isPending} isDisabled={reason.trim().length < 3} onPress={() => run.mutate()}>
+      onClose={onClose} label="Cancel rejection" isLoading={run.isPending || run.isSuccess} isDisabled={reason.trim().length < 3} onPress={() => run.mutate()}>
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
     </Shell>
   );
@@ -359,7 +359,7 @@ function ResolveDialog({ detail, onClose, onDone }: { detail: RejectionDetail; o
   });
   return (
     <Shell title="Record resolution" description={`${detail.rejection.rejectionNumber}: ${quantity(detail.resolution.open)} still open.`} error={run.error} onClose={onClose} label="Record"
-      isLoading={run.isPending} isDisabled={!type || !Number(qty) || notes.trim().length < 3 || (type === "replacement_received" && !receiptLine)} onPress={() => run.mutate()}>
+      isLoading={run.isPending || run.isSuccess} isDisabled={!type || !Number(qty) || notes.trim().length < 3 || (type === "replacement_received" && !receiptLine)} onPress={() => run.mutate()}>
       <Select label="Outcome" selectedKey={type} onSelectionChange={(value) => { const next = options.find((entry) => entry.type === String(value)); setType(String(value));
         setQty(String(Number(next?.max ?? 0))); setReceiptLine(next?.receipts?.[0]?.goodsReceiptLineId ?? ""); }}
         options={options.map((entry) => ({ value: entry.type, label: entry.label }))} />
@@ -387,7 +387,7 @@ function ReturnDialog({ detail, onClose, onDone }: { detail: RejectionDetail; on
     onSuccess: (result) => onDone(`Purchase return ${result.returnNumber} posted: the goods left stock once. A vendor credit corrects anything already billed.`) });
   return (
     <Shell title="Create Purchase Return" description={`From ${detail.rejection.receiptNumber}, for goods rejected on ${detail.rejection.rejectionNumber}.`} error={run.error} onClose={onClose}
-      label="Post return" isLoading={run.isPending} isDisabled={!Number(qty) || reason.trim().length < 3} onPress={() => run.mutate()}>
+      label="Post return" isLoading={run.isPending || run.isSuccess} isDisabled={!Number(qty) || reason.trim().length < 3} onPress={() => run.mutate()}>
       <TextField label="Quantity" inputMode="decimal" value={qty} onChange={setQty} description={`At most ${quantity(max)}.`} />
       {detail.rejection.serialNumbers.length > 0 && <TextField label="Serial numbers" value={serials} onChange={setSerials} />}
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
@@ -419,7 +419,7 @@ export function DockRejectionDialog({ orderId, lines, onClose, onDone }: { order
   });
   return (
     <Shell title="Record goods refused at the dock" description="For goods not taken in at all. Goods received and then found unacceptable are rejected from their goods receipt." error={run.error}
-      onClose={onClose} label="Record rejection" isLoading={run.isPending} isDisabled={!entries.length} onPress={() => run.mutate()}>
+      onClose={onClose} label="Record rejection" isLoading={run.isPending || run.isSuccess} isDisabled={!entries.length} onPress={() => run.mutate()}>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Select label="Expected resolution" selectedKey={expected} onSelectionChange={(value) => setExpected(String(value))} options={EXPECTED_DOCK} />
         <TextField label="Refused at" type="datetime-local" value={observedAt} onChange={setObservedAt} description="Now if empty." />
@@ -477,7 +477,7 @@ export function ReceiptRejectionDialog({ detail, onClose, onDone }: { detail: Go
     onSuccess: (result) => onDone(`${result.rejectionNumber} recorded from the inspection's decision.`) });
   return (
     <Shell title="Record rejection after receipt" description="The posted receipt keeps what was received. Rejected goods are blocked until returned, disposed of or accepted back." error={run.error ?? fromInspection.error}
-      onClose={onClose} label="Record rejection" isLoading={run.isPending} isDisabled={!Number(qty) || (reason === "other" && description.trim().length < 3)} onPress={() => run.mutate()}>
+      onClose={onClose} label="Record rejection" isLoading={run.isPending || run.isSuccess} isDisabled={!Number(qty) || (reason === "other" && description.trim().length < 3)} onPress={() => run.mutate()}>
       <Select label="Receipt line" selectedKey={lineId} onSelectionChange={(value) => { setLineId(String(value)); setSource("usable"); }}
         options={lines.map((entry) => ({ value: entry.id, label: `PO line ${entry.orderLineNumber}: ${entry.description}` }))} />
       <Select label="Which goods" selectedKey={source} onSelectionChange={(value) => { setSource(String(value)); setReason(String(value) === "usable" ? "defective_product" : "failed_inspection"); }}

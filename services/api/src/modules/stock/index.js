@@ -522,7 +522,7 @@ export const RESERVATION_SOURCES = Object.freeze({
   // An internal transfer reserves its source stock when it is confirmed (Internal Transfers).
   stock_transfer: { label: "Internal transfer", sql: `SELECT 1 FROM tenant.inventory_transfers WHERE organization_id=$1 AND id=$2 AND status IN ('draft','confirmed')` },
   purchase_return: { label: "Purchase return", sql: `SELECT 1 FROM tenant.purchase_returns WHERE organization_id=$1 AND id=$2 AND document_status='draft'` },
-  manufacturing_work_order: { label: "Work order", sql: `SELECT 1 FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND id=$2` },
+  manufacturing_work_order: { label: "Manufacturing order", sql: `SELECT 1 FROM tenant.manufacturing_orders WHERE organization_id=$1 AND id=$2 AND status IN ('RELEASED','IN_PROGRESS','ON_HOLD')` },
   // A POS bill in checkout (named by its checkout reference) while it is still open: POS Stock Reduction's short lease on what it sells.
   pos_checkout: { label: "POS checkout", sql: `SELECT 1 FROM tenant.pos_carts WHERE organization_id=$1 AND checkout_reference=$2 AND status IN ('draft','priced')` },
 });
@@ -530,7 +530,7 @@ async function assertReservationSource(client, c, input) {
   if (!input.referenceType || !input.referenceId)
     throw new StockError(400, "A reservation needs its source document.", "STOCK_RESERVATION_REFERENCE_REQUIRED");
   const source = RESERVATION_SOURCES[input.referenceType];
-  if (!source) throw new StockError(400, "Stock is reserved only for a sales order, a warehouse transfer, a purchase return or a work order.", "STOCK_RESERVATION_SOURCE_INVALID");
+  if (!source) throw new StockError(400, "Stock is reserved only for a sales order, a warehouse transfer, a purchase return or a manufacturing order.", "STOCK_RESERVATION_SOURCE_INVALID");
   if (!/^[0-9a-f-]{36}$/i.test(String(input.referenceId)) || !(await client.query(source.sql, [c.organizationId, input.referenceId])).rows[0])
     throw new StockError(404, `The ${source.label.toLowerCase()} this reservation is for was not found (or is no longer open).`, "STOCK_RESERVATION_SOURCE_NOT_FOUND");
 }
@@ -824,7 +824,7 @@ export async function consumeStockReservation(client, c, id, quantity, reference
     ? await postStockMovement(client, c, {
       movementType: "issue", itemId: reservation.item_id, warehouseId: reservation.warehouse_id, warehouseLocationId: reservation.warehouse_location_id,
       batchId: reservation.batch_id, serialId: reservation.serial_id ?? undefined, reservationId: reservation.id, quantity: amount, referenceType: reference.issue.referenceType,
-      referenceId: reference.issue.referenceId, idempotencyKey: reference.issue.idempotencyKey, ledgerType: reference.issue.ledgerType, groupId: reference.issue.groupId,
+      referenceId: reference.issue.referenceId, reason: reference.issue.reason, idempotencyKey: reference.issue.idempotencyKey, ledgerType: reference.issue.ledgerType, groupId: reference.issue.groupId,
       sourceLineId: reference.issue.sourceLineId, transaction: reference.issue.transaction,
     })
     : null;

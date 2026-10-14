@@ -1,0 +1,24 @@
+// Manufacturing Material Consumption (0116).
+type Client = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> };
+type Ctx = { organizationId: string; userId: string; permissions: string[]; roleSlugs: string[] };
+type Rec = Record<string, unknown>;
+export declare const MATERIAL_CONSUMPTION_PERMISSIONS: Readonly<Record<string, string>>;
+export declare function createMaterialConsumptionDraft(client: Client, c: Ctx, input: Rec): Promise<any>;
+export declare function updateMaterialConsumptionDraft(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function previewMaterialConsumption(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function requestConsumptionVarianceApproval(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function decideConsumptionVarianceApproval(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function postMaterialConsumption(client: Client, c: Ctx, id: string, input?: Rec): Promise<any>;
+export declare function cancelMaterialConsumption(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function reverseMaterialConsumption(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function recordMaterialConsumptionPrint(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function recoverMaterialConsumption(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function getMaterialConsumption(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function listMaterialConsumptions(client: Client, c: Ctx, filters?: Rec): Promise<any[]>;
+export declare function getMoConsumptionHistory(client: Client, c: Ctx, orderId: string): Promise<any[]>;
+export declare function getConsumableMoMaterials(client: Client, c: Ctx, orderId: string, input?: Rec): Promise<any>;
+export declare function suggestBomConsumption(client: Client, c: Ctx, orderId: string, input?: Rec): Promise<any>;
+export declare function getConsumptionReconciliation(client: Client, c: Ctx, orderId: string): Promise<any>;
+export declare function checkMaterialConsumptionPosting(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function getUnreconciledConsumption(client: Client, c: Ctx): Promise<any[]>;
+export declare function getMaterialConsumptionReport(client: Client, c: Ctx, kind?: string, filters?: Rec): Promise<any[]>;

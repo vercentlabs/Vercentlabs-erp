@@ -1,0 +1,23 @@
+// Manufacturing Partial Production (0117).
+type Client = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> };
+type Ctx = { organizationId: string; userId: string; permissions: string[]; roleSlugs: string[] };
+type Rec = Record<string, unknown>;
+export declare const PRODUCTION_PERMISSIONS: Readonly<Record<string, string>>;
+export declare function createProductionBatch(client: Client, c: Ctx, orderId: string, input: Rec): Promise<any>;
+export declare function closeProductionBatch(client: Client, c: Ctx, orderId: string, batchId: string): Promise<any>;
+export declare function createProductionEntryDraft(client: Client, c: Ctx, orderId: string, input: Rec): Promise<any>;
+export declare function updateProductionEntryDraft(client: Client, c: Ctx, entryId: string, input: Rec): Promise<any>;
+export declare function cancelProductionEntry(client: Client, c: Ctx, entryId: string, input: Rec): Promise<any>;
+export declare function postProductionEntry(client: Client, c: Ctx, entryId: string, input?: Rec): Promise<any>;
+export declare function correctProductionEntry(client: Client, c: Ctx, entryId: string, input: Rec): Promise<any>;
+export declare function recordProductionEntryPrint(client: Client, c: Ctx, entryId: string): Promise<any>;
+export declare function requestOverproduction(client: Client, c: Ctx, orderId: string, input: Rec): Promise<any>;
+export declare function decideOverproduction(client: Client, c: Ctx, orderId: string, requestId: string, input: Rec): Promise<any>;
+export declare function getMoProductionProgress(client: Client, c: Ctx, orderId: string): Promise<any>;
+export declare function listProductionBatches(client: Client, c: Ctx, orderId: string): Promise<any[]>;
+export declare function getReceivableFinishedGoods(client: Client, c: Ctx, orderId: string): Promise<any>;
+export declare function checkBatchMaterialReadiness(client: Client, c: Ctx, orderId: string, input: Rec): Promise<any>;
+export declare function getProductionEntry(client: Client, c: Ctx, entryId: string): Promise<any>;
+export declare function listProductionEntries(client: Client, c: Ctx, filters?: Rec): Promise<any[]>;
+export declare function getProductionHistory(client: Client, c: Ctx, orderId: string): Promise<any[]>;
+export declare function getProductionReport(client: Client, c: Ctx, kind?: string, filters?: Rec): Promise<any[]>;

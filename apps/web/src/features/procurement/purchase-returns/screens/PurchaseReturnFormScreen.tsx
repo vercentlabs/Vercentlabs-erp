@@ -20,6 +20,7 @@ import {
 import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
 import { FormSection } from "@/shared/ui/FormSection";
 import { Notice } from "@/shared/ui/Panel";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Row = { include: boolean; source: string; quantity: string; reason: string; reasonNotes: string; serialNumbers: string; billingAllocation: string };
 
@@ -76,9 +77,10 @@ function ReturnForm({ options, existing, presetOrderId, receiptId }: { options: 
     }),
   });
   useFormChangesWarning({ orderId, header, rows });
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: async () => (saved ? (await updateReturn(saved.id, { ...payload(), expectedVersion: saved.version })).id : (await createReturn(payload())).id),
-    onSuccess: (id) => router.push(`/procurement/purchase-returns/${id}`),
+    mutationFn: () => submit.run(async () => (saved ? (await updateReturn(saved.id, { ...payload(), expectedVersion: saved.version })).id : (await createReturn(payload())).id)),
+    onSuccess: (id) => router.replace(`/procurement/purchase-returns/${id}`),
   });
   const issues = issuesOf(save.error);
   const anySelected = (eligible.data?.lines ?? []).some((line) => rowOf(line).include && Number(rowOf(line).quantity) > 0);
@@ -95,7 +97,7 @@ function ReturnForm({ options, existing, presetOrderId, receiptId }: { options: 
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(saved ? `/procurement/purchase-returns/${saved.id}` : "/procurement/purchase-returns")}>Cancel</Button>
-          <Button variant="primary" isLoading={save.isPending} isDisabled={!anySelected} onPress={() => save.mutate()}>Save Draft</Button>
+          <Button variant="primary" isLoading={save.isPending || save.isSuccess} isDisabled={save.isPending || save.isSuccess || !anySelected} onPress={() => save.mutate()}>Save Draft</Button>
         </>
       }
     >

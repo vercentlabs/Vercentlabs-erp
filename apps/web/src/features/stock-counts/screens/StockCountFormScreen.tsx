@@ -17,6 +17,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import { STOCK_COUNTS_BASE, createCount, errorMessage, getCount, getCountOptions, updateCount, type CountDetail, type CountOptions, type CountType } from "../api/stock-counts-api";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 export type CountPrefill = { itemId?: string; warehouseId?: string; locationId?: string; batchId?: string; serialId?: string };
 export function StockCountFormScreen({ countId, prefill }: { countId?: string; prefill?: CountPrefill }) {
@@ -46,13 +47,14 @@ function Form({ options, existing, prefill }: { options: CountOptions; existing:
   const [instructions, setInstructions] = useState(saved?.instructions ?? "");
   const warehouse = options.warehouses.find((entry) => entry.id === warehouseId);
   const items = inv.data?.items ?? [];
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: () => submit.run(async () => {
       const input = { warehouseId, countType, locationIds: countType === "full_warehouse" ? [] : locationIds, itemIds: countType === "items" ? itemIds : [], blindCount: blind,
         recountThresholdPercent: threshold.trim() === "" ? null : threshold.trim(), reference: reference || null, instructions: instructions || null };
       return existing ? updateCount(existing.count.id, { ...input, expectedVersion: existing.count.version }) : createCount(input);
-    },
-    onSuccess: (detail) => router.push(`${STOCK_COUNTS_BASE}/${detail.count.id}`),
+    }),
+    onSuccess: (detail) => router.replace(`${STOCK_COUNTS_BASE}/${detail.count.id}`),
   });
   return (
     <RecordFormPage
@@ -63,7 +65,7 @@ function Form({ options, existing, prefill }: { options: CountOptions; existing:
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(saved ? `${STOCK_COUNTS_BASE}/${saved.id}` : STOCK_COUNTS_BASE)}>Cancel</Button>
-          <Button variant="primary" isLoading={save.isPending} onPress={() => save.mutate()}>Save draft</Button>
+          <Button isDisabled={save.isPending || save.isSuccess} variant="primary" isLoading={save.isPending || save.isSuccess} onPress={() => save.mutate()}>Save draft</Button>
         </>
       }
       banner={<ErrorBanner message={save.isError ? errorMessage(save.error) : null} />}

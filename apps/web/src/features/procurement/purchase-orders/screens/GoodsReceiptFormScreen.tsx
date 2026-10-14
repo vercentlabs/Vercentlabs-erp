@@ -146,7 +146,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
       }
       return (await createGoodsReceipt(receivable.order.id, { ...payload, post })).id;
     }),
-    onSuccess: (id) => router.push(`/procurement/goods-receipts/${id}`),
+    onSuccess: (id) => router.replace(`/procurement/goods-receipts/${id}`),
   });
   const issues = issuesOf(save.error);
   const selected = goods.filter((line) => rows[line.purchaseOrderLineId]?.include);
@@ -163,9 +163,9 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
       </div>}
       formActions={
         <>
-          <Button variant="secondary" onPress={() => router.push("/procurement/goods-receipts")}>Cancel</Button>
-          <Button variant="secondary" isLoading={save.isPending && save.variables === false} isDisabled={!selected.length} onPress={() => save.mutate(false)}>Save draft</Button>
-          <Button variant="primary" isLoading={save.isPending && save.variables === true} isDisabled={!selected.length} onPress={() => save.mutate(true)}>Post receipt</Button>
+          <Button variant="secondary" onPress={() => router.replace("/procurement/goods-receipts")}>Cancel</Button>
+          <Button variant="secondary" isLoading={(save.isPending || save.isSuccess) && save.variables === false} isDisabled={save.isPending || save.isSuccess || !selected.length} onPress={() => save.mutate(false)}>Save draft</Button>
+          <Button variant="primary" isLoading={(save.isPending || save.isSuccess) && save.variables === true} isDisabled={save.isPending || save.isSuccess || !selected.length} onPress={() => save.mutate(true)}>Post receipt</Button>
         </>
       }
     >

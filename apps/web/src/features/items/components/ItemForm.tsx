@@ -361,8 +361,8 @@ export function ItemForm({ options, item, onSaved, onCancel }: { options: ItemOp
           <Button variant="primary" onPress={() => submit(null)} isLoading={save.isPending || save.isSuccess} isDisabled={strong.length > 0 || !dirty}>Save changes</Button>
         ) : (
           <>
-            <Button variant="outline" onPress={() => submit("draft")} isLoading={save.isPending && save.variables === "draft"} isDisabled={strong.length > 0 || save.isPending}>Save draft</Button>
-            <Button variant="primary" onPress={() => submit("active")} isLoading={(save.isPending && save.variables === "active") || save.isSuccess} isDisabled={strong.length > 0 || save.isPending}>
+            <Button variant="outline" onPress={() => submit("draft")} isLoading={(save.isPending || save.isSuccess) && save.variables === "draft"} isDisabled={strong.length > 0 || save.isPending || save.isSuccess}>Save draft</Button>
+            <Button variant="primary" onPress={() => submit("active")} isLoading={(save.isPending || save.isSuccess) && save.variables === "active"} isDisabled={strong.length > 0 || save.isPending || save.isSuccess}>
               {template ? "Create template" : "Activate item"}
             </Button>
           </>

@@ -91,9 +91,9 @@ export function SalesOrderFormScreen({ orderId, initialPartyId }: { orderId?: st
       onDone={(id) => {
         void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "orders") });
         void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "order", id) });
-        router.push(`/sales/orders/${id}`);
+        router.replace(`/sales/orders/${id}`);
       }}
-      onCancel={() => router.push(orderId ? `/sales/orders/${orderId}` : "/sales/orders")}
+      onCancel={() => router.replace(orderId ? `/sales/orders/${orderId}` : "/sales/orders")}
     />
   );
 }
@@ -215,6 +215,8 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
     if (party?.currency_code) setCurrencyCode(party.currency_code);
     setPaymentTermId(party?.payment_term_id && options.paymentTerms.some((term) => term.id === party.payment_term_id) ? party.payment_term_id : "");
     setPriceListId("");
+    // The customer's salesperson owns their documents; with none, whoever is creating it.
+    if (party?.owner_user_id && options.users.some((user) => user.id === party.owner_user_id)) setOwnerUserId(party.owner_user_id);
     const addresses = options.addresses.filter((address) => address.party_id === id);
     setContactId(options.contacts.find((contact) => contact.party_id === id && contact.is_primary)?.id ?? "");
     setBillingAddressId(defaultAddress(addresses, BILLING_ADDRESS_TYPES));

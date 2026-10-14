@@ -42,7 +42,7 @@ const SOURCES = Object.freeze({
   sales_return: { type: "sales_return", table: "sales_returns", number: "return_number" },
   stock_transfer: { type: "stock_transfer", table: "stock_transfers", number: "transfer_number" },
   stock_count: { type: "stock_count", table: "stock_counts", number: "count_number" },
-  manufacturing_work_order: { type: "manufacturing_work_order", table: "manufacturing_work_orders", number: "work_order_number" },
+  manufacturing_work_order: { type: "manufacturing_work_order", table: "manufacturing_orders", number: "mo_number" },
   pos_sale: { type: "pos_sale", table: "pos_sales", number: "receipt_number" },
   pos_return: { type: "pos_return", table: "pos_returns", number: "return_number" },
   goods_issue_line: { type: "goods_issue", table: "goods_issues", number: "document_number", line: { table: "goods_issue_lines", parent: "goods_issue_id" } },

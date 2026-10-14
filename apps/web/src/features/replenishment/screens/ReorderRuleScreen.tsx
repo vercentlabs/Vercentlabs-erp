@@ -165,7 +165,7 @@ export function PurchaseDialog({ detail, onClose }: { detail: RuleDetail; onClos
         {make.isError && <p role="alert" className="text-danger">{errorMessage(make.error)}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" isDisabled={!detail.supplier} isLoading={make.isPending} onPress={() => make.mutate()}>Open draft purchase order</Button>
+          <Button variant="primary" isDisabled={!detail.supplier} isLoading={make.isPending || make.isSuccess} onPress={() => make.mutate()}>Open draft purchase order</Button>
         </div>
       </div>
     </Dialog>
@@ -194,7 +194,7 @@ export function TransferDialog({ detail, onClose }: { detail: RuleDetail; onClos
         {make.isError && <p role="alert" className="text-danger">{errorMessage(make.error)}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" isDisabled={!sourceId} isLoading={make.isPending} onPress={() => make.mutate()}>Open draft transfer</Button>
+          <Button variant="primary" isDisabled={!sourceId} isLoading={make.isPending || make.isSuccess} onPress={() => make.mutate()}>Open draft transfer</Button>
         </div>
       </div>
     </Dialog>

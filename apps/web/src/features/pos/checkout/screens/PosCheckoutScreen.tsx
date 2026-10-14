@@ -10,7 +10,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { BadgePercent, Minus, Pause, Plus, Trash2, X } from "lucide-react";
+import { BadgePercent, Minus, Pause, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -112,6 +112,14 @@ export function PosCheckoutScreen() {
     workspace.permissions.includes(POS_PERMISSIONS.discountApprove);
 
   const [cart, setCart] = useState<PosCart | null>(null);
+  // A product just added is the last line: keep it in view when the cart scrolls.
+  const cartList = useRef<HTMLDivElement>(null);
+  const lineCount = cart?.lines?.length ?? 0;
+  const seenLines = useRef(lineCount);
+  useEffect(() => {
+    if (lineCount > seenLines.current) cartList.current?.scrollTo({ top: cartList.current.scrollHeight, behavior: "smooth" });
+    seenLines.current = lineCount;
+  }, [lineCount]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
@@ -615,7 +623,7 @@ export function PosCheckoutScreen() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+      <div className="grid grid-cols-1 gap-4 pb-20 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:pb-0 xl:grid-cols-[minmax(0,1fr)_28rem]">
         <div className="flex min-w-0 flex-col gap-4">
           <PosPanel
             title="Add items"
@@ -631,24 +639,115 @@ export function PosCheckoutScreen() {
             />
           </PosPanel>
 
+        </div>
+
+        <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
+          {error && <PosAlert>{error}</PosAlert>}
+          {exception && cart && (
+            <PosAlert tone="warning">
+              <p className="font-medium">{exception.message}</p>
+              {!liveApproval && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" className="font-medium underline" disabled={loading} onClick={() => {
+                    requestApproval({ permission: exception.permission, resource: { type: "pos_cart", id: cart.id }, amount: exception.amount, percentage: exception.percentage,
+                      action: exception.action, reason: exception.reason, idempotencyKey: `${cart.id}:${exception.cartVersion}:${exception.permission}` })
+                      .then(setExceptionApproval).catch((err) => setError(err instanceof PosApiError ? err.message : "The approval could not be requested."));
+                  }}>Request supervisor approval</button>
+                  <button type="button" className="underline" onClick={() => setException(null)}>Cancel</button>
+                </div>
+              )}
+              {liveApproval?.status === "pending" && (
+                <p className="mt-1 text-xs">Waiting for a supervisor (Supervisor Approvals). Leave the cart as it is — a change cancels the approval. <Link className="font-medium underline" href="/pos/returns?tab=approvals">Open approvals</Link></p>
+              )}
+              {liveApproval?.status === "approved" && (
+                <p className="mt-2 text-xs">Approved by {liveApproval.approver}.{" "}
+                  <button type="button" className="font-medium underline" disabled={loading} onClick={() => {
+                    const approvalId = liveApproval.id;
+                    run(() => exception.apply(approvalId)).then(() => { setException(null); setExceptionApproval(null); });
+                  }}>Apply the discount</button>
+                </p>
+              )}
+              {(liveApproval?.status === "rejected" || liveApproval?.status === "expired") && (
+                <p className="mt-1 text-xs">The request was {liveApproval.status}. <button type="button" className="underline" onClick={() => { setException(null); setExceptionApproval(null); }}>Dismiss</button></p>
+              )}
+            </PosAlert>
+          )}
+          {resumeChanges.length > 0 && (
+            <PosAlert tone="warning" className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-medium">This bill was on hold — review what changed:</p>
+                <ul className="mt-1 list-disc pl-5 text-xs">{resumeChanges.map((change, index) => <li key={index}>{change.message}</li>)}</ul>
+              </div>
+              <button type="button" onClick={() => setResumeChanges([])} aria-label="Dismiss"><X className="size-4" /></button>
+            </PosAlert>
+          )}
+          {conflict && (
+            <PosAlert
+              tone="warning"
+              className="flex items-center justify-between gap-2"
+            >
+              <span>
+                {conflict} — the cart was refreshed with current server totals.
+              </span>
+              <button
+                type="button"
+                onClick={() => setConflict(null)}
+                aria-label="Dismiss"
+              >
+                <X className="size-4" />
+              </button>
+            </PosAlert>
+          )}
+          {pendingApproval && (
+            <PosAlert tone="warning">
+              <p className="font-medium">
+                Waiting for a supervisor to approve the discount.
+              </p>
+              <p className="text-xs">
+                Leave the cart as it is — any change restarts the approval.{" "}
+                {canApproveDiscounts && (
+                  <Link
+                    href="/pos/returns?tab=approvals"
+                    className="font-medium underline"
+                  >
+                    Open the approvals queue
+                  </Link>
+                )}
+              </p>
+            </PosAlert>
+          )}
+          {rejectedApproval && (
+            <PosAlert>
+              A supervisor rejected the discount. Remove it to complete this
+              sale.
+            </PosAlert>
+          )}
+          {approvedApproval && (
+            <PosAlert tone="success">
+              Discount approved by a supervisor.
+            </PosAlert>
+          )}
+
           <PosPanel
-            title="Cart"
-            description={
-              cart?.lines?.length
-                ? `${itemCount} item${itemCount === 1 ? "" : "s"}`
-                : undefined
+            title={
+              <span id="pos-cart" className="flex scroll-mt-4 items-center gap-2">
+                <ShoppingCart className="size-5 text-text-muted" aria-hidden="true" />
+                Cart
+                {itemCount > 0 && <span className="rounded-full bg-brand px-2 py-0.5 text-xs font-semibold tabular-nums text-white">{itemCount}</span>}
+              </span>
             }
+            actions={cart?.lines?.length ? <span className="text-lg font-semibold tabular-nums text-text">{money(currency, cart.grand_total)}</span> : undefined}
             padding="none"
-            className="gap-0 lg:min-h-[22rem]"
+            className="gap-0"
           >
             {!cart?.lines?.length ? (
-              <p className="p-8 text-center text-sm text-text-muted">
+              <p className="border-t border-border p-6 text-center text-sm text-text-muted">
                 {loading
                   ? "Loading…"
                   : "Cart is empty — search or scan a product to begin."}
               </p>
             ) : (
-              <div className="flex flex-col">
+              <div ref={cartList} className="flex max-h-[50dvh] flex-col overflow-y-auto border-t border-border">
                 {cart.lines.map((line) => {
                   // F295 -- requires a serial/batch to be set before this line
                   // can actually be sold (enforced authoritatively at checkout
@@ -669,11 +768,26 @@ export function PosCheckoutScreen() {
                       key={line.id}
                       className="flex flex-col gap-2 border-t border-border px-4 py-3 first:border-t-0"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-text">
-                            {line.description}
-                          </p>
+                      <div className="flex items-start gap-2">
+                        <p className="min-w-0 flex-1 text-sm font-medium text-text">{line.description}</p>
+                        <span className="shrink-0 text-base font-semibold tabular-nums text-text">{money(currency, line.line_total)}</span>
+                        <IconButton
+                          variant="ghost"
+                          size="compact"
+                          isDisabled={!editable}
+                          onPress={() =>
+                            cart &&
+                            run(() =>
+                              removePosCartLine(cart.id, line.id, cart.version),
+                            )
+                          }
+                          aria-label="Remove line"
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
+                        </IconButton>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
                           <p className="text-xs text-text-muted">
                             {money(currency, line.unit_price)} per {(line as { uom_code?: string | null }).uom_code ?? "unit"}
                             {Number(line.manual_discount_amount) > 0 && (
@@ -734,23 +848,6 @@ export function PosCheckoutScreen() {
                             <Plus className="size-4" aria-hidden="true" />
                           </IconButton>
                         </div>
-                        <span className="w-24 text-right text-base font-semibold tabular-nums text-text">
-                          {money(currency, line.line_total)}
-                        </span>
-                        <IconButton
-                          variant="ghost"
-                          size="large"
-                          isDisabled={!editable}
-                          onPress={() =>
-                            cart &&
-                            run(() =>
-                              removePosCartLine(cart.id, line.id, cart.version),
-                            )
-                          }
-                          aria-label="Remove line"
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                        </IconButton>
                       </div>
 
                       {editable && (
@@ -849,94 +946,6 @@ export function PosCheckoutScreen() {
               </div>
             )}
           </PosPanel>
-        </div>
-
-        <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
-          {error && <PosAlert>{error}</PosAlert>}
-          {exception && cart && (
-            <PosAlert tone="warning">
-              <p className="font-medium">{exception.message}</p>
-              {!liveApproval && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" className="font-medium underline" disabled={loading} onClick={() => {
-                    requestApproval({ permission: exception.permission, resource: { type: "pos_cart", id: cart.id }, amount: exception.amount, percentage: exception.percentage,
-                      action: exception.action, reason: exception.reason, idempotencyKey: `${cart.id}:${exception.cartVersion}:${exception.permission}` })
-                      .then(setExceptionApproval).catch((err) => setError(err instanceof PosApiError ? err.message : "The approval could not be requested."));
-                  }}>Request supervisor approval</button>
-                  <button type="button" className="underline" onClick={() => setException(null)}>Cancel</button>
-                </div>
-              )}
-              {liveApproval?.status === "pending" && (
-                <p className="mt-1 text-xs">Waiting for a supervisor (Supervisor Approvals). Leave the cart as it is — a change cancels the approval. <Link className="font-medium underline" href="/pos/returns?tab=approvals">Open approvals</Link></p>
-              )}
-              {liveApproval?.status === "approved" && (
-                <p className="mt-2 text-xs">Approved by {liveApproval.approver}.{" "}
-                  <button type="button" className="font-medium underline" disabled={loading} onClick={() => {
-                    const approvalId = liveApproval.id;
-                    run(() => exception.apply(approvalId)).then(() => { setException(null); setExceptionApproval(null); });
-                  }}>Apply the discount</button>
-                </p>
-              )}
-              {(liveApproval?.status === "rejected" || liveApproval?.status === "expired") && (
-                <p className="mt-1 text-xs">The request was {liveApproval.status}. <button type="button" className="underline" onClick={() => { setException(null); setExceptionApproval(null); }}>Dismiss</button></p>
-              )}
-            </PosAlert>
-          )}
-          {resumeChanges.length > 0 && (
-            <PosAlert tone="warning" className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-medium">This bill was on hold — review what changed:</p>
-                <ul className="mt-1 list-disc pl-5 text-xs">{resumeChanges.map((change, index) => <li key={index}>{change.message}</li>)}</ul>
-              </div>
-              <button type="button" onClick={() => setResumeChanges([])} aria-label="Dismiss"><X className="size-4" /></button>
-            </PosAlert>
-          )}
-          {conflict && (
-            <PosAlert
-              tone="warning"
-              className="flex items-center justify-between gap-2"
-            >
-              <span>
-                {conflict} — the cart was refreshed with current server totals.
-              </span>
-              <button
-                type="button"
-                onClick={() => setConflict(null)}
-                aria-label="Dismiss"
-              >
-                <X className="size-4" />
-              </button>
-            </PosAlert>
-          )}
-          {pendingApproval && (
-            <PosAlert tone="warning">
-              <p className="font-medium">
-                Waiting for a supervisor to approve the discount.
-              </p>
-              <p className="text-xs">
-                Leave the cart as it is — any change restarts the approval.{" "}
-                {canApproveDiscounts && (
-                  <Link
-                    href="/pos/returns?tab=approvals"
-                    className="font-medium underline"
-                  >
-                    Open the approvals queue
-                  </Link>
-                )}
-              </p>
-            </PosAlert>
-          )}
-          {rejectedApproval && (
-            <PosAlert>
-              A supervisor rejected the discount. Remove it to complete this
-              sale.
-            </PosAlert>
-          )}
-          {approvedApproval && (
-            <PosAlert tone="success">
-              Discount approved by a supervisor.
-            </PosAlert>
-          )}
 
           <PosPanel title="Customer & discount" scanZone="off">
             {cart && (
@@ -1083,6 +1092,15 @@ export function PosCheckoutScreen() {
         </div>
       </div>
 
+      {/* Below the two-column layout the cart sits under the products: a cart button, always in reach, jumps to it. */}
+      {cart && (
+        <a href="#pos-cart" className="fixed bottom-4 right-4 z-30 flex min-h-12 items-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-white shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 lg:hidden"
+          aria-label={`Cart, ${itemCount} item${itemCount === 1 ? "" : "s"}, ${money(currency, cart.grand_total)}`}>
+          <ShoppingCart className="size-5" aria-hidden="true" />
+          <span className="tabular-nums">{itemCount}</span>
+          <span className="tabular-nums">{money(currency, cart.grand_total)}</span>
+        </a>
+      )}
       {holdOpen && <HoldDialog onClose={() => setHoldOpen(false)} onHold={(note) => holdCurrentCart(note)} busy={loading} />}
       {priceLine && (
         <PriceDialog line={priceLine} currency={currency} onClose={() => setPriceLine(null)}

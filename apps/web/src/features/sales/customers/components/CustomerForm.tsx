@@ -256,7 +256,9 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
             <TextField label="GSTIN" isRequired={gstinRequired} value={values.gstin} onChange={(value) => set("gstin")(value.toUpperCase())} placeholder="27ABCDE1234F1Z5"
               description={derivedState ? `State: ${derivedState}` : undefined} isDisabled={editing && !can.editGstin} errorMessage={errors.gstin} />
             {!compact && (
-              <Select label="Place of supply" description="Left empty, it follows the GSTIN or the billing address." selectedKey={values.placeOfSupply}
+              <Select label="Place of supply" selectedKey={values.placeOfSupply}
+                description={values.placeOfSupply && values.placeOfSupply !== NONE ? "Chosen by hand." : derivedState ? `Not needed: ${derivedState}, from the GSTIN.`
+                  : billing.state.trim() ? `Not needed: ${billing.state.trim()}, from the billing address.` : "Not needed: it follows the GSTIN or the billing address."}
                 onSelectionChange={(key) => set("placeOfSupply")(String(key))} options={stateOptions} isDisabled={editing && !can.editGstin} errorMessage={errors.placeOfSupply} />
             )}
           </>

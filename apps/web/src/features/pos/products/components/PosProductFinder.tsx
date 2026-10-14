@@ -97,6 +97,18 @@ export function PosProductFinder({ cartId, terminalId = null, onCart, disabled =
     enabled: Boolean(cartId),
     staleTime: 10_000,
   });
+  // The next page loads by itself when the end of the list scrolls into view (the button stays as the fallback).
+  const scroller = useRef<HTMLDivElement>(null);
+  const more = useRef<HTMLDivElement>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = results;
+  useEffect(() => {
+    const target = more.current;
+    if (!target || !hasNextPage || typeof IntersectionObserver === "undefined") return;
+    const root = scroller.current && scroller.current.scrollHeight > scroller.current.clientHeight ? scroller.current : null;
+    const observer = new IntersectionObserver((entries) => { if (entries[0]?.isIntersecting && !isFetchingNextPage) void fetchNextPage(); }, { root, rootMargin: "200px" });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   const products = useMemo(() => (results.data?.pages ?? []).flatMap((page) => page.products), [results.data]);
   const unavailable = results.data?.pages.find((page) => page.unavailable)?.unavailable;
   const showQuick = !term && !categoryId && (quick.data?.products.length ?? 0) > 0;
@@ -249,6 +261,8 @@ export function PosProductFinder({ cartId, terminalId = null, onCart, disabled =
         ))}
       </nav>
 
+      {/* The products scroll on their own, so the search stays put and the cart beside them stays in view however large the catalogue. */}
+      <div ref={scroller} className="-mx-1 flex flex-col gap-3 px-1 py-1 lg:max-h-[calc(100dvh-24rem)] lg:min-h-72 lg:overflow-y-auto">
       {showQuick && (
         <section aria-label="Quick products" className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Quick products</h3>
@@ -275,11 +289,14 @@ export function PosProductFinder({ cartId, terminalId = null, onCart, disabled =
           <>
             <Grid products={products} offset={showQuick ? quick.data!.products.length : 0} highlight={highlight} busy={busy} onAdd={add} onOptions={openOptions} />
             {results.hasNextPage && (
-              <Button variant="secondary" isLoading={results.isFetchingNextPage} onPress={() => void results.fetchNextPage()}>Show more</Button>
+              <div ref={more}>
+                <Button variant="secondary" className="w-full" isLoading={results.isFetchingNextPage} onPress={() => void results.fetchNextPage()}>Show more</Button>
+              </div>
             )}
           </>
         )}
       </section>
+      </div>
 
       {choice && (
         <Dialog isOpen onOpenChange={(open) => { if (!open) { setChoice(null); refocus(); } }} title={choice.title}>
@@ -374,10 +391,14 @@ function Tile({ product, active, busy, onAdd }: { product: PosProductResult; act
       </span>
       <span className="mt-auto flex flex-wrap items-center justify-between gap-1">
         <span className="text-base font-semibold tabular-nums text-text">{product.displayPrice === null ? "Price not set" : `${money(product.currency, product.displayPrice)}${unit}`}</span>
-        {product.stockStatus && (
+        {product.stockStatus && product.stockStatus !== "unavailable" && (
           <StatusBadge tone={STOCK_TONE[product.stockStatus]}>{stockText(product)}</StatusBadge>
         )}
       </span>
+      {/* Why it cannot be sold is a sentence, not a badge: it wraps inside the tile instead of running out of it. */}
+      {product.stockStatus === "unavailable" && (
+        <span className="line-clamp-3 text-xs font-medium text-warning">{stockText(product)}</span>
+      )}
     </button>
   );
 }

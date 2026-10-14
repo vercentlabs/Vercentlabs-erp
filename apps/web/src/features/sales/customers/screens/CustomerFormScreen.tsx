@@ -37,9 +37,9 @@ export function CustomerFormScreen({ customerId, accountId }: { customerId?: str
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "customers") });
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "customer", customer.id) });
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "options") });
-    router.push(`/sales/customers/${customer.id}`);
+    router.replace(`/sales/customers/${customer.id}`);
   };
-  const back = () => router.push(customerId ? `/sales/customers/${customerId}` : "/sales/customers");
+  const back = () => router.replace(customerId ? `/sales/customers/${customerId}` : "/sales/customers");
 
   if (optionsQuery.isLoading || (editing && customerQuery.isLoading) || (accountId && prefillQuery.isLoading)) return <LoadingState label="Loading" rows={6} />;
   if (optionsQuery.isError && errorCode(optionsQuery.error) === "PERMISSION_DENIED")

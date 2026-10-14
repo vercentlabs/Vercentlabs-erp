@@ -113,6 +113,9 @@ export async function resolvePosSupplyContext(client, context, { storeId = null,
   }
   const day = await taxDay(client, context);
   const registration = tax.registration;
+  // An unregistered seller may not charge GST: its bills carry no tax and need no HSN/SAC, and the invoicing rule makes them an ordinary
+  // receipt (determineRequiredSalesDocument). Exactly as with tax switched off.
+  if (tax.enabled && registration?.registrationType === "unregistered") tax = { ...tax, enabled: false, sellerUnregistered: true };
   if (tax.enabled) {
     if (!registration) throw posTaxError(409, "POS_TAX_REGISTRATION_INVALID", "No GST registration is set up for this store.");
     if (registration.registrationType && registration.registrationType !== "regular")

@@ -26,6 +26,8 @@ export const POSTING_ACCOUNTS = Object.freeze({
   expense_payable: M("Purchases", "Expense claims payable", ["liability"], "Expenses recorded now and paid later"),
   inventory: M("Inventory", "Inventory", ["asset"], "The value of stock on hand"),
   cogs: M("Inventory", "Cost of goods sold", ["expense"], "The cost of stock that was sold or delivered"),
+  wip: M("Manufacturing", "Work in progress", ["asset"], "Material issued to production and not yet received as finished goods"),
+  manufacturing_variance: M("Manufacturing", "Manufacturing variances", ["expense"], "Material used beyond (or below) the recipe, scrap and rejects, closed when an order completes"),
   inventory_adjustment_gain: M("Inventory", "Inventory gains", ["revenue", "expense"], "Stock found or revalued upwards"),
   inventory_adjustment_loss: M("Inventory", "Inventory losses", ["expense"], "Stock lost, damaged or revalued downwards"),
   writeoff: M("Inventory", "Write-offs", ["expense"], "Stock scrapped and bad debts written off"),

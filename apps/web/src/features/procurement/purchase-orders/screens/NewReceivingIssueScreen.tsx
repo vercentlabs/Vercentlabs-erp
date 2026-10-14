@@ -26,8 +26,8 @@ export function NewReceivingIssueScreen({ purchaseOrderId, goodsReceiptId }: { p
   const receipts = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "issue-receipts"), queryFn: () => listGoodsReceipts({ view: "posted" }), enabled: stage === "after_custody" });
   const order = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "purchase-order", orderId), queryFn: () => getPurchaseOrder(orderId), enabled: stage === "before_custody" && Boolean(orderId) });
   const receipt = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "goods-receipt", receiptId), queryFn: () => getGoodsReceipt(receiptId), enabled: stage === "after_custody" && Boolean(receiptId) });
-  const done = () => router.push("/procurement/goods-receipts?view=receiving-issues");
-  const back = () => router.push("/procurement/goods-receipts?view=receiving-issues");
+  const done = () => router.replace("/procurement/goods-receipts?view=receiving-issues");
+  const back = () => router.replace("/procurement/goods-receipts?view=receiving-issues");
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Report Receiving Issue" description="A refusal at the dock is recorded against the purchase order and creates no goods receipt; a rejection after receipt is recorded against the posted goods receipt. Neither moves stock twice." />

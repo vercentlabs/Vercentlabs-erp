@@ -148,11 +148,11 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
     mutationFn: (post: boolean) => submit.run(async () => {
       const id = saved ? (await updateBill(saved.id, { ...payload, expectedUpdatedAt: saved.updatedAt })).id : (await createBill(payload)).id;
       if (post) {
-        try { await billAction(id, "post", {}); } catch (error) { router.push(`/procurement/supplier-bills/${id}`); throw error; }
+        try { await billAction(id, "post", {}); } catch (error) { router.replace(`/procurement/supplier-bills/${id}`); throw error; }
       }
       return id;
     }),
-    onSuccess: (id) => router.push(`/procurement/supplier-bills/${id}`),
+    onSuccess: (id) => router.replace(`/procurement/supplier-bills/${id}`),
   });
   const issues = issuesOf(save.error);
   const setRow = (lineId: string, change: Partial<OrderRow>, rowDefaults: OrderRow) => setOrderRows((current) => ({ ...current, [lineId]: { ...rowDefaults, ...current[lineId], ...change } }));
@@ -174,9 +174,9 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
       </div>}
       formActions={
         <>
-          <Button variant="secondary" onPress={() => router.push(saved ? `/procurement/supplier-bills/${saved.id}` : "/procurement/supplier-bills")}>Cancel</Button>
-          <Button variant="secondary" isLoading={save.isPending && save.variables === false} isDisabled={!ready} onPress={() => save.mutate(false)}>Save Draft</Button>
-          {options.capabilities.manage ? <Button variant="primary" isLoading={save.isPending && save.variables === true} isDisabled={!ready} onPress={() => save.mutate(true)}>Validate &amp; Post</Button> : undefined}
+          <Button variant="secondary" onPress={() => router.replace(saved ? `/procurement/supplier-bills/${saved.id}` : "/procurement/supplier-bills")}>Cancel</Button>
+          <Button variant="secondary" isLoading={(save.isPending || save.isSuccess) && save.variables === false} isDisabled={save.isPending || save.isSuccess || !ready} onPress={() => save.mutate(false)}>Save Draft</Button>
+          {options.capabilities.manage ? <Button variant="primary" isLoading={(save.isPending || save.isSuccess) && save.variables === true} isDisabled={save.isPending || save.isSuccess || !ready} onPress={() => save.mutate(true)}>Validate &amp; Post</Button> : undefined}
         </>
       }
     >

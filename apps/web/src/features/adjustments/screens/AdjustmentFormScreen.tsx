@@ -21,6 +21,7 @@ import {
   ADJUSTMENTS_BASE, DISPOSITION_LABEL, createAdjustment, errorMessage, errorsOf, getAdjustment, getAdjustmentOptions, getStock, signed, updateAdjustment,
   type AdjustmentDetail, type AdjustmentOptions, type Disposition, type EntryMode, type LineInput, type ValuationSource,
 } from "../api/adjustments-api";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Lot = { key: string; batchId: string; newBatchNumber: string; newExpiresOn: string; value: string };
 type Line = {
@@ -79,9 +80,10 @@ function Form({ options, existing, prefill }: { options: AdjustmentOptions; exis
       return line.mode === "counted" ? { ...base, countedQuantity: line.value } : { ...base, difference: line.value };
     }),
   }), [header, lines, inv.data]);
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: () => (existing ? updateAdjustment(existing.adjustment.id, { ...payload, expectedVersion: existing.adjustment.version }) : createAdjustment(payload)),
-    onSuccess: (detail) => router.push(`${ADJUSTMENTS_BASE}/${detail.adjustment.id}`),
+    mutationFn: () => submit.run(async () => (existing ? updateAdjustment(existing.adjustment.id, { ...payload, expectedVersion: existing.adjustment.version }) : createAdjustment(payload))),
+    onSuccess: (detail) => router.replace(`${ADJUSTMENTS_BASE}/${detail.adjustment.id}`),
   });
   const errors = errorsOf(save.error);
 
@@ -94,7 +96,7 @@ function Form({ options, existing, prefill }: { options: AdjustmentOptions; exis
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(saved ? `${ADJUSTMENTS_BASE}/${saved.id}` : ADJUSTMENTS_BASE)}>Cancel</Button>
-          <Button variant="primary" isLoading={save.isPending} onPress={() => save.mutate()}>Save and preview</Button>
+          <Button isDisabled={save.isPending || save.isSuccess} variant="primary" isLoading={save.isPending || save.isSuccess} onPress={() => save.mutate()}>Save and preview</Button>
         </>
       }
       banner={save.error ? <Notice>{errorMessage(save.error)}{errors.length > 1 && <ul className="mt-1 list-disc pl-5">{errors.map((entry) => <li key={entry.message}>{entry.message}</li>)}</ul>}</Notice> : undefined}

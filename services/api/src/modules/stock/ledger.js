@@ -46,7 +46,7 @@ const DISPOSITION_LABEL = Object.fromEntries(STOCK_LEDGER_DISPOSITIONS.map((entr
 const SOURCE_LABEL = Object.freeze({
   opening_stock: "Opening Stock", goods_receipt: "Goods Receipt", purchase_return: "Purchase Return", sales_delivery: "Sales Delivery", sales_return: "Sales Return",
   stock_transfer: "Stock Transfer", stock_count: "Stock Count", stock_adjustment: "Manual adjustment", receiving_rejection: "Receiving Rejection",
-  manufacturing_work_order: "Production Order", pos_sale: "POS Sale", pos_return: "POS Return", goods_issue: "Goods Issue", inventory_transfer: "Transfer",
+  manufacturing_work_order: "Manufacturing Order", pos_sale: "POS Sale", pos_return: "POS Return", goods_issue: "Goods Issue", inventory_transfer: "Transfer",
   inventory_adjustment: "Stock Adjustment", inventory_stock_hold: "Quality Hold",
 });
 export function ledgerSourceHref(type, id, movementId) {
@@ -59,7 +59,7 @@ export function ledgerSourceHref(type, id, movementId) {
     case "stock_transfer": return "/inventory/transfers";
     case "stock_count": return null; // the earlier counts: history only, no page
     case "receiving_rejection": return "/procurement/receiving-issues";
-    case "manufacturing_work_order": return "/manufacturing/production-orders";
+    case "manufacturing_work_order": return `/manufacturing/orders/${id}`;
     case "pos_sale": return `/pos/receipts/${id}`;
     case "pos_return": return "/pos/returns";
     case "goods_issue": return `/inventory/goods-issues/${id}`;

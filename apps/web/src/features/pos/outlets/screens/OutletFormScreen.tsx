@@ -17,6 +17,8 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import {
   OUTLETS_BASE, createOutlet, errorMessage, fieldErrors, getOutlet, getOutletOptions, updateOutlet, type BusinessHours, type OutletDetail, type OutletOptions,
 } from "../api/outlets-api";
+import { useSubmitKey } from "@/shared/http/submit-once";
+import { codeFromName } from "../../shared/codes";
 
 type Hours = Record<string, { opens: string; closes: string; closed: boolean }>;
 type Draft = {
@@ -34,10 +36,12 @@ function hoursOf(saved: BusinessHours | undefined, weekdays: string[]): Hours {
 }
 
 function draftOf(outlet: OutletDetail | null, options: OutletOptions): Draft {
+  // A new outlet starts in the state of the GST registration it proposes.
+  const proposed = outlet ? null : options.gstStates.find((state) => state.code === options.registrations[0]?.stateCode?.trim());
   return {
     code: outlet?.code ?? "", name: outlet?.name ?? "", type: outlet?.type ?? "retail_store", managerUserId: outlet?.managerUserId ?? NONE, phone: outlet?.phone ?? "",
-    email: outlet?.email ?? "", line1: outlet?.address.line1 ?? "", line2: outlet?.address.line2 ?? "", city: outlet?.address.city ?? "", state: outlet?.address.state ?? "",
-    stateCode: outlet?.address.stateCode ?? "", postalCode: outlet?.address.postalCode ?? "", countryCode: outlet?.address.countryCode ?? options.defaults.countryCode,
+    email: outlet?.email ?? "", line1: outlet?.address.line1 ?? "", line2: outlet?.address.line2 ?? "", city: outlet?.address.city ?? "", state: outlet?.address.state ?? proposed?.name ?? "",
+    stateCode: outlet?.address.stateCode ?? proposed?.code ?? "", postalCode: outlet?.address.postalCode ?? "", countryCode: outlet?.address.countryCode ?? options.defaults.countryCode,
     timezone: outlet?.timezone ?? options.defaults.timezone, warehouseId: outlet?.warehouseId ?? options.warehouses[0]?.id ?? "",
     sellingLocationId: outlet?.sellingLocationId ?? NONE, returnsLocationId: outlet?.returnsLocationId ?? NONE,
     taxRegistrationId: outlet?.taxRegistrationId ?? options.registrations[0]?.id ?? NONE, receiptMessage: outlet?.receiptMessage ?? "",
@@ -64,6 +68,9 @@ function Form({ options, outlet }: { options: OutletOptions; outlet: OutletDetai
   const [draft, setDraft] = useState<Draft>(() => draftOf(outlet, options));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  // A new outlet's code follows its name until the person types one.
+  const [codeTyped, setCodeTyped] = useState(Boolean(outlet));
+  const india = draft.countryCode.trim().toUpperCase() === "IN";
   const can = outlet?.capabilities ?? options.capabilities;
   // Creating sets everything the creator may set; editing locks what needs a permission the person lacks.
   const editable = { general: outlet ? can.edit : can.create, inventory: outlet ? can.manageInventory : can.create, tax: outlet ? can.manageTax : can.create, cash: can.managePayments };
@@ -74,8 +81,9 @@ function Form({ options, outlet }: { options: OutletOptions; outlet: OutletDetai
   const registration = options.registrations.find((entry) => entry.id === draft.taxRegistrationId);
   const stateMismatch = Boolean(registration?.stateCode && draft.stateCode.trim() && registration.stateCode !== draft.stateCode.trim());
 
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: () => submit.run(async () => {
       const businessHours = Object.fromEntries(Object.entries(draft.hours).map(([day, entry]) => [day, entry.closed ? { closed: true } : { opens: entry.opens, closes: entry.closes }]));
       const input: Record<string, unknown> = {
         name: draft.name.trim(), type: draft.type, managerUserId: orNull(draft.managerUserId), phone: draft.phone, email: draft.email,
@@ -88,10 +96,10 @@ function Form({ options, outlet }: { options: OutletOptions; outlet: OutletDetai
       if (editable.cash) input.cashAccountId = orNull(draft.cashAccountId);
       if (!outlet || codeChanged) input.code = draft.code.trim();
       return outlet ? updateOutlet(outlet.id, { ...input, expectedVersion: outlet.version, reason: draft.reason.trim() || undefined }) : createOutlet(input);
-    },
+    }),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos-outlets") });
-      router.push(`${OUTLETS_BASE}/${saved.id}`);
+      router.replace(`${OUTLETS_BASE}/${saved.id}`);
     },
     onError: (failure) => { setErrors(fieldErrors(failure)); setError(errorMessage(failure)); window.scrollTo({ top: 0, behavior: "smooth" }); },
   });
@@ -107,14 +115,15 @@ function Form({ options, outlet }: { options: OutletOptions; outlet: OutletDetai
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(outlet ? `${OUTLETS_BASE}/${outlet.id}` : OUTLETS_BASE)}>Cancel</Button>
-          <Button variant="primary" isLoading={save.isPending} onPress={() => { setError(null); save.mutate(); }}>{outlet ? "Save changes" : "Create outlet"}</Button>
+          <Button isDisabled={save.isPending || save.isSuccess} variant="primary" isLoading={save.isPending || save.isSuccess} onPress={() => { setError(null); save.mutate(); }}>{outlet ? "Save changes" : "Create outlet"}</Button>
         </>
       }
     >
       <FormSection title="Outlet">
-        <TextField label="Code" isRequired value={draft.code} onChange={(value) => set("code")(value.toUpperCase().replace(/\s/g, ""))} errorMessage={errors.code}
-          isDisabled={!editable.general} description={outlet ? "Changing it keeps every sale and receipt linked." : "Unique in the company, such as PUN-FC."} />
-        <TextField label="Name" isRequired value={draft.name} onChange={set("name")} errorMessage={errors.name} isDisabled={!editable.general} description="Shown on receipts." />
+        <TextField label="Code" isRequired value={draft.code} onChange={(value) => { setCodeTyped(true); set("code")(value.toUpperCase().replace(/\s/g, "")); }} errorMessage={errors.code}
+          isDisabled={!editable.general}
+          description={outlet ? "Changing it keeps every sale and receipt linked." : codeTyped ? "Unique in the company, such as PUN-FC." : "Proposed from the name. Type your own to change it."} />
+        <TextField label="Name" isRequired value={draft.name} onChange={(value) => { set("name")(value); if (!codeTyped) set("code")(codeFromName(value, options.takenCodes)); }} errorMessage={errors.name} isDisabled={!editable.general} description="Shown on receipts." />
         {codeChanged && <TextField label="Reason for the new code" value={draft.reason} onChange={set("reason")} />}
         <Select label="Type" selectedKey={draft.type} onSelectionChange={(key) => set("type")(String(key))} isDisabled={!editable.general} errorMessage={errors.type}
           options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} />
@@ -129,8 +138,18 @@ function Form({ options, outlet }: { options: OutletOptions; outlet: OutletDetai
         <TextField label="Address line 1" isRequired value={draft.line1} onChange={set("line1")} errorMessage={errors.line1} isDisabled={!editable.general} />
         <TextField label="Address line 2" value={draft.line2} onChange={set("line2")} isDisabled={!editable.general} />
         <TextField label="City" isRequired value={draft.city} onChange={set("city")} errorMessage={errors.city} isDisabled={!editable.general} />
-        <TextField label="State" isRequired value={draft.state} onChange={set("state")} errorMessage={errors.state} isDisabled={!editable.general} />
-        <TextField label="State code (GST)" value={draft.stateCode} onChange={set("stateCode")} errorMessage={errors.stateCode} isDisabled={!editable.general} description="Such as 27 for Maharashtra." />
+        {india ? (
+          // One choice sets both the state printed on receipts and its GST state code.
+          <ComboBox label="State" isRequired selectedKey={draft.stateCode.trim() || null} errorMessage={errors.state || errors.stateCode} isDisabled={!editable.general}
+            placeholder="Choose the state" options={options.gstStates.map((state) => ({ value: state.code, label: `${state.name} (${state.code})` }))}
+            onSelectionChange={(key) => { const state = options.gstStates.find((entry) => entry.code === key); if (state) { set("state")(state.name); set("stateCode")(state.code); } }}
+            description={draft.stateCode ? `GST state code ${draft.stateCode}.` : "Sets the GST state code too."} />
+        ) : (
+          <>
+            <TextField label="State" isRequired value={draft.state} onChange={set("state")} errorMessage={errors.state} isDisabled={!editable.general} />
+            <TextField label="State code" value={draft.stateCode} onChange={set("stateCode")} errorMessage={errors.stateCode} isDisabled={!editable.general} />
+          </>
+        )}
         <TextField label="Postal code" isRequired value={draft.postalCode} onChange={set("postalCode")} errorMessage={errors.postalCode} isDisabled={!editable.general} />
         <TextField label="Country" isRequired value={draft.countryCode} onChange={(value) => set("countryCode")(value.toUpperCase().slice(0, 2))} errorMessage={errors.countryCode}
           isDisabled={!editable.general} description="Two letters, such as IN." />
@@ -152,7 +171,12 @@ function Form({ options, outlet }: { options: OutletOptions; outlet: OutletDetai
 
       <FormSection title="Tax and receipt" description="The company GST registration the outlet sells under; its GSTIN and legal name come from that registration.">
         <Select label="GST registration" selectedKey={draft.taxRegistrationId} isDisabled={!editable.tax} errorMessage={errors.taxRegistrationId}
-          onSelectionChange={(key) => set("taxRegistrationId")(String(key))}
+          onSelectionChange={(key) => {
+            set("taxRegistrationId")(String(key));
+            // Chosen before the address: the outlet takes the registration's state.
+            const state = !draft.stateCode.trim() && options.gstStates.find((entry) => entry.code === options.registrations.find((row) => row.id === key)?.stateCode?.trim());
+            if (state) { set("state")(state.name); set("stateCode")(state.code); }
+          }}
           options={withNone(options.registrations.map((entry) => ({ value: entry.id, label: `${entry.label}${entry.gstin ? ` · ${entry.gstin}` : ""}` })), "None")}
           description={stateMismatch ? `This registration is for state ${registration?.stateCode}; the outlet is in state ${draft.stateCode}.` : "Choose the registration for the outlet's state."} />
         <TextField label="Receipt message" value={draft.receiptMessage} onChange={set("receiptMessage")} isDisabled={!editable.tax} description="Printed at the foot of every receipt." />

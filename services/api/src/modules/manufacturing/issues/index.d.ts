@@ -1,0 +1,24 @@
+// Manufacturing Material Issue (0115).
+type Client = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> };
+type Ctx = { organizationId: string; userId: string; permissions: string[]; roleSlugs: string[] };
+type Rec = Record<string, unknown>;
+export declare const MATERIAL_ISSUE_PERMISSIONS: Readonly<Record<string, string>>;
+export declare function createMaterialIssueDraft(client: Client, c: Ctx, input: Rec): Promise<any>;
+export declare function updateMaterialIssueDraft(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function previewMaterialIssue(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function validateMaterialIssue(client: Client, c: Ctx, id: string, input?: Rec): Promise<any>;
+export declare function requestMaterialIssueApproval(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function decideMaterialIssueApproval(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function postMaterialIssue(client: Client, c: Ctx, id: string, input?: Rec): Promise<any>;
+export declare function cancelMaterialIssue(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function reverseMaterialIssue(client: Client, c: Ctx, id: string, input: Rec): Promise<any>;
+export declare function recordMaterialScrap(client: Client, c: Ctx, orderId: string, input: Rec): Promise<any>;
+export declare function recordMaterialIssuePrint(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function recoverMaterialIssue(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function getMaterialIssue(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function listMaterialIssues(client: Client, c: Ctx, filters?: Rec): Promise<any[]>;
+export declare function getMoMaterialIssueHistory(client: Client, c: Ctx, orderId: string): Promise<any[]>;
+export declare function getIssuableMoMaterials(client: Client, c: Ctx, orderId: string): Promise<any>;
+export declare function checkMaterialIssuePosting(client: Client, c: Ctx, id: string): Promise<any>;
+export declare function getUnreconciledMaterialIssues(client: Client, c: Ctx): Promise<any[]>;
+export declare function getMaterialIssueReport(client: Client, c: Ctx, kind?: string, filters?: Rec): Promise<any[]>;

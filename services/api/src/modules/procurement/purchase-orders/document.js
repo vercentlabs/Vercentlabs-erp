@@ -45,6 +45,13 @@ function readAddress(value, label) {
   return Object.values(address).some(Boolean) ? address : null;
 }
 
+// A warehouse's address as an order's ship-to; null when the warehouse has none on record.
+function warehouseAddress(warehouse) {
+  if (!warehouse?.address_line1) return null;
+  return { name: warehouse.name, line1: warehouse.address_line1, line2: warehouse.address_line2 ?? null, city: warehouse.city ?? null, stateCode: warehouse.state_code ?? null,
+    stateName: warehouse.state ?? null, postalCode: warehouse.postal_code ?? null, countryCode: warehouse.country_code ?? null, contactName: null, phone: null };
+}
+
 // The company address an order is billed to: the buying registration's, else the organization.
 function billToOf(registration, organization) {
   if (registration) {
@@ -66,7 +73,7 @@ async function supplierTaxRegistration(client, organizationId, supplierId, regis
 
 async function activeWarehouse(client, organizationId, warehouseId, label) {
   if (!warehouseId) return null;
-  const row = (await client.query(`SELECT id, code, name, status FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [organizationId, warehouseId])).rows[0];
+  const row = (await client.query(`SELECT id, code, name, status, address_line1, address_line2, city, state, state_code, postal_code, country_code FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [organizationId, warehouseId])).rows[0];
   if (!row) fail(`${label} was not found.`, "warehouseId", "PURCHASE_ORDER_WAREHOUSE_INVALID", 409);
   if (row.status !== "active") fail(`${label} ${row.name} is inactive.`, "warehouseId", "PURCHASE_ORDER_WAREHOUSE_INACTIVE", 409);
   return row;
@@ -145,11 +152,13 @@ export async function resolveOrderDocument(client, context, input, { order = nul
   const organization = (await client.query(`SELECT name, legal_name, tax_id, country_code FROM public.organizations WHERE id = $1`, [organizationId])).rows[0];
   const buyerRegistration = tax.registration;
   const billTo = billToOf(buyerRegistration, organization);
-  const shipTo = has(input, "shipTo") ? readAddress(input.shipTo, "Ship to") : order?.ship_to_snapshot ?? null;
+  const typedShipTo = has(input, "shipTo") ? readAddress(input.shipTo, "Ship to") : order?.ship_to_snapshot ?? null;
 
   const settings = await procurementSettings(client, organizationId);
   const defaultWarehouseId = has(input, "defaultWarehouseId") ? optionalUuid(input.defaultWarehouseId, "Warehouse") : order?.default_warehouse_id ?? settings.defaultWarehouseId;
   const defaultWarehouse = await activeWarehouse(client, organizationId, defaultWarehouseId, "The receiving warehouse");
+  // Delivered where it is received: no address typed, the receiving warehouse's own address (and its state decides the GST).
+  const shipTo = typedShipTo ?? warehouseAddress(defaultWarehouse);
 
   const orderDate = readDate(input.orderDate, "Order date") ?? (order ? dayOf(order.order_date) : null) ?? today;
   const expectedDeliveryDate = has(input, "expectedDeliveryDate") ? readDate(input.expectedDeliveryDate, "Expected delivery date")

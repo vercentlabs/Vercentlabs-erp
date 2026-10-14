@@ -33,6 +33,7 @@ import {
   addSalesOrderNote, confirmationPdfUrl, listSalesOrderFiles, getSalesOrder, orderPdfUrl, removeSalesOrderFile, reserveSalesOrderStock, uploadSalesOrderFile,
   type ConfirmResult, type ReservationOutcome, type SalesOrderDetail, type SalesOrderLine,
 } from "../api/orders-api";
+import { SalesManufacturingPanel } from "@/features/manufacturing/demand/components/SalesManufacturingPanel";
 import { AvailabilityPanel } from "../components/AvailabilityPanel";
 import { ReservationPanel } from "../components/ReservationPanel";
 import { AcknowledgeConfirmationDialog, ConfirmOrderDialog, MarkConfirmationSentDialog, SendConfirmationDialog } from "../components/ConfirmationDialogs";
@@ -241,6 +242,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
             <Tab id="invoices">Invoices ({detail.invoices.length})</Tab>
             <Tab id="confirmation">Confirmation</Tab>
             {executing && <Tab id="returns">Returns &amp; credits</Tab>}
+            {executing && <Tab id="manufacturing">Manufacturing</Tab>}
             <Tab id="related">Related documents</Tab>
             <Tab id="notes">Notes &amp; attachments</Tab>
             <Tab id="history">History</Tab>
@@ -255,6 +257,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           <TabPanel id="confirmation">
             <Confirmation detail={detail} onSend={() => setDialog("email")} onMarkSent={() => setDialog("markSent")} onAcknowledge={() => setDialog("acknowledge")} />
           </TabPanel>
+          {executing && <TabPanel id="manufacturing"><SalesManufacturingPanel orderId={orderId} /></TabPanel>}
           {executing && <TabPanel id="returns">{tracking ? <OrderReturnsCredits tracking={tracking} /> : <div className="pt-4">{trackingMissing}</div>}</TabPanel>}
           <TabPanel id="related"><Related detail={detail} tracking={tracking} /></TabPanel>
           <TabPanel id="notes"><Notes detail={detail} orderId={orderId} canEdit={Boolean(detail.capabilities.create)} onChanged={refresh} /></TabPanel>

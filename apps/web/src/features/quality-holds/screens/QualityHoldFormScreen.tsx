@@ -19,6 +19,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import { QUALITY_HOLDS_BASE, createHold, errorMessage, errorsOf, getHold, getHoldOptions, updateHold, type HoldDetail, type HoldOptions, type HoldType } from "../api/quality-holds-api";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Line = { key: string; itemId: string; position: string; quantity: string; serialIds: string[]; targetLocationId: string; notes: string };
 const positionKey = (locationId: string | null, batchId: string | null) => `${locationId ?? "main"}|${batchId ?? "-"}`;
@@ -59,14 +60,15 @@ function Form({ options, existing, prefill }: { options: HoldOptions; existing: 
   const targets = (warehouse?.locations ?? []).filter((location) => location.disposition === disposition);
   const change = (key: string, patch: Partial<Line>) => setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   const reason = options.reasons.find((entry) => entry.id === reasonId);
+  const submit = useSubmitKey();
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: () => submit.run(async () => {
       const input = { holdType, reasonId: reasonId ?? "", warehouseId, assignedUserId, reviewDueOn: reviewDueOn || null, notes: notes || null,
         lines: lines.filter((line) => line.itemId).map((line) => ({ itemId: line.itemId, quantity: line.quantity, ...readPosition(line.position), serialIds: line.serialIds.length ? line.serialIds : undefined,
           targetLocationId: line.targetLocationId || null, notes: line.notes || undefined })) };
       return existing ? updateHold(existing.hold.id, { ...input, expectedVersion: existing.hold.version }) : createHold(input);
-    },
-    onSuccess: (detail) => router.push(`${QUALITY_HOLDS_BASE}/${detail.hold.id}`),
+    }),
+    onSuccess: (detail) => router.replace(`${QUALITY_HOLDS_BASE}/${detail.hold.id}`),
   });
   return (
     <RecordFormPage
@@ -77,7 +79,7 @@ function Form({ options, existing, prefill }: { options: HoldOptions; existing: 
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(saved ? `${QUALITY_HOLDS_BASE}/${saved.id}` : QUALITY_HOLDS_BASE)}>Cancel</Button>
-          <Button variant="primary" isLoading={save.isPending} onPress={() => save.mutate()}>Save draft</Button>
+          <Button isDisabled={save.isPending || save.isSuccess} variant="primary" isLoading={save.isPending || save.isSuccess} onPress={() => save.mutate()}>Save draft</Button>
         </>
       }
       banner={save.isError ? <Notice>{errorMessage(save.error)}

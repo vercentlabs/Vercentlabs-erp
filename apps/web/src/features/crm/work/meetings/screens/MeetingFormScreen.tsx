@@ -177,7 +177,7 @@ export function MeetingFormScreen({
       queryClient.invalidateQueries({
         queryKey: scopedQueryKey(workspace, "crm", "meetings"),
       });
-      router.push("/crm/meetings");
+      router.replace("/crm/meetings");
     },
     onError: (error: Error) => {
       setServerError(

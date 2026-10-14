@@ -572,11 +572,11 @@ export async function validateAvailableStock(client, c, input = {}) {
 // ------------------------------------------------------------------ Reserved Stock
 
 const SOURCE_LABEL = Object.freeze({ sales_order_line: "Sales order", sales_order: "Sales order", stock_transfer: "Internal transfer", purchase_return: "Purchase return",
-  manufacturing_work_order: "Work order", pos_checkout: "POS checkout" });
+  manufacturing_work_order: "Manufacturing order", pos_checkout: "POS checkout" });
 const RESERVATION_SELECT = `
   SELECT reservation.*, item.code AS sku, item.name AS item_name, uom.code AS base_uom, warehouse.code AS warehouse_code, warehouse.status AS warehouse_status, COALESCE(location.code, 'MAIN') AS location_code,
          batch.batch_number, serial.serial_number, serial.status AS serial_status, serial.warehouse_id AS serial_warehouse_id, reserver.full_name AS reserved_by_name,
-         COALESCE(sales_order.sales_order_number, line_order.sales_order_number, transfer.document_number, purchase_return.return_number, work_order.work_order_number, pos_cart.cart_reference) AS document_number,
+         COALESCE(sales_order.sales_order_number, line_order.sales_order_number, transfer.document_number, purchase_return.return_number, work_order.mo_number, pos_cart.cart_reference) AS document_number,
          COALESCE(sales_order.id, line_order.id, transfer.id, purchase_return.id, work_order.id, pos_cart.id) AS document_id,
          ${restrictedStockSql("location", "batch")} AS ineligible, ${restrictionReasonSql("location", "batch")} AS ineligible_reason
     FROM tenant.stock_reservations reservation
@@ -591,7 +591,7 @@ const RESERVATION_SELECT = `
     LEFT JOIN tenant.sales_orders line_order ON line_order.organization_id = reservation.organization_id AND reservation.reference_type = 'sales_order_line' AND line_order.id = reservation.sales_order_id
     LEFT JOIN tenant.inventory_transfers transfer ON transfer.organization_id = reservation.organization_id AND reservation.reference_type = 'stock_transfer' AND transfer.id = reservation.reference_id
     LEFT JOIN tenant.purchase_returns purchase_return ON purchase_return.organization_id = reservation.organization_id AND reservation.reference_type = 'purchase_return' AND purchase_return.id = reservation.reference_id
-    LEFT JOIN tenant.manufacturing_work_orders work_order ON work_order.organization_id = reservation.organization_id AND reservation.reference_type = 'manufacturing_work_order' AND work_order.id = reservation.reference_id
+    LEFT JOIN tenant.manufacturing_orders work_order ON work_order.organization_id = reservation.organization_id AND reservation.reference_type = 'manufacturing_work_order' AND work_order.id = reservation.reference_id
     LEFT JOIN tenant.pos_carts pos_cart ON pos_cart.organization_id = reservation.organization_id AND reservation.reference_type = 'pos_checkout' AND pos_cart.checkout_reference = reservation.reference_id`;
 
 function toReservation(row) {

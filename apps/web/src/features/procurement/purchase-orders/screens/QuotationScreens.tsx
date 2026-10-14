@@ -94,13 +94,13 @@ function QuotationForm({ options, existing }: { options: NonNullable<Awaited<Ret
           discountType: line.discountType === "none" ? null : line.discountType, discountValue: line.discountType === "none" ? "0" : line.discountValue || "0" })) };
       return existing ? updateQuotation(existing.quotation.id, body).then(() => existing.quotation.id) : createQuotation(body).then((result) => result.id);
     }),
-    onSuccess: (id) => router.push(`/procurement/purchase-orders/quotations/${id}`),
+    onSuccess: (id) => router.replace(`/procurement/purchase-orders/quotations/${id}`),
   });
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={existing ? `Edit ${existing.quotation.quotationNumber}` : "Record supplier quotation"}
-        secondaryActions={<Button variant="secondary" onPress={() => router.push(existing ? `/procurement/purchase-orders/quotations/${existing.quotation.id}` : "/procurement/purchase-orders/quotations")}>Cancel</Button>}
-        primaryAction={<Button variant="primary" isLoading={save.isPending || save.isSuccess} isDisabled={!values.supplierId} onPress={() => save.mutate()}>Save</Button>} />
+        secondaryActions={<Button variant="secondary" onPress={() => router.replace(existing ? `/procurement/purchase-orders/quotations/${existing.quotation.id}` : "/procurement/purchase-orders/quotations")}>Cancel</Button>}
+        primaryAction={<Button variant="primary" isLoading={save.isPending || save.isSuccess} isDisabled={save.isPending || save.isSuccess || !values.supplierId} onPress={() => save.mutate()}>Save</Button>} />
       {save.error && <Notice>{errorMessage(save.error)}</Notice>}
       <Panel title="Quotation">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -167,7 +167,7 @@ export function SupplierQuotationDetailScreen({ quotationId }: { quotationId: st
           { label: "Quoted on", value: calendarDate(quotation.quotationDate) },
           { label: "Valid until", value: quotation.validUntil ? calendarDate(quotation.validUntil) : "—" },
         ],
-        primaryAction: actions.convert ? <Button variant="primary" isLoading={convert.isPending} onPress={() => convert.mutate()}>Create Purchase Order</Button>
+        primaryAction: actions.convert ? <Button variant="primary" isLoading={convert.isPending || convert.isSuccess} isDisabled={convert.isPending || convert.isSuccess} onPress={() => convert.mutate()}>Create Purchase Order</Button>
           : quotation.convertedPurchaseOrderId ? <LinkButton variant="secondary" href={`/procurement/purchase-orders/${quotation.convertedPurchaseOrderId}`}>Open {quotation.convertedPurchaseOrderNumber}</LinkButton> : undefined,
         secondaryActions: (
           <div className="flex gap-2">

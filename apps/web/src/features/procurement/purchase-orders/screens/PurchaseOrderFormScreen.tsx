@@ -139,7 +139,7 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
     mutationFn: () => submit.run(async () => (detail
       ? updatePurchaseOrder(detail.order.id, { ...payload, expectedRevision: detail.order.revision }).then(() => detail.order.id)
       : createPurchaseOrder(payload).then((result) => result.id))),
-    onSuccess: (id) => router.push(`/procurement/purchase-orders/${id}`),
+    onSuccess: (id) => router.replace(`/procurement/purchase-orders/${id}`),
     onError: setFailure,
   });
 
@@ -162,8 +162,8 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
       </div>}
       formActions={
         <>
-          <Button variant="secondary" onPress={() => router.push(detail ? `/procurement/purchase-orders/${detail.order.id}` : "/procurement/purchase-orders")}>Cancel</Button>
-          <Button variant="primary" isLoading={save.isPending || save.isSuccess} isDisabled={!header.supplierId} onPress={() => save.mutate()}>Save draft</Button>
+          <Button variant="secondary" onPress={() => router.replace(detail ? `/procurement/purchase-orders/${detail.order.id}` : "/procurement/purchase-orders")}>Cancel</Button>
+          <Button variant="primary" isLoading={save.isPending || save.isSuccess} isDisabled={save.isPending || save.isSuccess || !header.supplierId} onPress={() => save.mutate()}>Save draft</Button>
         </>
       }
     >
@@ -215,7 +215,7 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
             options={[{ value: DEFAULT, label: "Default registration" }, ...options.registrations.map((entry) => ({ value: entry.id, label: `${entry.name}${entry.gstin ? ` · ${entry.gstin}` : ""}` }))]} />
           <Select label="Receiving warehouse" selectedKey={header.defaultWarehouseId} onSelectionChange={(value) => set("defaultWarehouseId")(String(value))}
             options={[{ value: NONE, label: "None (services only)" }, ...warehouseOptions]} />
-          <TextField label="Ship to (address)" value={header.shipToLine1} onChange={set("shipToLine1")} description="Leave empty to deliver to the company address." />
+          <TextField label="Ship to (address)" value={header.shipToLine1} onChange={set("shipToLine1")} description="Leave empty to deliver to the receiving warehouse’s address (else the company address)." />
           <TextField label="Ship to (city)" value={header.shipToCity} onChange={set("shipToCity")} />
           <TextField label="Ship to (state code)" value={header.shipToStateCode} onChange={set("shipToStateCode")} description="Decides intra- or inter-state GST." />
           <TextField label="Ship to (PIN)" value={header.shipToPostalCode} onChange={set("shipToPostalCode")} />

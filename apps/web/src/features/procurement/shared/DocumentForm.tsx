@@ -51,14 +51,14 @@ function FormBody({ config, id, existing, options }: { config: FormConfig; id?: 
     }),
     onSuccess: (record) => {
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement") });
-      router.push(config.detailHref(record.id));
+      router.replace(config.detailHref(record.id));
     },
     onError: (err) => setError(err instanceof ProcApiError ? err.message : "This could not be saved."),
   });
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={id ? `Edit ${config.noun}` : `New ${config.noun}`}
-        secondaryActions={<Button variant="secondary" onPress={() => router.push(config.backHref)}>Cancel</Button>}
+        secondaryActions={<Button variant="secondary" onPress={() => router.replace(config.backHref)}>Cancel</Button>}
         primaryAction={<Button variant="primary" onPress={() => save.mutate()} isLoading={save.isPending || save.isSuccess}>{id ? "Save changes" : `Save ${config.noun}`}</Button>} />
       {error && <Notice>{error}</Notice>}
       <Panel title="Details">

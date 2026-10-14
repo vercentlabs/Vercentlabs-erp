@@ -10,7 +10,7 @@ import { canViewCustomerFinancials, crmContext, customerCan, customerCapabilitie
 import { insertAddress } from "./addresses.js";
 import {
   ACCOUNT_NUMBER_DOCUMENT_TYPE, CUSTOMER_NUMBER_DOCUMENT_TYPE, CUSTOMER_PARTY_SQL, CUSTOMER_PERMISSIONS, CUSTOMER_VIEWS, CustomerError,
-  customerKindLabel, customerStatusLabel, gstRegistrationLabel, gstStateName,
+  customerKindLabel, customerStatusLabel, gstRegistrationLabel, gstStateCode, gstStateName,
 } from "./constants.js";
 import { assertNoBlockingCustomerDuplicate, recordCustomerDuplicateOverride } from "./duplicates.js";
 import { CUSTOMER_COLUMNS, CUSTOMER_FIELD_LABELS, assertValidCustomer, has, isUuid, normalizeCustomerInput, requireUuid, text } from "./validation.js";
@@ -306,7 +306,8 @@ export async function createCustomer(client, context, input = {}) {
   const duplicates = await assertNoBlockingCustomerDuplicate(client, context, duplicateProbe(normalized, input.billingAddress?.city), {
     allowDuplicate: input.allowDuplicate === true, reason: input.duplicateReason,
   });
-  if (!normalized.placeOfSupply) normalized.placeOfSupply = normalized.gstStateCode ?? (text(input.billingAddress?.stateCode) || null);
+  // The GSTIN's state, else the billing address's (its code, or the code of the state named — the form sends the name).
+  if (!normalized.placeOfSupply) normalized.placeOfSupply = normalized.gstStateCode ?? (text(input.billingAddress?.stateCode) || gstStateCode(text(input.billingAddress?.state)) || null);
 
   const numbering = { organizationId: context.organizationId };
   const code = await nextDocumentNumber(client, numbering, { documentType: ACCOUNT_NUMBER_DOCUMENT_TYPE });

@@ -125,7 +125,7 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
       queryClient.invalidateQueries({
         queryKey: scopedQueryKey(workspace, "crm", "calls"),
       });
-      router.push("/crm/calls");
+      router.replace("/crm/calls");
     },
     onError: (error: Error) => {
       setServerError(

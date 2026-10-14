@@ -15,6 +15,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 import { createOpeningStock, errorMessage, fieldErrors, getOpeningOptions } from "../api/opening-stock-api";
 import { OPENING_BASE } from "./OpeningStockListScreen";
+import { useSubmitKey } from "@/shared/http/submit-once";
 
 export function NewOpeningStockScreen() {
   const workspace = useWorkspaceContext();
@@ -23,10 +24,11 @@ export function NewOpeningStockScreen() {
   const [draft, setDraft] = useState({ warehouseId: "", openingDate: "", accountingDate: "", migrationReference: "", sourceSystem: "", externalReference: "", notes: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const set = (key: keyof typeof draft) => (value: string) => { setDraft((current) => ({ ...current, [key]: value })); setErrors((current) => ({ ...current, [key]: "" })); };
+  const submit = useSubmitKey();
   const create = useMutation({
-    mutationFn: () => createOpeningStock({ ...draft, accountingDate: draft.accountingDate || draft.openingDate, sourceSystem: draft.sourceSystem || null, externalReference: draft.externalReference || null,
-      notes: draft.notes || null }),
-    onSuccess: (document) => router.push(`${OPENING_BASE}/${document.id}?tab=items`),
+    mutationFn: () => submit.run(async () => createOpeningStock({ ...draft, accountingDate: draft.accountingDate || draft.openingDate, sourceSystem: draft.sourceSystem || null, externalReference: draft.externalReference || null,
+      notes: draft.notes || null })),
+    onSuccess: (document) => router.replace(`${OPENING_BASE}/${document.id}?tab=items`),
     onError: (failure) => setErrors(fieldErrors(failure)),
   });
   if (options.isLoading) return <LoadingState label="Loading" rows={4} />;
@@ -38,7 +40,7 @@ export function NewOpeningStockScreen() {
       formActions={
         <>
           <Button variant="secondary" onPress={() => router.push(OPENING_BASE)}>Cancel</Button>
-          <Button variant="primary" isLoading={create.isPending} isDisabled={!draft.warehouseId || !draft.openingDate || !draft.migrationReference.trim()} onPress={() => create.mutate()}>Create draft</Button>
+          <Button variant="primary" isLoading={create.isPending || create.isSuccess} isDisabled={create.isPending || create.isSuccess || !draft.warehouseId || !draft.openingDate || !draft.migrationReference.trim()} onPress={() => create.mutate()}>Create draft</Button>
         </>
       }
       banner={<ErrorBanner message={create.isError && !Object.keys(fieldErrors(create.error)).length ? errorMessage(create.error) : null} />}
