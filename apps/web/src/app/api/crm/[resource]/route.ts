@@ -19,7 +19,6 @@ const LIST_FILTER_KEYS = [
   "stageId",
   "pipelineId",
   "sourceId",
-  "campaignId",
   "activityType",
   "priority",
   "rating",

@@ -10,7 +10,7 @@ export type ContactRouteParams = { params: Promise<{ id: string }> };
 
 const FILTER_KEYS = [
   "view", "search", "status", "accountId", "ownerId", "teamId", "department", "role", "sourceId", "countryCode",
-  "createdFrom", "createdTo", "lastActivityBefore", "isDecisionMaker", "isPrimary", "tagId", "sortBy", "sortDirection",
+  "createdFrom", "createdTo", "lastActivityBefore", "isDecisionMaker", "isPrimary", "sortBy", "sortDirection",
 ] as const;
 
 // The list filters accepted from the query string (list and export).

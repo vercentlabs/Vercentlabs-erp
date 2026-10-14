@@ -44,14 +44,6 @@ function initials(value: string) {
 function destinationIsActive(pathname: string, key: string) {
   const path = pathname.replace(/\/$/, "") || "/";
   if (key === "dashboard") return path === "/" || path === "/index";
-  if (key === "crm") {
-    return (
-      path === "/leads" ||
-      path === "/pipeline" ||
-      path.startsWith("/crm") ||
-      path.startsWith("/workspace/crm")
-    );
-  }
   if (key === "master-data") return path.startsWith("/workspace/master-data");
   if (key === "notifications") return path === "/notifications";
   if (key === "profile") return path === "/workspace/profile";

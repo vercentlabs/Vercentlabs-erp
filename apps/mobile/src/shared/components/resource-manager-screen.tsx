@@ -23,7 +23,7 @@ import { mobileApi } from "@/core/api/client";
 import { useAuth } from "@/core/auth/auth-provider";
 import { AppHeader } from "@/shared/components/app-header";
 import { Button } from "@/shared/components/button";
-import { QueryState, StatusPill } from "@/shared/components/crm-states";
+import { QueryState, StatusPill } from "@/shared/components/query-states";
 import { Screen } from "@/shared/components/screen";
 import { StructuredFieldEditor } from "@/shared/components/structured-field-editor";
 import { useTheme } from "@/shared/theme/theme";
@@ -99,9 +99,9 @@ function visible(value: unknown, format?: string) {
   return String(value).replaceAll("_", " ");
 }
 
-function areaApi(area: string): "crm" | "business-data" | "settings" {
+function areaApi(area: string): "business-data" | "settings" {
   if (area === "master-data") return "business-data";
-  if (area === "crm" || area === "settings") return area;
+  if (area === "settings") return area;
   throw new Error("Unknown workspace resource area.");
 }
 
@@ -117,8 +117,6 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
   const [editor, setEditor] = useState<Row | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [selecting, setSelecting] = useState<MobileFieldDefinition | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [csv, setCsv] = useState("");
   const openedCreate = useRef(false);
   const query = useQuery({
     queryKey: ["workspace-resource", apiArea, resource],
@@ -156,9 +154,8 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
   })();
 
   const mutation = useMutation({
-    mutationFn: async (input: { kind: "save" | "archive" | "complete"; row: Row; body?: Row }) => {
+    mutationFn: async (input: { kind: "save" | "archive"; row: Row; body?: Row }) => {
       const id = String(input.row.id || "");
-      if (input.kind === "complete") return mobileApi.completeActivity(id, String(input.body?.outcome || ""));
       if (input.kind === "archive") {
         if (apiArea === "settings") throw new Error("Settings records cannot be archived here.");
         return mobileApi.archiveWorkspaceResource(apiArea, resource, id);
@@ -198,17 +195,6 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
     }
   };
 
-  const importCsv = async () => {
-    try {
-      const result = await mobileApi.request<{ message: string }>(`/imports/crm/${resource}`, { method: "POST", body: JSON.stringify({ csv }) });
-      setImporting(false);
-      setCsv("");
-      await queryClient.invalidateQueries({ queryKey: ["workspace-resource", apiArea, resource] });
-      Alert.alert("Import completed", result.message);
-    } catch (error) {
-      Alert.alert("Import not completed", error instanceof Error ? error.message : "Please check the CSV and try again.");
-    }
-  };
 
   const save = () => {
     if (!definition || !editor) return;
@@ -240,7 +226,7 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
   return (
     <Screen>
       <AppHeader
-        eyebrow={definition?.eyebrow || definition?.group || (area === "crm" ? "CRM" : "Data")}
+        eyebrow={definition?.eyebrow || definition?.group || "Data"}
         title={definition?.title || "Workspace records"}
         description={definition?.description}
       />
@@ -293,7 +279,7 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
             {statusOptions.map((value) => <Pressable key={value} onPress={() => setStatus(value)} style={{ minHeight: 38, justifyContent: "center", paddingHorizontal: spacing.md, borderWidth: 1, borderColor: status === value ? colors.primary : colors.border, borderRadius: 19, backgroundColor: status === value ? colors.primarySoft : colors.surface }}><Text style={{ ...type.caption, color: status === value ? colors.primary : colors.textMuted }}>{statusLabel(value)}</Text></Pressable>)}
           </ScrollView>
-          {apiArea !== "settings" ? <View style={{ flexDirection: "row", gap: spacing.sm }}><Button style={{ flex: 1 }} label="Export CSV" variant="secondary" onPress={() => void exportCsv()} />{apiArea === "crm" && auth.session?.access.permissions.includes("crm.import") && canManage ? <Button style={{ flex: 1 }} label="Import CSV" variant="secondary" onPress={() => setImporting(true)} /> : null}</View> : null}
+          {apiArea !== "settings" ? <View style={{ flexDirection: "row", gap: spacing.sm }}><Button style={{ flex: 1 }} label="Export CSV" variant="secondary" onPress={() => void exportCsv()} /></View> : null}
           <Text style={{ ...type.caption, color: colors.textMuted }}>
             {filtered.length} {filtered.length === 1 ? "record" : "records"} · {canManage ? "Manage access" : "Read only"}
           </Text>
@@ -340,10 +326,8 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
                     </View>
                   ))}
               </View>
-              {canManage || (apiArea === "crm" && (resource === "leads" || resource === "opportunities")) ? (
+              {canManage ? (
                 <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                  {apiArea === "crm" && (resource === "leads" || resource === "opportunities") ? <Pressable onPress={() => router.push({ pathname: "/(protected)/crm/[resource]/[id]", params: { resource, id: String(row.id) } })} style={{ minHeight: 44, flex: 1, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm }}><Text style={{ ...type.label, color: colors.primary }}>Open</Text></Pressable> : null}
-                  {canManage && apiArea === "crm" && resource === "activities" && row.status !== "completed" ? <Pressable onPress={() => mutation.mutate({ kind: "complete", row, body: { outcome: "Completed from mobile" } })} style={{ minHeight: 44, flex: 1, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm }}><Text style={{ ...type.label, color: colors.primary }}>Complete</Text></Pressable> : null}
                   {canManage ? <Pressable onPress={() => openEditor(row)} style={{ minHeight: 44, flex: 1, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm }}>
                     <Text style={{ ...type.label, color: colors.primary }}>Edit</Text>
                   </Pressable> : null}
@@ -484,13 +468,6 @@ export function ResourceManagerScreen({ area, resource, startCreating = false }:
               ))}
             </ScrollView>
           </View>
-        </SafeAreaView>
-      </Modal>
-
-      <Modal visible={importing} animationType="slide" onRequestClose={() => setImporting(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }}>
-          <View style={{ flexDirection: "row", alignItems: "center", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface }}><View style={{ flex: 1 }}><Text style={{ ...type.caption, color: colors.primary, textTransform: "uppercase" }}>Governed import</Text><Text style={{ ...type.heading, color: colors.text }}>Import {definition?.title} CSV</Text></View><Pressable onPress={() => setImporting(false)}><Ionicons name="close" size={24} color={colors.textSecondary} /></Pressable></View>
-          <View style={{ flex: 1, padding: spacing.md, gap: spacing.md }}><Text style={{ ...type.body, color: colors.textMuted }}>Paste CSV content with a header row. Up to 1,000 records and 2 MB are accepted, matching the web import contract.</Text><TextInput value={csv} onChangeText={setCsv} multiline autoCapitalize="none" autoCorrect={false} placeholder="name,email&#10;Example,team@example.com" placeholderTextColor={colors.textMuted} style={{ ...type.body, flex: 1, minHeight: 240, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.text, textAlignVertical: "top" }} /><Button label="Import CSV" disabled={!csv.trim()} onPress={() => void importCsv()} /><Button label="Cancel" variant="secondary" onPress={() => setImporting(false)} /></View>
         </SafeAreaView>
       </Modal>
     </Screen>

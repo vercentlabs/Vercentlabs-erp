@@ -13,10 +13,6 @@ export function FollowUpStatusBadge({ status }: { status: FollowUpStatus }) {
   return <StatusBadge tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</StatusBadge>;
 }
 
-export function FollowUpTypeBadge({ type }: { type: FollowUpType }) {
-  return <Badge tone="neutral">{TYPE_LABELS[type] ?? type}</Badge>;
-}
-
 // Overdue, today and upcoming come from the scheduled time, never from a stored status.
 export function FollowUpWhen({ followUp }: { followUp: Pick<FollowUp, "scheduledDate" | "scheduledTime" | "isOverdue" | "isDueToday"> }) {
   if (!followUp.scheduledDate) return <span className="text-text-muted">No date</span>;

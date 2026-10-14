@@ -207,7 +207,6 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
                   { label: "Contact owner", value: contact.ownerName ?? "Unassigned" },
                   { label: "Sales team", value: contact.teamName },
                   { label: "Source", value: contact.sourceName },
-                  { label: "Tags", value: contact.tags.length ? <span className="flex flex-wrap gap-1">{contact.tags.map((tag) => <Badge key={tag.id}>{tag.name}</Badge>)}</span> : null },
                   { label: "Created", value: `${formatDateTime(contact.createdAt)}${contact.createdByName ? ` by ${contact.createdByName}` : ""}` },
                   { label: "Updated", value: `${formatDateTime(contact.updatedAt)}${contact.updatedByName ? ` by ${contact.updatedByName}` : ""}` },
                   { label: "Description", value: contact.description ? <span className="whitespace-pre-wrap">{contact.description}</span> : null, wide: true },

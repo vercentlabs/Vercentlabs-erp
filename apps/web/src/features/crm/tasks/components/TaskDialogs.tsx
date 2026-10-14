@@ -49,7 +49,7 @@ export function TaskFormDialog({ isOpen, onOpenChange, options, related, task, o
   const [reminderAt, setReminderAt] = useState("");
   const [assignedTo, setAssignedTo] = useState(task?.assignedTo ?? options.currentUserId);
   const [link, setLink] = useState<RelatedValue>({
-    entityType: (task?.relatedType && task.relatedType !== "campaign" ? task.relatedType : related?.type ?? "general") as RelatedValue["entityType"],
+    entityType: (task?.relatedType ?? related?.type ?? "general") as RelatedValue["entityType"],
     entityId: task?.relatedId ?? related?.id ?? "",
   });
   const [error, setError] = useState<string | null>(null);

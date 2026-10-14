@@ -19,7 +19,6 @@ export const DOCUMENT_TYPES = Object.freeze(
     // CRM / shared business data (legacy organisation-wide series)
     org("crm_lead", "crm", "Lead", "LEAD-"),
     org("crm_opportunity", "crm", "Opportunity", "OPP-"),
-    org("crm_campaign", "crm", "Campaign", "CMP-"),
     org("crm_task", "crm", "Task", "TSK-"),
     org("crm_follow_up", "crm", "Follow-up", "FUP-"),
     org("business_party", "crm", "Account", "ACC-"),

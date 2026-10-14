@@ -76,80 +76,6 @@ export type MobileClient = {
   }>;
   catalog(): Promise<{ catalog: MobileWorkspaceCatalog }>;
   health(): Promise<Record<string, unknown>>;
-  crmDashboard(): Promise<{ dashboard: Record<string, unknown> }>;
-  listCrm(
-    resource: string,
-    query?: Record<string, string | number | boolean | null | undefined>,
-  ): Promise<{ rows: Array<Record<string, unknown>>; total: number }>;
-  getCrm(
-    resource: string,
-    id: string,
-  ): Promise<{
-    record: Record<string, unknown>;
-    related?: Record<string, Array<Record<string, unknown>>>;
-  }>;
-  updateCrm(
-    resource: string,
-    id: string,
-    input: Record<string, unknown>,
-    idempotencyKey?: string,
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  createCrm(
-    resource: string,
-    input: Record<string, unknown>,
-    idempotencyKey?: string,
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  createCall(
-    input: Record<string, unknown>,
-    idempotencyKey?: string,
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  startCall(
-    id: string,
-    expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
-    idempotencyKey?: string,
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  completeCall(
-    id: string,
-    input: { outcomeCode: string; outcome?: string | null; expectedUpdatedAt?: string; expectedStatus?: string },
-    idempotencyKey?: string,
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  cancelCall(
-    id: string,
-    expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
-    idempotencyKey?: string,
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  createMeeting(
-    input: Record<string, unknown>,
-    idempotencyKey?: string,
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  startMeeting(
-    id: string,
-    expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
-    idempotencyKey?: string,
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  completeMeeting(
-    id: string,
-    input: { outcomeCode: "held" | "no_show"; outcome?: string | null; expectedUpdatedAt?: string; expectedStatus?: string },
-    idempotencyKey?: string,
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  cancelMeeting(
-    id: string,
-    expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
-    idempotencyKey?: string,
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  completeActivity(
-    id: string,
-    outcome?: string,
-    idempotencyKey?: string,
-    expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
-  moveOpportunity(
-    id: string,
-    stageId: string,
-    note?: string,
-    idempotencyKey?: string,
-    expectations?: { expectedUpdatedAt?: string; expectedStageId?: string | null },
-  ): Promise<{ record: Record<string, unknown>; message: string }>;
   createApprovalRequest(
     commandKey: string,
     commandPayload: Record<string, unknown>,
@@ -180,25 +106,25 @@ export type MobileClient = {
     all?: boolean;
   }): Promise<{ message: string }>;
   listWorkspaceResource<T = Record<string, unknown>>(
-    area: "crm" | "business-data" | "settings",
+    area: "business-data" | "settings",
     resource: string,
     query?: Record<string, string | number | boolean | null | undefined>,
   ): Promise<T>;
   createWorkspaceResource<T = Record<string, unknown>>(
-    area: "crm" | "business-data" | "settings",
+    area: "business-data" | "settings",
     resource: string,
     input: Record<string, unknown>,
     idempotencyKey?: string,
   ): Promise<T>;
   updateWorkspaceResource<T = Record<string, unknown>>(
-    area: "crm" | "business-data" | "settings",
+    area: "business-data" | "settings",
     resource: string,
     id: string,
     input: Record<string, unknown>,
     idempotencyKey?: string,
   ): Promise<T>;
   archiveWorkspaceResource<T = Record<string, unknown>>(
-    area: "crm" | "business-data",
+    area: "business-data",
     resource: string,
     id: string,
     idempotencyKey?: string,
@@ -264,7 +190,6 @@ export type MobileResourceDefinition = {
 };
 
 export type MobileWorkspaceCatalog = {
-  crm: MobileResourceDefinition[];
   masterData: MobileResourceDefinition[];
   masterDataGroups: Array<{ name: string; title: string; description: string }>;
   masterDataOverview: Record<string, number>;

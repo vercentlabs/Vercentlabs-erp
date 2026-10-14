@@ -25,7 +25,6 @@ export function createNote(client: QueryClient, context: CrmContext, relatedType
 export function updateNote(client: QueryClient, context: CrmContext, noteId: string, input?: Input): Promise<CrmNote>;
 export function setNotePinned(client: QueryClient, context: CrmContext, noteId: string, pinned: boolean, options?: { expectedVersion?: number }): Promise<CrmNote>;
 export function pinNote(client: QueryClient, context: CrmContext, noteId: string, options?: { expectedVersion?: number }): Promise<CrmNote>;
-export function unpinNote(client: QueryClient, context: CrmContext, noteId: string, options?: { expectedVersion?: number }): Promise<CrmNote>;
 export function deleteNote(client: QueryClient, context: CrmContext, noteId: string, options?: { expectedVersion?: number }): Promise<{ deleted: boolean }>;
 export function listNoteVersions(client: QueryClient, context: CrmContext, noteId: string): Promise<Array<{ version: number; bodyText: string; replacedAt: string; replacedByName: string | null }>>;
 export function listContentHistory(client: QueryClient, context: CrmContext, relatedType: string, relatedId: string): Promise<CrmContentEvent[]>;

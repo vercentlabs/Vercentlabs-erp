@@ -14,8 +14,8 @@ const CREATE_LINKS = [
   { label: "Account", href: "/crm/accounts/new", permission: "crm.accounts.create" },
   { label: "Contact", href: "/crm/contacts/new", permission: "crm.contacts.create" },
   { label: "Opportunity", href: "/crm/opportunities/new", permission: "crm.opportunities.create" },
-  { label: "Task", href: "/crm/tasks/new", permission: "crm.tasks.create" },
-  { label: "Follow-up", href: "/crm/follow-ups/new", permission: "crm.follow_ups.create" },
+  { label: "Task", href: "/crm/activities?tab=tasks&new=1", permission: "crm.tasks.create" },
+  { label: "Follow-up", href: "/crm/activities?tab=follow-ups&new=1", permission: "crm.follow_ups.create" },
 ];
 
 export function CrmCreateMenu({ size = "standard" }: { size?: "compact" | "standard" }) {

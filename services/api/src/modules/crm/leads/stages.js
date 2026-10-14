@@ -15,7 +15,6 @@ import { DEFAULT_LEAD_STAGES, LEAD_PERMISSIONS } from "./constants.js";
 import { recordLeadHistory } from "./history.js";
 import { isUuid, requireUuid } from "./validation.js";
 
-export const NEW_STAGE = "new";
 export const QUALIFICATION_STAGE = "qualification";
 
 const text = (value) => String(value ?? "").trim();

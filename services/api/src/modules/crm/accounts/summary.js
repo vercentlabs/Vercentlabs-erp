@@ -69,7 +69,7 @@ export async function getAccountSummary(client, context, partyId) {
     summary.finance = { invoiced: num(finance.invoiced), outstanding: num(finance.outstanding), overdue: num(finance.overdue), lastPaymentDate: finance.last_payment_date };
   }
   if (can.projects) {
-    const projects = await one(`SELECT count(*) FILTER (WHERE status IN ('planned', 'active', 'on_hold'))::int AS active, count(*)::int AS total FROM tenant.projects WHERE organization_id = $1 AND customer_id = $2`);
+    const projects = await one(`SELECT count(*) FILTER (WHERE status IN ('PLANNED', 'IN_PROGRESS', 'ON_HOLD'))::int AS active, count(*)::int AS total FROM tenant.projects WHERE organization_id = $1 AND customer_id = $2 AND deleted_at IS NULL`);
     summary.projects = { active: projects.active, total: projects.total };
   }
   if (can.support) {
@@ -139,11 +139,11 @@ const RELATED = Object.freeze({
   },
   projects: {
     module: "projects",
-    sql: `SELECT project.id, project.project_number AS code, project.name AS title, project.status, project.percent_complete, project.planned_end_date AS date,
-                 manager.full_name AS owner_name
-            FROM tenant.projects project LEFT JOIN public.users manager ON manager.id = project.project_manager_id
-           WHERE project.organization_id = $1 AND project.customer_id = $2 ORDER BY project.created_at DESC LIMIT 100`,
-    href: () => null,
+    sql: `SELECT project.id, project.project_code AS code, COALESCE(project.name, 'Untitled draft') AS title, lower(project.status) AS status, NULL::numeric AS percent_complete,
+                 project.target_end_date AS date, manager.full_name AS owner_name
+            FROM tenant.projects project LEFT JOIN public.users manager ON manager.id = project.manager_user_id
+           WHERE project.organization_id = $1 AND project.customer_id = $2 AND project.deleted_at IS NULL ORDER BY project.created_at DESC LIMIT 100`,
+    href: (row) => `/projects/${row.id}`,
   },
   tickets: {
     module: "support",

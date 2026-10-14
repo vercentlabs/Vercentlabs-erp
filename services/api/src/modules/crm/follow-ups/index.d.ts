@@ -41,7 +41,6 @@ export function getFollowUp(client: QueryClient, context: CrmContext, followUpId
 export function getFollowUpSummary(client: QueryClient, context: CrmContext): Promise<{ dueToday: number; overdue: number; upcoming: number; open: number; teamOverdue: number | null }>;
 export function getFollowUpOptions(client: QueryClient, context: CrmContext): Promise<Record<string, any>>;
 export function scheduleFollowUp(client: QueryClient, context: CrmContext, input?: Input): Promise<FollowUp>;
-export function scheduleNextFollowUp(client: QueryClient, context: CrmContext, input?: Input): Promise<FollowUp>;
 export function updateFollowUp(client: QueryClient, context: CrmContext, followUpId: string, input?: Input): Promise<FollowUp>;
 export function deleteFollowUp(client: QueryClient, context: CrmContext, followUpId: string): Promise<{ deleted: boolean }>;
 export function rescheduleFollowUp(client: QueryClient, context: CrmContext, followUpId: string, input?: Input): Promise<{ changed: boolean }>;

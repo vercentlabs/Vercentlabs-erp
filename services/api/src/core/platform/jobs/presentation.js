@@ -7,12 +7,13 @@
 //   userVisible: false - scheduler/system work: only operations viewers see it.
 export const JOB_TYPE_PRESENTATION = Object.freeze([
   { jobType: "crm.duplicates.full_scan", label: "Duplicate scan", category: "CRM", userVisible: true },
-  { jobType: "crm.meetings.calendar_push", label: "Calendar sync for a meeting", category: "CRM", userVisible: true },
-  { jobType: "crm.calendar.sync", label: "Calendar account sync", category: "CRM automation", userVisible: false },
-  { jobType: "crm.automation.detect_overdue_activities", label: "Overdue activity check", category: "CRM automation", userVisible: false },
   { jobType: "crm.follow_ups.dispatch_reminders", label: "Follow-up reminder delivery", category: "CRM automation", userVisible: false },
-  { jobType: "crm.forecast.capture_snapshots", label: "Scheduled forecast snapshot", category: "CRM reporting", userVisible: false },
   { jobType: "platform.reports.run", label: "Report export", category: "Reports", userVisible: true },
+  { jobType: "stock.reorder.reconcile", label: "Reorder level check", category: "Inventory automation", userVisible: false },
+  { jobType: "crm.tasks.notify_overdue", label: "Overdue task alerts", category: "CRM automation", userVisible: false },
+  { jobType: "stock.low_stock.dispatch_notifications", label: "Low stock alerts", category: "Inventory automation", userVisible: false },
+  { jobType: "manufacturing.production_hold.notify_overdue", label: "Overdue production hold alerts", category: "Manufacturing automation", userVisible: false },
+  { jobType: "projects.alerts.notify", label: "Project due-date alerts", category: "Projects automation", userVisible: false },
   { jobType: "sales.automation.detect_expired_quotations", label: "Expired quotation check", category: "Sales automation", userVisible: false },
 ]);
 

@@ -60,28 +60,10 @@ export function archiveCrmRecord(
   id: string,
   expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<any>;
-export function completeCrmActivity(
-  client: QueryClient,
-  context: CrmContext,
-  activityId: string,
-  outcome?: string | null,
-  expectations?: { expectedUpdatedAt?: string; expectedStatus?: string },
-): Promise<any>;
 export function getCrmOptions(
   client: QueryClient,
   context: CrmContext,
 ): Promise<Record<string, any[]>>;
-export function getCrmDashboard(
-  client: QueryClient,
-  context: CrmContext,
-  options?: { scope?: string; from?: string; to?: string },
-): Promise<any>;
-export function getCrmReport(
-  client: QueryClient,
-  context: CrmContext,
-  report: string,
-  filters?: Record<string, unknown>,
-): Promise<any>;
 export type CrmAnalyticsFilters = {
   from?: string; to?: string; asOf?: string; scope?: string; pipelineId?: string; stageId?: string; teamId?: string;
   ownerId?: string; sourceId?: string; forecastCategory?: string;
@@ -97,16 +79,6 @@ export function getPipelineDashboard(client: QueryClient, context: CrmContext, f
 export function getPipelineBreakdown(client: QueryClient, context: CrmContext, input: { metric: string; dimension: string; filters?: CrmAnalyticsFilters }): Promise<any>;
 export function getMetricRollup(client: QueryClient, context: CrmContext, input: { dimension: string; metrics: string[]; filters?: CrmAnalyticsFilters }): Promise<any>;
 export function getMetricDrilldown(client: QueryClient, context: CrmContext, input: { metric: string; filters?: CrmAnalyticsFilters; cursor?: string | null; limit?: number }): Promise<any>;
-export function buildForecastRollup(teams: any[], owners: any[], ownerTeam: Map<string, string | null>): any;
-export function getForecastWorkspace(client: QueryClient, context: CrmContext, input: { periodId: string; asOf?: string }): Promise<any>;
-export function submitForecast(client: QueryClient, context: CrmContext, input: { periodId: string; commitAmount: number; bestCaseAmount?: number; notes?: string; expectedVersion?: number }): Promise<any>;
-export function reviewForecast(client: QueryClient, context: CrmContext, input: { submissionId: string; decision: string; managerAdjustment?: number; reason?: string; expectedVersion?: number }): Promise<any>;
-export function listForecastSubmissionEvents(client: QueryClient, context: CrmContext, submissionId: string): Promise<any[]>;
-export function captureForecastPeriodSnapshot(client: QueryClient, context: CrmContext, input: { periodId: string; source?: string; captureKey?: string | null; asOf?: string | null }): Promise<any>;
-export function captureScheduledForecastSnapshots(client: QueryClient, organizationId: string, input?: { date?: string }): Promise<{ periods: number; captured: number }>;
-export function getForecastSnapshot(client: QueryClient, context: CrmContext, captureId: string): Promise<any>;
-export function setForecastPeriodStatus(client: QueryClient, context: CrmContext, input: { periodId: string; status: string; expectedUpdatedAt?: string }): Promise<any>;
-export function getForecastAccuracy(client: QueryClient, context: CrmContext, input?: { limit?: number; horizonDays?: number; ownerUserId?: string | null }): Promise<any>;
 export function resolvePublicCaptureOrganization(queryable: QueryClient, formKey: string): Promise<string | null>;
 export function captureCrmLead(
   client: QueryClient,
@@ -114,46 +86,10 @@ export function captureCrmLead(
   input: Record<string, unknown>,
   requestContext?: Record<string, unknown>,
 ): Promise<any>;
-export function runCrmAutomation(
-  client: QueryClient,
-  context: CrmContext,
-  eventType: string,
-  entityType: string,
-  entityId: string,
-  payload: Record<string, unknown>,
-): Promise<any[]>;
-
-export function listCrmCalls(client: QueryClient, context: CrmContext, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
-export function getCrmCall(client: QueryClient, context: CrmContext, id: string, options?: { lock?: boolean }): Promise<any>;
-export function listCrmCallEvents(client: QueryClient, context: CrmContext, activityId: string, limit?: number): Promise<any[]>;
-export function createCrmCall(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<any>;
-export function updateCrmCall(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function startCrmCall(client: QueryClient, context: CrmContext, id: string, expectations?: Record<string, unknown>): Promise<any>;
-export function completeCrmCall(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function cancelCrmCall(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function listCrmMeetings(client: QueryClient, context: CrmContext, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
-export function getCrmMeeting(client: QueryClient, context: CrmContext, id: string, options?: { lock?: boolean; includeAttendees?: boolean }): Promise<any>;
-export function listCrmMeetingEvents(client: QueryClient, context: CrmContext, activityId: string, limit?: number): Promise<any[]>;
-export function createCrmMeeting(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<any>;
-export function updateCrmMeeting(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function startCrmMeeting(client: QueryClient, context: CrmContext, id: string, expectations?: Record<string, unknown>): Promise<any>;
-export function completeCrmMeeting(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function cancelCrmMeeting(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-
-
-export * from "./data-management/tag-assignment.js";
-
 
 // Declarations for the commands and queries added to the boundary for package
 // consumers (@vercentlabs/api/crm); most are re-exported from their owning
 // file's declarations.
-export {
-  applyOfflineBatch,
-} from "./data-management/offline-sync.js";
-export {
-  capturePredictiveForecast,
-  getForecastCalibration,
-} from "./pipeline/opportunity-revenue-intelligence.js";
 
 // Declarations previously written inline in services/api/src/index.d.ts.
 // F005 — hand-written signature for a runtime export reached through
@@ -165,42 +101,32 @@ export function createRemindersForActivity(client: QueryClient, context: any, ac
 export function cancelPendingRemindersForActivity(client: QueryClient, context: any, activityId: string): Promise<void>;
 export function replaceActivityReminder(client: QueryClient, context: any, activityId: string, dueAt: string | Date, offsetMinutes: number | null): Promise<any | null>;
 export function snoozeActivityReminder(client: QueryClient, context: any, activityId: string, until: string | Date): Promise<any>;
-export function listRemindersForActivity(client: QueryClient, context: any, activityId: string): Promise<any[]>;
 export function claimDueReminders(client: QueryClient, context: any, options?: { limit?: number }): Promise<any[]>;
 export function markReminderOutcome(client: QueryClient, context: any, reminderId: string, options: { status: "sent" | "failed"; failureReason?: string | null }): Promise<void>;
 export function resetStuckDispatchingReminders(client: QueryClient, context: any, options?: { olderThanMinutes?: number }): Promise<number>;
-export function getManagerForUser(client: QueryClient, organizationId: string, userId: string | null): Promise<string | null>;
 export function getCrmRecordTimelinePage(
   client: QueryClient,
   context: any,
-  entityType: "lead" | "opportunity" | "party" | "contact" | "campaign",
+  entityType: "lead" | "opportunity" | "party" | "contact",
   entityId: string,
-  options?: { cursor?: string | null; limit?: number; kinds?: Array<"activity" | "communication" | "note" | "attachment"> },
+  options?: { cursor?: string | null; limit?: number; kinds?: Array<"activity" | "note" | "attachment"> },
 ): Promise<{ rows: Array<Record<string, unknown>>; hasMore: boolean; nextCursor: string | null }>;
 export function getCrmTimelinePageBySource(
   client: QueryClient,
   context: any,
-  entityType: "lead" | "opportunity" | "party" | "contact" | "campaign",
+  entityType: "lead" | "opportunity" | "party" | "contact",
   entityId: string,
-  options: { source: "activity" | "communication" | "note" | "attachment"; offset?: number; limit?: number },
+  options: { source: "activity" | "note" | "attachment"; offset?: number; limit?: number },
 ): Promise<{ rows: Array<Record<string, unknown>>; hasMore: boolean }>;
 export function resolveCrmEntityAccess(
   client: QueryClient,
   context: any,
-  entityType: "lead" | "opportunity" | "party" | "contact" | "campaign",
+  entityType: "lead" | "opportunity" | "party" | "contact",
   entityId: string,
 ): Promise<boolean>;
 
 // Declarations kept with the F014/F018 and account-intelligence compatibility
 // boundary (activities/communications.d.ts).
-export {
-  fetchProviderCalendarDelta,
-  getCrmEmailHistory,
-  getCrmEmailThread,
-  pushProviderCalendarEvent,
-  recordMeetingCalendarPushResult,
-  prepareMeetingCalendarPush,
-} from "./activities/communications.js";
 
 // Record kernel: access scope, outbox and communication access.
 export function canViewAllCrmRecords(context: CrmContext): boolean;
@@ -219,24 +145,6 @@ export function queueOutboxEvent(
   entityId: string,
   payload?: Record<string, unknown>,
 ): Promise<unknown>;
-export function communicationVisibilitySql(context: CrmContext, values: unknown[], alias?: string): string;
-export function resolveCallerParticipantCommunicationIds(client: QueryClient, context: CrmContext, communicationIds: string[]): Promise<Set<string>>;
-export function projectCrmCommunication<T extends Record<string, unknown>>(
-  row: T | null | undefined,
-  context: CrmContext,
-  options?: { isParticipant?: boolean },
-): (T & { contentVisibility: "full" }) | (Partial<T> & { contentVisibility: "metadata"; redacted: true }) | null;
-export function projectCrmCommunications<T extends Record<string, unknown>>(
-  client: QueryClient,
-  context: CrmContext,
-  rows: T[],
-): Promise<Array<(T & { contentVisibility: "full" }) | (Partial<T> & { contentVisibility: "metadata"; redacted: true })>>;
-export function resolveCommunicationParticipants(
-  client: QueryClient,
-  context: CrmContext,
-  communicationId: string,
-  participants: Array<{ role: string; email: string }>,
-): Promise<void>;
 
 // Worker entry points (nurture notifications, scheduled calendar sync).
 export function claimCalendarSyncAccounts(

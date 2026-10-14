@@ -218,7 +218,6 @@ const EXPORT_COLUMNS = Object.freeze([
   ["Source Detail", (account) => account.sourceDetail],
   ["Owner", (account) => account.ownerName],
   ["Team", (account) => account.teamName],
-  ["Tags", (account) => account.tags.map((tag) => tag.name).join("; ")],
   ["Contacts", (account) => account.contactCount],
   ["Open Opportunities", (account) => account.openOpportunities],
   ["Open Pipeline Value", (account) => account.openPipelineValue],

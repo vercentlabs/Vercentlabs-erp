@@ -260,7 +260,6 @@ const EXPORT_COLUMNS = Object.freeze([
   ["Team", (lead) => lead.teamName],
   ["Assigned At", (lead) => lead.assignedAt],
   ["Assignment Method", (lead) => (lead.assignmentMethod ? leadAssignmentMethodLabel(lead.assignmentMethod) : "")],
-  ["Tags", (lead) => lead.tags.map((tag) => tag.name).join("; ")],
   ["Next Follow-up", (lead) => lead.nextFollowUpAt],
   ["Last Activity", (lead) => lead.lastActivityAt],
   ["Created By", (lead) => lead.createdByName],

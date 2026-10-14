@@ -1,8 +1,7 @@
 import { CrmError } from "../data-management/errors.js";
-import { canViewAllCrmResource } from "../data-management/crm-access-scope.js";
-import { addParameter, camelizeRow, managedTeamMembersSql } from "../data-management/record-utils.js";
+import { addParameter, camelizeRow } from "../data-management/record-utils.js";
 import { BREAKDOWN_DIMENSIONS, listMetricDefinitions, METRIC_POPULATIONS, METRIC_VERSION, PIPELINE_METRICS } from "./metric-definitions.js";
-import { bindPeriod, normalizeAnalyticsFilters, opportunityFactsCte, primaryTeamSql, teamSubtreeSql } from "./opportunity-facts.js";
+import { bindPeriod, normalizeAnalyticsFilters, opportunityFactsCte } from "./opportunity-facts.js";
 
 // Computes every pipeline/forecast measure from opportunity-facts.js, so a
 // KPI, its breakdown rows and its drill-down records are the same query over

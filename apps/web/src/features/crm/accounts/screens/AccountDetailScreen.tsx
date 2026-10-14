@@ -194,7 +194,6 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
                   { label: "Phone", value: account.phone ?? (account.sensitiveDataRestricted ? "Hidden" : null) },
                   { label: "Secondary phone", value: account.secondaryPhone ?? null },
                   { label: "Website", value: account.website ? <a className="hover:underline" href={account.website} target="_blank" rel="noreferrer">{account.website}</a> : null },
-                  { label: "Tags", value: account.tags.length ? <span className="flex flex-wrap gap-1">{account.tags.map((tag) => <Badge key={tag.id}>{tag.name}</Badge>)}</span> : null },
                   { label: "Description", value: account.description ? <span className="whitespace-pre-wrap">{account.description}</span> : null, wide: true },
                 ]}
               />

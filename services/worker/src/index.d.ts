@@ -48,10 +48,6 @@ export declare function processWebhookDelivery(pool: any, workerId: string, conf
 export declare function processOrganizationWorkflows(pool: any, organizationId: string): Promise<{ runs: number }>;
 export declare function processOrganizationWebhooks(pool: any, workerId: string, config: any, organizationId: string, options?: { deliver?: (...args: any[]) => Promise<any>; env?: Record<string, string | undefined> }): Promise<{ dispatched: number; deliveries: number }>;
 
-export declare function detectOverdueActivitiesHandler(client: any, context: Record<string, unknown>, payload: unknown): Promise<{ scanned: number; fired: number }>;
-export declare const OVERDUE_ACTIVITY_JOB_TYPE: string;
-export declare const overdueActivityPayloadSchema: unknown;
-
 export type SystemContext = {
   organizationId: string;
   userId: null;

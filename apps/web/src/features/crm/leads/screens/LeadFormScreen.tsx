@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, MultiSelect, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import { CurrencySelect } from "@/features/crm/shared/ui/CurrencySelect";
@@ -28,13 +28,13 @@ type FormValues = {
   firstName: string; lastName: string; companyName: string; jobTitle: string; email: string; phone: string; mobile: string; website: string;
   city: string; state: string; countryCode: string; sourceId: string; sourceDetail: string; industry: string; productInterest: string;
   estimatedValue: string; currencyCode: string; purchaseTimeframe: string; priority: string; rating: string; description: string;
-  tagIds: string[]; ownerUserId: string; teamId: string;
+  ownerUserId: string; teamId: string;
 };
 
 const EMPTY: FormValues = {
   firstName: "", lastName: "", companyName: "", jobTitle: "", email: "", phone: "", mobile: "", website: "", city: "", state: "", countryCode: "",
   sourceId: NONE, sourceDetail: "", industry: "", productInterest: "", estimatedValue: "", currencyCode: "", purchaseTimeframe: NONE,
-  priority: "medium", rating: "warm", description: "", tagIds: [], ownerUserId: AUTO, teamId: NONE,
+  priority: "medium", rating: "warm", description: "", ownerUserId: AUTO, teamId: NONE,
 };
 
 function valuesFromLead(lead: Lead): FormValues {
@@ -45,7 +45,7 @@ function valuesFromLead(lead: Lead): FormValues {
     state: lead.state ?? "", countryCode: lead.countryCode ?? "", sourceId: lead.sourceId ?? NONE, sourceDetail: lead.sourceDetail ?? "",
     industry: lead.industry ?? "", productInterest: lead.productInterest ?? "", estimatedValue: lead.estimatedValue ? String(lead.estimatedValue) : "",
     currencyCode: lead.currencyCode ?? "", purchaseTimeframe: lead.purchaseTimeframe ?? NONE, priority: lead.priority, rating: lead.rating,
-    description: lead.description ?? "", tagIds: lead.tags.map((tag) => tag.id),
+    description: lead.description ?? "",
   };
 }
 
@@ -217,14 +217,6 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
       <FormSection title="Classification">
         <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key))} options={PRIORITY_OPTIONS} />
         <Select label="Rating" selectedKey={values.rating} onSelectionChange={(key) => set("rating")(String(key))} options={RATING_OPTIONS} />
-        <MultiSelect
-          label="Tags"
-          className="sm:col-span-2"
-          placeholder={options.tags.length ? "Choose tags" : "No tags have been set up"}
-          value={values.tagIds}
-          onChange={set("tagIds")}
-          options={options.tags.map((tag) => ({ value: tag.id, label: tag.name }))}
-        />
         <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} />
       </FormSection>
 

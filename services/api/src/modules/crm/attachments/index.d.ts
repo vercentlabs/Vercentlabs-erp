@@ -26,7 +26,6 @@ export function getAttachment(client: QueryClient, context: CrmContext, attachme
 export function prepareAttachmentUpload(input: { fileName: string; bytes: Buffer | Uint8Array }, env?: Record<string, string | undefined>): Promise<PreparedAttachment>;
 export function uploadAttachment(client: QueryClient, context: CrmContext, relatedType: string, relatedId: string, input: Input & { prepared: PreparedAttachment }, options?: StorageOptions): Promise<CrmAttachment>;
 export function downloadAttachment(client: QueryClient, context: CrmContext, attachmentId: string, input?: { inline?: boolean }, options?: StorageOptions): Promise<{ fileName: string; mimeType: string; body: Buffer; inline: boolean; preview: string | null }>;
-export function getAttachmentPreview(client: QueryClient, context: CrmContext, attachmentId: string, options?: StorageOptions): Promise<{ fileName: string; mimeType: string; body: Buffer; inline: boolean; preview: string | null }>;
 export function updateAttachment(client: QueryClient, context: CrmContext, attachmentId: string, input?: Input): Promise<CrmAttachment>;
 export function deleteAttachment(client: QueryClient, context: CrmContext, attachmentId: string): Promise<{ deleted: boolean }>;
 

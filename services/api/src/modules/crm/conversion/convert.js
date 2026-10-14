@@ -276,7 +276,6 @@ export async function convertLead(client, context, leadId, input = {}) {
     accountId: partyId,
     contactId,
     sourceId: lead.source_id,
-    campaignId: lead.campaign_id,
     ownerUserId: opportunityOwner,
     ...(opportunityInput.teamId ? { teamId: opportunityInput.teamId } : {}),
     name: opportunityInput.name,

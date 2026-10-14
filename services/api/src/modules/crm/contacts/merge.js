@@ -2,7 +2,7 @@
 // chooses, field by field, which value survives; blank fields on the kept
 // contact are filled from the duplicate. Everything that names the duplicate
 // — company links, opportunities, activities, tasks, follow-ups, notes,
-// files, quotations, orders, support tickets, campaigns — moves to the kept
+// files, quotations, orders, support tickets — moves to the kept
 // contact. The duplicate is archived, never deleted, and an alias remembers
 // where it went.
 import { recordAccountHistory } from "../accounts/history.js";
@@ -40,20 +40,7 @@ const SIMPLE_MOVES = Object.freeze([
   ["crm_leads", "converted_contact_id"],
   ["crm_lead_conversions", "contact_id"],
   ["crm_activities", "related_contact_id"],
-  ["crm_communications", "contact_id"],
-  ["crm_email_threads", "contact_id"],
-  ["crm_calendar_events", "contact_id"],
-  ["crm_conversations", "contact_id"],
-  ["crm_field_visits", "contact_id"],
-  ["crm_consent_events", "contact_id"],
-  ["crm_sequence_enrollments", "contact_id"],
-  ["crm_activity_attendees", "contact_id"],
-  ["crm_communication_participants", "contact_id"],
-  ["crm_account_stakeholders", "contact_id"],
-  ["crm_buying_committee_members", "contact_id"],
   ["crm_customer_service_events", "contact_id"],
-  ["crm_customer_feedback_responses", "contact_id"],
-  ["crm_customer_success_milestones", "customer_contact_id"],
   ["sales_quotations", "contact_id"],
   ["sales_orders", "contact_id"],
   ["support_tickets", "contact_id"],
@@ -155,7 +142,7 @@ export async function mergeContacts(client, context, input = {}) {
     move,
   );
 
-  // Opportunity roles and campaign memberships are unique per person.
+  // Opportunity roles are unique per person.
   await client.query(
     `DELETE FROM tenant.crm_opportunity_contact_roles dup_role USING tenant.crm_opportunity_contact_roles keep_role
       WHERE dup_role.organization_id = $1 AND dup_role.contact_id = $2 AND keep_role.organization_id = $1 AND keep_role.contact_id = $3
@@ -163,25 +150,12 @@ export async function mergeContacts(client, context, input = {}) {
     move,
   );
   await client.query(`UPDATE tenant.crm_opportunity_contact_roles SET contact_id = $3 WHERE organization_id = $1 AND contact_id = $2`, move);
-  await client.query(
-    `DELETE FROM tenant.crm_campaign_members dup_member USING tenant.crm_campaign_members keep_member
-      WHERE dup_member.organization_id = $1 AND dup_member.contact_id = $2 AND keep_member.organization_id = $1 AND keep_member.contact_id = $3
-        AND keep_member.campaign_id = dup_member.campaign_id`,
-    move,
-  );
-  await client.query(`UPDATE tenant.crm_campaign_members SET contact_id = $3 WHERE organization_id = $1 AND contact_id = $2`, move);
   for (const [table, column] of SIMPLE_MOVES)
     await client.query(`UPDATE tenant.${table} SET ${column} = $3 WHERE organization_id = $1 AND ${column} = $2`, move);
   await client.query(`UPDATE tenant.crm_activities SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2`, move);
   await client.query(`UPDATE tenant.crm_notes SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2`, move);
   await client.query(`UPDATE public.attachments SET entity_id = $3::text WHERE organization_id = $1 AND entity_type = 'crm.contact' AND entity_id = $2::text`, move);
   await client.query(`UPDATE tenant.crm_attachment_details SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2`, move);
-  await client.query(
-    `INSERT INTO tenant.crm_contact_tags (organization_id, contact_id, tag_id, created_by)
-     SELECT organization_id, $3, tag_id, created_by FROM tenant.crm_contact_tags WHERE organization_id = $1 AND contact_id = $2 ON CONFLICT DO NOTHING`,
-    move,
-  );
-  await client.query(`DELETE FROM tenant.crm_contact_tags WHERE organization_id = $1 AND contact_id = $2`, [organizationId, duplicate.id]);
   // Old links to the duplicate (and to anything already merged into it) now open the kept contact.
   await client.query(`UPDATE tenant.crm_entity_merge_aliases SET survivor_entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND survivor_entity_id = $2`, move);
   await client.query(

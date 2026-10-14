@@ -8,8 +8,6 @@
 // and is called here at fixed points:
 //   Leads         -> not handled here: leads/ owns every lead operation
 //   Opportunities -> not handled here: opportunities/ owns every opportunity operation
-//   Automation    -> automation/automation-engine.js (runCrmAutomation)
-import { runCrmAutomation } from "./automation/automation-engine.js";
 import { CrmError } from "./errors.js";
 import { assertSalesTeamParentAllowed } from "../sales-organization/hierarchy-rules.js";
 import { queueOutboxEvent } from "./outbox.js";
@@ -17,7 +15,7 @@ import { assertLeadLinkedContentAllowed, assertLifecycleUpdate, assertOwnerAssig
 import { addParameter, camelizeRow } from "./record-utils.js";
 import { getCrmRecord, nextCode } from "./resource-query-service.js";
 import { auditColumns, definitionFor } from "./resource-registry.js";
-import { GENERIC_VERSIONED_RESOURCES, assertGenericLeadLinkedTarget, assertRecordExpectedVersion, assertSalesTeamMembershipInput, mutableEntries, normalizeStorageInput, validateOrganizationUserReferences } from "./resource-validation.js";
+import { GENERIC_VERSIONED_RESOURCES, assertRecordExpectedVersion, assertSalesTeamMembershipInput, mutableEntries, normalizeStorageInput, validateOrganizationUserReferences } from "./resource-validation.js";
 
 // The audit stamps an UPDATE may write on this resource's table.
 function updateStamps(resource, userParameter) {
@@ -62,13 +60,6 @@ export async function createCrmRecord(client, context, resource, input) {
     );
   if (resource === "lost-reasons")
     throw new CrmError(410, "Use the governed Won and Lost Reasons operations.", "CRM_CLOSE_REASON_API_MOVED");
-  // F025: submissions change only through forecast-service.js (versioned,
-  // reviewed, period-locked); the generic path could set a seller's own
-  // manager_adjustment and skip review entirely.
-  if (resource === "forecast-submissions")
-    throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
-  if (resource === "forecast-periods" && input && Object.prototype.hasOwnProperty.call(input, "status") && input.status !== "planned" && input.status !== "open")
-    throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
   const definition = definitionFor(resource);
   assertLeadLinkedContentAllowed(context, resource, input);
   await assertOwnerAssignmentAllowed(client, definition, context, input);
@@ -80,7 +71,6 @@ export async function createCrmRecord(client, context, resource, input) {
       context.organizationId,
       definition.codeEntity,
     );
-  await assertGenericLeadLinkedTarget(client, context, resource, prepared);
   await validateOrganizationUserReferences(
     client,
     context,
@@ -139,11 +129,6 @@ export async function updateCrmRecord(
   input,
   expectations = {},
 ) {
-  // F025: submissions and period status change only through forecast-service.js.
-  if (resource === "forecast-submissions")
-    throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
-  if (resource === "forecast-periods" && input && Object.prototype.hasOwnProperty.call(input, "status"))
-    throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
   if (resource === "stages")
     throw new CrmError(
       410,
@@ -194,10 +179,6 @@ export async function updateCrmRecord(
   const prepared = normalizeStorageInput(resource, input);
   await assertSalesTeamParentAllowed(client, context, resource, id, prepared);
   await assertSalesTeamMembershipInput(client, context, resource, prepared, before);
-  await assertGenericLeadLinkedTarget(client, context, resource, {
-    ...before,
-    ...prepared,
-  });
   await validateOrganizationUserReferences(
     client,
     context,
@@ -284,10 +265,6 @@ export async function archiveCrmRecord(
   id,
   expectations = {},
 ) {
-  // F025: archiving a submission (superseded) or a period (closed) is a
-  // forecast lifecycle decision, made by forecast-service.js.
-  if (resource === "forecast-submissions" || resource === "forecast-periods")
-    throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
   if (resource === "stages")
     throw new CrmError(
       410,
@@ -322,53 +299,13 @@ export async function archiveCrmRecord(
   const parameters = [context.organizationId, id];
   const scope = recordScope(definition, context, parameters);
 
-  if (
-    resource === "consent-events" ||
-    resource === "communications" ||
-    resource === "data-quality-scores" ||
-    resource === "pipeline-inspections" ||
-    resource === "ai-feedback"
-  ) {
-    throw new CrmError(
-      409,
-      "This CRM record is immutable and cannot be deleted.",
-      "CRM_RECORD_IMMUTABLE",
-    );
-  }
-
   const archiveStatuses = {
     activities: "cancelled",
-    campaigns: "cancelled",
-    pipelines: "inactive",
     stages: "inactive",
     sources: "inactive",
-    tags: "inactive",
-    sequences: "archived",
-    "sequence-enrollments": "cancelled",
-    "automation-rules": "inactive",
     "capture-forms": "inactive",
-    competitors: "inactive",
-    integrations: "disabled",
     "sales-teams": "inactive",
     "sales-team-members": "inactive",
-    "forecast-periods": "closed",
-    "forecast-submissions": "superseded",
-    "account-plans": "archived",
-    "account-stakeholders": "inactive",
-    "engagement-templates": "archived",
-    "sync-accounts": "disabled",
-    conversations: "archived",
-    "conversation-insights": "superseded",
-    "deal-risks": "dismissed",
-    recommendations: "expired",
-    "buying-committees": "archived",
-    "buying-committee-members": "inactive",
-    "relationship-edges": "inactive",
-    "account-signals": "dismissed",
-    "partner-accounts": "archived",
-    "partner-deals": "cancelled",
-    "field-visits": "cancelled",
-    "ai-predictions": "expired",
   };
   const status = archiveStatuses[resource];
   if (!definition.statusColumn || !status) {
@@ -424,6 +361,3 @@ export async function archiveCrmRecord(
   return record;
 }
 
-// Compatibility: runCrmAutomation lives in automation/automation-engine.js;
-// crm/index.js and existing importers still take it from this file.
-export { runCrmAutomation };

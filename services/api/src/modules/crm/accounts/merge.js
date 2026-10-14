@@ -2,7 +2,7 @@
 // The user chooses, field by field, which value survives; blank fields on the
 // kept account are filled from the duplicate. Every CRM record of the
 // duplicate (contacts, opportunities, leads, activities, notes, files,
-// addresses, tags, child accounts, emails) moves to the kept account. The
+// addresses, child accounts) moves to the kept account. The
 // duplicate is archived — never deleted — and an alias remembers where it
 // went, so old links still resolve.
 //
@@ -46,7 +46,7 @@ const TRANSACTIONS = Object.freeze([
   ["vendor payments", "SELECT 1 FROM tenant.accounting_vendor_payments WHERE organization_id = $1 AND party_id = $2"],
   ["journal entries", "SELECT 1 FROM tenant.accounting_journal_lines WHERE organization_id = $1 AND party_id = $2"],
   ["POS sales", "SELECT 1 FROM tenant.pos_sales WHERE organization_id = $1 AND customer_id = $2"],
-  ["projects", "SELECT 1 FROM tenant.projects WHERE organization_id = $1 AND customer_id = $2"],
+  ["projects", "SELECT 1 FROM tenant.projects WHERE organization_id = $1 AND customer_id = $2 AND deleted_at IS NULL"],
   ["support tickets", "SELECT 1 FROM tenant.support_tickets WHERE organization_id = $1 AND customer_id = $2"],
 ]);
 
@@ -156,14 +156,6 @@ export async function mergeAccounts(client, context, input = {}, { linkingCustom
   await client.query(`UPDATE tenant.crm_notes SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2`, move);
   await client.query(`UPDATE public.attachments SET entity_id = $3::text WHERE organization_id = $1 AND entity_type = 'crm.party' AND entity_id = $2::text`, move);
   await client.query(`UPDATE tenant.crm_attachment_details SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2`, move);
-  for (const table of ["crm_communications", "crm_email_threads", "crm_calendar_events", "crm_conversations", "crm_field_visits", "crm_campaign_members"])
-    await client.query(`UPDATE tenant.${table} SET party_id = $3 WHERE organization_id = $1 AND party_id = $2`, move);
-  await client.query(
-    `INSERT INTO tenant.crm_account_tags (organization_id, party_id, tag_id, created_by)
-     SELECT organization_id, $3, tag_id, created_by FROM tenant.crm_account_tags WHERE organization_id = $1 AND party_id = $2 ON CONFLICT DO NOTHING`,
-    move,
-  );
-  await client.query(`DELETE FROM tenant.crm_account_tags WHERE organization_id = $1 AND party_id = $2`, [organizationId, duplicate.id]);
   // Old links to the duplicate (and to anything already merged into it) now resolve to the kept account.
   await client.query(`UPDATE tenant.crm_entity_merge_aliases SET survivor_entity_id = $3 WHERE organization_id = $1 AND entity_type = 'account' AND survivor_entity_id = $2`, move);
   await client.query(

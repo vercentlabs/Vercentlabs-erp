@@ -162,8 +162,8 @@ export const DEFINER_FUNCTIONS = Object.freeze({
   "public.billable_user_count": Object.freeze({ web: true, worker: true, reason: "The billable-user counts for billing reconciliation." }),
   "public.link_billing_price_provider_plan": Object.freeze({ web: true, worker: true, reason: "Links an unlinked price version to its provider plan, once (the catalogue is otherwise read-only)." }),
   "public.revoke_sessions_after_access_change": Object.freeze({ trigger: true, reason: "Revokes sessions after access changes (trigger)." }),
-  "tenant.crm_public_meeting_link": Object.freeze({ web: true, worker: false, reason: "Public booking link token -> organisation." }),
-  "tenant.crm_public_meeting_booking": Object.freeze({ web: true, worker: false, reason: "Public booking management token -> organisation." }),
+  "tenant.crm_public_meeting_link": Object.freeze({ retired: true, reason: "No caller; dropped by the CRM cleanup." }),
+  "tenant.crm_public_meeting_booking": Object.freeze({ retired: true, reason: "No caller; dropped by the CRM cleanup." }),
   "tenant.crm_lead_search_ids": Object.freeze({ retired: true, reason: "No caller; dropped by 0005_crm_leads.sql." }),
   "tenant.crm_public_capture_form": Object.freeze({ web: true, worker: false, reason: "Public lead capture form token -> organisation." }),
   "tenant.crm_seed_duplicate_rules_defaults": Object.freeze({ trigger: true, reason: "Seeds CRM defaults for a new organisation (trigger)." }),
@@ -172,9 +172,9 @@ export const DEFINER_FUNCTIONS = Object.freeze({
   "tenant.crm_public_acquisition_connection": Object.freeze({ retired: true, reason: "No caller; dropped by contract migration." }),
   "tenant.crm_public_capture_form_v2": Object.freeze({ retired: true, reason: "No caller; dropped by contract migration." }),
   "tenant.crm_public_chat_session": Object.freeze({ retired: true, reason: "No caller; dropped by contract migration." }),
-  "tenant.crm_public_marketing_event": Object.freeze({ retired: true, reason: "No caller; dropped by contract migration." }),
-  "tenant.crm_public_marketing_survey": Object.freeze({ retired: true, reason: "No caller; dropped by contract migration." }),
-  "tenant.crm_public_sync_account": Object.freeze({ retired: true, reason: "No caller; dropped by contract migration." }),
+  "tenant.crm_public_marketing_event": Object.freeze({ retired: true, reason: "No caller; dropped by the CRM cleanup." }),
+  "tenant.crm_public_marketing_survey": Object.freeze({ retired: true, reason: "No caller; dropped by the CRM cleanup." }),
+  "tenant.crm_public_sync_account": Object.freeze({ retired: true, reason: "No caller; dropped by the CRM cleanup." }),
 });
 
 // The table privileges each runtime role receives, by class. Tenant-schema

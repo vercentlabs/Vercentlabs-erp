@@ -6,10 +6,7 @@ import {
   Activity as ActivityIcon,
   ArrowRightLeft,
   History,
-  Mail,
-  MessageCircle,
   Paperclip,
-  Phone,
   StickyNote,
 } from "lucide-react";
 import {
@@ -35,7 +32,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
 const FILTERS: { id: string; label: string; kinds?: TimelineKind[] }[] = [
   { id: "all", label: "All" },
   { id: "activity", label: "Activities", kinds: ["activity"] },
-  { id: "communication", label: "Communications", kinds: ["communication"] },
   { id: "note", label: "Notes", kinds: ["note"] },
   { id: "attachment", label: "Files", kinds: ["attachment"] },
   {
@@ -47,7 +43,6 @@ const FILTERS: { id: string; label: string; kinds?: TimelineKind[] }[] = [
 
 const KIND_ICON = {
   activity: ActivityIcon,
-  communication: Mail,
   note: StickyNote,
   attachment: Paperclip,
   stage: ArrowRightLeft,
@@ -56,19 +51,10 @@ const KIND_ICON = {
 
 const KIND_TONE: Record<TimelineKind, TimelineEntry["tone"]> = {
   activity: "info",
-  communication: "neutral",
   note: "neutral",
   attachment: "neutral",
   stage: "warning",
   history: "warning",
-};
-
-// Communication icons follow the channel, not just "message".
-const CHANNEL_ICON: Record<string, typeof Mail> = {
-  call: Phone,
-  phone: Phone,
-  whatsapp: MessageCircle,
-  sms: MessageCircle,
 };
 
 function describe(row: RecordTimelineRow): string {
@@ -83,10 +69,10 @@ function describe(row: RecordTimelineRow): string {
 }
 
 // F019 activity timeline composed into a record 360: one merged feed of
-// calls/meetings/tasks/follow-ups, communications, notes, files and the
-// record's own audit events (stage, owner, qualification changes), with an
-// author on every entry, kind filters and real "Load more" paging. Privacy
-// (private notes, restricted communications, record scope) is decided by
+// tasks and follow-ups, notes, files and the record's own audit events
+// (stage, owner, qualification changes), with an author on every entry,
+// kind filters and real "Load more" paging. Privacy (private notes, record
+// scope) is decided by
 // the server; this panel renders whatever the page contains.
 export function RecordTimelinePanel({
   entityType,
@@ -119,25 +105,13 @@ export function RecordTimelinePanel({
       (query.data?.pages ?? []).flatMap((page) =>
         page.page.rows.map((row) => ({
           id: `${row.kind}-${row.id}`,
-          icon:
-            (row.kind === "communication" && row.subtype
-              ? CHANNEL_ICON[row.subtype.toLowerCase()]
-              : undefined) ??
-            KIND_ICON[row.kind] ??
-            ActivityIcon,
+          icon: KIND_ICON[row.kind] ?? ActivityIcon,
           tone: KIND_TONE[row.kind] ?? "neutral",
           title: describe(row),
           description:
             [
-              row.kind === "communication" && row.status === "received"
-                ? "Received"
-                : row.actorName
-                  ? `By ${row.actorName}`
-                  : null,
-              row.status &&
-              !(row.kind === "communication" && row.status === "received")
-                ? `Status: ${humanize(row.status)}`
-                : null,
+              row.actorName ? `By ${row.actorName}` : null,
+              row.status ? `Status: ${humanize(row.status)}` : null,
             ]
               .filter(Boolean)
               .join(" · ") || undefined,

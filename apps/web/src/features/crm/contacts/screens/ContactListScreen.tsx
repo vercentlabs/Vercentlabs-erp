@@ -39,7 +39,6 @@ const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boo
   { id: "department", label: "Department", hiddenByDefault: true },
   { id: "sourceName", label: "Source", hiddenByDefault: true },
   { id: "teamName", label: "Team", hiddenByDefault: true },
-  { id: "tags", label: "Tags", hiddenByDefault: true },
   { id: "createdAt", label: "Created", hiddenByDefault: true },
 ];
 const DEFAULT_VISIBILITY: VisibilityState = Object.fromEntries(OPTIONAL_COLUMNS.map((column) => [column.id, !column.hiddenByDefault]));
@@ -158,7 +157,6 @@ export function ContactListScreen() {
     { id: "department", accessorKey: "department", header: "Department", cell: ({ row }) => row.original.department ?? "" },
     { id: "sourceName", header: "Source", enableSorting: false, cell: ({ row }) => row.original.sourceName ?? "" },
     { id: "teamName", header: "Team", enableSorting: false, cell: ({ row }) => row.original.teamName ?? "" },
-    { id: "tags", header: "Tags", enableSorting: false, cell: ({ row }) => row.original.tags.map((tag) => tag.name).join(", ") },
     { id: "createdAt", accessorKey: "createdAt", header: "Created", cell: ({ row }) => formatDate(row.original.createdAt) },
   ], []);
 

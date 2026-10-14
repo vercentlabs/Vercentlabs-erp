@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { mobileApi } from "@/core/api/client";
 import { Button } from "@/shared/components/button";
-import { StatusPill } from "@/shared/components/crm-states";
+import { StatusPill } from "@/shared/components/query-states";
 import { useTheme } from "@/shared/theme/theme";
 
 type Row = Record<string, unknown>;

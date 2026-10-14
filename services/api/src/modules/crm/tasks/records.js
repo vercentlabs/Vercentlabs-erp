@@ -49,8 +49,7 @@ export const TASK_SELECT = `
          opportunity.name AS opportunity_name, opportunity.code AS opportunity_code,
          contact.display_name AS contact_name,
          COALESCE(direct_account.id, opportunity_account.id, contact_account.id) AS account_id,
-         COALESCE(direct_account.display_name, opportunity_account.display_name, contact_account.display_name) AS account_name,
-         campaign.name AS campaign_name
+         COALESCE(direct_account.display_name, opportunity_account.display_name, contact_account.display_name) AS account_name
     FROM tenant.crm_activities task
     JOIN public.organizations organization ON organization.id = task.organization_id
     LEFT JOIN public.users assignee ON assignee.id = task.assigned_to
@@ -63,8 +62,7 @@ export const TASK_SELECT = `
     LEFT JOIN tenant.contacts contact ON task.entity_type = 'contact' AND contact.organization_id = task.organization_id AND contact.id = task.entity_id
     LEFT JOIN tenant.business_parties direct_account ON task.entity_type = 'party' AND direct_account.organization_id = task.organization_id AND direct_account.id = task.entity_id
     LEFT JOIN tenant.business_parties opportunity_account ON opportunity_account.organization_id = task.organization_id AND opportunity_account.id = opportunity.party_id
-    LEFT JOIN tenant.business_parties contact_account ON contact_account.organization_id = task.organization_id AND contact_account.id = contact.party_id
-    LEFT JOIN tenant.crm_campaigns campaign ON task.entity_type = 'campaign' AND campaign.organization_id = task.organization_id AND campaign.id = task.entity_id`;
+    LEFT JOIN tenant.business_parties contact_account ON contact_account.organization_id = task.organization_id AND contact_account.id = contact.party_id`;
 
 const STATUS_OF = Object.freeze({ planned: "open", overdue: "open", in_progress: "in_progress", completed: "completed", cancelled: "cancelled" });
 const RELATED_PATH = Object.freeze({ lead: "/crm/leads", opportunity: "/crm/opportunities", party: "/crm/accounts", contact: "/crm/contacts" });
@@ -72,7 +70,7 @@ const RELATED_PATH = Object.freeze({ lead: "/crm/leads", opportunity: "/crm/oppo
 export function toTask(row) {
   const status = STATUS_OF[row.status] ?? "open";
   const open = status === "open" || status === "in_progress";
-  const relatedName = { lead: row.lead_name, opportunity: row.opportunity_name, party: row.account_name, contact: row.contact_name, campaign: row.campaign_name }[row.entity_type] ?? null;
+  const relatedName = { lead: row.lead_name, opportunity: row.opportunity_name, party: row.account_name, contact: row.contact_name }[row.entity_type] ?? null;
   return {
     id: row.id,
     number: row.task_number ?? null,
@@ -464,9 +462,6 @@ export async function updateTask(client, context, taskId, input = {}) {
   for (const [type, summary, changes] of events) await recordTaskHistory(client, context, row.id, type, summary, changes);
   return getTask(client, context, row.id);
 }
-
-export const rescheduleTask = (client, context, taskId, input = {}) =>
-  updateTask(client, context, taskId, Object.fromEntries(["dueDate", "dueTime", "reminderOffsetMinutes", "reminderAt", "reason", "expectedUpdatedAt"].filter((field) => has(input, field)).map((field) => [field, input[field]])));
 
 // ------------------------------------------------------------------ delete
 

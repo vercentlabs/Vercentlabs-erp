@@ -6,7 +6,6 @@ import { crmApiClient } from "./http/crm-request.ts";
 // F019 — shared client for every 360 that embeds a RecordTimelinePanel.
 export type TimelineKind =
   | "activity"
-  | "communication"
   | "note"
   | "attachment"
   | "stage"

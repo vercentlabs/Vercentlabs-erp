@@ -41,7 +41,6 @@ const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boo
   { id: "sourceName", label: "Source", hiddenByDefault: true },
   { id: "teamName", label: "Team", hiddenByDefault: true },
   { id: "phone", label: "Phone", hiddenByDefault: true },
-  { id: "tags", label: "Tags", hiddenByDefault: true },
   { id: "createdAt", label: "Created", hiddenByDefault: true },
 ];
 
@@ -181,7 +180,6 @@ export function AccountListScreen() {
     { id: "sourceName", accessorKey: "sourceName", header: "Source", cell: ({ row }) => row.original.sourceName ?? "" },
     { id: "teamName", header: "Team", enableSorting: false, cell: ({ row }) => row.original.teamName ?? "" },
     { id: "phone", header: "Phone", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.phone ?? ""}</span> },
-    { id: "tags", header: "Tags", enableSorting: false, cell: ({ row }) => row.original.tags.map((tag) => tag.name).join(", ") },
     { id: "createdAt", accessorKey: "createdAt", header: "Created", cell: ({ row }) => formatDate(row.original.createdAt) },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- money reads only the base currency
   ], [options?.baseCurrency]);

@@ -95,14 +95,6 @@ export async function snoozeActivityReminder(client, context, activityId, until)
   return dto(created.rows[0]);
 }
 
-export async function listRemindersForActivity(client, context, activityId) {
-  const { rows } = await client.query(
-    `SELECT * FROM tenant.crm_activity_reminders WHERE organization_id = $1 AND activity_id = $2 ORDER BY fire_at DESC, channel`,
-    [context.organizationId, activityId],
-  );
-  return rows.map(dto);
-}
-
 // Claims every reminder due to fire, with what the notification needs: the
 // activity, who it is for, the record it is about and that record's company.
 // A reminder of an activity that is no longer open is cancelled, not delivered.

@@ -43,11 +43,7 @@ export const LEAD_SELECT = `
          converted_opportunity.code AS converted_opportunity_code, converted_opportunity.amount AS converted_opportunity_amount,
          lead.merged_into_lead_id AS merged_into_id, merged_lead.code AS merged_into_code,
          COALESCE(merged_lead.full_name, merged_lead.company_name) AS merged_into_name,
-         follow_up.next_follow_up_at AS pending_follow_up_at,
-         COALESCE((SELECT jsonb_agg(jsonb_build_object('id', tag.id, 'name', tag.name, 'color', tag.color) ORDER BY tag.name)
-                     FROM tenant.crm_lead_tags lead_tag
-                     JOIN tenant.crm_tags tag ON tag.organization_id = lead_tag.organization_id AND tag.id = lead_tag.tag_id
-                    WHERE lead_tag.organization_id = lead.organization_id AND lead_tag.lead_id = lead.id), '[]'::jsonb) AS tags
+         follow_up.next_follow_up_at AS pending_follow_up_at
     FROM tenant.crm_leads lead
     LEFT JOIN tenant.crm_lead_sources source ON source.organization_id = lead.organization_id AND source.id = lead.source_id
     LEFT JOIN public.users owner ON owner.id = lead.owner_user_id
@@ -102,7 +98,6 @@ export function toLead(row) {
     priority: row.priority,
     rating: row.rating,
     description: row.description,
-    tags: row.tags ?? [],
     ownerUserId: row.owner_user_id,
     ownerName: row.owner_name ?? null,
     teamId: row.team_id,
@@ -283,8 +278,6 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
     where.push(`(lead.owner_user_id = ${me} OR lead.owner_user_id IN (${managedTeamMembersSql("lead.organization_id", me)}))`);
   }
   else if (isUuid(filters.ownerId)) where.push(`lead.owner_user_id = ${bind(filters.ownerId)}`);
-  if (isUuid(filters.tagId))
-    where.push(`EXISTS (SELECT 1 FROM tenant.crm_lead_tags filter_tag WHERE filter_tag.organization_id = lead.organization_id AND filter_tag.lead_id = lead.id AND filter_tag.tag_id = ${bind(filters.tagId)})`);
   // The unassigned queue is worked by geography, product and age.
   const contains = (value) => `%${String(value).trim().toLowerCase().replace(/[\\%_]/g, "\\$&")}%`;
   if (/^[A-Za-z]{2}$/.test(String(filters.countryCode ?? ""))) where.push(`lead.country_code = ${bind(String(filters.countryCode).toUpperCase())}`);
@@ -340,22 +333,6 @@ export async function listLeads(client, context, filters = {}) {
 }
 
 // ------------------------------------------------------------------ create
-
-async function setLeadTags(client, context, leadId, tagIds) {
-  const ids = [...new Set((Array.isArray(tagIds) ? tagIds : []).filter(isUuid))];
-  await client.query(
-    `DELETE FROM tenant.crm_lead_tags WHERE organization_id = $1 AND lead_id = $2 AND NOT (tag_id = ANY ($3::uuid[]))`,
-    [context.organizationId, leadId, ids],
-  );
-  if (!ids.length) return;
-  await client.query(
-    `INSERT INTO tenant.crm_lead_tags (organization_id, lead_id, tag_id, created_by)
-     SELECT $1, $2, tag.id, $4 FROM tenant.crm_tags tag
-      WHERE tag.organization_id = $1 AND tag.id = ANY ($3::uuid[]) AND tag.status = 'active'
-     ON CONFLICT DO NOTHING`,
-    [context.organizationId, leadId, ids, context.userId ?? null],
-  );
-}
 
 // The owner a new lead starts with. An explicit owner or team wins. Otherwise
 // `routing` decides:
@@ -421,7 +398,6 @@ export async function createLead(client, context, input = {}, {
     await applyLeadAssignment(client, context, lead, { ownerUserId: assignment.ownerUserId, teamId: assignment.teamId }, {
       method: assignment.method, rule: assignment.rule, reason: assignmentReason,
     });
-  if (has(input, "tagIds")) await setLeadTags(client, context, lead.id, input.tagIds);
   await queueOutboxEvent(client, context, "crm.leads.created", "leads", lead.id, { status: lead.status, sourceId: lead.source_id, ownerUserId: assignment.ownerUserId ?? null });
   // A rule may have routed the lead to someone outside the creator's own
   // visibility; they still get back what they created.
@@ -467,7 +443,6 @@ export async function updateLead(client, context, leadId, input = {}, { allowDup
     await recordLeadHistory(client, context, row.id, "updated", `Updated ${changedFields.length === 1 ? changedFields[0] : `${changedFields.length} fields`}`, changes);
     await queueOutboxEvent(client, context, "crm.leads.updated", "leads", row.id, { before, after: { ...before, ...normalized }, changedFields });
   }
-  if (has(input, "tagIds")) await setLeadTags(client, context, row.id, input.tagIds);
   return projectLeadForContext(context, toLead(await loadLeadRow(client, context, row.id)));
 }
 

@@ -34,6 +34,7 @@ import {
   type ConfirmResult, type ReservationOutcome, type SalesOrderDetail, type SalesOrderLine,
 } from "../api/orders-api";
 import { SalesManufacturingPanel } from "@/features/manufacturing/demand/components/SalesManufacturingPanel";
+import { CreateProjectFromOrder } from "@/features/projects/components/CreateProjectFromOrder";
 import { AvailabilityPanel } from "../components/AvailabilityPanel";
 import { ReservationPanel } from "../components/ReservationPanel";
 import { AcknowledgeConfirmationDialog, ConfirmOrderDialog, MarkConfirmationSentDialog, SendConfirmationDialog } from "../components/ConfirmationDialogs";
@@ -213,6 +214,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
                 <Button variant="secondary" onPress={() => { setCheckAvailability(true); setTab("fulfillment"); }}>Check Availability</Button>
               )}
               {actions.reserve && <Button variant="secondary" isLoading={reserve.isPending} onPress={() => reserve.mutate()}>Reserve Stock</Button>}
+              {order.status === "confirmed" && <CreateProjectFromOrder salesOrderId={orderId} orderNumber={order.sales_order_number} />}
               {actions.deliver && actions.invoice && <Button variant="secondary" onPress={() => setDialog("invoice")}><FileText className="size-4" aria-hidden="true" />Create Invoice</Button>}
               {actions.print && <LinkButton variant="secondary" href={orderPdfUrl(orderId)} download>{order.status === "draft" ? "Draft PDF" : "Download PDF"}</LinkButton>}
               {actions.reopen && <Button variant="ghost" onPress={() => setDialog("reopen")}>Reopen to Draft</Button>}

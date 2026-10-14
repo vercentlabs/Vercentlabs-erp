@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, MultiSelect, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import { CurrencySelect } from "@/features/crm/shared/ui/CurrencySelect";
@@ -28,14 +28,14 @@ const UNASSIGNED = "__unassigned__";
 
 type FormValues = {
   displayName: string; legalName: string; accountType: string; industry: string; website: string; email: string; phone: string; secondaryPhone: string;
-  employeeRange: string; annualRevenue: string; currencyCode: string; sourceId: string; sourceDetail: string; description: string; tagIds: string[];
+  employeeRange: string; annualRevenue: string; currencyCode: string; sourceId: string; sourceDetail: string; description: string;
   ownerUserId: string; teamId: string; parentPartyId: string | null;
   line1: string; line2: string; city: string; state: string; postalCode: string; countryCode: string;
 };
 
 const EMPTY: FormValues = {
   displayName: "", legalName: "", accountType: "prospect", industry: "", website: "", email: "", phone: "", secondaryPhone: "", employeeRange: NONE,
-  annualRevenue: "", currencyCode: "", sourceId: NONE, sourceDetail: "", description: "", tagIds: [], ownerUserId: ME, teamId: NONE, parentPartyId: null,
+  annualRevenue: "", currencyCode: "", sourceId: NONE, sourceDetail: "", description: "", ownerUserId: ME, teamId: NONE, parentPartyId: null,
   line1: "", line2: "", city: "", state: "", postalCode: "", countryCode: "IN",
 };
 
@@ -48,7 +48,7 @@ function valuesFromAccount(account: Account): FormValues {
     website: account.website ?? "", email: account.email ?? "", phone: account.phone ?? "", secondaryPhone: account.secondaryPhone ?? "",
     employeeRange: account.employeeRange ?? NONE, annualRevenue: account.annualRevenue === null ? "" : String(account.annualRevenue),
     currencyCode: account.currencyCode ?? "", sourceId: account.sourceId ?? NONE, sourceDetail: account.sourceDetail ?? "",
-    description: account.description ?? "", tagIds: account.tags.map((tag) => tag.id),
+    description: account.description ?? "",
   };
 }
 
@@ -231,8 +231,6 @@ function AccountForm({ account, options }: { account?: Account; options: Account
         <Select label="Source" selectedKey={values.sourceId} onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
           options={[{ value: NONE, label: "Not set" }, ...options.sources.filter((source) => source.isActive || source.id === values.sourceId).map((source) => ({ value: source.id, label: source.name }))]} />
         <TextField label="Source detail" description="Campaign, event or the person who referred them." value={values.sourceDetail} onChange={set("sourceDetail")} />
-        <MultiSelect label="Tags" className="sm:col-span-2" placeholder={options.tags.length ? "Choose tags" : "No tags have been set up"}
-          value={values.tagIds} onChange={set("tagIds")} options={options.tags.map((tag) => ({ value: tag.id, label: tag.name }))} />
         <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} errorMessage={fieldErrors.description} />
       </FormSection>
 

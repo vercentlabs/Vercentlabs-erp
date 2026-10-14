@@ -11,9 +11,9 @@ export {
   bulkChangeOpportunityStage, changeOpportunityStage, listOpportunityStageHistory, listOpportunityStages, setOpportunityProbability,
 } from "./stages.js";
 export {
-  correctOpportunityCloseReason, listOpportunityCloseHistory, markOpportunityLost, markOpportunityWon, moveOpportunityStage, reopenOpportunity,
+  correctOpportunityCloseReason, listOpportunityCloseHistory, markOpportunityLost, markOpportunityWon, reopenOpportunity,
 } from "./outcome.js";
-export { assignOpportunity, bulkAssignOpportunities, listOpportunityAssignmentHistory, reassignOpportunity } from "./assignment.js";
+export { assignOpportunity, bulkAssignOpportunities, listOpportunityAssignmentHistory } from "./assignment.js";
 export { addOpportunityProduct, listOpportunityProducts, removeOpportunityProduct, searchOpportunityProducts, updateOpportunityProduct } from "./products.js";
 export { addOpportunityContact, listOpportunityContacts, removeOpportunityContact, updateOpportunityContact } from "./contacts.js";
 export { findDuplicateOpportunities } from "./duplicates.js";

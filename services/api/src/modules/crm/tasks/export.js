@@ -5,7 +5,7 @@ import { TASK_PERMISSIONS } from "./constants.js";
 import { TASK_SELECT, buildTaskListWhere, toTask } from "./records.js";
 
 const EXPORT_ROW_LIMIT = 10000;
-const RELATED_LABELS = { lead: "Lead", opportunity: "Opportunity", party: "Account", contact: "Contact", campaign: "Campaign" };
+const RELATED_LABELS = { lead: "Lead", opportunity: "Opportunity", party: "Account", contact: "Contact" };
 const COLUMNS = Object.freeze([
   ["Task Number", (task) => task.number],
   ["Title", (task) => task.title],

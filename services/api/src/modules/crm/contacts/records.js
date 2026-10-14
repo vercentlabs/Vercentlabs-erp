@@ -29,11 +29,7 @@ export const CONTACT_SELECT = `
            WHERE opportunity.organization_id = contact.organization_id AND opportunity.status = 'open'
              AND (opportunity.contact_id = contact.id OR EXISTS (SELECT 1 FROM tenant.crm_opportunity_contact_roles ocr
                    WHERE ocr.organization_id = opportunity.organization_id AND ocr.opportunity_id = opportunity.id AND ocr.contact_id = contact.id AND ocr.status = 'active')))::int AS open_opportunities,
-         (SELECT count(*) FROM tenant.crm_contact_account_relationships r WHERE r.organization_id = contact.organization_id AND r.contact_id = contact.id AND r.status = 'active')::int AS company_count,
-         COALESCE((SELECT jsonb_agg(jsonb_build_object('id', tag.id, 'name', tag.name, 'color', tag.color) ORDER BY tag.name)
-                     FROM tenant.crm_contact_tags contact_tag
-                     JOIN tenant.crm_tags tag ON tag.organization_id = contact_tag.organization_id AND tag.id = contact_tag.tag_id
-                    WHERE contact_tag.organization_id = contact.organization_id AND contact_tag.contact_id = contact.id), '[]'::jsonb) AS tags
+         (SELECT count(*) FROM tenant.crm_contact_account_relationships r WHERE r.organization_id = contact.organization_id AND r.contact_id = contact.id AND r.status = 'active')::int AS company_count
     FROM tenant.contacts contact
     LEFT JOIN public.users owner ON owner.id = contact.owner_user_id
     LEFT JOIN public.users creator ON creator.id = contact.created_by
@@ -85,7 +81,6 @@ export function toContact(row) {
     sourceId: row.source_id,
     sourceName: row.source_name ?? null,
     description: row.description,
-    tags: row.tags ?? [],
     ownerUserId: row.owner_user_id,
     ownerName: row.owner_name ?? null,
     teamId: row.team_id,
@@ -200,8 +195,6 @@ export function buildContactListWhere(context, filters = {}, values = []) {
   if (filters.isDecisionMaker === "no") where.push("NOT contact.is_decision_maker");
   if (filters.isPrimary === "yes") where.push("contact.is_primary");
   if (filters.isPrimary === "no") where.push("NOT contact.is_primary");
-  if (isUuid(filters.tagId))
-    where.push(`EXISTS (SELECT 1 FROM tenant.crm_contact_tags t WHERE t.organization_id = contact.organization_id AND t.contact_id = contact.id AND t.tag_id = ${bind(filters.tagId)})`);
   if (Array.isArray(filters.ids) && filters.ids.length) where.push(`contact.id = ANY (${bind(filters.ids.filter(isUuid))}::uuid[])`);
 
   const search = String(filters.search ?? "").trim().toLowerCase();
@@ -245,17 +238,6 @@ export async function listContacts(client, context, filters = {}) {
 
 // ------------------------------------------------------------------ create
 
-export async function setContactTags(client, context, contactId, tagIds) {
-  const ids = [...new Set((Array.isArray(tagIds) ? tagIds : []).filter(isUuid))];
-  await client.query(`DELETE FROM tenant.crm_contact_tags WHERE organization_id = $1 AND contact_id = $2 AND NOT (tag_id = ANY ($3::uuid[]))`, [context.organizationId, contactId, ids]);
-  if (!ids.length) return;
-  await client.query(
-    `INSERT INTO tenant.crm_contact_tags (organization_id, contact_id, tag_id, created_by)
-     SELECT $1, $2, tag.id, $4 FROM tenant.crm_tags tag WHERE tag.organization_id = $1 AND tag.id = ANY ($3::uuid[]) AND tag.status = 'active'
-     ON CONFLICT DO NOTHING`,
-    [context.organizationId, contactId, ids, context.userId ?? null],
-  );
-}
 
 async function assertActiveSource(client, context, sourceId) {
   if (!sourceId) return;
@@ -287,7 +269,7 @@ export async function createContact(client, context, input = {}, {
   allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", makePrimary = false, historySummary = null,
 } = {}) {
   requireContactPermission(context, CONTACT_PERMISSIONS.create, "You do not have permission to create contacts.");
-  const { ownerUserId: requestedOwner, teamId, accountId, tagIds, duplicateReason: inputReason, ...fields } = input;
+  const { ownerUserId: requestedOwner, teamId, accountId, duplicateReason: inputReason, ...fields } = input;
   const normalized = normalizeContactInput(fields);
   assertValidContact(normalized);
   await assertActiveSource(client, context, normalized.sourceId);
@@ -339,7 +321,6 @@ export async function createContact(client, context, input = {}, {
     if (makePrimary) await recordAccountHistory(client, context, account.id, "primary_contact_changed", `Primary contact: ${record.displayName}`, { contactId: contact.id });
   }
   await applyContactAssignment(client, context, contact, { ownerUserId, teamId: teamId || null }, { reason: origin, notify: origin !== "lead_conversion" });
-  if (tagIds !== undefined) await setContactTags(client, context, contact.id, tagIds);
   await queueOutboxEvent(client, context, "crm.contacts.created", "contact", contact.id, { contactId: contact.id, accountId: account?.id ?? null });
   return projectContactForContext(context, toContact(await loadContactRow(client, context, contact.id, { skipScope: true })));
 }
@@ -353,7 +334,7 @@ export async function updateContact(client, context, contactId, input = {}, { al
   if (expectedUpdatedAt && new Date(expectedUpdatedAt).getTime() !== new Date(row.updated_at).getTime())
     throw new CrmError(409, "This contact was changed by someone else. Reload it and try again.", "CRM_CONTACT_VERSION_CONFLICT");
   const before = toContact(row);
-  const { tagIds, ...fields } = input;
+  const fields = input;
   const normalized = normalizeContactInput(fields);
   // Contact details hidden from the caller cannot be changed by them.
   if (!contactCan(context, CONTACT_PERMISSIONS.viewSensitive))
@@ -409,7 +390,6 @@ export async function updateContact(client, context, contactId, input = {}, { al
     await recordContactHistory(client, context, row.id, "updated", `Updated ${changed.length === 1 ? changed[0] : `${changed.length} fields`}`, changes);
     await queueOutboxEvent(client, context, "crm.contacts.updated", "contact", row.id, { contactId: row.id, changedFields: changed });
   }
-  if (tagIds !== undefined) await setContactTags(client, context, row.id, tagIds);
   return projectContactForContext(context, toContact(await loadContactRow(client, context, row.id)));
 }
 
@@ -436,10 +416,6 @@ export async function setContactStatus(client, context, contactId, status, { not
   });
   return { changed: true };
 }
-
-export const deactivateContact = (client, context, contactId, input = {}) => setContactStatus(client, context, contactId, "inactive", input);
-export const reactivateContact = (client, context, contactId, input = {}) => setContactStatus(client, context, contactId, "active", input);
-export const archiveContact = (client, context, contactId, input = {}) => setContactStatus(client, context, contactId, "archived", input);
 
 // Each contact succeeds or fails on its own.
 export async function runContactBulkOperation(client, contactIds, operation) {
@@ -475,7 +451,6 @@ const REFERENCES = Object.freeze([
   ["opportunity roles", "SELECT 1 FROM tenant.crm_opportunity_contact_roles WHERE organization_id = $1 AND contact_id = $2"],
   ["converted leads", "SELECT 1 FROM tenant.crm_leads WHERE organization_id = $1 AND converted_contact_id = $2"],
   ["activities", "SELECT 1 FROM tenant.crm_activities WHERE organization_id = $1 AND ((entity_type = 'contact' AND entity_id = $2) OR related_contact_id = $2)"],
-  ["communications", "SELECT 1 FROM tenant.crm_communications WHERE organization_id = $1 AND contact_id = $2"],
   ["quotations", "SELECT 1 FROM tenant.sales_quotations WHERE organization_id = $1 AND contact_id = $2"],
   ["sales orders", "SELECT 1 FROM tenant.sales_orders WHERE organization_id = $1 AND contact_id = $2"],
   ["support tickets", "SELECT 1 FROM tenant.support_tickets WHERE organization_id = $1 AND contact_id = $2"],
@@ -490,7 +465,7 @@ export async function contactReferences(client, context, contactId) {
   return found;
 }
 
-// Permanently removes a contact created by mistake. Company links, tags and
+// Permanently removes a contact created by mistake. Company links and
 // notes go with it; anything that makes it part of the business record blocks it.
 export async function deleteUnusedContact(client, context, contactId) {
   requireContactPermission(context, CONTACT_PERMISSIONS.delete, "You do not have permission to delete contacts.");

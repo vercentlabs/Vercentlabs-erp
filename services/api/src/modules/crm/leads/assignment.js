@@ -264,13 +264,6 @@ export async function assignLead(client, context, leadId, input = {}, { method =
   return { changed, previousOwnerUserId: lead.owner_user_id, ownerUserId: has(target, "ownerUserId") ? target.ownerUserId : lead.owner_user_id };
 }
 
-export const reassignLead = assignLead;
-
-// Gives the lead to a team (optionally with an owner from it).
-export async function assignLeadToTeam(client, context, leadId, input = {}) {
-  return assignLead(client, context, leadId, { ...input, teamId: input.teamId ?? null });
-}
-
 // "Assign to me" on an unassigned lead, where the organization allows it.
 export async function assignLeadToSelf(client, context, leadId, input = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.assignSelf, "You do not have permission to assign leads to yourself.");

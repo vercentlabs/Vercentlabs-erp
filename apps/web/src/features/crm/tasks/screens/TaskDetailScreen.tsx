@@ -41,7 +41,7 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
 
   if (taskQuery.isLoading || optionsQuery.isLoading) return <LoadingState label="Loading task" />;
   if (taskQuery.isError || !task)
-    return <ErrorState title="Task not found" description="It may have been deleted, or you may not have access to it." action={{ label: "Back to tasks", onPress: () => router.push("/crm/tasks") }} />;
+    return <ErrorState title="Task not found" description="It may have been deleted, or you may not have access to it." action={{ label: "Back to tasks", onPress: () => router.push("/crm/activities?tab=tasks") }} />;
   if (!options) return <ErrorState title="Could not load this page" description="Refresh to try again." />;
 
   const can = options.capabilities;
@@ -121,7 +121,7 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
       <AlertDialog isOpen={dialog === "delete"} onOpenChange={close} tone="danger" confirmLabel="Delete task" isConfirming={action.isPending}
         title="Delete this task?"
         description="Only a task created by mistake can be deleted: never started, completed, cancelled or reassigned. Otherwise cancel it, so its history is kept."
-        onConfirm={() => action.mutate(async () => { try { await deleteTask(task.id); router.replace("/crm/tasks"); } finally { setDialog(null); } })} />
+        onConfirm={() => action.mutate(async () => { try { await deleteTask(task.id); router.replace("/crm/activities?tab=tasks"); } finally { setDialog(null); } })} />
     </>
   );
 }

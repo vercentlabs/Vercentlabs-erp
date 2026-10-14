@@ -1,14 +1,12 @@
 import { registerJobHandler } from "../registry.js";
 import { internalJobBackoff } from "../backoff.js";
-import { detectOverdueActivitiesHandler, JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE, payloadSchema as overdueActivityPayloadSchema } from "./crm-automation-overdue.js";
 import { dispatchFollowUpRemindersHandler, JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, payloadSchema as followUpReminderDispatchPayloadSchema } from "./crm-follow-up-reminder-dispatch.js";
-import { pushMeetingCalendarEventHandler, JOB_TYPE as MEETING_CALENDAR_PUSH_JOB_TYPE, payloadSchema as meetingCalendarPushPayloadSchema } from "./crm-meeting-calendar-push.js";
 import { reportRunHandler, JOB_TYPE as REPORT_RUN_JOB_TYPE, payloadSchema as reportRunPayloadSchema } from "./platform-report-run.js";
-import { captureForecastSnapshotsHandler, JOB_TYPE as FORECAST_SNAPSHOT_JOB_TYPE, payloadSchema as forecastSnapshotPayloadSchema } from "./crm-forecast-snapshot-capture.js";
-import { syncCalendarAccountsHandler, JOB_TYPE as CALENDAR_SYNC_JOB_TYPE, payloadSchema as calendarSyncPayloadSchema } from "./crm-calendar-sync.js";
 import { reconcileReorderHandler, JOB_TYPE as REORDER_RECONCILE_JOB_TYPE, payloadSchema as reorderReconcilePayloadSchema } from "./stock-reorder-reconcile.js";
 import { dispatchLowStockNotificationsHandler, JOB_TYPE as LOW_STOCK_DISPATCH_JOB_TYPE, payloadSchema as lowStockDispatchPayloadSchema } from "./stock-low-stock-dispatch.js";
+import { notifyOverdueTasksHandler, JOB_TYPE as TASK_OVERDUE_JOB_TYPE, payloadSchema as taskOverduePayloadSchema } from "./crm-task-overdue.js";
 import { notifyOverdueProductionHoldsHandler, JOB_TYPE as HOLD_OVERDUE_JOB_TYPE, payloadSchema as holdOverduePayloadSchema } from "./manufacturing-hold-overdue.js";
+import { notifyProjectAlertsHandler, JOB_TYPE as PROJECT_ALERTS_JOB_TYPE, payloadSchema as projectAlertsPayloadSchema } from "./projects-alerts.js";
 
 // Registers every currently-wired job type. Called once at worker
 // startup (bin/start.mjs) and by tests that need a populated registry.
@@ -16,33 +14,12 @@ import { notifyOverdueProductionHoldsHandler, JOB_TYPE as HOLD_OVERDUE_JOB_TYPE,
 // place new job types get added, never a switch scattered through
 // worker.js.
 export function registerBuiltinHandlers() {
-  registerJobHandler(OVERDUE_ACTIVITY_JOB_TYPE, {
-    schema: overdueActivityPayloadSchema,
-    handler: detectOverdueActivitiesHandler,
-    backoff: internalJobBackoff,
-    idempotency: "NATURALLY_IDEMPOTENT", // the status-transition WHERE clause makes re-running this handler for the same org always safe
-    maxAttempts: 3,
-  });
   registerJobHandler(FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, {
     schema: followUpReminderDispatchPayloadSchema,
     handler: dispatchFollowUpRemindersHandler,
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // claimDueReminders() uses FOR UPDATE SKIP LOCKED + a pending->dispatching status move, so an overlapping/re-run tick can never claim or resend a reminder another tick already claimed
     maxAttempts: 3,
-  });
-  registerJobHandler(MEETING_CALENDAR_PUSH_JOB_TYPE, {
-    schema: meetingCalendarPushPayloadSchema,
-    handler: pushMeetingCalendarEventHandler,
-    backoff: internalJobBackoff,
-    // A "create" push with no externalEventId yet is NOT naturally
-    // idempotent — retrying after a lost response (the provider actually
-    // created the event, but the job's HTTP call to us timed out) could
-    // create a duplicate calendar event. A caller-supplied idempotency key
-    // (see enqueueCalendarPushJob) makes a re-enqueue for the same
-    // meeting+action collide on the same background_jobs row instead.
-    idempotency: "IDEMPOTENCY_KEY_REQUIRED",
-    maxAttempts: 5,
-    transactionMode: "managed",
   });
   registerJobHandler(REPORT_RUN_JOB_TYPE, {
     schema: reportRunPayloadSchema,
@@ -53,24 +30,6 @@ export function registerBuiltinHandlers() {
     idempotency: "NATURALLY_IDEMPOTENT",
     maxAttempts: 2,
     transactionMode: "managed",
-  });
-  registerJobHandler(CALENDAR_SYNC_JOB_TYPE, {
-    schema: calendarSyncPayloadSchema,
-    handler: syncCalendarAccountsHandler,
-    backoff: internalJobBackoff,
-    // Claims accounts with SKIP LOCKED and a lease; provider events upsert on
-    // UNIQUE(organization, provider, external_event_id), so a re-run or an
-    // overlapping tick can never duplicate an event.
-    idempotency: "NATURALLY_IDEMPOTENT",
-    maxAttempts: 3,
-    transactionMode: "managed",
-  });
-  registerJobHandler(FORECAST_SNAPSHOT_JOB_TYPE, {
-    schema: forecastSnapshotPayloadSchema,
-    handler: captureForecastSnapshotsHandler,
-    backoff: internalJobBackoff,
-    idempotency: "NATURALLY_IDEMPOTENT", // UNIQUE(organization, period, capture_key='scheduled:<date>') makes a re-run a no-op
-    maxAttempts: 3,
   });
   registerJobHandler(REORDER_RECONCILE_JOB_TYPE, {
     schema: reorderReconcilePayloadSchema,
@@ -86,11 +45,25 @@ export function registerBuiltinHandlers() {
     idempotency: "NATURALLY_IDEMPOTENT", // each queued transition is claimed and marked dispatched once
     maxAttempts: 3,
   });
+  registerJobHandler(TASK_OVERDUE_JOB_TYPE, {
+    schema: taskOverduePayloadSchema,
+    handler: notifyOverdueTasksHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // each overdue task is stamped once
+    maxAttempts: 3,
+  });
   registerJobHandler(HOLD_OVERDUE_JOB_TYPE, {
     schema: holdOverduePayloadSchema,
     handler: notifyOverdueProductionHoldsHandler,
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // each overdue hold is stamped once
+    maxAttempts: 3,
+  });
+  registerJobHandler(PROJECT_ALERTS_JOB_TYPE, {
+    schema: projectAlertsPayloadSchema,
+    handler: notifyProjectAlertsHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // UNIQUE(organization, project, alert_key) makes each alert once
     maxAttempts: 3,
   });
 }

@@ -20,7 +20,7 @@ import { opportunityScopeSql, requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_PERMISSIONS } from "./constants.js";
 import { recordOpportunityHistory } from "./history.js";
 import { assertNotStale, assertOpen, lockOpportunity, readOpportunityRow, requireUuid } from "./records.js";
-import { changeOpportunityStage, pipelineStage, writeStage } from "./stages.js";
+import { pipelineStage, writeStage } from "./stages.js";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const text = (value) => String(value ?? "").trim();
@@ -316,32 +316,3 @@ export async function listOpportunityCloseHistory(client, context, opportunityId
 }
 
 // ------------------------------------------------------------------ one entry point for callers that move by stage
-
-// Other modules (the pipeline board, offline sync) move a deal by naming a
-// stage. A move to a sales stage changes stage; a closed deal moved to an
-// open stage is reopened; closing needs its own action and reason.
-// expectations: { expectedUpdatedAt?, outcomeReasonId?, outcomeNotes?, actualCloseDate?, finalValue?, competitorName? }
-export async function moveOpportunityStage(client, context, opportunityId, stageId, note = null, expectations = {}) {
-  const opportunity = await lockOpportunity(client, context, opportunityId);
-  if (opportunity.stage_id === stageId && opportunity.status === "open") return opportunity;
-  const stage = await pipelineStage(client, context, opportunity.pipeline_id, stageId);
-  const notes = text(expectations.outcomeNotes || note) || undefined;
-  if (opportunity.status !== "open") {
-    if (stage.is_won || stage.is_lost)
-      throw new CrmError(409, "A closed opportunity can only be reopened into an open pipeline stage.", "CRM_OPPORTUNITY_REOPEN_TARGET_INVALID");
-    await reopenOpportunity(client, context, opportunityId, { stageId, reason: note });
-  } else if (stage.is_won) {
-    await markOpportunityWon(client, context, opportunityId, {
-      reasonId: expectations.outcomeReasonId, actualCloseDate: expectations.actualCloseDate, finalValue: expectations.finalValue, notes,
-      competitorName: expectations.competitorName, expectedUpdatedAt: expectations.expectedUpdatedAt,
-    });
-  } else if (stage.is_lost) {
-    await markOpportunityLost(client, context, opportunityId, {
-      reasonId: expectations.outcomeReasonId, actualCloseDate: expectations.actualCloseDate, notes, competitorName: expectations.competitorName,
-      expectedUpdatedAt: expectations.expectedUpdatedAt,
-    });
-  } else {
-    await changeOpportunityStage(client, context, opportunityId, { stageId, note, expectedUpdatedAt: expectations.expectedUpdatedAt });
-  }
-  return lockOpportunity(client, context, opportunityId);
-}

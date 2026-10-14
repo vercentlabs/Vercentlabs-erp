@@ -10,7 +10,7 @@ import { Cell, LinesTable } from "@/shared/ui/record";
 
 import { newKey, qty, type MoMaterial } from "../api/mo-api";
 
-export type Field = { name: string; label: string; kind: "text" | "textarea" | "quantity" | "select" | "checkbox" | "datetime"; options?: Array<{ value: string; label: string }>;
+export type Field = { name: string; label: string; kind: "text" | "textarea" | "quantity" | "select" | "checkbox" | "datetime" | "date"; options?: Array<{ value: string; label: string }>;
   required?: boolean; description?: string; initial?: string | boolean };
 export type Ask = { title: string; description?: string; fields: Field[]; confirm: string; tone?: "primary" | "danger";
   run: (values: Record<string, string | boolean>, key: string) => Promise<unknown> };
@@ -35,7 +35,7 @@ export function AskDialog({ ask, onClose }: { ask: Ask; onClose: () => void }) {
           if (field.kind === "textarea") return <TextArea key={field.name} label={field.label} description={field.description} value={String(value)} onChange={set} maxLength={1000} />;
           if (field.kind === "select") return <Select key={field.name} label={field.label} description={field.description} selectedKey={String(value) || null} onSelectionChange={(next) => set(String(next))} options={field.options ?? []} />;
           if (field.kind === "checkbox") return <Checkbox key={field.name} isSelected={Boolean(value)} onChange={set}>{field.label}</Checkbox>;
-          return <TextField key={field.name} label={field.label} description={field.description} type={field.kind === "datetime" ? "datetime-local" : "text"} inputMode={field.kind === "quantity" ? "decimal" : undefined}
+          return <TextField key={field.name} label={field.label} description={field.description} type={field.kind === "datetime" ? "datetime-local" : field.kind === "date" ? "date" : "text"} inputMode={field.kind === "quantity" ? "decimal" : undefined}
             value={String(value)} onChange={set} />;
         })}
         {error && <Notice tone="danger">{error}</Notice>}

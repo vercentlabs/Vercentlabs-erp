@@ -7,7 +7,7 @@ export type MobileModule = {
   name: string;
   description: string;
   icon: ComponentProps<typeof Ionicons>["name"];
-  href?: "/(protected)/crm" | "/(protected)/workspace/procurement";
+  href?: "/(protected)/workspace/procurement";
   permission?: string;
   enabled: boolean;
 };
@@ -24,8 +24,8 @@ export const mobileModules: readonly MobileModule[] = ERP_MODULE_CATALOG.map((mo
   name: module.name,
   description: module.description,
   icon: icons[module.key] ?? "apps-outline",
-  href: module.key === "crm" ? "/(protected)/crm" : module.key === "procurement" ? "/(protected)/workspace/procurement" : undefined,
-  permission: module.key === "crm" ? "crm.view" : module.key === "procurement" ? "procurement.view" : undefined,
+  href: module.key === "procurement" ? "/(protected)/workspace/procurement" : undefined,
+  permission: module.key === "procurement" ? "procurement.view" : undefined,
   enabled: module.availability === "released" && (NATIVE_OPERATIONAL_MODULE_KEYS as readonly string[]).includes(module.key),
 }));
 

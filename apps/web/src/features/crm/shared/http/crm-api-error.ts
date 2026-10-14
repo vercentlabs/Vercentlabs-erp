@@ -41,23 +41,6 @@ export class CrmApiErrorWithBody extends CrmApiError {
   }
 }
 
-// Base for clients that keep the response's `details` field (Lead
-// lifecycle): `details` is always an own property, undefined when the
-// response carried none.
-export class CrmApiErrorWithDetails extends CrmApiError {
-  declare readonly details: unknown;
-
-  constructor(
-    message: string,
-    status: number,
-    code?: string,
-    details?: unknown,
-  ) {
-    super(message, status, code, details);
-    (this as { details?: unknown }).details = details;
-  }
-}
-
 export type CrmApiErrorClass<E extends CrmApiError = CrmApiError> = new (
   message: string,
   status: number,

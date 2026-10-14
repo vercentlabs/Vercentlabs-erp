@@ -19,7 +19,7 @@ export function ResourceCatalog({
   area,
   definitions,
 }: {
-  area: "crm" | "master-data" | "settings";
+  area: "master-data" | "settings";
   definitions: MobileResourceDefinition[];
 }) {
   const { colors, radii, spacing, type } = useTheme();
@@ -42,7 +42,7 @@ export function ResourceCatalog({
               {group}
             </Text>
             <Text style={{ ...type.heading, color: colors.text }}>
-              {group === "Work" ? "Operational CRM" : group}
+              {group}
             </Text>
           </View>
           {definitions

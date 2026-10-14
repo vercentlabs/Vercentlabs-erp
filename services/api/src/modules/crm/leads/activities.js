@@ -8,13 +8,11 @@
 import { scheduleFollowUp } from "../follow-ups/records.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireLeadPermission } from "./access.js";
-import { LEAD_ACTIVITY_TYPES, LEAD_FOLLOW_UP_TYPES, LEAD_PERMISSIONS } from "./constants.js";
+import { LEAD_ACTIVITY_TYPES, LEAD_PERMISSIONS } from "./constants.js";
 import { getLead, lockLead } from "./records.js";
 import { applyLeadStage, requireStageChangePermission } from "./stages.js";
 
 const ACTIVITY_TYPES = new Map(LEAD_ACTIVITY_TYPES.map((entry) => [entry.code, entry.label]));
-// The follow-up record stores its type as a channel; "task" has no channel.
-const FOLLOW_UP_CHANNEL = Object.freeze({ call: "call", email: "email", meeting: "meeting", task: "other", other: "other" });
 const text = (value) => String(value ?? "").trim();
 
 // Everything scheduled or logged on a lead, newest first: tasks, follow-ups

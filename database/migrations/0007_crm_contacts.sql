@@ -166,18 +166,6 @@ CREATE TABLE tenant.crm_contact_history (
 );
 CREATE INDEX crm_contact_history_contact_idx ON tenant.crm_contact_history (organization_id, contact_id, created_at DESC);
 
-CREATE TABLE tenant.crm_contact_tags (
-  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  contact_id uuid NOT NULL,
-  tag_id uuid NOT NULL,
-  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  CONSTRAINT crm_contact_tags_pkey PRIMARY KEY (organization_id, contact_id, tag_id),
-  CONSTRAINT crm_contact_tags_contact_organization_fkey FOREIGN KEY (organization_id, contact_id) REFERENCES tenant.contacts(organization_id, id) ON DELETE CASCADE,
-  CONSTRAINT crm_contact_tags_tag_organization_fkey FOREIGN KEY (organization_id, tag_id) REFERENCES tenant.crm_tags(organization_id, id) ON DELETE CASCADE
-);
-CREATE INDEX crm_contact_tags_tag_idx ON tenant.crm_contact_tags (organization_id, tag_id);
-
 -- ============================================================ 5. row-level security and grants
 
 ALTER TABLE tenant.crm_contact_account_relationships ENABLE ROW LEVEL SECURITY;
@@ -186,13 +174,9 @@ CREATE POLICY organization_isolation ON tenant.crm_contact_account_relationships
 ALTER TABLE tenant.crm_contact_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant.crm_contact_history FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON tenant.crm_contact_history USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
-ALTER TABLE tenant.crm_contact_tags ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tenant.crm_contact_tags FORCE ROW LEVEL SECURITY;
-CREATE POLICY organization_isolation ON tenant.crm_contact_tags USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tenant.crm_contact_account_relationships TO vercent_app, vercent_worker;
 GRANT SELECT, INSERT ON TABLE tenant.crm_contact_history TO vercent_app, vercent_worker;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tenant.crm_contact_tags TO vercent_app, vercent_worker;
 GRANT EXECUTE ON FUNCTION tenant.crm_contact_primary_account_sync() TO vercent_app, vercent_worker;
 
 -- ============================================================ 6. existing contacts become relationships

@@ -82,5 +82,4 @@ export type LeadConversionMetrics = {
 
 export function previewLeadConversion(client: QueryClient, context: CrmContext, leadId: string, options?: { accountId?: string | null }): Promise<LeadConversionPreview>;
 export function convertLead(client: QueryClient, context: CrmContext, leadId: string, input?: LeadConversionInput): Promise<LeadConversion>;
-export function getLeadConversion(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadConversion | null>;
 export function getLeadConversionMetrics(client: QueryClient, context: CrmContext, input?: { from?: string; to?: string }): Promise<LeadConversionMetrics>;

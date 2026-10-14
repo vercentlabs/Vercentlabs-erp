@@ -78,7 +78,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         flat: true,
         items: [
           { ...available("Overview", "/crm"), aliases: ["crm home", "dashboard", "kpi", "metrics"] },
-          { ...available("Dashboard", "/crm/dashboard"), parent: "overview" },
         ],
       },
       {
@@ -108,15 +107,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Lead Dashboard", "/crm/leads/dashboard"), parent: "leads" },
           { ...available("Opportunities", "/crm/opportunities"), aliases: ["deals", "won", "lost", "win rate"] },
           { ...available("Opportunity Dashboard", "/crm/opportunities/dashboard"), parent: "opportunities", aliases: ["win rate", "won and lost"] },
-          { ...available("Activities", "/crm/activities"), aliases: ["my work", "today", "tasks", "follow-ups", "calls", "meetings", "notes", "files", "inbox", "reminders"] },
-          // The tabs of Activities and their records (/crm/tasks/<id>, /crm/calls/<id>, …); each list address opens its tab.
-          { ...available("Tasks", "/crm/tasks"), parent: "activities", requiredPermission: "crm.tasks.view" },
-          { ...available("Follow-ups", "/crm/follow-ups"), parent: "activities", requiredPermission: "crm.follow_ups.view" },
-          { ...available("Calls", "/crm/calls"), parent: "activities" },
-          { ...available("Meetings", "/crm/meetings"), parent: "activities" },
-          { ...available("Notes & Files", "/crm/notes-files"), parent: "activities", aliases: ["attachments", "documents"] },
-          { ...available("Inbox", "/crm/communications"), parent: "activities", aliases: ["communications", "email", "conversations"] },
-          { ...available("My Work", "/crm/work"), parent: "activities" },
+          { ...available("Activities", "/crm/activities"), aliases: ["tasks", "follow-ups", "notes", "files", "reminders"] },
+          { ...available("Tasks", "/crm/activities?tab=tasks"), parent: "activities", requiredPermission: "crm.tasks.view" },
+          { ...available("Follow-ups", "/crm/activities?tab=follow-ups"), parent: "activities", requiredPermission: "crm.follow_ups.view" },
+          { ...available("Notes & Files", "/crm/activities?tab=notes-files"), parent: "activities", aliases: ["attachments", "documents"] },
         ],
       },
       {
@@ -126,11 +120,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         collapsible: true,
         items: [
           { ...available("Pipeline", "/crm/pipeline"), aliases: ["board", "kanban", "deals by stage"] },
-          {
-            ...available("Forecast", "/crm/forecast"),
-            parent: "pipeline",
-            requiredAnyPermission: ["crm.forecast.submit", "crm.forecast.review", "crm.forecast.manage"],
-          },
         ],
       },
       {
@@ -707,42 +696,34 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "overview",
         label: "Overview",
-        items: [available("Home", "/projects")],
+        items: [{ ...available("Overview", "/projects"), aliases: ["projects home", "project dashboard"] }],
+      },
+      {
+        id: "my-work",
+        label: "My Work",
+        items: [{ ...available("My Projects", "/projects/my"), aliases: ["my projects", "assigned projects", "projects i manage"] }],
       },
       {
         id: "projects",
         label: "Projects",
-        featureRange: "F193-F196",
-        items: [available("All Projects", "/projects/all")],
-      },
-      {
-        id: "planning",
-        label: "Planning",
-        featureRange: "F197-F203",
         items: [
-          available("Tasks", "/projects/tasks"),
-          available("Milestones", "/projects/milestones"),
-          available("Workspace (WBS, Gantt, Board)", "/projects/workspace"),
+          { ...available("All Projects", "/projects/all"), aliases: ["project list", "project directory", "new project", "import projects", "export projects"] },
+          { ...available("Active", "/projects/all?view=active"), aliases: ["active projects", "in progress projects", "planned projects"] },
+          { ...available("On Hold", "/projects/all?view=on_hold"), aliases: ["paused projects", "project hold"] },
+          { ...available("Completed", "/projects/all?view=completed"), aliases: ["completed projects", "delivered projects"] },
+          { ...available("Archived", "/projects/all?view=archived"), aliases: ["archived projects"] },
         ],
       },
       {
-        id: "team",
-        label: "Team",
-        items: [available("Project Team", "/projects/team")],
+        id: "reports",
+        label: "Reports",
+        items: [{ ...available("Project Reports", "/projects/reports"), aliases: ["project progress", "deadlines", "overdue projects", "projects by manager", "projects by customer"],
+          requiredPermission: "projects.reports.view" }],
       },
       {
-        id: "time",
-        label: "Time",
-        featureRange: "F209-F210",
-        items: [
-          available("Time Entries", "/projects/time"),
-          available("Timesheets", "/projects/timesheets"),
-        ],
-      },
-      {
-        id: "setup",
-        label: "Setup",
-        items: [available("Settings", "/projects/settings")],
+        id: "settings",
+        label: "Settings",
+        items: [{ ...available("Project Settings", "/projects/settings"), aliases: ["project types", "project roles", "project templates", "project approval"] }],
       },
     ],
   },

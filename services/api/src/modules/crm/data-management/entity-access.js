@@ -1,5 +1,5 @@
 // The one parent-record access check for record-attached content (Timeline,
-// Notes, governed attachments, custom-field values, tags, email lists): the
+// Notes, governed attachments): the
 // same owner rule and entity-type-specific
 // sensitive-content permission each record type's own detail view enforces.
 
@@ -12,7 +12,7 @@ import { contactCan, contactScopeSql } from "../contacts/access.js";
 import { CONTACT_PERMISSIONS } from "../contacts/constants.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact", "campaign"]);
+const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact"]);
 
 // Resolves whether the caller may see this record's related content at
 // all — the same owner scope + entity-type-specific sensitive
@@ -72,14 +72,7 @@ export async function resolveCrmEntityAccess(client, context, entityType, entity
     );
     return Boolean(result.rows[0]);
   }
-  // Campaigns carry no dedicated sensitive-content permission today (no
-  // personal/contact data of their own) — ordinary crm.view is the same bar
-  // every other non-sensitive CRM resource uses.
-  const result = await client.query(
-    `SELECT id FROM tenant.crm_campaigns WHERE organization_id=$1 AND id=$2 AND status <> 'cancelled' LIMIT 1`,
-    [context.organizationId, entityId],
-  );
-  return Boolean(result.rows[0]);
+  return false;
 }
 
 function add(values, value) { values.push(value); return `$${values.length}`; }

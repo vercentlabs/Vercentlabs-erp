@@ -8,8 +8,8 @@ export {
   accountCan, accountCapabilities, accountScopeSql, canViewAllAccounts, canViewSensitiveAccountContent, projectAccountForContext, requireAccountPermission,
 } from "./access.js";
 export {
-  ACCOUNT_VIEWS, accountReferences, archiveAccount, bulkSetAccountStatus, createAccount, deactivateAccount, deleteUnusedAccount, getAccount,
-  listAccounts, reactivateAccount, setAccountStatus, setAccountTags, updateAccount,
+  ACCOUNT_VIEWS, accountReferences, bulkSetAccountStatus, createAccount, deleteUnusedAccount, getAccount,
+  listAccounts, setAccountStatus, updateAccount,
 } from "./records.js";
 export { applyAccountAssignment, assignAccount, bulkAssignAccounts } from "./assignment.js";
 export { getAccountHierarchy, setAccountParent } from "./hierarchy.js";

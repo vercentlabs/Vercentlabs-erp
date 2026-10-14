@@ -12,7 +12,6 @@ export async function getContactOptions(client, context) {
   requireContactPermission(context, CONTACT_PERMISSIONS.view, "You do not have permission to view contacts.");
   const { users, teams } = await listLeadAssignmentOptions(client, context);
   const organizationId = [context.organizationId];
-  const tags = await client.query(`SELECT id, name, color FROM tenant.crm_tags WHERE organization_id = $1 AND status = 'active' ORDER BY name`, organizationId);
   const departments = await client.query(
     `SELECT DISTINCT department FROM tenant.contacts WHERE organization_id = $1 AND department IS NOT NULL AND btrim(department) <> '' ORDER BY department LIMIT 200`,
     organizationId,
@@ -29,7 +28,6 @@ export async function getContactOptions(client, context) {
     sources: await listLeadSources(client, context),
     users,
     teams,
-    tags: tags.rows,
     departments: departments.rows.map((row) => row.department),
     currentUserId: context.userId,
     capabilities: contactCapabilities(context),

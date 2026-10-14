@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Checkbox, ErrorState, MultiSelect, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Checkbox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
@@ -30,7 +30,7 @@ type FormValues = {
   email: string; secondaryEmail: string; phone: string; mobile: string; alternatePhone: string; preferredContactMethod: string;
   doNotEmail: boolean; doNotCall: boolean; doNotSms: boolean; marketingConsent: string;
   useAccountAddress: boolean; addressLine1: string; addressLine2: string; city: string; state: string; postalCode: string; countryCode: string;
-  sourceId: string; description: string; tagIds: string[]; accountId: string | null; makePrimary: boolean; ownerUserId: string; teamId: string;
+  sourceId: string; description: string; accountId: string | null; makePrimary: boolean; ownerUserId: string; teamId: string;
 };
 
 const EMPTY: FormValues = {
@@ -38,7 +38,7 @@ const EMPTY: FormValues = {
   email: "", secondaryEmail: "", phone: "", mobile: "", alternatePhone: "", preferredContactMethod: NONE,
   doNotEmail: false, doNotCall: false, doNotSms: false, marketingConsent: "unknown",
   useAccountAddress: true, addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", countryCode: "",
-  sourceId: NONE, description: "", tagIds: [], accountId: null, makePrimary: false, ownerUserId: AUTO, teamId: NONE,
+  sourceId: NONE, description: "", accountId: null, makePrimary: false, ownerUserId: AUTO, teamId: NONE,
 };
 
 function valuesFromContact(contact: Contact): FormValues {
@@ -51,7 +51,7 @@ function valuesFromContact(contact: Contact): FormValues {
     doNotEmail: contact.doNotEmail, doNotCall: contact.doNotCall, doNotSms: contact.doNotSms, marketingConsent: contact.marketingConsent,
     useAccountAddress: contact.useAccountAddress, addressLine1: contact.addressLine1 ?? "", addressLine2: contact.addressLine2 ?? "", city: contact.city ?? "",
     state: contact.state ?? "", postalCode: contact.postalCode ?? "", countryCode: contact.countryCode ?? "",
-    sourceId: contact.sourceId ?? NONE, description: contact.description ?? "", tagIds: contact.tags.map((tag) => tag.id),
+    sourceId: contact.sourceId ?? NONE, description: contact.description ?? "",
   };
 }
 
@@ -248,8 +248,6 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
       <FormSection title="Source and notes">
         <Select label="Source" selectedKey={values.sourceId} onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
           options={[{ value: NONE, label: "Not set" }, ...options.sources.filter((source) => source.isActive || source.id === values.sourceId).map((source) => ({ value: source.id, label: source.name }))]} />
-        <MultiSelect label="Tags" placeholder={options.tags.length ? "Choose tags" : "No tags have been set up"}
-          value={values.tagIds} onChange={set("tagIds")} options={options.tags.map((tag) => ({ value: tag.id, label: tag.name }))} />
         <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} />
       </FormSection>
 

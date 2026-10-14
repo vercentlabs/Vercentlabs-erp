@@ -28,7 +28,6 @@ export const TASK_REMINDER_OPTIONS: ReadonlyArray<{ minutes: number; label: stri
 export const TASK_VIEWS: ReadonlyArray<{ key: TaskViewKey; label: string }>;
 export const TASK_PERMISSIONS: Readonly<Record<keyof TaskCapabilities, string>>;
 export const TASK_NUMBER_DOCUMENT_TYPE: string;
-export const STORED_STATUS: Readonly<Record<TaskStatus, string>>;
 export const OPEN_STORED_STATUSES: ReadonlyArray<string>;
 
 export function taskCan(context: CrmContext, permission: string): boolean;
@@ -42,17 +41,14 @@ export function getTaskSummary(client: QueryClient, context: CrmContext): Promis
 export function getTaskOptions(client: QueryClient, context: CrmContext): Promise<Record<string, any>>;
 export function createTask(client: QueryClient, context: CrmContext, input?: Input): Promise<Task>;
 export function updateTask(client: QueryClient, context: CrmContext, taskId: string, input?: Input): Promise<Task>;
-export function rescheduleTask(client: QueryClient, context: CrmContext, taskId: string, input?: Input): Promise<Task>;
 export function deleteTask(client: QueryClient, context: CrmContext, taskId: string): Promise<{ deleted: boolean }>;
 
 export function assignTask(client: QueryClient, context: CrmContext, taskId: string, input?: Input, options?: { notify?: boolean }): Promise<{ changed: boolean }>;
-export function reassignTask(client: QueryClient, context: CrmContext, taskId: string, input?: Input, options?: { notify?: boolean }): Promise<{ changed: boolean }>;
 export function startTask(client: QueryClient, context: CrmContext, taskId: string, input?: Input): Promise<{ changed: boolean }>;
 export function completeTask(client: QueryClient, context: CrmContext, taskId: string, input?: Input): Promise<{ changed: boolean; followUpId: string | null }>;
 export function reopenTask(client: QueryClient, context: CrmContext, taskId: string, input?: Input): Promise<{ changed: boolean }>;
 export function cancelTask(client: QueryClient, context: CrmContext, taskId: string, input?: Input): Promise<{ changed: boolean }>;
 export function listTaskHistory(client: QueryClient, context: CrmContext, taskId: string): Promise<Array<{ id: string; eventType: string; summary: string; changes: Record<string, unknown>; createdAt: string; actorName: string | null }>>;
 export function bulkUpdateTasks(client: QueryClient, context: CrmContext, input?: Input): Promise<TaskBulkResult>;
-export function bulkAssignTasks(client: QueryClient, context: CrmContext, input?: Input): Promise<TaskBulkResult>;
 export function settleOpenTasks(client: QueryClient, context: CrmContext, entityType: string, entityId: string, options?: { action?: "keep" | "cancel"; reason?: string | null }): Promise<{ cancelled: number }>;
 export function exportTasks(client: QueryClient, context: CrmContext, filters?: Input): Promise<{ fileName: string; rowCount: number; csv: string }>;

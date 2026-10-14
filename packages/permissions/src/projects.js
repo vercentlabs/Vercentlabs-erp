@@ -17,4 +17,18 @@ export const PROJECT_PERMISSIONS = Object.freeze({
   reportsView: "projects.reports.view",
   settingsManage: "projects.settings.manage",
   auditView: "projects.audit.view",
+  // Projects MVP (0125): visibility beyond one's own projects, and one permission per lifecycle action.
+  viewAll: "projects.view_all",
+  edit: "projects.edit",
+  membersManage: "projects.members.manage",
+  linksManage: "projects.links.manage",
+  start: "projects.start",
+  hold: "projects.hold",
+  resume: "projects.resume",
+  complete: "projects.complete",
+  reopen: "projects.reopen",
+  cancel: "projects.cancel",
+  archive: "projects.archive",
+  financialView: "projects.financial_view",
+  export: "projects.export",
 });

@@ -7,7 +7,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 // assertCrmResourceMutationPermission and SELF_SCOPED_CRM_RESOURCES below) rather
 // than silently falling back to module-access-only, which was a real,
 // closed gap (ERP_COMPLETION_GAP_REGISTER.csv, SEC-CRM-001): any CRM
-// member with only crm.view could mutate any of the ~40 CRM_RESOURCE_KEYS
+// member with only crm.view could mutate any CRM_RESOURCE_KEYS
 // entries missing from this map, including ones with no UI at all, by
 // calling the generic endpoint directly. Extend this map, not each route
 // file individually, whenever a new generic-resource-backed screen ships
@@ -27,27 +27,6 @@ const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   // Teams and their members are managed with crm.teams.manage (Settings → Teams).
   "sales-teams": CRM_PERMISSIONS.teamsManage,
   "sales-team-members": CRM_PERMISSIONS.teamsManage,
-  tags: CRM_PERMISSIONS.settingsManage,
-  pipelines: CRM_PERMISSIONS.settingsManage,
-  // F002 AccountPlanPanel/stakeholder UI (not a redirect-governed resource
-  // like "stages", so without an entry here it would fall through to
-  // module-access-only).
-  "account-plans": CRM_PERMISSIONS.accountsEdit,
-  "account-stakeholders": CRM_PERMISSIONS.accountsEdit,
-  // F025 — forecast-periods is admin-configured; forecast-
-  // submissions is rep-authored (own Opportunity-derived numbers), so it
-  // reuses crm.opportunities.manage rather than crm.settings.manage —
-  // this resource already has ownerField scoping (see its own registry
-  // comment), so a plain manage permission plus that scoping is the
-  // correct floor for a rep submitting their own forecast.
-  // Period governance and submission are explicit forecast
-  // permissions (submissions are also governed by the forecast service's
-  // lifecycle and immutability rules).
-  "forecast-periods": CRM_PERMISSIONS.forecastManage,
-  "forecast-submissions": CRM_PERMISSIONS.forecastSubmit,
-  // Consent events: an immutable evidence log that outbound email checks
-  // before contacting someone; created only, never edited (record-policy.js).
-  "consent-events": CRM_PERMISSIONS.privacyManage,
 };
 
 export type CrmMutationPermissionResolution =

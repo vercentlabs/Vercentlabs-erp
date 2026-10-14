@@ -156,14 +156,6 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
-    key: "crm_automation",
-    displayName: "CRM automation alerts",
-    description: "Alerts sent to you by CRM automation rules.",
-    moduleKey: "crm",
-    defaultInAppEnabled: true,
-    userConfigurable: true,
-  },
-  {
     // Sent by Settings > Automations workflows triggered by CRM events.
     key: "crm_workflow",
     displayName: "Automations about CRM records",
@@ -189,6 +181,33 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     displayName: "Production holds",
     description: "When a manufacturing order you own or clear is put on hold, becomes ready to resume, resumes or stays on hold too long.",
     moduleKey: "manufacturing",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects: being added to a project or made its manager.
+    key: "project_assignment",
+    displayName: "Project assignments",
+    description: "When you are added to a project, made its Project Manager or handed over.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects: a project you are on starts, pauses, resumes, completes, is cancelled or reopened, or its dates change.
+    key: "project_update",
+    displayName: "Project updates",
+    description: "When a project you work on starts, is put on hold or resumed, is completed, cancelled or reopened, or its dates change.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects (worker, daily): an approaching or passed target date, or a project left without an active manager — each once.
+    key: "project_alert",
+    displayName: "Project alerts",
+    description: "When a project you manage is due soon or overdue, or a project you are on needs a new manager.",
+    moduleKey: "projects",
     defaultInAppEnabled: true,
     userConfigurable: true,
   },

@@ -26,11 +26,7 @@ export const ACCOUNT_SELECT = `
          follow_up.next_follow_up_at,
          pipeline.open_opportunities, pipeline.open_pipeline_value,
          (SELECT count(*) FROM tenant.crm_contact_account_relationships link JOIN tenant.contacts contact ON contact.organization_id = link.organization_id AND contact.id = link.contact_id
-           WHERE link.organization_id = account.organization_id AND link.party_id = account.id AND link.status = 'active' AND contact.status = 'active')::int AS contact_count,
-         COALESCE((SELECT jsonb_agg(jsonb_build_object('id', tag.id, 'name', tag.name, 'color', tag.color) ORDER BY tag.name)
-                     FROM tenant.crm_account_tags account_tag
-                     JOIN tenant.crm_tags tag ON tag.organization_id = account_tag.organization_id AND tag.id = account_tag.tag_id
-                    WHERE account_tag.organization_id = account.organization_id AND account_tag.party_id = account.id), '[]'::jsonb) AS tags
+           WHERE link.organization_id = account.organization_id AND link.party_id = account.id AND link.status = 'active' AND contact.status = 'active')::int AS contact_count
     FROM tenant.business_parties account
     LEFT JOIN public.users owner ON owner.id = account.owner_user_id
     LEFT JOIN public.users creator ON creator.id = account.created_by
@@ -69,7 +65,6 @@ export function toAccount(row) {
     annualRevenue: row.annual_revenue === null || row.annual_revenue === undefined ? null : Number(row.annual_revenue),
     currencyCode: row.currency_code?.trim() ?? null,
     description: row.description,
-    tags: row.tags ?? [],
     ownerUserId: row.owner_user_id,
     ownerName: row.owner_name ?? null,
     teamId: row.team_id,
@@ -198,8 +193,6 @@ export function buildAccountListWhere(context, filters = {}, values = []) {
     where.push(`${filters.hasOpenOpportunity === "no" ? "NOT " : ""}EXISTS (SELECT 1 FROM tenant.crm_opportunities o WHERE o.organization_id = account.organization_id AND o.party_id = account.id AND o.status = 'open')`);
   if (filters.isCustomer === "yes") where.push("(account.customer_number IS NOT NULL OR account.party_type IN ('customer', 'both'))");
   if (filters.isCustomer === "no") where.push("account.customer_number IS NULL AND account.party_type NOT IN ('customer', 'both')");
-  if (isUuid(filters.tagId))
-    where.push(`EXISTS (SELECT 1 FROM tenant.crm_account_tags t WHERE t.organization_id = account.organization_id AND t.party_id = account.id AND t.tag_id = ${bind(filters.tagId)})`);
   if (Array.isArray(filters.ids) && filters.ids.length) where.push(`account.id = ANY (${bind(filters.ids.filter(isUuid))}::uuid[])`);
 
   const search = String(filters.search ?? "").trim().toLowerCase();
@@ -239,17 +232,6 @@ export async function listAccounts(client, context, filters = {}) {
 
 // ------------------------------------------------------------------ create
 
-export async function setAccountTags(client, context, partyId, tagIds) {
-  const ids = [...new Set((Array.isArray(tagIds) ? tagIds : []).filter(isUuid))];
-  await client.query(`DELETE FROM tenant.crm_account_tags WHERE organization_id = $1 AND party_id = $2 AND NOT (tag_id = ANY ($3::uuid[]))`, [context.organizationId, partyId, ids]);
-  if (!ids.length) return;
-  await client.query(
-    `INSERT INTO tenant.crm_account_tags (organization_id, party_id, tag_id, created_by)
-     SELECT $1, $2, tag.id, $4 FROM tenant.crm_tags tag WHERE tag.organization_id = $1 AND tag.id = ANY ($3::uuid[]) AND tag.status = 'active'
-     ON CONFLICT DO NOTHING`,
-    [context.organizationId, partyId, ids, context.userId ?? null],
-  );
-}
 
 async function assertActiveSource(client, context, sourceId) {
   if (!sourceId) return;
@@ -266,8 +248,8 @@ async function assertActiveSource(client, context, sourceId) {
 //   onDuplicateCheck  receives what the duplicate check found (imports count possible duplicates)
 export async function createAccount(client, context, input = {}, { allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", historySummary = null } = {}) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.create, "You do not have permission to create accounts.");
-  // Owner, team and tags are set below through their own rules.
-  const { ownerUserId: _owner, teamId: _team, tagIds: _tags, duplicateReason: inputReason, ...accountFields } = input;
+  // Owner and team are set below through their own rules.
+  const { ownerUserId: _owner, teamId: _team, duplicateReason: inputReason, ...accountFields } = input;
   const normalized = normalizeAccountInput(accountFields);
   if (!normalized.accountType) normalized.accountType = "prospect";
   // A customer account comes into being through Create customer, which gives
@@ -303,7 +285,6 @@ export async function createAccount(client, context, input = {}, { allowDuplicat
     ...(duplicates.hasBlockingMatch ? { duplicateConfirmed: duplicates.matches.filter((match) => match.strength === "exact").map((match) => match.id) } : {}),
   });
   await applyAccountAssignment(client, context, account, { ownerUserId, teamId: input.teamId || null }, { reason: origin });
-  if (has(input, "tagIds")) await setAccountTags(client, context, account.id, input.tagIds);
   await queueOutboxEvent(client, context, "crm.accounts.created", "account", account.id, { accountId: account.id });
   return projectAccountForContext(context, toAccount(await loadAccountRow(client, context, account.id, { skipScope: true })));
 }
@@ -343,7 +324,6 @@ export async function updateAccount(client, context, partyId, input = {}, { allo
         Object.fromEntries(others.map((field) => [field, changes[field]])));
     await queueOutboxEvent(client, context, "crm.accounts.updated", "account", row.id, { accountId: row.id, changedFields: changed });
   }
-  if (has(input, "tagIds")) await setAccountTags(client, context, row.id, input.tagIds);
   return projectAccountForContext(context, toAccount(await loadAccountRow(client, context, row.id)));
 }
 
@@ -369,10 +349,6 @@ export async function setAccountStatus(client, context, partyId, status, { note 
   });
   return { changed: true };
 }
-
-export const deactivateAccount = (client, context, partyId, input = {}) => setAccountStatus(client, context, partyId, "inactive", input);
-export const reactivateAccount = (client, context, partyId, input = {}) => setAccountStatus(client, context, partyId, "active", input);
-export const archiveAccount = (client, context, partyId, input = {}) => setAccountStatus(client, context, partyId, "archived", input);
 
 // Each account succeeds or fails on its own.
 export async function runAccountBulkOperation(client, partyIds, operation) {
@@ -417,7 +393,7 @@ const REFERENCES = Object.freeze([
   ["vendor payments", "SELECT 1 FROM tenant.accounting_vendor_payments WHERE organization_id = $1 AND party_id = $2"],
   ["journal entries", "SELECT 1 FROM tenant.accounting_journal_lines WHERE organization_id = $1 AND party_id = $2"],
   ["POS sales", "SELECT 1 FROM tenant.pos_sales WHERE organization_id = $1 AND customer_id = $2"],
-  ["projects", "SELECT 1 FROM tenant.projects WHERE organization_id = $1 AND customer_id = $2"],
+  ["projects", "SELECT 1 FROM tenant.projects WHERE organization_id = $1 AND customer_id = $2 AND deleted_at IS NULL"],
   ["support tickets", "SELECT 1 FROM tenant.support_tickets WHERE organization_id = $1 AND customer_id = $2"],
 ]);
 

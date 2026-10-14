@@ -5,7 +5,7 @@ import { router, type Href } from "expo-router";
 
 import { mobileApi } from "@/core/api/client";
 import { AppHeader } from "@/shared/components/app-header";
-import { QueryState, StatusPill } from "@/shared/components/crm-states";
+import { QueryState, StatusPill } from "@/shared/components/query-states";
 import { Screen } from "@/shared/components/screen";
 import { useTheme } from "@/shared/theme/theme";
 

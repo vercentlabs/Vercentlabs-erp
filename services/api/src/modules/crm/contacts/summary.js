@@ -75,13 +75,13 @@ const RELATED = Object.freeze({
   // Projects have no contact of their own: those of the person's company.
   projects: {
     module: "projects",
-    sql: `SELECT project.id, project.project_number AS code, project.name AS title, project.status, project.percent_complete, project.planned_end_date AS date,
-                 manager.full_name AS owner_name
+    sql: `SELECT project.id, project.project_code AS code, COALESCE(project.name, 'Untitled draft') AS title, lower(project.status) AS status, NULL::numeric AS percent_complete,
+                 project.target_end_date AS date, manager.full_name AS owner_name
             FROM tenant.projects project
             JOIN tenant.contacts contact ON contact.organization_id = project.organization_id AND contact.id = $2
-            LEFT JOIN public.users manager ON manager.id = project.project_manager_id
-           WHERE project.organization_id = $1 AND project.customer_id = contact.party_id ORDER BY project.created_at DESC LIMIT 100`,
-    href: () => null,
+            LEFT JOIN public.users manager ON manager.id = project.manager_user_id
+           WHERE project.organization_id = $1 AND project.customer_id = contact.party_id AND project.deleted_at IS NULL ORDER BY project.created_at DESC LIMIT 100`,
+    href: (row) => `/projects/${row.id}`,
   },
   tickets: {
     module: "support",

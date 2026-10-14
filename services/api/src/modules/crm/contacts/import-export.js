@@ -240,7 +240,6 @@ const EXPORT_COLUMNS = Object.freeze([
   ["Source", (contact) => contact.sourceName],
   ["Owner", (contact) => contact.ownerName],
   ["Team", (contact) => contact.teamName],
-  ["Tags", (contact) => contact.tags.map((tag) => tag.name).join("; ")],
   ["Last Activity", (contact) => contact.lastActivityAt],
   ["Next Follow-up", (contact) => contact.nextFollowUpAt],
   ["Created At", (contact) => contact.createdAt],

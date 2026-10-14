@@ -22,7 +22,7 @@ export type Task = {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
-  relatedType: TaskRelatedType | "campaign" | null;
+  relatedType: TaskRelatedType | null;
   relatedId: string | null;
   relatedName: string | null;
   relatedCode: string | null;

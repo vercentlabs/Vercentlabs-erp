@@ -10,10 +10,10 @@ export {
   requireContactPermission,
 } from "./access.js";
 export {
-  CONTACT_VIEWS, archiveContact, bulkSetContactStatus, contactReferences, createContact, deactivateContact, deleteUnusedContact, getContact, listContacts,
-  reactivateContact, setContactStatus, setContactTags, updateContact,
+  CONTACT_VIEWS, bulkSetContactStatus, contactReferences, createContact, deleteUnusedContact, getContact, listContacts,
+  setContactStatus, updateContact,
 } from "./records.js";
-export { applyContactAssignment, assignContact, bulkAssignContacts, reassignContact } from "./assignment.js";
+export { applyContactAssignment, assignContact, bulkAssignContacts } from "./assignment.js";
 export {
   linkContactToAccount, listContactAccounts, setPrimaryAccount, unlinkContactFromAccount, updateContactRelationship,
 } from "./relationships.js";

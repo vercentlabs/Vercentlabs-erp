@@ -2,23 +2,18 @@ import { createLogger } from "@vercentlabs/observability";
 
 import { enqueueJob } from "./queue.js";
 import { withTenantClient, listActiveOrganizationIds } from "./db.js";
-import { JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE } from "./handlers/crm-automation-overdue.js";
 import { JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE } from "./handlers/crm-follow-up-reminder-dispatch.js";
-import { JOB_TYPE as CALENDAR_SYNC_JOB_TYPE } from "./handlers/crm-calendar-sync.js";
-import { JOB_TYPE as FORECAST_SNAPSHOT_JOB_TYPE } from "./handlers/crm-forecast-snapshot-capture.js";
+import { JOB_TYPE as TASK_OVERDUE_JOB_TYPE } from "./handlers/crm-task-overdue.js";
 import { JOB_TYPE as REORDER_RECONCILE_JOB_TYPE } from "./handlers/stock-reorder-reconcile.js";
 import { JOB_TYPE as LOW_STOCK_DISPATCH_JOB_TYPE } from "./handlers/stock-low-stock-dispatch.js";
 import { JOB_TYPE as HOLD_OVERDUE_JOB_TYPE } from "./handlers/manufacturing-hold-overdue.js";
+import { JOB_TYPE as PROJECT_ALERTS_JOB_TYPE } from "./handlers/projects-alerts.js";
 
 const logger = createLogger("worker-scheduler");
 
-// Scheduled sources: the activity.overdue detection tick, the
-// follow-up reminder dispatch, and the daily forecast snapshot (which uses a
-// calendar-date idempotency key, `snapshotDay` below, rather than `bucket`,
-// since it must fire once a day rather than once per tick). crm_automation_rules has no
-// schedule/cron/interval column, so there is deliberately no generic
-// per-rule scheduling DSL — these are one-off, system-level ticks on the
-// same fixed interval.
+// Scheduled sources: per-tick jobs (follow-up reminders, overdue tasks, low stock, overdue holds) keyed by `bucket`, and once-a-day jobs (reorder
+// reconciliation, project alerts) keyed by the calendar date, `snapshotDay` below. These are one-off, system-level ticks on the same fixed
+// interval.
 //
 // Duplicate-occurrence prevention across multiple scheduler instances
 // reuses the SAME mechanism as ordinary job idempotency —
@@ -39,21 +34,8 @@ export async function runSchedulerTick(pool, config) {
   let deduped = 0;
   for (const organizationId of organizationIds) {
     try {
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: OVERDUE_ACTIVITY_JOB_TYPE,
-          idempotencyKey: `overdue-tick:${bucket}`,
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("scheduler tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
       // F016: reminders need frequent (per-tick), not daily, checking —
-      // uses `bucket` like the other high-frequency ticks above, not
+      // uses `bucket` like the other high-frequency ticks, not
       // `snapshotDay`. claimDueReminders() itself only claims rows whose
       // fire_at has actually passed, so an idle tick is cheap and a no-op.
       const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
@@ -67,36 +49,6 @@ export async function runSchedulerTick(pool, config) {
       else enqueued += 1;
     } catch (error) {
       logger.error("follow-up reminder dispatch tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // F014 inbound calendar sync: per tick; the handler claims only
-      // connected accounts not synced in the last CALENDAR_SYNC_INTERVAL_MINUTES.
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: CALENDAR_SYNC_JOB_TYPE,
-          idempotencyKey: `calendar-sync-tick:${bucket}`,
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("calendar sync tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // F025 daily forecast snapshot (calendar-date key).
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: FORECAST_SNAPSHOT_JOB_TYPE,
-          idempotencyKey: `forecast-snapshot-tick:${snapshotDay}`,
-          payload: { date: snapshotDay },
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("forecast snapshot tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
     try {
       // Reorder Level daily reconciliation (calendar-date key): every rule's status recalculated from its sources.
@@ -128,6 +80,20 @@ export async function runSchedulerTick(pool, config) {
       logger.error("low-stock notification tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
     try {
+      // Overdue CRM tasks: per tick (each task's assignee is told once).
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, {
+          jobType: TASK_OVERDUE_JOB_TYPE,
+          idempotencyKey: `task-overdue-tick:${bucket}`,
+          maxAttempts: 3,
+        }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("overdue task tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
       // Production holds past the company's limit: per tick (each hold is told once).
       const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
         enqueueJob(client, organizationId, {
@@ -140,6 +106,21 @@ export async function runSchedulerTick(pool, config) {
       else enqueued += 1;
     } catch (error) {
       logger.error("production hold overdue tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // Project due-date and health alerts: once a day (calendar-date key; each alert is sent once anyway).
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, {
+          jobType: PROJECT_ALERTS_JOB_TYPE,
+          idempotencyKey: `project-alerts:${snapshotDay}`,
+          payload: { date: snapshotDay },
+          maxAttempts: 3,
+        }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("project alerts tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
   }
   logger.info("scheduler tick complete", { organizations: organizationIds.length, enqueued, deduped, bucket });

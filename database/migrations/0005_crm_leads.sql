@@ -2,11 +2,10 @@
 --
 --   1. Lead sources
 --   2. Leads
---   3. Lead tags
---   4. Lead history (audit trail)
---   5. Row-level security and grants
---   6. Links from other CRM tables to leads and lead sources
---   7. Permissions
+--   3. Lead history (audit trail)
+--   4. Row-level security and grants
+--   5. Links from other CRM tables to leads and lead sources
+--   6. Permissions
 -- Lead assignment (rules, history, settings) is defined in 0008_crm_lead_assignment.sql.
 --
 -- Run once, after the earlier files in this folder.
@@ -73,7 +72,6 @@ CREATE TABLE tenant.crm_leads (
   -- where from, and what they want
   source_id uuid,
   source_detail text,
-  campaign_id uuid,
   industry text,
   product_interest text,
   estimated_value numeric(18,2) DEFAULT 0 NOT NULL,
@@ -112,15 +110,12 @@ CREATE TABLE tenant.crm_leads (
 
   last_activity_at timestamp with time zone,
 
-  -- consent and privacy (maintained by CRM privacy requests)
+  -- consent and privacy
   consent_email boolean DEFAULT false NOT NULL,
   consent_sms boolean DEFAULT false NOT NULL,
   consent_whatsapp boolean DEFAULT false NOT NULL,
   do_not_contact boolean DEFAULT false NOT NULL,
   privacy_status text DEFAULT 'active' NOT NULL,
-  anonymized_at timestamp with time zone,
-  retention_until timestamp with time zone,
-  legal_hold boolean DEFAULT false NOT NULL,
   custom_data jsonb DEFAULT '{}'::jsonb NOT NULL,
 
   archived_at timestamp with time zone,
@@ -159,7 +154,6 @@ CREATE UNIQUE INDEX crm_leads_organization_id_id_uidx ON tenant.crm_leads (organ
 
 ALTER TABLE tenant.crm_leads
   ADD CONSTRAINT crm_leads_source_id_organization_fkey FOREIGN KEY (organization_id, source_id) REFERENCES tenant.crm_lead_sources(organization_id, id) ON DELETE SET NULL (source_id),
-  ADD CONSTRAINT crm_leads_campaign_id_organization_fkey FOREIGN KEY (organization_id, campaign_id) REFERENCES tenant.crm_campaigns(organization_id, id) ON DELETE SET NULL (campaign_id),
   ADD CONSTRAINT crm_leads_team_id_organization_fkey FOREIGN KEY (organization_id, team_id) REFERENCES tenant.crm_sales_teams(organization_id, id) ON DELETE SET NULL (team_id),
   ADD CONSTRAINT crm_leads_converted_party_id_organization_fkey FOREIGN KEY (organization_id, converted_party_id) REFERENCES tenant.business_parties(organization_id, id) ON DELETE SET NULL (converted_party_id),
   ADD CONSTRAINT crm_leads_converted_contact_id_organization_fkey FOREIGN KEY (organization_id, converted_contact_id) REFERENCES tenant.contacts(organization_id, id) ON DELETE SET NULL (converted_contact_id),
@@ -180,21 +174,7 @@ CREATE INDEX crm_leads_search_idx ON tenant.crm_leads USING gin (
   lower(COALESCE(code, '') || ' ' || COALESCE(full_name, '') || ' ' || COALESCE(company_name, '') || ' ' || COALESCE(email, '') || ' ' || COALESCE(mobile, '') || ' ' || COALESCE(phone, '')) public.gin_trgm_ops);
 CREATE TRIGGER touch_updated_at BEFORE UPDATE ON tenant.crm_leads FOR EACH ROW EXECUTE FUNCTION tenant.touch_updated_at();
 
--- ============================================================ 3. lead tags
-
-CREATE TABLE tenant.crm_lead_tags (
-  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  lead_id uuid NOT NULL,
-  tag_id uuid NOT NULL,
-  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  CONSTRAINT crm_lead_tags_pkey PRIMARY KEY (organization_id, lead_id, tag_id),
-  CONSTRAINT crm_lead_tags_lead_id_organization_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE CASCADE,
-  CONSTRAINT crm_lead_tags_tag_id_organization_fkey FOREIGN KEY (organization_id, tag_id) REFERENCES tenant.crm_tags(organization_id, id) ON DELETE CASCADE
-);
-CREATE INDEX crm_lead_tags_tag_idx ON tenant.crm_lead_tags (organization_id, tag_id);
-
--- ============================================================ 4. lead history
+-- ============================================================ 3. lead history
 -- The audit trail: one append-only row per important change. The application
 -- roles can only read and add rows (see the grants below).
 
@@ -212,7 +192,7 @@ CREATE TABLE tenant.crm_lead_history (
 );
 CREATE INDEX crm_lead_history_lead_idx ON tenant.crm_lead_history (organization_id, lead_id, created_at DESC);
 
--- ============================================================ 5. row-level security and grants
+-- ============================================================ 4. row-level security and grants
 -- Every lead table is isolated by organization.
 
 ALTER TABLE tenant.crm_lead_sources ENABLE ROW LEVEL SECURITY;
@@ -223,10 +203,6 @@ ALTER TABLE tenant.crm_leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant.crm_leads FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON tenant.crm_leads USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
 
-ALTER TABLE tenant.crm_lead_tags ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tenant.crm_lead_tags FORCE ROW LEVEL SECURITY;
-CREATE POLICY organization_isolation ON tenant.crm_lead_tags USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
-
 ALTER TABLE tenant.crm_lead_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant.crm_lead_history FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON tenant.crm_lead_history USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
@@ -234,10 +210,9 @@ CREATE POLICY organization_isolation ON tenant.crm_lead_history USING (organizat
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tenant.crm_lead_sources TO vercent_app, vercent_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tenant.crm_leads TO vercent_app, vercent_worker;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tenant.crm_lead_tags TO vercent_app, vercent_worker;
 GRANT SELECT, INSERT ON TABLE tenant.crm_lead_history TO vercent_app, vercent_worker;
 
--- ============================================================ 6. links from other CRM tables
+-- ============================================================ 5. links from other CRM tables
 -- These tables hold a lead_id or a lead source_id; the links are declared here
 -- because the lead tables are created in this file.
 
@@ -246,26 +221,8 @@ ALTER TABLE tenant.crm_opportunities
   ADD CONSTRAINT crm_opportunities_source_id_organization_fkey FOREIGN KEY (organization_id, source_id) REFERENCES tenant.crm_lead_sources(organization_id, id) ON DELETE SET NULL (source_id);
 ALTER TABLE tenant.crm_capture_forms
   ADD CONSTRAINT crm_capture_forms_source_id_organization_fkey FOREIGN KEY (organization_id, source_id) REFERENCES tenant.crm_lead_sources(organization_id, id) ON DELETE SET NULL (source_id);
-ALTER TABLE tenant.crm_communications
-  ADD CONSTRAINT crm_communications_lead_id_organization_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE SET NULL (lead_id);
-ALTER TABLE tenant.crm_email_threads
-  ADD CONSTRAINT crm_email_threads_organization_id_lead_id_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE SET NULL (lead_id);
-ALTER TABLE tenant.crm_calendar_events
-  ADD CONSTRAINT crm_calendar_events_organization_id_lead_id_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE SET NULL (lead_id);
-ALTER TABLE tenant.crm_partner_deals
-  ADD CONSTRAINT crm_partner_deals_organization_id_lead_id_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE SET NULL (lead_id);
-ALTER TABLE tenant.crm_campaign_members
-  ADD CONSTRAINT crm_campaign_members_lead_id_organization_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE CASCADE;
-ALTER TABLE tenant.crm_consent_events
-  ADD CONSTRAINT crm_consent_events_lead_id_organization_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE CASCADE;
-ALTER TABLE tenant.crm_conversations
-  ADD CONSTRAINT crm_conversations_organization_id_lead_id_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE CASCADE;
-ALTER TABLE tenant.crm_playbook_responses
-  ADD CONSTRAINT crm_playbook_responses_lead_id_organization_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE CASCADE;
-ALTER TABLE tenant.crm_sequence_enrollments
-  ADD CONSTRAINT crm_sequence_enrollments_lead_id_organization_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE CASCADE;
 
--- ============================================================ 7. permissions
+-- ============================================================ 6. permissions
 -- One permission per lead action. Which roles hold them is decided by the
 -- role templates (packages/permissions/src/roles.js) when an organization is
 -- created.

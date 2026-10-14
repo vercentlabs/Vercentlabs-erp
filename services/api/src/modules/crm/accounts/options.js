@@ -1,5 +1,5 @@
 // Everything the account screens need to render their pickers, in one read:
-// the fixed vocabulary, the organization's sources, people, teams, tags,
+// the fixed vocabulary, the organization's sources, people, teams,
 // industries, payment terms and currencies, and what the caller may do.
 import { listLeadAssignmentOptions } from "../leads/assignment.js";
 import { listLeadSources } from "../leads/sources.js";
@@ -14,7 +14,6 @@ export async function getAccountOptions(client, context) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view accounts.");
   const { users, teams } = await listLeadAssignmentOptions(client, context);
   const organizationId = [context.organizationId];
-  const tags = await client.query(`SELECT id, name, color FROM tenant.crm_tags WHERE organization_id = $1 AND status = 'active' ORDER BY name`, organizationId);
   const currencies = await client.query(`SELECT code, is_base FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`, organizationId);
   const industries = await client.query(
     `SELECT DISTINCT industry FROM tenant.business_parties WHERE organization_id = $1 AND industry IS NOT NULL AND btrim(industry) <> '' ORDER BY industry LIMIT 200`,
@@ -33,7 +32,6 @@ export async function getAccountOptions(client, context) {
     sources: await listLeadSources(client, context),
     users,
     teams,
-    tags: tags.rows,
     industries: industries.rows.map((row) => row.industry),
     paymentTerms: paymentTerms.rows.map((row) => ({ id: row.id, code: row.code, name: row.name, dueDays: row.default_due_days })),
     currencies: currencies.rows.map((row) => String(row.code).trim()),

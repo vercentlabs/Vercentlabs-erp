@@ -40,22 +40,17 @@ import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";
 import { recordScope } from "../../data-management/record-policy.js";
 import { resources } from "../../data-management/resource-registry.js";
 import { CrmError } from "../../data-management/errors.js";
-import { canViewSensitiveLeadContent } from "../../leads/access.js";
-import { canViewSensitiveAccountContent } from "../../accounts/access.js";
-import { canViewSensitiveContactContent } from "../../contacts/access.js";
-import { communicationVisibilitySql, projectCrmCommunications } from "../../data-management/communication-access.js";
 
 // Re-exported for existing importers; the implementation lives in the
 // record kernel next to the other CRM access rules.
 export { resolveCrmEntityAccess };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SOURCE_KINDS = new Set(["activity", "communication", "note", "attachment", "stage", "history"]);
+const SOURCE_KINDS = new Set(["activity", "note", "attachment", "stage", "history"]);
 // Kinds getCrmTimelinePageBySource can serve as full-row single-kind lists;
 // the audit-event kinds (stage, history) exist only in the merged feed's
 // narrow envelope.
-const SINGLE_SOURCE_KINDS = new Set(["activity", "communication", "note", "attachment"]);
-const COMMUNICATION_COLUMN = { lead: "lead_id", opportunity: "opportunity_id", party: "party_id", contact: "contact_id", campaign: null };
+const SINGLE_SOURCE_KINDS = new Set(["activity", "note", "attachment"]);
 
 
 function camelize(key) { return key.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase()); }
@@ -73,30 +68,24 @@ function entityMatchSql(entityType, entityIdParam, typeColumn, idColumn, { typeP
 }
 
 // The ONE place each source kind's visibility predicate is written — a
-// private Note/communication is invisible to anyone but its author or an
+// private Note is invisible to anyone but its author or an
 // organization-wide view-all override. Both the merged-feed envelope
 // builder (buildBranch, below) and the full-row single-kind builder
 // (buildSourceQuery, used by getCrmTimelinePageBySource) call this same
 // function, so there is exactly one authorization implementation per kind
 // even though there are two different SELECT-list shapes (a narrow shared
 // envelope for the heterogeneous merged feed vs. the natural full row for
-// a single-kind list, which callers like Lead's dedicated Activities-only/
-// Communications-only tabs still need every column of).
+// a single-kind list, which callers like Lead's dedicated Activities-only
+// tab still need every column of).
 function visibilityPredicate(kind, context, values) {
   if (kind === "note") {
     const userIdParam = add(values, context.userId);
     const viewAllParam = add(values, canOverridePrivateCrmContent(context));
-    // ::boolean is required, not cosmetic — see data-management/communication-access.js's
-    // communicationVisibilitySql for the full explanation: without it,
-    // Postgres cannot infer this bare `OR $N` placeholder's type and
+    // ::boolean is required, not cosmetic: without it, Postgres cannot
+    // infer this bare `OR $N` placeholder's type and
     // rejects the whole UNION query with "could not determine data type
     // of parameter $N".
     return `(visibility<>'private' OR created_by=${userIdParam} OR ${viewAllParam}::boolean)`;
-  }
-  if (kind === "communication") {
-    // Reuses the SAME canonical audience fragment (team/private/
-    // participant) every other communication read path uses.
-    return communicationVisibilitySql(context, values, "communication");
   }
   return null;
 }
@@ -114,17 +103,6 @@ function buildBranch(kind, entityType, entityId, context, values) {
     // exactly as in the Activities list — recordScope.
     return `SELECT activity.id,'activity'::text AS kind,activity.activity_type AS subtype,activity.subject AS title,COALESCE(activity.completed_at,activity.due_at,activity.created_at) AS occurred_at,activity.status,activity.assigned_to AS actor_user_id,activity.created_by
        FROM tenant.crm_activities activity WHERE activity.organization_id=$1 AND ${entityMatchSql(entityType, entityIdParam, "activity.entity_type", "activity.entity_id")}${recordScope(resources.activities, context, values, "activity")}`;
-  }
-  if (kind === "communication") {
-    const communicationColumn = COMMUNICATION_COLUMN[entityType];
-    if (!communicationColumn) return null;
-    const entityIdParam = add(values, entityId);
-    // A private communication (migration 104) must stay
-    // invisible to anyone but its sender or an organization-wide view-all
-    // override, even inside the unified feed.
-    return `SELECT id,'communication'::text AS kind,channel AS subtype,subject AS title,occurred_at,status,NULL::uuid AS actor_user_id,created_by
-         FROM tenant.crm_communications AS communication WHERE organization_id=$1 AND ${communicationColumn}=${entityIdParam}
-           AND ${visibilityPredicate("communication", context, values)}`;
   }
   if (kind === "note") {
     const entityIdParam = add(values, entityId);
@@ -213,7 +191,7 @@ function buildUnionParts(context, entityType, entityId, wantedKinds, values) {
 
 // Full-row (SELECT *, every column) query for exactly ONE source kind —
 // unlike buildBranch's narrow envelope, this is what a dedicated single-
-// kind list (e.g. Lead's Activities-only or Communications-only tab)
+// kind list (e.g. Lead's Activities-only tab)
 // actually renders (assignee name, description, direction, provider,
 // body, due date, etc.), so no column present before this migration is
 // dropped. Reuses visibilityPredicate — the SAME authorization fragment
@@ -224,14 +202,6 @@ function buildSourceQuery(kind, entityType, entityId, context, values) {
     return `SELECT a.*,u.full_name AS assigned_name, COALESCE(a.completed_at,a.due_at,a.created_at) AS occurred_at
        FROM tenant.crm_activities a LEFT JOIN public.users u ON u.id=a.assigned_to
        WHERE a.organization_id=$1 AND a.entity_type='${entityType}' AND a.entity_id=${entityIdParam}${recordScope(resources.activities, context, values, "a")}`;
-  }
-  if (kind === "communication") {
-    const communicationColumn = COMMUNICATION_COLUMN[entityType];
-    if (!communicationColumn) return null;
-    const entityIdParam = add(values, entityId);
-    return `SELECT communication.* FROM tenant.crm_communications AS communication
-       WHERE organization_id=$1 AND ${communicationColumn}=${entityIdParam}
-         AND ${visibilityPredicate("communication", context, values)}`;
   }
   if (kind === "note") {
     const entityIdParam = add(values, entityId);
@@ -291,7 +261,7 @@ export async function getCrmTimelinePage(client, context, entityType, entityId, 
   return { rows, hasMore, nextCursor };
 }
 
-// Lead's dedicated Activities-only/Communications-only list tabs (distinct
+// Lead's dedicated Activities-only list tab (distinct
 // from the unified Timeline above): an OFFSET-paginated, single-kind
 // contract (`{source, offset, limit} -> {rows, hasMore}` with full,
 // un-narrowed rows), backed by the SAME resolveCrmEntityAccess gate and the SAME visibilityPredicate the unified

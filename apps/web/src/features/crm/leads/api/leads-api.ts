@@ -22,7 +22,6 @@ export type LeadViewKey = "all" | "mine" | "unassigned" | "no_activity" | "new" 
 export type LeadQualificationStatus = "not_started" | "in_progress" | "qualified" | "disqualified";
 export type LeadQualificationRequirements = Record<"need" | "budget" | "authority" | "timeline", boolean>;
 
-export type LeadTag = { id: string; name: string; color: string };
 
 export type Lead = {
   id: string;
@@ -50,7 +49,6 @@ export type Lead = {
   priority: "low" | "medium" | "high";
   rating: "cold" | "warm" | "hot";
   description: string | null;
-  tags: LeadTag[];
   ownerUserId: string | null;
   ownerName: string | null;
   teamId: string | null;
@@ -140,7 +138,6 @@ export type LeadOptions = {
   sources: LeadSource[];
   users: Array<{ id: string; name: string; email: string }>;
   teams: LeadTeamOption[];
-  tags: LeadTag[];
   currencies: string[];
   baseCurrency: string;
   currentUserId: string;
@@ -161,7 +158,6 @@ export type LeadListFilters = {
   ownerId?: string;
   teamId?: string;
   sourceId?: string;
-  tagId?: string;
   createdFrom?: string;
   createdTo?: string;
   qualificationStatus?: string;

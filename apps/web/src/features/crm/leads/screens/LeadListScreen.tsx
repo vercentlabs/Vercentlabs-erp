@@ -39,7 +39,6 @@ const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boo
   { id: "teamName", label: "Team", hiddenByDefault: true },
   { id: "assignedAt", label: "Assigned", hiddenByDefault: true },
   { id: "contact", label: "Contact", hiddenByDefault: true },
-  { id: "tags", label: "Tags", hiddenByDefault: true },
   { id: "createdAt", label: "Created" },
 ];
 
@@ -209,7 +208,6 @@ export function LeadListScreen() {
         </span>
       ),
     },
-    { id: "tags", header: "Tags", enableSorting: false, cell: ({ row }) => row.original.tags.map((tag) => tag.name).join(", ") },
     { id: "createdAt", accessorKey: "createdAt", header: "Created", cell: ({ row }) => formatDate(row.original.createdAt) },
   ], [options?.baseCurrency]);
 

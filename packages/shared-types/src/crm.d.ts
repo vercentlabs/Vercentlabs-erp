@@ -2,45 +2,12 @@ export const CRM_RESOURCE_KEYS: readonly [
   "leads",
   "opportunities",
   "activities",
-  "campaigns",
-  "communications",
-  "pipelines",
   "stages",
   "sources",
   "lost-reasons",
-  "tags",
-  "sequences",
-  "sequence-steps",
-  "sequence-enrollments",
-  "automation-rules",
   "capture-forms",
-  "competitors",
-  "forecast-targets",
-  "integrations",
   "sales-teams",
   "sales-team-members",
-  "forecast-periods",
-  "forecast-submissions",
-  "account-plans",
-  "account-stakeholders",
-  "consent-events",
-  "data-quality-scores",
-  "engagement-templates",
-  "sync-accounts",
-  "conversations",
-  "conversation-insights",
-  "pipeline-inspections",
-  "deal-risks",
-  "recommendations",
-  "buying-committees",
-  "buying-committee-members",
-  "relationship-edges",
-  "account-signals",
-  "partner-accounts",
-  "partner-deals",
-  "field-visits",
-  "ai-predictions",
-  "ai-feedback",
 ];
 export type CrmResourceKey = (typeof CRM_RESOURCE_KEYS)[number];
 export const CRM_LEAD_STATUSES: readonly string[];
@@ -56,7 +23,6 @@ export type CrmListRequest = {
   stageId?: string;
   pipelineId?: string;
   sourceId?: string;
-  campaignId?: string;
   activityType?: "task" | "call" | "meeting" | "email" | "whatsapp" | "sms" | "note" | "all";
   priority?: "low" | "medium" | "high" | "urgent" | "all";
   rating?: "cold" | "warm" | "hot" | "all";
@@ -64,7 +30,6 @@ export type CrmListRequest = {
   qualification?: "not_reviewed" | "qualified" | "unqualified" | "all";
   due?: "today" | "overdue" | "upcoming" | "all";
   opportunityId?: string;
-  committeeId?: string;
   limit?: number;
   offset?: number;
 };

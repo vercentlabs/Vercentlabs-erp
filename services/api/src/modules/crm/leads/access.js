@@ -55,10 +55,6 @@ export function projectLeadForContext(context, record) {
   return projected;
 }
 
-export function firstSensitiveLeadInputField(input = {}) {
-  return Object.keys(input || {}).find((key) => SENSITIVE_LEAD_FIELDS.includes(key));
-}
-
 // What the caller may do with leads, for the UI to hide what would be refused.
 export function leadCapabilities(context) {
   return Object.fromEntries(Object.entries(LEAD_PERMISSIONS).map(([name, permission]) => [name, leadCan(context, permission)]));

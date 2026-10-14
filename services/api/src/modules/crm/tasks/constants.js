@@ -9,7 +9,6 @@ export const TASK_STATUSES = Object.freeze([
   { code: "completed", label: "Completed" },
   { code: "cancelled", label: "Cancelled" },
 ]);
-export const STORED_STATUS = Object.freeze({ open: "planned", in_progress: "in_progress", completed: "completed", cancelled: "cancelled" });
 // The stored values that mean "still to do". 'overdue' is a value older rows may still carry.
 export const OPEN_STORED_STATUSES = Object.freeze(["planned", "in_progress", "overdue"]);
 

@@ -38,11 +38,7 @@ export const CRM_RESOURCE_VIEW_ALL_PERMISSIONS = Object.freeze({
 //   crm.customers.view_all — every CUSTOMER Account (party_type customer /
 //     both, not prospects), its Contacts, and the Activities logged on them
 //     (Customer Success);
-//   crm.partners.manage — Leads/Opportunities registered as partner deals
-//     (crm_partner_deals), the Activities logged on those Opportunities,
-//     and the Accounts behind partners and those deals (Partner Manager).
 export const CRM_CUSTOMERS_VIEW_ALL = "crm.customers.view_all";
-export const CRM_PARTNER_RELATIONSHIP_PERMISSION = "crm.partners.manage";
 
 function holds(context, key) {
   return Boolean(context.permissions?.includes(key));
@@ -55,25 +51,6 @@ function holds(context, key) {
 // crm.settings.manage (CRM Administrator, Sales Operations, System Admin).
 export function canOverridePrivateCrmContent(context) {
   return Boolean(context.roleSlugs?.includes("organization_owner")) || (canViewAllCrmRecords(context) && holds(context, "crm.settings.manage"));
-}
-
-// Writing a note or file on a record is changing that record's dossier, so
-// seeing a record (e.g. Auditor / Read-only organization-wide read) is never
-// enough: the caller must manage that kind of record, or log CRM work
-// (crm.activities.manage).
-const CONTENT_WRITE_PERMISSION = Object.freeze({
-  lead: "crm.leads.edit",
-  opportunity: "crm.opportunities.manage",
-  party: "crm.accounts.edit",
-  contact: "crm.accounts.edit",
-  campaign: "crm.campaigns.manage",
-});
-
-export function assertCanWriteCrmRecordContent(context, entityType) {
-  if (context.roleSlugs?.includes("organization_owner")) return;
-  const key = CONTENT_WRITE_PERMISSION[entityType];
-  if ((key && holds(context, key)) || holds(context, "crm.activities.manage")) return;
-  throw new CrmError(403, "You do not have permission to add or change notes and files on this record.", "CRM_RECORD_CONTENT_WRITE_FORBIDDEN");
 }
 
 export function canViewAllCrmResource(context, resource) {
@@ -89,15 +66,6 @@ const CUSTOMER_PARTY_TYPES = "('customer','both')";
 export function relationshipGrantSql(context, resource, alias, organizationExpr) {
   if (!alias) return [];
   const grants = [];
-  if (holds(context, CRM_PARTNER_RELATIONSHIP_PERMISSION) && (resource === "leads" || resource === "opportunities")) {
-    const column = resource === "leads" ? "lead_id" : "opportunity_id";
-    grants.push(`EXISTS (SELECT 1 FROM tenant.crm_partner_deals partner_deal WHERE partner_deal.organization_id=${organizationExpr} AND partner_deal.${column}=${alias}.id)`);
-  }
-  // Parent-record rule: an Activity logged directly on a partner-registered
-  // Opportunity is visible exactly when that Opportunity is (never others).
-  if (holds(context, CRM_PARTNER_RELATIONSHIP_PERMISSION) && resource === "activities") {
-    grants.push(`(${alias}.entity_type='opportunity' AND EXISTS (SELECT 1 FROM tenant.crm_partner_deals partner_deal WHERE partner_deal.organization_id=${organizationExpr} AND partner_deal.opportunity_id=${alias}.entity_id))`);
-  }
   if (holds(context, CRM_CUSTOMERS_VIEW_ALL) && resource === "activities") {
     grants.push(`((${alias}.entity_type='party' AND EXISTS (SELECT 1 FROM tenant.business_parties customer_party WHERE customer_party.organization_id=${organizationExpr} AND customer_party.id=${alias}.entity_id AND customer_party.party_type IN ${CUSTOMER_PARTY_TYPES}))
       OR (${alias}.entity_type='contact' AND EXISTS (SELECT 1 FROM tenant.contacts customer_contact JOIN tenant.business_parties customer_party ON customer_party.organization_id=customer_contact.organization_id AND customer_party.id=customer_contact.party_id WHERE customer_contact.organization_id=${organizationExpr} AND customer_contact.id=${alias}.entity_id AND customer_party.party_type IN ${CUSTOMER_PARTY_TYPES})))`);
@@ -156,13 +124,6 @@ export async function managedTeamMemberIds(client, context) {
   return new Set(rows.map((row) => String(row.user_id)));
 }
 
-export async function canAccessOwnedRecord(client, context, ownerUserId, { includeUnassigned = true, resource = null } = {}) {
-  if (canViewAllCrmResource(context, resource)) return true;
-  if (!ownerUserId) return includeUnassigned;
-  if (String(ownerUserId) === String(context.userId)) return true;
-  return (await managedTeamMemberIds(client, context)).has(String(ownerUserId));
-}
-
 // Who may a record be given to? view-all callers: anyone (the user must
 // still be an eligible member — checked by the existing validators);
 // others: themselves, or an active member of a team they manage. Keeps a
@@ -186,11 +147,6 @@ export function crmAccountAccessSql(context, bind, accountAlias) {
   const organization = `${accountAlias}.organization_id`;
   const grants = [];
   if (holds(context, CRM_CUSTOMERS_VIEW_ALL)) grants.push(`${accountAlias}.party_type IN ${CUSTOMER_PARTY_TYPES}`);
-  if (holds(context, CRM_PARTNER_RELATIONSHIP_PERMISSION))
-    grants.push(
-      `EXISTS (SELECT 1 FROM tenant.crm_partner_accounts partner_account WHERE partner_account.organization_id=${organization} AND partner_account.party_id=${accountAlias}.id)`,
-      `EXISTS (SELECT 1 FROM tenant.crm_partner_deals partner_deal JOIN tenant.crm_opportunities partner_opportunity ON partner_opportunity.organization_id=partner_deal.organization_id AND partner_opportunity.id=partner_deal.opportunity_id WHERE partner_deal.organization_id=${organization} AND partner_opportunity.party_id=${accountAlias}.id)`,
-    );
   return ` AND (${accountAlias}.owner_user_id IS NULL OR ${accountAlias}.owner_user_id = ${me}
     OR ${managedTeamMemberSql(bind, context, `${accountAlias}.owner_user_id`, organization, me)}
     OR EXISTS (SELECT 1 FROM tenant.crm_opportunities account_opportunity

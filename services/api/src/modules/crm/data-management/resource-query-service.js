@@ -3,7 +3,7 @@ import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { taskOverdueSql } from "./activity-query-rules.js";
 import { CrmError } from "./errors.js";
 import { projectCrmRecord, projectCrmRecords, recordScope } from "./record-policy.js";
-import { definitionFor, resources } from "./resource-registry.js";
+import { definitionFor } from "./resource-registry.js";
 import { addParameter, camelizeRow, limitValue, managedTeamMembersSql } from "./record-utils.js";
 
 
@@ -99,36 +99,10 @@ export function buildFilters(
     ["stageId", "stage_id"],
     ["pipelineId", "pipeline_id"],
     ["sourceId", "source_id"],
-    ["campaignId", "campaign_id"],
     // sales-team-members are parent-scoped (a membership belongs to exactly
     // one team); listing them without this filter would return every
     // team's members, a real cross-team data exposure.
     ["teamId", "team_id"],
-    // F002 — same reasoning for account-plans/
-    // account-stakeholders/communications: each row belongs to exactly one
-    // Account (party_id) or, for stakeholders, one account plan
-    // (account_plan_id). Without these keys an Account 360's plan/
-    // stakeholder/communications panel would have to list the whole
-    // organization's rows and filter client-side, which is both wasteful
-    // and a real cross-account data exposure over the wire.
-    ["partyId", "party_id"],
-    ["accountPlanId", "account_plan_id"],
-    // F003 — same reasoning for communications scoped
-    // to a Contact rather than an Account (tenant.crm_communications has
-    // both party_id and contact_id columns).
-    ["contactId", "contact_id"],
-    // consent-events belongs to
-    // exactly one Lead/Contact/Account; the Lead Detail consent panel
-    // filters to just its own Lead's events by this key.
-    ["leadId", "lead_id"],
-    // Communications by channel (email, whatsapp, sms, call_log) and direction. Applied only when the resource
-    // actually has that column (the includes() guard below), so no other resource is affected.
-    ["channel", "channel"],
-    ["direction", "direction"],
-    // F025 — forecast-submissions belongs to exactly
-    // one forecast period; without this, a period's submission list
-    // would return every period's rows across the organization.
-    ["periodId", "period_id"],
   ]) {
     if (filters[key] && Object.values(definition.fields).includes(column))
       sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;
@@ -180,26 +154,8 @@ export function buildFilters(
       sql +=
         " AND record.due_at >= now() AND record.status NOT IN ('completed', 'cancelled')";
   }
-  // Generic Opportunity-scoped listing (deal-risks, buying-committees, ...):
-  // any resource whose fields map declares an opportunityId column can be
-  // filtered down to one Opportunity's child rows, rather than every caller
-  // having to know the underlying column name.
-  if (definition.fields.opportunityId && filters.opportunityId) {
-    const opportunityId = String(filters.opportunityId);
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(opportunityId))
-      sql += ` AND ${alias}.${definition.fields.opportunityId} = ${addParameter(parameters, opportunityId)}`;
-    else sql += " AND false";
-  }
-  if (definition.fields.committeeId && filters.committeeId) {
-    const committeeId = String(filters.committeeId);
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(committeeId))
-      sql += ` AND ${alias}.${definition.fields.committeeId} = ${addParameter(parameters, committeeId)}`;
-    else sql += " AND false";
-  }
   return sql;
 }
-
-
 
 export async function listSalesStageResourceRecords(client, context, filters = {}) {
   const parameters = [context.organizationId];

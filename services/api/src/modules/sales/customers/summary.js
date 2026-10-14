@@ -197,10 +197,10 @@ const RELATED = Object.freeze({
   },
   projects: {
     needs: "projects",
-    sql: `SELECT project.id, project.project_number AS code, project.name AS title, project.status, project.planned_end_date AS date, manager.full_name AS detail
-            FROM tenant.projects project LEFT JOIN public.users manager ON manager.id = project.project_manager_id
-           WHERE project.organization_id = $1 AND project.customer_id = $2 ORDER BY project.created_at DESC LIMIT 200`,
-    href: () => null,
+    sql: `SELECT project.id, project.project_code AS code, COALESCE(project.name, 'Untitled draft') AS title, lower(project.status) AS status, project.target_end_date AS date, manager.full_name AS detail
+            FROM tenant.projects project LEFT JOIN public.users manager ON manager.id = project.manager_user_id
+           WHERE project.organization_id = $1 AND project.customer_id = $2 AND project.deleted_at IS NULL ORDER BY project.created_at DESC LIMIT 200`,
+    href: (row) => `/projects/${row.id}`,
   },
   support: {
     needs: "support",

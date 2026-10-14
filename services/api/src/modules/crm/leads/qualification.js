@@ -21,7 +21,7 @@ import { recordLeadHistory } from "./history.js";
 import { DEFAULT_QUALIFICATION_REQUIREMENTS, evaluateLeadQualification, leadQualificationStatus } from "./qualification-criteria.js";
 import { listLeadQualificationEvents, recordLeadQualificationEvent } from "./qualification-history.js";
 import { createNotification } from "../../../core/platform/notifications/index.js";
-import { getLead, lockLead, readLeadRow, runLeadBulkOperation } from "./records.js";
+import { lockLead, readLeadRow, runLeadBulkOperation } from "./records.js";
 import { QUALIFICATION_STAGE, applyLeadStage, requireStageChangePermission } from "./stages.js";
 
 const REASONS = LEAD_DISQUALIFICATION_REASONS.map((entry) => entry.code);
@@ -218,11 +218,6 @@ export async function updateQualification(client, context, leadId, input = {}) {
 }
 export const saveLeadQualification = updateQualification;
 
-// Cold, warm or hot: the salesperson's own judgement, independent of status.
-export async function rateLead(client, context, leadId, input = {}) {
-  return updateQualification(client, context, leadId, { rating: input.rating });
-}
-
 // ------------------------------------------------------------------ decisions
 
 // input: the answers to save with the decision, plus
@@ -339,9 +334,4 @@ export async function reopenLead(client, context, leadId, input = {}) {
 
 export async function bulkDisqualifyLeads(client, context, input = {}) {
   return runLeadBulkOperation(client, input.leadIds, (leadId) => disqualifyLead(client, context, leadId, input));
-}
-
-export async function listLeadQualificationHistory(client, context, leadId) {
-  const lead = await getLead(client, context, leadId);
-  return listLeadQualificationEvents(client, context, lead.id);
 }

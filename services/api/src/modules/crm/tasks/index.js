@@ -8,8 +8,8 @@
 // completing a task can schedule the next follow-up.
 export * from "./constants.js";
 export { canViewAllTasks, taskCan, taskCapabilities, taskScopeSql } from "./access.js";
-export { createTask, deleteTask, getTask, getTaskOptions, getTaskSummary, listTasks, rescheduleTask, updateTask } from "./records.js";
+export { createTask, deleteTask, getTask, getTaskOptions, getTaskSummary, listTasks, updateTask } from "./records.js";
 export {
-  assignTask, bulkAssignTasks, bulkUpdateTasks, cancelTask, completeTask, listTaskHistory, reassignTask, reopenTask, settleOpenTasks, startTask,
+  assignTask, bulkUpdateTasks, cancelTask, completeTask, listTaskHistory, reopenTask, settleOpenTasks, startTask,
 } from "./lifecycle.js";
 export { exportTasks } from "./export.js";

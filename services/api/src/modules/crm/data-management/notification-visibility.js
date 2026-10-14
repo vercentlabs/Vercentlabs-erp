@@ -23,10 +23,7 @@ const TARGET_KINDS = Object.freeze({
   opportunities: { resource: "opportunities" },
   "follow-ups": { resource: "activities" },
   tasks: { resource: "activities" },
-  meetings: { resource: "activities" },
-  calls: { resource: "activities" },
   activities: { resource: "activities" },
-  campaigns: { resource: "campaigns" },
   accounts: { kind: "account" },
   contacts: { kind: "contact" },
 });

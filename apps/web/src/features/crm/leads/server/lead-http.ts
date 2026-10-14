@@ -48,7 +48,7 @@ export function csvResponse(csv: string, fileName: string) {
 }
 
 const FILTER_KEYS = [
-  "view", "search", "status", "stage", "priority", "rating", "ownerId", "teamId", "sourceId", "tagId",
+  "view", "search", "status", "stage", "priority", "rating", "ownerId", "teamId", "sourceId",
   "createdFrom", "createdTo", "qualificationStatus", "disqualificationReason", "stale", "stageEnteredFrom", "stageEnteredTo", "countryCode", "state", "city", "productInterest", "olderThanDays", "assignedFrom", "assignedTo", "sortBy", "sortDirection",
 ] as const;
 

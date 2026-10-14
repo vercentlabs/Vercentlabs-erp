@@ -6,19 +6,13 @@ import { Pressable, Text, View } from "react-native";
 import { mobileApi } from "@/core/api/client";
 import { useAuth } from "@/core/auth/auth-provider";
 import { AppHeader } from "@/shared/components/app-header";
-import { QueryState } from "@/shared/components/crm-states";
+import { QueryState } from "@/shared/components/query-states";
 import { ResourceCatalog } from "@/shared/components/resource-catalog";
 import { Screen } from "@/shared/components/screen";
 import { WorkspacePage } from "@/shared/components/workspace-page";
 import { useTheme } from "@/shared/theme/theme";
 
 const catalogCopy = {
-  "crm-settings": {
-    eyebrow: "CRM administration",
-    title: "Configure the customer lifecycle",
-    description:
-      "Govern stages, engagement, intelligence, partner selling, analytics, privacy, data quality and integrations.",
-  },
   "master-data": {
     eyebrow: "Business data foundation",
     title: "Govern the records every ERP module shares",
@@ -38,8 +32,7 @@ export default function WorkspaceAreaScreen() {
   const area = rawArea || "";
   const auth = useAuth();
   const { colors, radii, spacing, type } = useTheme();
-  const isCatalog =
-    area === "crm-settings" || area === "master-data" || area === "settings";
+  const isCatalog = area === "master-data" || area === "settings";
   const catalog = useQuery({
     queryKey: ["mobile-catalog"],
     queryFn: () => mobileApi.catalog(),
@@ -50,11 +43,9 @@ export default function WorkspaceAreaScreen() {
 
   const copy = catalogCopy[area];
   const definitions =
-    area === "crm-settings"
-      ? catalog.data?.catalog.crm
-      : area === "master-data"
-        ? catalog.data?.catalog.masterData
-        : catalog.data?.catalog.settings;
+    area === "master-data"
+      ? catalog.data?.catalog.masterData
+      : catalog.data?.catalog.settings;
 
   return (
     <Screen>
@@ -63,28 +54,6 @@ export default function WorkspaceAreaScreen() {
         title={copy.title}
         description={copy.description}
       />
-      {area === "crm-settings" ? (
-        <Pressable
-          onPress={() => router.push("/(protected)/workspace/crm")}
-          style={{
-            minHeight: 48,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: spacing.xs,
-            marginBottom: spacing.xl,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: radii.sm,
-            backgroundColor: colors.surface,
-          }}
-        >
-          <Ionicons name="arrow-back" size={18} color={colors.textSecondary} />
-          <Text style={{ ...type.label, color: colors.textSecondary }}>
-            CRM overview
-          </Text>
-        </Pressable>
-      ) : null}
       {area === "master-data" ? (
         <View
           style={{
@@ -206,7 +175,7 @@ export default function WorkspaceAreaScreen() {
       />
       {definitions?.length ? (
         <ResourceCatalog
-          area={area === "crm-settings" ? "crm" : area}
+          area={area}
           definitions={definitions}
         />
       ) : null}

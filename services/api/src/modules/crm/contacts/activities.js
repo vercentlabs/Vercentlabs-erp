@@ -6,12 +6,11 @@
 import { scheduleFollowUp } from "../follow-ups/records.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireContactPermission } from "./access.js";
-import { CONTACT_ACTIVITY_TYPES, CONTACT_FOLLOW_UP_TYPES, CONTACT_PERMISSIONS } from "./constants.js";
+import { CONTACT_ACTIVITY_TYPES, CONTACT_PERMISSIONS } from "./constants.js";
 import { getContact, lockContact } from "./records.js";
 import { requireUuid } from "./validation.js";
 
 const ACTIVITY_TYPES = new Map(CONTACT_ACTIVITY_TYPES.map((entry) => [entry.code, entry.label]));
-const FOLLOW_UP_CHANNEL = Object.freeze({ call: "call", email: "email", meeting: "meeting", task: "other", other: "other" });
 const text = (value) => String(value ?? "").trim();
 const nameOf = (contact) => contact.display_name || `${contact.first_name} ${contact.last_name ?? ""}`.trim();
 

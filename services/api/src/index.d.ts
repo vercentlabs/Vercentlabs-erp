@@ -172,11 +172,6 @@ export function seedBusinessDataFoundation(
 ): Promise<void>;
 export * from "@vercentlabs/reporting-engine";
 export * from "./modules/crm/index.js";
-export * from "./compat/crm-root-legacy.js";
-// Named so the boundary declarations win over the legacy per-file
-// declarations reachable through the compatibility barrel.
-export {
-} from "./modules/crm/index.js";
 export * from "./core/payment-terms/index.js";
 export * from "./modules/sales/index.js";
 
@@ -257,7 +252,7 @@ export * from "./modules/manufacturing/variance/index.js";
 export * from "./modules/manufacturing/costing/index.js";
 export * from "./modules/manufacturing/consumption/index.js";
 export * from "./modules/manufacturing/production/index.js";
-export * from "./modules/projects/desk.js";
+export * from "./modules/projects/index.js";
 export * from "./modules/assets/desk.js";
 export * from "./modules/point-of-sale/index.js";
 export { qualityContext } from "./modules/quality/common.js";

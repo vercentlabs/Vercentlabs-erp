@@ -7,20 +7,20 @@ export {
   LEAD_VIEWS, archiveLead, bulkChangeLeadStage, changeLeadStage, createLead, getLead, listLeads, restoreLead, updateLead,
 } from "./records.js";
 export {
-  assertEligibleLeadAssignee, assignLead, assignLeadToSelf, assignLeadToTeam, bulkAssignLeads, countUserActiveLeads, getLeadAssignmentWorkload,
-  listLeadAssignmentHistory, listLeadAssignmentOptions, reassignLead, transferUserLeads, unassignLead,
+  assertEligibleLeadAssignee, assignLead, assignLeadToSelf, bulkAssignLeads, countUserActiveLeads, getLeadAssignmentWorkload,
+  listLeadAssignmentHistory, listLeadAssignmentOptions, transferUserLeads, unassignLead,
 } from "./assignment.js";
 export {
   deleteLeadAssignmentRule, evaluateLeadAssignment, getLeadAssignmentSettings, listLeadAssignmentRules, reorderLeadAssignmentRules,
   runLeadAssignmentRules, saveLeadAssignmentRule, saveLeadAssignmentSettings, setLeadAssignmentRuleActive,
 } from "./assignment-rules.js";
 export {
-  bulkDisqualifyLeads, disqualifyLead, getLeadQualification, getLeadQualificationSettings, listLeadQualificationHistory, overrideQualification, qualifyLead,
-  rateLead, reopenLead, saveLeadQualification, saveLeadQualificationSettings, startQualification, updateQualification,
+  bulkDisqualifyLeads, disqualifyLead, getLeadQualification, getLeadQualificationSettings, overrideQualification, qualifyLead,
+  reopenLead, saveLeadQualification, saveLeadQualificationSettings, startQualification, updateQualification,
 } from "./qualification.js";
 export { DEFAULT_QUALIFICATION_REQUIREMENTS, QUALIFICATION_CRITERIA, evaluateLeadQualification } from "./qualification-criteria.js";
 export {
-  NEW_STAGE, QUALIFICATION_STAGE, createLeadStage, ensureDefaultLeadStages, listLeadStages, reorderLeadStages, updateLeadStage,
+  QUALIFICATION_STAGE, createLeadStage, ensureDefaultLeadStages, listLeadStages, reorderLeadStages, updateLeadStage,
 } from "./stages.js";
 export { listLeadStageHistory } from "./stage-history.js";
 export { findLeadDuplicates } from "./duplicates.js";

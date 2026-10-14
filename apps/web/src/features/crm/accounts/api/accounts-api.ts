@@ -15,7 +15,6 @@ export type AccountStatus = "active" | "inactive" | "archived";
 export type AccountViewKey = "all" | "mine" | "team" | "prospects" | "customers" | "active" | "inactive" | "recently_created" | "recently_updated" | "archived";
 export type AccountRelatedList = "leads" | "opportunities" | "quotations" | "orders" | "returns" | "invoices" | "payments" | "projects" | "tickets";
 
-export type AccountTag = { id: string; name: string; color: string };
 
 export type Account = {
   id: string;
@@ -34,7 +33,6 @@ export type Account = {
   annualRevenue: number | null;
   currencyCode: string | null;
   description: string | null;
-  tags: AccountTag[];
   ownerUserId: string | null;
   ownerName: string | null;
   teamId: string | null;
@@ -83,7 +81,6 @@ export type AccountOptions = {
   sources: Array<{ id: string; code: string; name: string; isActive: boolean }>;
   users: Array<{ id: string; name: string; email: string }>;
   teams: Array<{ id: string; name: string }>;
-  tags: AccountTag[];
   industries: string[];
   paymentTerms: Array<{ id: string; code: string; name: string; dueDays: number }>;
   currencies: string[];
@@ -109,7 +106,6 @@ export type AccountListFilters = {
   lastActivityBefore?: string;
   hasOpenOpportunity?: string;
   isCustomer?: string;
-  tagId?: string;
   sortBy?: string;
   sortDirection?: "asc" | "desc";
   limit?: number;

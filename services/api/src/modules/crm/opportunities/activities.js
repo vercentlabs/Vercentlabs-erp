@@ -8,12 +8,10 @@
 import { scheduleFollowUp } from "../follow-ups/records.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireOpportunityPermission } from "./access.js";
-import { OPPORTUNITY_ACTIVITY_TYPES, OPPORTUNITY_FOLLOW_UP_TYPES, OPPORTUNITY_PERMISSIONS } from "./constants.js";
+import { OPPORTUNITY_ACTIVITY_TYPES, OPPORTUNITY_PERMISSIONS } from "./constants.js";
 import { getOpportunity, isUuid, lockOpportunity, requireAccountContact } from "./records.js";
 
 const TYPES = new Map(OPPORTUNITY_ACTIVITY_TYPES.map((entry) => [entry.code, entry]));
-// The follow-up record stores its type as a channel; "task" has no channel.
-const FOLLOW_UP_CHANNEL = Object.freeze({ call: "call", email: "email", meeting: "meeting", task: "other", other: "other" });
 const text = (value) => String(value ?? "").trim();
 
 // Everything scheduled or logged on the deal, newest first. Loading the

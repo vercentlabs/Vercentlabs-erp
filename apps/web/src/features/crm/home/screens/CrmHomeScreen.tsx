@@ -105,7 +105,7 @@ function HomeBody({ home }: { home: CrmHome }) {
             caption={`${home.outcomes.wonThisMonth} ${home.outcomes.wonThisMonth === 1 ? "deal" : "deals"}${home.outcomes.winRate !== null ? ` · ${home.outcomes.winRate}% win rate` : ""}`} />
         )}
         {dueToday !== null && (
-          <Kpi icon={<Clock />} tone={overdue ? "danger" : "warning"} label="Due today" value={dueToday} href={home.sees.tasks ? "/crm/tasks?view=due_today" : "/crm/follow-ups?view=due_today"}
+          <Kpi icon={<Clock />} tone={overdue ? "danger" : "warning"} label="Due today" value={dueToday} href={home.sees.tasks ? "/crm/activities?tab=tasks&view=due_today" : "/crm/activities?tab=follow-ups&view=due_today"}
             caption={overdue ? `${overdue} overdue` : "Nothing overdue"} captionTone={overdue ? "danger" : undefined} />
         )}
       </section>
@@ -186,7 +186,7 @@ function TodayPanel({ home }: { home: CrmHome }) {
   ].filter(Boolean).join(" · ");
   return (
     <Panel title="Today" description={`${counts} due today, plus anything overdue`}
-      action={<div className="flex gap-3">{home.sees.tasks && <PanelLink href="/crm/tasks">Tasks</PanelLink>}{home.sees.followUps && <PanelLink href="/crm/follow-ups">Follow-ups</PanelLink>}</div>}>
+      action={<div className="flex gap-3">{home.sees.tasks && <PanelLink href="/crm/activities?tab=tasks">Tasks</PanelLink>}{home.sees.followUps && <PanelLink href="/crm/activities?tab=follow-ups">Follow-ups</PanelLink>}</div>}>
       {home.agenda.length === 0 ? (
         <Empty icon={<CheckCircle2 />} title="You're all caught up" description="Nothing overdue and nothing due today." />
       ) : (

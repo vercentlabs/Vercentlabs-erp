@@ -86,15 +86,11 @@ export const CRM_PERMISSIONS = Object.freeze({
   tasksDelete: "crm.tasks.delete",
   tasksAssign: "crm.tasks.assign",
   tasksReassign: "crm.tasks.reassign",
-  campaignsManage: "crm.campaigns.manage",
-  communicationsManage: "crm.communications.manage",
-  automationManage: "crm.automation.manage",
   captureManage: "crm.capture.manage",
   import: "crm.import",
   export: "crm.export",
   reportsView: "crm.reports.view",
   settingsManage: "crm.settings.manage",
-  revenueManage: "crm.revenue.manage",
   contactsView: "crm.contacts.view",
   contactsViewAll: "crm.contacts.view_all",
   contactsViewSensitive: "crm.contacts.view_sensitive",
@@ -120,21 +116,10 @@ export const CRM_PERMISSIONS = Object.freeze({
   accountsImport: "crm.accounts.import",
   accountsExport: "crm.accounts.export",
   accountsCreateCustomer: "crm.accounts.create_customer",
-  privacyManage: "crm.privacy.manage",
-  dataQualityManage: "crm.data-quality.manage",
-  integrationsManage: "crm.integrations.manage",
-  aiManage: "crm.ai.manage",
-  analyticsManage: "crm.analytics.manage",
-  partnersManage: "crm.partners.manage",
-  fieldSalesManage: "crm.field-sales.manage",
   // F020 sales organisation and coverage: seeing coverage, shaping teams,
   // shaping the territory structure and moving record ownership are
   // separate authorities.
   teamsManage: "crm.teams.manage",
-  // F025 forecast: submit your own, review/adjust your team's, govern periods.
-  forecastSubmit: "crm.forecast.submit",
-  forecastReview: "crm.forecast.review",
-  forecastManage: "crm.forecast.manage",
   // F030 scheduled report delivery.
   reportsSchedule: "crm.reports.schedule",
 });

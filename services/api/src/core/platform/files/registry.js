@@ -7,7 +7,6 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "crm.opportunity": { moduleKey: "crm", purposes: ["attachment"] },
   "crm.party": { moduleKey: "crm", purposes: ["attachment"] },
   "crm.contact": { moduleKey: "crm", purposes: ["attachment"] },
-  "crm.campaign": { moduleKey: "crm", purposes: ["attachment"] },
   "support.ticket": { moduleKey: "support", purposes: ["attachment", "inbound_mail"] },
   // Shared by every module that uses the catalogue; the product module checks access.
   "products.item": { moduleKey: null, purposes: ["attachment"] },
@@ -41,6 +40,8 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "manufacturing.quality_inspection": { moduleKey: "manufacturing", purposes: ["attachment"] },
   // Evidence on a production hold: incident reports, photos, supplier confirmations, clearance records.
   "manufacturing.production_hold": { moduleKey: "manufacturing", purposes: ["attachment"] },
+  // Project documents: requirements, scope of work, customer approvals, drawings, references and delivery evidence.
+  "projects.project": { moduleKey: "projects", purposes: ["attachment"] },
   "stock.opening_stock": { moduleKey: "stock", purposes: ["attachment"] },
   "stock.goods_issue": { moduleKey: "stock", purposes: ["attachment"] },
   "stock.inventory_adjustment": { moduleKey: "stock", purposes: ["attachment"] },

@@ -6,12 +6,3 @@ export { previewLeadConversion } from "./preview.js";
 export { convertLead } from "./convert.js";
 export { getLeadConversionMetrics } from "./metrics.js";
 
-import { readConversionByLead, toConversion } from "./records.js";
-import { getLead } from "../leads/records.js";
-
-// The conversion record of a converted lead the caller can see, or null.
-export async function getLeadConversion(client, context, leadId) {
-  const lead = await getLead(client, context, leadId);
-  const row = await readConversionByLead(client, context, lead.id);
-  return row ? toConversion(row) : null;
-}

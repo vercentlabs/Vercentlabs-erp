@@ -16,6 +16,3 @@ export {
 export { exportFollowUps } from "./export.js";
 
 import { scheduleFollowUp } from "./records.js";
-// After an outcome, the next contact on the same record: scheduleFollowUp with
-// the record of the follow-up just completed (see completeFollowUp's nextFollowUp).
-export const scheduleNextFollowUp = scheduleFollowUp;

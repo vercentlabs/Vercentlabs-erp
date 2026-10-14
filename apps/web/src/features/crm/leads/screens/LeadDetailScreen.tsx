@@ -211,7 +211,6 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                   { label: "Estimated deal value", value: lead.estimatedValue ? formatMoney(currency, lead.estimatedValue) : null },
                   { label: "Purchase timeframe", value: options.purchaseTimeframes.find((entry) => entry.code === lead.purchaseTimeframe)?.label },
                   { label: "Rating", value: <RatingBadge rating={lead.rating} /> },
-                  { label: "Tags", value: lead.tags.length ? <span className="flex flex-wrap gap-1">{lead.tags.map((tag) => <Badge key={tag.id}>{tag.name}</Badge>)}</span> : null },
                   { label: "Product / service interest", value: lead.productInterest, wide: true },
                   { label: "Description", value: lead.description ? <span className="whitespace-pre-wrap">{lead.description}</span> : null, wide: true },
                 ]}

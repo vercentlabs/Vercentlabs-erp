@@ -25,7 +25,6 @@ export type OpportunityBulkResult = { results: Array<{ opportunityId: string; ok
 export const OPPORTUNITY_STATUSES: ReadonlyArray<CodeLabel<OpportunityStatus>>;
 export const OPPORTUNITY_PRIORITIES: ReadonlyArray<CodeLabel<OpportunityPriority>>;
 export const OPPORTUNITY_CONTACT_ROLES: ReadonlyArray<CodeLabel>;
-export const DEFAULT_LOST_REASONS: ReadonlyArray<{ code: string; name: string; requiresNotes?: boolean; asksCompetitor?: boolean }>;
 export const OPPORTUNITY_ACTIVITY_TYPES: ReadonlyArray<CodeLabel & { activityType: string }>;
 export const OPPORTUNITY_FOLLOW_UP_TYPES: ReadonlyArray<string>;
 export const OPPORTUNITY_PERMISSIONS: Readonly<Record<
@@ -84,15 +83,9 @@ export type OpportunityCloseEvent = {
   reopenedAt: string | null; reopenedByName: string | null; reopenReason: string | null; reopenedToStageName: string | null;
 };
 export function listOpportunityCloseHistory(client: QueryClient, context: CrmContext, opportunityId: string): Promise<OpportunityCloseEvent[]>;
-// For callers that hold only a target stage (offline sync, the board): routes to change stage, reopen, mark won or mark lost.
-export function moveOpportunityStage(
-  client: QueryClient, context: CrmContext, opportunityId: string, stageId: string, note?: string | null,
-  expectations?: { expectedUpdatedAt?: string; expectedStageId?: string | null; outcomeReasonId?: string | null; outcomeNotes?: string | null },
-): Promise<any>;
 
 // ---- ownership
 export function assignOpportunity(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input, options?: { notify?: boolean }): Promise<{ changed: boolean }>;
-export function reassignOpportunity(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input, options?: { notify?: boolean }): Promise<{ changed: boolean }>;
 export function bulkAssignOpportunities(client: QueryClient, context: CrmContext, input?: Input): Promise<OpportunityBulkResult>;
 export function listOpportunityAssignmentHistory(client: QueryClient, context: CrmContext, opportunityId: string): Promise<any[]>;
 

@@ -1,7 +1,4 @@
-import { canViewSensitiveLeadContent } from "../leads/access.js";
 import { CrmError } from "./errors.js";
-import { LEAD_LINKED_GENERIC_RESOURCES } from "./record-policy.js";
-import { getCrmRecord } from "./resource-query-service.js";
 
 
 
@@ -73,11 +70,6 @@ export function assertRecordExpectedVersion(
 export const GENERIC_VERSIONED_RESOURCES = {
   "sales-teams": { entityLabel: "Sales team", codePrefix: "CRM_SALES_TEAM" },
   "sales-team-members": { entityLabel: "Team membership", codePrefix: "CRM_TEAM_MEMBERSHIP" },
-  "account-plans": { entityLabel: "Account plan", codePrefix: "CRM_ACCOUNT_PLAN" },
-  "account-stakeholders": { entityLabel: "Account stakeholder", codePrefix: "CRM_ACCOUNT_STAKEHOLDER" },
-  "forecast-periods": { entityLabel: "Forecast period", codePrefix: "CRM_FORECAST_PERIOD" },
-  "forecast-submissions": { entityLabel: "Forecast submission", codePrefix: "CRM_FORECAST_SUBMISSION" },
-  pipelines: { entityLabel: "Pipeline", codePrefix: "CRM_PIPELINE" },
 };
 
 
@@ -117,12 +109,6 @@ export function normalizeStorageInput(resource, input) {
   ) {
     prepared.comparisonValue = JSON.stringify(prepared.comparisonValue);
   }
-  if (
-    LEAD_LINKED_GENERIC_RESOURCES.has(resource) &&
-    Object.prototype.hasOwnProperty.call(prepared, "entityType")
-  ) {
-    prepared.entityType = String(prepared.entityType || "").trim().toLowerCase();
-  }
   // field_keys is a real Postgres text[] column, but the generic admin form
   // only has scalar inputs — accept a comma-separated string from the UI
   // (an actual array from a direct API caller passes through untouched).
@@ -134,23 +120,6 @@ export function normalizeStorageInput(resource, input) {
       .split(",")
       .map((key) => key.trim())
       .filter(Boolean);
-  }
-  // objectives/risks/whiteSpace/successPlan are jsonb columns. The generic
-  // create/update paths bind every field's value as a plain query parameter
-  // with no ::jsonb cast (see createCrmRecord/updateCrmRecord), so an
-  // actual JS array/object sent from a real API caller (or AccountPlanPanel,
-  // once it's fixed to send one) would be handed to `pg` as-is — which
-  // serializes an array using Postgres's ARRAY wire format, not JSON, and
-  // fails to cast into a jsonb column. Every other write in this codebase
-  // that targets a jsonb column JSON.stringify()s first; this resource
-  // never got that treatment because crm_account_plans had zero rows
-  // anywhere until F002's Customer 360 seed data first populated one.
-  if (resource === "account-plans") {
-    for (const field of ["objectives", "risks", "whiteSpace", "successPlan"]) {
-      if (Object.prototype.hasOwnProperty.call(prepared, field) && typeof prepared[field] === "object" && prepared[field] !== null) {
-        prepared[field] = JSON.stringify(prepared[field]);
-      }
-    }
   }
   return prepared;
 }
@@ -213,38 +182,6 @@ export async function validateOrganizationUserReferences(
 
 
 
-// A Lead-linked generic record (consent evidence, data-quality scores,
-// enrichment jobs, AI predictions/feedback) may only reference a Lead or
-// prediction the caller can open: the reference is loaded through the same
-// scoped read as the record itself (404 when out of scope).
-export async function assertGenericLeadLinkedTarget(client, context, resource, effective) {
-  if (resource === "consent-events" && effective?.leadId) {
-    if (!canViewSensitiveLeadContent(context))
-      throw new CrmError(
-        403,
-        "You do not have permission to access Lead consent evidence.",
-        "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
-      );
-    await getCrmRecord(client, context, "leads", effective.leadId);
-    return;
-  }
-  if (LEAD_LINKED_GENERIC_RESOURCES.has(resource)) {
-    if (String(effective?.entityType || "").toLowerCase() !== "lead") return;
-    if (!canViewSensitiveLeadContent(context))
-      throw new CrmError(
-        403,
-        "You do not have permission to access Lead-linked CRM intelligence.",
-        "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
-      );
-    const leadId = String(effective?.entityId || "").trim();
-    if (!leadId)
-      throw new CrmError(400, "A Lead reference is required.", "CRM_LEAD_REFERENCE_REQUIRED");
-    await getCrmRecord(client, context, "leads", leadId);
-    return;
-  }
-  if (resource === "ai-feedback" && effective?.predictionId)
-    await getCrmRecord(client, context, "ai-predictions", effective.predictionId);
-}
 
 
 

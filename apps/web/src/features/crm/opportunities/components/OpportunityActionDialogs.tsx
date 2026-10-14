@@ -9,7 +9,7 @@ import { Button, Checkbox, Dialog, Select, TextArea } from "@vercentlabs/design-
 
 
 import {
-  assignOpportunity, bulkOpportunityAction, changeOpportunityStage, errorMessage, type Opportunity, type OpportunityBulkResult, type OpportunityOptions,
+  assignOpportunity, bulkOpportunityAction, errorMessage, type Opportunity, type OpportunityBulkResult, type OpportunityOptions,
 } from "../api/opportunities-api";
 import { ErrorBanner } from "../opportunity-format";
 
@@ -106,11 +106,4 @@ export function ChangeStageDialog({ isOpen, onOpenChange, options, opportunityId
       </div>
     </Dialog>
   );
-}
-
-// Winning needs the date it closed and the final value. The estimate is kept
-// beside it, so the two can be compared later.
-// A single stage move from the opportunity page.
-export async function moveStage(opportunity: Opportunity, stageId: string) {
-  return changeOpportunityStage(opportunity.id, { stageId, expectedUpdatedAt: opportunity.updatedAt });
 }

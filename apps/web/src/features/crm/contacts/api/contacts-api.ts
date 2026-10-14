@@ -14,7 +14,6 @@ export type ContactStatus = "active" | "inactive" | "archived";
 export type ContactViewKey = "all" | "mine" | "team" | "active" | "inactive" | "decision_makers" | "without_company" | "recently_created" | "recently_updated" | "archived";
 export type ContactRelatedList = "opportunities" | "quotations" | "orders" | "projects" | "tickets";
 
-export type ContactTag = { id: string; name: string; color: string };
 
 export type Contact = {
   id: string;
@@ -54,7 +53,6 @@ export type Contact = {
   sourceId: string | null;
   sourceName: string | null;
   description: string | null;
-  tags: ContactTag[];
   ownerUserId: string | null;
   ownerName: string | null;
   teamId: string | null;
@@ -91,7 +89,6 @@ export type ContactOptions = {
   sources: Array<{ id: string; code: string; name: string; isActive: boolean }>;
   users: Array<{ id: string; name: string; email: string }>;
   teams: Array<{ id: string; name: string }>;
-  tags: ContactTag[];
   departments: string[];
   currentUserId: string;
   capabilities: ContactCapabilities;
@@ -114,7 +111,6 @@ export type ContactListFilters = {
   lastActivityBefore?: string;
   isDecisionMaker?: string;
   isPrimary?: string;
-  tagId?: string;
   sortBy?: string;
   sortDirection?: "asc" | "desc";
   limit?: number;

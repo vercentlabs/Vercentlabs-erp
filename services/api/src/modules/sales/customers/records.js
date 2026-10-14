@@ -409,7 +409,7 @@ const TRANSACTIONS = Object.freeze([
   ["supplier bills", "SELECT 1 FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND party_id = $2"],
   ["journal entries", "SELECT 1 FROM tenant.accounting_journal_lines WHERE organization_id = $1 AND party_id = $2"],
   ["POS sales", "SELECT 1 FROM tenant.pos_sales WHERE organization_id = $1 AND customer_id = $2"],
-  ["projects", "SELECT 1 FROM tenant.projects WHERE organization_id = $1 AND customer_id = $2"],
+  ["projects", "SELECT 1 FROM tenant.projects WHERE organization_id = $1 AND customer_id = $2 AND deleted_at IS NULL"],
   ["support tickets", "SELECT 1 FROM tenant.support_tickets WHERE organization_id = $1 AND customer_id = $2"],
   ["opportunities", "SELECT 1 FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2"],
   ["converted leads", "SELECT 1 FROM tenant.crm_leads WHERE organization_id = $1 AND converted_party_id = $2"],

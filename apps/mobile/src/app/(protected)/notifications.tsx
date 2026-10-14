@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { mobileApi } from "@/core/api/client";
 import { AppHeader } from "@/shared/components/app-header";
-import { QueryState } from "@/shared/components/crm-states";
+import { QueryState } from "@/shared/components/query-states";
 import { Screen } from "@/shared/components/screen";
 import { useTheme } from "@/shared/theme/theme";
 
@@ -16,19 +16,6 @@ function nativeHref(href: string | null): Href | null {
   if (href === "/profile") return "/(protected)/workspace/profile";
   if (href === "/security") return "/(protected)/workspace/security";
   if (href === "/billing") return "/(protected)/workspace/billing";
-  if (href.startsWith("/crm/")) {
-    const [, , resource, id] = href.split("/");
-    if (!resource) return null;
-    return id
-      ? {
-          pathname: "/(protected)/crm/[resource]/[id]",
-          params: { resource, id },
-        }
-      : {
-          pathname: "/(protected)/workspace/[area]/[resource]",
-          params: { area: "crm", resource },
-        };
-  }
   return null;
 }
 

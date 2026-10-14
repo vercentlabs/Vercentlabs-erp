@@ -53,8 +53,6 @@ export async function assignTask(client, context, taskId, input = {}, { notify =
   return { changed: true, previousAssignee: row.assigned_to, assignedTo };
 }
 
-export const reassignTask = assignTask;
-
 // ------------------------------------------------------------------ start, complete
 
 export async function startTask(client, context, taskId, input = {}) {
@@ -194,8 +192,6 @@ export async function bulkUpdateTasks(client, context, input = {}) {
   }
   throw new CrmError(400, "Choose what to do with the selected tasks.", "CRM_TASK_VALIDATION");
 }
-
-export const bulkAssignTasks = (client, context, input = {}) => bulkUpdateTasks(client, context, { ...input, action: "assign" });
 
 // The open tasks on a record that is being closed (an opportunity won or
 // lost): kept as they are, or cancelled with the reason given.

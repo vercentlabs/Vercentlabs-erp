@@ -3,35 +3,22 @@
 import Link from "next/link";
 
 import { FollowUpListScreen } from "@/features/crm/follow-ups/screens/FollowUpListScreen";
-import { CommunicationListScreen } from "@/features/crm/inbox/communications/screens/CommunicationListScreen";
 import { NotesFilesScreen } from "@/features/crm/notes/screens/NotesFilesScreen";
 import { TaskListScreen } from "@/features/crm/tasks/screens/TaskListScreen";
-import { CallListScreen } from "@/features/crm/work/calls/screens/CallListScreen";
-import { MeetingListScreen } from "@/features/crm/work/meetings/screens/MeetingListScreen";
-import { TodayWorkView } from "@/features/crm/work/screens/TodayWorkView";
 
 import { ACTIVITY_TABS, type ActivityTab } from "./activity-tabs";
 
-// CRM Activities: one workspace for every activity — the day's work, tasks, follow-ups, calls, meetings, notes and files, and the inbox.
-// Each tab is the existing screen, unchanged (same API clients, permissions and actions); only the selected tab is mounted, so nothing
-// else fetches. The tab is in the URL (/crm/activities?tab=tasks), so it survives refresh, back/forward and sharing; /crm/tasks,
-// /crm/follow-ups, /crm/calls, /crm/meetings, /crm/notes-files, /crm/communications and /crm/work redirect here with their query intact.
+// CRM Activities: one workspace for tasks, follow-ups, and notes and files. Each tab is its own screen (same API clients, permissions and
+// actions); only the selected tab is mounted, so nothing else fetches. The tab is in the URL (/crm/activities?tab=tasks), so it survives
+// refresh, back/forward and sharing.
 function TabContent({ tab }: { tab: ActivityTab }) {
   switch (tab) {
-    case "tasks":
-      return <TaskListScreen />;
     case "follow-ups":
       return <FollowUpListScreen />;
-    case "calls":
-      return <CallListScreen />;
-    case "meetings":
-      return <MeetingListScreen />;
     case "notes-files":
       return <NotesFilesScreen />;
-    case "inbox":
-      return <CommunicationListScreen />;
     default:
-      return <TodayWorkView />;
+      return <TaskListScreen />;
   }
 }
 

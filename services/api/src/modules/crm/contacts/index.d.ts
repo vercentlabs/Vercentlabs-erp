@@ -30,7 +30,6 @@ export const CONTACT_MERGE_FIELDS: Readonly<Record<string, string>>;
 export const CONTACT_IMPORT_FIELDS: ReadonlyArray<{ key: string; label: string; aliases: string[]; sample: string }>;
 
 export type ContactCapabilities = Record<keyof typeof CONTACT_PERMISSIONS, boolean>;
-export type ContactTag = { id: string; name: string; color: string };
 
 export type Contact = {
   id: string;
@@ -70,7 +69,6 @@ export type Contact = {
   sourceId: string | null;
   sourceName: string | null;
   description: string | null;
-  tags: ContactTag[];
   ownerUserId: string | null;
   ownerName: string | null;
   teamId: string | null;
@@ -94,13 +92,13 @@ export type ContactInput = Partial<{
   department: string | null; role: string | null; isDecisionMaker: boolean; description: string | null; sourceId: string | null;
   doNotEmail: boolean; doNotCall: boolean; doNotSms: boolean; marketingConsent: string; useAccountAddress: boolean; addressLine1: string | null;
   addressLine2: string | null; city: string | null; state: string | null; postalCode: string | null; countryCode: string | null;
-  accountId: string | null; ownerUserId: string | null; teamId: string | null; tagIds: string[];
+  accountId: string | null; ownerUserId: string | null; teamId: string | null;
 }>;
 
 export type ContactListFilters = Partial<{
   view: ContactViewKey; search: string; status: string; accountId: string; ownerId: string; teamId: string; department: string; role: string;
   sourceId: string; countryCode: string; createdFrom: string; createdTo: string; lastActivityBefore: string; isDecisionMaker: "yes" | "no";
-  isPrimary: "yes" | "no"; tagId: string; ids: string[]; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
+  isPrimary: "yes" | "no"; ids: string[]; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
 }>;
 
 export type ContactBulkResult = { results: Array<{ contactId: string; ok: boolean; message?: string; changed?: boolean }>; succeeded: number; failed: number };
@@ -153,7 +151,7 @@ export type ContactOptions = {
   views: ReadonlyArray<{ key: ContactViewKey; label: string }>; statuses: ReadonlyArray<CodeLabel<ContactStatus>>; roles: ReadonlyArray<CodeLabel>;
   preferredContactMethods: ReadonlyArray<CodeLabel>; marketingConsent: ReadonlyArray<CodeLabel>; activityTypes: ReadonlyArray<CodeLabel>;
   followUpTypes: ReadonlyArray<string>; relatedLists: ReadonlyArray<ContactRelatedList>; sources: Array<{ id: string; code: string; name: string; isActive: boolean }>;
-  users: Array<{ id: string; name: string; email: string }>; teams: Array<{ id: string; name: string }>; tags: ContactTag[]; departments: string[];
+  users: Array<{ id: string; name: string; email: string }>; teams: Array<{ id: string; name: string }>; departments: string[];
   currentUserId: string; capabilities: ContactCapabilities; moduleAccess: { sales: boolean; projects: boolean; support: boolean };
 };
 
@@ -172,18 +170,13 @@ export function listContacts(client: QueryClient, context: CrmContext, filters?:
 export function getContact(client: QueryClient, context: CrmContext, contactId: string): Promise<Contact>;
 export function createContact(client: QueryClient, context: CrmContext, input: ContactInput, options?: { allowDuplicate?: boolean; origin?: string; makePrimary?: boolean; historySummary?: string | null }): Promise<Contact>;
 export function updateContact(client: QueryClient, context: CrmContext, contactId: string, input: ContactInput, options?: { allowDuplicate?: boolean; expectedUpdatedAt?: string | null }): Promise<Contact>;
-export function setContactTags(client: QueryClient, context: CrmContext, contactId: string, tagIds: string[]): Promise<void>;
 export function setContactStatus(client: QueryClient, context: CrmContext, contactId: string, status: ContactStatus, options?: { note?: string | null }): Changed;
-export function deactivateContact(client: QueryClient, context: CrmContext, contactId: string, options?: { note?: string | null }): Changed;
-export function reactivateContact(client: QueryClient, context: CrmContext, contactId: string, options?: { note?: string | null }): Changed;
-export function archiveContact(client: QueryClient, context: CrmContext, contactId: string, options?: { note?: string | null }): Changed;
 export function bulkSetContactStatus(client: QueryClient, context: CrmContext, input: { contactIds: string[]; status: ContactStatus }): Promise<ContactBulkResult>;
 export function contactReferences(client: QueryClient, context: CrmContext, contactId: string): Promise<string[]>;
 export function deleteUnusedContact(client: QueryClient, context: CrmContext, contactId: string): Promise<{ deleted: true }>;
 
 export function applyContactAssignment(client: QueryClient, context: CrmContext, contact: Record<string, any>, target: { ownerUserId?: string | null; teamId?: string | null }, options?: { reason?: string; notify?: boolean }): Promise<boolean>;
 export function assignContact(client: QueryClient, context: CrmContext, contactId: string, input: { ownerUserId?: string | null; teamId?: string | null; reason?: string }): Changed;
-export function reassignContact(client: QueryClient, context: CrmContext, contactId: string, input: { ownerUserId?: string | null; teamId?: string | null; reason?: string }): Changed;
 export function bulkAssignContacts(client: QueryClient, context: CrmContext, input: { contactIds: string[]; ownerUserId?: string | null; teamId?: string | null }): Promise<ContactBulkResult>;
 
 export function listContactAccounts(client: QueryClient, context: CrmContext, contactId: string): Promise<ContactAccountLink[]>;

@@ -160,7 +160,6 @@ export async function downloadAttachment(client, context, attachmentId, { inline
   const preview = previewOfMime(row.mime_type);
   return { fileName: row.display_name ?? row.file_name, mimeType: row.mime_type, body: content.body, inline: Boolean(inline && preview), preview };
 }
-export const getAttachmentPreview = (client, context, attachmentId, options = {}) => downloadAttachment(client, context, attachmentId, { inline: true }, options);
 
 // ------------------------------------------------------------------ change, delete
 

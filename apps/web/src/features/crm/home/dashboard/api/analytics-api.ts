@@ -1,7 +1,9 @@
 "use client";
 
-import { CrmDashboardApiError } from "./dashboard-api.ts";
+import { CrmApiError } from "../../../shared/http/crm-api-error.ts";
 import { crmApiClient } from "../../../shared/http/crm-request.ts";
+
+export class CrmDashboardApiError extends CrmApiError {}
 
 // Canonical pipeline analytics (services/api/.../pipeline-metrics.js). The
 // dashboard, its drill-downs and breakdowns share one filter set, so every

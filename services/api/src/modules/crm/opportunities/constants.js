@@ -27,22 +27,6 @@ export const OPPORTUNITY_CONTACT_ROLES = Object.freeze([
   { code: "other", label: "Other" },
 ]);
 
-// Seeded for every organization; administrators can rename, add and
-// deactivate them under CRM settings. `category` is the reporting bucket.
-export const DEFAULT_LOST_REASONS = Object.freeze([
-  { code: "price_too_high", name: "Price Too High", category: "price" },
-  { code: "competitor_selected", name: "Competitor Selected", category: "competition" },
-  { code: "no_budget", name: "No Budget", category: "budget" },
-  { code: "project_cancelled", name: "Project Cancelled", category: "other" },
-  { code: "decision_delayed", name: "Decision Delayed", category: "timing" },
-  { code: "requirements_not_met", name: "Requirements Not Met", category: "fit" },
-  { code: "customer_unresponsive", name: "Customer Unresponsive", category: "no_response" },
-  { code: "poor_fit", name: "Poor Fit", category: "fit" },
-  { code: "internal_decision", name: "Internal Decision", category: "other" },
-  { code: "duplicate_opportunity", name: "Duplicate Opportunity", category: "duplicate" },
-  { code: "other", name: "Other", category: "other" },
-]);
-
 // Activity types a salesperson can log against an opportunity. A demo is a
 // meeting to the activity table; the subject says it was a demo.
 export const OPPORTUNITY_ACTIVITY_TYPES = Object.freeze([

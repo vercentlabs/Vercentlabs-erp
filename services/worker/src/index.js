@@ -3,7 +3,6 @@ export { enqueueJob, claimJobs, completeJob, extendJobLease, failJob, QueueError
 export { registerJobHandler, getJobHandler, listRegisteredJobTypes, validatePayload, HandlerValidationError, _resetRegistryForTests } from "./registry.js";
 export { internalJobBackoff, webhookBackoff, boundedRetryAfterMilliseconds } from "./backoff.js";
 export { dispatchOrganizationEvents, processWebhookDelivery, processOrganizationWebhooks, processOrganizationWorkflows } from "./webhooks.js";
-export { detectOverdueActivitiesHandler, JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE, payloadSchema as overdueActivityPayloadSchema } from "./handlers/crm-automation-overdue.js";
 export { buildSystemContext, SYSTEM_ACTOR_ROLE_SLUG } from "./system-context.js";
 export { runSchedulerTick } from "./scheduler.js";
 export { createWorker, generateWorkerId } from "./worker.js";

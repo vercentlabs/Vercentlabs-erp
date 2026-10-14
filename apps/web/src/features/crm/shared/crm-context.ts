@@ -25,29 +25,6 @@ export function crmContext(session: WorkspaceSessionContext) {
   };
 }
 
-// Loads a record for an edit page inside the tenant-scoped transaction (row-level security needs
-// app.current_organization_id; a bare connection sees no rows, which is how every existing record used to
-// appear "not found" on its edit screen). Only a genuine 404 becomes notFound; any other failure (database
-// down, module disabled, billing) surfaces as an error instead of being disguised as a missing record.
-export async function loadRecordForEdit<T>(
-  session: WorkspaceSessionContext,
-  load: (client: import("pg").PoolClient) => Promise<T>,
-): Promise<{ record: T | null; notFound: boolean }> {
-  const { workspaceModuleTransaction } = await import("@/core/access");
-  try {
-    const record = await workspaceModuleTransaction(
-      session,
-      { module: "crm" },
-      load,
-    );
-    return { record, notFound: false };
-  } catch (error) {
-    const status = (error as { status?: number } | null)?.status;
-    if (status === 404) return { record: null, notFound: true };
-    throw error;
-  }
-}
-
 // The dynamic half of a generic-resource mutation, for routes already inside
 // workspaceRoute (which has checked session, organisation context and CRM
 // module access): the resource's own manage permission, failing closed for

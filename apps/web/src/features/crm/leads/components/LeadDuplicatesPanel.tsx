@@ -104,7 +104,7 @@ function MergeLeadsDialog({ keep, duplicateId, onClose, onMerged }: { keep: Lead
 
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Merge leads" size="lg"
-      description={`${keep.code} is kept. Activities, notes, files and tags from the duplicate move to it; the duplicate is archived as "Duplicate" and keeps its own history.`}>
+      description={`${keep.code} is kept. Activities, notes and files from the duplicate move to it; the duplicate is archived as "Duplicate" and keeps its own history.`}>
       {duplicateQuery.isLoading || !duplicate ? (
         duplicateQuery.isError ? <ErrorBanner message={errorMessage(duplicateQuery.error)} /> : <LoadingState label="Loading the duplicate" rows={4} />
       ) : (

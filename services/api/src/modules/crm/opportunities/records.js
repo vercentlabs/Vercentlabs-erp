@@ -517,7 +517,7 @@ async function startingStage(client, context, stageId) {
 // ------------------------------------------------------------------ create
 
 // input: the opportunity fields plus accountId (required), contactId, stageId,
-//        ownerUserId, teamId, leadId, campaignId.
+//        ownerUserId, teamId, leadId.
 // options.origin: "manual" | "account" | "lead_conversion" — recorded in history.
 // Returns the opportunity; a similar open deal on the same account is a
 // warning for the caller to show (findDuplicateOpportunities), never a refusal.
@@ -548,10 +548,10 @@ export async function createOpportunity(client, context, input = {}, { origin = 
 
   const code = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: OPPORTUNITY_NUMBER_DOCUMENT_TYPE });
   const present = Object.keys(fields).filter((field) => COLUMNS[field] && fields[field] !== null);
-  const columns = ["organization_id", "code", "pipeline_id", "stage_id", "probability", "forecast_category", "party_id", "lead_id", "campaign_id",
+  const columns = ["organization_id", "code", "pipeline_id", "stage_id", "probability", "forecast_category", "party_id", "lead_id",
     "owner_user_id", "team_id", "assigned_at", "assigned_by", "created_by", "updated_by", ...present.map((field) => COLUMNS[field])];
   const values = [context.organizationId, code, stage.pipeline_id, stage.id, stage.probability, stage.forecast_category, account.id,
-    isUuid(input.leadId) ? input.leadId : null, isUuid(input.campaignId) ? input.campaignId : null,
+    isUuid(input.leadId) ? input.leadId : null,
     ownerUserId, teamId, ownerUserId ? new Date() : null, ownerUserId ? context.userId ?? null : null, context.userId ?? null, context.userId ?? null,
     ...present.map((field) => fields[field])];
   const inserted = await client.query(

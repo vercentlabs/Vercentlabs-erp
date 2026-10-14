@@ -6,13 +6,11 @@
 import { scheduleFollowUp } from "../follow-ups/records.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireAccountPermission } from "./access.js";
-import { ACCOUNT_ACTIVITY_TYPES, ACCOUNT_FOLLOW_UP_TYPES, ACCOUNT_PERMISSIONS } from "./constants.js";
+import { ACCOUNT_ACTIVITY_TYPES, ACCOUNT_PERMISSIONS } from "./constants.js";
 import { getAccount, lockAccount } from "./records.js";
 import { requireUuid } from "./validation.js";
 
 const ACTIVITY_TYPES = new Map(ACCOUNT_ACTIVITY_TYPES.map((entry) => [entry.code, entry.label]));
-// The follow-up record stores its type as a channel; "task" has no channel.
-const FOLLOW_UP_CHANNEL = Object.freeze({ call: "call", email: "email", meeting: "meeting", task: "other", other: "other" });
 const text = (value) => String(value ?? "").trim();
 
 // Everything on the account itself, on the people working there and on its

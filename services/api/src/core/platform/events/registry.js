@@ -7,6 +7,19 @@
 const pick = (source, fields) =>
   Object.fromEntries(fields.filter((field) => source?.[field] !== undefined && source?.[field] !== null).map((field) => [field, source[field]]));
 const leadState = (state) => pick(state, ["status", "sourceId", "ownerUserId"]);
+// Projects: every lifecycle change, team change and link, with the project's code, status and manager (never the scope or amounts).
+const projectEvent = (key, label, description) => define(`projects.project.${key}`, label, description, "projects.project",
+  (event) => ({ projectId: event.entityId, ...pick(event.payload, ["projectCode", "status", "previousStatus", "managerUserId", "source", "changedFields", "memberUserId", "role", "sourceType", "sourceId"]) }),
+  [{ key: "status", label: "Project status" }, { key: "managerUserId", label: "Project Manager", type: "user" }]);
+const PROJECT_EVENTS = [
+  ["created", "Project created", "A project was created (as a draft)."], ["updated", "Project updated", "A project's details changed."],
+  ["activated", "Project activated", "A draft project became planned."], ["approved", "Project approved", "A project's activation was approved."],
+  ["started", "Project started", "A project's execution started."], ["held", "Project put on hold", "A project was paused."], ["resumed", "Project resumed", "A paused project resumed."],
+  ["completed", "Project completed", "A project was completed."], ["reopened", "Project reopened", "A completed project was reopened."], ["cancelled", "Project cancelled", "A project was cancelled."],
+  ["archived", "Project archived", "A completed or cancelled project was archived."], ["restored", "Project restored", "An archived project was restored."],
+  ["member_added", "Project member added", "Someone joined a project team."], ["member_removed", "Project member removed", "Someone left a project team."],
+  ["linked", "Project record linked", "A CRM, sales or procurement record was linked to a project."],
+];
 
 const define = (key, label, description, entityType, project, conditionFields) =>
   Object.freeze({ key, moduleKey: key.split(".")[0], label, description, entityType, payloadVersion: 1, project, conditionFields: Object.freeze(conditionFields) });
@@ -89,6 +102,7 @@ export const DOMAIN_EVENTS = Object.freeze([
     (event) => ({ opportunityId: event.entityId, ...pick(event.payload, ["previousStatus", "toStageId"]) }),
     [],
   ),
+  ...PROJECT_EVENTS.map(([key, label, description]) => projectEvent(key, label, description)),
 ]);
 
 const BY_KEY = new Map(DOMAIN_EVENTS.map((event) => [event.key, event]));

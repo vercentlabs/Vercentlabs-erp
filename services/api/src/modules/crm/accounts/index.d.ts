@@ -35,7 +35,6 @@ export const MERGE_FIELDS: Readonly<Record<string, string>>;
 export const ACCOUNT_IMPORT_FIELDS: ReadonlyArray<{ key: string; label: string; aliases: string[]; sample: string }>;
 
 export type AccountCapabilities = Record<keyof typeof ACCOUNT_PERMISSIONS, boolean>;
-export type AccountTag = { id: string; name: string; color: string };
 
 export type Account = {
   id: string;
@@ -54,7 +53,6 @@ export type Account = {
   annualRevenue: number | null;
   currencyCode: string | null;
   description: string | null;
-  tags: AccountTag[];
   ownerUserId: string | null;
   ownerName: string | null;
   teamId: string | null;
@@ -88,13 +86,13 @@ export type AccountInput = Partial<{
   displayName: string; legalName: string | null; accountType: AccountType; industry: string | null; website: string | null;
   email: string | null; phone: string | null; secondaryPhone: string | null; employeeRange: string | null; annualRevenue: number | string | null;
   description: string | null; sourceId: string | null; sourceDetail: string | null; currencyCode: string | null;
-  tagIds: string[]; ownerUserId: string | null; teamId: string | null;
+  ownerUserId: string | null; teamId: string | null;
 }>;
 
 export type AccountListFilters = Partial<{
   view: AccountViewKey; search: string; accountType: string; status: string; industry: string; sourceId: string; teamId: string; ownerId: string;
   countryCode: string; state: string; createdFrom: string; createdTo: string; lastActivityBefore: string; hasOpenOpportunity: "yes" | "no";
-  isCustomer: "yes" | "no"; tagId: string; ids: string[]; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
+  isCustomer: "yes" | "no"; ids: string[]; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
 }>;
 
 export type AccountBulkResult = {
@@ -195,7 +193,6 @@ export type AccountOptions = {
   sources: Array<{ id: string; code: string; name: string; isActive: boolean }>;
   users: Array<{ id: string; name: string; email: string }>;
   teams: Array<{ id: string; name: string }>;
-  tags: AccountTag[];
   industries: string[];
   paymentTerms: Array<{ id: string; code: string; name: string; dueDays: number }>;
   currencies: string[];
@@ -221,11 +218,7 @@ export function listAccounts(client: QueryClient, context: CrmContext, filters?:
 export function getAccount(client: QueryClient, context: CrmContext, partyId: string): Promise<Account>;
 export function createAccount(client: QueryClient, context: CrmContext, input: AccountInput, options?: { allowDuplicate?: boolean; origin?: "manual" | "import" | "lead_conversion"; historySummary?: string | null }): Promise<Account>;
 export function updateAccount(client: QueryClient, context: CrmContext, partyId: string, input: AccountInput, options?: { allowDuplicate?: boolean; expectedUpdatedAt?: string | null }): Promise<Account>;
-export function setAccountTags(client: QueryClient, context: CrmContext, partyId: string, tagIds: string[]): Promise<void>;
 export function setAccountStatus(client: QueryClient, context: CrmContext, partyId: string, status: AccountStatus, options?: { note?: string | null }): Changed;
-export function deactivateAccount(client: QueryClient, context: CrmContext, partyId: string, options?: { note?: string | null }): Changed;
-export function reactivateAccount(client: QueryClient, context: CrmContext, partyId: string, options?: { note?: string | null }): Changed;
-export function archiveAccount(client: QueryClient, context: CrmContext, partyId: string, options?: { note?: string | null }): Changed;
 export function bulkSetAccountStatus(client: QueryClient, context: CrmContext, input: { partyIds: string[]; status: AccountStatus }): Promise<AccountBulkResult>;
 export function accountReferences(client: QueryClient, context: CrmContext, partyId: string): Promise<string[]>;
 export function deleteUnusedAccount(client: QueryClient, context: CrmContext, partyId: string): Promise<{ deleted: true }>;

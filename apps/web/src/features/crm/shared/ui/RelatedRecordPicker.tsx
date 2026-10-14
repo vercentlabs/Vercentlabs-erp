@@ -15,10 +15,6 @@ export type RelatedValue = {
   entityType: "general" | "lead" | "party" | "contact" | "opportunity";
   entityId: string;
 };
-export const NO_RELATION: RelatedValue = {
-  entityType: "general",
-  entityId: "",
-};
 
 const TYPES = [
   { value: "general", label: "Nothing (general)" },

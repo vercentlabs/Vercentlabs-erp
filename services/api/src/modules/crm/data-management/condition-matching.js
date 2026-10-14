@@ -12,12 +12,3 @@ export function comparable(value) {
   if (value === null || value === undefined) return "";
   return typeof value === "string" ? value.trim().toLowerCase() : value;
 }
-
-export function criteriaMatches(input, criteria) {
-  if (!criteria || typeof criteria !== "object") return true;
-  return Object.entries(criteria).every(([key, expected]) =>
-    Array.isArray(expected)
-      ? expected.map(comparable).includes(comparable(input[key]))
-      : comparable(input[key]) === comparable(expected),
-  );
-}

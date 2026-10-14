@@ -59,10 +59,6 @@ export async function getCrmOptions(client, context) {
     `SELECT id, name, status FROM tenant.crm_lead_sources WHERE organization_id = $1 ORDER BY status = 'active' DESC, is_default DESC, sort_order, name`,
     parameters,
   );
-  const campaigns = await queryOptions(
-    `SELECT campaign.id, campaign.name FROM tenant.crm_campaigns campaign WHERE campaign.organization_id = $1 AND campaign.status IN ('planned','active','paused') ORDER BY campaign.name`,
-    parameters,
-  );
   const users = (await listLeadAssignmentOptions(client, context)).users;
   // Whom the caller may make a record owner (assertCrmOwnerAssignable):
   // null = anyone eligible (view-all); otherwise self + managed team members.
@@ -98,10 +94,6 @@ export async function getCrmOptions(client, context) {
     `SELECT id, name, currency_code FROM tenant.price_lists WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
     parameters,
   );
-  const tags = await queryOptions(
-    `SELECT id, name, color FROM tenant.crm_tags WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
-    parameters,
-  );
   const lostReasons = await queryOptions(
     `SELECT id, name, outcome_type FROM tenant.crm_lost_reasons WHERE organization_id = $1 AND status = 'active' ORDER BY outcome_type, category, name`,
     parameters,
@@ -114,40 +106,8 @@ export async function getCrmOptions(client, context) {
     `SELECT opportunity.id, opportunity.name FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status <> 'archived' AND ${ownerVisible("opportunity", "opportunities")} ORDER BY opportunity.updated_at DESC LIMIT 500`,
     ownerScopedParameters,
   );
-  const sequences = await queryOptions(
-    `SELECT id, name FROM tenant.crm_sequences WHERE organization_id = $1 AND status <> 'archived' ORDER BY name`,
-    parameters,
-  );
   const salesTeams = await queryOptions(
     `SELECT team.id, team.name FROM tenant.crm_sales_teams team WHERE team.organization_id = $1 AND team.status = 'active' ORDER BY team.name`,
-    parameters,
-  );
-  const forecastPeriods = await queryOptions(
-    `SELECT period.id, period.name, period.period_start, period.period_end FROM tenant.crm_forecast_periods period WHERE period.organization_id = $1 AND period.status IN ('planned','open','frozen') ORDER BY period.period_start DESC`,
-    parameters,
-  );
-  const accountPlans = await queryOptions(
-    `SELECT plan.id, party.display_name AS name FROM tenant.crm_account_plans plan JOIN tenant.business_parties party ON party.id = plan.party_id AND party.organization_id = plan.organization_id WHERE plan.organization_id = $1 AND plan.status = 'active' ORDER BY party.display_name`,
-    parameters,
-  );
-  const conversations = await queryOptions(
-    `SELECT conversation.id, COALESCE(conversation.title, initcap(replace(conversation.channel, '_', ' '))) AS name FROM tenant.crm_conversations conversation WHERE conversation.organization_id = $1 AND conversation.status <> 'archived' ORDER BY conversation.started_at DESC NULLS LAST, conversation.created_at DESC LIMIT 500`,
-    parameters,
-  );
-  const buyingCommittees = await queryOptions(
-    `SELECT committee.id, committee.name FROM tenant.crm_buying_committees committee WHERE committee.organization_id = $1 AND committee.status = 'active' ORDER BY committee.name`,
-    parameters,
-  );
-  const partnerAccounts = await queryOptions(
-    `SELECT partner.id, partner.name FROM tenant.crm_partner_accounts partner WHERE partner.organization_id = $1 AND partner.status = 'active' ORDER BY partner.name`,
-    parameters,
-  );
-  const aiPredictions = await queryOptions(
-    `SELECT prediction.id, concat(prediction.entity_type, ': ', prediction.prediction_type) AS name FROM tenant.crm_ai_predictions prediction WHERE prediction.organization_id = $1 AND prediction.status = 'active' ORDER BY prediction.created_at DESC LIMIT 500`,
-    parameters,
-  );
-  const recommendations = await queryOptions(
-    `SELECT recommendation.id, recommendation.title AS name FROM tenant.crm_recommendations recommendation WHERE recommendation.organization_id = $1 AND recommendation.status IN ('open','accepted') ORDER BY recommendation.priority DESC, recommendation.created_at DESC LIMIT 500`,
     parameters,
   );
 
@@ -159,7 +119,6 @@ export async function getCrmOptions(client, context) {
     leadStages: await listLeadStages(client, context),
     sources: map(sources),
     allSources: map(allSources),
-    campaigns: map(campaigns),
     users,
     usersTruncated: false,
     assignableOwnerIds,
@@ -169,18 +128,9 @@ export async function getCrmOptions(client, context) {
     contacts: map(contacts),
     items: map(items),
     priceLists: map(priceLists),
-    tags: map(tags),
     lostReasons: map(lostReasons),
     leads: map(leads),
     opportunities: map(opportunities),
-    sequences: map(sequences),
     salesTeams: map(salesTeams),
-    forecastPeriods: map(forecastPeriods),
-    accountPlans: map(accountPlans),
-    conversations: map(conversations),
-    buyingCommittees: map(buyingCommittees),
-    partnerAccounts: map(partnerAccounts),
-    aiPredictions: map(aiPredictions),
-    recommendations: map(recommendations),
   };
 }

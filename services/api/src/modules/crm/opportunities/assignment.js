@@ -91,8 +91,6 @@ export async function assignOpportunity(client, context, opportunityId, input = 
   return { changed: true, previousOwnerUserId: opportunity.owner_user_id, ownerUserId };
 }
 
-export const reassignOpportunity = assignOpportunity;
-
 // Assigns many opportunities in one request. Each succeeds or fails on its
 // own; every new owner gets one summary notification.
 export async function bulkAssignOpportunities(client, context, input = {}) {

@@ -8,9 +8,6 @@ export * from "./core/idempotency.js";
 export * from "./core/inventory-lock.js";
 export * from "./core/references.js";
 export * from "./modules/crm/index.js";
-// Legacy CRM names kept at the package root for compatibility only; CRM
-// consumers import @vercentlabs/api/crm.
-export * from "./compat/crm-root-legacy.js";
 export * from "./modules/sales/index.js";
 
 export * from "./modules/accounting/index.js";
@@ -67,7 +64,7 @@ export * from "./modules/manufacturing/variance/index.js";
 export * from "./modules/manufacturing/costing/index.js";
 export * from "./modules/manufacturing/consumption/index.js";
 export * from "./modules/manufacturing/production/index.js";
-export * from "./modules/projects/desk.js";
+export * from "./modules/projects/index.js";
 export * from "./modules/assets/desk.js";
 export * from "./modules/point-of-sale/index.js";
 export { qualityContext } from "./modules/quality/common.js";

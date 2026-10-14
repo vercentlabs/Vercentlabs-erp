@@ -12,10 +12,9 @@
 --   3. Address defaults
 --   4. Contact fields shown on the account
 --   5. Related contact on activities
---   6. Account tags
---   7. Account history (timeline / audit)
---   8. Row-level security and grants
---   9. Permissions
+--   6. Account history (timeline / audit)
+--   7. Row-level security and grants
+--   8. Permissions
 --
 -- Run once, after the earlier files in this folder.
 BEGIN;
@@ -134,21 +133,7 @@ ALTER TABLE tenant.crm_activities
   ADD COLUMN related_contact_id uuid,
   ADD CONSTRAINT crm_activities_related_contact_organization_fkey FOREIGN KEY (organization_id, related_contact_id) REFERENCES tenant.contacts(organization_id, id) ON DELETE SET NULL (related_contact_id);
 
--- ============================================================ 6. account tags
-
-CREATE TABLE tenant.crm_account_tags (
-  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  party_id uuid NOT NULL,
-  tag_id uuid NOT NULL,
-  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  CONSTRAINT crm_account_tags_pkey PRIMARY KEY (organization_id, party_id, tag_id),
-  CONSTRAINT crm_account_tags_party_organization_fkey FOREIGN KEY (organization_id, party_id) REFERENCES tenant.business_parties(organization_id, id) ON DELETE CASCADE,
-  CONSTRAINT crm_account_tags_tag_organization_fkey FOREIGN KEY (organization_id, tag_id) REFERENCES tenant.crm_tags(organization_id, id) ON DELETE CASCADE
-);
-CREATE INDEX crm_account_tags_tag_idx ON tenant.crm_account_tags (organization_id, tag_id);
-
--- ============================================================ 7. account history
+-- ============================================================ 6. account history
 -- One append-only row per significant event, with old and new values for
 -- field changes. It is both the account timeline's event source and its
 -- audit trail; the application roles can only read and add rows.
@@ -170,28 +155,24 @@ CREATE TABLE tenant.crm_account_history (
 );
 CREATE INDEX crm_account_history_party_idx ON tenant.crm_account_history (organization_id, party_id, created_at DESC);
 
--- ============================================================ 8. row-level security and grants
+-- ============================================================ 7. row-level security and grants
 
-ALTER TABLE tenant.crm_account_tags ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tenant.crm_account_tags FORCE ROW LEVEL SECURITY;
-CREATE POLICY organization_isolation ON tenant.crm_account_tags USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
 
 ALTER TABLE tenant.crm_account_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant.crm_account_history FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON tenant.crm_account_history USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tenant.crm_account_tags TO vercent_app, vercent_worker;
 GRANT SELECT, INSERT ON TABLE tenant.crm_account_history TO vercent_app, vercent_worker;
 GRANT EXECUTE ON FUNCTION tenant.crm_normalize_company_name(text), tenant.crm_web_domain(text), tenant.crm_email_domain(text) TO vercent_app, vercent_worker;
 
--- ============================================================ 9. permissions
+-- ============================================================ 8. permissions
 
 INSERT INTO public.permissions (key, name, category, description) VALUES
   ('crm.accounts.view', 'View accounts', 'CRM', 'Open the account list and the accounts the user is allowed to see.'),
   ('crm.accounts.view_all', 'View all accounts', 'CRM', 'See every account in the organization regardless of owner.'),
   ('crm.accounts.view_sensitive', 'View account contact details', 'CRM', 'See account email addresses and phone numbers.'),
   ('crm.accounts.create', 'Create accounts', 'CRM', 'Add new accounts.'),
-  ('crm.accounts.edit', 'Edit accounts', 'CRM', 'Change account details, addresses, linked contacts, tags, notes and activities.'),
+  ('crm.accounts.edit', 'Edit accounts', 'CRM', 'Change account details, addresses, linked contacts, notes and activities.'),
   ('crm.accounts.archive', 'Archive accounts', 'CRM', 'Deactivate, reactivate and archive accounts.'),
   ('crm.accounts.delete', 'Delete unused accounts', 'CRM', 'Permanently delete an account that nothing refers to.'),
   ('crm.accounts.assign', 'Assign accounts', 'CRM', 'Give an unowned account an owner or a team.'),

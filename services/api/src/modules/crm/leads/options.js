@@ -1,5 +1,5 @@
 // Everything the lead screens need to render their pickers, in one read: the
-// fixed vocabulary, the organization's sources, people, teams, tags and
+// fixed vocabulary, the organization's sources, people, teams and
 // currencies, and what the caller is allowed to do.
 import { leadCapabilities, requireLeadPermission } from "./access.js";
 import { listLeadAssignmentOptions } from "./assignment.js";
@@ -18,10 +18,6 @@ import { QUALIFICATION_STAGE, listLeadStages } from "./stages.js";
 export async function getLeadOptions(client, context) {
   requireLeadPermission(context, LEAD_PERMISSIONS.view, "You do not have permission to view leads.");
   const { users, teams } = await listLeadAssignmentOptions(client, context);
-  const tags = await client.query(
-    `SELECT id, name, color FROM tenant.crm_tags WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
-    [context.organizationId],
-  );
   const settings = await getLeadAssignmentSettings(client, context);
   const currencies = await client.query(
     `SELECT code, is_base FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`,
@@ -50,7 +46,6 @@ export async function getLeadOptions(client, context) {
     sources: await listLeadSources(client, context),
     users,
     teams,
-    tags: tags.rows,
     currencies: currencies.rows.map((row) => String(row.code).trim()),
     baseCurrency: String(currencies.rows.find((row) => row.is_base)?.code ?? currencies.rows[0]?.code ?? "INR").trim(),
     currentUserId: context.userId,

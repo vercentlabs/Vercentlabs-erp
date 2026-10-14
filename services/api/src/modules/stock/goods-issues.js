@@ -251,8 +251,9 @@ async function readHeader(client, c, input, current = null) {
     fail("issueToId", `${source[1]} not found.`, "GOODS_ISSUE_VALIDATION", 404);
   const projectId = optionalUuid(keep("projectId", "project_id"), "Project") ?? (issueToType === "project" ? issueToId : null);
   const issuedToCostCenter = issueToType === "cost_center" ? issueToId : null;
-  if (projectId && !(await client.query(`SELECT 1 FROM tenant.projects WHERE organization_id = $1 AND id = $2`, [c.organizationId, projectId])).rows[0])
-    fail("projectId", "Project not found.", "GOODS_ISSUE_VALIDATION", 404);
+  // Material goes to a project only while it is planned or in progress (a paused, completed or cancelled project takes no new issues).
+  if (projectId && !(await client.query(`SELECT 1 FROM tenant.projects WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL AND status IN ('PLANNED', 'IN_PROGRESS')`, [c.organizationId, projectId])).rows[0])
+    fail("projectId", "Choose a planned or in-progress project.", "GOODS_ISSUE_VALIDATION", 404);
   const costCenterId = optionalUuid(keep("costCenterId", "cost_center_id"), "Cost center") ?? issuedToCostCenter;
   if (costCenterId && !(await client.query(`SELECT 1 FROM public.cost_centers WHERE organization_id = $1 AND id = $2 AND status = 'active'`, [c.organizationId, costCenterId])).rows[0])
     fail("costCenterId", "Choose an active cost center.", "GOODS_ISSUE_VALIDATION", 404);
@@ -685,7 +686,7 @@ export async function reverseGoodsIssue(client, c, issueId, input = {}) {
 
 const SELECT = `
   SELECT issue.*, warehouse.code AS warehouse_code, warehouse.name AS warehouse_name, reason.code AS reason_code, reason.name AS reason_name,
-         poster.full_name AS posted_by_name, issuer.full_name AS issued_by_name, creator.full_name AS created_by_name, project.name AS project_name, project.project_number,
+         poster.full_name AS posted_by_name, issuer.full_name AS issued_by_name, creator.full_name AS created_by_name, project.name AS project_name, project.project_code AS project_number,
          cost_center.name AS cost_center_name, cost_center.code AS cost_center_code,
          CASE issue.issue_to_type WHEN 'department' THEN (SELECT name FROM public.departments WHERE id = issue.issue_to_id)
                                   WHEN 'employee' THEN (SELECT concat_ws(' ', first_name, last_name) FROM tenant.hr_employees WHERE id = issue.issue_to_id)
@@ -817,7 +818,7 @@ export async function getGoodsIssueOptions(client, c) {
   const costCenters = (await client.query(`SELECT id, code, name FROM public.cost_centers WHERE organization_id = $1 AND status = 'active' ORDER BY name LIMIT 500`, [c.organizationId])).rows;
   const employees = (await client.query(`SELECT id, concat_ws(' ', first_name, last_name) AS name FROM tenant.hr_employees WHERE organization_id = $1 AND COALESCE(status, 'active') = 'active'
       ORDER BY first_name LIMIT 1000`, [c.organizationId])).rows;
-  const projects = (await client.query(`SELECT id, project_number, name FROM tenant.projects WHERE organization_id = $1 ORDER BY name LIMIT 500`, [c.organizationId])).rows;
+  const projects = (await client.query(`SELECT id, project_code AS project_number, COALESCE(name, project_code) AS name FROM tenant.projects WHERE organization_id = $1 AND deleted_at IS NULL AND status IN ('PLANNED', 'IN_PROGRESS') ORDER BY name LIMIT 500`, [c.organizationId])).rows;
   return {
     warehouses: warehouses.map((row) => ({ id: row.id, code: row.code, name: row.name, isDefault: row.is_default,
       locations: locations.filter((location) => location.warehouse_id === row.id).map((location) => ({ id: location.id, code: location.code, name: location.name, isMain: location.is_default_storage })) })),

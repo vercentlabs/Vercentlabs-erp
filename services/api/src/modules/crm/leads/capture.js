@@ -63,14 +63,6 @@ export async function captureCrmLead(client, formKey, input = {}, requestContext
 
   try {
     const created = await createLead(client, context, lead, { origin: "integration" });
-    if (form.campaign_id) {
-      await client.query(`UPDATE tenant.crm_leads SET campaign_id = $3 WHERE organization_id = $1 AND id = $2`, [form.organization_id, created.id, form.campaign_id]);
-      await client.query(
-        `INSERT INTO tenant.crm_campaign_members (organization_id, campaign_id, lead_id, member_status, created_by)
-         VALUES ($1, $2, $3, 'responded', $4) ON CONFLICT DO NOTHING`,
-        [form.organization_id, form.campaign_id, created.id, actor],
-      );
-    }
     return { message: form.success_message, leadId: created.id };
   } catch (error) {
     if (error instanceof CrmError && error.code === "CRM_LEAD_DUPLICATE") return { message: form.success_message, leadId: null, duplicateSuppressed: true };

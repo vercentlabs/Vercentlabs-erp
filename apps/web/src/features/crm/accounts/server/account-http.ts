@@ -11,7 +11,7 @@ export type AccountRouteParams = { params: Promise<{ id: string }> };
 
 const FILTER_KEYS = [
   "view", "search", "accountType", "status", "industry", "sourceId", "teamId", "ownerId", "countryCode", "state",
-  "createdFrom", "createdTo", "lastActivityBefore", "hasOpenOpportunity", "isCustomer", "tagId", "sortBy", "sortDirection", "groupBy",
+  "createdFrom", "createdTo", "lastActivityBefore", "hasOpenOpportunity", "isCustomer", "sortBy", "sortDirection", "groupBy",
 ] as const;
 
 // The list filters accepted from the query string (list, summary, export, report).

@@ -47,8 +47,7 @@ export function taskRelatedScopeSql(context, values, alias = "task") {
     OR (${alias}.entity_type = 'lead' AND ${exists("tenant.crm_leads", "scope_lead", leadScopeSql(context, values, "scope_lead"))})
     OR (${alias}.entity_type = 'opportunity' AND ${exists("tenant.crm_opportunities", "scope_opportunity", opportunityScopeSql(context, values, "scope_opportunity"))})
     OR (${alias}.entity_type = 'party' AND ${exists("tenant.business_parties", "scope_account", accountScopeSql(context, values, "scope_account"))})
-    OR (${alias}.entity_type = 'contact' AND ${exists("tenant.contacts", "scope_contact", contactScopeSql(context, bind, "scope_contact"))})
-    OR (${alias}.entity_type = 'campaign' AND ${exists("tenant.crm_campaigns", "scope_campaign", "")}))`;
+    OR (${alias}.entity_type = 'contact' AND ${exists("tenant.contacts", "scope_contact", contactScopeSql(context, bind, "scope_contact"))}))`;
 }
 
 // " AND (…)" restricting `alias` to the tasks the caller can see. Adds its parameters to `values`.

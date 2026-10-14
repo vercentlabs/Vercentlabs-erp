@@ -30,7 +30,6 @@ type CodeLabel<Code extends string = string> = { code: Code; label: string };
 
 export const DEFAULT_LEAD_STAGES: ReadonlyArray<CodeLabel>;
 export const LEAD_STALE_DAYS: number;
-export const NEW_STAGE: "new";
 export const QUALIFICATION_STAGE: "qualification";
 export const LEAD_STATUSES: ReadonlyArray<CodeLabel<LeadStatus>>;
 export const LEAD_PRIORITIES: ReadonlyArray<LeadPriority>;
@@ -69,7 +68,6 @@ export function leadDisqualificationReasonLabel(code: string): string;
 
 export type LeadCapabilities = Record<keyof typeof LEAD_PERMISSIONS, boolean>;
 
-export type LeadTag = { id: string; name: string; color: string };
 
 export type Lead = {
   id: string;
@@ -97,7 +95,6 @@ export type Lead = {
   priority: LeadPriority;
   rating: LeadRating;
   description: string | null;
-  tags: LeadTag[];
   ownerUserId: string | null;
   ownerName: string | null;
   teamId: string | null;
@@ -168,12 +165,12 @@ export type LeadInput = Partial<{
   city: string | null; state: string | null; countryCode: string | null; currencyCode: string | null;
   sourceId: string | null; sourceDetail: string | null; industry: string | null; productInterest: string | null;
   estimatedValue: number | string | null; purchaseTimeframe: string | null; priority: string; rating: string;
-  description: string | null; tagIds: string[]; ownerUserId: string | null; teamId: string | null;
+  description: string | null; ownerUserId: string | null; teamId: string | null;
 }>;
 
 export type LeadListFilters = Partial<{
   view: LeadViewKey; search: string; status: string; stage: string; priority: string; rating: string;
-  ownerId: string; teamId: string; sourceId: string; tagId: string; createdFrom: string; createdTo: string; qualificationStatus: LeadQualificationStatus; disqualificationReason: string; stale: string; stageEnteredFrom: string; stageEnteredTo: string;
+  ownerId: string; teamId: string; sourceId: string; createdFrom: string; createdTo: string; qualificationStatus: LeadQualificationStatus; disqualificationReason: string; stale: string; stageEnteredFrom: string; stageEnteredTo: string;
   countryCode: string; state: string; city: string; productInterest: string; olderThanDays: number | string; assignedFrom: string; assignedTo: string;
   ids: string[]; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
 }>;
@@ -298,8 +295,6 @@ export type LeadTeamOption = { id: string; name: string; managerUserId: string |
 export function assertEligibleLeadAssignee(client: QueryClient, context: CrmContext, userId: string, options?: { teamId?: string | null }): Promise<{ id: string; full_name: string }>;
 export function listLeadAssignmentOptions(client: QueryClient, context: CrmContext): Promise<{ users: Array<{ id: string; name: string; email: string }>; teams: LeadTeamOption[] }>;
 export function assignLead(client: QueryClient, context: CrmContext, leadId: string, input: LeadAssignmentInput): Promise<{ changed: boolean }>;
-export function reassignLead(client: QueryClient, context: CrmContext, leadId: string, input: LeadAssignmentInput): Promise<{ changed: boolean }>;
-export function assignLeadToTeam(client: QueryClient, context: CrmContext, leadId: string, input: LeadAssignmentInput): Promise<{ changed: boolean }>;
 export function assignLeadToSelf(client: QueryClient, context: CrmContext, leadId: string, input?: LeadAssignmentInput): Promise<{ changed: boolean }>;
 export function unassignLead(client: QueryClient, context: CrmContext, leadId: string, input?: LeadAssignmentInput): Promise<{ changed: boolean }>;
 export function bulkAssignLeads(client: QueryClient, context: CrmContext, input: LeadAssignmentInput & { leadIds: string[] }): Promise<LeadBulkResult>;
@@ -333,11 +328,9 @@ export function evaluateLeadQualification(row: Record<string, unknown>, requirem
 export function getLeadQualificationSettings(client: QueryClient, context: CrmContext): Promise<LeadQualificationRequirements>;
 export function saveLeadQualificationSettings(client: QueryClient, context: CrmContext, input: Partial<LeadQualificationRequirements>): Promise<LeadQualificationRequirements>;
 export function getLeadQualification(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadQualificationView>;
-export function listLeadQualificationHistory(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadQualificationEvent[]>;
 export function startQualification(client: QueryClient, context: CrmContext, leadId: string): Promise<{ started: boolean; stageChanged: boolean }>;
 export function updateQualification(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean; fields: string[] }>;
 export function saveLeadQualification(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean; fields: string[] }>;
-export function rateLead(client: QueryClient, context: CrmContext, leadId: string, input: { rating: string }): Promise<{ changed: boolean; fields: string[] }>;
 export function qualifyLead(client: QueryClient, context: CrmContext, leadId: string, input?: Record<string, unknown>): Promise<{ status: "qualified"; overridden: boolean }>;
 export function overrideQualification(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ status: "qualified"; overridden: boolean }>;
 export function disqualifyLead(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ status: "disqualified" }>;
@@ -406,7 +399,6 @@ export type LeadOptions = {
   sources: LeadSource[];
   users: Array<{ id: string; name: string; email: string }>;
   teams: LeadTeamOption[];
-  tags: LeadTag[];
   currencies: string[];
   baseCurrency: string;
   currentUserId: string;

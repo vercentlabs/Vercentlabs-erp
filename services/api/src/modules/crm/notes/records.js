@@ -186,7 +186,6 @@ export async function setNotePinned(client, context, noteId, pinned, { expectedV
   return getNote(client, context, row.id);
 }
 export const pinNote = (client, context, noteId, options) => setNotePinned(client, context, noteId, true, options);
-export const unpinNote = (client, context, noteId, options) => setNotePinned(client, context, noteId, false, options);
 
 // Archived, never erased: the note leaves the record but its text and history stay.
 export async function deleteNote(client, context, noteId, { expectedVersion } = {}) {

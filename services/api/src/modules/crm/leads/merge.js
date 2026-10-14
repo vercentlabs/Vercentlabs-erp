@@ -1,5 +1,5 @@
 // Merging a duplicate lead into the lead that should be kept. Everything
-// recorded against the duplicate (activities, notes, files, tags, emails)
+// recorded against the duplicate (activities, notes and files)
 // moves to the kept lead. The user chooses, field by field, which value
 // survives; blank fields on the kept lead are filled from the duplicate. The
 // duplicate is disqualified as "Duplicate" and archived — never deleted — and
@@ -43,15 +43,6 @@ export async function mergeLeads(client, context, duplicateLeadId, keepLeadId, {
   await client.query(`UPDATE tenant.crm_notes SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2`, move);
   await client.query(`UPDATE public.attachments SET entity_id = $3::text WHERE organization_id = $1 AND entity_type = 'crm.lead' AND entity_id = $2::text`, move);
   await client.query(`UPDATE tenant.crm_attachment_details SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2`, move);
-  await client.query(`UPDATE tenant.crm_communications SET lead_id = $3 WHERE organization_id = $1 AND lead_id = $2`, move);
-  await client.query(`UPDATE tenant.crm_email_threads SET lead_id = $3 WHERE organization_id = $1 AND lead_id = $2`, move);
-  await client.query(
-    `INSERT INTO tenant.crm_lead_tags (organization_id, lead_id, tag_id, created_by)
-     SELECT organization_id, $3, tag_id, created_by FROM tenant.crm_lead_tags WHERE organization_id = $1 AND lead_id = $2
-     ON CONFLICT DO NOTHING`,
-    move,
-  );
-  await client.query(`DELETE FROM tenant.crm_lead_tags WHERE organization_id = $1 AND lead_id = $2`, [organizationId, duplicate.id]);
 
   const filled = FILLABLE_COLUMNS.filter((column) => !blank(duplicate[column]) && String(duplicate[column]) !== String(keep[column] ?? "")
     && (choices?.[FIELD_OF_COLUMN[column]] === "duplicate" || (choices?.[FIELD_OF_COLUMN[column]] !== "keep" && blank(keep[column]))));

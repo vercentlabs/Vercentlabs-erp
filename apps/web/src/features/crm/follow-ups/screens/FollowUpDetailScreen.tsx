@@ -40,7 +40,7 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
 
   if (query.isLoading || optionsQuery.isLoading) return <LoadingState label="Loading follow-up" />;
   if (query.isError || !followUp)
-    return <ErrorState title="Follow-up not found" description="It may have been deleted, or you may not have access to it." action={{ label: "Back to follow-ups", onPress: () => router.push("/crm/follow-ups") }} />;
+    return <ErrorState title="Follow-up not found" description="It may have been deleted, or you may not have access to it." action={{ label: "Back to follow-ups", onPress: () => router.push("/crm/activities?tab=follow-ups") }} />;
   if (!options) return <ErrorState title="Could not load this page" description="Refresh to try again." />;
 
   const can = options.capabilities;
@@ -142,7 +142,7 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
       {dialog === "reassign" && <ReassignFollowUpDialog isOpen onOpenChange={close} followUp={followUp} options={options} onDone={refresh} />}
       <AlertDialog isOpen={dialog === "delete"} onOpenChange={close} tone="danger" confirmLabel="Delete" isConfirming={action.isPending} title="Delete this follow-up?"
         description="Only a follow-up scheduled by mistake can be deleted: never rescheduled, reassigned, reminded, completed or cancelled. Otherwise cancel it, so its history is kept."
-        onConfirm={() => action.mutate(async () => { try { await deleteFollowUp(followUp.id); router.replace("/crm/follow-ups"); } finally { setDialog(null); } })} />
+        onConfirm={() => action.mutate(async () => { try { await deleteFollowUp(followUp.id); router.replace("/crm/activities?tab=follow-ups"); } finally { setDialog(null); } })} />
     </>
   );
 }

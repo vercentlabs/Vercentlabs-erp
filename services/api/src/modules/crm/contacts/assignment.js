@@ -92,8 +92,6 @@ export async function assignContact(client, context, contactId, input = {}) {
   return { changed: true };
 }
 
-export const reassignContact = assignContact;
-
 export async function bulkAssignContacts(client, context, input = {}) {
   const ids = [...new Set(Array.isArray(input.contactIds) ? input.contactIds : [])];
   if (!ids.length) throw new CrmError(400, "Select at least one contact.", "CRM_CONTACT_VALIDATION");
