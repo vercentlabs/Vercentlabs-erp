@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
@@ -18,29 +14,15 @@
     "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    }
+    "plugins": [{ "name": "next" }],
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": [
     "next-env.d.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.ts",
-    "**/*.tsx",
-    ".next-verify/types/**/*.ts",
-    ".next-verify/dev/types/**/*.ts"
+    "**/*.tsx"
   ],
-  "exclude": [
-    "node_modules",
-    "playwright-report",
-    "test-results"
-  ]
+  "exclude": ["node_modules", "playwright-report", "test-results"]
 }
