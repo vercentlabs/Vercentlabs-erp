@@ -97,7 +97,10 @@ export type MoSummary = { rows: Array<{ id: string; number: string; status: MoSt
   varianceClosed?: string; capitalised?: string }>; totals: Record<string, string | number>; costVisible: boolean };
 export type MfgSettings = { bomSelfApprovalAllowed: boolean; bomCostStaleAfterDays: number; moSelfApprovalAllowed: boolean; moVarianceSelfApprovalAllowed: boolean; moOverproductionTolerancePct: string;
   moRequireInspection: boolean; moPartialReservationAllowed: boolean; moReleaseWithShortagesAllowed: boolean; miUnreservedIssueAllowed: boolean; miExcessTolerancePct: string;
-  mcVarianceWarningPct: string; mcVarianceApprovalPct: string; mcSelfApprovalAllowed: boolean; moProductionMaterialCheck: "WARN" | "BLOCK"; canManage: boolean };
+  mcVarianceWarningPct: string; mcVarianceApprovalPct: string; mcSelfApprovalAllowed: boolean; moProductionMaterialCheck: "WARN" | "BLOCK";
+  qiTemplateRequired: boolean; qiReviewRequired: boolean; qiDeviationAllowed: boolean; qiSampleDecidesBatch: boolean;
+  phResumeApprovalRequired: boolean; phOverdueAfterHours: number;
+  mvSavingReviewPct: string; mvApprovalValueAbove: string | null; mvBlockCompletion: boolean; canManage: boolean };
 
 export const listOrders = (filters: Record<string, string | undefined>) => call<{ orders: MoListRow[] }>(`/orders${qs(filters)}`).then((r) => r.orders);
 export const getOrder = (id: string) => call<{ order: MoOrder }>(`/orders/${id}`).then((r) => r.order);

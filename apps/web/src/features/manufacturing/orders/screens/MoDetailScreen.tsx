@@ -26,7 +26,13 @@ import { MaterialReconciliationPanel } from "@/features/manufacturing/consumptio
 import { ProductionProgressPanel } from "@/features/manufacturing/production/components/ProductionProgressPanel";
 import { MC_BASE } from "@/features/manufacturing/consumption/api/mc-api";
 import { MI_BASE } from "@/features/manufacturing/issues/api/mi-api";
+import { holdAction } from "@/features/manufacturing/holds/api/hold-api";
+import { holdAsk } from "@/features/manufacturing/holds/components/holdDialog";
+import { OrderCostingPanel } from "@/features/manufacturing/costing/components/OrderCostingPanel";
+import { OrderHoldBanner, OrderHoldHistoryPanel } from "@/features/manufacturing/holds/components/OrderHoldPanel";
+import { OrderQualityPanel } from "@/features/manufacturing/quality/components/OrderQualityPanel";
 import { OrderScrapPanel } from "@/features/manufacturing/scrap/components/OrderScrapPanel";
+import { OrderVariancePanel } from "@/features/manufacturing/variance/components/OrderVariancePanel";
 import { SCRAP_BASE } from "@/features/manufacturing/scrap/api/scrap-api";
 import { OrderReceiptsPanel } from "@/features/manufacturing/receipts/components/OrderReceiptsPanel";
 import { FGR_BASE } from "@/features/manufacturing/receipts/api/fgr-api";
@@ -131,11 +137,12 @@ export function MoDetailScreen({ orderId }: { orderId: string }) {
           { name: "inspectionReference", label: "Inspection reference", kind: "text" }],
         input: (values, requestKey) => ({ idempotencyKey: requestKey, ...Object.fromEntries(Object.entries(values).filter(([, value]) => String(value).trim())) }) })}>Quality decision</Button>}
       {can.receive && <Button size="compact" variant="secondary" onPress={() => router.push(`${FGR_BASE}/new?orderId=${order.id}`)}>Receive finished goods</Button>}
-      {can.hold && <Button size="compact" variant="ghost" onPress={() => dialog({ action: "hold", text: "Order on hold.", title: "Put on hold", confirm: "Hold",
-        description: "Issues, production and receipts stop; reservations and material in production stay as they are.",
-        fields: [{ name: "category", label: "Why", kind: "select", required: true, initial: "MATERIAL_SHORTAGE", options: HOLD }, { name: "reason", label: "Details", kind: "textarea", required: true }],
-        input: (values) => ({ category: values.category, reason: values.reason }) })}>Hold</Button>}
-      {can.resume && <Button size="compact" variant="primary" isLoading={busy} onPress={() => quick("resume", "Resumed.")}>Resume</Button>}
+      {can.hold && <Button size="compact" variant="ghost" onPress={() => setAsk(holdAsk(order.id, { onDone: async () => { await refresh(); setMessage({ tone: "success", text: "Order on hold." }); } }))}>Hold</Button>}
+      {order.status === "ON_HOLD" && can.resume && <Button size="compact" variant="ghost" onPress={() => setAsk(holdAsk(order.id, { adding: true, onDone: async () => { await refresh(); setMessage({ tone: "success", text: "Reason added to the hold." }); } }))}>Add hold reason</Button>}
+      {can.resume && <Button size="compact" variant="primary" isLoading={busy} onPress={() => setAsk({ title: `Resume ${order.number}`, confirm: "Resume production", tone: "danger",
+        description: "Every hold reason must be cleared by its own authority; materials and pending postings are checked again on the server. Open the hold for its readiness checks.",
+        fields: [{ name: "note", label: "How the hold was resolved", kind: "textarea", required: true }],
+        run: (values, requestKey) => perform(() => holdAction(order.id, "resume", { resolutionNotes: values.note, expectedMoVersion: order.version, idempotencyKey: requestKey }), "Production resumed.") })}>Resume</Button>}
       {can.complete && <Button size="compact" variant="primary" onPress={() => dialog({ action: "complete", text: short ? "Closed short." : "Order completed.", title: short ? "Close the order short" : "Complete the order", confirm: "Complete",
         description: short ? `Only ${qty(order.quantities.accepted)} of ${qty(order.quantities.planned)} accepted. The target stays ${qty(order.quantities.planned)}; give the reason (someone who may approve variances).`
           : "Everything is reconciled first: inspection, receipts, material in production and open requests.",
@@ -207,6 +214,7 @@ function Overview({ order }: { order: MoOrder }) {
   const q = order.quantities;
   return (
     <div className="flex flex-col gap-4">
+      {order.status === "ON_HOLD" && <OrderHoldBanner orderId={order.id} />}
       <FactList items={[
         ["Planned", `${qty(q.planned)} ${order.finishedItem.baseUom ?? ""}${order.outputUom !== order.finishedItem.baseUom ? ` (${qty(order.plannedQuantity)} ${order.outputUom})` : ""}`],
         ["Reported", qty(q.reported)], ["Accepted", qty(q.accepted)], ["Rejected", qty(q.rejected)], ["Awaiting inspection", qty(q.pendingInspection)], ["Received into stock", qty(q.received)],
@@ -323,6 +331,7 @@ function MaterialsPanel({ order, onLines, onAsk, perform }: { order: MoOrder; on
         </Panel>
       )}
       <OrderScrapPanel orderId={order.id} type="ISSUED_MATERIAL" canRecord={can.scrap} />
+      <OrderVariancePanel orderId={order.id} />
       <Panel title="Issues and returns">
         {order.movements.length ? (
           <LinesTable columns={["Document", "Material", { label: "Quantity", numeric: true }, "Batch", ...(order.can.viewCost ? [{ label: "Cost", numeric: true }] : []), "By", "When"]}>
@@ -357,30 +366,19 @@ function ProductionPanel({ order, onAsk, perform }: { order: MoOrder; onAsk: (as
 }
 
 function QualityPanel({ order }: { order: MoOrder }) {
-  const waiting = order.production.filter((row) => Number(row.pendingRemaining) > 0);
+  return <OrderQualityPanel orderId={order.id} />;
+}
+
+function CostsPanel({ order }: { order: MoOrder }) {
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-text-secondary">{order.settings.requireInspection ? "Every unit produced waits here for a quality decision." : "Output reported as awaiting inspection waits here."} Each unit is decided once.</p>
-      <Panel title="Awaiting inspection">
-        {waiting.length ? (
-          <LinesTable columns={["Entry", "Batch", { label: "Waiting", numeric: true }, "Reported"]}>
-            {waiting.map((row) => <tr key={row.id}><Cell>{row.number}</Cell><Cell>{row.batchReference}</Cell><Cell numeric>{qty(row.pendingRemaining)}</Cell><Cell>{formatDateTime(row.at)}</Cell></tr>)}
-          </LinesTable>
-        ) : <p className="text-sm text-text-muted">Nothing awaits inspection.</p>}
-      </Panel>
-      <Panel title="Decisions">
-        {order.qualityDecisions.length ? (
-          <LinesTable columns={["Entry", { label: "Accepted", numeric: true }, { label: "Rejected", numeric: true }, "Reason", "Rejected output", "Inspection", "Inspector", "When"]}>
-            {order.qualityDecisions.map((row) => <tr key={row.id}><Cell>{row.entryNumber}</Cell><Cell numeric>{qty(row.accepted)}</Cell><Cell numeric>{qty(row.rejected)}</Cell><Cell>{row.reason}</Cell>
-              <Cell>{row.disposition?.toLowerCase()}</Cell><Cell>{row.inspectionReference}</Cell><Cell>{row.actor}</Cell><Cell>{formatDateTime(row.at)}</Cell></tr>)}
-          </LinesTable>
-        ) : <p className="text-sm text-text-muted">No decisions yet.</p>}
-      </Panel>
+      <OrderCostingPanel orderId={order.id} />
+      <MaterialCostsPanel order={order} />
     </div>
   );
 }
 
-function CostsPanel({ order }: { order: MoOrder }) {
+function MaterialCostsPanel({ order }: { order: MoOrder }) {
   const costs = order.costs;
   if (!costs) return <p className="text-sm text-text-muted">You may not see manufacturing cost.</p>;
   return (
@@ -406,6 +404,7 @@ function CostsPanel({ order }: { order: MoOrder }) {
 function HistoryPanel({ order, onAsk, perform }: { order: MoOrder; onAsk: (ask: Ask) => void; perform: (work: () => Promise<unknown>, text: string) => Promise<void> }) {
   return (
     <div className="flex flex-col gap-4">
+      <OrderHoldHistoryPanel orderId={order.id} />
       <Panel title="Exceptions" description="Open exceptions block completion until resolved.">
         {order.can.raiseException && <div><Button size="compact" variant="secondary" onPress={() => onAsk({ title: "Raise an exception", confirm: "Raise",
           fields: [{ name: "category", label: "Kind", kind: "select", required: true, initial: "OTHER", options: HOLD }, { name: "reason", label: "What happened", kind: "textarea", required: true }],

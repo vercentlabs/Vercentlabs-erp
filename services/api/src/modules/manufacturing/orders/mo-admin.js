@@ -60,22 +60,32 @@ export async function getManufacturingHome(client, c) {
 
 // ------------------------------------------------------------------ settings
 const SETTINGS = "bom_self_approval_allowed, bom_cost_stale_after_days, mo_self_approval_allowed, mo_variance_self_approval_allowed, mo_overproduction_tolerance_pct, mo_require_inspection, mo_partial_reservation_allowed, mo_release_with_shortages_allowed, mi_unreserved_issue_allowed, mi_excess_tolerance_pct, mc_variance_warning_pct, mc_variance_approval_pct, mc_self_approval_allowed, mo_production_material_check";
+// Read with the quality-inspection policies (0120), which are written on their own.
+const SETTINGS_READ = `${SETTINGS}, qi_template_required, qi_review_required, qi_deviation_allowed, qi_sample_decides_batch, ph_resume_approval_required, ph_overdue_after_hours, mv_saving_review_pct, mv_approval_value_above, mv_block_completion`;
 const view = (row = {}) => ({ bomSelfApprovalAllowed: Boolean(row.bom_self_approval_allowed), bomCostStaleAfterDays: Number(row.bom_cost_stale_after_days ?? 90),
   moSelfApprovalAllowed: Boolean(row.mo_self_approval_allowed), moVarianceSelfApprovalAllowed: Boolean(row.mo_variance_self_approval_allowed),
   moOverproductionTolerancePct: q(D(row.mo_overproduction_tolerance_pct ?? 0)), moRequireInspection: Boolean(row.mo_require_inspection),
   moPartialReservationAllowed: row.mo_partial_reservation_allowed ?? true, moReleaseWithShortagesAllowed: row.mo_release_with_shortages_allowed ?? true,
   miUnreservedIssueAllowed: row.mi_unreserved_issue_allowed ?? true, miExcessTolerancePct: q(D(row.mi_excess_tolerance_pct ?? 0)),
   mcVarianceWarningPct: q(D(row.mc_variance_warning_pct ?? 2)), mcVarianceApprovalPct: q(D(row.mc_variance_approval_pct ?? 5)), mcSelfApprovalAllowed: Boolean(row.mc_self_approval_allowed),
-  moProductionMaterialCheck: row.mo_production_material_check ?? "WARN" });
+  moProductionMaterialCheck: row.mo_production_material_check ?? "WARN",
+  // Production Quality Inspection (0120).
+  qiTemplateRequired: Boolean(row.qi_template_required), qiReviewRequired: Boolean(row.qi_review_required), qiDeviationAllowed: Boolean(row.qi_deviation_allowed),
+  qiSampleDecidesBatch: Boolean(row.qi_sample_decides_batch),
+  // Production Hold (0121).
+  phResumeApprovalRequired: Boolean(row.ph_resume_approval_required), phOverdueAfterHours: Number(row.ph_overdue_after_hours ?? 24),
+  // Material Consumption Variance (0122).
+  mvSavingReviewPct: q(D(row.mv_saving_review_pct ?? 5)), mvApprovalValueAbove: row.mv_approval_value_above === null || row.mv_approval_value_above === undefined ? null : q(D(row.mv_approval_value_above)),
+  mvBlockCompletion: Boolean(row.mv_block_completion) });
 
 export async function getManufacturingSettings(client, c) {
   if (!has(c, "manufacturing.view")) throw moError(403, "MFG_MO_PERMISSION_DENIED");
-  const row = (await client.query(`SELECT ${SETTINGS} FROM tenant.manufacturing_settings WHERE organization_id = $1`, [c.organizationId])).rows[0];
+  const row = (await client.query(`SELECT ${SETTINGS_READ} FROM tenant.manufacturing_settings WHERE organization_id = $1`, [c.organizationId])).rows[0];
   return { ...view(row), canManage: has(c, MO.settings) };
 }
 export async function updateManufacturingSettings(client, c, input = {}) {
   needMo(c, MO.settings);
-  const current = view((await client.query(`SELECT ${SETTINGS} FROM tenant.manufacturing_settings WHERE organization_id = $1`, [c.organizationId])).rows[0]);
+  const current = view((await client.query(`SELECT ${SETTINGS_READ} FROM tenant.manufacturing_settings WHERE organization_id = $1`, [c.organizationId])).rows[0]);
   const flag = (key) => (input[key] === undefined ? current[key] : Boolean(input[key]));
   const tolerance = input.moOverproductionTolerancePct === undefined ? Number(current.moOverproductionTolerancePct) : Number(input.moOverproductionTolerancePct);
   if (!(tolerance >= 0 && tolerance <= 100)) throw moError(400, "MFG_MO_VALIDATION_FAILED", "The overproduction tolerance is between 0% and 100%.");
@@ -95,6 +105,18 @@ export async function updateManufacturingSettings(client, c, input = {}) {
      ON CONFLICT (organization_id) DO UPDATE SET bom_self_approval_allowed = $2, bom_cost_stale_after_days = $3, mo_self_approval_allowed = $4, mo_variance_self_approval_allowed = $5,
        mo_overproduction_tolerance_pct = $6, mo_require_inspection = $7, mo_partial_reservation_allowed = $8, mo_release_with_shortages_allowed = $9,
        mi_unreserved_issue_allowed = $10, mi_excess_tolerance_pct = $11, mc_variance_warning_pct = $12, mc_variance_approval_pct = $13, mc_self_approval_allowed = $14, mo_production_material_check = $15, updated_at = now()`, values);
+  await client.query(`UPDATE tenant.manufacturing_settings SET qi_template_required = $2, qi_review_required = $3, qi_deviation_allowed = $4, qi_sample_decides_batch = $5 WHERE organization_id = $1`,
+    [c.organizationId, flag("qiTemplateRequired"), flag("qiReviewRequired"), flag("qiDeviationAllowed"), flag("qiSampleDecidesBatch")]);
+  const overdue = input.phOverdueAfterHours === undefined ? current.phOverdueAfterHours : Number(input.phOverdueAfterHours);
+  if (!(Number.isInteger(overdue) && overdue >= 1 && overdue <= 8760)) throw moError(400, "MFG_MO_VALIDATION_FAILED", "A hold is overdue after 1 to 8760 hours.");
+  await client.query(`UPDATE tenant.manufacturing_settings SET ph_resume_approval_required = $2, ph_overdue_after_hours = $3 WHERE organization_id = $1`,
+    [c.organizationId, flag("phResumeApprovalRequired"), overdue]);
+  const saving = input.mvSavingReviewPct === undefined ? Number(current.mvSavingReviewPct) : Number(input.mvSavingReviewPct);
+  if (!(saving >= 0 && saving <= 100)) throw moError(400, "MFG_MO_VALIDATION_FAILED", "The saving review percent is between 0% and 100%.");
+  const valueAbove = input.mvApprovalValueAbove === undefined ? current.mvApprovalValueAbove : input.mvApprovalValueAbove === null || input.mvApprovalValueAbove === "" ? null : Number(input.mvApprovalValueAbove);
+  if (valueAbove !== null && !(Number(valueAbove) >= 0)) throw moError(400, "MFG_MO_VALIDATION_FAILED", "The value threshold is zero or more.");
+  await client.query(`UPDATE tenant.manufacturing_settings SET mv_saving_review_pct = $2, mv_approval_value_above = $3, mv_block_completion = $4 WHERE organization_id = $1`,
+    [c.organizationId, String(saving), valueAbove === null ? null : String(valueAbove), flag("mvBlockCompletion")]);
   await client.query(`INSERT INTO tenant.manufacturing_events (organization_id, aggregate_type, aggregate_id, event_type, payload, actor_user_id) VALUES ($1,'settings',$1,'manufacturing.settings.updated',$2::jsonb,$3)`,
     [c.organizationId, JSON.stringify({ changed: Object.keys(input).map((key) => text(key, 60)) }), c.userId ?? null]);
   return getManufacturingSettings(client, c);

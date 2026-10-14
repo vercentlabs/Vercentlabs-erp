@@ -41,6 +41,8 @@ const ACCOUNT_SEED = Object.freeze([
   ["4960", "Inventory adjustment gain", "revenue", "other_income", "credit", false, true, false],
   ["5000", "Cost of sales", "expense", "cogs", "debit", false, true, false],
   ["5100", "Manufacturing variances", "expense", "cogs", "debit", false, false, false],
+  ["5110", "Manufacturing labor applied", "expense", "cogs", "credit", false, false, false],
+  ["5120", "Manufacturing overhead applied", "expense", "cogs", "credit", false, false, false],
   ["6000", "Operating expenses", "expense", "group", "debit", true, false, false],
   ["6100", "General expense", "expense", "expense", "debit", false, true, false],
   ["6150", "Ineligible input tax", "expense", "expense", "debit", false, false, false],
@@ -88,7 +90,7 @@ const DEFAULT_MAPPING_SEED = Object.freeze([["inventory", "1300"], ["opening_bal
   ["output_cgst", "2211"], ["output_sgst", "2212"], ["output_igst", "2213"], ["output_cess", "2214"], ["input_cgst", "1411"], ["input_sgst", "1412"], ["input_igst", "1413"],
   ["input_cess", "1414"], ["input_tax_pending", "1419"], ["itc_ineligible", "6150"], ["grni", "2160"], ["expense_payable", "2410"],
   // Manufacturing: work in progress, and the variance an order closes at completion.
-  ["wip", "1310"], ["manufacturing_variance", "5100"]]);
+  ["wip", "1310"], ["manufacturing_variance", "5100"], ["manufacturing_labor_applied", "5110"], ["manufacturing_overhead_applied", "5120"]]);
 
 const PARENT_CODE_BY_PREFIX = Object.freeze([
   ["11", "1100"], ["1", "1000"], ["2", "2000"], ["3", "3000"],

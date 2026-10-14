@@ -37,6 +37,10 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "procurement.supplier_bill": { moduleKey: "procurement", purposes: ["attachment"] },
   "procurement.purchase_return": { moduleKey: "procurement", purposes: ["attachment"] },
   // On an opening stock document: the migration evidence (legacy stock reports, count sheets, valuation workings).
+  // Evidence on a production quality inspection: photos of defects, measurement sheets, test records.
+  "manufacturing.quality_inspection": { moduleKey: "manufacturing", purposes: ["attachment"] },
+  // Evidence on a production hold: incident reports, photos, supplier confirmations, clearance records.
+  "manufacturing.production_hold": { moduleKey: "manufacturing", purposes: ["attachment"] },
   "stock.opening_stock": { moduleKey: "stock", purposes: ["attachment"] },
   "stock.goods_issue": { moduleKey: "stock", purposes: ["attachment"] },
   "stock.inventory_adjustment": { moduleKey: "stock", purposes: ["attachment"] },

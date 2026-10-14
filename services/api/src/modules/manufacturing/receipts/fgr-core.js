@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 
 import { loadItem } from "../boms/bom-engine.js";
-import { MoError, STATUS_LABEL, loadMaterials, money, mul, settingsOf, unitMaterialCost, wipBalance } from "../orders/mo-core.js";
+import { MoError, STATUS_LABEL, div, loadMaterials, money, mul, settingsOf, unitMaterialCost, wipBalance } from "../orders/mo-core.js";
 import { D, ZERO, add, decisionsOf, entryFigures, has, loadProductionOrder, max, outputQuantity, q, sub, text, uuid } from "../production/production-core.js";
 
 export const FGR = Object.freeze({
@@ -195,8 +195,9 @@ export async function loadFinishedItem(client, c, order) {
   return loadItem(client, c.organizationId, order.finished_item_id);
 }
 
-// The cost this receipt carries (the company's policy: the recipe's material per unit at its actual average issue cost), checked against
-// what work in progress still holds — a receipt never capitalises more than was issued.
+// The cost this receipt carries (the company's policy: the recipe's material per unit at its actual average issue cost, plus the labor and
+// overhead applied to work in progress and not yet capitalised, spread over the accepted units not yet received — equivalent accepted
+// units), checked against what work in progress still holds — a receipt never capitalises more than was issued and applied.
 export async function costOf(client, c, order, base) {
   const unit = unitMaterialCost(order, await loadMaterials(client, c, order.id));
   const wip = wipBalance(order);
@@ -204,12 +205,16 @@ export async function costOf(client, c, order, base) {
     return { status: "UNAVAILABLE", code: "MFG_FGR_COST_UNAVAILABLE", message: `No cost is known for ${unit.missing.join(", ")}: issue it (or give it a cost) before receiving.`, unitCost: null, total: null,
       wipBefore: wip, basis: unit.basis };
   }
-  const total = D(money(mul(unit.unitCost, base)));
+  const material = D(money(mul(unit.unitCost, base)));
+  const appliedLeft = max(sub(add(D(order.wip_applied_labor_cost ?? 0), D(order.wip_applied_overhead_cost ?? 0)), D(order.wip_conversion_capitalised_cost ?? 0)), ZERO);
+  const openUnits = sub(D(order.accepted_quantity), D(order.received_quantity));
+  const conversion = appliedLeft === ZERO || openUnits <= ZERO ? ZERO : base >= openUnits ? appliedLeft : D(money(div(mul(appliedLeft, base), openUnits)));
+  const total = add(material, conversion);
   if (total > add(wip, D("0.01"))) {
-    return { status: "BLOCKED", code: "MFG_FGR_COST_POLICY_BLOCKED", message: `These ${q(base)} units carry ₹${money(total)} of material; work in progress holds ₹${money(wip)}. Issue the materials for them first.`,
-      unitCost: unit.unitCost, total, wipBefore: wip, basis: unit.basis };
+    return { status: "BLOCKED", code: "MFG_FGR_COST_POLICY_BLOCKED", message: `These ${q(base)} units carry ₹${money(total)} of cost; work in progress holds ₹${money(wip)}. Issue the materials for them first.`,
+      unitCost: unit.unitCost, total, material, conversion, wipBefore: wip, basis: unit.basis };
   }
-  return { status: "READY", code: null, message: null, unitCost: unit.unitCost, total, wipBefore: wip, wipAfter: max(sub(wip, total), ZERO), basis: unit.basis };
+  return { status: "READY", code: null, message: null, unitCost: div(total, base), total, material, conversion, wipBefore: wip, wipAfter: max(sub(wip, total), ZERO), basis: unit.basis };
 }
 
 export function contentHash(receipt, lines) {

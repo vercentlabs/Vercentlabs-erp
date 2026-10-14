@@ -617,6 +617,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           { ...available("Bills of Materials", "/manufacturing/boms"), aliases: ["bom", "boms", "recipe", "bill of materials", "bom revision", "where used", "compare revisions", "revision impact"], requiredPermission: "manufacturing.bom.view" },
           { ...available("Pending BOM Approvals", "/manufacturing/boms/approvals"), aliases: ["bom approval", "approve bom", "revision approval"], requiredPermission: "manufacturing.bom.view" },
+          { ...available("Inspection Checklists", "/manufacturing/quality-checklists"), aliases: ["quality checklist", "inspection template", "tolerances", "critical checks", "qc checklist"], requiredPermission: "manufacturing.qi.view" },
         ],
       },
       {
@@ -631,6 +632,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             aliases: ["mo", "production orders", "work orders", "issue materials", "material issue", "record production", "finished goods receipt", "quality decision", "scrap", "reserve materials"],
             requiredPermission: "manufacturing.mo.view",
           },
+          { ...available("Variance Exceptions", "/manufacturing/material-variances"), aliases: ["material variance", "usage variance", "excess consumption", "consumption variance", "variance approval", "mvx"], requiredPermission: "manufacturing.variance.view" },
+          { ...available("Production Holds", "/manufacturing/production-holds"), aliases: ["on hold", "held orders", "production hold", "stop production", "resume production", "downtime", "mph"], requiredPermission: "manufacturing.hold.view" },
+          { ...available("Production Inspections", "/manufacturing/quality-inspections"), aliases: ["quality inspection", "final inspection", "inspection queue", "qc", "accept output", "reject output", "quality hold", "reinspection", "mqi"], requiredPermission: "manufacturing.qi.view" },
         ],
       },
       {
@@ -669,6 +673,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Production Summary", "/manufacturing/reports?report=summary"), aliases: ["production report", "yield", "output report"], requiredPermission: "manufacturing.mo.view" },
           { ...available("Cost Variance", "/manufacturing/reports?report=variance"), aliases: ["manufacturing variance", "production cost", "material variance"], requiredPermission: "manufacturing.mo.cost_view" },
           { ...available("Material Availability", "/manufacturing/material-reports?report=readiness"), aliases: ["order readiness", "material coverage", "reservation coverage", "issued vs required", "shortage aging", "incoming supply"], requiredPermission: "manufacturing.material.view" },
+          { ...available("Production Costing Reports", "/manufacturing/production-costing-reports?report=exceptions"), aliases: ["production cost", "wip report", "unit cost", "cost per unit", "costing exceptions", "wip reconciliation", "planned vs actual cost", "overhead report", "overhead by category", "actual vs applied overhead"], requiredAnyPermission: ["manufacturing.cost.view", "manufacturing.mo.cost_view"] },
+          { ...available("Material Usage Variance", "/manufacturing/material-variance-reports?report=by-mo"), aliases: ["usage variance report", "material efficiency", "bom review candidates", "favorable unfavorable", "scrap vs consumption"], requiredPermission: "manufacturing.variance.view" },
+          { ...available("Production Hold Reports", "/manufacturing/production-hold-reports?report=active"), aliases: ["production downtime", "hold aging", "holds by reason", "delivery risk", "hold audit"], requiredPermission: "manufacturing.hold.view" },
+          { ...available("Quality Reports", "/manufacturing/quality-reports?report=by-mo"), aliases: ["rejection rate", "acceptance rate", "defects by reason", "failed measurements", "inspection turnaround", "inspector activity", "quality holds report"], requiredPermission: "manufacturing.qi.view" },
           { ...available("Scrap Reports", "/manufacturing/scrap-reports?report=by-mo"), aliases: ["scrap summary", "scrap cost", "planned vs actual scrap", "scrap rate", "rejection rate", "abnormal loss"], requiredPermission: "manufacturing.scrap.view" },
           { ...available("Finished-Goods Receipt Reports", "/manufacturing/finished-goods-receipt-reports?report=exceptions"), aliases: ["accepted not received", "receipt exceptions", "lot traceability", "serial traceability", "receipt reversals", "partial receipts"], requiredPermission: "manufacturing.fgr.view" },
           { ...available("Production Progress", "/manufacturing/production-progress?report=summary"), aliases: ["production batches", "accepted not received", "yield", "short close", "overproduction", "wip summary", "partial production cost"], requiredPermission: "manufacturing.mo.view" },
@@ -683,6 +691,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         icon: Settings,
         collapsible: true,
         items: [
+          { ...available("Production Costing", "/manufacturing/production-costing"), aliases: ["labor rate", "overhead rate", "cost rates", "applied overhead", "production cost setup", "overhead categories", "cost pool", "overhead reconciliation", "rate approval", "factory overhead"], requiredAnyPermission: ["manufacturing.cost.view", "manufacturing.mo.cost_view"] },
+          { ...available("Variance Tolerances", "/manufacturing/material-variance-tolerances"), aliases: ["material tolerance", "critical material", "variance threshold"], requiredPermission: "manufacturing.variance.view" },
           { ...available("Manufacturing Setup", "/manufacturing/settings"), aliases: ["manufacturing settings", "overproduction tolerance", "inspection required", "self approval"] },
         ],
       },

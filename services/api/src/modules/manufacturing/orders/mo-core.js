@@ -329,4 +329,7 @@ export function unitMaterialCost(order, materials) {
 }
 // Work in progress still held: issued material less what finished goods took, what was closed to variance and what scrap took out of it
 // (abnormal loss written off, recoverable scrap moved to the scrap bin — Scrap, 0119).
-export const wipBalance = (order) => sub(D(order.wip_material_cost), add(add(D(order.wip_capitalised_cost), D(order.wip_variance_cost)), D(order.wip_scrap_cost ?? 0)));
+// Work in progress: material issued (net of returns) plus labor and overhead applied (Production Costing, 0123), less what finished goods
+// capitalised, completion closed to variance, scrap took out and approved cost adjustments wrote off.
+export const wipBalance = (order) => sub(add(D(order.wip_material_cost), add(D(order.wip_applied_labor_cost ?? 0), D(order.wip_applied_overhead_cost ?? 0))),
+  add(add(add(D(order.wip_capitalised_cost), D(order.wip_variance_cost)), D(order.wip_scrap_cost ?? 0)), D(order.wip_adjusted_cost ?? 0)));

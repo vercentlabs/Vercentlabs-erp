@@ -278,11 +278,16 @@ export async function completeManufacturingOrder(client, c, id, input = {}) {
             (SELECT count(*) FROM tenant.manufacturing_finished_goods_receipts WHERE manufacturing_order_id = $2 AND organization_id = $1
                AND (status = 'RECOVERY_REQUIRED' OR correction_status = 'REQUESTED'))::int AS receipt_unsettled,
             (SELECT count(*) FROM tenant.manufacturing_scraps WHERE manufacturing_order_id = $2 AND organization_id = $1
-               AND (status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'RECOVERY_REQUIRED') OR correction_status = 'REQUESTED'))::int AS scrap_unsettled`,
+               AND (status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'RECOVERY_REQUIRED') OR correction_status = 'REQUESTED'))::int AS scrap_unsettled,
+            (SELECT count(*) FROM tenant.manufacturing_quality_inspections WHERE manufacturing_order_id = $2 AND organization_id = $1
+               AND status IN ('DRAFT', 'IN_PROGRESS', 'PENDING_REVIEW', 'RECOVERY_REQUIRED'))::int AS inspection_open,
+            (SELECT count(*) FROM tenant.manufacturing_quality_holds WHERE manufacturing_order_id = $2 AND organization_id = $1 AND status = 'ACTIVE')::int AS hold_active`,
     [c.organizationId, order.id])).rows[0];
   if (notes.consumption_open) blockers.push(`${notes.consumption_open} consumption note(s) are not posted: post or cancel them.`);
   if (notes.receipt_open) blockers.push(`${notes.receipt_open} finished-goods receipt(s) are not posted: post or cancel them.`);
   if (notes.receipt_unsettled) blockers.push("A finished-goods receipt waits for a correction decision or needs recovery first.");
+  if (notes.inspection_open) blockers.push(`${notes.inspection_open} quality inspection(s) are open: finalize or cancel them.`);
+  if (notes.hold_active) blockers.push(`${notes.hold_active} quality hold(s) are active: release or reinspect the held output.`);
   if (notes.scrap_unsettled) blockers.push(`${notes.scrap_unsettled} scrap note(s) are not settled: post or cancel them, and decide any correction.`);
   const entries = (await client.query(`SELECT count(*) FILTER (WHERE status = 'DRAFT')::int AS drafts, count(*) FILTER (WHERE status = 'RECOVERY_REQUIRED')::int AS recovery
       FROM tenant.manufacturing_production_entries WHERE organization_id = $1 AND manufacturing_order_id = $2`, [c.organizationId, order.id])).rows[0];
@@ -297,6 +302,10 @@ export async function completeManufacturingOrder(client, c, id, input = {}) {
     if (shortReason.length < 3) blockers.push(`Only ${q(D(order.accepted_quantity))} of ${q(D(order.planned_base_quantity))} accepted: give a reason to close the order short.`);
     else if (!has(c, MO.approveVariance)) blockers.push("Closing an order short needs someone who may approve variances.");
   }
+  // Material usage variance on the final figures (what is still in production counted as used when it is declared so): unapproved variance
+  // blocks completion where the company says so — checked before anything is written.
+  const { varianceCompletionBlockers } = await import("../variance/variance-service.js");
+  blockers.push(...await varianceCompletionBlockers(client, c, order, input.consumeRemaining ? new Map(inCustody.map((line) => [line.id, lineFigures(line).custody])) : null));
   if (blockers.length) throw moError(409, "MFG_MO_COMPLETION_BLOCKED", blockers[0], { blockers });
   // The authorized closing disposition: what is still in production is declared used, on a closing consumption note against its issued stock.
   if (inCustody.length) {
@@ -305,7 +314,10 @@ export async function completeManufacturingOrder(client, c, id, input = {}) {
       { kind: "CLOSING", key: `mo-close:${order.id}` });
   }
   await releaseReservations(client, c, order);
-  const residual = wipBalance(order);
+  // Labor and overhead still due on the output are applied (Production Costing); whatever then remains in work in progress closes to variance.
+  const { applyCostsBeforeReceipt, finalizeManufacturingCosting } = await import("../costing/cost-service.js");
+  await applyCostsBeforeReceipt(client, c, order);
+  const residual = wipBalance(await loadOrder(client, c, order.id, { lock: true }));
   const journal = residual === ZERO ? null : await postJournal(client, c, { event: "manufacturing_order_close", sourceType: "manufacturing_order", sourceId: order.id, sourceNumber: order.mo_number,
     reference: order.mo_number, description: `${order.mo_number} closed: material beyond (or below) the recipe`,
     lines: residual > ZERO
@@ -318,8 +330,12 @@ export async function completeManufacturingOrder(client, c, id, input = {}) {
       returned: q(D(line.returned_quantity)), netCost: money(sub(D(line.issued_cost), D(line.returned_cost))) })),
     cost: { actualMaterial: money(D(order.wip_material_cost)), capitalised: money(D(order.wip_capitalised_cost)), variance: money(residual), journalEntryId: journal },
   };
+  const { snapshotFinalVariances } = await import("../variance/variance-service.js");
   await setStatus(client, c, order, "COMPLETED", { completed_at: new Date(), completed_by: c.userId ?? null, short_close_reason: short ? shortReason : null, completion_summary: JSON.stringify(summary),
     wip_variance_cost: money(add(D(order.wip_variance_cost), residual)) }, { action: short ? "CLOSED_SHORT" : "COMPLETED", summary: short ? shortReason : `Variance ₹${money(residual)}`, details: summary });
+  await snapshotFinalVariances(client, c, order);
+  // The costing closes with it when work in progress is zero and Finance agrees (otherwise it waits in the costing exceptions).
+  await finalizeManufacturingCosting(client, c, order.id, {}, { system: true });
   return getManufacturingOrder(client, c, order.id);
 }
 

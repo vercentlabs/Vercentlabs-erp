@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { normalizeQuantityToBase } from "../../products/uom.js";
 import { explodeRevision } from "../boms/bom-engine.js";
 import { D, MO, MoError, STATUS_LABEL, ZERO, add, div, has, lineFigures, loadMaterials, loadOrder, max, min, mul, q, sub, text, uuid } from "../orders/mo-core.js";
+import { heldRefusal } from "../holds/hold-core.js";
 
 export const CONSUMPTION = Object.freeze({ view: "manufacturing.consumption.view", create: "manufacturing.consumption.create", post: "manufacturing.consumption.post",
   approve: "manufacturing.consumption.approve_variance", reverse: "manufacturing.consumption.reverse", export: "manufacturing.consumption.export" });
@@ -67,6 +68,8 @@ export async function loadConsumptionOrder(client, c, orderId, options) {
 // Ordinary consumption happens while the order is in production: a released order may stage material, not use it.
 // The closing disposition at completion may also run while the order waits for its short close to be approved.
 export function requireInProduction(order, { closing = false } = {}) {
+  const held = heldRefusal(order, "consume");
+  if (held) throw consumptionError(409, "MFG_CONSUMPTION_MO_INVALID_STATUS", held);
   if (order.status !== "IN_PROGRESS" && !(closing && order.status === "COMPLETION_PENDING")) {
     throw consumptionError(409, "MFG_CONSUMPTION_MO_INVALID_STATUS", order.status === "RELEASED"
       ? `${order.mo_number} is released but production has not started: start production before recording what it used.`

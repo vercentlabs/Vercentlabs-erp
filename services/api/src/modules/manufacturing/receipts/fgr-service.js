@@ -199,11 +199,15 @@ export async function postFinishedGoodsReceipt(client, c, id, input = {}) {
   }
   if (!UNPOSTED.has(receipt.status)) throw fgrError(409, "MFG_FGR_STATE_INVALID", `${receipt.receipt_number} is ${receipt.status.toLowerCase()}.`);
   versionCheck(receipt, input.expectedVersion);
-  const order = await loadReceiptOrder(client, c, receipt.manufacturing_order_id, { lock: true });
+  let order = await loadReceiptOrder(client, c, receipt.manufacturing_order_id, { lock: true });
   if (input.expectedMoVersion !== undefined && input.expectedMoVersion !== null && Number(input.expectedMoVersion) !== Number(order.version)) {
     throw fgrError(409, "MFG_FGR_DOCUMENT_CHANGED", `${order.mo_number} changed since this receipt was checked. Review it again.`);
   }
   requireReceivable(order, await receiptSettings(client, c));
+  // Labor and overhead due on the output so far are applied first (Production Costing), so the receipt carries them.
+  const { applyCostsBeforeReceipt } = await import("../costing/cost-service.js");
+  await applyCostsBeforeReceipt(client, c, order);
+  order = await loadReceiptOrder(client, c, order.id, { lock: true });
   const item = await loadFinishedItem(client, c, order);
   if (item.id !== receipt.finished_item_id) throw fgrError(409, "MFG_FGR_SOURCE_INVALID", "The receipt's product is not the order's finished item.");
   const rows = await loadReceiptLines(client, c, receipt.id);
@@ -268,7 +272,10 @@ export async function postFinishedGoodsReceipt(client, c, id, input = {}) {
   const goodsReceiptId = randomUUID();
   const lots = [...new Set(received.map((part) => part.lotId).filter(Boolean))];
   const serialNumbers = received.flatMap((part) => part.line.serialNumbers ?? []);
-  const basis = { policy: "Planned material per unit at actual average issue cost", lines: cost.basis, wipBefore: money(cost.wipBefore), at: new Date().toISOString() };
+  // The applied labor and overhead this receipt capitalises (the rest of its value is material, at Inventory's valuation).
+  const conversion = cost.conversion > totalCost ? totalCost : cost.conversion;
+  const basis = { policy: "Planned material per unit at actual average issue cost, plus applied labor and overhead per equivalent accepted unit", lines: cost.basis,
+    material: money(sub(totalCost, conversion)), conversion: money(conversion), wipBefore: money(cost.wipBefore), at: new Date().toISOString() };
   await client.query(
     `INSERT INTO tenant.manufacturing_goods_receipts (id, organization_id, manufacturing_order_id, receipt_number, item_id, warehouse_id, quantity, unit_cost, total_cost, cost_basis, batch_id, serial_numbers,
        stock_movement_ids, journal_entry_id, idempotency_key, received_by, finished_goods_receipt_id, location_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13::uuid[],$14,$15,$16,$17,$18)`,
@@ -288,8 +295,9 @@ export async function postFinishedGoodsReceipt(client, c, id, input = {}) {
         [c.organizationId, row.id, line.entryId, serial.number, serial.id, serial.movementId]);
     }
   }
-  await client.query(`UPDATE tenant.manufacturing_orders SET received_quantity = received_quantity + $3, wip_capitalised_cost = wip_capitalised_cost + $4, version = version + 1 WHERE organization_id = $1 AND id = $2`,
-    [c.organizationId, order.id, q(total), money(totalCost)]);
+  await client.query(`UPDATE tenant.manufacturing_orders SET received_quantity = received_quantity + $3, wip_capitalised_cost = wip_capitalised_cost + $4,
+      wip_conversion_capitalised_cost = wip_conversion_capitalised_cost + $5, version = version + 1 WHERE organization_id = $1 AND id = $2`,
+    [c.organizationId, order.id, q(total), money(totalCost), money(conversion)]);
   await client.query(`INSERT INTO tenant.manufacturing_finished_goods_receipt_postings (organization_id, receipt_id, command_key, document_version, kind, inventory_status, stock_movement_ids, finance_status,
       journal_entry_id, quantity, amount, created_by) VALUES ($1,$2,$3,$4,'RECEIPT','CONFIRMED',$5::uuid[],$6,$7,$8,$9,$10)`,
     [c.organizationId, receipt.id, postingKey, receipt.row_version, allMovements, journal ? "POSTED" : "NOT_REQUIRED", journal, q(total), money(totalCost), c.userId ?? null]);
@@ -475,8 +483,11 @@ export async function decideFinishedGoodsReceiptCorrection(client, c, id, input 
     await client.query(`INSERT INTO tenant.manufacturing_production_entry_events (organization_id, production_entry_id, action, summary, details, actor_user_id) VALUES ($1,$2,'RECEIPT_REVERSED',$3,'{}'::jsonb,$4)`,
       [c.organizationId, allocation.production_entry_id, `${correction.correction_number}: ${q(D(allocation.quantity))} back to receivable`, c.userId ?? null]);
   }
-  await client.query(`UPDATE tenant.manufacturing_orders SET received_quantity = received_quantity - $3, wip_capitalised_cost = wip_capitalised_cost - $4, version = version + 1 WHERE organization_id = $1 AND id = $2`,
-    [c.organizationId, order.id, q(D(record.quantity)), money(cost)]);
+  // The applied labor and overhead it had capitalised go back to work in progress with it.
+  const conversionBack = record.cost_basis?.conversion ? D(record.cost_basis.conversion) : ZERO;
+  await client.query(`UPDATE tenant.manufacturing_orders SET received_quantity = received_quantity - $3, wip_capitalised_cost = wip_capitalised_cost - $4,
+      wip_conversion_capitalised_cost = GREATEST(wip_conversion_capitalised_cost - $5, 0), version = version + 1 WHERE organization_id = $1 AND id = $2`,
+    [c.organizationId, order.id, q(D(record.quantity)), money(cost), money(conversionBack)]);
   const movementIds = back.movements.map((movement) => movement.id);
   await client.query(`UPDATE tenant.manufacturing_finished_goods_receipt_corrections SET status = 'APPROVED', decided_by = $3, decided_at = clock_timestamp(), decision_note = $4, stock_movement_ids = $5::uuid[],
       total_cost = $6, journal_entry_id = $7 WHERE organization_id = $1 AND id = $2`, [c.organizationId, correction.id, c.userId ?? null, note, movementIds, money(cost), journal]);

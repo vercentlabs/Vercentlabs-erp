@@ -254,7 +254,7 @@ export async function postMaterialIssue(client, c, id, input = {}) {
       `INSERT INTO tenant.manufacturing_order_material_variances (organization_id, manufacturing_order_id, material_id, component_item_id, quantity, reason, status, requested_by, requested_at,
          decided_by, decided_at, decision_note, variance_type, material_issue_id) VALUES ($1,$2,$3,$4,$5,$6,'APPROVED',$7,COALESCE($8, clock_timestamp()),$9,clock_timestamp(),$10,$11,$12)`,
       [c.organizationId, order.id, line.material.id, line.material.component_item_id, q(excess[index]), approved ? issue.approval_reason : `Within the company's ${q(settings.tolerancePct)}% issue tolerance`,
-        approved ? issue.approval_requested_by : c.userId ?? null, approved ? issue.approval_requested_at : null, approved ? issue.approved_by : null,
+        approved ? issue.approval_requested_by : c.userId ?? null, approved ? issue.approval_requested_at : null, approved ? issue.approved_by : c.userId ?? null,
         approved ? `${issue.issue_number}${issue.approval_note ? `: ${issue.approval_note}` : ""}` : issue.issue_number, approved ? issue.variance_type ?? "EXCESS_USAGE" : "EXCESS_USAGE", issue.id]);
     await client.query(`UPDATE tenant.manufacturing_order_materials SET authorized_extra_quantity = authorized_extra_quantity + $3, version = version + 1 WHERE organization_id = $1 AND id = $2`,
       [c.organizationId, line.material.id, q(excess[index])]);

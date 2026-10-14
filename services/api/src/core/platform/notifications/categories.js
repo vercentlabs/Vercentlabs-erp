@@ -182,6 +182,16 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     defaultInAppEnabled: true,
     userConfigurable: true,
   },
+  {
+    // Production holds (manufacturing/holds): an order stopped, a reason cleared, everything cleared, resumed, overdue; to the order's
+    // production owner, the hold owner and those who clear its reasons.
+    key: "manufacturing_production_hold",
+    displayName: "Production holds",
+    description: "When a manufacturing order you own or clear is put on hold, becomes ready to resume, resumes or stays on hold too long.",
+    moduleKey: "manufacturing",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
 ]);
 
 const BY_KEY = new Map(NOTIFICATION_CATEGORIES.map((category) => [category.key, category]));

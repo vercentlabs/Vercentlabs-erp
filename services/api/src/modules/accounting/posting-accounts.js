@@ -28,6 +28,8 @@ export const POSTING_ACCOUNTS = Object.freeze({
   cogs: M("Inventory", "Cost of goods sold", ["expense"], "The cost of stock that was sold or delivered"),
   wip: M("Manufacturing", "Work in progress", ["asset"], "Material issued to production and not yet received as finished goods"),
   manufacturing_variance: M("Manufacturing", "Manufacturing variances", ["expense"], "Material used beyond (or below) the recipe, scrap and rejects, closed when an order completes"),
+  manufacturing_labor_applied: M("Manufacturing", "Manufacturing labor applied", ["expense", "liability"], "Labor absorbed into work in progress at the configured rates (against the actual payroll cost)", true),
+  manufacturing_overhead_applied: M("Manufacturing", "Manufacturing overhead applied", ["expense", "liability"], "Factory overhead absorbed into work in progress at the configured rates (against the actual overhead)", true),
   inventory_adjustment_gain: M("Inventory", "Inventory gains", ["revenue", "expense"], "Stock found or revalued upwards"),
   inventory_adjustment_loss: M("Inventory", "Inventory losses", ["expense"], "Stock lost, damaged or revalued downwards"),
   writeoff: M("Inventory", "Write-offs", ["expense"], "Stock scrapped and bad debts written off"),

@@ -3,7 +3,7 @@
 // readiness for a next batch (with the BOM's expectation for it), one entry with its decisions, receipts and corrections, the entry list,
 // the order's production history and the reports. Costs only with the cost permission; nothing here changes anything.
 import { explodeRevision } from "../boms/bom-engine.js";
-import { money } from "../orders/mo-core.js";
+import { money, wipBalance } from "../orders/mo-core.js";
 import {
   D, ENTRY_STATUS_LABEL, MO, PRODUCTION, STATUS_LABEL, ZERO, add, authorizedTarget, decisionsOf, entryFigures, has, loadEntry, loadProductionOrder, materialReadiness, max, outputQuantity,
   productionError, productionSettings, q, sub, uuid,
@@ -272,7 +272,7 @@ export async function getProductionReport(client, c, kind = "summary", filters =
   if (kind === "wip" || kind === "cost") {
     const rows = await orders(kind === "wip" ? "AND mo.status IN ('RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETION_PENDING')" : "AND mo.wip_material_cost > 0");
     return rows.map((row) => {
-      const wip = sub(D(row.wip_material_cost), add(D(row.wip_capitalised_cost), D(row.wip_variance_cost)));
+      const wip = wipBalance(row);
       const receivedQty = D(row.received_quantity);
       return { ...orderRow(row), materialInWip: costView ? money(D(row.wip_material_cost)) : null, capitalised: costView ? money(D(row.wip_capitalised_cost)) : null,
         varianceClosed: costView ? money(D(row.wip_variance_cost)) : null, remainingWip: costView ? money(wip) : null,

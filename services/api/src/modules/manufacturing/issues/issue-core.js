@@ -8,6 +8,7 @@ import { USABLE_ROW } from "../../stock/index.js";
 import {
   D, MO, MoError, SOURCE, STATUS_LABEL, ZERO, add, div, has, lineFigures, loadMaterials, loadOrder, max, min, mul, q, sub, text, usableBalances, uuid,
 } from "../orders/mo-core.js";
+import { heldRefusal } from "../holds/hold-core.js";
 
 export const ISSUE = Object.freeze({ view: "manufacturing.issue.view", reverse: "manufacturing.issue.reverse", export: "manufacturing.issue.export", scrap: "manufacturing.issue.scrap" });
 export const ISSUE_STATUS_LABEL = Object.freeze({ DRAFT: "Draft", PENDING_APPROVAL: "Pending approval", READY_TO_POST: "Ready to post", POSTING: "Posting", POSTED: "Posted",
@@ -72,6 +73,8 @@ export async function loadIssueOrder(client, c, orderId, options) {
   }
 }
 export function requireIssuable(order) {
+  const held = heldRefusal(order, "issue");
+  if (held) throw issueError(409, "MFG_ISSUE_MO_STATUS_INVALID", held);
   if (!ISSUABLE.has(order.status)) {
     throw issueError(409, "MFG_ISSUE_MO_STATUS_INVALID", `${order.mo_number} is ${STATUS_LABEL[order.status].toLowerCase()}: materials are issued to a released or in-progress order.`);
   }

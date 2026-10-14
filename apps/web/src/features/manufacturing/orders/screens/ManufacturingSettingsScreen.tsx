@@ -60,6 +60,26 @@ function SettingsForm({ initial }: { initial: MfgSettings }) {
           Output is posted only when the materials for it are issued or reserved (otherwise it posts with a warning; a manager may record why it went ahead)
         </Checkbox>
       </Panel>
+      <Panel title="Quality inspection" description="How production output is inspected. Independent review and no acceptance after a critical failure are the defaults.">
+        <Checkbox isDisabled={disabled} isSelected={form.qiTemplateRequired} onChange={(value) => set("qiTemplateRequired", value)}>Every final inspection uses the product&apos;s checklist (no basic inspections)</Checkbox>
+        <Checkbox isDisabled={disabled} isSelected={form.qiReviewRequired} onChange={(value) => set("qiReviewRequired", value)}>Every inspection is reviewed by someone other than the inspector before it is final</Checkbox>
+        <Checkbox isDisabled={disabled} isSelected={form.qiDeviationAllowed} onChange={(value) => set("qiDeviationAllowed", value)}>
+          Output that failed a critical check may be accepted under a documented, reviewed deviation (never for what law or safety requires)
+        </Checkbox>
+        <Checkbox isDisabled={disabled} isSelected={form.qiSampleDecidesBatch} onChange={(value) => set("qiSampleDecidesBatch", value)}>A sample decides every unit its inspection covers (otherwise only the units examined are decided)</Checkbox>
+      </Panel>
+      <Panel title="Material usage variance" description="How material use compared with the BOM is judged. Review and approval percents are the usage-variance warning and approval percents below; items and groups can override them.">
+        <TextField isDisabled={disabled} label="Check for missing consumption when usage is under the BOM by more than (%)" inputMode="decimal" className="w-80"
+          value={form.mvSavingReviewPct} onChange={(value) => set("mvSavingReviewPct", value)} />
+        <TextField isDisabled={disabled} label="Approval needed when the usage cost variance exceeds (₹, optional)" inputMode="decimal" className="w-80"
+          value={form.mvApprovalValueAbove ?? ""} onChange={(value) => set("mvApprovalValueAbove", value.trim() ? value : null)} />
+        <Checkbox isDisabled={disabled} isSelected={form.mvBlockCompletion} onChange={(value) => set("mvBlockCompletion", value)}>An order completes only when every variance that needs approval is approved for its final figures</Checkbox>
+      </Panel>
+      <Panel title="Production holds" description="A hold always takes effect at once; these decide how production restarts and when a hold is overdue.">
+        <Checkbox isDisabled={disabled} isSelected={form.phResumeApprovalRequired} onChange={(value) => set("phResumeApprovalRequired", value)}>Resuming a held order needs another manager&apos;s approval</Checkbox>
+        <TextField isDisabled={disabled} label="A hold is overdue after (hours)" inputMode="numeric" className="w-56" value={String(form.phOverdueAfterHours)}
+          onChange={(value) => set("phOverdueAfterHours", Number(value) || 0)} description="Its owners are told once when it passes this." />
+      </Panel>
       <Panel title="Materials" description="How orders behave when stock does not cover every material.">
         <Checkbox isDisabled={disabled} isSelected={form.moPartialReservationAllowed} onChange={(value) => set("moPartialReservationAllowed", value)}>An order may reserve what is in stock when not everything is (the person confirms; the rest stays short)</Checkbox>
         <Checkbox isDisabled={disabled} isSelected={form.moReleaseWithShortagesAllowed} onChange={(value) => set("moReleaseWithShortagesAllowed", value)}>An order may be released while materials are short</Checkbox>

@@ -50,6 +50,8 @@ export const POSTING_EVENTS = Object.freeze({
   manufacturing_scrap: E("Manufacturing", "Manufacturing scrap", "Abnormal loss to manufacturing variance, or recoverable scrap to inventory · work in progress down", true, "/manufacturing/scrap"),
   manufacturing_scrap_reversal: E("Manufacturing", "Manufacturing scrap reversed", "Work in progress back up · the loss or scrap inventory reversed", true, "/manufacturing/scrap"),
   manufacturing_order_close: E("Manufacturing", "Manufacturing order closed", "Work in progress left at completion to manufacturing variance", true, "/manufacturing/orders/{id}"),
+  manufacturing_cost_application: E("Manufacturing", "Labor or overhead applied", "Work in progress up · labor or overhead applied", true, "/manufacturing/orders"),
+  manufacturing_cost_adjustment: E("Manufacturing", "Production cost adjustment", "Work in progress against manufacturing variance, as approved", true, "/manufacturing/orders"),
   pos_sale: E("POS", "POS sale", "Revenue · output GST · tender clearing · cost of goods sold", true, "/pos/receipts/{id}"),
   pos_return: E("POS", "POS return", "Revenue, GST and tender reversed · stock back", true, "/pos/returns/{id}"),
   payment_settlement_batch: E("POS", "Card / UPI settlement", "Clearing relieved · fees · net to bank", true, "/pos/reconciliation"),

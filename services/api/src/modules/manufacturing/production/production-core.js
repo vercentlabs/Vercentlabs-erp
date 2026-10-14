@@ -7,6 +7,7 @@ import { explodeRevision } from "../boms/bom-engine.js";
 import {
   D, MO, MoError, STATUS_LABEL, ZERO, add, div, has, lineFigures, loadMaterials, loadOrder, max, mul, q, reservedByItem, reservedPerLine, settingsOf, sub, text, uuid,
 } from "../orders/mo-core.js";
+import { heldRefusal } from "../holds/hold-core.js";
 
 export const PRODUCTION = Object.freeze({ editDraft: "manufacturing.production.edit_draft", post: "manufacturing.production.post", correct: "manufacturing.production.correct",
   export: "manufacturing.production.export" });
@@ -49,6 +50,8 @@ export async function loadEntry(client, c, id, { lock = false } = {}) {
   return row;
 }
 export function requireProducing(order, { drafts = false } = {}) {
+  const held = heldRefusal(order, drafts ? "batch" : "produce");
+  if (held) throw productionError(409, "MFG_PARTIAL_MO_STATUS_INVALID", held);
   const allowed = drafts ? ["RELEASED", "IN_PROGRESS"] : ["IN_PROGRESS"];
   if (!allowed.includes(order.status)) {
     throw productionError(409, "MFG_PARTIAL_MO_STATUS_INVALID", order.status === "RELEASED"
@@ -73,15 +76,18 @@ export async function decisionsOf(client, c, entryIds) {
 export function entryFigures(entry, decided = { accepted: ZERO, rejected: ZERO, decisions: 0 }) {
   const correctedPending = D(entry.corrected_pending_quantity ?? 0);
   const correctedAccepted = D(entry.corrected_accepted_quantity ?? 0);
-  const accepted = sub(add(D(entry.accepted_quantity), decided.accepted), correctedAccepted);
-  const rejected = add(D(entry.rejected_quantity), decided.rejected);
+  // Quality corrections after finalization move output between accepted and rejected (Production Quality Inspection, 0120).
+  const movedToRejected = D(entry.quality_moved_to_rejected ?? 0);
+  const movedToAccepted = D(entry.quality_moved_to_accepted ?? 0);
+  const accepted = sub(add(sub(add(D(entry.accepted_quantity), decided.accepted), correctedAccepted), movedToAccepted), movedToRejected);
+  const rejected = sub(add(add(D(entry.rejected_quantity), decided.rejected), movedToRejected), movedToAccepted);
   const pending = D(entry.pending_remaining);
   const reported = sub(sub(D(entry.reported_quantity), correctedPending), correctedAccepted);
   // Net received: receipts less what approved receipt reversals took back (Finished-Goods Receipt).
   const received = sub(D(entry.received_quantity ?? 0), D(entry.receipt_reversed_quantity ?? 0));
   // Rejected output disposed of as scrap (net of reversals) and what is still undisposed (Scrap, 0119).
   const scrapped = sub(D(entry.output_scrapped_quantity ?? 0), D(entry.output_scrap_reversed_quantity ?? 0));
-  return { reported, accepted, rejected, pending, received, receivable: max(sub(accepted, received), ZERO), scrapped, undisposed: max(sub(rejected, scrapped), ZERO), correctedPending, correctedAccepted, decisions: decided.decisions,
+  return { reported, accepted, rejected, pending, received, receivable: max(sub(accepted, received), ZERO), held: D(entry.quality_hold_quantity ?? 0), scrapped, undisposed: max(sub(rejected, scrapped), ZERO), correctedPending, correctedAccepted, decisions: decided.decisions,
     inspection: pending > ZERO ? (accepted > ZERO || rejected > ZERO ? "PARTIALLY_INSPECTED" : "PENDING") : rejected > ZERO && accepted === ZERO ? "REJECTED" : accepted > ZERO && rejected > ZERO ? "PARTIALLY_ACCEPTED" : accepted > ZERO ? "ACCEPTED" : "NONE",
     receipt: accepted === ZERO ? "NONE" : received === ZERO ? "NOT_RECEIVED" : received < accepted ? "PARTIALLY_RECEIVED" : "RECEIVED" };
 }

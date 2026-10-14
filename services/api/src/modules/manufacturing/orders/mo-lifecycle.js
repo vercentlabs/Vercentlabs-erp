@@ -12,7 +12,6 @@ import { getManufacturingOrder, materialView } from "./mo-read.js";
 
 const SOURCES = new Set(["MANUAL", "SALES_ORDER", "PLANNING", "PARENT_ORDER"]);
 const PRIORITIES = new Set(["LOW", "NORMAL", "HIGH"]);
-const HOLD_CATEGORIES = new Set(["MATERIAL_SHORTAGE", "QUALITY_ISSUE", "EQUIPMENT_DOWNTIME", "PRIORITY_CHANGE", "COST_VARIANCE", "QUANTITY_VARIANCE", "OTHER"]);
 const bomContext = (c) => ({ ...c, permissions: [...new Set([...(c.permissions ?? []), "manufacturing.bom.view", "manufacturing.bom.mo_use", "manufacturing.bom.cost_view"])] });
 
 // ------------------------------------------------------------------ planning
@@ -251,6 +250,10 @@ export async function releaseManufacturingOrder(client, c, id, input = {}) {
   requireStatus(order, "AWAITING_APPROVAL");
   if (!order.approved_at) throw moError(409, "MFG_MO_STATE_INVALID", "Approve the order before releasing it.");
   await mustBeValid(client, c, order);
+  // An enabled labor or overhead component needs its rate before the order goes ahead (never a measured zero).
+  const { releaseCostProblems } = await import("../costing/cost-service.js");
+  const costProblems = await releaseCostProblems(client, c, order);
+  if (costProblems.length) throw moError(409, "MFG_COST_RATE_INVALID", `${costProblems.join(" ")} Set it in Production Costing before releasing.`);
   const policy = await settingsOf(client, c);
   if (!policy.releaseWithShortages) {
     const short = (await materialView(client, c, order)).filter((row) => D(row.shortage) > ZERO);
@@ -272,8 +275,11 @@ export async function releaseManufacturingOrder(client, c, id, input = {}) {
   });
   await writeMaterials(client, c, order.id, lines);
   const estimated = lines.every((line) => line.estimatedCost !== null) ? money(lines.reduce((sum, line) => add(sum, D(line.estimatedCost)), ZERO)) : null;
-  await setStatus(client, c, order, "RELEASED", { bom_snapshot_id: snapshot.id, released_by: c.userId ?? null, released_at: new Date(), estimated_material_cost: estimated },
+  const released = await setStatus(client, c, order, "RELEASED", { bom_snapshot_id: snapshot.id, released_by: c.userId ?? null, released_at: new Date(), estimated_material_cost: estimated },
     { action: "RELEASED", summary: `Recipe frozen (snapshot ${snapshot.contentHash.slice(0, 12)})`, details: { snapshotId: snapshot.id, materials: lines.length } });
+  // The planned-cost baseline, frozen now (Production Costing): later purchase prices never rewrite it.
+  const { snapshotCostEstimate } = await import("../costing/cost-service.js");
+  await snapshotCostEstimate(client, c, released, { kind: "RELEASE_BASELINE" });
   if (input.reserveMaterials && has(c, MO.reserve)) {
     const { reserveManufacturingMaterials } = await import("./mo-execution.js");
     return reserveManufacturingMaterials(client, c, order.id, { idempotencyKey: `mo-release-reserve:${order.id}`, allowPartial: input.allowPartial ?? true });
@@ -282,19 +288,17 @@ export async function releaseManufacturingOrder(client, c, id, input = {}) {
 }
 
 // ------------------------------------------------------------------ hold, resume, cancel
-// input: { category, reason }. Blocks issues, production and receipts; reservations and what is in production stay as they are.
+// The order's "Put on hold" (input: { category | reasonCode, reason | description, severity?, ... }) and "Resume" (input: { note }) go through
+// Production Hold (holds/hold-service.js): one episode with its reasons, cleared by their own authority, resumed after its readiness check.
+// "Resume" here also clears the reasons the person may clear, with the note; quality and safety reasons wait for their own authority.
 export async function holdManufacturingOrder(client, c, id, input = {}) {
   needMo(c, MO.hold);
   const order = await loadOrder(client, c, id, { lock: true });
-  if (order.status === "ON_HOLD") return getManufacturingOrder(client, c, order.id);
-  requireStatus(order, "RELEASED", "IN_PROGRESS");
-  const category = String(input.category ?? "OTHER").toUpperCase();
-  if (!HOLD_CATEGORIES.has(category)) throw moError(400, "MFG_MO_VALIDATION_FAILED", "Choose why the order is held.");
-  const reason = text(input.reason, 1000);
+  const reason = text(input.reason ?? input.description, 1000);
   if (reason.length < 3) throw moError(400, "MFG_MO_REASON_REQUIRED", "Say why the order is held.");
-  await client.query(`INSERT INTO tenant.manufacturing_order_exceptions (organization_id, manufacturing_order_id, category, reason, source_type, raised_by) VALUES ($1,$2,$3,$4,'hold',$5)`,
-    [c.organizationId, order.id, category, reason, c.userId ?? null]);
-  await setStatus(client, c, order, "ON_HOLD", { held_from_status: order.status, hold_reason: reason, hold_category: category }, { action: "HELD", summary: `${category.toLowerCase().replace(/_/g, " ")}: ${reason}` });
+  if (order.status === "ON_HOLD" && !input.reasonCode) return getManufacturingOrder(client, c, order.id);
+  const { holdThroughProductionHold } = await import("../holds/hold-service.js");
+  await holdThroughProductionHold(client, c, order.id, { ...input, reason });
   return getManufacturingOrder(client, c, order.id);
 }
 
@@ -302,10 +306,10 @@ export async function resumeManufacturingOrder(client, c, id, input = {}) {
   needMo(c, MO.hold);
   const order = await loadOrder(client, c, id, { lock: true });
   requireStatus(order, "ON_HOLD");
-  const note = text(input.note, 1000) || "Resumed";
-  await client.query(`UPDATE tenant.manufacturing_order_exceptions SET status = 'RESOLVED', resolved_by = $3, resolved_at = clock_timestamp(), resolution = $4
-      WHERE organization_id = $1 AND manufacturing_order_id = $2 AND source_type = 'hold' AND status = 'OPEN'`, [c.organizationId, order.id, c.userId ?? null, note]);
-  await setStatus(client, c, order, order.held_from_status, { held_from_status: null, hold_reason: null, hold_category: null }, { action: "RESUMED", summary: note });
+  const { resumeManufacturingOrder: resume } = await import("../holds/hold-service.js");
+  // The order's hold permission carries the production clearance and the resume it always allowed; quality and safety stay with their owners.
+  const ctx = { ...c, permissions: [...new Set([...(c.permissions ?? []), "manufacturing.hold.resume", "manufacturing.hold.resolve", "manufacturing.hold.view"])] };
+  await resume(client, ctx, order.id, { ...input, resolutionNotes: text(input.note ?? input.resolutionNotes, 1000) || "Resumed", resolveRemaining: true });
   return getManufacturingOrder(client, c, order.id);
 }
 
@@ -328,6 +332,8 @@ export async function cancelManufacturingOrder(client, c, id, input = {}) {
   await releaseReservations(client, c, order);
   await client.query(`UPDATE tenant.manufacturing_order_exceptions SET status = 'RESOLVED', resolved_by = $3, resolved_at = clock_timestamp(), resolution = 'Order cancelled'
       WHERE organization_id = $1 AND manufacturing_order_id = $2 AND status = 'OPEN'`, [c.organizationId, order.id, c.userId ?? null]);
+  const { closeHoldOnCancel } = await import("../holds/hold-service.js");
+  await closeHoldOnCancel(client, c, order, reason);
   await setStatus(client, c, order, "CANCELLED", { cancel_reason: reason, cancelled_by: c.userId ?? null, cancelled_at: new Date() }, { action: "CANCELLED", summary: reason });
   return getManufacturingOrder(client, c, order.id);
 }

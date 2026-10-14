@@ -8,6 +8,8 @@ import {
   atomically, event, idempotent, loadMaterials, money, moError, needMo, nextNumber, quantity, requireStatus,
 } from "../orders/mo-core.js";
 import { getManufacturingOrder } from "../orders/mo-read.js";
+import { QI } from "../quality/qi-core.js";
+import { decideThroughInspection } from "../quality/qi-service.js";
 import {
   D, DISPOSITIONS, MO, PRODUCTION, STATUS_LABEL, ZERO, add, authorizedTarget, decisionsOf, entryFigures, has, loadEntry, loadProductionOrder, materialReadiness, needProduction, outputQuantity,
   productionError, productionSettings, q, requireProducing, splitOf, sub, text, uuid,
@@ -240,45 +242,12 @@ export async function produceThroughEntry(client, c, orderId, input = {}) {
 
 // ------------------------------------------------------------------ quality
 // input: { entryId, acceptedQuantity?, rejectedQuantity?, rejectionReason?, reasonCode?, disposition? (QUARANTINE | SCRAP | REWORK), inspectionReference?,
-// expectedEntryVersion?, idempotencyKey }. Each unit is decided once; rejected output never becomes sellable stock; acceptance stays within the
-// authorized target; the person who reported the output does not decide its quality (unless the company allows self-approval).
+// expectedEntryVersion?, idempotencyKey }. The order's quick decision is a basic inspection created and finalized at once (quality/qi-service.js):
+// one decision path, with its checks — each unit decided once, held output left alone, the reporter not deciding their own output.
 export async function decideManufacturingQuality(client, c, id, input = {}) {
   needMo(c, MO.quality);
-  const result = await idempotent(client, c, "manufacturing.order.quality", input.idempotencyKey, { id, ...input, idempotencyKey: undefined }, async (key) => {
-    const order = await loadProductionOrder(client, c, id, { lock: true });
-    if (!["IN_PROGRESS", "ON_HOLD"].includes(order.status)) requireStatus(order, "IN_PROGRESS");
-    const entry = (await client.query(`SELECT * FROM tenant.manufacturing_production_entries WHERE organization_id = $1 AND manufacturing_order_id = $2 AND id = $3 FOR UPDATE`,
-      [c.organizationId, order.id, uuid(input.entryId, "Production entry")])).rows[0];
-    if (!entry) throw productionError(404, "MFG_PARTIAL_NOT_FOUND", "That production entry is not on this order.");
-    if (entry.status !== "REPORTED") throw productionError(409, "MFG_PARTIAL_STATE_INVALID", `${entry.entry_number} is ${entry.status.toLowerCase()}: only reported output is inspected.`);
-    if (input.expectedEntryVersion !== undefined && input.expectedEntryVersion !== null && Number(input.expectedEntryVersion) !== Number(entry.row_version)) throw productionError(409, "MFG_PARTIAL_SOURCE_CHANGED");
-    const settings = await productionSettings(client, c);
-    if (entry.posted_by && entry.posted_by === c.userId && !settings.selfApproval) {
-      throw productionError(403, "MFG_PARTIAL_PERMISSION_DENIED", "Someone other than the person who reported this output decides its quality.");
-    }
-    const part = (field) => (input[field] === undefined || input[field] === null || input[field] === "" ? ZERO : D(String(input[field])));
-    const accepted = part("acceptedQuantity");
-    const rejected = part("rejectedQuantity");
-    if (accepted < ZERO || rejected < ZERO || add(accepted, rejected) === ZERO) throw productionError(400, "MFG_PARTIAL_QTY_INVALID", "Enter the quantity accepted or rejected.");
-    if (add(accepted, rejected) > D(entry.pending_remaining)) throw productionError(409, "MFG_PARTIAL_QUALITY_EXCEEDS", `${entry.entry_number}: ${q(D(entry.pending_remaining))} awaits inspection.`);
-    const reason = text(input.rejectionReason, 500) || null;
-    const disposition = rejected > ZERO ? String(input.disposition ?? "").toUpperCase() : null;
-    if (rejected > ZERO && (!reason || reason.length < 3)) throw productionError(400, "MFG_PARTIAL_REASON_REQUIRED", "Say why output was rejected.");
-    if (rejected > ZERO && !DISPOSITIONS.has(disposition)) throw moError(400, "MFG_MO_VALIDATION_FAILED", "Choose what happens to rejected output: quarantine, scrap or rework.");
-    await client.query(
-      `INSERT INTO tenant.manufacturing_quality_decisions (organization_id, manufacturing_order_id, production_entry_id, accepted_quantity, rejected_quantity, rejection_reason, disposition,
-         inspection_reference, idempotency_key, decided_by, rejection_disposition, reason_code) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [c.organizationId, order.id, entry.id, q(accepted), q(rejected), reason, disposition === "QUARANTINE" ? "REWORK" : disposition, text(input.inspectionReference, 120) || null, key, c.userId ?? null,
-        disposition, text(input.reasonCode, 60)?.toUpperCase() || null]);
-    await client.query(`UPDATE tenant.manufacturing_production_entries SET pending_remaining = pending_remaining - $3 WHERE organization_id = $1 AND id = $2`, [c.organizationId, entry.id, q(add(accepted, rejected))]);
-    await client.query(`UPDATE tenant.manufacturing_orders SET accepted_quantity = accepted_quantity + $3, rejected_quantity = rejected_quantity + $4, pending_inspection_quantity = pending_inspection_quantity - $5,
-        version = version + 1 WHERE organization_id = $1 AND id = $2`, [c.organizationId, order.id, q(accepted), q(rejected), q(add(accepted, rejected))]);
-    const summary = `${entry.entry_number}: ${q(accepted)} accepted · ${q(rejected)} rejected${disposition ? ` (${disposition.toLowerCase()})` : ""}`;
-    await entryEvent(client, c, entry.id, "QUALITY_DECIDED", summary);
-    await event(client, c, order.id, "QUALITY_DECIDED", { summary });
-    return { orderId: order.id };
-  }, { required: true });
-  return withOrder(client, c, result);
+  const ctx = { ...c, permissions: [...new Set([...(c.permissions ?? []), QI.view, QI.create, QI.editDraft, QI.finalize])] };
+  return withOrder(client, c, await decideThroughInspection(client, ctx, id, input));
 }
 
 // Finished goods are received through the receipt note (receipts/fgr-service.js): one posting path for every entry point.
@@ -340,7 +309,8 @@ export async function correctProductionEntry(client, c, entryId, input = {}) {
   const amount = (await outputQuantity(client, c, order, input.quantity, null)).base;
   const figures = entryFigures(entry, (await decisionsOf(client, c, [entry.id])).get(entry.id));
   if (kind === "PENDING") {
-    if (amount > figures.pending) throw productionError(409, "MFG_PARTIAL_CORRECTION_RESTRICTED", `${entry.entry_number}: only ${q(figures.pending)} still awaits inspection; inspected output is corrected through quality.`);
+    const free = sub(figures.pending, figures.held);
+    if (amount > free) throw productionError(409, "MFG_PARTIAL_CORRECTION_RESTRICTED", `${entry.entry_number}: only ${q(free)} still awaits inspection${figures.held > ZERO ? " and is not on quality hold" : ""}; inspected output is corrected through quality.`);
     await client.query(`UPDATE tenant.manufacturing_production_entries SET pending_remaining = pending_remaining - $3, corrected_pending_quantity = corrected_pending_quantity + $3 WHERE organization_id = $1 AND id = $2`,
       [c.organizationId, entry.id, q(amount)]);
     await client.query(`UPDATE tenant.manufacturing_orders SET reported_quantity = reported_quantity - $3, pending_inspection_quantity = pending_inspection_quantity - $3, version = version + 1 WHERE organization_id = $1 AND id = $2`,
