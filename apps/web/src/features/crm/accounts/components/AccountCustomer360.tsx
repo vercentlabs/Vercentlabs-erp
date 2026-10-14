@@ -21,10 +21,10 @@ export function AccountSummaryCards({ accountId, currency }: { accountId: string
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "account", accountId, "summary"), queryFn: () => getAccountSummary(accountId), ...LIVE_ACCOUNT_QUERY });
   const summary = query.data;
   if (query.isLoading) return <LoadingState label="Loading summary" rows={2} />;
-  if (!summary) return <ErrorBanner message="Could not load the account summary." />;
+  if (!summary) return <ErrorBanner message="Could not load the company summary." />;
   const money = (value: number) => formatMoney(currency, value);
   const cards: Array<{ label: string; value: React.ReactNode }> = [
-    { label: `Open opportunities · ${money(summary.crm.openPipelineValue)}`, value: summary.crm.openOpportunities },
+    { label: `Open deals · ${money(summary.crm.openPipelineValue)}`, value: summary.crm.openOpportunities },
     { label: `Won · ${money(summary.crm.wonValue)}`, value: summary.crm.wonOpportunities },
     { label: "Contacts", value: summary.crm.contacts },
     { label: "Open tasks and follow-ups", value: summary.crm.openTasks },
@@ -56,15 +56,15 @@ export function AccountSummaryCards({ accountId, currency }: { accountId: string
 }
 
 const LIST_COPY: Record<AccountRelatedList, { title: string; empty: string }> = {
-  leads: { title: "Leads", empty: "No leads have been converted into this account." },
-  opportunities: { title: "Opportunities", empty: "No opportunities yet. Create one to start tracking a deal with this company." },
-  quotations: { title: "Quotations", empty: "No quotations for this account." },
-  orders: { title: "Sales orders", empty: "No sales orders for this account." },
-  returns: { title: "Returns", empty: "No returns for this account." },
-  invoices: { title: "Invoices", empty: "No invoices for this account." },
-  payments: { title: "Payments", empty: "No payments received from this account." },
-  projects: { title: "Projects", empty: "No projects for this account." },
-  tickets: { title: "Support tickets", empty: "No support tickets for this account." },
+  leads: { title: "Leads", empty: "No leads have been converted into this company." },
+  opportunities: { title: "Deals", empty: "No deals yet. Create one to start tracking a deal with this company." },
+  quotations: { title: "Quotations", empty: "No quotations for this company." },
+  orders: { title: "Sales orders", empty: "No sales orders for this company." },
+  returns: { title: "Returns", empty: "No returns for this company." },
+  invoices: { title: "Invoices", empty: "No invoices for this company." },
+  payments: { title: "Payments", empty: "No payments received from this company." },
+  projects: { title: "Projects", empty: "No projects for this company." },
+  tickets: { title: "Support tickets", empty: "No support tickets for this company." },
 };
 
 function statusTone(status: string | null): "success" | "danger" | "info" | "neutral" | "warning" {

@@ -1,7 +1,7 @@
 import { requireWorkspace } from "@/core/session";
 import { OpportunityFormScreen } from "@/features/crm/opportunities/screens/OpportunityFormScreen";
 
-export const metadata = { title: "Edit opportunity" };
+export const metadata = { title: "Edit deal" };
 
 export default async function Page({ params }: { params: Promise<{ opportunityId: string }> }) {
   await requireWorkspace();

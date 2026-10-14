@@ -6,6 +6,7 @@
 import { CrmError } from "../data-management/errors.js";
 import { accountCan } from "./access.js";
 import { getAccount } from "./records.js";
+import { getCustomerProjects } from "../../projects/project-customer.js";
 
 const MODULE_PERMISSIONS = Object.freeze({ sales: "sales.view", finance: "accounting.view", projects: "projects.view", support: "support.view" });
 const OPEN_QUOTATION = "('draft', 'pending_approval', 'approved', 'sent')";
@@ -69,8 +70,8 @@ export async function getAccountSummary(client, context, partyId) {
     summary.finance = { invoiced: num(finance.invoiced), outstanding: num(finance.outstanding), overdue: num(finance.overdue), lastPaymentDate: finance.last_payment_date };
   }
   if (can.projects) {
-    const projects = await one(`SELECT count(*) FILTER (WHERE status IN ('PLANNED', 'IN_PROGRESS', 'ON_HOLD'))::int AS active, count(*)::int AS total FROM tenant.projects WHERE organization_id = $1 AND customer_id = $2 AND deleted_at IS NULL`);
-    summary.projects = { active: projects.active, total: projects.total };
+    const { summary: projects } = await getCustomerProjects(client, context, partyId);
+    summary.projects = { active: projects.active + projects.onHold, total: projects.total };
   }
   if (can.support) {
     const support = await one(`SELECT count(*) FILTER (WHERE status IN ${OPEN_TICKET})::int AS open, count(*)::int AS total FROM tenant.support_tickets WHERE organization_id = $1 AND customer_id = $2`);
@@ -137,14 +138,8 @@ const RELATED = Object.freeze({
             FROM tenant.accounting_customer_receipts WHERE organization_id = $1 AND party_id = $2 ORDER BY receipt_date DESC, created_at DESC LIMIT 100`,
     href: () => null,
   },
-  projects: {
-    module: "projects",
-    sql: `SELECT project.id, project.project_code AS code, COALESCE(project.name, 'Untitled draft') AS title, lower(project.status) AS status, NULL::numeric AS percent_complete,
-                 project.target_end_date AS date, manager.full_name AS owner_name
-            FROM tenant.projects project LEFT JOIN public.users manager ON manager.id = project.manager_user_id
-           WHERE project.organization_id = $1 AND project.customer_id = $2 AND project.deleted_at IS NULL ORDER BY project.created_at DESC LIMIT 100`,
-    href: (row) => `/projects/${row.id}`,
-  },
+  // Read through Projects, which shows only the projects the person may see (and an account's drafts before it became a Customer).
+  projects: { module: "projects", projects: true, href: (row) => `/projects/${row.id}` },
   tickets: {
     module: "support",
     sql: `SELECT ticket.id, ticket.ticket_number AS code, ticket.subject AS title, ticket.status, ticket.priority, ticket.created_at AS date, agent.full_name AS owner_name
@@ -162,6 +157,11 @@ export async function listAccountRelated(client, context, partyId, list) {
   const account = await getAccount(client, context, partyId);
   if (definition.module && !accountCan(context, MODULE_PERMISSIONS[definition.module]))
     throw new CrmError(403, "You do not have access to this information.", "PERMISSION_DENIED");
+  if (definition.projects) {
+    const { projects } = await getCustomerProjects(client, context, account.id);
+    return projects.map((row) => ({ id: row.id, code: row.code, title: row.name ?? "Untitled draft", status: row.status.toLowerCase(), stage: null, kind: row.provisional ? "provisional" : null,
+      priority: null, paymentStatus: null, amount: null, outstanding: null, currencyCode: null, percentComplete: null, date: row.targetEndDate ?? null, dueDate: null, ownerName: row.manager, href: row.href }));
+  }
   const { rows } = await client.query(definition.sql, [context.organizationId, account.id]);
   return rows.map((row) => ({
     id: row.id,

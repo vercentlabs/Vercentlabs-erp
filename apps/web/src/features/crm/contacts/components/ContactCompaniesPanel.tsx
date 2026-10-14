@@ -44,11 +44,11 @@ export function ContactCompaniesPanel({ contact, options, canEdit }: { contact: 
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold">Companies</h2>
-        {canEdit && <Button variant="primary" size="compact" onPress={() => setEditing("new")}>Link to a company</Button>}
+        {canEdit && <Button variant="secondary" size="compact" onPress={() => setEditing("new")}>Link to a company</Button>}
       </div>
       <ErrorBanner message={error} />
       {query.isLoading ? <LoadingState label="Loading companies" rows={2} /> : links.length === 0 ? (
-        <EmptyState title="No company yet" description="Link this person to the account they work for. Someone can be linked to more than one company." />
+        <EmptyState title="No company yet" description="Link this person to the company they work for. Someone can be linked to more than one company." />
       ) : (
         <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
           {links.map((link) => (
@@ -58,7 +58,7 @@ export function ContactCompaniesPanel({ contact, options, canEdit }: { contact: 
                   <Link href={`/crm/accounts/${link.accountId}`} className="font-medium hover:underline">{link.accountName}</Link>
                   <span className="text-xs text-text-muted">{link.accountCode}</span>
                   {link.isPrimaryAccount && <Badge tone="brand">Primary company</Badge>}
-                  {link.isPrimaryContact && <Badge tone="success">Primary contact of the account</Badge>}
+                  {link.isPrimaryContact && <Badge tone="success">Primary contact of the company</Badge>}
                   {link.isDecisionMaker && <Badge tone="info">Decision maker</Badge>}
                   {link.status === "inactive" && <Badge tone="neutral">Left{link.endedAt ? ` ${formatDate(link.endedAt)}` : ""}</Badge>}
                 </div>
@@ -82,7 +82,7 @@ export function ContactCompaniesPanel({ contact, options, canEdit }: { contact: 
         isOpen={Boolean(leaving)}
         onOpenChange={(open) => !open && setLeaving(null)}
         title={`${contact.displayName} left ${leaving?.accountName ?? "the company"}?`}
-        description="The link is kept as history with today's date, together with every activity, quotation and opportunity. The person stays in CRM and can be linked to another company."
+        description="The link is kept as history with today's date, together with every activity, quotation and deal. The person stays in CRM and can be linked to another company."
         confirmLabel="Record that they left"
         isConfirming={action.isPending}
         onConfirm={() => leaving && action.mutate(() => updateContactAccount(contact.id, leaving.accountId, { status: "inactive" }))}

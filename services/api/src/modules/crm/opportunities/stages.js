@@ -10,7 +10,7 @@ import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_PERMISSIONS } from "./constants.js";
-import { stageEntryBlockers, stageEntryWarnings, suggestedStageActions } from "../sales-stages/rules.js";
+import { stageEntryBlockers, stageEntryWarnings, stageRequirements, suggestedStageActions } from "../sales-stages/rules.js";
 import { recordOpportunityHistory } from "./history.js";
 import { assertNotStale, assertOpen, getOpportunity, lockOpportunity, requireUuid, toOpportunity, readOpportunityRow } from "./records.js";
 
@@ -33,6 +33,7 @@ function toStage(row) {
     description: row.description ?? null, guidance: row.guidance ?? null,
     // the actions worth putting forward while a deal is in this stage
     suggestedActions: suggestedStageActions(row),
+    requirements: stageRequirements(row),
     isWon: row.is_won, isLost: row.is_lost, isOpen: !row.is_won && !row.is_lost,
     openCount: row.open_count === undefined ? undefined : Number(row.open_count),
   };

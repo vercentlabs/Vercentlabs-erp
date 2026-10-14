@@ -1,5 +1,8 @@
 "use client";
 
+// New and edit lead: the seven fields a lead starts with (name, company, mobile, email, source, interest), then everything else under More
+// details, then — when creating — who owns it. Only a name or a company is required. The live duplicate check sits under the mobile and email
+// fields. Save and Cancel are at the top and the bottom.
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +22,7 @@ import { DuplicateOverride } from "@/features/crm/duplicates/DuplicateParts";
 import { DuplicateWarning } from "../components/DuplicateWarning";
 import { ErrorBanner, PRIORITY_OPTIONS, RATING_OPTIONS } from "../lead-format";
 import { useSubmitKey } from "@/shared/http/submit-once";
+import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
 
 const NONE = "";
 const AUTO = "__auto__";
@@ -76,7 +80,7 @@ export function LeadFormScreen({ leadId }: { leadId?: string }) {
     return <ErrorState title="Could not load this lead" description={errorMessage(leadQuery.error)} action={{ label: "Back to leads", onPress: () => router.push("/crm/leads") }} />;
   if (!optionsQuery.data) return <ErrorState title="Could not load this page" description="Refresh to try again." />;
   if (lead?.status === "converted")
-    return <ErrorState title="This lead is converted" description="A converted lead is read-only. Work on its opportunity instead." action={{ label: "Open lead", onPress: () => router.push(`/crm/leads/${lead.id}`) }} />;
+    return <ErrorState title="This lead is converted" description="A converted lead is read-only. Work on its deal instead." action={{ label: "Open lead", onPress: () => router.push(`/crm/leads/${lead.id}`) }} />;
   return <LeadForm key={lead?.id ?? "new"} lead={lead} options={optionsQuery.data} />;
 }
 
@@ -148,6 +152,7 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
 
   return (
     <RecordFormPage
+      repeatActions
       header={{
         title: mode === "edit" ? `Edit ${lead?.code ?? "lead"}` : "New lead",
         description: mode === "edit" ? undefined : "Only a name or a company is needed to start. Add the rest as you learn it.",
@@ -174,37 +179,34 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
         </>
       }
     >
-      <FormSection title="Person and company" description="Enter the person, the company, or both.">
+      <FormSection title="Lead" description="Enter the person, the company, or both.">
         <TextField label="First name" value={values.firstName} onChange={set("firstName")} errorMessage={fieldErrors.firstName} />
         <TextField label="Last name" value={values.lastName} onChange={set("lastName")} errorMessage={fieldErrors.lastName} />
-        <TextField label="Company / organization" value={values.companyName} onChange={set("companyName")} errorMessage={fieldErrors.companyName} />
-        <TextField label="Job title" value={values.jobTitle} onChange={set("jobTitle")} />
-        <TextField label="Industry" value={values.industry} onChange={set("industry")} />
-        <TextField label="Website" value={values.website} onChange={set("website")} placeholder="https://" />
-      </FormSection>
-
-      <FormSection title="Contact details">
-        <TextField label="Email" type="email" value={values.email} onChange={set("email")} errorMessage={fieldErrors.email} />
+        <TextField label="Company" value={values.companyName} onChange={set("companyName")} errorMessage={fieldErrors.companyName} />
         <TextField label="Mobile" type="tel" value={values.mobile} onChange={set("mobile")} errorMessage={fieldErrors.mobile} />
-        <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />
-      </FormSection>
-
-      <FormSection title="Location">
-        <TextField label="City" value={values.city} onChange={set("city")} />
-        <TextField label="State" value={values.state} onChange={set("state")} />
-        <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
-      </FormSection>
-
-      <FormSection title="Source and interest" description="Where the lead came from and what they want.">
+        <TextField label="Email" type="email" value={values.email} onChange={set("email")} errorMessage={fieldErrors.email} />
         <Select
           label="Lead source"
           selectedKey={values.sourceId}
           onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
           options={[{ value: NONE, label: "Not set" }, ...options.sources.map((source) => ({ value: source.id, label: source.name }))]}
         />
-        <TextField label="Source detail" description="Campaign, event or the person who referred them." value={values.sourceDetail} onChange={set("sourceDetail")} />
         <TextArea label="Product / service interest" className="sm:col-span-2" value={values.productInterest} onChange={set("productInterest")} />
-        <TextField label="Estimated deal value" inputMode="decimal" value={values.estimatedValue} onChange={set("estimatedValue")} errorMessage={fieldErrors.estimatedValue} />
+      </FormSection>
+
+      <MoreDetails description="Job title, industry, website, phone, location, value, timeframe, priority, rating and description."
+        hasContent={Boolean(values.jobTitle || values.industry || values.website || values.phone || values.city || values.state || values.sourceDetail || values.estimatedValue
+          || values.purchaseTimeframe || values.description || (mode === "edit" && (values.priority !== "medium" || values.rating !== "warm"))
+          || Object.entries(fieldErrors).some(([key, message]) => message && !["firstName", "lastName", "companyName", "mobile", "email"].includes(key)))}>
+        <TextField label="Job title" value={values.jobTitle} onChange={set("jobTitle")} />
+        <TextField label="Industry" value={values.industry} onChange={set("industry")} />
+        <TextField label="Website" value={values.website} onChange={set("website")} placeholder="https://" />
+        <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />
+        <TextField label="City" value={values.city} onChange={set("city")} />
+        <TextField label="State" value={values.state} onChange={set("state")} />
+        <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
+        <TextField label="Source detail" description="Campaign, event or the person who referred them." value={values.sourceDetail} onChange={set("sourceDetail")} />
+        <TextField label="Estimated value" inputMode="decimal" value={values.estimatedValue} onChange={set("estimatedValue")} errorMessage={fieldErrors.estimatedValue} />
         <CurrencySelect value={values.currencyCode} onChange={set("currencyCode")} />
         <Select
           label="Purchase timeframe"
@@ -212,22 +214,19 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
           onSelectionChange={(key) => set("purchaseTimeframe")(String(key ?? NONE))}
           options={[{ value: NONE, label: "Not set" }, ...options.purchaseTimeframes.map((entry) => ({ value: entry.code, label: entry.label }))]}
         />
-      </FormSection>
-
-      <FormSection title="Classification">
         <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key))} options={PRIORITY_OPTIONS} />
         <Select label="Rating" selectedKey={values.rating} onSelectionChange={(key) => set("rating")(String(key))} options={RATING_OPTIONS} />
         <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} />
-      </FormSection>
+      </MoreDetails>
 
       {mode === "create" && (
-        <FormSection title="Ownership" description="Left on automatic, an assignment rule decides; if none matches, the lead is yours.">
+        <FormSection title="Ownership" description="Automatic (assignment rules): a rule decides who owns the lead; if none matches, the lead is yours.">
           <Select
             label="Lead owner"
             selectedKey={values.ownerUserId}
             onSelectionChange={(key) => set("ownerUserId")(String(key))}
             options={[
-              { value: AUTO, label: "Automatic" },
+              { value: AUTO, label: "Automatic (assignment rules)" },
               { value: UNASSIGNED, label: "Leave unassigned" },
               ...options.users
                 .filter((user) => canAssignOthers || user.id === options.currentUserId)

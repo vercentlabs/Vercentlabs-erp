@@ -23,6 +23,8 @@ import {
   type RecordTimelineRow,
   type TimelineKind,
 } from "./timeline-api";
+import { readableHistory } from "./field-labels";
+import { FilterChips } from "./ui/FilterChips";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
@@ -59,13 +61,13 @@ const KIND_TONE: Record<TimelineKind, TimelineEntry["tone"]> = {
 
 function describe(row: RecordTimelineRow): string {
   // A lead history entry is already a sentence ("Stage: New → Contacted").
-  if (row.kind === "history") return row.title ?? "Lead changed";
+  if (row.kind === "history") return readableHistory(row.title) || "Record changed";
   const label = humanize(
     row.kind === "activity" && row.subtype ? row.subtype : row.kind,
   );
   const qualifier =
     row.kind !== "activity" && row.subtype ? ` (${humanize(row.subtype)})` : "";
-  return `${label}${qualifier}${row.title ? `: ${row.title}` : ""}`;
+  return `${label}${qualifier}${row.title ? `: ${readableHistory(row.title)}` : ""}`;
 }
 
 // F019 activity timeline composed into a record 360: one merged feed of
@@ -74,16 +76,20 @@ function describe(row: RecordTimelineRow): string {
 // kind filters and real "Load more" paging. Privacy (private notes, record
 // scope) is decided by
 // the server; this panel renders whatever the page contains.
+// kinds: show only these kinds, without the filter chips (the record's Activity tab chooses them with its own chips).
 export function RecordTimelinePanel({
   entityType,
   entityId,
+  kinds: fixedKinds,
 }: {
   entityType: string;
   entityId: string;
+  kinds?: TimelineKind[];
 }) {
   const workspace = useWorkspaceContext();
-  const [filterId, setFilterId] = useState("all");
-  const kinds = FILTERS.find((filter) => filter.id === filterId)?.kinds;
+  const [chosen, setFilterId] = useState("all");
+  const filterId = fixedKinds ? fixedKinds.join("+") : chosen;
+  const kinds = fixedKinds ?? FILTERS.find((filter) => filter.id === filterId)?.kinds;
 
   const query = useInfiniteQuery({
     queryKey: scopedQueryKey(
@@ -123,21 +129,9 @@ export function RecordTimelinePanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <div
-        className="flex flex-wrap items-center gap-2"
-        role="group"
-        aria-label="Filter timeline"
-      >
-        {FILTERS.map((filter) => (
-          <Button
-            key={filter.id}
-            variant={filterId === filter.id ? "primary" : "secondary"}
-            onPress={() => setFilterId(filter.id)}
-          >
-            {filter.label}
-          </Button>
-        ))}
-      </div>
+      {!fixedKinds && (
+        <FilterChips label="Filter timeline" chips={FILTERS} selected={filterId} onSelect={setFilterId} />
+      )}
       {query.isLoading ? (
         <p className="text-sm text-text-secondary">Loading activity…</p>
       ) : query.isError ? (

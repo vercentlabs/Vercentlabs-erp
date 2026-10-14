@@ -1,6 +1,7 @@
 "use client";
 
-// The organization's lead stages: rename, reorder, add and deactivate. The
+// The organization's lead stages: rename, reorder (drag, or the arrows), add and deactivate, with a preview of the stage track a lead page
+// shows. The
 // five standard stages always exist; the stages a lead's status moves
 // through (open, qualified, disqualified, converted) are fixed and are not
 // configured here. Needs the Manage lead stages permission (or Manage CRM
@@ -19,6 +20,7 @@ import { createLeadStage, errorMessage, listLeadStages, reorderLeadStages, updat
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 
 import { ErrorBanner } from "../lead-format";
+import { SetupBackLink } from "@/features/crm/settings/screens/SetupBackLink";
 
 export function LeadStagesSettingsScreen() {
   const workspace = useWorkspaceContext();
@@ -28,6 +30,7 @@ export function LeadStagesSettingsScreen() {
   const query = useQuery({ queryKey: key, queryFn: () => listLeadStages(true), enabled: canManage });
   const [editing, setEditing] = useState<LeadStageDefinition | "new" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dragged, setDragged] = useState<number | null>(null);
 
   const refresh = () => {
     setError(null);
@@ -51,18 +54,44 @@ export function LeadStagesSettingsScreen() {
     [ids[index], ids[index + offset]] = [ids[index + offset], ids[index]];
     change.mutate(() => reorderLeadStages(ids));
   };
+  // A stage dropped onto another takes its place; the rest shift.
+  const drop = (target: number) => {
+    if (dragged === null || dragged === target) return setDragged(null);
+    const ids = stages.map((stage) => stage.id);
+    const [moved] = ids.splice(dragged, 1);
+    ids.splice(target, 0, moved);
+    setDragged(null);
+    change.mutate(() => reorderLeadStages(ids));
+  };
+  const track = stages.filter((stage) => stage.isActive);
 
   return (
     <div className="flex flex-col gap-6">
+      <SetupBackLink />
       <PageHeader
         title="Lead stages"
         description="The steps a lead moves through while it is being worked. A lead can move forwards or backwards between them while it is open."
         primaryAction={<Button variant="primary" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New stage</Button>}
       />
       <ErrorBanner message={error} />
+      {track.length > 0 && (
+        <section aria-label="Preview" className="flex max-w-3xl flex-col gap-2">
+          <p className="text-sm text-text-secondary">How a lead page shows the stages (here, a lead in the second stage):</p>
+          <ol className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3 text-sm">
+            {track.map((stage, index) => (
+              <li key={stage.id} className={`flex items-center gap-1 ${index === 1 ? "font-semibold text-brand" : index < 1 ? "text-text" : "text-text-muted"}`}>
+                <span aria-hidden="true">{index < 1 ? "✓" : index === 1 ? "●" : "○"}</span>{stage.name}{index === 1 ? " · 3 days" : ""}
+                {index < track.length - 1 && <span aria-hidden="true" className="ml-1 text-text-muted">›</span>}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
       <ol className="flex max-w-3xl flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
         {stages.map((stage, index) => (
-          <li key={stage.id} className="flex items-center justify-between gap-3 p-4 sm:gap-2">
+          <li key={stage.id} draggable={!change.isPending} onDragStart={() => setDragged(index)} onDragEnd={() => setDragged(null)}
+            onDragOver={(event) => event.preventDefault()} onDrop={() => drop(index)}
+            className={`flex cursor-grab items-center justify-between gap-3 p-4 sm:gap-2 ${dragged === index ? "opacity-50" : ""}`}>
             <div className="flex min-w-0 flex-col gap-1 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{index + 1}. {stage.name}</span>
@@ -95,8 +124,8 @@ export function LeadStagesSettingsScreen() {
         ))}
       </ol>
       <p className="max-w-3xl text-sm text-text-secondary">
-        Standard stages can be renamed and reordered but not removed: starting qualification, for example, always moves a lead to the Qualification stage,
-        whatever you call it. Proposal, negotiation and won or lost belong to opportunities, not leads.
+        Drag a stage to reorder it, or use the arrows. Standard stages can be renamed and reordered but not removed: starting qualification, for example, always moves a lead to the Qualification stage,
+        whatever you call it. Proposal, negotiation and won or lost belong to deals, not leads.
       </p>
       {editing && <StageDialog stage={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={refresh} />}
     </div>

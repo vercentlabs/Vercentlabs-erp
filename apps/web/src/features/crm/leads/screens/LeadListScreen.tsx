@@ -1,12 +1,15 @@
 "use client";
 
+// CRM Leads: opens on the user's own leads (managers and admins on all of them), with the five most used views as chips and the rest under
+// More views; search first; every filter in one popover, applying at once; eight columns by default with the status shown beside the name;
+// and a call link, an email link and Log activity on a row on hover. Import, Export and the lead dashboard sit in the "…" menu.
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState, VisibilityState } from "@tanstack/react-table";
-import { Columns3, Download, Filter, Plus, Upload } from "lucide-react";
+import { Columns3, Filter, Mail, NotebookPen, Phone, Plus } from "lucide-react";
 import {
-  Button, Checkbox, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, Popover,
+  Button, Checkbox, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, LinkButton, NoResultsState, PermissionState, Popover,
   PopoverTrigger, SearchField, Select, TextField, buttonVariants, type ActiveFilter,
 } from "@vercentlabs/design-system";
 
@@ -18,23 +21,27 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { getLeadOptions, leadExportUrl, listLeads, type Lead, type LeadBulkResult, type LeadListFilters, type LeadViewKey } from "../api/leads-api";
 import { ChangeStageDialog, DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
 import { AssignLeadsDialog } from "../components/LeadAssignment";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
+import { LogActivityDialog } from "../components/LeadWorkPanels";
 import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PRIORITY_OPTIONS, PriorityBadge, RATING_OPTIONS, RatingBadge, STATUS_LABELS, StaleBadge, days, leadName } from "../lead-format";
 import { LIVE_LEAD_QUERY } from "../live-query";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
-const COLUMN_STORAGE_KEY = "crm.leads.columns";
+const COLUMN_STORAGE_KEY = "crm.leads.columns.v2";
+// The five views shown as chips; the other eight sit under More views.
+const PINNED_VIEWS = ["mine", "unassigned", "due_today", "overdue", "no_activity"];
 
-// Columns the user can hide. Lead and status always stay visible.
+// Columns the user can hide. The lead (with its status beside the name) always stays visible. Eight are shown by default.
 const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boolean }> = [
   { id: "companyName", label: "Company" },
   { id: "stage", label: "Stage" },
   { id: "ownerName", label: "Owner" },
-  { id: "sourceName", label: "Source" },
-  { id: "priority", label: "Priority" },
-  { id: "rating", label: "Rating" },
-  { id: "estimatedValue", label: "Estimated value" },
   { id: "nextFollowUpAt", label: "Next follow-up" },
+  { id: "rating", label: "Rating" },
+  { id: "estimatedValue", label: "Value" },
+  { id: "sourceName", label: "Source", hiddenByDefault: true },
+  { id: "priority", label: "Priority", hiddenByDefault: true },
   { id: "lastActivityAt", label: "Last activity", hiddenByDefault: true },
   { id: "teamName", label: "Team", hiddenByDefault: true },
   { id: "assignedAt", label: "Assigned", hiddenByDefault: true },
@@ -70,6 +77,7 @@ const AGE_OPTIONS = [
 ];
 
 type DialogKind = "assign" | "stage" | "disqualify" | null;
+type FilterRange = { qualifiedFrom: string; qualifiedTo: string; convertedFrom: string; convertedTo: string };
 
 export function LeadListScreen() {
   const workspace = useWorkspaceContext();
@@ -77,7 +85,9 @@ export function LeadListScreen() {
   const params = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [view, setViewState] = useState<LeadViewKey>((params.get("view") as LeadViewKey) || "all");
+  // Someone who owns leads opens on their own; a manager or administrator who sees every lead opens on all of them.
+  const seesAll = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("crm.leads.view_all");
+  const [view, setViewState] = useState<LeadViewKey>((params.get("view") as LeadViewKey) || (seesAll ? "all" : "mine"));
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [submittedSearch, setSubmittedSearchState] = useState(params.get("search") ?? "");
   const [filters, setFiltersState] = useState<Filters>({
@@ -93,7 +103,9 @@ export function LeadListScreen() {
   const [queue, setQueueState] = useState<QueueFilters>({
     state: params.get("state") ?? "", city: params.get("city") ?? "", productInterest: params.get("productInterest") ?? "", olderThanDays: params.get("olderThanDays") ?? "",
   });
-  const [queueDraft, setQueueDraft] = useState<QueueFilters>(queue);
+  const [ranges, setRanges] = useState<FilterRange>({ qualifiedFrom: params.get("qualifiedFrom") ?? "", qualifiedTo: params.get("qualifiedTo") ?? "",
+    convertedFrom: params.get("convertedFrom") ?? "", convertedTo: params.get("convertedTo") ?? "" });
+  const [logging, setLogging] = useState<Lead | null>(null);
   const [created, setCreated] = useState({ from: params.get("createdFrom") ?? "", to: params.get("createdTo") ?? "" });
   // Open leads with no activity for a while; set from the dashboard or the filter panel.
   const [staleOnly, setStaleOnlyState] = useState(params.get("stale") === "yes");
@@ -113,7 +125,7 @@ export function LeadListScreen() {
   const setFilters = (next: Filters) => { setFiltersState(next); restart(); };
   const setSorting = (next: SortingState) => { setSortingState(next); restart(); };
   const setStaleOnly = (next: boolean) => { setStaleOnlyState(next); restart(); };
-  const setQueue = (next: QueueFilters) => { setQueueState(next); setQueueDraft(next); restart(); };
+  const setQueue = (next: QueueFilters) => { setQueueState(next); restart(); };
   const setSubmittedSearch = (next: string) => {
     if (next === submittedSearch) return;
     setSubmittedSearchState(next);
@@ -142,9 +154,10 @@ export function LeadListScreen() {
     createdTo: created.to || undefined,
     stale: staleOnly ? "yes" : undefined,
     ...Object.fromEntries(Object.entries(queue).filter(([, value]) => value.trim())),
+    ...Object.fromEntries(Object.entries(ranges).filter(([, value]) => value)),
     sortBy: sorting[0]?.id,
     sortDirection: sorting[0]?.desc === false ? "asc" : "desc",
-  }), [view, submittedSearch, filters, created, staleOnly, queue, sorting]);
+  }), [view, submittedSearch, filters, created, staleOnly, queue, ranges, sorting]);
 
   const listQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "leads", listFilters, pageIndex),
@@ -165,13 +178,12 @@ export function LeadListScreen() {
       enableHiding: false,
       cell: ({ row }) => (
         <span className="flex min-w-40 flex-col">
-          <span className="flex flex-wrap items-center gap-1.5 font-medium text-text">{leadName(row.original)}<StaleBadge lead={row.original} /></span>
+          <span className="flex flex-wrap items-center gap-1.5 font-medium text-text">{leadName(row.original)}<LeadStatusBadge status={row.original.status} /><StaleBadge lead={row.original} /></span>
           <span className="text-xs whitespace-nowrap text-text-muted">{row.original.code}{row.original.jobTitle ? ` · ${row.original.jobTitle}` : ""}</span>
         </span>
       ),
     },
     { id: "companyName", accessorKey: "companyName", header: "Company", cell: ({ row }) => <span className="block min-w-36">{row.original.companyName ?? ""}</span> },
-    { id: "status", accessorKey: "status", header: "Status", enableHiding: false, cell: ({ row }) => <LeadStatusBadge status={row.original.status} /> },
     {
       id: "stage",
       accessorKey: "stage",
@@ -190,7 +202,7 @@ export function LeadListScreen() {
     {
       id: "estimatedValue",
       accessorKey: "estimatedValue",
-      header: "Estimated value",
+      header: "Value",
       cell: ({ row }) => <span className="tabular-nums">{row.original.estimatedValue ? formatMoney(row.original.currencyCode ?? options?.baseCurrency, row.original.estimatedValue) : ""}</span>,
     },
     { id: "nextFollowUpAt", accessorKey: "nextFollowUpAt", header: "Next follow-up", cell: ({ row }) => <FollowUpCell value={row.original.nextFollowUpAt} /> },
@@ -209,6 +221,20 @@ export function LeadListScreen() {
       ),
     },
     { id: "createdAt", accessorKey: "createdAt", header: "Created", cell: ({ row }) => formatDate(row.original.createdAt) },
+    {
+      // On hover: call, email and log an activity without opening the lead.
+      id: "quick", header: "", enableSorting: false, enableHiding: false,
+      cell: ({ row }) => {
+        const phone = row.original.mobile || row.original.phone;
+        return (
+          <span className="flex items-center gap-0.5 opacity-100 transition-opacity group-hover:opacity-100 lg:opacity-0 lg:focus-within:opacity-100" onClick={(event) => event.stopPropagation()} role="presentation">
+            {phone && <a href={`tel:${phone.replace(/[^0-9+]/g, "")}`} aria-label={`Call ${leadName(row.original)}`} className="inline-flex size-8 items-center justify-center rounded-[var(--radius-control)] text-text-secondary hover:bg-surface-hover hover:text-text"><Phone className="size-4" aria-hidden="true" /></a>}
+            {row.original.email && <a href={`mailto:${row.original.email}`} aria-label={`Email ${leadName(row.original)}`} className="inline-flex size-8 items-center justify-center rounded-[var(--radius-control)] text-text-secondary hover:bg-surface-hover hover:text-text"><Mail className="size-4" aria-hidden="true" /></a>}
+            {row.original.status === "open" && <IconButton aria-label={`Log activity on ${leadName(row.original)}`} size="compact" variant="ghost" onPress={() => setLogging(row.original)}><NotebookPen className="size-4" aria-hidden="true" /></IconButton>}
+          </span>
+        );
+      },
+    },
   ], [options?.baseCurrency]);
 
   const refresh = (result?: LeadBulkResult) => {
@@ -247,23 +273,28 @@ export function LeadListScreen() {
     ...(staleOnly ? [{ id: "stale", label: `Stale: no activity for ${options?.staleDays ?? 7}+ days` }] : []),
     // Set by links from the dashboards; removable here.
     ...(created.from || created.to ? [{ id: "created", label: `Created: ${created.from ? formatDate(created.from) : "start"} – ${created.to ? formatDate(created.to) : "today"}` }] : []),
+    ...(ranges.qualifiedFrom || ranges.qualifiedTo ? [{ id: "qualified", label: `Qualified: ${ranges.qualifiedFrom ? formatDate(ranges.qualifiedFrom) : "start"} – ${ranges.qualifiedTo ? formatDate(ranges.qualifiedTo) : "today"}` }] : []),
+    ...(ranges.convertedFrom || ranges.convertedTo ? [{ id: "converted", label: `Converted: ${ranges.convertedFrom ? formatDate(ranges.convertedFrom) : "start"} – ${ranges.convertedTo ? formatDate(ranges.convertedTo) : "today"}` }] : []),
   ];
   const removeFilter = (id: string) => {
     if (id === "created") {
       setCreated({ from: "", to: "" });
       restart();
-    } else if (id === "stale") setStaleOnly(false);
+    } else if (id === "qualified") { setRanges({ ...ranges, qualifiedFrom: "", qualifiedTo: "" }); restart(); }
+    else if (id === "converted") { setRanges({ ...ranges, convertedFrom: "", convertedTo: "" }); restart(); }
+    else if (id === "stale") setStaleOnly(false);
     else if (id.startsWith("queue:")) setQueue({ ...queue, [id.slice("queue:".length)]: "" });
     else setFilters({ ...filters, [id]: ANY });
   };
   const clearFilters = () => {
     setCreated({ from: "", to: "" });
+    setRanges({ qualifiedFrom: "", qualifiedTo: "", convertedFrom: "", convertedTo: "" });
     setStaleOnlyState(false);
     setQueue(NO_QUEUE_FILTERS);
     setFilters(NO_FILTERS);
   };
   const statusOptions = [{ value: ANY, label: "Any status" }, ...(options?.statuses ?? []).map((entry) => ({ value: entry.code, label: entry.label }))];
-  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== "all";
+  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== (seesAll ? "all" : "mine");
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.leads.view"))
     return <PermissionState title="You don't have access to leads" description="Ask an administrator for the View leads permission." />;
@@ -288,27 +319,21 @@ export function LeadListScreen() {
       <EnterpriseListPage
         header={{
           title: "Leads",
-          description: "People and companies that might buy. Work each lead until it is qualified, then convert it into an account, contact and opportunity.",
+          description: "People and companies that might buy. Work each lead until it is qualified, then convert it into a company, contact and deal.",
           primaryAction: can?.create ? (
             <LinkButton href="/crm/leads/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New lead</LinkButton>
           ) : undefined,
-          secondaryActions: (
-            <>
-              <LinkButton href="/crm/leads/dashboard" variant="outline">Dashboard</LinkButton>
-              {can?.import && <LinkButton href="/crm/leads/import" variant="outline"><Upload className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Import</span></LinkButton>}
-              {can?.export && (
-                <a className={buttonVariants({ variant: "outline" })} href={leadExportUrl(listFilters)} download>
-                  <Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span>
-                </a>
-              )}
-            </>
-          ),
+          secondaryActions: <MoreMenu label="More lead actions" items={[
+            ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=leads") }] : []),
+            ...(can?.export ? [{ id: "export", label: "Export", onAction: () => { window.location.href = leadExportUrl(listFilters); } }] : []),
+            { id: "dashboard", label: "Dashboard", onAction: () => router.push("/crm/leads/dashboard") },
+          ]} />,
         }}
-        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as LeadViewKey) } : undefined}
+        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as LeadViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
           start: (
             <>
-              <SearchField aria-label="Search leads" placeholder="Search name, company, email, phone or lead number" className="order-last w-full sm:order-none sm:w-auto sm:min-w-64 sm:flex-1" value={search} onChange={setSearch} onSubmit={(value) => setSubmittedSearch(value.trim())} />
+              <SearchField aria-label="Search leads" placeholder="Search name, company, email, phone or lead number" className="w-full sm:min-w-64 sm:flex-1" value={search} onChange={setSearch} onSubmit={(value) => setSubmittedSearch(value.trim())} />
               {options && (
                 <>
                   <PopoverTrigger>
@@ -331,17 +356,16 @@ export function LeadListScreen() {
                           options={filterOptions(options.qualificationStatuses.map((entry) => ({ value: entry.code, label: entry.label })), "Any qualification")} />
                         <Select label="Rating" size="compact" selectedKey={filters.rating} onSelectionChange={(key) => setFilters({ ...filters, rating: String(key) })} options={filterOptions(RATING_OPTIONS, "Any rating")} />
                         <p className="border-t border-border pt-3 text-xs font-medium text-text-secondary sm:col-span-2 lg:col-span-3">Location, interest and age</p>
-                        <TextField label="State" value={queueDraft.state} onChange={(state) => setQueueDraft({ ...queueDraft, state })} />
-                        <TextField label="City" value={queueDraft.city} onChange={(city) => setQueueDraft({ ...queueDraft, city })} />
-                        <TextField label="Product / service interest" value={queueDraft.productInterest} onChange={(productInterest) => setQueueDraft({ ...queueDraft, productInterest })} />
-                        <Select label="Waiting" size="compact" selectedKey={queueDraft.olderThanDays || ANY}
-                          onSelectionChange={(key) => setQueueDraft({ ...queueDraft, olderThanDays: String(key) === ANY ? "" : String(key) })} options={AGE_OPTIONS} />
+                        <TextField label="State" value={queue.state} onChange={(state) => setQueue({ ...queue, state })} />
+                        <TextField label="City" value={queue.city} onChange={(city) => setQueue({ ...queue, city })} />
+                        <TextField label="Product / service interest" value={queue.productInterest} onChange={(productInterest) => setQueue({ ...queue, productInterest })} />
+                        <Select label="Waiting" size="compact" selectedKey={queue.olderThanDays || ANY}
+                          onSelectionChange={(key) => setQueue({ ...queue, olderThanDays: String(key) === ANY ? "" : String(key) })} options={AGE_OPTIONS} />
                         <Checkbox className="sm:col-span-2 lg:col-span-3" isSelected={staleOnly} onChange={setStaleOnly}>
                           Only stale leads (open, no activity for {options.staleDays}+ days)
                         </Checkbox>
                         <div className="flex justify-end gap-2 sm:col-span-2 lg:col-span-3">
                           <Button variant="ghost" size="compact" onPress={clearFilters}>Clear all</Button>
-                          <Button variant="primary" size="compact" onPress={() => setQueue(queueDraft)}>Apply location and interest</Button>
                         </div>
                       </div>
                     </Popover>
@@ -433,6 +457,7 @@ export function LeadListScreen() {
             lead={selectedIds.length === 1 ? leads.find((entry) => entry.id === selectedIds[0]) : undefined} options={options} onDone={refresh} />
           <ChangeStageDialog isOpen={dialog === "stage"} onOpenChange={(open) => !open && setDialog(null)} leadIds={selectedIds} options={options} onDone={refresh} />
           <DisqualifyLeadsDialog isOpen={dialog === "disqualify"} onOpenChange={(open) => !open && setDialog(null)} leadIds={selectedIds} options={options} onDone={refresh} />
+          {logging && <LogActivityDialog isOpen onOpenChange={(open) => !open && setLogging(null)} leadId={logging.id} options={options} currentStage={logging.stage} onDone={() => { setLogging(null); refresh(); }} />}
         </>
       )}
     </div>

@@ -54,6 +54,9 @@ export function opportunityScopeSql(context, values, alias = "opportunity") {
 }
 
 // What the caller may do with opportunities, for the UI to hide what would be refused.
+// quoteInSales: creating a quotation also needs Sales' own permission, so the button shows only when the quote would be accepted.
 export function opportunityCapabilities(context) {
-  return Object.fromEntries(Object.entries(OPPORTUNITY_PERMISSIONS).map(([name, permission]) => [name, opportunityCan(context, permission)]));
+  const capabilities = Object.fromEntries(Object.entries(OPPORTUNITY_PERMISSIONS).map(([name, permission]) => [name, opportunityCan(context, permission)]));
+  const salesCan = Boolean(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("sales.quotation.create"));
+  return { ...capabilities, quoteInSales: Boolean(capabilities.createQuotation) && salesCan };
 }

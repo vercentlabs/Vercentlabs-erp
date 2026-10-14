@@ -27,6 +27,7 @@ import {
 } from "../api/leads-api";
 import { TransferLeadsDialog } from "../components/LeadAssignment";
 import { ErrorBanner, PRIORITY_OPTIONS, RATING_OPTIONS } from "../lead-format";
+import { SetupBackLink } from "@/features/crm/settings/screens/SetupBackLink";
 
 const NONE = "";
 const VALUELESS = new Set(["is_empty", "is_not_empty"]);
@@ -43,7 +44,7 @@ function conditionText(condition: LeadRuleCondition, options: LeadOptions) {
 
 function targetText(rule: LeadAssignmentRule) {
   if (rule.targetType === "user") return rule.targetUserName ?? "A removed user";
-  return rule.strategy === "round_robin" ? `Team ${rule.targetTeamName ?? ""} — each member in turn` : `Team ${rule.targetTeamName ?? ""} queue (no owner)`;
+  return rule.strategy === "round_robin" ? `${rule.targetTeamName ?? "A removed team"} team, round robin` : `${rule.targetTeamName ?? "A removed team"} team queue (no owner)`;
 }
 
 export function LeadAssignmentSettingsScreen() {
@@ -89,8 +90,9 @@ export function LeadAssignmentSettingsScreen() {
 
   return (
     <div className="flex flex-col gap-8">
+      <SetupBackLink />
       <PageHeader
-        title="Lead assignment"
+        title="Assignment"
         description="Every lead has one owner who is responsible for it. Decide how new leads get that owner, and what happens when nothing matches."
         // On a phone the three actions share one row: shorter labels, Teams as an icon.
         primaryAction={<Button variant="primary" className="max-sm:px-3" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New rule</Button>}
@@ -136,8 +138,8 @@ export function LeadAssignmentSettingsScreen() {
                     <span className="font-medium">{index + 1}. {rule.name}</span>
                     <StatusBadge tone={rule.isActive ? "success" : "neutral"}>{rule.isActive ? "Active" : "Inactive"}</StatusBadge>
                   </div>
-                  <p><span className="text-text-secondary">When: </span>{rule.conditions.length ? rule.conditions.map((condition) => conditionText(condition, options)).join(" and ") : "Any lead"}</p>
-                  <p><span className="text-text-secondary">Assign to: </span>{targetText(rule)}</p>
+                  {/* The rule as one sentence: "Source is Website and State is Maharashtra → Pune team, round robin". */}
+                  <p>{rule.conditions.length ? rule.conditions.map((condition) => conditionText(condition, options)).join(" and ") : "Any lead"} → {targetText(rule)}</p>
                   <p className="text-xs text-text-muted">{rule.leadCount} {rule.leadCount === 1 ? "lead" : "leads"} currently assigned by this rule</p>
                 </div>
                 {/* On a phone the actions sit in a menu beside the rule. */}

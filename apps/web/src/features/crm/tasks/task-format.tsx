@@ -3,11 +3,12 @@ import { Badge, StatusBadge } from "@vercentlabs/design-system";
 import { formatDate } from "@/shared/format/human";
 
 import type { Task, TaskPriority, TaskStatus } from "./api/tasks-api";
+import { clockLabel } from "@/features/crm/shared/when";
 
 export const STATUS_LABELS: Record<TaskStatus, string> = { open: "Open", in_progress: "In Progress", completed: "Completed", cancelled: "Cancelled" };
 const STATUS_TONE: Record<TaskStatus, "info" | "warning" | "success" | "neutral"> = { open: "info", in_progress: "warning", completed: "success", cancelled: "neutral" };
 export const PRIORITY_OPTIONS: Array<{ value: TaskPriority; label: string }> = [{ value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" }];
-export const RELATED_LABELS: Record<string, string> = { lead: "Lead", party: "Account", contact: "Contact", opportunity: "Opportunity", campaign: "Campaign" };
+export const RELATED_LABELS: Record<string, string> = { lead: "Lead", party: "Company", contact: "Contact", opportunity: "Deal" };
 
 export function TaskStatusBadge({ status }: { status: TaskStatus }) {
   return <StatusBadge tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</StatusBadge>;
@@ -20,7 +21,7 @@ export function TaskPriorityBadge({ priority }: { priority: TaskPriority }) {
 // Overdue, today and upcoming are calculated from the due date, never stored.
 export function TaskDue({ task }: { task: Pick<Task, "dueDate" | "dueTime" | "isOverdue" | "isDueToday" | "status"> }) {
   if (!task.dueDate) return <span className="text-text-muted">No due date</span>;
-  const when = `${task.isDueToday ? "Today" : formatDate(task.dueDate)}${task.dueTime ? ` ${task.dueTime}` : ""}`;
+  const when = `${task.isDueToday ? "Today" : formatDate(task.dueDate)}${task.dueTime ? `, ${clockLabel(task.dueTime)}` : ""}`;
   return (
     <span className={`inline-flex flex-wrap items-center gap-1.5 whitespace-nowrap ${task.isOverdue ? "font-medium text-danger" : task.isDueToday ? "font-medium" : ""}`}>
       {when}

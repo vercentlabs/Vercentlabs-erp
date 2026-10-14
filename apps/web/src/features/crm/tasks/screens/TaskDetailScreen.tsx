@@ -4,9 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal } from "lucide-react";
-import { AlertDialog, Button, ErrorState, Menu, MenuItem, MenuTrigger, RecordDetailsPage } from "@vercentlabs/design-system";
+import { AlertDialog, Button, ErrorState, RecordDetailsPage } from "@vercentlabs/design-system";
 
+import { readableHistory } from "@/features/crm/shared/field-labels";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/shared/ui/PropertyList";
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -50,12 +51,15 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
   const primaryAction = open
     ? can.complete && <Button variant="primary" onPress={() => setDialog("complete")}>Complete</Button>
     : can.reopen && <Button variant="primary" onPress={() => action.mutate(() => reopenTask(task.id, { expectedUpdatedAt: task.updatedAt }))} isLoading={action.isPending}>Reopen</Button>;
+  // Delete is only for a task created by mistake: once it was started, reassigned or closed it is cancelled instead, and the menu says so
+  // before the click (the server enforces the same rule).
+  const used = task.status !== "open" || (historyQuery.data ?? []).some((entry) => ["reassigned", "started", "completed", "reopened", "cancelled"].includes(entry.eventType));
   const menu = [
-    { id: "edit", label: "Edit task", show: open && can.edit, run: () => setDialog("edit") },
-    { id: "start", label: "Mark in progress", show: task.status === "open" && can.edit, run: () => action.mutate(() => startTask(task.id, task.updatedAt)) },
-    { id: "assign", label: "Reassign", show: open && can.reassign, run: () => setDialog("assign") },
-    { id: "cancel", label: "Cancel task", show: open && can.cancel, run: () => setDialog("cancel") },
-    { id: "delete", label: "Delete task", show: can.delete, run: () => setDialog("delete") },
+    { id: "edit", label: "Edit task", show: open && can.edit, onAction: () => setDialog("edit") },
+    { id: "start", label: "Mark in progress", show: task.status === "open" && can.edit, onAction: () => action.mutate(() => startTask(task.id, task.updatedAt)) },
+    { id: "assign", label: "Reassign", show: open && can.reassign, onAction: () => setDialog("assign") },
+    { id: "cancel", label: "Cancel task", show: open && can.cancel, onAction: () => setDialog("cancel") },
+    { id: "delete", label: used ? "Delete (only a mistaken task — cancel it instead)" : "Delete task", show: can.delete, danger: true, isDisabled: used, onAction: () => setDialog("delete") },
   ].filter((entry) => entry.show);
 
   return (
@@ -68,15 +72,10 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
             { label: "Due", value: <TaskDue task={task} /> },
             { label: "Assigned to", value: task.assignedName ?? "Unassigned" },
             { label: "About", value: task.relatedHref ? <Link className="hover:underline" href={task.relatedHref}>{task.relatedName ?? RELATED_LABELS[task.relatedType ?? ""]}</Link> : "Personal task" },
-            { label: "Account", value: task.accountId ? <Link className="hover:underline" href={`/crm/accounts/${task.accountId}`}>{task.accountName}</Link> : "—" },
+            { label: "Company", value: task.accountId ? <Link className="hover:underline" href={`/crm/accounts/${task.accountId}`}>{task.accountName}</Link> : "—" },
           ],
           primaryAction,
-          secondaryActions: menu.length ? (
-            <MenuTrigger>
-              <Button variant="outline" aria-label="More actions"><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
-              <Menu onAction={(id) => menu.find((entry) => entry.id === id)?.run()}>{menu.map((entry) => <MenuItem key={entry.id} id={entry.id}>{entry.label}</MenuItem>)}</Menu>
-            </MenuTrigger>
-          ) : undefined,
+          secondaryActions: menu.length ? <MoreMenu items={menu} /> : undefined,
         }}
         tabs={<ErrorBanner message={error} />}
       >
@@ -103,7 +102,7 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
               <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface text-sm">
                 {(historyQuery.data ?? []).map((entry) => (
                   <li key={entry.id} className="flex flex-col gap-0.5 px-4 py-2.5">
-                    <span className="font-medium">{entry.summary}</span>
+                    <span className="font-medium">{readableHistory(entry.summary)}</span>
                     {typeof entry.changes.reason === "string" && entry.changes.reason && entry.eventType !== "cancelled" && entry.eventType !== "reopened" && <span className="text-text-secondary">{entry.changes.reason}</span>}
                     <span className="text-xs text-text-muted">{formatDateTime(entry.createdAt)} · {entry.actorName ?? "System"}</span>
                   </li>

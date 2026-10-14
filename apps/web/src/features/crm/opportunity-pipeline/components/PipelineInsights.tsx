@@ -1,8 +1,7 @@
 "use client";
 
-// The pipeline in figures: the strip above the board, and the manager's
-// breakdowns below it (by owner, by stage, by source). All of it is the open
-// pipeline the caller can see, for the filters currently applied.
+// The pipeline in figures: four above the board (open value, closing this month, overdue, no next activity), and the manager's breakdowns
+// (by owner, by stage, by source) on the deal dashboard. All of it is the open pipeline the caller can see, for the filters applied.
 import { MetricCard } from "@vercentlabs/design-system";
 
 import { days } from "@/features/crm/opportunities/opportunity-format";
@@ -10,7 +9,7 @@ import { formatMoney } from "@/shared/format/human";
 
 import type { Pipeline, PipelineSummary } from "../api/pipeline-api";
 
-export type SummaryPreset = "open" | "closing_this_month" | "overdue" | "stale" | "no_next_activity";
+export type SummaryPreset = "open" | "closing_this_month" | "overdue" | "no_next_activity";
 
 function Metric({ label, value, onPress }: { label: string; value: string | number; onPress?: () => void }) {
   if (!onPress) return <MetricCard label={label} value={value} />;
@@ -24,13 +23,10 @@ function Metric({ label, value, onPress }: { label: string; value: string | numb
 export function PipelineSummaryStrip({ summary, currency, onSelect }: { summary: PipelineSummary; currency: string; onSelect: (preset: SummaryPreset) => void }) {
   const totals = summary.totals;
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-      <Metric label="Open deals" value={totals.open} onPress={() => onSelect("open")} />
-      <Metric label="Pipeline" value={formatMoney(currency, totals.value)} />
-      <Metric label="Weighted" value={formatMoney(currency, totals.weightedValue)} />
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <Metric label={`Open value (${totals.open} ${totals.open === 1 ? "deal" : "deals"})`} value={formatMoney(currency, totals.value)} onPress={() => onSelect("open")} />
       <Metric label={`Closing this month (${totals.closingThisMonth})`} value={formatMoney(currency, totals.closingThisMonthValue)} onPress={() => onSelect("closing_this_month")} />
       <Metric label="Overdue" value={totals.overdue} onPress={() => onSelect("overdue")} />
-      <Metric label={`Stale (${totals.staleDays}+ days)`} value={totals.stale} onPress={() => onSelect("stale")} />
       <Metric label="No next activity" value={totals.noNextActivity} onPress={() => onSelect("no_next_activity")} />
     </div>
   );
@@ -53,7 +49,7 @@ export function PipelineBreakdowns({ summary, pipeline, currency, onSelectOwner 
           <h2 className="text-base font-semibold">Pipeline by owner</h2>
           <p className="text-sm text-text-secondary">Open deals each person owns. Choose a name to see their pipeline.</p>
         </div>
-        {summary.byOwner.length === 0 ? <p className="text-sm text-text-secondary">No open opportunities.</p> : (
+        {summary.byOwner.length === 0 ? <p className="text-sm text-text-secondary">No open deals.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-text-secondary">
@@ -121,7 +117,7 @@ export function PipelineBreakdowns({ summary, pipeline, currency, onSelectOwner 
 
       <section className={panel}>
         <h2 className="text-base font-semibold">Pipeline by source</h2>
-        {summary.bySource.length === 0 ? <p className="text-sm text-text-secondary">No open opportunities.</p> : (
+        {summary.bySource.length === 0 ? <p className="text-sm text-text-secondary">No open deals.</p> : (
           <table className="w-full text-sm">
             <thead className="text-left text-text-secondary">
               <tr><th className="py-1 font-medium">Source</th>{["Deals", "Pipeline", "Weighted"].map((heading) => <th key={heading} className="py-1 text-right font-medium">{heading}</th>)}</tr>

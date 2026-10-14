@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 
 import { CrmCreateMenu } from "@/features/crm/shared/CrmCreateMenu";
+import { CrmShortcuts } from "@/features/crm/shared/shortcuts";
 import { SalesCreateMenu } from "@/features/sales/shared/SalesCreateMenu";
 import { useSearchDialog } from "@/features/platform/search/SearchDialog";
 import { ModuleCreateMenu } from "@/shell/app-shell/ModuleCreateMenu";
@@ -124,7 +125,9 @@ export function WorkspaceTopBar() {
           Home, which would otherwise leave this cluster as the row's only
           child, stranded on the left. */}
       <div className="ml-auto flex items-center gap-2">
-        {/* Inside CRM: start a lead, account, contact, opportunity, task or follow-up from any page. */}
+        {/* Inside CRM: the keyboard shortcuts (and the button that lists them). */}
+        {isActive(pathname, "/crm") ? <span className="hidden lg:flex"><CrmShortcuts /></span> : null}
+        {/* Inside CRM: start a lead, company, contact, deal, task or follow-up from any page. */}
         {isActive(pathname, "/crm") && pathname !== "/crm" ? (
           <span className="hidden lg:flex">
             <CrmCreateMenu size="compact" />

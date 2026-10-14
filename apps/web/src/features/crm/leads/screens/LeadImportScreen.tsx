@@ -20,7 +20,8 @@ import { ErrorBanner } from "../lead-format";
 const SKIP = "__skip__";
 const NONE = "__none__";
 
-export function LeadImportScreen() {
+// embedded: shown inside Import data, which carries the page title; the importer shows its template link in a compact row.
+export function LeadImportScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead-options"), queryFn: getLeadOptions, staleTime: 60_000 });
@@ -83,18 +84,27 @@ export function LeadImportScreen() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Import leads"
-        description="Bring in leads from a CSV or Excel (.xlsx) file, up to 2,000 rows at a time."
-        secondaryActions={
-          <>
-            <LinkButton variant="outline" href="/crm/leads">Back to leads</LinkButton>
-            <a className={buttonVariants({ variant: "outline" })} href={leadImportTemplateUrl} download>
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-text-secondary">Bring in leads from a CSV or Excel (.xlsx) file, up to 2,000 rows at a time.</p>
+          <a className={buttonVariants({ variant: "outline" })} href={leadImportTemplateUrl} download>
               <Download className="size-4" aria-hidden="true" />Download template
             </a>
-          </>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          title="Import leads"
+          description="Bring in leads from a CSV or Excel (.xlsx) file, up to 2,000 rows at a time."
+          secondaryActions={
+            <>
+              <LinkButton variant="outline" href="/crm/leads">Back to leads</LinkButton>
+              <a className={buttonVariants({ variant: "outline" })} href={leadImportTemplateUrl} download>
+                <Download className="size-4" aria-hidden="true" />Download template
+              </a>
+            </>
+          }
+        />
+      )}
       <ErrorBanner message={error} />
 
       <Step number={1} title="Choose the file">

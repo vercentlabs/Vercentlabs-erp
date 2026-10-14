@@ -20,6 +20,7 @@ import {
 } from "../api/accounts-api";
 import { ADDRESS_TYPE_LABELS, AccountStatusBadge, AccountTypeBadge, ErrorBanner } from "../account-format";
 import { AccountPicker } from "./AccountPicker";
+import { GST_STATES, gstStateByName } from "@/features/crm/shared/gst-states";
 
 function useAccountRefresh(accountId: string) {
   const workspace = useWorkspaceContext();
@@ -60,7 +61,7 @@ export function AccountContactsPanel({ account, canEdit }: { account: Account; c
       <SectionHeader title="Contacts" action={canEdit && (
         <>
           <Button variant="secondary" size="compact" onPress={() => setDialog("link")}>Link existing contact</Button>
-          <Button variant="primary" size="compact" onPress={() => setDialog("new")}>Add contact</Button>
+          <Button variant="secondary" size="compact" onPress={() => setDialog("new")}>Add contact</Button>
         </>
       )} />
       <ErrorBanner message={error} />
@@ -133,8 +134,10 @@ function NewContactDialog({ isOpen, onOpenChange, accountId, onDone }: { isOpen:
           <TextField label="Mobile" type="tel" value={values.mobile} onChange={set("mobile")} />
         </div>
         <Checkbox isSelected={values.isDecisionMaker} onChange={set("isDecisionMaker")}>Decision maker</Checkbox>
-        <Checkbox isSelected={values.makePrimary} onChange={set("makePrimary")}>Primary contact for this account</Checkbox>
-        <div className="flex justify-end gap-2">
+        <Checkbox isSelected={values.makePrimary} onChange={set("makePrimary")}>Primary contact for this company</Checkbox>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* The full contact form, with this company filled in. */}
+          <Link href={`/crm/contacts/new?accountId=${accountId}`} className="mr-auto text-sm font-medium text-brand underline-offset-2 hover:underline">More details</Link>
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
           <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending}
             isDisabled={!values.firstName.trim() || !(values.email.trim() || values.mobile.trim())}>Add contact</Button>
@@ -163,13 +166,13 @@ function LinkContactDialog({ isOpen, onOpenChange, accountId, onDone }: { isOpen
   const rows = query.data ?? [];
   const chosen = rows.find((row) => row.id === contactId);
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Link existing contact" description="Choose a contact with no company, or one to move from another account.">
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Link existing contact" description="Choose a contact with no company, or one to move from another company.">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <ComboBox label="Contact" placeholder="Search by name or email" options={rows.map((row) => ({ value: row.id, label: `${row.name}${row.accountName ? ` — ${row.accountName}` : ""}` }))}
           selectedKey={contactId} onSelectionChange={(key) => setContactId(key ? String(key) : null)} onInputChange={setText} isLoading={query.isFetching}
           emptyMessage="No matching contacts" allowsEmptyCollection />
-        {chosen?.accountName && <p className="text-sm text-warning">This contact will move from {chosen.accountName} to this account.</p>}
+        {chosen?.accountName && <p className="text-sm text-warning">This contact will move from {chosen.accountName} to this company.</p>}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
           <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!contactId}>Link contact</Button>
@@ -181,11 +184,12 @@ function LinkContactDialog({ isOpen, onOpenChange, accountId, onDone }: { isOpen
 
 // ------------------------------------------------------------------ addresses
 
-export function AccountAddressesPanel({ account, options, canEdit }: { account: Account; options: AccountOptions; canEdit: boolean }) {
+// startAdding: open the Add address form at once (Create customer's "Add billing address" link).
+export function AccountAddressesPanel({ account, options, canEdit, startAdding = false }: { account: Account; options: AccountOptions; canEdit: boolean; startAdding?: boolean }) {
   const workspace = useWorkspaceContext();
   const refresh = useAccountRefresh(account.id);
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "account", account.id, "addresses"), queryFn: () => listAccountAddresses(account.id) });
-  const [editing, setEditing] = useState<AccountAddress | "new" | null>(null);
+  const [editing, setEditing] = useState<AccountAddress | "new" | null>(startAdding && canEdit ? "new" : null);
   const [removing, setRemoving] = useState<AccountAddress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const remove = useMutation({
@@ -197,10 +201,10 @@ export function AccountAddressesPanel({ account, options, canEdit }: { account: 
 
   return (
     <section className="flex flex-col gap-3">
-      <SectionHeader title="Addresses" action={canEdit && <Button variant="primary" size="compact" onPress={() => setEditing("new")}>Add address</Button>} />
+      <SectionHeader title="Addresses" action={canEdit && <Button variant="secondary" size="compact" onPress={() => setEditing("new")}>Add address</Button>} />
       <ErrorBanner message={error} />
       {query.isLoading ? <LoadingState label="Loading addresses" rows={2} /> : query.isError ? <ErrorBanner message="Could not load the addresses." /> : addresses.length === 0 ? (
-        <EmptyState title="No addresses" description="Add the registered, billing, shipping and branch addresses. A billing address is needed before the account can become a customer." />
+        <EmptyState title="No addresses" description="Add the registered, billing, shipping and branch addresses. A billing address is needed before the company can become a customer." />
       ) : (
         <ul className="grid gap-3 md:grid-cols-2">
           {addresses.map((address) => (
@@ -212,7 +216,7 @@ export function AccountAddressesPanel({ account, options, canEdit }: { account: 
               </div>
               <address className="not-italic text-text-secondary">
                 {address.line1}{address.line2 ? <><br />{address.line2}</> : null}<br />
-                {address.city}, {address.state} {address.postalCode}<br />
+                {address.city}, {address.state}{address.stateCode ? ` (${address.stateCode})` : ""} {address.postalCode}<br />
                 {address.countryCode ? countryName(address.countryCode) : ""}
               </address>
               {canEdit && (
@@ -265,6 +269,13 @@ function AddressDialog({ accountId, address, options, onClose, onDone }: {
     },
   });
   const complete = values.line1.trim() && values.city.trim() && values.state.trim() && values.postalCode.trim() && values.countryCode;
+  // In India the state is chosen from the GST list, with its code beside it; choosing one fills the state code.
+  const india = values.countryCode === "IN";
+  const knownState = gstStateByName(values.state);
+  const stateOptions = [
+    ...(values.state && !knownState ? [{ value: values.state, label: values.state }] : []),
+    ...GST_STATES.map((state) => ({ value: state.name, label: `${state.name} (${state.code})` })),
+  ];
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={address ? "Edit address" : "Add address"} size="lg">
       <div className="flex flex-col gap-4">
@@ -276,8 +287,17 @@ function AddressDialog({ accountId, address, options, onClose, onDone }: {
           <TextField label="Address line 1" isRequired className="sm:col-span-2" value={values.line1} onChange={set("line1")} errorMessage={fieldErrors.line1} />
           <TextField label="Address line 2" className="sm:col-span-2" value={values.line2} onChange={set("line2")} />
           <TextField label="City" isRequired value={values.city} onChange={set("city")} errorMessage={fieldErrors.city} />
-          <TextField label="State" isRequired value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
-          <TextField label="State code" description="GST state code, for example 27." value={values.stateCode} onChange={set("stateCode")} errorMessage={fieldErrors.stateCode} />
+          {india ? (
+            <Select label="State" isRequired selectedKey={values.state || null} errorMessage={fieldErrors.state} options={stateOptions}
+              onSelectionChange={(key) => {
+                const state = gstStateByName(String(key ?? ""));
+                setValues((current) => ({ ...current, state: String(key ?? ""), stateCode: state?.code ?? current.stateCode }));
+                setFieldErrors((current) => ({ ...current, state: "", stateCode: "" }));
+              }} />
+          ) : (
+            <TextField label="State" isRequired value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
+          )}
+          <TextField label="GST state code" description={india ? "Filled in from the state." : "For an Indian address, for example 27."} value={values.stateCode} onChange={set("stateCode")} errorMessage={fieldErrors.stateCode} />
           <TextField label="Postal code" isRequired value={values.postalCode} onChange={set("postalCode")} errorMessage={fieldErrors.postalCode} />
           <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
         </div>
@@ -347,9 +367,9 @@ export function AccountHierarchyPanel({ account, canEdit }: { account: Account; 
           )}
         </div>
       )}
-      <Dialog isOpen={isChoosing} onOpenChange={setChoosing} title="Parent account" description="The company this account is a branch or subsidiary of.">
+      <Dialog isOpen={isChoosing} onOpenChange={setChoosing} title="Parent company" description="The company this one is a branch or subsidiary of.">
         <div className="flex flex-col gap-4">
-          <AccountPicker label="Parent account" value={parentId} onChange={(id) => setParentId(id)} excludeId={account.id} />
+          <AccountPicker label="Parent company" value={parentId} onChange={(id) => setParentId(id)} excludeId={account.id} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onPress={() => setChoosing(false)}>Cancel</Button>
             <Button variant="primary" onPress={() => mutation.mutate(parentId)} isLoading={mutation.isPending} isDisabled={!parentId}>Save</Button>

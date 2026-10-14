@@ -12,7 +12,7 @@ const { request, parseResponse } = crmApiClient(AccountApiError, "body");
 
 export type AccountType = "prospect" | "customer" | "partner" | "other";
 export type AccountStatus = "active" | "inactive" | "archived";
-export type AccountViewKey = "all" | "mine" | "team" | "prospects" | "customers" | "active" | "inactive" | "recently_created" | "recently_updated" | "archived";
+export type AccountViewKey = "all" | "mine" | "team" | "prospects" | "customers" | "no_recent_activity" | "active" | "inactive" | "recently_created" | "recently_updated" | "archived";
 export type AccountRelatedList = "leads" | "opportunities" | "quotations" | "orders" | "returns" | "invoices" | "payments" | "projects" | "tickets";
 
 

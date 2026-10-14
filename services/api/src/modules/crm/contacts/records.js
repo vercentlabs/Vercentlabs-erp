@@ -123,15 +123,15 @@ export async function getContact(client, context, contactId) {
 // ------------------------------------------------------------------ list
 
 export const CONTACT_VIEWS = Object.freeze([
-  { key: "all", label: "All Contacts" },
-  { key: "mine", label: "My Contacts" },
-  { key: "team", label: "Team Contacts" },
-  { key: "active", label: "Active Contacts" },
-  { key: "inactive", label: "Inactive Contacts" },
-  { key: "decision_makers", label: "Decision Makers" },
-  { key: "without_company", label: "Contacts without Company" },
-  { key: "recently_created", label: "Recently Created" },
-  { key: "recently_updated", label: "Recently Updated" },
+  { key: "all", label: "All contacts" },
+  { key: "mine", label: "My contacts" },
+  { key: "team", label: "Team contacts" },
+  { key: "active", label: "Active" },
+  { key: "inactive", label: "Inactive" },
+  { key: "decision_makers", label: "Decision makers" },
+  { key: "without_company", label: "Without company" },
+  { key: "recently_created", label: "Recently created" },
+  { key: "recently_updated", label: "Recently updated" },
   { key: "archived", label: "Archived" },
 ]);
 

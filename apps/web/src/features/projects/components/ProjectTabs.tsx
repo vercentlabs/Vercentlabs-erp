@@ -17,8 +17,8 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  addLink, addMember, addNote, changeMemberRole, editNote, errorMessage, fileHref, getFiles, getLinks, getMembers, getNotes, getOptions, removeFile, removeLink, removeMember, removeNote,
-  searchLinkable, uploadFile, type Project,
+  addLink, addMember, addNote, changeMemberRole, editNote, errorDetails, errorMessage, fileHref, getFiles, getLinks, getMembers, getNotes, getOptions, getProjectContacts, removeFile, removeLink,
+  removeMember, removeNote, searchLinkable, uploadFile, type Project,
 } from "../api/projects-api";
 
 const ROLE_OPTIONS = [{ value: "MEMBER", label: "Project Member" }, { value: "VIEWER", label: "Project Viewer" }, { value: "FINANCIAL_VIEWER", label: "Project Financial Viewer" }];
@@ -94,6 +94,10 @@ export function DocumentsTab({ project }: { project: Project }) {
   const notes = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "notes", project.id), queryFn: () => getNotes(project.id) });
   const files = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "files", project.id), queryFn: () => getFiles(project.id) });
   const [body, setBody] = useState("");
+  // A note may record communication with one of the project's customer contacts (kept with the note even after they leave the project).
+  const contacts = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "customer-contacts", project.id), queryFn: () => getProjectContacts(project.id),
+    enabled: project.classification === "CUSTOMER" && project.can.customer, retry: false });
+  const [contactId, setContactId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; body: string; version: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,14 +114,18 @@ export function DocumentsTab({ project }: { project: Project }) {
         {canAdd && (
           <div className="flex flex-col gap-2">
             <TextArea aria-label="New note" placeholder="Write an update" value={body} onChange={setBody} maxLength={5000} />
-            <div><Button variant="primary" isLoading={busy} isDisabled={!body.trim() || busy} onPress={() => run(async () => { await addNote(project.id, body.trim()); setBody(""); })}>Add note</Button></div>
+            {(contacts.data?.contacts ?? []).length > 0 && (
+              <Select label="With a customer contact" placeholder="Not about a contact" selectedKey={contactId} onSelectionChange={(key) => setContactId(key && key !== "none" ? String(key) : null)}
+                options={[{ value: "none", label: "Not about a contact" }, ...[...new Map((contacts.data?.contacts ?? []).map((row) => [row.contactId, row])).values()].map((row) => ({ value: row.contactId, label: row.name }))]} />
+            )}
+            <div><Button variant="primary" isLoading={busy} isDisabled={!body.trim() || busy} onPress={() => run(async () => { await addNote(project.id, body.trim(), contactId); setBody(""); setContactId(null); })}>Add note</Button></div>
           </div>
         )}
         {notes.isLoading ? <LoadingState label="Loading notes" rows={3} /> : (notes.data?.notes ?? []).length === 0 ? <p className="text-sm text-text-muted">No notes yet.</p> : (
           <ul className="flex flex-col gap-3">
             {(notes.data?.notes ?? []).map((note) => (
               <li key={note.id} className="rounded-md border border-border p-3">
-                <p className="text-xs text-text-muted">{`${note.author ?? "Someone"} · ${formatDateTime(note.createdAt)}${note.editedAt ? " · edited" : ""}`}</p>
+                <p className="text-xs text-text-muted">{`${note.author ?? "Someone"} · ${formatDateTime(note.createdAt)}${note.editedAt ? " · edited" : ""}${note.customerContact ? ` · with ${note.customerContact}` : ""}`}</p>
                 {editing?.id === note.id ? (
                   <div className="mt-2 flex flex-col gap-2">
                     <TextArea aria-label="Edit note" value={editing.body} onChange={(value) => setEditing({ ...editing, body: value })} maxLength={5000} />
@@ -209,24 +217,30 @@ function LinkDialog({ project, types, onClose, onDone }: { project: Project; typ
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A sales order already delivered by another project is linked here too only when the person confirms it.
+  const [sharedWith, setSharedWith] = useState<string | null>(null);
   const records = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "link-search", project.id, type, term), queryFn: () => searchLinkable(project.id, type, term), enabled: Boolean(type) });
   return (
     <Dialog isOpen isDismissable onOpenChange={(open) => { if (!open) onClose(); }} title="Link a record" size="md">
       <div className="flex flex-col gap-3">
         {project.classification === "CUSTOMER" && project.customer && <p className="text-sm text-text-secondary">{`Records of ${project.customer} are offered; purchasing records are any of the company's.`}</p>}
-        <Select label="Kind of record" selectedKey={type} onSelectionChange={(key) => { setType(String(key)); setRecordId(null); }} options={types.map((row) => ({ value: row.type, label: row.label }))} />
-        <ComboBox label="Record" placeholder="Search by number or name" selectedKey={recordId} inputValue={search} onInputChange={setSearch} onSelectionChange={(key) => setRecordId(key ? String(key) : null)}
+        <Select label="Kind of record" selectedKey={type} onSelectionChange={(key) => { setType(String(key)); setRecordId(null); setSharedWith(null); }} options={types.map((row) => ({ value: row.type, label: row.label }))} />
+        <ComboBox label="Record" placeholder="Search by number or name" selectedKey={recordId} inputValue={search} onInputChange={setSearch} onSelectionChange={(key) => { setRecordId(key ? String(key) : null); setSharedWith(null); }}
           options={(records.data ?? []).map((row) => ({ value: row.id, label: `${row.number ?? ""}${row.title ? ` · ${row.title}` : ""}${row.status ? ` (${row.status.replace(/_/g, " ")})` : ""}`.trim() }))}
           isLoading={records.isFetching} emptyMessage="Nothing matches." />
         <Select label="How it relates" selectedKey={linkType} onSelectionChange={(key) => setLinkType(String(key))} options={LINK_TYPES} />
         <TextField label="Note" value={note} onChange={setNote} maxLength={500} />
-        {error && <Notice tone="danger">{error}</Notice>}
+        {sharedWith && <Notice tone="warning">{`This order is already delivered through ${sharedWith}. Link it here as well only if both projects deliver it.`}</Notice>}
+        {error && !sharedWith && <Notice tone="danger">{error}</Notice>}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onPress={onClose}>Cancel</Button>
           <Button variant="primary" isLoading={busy} isDisabled={!recordId || busy} onPress={async () => {
             setBusy(true); setError(null);
-            try { await addLink(project.id, { sourceType: type, sourceId: recordId, linkType, note: note.trim() || undefined }); onDone(); onClose(); } catch (failure) { setError(errorMessage(failure)); } finally { setBusy(false); }
-          }}>Link</Button>
+            try { await addLink(project.id, { sourceType: type, sourceId: recordId, linkType, note: note.trim() || undefined, allowShared: Boolean(sharedWith) }); onDone(); onClose(); } catch (failure) {
+              const shared = (errorDetails(failure) as { sharedWith?: string }).sharedWith;
+              if (shared && !sharedWith) setSharedWith(shared); else { setSharedWith(null); setError(errorMessage(failure)); }
+            } finally { setBusy(false); }
+          }}>{sharedWith ? "Link it here as well" : "Link"}</Button>
         </div>
       </div>
     </Dialog>

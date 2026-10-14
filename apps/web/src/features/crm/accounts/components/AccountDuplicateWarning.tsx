@@ -12,7 +12,7 @@ export function AccountDuplicateWarning({ matches, blocking, children }: { match
   return (
     <div role="alert" className={`flex flex-col gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-sm ${blocking ? "border-warning-emphasis/40 bg-warning-soft" : "border-border bg-surface-muted"}`}>
       <p className="font-medium">
-        {blocking ? "This company already exists as an account." : "Similar accounts already exist. Check that this is a different company."}
+        {blocking ? "This company already exists in the CRM." : "Similar companies already exist. Check that this is a different company."}
       </p>
       <ul className="flex flex-col gap-2">
         {matches.map((match) => (
@@ -20,10 +20,10 @@ export function AccountDuplicateWarning({ matches, blocking, children }: { match
             <MatchStrengthBadge match={match} />
             {match.canOpen ? (
               <Link href={`/crm/accounts/${match.id}`} target="_blank" className="font-medium text-brand underline-offset-2 hover:underline">
-                {match.name || match.code || "Open account"}
+                {match.name || match.code || "Open company"}
               </Link>
             ) : (
-              <span className="text-text-secondary">An account you do not have access to</span>
+              <span className="text-text-secondary">A company you do not have access to</span>
             )}
             {match.canOpen && (
               <span className="text-text-secondary">

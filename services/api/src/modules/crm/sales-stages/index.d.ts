@@ -28,4 +28,5 @@ export function reorderSalesStages(client: QueryClient, context: CrmContext, ord
 // row: an opportunity row (snake_case columns); stage: { code, name }.
 export function stageEntryBlockers(row: Record<string, unknown>, stage: { code: string; name: string }): string[];
 export function stageEntryWarnings(row: Record<string, unknown>, stage: { code: string; name: string }): string[];
+export function stageRequirements(stage: { code: string }): Array<{ key: string; label: string }>;
 export function suggestedStageActions(stage: { code: string }): SalesStageAction[];

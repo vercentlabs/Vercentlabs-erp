@@ -1,5 +1,8 @@
 "use client";
 
+// New and edit company: the name (the only required field), type, phone, email and — when creating — owner first; everything else under
+// More details; and, when creating, an optional first address folded under "Add an address now" (once started, Save waits for it to be
+// complete). Save and Cancel are at the top and the bottom.
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +24,7 @@ import { AccountDuplicateWarning } from "../components/AccountDuplicateWarning";
 import { AccountPicker } from "../components/AccountPicker";
 import { ErrorBanner } from "../account-format";
 import { useSubmitKey } from "@/shared/http/submit-once";
+import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
 
 const NONE = "";
 const ME = "__me__";
@@ -81,12 +85,12 @@ export function AccountFormScreen({ accountId }: { accountId?: string }) {
   const accountQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "account", accountId), queryFn: () => getAccount(accountId as string), enabled: Boolean(accountId) });
   const account = accountQuery.data;
 
-  if (optionsQuery.isLoading || (accountId && accountQuery.isLoading)) return <LoadingState label={accountId ? "Loading account" : "Loading"} />;
+  if (optionsQuery.isLoading || (accountId && accountQuery.isLoading)) return <LoadingState label={accountId ? "Loading company" : "Loading"} />;
   if (accountId && (accountQuery.isError || !account))
-    return <ErrorState title="Could not load this account" description={errorMessage(accountQuery.error)} action={{ label: "Back to accounts", onPress: () => router.push("/crm/accounts") }} />;
+    return <ErrorState title="Could not load this company" description={errorMessage(accountQuery.error)} action={{ label: "Back to companies", onPress: () => router.push("/crm/accounts") }} />;
   if (!optionsQuery.data) return <ErrorState title="Could not load this page" description="Refresh to try again." />;
   if (account?.status === "archived")
-    return <ErrorState title="This account is archived" description="Reactivate it before editing." action={{ label: "Open account", onPress: () => router.push(`/crm/accounts/${account.id}`) }} />;
+    return <ErrorState title="This company is archived" description="Reactivate it before editing." action={{ label: "Open company", onPress: () => router.push(`/crm/accounts/${account.id}`) }} />;
   return <AccountForm key={account?.id ?? "new"} account={account} options={optionsQuery.data} />;
 }
 
@@ -164,8 +168,9 @@ function AccountForm({ account, options }: { account?: Account; options: Account
 
   return (
     <RecordFormPage
+      repeatActions
       header={{
-        title: mode === "edit" ? `Edit ${account?.displayName ?? "account"}` : "New account",
+        title: mode === "edit" ? `Edit ${account?.displayName ?? "company"}` : "New company",
         description: mode === "edit" ? account?.code : "Only the company name is required. Add the rest as you learn it.",
       }}
       banner={
@@ -185,59 +190,28 @@ function AccountForm({ account, options }: { account?: Account; options: Account
         <>
           <Button variant="secondary" onPress={() => router.replace(cancelHref)}>Cancel</Button>
           <Button variant="primary" onPress={() => mutation.mutate(false)} isLoading={mutation.isPending || mutation.isSuccess} isDisabled={!values.displayName.trim() || !addressComplete}>
-            {mode === "edit" ? "Save changes" : "Create account"}
+            {mode === "edit" ? "Save changes" : "Create company"}
           </Button>
         </>
       }
     >
       <FormSection title="Company">
-        <TextField label="Account name" isRequired value={values.displayName} onChange={set("displayName")} errorMessage={fieldErrors.displayName} />
-        <TextField label="Legal name" description="The registered name, if different." value={values.legalName} onChange={set("legalName")} errorMessage={fieldErrors.legalName} />
+        <TextField label="Company name" isRequired value={values.displayName} onChange={set("displayName")} errorMessage={fieldErrors.displayName} />
         {account?.isCustomer ? (
-          <TextField label="Account type" value="Customer" isDisabled description="Follows the Customer Master." />
+          <TextField label="Type" value="Customer" isDisabled description="Customer — follows the Customer Master." />
         ) : (
-          <Select label="Account type" selectedKey={values.accountType} onSelectionChange={(key) => set("accountType")(String(key))} options={typeOptions}
-            description="Use Create customer on the account page to make it a customer." />
+          <Select label="Type" selectedKey={values.accountType} onSelectionChange={(key) => set("accountType")(String(key))} options={typeOptions}
+            description="Use Create customer on the company page to make it a customer." />
         )}
-        <TextField label="Industry" value={values.industry} onChange={set("industry")} errorMessage={fieldErrors.industry} />
-        <TextField label="Website" value={values.website} onChange={set("website")} placeholder="https://" errorMessage={fieldErrors.website} />
-        <Select label="Employees" selectedKey={values.employeeRange} onSelectionChange={(key) => set("employeeRange")(String(key ?? NONE))}
-          options={[{ value: NONE, label: "Not set" }, ...options.employeeRanges.map((range) => ({ value: range, label: range }))]} />
-        <TextField label="Annual revenue" inputMode="decimal" value={values.annualRevenue} onChange={set("annualRevenue")} errorMessage={fieldErrors.annualRevenue} />
-        <CurrencySelect value={values.currencyCode} onChange={set("currencyCode")} />
-      </FormSection>
-
-      {!sensitiveHidden && (
-        <FormSection title="Contact details" description="The company's general email and phone numbers. People go under Contacts.">
-          <TextField label="Email" type="email" value={values.email} onChange={set("email")} errorMessage={fieldErrors.email} />
-          <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />
-          <TextField label="Secondary phone" type="tel" value={values.secondaryPhone} onChange={set("secondaryPhone")} errorMessage={fieldErrors.secondaryPhone} />
-        </FormSection>
-      )}
-
-      {mode === "create" && (
-        <FormSection title="Address" description="Optional. It becomes the default billing and shipping address. More addresses can be added later.">
-          <TextField label="Address line 1" className="sm:col-span-2" value={values.line1} onChange={set("line1")} errorMessage={fieldErrors.line1} />
-          <TextField label="Address line 2" className="sm:col-span-2" value={values.line2} onChange={set("line2")} />
-          <TextField label="City" value={values.city} onChange={set("city")} errorMessage={fieldErrors.city} />
-          <TextField label="State" value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
-          <TextField label="Postal code" value={values.postalCode} onChange={set("postalCode")} errorMessage={fieldErrors.postalCode} />
-          <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
-          {!addressComplete && <p className="text-xs text-warning sm:col-span-2">Complete line 1, city, state, postal code and country, or clear the address.</p>}
-        </FormSection>
-      )}
-
-      <FormSection title="Source and classification">
-        <Select label="Source" selectedKey={values.sourceId} onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
-          options={[{ value: NONE, label: "Not set" }, ...options.sources.filter((source) => source.isActive || source.id === values.sourceId).map((source) => ({ value: source.id, label: source.name }))]} />
-        <TextField label="Source detail" description="Campaign, event or the person who referred them." value={values.sourceDetail} onChange={set("sourceDetail")} />
-        <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} errorMessage={fieldErrors.description} />
-      </FormSection>
-
-      {mode === "create" && (
-        <FormSection title="Ownership and structure">
+        {!sensitiveHidden && (
+          <>
+            <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />
+            <TextField label="Email" type="email" description="The company's general email. People go under Contacts." value={values.email} onChange={set("email")} errorMessage={fieldErrors.email} />
+          </>
+        )}
+        {mode === "create" && (
           <Select
-            label="Account owner"
+            label="Owner"
             selectedKey={values.ownerUserId}
             onSelectionChange={(key) => set("ownerUserId")(String(key))}
             options={[
@@ -246,11 +220,48 @@ function AccountForm({ account, options }: { account?: Account; options: Account
               ...options.users.filter((user) => canAssignOthers && user.id !== options.currentUserId).map((user) => ({ value: user.id, label: user.name })),
             ]}
           />
-          <Select label="Sales team" selectedKey={values.teamId} onSelectionChange={(key) => set("teamId")(String(key ?? NONE))}
-            options={[{ value: NONE, label: "No team" }, ...options.teams.map((team) => ({ value: team.id, label: team.name }))]} />
-          <AccountPicker label="Parent account" description="For a branch or subsidiary of another account." value={values.parentPartyId}
-            onChange={(id) => set("parentPartyId")(id)} />
-        </FormSection>
+        )}
+      </FormSection>
+
+      <MoreDetails description={`Legal name, industry, website, employees, annual revenue, ${sensitiveHidden ? "" : "secondary phone, "}source, description${mode === "create" ? ", team and parent company" : ""}.`}
+        hasContent={Boolean(values.legalName || values.industry || values.website || values.employeeRange || values.annualRevenue || values.secondaryPhone || values.sourceId
+          || values.sourceDetail || values.description || values.teamId || values.parentPartyId || (values.currencyCode && values.currencyCode !== options.baseCurrency)
+          || fieldErrors.legalName || fieldErrors.industry || fieldErrors.website || fieldErrors.annualRevenue || fieldErrors.secondaryPhone || fieldErrors.description)}>
+        <TextField label="Legal name" description="The registered name, if different." value={values.legalName} onChange={set("legalName")} errorMessage={fieldErrors.legalName} />
+        <TextField label="Industry" value={values.industry} onChange={set("industry")} errorMessage={fieldErrors.industry} />
+        <TextField label="Website" value={values.website} onChange={set("website")} placeholder="https://" errorMessage={fieldErrors.website} />
+        <Select label="Employees" selectedKey={values.employeeRange} onSelectionChange={(key) => set("employeeRange")(String(key ?? NONE))}
+          options={[{ value: NONE, label: "Not set" }, ...options.employeeRanges.map((range) => ({ value: range, label: range }))]} />
+        <TextField label="Annual revenue" inputMode="decimal" value={values.annualRevenue} onChange={set("annualRevenue")} errorMessage={fieldErrors.annualRevenue} />
+        <CurrencySelect value={values.currencyCode} onChange={set("currencyCode")} />
+        {!sensitiveHidden && (
+          <TextField label="Secondary phone" type="tel" value={values.secondaryPhone} onChange={set("secondaryPhone")} errorMessage={fieldErrors.secondaryPhone} />
+        )}
+        <Select label="Source" selectedKey={values.sourceId} onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
+          options={[{ value: NONE, label: "Not set" }, ...options.sources.filter((source) => source.isActive || source.id === values.sourceId).map((source) => ({ value: source.id, label: source.name }))]} />
+        <TextField label="Source detail" description="Campaign, event or the person who referred them." value={values.sourceDetail} onChange={set("sourceDetail")} />
+        <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} errorMessage={fieldErrors.description} />
+        {mode === "create" && (
+          <>
+            <Select label="Sales team" selectedKey={values.teamId} onSelectionChange={(key) => set("teamId")(String(key ?? NONE))}
+              options={[{ value: NONE, label: "No team" }, ...options.teams.map((team) => ({ value: team.id, label: team.name }))]} />
+            <AccountPicker label="Parent company" description="For a branch or subsidiary of another company." value={values.parentPartyId}
+              onChange={(id) => set("parentPartyId")(id)} />
+          </>
+        )}
+      </MoreDetails>
+
+      {mode === "create" && (
+        <MoreDetails title="Add an address now" description="Optional. It becomes the default billing and shipping address. More addresses can be added later on the company page."
+          hasContent={addressStarted}>
+          <TextField label="Address line 1" className="sm:col-span-2" value={values.line1} onChange={set("line1")} errorMessage={fieldErrors.line1} />
+          <TextField label="Address line 2" className="sm:col-span-2" value={values.line2} onChange={set("line2")} />
+          <TextField label="City" value={values.city} onChange={set("city")} errorMessage={fieldErrors.city} />
+          <TextField label="State" value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
+          <TextField label="Postal code" value={values.postalCode} onChange={set("postalCode")} errorMessage={fieldErrors.postalCode} />
+          <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
+          {!addressComplete && <p className="text-xs text-warning sm:col-span-2">Complete line 1, city, state, postal code and country, or clear the address.</p>}
+        </MoreDetails>
       )}
     </RecordFormPage>
   );

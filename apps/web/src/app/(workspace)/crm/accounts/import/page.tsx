@@ -1,9 +1,10 @@
 import { requireWorkspace } from "@/core/session";
-import { AccountImportScreen } from "@/features/crm/accounts/screens/AccountImportScreen";
+import { ImportDataScreen } from "@/features/crm/shared/ImportDataScreen";
 
-export const metadata = { title: "Import accounts" };
+export const metadata = { title: "Import data" };
 
-export default async function ImportAccountsPage() {
+// The companies import, opened in Import data with the type already chosen.
+export default async function Page() {
   await requireWorkspace();
-  return <AccountImportScreen />;
+  return <ImportDataScreen initial="companies" />;
 }

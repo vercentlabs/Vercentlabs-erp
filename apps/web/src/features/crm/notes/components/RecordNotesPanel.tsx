@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { History, Lock, Paperclip, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
-import { Button, Checkbox, Dialog, EmptyState, IconButton, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { AlertDialog, Button, Checkbox, Dialog, EmptyState, IconButton, StatusBadge, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -110,14 +110,9 @@ export function RecordNotesPanel({ relatedType, relatedId }: { relatedType: CrmR
 
       {editing && <EditNoteDialog note={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />}
       {historyFor && <NoteHistoryDialog note={historyFor} onClose={() => setHistoryFor(null)} />}
-      {deleting && (
-        <Dialog isOpen onOpenChange={(open) => { if (!open) setDeleting(null); }} title="Delete this note?" description="The note is removed from this record and its timeline. The audit log keeps a record of the deletion.">
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onPress={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="danger" isLoading={remove.isPending} onPress={() => remove.mutate(deleting)}>Delete note</Button>
-          </div>
-        </Dialog>
-      )}
+      <AlertDialog isOpen={Boolean(deleting)} onOpenChange={(open) => { if (!open) setDeleting(null); }} tone="danger" title="Delete this note?"
+        description="The note is removed from this record and its timeline. The audit log keeps a record of the deletion."
+        confirmLabel="Delete note" isConfirming={remove.isPending} onConfirm={() => { if (deleting) remove.mutate(deleting); }} />
     </div>
   );
 }
@@ -140,7 +135,7 @@ function AddNote({ relatedType, relatedId, onSaved }: { relatedType: CrmRecordTy
       <NoteEditor label="Add a note" value={body} onChange={setBody} placeholder="Write a note about this record…" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-4">
-          <Checkbox isSelected={isPrivate} onChange={setIsPrivate}>Private (only you and administrators)</Checkbox>
+          <Checkbox isSelected={isPrivate} onChange={setIsPrivate}>Private: only the author and administrators can see it</Checkbox>
           {canPin && <Checkbox isSelected={isPinned} onChange={setIsPinned}>Pin to top</Checkbox>}
         </div>
         <Button variant="primary" isLoading={save.isPending} isDisabled={isBlankNote(body)} onPress={() => save.mutate()}>Add note</Button>
@@ -163,7 +158,7 @@ function EditNoteDialog({ note, onClose, onSaved }: { note: CrmNote; onClose: ()
         {save.isError && <p role="alert" className="text-sm text-danger">{errorMessage(save.error, "The note could not be saved.")}</p>}
         <TextField label="Title" description="Optional." value={title} onChange={setTitle} />
         <NoteEditor value={body} onChange={setBody} autoFocus />
-        <Checkbox isSelected={isPrivate} onChange={setIsPrivate}>Private (only the author and administrators)</Checkbox>
+        <Checkbox isSelected={isPrivate} onChange={setIsPrivate}>Private: only the author and administrators can see it</Checkbox>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Cancel</Button>
           <Button variant="primary" isLoading={save.isPending} isDisabled={isBlankNote(body)} onPress={() => save.mutate()}>Save changes</Button>

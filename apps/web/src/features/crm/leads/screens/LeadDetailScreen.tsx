@@ -1,20 +1,24 @@
 "use client";
 
+// A lead: its header with the one primary action its status calls for, the qualification summary and the clickable stage track, then five tabs
+// — Overview, Qualify, Activity (one feed: logged activities, tasks, follow-ups, notes, files and changes, with filter chips), Files and Related.
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal } from "lucide-react";
 import {
-  AlertDialog, Badge, Button, ErrorState, LinkButton, Menu, MenuItem, MenuTrigger, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
+  AlertDialog, Badge, Button, ErrorState, LinkButton, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
 } from "@vercentlabs/design-system";
 
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
 import { ConversionSummary } from "@/features/crm/conversion/components/ConversionSummary";
-import { ConvertLeadDialog } from "@/features/crm/conversion/components/ConvertLeadDialog";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
+import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { RecordActivityFeed, type ActivityChip } from "@/features/crm/shared/RecordActivityFeed";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
+import { fieldLabel, readableHistory } from "@/features/crm/shared/field-labels";
+import { MoreMenu, type MoreMenuItem } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/shared/ui/PropertyList";
 import { countryName, formatDateTime, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -32,17 +36,27 @@ import { LeadActivitiesPanel, LeadTasksPanel, LogActivityDialog } from "../compo
 import { QualificationPanel, QualificationSummary, QualifyLeadDialog } from "../components/QualificationPanel";
 import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PriorityBadge, RatingBadge, StaleBadge, days, leadName } from "../lead-format";
 import { LIVE_LEAD_QUERY } from "../live-query";
+import { useCrmShortcut } from "@/features/crm/shared/shortcuts";
 
-type DialogKind = "assign" | "qualify" | "disqualify" | "convert" | "activity" | "followUp" | "archive" | null;
+type DialogKind = "assign" | "qualify" | "disqualify" | "activity" | "followUp" | "archive" | null;
+// The five tabs; the addresses of the earlier tabs (notes, attachments, history and the rest) open the tab that now holds them.
+const TAB_OF: Record<string, { tab: string; chip?: ActivityChip }> = {
+  overview: { tab: "overview" }, qualify: { tab: "qualify" }, qualification: { tab: "qualify" }, activity: { tab: "activity" }, files: { tab: "files" }, related: { tab: "related" },
+  activities: { tab: "activity", chip: "calls" }, tasks: { tab: "activity", chip: "tasks" }, followUps: { tab: "activity", chip: "followUps" },
+  notes: { tab: "activity", chip: "notes" }, attachments: { tab: "files" }, history: { tab: "activity", chip: "changes" },
+};
 
 export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogKind>(null);
-  // ?tab=notes or ?tab=attachments opens that tab (links from search and from Notes & Files).
-  const requestedTab = useSearchParams().get("tab");
-  const [tab, setTab] = useState(requestedTab === "notes" || requestedTab === "attachments" || requestedTab === "related" ? requestedTab : "overview");
+  // ?tab= opens a tab (links from search and from To-dos › Notes and Files); ?merge=<lead> opens the merge with that lead chosen.
+  const params = useSearchParams();
+  const requested = TAB_OF[params.get("tab") ?? ""] ?? TAB_OF.overview;
+  const [tab, setTab] = useState(requested.tab);
+  const [ask, setAsk] = useState<Ask | null>(null);
+  const mergeWith = params.get("merge");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -64,6 +78,11 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     onSuccess: refresh,
     onError: (failure) => setError(errorMessage(failure)),
   });
+
+  // E edits the lead and L logs an activity on it, while it can be worked.
+  const editable = Boolean(lead && options?.capabilities.edit && !lead.archivedAt && lead.status !== "converted");
+  useCrmShortcut("e", editable ? () => router.push(`/crm/leads/${leadId}/edit`) : undefined);
+  useCrmShortcut("l", editable ? () => setDialog("activity") : undefined);
 
   if (leadQuery.isLoading || optionsQuery.isLoading) return <LoadingState label="Loading lead" />;
   if (leadQuery.isError || !lead)
@@ -90,22 +109,31 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     : lead.status === "open" && can.qualify
       ? <Button variant="primary" onPress={() => setDialog("qualify")}>Qualify</Button>
       : lead.status === "qualified" && can.convert
-        ? <Button variant="primary" onPress={() => setDialog("convert")}>Convert lead</Button>
+        ? <LinkButton variant="primary" href={`/crm/leads/${lead.id}/convert`}>Convert lead</LinkButton>
         : lead.status === "disqualified" && can.reopen
-          ? <Button variant="primary" onPress={() => action.mutate(() => reopenLead(lead.id))} isLoading={action.isPending}>Reopen lead</Button>
+          ? <Button variant="primary" onPress={() => askReopen()} isLoading={action.isPending}>Reopen lead</Button>
           : lead.convertedOpportunityId
-            ? <LinkButton variant="primary" href={`/crm/opportunities/${lead.convertedOpportunityId}`}>Open opportunity</LinkButton>
+            ? <LinkButton variant="primary" href={`/crm/opportunities/${lead.convertedOpportunityId}`}>Open deal</LinkButton>
             : undefined;
 
-  const menuActions: Array<{ id: string; label: string; show: boolean; run: () => void }> = [
-    { id: "edit", label: "Edit lead", show: canEdit, run: () => router.push(`/crm/leads/${lead.id}/edit`) },
-    { id: "assign", label: lead.ownerUserId ? "Reassign" : "Assign", show: canAssign, run: () => setDialog("assign") },
-    { id: "runRules", label: "Run assignment rules", show: canAssign, run: runRules },
-    { id: "unassign", label: "Return to unassigned queue", show: working && can.reassign && Boolean(lead.ownerUserId), run: () => action.mutate(() => unassignLead(lead.id, { expectedUpdatedAt: lead.updatedAt })) },
-    { id: "convertOverride", label: "Convert without full qualification", show: working && lead.status === "open" && can.convert && can.overrideQualification, run: () => setDialog("convert") },
-    { id: "disqualify", label: "Disqualify", show: working && can.disqualify && lead.status !== "disqualified", run: () => setDialog("disqualify") },
-    { id: "reopen", label: "Reopen lead", show: working && can.reopen && lead.status === "qualified", run: () => action.mutate(() => reopenLead(lead.id)) },
-    { id: "archive", label: "Archive lead", show: working && can.delete, run: () => setDialog("archive") },
+  // Reopening takes an optional note (kept in the lead's history).
+  function askReopen() {
+    setAsk({ title: `Reopen ${lead!.code}`, confirm: "Reopen lead", description: "The lead goes back to open and can be worked again.",
+      fields: [{ name: "note", label: "Note", kind: "textarea", description: "Optional. Why it is reopened." }],
+      run: async (values) => { await action.mutateAsync(() => reopenLead(lead!.id, String(values.note ?? "").trim() || undefined)); } });
+  }
+  // The menu, grouped: Edit · Ownership · Status, then Archive (red, at the bottom).
+  const menuActions: Array<MoreMenuItem & { show: boolean }> = [
+    { id: "edit", label: "Edit lead", show: canEdit, onAction: () => router.push(`/crm/leads/${lead.id}/edit`) },
+    { id: "assign", group: "Ownership", label: lead.ownerUserId ? "Reassign" : "Assign", show: canAssign, onAction: () => setDialog("assign") },
+    { id: "runRules", group: "Ownership", label: "Run assignment rules", show: canAssign, onAction: runRules },
+    { id: "unassign", group: "Ownership", label: "Return to unassigned queue", show: working && can.reassign && Boolean(lead.ownerUserId),
+      confirm: { title: "Return this lead to the unassigned queue?", description: `${lead.ownerName ?? "Its owner"} stops owning it; it waits in the unassigned queue until someone is assigned.`, confirmLabel: "Return to queue" },
+      onAction: () => action.mutate(() => unassignLead(lead.id, { expectedUpdatedAt: lead.updatedAt })) },
+    { id: "convertOverride", group: "Status", label: "Convert without full qualification", show: working && lead.status === "open" && can.convert && can.overrideQualification, onAction: () => router.push(`/crm/leads/${lead.id}/convert`) },
+    { id: "disqualify", group: "Status", label: "Disqualify", show: working && can.disqualify && lead.status !== "disqualified", onAction: () => setDialog("disqualify") },
+    { id: "reopen", group: "Status", label: "Reopen lead", show: working && can.reopen && lead.status === "qualified", onAction: askReopen },
+    { id: "archive", label: "Archive lead", danger: true, show: working && can.delete, onAction: () => setDialog("archive") },
   ].filter((entry) => entry.show);
 
   return (
@@ -126,7 +154,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             { label: "Owner", value: lead.ownerName ?? "Unassigned" },
             { label: "Priority", value: <PriorityBadge priority={lead.priority} /> },
             { label: "Email", value: lead.email ? <a className="hover:underline" href={`mailto:${lead.email}`}>{lead.email}</a> : lead.sensitiveDataRestricted ? "Hidden" : "Not set" },
-            { label: "Phone", value: lead.mobile || lead.phone || (lead.sensitiveDataRestricted ? "Hidden" : "Not set") },
+            { label: "Phone", value: lead.mobile || lead.phone ? <a className="hover:underline" href={`tel:${(lead.mobile || lead.phone || "").replace(/[^0-9+]/g, "")}`}>{lead.mobile || lead.phone}</a>
+              : lead.sensitiveDataRestricted ? "Hidden" : "Not set" },
             { label: "Next follow-up", value: <FollowUpCell value={lead.nextFollowUpAt} /> },
           ],
           primaryAction,
@@ -135,14 +164,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
               {canTake && <Button variant="secondary" onPress={() => action.mutate(() => assignLeadToMe(lead.id, lead.updatedAt))} isLoading={action.isPending}>Assign to me</Button>}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("activity")}>Log activity</Button>}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
-              {menuActions.length > 0 && (
-                <MenuTrigger>
-                  <Button variant="outline" aria-label="More actions"><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
-                  <Menu onAction={(key) => menuActions.find((entry) => entry.id === key)?.run()}>
-                    {menuActions.map((entry) => <MenuItem key={entry.id} id={entry.id}>{entry.label}</MenuItem>)}
-                  </Menu>
-                </MenuTrigger>
-              )}
+              {menuActions.length > 0 && <MoreMenu items={menuActions} isBusy={action.isPending} />}
             </>
           ),
         }}
@@ -170,20 +192,16 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
           <TabList aria-label="Lead sections">
             <Tab id="overview">Overview</Tab>
-            <Tab id="qualification">Qualification</Tab>
-            <Tab id="activities">Activities</Tab>
-            <Tab id="tasks">Tasks</Tab>
-            <Tab id="followUps">Follow-ups</Tab>
-            <Tab id="notes">Notes</Tab>
-            <Tab id="attachments">Attachments</Tab>
-            <Tab id="history">Activity history</Tab>
+            <Tab id="qualify">Qualify</Tab>
+            <Tab id="activity">Activity</Tab>
+            <Tab id="files">Files</Tab>
             <Tab id="related">Related</Tab>
           </TabList>
 
           <TabPanel id="overview">
             <div className="flex flex-col gap-6">
               {lead.status === "converted" && <ConversionSummary lead={lead} />}
-              <LeadDuplicatesPanel lead={lead} canResolve={working && can.merge} hideWhenEmpty onMerged={refresh} />
+              <LeadDuplicatesPanel lead={lead} canResolve={working && can.merge} hideWhenEmpty onMerged={refresh} mergeWith={mergeWith} />
               <PropertyList
                 title="Lead details"
                 columns={3}
@@ -208,7 +226,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                 items={[
                   { label: "Lead source", value: lead.sourceName },
                   { label: "Source detail", value: lead.sourceDetail },
-                  { label: "Estimated deal value", value: lead.estimatedValue ? formatMoney(currency, lead.estimatedValue) : null },
+                  { label: "Estimated value", value: lead.estimatedValue ? formatMoney(currency, lead.estimatedValue) : null },
                   { label: "Purchase timeframe", value: options.purchaseTimeframes.find((entry) => entry.code === lead.purchaseTimeframe)?.label },
                   { label: "Rating", value: <RatingBadge rating={lead.rating} /> },
                   { label: "Product / service interest", value: lead.productInterest, wide: true },
@@ -227,37 +245,44 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             </div>
           </TabPanel>
 
-          <TabPanel id="qualification">
+          <TabPanel id="qualify">
             {/* Re-created when the lead changes, so the form starts from the saved answers. */}
             <QualificationPanel key={lead.updatedAt} lead={lead} options={options} onChanged={refresh} onQualify={() => setDialog("qualify")}
               onDisqualify={() => setDialog("disqualify")} onScheduleFollowUp={() => setDialog("followUp")} />
           </TabPanel>
-          <TabPanel id="activities"><LeadActivitiesPanel leadId={lead.id} options={options} canEdit={canEdit} /></TabPanel>
-          <TabPanel id="tasks"><LeadTasksPanel leadId={lead.id} options={options} canEdit={canEdit} /></TabPanel>
-          <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "lead", id: lead.id, name: leadName(lead) }} canCreate={canEdit} onChanged={refresh} /></TabPanel>
-          <TabPanel id="notes"><RecordNotesPanel relatedType="lead" relatedId={lead.id} /></TabPanel>
-          <TabPanel id="attachments"><RecordAttachmentsPanel relatedType="lead" relatedId={lead.id} /></TabPanel>
-          <TabPanel id="history">
-            <div className="flex flex-col gap-6">
-              <RecordTimelinePanel entityType="lead" entityId={lead.id} />
-              <StageHistory leadId={lead.id} version={lead.stageChangedAt} />
-              <AuditTrail leadId={lead.id} />
-            </div>
+          <TabPanel id="activity">
+            <RecordActivityFeed entityType="lead" entityId={lead.id} initial={requested.chip} canAdd={canEdit}
+              onLogActivity={() => setDialog("activity")} onScheduleFollowUp={() => setDialog("followUp")}
+              sections={{
+                calls: <LeadActivitiesPanel leadId={lead.id} options={options} canEdit={canEdit} />,
+                tasks: <LeadTasksPanel leadId={lead.id} options={options} canEdit={canEdit} />,
+                followUps: <RelatedFollowUpsPanel related={{ type: "lead", id: lead.id, name: leadName(lead) }} canCreate={canEdit} onChanged={refresh} />,
+                notes: <RecordNotesPanel relatedType="lead" relatedId={lead.id} />,
+                files: <RecordAttachmentsPanel relatedType="lead" relatedId={lead.id} />,
+                changes: (
+                  <>
+                    <RecordTimelinePanel entityType="lead" entityId={lead.id} kinds={["stage", "history"]} />
+                    <StageHistory leadId={lead.id} version={lead.stageChangedAt} />
+                    <AuditTrail leadId={lead.id} />
+                  </>
+                ),
+              }} />
           </TabPanel>
+          <TabPanel id="files"><RecordAttachmentsPanel relatedType="lead" relatedId={lead.id} /></TabPanel>
           <TabPanel id="related"><div className="flex flex-col gap-4">{lead.status === "converted" && <ConversionSummary lead={lead} />}<RelatedDocuments type="lead" id={lead.id} /></div></TabPanel>
         </Tabs>
       </RecordDetailsPage>
 
       <AssignLeadsDialog isOpen={dialog === "assign"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} lead={lead} options={options} onDone={refresh} />
-      {/* Qualifying normally continues straight into creating the account, contact and opportunity. */}
+      {/* Qualifying normally continues straight into converting the lead (the conversion page). */}
       <QualifyLeadDialog isOpen={dialog === "qualify"} onOpenChange={(open) => !open && setDialog(null)} lead={lead} options={options}
-        onQualified={(convert) => { refresh(); setDialog(convert ? "convert" : null); }} />
+        onQualified={(convert) => { refresh(); setDialog(null); if (convert) router.push(`/crm/leads/${lead.id}/convert`); }} />
       <DisqualifyLeadsDialog isOpen={dialog === "disqualify"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} options={options} onDone={refresh} />
       <LogActivityDialog isOpen={dialog === "activity"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh}
+        onScheduleNext={() => setDialog("followUp")}
         currentStage={working && can.changeStage && lead.status === "open" ? lead.stage : undefined} />
       <ScheduleFollowUpForRecord isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} related={{ type: "lead", id: lead.id, name: leadName(lead) }} onDone={refresh} />
-      <ConvertLeadDialog isOpen={dialog === "convert"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options}
-        onConverted={() => refresh()} />
+      {ask && <AskDialog ask={ask} onClose={() => setAsk(null)} />}
       <AlertDialog
         isOpen={dialog === "archive"}
         onOpenChange={(open) => !open && setDialog(null)}
@@ -353,7 +378,7 @@ function AuditTrail({ leadId }: { leadId: string }) {
         <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface text-sm">
           {(query.data ?? []).map((entry) => (
             <li key={entry.id} className="flex flex-col gap-1 px-4 py-3">
-              <span className="font-medium">{entry.summary}</span>
+              <span className="font-medium">{readableHistory(entry.summary)}</span>
               <FieldChanges changes={entry.changes} show={entry.eventType === "updated"} />
               <span className="text-xs text-text-muted">{formatDateTime(entry.createdAt)} · {entry.actorName ?? "System"}</span>
             </li>
@@ -372,7 +397,7 @@ function FieldChanges({ changes, show }: { changes: Record<string, unknown>; sho
     <ul className="text-text-secondary">
       {entries.map(([field, value]) => {
         const change = value as { from: unknown; to: unknown };
-        return <li key={field}>{field}: {String(change.from ?? "empty")} → {String(change.to ?? "empty")}</li>;
+        return <li key={field}>{fieldLabel(field)}: {String(change.from ?? "empty")} → {String(change.to ?? "empty")}</li>;
       })}
     </ul>
   );

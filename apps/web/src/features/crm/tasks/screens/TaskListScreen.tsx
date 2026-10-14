@@ -1,19 +1,22 @@
 "use client";
 
-// CRM Tasks: the salesperson's work queue. My Tasks is the default, with
-// what is overdue, due today and upcoming counted at the top.
-import { useEffect, useMemo, useState } from "react";
+// CRM To-dos › Tasks: the salesperson's work queue. My tasks is the default, with what is overdue, due today and upcoming counted at the top
+// (in the same order as follow-ups). Columns read When · What · About · Priority · Assigned to · Status; every filter sits in one Filters
+// button; Complete appears on a row on hover.
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState } from "@tanstack/react-table";
-import { Download, Filter, Plus } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 import {
-  AlertDialog, Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, MetricCard, NoResultsState, PermissionState, Popover,
-  PopoverTrigger, SearchField, Select, TextField, buttonVariants, type ActiveFilter,
+  AlertDialog, Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, MetricCard, NoResultsState, PermissionState,
+  SearchField, Select, TextField, buttonVariants, type ActiveFilter,
 } from "@vercentlabs/design-system";
 
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
+import { FiltersPopover } from "@/features/crm/shared/ui/FiltersPopover";
+import { WorkRowActions } from "@/features/crm/shared/ui/WorkRowActions";
 import { formatDate } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -23,7 +26,7 @@ import {
   bulkTaskAction, errorMessage, getTaskOptions, getTaskSummary, listTasks, taskExportUrl,
   type Task, type TaskBulkResult, type TaskListFilters, type TaskOptions, type TaskViewKey,
 } from "../api/tasks-api";
-import { CompleteTaskDialog, TaskFormDialog } from "../components/TaskDialogs";
+import { TaskFormDialog } from "../components/TaskDialogs";
 import { ErrorBanner, PRIORITY_OPTIONS, RELATED_LABELS, STATUS_LABELS, TaskDue, TaskPriorityBadge, TaskStatusBadge } from "../task-format";
 
 const PAGE_SIZE = 25;
@@ -38,8 +41,11 @@ const MORE_KEYS: MoreKey[] = ["accountId", "dueFrom", "dueTo", "createdFrom", "c
 const NO_MORE = Object.fromEntries(MORE_KEYS.map((key) => [key, ""])) as Record<MoreKey, string>;
 const range = (from: string, to: string) => `${from ? formatDate(from) : "any"} – ${to ? formatDate(to) : "any"}`;
 type BulkKind = "assign" | "priority" | "reschedule" | "complete" | "cancel";
+// The views always shown as chips; the rarely used ones (created by me, all, cancelled) sit under More views.
+const PINNED_VIEWS = ["mine", "due_today", "overdue", "upcoming", "high_priority", "completed", "team"];
 
-export function TaskListScreen() {
+// tabs: the To-dos tab row, drawn under the page title.
+export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const params = useSearchParams();
@@ -50,21 +56,20 @@ export function TaskListScreen() {
   const [submittedSearch, setSubmittedSearch] = useState(params.get("search") ?? "");
   const [filters, setFiltersState] = useState(() => Object.fromEntries(FILTER_KEYS.map((key) => [key, params.get(key) ?? ANY])) as Record<FilterKey, string>);
   const [more, setMoreState] = useState(() => Object.fromEntries(MORE_KEYS.map((key) => [key, params.get(key) ?? ""])) as Record<MoreKey, string>);
-  const [moreDraft, setMoreDraft] = useState(more);
   const [accountName, setAccountName] = useState<string | null>(null);
   const [sorting, setSortingState] = useState<SortingState>([]);
   const [pageIndex, setPageIndex] = useState(0);
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [creating, setCreating] = useState(params.get("new") === "1");
-  const [completing, setCompleting] = useState<Task | null>(null);
   const [bulk, setBulk] = useState<BulkKind | null>(null);
   const [bulkResult, setBulkResult] = useState<TaskBulkResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const restart = () => { setPageIndex(0); setSelection({}); };
   const setView = (next: TaskViewKey) => { setViewState(next); restart(); };
   const setFilters = (next: Record<FilterKey, string>) => { setFiltersState(next); restart(); };
-  const setMore = (next: Record<MoreKey, string>) => { setMoreState(next); setMoreDraft(next); restart(); };
+  const setMore = (next: Record<MoreKey, string>) => { setMoreState(next); restart(); };
   const setSorting = (next: SortingState) => { setSortingState(next); restart(); };
   useEffect(() => {
     const timer = setTimeout(() => { setSubmittedSearch(search.trim()); setPageIndex(0); }, 350);
@@ -100,8 +105,9 @@ export function TaskListScreen() {
   };
 
   const columns = useMemo<ColumnDef<Task, unknown>[]>(() => [
+    { id: "dueAt", accessorKey: "dueAt", header: "When", cell: ({ row }) => <TaskDue task={row.original} /> },
     {
-      id: "title", accessorKey: "title", header: "Task", enableHiding: false,
+      id: "title", accessorKey: "title", header: "What", enableHiding: false,
       cell: ({ row }) => (
         <span className="flex min-w-56 flex-col">
           <span className={`font-medium ${row.original.status === "completed" ? "text-text-secondary line-through" : "text-text"}`}>{row.original.title}</span>
@@ -109,9 +115,6 @@ export function TaskListScreen() {
         </span>
       ),
     },
-    { id: "dueAt", accessorKey: "dueAt", header: "Due", cell: ({ row }) => <TaskDue task={row.original} /> },
-    { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <TaskPriorityBadge priority={row.original.priority} /> },
-    { id: "status", accessorKey: "status", header: "Status", enableSorting: false, cell: ({ row }) => <TaskStatusBadge status={row.original.status} /> },
     {
       id: "related", header: "About", enableSorting: false,
       cell: ({ row }) => row.original.relatedType ? (
@@ -121,17 +124,17 @@ export function TaskListScreen() {
         </span>
       ) : <span className="text-text-muted">Personal</span>,
     },
+    { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <TaskPriorityBadge priority={row.original.priority} /> },
     { id: "assignee", accessorKey: "assignedName", header: "Assigned to", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.assignedName ?? "Unassigned"}</span> },
+    { id: "status", accessorKey: "status", header: "Status", enableSorting: false, cell: ({ row }) => <TaskStatusBadge status={row.original.status} /> },
     { id: "createdBy", accessorKey: "createdByName", header: "Created by", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.createdByName ?? ""}</span> },
     { id: "createdAt", accessorKey: "createdAt", header: "Created", cell: ({ row }) => formatDate(row.original.createdAt) },
     {
       id: "actions", header: "", enableSorting: false, enableHiding: false,
-      cell: ({ row }) => (row.original.status === "open" || row.original.status === "in_progress") && can?.complete ? (
-        <span onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} role="presentation">
-          <Button variant="secondary" size="compact" onPress={() => setCompleting(row.original)}>Complete</Button>
-        </span>
-      ) : null,
+      cell: ({ row }) => (row.original.status === "open" || row.original.status === "in_progress") && can?.complete
+        ? <WorkRowActions kind="task" id={row.original.id} onDone={() => refresh()} onMessage={setNotice} /> : null,
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh only invalidates the list
   ], [can?.complete]);
 
   const withAny = (list: Array<{ value: string; label: string }>, label: string) => [{ value: ANY, label }, ...list];
@@ -145,7 +148,7 @@ export function TaskListScreen() {
   };
   const activeFilters: ActiveFilter[] = [
     ...FILTER_KEYS.filter((key) => filters[key] !== ANY).map((key) => ({ id: key, label: `${FILTER_NAMES[key]}: ${labelOf(key, filters[key])}` })),
-    ...(more.accountId ? [{ id: "more:accountId", label: `Account: ${accountName ?? "chosen account"}` }] : []),
+    ...(more.accountId ? [{ id: "more:accountId", label: `Company: ${accountName ?? "chosen company"}` }] : []),
     ...(more.dueFrom || more.dueTo ? [{ id: "more:due", label: `Due: ${range(more.dueFrom, more.dueTo)}` }] : []),
     ...(more.createdFrom || more.createdTo ? [{ id: "more:created", label: `Created: ${range(more.createdFrom, more.createdTo)}` }] : []),
   ];
@@ -155,7 +158,7 @@ export function TaskListScreen() {
     else if (id.startsWith("more:")) setMore({ ...more, [id.slice(5)]: "" });
     else setFilters({ ...filters, [id]: ANY });
   };
-  const draft = (key: MoreKey) => (value: string) => setMoreDraft((current) => ({ ...current, [key]: value }));
+  const draft = (key: MoreKey) => (value: string) => setMore({ ...more, [key]: value });
   const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== "mine";
   const summary = summaryQuery.data;
 
@@ -174,53 +177,42 @@ export function TaskListScreen() {
         </div>
       )}
       <ErrorBanner message={error ?? (optionsQuery.isError ? "The task filters could not be loaded. Refresh the page." : null)} />
+      {notice && <p role="status" className="text-sm text-text-secondary">{notice}</p>}
 
       <EnterpriseListPage
+        tabs={tabs}
         header={{
-          title: "Tasks",
-          description: "The work you have to do: overdue first, then today, then what is coming up.",
+          title: tabs ? "To-dos" : "Tasks",
+          description: "Your tasks: overdue first, then today, then what is coming up.",
           primaryAction: can?.create ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />New task</Button> : undefined,
           secondaryActions: can?.export ? (
             <a className={buttonVariants({ variant: "outline" })} href={taskExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a>
           ) : undefined,
         }}
-        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as TaskViewKey) } : undefined}
+        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as TaskViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
           start: (
             <>
               <SearchField aria-label="Search tasks" placeholder="Search task or number" className="w-full sm:w-72" value={search} onChange={setSearch}
                 onSubmit={(value) => { setSubmittedSearch(value.trim()); setPageIndex(0); }} />
               {options && (
-                <>
-                  <Select aria-label="Status" size="compact" selectedKey={filters.status} onSelectionChange={(key) => setFilters({ ...filters, status: String(key) })}
+                <FiltersPopover active={activeFilters.length} onClear={() => { setMore(NO_MORE); setFilters(Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Record<FilterKey, string>); }}>
+                  <Select label="Status" selectedKey={filters.status} onSelectionChange={(key) => setFilters({ ...filters, status: String(key) })}
                     options={withAny([...options.statuses.map((entry) => ({ value: entry.code, label: entry.label })), { value: "overdue", label: "Overdue" }], "Any status")} />
-                  <Select aria-label="Priority" size="compact" selectedKey={filters.priority} onSelectionChange={(key) => setFilters({ ...filters, priority: String(key) })} options={withAny(PRIORITY_OPTIONS, "Any priority")} />
-                  <Select aria-label="Assigned to" size="compact" selectedKey={filters.assigneeId} onSelectionChange={(key) => setFilters({ ...filters, assigneeId: String(key) })}
+                  <Select label="Priority" selectedKey={filters.priority} onSelectionChange={(key) => setFilters({ ...filters, priority: String(key) })} options={withAny(PRIORITY_OPTIONS, "Any priority")} />
+                  <Select label="Assigned to" selectedKey={filters.assigneeId} onSelectionChange={(key) => setFilters({ ...filters, assigneeId: String(key) })}
                     options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
-                  <Select aria-label="About" size="compact" selectedKey={filters.relatedType} onSelectionChange={(key) => setFilters({ ...filters, relatedType: String(key) })}
-                    options={withAny([...options.relatedTypes.map((entry) => ({ value: entry.code, label: entry.label })), { value: "none", label: "Personal" }], "Any record")} />
-                  <PopoverTrigger>
-                    <Button variant="outline" size="compact"><Filter className="size-4" aria-hidden="true" />Creator, account and dates</Button>
-                    <Popover placement="bottom start">
-                      <div className="grid w-[min(24rem,calc(100vw-4rem))] grid-cols-2 gap-3">
-                        <Select label="Created by" className="col-span-2" selectedKey={filters.createdBy} onSelectionChange={(key) => setFilters({ ...filters, createdBy: String(key) })}
-                          options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
-                        <div className="col-span-2">
-                          <AccountPicker label="Account" description="Tasks on the account, its opportunities and its contacts." value={moreDraft.accountId || null}
-                            onChange={(id, name) => { draft("accountId")(id ?? ""); setAccountName(name); }} />
-                        </div>
-                        <DateInput label="Due from" value={moreDraft.dueFrom} onChange={draft("dueFrom")} />
-                        <DateInput label="Due to" value={moreDraft.dueTo} onChange={draft("dueTo")} />
-                        <DateInput label="Created from" value={moreDraft.createdFrom} onChange={draft("createdFrom")} />
-                        <DateInput label="Created to" value={moreDraft.createdTo} onChange={draft("createdTo")} />
-                        <div className="col-span-2 flex justify-end gap-2">
-                          <Button variant="ghost" size="compact" onPress={() => setMore(NO_MORE)}>Clear</Button>
-                          <Button variant="primary" size="compact" onPress={() => setMore(moreDraft)}>Apply</Button>
-                        </div>
-                      </div>
-                    </Popover>
-                  </PopoverTrigger>
-                </>
+                  <Select label="About" selectedKey={filters.relatedType} onSelectionChange={(key) => setFilters({ ...filters, relatedType: String(key) })}
+                    options={withAny([...options.relatedTypes.map((entry) => ({ value: entry.code, label: RELATED_LABELS[entry.code] ?? entry.label })), { value: "none", label: "Personal" }], "Any record")} />
+                  <Select label="Created by" selectedKey={filters.createdBy} onSelectionChange={(key) => setFilters({ ...filters, createdBy: String(key) })}
+                    options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
+                  <AccountPicker label="Company" description="Tasks on the company, its deals and its contacts." value={more.accountId || null}
+                    onChange={(id, name) => { draft("accountId")(id ?? ""); setAccountName(name); }} />
+                  <DateInput label="Due from" value={more.dueFrom} onChange={draft("dueFrom")} />
+                  <DateInput label="Due to" value={more.dueTo} onChange={draft("dueTo")} />
+                  <DateInput label="Created from" value={more.createdFrom} onChange={draft("createdFrom")} />
+                  <DateInput label="Created to" value={more.createdTo} onChange={draft("createdTo")} />
+                </FiltersPopover>
               )}
             </>
           ),
@@ -259,7 +251,7 @@ export function TaskListScreen() {
             state={listQuery.isLoading ? "loading" : listQuery.isError ? "error" : rows.length === 0 ? (hasCriteria ? "no-results" : "empty") : "ready"}
             loadingContent={<LoadingState label="Loading tasks" rows={8} onRetry={() => void listQuery.refetch()} />}
             errorContent={<ErrorState title="Could not load tasks" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}
-            emptyContent={<EmptyState title="Nothing to do" description="You have no open tasks. Create one, or add one from a lead, account, contact or opportunity."
+            emptyContent={<EmptyState title="Nothing to do" description="You have no open tasks. Create one, or add one from a lead, company, contact or deal."
               action={can?.create ? { label: "New task", onPress: () => setCreating(true) } : undefined} />}
             noResultsContent={<NoResultsState title="No tasks here" description="Try a different view, search or filter." />}
             manualSorting
@@ -286,7 +278,6 @@ export function TaskListScreen() {
       </EnterpriseListPage>
 
       {options && creating && <TaskFormDialog isOpen onOpenChange={setCreating} options={options} onSaved={(task) => { refresh(); router.push(`/crm/tasks/${task.id}`); }} />}
-      {options && completing && <CompleteTaskDialog isOpen onOpenChange={(isOpen) => !isOpen && setCompleting(null)} task={completing} options={options} onDone={() => refresh()} />}
       {options && bulk && <BulkDialog kind={bulk} taskIds={selectedIds} options={options} onClose={() => setBulk(null)} onDone={refresh} onError={setError} />}
     </div>
   );
@@ -313,7 +304,7 @@ function BulkDialog({ kind, taskIds, options, onClose, onDone, onError }: {
   const mutation = useMutation({
     mutationFn: () => bulkTaskAction({
       action: kind, taskIds,
-      ...(kind === "assign" ? { assignedTo } : kind === "priority" ? { priority } : kind === "reschedule" ? (dueDate ? { dueDate } : { shiftDays: Number(shiftDays) }) : kind === "cancel" ? { reason } : {}),
+      ...(kind === "assign" ? { assignedTo, reason: reason.trim() || undefined } : kind === "priority" ? { priority } : kind === "reschedule" ? (dueDate ? { dueDate } : { shiftDays: Number(shiftDays) }) : kind === "cancel" ? { reason } : {}),
     }),
     onSuccess: (result) => { onDone(result); onClose(); },
     onError: (failure) => { onError(errorMessage(failure)); onClose(); },

@@ -9,6 +9,7 @@ import { listAccountHistory } from "../../crm/accounts/history.js";
 import { canViewCustomerFinancials, customerCan, requireCustomerPermission } from "./access.js";
 import { CUSTOMER_PERMISSIONS, CustomerError } from "./constants.js";
 import { loadCustomerRow } from "./records.js";
+import { getCustomerProjects } from "../../projects/project-customer.js";
 
 const OPEN_QUOTATION = "('draft', 'pending_approval', 'approved', 'sent', 'viewed')";
 const OPEN_ORDER = "('confirmed')";
@@ -195,13 +196,8 @@ const RELATED = Object.freeze({
     finance: true,
     href: (row) => (row.parent_id === "return" ? `/sales/returns/${row.id}` : row.parent_id === "credit_note" ? `/sales/credit-notes/${row.id}` : null),
   },
-  projects: {
-    needs: "projects",
-    sql: `SELECT project.id, project.project_code AS code, COALESCE(project.name, 'Untitled draft') AS title, lower(project.status) AS status, project.target_end_date AS date, manager.full_name AS detail
-            FROM tenant.projects project LEFT JOIN public.users manager ON manager.id = project.manager_user_id
-           WHERE project.organization_id = $1 AND project.customer_id = $2 AND project.deleted_at IS NULL ORDER BY project.created_at DESC LIMIT 200`,
-    href: (row) => `/projects/${row.id}`,
-  },
+  // Read through Projects, which shows only the projects the person may see.
+  projects: { needs: "projects", projects: true, href: (row) => `/projects/${row.id}` },
   support: {
     needs: "support",
     sql: `SELECT ticket.id, ticket.ticket_number AS code, ticket.subject AS title, ticket.status, ticket.priority AS detail, ticket.created_at AS date
@@ -219,6 +215,11 @@ export async function listCustomerRelated(client, context, customerId, list) {
   const can = access(context);
   if (!can[definition.needs]) throw new CustomerError(403, "You do not have access to this information.", "PERMISSION_DENIED");
   const customer = await loadCustomerRow(client, context, customerId);
+  if (definition.projects) {
+    const { projects } = await getCustomerProjects(client, context, customer.id);
+    return projects.map((row) => ({ id: row.id, code: row.code, title: row.name ?? "Untitled draft", status: row.status.toLowerCase(), detail: row.manager, amount: null, outstanding: null,
+      currencyCode: null, date: row.targetEndDate ?? null, dueDate: null, href: row.href }));
+  }
   const values = [context.organizationId, customer.id];
   if (definition.finance) values.push(can.finance);
   if (definition.tracking) values.push(await invoicingBasisSetting(client, context.organizationId));

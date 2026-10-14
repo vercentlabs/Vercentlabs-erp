@@ -1,10 +1,13 @@
 "use client";
 
+// Contacts: the people you deal with. The common views are chips (My contacts, Decision makers, Without company) with the rest under More
+// views; one Filters button holds every filter, each applying the moment it changes. Opened from a company (?accountId=), a "Company: name"
+// chip shows. Hovering a row offers its email and phone as links. New contact is the primary action; Import and Export are in the "…" menu.
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState, VisibilityState } from "@tanstack/react-table";
-import { Columns3, Download, Plus, Upload } from "lucide-react";
+import { Columns3, Mail, Phone, Plus } from "lucide-react";
 import {
   Badge, Button, Checkbox, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, Popover,
   PopoverTrigger, SearchField, Select, buttonVariants, type ActiveFilter,
@@ -22,10 +25,13 @@ import {
 } from "../api/contacts-api";
 import { ContactStatusBadge, ErrorBanner, LIVE_CONTACT_QUERY, RoleBadge, bestPhone } from "../contact-format";
 import { AssignContactsDialog, ContactStatusDialog } from "../components/ContactActionDialogs";
+import { FiltersPopover } from "@/features/crm/shared/ui/FiltersPopover";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
-const COLUMN_STORAGE_KEY = "crm.contacts.columns";
+const COLUMN_STORAGE_KEY = "crm.contacts.columns.v2";
+const PINNED_VIEWS = ["mine", "decision_makers", "without_company"];
 
 const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boolean }> = [
   { id: "accountName", label: "Company" },
@@ -35,6 +41,7 @@ const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boo
   { id: "role", label: "Role" },
   { id: "ownerName", label: "Owner" },
   { id: "nextFollowUpAt", label: "Next follow-up" },
+  { id: "status", label: "Status", hiddenByDefault: true },
   { id: "lastActivityAt", label: "Last activity", hiddenByDefault: true },
   { id: "department", label: "Department", hiddenByDefault: true },
   { id: "sourceName", label: "Source", hiddenByDefault: true },
@@ -66,14 +73,20 @@ export function ContactListScreen() {
   const params = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [view, setViewState] = useState<ContactViewKey>((params.get("view") as ContactViewKey) || "all");
+  // People who see every contact start on all contacts; everyone else on their own.
+  const seesAll = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("crm.contacts.view_all");
+  const defaultView: ContactViewKey = seesAll ? "all" : "mine";
+  const [view, setViewState] = useState<ContactViewKey>((params.get("view") as ContactViewKey) || (params.get("accountId") ? "all" : defaultView));
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [submittedSearch, setSubmittedSearchState] = useState(params.get("search") ?? "");
   const [filters, setFiltersState] = useState<Filters>(() => ({
     ...NO_FILTERS,
     ...Object.fromEntries((Object.keys(NO_FILTERS) as FilterKey[]).filter((key) => params.get(key)).map((key) => [key, params.get(key) as string])),
   }));
-  const [account, setAccount] = useState<{ id: string; name: string } | null>(null);
+  const [account, setAccount] = useState<{ id: string; name: string } | null>(() => {
+    const id = params.get("accountId");
+    return id ? { id, name: params.get("accountName") ?? "chosen company" } : null;
+  });
   const [sorting, setSortingState] = useState<SortingState>([{ id: "updatedAt", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
   const [selection, setSelection] = useState<RowSelectionState>({});
@@ -136,10 +149,11 @@ export function ContactListScreen() {
       enableHiding: false,
       cell: ({ row }) => (
         <span className="flex min-w-44 flex-col">
-          <span className="flex items-center gap-1 font-medium text-text">
+          <span className="flex flex-wrap items-center gap-1 font-medium text-text">
             {row.original.displayName}
+            {row.original.status !== "active" && <ContactStatusBadge status={row.original.status} />}
             {row.original.isPrimary && <Badge tone="brand">Primary</Badge>}
-            {row.original.isDecisionMaker && <Badge tone="success">DM</Badge>}
+            {row.original.isDecisionMaker && <Badge tone="success">Decision maker</Badge>}
           </span>
           <span className="text-xs whitespace-nowrap text-text-muted">{row.original.contactNumber}</span>
         </span>
@@ -147,9 +161,27 @@ export function ContactListScreen() {
     },
     { id: "accountName", accessorKey: "accountName", header: "Company", cell: ({ row }) => row.original.accountName ?? <span className="text-text-muted">No company</span> },
     { id: "jobTitle", accessorKey: "jobTitle", header: "Job title", cell: ({ row }) => row.original.jobTitle ?? "" },
-    { id: "status", accessorKey: "status", header: "Status", enableHiding: false, cell: ({ row }) => <ContactStatusBadge status={row.original.status} /> },
-    { id: "email", header: "Email", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.email ?? ""}</span> },
-    { id: "phone", header: "Phone", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{bestPhone(row.original) ?? ""}</span> },
+    { id: "status", accessorKey: "status", header: "Status", cell: ({ row }) => <ContactStatusBadge status={row.original.status} /> },
+    // Email and phone are links (mailto and tel); the icon shows on hover, as on the lead list.
+    {
+      id: "email", header: "Email", enableSorting: false,
+      cell: ({ row }) => row.original.email ? (
+        <a href={`mailto:${row.original.email}`} onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-brand hover:underline">
+          <Mail className="size-3.5 opacity-0 group-hover:opacity-100" aria-hidden="true" />{row.original.email}
+        </a>
+      ) : "",
+    },
+    {
+      id: "phone", header: "Phone", enableSorting: false,
+      cell: ({ row }) => {
+        const phone = bestPhone(row.original);
+        return phone ? (
+          <a href={`tel:${phone}`} onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-brand hover:underline">
+            <Phone className="size-3.5 opacity-0 group-hover:opacity-100" aria-hidden="true" />{phone}
+          </a>
+        ) : "";
+      },
+    },
     { id: "role", header: "Role", enableSorting: false, cell: ({ row }) => <RoleBadge label={row.original.roleLabel} /> },
     { id: "ownerName", accessorKey: "ownerName", header: "Owner", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.ownerName ?? <span className="text-text-muted">Unassigned</span>}</span> },
     { id: "nextFollowUpAt", accessorKey: "nextFollowUpAt", header: "Next follow-up", cell: ({ row }) => <FollowUpCell value={row.original.nextFollowUpAt} /> },
@@ -185,7 +217,8 @@ export function ContactListScreen() {
   const removeFilter = (id: string) => {
     if (id === "account") { setAccount(null); restart(); } else setFilters({ ...filters, [id]: ANY });
   };
-  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== "all";
+  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== defaultView;
+  const clearFilters = () => { setAccount(null); setFilters(NO_FILTERS); };
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.contacts.view"))
     return <PermissionState title="You don't have access to contacts" description="Ask an administrator for the View contacts permission." />;
@@ -206,41 +239,37 @@ export function ContactListScreen() {
       <EnterpriseListPage
         header={{
           title: "Contacts",
-          description: "The people you deal with — at your accounts, or on their own until you know their company.",
+          description: "The people you deal with — at your companies, or on their own until you know their company.",
           primaryAction: can?.create ? <LinkButton href="/crm/contacts/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New contact</LinkButton> : undefined,
-          secondaryActions: (
-            <>
-              {can?.import && <LinkButton href="/crm/contacts/import" variant="outline"><Upload className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Import</span></LinkButton>}
-              {can?.export && (
-                <a className={buttonVariants({ variant: "outline" })} href={contactExportUrl(listFilters)} download>
-                  <Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span>
-                </a>
-              )}
-            </>
-          ),
+          secondaryActions: <MoreMenu label="More contact actions" items={[
+            ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=contacts") }] : []),
+            ...(can?.export ? [{ id: "export", label: "Export", onAction: () => { window.location.href = contactExportUrl(listFilters); } }] : []),
+          ]} />,
         }}
-        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as ContactViewKey) } : undefined}
+        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as ContactViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
           start: (
             <>
-              <SearchField aria-label="Search contacts" placeholder="Search name, email, phone, company or job title" className="w-full sm:w-80" value={search} onChange={setSearch}
+              <SearchField aria-label="Search contacts" placeholder="Search name, email, phone, company or job title" className="w-full sm:min-w-64 sm:flex-1" value={search} onChange={setSearch}
                 onSubmit={(value) => setSubmittedSearch(value.trim())} />
               {options && (
-                <>
-                  <AccountPicker label="Company" placeholder="Any company" value={account?.id ?? null}
-                    onChange={(id, name) => { setAccount(id ? { id, name: name ?? "Company" } : null); restart(); }} />
-                  <Select aria-label="Owner" size="compact" selectedKey={filters.ownerId} onSelectionChange={(key) => setFilters({ ...filters, ownerId: String(key) })} options={ownerOptions} />
-                  <Select aria-label="Role" size="compact" selectedKey={filters.role} onSelectionChange={(key) => setFilters({ ...filters, role: String(key) })}
+                <FiltersPopover active={activeFilters.length} onClear={clearFilters}>
+                  <div className="col-span-2">
+                    <AccountPicker label="Company" placeholder="Any company" value={account?.id ?? null}
+                      onChange={(id, name) => { setAccount(id ? { id, name: name ?? "Company" } : null); restart(); }} />
+                  </div>
+                  <Select label="Owner" size="compact" selectedKey={filters.ownerId} onSelectionChange={(key) => setFilters({ ...filters, ownerId: String(key) })} options={ownerOptions} />
+                  <Select label="Role" size="compact" selectedKey={filters.role} onSelectionChange={(key) => setFilters({ ...filters, role: String(key) })}
                     options={filterOptions(options.roles.map((entry) => ({ value: entry.code, label: entry.label })), "Any role")} />
                   {options.departments.length > 0 && (
-                    <Select aria-label="Department" size="compact" selectedKey={filters.department} onSelectionChange={(key) => setFilters({ ...filters, department: String(key) })}
+                    <Select label="Department" size="compact" selectedKey={filters.department} onSelectionChange={(key) => setFilters({ ...filters, department: String(key) })}
                       options={filterOptions(options.departments.map((entry) => ({ value: entry, label: entry })), "Any department")} />
                   )}
-                  <Select aria-label="Source" size="compact" selectedKey={filters.sourceId} onSelectionChange={(key) => setFilters({ ...filters, sourceId: String(key) })}
+                  <Select label="Source" size="compact" selectedKey={filters.sourceId} onSelectionChange={(key) => setFilters({ ...filters, sourceId: String(key) })}
                     options={filterOptions(options.sources.map((entry) => ({ value: entry.id, label: entry.name })), "Any source")} />
-                  <Select aria-label="Primary contact" size="compact" selectedKey={filters.isPrimary} onSelectionChange={(key) => setFilters({ ...filters, isPrimary: String(key) })}
+                  <Select label="Primary contact" size="compact" selectedKey={filters.isPrimary} onSelectionChange={(key) => setFilters({ ...filters, isPrimary: String(key) })}
                     options={filterOptions([{ value: "yes", label: "Primary contacts" }, { value: "no", label: "Not primary" }], "Primary or not")} />
-                </>
+                </FiltersPopover>
               )}
             </>
           ),
@@ -258,7 +287,7 @@ export function ContactListScreen() {
             </PopoverTrigger>
           ),
         }}
-        filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: () => { setAccount(null); setFilters(NO_FILTERS); } } : undefined}
+        filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: clearFilters } : undefined}
         bulkActionBar={selectedIds.length ? {
           selectedCount: selectedIds.length,
           onClearSelection: () => setSelection({}),

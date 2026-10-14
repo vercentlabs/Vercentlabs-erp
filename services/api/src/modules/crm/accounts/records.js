@@ -119,17 +119,20 @@ export async function getAccount(client, context, partyId) {
 // ------------------------------------------------------------------ list
 
 export const ACCOUNT_VIEWS = Object.freeze([
-  { key: "all", label: "All Accounts" },
-  { key: "mine", label: "My Accounts" },
-  { key: "team", label: "Team Accounts" },
+  { key: "all", label: "All companies" },
+  { key: "mine", label: "My companies" },
+  { key: "team", label: "Team companies" },
   { key: "prospects", label: "Prospects" },
   { key: "customers", label: "Customers" },
-  { key: "active", label: "Active Accounts" },
-  { key: "inactive", label: "Inactive Accounts" },
-  { key: "recently_created", label: "Recently Created" },
-  { key: "recently_updated", label: "Recently Updated" },
+  { key: "no_recent_activity", label: "No recent activity" },
+  { key: "active", label: "Active" },
+  { key: "inactive", label: "Inactive" },
+  { key: "recently_created", label: "Recently created" },
+  { key: "recently_updated", label: "Recently updated" },
   { key: "archived", label: "Archived" },
 ]);
+// Active companies with no activity in this many days (the list summary counts the same).
+export const ACCOUNT_STALE_DAYS = 30;
 
 const SORT_COLUMNS = Object.freeze({
   code: "account.code",
@@ -170,6 +173,8 @@ export function buildAccountListWhere(context, filters = {}, values = []) {
   if (view === "customers") where.push("account.account_type = 'customer'");
   if (view === "recently_created") where.push("account.created_at >= now() - interval '30 days'");
   if (view === "recently_updated") where.push("account.updated_at >= now() - interval '30 days'");
+  if (view === "no_recent_activity")
+    where.push(`account.status = 'active' AND (account.last_activity_at IS NULL OR account.last_activity_at < now() - interval '${ACCOUNT_STALE_DAYS} days')`);
 
   if (filters.accountType) where.push(`account.account_type = ${bind(String(filters.accountType))}`);
   if (filters.status) where.push(`account.status = ${bind(String(filters.status))}`);

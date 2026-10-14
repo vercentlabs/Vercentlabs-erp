@@ -23,7 +23,7 @@ const NO_CHANGE = "__no_change__";
 const NO_TEAM = "__no_team__";
 
 function plural(count: number) {
-  return count === 1 ? "this account" : `${count} accounts`;
+  return count === 1 ? "this company" : `${count} companies`;
 }
 
 // A single account's refusal is an error to show; in bulk the list summarises it.
@@ -84,7 +84,7 @@ export function AssignAccountsDialog({ isOpen, onOpenChange, partyIds, options, 
 
 const STATUS_COPY: Record<AccountStatus, { title: string; description: string; confirm: string }> = {
   inactive: { title: "Deactivate", description: "An inactive account stays searchable with all its history, but is marked as not in use.", confirm: "Deactivate" },
-  active: { title: "Reactivate", description: "The account becomes active again.", confirm: "Reactivate" },
+  active: { title: "Reactivate", description: "The company becomes active again.", confirm: "Reactivate" },
   archived: { title: "Archive", description: "An archived account is hidden from the working lists and can no longer be changed until it is reactivated. Nothing is deleted.", confirm: "Archive" },
 };
 
@@ -115,7 +115,7 @@ export function AccountStatusDialog({ isOpen, onOpenChange, partyIds, status, on
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`${copy.title} ${plural(partyIds.length)}`} description={copy.description}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
-        {partyIds.length === 1 && <TextArea label="Reason" description="Optional. Kept in the account history." value={note} onChange={setNote} />}
+        {partyIds.length === 1 && <TextArea label="Reason" description="Optional. Kept in the company history." value={note} onChange={setNote} />}
         <DialogActions danger={status !== "active"} onCancel={() => onOpenChange(false)} confirmLabel={copy.confirm} isLoading={mutation.isPending} onConfirm={() => mutation.mutate()} />
       </div>
     </Dialog>

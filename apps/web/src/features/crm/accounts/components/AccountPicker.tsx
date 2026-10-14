@@ -12,7 +12,7 @@ import { listAccounts } from "../api/accounts-api";
 // Search-as-you-type account chooser. `excludeId` hides the account being
 // edited (an account cannot be its own parent or merge into itself).
 export function AccountPicker({
-  label, value, onChange, excludeId, description, placeholder = "Search accounts",
+  label, value, onChange, excludeId, description, placeholder = "Search companies", isRequired, errorMessage,
 }: {
   label: string;
   value: string | null;
@@ -20,6 +20,8 @@ export function AccountPicker({
   excludeId?: string;
   description?: string;
   placeholder?: string;
+  isRequired?: boolean;
+  errorMessage?: string;
 }) {
   const workspace = useWorkspaceContext();
   const [text, setText] = useState("");
@@ -33,6 +35,8 @@ export function AccountPicker({
     <ComboBox
       label={label}
       description={description}
+      isRequired={isRequired}
+      errorMessage={errorMessage}
       placeholder={placeholder}
       options={rows.map((row) => ({ value: row.id, label: `${row.displayName} (${row.code})` }))}
       selectedKey={value}
@@ -42,7 +46,7 @@ export function AccountPicker({
       }}
       onInputChange={setText}
       isLoading={query.isFetching}
-      emptyMessage={query.isError ? "Search failed. Try again." : "No matching accounts"}
+      emptyMessage={query.isError ? "Search failed. Try again." : "No matching companies"}
       allowsEmptyCollection
     />
   );

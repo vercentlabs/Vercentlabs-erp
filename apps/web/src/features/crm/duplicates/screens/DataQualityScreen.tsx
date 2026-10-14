@@ -17,7 +17,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { duplicatesErrorMessage, listMergedRecords, listNotDuplicates, unmarkNotDuplicate, type NotDuplicatePair, type ReviewedRecord } from "../api/duplicates-api";
 import { DuplicateReviewScreen } from "./DuplicateReviewScreen";
 
-const RECORD_LABEL: Record<string, string> = { lead: "Lead", contact: "Contact", account: "Account" };
+const RECORD_LABEL: Record<string, string> = { lead: "Lead", contact: "Contact", account: "Company" };
 
 function RecordLink({ record }: { record: ReviewedRecord }) {
   return (
@@ -34,12 +34,12 @@ export function DataQualityScreen() {
   if (!canReview) return <PermissionState title="You don't have access to Data Quality" description="Ask an administrator for the Review duplicates permission." />;
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <PageHeader title="Data Quality" description="Review records that look like the same person or company, and see what was merged or cleared before." />
+      <PageHeader title="Data quality" description="Review records that look like the same person or company, and see what was merged or cleared before." />
       <Tabs defaultSelectedKey="potential">
         <TabList aria-label="Data quality">
-          <Tab id="potential">Potential Duplicates</Tab>
-          <Tab id="merged">Merged Records</Tab>
-          <Tab id="cleared">Not Duplicates</Tab>
+          <Tab id="potential">Potential duplicates</Tab>
+          <Tab id="merged">Merged records</Tab>
+          <Tab id="cleared">Not duplicates</Tab>
         </TabList>
         <TabPanel id="potential"><div className="pt-3"><DuplicateReviewScreen embedded /></div></TabPanel>
         <TabPanel id="merged"><MergedRecords /></TabPanel>

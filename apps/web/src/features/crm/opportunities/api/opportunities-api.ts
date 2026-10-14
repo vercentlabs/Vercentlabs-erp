@@ -107,7 +107,7 @@ export type Opportunity = {
 };
 
 export type OpportunityCapabilities = Record<
-  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "markWon" | "markLost" | "reopen" | "delete" | "export"
+  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "quoteInSales" | "markWon" | "markLost" | "reopen" | "delete" | "export"
   | "changeProbability" | "bulkUpdate" | "manageStages",
   boolean
 >;
@@ -118,6 +118,8 @@ export type OpportunityStage = {
   id: string; code: string; name: string; sequence: number; probability: number; isOpen: boolean; openCount?: number;
   // what the stage means, its goals (one per line), and the actions worth putting forward in it
   description: string | null; guidance: string | null; suggestedActions: OpportunityStageAction[];
+  // what a deal needs before it may enter the stage (contact, value, close date)
+  requirements?: Array<{ key: "contact" | "value" | "closeDate"; label: string }>;
 };
 // A won or a lost reason, with its own rules (see Won / Lost Reasons).
 export type OpportunityCloseReason = {
@@ -148,7 +150,7 @@ export type OpportunityOptions = {
 export type OpportunityListFilters = Partial<{
   view: OpportunityViewKey; search: string; status: string; stageId: string; ownerId: string; teamId: string; accountId: string; contactId: string;
   product: string; sourceId: string; priority: string; expectedCloseFrom: string; expectedCloseTo: string; valueMin: string; valueMax: string;
-  createdFrom: string; createdTo: string; stale: string; highValue: string; noNextActivity: string; ids: string; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
+  createdFrom: string; createdTo: string; closedFrom: string; closedTo: string; stale: string; highValue: string; noNextActivity: string; ids: string; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
 }>;
 
 export type OpportunityList = {
@@ -184,7 +186,7 @@ export type OpportunityDuplicate = {
 };
 export type OpportunityDashboard = {
   totals: {
-    open: number; openValue: number; weightedValue: number; closingThisMonth: number; wonThisMonth: number; wonValueThisMonth: number; lostThisMonth: number; lostValueThisMonth: number; topLostReasonThisMonth: string | null;
+    open: number; openValue: number; weightedValue: number; closingThisMonth: number; won: number; wonValue: number; lost: number; lostValue: number; topLostReason: string | null;
     overdue: number; stale: number; staleDays: number; averageDealSize: number; winRate: number; lossRate: number; averageSalesCycleDays: number | null;
   };
   byStage: Array<{ stageId: string; label: string; total: number; value: number; weightedValue: number }>;
@@ -264,7 +266,8 @@ export const logOpportunityActivity = (id: string, input: Record<string, unknown
 export const scheduleOpportunityFollowUp = (id: string, input: Record<string, unknown>) => post<{ followUp: { id: string } }>(`${BASE}/${id}/follow-ups`, input);
 
 // ---- dashboard, report, export
-export const getOpportunityDashboard = () => request<{ dashboard: OpportunityDashboard }>(`${BASE}/dashboard`).then((result) => result.dashboard);
+export const getOpportunityDashboard = (period: { from?: string; to?: string } = {}) =>
+  request<{ dashboard: OpportunityDashboard }>(`${BASE}/dashboard${query(period)}`).then((result) => result.dashboard);
 export const getOpportunityReport = (filters: Record<string, string>) => request<{ report: OpportunityReport }>(`${BASE}/report${query(filters)}`).then((result) => result.report);
 export const opportunityExportUrl = (filters: OpportunityListFilters) => `${BASE}/export${query({ ...filters, limit: undefined, offset: undefined })}`;
 

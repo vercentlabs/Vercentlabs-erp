@@ -113,9 +113,15 @@ export function CompleteTaskDialog({ isOpen, onOpenChange, task, options, onDone
   const [followUp, setFollowUp] = useState(false);
   const [type, setType] = useState("call");
   const [dueAt, setDueAt] = useState("");
+  const [nextTask, setNextTask] = useState(false);
+  const [nextTitle, setNextTitle] = useState("");
+  const [nextDue, setNextDue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
-    mutationFn: () => completeTask(task.id, { note: note.trim() || undefined, expectedUpdatedAt: task.updatedAt, ...(followUp ? { nextFollowUp: { type, dueAt } } : {}) }),
+    mutationFn: async () => {
+      await completeTask(task.id, { note: note.trim() || undefined, expectedUpdatedAt: task.updatedAt, ...(followUp ? { nextFollowUp: { type, dueAt } } : {}) });
+      if (nextTask) await createTask({ title: nextTitle.trim(), dueDate: nextDue, priority: task.priority, relatedType: task.relatedType ?? null, relatedId: task.relatedId ?? null, assignedTo: task.assignedTo ?? undefined });
+    },
     onSuccess: () => { setError(null); onDone(); onOpenChange(false); },
     onError: (failure) => setError(errorMessage(failure)),
   });
@@ -126,7 +132,7 @@ export function CompleteTaskDialog({ isOpen, onOpenChange, task, options, onDone
         <TextArea label="Outcome" description="Optional. What happened?" value={note} onChange={setNote} />
         {task.relatedId && (
           <>
-            <Checkbox isSelected={followUp} onChange={setFollowUp}>Create the next follow-up with {task.relatedName ?? "this record"}</Checkbox>
+            <Checkbox isSelected={followUp} onChange={setFollowUp}>Schedule the next follow-up with {task.relatedName ?? "this record"}</Checkbox>
             {followUp && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <Select label="Follow-up by" selectedKey={type} onSelectionChange={(key) => setType(String(key))}
@@ -136,7 +142,15 @@ export function CompleteTaskDialog({ isOpen, onOpenChange, task, options, onDone
             )}
           </>
         )}
-        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Complete" isLoading={mutation.isPending} isDisabled={followUp && !dueAt} />
+        <Checkbox isSelected={nextTask} onChange={setNextTask}>Create a next task{task.relatedName ? ` for ${task.relatedName}` : ""}</Checkbox>
+        {nextTask && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField label="Next task" isRequired value={nextTitle} onChange={setNextTitle} />
+            <DateInput label="Due" isRequired value={nextDue} onChange={setNextDue} />
+          </div>
+        )}
+        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Complete" isLoading={mutation.isPending}
+          isDisabled={(followUp && !dueAt) || (nextTask && (!nextTitle.trim() || !nextDue))} />
       </div>
     </Dialog>
   );

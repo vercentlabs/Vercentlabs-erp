@@ -44,11 +44,11 @@ export function RelatedTasksPanel({ relatedType, relatedId, relatedName, canCrea
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-text-secondary">
-          {open.length} open {open.length === 1 ? "task" : "tasks"}{relatedType === "party" ? ", including those on this account's opportunities and contacts" : ""}. Tasks also appear in CRM Tasks.
+          {open.length} open {open.length === 1 ? "task" : "tasks"}{relatedType === "party" ? ", including those on this company's deals and contacts" : ""}. Tasks also appear in CRM Tasks.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <Checkbox isSelected={showClosed} onChange={setShowClosed}>Show completed and cancelled</Checkbox>
-          {canCreate && can?.create && <Button variant="primary" size="compact" onPress={() => setCreating(true)}>New task</Button>}
+          {canCreate && can?.create && <Button variant="secondary" size="compact" onPress={() => setCreating(true)}>New task</Button>}
         </div>
       </div>
       <ErrorBanner message={error} />

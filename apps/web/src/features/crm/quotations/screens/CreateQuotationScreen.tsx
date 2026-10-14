@@ -1,14 +1,15 @@
 "use client";
 
-// Create Quotation from an opportunity: one form, one request. The server
-// resolves the customer, prices the lines through Sales (price list, rules,
-// tax) and creates the Draft quotation with the opportunity as its source, or
-// changes nothing. Afterwards it offers (never forces) a move to Proposal.
+// Create a quotation from a deal, on its own page: the form on the left, a summary column (customer, lines, estimate, what is still
+// missing, and Create) on the right. One request: the server resolves the customer, prices the lines through Sales (price list, rules,
+// tax) and creates the Draft quotation with the deal as its source, or changes nothing. Afterwards it offers (never forces) a move to
+// Proposal.
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Plus, Trash2, X } from "lucide-react";
-import { Button, Checkbox, Dialog, IconButton, Radio, RadioGroup, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Check, Plus, Trash2, X } from "lucide-react";
+import { Button, Checkbox, IconButton, PageHeader, Radio, RadioGroup, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { changeOpportunityStage, searchOpportunityProducts } from "@/features/crm/opportunities/api/opportunities-api";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
@@ -30,13 +31,26 @@ type Line = {
   estimate: number | null; useEstimate: boolean; reason: string; fromOpportunity: boolean;
 };
 
-export function CreateQuotationDialog({ opportunityId, isOpen, onOpenChange, onCreated }: {
-  opportunityId: string; isOpen: boolean; onOpenChange: (open: boolean) => void; onCreated: () => void;
-}) {
+// The quotation link for a deal (the deal page, its Quotes tab and the pipeline card all open it).
+export const createQuotationHref = (opportunityId: string) => `/crm/opportunities/${opportunityId}/quotation`;
+
+export function CreateQuotationScreen({ opportunityId }: { opportunityId: string }) {
+  const workspace = useWorkspaceContext();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const dealHref = `/crm/opportunities/${opportunityId}`;
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Create quotation" description="A Draft quotation for this opportunity. Sales prices it from the price list and applies tax; nothing is created until you confirm." size="lg">
-      {isOpen && <Flow opportunityId={opportunityId} onClose={() => onOpenChange(false)} onCreated={onCreated} />}
-    </Dialog>
+    <div className="flex flex-col gap-5">
+      <Link href={dealHref} className="inline-flex w-fit items-center gap-1 text-sm text-text-secondary hover:text-text focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none">
+        <ArrowLeft aria-hidden="true" className="size-4" />Deal
+      </Link>
+      <PageHeader title="Create quotation" description="A Draft quotation for this deal. Sales prices it from the price list and applies tax; nothing is created until you confirm." />
+      <Flow opportunityId={opportunityId} onClose={() => router.push(`${dealHref}?tab=quotes`)}
+        onCreated={() => {
+          void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunity", opportunityId) });
+          void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunities") });
+        }} />
+    </div>
   );
 }
 
@@ -50,7 +64,7 @@ function Flow({ opportunityId, onClose, onCreated }: { opportunityId: string; on
   });
   if (created) return <Result opportunityId={opportunityId} result={created} onClose={onClose} onChanged={onCreated} />;
   if (readiness.isLoading || !readiness.data)
-    return readiness.isError ? <Banner tone="danger" message={errorMessage(readiness.error)} /> : <LoadingState label="Checking the opportunity" rows={4} />;
+    return readiness.isError ? <Banner tone="danger" message={errorMessage(readiness.error)} /> : <LoadingState label="Checking the deal" rows={4} />;
   return <QuotationForm opportunityId={opportunityId} readiness={readiness.data} onClose={onClose} onCreated={(result) => { setCreated(result); onCreated(); }} />;
 }
 
@@ -97,8 +111,8 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
 
   const problems = [
     ...readiness.checks.filter((check) => check.blocking && !check.met).map((check) => `${check.label}: ${check.value ?? "missing"}`),
-    !isCustomer && !can.createCustomer && "This account is not a customer yet, and you cannot create or link customers. Ask a manager to create its customer first.",
-    creatingCustomer && strongMatch && "This company is already a customer: link the account to the existing customer.",
+    !isCustomer && !can.createCustomer && "This company is not a customer yet, and you cannot create or link customers. Ask a manager to create its customer first.",
+    creatingCustomer && strongMatch && "This company is already a customer: link it to the existing customer.",
     creatingCustomer && !strongMatch && visibleMatches.length > 0 && !confirmNoMatch && "Confirm that none of the matching customers is this company.",
     needsAddress && !(address.line1 && address.city && address.state && address.postalCode && address.countryCode) && "Enter the customer's billing address.",
     !validUntil && "Choose the date the quotation is valid until.",
@@ -135,10 +149,19 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
   const update = (key: string, patch: Partial<Line>) => setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   const addressOptions = useMemo(() => readiness.addresses.map((entry) => ({ value: entry.id, label: `${entry.type[0].toUpperCase()}${entry.type.slice(1)}: ${entry.label}` })), [readiness.addresses]);
 
+  const chosenContact = readiness.contacts.find((contact) => contact.id === contactId);
+  const customerName = isCustomer ? account?.name : linking ? visibleMatches.find((match) => match.id === customerChoice)?.name : account?.name;
+  const customerState = isCustomer ? "Customer" : linking ? "Links to this existing customer" : "Customer created from the company";
+  // The deal's own estimate for the lines it knows a price for; Sales prices the quotation when it is saved.
+  const estimate = lines.reduce((sum, line) => (line.estimate === null ? sum
+    : sum + line.estimate * (Number(line.quantity) || 0) * (1 - (Number(line.discountPercent) || 0) / 100)), 0);
+  const priced = lines.filter((line) => line.estimate !== null).length;
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="flex min-w-0 flex-col gap-5">
       <section className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold">{readiness.opportunity.code} · {readiness.opportunity.name}</h3>
+        <h2 className="text-sm font-semibold">{readiness.opportunity.code} · {readiness.opportunity.name}</h2>
         <ul className="grid gap-1 text-sm sm:grid-cols-2">
           {[...readiness.checks, ...readiness.recommended.map((check) => ({ ...check, recommended: true }))].map((check) => (
             <li key={check.key} className="flex items-start gap-2">
@@ -151,8 +174,8 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
 
       {account && !isCustomer && (
         <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border p-3">
-          <h3 className="text-sm font-semibold">Customer</h3>
-          <p className="text-sm text-text-secondary">Sales quotes a customer. {account.name} is still a prospect: create its customer master, or link it to a customer that already exists (the account and this opportunity move to that customer).</p>
+          <h2 className="text-sm font-semibold">Customer</h2>
+          <p className="text-sm text-text-secondary">Sales quotes a customer. {account.name} is still a prospect: create its customer master, or link it to a customer that already exists (the company and this deal move to that customer).</p>
           {can.createCustomer ? (
             <RadioGroup label="Customer for this quotation" value={customerChoice} onChange={setCustomerChoice}>
               {visibleMatches.map((match) => <Radio key={match.id} value={match.id}><CustomerMatchLabel match={match} /></Radio>)}
@@ -168,7 +191,7 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
               {visibleMatches.length > 0 && !strongMatch && <Checkbox isSelected={confirmNoMatch} onChange={setConfirmNoMatch}>None of the customers above is this company</Checkbox>}
               {needsAddress && (
                 <fieldset className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-                  <legend className="mb-1 text-sm font-medium">Billing address (the account has none yet)</legend>
+                  <legend className="mb-1 text-sm font-medium">Billing address (the company has none yet)</legend>
                   <TextField label="Address line 1" isRequired value={address.line1} onChange={(line1) => setAddress({ ...address, line1 })} />
                   <TextField label="Address line 2" value={address.line2} onChange={(line2) => setAddress({ ...address, line2 })} />
                   <TextField label="City" isRequired value={address.city} onChange={(city) => setAddress({ ...address, city })} />
@@ -207,8 +230,8 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
       </section>
 
       <section className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold">Products and services</h3>
-        <p className="text-xs text-text-muted">Prices come from the price list and pricing rules; the opportunity&apos;s estimate is only a starting point. Tax and totals are calculated by Sales when the quotation is saved.</p>
+        <h2 className="text-sm font-semibold">Products and services</h2>
+        <p className="text-xs text-text-muted">Prices come from the price list and pricing rules; the deal&apos;s estimate is only a starting point. Tax and totals are calculated by Sales when the quotation is saved.</p>
         {inactiveLines.length > 0 && <Banner tone="warning" message={`Left out (inactive products): ${inactiveLines.map((line) => line.itemName).join(", ")}.`} />}
         <ul className="flex flex-col gap-2">
           {lines.map((line, index) => (
@@ -257,23 +280,48 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
         <TextArea className="sm:col-span-2" label="Internal notes" description="Never printed or sent to the customer." value={internalNotes} onChange={setInternalNotes} />
         {readiness.opportunity.internalContext && (
           <div className="rounded-[var(--radius-control)] border border-border bg-surface-muted p-3 text-sm sm:col-span-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-text-muted">From the opportunity (internal, not copied to the quotation)</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-text-muted">From the deal (internal, not copied to the quotation)</p>
             <p className="mt-1 whitespace-pre-wrap text-text-secondary">{readiness.opportunity.internalContext}</p>
           </div>
         )}
       </section>
 
+    </div>
+
+    <aside aria-label="Quotation summary" className="flex flex-col gap-4 self-start rounded-[var(--radius-card)] border border-border bg-surface p-4 lg:sticky lg:top-4">
+      <h2 className="text-sm font-semibold">Summary</h2>
+      <dl className="flex flex-col gap-2 text-sm">
+        <SummaryRow label={customerState} value={customerName ?? "—"} />
+        <SummaryRow label="Contact" value={chosenContact?.name ?? "No contact"} />
+        <SummaryRow label="Valid until" value={validUntil ? formatDate(validUntil) : "Not set"} />
+        <SummaryRow label="Lines" value={lines.length === 0 ? "None yet" : `${lines.length} ${lines.length === 1 ? "line" : "lines"}`} />
+      </dl>
+      {lines.length > 0 && (
+        <ul className="flex flex-col gap-1 border-t border-border pt-3 text-xs text-text-secondary">
+          {lines.map((line) => <li key={line.key} className="flex justify-between gap-2"><span className="truncate">{line.name}</span><span className="shrink-0 tabular-nums">× {line.quantity || "?"}</span></li>)}
+        </ul>
+      )}
+      <div className="border-t border-border pt-3">
+        <p className="text-xs text-text-muted">Estimate from the deal{priced < lines.length ? ` (${priced} of ${lines.length} lines)` : ""}</p>
+        <p className="text-xl font-semibold tabular-nums">{priced ? formatMoney(currencyCode, estimate) : "—"}</p>
+        <p className="text-xs text-text-muted">Sales prices the lines and adds tax when the quotation is saved.</p>
+      </div>
       {create.isError && (
         <Banner tone="danger" message={`The quotation was not created. Nothing was changed. ${errorMessage(create.error)}`}
-          detail={create.error instanceof QuotationApiError && /CUSTOMER/.test(create.error.code ?? "") ? "Review the customer section above." : undefined} />
+          detail={create.error instanceof QuotationApiError && /CUSTOMER/.test(create.error.code ?? "") ? "Review the customer section." : undefined} />
       )}
       {problems.length > 0 && <p className="text-sm text-text-secondary">{problems[0]}</p>}
-      <div className="flex justify-end gap-2 border-t border-border pt-3">
-        <Button variant="secondary" onPress={onClose}>Cancel</Button>
+      <div className="flex flex-col gap-2">
         <Button variant="primary" isDisabled={problems.length > 0} isLoading={create.isPending} onPress={() => create.mutate()}>Create draft quotation</Button>
+        <Button variant="secondary" onPress={onClose}>Cancel</Button>
       </div>
+    </aside>
     </div>
   );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return <div className="flex flex-col"><dt className="text-xs text-text-muted">{label}</dt><dd className="font-medium">{value}</dd></div>;
 }
 
 function CustomerMatchLabel({ match }: { match: CustomerMatch }) {
@@ -304,22 +352,22 @@ function Result({ opportunityId, result, onClose, onChanged }: { opportunityId: 
     onSuccess: () => { setMoved(true); onChanged(); },
   });
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2"><Check className="size-5 text-success" aria-hidden="true" /><h3 className="text-base font-semibold">Quotation {result.quotationNumber} created as a Draft</h3></div>
+    <div className="flex max-w-3xl flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-5">
+      <div className="flex items-center gap-2"><Check className="size-5 text-success" aria-hidden="true" /><h2 className="text-base font-semibold">Quotation {result.quotationNumber} created as a Draft</h2></div>
       <p className="text-sm text-text-secondary">
-        {result.customerDecision === "created" ? "The account's customer master was created. " : result.customerDecision === "linked" ? "The account was linked to the existing customer. " : ""}
-        {result.primary ? "It is the opportunity's primary quotation. " : ""}The opportunity stays open: a quotation does not win the deal.
+        {result.customerDecision === "created" ? "The company's customer master was created. " : result.customerDecision === "linked" ? "The company was linked to the existing customer. " : ""}
+        {result.primary ? "It is the deal's primary quotation. " : ""}The deal stays open: a quotation does not win it.
       </p>
       {result.stageSuggestion && !moved && (
         <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted p-3 text-sm">
-          <span className="flex-1">Move the opportunity to <span className="font-medium">{result.stageSuggestion.stageName}</span>?</span>
+          <span className="flex-1">Move the deal to <span className="font-medium">{result.stageSuggestion.stageName}</span>?</span>
           <Button variant="secondary" size="compact" isLoading={move.isPending} onPress={() => move.mutate()}>Move to {result.stageSuggestion.stageName}</Button>
           <Button variant="ghost" size="compact" onPress={() => setMoved(true)}>Not now</Button>
         </div>
       )}
       {move.isError && <Banner tone="danger" message={errorMessage(move.error, "The stage could not be changed.")} />}
       <div className="flex justify-end gap-2 border-t border-border pt-3">
-        <Button variant="secondary" onPress={onClose}>Close</Button>
+        <Button variant="secondary" onPress={onClose}>Back to the deal</Button>
         <Button variant="primary" onPress={() => router.push(`/sales/quotations/${result.quotationId}`)}>Open quotation</Button>
       </div>
     </div>

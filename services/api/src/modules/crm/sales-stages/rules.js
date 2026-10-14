@@ -7,13 +7,14 @@
 // still hold. A stage the organization added itself has no rules.
 
 // Refuses the move. `row` is the opportunity row (snake_case columns).
+// `label` is the requirement in a word or two, shown on the stage track before anyone tries the move.
 const REQUIREMENTS = Object.freeze({
   PROPOSAL: [
-    { missing: (row) => !row.contact_id, message: "Choose a primary contact before moving this opportunity to" },
-    { missing: (row) => !(Number(row.amount) > 0), message: "Enter the estimated value before moving this opportunity to" },
+    { key: "contact", label: "Primary contact", missing: (row) => !row.contact_id, message: "Choose a primary contact before moving this opportunity to" },
+    { key: "value", label: "Estimated value", missing: (row) => !(Number(row.amount) > 0), message: "Enter the estimated value before moving this opportunity to" },
   ],
   CLOSING: [
-    { missing: (row) => !row.expected_close_date, message: "Set the expected close date before moving this opportunity to" },
+    { key: "closeDate", label: "Expected close date", missing: (row) => !row.expected_close_date, message: "Set the expected close date before moving this opportunity to" },
   ],
 });
 
@@ -43,6 +44,11 @@ export function stageEntryBlockers(row, stage) {
 // Things worth a second look before entering this stage, as messages.
 export function stageEntryWarnings(row, stage) {
   return (WARNINGS[codeOf(stage)] ?? []).filter((rule) => rule.applies(row)).map((rule) => rule.message);
+}
+
+// What the stage requires, for the stage track's checklist: [{ key, label }].
+export function stageRequirements(stage) {
+  return (REQUIREMENTS[codeOf(stage)] ?? []).map(({ key, label }) => ({ key, label }));
 }
 
 export function suggestedStageActions(stage) {

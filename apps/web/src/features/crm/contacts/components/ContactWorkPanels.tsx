@@ -4,7 +4,7 @@
 // follow-ups. A logged call or meeting can be about one of their
 // opportunities; a task can belong to the contact or to an opportunity.
 // Everything logged here also shows on the person's company.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Dialog, EmptyState, Select, TextArea, TextField } from "@vercentlabs/design-system";
@@ -22,8 +22,6 @@ import {
 } from "../api/contacts-api";
 import { ErrorBanner, LIVE_CONTACT_QUERY } from "../contact-format";
 
-const FOLLOW_UP_TYPE_LABELS: Record<string, string> = { call: "Call", email: "Email", meeting: "Meeting", task: "Task", other: "Other" };
-const NO_NEXT_ACTION = "none";
 const NO_OPPORTUNITY = "__none__";
 
 type PanelProps = { contactId: string; options: ContactOptions; canEdit: boolean };
@@ -100,7 +98,7 @@ export function ContactActivitiesPanel({ contactId, options, canEdit }: PanelPro
     <>
       <PanelShell
         title="Activities"
-        action={canEdit && <Button variant="primary" size="compact" onPress={() => setLogging(true)}>Log activity</Button>}
+        action={canEdit && <Button variant="secondary" size="compact" onPress={() => setLogging(true)}>Log activity</Button>}
         query={query}
         isEmpty={logged.length === 0}
         emptyTitle="No activities logged"
@@ -125,8 +123,8 @@ export function ContactActivitiesPanel({ contactId, options, canEdit }: PanelPro
   );
 }
 
-export function LogContactActivityDialog({ isOpen, onOpenChange, contactId, options, onDone }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; contactId: string; options: ContactOptions; onDone: () => void;
+export function LogContactActivityDialog({ isOpen, onOpenChange, contactId, options, onDone , onScheduleNext }: {
+  isOpen: boolean; onOpenChange: (open: boolean) => void; contactId: string; options: ContactOptions; onDone: () => void; onScheduleNext?: () => void;
 }) {
   const opportunities = useOpportunityOptions(contactId, isOpen);
   const [type, setType] = useState("call");
@@ -135,23 +133,19 @@ export function LogContactActivityDialog({ isOpen, onOpenChange, contactId, opti
   const [outcome, setOutcome] = useState("");
   const [notes, setNotes] = useState("");
   const [occurredAt, setOccurredAt] = useState("");
-  const [nextType, setNextType] = useState(NO_NEXT_ACTION);
-  const [nextDueAt, setNextDueAt] = useState("");
-  const [nextNotes, setNextNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const thenSchedule = useRef(false);
 
   const reset = () => {
-    setOpportunityId(NO_OPPORTUNITY); setSubject(""); setOutcome(""); setNotes(""); setOccurredAt(""); setNextType(NO_NEXT_ACTION); setNextDueAt(""); setNextNotes(""); setError(null);
+    setOpportunityId(NO_OPPORTUNITY); setSubject(""); setOutcome(""); setNotes(""); setOccurredAt(""); setError(null);
   };
   const mutation = useMutation({
     mutationFn: () => logContactActivity(contactId, {
       type, subject, outcome, notes, occurredAt: occurredAt || undefined, opportunityId: opportunityId === NO_OPPORTUNITY ? undefined : opportunityId,
-      ...(nextType !== NO_NEXT_ACTION ? { nextAction: { type: nextType, dueAt: nextDueAt, notes: nextNotes } } : {}),
     }),
-    onSuccess: () => { onDone(); reset(); onOpenChange(false); },
+    onSuccess: () => { onDone(); reset(); onOpenChange(false); if (thenSchedule.current) onScheduleNext?.(); },
     onError: (failure) => setError(errorMessage(failure)),
   });
-  const nextActionIncomplete = nextType !== NO_NEXT_ACTION && !nextDueAt;
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Log activity" description="Record something that has already happened." size="lg">
@@ -162,24 +156,15 @@ export function LogContactActivityDialog({ isOpen, onOpenChange, contactId, opti
             options={options.activityTypes.map((entry) => ({ value: entry.code, label: entry.label }))} />
           <DateTimeInput label="When" description="Leave empty for now." value={occurredAt} onChange={setOccurredAt} />
         </div>
-        <Select label="About an opportunity" selectedKey={opportunityId} onSelectionChange={(key) => setOpportunityId(String(key))}
-          options={[{ value: NO_OPPORTUNITY, label: "No specific opportunity" }, ...opportunities.map((row) => ({ value: row.id, label: row.title ?? row.code ?? "Opportunity" }))]} />
+        <Select label="About a deal" selectedKey={opportunityId} onSelectionChange={(key) => setOpportunityId(String(key))}
+          options={[{ value: NO_OPPORTUNITY, label: "No specific deal" }, ...opportunities.map((row) => ({ value: row.id, label: row.title ?? row.code ?? "Opportunity" }))]} />
         <TextField label="Subject" description="Leave empty to use the activity type and the person's name." value={subject} onChange={setSubject} />
         <TextField label="Outcome" value={outcome} onChange={setOutcome} placeholder="For example: Interested, wants a demo" />
         <TextArea label="Notes" value={notes} onChange={setNotes} />
-        <div className="flex flex-col gap-4 rounded-[var(--radius-control)] border border-border p-3">
-          <Select label="Next action" selectedKey={nextType} onSelectionChange={(key) => setNextType(String(key))}
-            options={[{ value: NO_NEXT_ACTION, label: "None" }, ...options.followUpTypes.map((entry) => ({ value: entry, label: `Follow-up: ${FOLLOW_UP_TYPE_LABELS[entry] ?? entry}` }))]} />
-          {nextType !== NO_NEXT_ACTION && (
-            <>
-              <DateTimeInput label="Follow-up date and time" isRequired value={nextDueAt} onChange={setNextDueAt} />
-              <TextField label="Follow-up notes" value={nextNotes} onChange={setNextNotes} />
-            </>
-          )}
-        </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={nextActionIncomplete}>Log activity</Button>
+          {onScheduleNext && <Button variant="secondary" onPress={() => { thenSchedule.current = true; mutation.mutate(); }} isLoading={mutation.isPending}>Log and schedule next</Button>}
+          <Button variant="primary" onPress={() => { thenSchedule.current = false; mutation.mutate(); }} isLoading={mutation.isPending}>Log activity</Button>
         </div>
       </div>
     </Dialog>

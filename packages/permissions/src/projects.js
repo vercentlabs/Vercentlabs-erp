@@ -31,4 +31,13 @@ export const PROJECT_PERMISSIONS = Object.freeze({
   archive: "projects.archive",
   financialView: "projects.financial_view",
   export: "projects.export",
+  // Customer Association (0126).
+  customerView: "projects.customer.view",
+  customerAssign: "projects.customer.assign",
+  customerChange: "projects.customer.change",
+  customerContactsManage: "projects.customer.contacts.manage",
+  customerSalesLink: "projects.customer.sales_link",
+  customerAddressManage: "projects.customer.address.manage",
+  customerHistoryView: "projects.customer.history.view",
+  customerExport: "projects.customer.export",
 });

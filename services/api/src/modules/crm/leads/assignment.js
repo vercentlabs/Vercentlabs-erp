@@ -317,7 +317,7 @@ export async function bulkAssignLeads(client, context, input = {}) {
         userId,
         category: "crm_assignment",
         title: count === 1 ? "A lead was assigned to you" : `${count} leads were assigned to you`,
-        message: "Open My Leads to see them.",
+        message: "Open My leads to see them.",
         href: "/crm/leads?view=mine",
         entityType: "lead",
         entityId: null,

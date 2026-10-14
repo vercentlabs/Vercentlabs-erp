@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, FileText, Pencil, Trash2, Upload } from "lucide-react";
-import { Button, Dialog, EmptyState, IconButton, ProgressBar, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { AlertDialog, Button, Dialog, EmptyState, IconButton, ProgressBar, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -12,6 +12,7 @@ import {
   attachmentDownloadUrl, deleteAttachment, errorMessage, formatSize, listAttachments, updateAttachment, uploadAttachment,
   type CrmAttachment, type CrmRecordType,
 } from "@/features/crm/notes/api/notes-api";
+import { FilePreviewDialog } from "./FilePreviewDialog";
 
 const dateTime = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 const ACCEPT = ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.txt,.csv";
@@ -166,30 +167,11 @@ export function RecordAttachmentsPanel({ relatedType, relatedId, noteId, compact
         </ul>
       )}
 
-      {preview && (
-        <Dialog isOpen onOpenChange={(open) => { if (!open) setPreview(null); }} title={preview.fileName} size="lg">
-          <div className="flex flex-col gap-3">
-            {preview.preview === "image" ? (
-              // eslint-disable-next-line @next/next/no-img-element -- a private, authorized file, not a static asset
-              <img src={attachmentDownloadUrl(preview.id, true)} alt={preview.fileName} className="max-h-[70vh] w-full object-contain" />
-            ) : (
-              <iframe src={attachmentDownloadUrl(preview.id, true)} title={preview.fileName} className="h-[70vh] w-full rounded border border-border bg-white" />
-            )}
-            <div className="flex justify-end">
-              <a href={attachmentDownloadUrl(preview.id)} className="text-sm font-medium text-brand underline">Download</a>
-            </div>
-          </div>
-        </Dialog>
-      )}
+      {preview && <FilePreviewDialog file={preview} onClose={() => setPreview(null)} />}
       {editing && <EditAttachmentDialog file={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />}
-      {deleting && (
-        <Dialog isOpen onOpenChange={(open) => { if (!open) setDeleting(null); }} title="Delete this file?" description={`${deleting.fileName} will be removed from this record. The audit log keeps a record of the deletion.`}>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onPress={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="danger" isLoading={remove.isPending} onPress={() => remove.mutate(deleting)}>Delete file</Button>
-          </div>
-        </Dialog>
-      )}
+      <AlertDialog isOpen={Boolean(deleting)} onOpenChange={(open) => { if (!open) setDeleting(null); }} tone="danger" title="Delete this file?"
+        description={`${deleting?.fileName ?? "The file"} will be removed from this record. The audit log keeps a record of the deletion.`}
+        confirmLabel="Delete file" isConfirming={remove.isPending} onConfirm={() => { if (deleting) remove.mutate(deleting); }} />
     </div>
   );
 }

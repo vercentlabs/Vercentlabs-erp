@@ -11,7 +11,7 @@ export type OpportunityPriority = "low" | "medium" | "high";
 export type OpportunityViewKey =
   | "all" | "mine" | "team" | "open" | "closing_this_month" | "overdue" | "won" | "lost" | "recent" | "stale" | "archived";
 export type OpportunityCapabilities = Record<
-  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "markWon" | "markLost" | "reopen" | "delete" | "export"
+  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "quoteInSales" | "markWon" | "markLost" | "reopen" | "delete" | "export"
   | "changeProbability" | "bulkUpdate" | "manageStages",
   boolean
 >;
@@ -110,6 +110,6 @@ export function listOpportunityHistory(
 
 // ---- options, dashboard, report, export
 export function getOpportunityOptions(client: QueryClient, context: CrmContext): Promise<Record<string, any>>;
-export function getOpportunityDashboard(client: QueryClient, context: CrmContext): Promise<Record<string, any>>;
+export function getOpportunityDashboard(client: QueryClient, context: CrmContext, input?: { from?: string; to?: string }): Promise<Record<string, any>>;
 export function getOpportunitiesByStageReport(client: QueryClient, context: CrmContext, input?: Input): Promise<Record<string, any>>;
 export function exportOpportunities(client: QueryClient, context: CrmContext, filters?: Input): Promise<any>;

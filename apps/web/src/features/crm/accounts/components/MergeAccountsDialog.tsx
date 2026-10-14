@@ -55,7 +55,7 @@ export function MergeAccountsDialog({ keep, isOpen, onOpenChange, initialDuplica
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`Merge a duplicate into ${keep.displayName}`}
-      description="Everything recorded against the duplicate moves to this account. The duplicate is archived, not deleted, and links to it open this account." size="lg">
+      description="Everything recorded against the duplicate moves to this company. The duplicate is archived, not deleted, and links to it open this company." size="lg">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <AccountPicker label="Duplicate account" value={duplicateId} excludeId={keep.id} onChange={(id) => { setDuplicateId(id); setChoices({}); setError(null); }} />
@@ -78,14 +78,14 @@ export function MergeAccountsDialog({ keep, isOpen, onOpenChange, initialDuplica
                   <RadioGroup key={field} label={FIELD_LABELS[field] ?? field} orientation="vertical"
                     value={choices[field] ?? (display(data.keep, field) ? "keep" : "duplicate")}
                     onChange={(value) => setChoices((current) => ({ ...current, [field]: value as "keep" | "duplicate" }))}>
-                    <Radio value="keep">{display(data.keep, field) || <span className="text-text-muted">Empty</span>} <span className="text-xs text-text-muted">(this account)</span></Radio>
+                    <Radio value="keep">{display(data.keep, field) || <span className="text-text-muted">Empty</span>} <span className="text-xs text-text-muted">(this company)</span></Radio>
                     <Radio value="duplicate">{display(data.duplicate, field)} <span className="text-xs text-text-muted">(duplicate)</span></Radio>
                   </RadioGroup>
                 ))}
               </div>
             ) : <p className="text-sm text-text-secondary">The duplicate has no different values to choose from.</p>}
             <p className="text-sm text-text-secondary">
-              {moves.length ? `Moves to this account: ${moves.map(([label, count]) => `${count} ${label}`).join(", ")}.` : "The duplicate has no related records to move."}
+              {moves.length ? `Moves to this company: ${moves.map(([label, count]) => `${count} ${label}`).join(", ")}.` : "The duplicate has no related records to move."}
             </p>
           </>
         )}

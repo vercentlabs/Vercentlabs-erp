@@ -18,6 +18,7 @@ import {
   type FollowUp, type FollowUpOptions, type FollowUpRelatedType, type FollowUpType,
 } from "../api/follow-ups-api";
 import { ErrorBanner, TYPE_LABELS } from "../follow-up-format";
+import { whenLabel } from "@/features/crm/shared/when";
 
 const NONE = "none";
 const CUSTOM = "custom";
@@ -136,7 +137,7 @@ export function RescheduleFollowUpDialog({ isOpen, onOpenChange, followUp, onDon
   });
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Reschedule follow-up"
-      description={`Now ${followUp.scheduledDate}${followUp.scheduledTime ? ` ${followUp.scheduledTime}` : ""}. The old time stays in the history; the reminder moves with it.`}>
+      description={`Now ${whenLabel(followUp.scheduledDate, followUp.scheduledTime)}. The old time stays in the history; the reminder moves with it.`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <div className="grid gap-4 sm:grid-cols-2">

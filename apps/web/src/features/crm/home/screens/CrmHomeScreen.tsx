@@ -1,13 +1,14 @@
 "use client";
 
-// CRM Home answers one question: what needs my attention today? It is an
-// operational workspace, not a BI dashboard. Top to bottom: four headline
-// figures, the user's own agenda for today (the actual tasks and follow-ups,
-// not just counts) beside what is slipping, the deals closing soonest, this
-// month's lead flow, the open pipeline by stage, and what just happened.
-// Every figure and row opens the record or list behind it. A section the user
-// may not see (no permission) is left out.
-import type { ReactNode } from "react";
+// CRM Home answers one question: what do I do next? It is an operational
+// workspace, not a BI dashboard. Top to bottom: the user's own agenda for
+// today (each row can be completed, rescheduled or snoozed in place) beside
+// what is slipping; the four headline figures as a slim strip; the deals
+// closing soonest and this month's lead flow; the open pipeline by stage; and
+// what just happened. Every figure and row opens the record or list behind it.
+// A section the user may not see (no permission) is left out. With no records
+// yet, one "Start here" panel takes their place.
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -16,6 +17,9 @@ import {
 import { ErrorState, PageHeader } from "@vercentlabs/design-system";
 
 import { CrmCreateMenu } from "@/features/crm/shared/CrmCreateMenu";
+import { readableHistory } from "@/features/crm/shared/field-labels";
+import { WorkRowActions } from "@/features/crm/shared/ui/WorkRowActions";
+import { clockLabel } from "@/features/crm/shared/when";
 import { formatDate, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -48,11 +52,6 @@ function relativeTime(value: string) {
   return formatDate(value);
 }
 
-function clock(time: string) {
-  const [hour, minute] = time.split(":").map(Number);
-  return new Date(2000, 0, 1, hour, minute).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
-}
-
 const sum = (...values: Array<number | null>) => values.reduce<number>((total, value) => total + (value ?? 0), 0);
 
 export function CrmHomeScreen() {
@@ -82,14 +81,39 @@ function todayLine(today: string, home: CrmHome) {
   return `${today} · ${due} due today${overdue ? `, ${overdue} overdue` : ""}`;
 }
 
+const ymd = (date: Date) => date.toLocaleDateString("en-CA");
+// The last day of the "closing soon" window, counted from today.
+function closingBy(days: number) {
+  const until = new Date();
+  until.setDate(until.getDate() + days);
+  return ymd(until);
+}
+
 function HomeBody({ home }: { home: CrmHome }) {
+  const workspace = useWorkspaceContext();
   const money = (value: number | null, compact = false) => (value === null ? "" : formatMoney(home.baseCurrency, value, { compact }));
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString("en-CA");
+  const now = new Date();
+  const monthStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+  const monthEnd = ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0));
   const dueToday = home.sees.tasks || home.sees.followUps ? sum(home.myWork.tasksDueToday, home.myWork.followUpsToday) : null;
   const overdue = sum(home.myWork.overdueTasks, home.myWork.overdueFollowUps);
+  const dueTodayHref = home.sees.tasks ? "/crm/activities?tab=tasks&view=due_today" : "/crm/activities?tab=follow-ups&view=due_today";
+  // A company with nothing in its CRM yet sees one panel: where to start.
+  const empty = !home.agenda.length && !home.recentActivity.length && !home.closingSoon.length && !(home.totals.openLeads ?? 0) && !(home.totals.openOpportunities ?? 0)
+    && !(home.leadFlow?.newThisMonth ?? 0);
+  if (empty) return <StartHere admin={workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("crm.settings.manage")} />;
 
   return (
     <>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
+          {(home.sees.tasks || home.sees.followUps) && <TodayPanel home={home} dueTodayHref={dueTodayHref} />}
+        </div>
+        <div className="flex min-w-0 flex-col gap-6">
+          <AttentionPanel home={home} />
+        </div>
+      </div>
+
       <section aria-label="Headline figures" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {home.totals.openLeads !== null && (
           <Kpi icon={<UserPlus />} tone="brand" label="Open leads" value={home.totals.openLeads} href="/crm/leads?status=open"
@@ -100,23 +124,22 @@ function HomeBody({ home }: { home: CrmHome }) {
             caption={`${home.totals.openOpportunities ?? 0} open · ${money(home.totals.weightedPipelineValue, true)} weighted`} />
         )}
         {home.outcomes && (
+          // The figure counts this month's wins, so its list shows this month's wins too.
           <Kpi icon={<Trophy />} tone="success" label="Won this month" value={money(home.outcomes.wonValueThisMonth, true)} title={money(home.outcomes.wonValueThisMonth)}
-            href="/crm/opportunities?view=won"
+            href={`/crm/opportunities?view=won&closedFrom=${monthStart}&closedTo=${monthEnd}`}
             caption={`${home.outcomes.wonThisMonth} ${home.outcomes.wonThisMonth === 1 ? "deal" : "deals"}${home.outcomes.winRate !== null ? ` · ${home.outcomes.winRate}% win rate` : ""}`} />
         )}
         {dueToday !== null && (
-          <Kpi icon={<Clock />} tone={overdue ? "danger" : "warning"} label="Due today" value={dueToday} href={home.sees.tasks ? "/crm/activities?tab=tasks&view=due_today" : "/crm/activities?tab=follow-ups&view=due_today"}
+          <Kpi icon={<Clock />} tone={overdue ? "danger" : "warning"} label="Due today" value={dueToday} href={dueTodayHref}
             caption={overdue ? `${overdue} overdue` : "Nothing overdue"} captionTone={overdue ? "danger" : undefined} />
         )}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
-          {(home.sees.tasks || home.sees.followUps) && <TodayPanel home={home} />}
           {home.sees.opportunities && <ClosingSoonPanel home={home} money={money} />}
         </div>
         <div className="flex min-w-0 flex-col gap-6">
-          <AttentionPanel home={home} />
           {home.leadFlow && <LeadFlowPanel flow={home.leadFlow} monthStart={monthStart} />}
         </div>
       </div>
@@ -124,6 +147,30 @@ function HomeBody({ home }: { home: CrmHome }) {
       {home.sees.opportunities && <PipelinePanel home={home} money={money} />}
       <ActivityPanel home={home} />
     </>
+  );
+}
+
+function StartHere({ admin }: { admin: boolean }) {
+  const steps = [
+    { title: "Add or import your leads", description: "Type a lead in, or bring a list in from a file.", links: [{ label: "New lead", href: "/crm/leads/new" }, { label: "Import data", href: "/crm/data/import-export?type=leads" }] },
+    ...(admin ? [{ title: "Set up assignment", description: "Decide who gets each new lead.", links: [{ label: "Assignment", href: "/crm/settings/leads/assignment" }] }] : []),
+    { title: "Log your first activity", description: "Open a lead and log a call, a meeting or an email.", links: [{ label: "Leads", href: "/crm/leads" }] },
+  ];
+  return (
+    <Panel title="Start here" description="Your CRM is empty. Three steps get it going.">
+      <ol className="flex flex-col gap-3">
+        {steps.map((step, index) => (
+          <li key={step.title} className="flex items-start gap-3 rounded-[var(--radius-control)] bg-surface-muted p-3">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand" aria-hidden="true">{index + 1}</span>
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <p className="text-sm font-medium">{step.title}</p>
+              <p className="text-xs text-text-muted">{step.description}</p>
+              <div className="flex flex-wrap gap-3">{step.links.map((link) => <PanelLink key={link.href} href={link.href}>{link.label}</PanelLink>)}</div>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </Panel>
   );
 }
 
@@ -179,14 +226,16 @@ function Empty({ icon, title, description }: { icon: ReactNode; title: string; d
 
 const FOLLOW_UP_ICON: Record<string, ReactNode> = { call: <Phone />, email: <Mail />, meeting: <Users />, demo: <MonitorPlay /> };
 
-function TodayPanel({ home }: { home: CrmHome }) {
+function TodayPanel({ home, dueTodayHref }: { home: CrmHome; dueTodayHref: string }) {
+  const [message, setMessage] = useState<string | null>(null);
   const counts = [
     home.sees.tasks && `${sum(home.myWork.tasksDueToday)} ${home.myWork.tasksDueToday === 1 ? "task" : "tasks"}`,
     home.sees.followUps && `${sum(home.myWork.followUpsToday)} ${home.myWork.followUpsToday === 1 ? "follow-up" : "follow-ups"}`,
   ].filter(Boolean).join(" · ");
   return (
     <Panel title="Today" description={`${counts} due today, plus anything overdue`}
-      action={<div className="flex gap-3">{home.sees.tasks && <PanelLink href="/crm/activities?tab=tasks">Tasks</PanelLink>}{home.sees.followUps && <PanelLink href="/crm/activities?tab=follow-ups">Follow-ups</PanelLink>}</div>}>
+      action={<PanelLink href={dueTodayHref}>To-dos</PanelLink>}>
+      {message && <p role="status" className="text-sm text-text-secondary">{message}</p>}
       {home.agenda.length === 0 ? (
         <Empty icon={<CheckCircle2 />} title="You're all caught up" description="Nothing overdue and nothing due today." />
       ) : (
@@ -195,7 +244,7 @@ function TodayPanel({ home }: { home: CrmHome }) {
             const href = item.kind === "task" ? `/crm/tasks/${item.id}` : `/crm/follow-ups/${item.id}`;
             const icon = item.kind === "task" ? <CheckSquare /> : FOLLOW_UP_ICON[item.type ?? ""] ?? <Calendar />;
             return (
-              <li key={item.kind + item.id} className="flex items-center gap-3 py-2.5">
+              <li key={item.kind + item.id} className="group flex items-center gap-3 py-2.5">
                 <span className={`flex size-8 shrink-0 items-center justify-center rounded-full [&>svg]:size-4 ${item.isOverdue ? TONE_CHIP.danger : TONE_CHIP.brand}`} aria-hidden="true">{icon}</span>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <Link href={href} className="truncate text-sm font-medium hover:text-brand hover:underline">{item.title}</Link>
@@ -206,15 +255,17 @@ function TodayPanel({ home }: { home: CrmHome }) {
                 </div>
                 <span className={`shrink-0 text-right text-xs ${item.isOverdue ? "font-medium text-danger" : "text-text-secondary"}`}>
                   {item.isOverdue ? <span className="inline-flex items-center gap-1"><AlertTriangle className="size-3.5" aria-hidden="true" />{formatDate(item.dueAt)}</span>
-                    : item.dueTime ? clock(item.dueTime) : "Today"}
+                    : item.dueTime ? clockLabel(item.dueTime) : "Today"}
                 </span>
+                {/* Complete, Reschedule and Snooze in place: the agenda is the user's own, so a follow-up's reminder is theirs to snooze. */}
+                <WorkRowActions kind={item.kind} id={item.id} onMessage={setMessage} />
               </li>
             );
           })}
         </ul>
       )}
       {home.agendaTotal > home.agenda.length && (
-        <p className="text-xs text-text-muted">and {home.agendaTotal - home.agenda.length} more in your task and follow-up lists.</p>
+        <Link href={dueTodayHref} className="text-xs font-medium text-brand hover:underline">and {home.agendaTotal - home.agenda.length} more in To-dos</Link>
       )}
     </Panel>
   );
@@ -223,9 +274,9 @@ function TodayPanel({ home }: { home: CrmHome }) {
 function ClosingSoonPanel({ home, money }: { home: CrmHome; money: (value: number | null) => string }) {
   return (
     <Panel title="Closing soon" description={`Open deals due to close in the next ${home.needsAttention.closingSoonDays} days, or already past their date`}
-      action={<PanelLink href="/crm/opportunities?view=closing_this_month">All deals</PanelLink>}>
+      action={<PanelLink href={`/crm/opportunities?view=open&expectedCloseTo=${closingBy(home.needsAttention.closingSoonDays)}`}>All deals</PanelLink>}>
       {home.closingSoon.length === 0 ? (
-        <Empty icon={<CheckCircle2 />} title="No deals closing soon" description="Nothing is due to close in the next two weeks." />
+        <Empty icon={<CheckCircle2 />} title="No deals closing soon" description={`Nothing is due to close in the next ${home.needsAttention.closingSoonDays} days.`} />
       ) : (
         <ul className="flex flex-col divide-y divide-border">
           {home.closingSoon.map((deal) => (
@@ -281,8 +332,8 @@ function AttentionPanel({ home }: { home: CrmHome }) {
 function LeadFlowPanel({ flow, monthStart }: { flow: NonNullable<CrmHome["leadFlow"]>; monthStart: string }) {
   const steps = [
     { label: "New", value: flow.newThisMonth, href: `/crm/leads?createdFrom=${monthStart}` },
-    { label: "Qualified", value: flow.qualifiedThisMonth, href: "/crm/leads?status=qualified" },
-    { label: "Converted", value: flow.convertedThisMonth, href: "/crm/leads?status=converted" },
+    { label: "Qualified", value: flow.qualifiedThisMonth, href: `/crm/leads?view=all&qualifiedFrom=${monthStart}` },
+    { label: "Converted", value: flow.convertedThisMonth, href: `/crm/leads?view=all&convertedFrom=${monthStart}` },
   ];
   const top = Math.max(1, ...steps.map((step) => step.value));
   return (
@@ -350,7 +401,7 @@ function ActivityPanel({ home }: { home: CrmHome }) {
               <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
                 <p className="min-w-0 text-sm">
                   <Link href={`/crm/${entry.recordType === "lead" ? "leads" : "opportunities"}/${entry.recordId}`} className="font-medium hover:underline">{entry.recordName}</Link>
-                  <span className="text-text-secondary"> · {entry.summary}</span>
+                  <span className="text-text-secondary"> · {readableHistory(entry.summary)}</span>
                 </p>
                 <span className="shrink-0 text-xs text-text-muted">{[entry.actorName, relativeTime(entry.at)].filter(Boolean).join(" · ")}</span>
               </div>

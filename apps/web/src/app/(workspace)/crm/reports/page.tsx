@@ -1,7 +1,7 @@
 import { requireWorkspace } from "@/core/session";
 import { CrmReportsScreen } from "@/features/crm/reports/screens/CrmReportsScreen";
 
-export const metadata = { title: "CRM Reports" };
+export const metadata = { title: "Reports" };
 
 export default async function CrmReportsPage({ searchParams }: { searchParams: Promise<{ report?: string | string[] }> }) {
   await requireWorkspace();

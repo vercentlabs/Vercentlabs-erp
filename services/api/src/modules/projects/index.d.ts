@@ -1,4 +1,4 @@
-// Projects (0125).
+// Projects (0125, Customer Association 0126).
 type Client = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> };
 type Ctx = { organizationId: string; userId: string | null; permissions: string[]; roleSlugs: string[] };
 type Rec = Record<string, unknown>;
@@ -59,8 +59,38 @@ export declare function getProjectsOverview(client: Client, c: Ctx): Promise<any
 export declare function getProjectReport(client: Client, c: Ctx, kind?: string, filters?: Rec): Promise<any[]>;
 export declare function exportProjects(client: Client, c: Ctx, filters?: Rec): Promise<{ fileName: string; csv: string; count: number }>;
 export declare function getProjectOptions(client: Client, c: Ctx): Promise<any>;
-export declare function searchProjectCustomers(client: Client, c: Ctx, search?: string): Promise<any[]>;
+export declare function searchProjectCustomers(client: Client, c: Ctx, search?: string, options?: { includeCrmAccounts?: boolean }): Promise<any[]>;
 export declare function listProjectCustomerContacts(client: Client, c: Ctx, customerId: string): Promise<any[]>;
 export declare function searchLinkableRecords(client: Client, c: Ctx, projectId: string, type: string, search?: string): Promise<any[]>;
 export declare function notifyProjectAlerts(client: Client, c: Ctx): Promise<{ checked: number; sent: number }>;
 export declare function registerProjectWorkSource(source: (client: Client, c: Ctx, projectIds: string[], map: Map<string, Rec>) => Promise<void>): void;
+// Customer Association
+export declare const PROJECT_CONTACT_ROLES: Readonly<Record<string, string>>;
+export declare const PROJECT_CUSTOMER_REPORTS: readonly string[];
+export declare function searchProjectEligibleCustomers(client: Client, c: Ctx, filters?: { search?: string; includeCrmAccounts?: boolean }): Promise<any[]>;
+export declare function getProjectCustomer(client: Client, c: Ctx, projectId: string): Promise<any>;
+export declare function assignProjectCustomer(client: Client, c: Ctx, projectId: string, input: Rec): Promise<any>;
+export declare function resolveProjectCustomerMapping(client: Client, c: Ctx, projectId: string, input?: Rec): Promise<any>;
+export declare function listProjectCustomerContactsOnProject(client: Client, c: Ctx, projectId: string, options?: { includeRemoved?: boolean }): Promise<any>;
+export declare function listEligibleProjectContacts(client: Client, c: Ctx, projectId: string, search?: string): Promise<any[]>;
+export declare function addProjectCustomerContact(client: Client, c: Ctx, projectId: string, input: Rec): Promise<any>;
+export declare function updateProjectCustomerContact(client: Client, c: Ctx, projectId: string, rowId: string, input: Rec): Promise<any>;
+export declare function setProjectPrimaryContact(client: Client, c: Ctx, projectId: string, input: Rec): Promise<any>;
+export declare function removeProjectCustomerContact(client: Client, c: Ctx, projectId: string, rowId: string, input?: Rec): Promise<any>;
+export declare function replaceProjectCustomerContact(client: Client, c: Ctx, projectId: string, rowId: string, input: Rec): Promise<any>;
+export declare function listProjectSites(client: Client, c: Ctx, projectId: string, options?: { includeRemoved?: boolean }): Promise<any>;
+export declare function addProjectSite(client: Client, c: Ctx, projectId: string, input: Rec): Promise<any>;
+export declare function updateProjectSite(client: Client, c: Ctx, projectId: string, siteId: string, input: Rec): Promise<any>;
+export declare function removeProjectSite(client: Client, c: Ctx, projectId: string, siteId: string): Promise<any>;
+export declare function previewProjectCustomerChange(client: Client, c: Ctx, projectId: string, toCustomerId: string): Promise<any>;
+export declare function requestProjectCustomerChange(client: Client, c: Ctx, projectId: string, input: Rec): Promise<any>;
+export declare function decideProjectCustomerChange(client: Client, c: Ctx, projectId: string, requestId: string, input: Rec): Promise<any>;
+export declare function withdrawProjectCustomerChange(client: Client, c: Ctx, projectId: string, requestId: string): Promise<any>;
+export declare function clearProjectCustomerReview(client: Client, c: Ctx, projectId: string, input: Rec): Promise<any>;
+export declare function applyProjectCustomerMerge(client: Client, c: Ctx, duplicateId: string, survivorId: string): Promise<{ projects: number; links: number }>;
+export declare function applyProjectContactMerge(client: Client, c: Ctx, duplicateId: string, survivorId: string): Promise<{ rows: number }>;
+export declare function noteSalesOrderChangeForProjects(client: Client, c: Ctx, orderId: string, eventType: string, metadata?: Rec): Promise<{ projects: number }>;
+export declare function getCustomerProjects(client: Client, c: Ctx, customerId: string): Promise<any>;
+export declare function getCustomerAssociationHistory(client: Client, c: Ctx, projectId: string): Promise<any[]>;
+export declare function exportProjectCustomers(client: Client, c: Ctx, filters?: Rec): Promise<{ fileName: string; csv: string; count: number }>;
+export declare function getProjectCustomerReport(client: Client, c: Ctx, kind: string): Promise<any[]>;

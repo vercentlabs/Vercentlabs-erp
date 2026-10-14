@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 
 import { documentDiscountColumns, documentTaxColumns, lineTaxColumns } from "../index.js";
 import { asDatabaseDecimal } from "../money.js";
+import { noteSalesOrderChangeForProjects } from "../../projects/project-customer.js";
 import { OrderError, requireUuid, text } from "./constants.js";
 
 function stable(value) {
@@ -107,4 +108,6 @@ export async function recordOrderEvent(client, context, orderId, eventType, from
     `INSERT INTO tenant.sales_document_events (organization_id, entity_type, entity_id, event_type, from_status, to_status, metadata, actor_user_id, occurred_at)
      VALUES ($1, 'sales_order', $2, $3, $4, $5, $6::jsonb, $7, clock_timestamp())`,
     [context.organizationId, orderId, eventType, fromStatus, toStatus, JSON.stringify(metadata), context.userId ?? null]);
+  // A project delivering this order hears of a cancellation or an amendment (and is never changed by it).
+  await noteSalesOrderChangeForProjects(client, context, orderId, eventType, metadata);
 }

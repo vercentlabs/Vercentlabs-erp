@@ -3,11 +3,12 @@ import { Badge, StatusBadge } from "@vercentlabs/design-system";
 import { formatDate } from "@/shared/format/human";
 
 import type { FollowUp, FollowUpStatus, FollowUpType } from "./api/follow-ups-api";
+import { clockLabel } from "@/features/crm/shared/when";
 
 export const STATUS_LABELS: Record<FollowUpStatus, string> = { scheduled: "Scheduled", completed: "Completed", cancelled: "Cancelled" };
 const STATUS_TONE: Record<FollowUpStatus, "info" | "success" | "neutral"> = { scheduled: "info", completed: "success", cancelled: "neutral" };
 export const TYPE_LABELS: Record<FollowUpType, string> = { call: "Call", email: "Email", meeting: "Meeting", demo: "Demo", other: "Other" };
-export const RELATED_LABELS: Record<string, string> = { lead: "Lead", party: "Account", contact: "Contact", opportunity: "Opportunity" };
+export const RELATED_LABELS: Record<string, string> = { lead: "Lead", party: "Company", contact: "Contact", opportunity: "Deal" };
 
 export function FollowUpStatusBadge({ status }: { status: FollowUpStatus }) {
   return <StatusBadge tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</StatusBadge>;
@@ -16,7 +17,7 @@ export function FollowUpStatusBadge({ status }: { status: FollowUpStatus }) {
 // Overdue, today and upcoming come from the scheduled time, never from a stored status.
 export function FollowUpWhen({ followUp }: { followUp: Pick<FollowUp, "scheduledDate" | "scheduledTime" | "isOverdue" | "isDueToday"> }) {
   if (!followUp.scheduledDate) return <span className="text-text-muted">No date</span>;
-  const label = `${followUp.isDueToday ? "Today" : formatDate(followUp.scheduledDate)}${followUp.scheduledTime ? ` ${followUp.scheduledTime}` : ""}`;
+  const label = `${followUp.isDueToday ? "Today" : formatDate(followUp.scheduledDate)}${followUp.scheduledTime ? `, ${clockLabel(followUp.scheduledTime)}` : ""}`;
   return (
     <span className={`inline-flex flex-wrap items-center gap-1.5 whitespace-nowrap ${followUp.isOverdue ? "font-medium text-danger" : followUp.isDueToday ? "font-medium" : ""}`}>
       {label}

@@ -267,16 +267,16 @@ export function assertOpen(row, action = "changed") {
 // ------------------------------------------------------------------ list
 
 export const OPPORTUNITY_VIEWS = Object.freeze([
-  { key: "all", label: "All Opportunities" },
-  { key: "mine", label: "My Opportunities" },
-  { key: "team", label: "Team Opportunities" },
-  { key: "open", label: "Open Opportunities" },
-  { key: "closing_this_month", label: "Closing This Month" },
-  { key: "overdue", label: "Overdue Opportunities" },
-  { key: "won", label: "Won Opportunities" },
-  { key: "lost", label: "Lost Opportunities" },
-  { key: "recent", label: "Recently Created" },
-  { key: "stale", label: "Stale Opportunities" },
+  { key: "all", label: "All deals" },
+  { key: "mine", label: "My deals" },
+  { key: "team", label: "Team deals" },
+  { key: "open", label: "Open deals" },
+  { key: "closing_this_month", label: "Closing this month" },
+  { key: "overdue", label: "Overdue" },
+  { key: "won", label: "Won" },
+  { key: "lost", label: "Lost" },
+  { key: "recent", label: "Recently created" },
+  { key: "stale", label: "Stale" },
   { key: "archived", label: "Archived" },
 ]);
 

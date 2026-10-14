@@ -53,11 +53,11 @@ export function StaleBadge({ lead }: { lead: Pick<Lead, "isStale" | "daysSinceAc
 }
 
 export function RatingBadge({ rating }: { rating: Lead["rating"] }) {
-  return <Badge tone={rating === "hot" ? "danger" : rating === "warm" ? "warning" : "neutral"}>{rating}</Badge>;
+  return <Badge tone={rating === "hot" ? "danger" : rating === "warm" ? "warning" : "neutral"}>{RATING_OPTIONS.find((entry) => entry.value === rating)?.label ?? rating}</Badge>;
 }
 
 export function PriorityBadge({ priority }: { priority: Lead["priority"] }) {
-  return <Badge tone={priority === "high" ? "danger" : priority === "medium" ? "info" : "neutral"}>{priority}</Badge>;
+  return <Badge tone={priority === "high" ? "danger" : priority === "medium" ? "warning" : "neutral"}>{PRIORITY_OPTIONS.find((entry) => entry.value === priority)?.label ?? priority}</Badge>;
 }
 
 // "Due today" / "Overdue by 2 days" with the exact time beneath it.

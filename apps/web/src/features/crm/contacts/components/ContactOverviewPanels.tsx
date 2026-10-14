@@ -23,7 +23,7 @@ export function ContactSummaryCards({ contactId }: { contactId: string }) {
   if (query.isLoading) return <LoadingState label="Loading summary" rows={2} />;
   if (!summary) return <ErrorBanner message="Could not load the contact summary." />;
   const cards: Array<{ label: string; value: React.ReactNode }> = [
-    { label: "Open opportunities", value: summary.openOpportunities },
+    { label: "Open deals", value: summary.openOpportunities },
     { label: "Open tasks and follow-ups", value: summary.openTasks },
     ...(summary.openQuotations !== undefined ? [{ label: "Open quotations", value: summary.openQuotations }] : []),
     ...(summary.openTickets !== undefined ? [{ label: "Open support tickets", value: summary.openTickets }] : []),
@@ -42,7 +42,7 @@ export function ContactSummaryCards({ contactId }: { contactId: string }) {
 }
 
 const LIST_COPY: Record<ContactRelatedList, { title: string; empty: string }> = {
-  opportunities: { title: "Opportunities", empty: "This person is not on any opportunity yet." },
+  opportunities: { title: "Deals", empty: "This person is not on any deal yet." },
   quotations: { title: "Quotations", empty: "No quotations are addressed to this person." },
   orders: { title: "Sales orders", empty: "No sales orders name this person." },
   projects: { title: "Projects", empty: "No projects for this person's company." },

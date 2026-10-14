@@ -1,7 +1,7 @@
 "use client";
 
 // One project's workspace: who leads it, where it stands, whether it is on track (with the reasons) and the next step; then its team, its
-// documents and notes, the records other modules hold for it, and its history. The toolbar offers only what the project's state and the
+// documents and notes, the records other modules hold for it, its customer and the customer's people (a customer project), and its history. The toolbar offers only what the project's state and the
 // person's access allow; every action is checked again on the server.
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -20,9 +20,11 @@ import {
   HEALTH_TONE, PRIORITY_LABEL, PRIORITY_TONE, PROJECTS_BASE, STATUS_TONE, dateLabel, errorDetails, errorMessage, errorStatus, getActivity, getCancellationReview, getCompletionCheck,
   getProject, getStatusHistory, getSummary, newKey, projectAction, type Check, type Project,
 } from "../api/projects-api";
+import { CustomerTab } from "../components/CustomerTab";
 import { DocumentsTab, RelatedTab, TeamTab } from "../components/ProjectTabs";
 
-const TABS = [{ id: "overview", label: "Overview" }, { id: "team", label: "Team" }, { id: "documents", label: "Documents" }, { id: "related", label: "Related" }, { id: "activity", label: "Activity" }];
+const TABS = [{ id: "overview", label: "Overview" }, { id: "customer", label: "Customer & Contacts" }, { id: "team", label: "Team" }, { id: "documents", label: "Documents" },
+  { id: "related", label: "Related" }, { id: "activity", label: "Activity" }];
 const CHECK_TONE = { PASS: "success", FAIL: "danger", WARN: "warning", NOT_TRACKED: "neutral", TO_CONFIRM: "info" } as const;
 const CHECK_LABEL = { PASS: "Done", FAIL: "Outstanding", WARN: "Note", NOT_TRACKED: "Not tracked yet", TO_CONFIRM: "Confirm at completion" } as const;
 
@@ -45,6 +47,8 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
   }
   const project = query.data;
   const can = project.can;
+  // The Customer & Contacts tab belongs to a customer project.
+  const tabs = TABS.filter((row) => row.id !== "customer" || project.classification === "CUSTOMER");
   const refresh = async (text: string, tone: "success" | "warning" = "success") => { await queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "projects") }); setMessage({ tone, text }); };
   const act = (action: string, input: Record<string, unknown>, text: string) => projectAction(project.id, action, { expectedVersion: project.version, idempotencyKey: newKey(), ...input })
     .then(async (result) => { await refresh(result.approval === "PENDING" ? "Sent for approval: someone who approves projects decides." : text); return result; });
@@ -102,7 +106,8 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
             </span>
           ),
           fields: [
-            { label: project.classification === "CUSTOMER" ? "Customer" : "Kind", value: project.classification === "CUSTOMER" ? project.customer ?? "Not set" : "Internal" },
+            { label: project.classification === "CUSTOMER" ? "Customer" : "Kind", value: project.classification === "CUSTOMER"
+              ? (project.customer ? `${project.customer}${project.crmAccountId ? " (CRM account, not yet a Customer)" : project.customerInactive ? " (inactive)" : ""}` : "Not set") : "Internal" },
             { label: "Project Manager", value: project.manager ? `${project.manager}${project.managerActive ? "" : " (inactive)"}` : "Not assigned" },
             { label: "Target", value: dateLabel(project.targetEndDate) },
             { label: "Progress", value: project.progress.percent === null ? project.progress.label : `${project.progress.percent}%` },
@@ -126,14 +131,16 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
             {project.approval.status === "REJECTED" && project.status === "DRAFT" && <Notice tone="warning">{`Not approved: ${project.approval.note ?? ""} Change the project and request approval again.`}</Notice>}
             {!project.managerActive && project.status !== "COMPLETED" && project.status !== "CANCELLED" && <Notice tone="danger">The Project Manager is no longer active. Assign a replacement so the project stays accountable.</Notice>}
             {project.activation && !project.activation.ready && <Notice tone="neutral">{`Before activation: ${project.activation.problems.map((row) => row.message).join(" ")}`}</Notice>}
+            {project.customerReview && <Notice tone="warning">{`Commercial review needed: ${project.customerReview.reason}`} <button type="button" className="text-brand underline" onClick={() => selectTab("customer")}>Review</button></Notice>}
           </div>
         }
       >
         <Tabs selectedKey={tab} onSelectionChange={(key) => selectTab(String(key))}>
-          <TabList aria-label="Project sections">{TABS.map((row) => <Tab key={row.id} id={row.id}>{row.label}</Tab>)}</TabList>
+          <TabList aria-label="Project sections">{tabs.map((row) => <Tab key={row.id} id={row.id}>{row.label}</Tab>)}</TabList>
         </Tabs>
         <div className="mt-4">
           {tab === "overview" && <OverviewTab project={project} onTab={selectTab} />}
+          {tab === "customer" && project.classification === "CUSTOMER" && <CustomerTab project={project} onChanged={refresh} onTab={selectTab} />}
           {tab === "team" && <TeamTab project={project} onChanged={refresh} />}
           {tab === "documents" && <DocumentsTab project={project} />}
           {tab === "related" && <RelatedTab project={project} />}
@@ -176,7 +183,7 @@ function OverviewTab({ project, onTab }: { project: Project; onTab: (tab: string
       {summary.data && <Notice tone="info">{`Next: ${summary.data.next}`}</Notice>}
       <FactList title="Details" items={[
         ["Code", project.code], ["Type", project.type ?? "Not set"], ["Kind", project.classification === "CUSTOMER" ? "Customer project" : "Internal project"],
-        ["Customer", project.customer ? `${project.customer}${project.customerNumber ? ` · ${project.customerNumber}` : ""}` : "—"], ["Customer contact", project.contact ? `${project.contact.name}${project.contact.email ? ` · ${project.contact.email}` : ""}` : "—"],
+        ["Customer", project.customer ? `${project.customer}${project.customerNumber ? ` · ${project.customerNumber}` : ""}` : "—"], ["Primary contact", project.contact ? `${project.contact.name}${project.contact.email ? ` · ${project.contact.email}` : ""}` : "—"],
         ["Project Manager", project.manager ?? "Not assigned"], ["Planned start", dateLabel(project.plannedStartDate)], ["Target end", dateLabel(project.targetEndDate)],
         ["Actual start", dateLabel(project.actualStartDate)], ["Completed", project.completedAt ? `${dateLabel(project.completedAt)}${project.completedBy ? ` by ${project.completedBy}` : ""}` : "—"],
         ["Priority", PRIORITY_LABEL[project.priority]], ["Tags", project.tags.length ? project.tags.join(", ") : "—"],

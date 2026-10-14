@@ -1,9 +1,10 @@
 import { requireWorkspace } from "@/core/session";
-import { AccountReportScreen } from "@/features/crm/accounts/screens/AccountReportScreen";
+import { CrmReportsScreen } from "@/features/crm/reports/screens/CrmReportsScreen";
 
-export const metadata = { title: "Accounts report" };
+export const metadata = { title: "Reports" };
 
+// The companies report is the Companies tab of Insights → Reports; its old address opens that tab.
 export default async function AccountReportPage() {
   await requireWorkspace();
-  return <AccountReportScreen />;
+  return <CrmReportsScreen report="companies" />;
 }

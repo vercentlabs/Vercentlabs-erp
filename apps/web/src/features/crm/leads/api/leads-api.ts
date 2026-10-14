@@ -159,6 +159,10 @@ export type LeadListFilters = {
   teamId?: string;
   sourceId?: string;
   createdFrom?: string;
+  qualifiedFrom?: string;
+  qualifiedTo?: string;
+  convertedFrom?: string;
+  convertedTo?: string;
   createdTo?: string;
   qualificationStatus?: string;
   disqualificationReason?: string;

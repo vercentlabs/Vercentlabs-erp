@@ -59,7 +59,7 @@ export function RelatedFollowUpsPanel({ related, canCreate = true, onChanged }: 
             <span className="font-medium">{TYPE_LABELS[next.type]} · <FollowUpWhen followUp={next} /></span>
             <span className="text-text-secondary">{[next.subject, next.contactName, next.assignedName].filter(Boolean).join(" · ")}</span>
           </div>
-          {can?.complete && <Button variant="primary" size="compact" onPress={() => setAction({ kind: "complete", followUp: next })}>Complete</Button>}
+          {can?.complete && <Button variant="secondary" size="compact" onPress={() => setAction({ kind: "complete", followUp: next })}>Complete</Button>}
         </div>
       ) : !query.isLoading && <p className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-4 py-3 text-sm">No follow-up scheduled.</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">

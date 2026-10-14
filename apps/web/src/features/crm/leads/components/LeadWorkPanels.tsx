@@ -3,7 +3,7 @@
 // The work done and planned on a lead: logged activities, tasks and
 // follow-ups. All three read one list (the lead's activities) and write
 // through the lead, task and follow-up operations.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Dialog, EmptyState, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
@@ -18,8 +18,6 @@ import { errorMessage, listLeadActivities, logLeadActivity, type LeadOptions } f
 import { ErrorBanner } from "../lead-format";
 import { LIVE_LEAD_QUERY } from "../live-query";
 
-const FOLLOW_UP_TYPE_LABELS: Record<string, string> = { call: "Call", email: "Email", meeting: "Meeting", task: "Task", other: "Other" };
-const NO_NEXT_ACTION = "none";
 
 type PanelProps = { leadId: string; options: LeadOptions; canEdit: boolean };
 
@@ -70,7 +68,7 @@ export function LeadActivitiesPanel({ leadId, options, canEdit }: PanelProps) {
     <>
       <PanelShell
         title="Activities"
-        action={canEdit && <Button variant="primary" size="compact" onPress={() => setLogging(true)}>Log activity</Button>}
+        action={canEdit && <Button variant="secondary" size="compact" onPress={() => setLogging(true)}>Log activity</Button>}
         query={query}
         isEmpty={logged.length === 0}
         emptyTitle="No activities logged"
@@ -99,8 +97,8 @@ export function LeadActivitiesPanel({ leadId, options, canEdit }: PanelProps) {
 // never moves the stage by itself.
 const KEEP_STAGE = "__keep__";
 
-export function LogActivityDialog({ isOpen, onOpenChange, leadId, options, onDone, currentStage }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; leadId: string; options: LeadOptions; onDone: () => void; currentStage?: string;
+export function LogActivityDialog({ isOpen, onOpenChange, leadId, options, onDone, currentStage , onScheduleNext }: {
+  isOpen: boolean; onOpenChange: (open: boolean) => void; leadId: string; options: LeadOptions; onDone: () => void; currentStage?: string; onScheduleNext?: () => void;
 }) {
   const [stage, setStage] = useState(KEEP_STAGE);
   const [type, setType] = useState("call");
@@ -108,24 +106,20 @@ export function LogActivityDialog({ isOpen, onOpenChange, leadId, options, onDon
   const [outcome, setOutcome] = useState("");
   const [notes, setNotes] = useState("");
   const [occurredAt, setOccurredAt] = useState("");
-  const [nextType, setNextType] = useState(NO_NEXT_ACTION);
-  const [nextDueAt, setNextDueAt] = useState("");
-  const [nextNotes, setNextNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const thenSchedule = useRef(false);
 
   const reset = () => {
-    setSubject(""); setOutcome(""); setNotes(""); setOccurredAt(""); setNextType(NO_NEXT_ACTION); setNextDueAt(""); setNextNotes(""); setStage(KEEP_STAGE); setError(null);
+    setSubject(""); setOutcome(""); setNotes(""); setOccurredAt(""); setStage(KEEP_STAGE); setError(null);
   };
   const mutation = useMutation({
     mutationFn: () => logLeadActivity(leadId, {
       type, subject, outcome, notes, occurredAt: occurredAt || undefined,
       ...(stage !== KEEP_STAGE ? { stage } : {}),
-      ...(nextType !== NO_NEXT_ACTION ? { nextAction: { type: nextType, dueAt: nextDueAt, notes: nextNotes } } : {}),
     }),
-    onSuccess: () => { onDone(); reset(); onOpenChange(false); },
+    onSuccess: () => { onDone(); reset(); onOpenChange(false); if (thenSchedule.current) onScheduleNext?.(); },
     onError: (failure) => setError(errorMessage(failure)),
   });
-  const nextActionIncomplete = nextType !== NO_NEXT_ACTION && !nextDueAt;
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Log activity" description="Record something that has already happened." size="lg">
@@ -143,19 +137,10 @@ export function LogActivityDialog({ isOpen, onOpenChange, leadId, options, onDon
           <Select label="Update lead stage" description="Optional. For example, move to Contacted once you have spoken to them." selectedKey={stage} onSelectionChange={(key) => setStage(String(key))}
             options={[{ value: KEEP_STAGE, label: "Keep the current stage" }, ...options.stages.filter((entry) => entry.code !== currentStage).map((entry) => ({ value: entry.code, label: `Move to ${entry.label}` }))]} />
         )}
-        <div className="flex flex-col gap-4 rounded-[var(--radius-control)] border border-border p-3">
-          <Select label="Next action" selectedKey={nextType} onSelectionChange={(key) => setNextType(String(key))}
-            options={[{ value: NO_NEXT_ACTION, label: "None" }, ...options.followUpTypes.map((entry) => ({ value: entry, label: `Follow-up: ${FOLLOW_UP_TYPE_LABELS[entry] ?? entry}` }))]} />
-          {nextType !== NO_NEXT_ACTION && (
-            <>
-              <DateTimeInput label="Follow-up date and time" isRequired value={nextDueAt} onChange={setNextDueAt} />
-              <TextField label="Follow-up notes" value={nextNotes} onChange={setNextNotes} />
-            </>
-          )}
-        </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={nextActionIncomplete}>Log activity</Button>
+          {onScheduleNext && <Button variant="secondary" onPress={() => { thenSchedule.current = true; mutation.mutate(); }} isLoading={mutation.isPending}>Log and schedule next</Button>}
+          <Button variant="primary" onPress={() => { thenSchedule.current = false; mutation.mutate(); }} isLoading={mutation.isPending}>Log activity</Button>
         </div>
       </div>
     </Dialog>

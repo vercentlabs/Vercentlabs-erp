@@ -75,7 +75,7 @@ export function AssignContactsDialog({ isOpen, onOpenChange, contactIds, options
 }
 
 const STATUS_COPY: Record<ContactStatus, { title: string; description: string; confirm: string }> = {
-  inactive: { title: "Deactivate", description: "An inactive contact keeps all their history — activities, quotations, opportunities and tickets — but is marked as no longer in use.", confirm: "Deactivate" },
+  inactive: { title: "Deactivate", description: "An inactive contact keeps all their history — activities, quotations, deals and tickets — but is marked as no longer in use.", confirm: "Deactivate" },
   active: { title: "Reactivate", description: "The contact becomes active again.", confirm: "Reactivate" },
   archived: { title: "Archive", description: "An archived contact is hidden from the working lists and read-only until reactivated. Nothing is deleted.", confirm: "Archive" },
 };

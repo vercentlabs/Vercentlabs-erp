@@ -10,4 +10,4 @@ export { DEFAULT_SALES_STAGES, DEFAULT_STAGE_CODES, ensureDefaultSalesPipeline }
 export {
   createSalesStage, deactivateSalesStage, listSalesStages, reorderSalesStages, setStageDefaultProbability, updateSalesStage,
 } from "./definitions.js";
-export { stageEntryBlockers, stageEntryWarnings, suggestedStageActions } from "./rules.js";
+export { stageEntryBlockers, stageEntryWarnings, stageRequirements, suggestedStageActions } from "./rules.js";

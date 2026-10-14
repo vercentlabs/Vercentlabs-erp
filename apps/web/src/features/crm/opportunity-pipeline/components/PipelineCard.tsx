@@ -1,25 +1,25 @@
 "use client";
 
-// One opportunity on the board: what a salesperson needs to decide what to
-// do next, and the actions that do it. Editing the record itself happens on
-// the opportunity page.
+// One deal on the board: name, company, value, close date (red once past), owner initials and days in the stage — and its actions. A deal
+// moves three ways, all through the same stage change: drag the card, choose Move to in its "…" menu, or focus it and press ← / →.
+import type { KeyboardEvent } from "react";
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
-import { Badge, Button, Menu, MenuItem, MenuTrigger } from "@vercentlabs/design-system";
+import { Badge, Button, Menu, MenuItem, MenuSection, MenuTrigger } from "@vercentlabs/design-system";
 
 import type { Opportunity, OpportunityCapabilities } from "@/features/crm/opportunities/api/opportunities-api";
-import { OpportunityStatusBadge, PriorityBadge, days } from "@/features/crm/opportunities/opportunity-format";
-import { formatDate, formatMoney, humanize } from "@/shared/format/human";
+import { OpportunityStatusBadge, days } from "@/features/crm/opportunities/opportunity-format";
+import { formatDate, formatMoney } from "@/shared/format/human";
 
 export type CardAction = "quickEdit" | "task" | "followUp" | "activity" | "quotation" | "won" | "lost";
 
-function shortDate(value: string | null) {
-  return value ? formatDate(value) : "";
-}
+const initials = (name: string | null) => (name ?? "").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join("") || "–";
 
-export function PipelineCard({ card, baseCurrency, can, canDrag, isDragging, onDragStart, onDragEnd, onAction }: {
+export function PipelineCard({ card, baseCurrency, can, canDrag, isDragging, moveTargets, onDragStart, onDragEnd, onAction, onMove, onStep }: {
   card: Opportunity; baseCurrency: string; can: OpportunityCapabilities; canDrag: boolean; isDragging: boolean;
-  onDragStart: () => void; onDragEnd: () => void; onAction: (action: CardAction) => void;
+  // The other stages this card can move to (empty when it cannot move).
+  moveTargets: Array<{ id: string; name: string }>;
+  onDragStart: () => void; onDragEnd: () => void; onAction: (action: CardAction) => void; onMove: (stageId: string) => void; onStep: (direction: -1 | 1) => void;
 }) {
   const open = card.status === "open";
   const currency = card.currencyCode ?? baseCurrency;
@@ -28,66 +28,49 @@ export function PipelineCard({ card, baseCurrency, can, canDrag, isDragging, onD
     { id: "task", label: "Add task", show: open && can.edit },
     { id: "followUp", label: "Schedule follow-up", show: open && can.edit },
     { id: "activity", label: "Log activity", show: can.edit },
-    { id: "quotation", label: "Create quotation", show: open && can.createQuotation },
+    { id: "quotation", label: "Create quotation", show: open && can.quoteInSales },
     { id: "won", label: "Mark won", show: open && can.markWon },
     { id: "lost", label: "Mark lost", show: open && can.markLost },
   ].filter((entry) => entry.show);
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget || !canDrag) return;
+    if (event.key === "ArrowLeft") { event.preventDefault(); onStep(-1); }
+    if (event.key === "ArrowRight") { event.preventDefault(); onStep(1); }
+  };
 
   return (
-    <article draggable={canDrag} onDragStart={onDragStart} onDragEnd={onDragEnd}
-      className={`flex flex-col gap-1.5 rounded-[var(--radius-control)] border bg-surface p-2.5 text-sm shadow-sm ${card.isOverdue ? "border-danger-emphasis/40" : "border-border"} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${isDragging ? "opacity-50" : ""}`}>
+    <article data-card-id={card.id} draggable={canDrag} onDragStart={onDragStart} onDragEnd={onDragEnd} tabIndex={canDrag ? 0 : undefined} onKeyDown={onKeyDown}
+      aria-label={canDrag ? `${card.name}. Press left or right arrow to move it to the previous or next stage.` : card.name}
+      className={`flex flex-col gap-1 rounded-[var(--radius-control)] border border-border bg-surface p-2.5 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${isDragging ? "opacity-50" : ""}`}>
       <div className="flex items-start justify-between gap-1">
         <Link href={`/crm/opportunities/${card.id}`} className="min-w-0 font-medium text-text underline-offset-2 hover:underline">{card.name}</Link>
-        {actions.length > 0 && (
+        {(actions.length > 0 || moveTargets.length > 0) && (
           <MenuTrigger>
             <Button variant="ghost" size="compact" aria-label={`Actions for ${card.name}`}><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
-            <Menu onAction={(id) => onAction(String(id) as CardAction)}>
-              {actions.map((entry) => <MenuItem key={entry.id} id={entry.id}>{entry.label}</MenuItem>)}
+            <Menu onAction={(id) => { const key = String(id); if (key.startsWith("move:")) onMove(key.slice(5)); else onAction(key as CardAction); }}>
+              <MenuSection>{actions.map((entry) => <MenuItem key={entry.id} id={entry.id}>{entry.label}</MenuItem>)}</MenuSection>
+              {moveTargets.length > 0 && (
+                <MenuSection title="Move to">{moveTargets.map((stage) => <MenuItem key={stage.id} id={`move:${stage.id}`}>{stage.name}</MenuItem>)}</MenuSection>
+              )}
             </Menu>
           </MenuTrigger>
         )}
       </div>
-      <span className="text-xs text-text-secondary">{[card.accountName ?? "No account", card.contactName].filter(Boolean).join(" · ")}</span>
+      <span className="truncate text-xs text-text-secondary">{card.accountName ?? "No company"}</span>
       <span className="flex items-baseline justify-between gap-2">
         <span className="font-semibold tabular-nums">{formatMoney(currency, open ? card.amount : card.wonAmount ?? card.amount)}</span>
-        <span className="text-xs text-text-secondary">{card.probability}%{card.probabilityOverridden && open ? " (set)" : ""}</span>
+        <span className={`text-xs ${open && card.isOverdue ? "font-semibold text-danger" : "text-text-secondary"}`}>
+          {open ? (card.expectedCloseDate ? formatDate(card.expectedCloseDate) : "No close date") : `Closed ${formatDate(card.actualCloseDate)}`}
+        </span>
       </span>
-      <span className="text-xs text-text-secondary">
-        {card.ownerName ?? "Unassigned"}
-        {open
-          ? card.expectedCloseDate ? <> · Close <span className={card.isOverdue ? "font-semibold text-danger" : card.isClosingSoon ? "font-semibold text-warning" : ""}>{shortDate(card.expectedCloseDate)}</span></> : " · No close date"
-          : ` · Closed ${shortDate(card.actualCloseDate)}`}
-      </span>
-      {open && (
-        <span className={`text-xs ${card.hasNoNextActivity && !card.nextStep ? "font-medium text-warning" : "text-text-secondary"}`}>
-          {card.nextActivity
-            ? <>Next: {card.nextActivity.subject}{card.nextActivity.dueAt ? ` · ${shortDate(card.nextActivity.dueAt)}` : ""}</>
-            : card.nextStep ? <>Next step: {card.nextStep}</> : "No next activity"}
+      <span className="flex items-center justify-between gap-2 text-xs text-text-muted">
+        <span title={card.ownerName ?? "Unassigned"} className="flex size-6 items-center justify-center rounded-full bg-surface-muted text-[0.65rem] font-semibold text-text-secondary">{initials(card.ownerName)}</span>
+        <span className="flex flex-wrap items-center justify-end gap-1">
+          {!open && <OpportunityStatusBadge status={card.status} />}
+          {card.isStale && <Badge tone="warning">Stale</Badge>}
+          {card.hasAcceptedQuotation && open && <Badge tone="success">Quote accepted</Badge>}
+          {open && <span>{days(card.stageAgeDays)} in stage</span>}
         </span>
-      )}
-      {open && (
-        <span className={`text-xs ${card.nextFollowUpAt ? "text-text-secondary" : "text-warning"}`}>
-          {card.nextFollowUpAt ? <>Next follow-up: {shortDate(card.nextFollowUpAt)}</> : "No next follow-up"}
-        </span>
-      )}
-      {card.quotationCount > 0 && (
-        <span className="text-xs text-text-secondary">
-          {card.quotationCount} {card.quotationCount === 1 ? "quotation" : "quotations"}
-          {card.latestQuotationNumber ? ` · Latest ${card.latestQuotationNumber}` : ""}
-          {card.latestQuotationTotal !== null ? ` · ${formatMoney(card.latestQuotationCurrency ?? currency, card.latestQuotationTotal)}` : ""}
-          {card.latestQuotationStatus && !card.hasAcceptedQuotation ? ` · ${humanize(card.latestQuotationStatus)}` : ""}
-        </span>
-      )}
-      <span className="flex flex-wrap items-center gap-1">
-        {!open && <OpportunityStatusBadge status={card.status} />}
-        {card.priority !== "medium" && <PriorityBadge priority={card.priority} />}
-        {card.isOverdue && <Badge tone="danger">Overdue</Badge>}
-        {card.isClosingSoon && <Badge tone="warning">Closing soon</Badge>}
-        {card.isStale && <Badge tone="warning">Stale · {days(card.daysSinceActivity)}</Badge>}
-        {open && card.hasNoNextActivity && card.nextStep && <Badge tone="warning">No next activity</Badge>}
-        {card.hasAcceptedQuotation && open && <Badge tone="success">Quotation accepted</Badge>}
-        {open && <span className="text-xs text-text-muted">{days(card.stageAgeDays)} in stage</span>}
-        {card.status === "lost" && card.lostReasonName && <span className="text-xs text-text-muted">{card.lostReasonName}</span>}
       </span>
     </article>
   );

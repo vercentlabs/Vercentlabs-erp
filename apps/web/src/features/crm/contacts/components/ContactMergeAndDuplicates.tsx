@@ -52,7 +52,7 @@ export function MergeContactsDialog({ keep, isOpen, onOpenChange, initialDuplica
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`Merge a duplicate into ${keep.displayName}`}
-      description="Company links, opportunities, activities, notes, files, quotations, orders and tickets of the duplicate move to this contact. The duplicate is archived, not deleted." size="lg">
+      description="Company links, deals, activities, notes, files, quotations, orders and tickets of the duplicate move to this contact. The duplicate is archived, not deleted." size="lg">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <ContactPicker label="Duplicate contact" value={duplicateId} excludeId={keep.id} onChange={(id) => { setDuplicateId(id); setChoices({}); setError(null); }} />

@@ -1,7 +1,7 @@
 "use client";
 
-// Opportunity Close Reasons: the won reasons and the lost reasons, kept
-// apart. Administrators add, rename, reorder, activate and deactivate them
+// Won and lost reasons: the won reasons and the lost reasons, kept apart
+// (side by side on a wide screen, as tabs on a narrow one). Administrators add, rename, reorder, activate and deactivate them
 // and set each reason's rules. A reason that was used is deactivated, never
 // deleted, so closed opportunities keep showing it.
 import { useState } from "react";
@@ -17,6 +17,7 @@ import {
   CLOSE_REASON_CATEGORIES, createCloseReason, deleteCloseReason, errorMessage, listCloseReasons, reorderCloseReasons, setCloseReasonActive, updateCloseReason,
   type CloseOutcome, type CloseReason, type CloseReasonInput,
 } from "../api/close-reasons-api";
+import { SetupBackLink } from "@/features/crm/settings/screens/SetupBackLink";
 
 export function CloseReasonsSettingsScreen() {
   const workspace = useWorkspaceContext();
@@ -24,15 +25,22 @@ export function CloseReasonsSettingsScreen() {
   if (!canManage) return <PermissionState title="You cannot manage won and lost reasons" description="Ask a CRM administrator for access." />;
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Opportunity Close Reasons" description="Why deals are won and lost. Status says what happened; the reason says why." />
-      <Tabs defaultSelectedKey="won">
-        <TabList aria-label="Reason kind">
-          <Tab id="won">Won Reasons</Tab>
-          <Tab id="lost">Lost Reasons</Tab>
-        </TabList>
-        <TabPanel id="won"><ReasonList outcome="won" /></TabPanel>
-        <TabPanel id="lost"><ReasonList outcome="lost" /></TabPanel>
-      </Tabs>
+      <SetupBackLink />
+      <PageHeader title="Won and lost reasons" description="Why deals are won and lost. Status says what happened; the reason says why." />
+      <div className="hidden gap-6 xl:grid xl:grid-cols-2">
+        <div><h2 className="text-base font-semibold">Won reasons</h2><ReasonList outcome="won" /></div>
+        <div><h2 className="text-base font-semibold">Lost reasons</h2><ReasonList outcome="lost" /></div>
+      </div>
+      <div className="xl:hidden">
+        <Tabs defaultSelectedKey="won">
+          <TabList aria-label="Reason kind">
+            <Tab id="won">Won reasons</Tab>
+            <Tab id="lost">Lost reasons</Tab>
+          </TabList>
+          <TabPanel id="won"><ReasonList outcome="won" /></TabPanel>
+          <TabPanel id="lost"><ReasonList outcome="lost" /></TabPanel>
+        </Tabs>
+      </div>
     </div>
   );
 }
@@ -65,8 +73,8 @@ function ReasonList({ outcome }: { outcome: CloseOutcome }) {
   return (
     <section className="flex flex-col gap-3 pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-text-secondary">{outcome === "won" ? "Shown when marking an opportunity won." : "Shown when marking an opportunity lost."} Keep the list short.</p>
-        <Button variant="primary" size="compact" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />Add reason</Button>
+        <p className="text-sm text-text-secondary">{outcome === "won" ? "Shown when marking a deal won." : "Shown when marking a deal lost."} Keep the list short.</p>
+        <Button variant="secondary" size="compact" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />Add reason</Button>
       </div>
       {error && <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
       {query.isLoading ? <LoadingState label="Loading reasons" rows={4} /> : reasons.length === 0 ? <EmptyState title="No reasons yet" /> : (
@@ -120,7 +128,7 @@ function ReasonDialog({ outcome, reason, onClose, onSaved }: { outcome: CloseOut
   const lost = outcome === "lost";
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={reason ? "Edit reason" : `Add a ${outcome} reason`}
-      description={reason ? "Renaming keeps the reason's history: closed opportunities show the new name." : undefined}>
+      description={reason ? "Renaming keeps the reason's history: closed deals show the new name." : undefined}>
       <div className="flex flex-col gap-4">
         {save.isError && <p role="alert" className="text-sm text-danger">{errorMessage(save.error, "The reason could not be saved.")}</p>}
         <TextField label="Name" isRequired value={name} onChange={setName} />
@@ -130,7 +138,7 @@ function ReasonDialog({ outcome, reason, onClose, onSaved }: { outcome: CloseOut
           <Checkbox isSelected={capturesCompetitor || requiresCompetitor} onChange={(value) => { setCapturesCompetitor(value); if (!value) setRequiresCompetitor(false); }}>Ask for the competitor</Checkbox>
           <Checkbox isSelected={requiresCompetitor} onChange={setRequiresCompetitor}>Competitor required</Checkbox>
           {lost && <Checkbox isSelected={offersFollowUp} onChange={setOffersFollowUp}>Offer a future follow-up (the deal may come back)</Checkbox>}
-          {lost && <Checkbox isSelected={linksDuplicate} onChange={setLinksDuplicate}>Ask for the original opportunity (duplicates)</Checkbox>}
+          {lost && <Checkbox isSelected={linksDuplicate} onChange={setLinksDuplicate}>Ask for the original deal (duplicates)</Checkbox>}
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Cancel</Button>

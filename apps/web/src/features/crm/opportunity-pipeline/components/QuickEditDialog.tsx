@@ -59,7 +59,7 @@ export function QuickEditDialog({ opportunity, options, onClose, onSaved }: {
   });
 
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Quick edit" description={`${opportunity.name} · ${opportunity.accountName ?? "No account"}`}>
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Quick edit" description={`${opportunity.name} · ${opportunity.accountName ?? "No company"}`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         {warnings && (

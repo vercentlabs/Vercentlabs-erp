@@ -8,7 +8,8 @@ export async function GET(request: Request) {
   return projectsRead(request, async (client, context) => getProjectSettings(client, context));
 }
 const schema = z.object({ activationApprovalRequired: z.boolean().optional(), selfApprovalAllowed: z.boolean().optional(), dueSoonDays: z.number().int().optional(),
-  customerAcceptanceRequired: z.boolean().optional() });
+  customerAcceptanceRequired: z.boolean().optional(), customerChangeApprovalRequired: z.boolean().optional(), primaryContactRequired: z.boolean().optional(),
+  inactiveCustomerAllowed: z.boolean().optional() });
 export async function PUT(request: Request) {
   return projectsMutation(request, schema, async (client, context, input) => ({ settings: await saveProjectSettings(client, context, input) }), 200, "projects.settings.manage");
 }

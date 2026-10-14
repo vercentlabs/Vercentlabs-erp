@@ -10,32 +10,45 @@ import { OPPORTUNITY_SELECT, buildOpportunityListWhere, toOpportunity } from "./
 const NOT_ARCHIVED = "opportunity.archived_at IS NULL AND opportunity.status NOT IN ('archived', 'abandoned')";
 const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
 
-export async function getOpportunityDashboard(client, context) {
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// The "closed between" range for the results; this month to today when not given.
+function closedBounds(input = {}) {
+  const today = new Date();
+  const from = DATE.test(String(input.from ?? "")) ? input.from : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  const to = DATE.test(String(input.to ?? "")) ? input.to : today.toISOString().slice(0, 10);
+  return { from, to };
+}
+
+export async function getOpportunityDashboard(client, context, input = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
-  const values = [context.organizationId];
+  const period = closedBounds(input);
+  const values = [context.organizationId, period.from, period.to];
   const scope = opportunityScopeSql(context, values, "opportunity");
   const month = "date_trunc('month', current_date)";
+  // Results (won, lost, win rate, deal size, cycle) count the deals closed in the period; the pipeline figures are now.
+  const closed = (alias) => `${alias}.actual_close_date >= $2::date AND ${alias}.actual_close_date <= $3::date`;
   const totals = (await client.query(
     `SELECT count(*) FILTER (WHERE opportunity.status = 'open')::int AS open,
             COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'open'), 0)::float8 AS open_value,
             COALESCE(sum(opportunity.amount * opportunity.probability / 100) FILTER (WHERE opportunity.status = 'open'), 0)::float8 AS weighted_value,
             count(*) FILTER (WHERE opportunity.status = 'open' AND opportunity.expected_close_date >= ${month} AND opportunity.expected_close_date < ${month} + interval '1 month')::int AS closing_this_month,
-            count(*) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= ${month})::int AS won_this_month,
-            COALESCE(sum(COALESCE(opportunity.won_amount, opportunity.amount)) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= ${month}), 0)::float8 AS won_value_this_month,
-            count(*) FILTER (WHERE opportunity.status = 'lost' AND opportunity.actual_close_date >= ${month})::int AS lost_this_month,
+            count(*) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")})::int AS won_in_period,
+            COALESCE(sum(COALESCE(opportunity.won_amount, opportunity.amount)) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")}), 0)::float8 AS won_value_in_period,
+            count(*) FILTER (WHERE opportunity.status = 'lost' AND ${closed("opportunity")})::int AS lost_in_period,
             -- what was lost keeps its estimated value
-            COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'lost' AND opportunity.actual_close_date >= ${month}), 0)::float8 AS lost_value_this_month,
+            COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'lost' AND ${closed("opportunity")}), 0)::float8 AS lost_value_in_period,
             (SELECT reason.name FROM tenant.crm_opportunities lost JOIN tenant.crm_lost_reasons reason ON reason.organization_id = lost.organization_id AND reason.id = lost.outcome_reason_id
-              WHERE lost.organization_id = $1 AND lost.status = 'lost' AND lost.archived_at IS NULL AND lost.actual_close_date >= ${month}
+              WHERE lost.organization_id = $1 AND lost.status = 'lost' AND lost.archived_at IS NULL AND ${closed("lost")}
                 AND lost.id IN (SELECT opportunity.id FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1${scope})
-              GROUP BY reason.name ORDER BY count(*) DESC, reason.name LIMIT 1) AS top_lost_reason_this_month,
+              GROUP BY reason.name ORDER BY count(*) DESC, reason.name LIMIT 1) AS top_lost_reason_in_period,
             count(*) FILTER (WHERE opportunity.status = 'open' AND opportunity.expected_close_date < current_date)::int AS overdue,
             count(*) FILTER (WHERE opportunity.status = 'open' AND COALESCE(opportunity.last_activity_at, opportunity.created_at) < now() - interval '${OPPORTUNITY_STALE_DAYS} days')::int AS stale,
-            count(*) FILTER (WHERE opportunity.status = 'won')::int AS won,
-            count(*) FILTER (WHERE opportunity.status = 'lost')::int AS lost,
-            COALESCE(avg(COALESCE(opportunity.won_amount, opportunity.amount)) FILTER (WHERE opportunity.status = 'won'), 0)::float8 AS average_deal_size,
+            count(*) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")})::int AS won,
+            count(*) FILTER (WHERE opportunity.status = 'lost' AND ${closed("opportunity")})::int AS lost,
+            COALESCE(avg(COALESCE(opportunity.won_amount, opportunity.amount)) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")}), 0)::float8 AS average_deal_size,
             round((avg(EXTRACT(epoch FROM COALESCE(opportunity.closed_at, opportunity.actual_close_date::timestamptz) - opportunity.created_at))
-                   FILTER (WHERE opportunity.status = 'won') / 86400)::numeric, 1)::float8 AS average_sales_cycle_days
+                   FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")}) / 86400)::numeric, 1)::float8 AS average_sales_cycle_days
        FROM tenant.crm_opportunities opportunity
       WHERE opportunity.organization_id = $1 AND ${NOT_ARCHIVED}${scope}`,
     values,
@@ -49,7 +62,8 @@ export async function getOpportunityDashboard(client, context) {
        JOIN tenant.crm_pipelines pipeline ON pipeline.organization_id = stage.organization_id AND pipeline.id = stage.pipeline_id AND pipeline.status = 'active'
        LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id = stage.organization_id AND opportunity.stage_id = stage.id
              AND opportunity.status = 'open' AND ${NOT_ARCHIVED}${scope}
-      WHERE stage.organization_id = $1 AND stage.status = 'active' AND NOT stage.is_won AND NOT stage.is_lost
+      -- open deals are "now"; the period parameters are shared with the totals query, so they are referenced here too
+      WHERE stage.organization_id = $1 AND stage.status = 'active' AND NOT stage.is_won AND NOT stage.is_lost AND $2::date IS NOT NULL AND $3::date IS NOT NULL
       GROUP BY stage.id, stage.name, stage.sequence, pipeline.is_default
      HAVING pipeline.is_default OR count(opportunity.id) > 0
       ORDER BY pipeline.is_default DESC, stage.sequence`,
@@ -63,11 +77,11 @@ export async function getOpportunityDashboard(client, context) {
       openValue: money(totals.open_value),
       weightedValue: money(totals.weighted_value),
       closingThisMonth: totals.closing_this_month,
-      wonThisMonth: totals.won_this_month,
-      wonValueThisMonth: money(totals.won_value_this_month),
-      lostThisMonth: totals.lost_this_month,
-      lostValueThisMonth: money(totals.lost_value_this_month),
-      topLostReasonThisMonth: totals.top_lost_reason_this_month ?? null,
+      won: totals.won_in_period,
+      wonValue: money(totals.won_value_in_period),
+      lost: totals.lost_in_period,
+      lostValue: money(totals.lost_value_in_period),
+      topLostReason: totals.top_lost_reason_in_period ?? null,
       overdue: totals.overdue,
       stale: totals.stale,
       staleDays: OPPORTUNITY_STALE_DAYS,
@@ -78,6 +92,7 @@ export async function getOpportunityDashboard(client, context) {
       // from the day the deal was created to the day it was won
       averageSalesCycleDays: totals.average_sales_cycle_days ?? null,
     },
+    period,
     byStage: byStage.map((row) => ({ stageId: row.id, label: row.name, total: row.total, value: money(row.value), weightedValue: money(row.weighted) })),
   };
 }

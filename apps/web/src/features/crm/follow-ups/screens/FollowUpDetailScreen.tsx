@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal } from "lucide-react";
 import { AlertDialog, Button, ErrorState, Menu, MenuItem, MenuTrigger, RecordDetailsPage } from "@vercentlabs/design-system";
 
+import { readableHistory } from "@/features/crm/shared/field-labels";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
+import { whenLabel } from "@/features/crm/shared/when";
 import { PropertyList } from "@/shared/ui/PropertyList";
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -50,14 +52,14 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
     const picked = snoozeChoices().find((entry) => entry.id === choice);
     action.mutate(async () => {
       const result = await snoozeFollowUp(followUp.id, picked?.minutes ? { minutes: picked.minutes } : { until: picked?.until?.() });
-      setNotice(`Reminder snoozed until ${formatDateTime(result.remindAt)}. The follow-up is still on ${followUp.scheduledDate}.`);
+      setNotice(`Reminder snoozed until ${formatDateTime(result.remindAt)}. The follow-up is still on ${whenLabel(followUp.scheduledDate, followUp.scheduledTime)}.`);
     });
   };
   const menu = [
-    { id: "edit", label: "Edit", show: open && can.edit, run: () => setDialog("edit") },
-    { id: "reassign", label: "Reassign", show: open && can.reassign, run: () => setDialog("reassign") },
-    { id: "cancel", label: "Cancel follow-up", show: open && can.cancel, run: () => setDialog("cancel") },
-    { id: "delete", label: "Delete", show: can.delete, run: () => setDialog("delete") },
+    { id: "edit", label: "Edit", show: open && can.edit, onAction: () => setDialog("edit") },
+    { id: "reassign", label: "Reassign", show: open && can.reassign, onAction: () => setDialog("reassign") },
+    { id: "cancel", label: "Cancel follow-up", show: open && can.cancel, onAction: () => setDialog("cancel") },
+    { id: "delete", label: "Delete", show: can.delete, danger: true, onAction: () => setDialog("delete") },
   ].filter((entry) => entry.show);
 
   return (
@@ -83,12 +85,7 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
                   <Menu onAction={(choice) => snooze(String(choice))}>{snoozeChoices().map((choice) => <MenuItem key={choice.id} id={choice.id}>{choice.label}</MenuItem>)}</Menu>
                 </MenuTrigger>
               )}
-              {menu.length > 0 && (
-                <MenuTrigger>
-                  <Button variant="outline" aria-label="More actions"><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
-                  <Menu onAction={(id) => menu.find((entry) => entry.id === id)?.run()}>{menu.map((entry) => <MenuItem key={entry.id} id={entry.id}>{entry.label}</MenuItem>)}</Menu>
-                </MenuTrigger>
-              )}
+              {menu.length > 0 && <MoreMenu items={menu} />}
             </>
           ),
         }}
@@ -114,7 +111,13 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
           <PropertyList title="Follow-up" columns={3} items={[
             { label: "Purpose / notes", value: followUp.notes ? <span className="whitespace-pre-wrap">{followUp.notes}</span> : null, wide: true },
             { label: "Reminder", value: followUp.reminderOffsetMinutes === null ? "None" : options.reminderOptions.find((entry) => entry.minutes === followUp.reminderOffsetMinutes)?.label ?? formatDateTime(followUp.reminderAt) },
-            { label: "Contact details", value: [followUp.contactMobile, followUp.contactEmail].filter(Boolean).join(" · ") || null },
+            // A tap to call and an email link, not plain text.
+            { label: "Contact details", value: followUp.contactMobile || followUp.contactEmail ? (
+              <span className="flex flex-wrap gap-x-3 gap-y-1">
+                {followUp.contactMobile && <a className="text-brand hover:underline" href={`tel:${followUp.contactMobile.replace(/[^0-9+]/g, "")}`}>{followUp.contactMobile}</a>}
+                {followUp.contactEmail && <a className="text-brand hover:underline" href={`mailto:${followUp.contactEmail}`}>{followUp.contactEmail}</a>}
+              </span>
+            ) : null },
             { label: "Scheduled from lead", value: followUp.originLeadId ? <Link className="hover:underline" href={`/crm/leads/${followUp.originLeadId}`}>{followUp.originLeadCode ?? "Open lead"}</Link> : null },
             { label: "Created", value: `${formatDateTime(followUp.createdAt)}${followUp.createdByName ? ` by ${followUp.createdByName}` : ""}` },
             { label: "Updated", value: `${formatDateTime(followUp.updatedAt)}${followUp.updatedByName ? ` by ${followUp.updatedByName}` : ""}` },
@@ -125,7 +128,7 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
               <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface text-sm">
                 {(historyQuery.data ?? []).map((entry) => (
                   <li key={entry.id} className="flex flex-col gap-0.5 px-4 py-2.5">
-                    <span className="font-medium">{entry.summary}</span>
+                    <span className="font-medium">{readableHistory(entry.summary)}</span>
                     <span className="text-xs text-text-muted">{formatDateTime(entry.createdAt)} · {entry.actorName ?? "System"}</span>
                   </li>
                 ))}

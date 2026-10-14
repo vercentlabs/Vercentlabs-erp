@@ -1,8 +1,9 @@
 "use client";
 
-// The board: one column per sales stage, one card per opportunity. Dropping
-// a card on another column changes the deal's stage through the opportunity
-// operation; the card moves at once and returns if the server refuses.
+// The board: one column per sales stage, one card per deal. Dropping a card on another column, choosing Move to on its menu, or pressing
+// ← / → on a focused card all change the deal's stage through the same operation (so the stage checks and the "are you sure?" warning
+// behave the same); the card moves at once and returns if the server refuses. Each column header is one line: name, count and value, with
+// the probability, weighted value and average time in a tooltip.
 // Won and lost are outcomes, not columns: a deal is closed with Mark won or
 // Mark lost from its card.
 import { useState } from "react";
@@ -64,6 +65,19 @@ export function PipelineBoard({ pipeline, pipelineKey, options, stageListHref, o
     onSettled: onChanged,
   });
 
+  const activeStages = pipeline.stages.filter((stage) => !stage.isInactive);
+  const moveTo = (card: Opportunity, stageId: string) => {
+    const stage = activeStages.find((entry) => entry.id === stageId);
+    if (stage && stage.id !== card.stageId) move.mutate({ card, stage });
+  };
+  const step = (card: Opportunity, direction: -1 | 1) => {
+    const index = activeStages.findIndex((entry) => entry.id === card.stageId);
+    const target = index < 0 ? undefined : activeStages[index + direction];
+    if (!target) return;
+    move.mutate({ card, stage: target });
+    // The card is drawn again in its new column; keep the keyboard on it.
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-card-id="${card.id}"]`)?.focus(), 60);
+  };
   const drop = (stage: PipelineStage) => {
     setOver(null);
     if (dragged && dragged.stageId !== stage.id && !stage.isInactive) move.mutate({ card: dragged, stage });
@@ -81,22 +95,20 @@ export function PipelineBoard({ pipeline, pipelineKey, options, stageListHref, o
           onDragOver={canMove && !stage.isInactive ? (event) => { event.preventDefault(); setOver(stage.id); } : undefined}
           onDragLeave={() => setOver((current) => (current === stage.id ? null : current))}
           onDrop={canMove ? () => drop(stage) : undefined}>
-          <header className="flex flex-col gap-0.5 px-1 pt-1">
-            <span className="flex items-center justify-between gap-2 text-sm font-semibold">
-              <span>{stage.name}{stage.isInactive ? " (inactive)" : ""}</span>
-              <span className="font-normal text-text-secondary" title="Default probability of this stage">{stage.probability}%</span>
-            </span>
-            <span className="text-xs text-text-secondary">{stage.count} {stage.count === 1 ? "opportunity" : "opportunities"}</span>
-            <span className="text-xs tabular-nums text-text-secondary">{formatMoney(currency, stage.value)} pipeline</span>
-            <span className="text-xs tabular-nums text-text-secondary">{formatMoney(currency, stage.weightedValue)} weighted</span>
-            {stage.averageDaysInStage !== null && <span className="text-xs text-text-muted">Average {days(Math.round(stage.averageDaysInStage))} in stage</span>}
+          <header className="flex items-baseline justify-between gap-2 px-1 pt-1 text-sm"
+            title={[`${stage.probability}% probability`, `${formatMoney(currency, stage.weightedValue)} weighted`,
+              stage.averageDaysInStage !== null ? `average ${days(Math.round(stage.averageDaysInStage))} in stage` : null].filter(Boolean).join(" · ")}>
+            <span className="min-w-0 truncate font-semibold">{stage.name}{stage.isInactive ? " (inactive)" : ""} <span className="font-normal text-text-secondary">· {stage.count}</span></span>
+            <span className="shrink-0 text-xs tabular-nums text-text-secondary">{formatMoney(currency, stage.value)}</span>
           </header>
           {stage.cards.length === 0 && (
-            <p className="rounded-[var(--radius-control)] border border-dashed border-border px-2 py-6 text-center text-xs text-text-muted">No opportunities in {stage.name}</p>
+            <p className="rounded-[var(--radius-control)] border border-dashed border-border px-2 py-6 text-center text-xs text-text-muted">No deals in {stage.name}</p>
           )}
           {stage.cards.map((card) => (
             <PipelineCard key={card.id} card={card} baseCurrency={currency} can={can} canDrag={canMove && card.status === "open"} isDragging={dragged?.id === card.id}
-              onDragStart={() => setDragged(card)} onDragEnd={() => { setDragged(null); setOver(null); }} onAction={(action) => onAction(action, card)} />
+              moveTargets={canMove && card.status === "open" ? activeStages.filter((entry) => entry.id !== card.stageId).map((entry) => ({ id: entry.id, name: entry.name })) : []}
+              onDragStart={() => setDragged(card)} onDragEnd={() => { setDragged(null); setOver(null); }} onAction={(action) => onAction(action, card)}
+              onMove={(stageId) => moveTo(card, stageId)} onStep={(direction) => step(card, direction)} />
           ))}
           {stage.hasMore && (
             <Link href={stageListHref(stage.id)} className="px-1 pb-1 text-xs font-medium text-brand underline-offset-2 hover:underline">

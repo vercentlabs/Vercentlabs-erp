@@ -17,8 +17,9 @@ import { ErrorBanner } from "../account-format";
 
 const NONE = "";
 
-export function CreateCustomerDialog({ account, options, isOpen, onOpenChange, onDone }: {
-  account: Account; options: AccountOptions; isOpen: boolean; onOpenChange: (open: boolean) => void; onDone: () => void;
+// onAddBillingAddress: when the missing piece is a billing address, the dialog links straight to adding one.
+export function CreateCustomerDialog({ account, options, isOpen, onOpenChange, onDone, onAddBillingAddress }: {
+  account: Account; options: AccountOptions; isOpen: boolean; onOpenChange: (open: boolean) => void; onDone: () => void; onAddBillingAddress?: () => void;
 }) {
   const workspace = useWorkspaceContext();
   const readiness = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "account", account.id, "customer-readiness"), queryFn: () => getCustomerReadiness(account.id), enabled: isOpen });
@@ -42,13 +43,16 @@ export function CreateCustomerDialog({ account, options, isOpen, onOpenChange, o
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Create customer"
-      description="Makes this account a customer that Sales can quote and invoice. It keeps its contacts, opportunities and history, and gets a customer number." size="lg">
+      description="Makes this company a customer that Sales can quote and invoice. It keeps its contacts, deals and history, and gets a customer number." size="lg">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
-        {readiness.isLoading ? <LoadingState label="Checking the account" rows={2} /> : readiness.data && !ready ? (
-          <div role="alert" className="rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-3 py-2 text-sm">
-            <p className="font-medium">Before this account can become a customer:</p>
+        {readiness.isLoading ? <LoadingState label="Checking the company" rows={2} /> : readiness.data && !ready ? (
+          <div role="alert" className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-3 py-2 text-sm">
+            <p className="font-medium">Before this company can become a customer:</p>
             <ul className="list-disc pl-5">{readiness.data.missing.map((item) => <li key={item}>{item}</li>)}</ul>
+            {onAddBillingAddress && readiness.data.missing.some((item) => /billing address/i.test(item)) && (
+              <Button variant="secondary" size="compact" className="self-start" onPress={() => { onOpenChange(false); onAddBillingAddress(); }}>Add billing address</Button>
+            )}
           </div>
         ) : (
           <>
@@ -93,7 +97,7 @@ export function LinkCustomerDialog({ account, isOpen, onOpenChange, onLinked }: 
   const rows = query.data ?? [];
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Link existing customer"
-      description="For a company that already exists as a customer in Sales. This account is merged into that customer: its contacts, opportunities, activities and history move across, and this account is archived.">
+      description="For a company that already exists as a customer in Sales. This company is merged into that customer: its contacts, deals, activities and history move across, and this record is archived.">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <ComboBox label="Customer" placeholder="Search by name, customer number or GSTIN"
@@ -102,7 +106,7 @@ export function LinkCustomerDialog({ account, isOpen, onOpenChange, onLinked }: 
           emptyMessage="No matching customers" allowsEmptyCollection />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!customerId}>Link and merge</Button>
+          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!customerId}>Merge into customer</Button>
         </div>
       </div>
     </Dialog>

@@ -11,24 +11,14 @@ import {
   nextProjectCode, notifyProject, projectError, projectEvent, projectSettings, publishProjectEvent, requireAccess, statusEvent, text, today, uuid, versionCheck, visibleProject,
 } from "./project-core.js";
 import { completionCheck, cancellationReview } from "./project-summary.js";
+import {
+  CUSTOMER_SCOPED, contactRecord, crmAccountRecord, customerEvent, customerRecord, isCustomerParty, mayLinkSales, needsSalesLink, partyRow, projectParty, recordMatchesCustomer,
+  removeContactsNotOf, setPrimaryContactRow,
+} from "./project-customer-rules.js";
 
 const FILE_ENTITY = "projects.project";
 
 // ------------------------------------------------------------------ the fields of a project, checked
-async function customerOf(client, c, customerId) {
-  const row = (await client.query(`SELECT id, display_name, status, customer_number, party_type FROM tenant.business_parties WHERE organization_id = $1 AND id = $2`,
-    [c.organizationId, uuid(customerId, "Customer")])).rows[0];
-  if (!row || row.status === "archived" || !(row.customer_number || ["customer", "both"].includes(row.party_type))) throw projectError(400, "PROJECT_CUSTOMER_INVALID", undefined, { field: "customerId" });
-  return row;
-}
-async function contactOf(client, c, contactId, customerId) {
-  const row = (await client.query(
-    `SELECT contact.id FROM tenant.contacts contact WHERE contact.organization_id = $1 AND contact.id = $2 AND contact.archived_at IS NULL
-        AND (contact.party_id = $3 OR EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships relation WHERE relation.contact_id = contact.id AND relation.party_id = $3))`,
-    [c.organizationId, uuid(contactId, "Contact"), customerId])).rows[0];
-  if (!row) throw projectError(400, "PROJECT_CUSTOMER_INVALID", "Choose a contact of this customer.", { field: "customerContactId" });
-  return row.id;
-}
 async function typeOf(client, c, input) {
   await ensureProjectTypes(client, c);
   if (input.projectTypeId) {
@@ -55,7 +45,8 @@ const tagsOf = (value) => {
   if (list.length > 20) throw projectError(400, "PROJECT_INPUT_INVALID", "Use at most 20 tags.", { field: "tags" });
   return [...new Map(list.map((tag) => [tag.toLowerCase(), tag])).values()];
 };
-// The given fields merged over the current ones and checked; only what is given changes.
+// The given fields merged over the current ones and checked; only what is given changes. The customer (or, for a draft, a CRM account that is not
+// yet a Customer) is chosen by someone who may assign project customers; a primary contact must be one of the customer's active people.
 async function fieldsOf(client, c, input, current = {}) {
   const out = {};
   const given = (key) => input[key] !== undefined;
@@ -72,12 +63,29 @@ async function fieldsOf(client, c, input, current = {}) {
   }
   const classification = out.classification ?? current.classification ?? "INTERNAL";
   if (given("projectTypeId") || given("projectType")) out.project_type_id = (input.projectTypeId || input.projectType) ? await typeOf(client, c, input) : null;
-  if (given("customerId")) out.customer_id = input.customerId ? (await customerOf(client, c, input.customerId)).id : null;
-  if (classification === "INTERNAL") { out.customer_id = null; out.customer_contact_id = null; }
-  const customerId = out.customer_id !== undefined ? out.customer_id : current.customer_id ?? null;
+  const assigning = (given("customerId") && (input.customerId || current.customer_id)) || (given("crmAccountId") && (input.crmAccountId || current.crm_account_id));
+  if (assigning && !has(c, PROJECT.customerAssign)) throw projectError(403, "PROJECT_CUSTOMER_PERMISSION_DENIED", "You may not choose a project's customer.", { field: "customerId" });
+  const settings = await projectSettings(client, c);
+  if (given("customerId")) {
+    out.customer_id = input.customerId ? (await customerRecord(client, c, input.customerId, { purpose: input.customerId === current.customer_id ? "existing" : "new", settings })).id : null;
+    if (out.customer_id) out.crm_account_id = null;
+  }
+  if (given("crmAccountId") && !(given("customerId") && input.customerId)) {
+    if (input.crmAccountId) {
+      const account = await crmAccountRecord(client, c, input.crmAccountId);
+      // An account that is already a Customer is the customer itself.
+      if (isCustomerParty(account)) { out.customer_id = (await customerRecord(client, c, account.id, { settings })).id; out.crm_account_id = null; }
+      else { out.crm_account_id = account.id; out.customer_id = null; }
+    } else out.crm_account_id = null;
+  }
+  if (classification === "INTERNAL") { out.customer_id = null; out.crm_account_id = null; out.customer_contact_id = null; }
+  // A draft on a provisional CRM account may name that account's person as its primary contact.
+  const customerId = (out.customer_id !== undefined ? out.customer_id : current.customer_id ?? null)
+    ?? (out.crm_account_id !== undefined ? out.crm_account_id : current.crm_account_id ?? null);
   if (given("customerContactId")) {
     if (input.customerContactId && !customerId) throw projectError(400, "PROJECT_CUSTOMER_REQUIRED", "Choose the customer before the contact.", { field: "customerContactId" });
-    out.customer_contact_id = input.customerContactId ? await contactOf(client, c, input.customerContactId, customerId) : null;
+    out.customer_contact_id = input.customerContactId
+      ? (await contactRecord(client, c, input.customerContactId, customerId, { purpose: input.customerContactId === current.customer_contact_id ? "existing" : "new" })).id : null;
   } else if (out.customer_id !== undefined && out.customer_id !== current.customer_id && current.customer_contact_id) out.customer_contact_id = null;
   if (given("managerUserId")) out.manager_user_id = input.managerUserId ? await managerOf(client, c, input.managerUserId) : null;
   if (given("priority")) {
@@ -99,11 +107,17 @@ async function fieldsOf(client, c, input, current = {}) {
 const isoDayOr = (value) => (value ? isoDay(value) : null);
 
 // What activation needs, each problem with the field to fix.
-export function activationProblems(project) {
+export function activationProblems(project, settings = {}) {
   const problems = [];
   if (!project.name) problems.push({ code: "PROJECT_NAME_REQUIRED", field: "name", message: "Enter a project name." });
   if (!project.project_type_id) problems.push({ code: "PROJECT_TYPE_REQUIRED", field: "projectTypeId", message: "Choose the project type." });
-  if (project.classification === "CUSTOMER" && !project.customer_id) problems.push({ code: "PROJECT_CUSTOMER_REQUIRED", field: "customerId", message: "Select a customer for this project." });
+  if (project.classification === "CUSTOMER" && !project.customer_id) {
+    problems.push(project.crm_account_id ? { code: "PROJECT_CUSTOMER_MAPPING_UNRESOLVED", field: "customerId", message: "The CRM Account must be linked to a valid Customer record before activation." }
+      : { code: "PROJECT_CUSTOMER_REQUIRED", field: "customerId", message: "Select a customer before activating this project." });
+  }
+  if (project.classification === "CUSTOMER" && project.customer_id && settings.primaryContactRequired && !project.customer_contact_id) {
+    problems.push({ code: "PROJECT_CUSTOMER_CONTACT_INVALID", field: "customerContactId", message: "Choose the customer's primary contact before activating this project." });
+  }
   if (!project.manager_user_id) problems.push({ code: "PROJECT_MANAGER_REQUIRED", field: "managerUserId", message: "Assign a Project Manager before starting." });
   if (!project.planned_start_date) problems.push({ code: "PROJECT_DATE_INVALID", field: "plannedStartDate", message: "Enter the planned start date." });
   if (!project.target_end_date) problems.push({ code: "PROJECT_DATE_INVALID", field: "targetEndDate", message: "Enter the target end date." });
@@ -111,12 +125,25 @@ export function activationProblems(project) {
 }
 export async function validateProjectActivation(client, c, projectId) {
   const { project } = await visibleProject(client, c, projectId);
-  const problems = activationProblems(project);
+  const settings = await projectSettings(client, c);
+  const problems = activationProblems(project, settings);
   if (project.manager_user_id && !(await eligibleUsers(client, c, [project.manager_user_id])).has(project.manager_user_id)) {
     problems.push({ code: "PROJECT_MANAGER_INVALID", field: "managerUserId", message: "The Project Manager is no longer an active, authorized member: choose a replacement." });
   }
   if (project.customer_id) {
-    try { await customerOf(client, c, project.customer_id); } catch { problems.push({ code: "PROJECT_CUSTOMER_INVALID", field: "customerId", message: "The customer is no longer available." }); }
+    try { await customerRecord(client, c, project.customer_id, { purpose: "new", settings }); } catch (error) {
+      problems.push({ code: error.code ?? "PROJECT_CUSTOMER_NOT_FOUND", field: "customerId", message: error.message });
+    }
+    if (project.customer_contact_id) {
+      try { await contactRecord(client, c, project.customer_contact_id, project.customer_id); } catch (error) {
+        problems.push({ code: "PROJECT_CUSTOMER_CONTACT_INVALID", field: "customerContactId", message: `The primary contact is no longer an active contact of the customer: ${error.message}` });
+      }
+    }
+  }
+  if (project.classification === "CUSTOMER" && projectParty(project)) {
+    for (const mismatch of await mismatchedLinks(client, c, project, projectParty(project))) {
+      problems.push({ code: "PROJECT_CUSTOMER_SALES_MISMATCH", field: "links", message: `${mismatch.label} belongs to another customer: unlink it before activating.` });
+    }
   }
   return { ready: problems.length === 0, problems };
 }
@@ -137,7 +164,7 @@ async function setManagerMembership(client, c, project, managerId, previousId) {
       [c.organizationId, project.id, managerId, c.userId ?? null]);
   }
 }
-const COLUMN_LABEL = { name: "name", description: "scope", classification: "classification", project_type_id: "type", customer_id: "customer", customer_contact_id: "customer contact",
+const COLUMN_LABEL = { name: "name", description: "scope", classification: "classification", project_type_id: "type", customer_id: "customer", crm_account_id: "CRM account", customer_contact_id: "customer contact",
   manager_user_id: "Project Manager", priority: "priority", planned_start_date: "start date", target_end_date: "target date", tags: "tags", template_id: "template", template_name: "template" };
 
 // ------------------------------------------------------------------ create and edit
@@ -174,13 +201,29 @@ export async function createProjectDraft(client, c, input = {}, { source = "MANU
     await client.query(`INSERT INTO tenant.project_members (organization_id, project_id, user_id, role, added_by) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
       [c.organizationId, id, row.userId, role, c.userId ?? null]);
   }
-  for (const link of links) await insertLink(client, c, project, link);
+  if (project.customer_contact_id) await setPrimaryContactRow(client, c, project, project.customer_contact_id);
+  await recordAssociation(client, c, project, { customer_id: null, crm_account_id: null }, source === "SALES_ORDER" ? "From the sales order" : null);
+  for (const link of links) await insertLink(client, c, project, link, { trusted: true });
   await statusEvent(client, c, { ...project, status: null }, "CREATED", "DRAFT");
   await projectEvent(client, c, id, "CREATED", `${label(project)} created as a draft${source === "SALES_ORDER" ? " from a sales order" : source === "IMPORT" ? " by import" : ""}`);
   await publishProjectEvent(client, c, project, "created", { source });
   await notifyProject(client, c, project, [project.manager_user_id, ...memberIds], { category: "project_assignment", title: `You were added to ${project.project_code}`,
     message: `${project.name ?? "A draft project"} — ${project.manager_user_id === c.userId ? "you manage it" : "you are on its team"}.` });
   return { projectId: id, projectCode: code };
+}
+// The association history of a customer (or CRM account) set, changed or cleared on a draft.
+async function recordAssociation(client, c, project, before, reason = null, key = null) {
+  const names = async (id) => (id ? (await partyRow(client, c, id))?.display_name ?? "a customer" : null);
+  if (project.customer_id && project.customer_id !== before.customer_id) {
+    await customerEvent(client, c, project.id, before.crm_account_id && !before.customer_id ? "CRM_MAPPING_RESOLVED" : "CUSTOMER_ASSIGNED",
+      `${await names(project.customer_id)} is the customer${before.customer_id ? ` (was ${await names(before.customer_id)})` : ""}`,
+      { fromCustomerId: before.customer_id ?? before.crm_account_id ?? null, toCustomerId: project.customer_id, reason, key });
+  } else if (project.crm_account_id && project.crm_account_id !== before.crm_account_id) {
+    await customerEvent(client, c, project.id, "CRM_ACCOUNT_ASSIGNED", `${await names(project.crm_account_id)} (CRM account, not yet a Customer) is the provisional customer`,
+      { fromCustomerId: before.customer_id ?? before.crm_account_id ?? null, toCustomerId: project.crm_account_id, reason, key });
+  } else if (!project.customer_id && !project.crm_account_id && (before.customer_id || before.crm_account_id)) {
+    await customerEvent(client, c, project.id, "CUSTOMER_CLEARED", `${await names(before.customer_id ?? before.crm_account_id)} is no longer the customer`, { fromCustomerId: before.customer_id ?? before.crm_account_id, reason, key });
+  }
 }
 const memberRole = (value) => {
   const role = String(value ?? "MEMBER").toUpperCase();
@@ -200,8 +243,18 @@ export async function updateProject(client, c, projectId, input = {}) {
   const changed = Object.keys(fields).filter((key) => JSON.stringify(normal(fields[key])) !== JSON.stringify(normal(project[key])));
   if (!changed.length) return { projectId: project.id, version: project.row_version, changed: [] };
   const merged = { ...project, ...fields };
+  // Past the draft, the customer changes only through a reviewed customer change; the primary contact through the customer's contacts.
+  if (project.status !== "DRAFT" && changed.some((key) => ["customer_id", "crm_account_id", "classification"].includes(key))) {
+    throw projectError(409, "PROJECT_CUSTOMER_CHANGE_BLOCKED", `${project.project_code} is ${STATUS_LABEL[project.status].toLowerCase()}: change its customer through Change customer, where the linked work is reviewed.`);
+  }
+  if (changed.includes("customer_contact_id") && project.status !== "DRAFT" && !has(c, PROJECT.customerContacts)) throw projectError(403, "PROJECT_CUSTOMER_PERMISSION_DENIED");
+  const partyChanged = changed.some((key) => ["customer_id", "crm_account_id"].includes(key)) && projectParty(merged);
+  if (partyChanged) {
+    const mismatches = await mismatchedLinks(client, c, project, projectParty(merged));
+    if (mismatches.length) throw projectError(409, "PROJECT_CUSTOMER_SALES_MISMATCH", `${mismatches[0].label} belongs to another customer: unlink it before choosing this customer.`, { mismatches });
+  }
   if (project.status !== "DRAFT") {
-    const problems = activationProblems(merged);
+    const problems = activationProblems(merged, await projectSettings(client, c));
     if (problems.length) throw projectError(400, problems[0].code, `${problems[0].message} A ${STATUS_LABEL[project.status].toLowerCase()} project keeps it.`, { problems });
   }
   const sets = changed.map((key, index) => `${key} = $${index + 3}`);
@@ -212,6 +265,18 @@ export async function updateProject(client, c, projectId, input = {}) {
     await projectEvent(client, c, project.id, "MANAGER_CHANGED", "Project Manager changed", { from: project.manager_user_id, to: fields.manager_user_id });
     await notifyProject(client, c, project, [fields.manager_user_id], { category: "project_assignment", title: `You now manage ${project.project_code}`, message: `${merged.name ?? "The project"} is yours to lead.` });
     await notifyProject(client, c, project, [project.manager_user_id], { category: "project_assignment", title: `${project.project_code} has a new manager`, message: "You stay on the team as a member." });
+  }
+  if (changed.some((key) => ["customer_id", "crm_account_id", "classification"].includes(key))) {
+    const removed = await removeContactsNotOf(client, c, project, merged.customer_id, "Not a contact of the project's customer any more");
+    for (const row of removed) await customerEvent(client, c, project.id, "CONTACT_REMOVED", "A contact of the previous customer left the project", { contactId: row.contact_id });
+    await recordAssociation(client, c, merged, project, text(input.reason, 500) || null, text(input.associationKey, 200) || null);
+    await notifyProject(client, c, project, [project.manager_user_id, ...await activeMemberIds(client, c, project.id)], { title: `${project.project_code}: customer changed`,
+      message: merged.customer_id || merged.crm_account_id ? `The customer is now ${(await partyRow(client, c, merged.customer_id ?? merged.crm_account_id))?.display_name}.` : "The project has no customer now." });
+  }
+  if (changed.includes("customer_contact_id") || changed.includes("customer_id")) {
+    if (await setPrimaryContactRow(client, c, merged, merged.customer_contact_id ?? null)) {
+      await customerEvent(client, c, project.id, "PRIMARY_CONTACT_CHANGED", merged.customer_contact_id ? "Primary contact changed" : "No primary contact now", { contactId: merged.customer_contact_id ?? null });
+    }
   }
   const dates = changed.filter((key) => ["planned_start_date", "target_end_date"].includes(key));
   if (dates.length) {
@@ -515,29 +580,51 @@ export async function removeProjectMember(client, c, projectId, memberId, input 
 }
 
 // ------------------------------------------------------------------ links to other modules' records
+// number: what a person reads ("SO-000128"); status: the record's own state.
 export const LINK_SOURCES = Object.freeze({
-  CRM_ACCOUNT: { module: "CRM", permission: "crm.accounts.view", sql: `SELECT id, id AS party_id FROM tenant.business_parties WHERE organization_id = $1 AND id = $2` },
-  CRM_CONTACT: { module: "CRM", permission: "crm.contacts.view", sql: `SELECT id, party_id FROM tenant.contacts WHERE organization_id = $1 AND id = $2` },
-  CRM_OPPORTUNITY: { module: "CRM", permission: "crm.opportunities.view", sql: `SELECT id, party_id FROM tenant.crm_opportunities WHERE organization_id = $1 AND id = $2` },
-  SALES_QUOTATION: { module: "SALES", permission: "sales.quotation.view", sql: `SELECT id, party_id FROM tenant.sales_quotations WHERE organization_id = $1 AND id = $2` },
-  SALES_ORDER: { module: "SALES", permission: "sales.order.view", sql: `SELECT id, party_id FROM tenant.sales_orders WHERE organization_id = $1 AND id = $2` },
-  SALES_INVOICE: { module: "FINANCE", permission: "sales.invoice.view", sql: `SELECT id, party_id FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND id = $2 AND invoice_type <> 'credit_note'` },
-  PURCHASE_ORDER: { module: "PROCUREMENT", permission: "procurement.po.view", sql: `SELECT id, NULL::uuid AS party_id FROM tenant.purchase_orders WHERE organization_id = $1 AND id = $2` },
-  SUPPLIER_BILL: { module: "PROCUREMENT", permission: "procurement.bills.view", sql: `SELECT id, NULL::uuid AS party_id FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND id = $2` },
+  CRM_ACCOUNT: { module: "CRM", permission: "crm.accounts.view", sql: `SELECT id, id AS party_id, COALESCE(customer_number, code) AS number, status FROM tenant.business_parties WHERE organization_id = $1 AND id = $2` },
+  CRM_CONTACT: { module: "CRM", permission: "crm.contacts.view", sql: `SELECT id, party_id, contact_number AS number, status FROM tenant.contacts WHERE organization_id = $1 AND id = $2` },
+  CRM_OPPORTUNITY: { module: "CRM", permission: "crm.opportunities.view", sql: `SELECT id, party_id, code AS number, status FROM tenant.crm_opportunities WHERE organization_id = $1 AND id = $2` },
+  SALES_QUOTATION: { module: "SALES", permission: "sales.quotation.view", sql: `SELECT id, party_id, quotation_number AS number, lifecycle_status AS status FROM tenant.sales_quotations WHERE organization_id = $1 AND id = $2` },
+  SALES_ORDER: { module: "SALES", permission: "sales.order.view", sql: `SELECT id, party_id, sales_order_number AS number, lifecycle_status AS status FROM tenant.sales_orders WHERE organization_id = $1 AND id = $2` },
+  SALES_INVOICE: { module: "FINANCE", permission: "sales.invoice.view", sql: `SELECT id, party_id, invoice_number AS number, status FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND id = $2 AND invoice_type <> 'credit_note'` },
+  PURCHASE_ORDER: { module: "PROCUREMENT", permission: "procurement.po.view", sql: `SELECT id, NULL::uuid AS party_id, purchase_order_number AS number, status FROM tenant.purchase_orders WHERE organization_id = $1 AND id = $2` },
+  SUPPLIER_BILL: { module: "PROCUREMENT", permission: "procurement.bills.view", sql: `SELECT id, NULL::uuid AS party_id, bill_number AS number, status FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND id = $2` },
 });
-const CUSTOMER_SCOPED = new Set(["CRM_ACCOUNT", "CRM_CONTACT", "CRM_OPPORTUNITY", "SALES_QUOTATION", "SALES_ORDER", "SALES_INVOICE"]);
-async function insertLink(client, c, project, input) {
+const TYPE_NOUN = Object.freeze({ CRM_ACCOUNT: "CRM account", CRM_CONTACT: "Contact", CRM_OPPORTUNITY: "Opportunity", SALES_QUOTATION: "Quotation", SALES_ORDER: "Sales order",
+  SALES_INVOICE: "Invoice", PURCHASE_ORDER: "Purchase order", SUPPLIER_BILL: "Supplier bill" });
+export const linkLabel = (type, record) => `${TYPE_NOUN[type]}${record?.number ? ` ${record.number}` : ""}`;
+// The project's current customer-scoped links that do not belong to the given party (a customer change or activation must not leave one behind).
+export async function mismatchedLinks(client, c, project, partyId) {
+  const links = (await client.query(`SELECT * FROM tenant.project_links WHERE organization_id = $1 AND project_id = $2 AND removed_at IS NULL AND source_type = ANY($3::text[])`,
+    [c.organizationId, project.id, [...CUSTOMER_SCOPED]])).rows;
+  const out = [];
+  for (const link of links) {
+    const record = (await client.query(LINK_SOURCES[link.source_type].sql, [c.organizationId, link.source_id])).rows[0];
+    if (record && !(await recordMatchesCustomer(client, c, link.source_type, record, partyId))) out.push({ linkId: link.id, sourceType: link.source_type, label: linkLabel(link.source_type, record) });
+  }
+  return out;
+}
+// options.trusted: the link comes from the command itself (a project created from a sales order), not from a person choosing it.
+export async function insertLink(client, c, project, input, { trusted = false } = {}) {
   const type = String(input.sourceType ?? "").toUpperCase();
   const source = LINK_SOURCES[type];
   if (!source) throw projectError(400, "PROJECT_LINK_INVALID", "Choose what kind of record to link.");
   if (!has(c, source.permission)) throw projectError(403, "PROJECT_PERMISSION_DENIED", "You cannot see that kind of record, so you cannot link it.");
+  if (needsSalesLink(type) && !trusted && !mayLinkSales(c)) throw projectError(403, "PROJECT_CUSTOMER_PERMISSION_DENIED", "You may not link the customer's sales and CRM records.");
   // Only this company's records: a record of another company is simply not found.
   const record = (await client.query(source.sql, [c.organizationId, uuid(input.sourceId, "Linked record")])).rows[0];
-  if (!record) throw projectError(400, "PROJECT_LINK_INVALID");
-  if (project.classification === "CUSTOMER" && project.customer_id && CUSTOMER_SCOPED.has(type) && record.party_id) {
-    const related = record.party_id === project.customer_id || (type === "CRM_CONTACT" && (await client.query(
-      `SELECT 1 FROM tenant.crm_contact_account_relationships WHERE contact_id = $1 AND party_id = $2`, [record.id, project.customer_id])).rows[0]);
-    if (!related) throw projectError(400, "PROJECT_LINK_INVALID", "That record belongs to another customer.");
+  if (!record) throw projectError(400, "PROJECT_LINK_INVALID", "That record was not found.");
+  if (CUSTOMER_SCOPED.has(type)) {
+    if (project.classification === "INTERNAL") throw projectError(400, "PROJECT_CUSTOMER_SALES_MISMATCH", "An internal project has no customer: link the customer's records to a customer project.");
+    const party = projectParty(project);
+    if (party && !(await recordMatchesCustomer(client, c, type, record, party))) {
+      const [theirs, ours] = await Promise.all([record.party_id ? partyRow(client, c, record.party_id) : null, partyRow(client, c, party)]);
+      throw projectError(400, "PROJECT_CUSTOMER_SALES_MISMATCH", `${linkLabel(type, record)} belongs to ${theirs?.display_name ?? "another customer"}, not ${ours?.display_name ?? "this project's customer"}.`);
+    }
+  }
+  if (type === "SALES_ORDER" && ["draft", "cancelled"].includes(record.status)) {
+    throw projectError(409, "PROJECT_LINK_INVALID", `${record.number} is ${record.status}: link a confirmed sales order.`);
   }
   let lineId = null;
   if (input.sourceLineId) {
@@ -552,13 +639,21 @@ async function insertLink(client, c, project, input) {
   const existing = (await client.query(`SELECT id FROM tenant.project_links WHERE project_id = $1 AND source_type = $2 AND source_id = $3 AND source_line_id IS NOT DISTINCT FROM $4 AND removed_at IS NULL`,
     [project.id, type, record.id, lineId])).rows[0];
   if (existing) return { linkId: existing.id, replayed: true };
+  // One sales order delivered by several projects only when someone says so (or the project is created for it explicitly).
+  if (type === "SALES_ORDER" && !trusted && !input.allowShared) {
+    const other = (await client.query(`SELECT project.project_code FROM tenant.project_links link JOIN tenant.projects project ON project.id = link.project_id
+        WHERE link.organization_id = $1 AND link.source_type = 'SALES_ORDER' AND link.source_id = $2 AND link.removed_at IS NULL AND link.project_id <> $3 AND project.deleted_at IS NULL
+          AND project.status <> 'CANCELLED' LIMIT 1`, [c.organizationId, record.id, project.id])).rows[0];
+    if (other) throw projectError(409, "PROJECT_LINK_INVALID", `${record.number} is already linked to ${other.project_code}. Confirm to deliver it through this project as well.`, { sharedWith: other.project_code });
+  }
   const id = randomUUID();
   await client.query(`INSERT INTO tenant.project_links (id, organization_id, project_id, source_module, source_type, source_id, source_line_id, link_type, note, created_by)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [id, c.organizationId, project.id, source.module, type, record.id, lineId, linkType, text(input.note, 500) || null, c.userId ?? null]);
-  await projectEvent(client, c, project.id, "LINKED", `${type.replace(/_/g, " ").toLowerCase()} linked (${linkType.toLowerCase()})`, { sourceType: type, sourceId: record.id });
+  await projectEvent(client, c, project.id, "LINKED", `${linkLabel(type, record)} linked (${linkType.toLowerCase()})`, { sourceType: type, sourceId: record.id });
+  if (CUSTOMER_SCOPED.has(type)) await customerEvent(client, c, project.id, "SALES_LINKED", `${linkLabel(type, record)} linked (${linkType.toLowerCase()})`, { details: { sourceType: type, sourceId: record.id, lineId } });
   return { linkId: id };
 }
-// input: { sourceType, sourceId, sourceLineId?, linkType?, note? }
+// input: { sourceType, sourceId, sourceLineId?, linkType?, note?, allowShared? }
 export async function linkProjectRecord(client, c, projectId, input = {}) {
   const { project, access } = await visibleProject(client, c, projectId, { lock: true });
   requireAccess(access, "links");
@@ -569,15 +664,18 @@ export async function linkProjectRecord(client, c, projectId, input = {}) {
 export async function unlinkProjectRecord(client, c, projectId, linkId) {
   const { project, access } = await visibleProject(client, c, projectId, { lock: true });
   requireAccess(access, "links");
-  const row = (await client.query(`UPDATE tenant.project_links SET removed_at = clock_timestamp(), removed_by = $3 WHERE organization_id = $1 AND id = $2 AND project_id = $4 AND removed_at IS NULL RETURNING source_type`,
-    [c.organizationId, uuid(linkId, "Link"), c.userId ?? null, project.id])).rows[0];
-  if (!row) return { removed: true, replayed: true };
-  await projectEvent(client, c, project.id, "UNLINKED", `${row.source_type.replace(/_/g, " ").toLowerCase()} unlinked`);
+  const link = (await client.query(`SELECT * FROM tenant.project_links WHERE organization_id = $1 AND id = $2 AND project_id = $3 FOR UPDATE`, [c.organizationId, uuid(linkId, "Link"), project.id])).rows[0];
+  if (!link || link.removed_at) return { removed: true, replayed: true };
+  if (needsSalesLink(link.source_type) && !mayLinkSales(c)) throw projectError(403, "PROJECT_CUSTOMER_PERMISSION_DENIED", "You may not unlink the customer's sales and CRM records.");
+  await client.query(`UPDATE tenant.project_links SET removed_at = clock_timestamp(), removed_by = $2 WHERE id = $1`, [link.id, c.userId ?? null]);
+  const record = (await client.query(LINK_SOURCES[link.source_type].sql, [c.organizationId, link.source_id])).rows[0];
+  await projectEvent(client, c, project.id, "UNLINKED", `${linkLabel(link.source_type, record)} unlinked`);
+  if (CUSTOMER_SCOPED.has(link.source_type)) await customerEvent(client, c, project.id, "SALES_UNLINKED", `${linkLabel(link.source_type, record)} unlinked`, { details: { sourceType: link.source_type, sourceId: link.source_id } });
   return { removed: true };
 }
 
-// A project created from a confirmed sales order: once (a repeated click returns the same project); another project for the same order only
-// when asked for explicitly. input: { additional?, idempotencyKey?, name?, managerUserId?, projectTypeId? }
+// A project created from a confirmed sales order, for the order's customer: once (a repeated click returns the same project); another project for
+// the same order only when asked for explicitly. input: { additional?, idempotencyKey?, name?, managerUserId?, projectTypeId?, lineIds? }
 export async function createProjectFromSalesOrder(client, c, salesOrderId, input = {}) {
   need(c, PROJECT.create);
   if (!has(c, "sales.order.view")) throw projectError(403, "PROJECT_PERMISSION_DENIED", "You cannot see sales orders.");
@@ -588,12 +686,21 @@ export async function createProjectFromSalesOrder(client, c, salesOrderId, input
   const additional = Boolean(input.additional);
   if (additional && !text(input.idempotencyKey, 200)) throw projectError(400, "PROJECT_INPUT_INVALID", "A further project for the same order needs a request key.");
   const key = additional ? `sales-order:${order.id}:${text(input.idempotencyKey, 160)}` : `sales-order:${order.id}`;
-  const links = [{ sourceType: "SALES_ORDER", sourceId: order.id, linkType: "ORIGIN" }];
+  const done = (await client.query(`SELECT id, project_code FROM tenant.projects WHERE organization_id = $1 AND create_key = $2`, [c.organizationId, key])).rows[0];
+  if (done) return { projectId: done.id, projectCode: done.project_code, replayed: true, salesOrderNumber: order.sales_order_number };
+  // The order's own customer, checked as any customer is (an archived or merged one is refused, never silently swapped).
+  await customerRecord(client, c, order.party_id, { purpose: "existing" });
+  const lineIds = Array.isArray(input.lineIds) ? [...new Set(input.lineIds.map((id) => uuid(id, "Order line")))] : [];
+  const links = lineIds.length ? lineIds.map((lineId) => ({ sourceType: "SALES_ORDER", sourceId: order.id, sourceLineId: lineId, linkType: "ORIGIN" }))
+    : [{ sourceType: "SALES_ORDER", sourceId: order.id, linkType: "ORIGIN" }];
   if (order.source_quotation_id && has(c, "sales.quotation.view")) links.push({ sourceType: "SALES_QUOTATION", sourceId: order.source_quotation_id, linkType: "ORIGIN" });
   if (order.source_opportunity_id && has(c, "crm.opportunities.view")) links.push({ sourceType: "CRM_OPPORTUNITY", sourceId: order.source_opportunity_id, linkType: "ORIGIN" });
+  // The order's contact becomes the primary contact when they are still one of the customer's active people.
+  let contactId;
+  if (order.contact_id) { try { contactId = (await contactRecord(client, c, order.contact_id, order.party_id)).id; } catch { contactId = undefined; } }
   const created = await createProjectDraft(client, c, {
     name: text(input.name, 200) || `${order.display_name} — ${order.sales_order_number}`.slice(0, 200), classification: "CUSTOMER", customerId: order.party_id,
-    customerContactId: order.contact_id ?? undefined, projectTypeId: input.projectTypeId || undefined, managerUserId: input.managerUserId || undefined, idempotencyKey: key,
+    customerContactId: contactId, projectTypeId: input.projectTypeId || undefined, managerUserId: input.managerUserId || undefined, idempotencyKey: key,
   }, { source: "SALES_ORDER", links });
   return { ...created, salesOrderNumber: order.sales_order_number };
 }
@@ -604,8 +711,16 @@ export async function addProjectNote(client, c, projectId, input = {}) {
   requireAccess(access, "contribute");
   const body = text(input.body, 5000);
   if (!body) throw projectError(400, "PROJECT_INPUT_INVALID", "Write the note.", { field: "body" });
+  // A note may record communication with one of the project's current customer contacts.
+  let contactId = null;
+  if (input.customerContactId) {
+    contactId = uuid(input.customerContactId, "Contact");
+    const onProject = (await client.query(`SELECT 1 FROM tenant.project_customer_contacts WHERE project_id = $1 AND contact_id = $2 AND status = 'ACTIVE' LIMIT 1`, [project.id, contactId])).rows[0];
+    if (!onProject) throw projectError(400, "PROJECT_CUSTOMER_CONTACT_INVALID", "Choose one of the project's customer contacts.", { field: "customerContactId" });
+  }
   const id = randomUUID();
-  await client.query(`INSERT INTO tenant.project_notes (id, organization_id, project_id, body, author_user_id) VALUES ($1,$2,$3,$4,$5)`, [id, c.organizationId, project.id, body, c.userId ?? null]);
+  await client.query(`INSERT INTO tenant.project_notes (id, organization_id, project_id, body, author_user_id, customer_contact_id) VALUES ($1,$2,$3,$4,$5,$6)`,
+    [id, c.organizationId, project.id, body, c.userId ?? null, contactId]);
   await projectEvent(client, c, project.id, "NOTE_ADDED", body.slice(0, 140));
   return { noteId: id };
 }
@@ -714,12 +829,17 @@ export async function saveProjectSettings(client, c, input = {}) {
     selfApprovalAllowed: input.selfApprovalAllowed === undefined ? current.selfApprovalAllowed : Boolean(input.selfApprovalAllowed),
     dueSoonDays: input.dueSoonDays === undefined ? current.dueSoonDays : Number(input.dueSoonDays),
     customerAcceptanceRequired: input.customerAcceptanceRequired === undefined ? current.customerAcceptanceRequired : Boolean(input.customerAcceptanceRequired),
+    customerChangeApprovalRequired: input.customerChangeApprovalRequired === undefined ? current.customerChangeApprovalRequired : Boolean(input.customerChangeApprovalRequired),
+    primaryContactRequired: input.primaryContactRequired === undefined ? current.primaryContactRequired : Boolean(input.primaryContactRequired),
+    inactiveCustomerAllowed: input.inactiveCustomerAllowed === undefined ? current.inactiveCustomerAllowed : Boolean(input.inactiveCustomerAllowed),
   };
   if (!Number.isInteger(next.dueSoonDays) || next.dueSoonDays < 1 || next.dueSoonDays > 90) throw projectError(400, "PROJECT_INPUT_INVALID", "Use 1 to 90 days.", { field: "dueSoonDays" });
-  await client.query(`INSERT INTO tenant.project_settings (organization_id, activation_approval_required, self_approval_allowed, due_soon_days, customer_acceptance_required, updated_by)
-      VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (organization_id) DO UPDATE SET activation_approval_required = $2, self_approval_allowed = $3, due_soon_days = $4,
-      customer_acceptance_required = $5, updated_by = $6, updated_at = now()`,
-    [c.organizationId, next.activationApprovalRequired, next.selfApprovalAllowed, next.dueSoonDays, next.customerAcceptanceRequired, c.userId ?? null]);
+  await client.query(`INSERT INTO tenant.project_settings (organization_id, activation_approval_required, self_approval_allowed, due_soon_days, customer_acceptance_required, updated_by,
+        customer_change_approval_required, primary_contact_required, inactive_customer_allowed)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (organization_id) DO UPDATE SET activation_approval_required = $2, self_approval_allowed = $3, due_soon_days = $4,
+      customer_acceptance_required = $5, updated_by = $6, updated_at = now(), customer_change_approval_required = $7, primary_contact_required = $8, inactive_customer_allowed = $9`,
+    [c.organizationId, next.activationApprovalRequired, next.selfApprovalAllowed, next.dueSoonDays, next.customerAcceptanceRequired, c.userId ?? null,
+      next.customerChangeApprovalRequired, next.primaryContactRequired, next.inactiveCustomerAllowed]);
   return next;
 }
 // input: { id?, code?, name, description?, status? }
@@ -785,7 +905,7 @@ export async function importProjects(client, c, input = {}) {
       if (customerRef) {
         const matches = (await client.query(`SELECT id FROM tenant.business_parties WHERE organization_id = $1 AND status <> 'archived' AND (customer_number IS NOT NULL OR party_type IN ('customer', 'both'))
             AND (customer_number = $2 OR code = $2 OR lower(display_name) = lower($2)) LIMIT 2`, [c.organizationId, customerRef])).rows;
-        if (matches.length !== 1) throw projectError(400, "PROJECT_CUSTOMER_INVALID", matches.length ? `"${customerRef}" matches more than one customer: use the customer number.` : `No customer "${customerRef}".`);
+        if (matches.length !== 1) throw projectError(400, "PROJECT_CUSTOMER_NOT_FOUND", matches.length ? `"${customerRef}" matches more than one customer: use the customer number.` : `No customer "${customerRef}".`);
         customerId = matches[0].id;
       }
       const managerRef = at(cells, "manager", "manageremail", "projectmanager");

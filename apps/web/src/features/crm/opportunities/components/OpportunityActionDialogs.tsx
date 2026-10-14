@@ -64,7 +64,7 @@ export function AssignOpportunitiesDialog({ isOpen, onOpenChange, options, oppor
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={single ? "Assign opportunity" : `Assign ${count(opportunityIds)}`}
-      description={opportunity ? `Current owner: ${opportunity.ownerName ?? "Unassigned"}${opportunity.teamName ? ` · Team ${opportunity.teamName}` : ""}. The stage and status do not change.` : "The stage and status of each opportunity stay as they are."}>
+      description={opportunity ? `Current owner: ${opportunity.ownerName ?? "Unassigned"}${opportunity.teamName ? ` · Team ${opportunity.teamName}` : ""}. The stage and status do not change.` : "The stage and status of each deal stay as they are."}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <Select label="Team" selectedKey={team} onSelectionChange={(key) => setTeam(String(key))}
@@ -97,7 +97,7 @@ export function ChangeStageDialog({ isOpen, onOpenChange, options, opportunityId
   });
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`Change stage of ${count(opportunityIds)}`}
-      description="Only open opportunities move. Closing a deal is done with Mark won or Mark lost on the opportunity itself.">
+      description="Only open deals move. Closing a deal is done with Mark won or Mark lost on the deal itself.">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <Select label="Sales stage" isRequired selectedKey={stageId} onSelectionChange={(key) => setStageId(String(key ?? NONE))}

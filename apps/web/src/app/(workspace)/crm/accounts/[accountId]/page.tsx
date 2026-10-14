@@ -1,7 +1,7 @@
 import { requireWorkspace } from "@/core/session";
 import { AccountDetailScreen } from "@/features/crm/accounts/screens/AccountDetailScreen";
 
-export const metadata = { title: "Account" };
+export const metadata = { title: "Company" };
 
 export default async function AccountPage({ params }: { params: Promise<{ accountId: string }> }) {
   await requireWorkspace();

@@ -10,5 +10,5 @@ export async function GET(request: Request, ctx: Params) {
 }
 export async function POST(request: Request, ctx: Params) {
   const { id } = await ctx.params;
-  return projectsMutation(request, z.object({ body: z.string().min(1).max(5000) }), async (client, context, input) => addProjectNote(client, context, id, input), 201);
+  return projectsMutation(request, z.object({ body: z.string().min(1).max(5000), customerContactId: z.string().uuid().optional() }), async (client, context, input) => addProjectNote(client, context, id, input), 201);
 }

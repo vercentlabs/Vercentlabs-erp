@@ -84,6 +84,7 @@ export function DateInput({
   onChange,
   isRequired,
   errorMessage,
+  description,
   className,
 }: {
   label: string;
@@ -91,6 +92,7 @@ export function DateInput({
   onChange: (date: string) => void;
   isRequired?: boolean;
   errorMessage?: string;
+  description?: string;
   className?: string;
 }) {
   const iso = value instanceof Date ? value.toISOString() : value;
@@ -102,6 +104,7 @@ export function DateInput({
       onChange={onChange}
       isRequired={isRequired}
       errorMessage={errorMessage}
+      description={description}
       className={className}
     />
   );

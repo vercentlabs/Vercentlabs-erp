@@ -52,11 +52,11 @@ export function OpportunityProductsPanel({ opportunity, canEdit, onChanged }: Pa
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-text-secondary">What is being sold, with estimated prices. A quotation created from this opportunity starts from these lines.</p>
+        <p className="text-sm text-text-secondary">What is being sold, with estimated prices. A quotation created from this deal starts from these lines.</p>
         {canEdit && <Button variant="secondary" size="compact" onPress={() => setAdding(true)}><Plus className="size-4" aria-hidden="true" />Add product</Button>}
       </div>
       <ErrorBanner message={error} />
-      {query.isLoading ? <LoadingState label="Loading products" rows={3} /> : lines.length === 0 ? empty("No products on this opportunity yet.") : (
+      {query.isLoading ? <LoadingState label="Loading products" rows={3} /> : lines.length === 0 ? empty("No products on this deal yet.") : (
         <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border">
           <table className="w-full text-sm">
             <thead className="bg-surface-muted text-left text-text-secondary">
@@ -163,7 +163,7 @@ function AddProductDialog({ opportunityId, currency, onClose, onAdded }: { oppor
         <div className="grid gap-4 sm:grid-cols-3">
           <TextField label="Quantity" inputMode="decimal" value={quantity} onChange={setQuantity} />
           <TextField label={`Estimated price${currency ? ` (${currency})` : ""}`} inputMode="decimal" value={unitPrice} onChange={setUnitPrice}
-            description="Leave empty to use the price on the account's price list." />
+            description="Leave empty to use the price on the company's price list." />
           <TextField label="Discount %" inputMode="decimal" value={discount} onChange={setDiscount} />
         </div>
         <div className="flex justify-end gap-2">
@@ -198,9 +198,9 @@ export function OpportunityContactsPanel({ opportunity, options, canEdit, onChan
 
   return (
     <section className="flex flex-col gap-3">
-      <p className="text-sm text-text-secondary">The primary contact and the other people involved in the decision. They are contacts of {opportunity.accountName ?? "the account"}.</p>
+      <p className="text-sm text-text-secondary">The primary contact and the other people involved in the decision. They are contacts of {opportunity.accountName ?? "the company"}.</p>
       <ErrorBanner message={error} />
-      {query.isLoading ? <LoadingState label="Loading contacts" rows={2} /> : contacts.length === 0 ? empty("No contacts on this opportunity yet.") : (
+      {query.isLoading ? <LoadingState label="Loading contacts" rows={2} /> : contacts.length === 0 ? empty("No contacts on this deal yet.") : (
         <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface text-sm">
           {contacts.map((entry) => (
             <li key={entry.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -226,7 +226,7 @@ export function OpportunityContactsPanel({ opportunity, options, canEdit, onChan
       {canEdit && (
         <div className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <Select label="Add a contact" selectedKey={contactId} onSelectionChange={(selected) => setContactId(String(selected ?? NONE))}
-            options={[{ value: NONE, label: available.length ? "Choose a contact" : "No other contacts at this account" }, ...available.map((row) => ({ value: row.id, label: row.displayName }))]} />
+            options={[{ value: NONE, label: available.length ? "Choose a contact" : "No other contacts at this company" }, ...available.map((row) => ({ value: row.id, label: row.displayName }))]} />
           <Select label="Role" selectedKey={role} onSelectionChange={(selected) => setRole(String(selected ?? NONE))}
             options={[{ value: NONE, label: "No role" }, ...options.contactRoles.map((entry) => ({ value: entry.code, label: entry.label }))]} />
           <Button variant="secondary" isDisabled={!contactId || change.isPending} onPress={() => change.mutate(() => addOpportunityContact(opportunity.id, { contactId, role: role || null }))}>Add</Button>
@@ -247,7 +247,7 @@ export function OpportunityWorkPanel({ opportunity, canEdit }: PanelProps & { ki
   const label = "activities logged";
   return (
     <section className="flex flex-col gap-3">
-      {!canEdit && opportunity.status !== "open" && <p className="text-sm text-text-secondary">This opportunity is {opportunity.status}. Reopen it to plan more work.</p>}
+      {!canEdit && opportunity.status !== "open" && <p className="text-sm text-text-secondary">This deal is {opportunity.status}. Reopen it to plan more work.</p>}
       {query.isLoading ? <LoadingState label={`Loading ${label}`} rows={3} /> : rows.length === 0 ? empty(`No ${label} yet.`) : (
         <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface text-sm">
           {rows.map((entry) => (
@@ -309,7 +309,7 @@ export function LogActivityDialog({ isOpen, onOpenChange, opportunity, options, 
           <DateTimeInput label="When" description="Leave empty for now." value={occurredAt} onChange={setOccurredAt} />
           <Select label="Contact" selectedKey={contactId} onSelectionChange={(selected) => setContactId(String(selected ?? NONE))}
             options={[{ value: NONE, label: "No contact" }, ...(contacts.data ?? []).map((entry) => ({ value: entry.contactId, label: entry.name }))]} />
-          <TextField label="Subject" description="Leave empty to use the type and the opportunity name." value={subject} onChange={setSubject} />
+          <TextField label="Subject" description="Leave empty to use the type and the deal name." value={subject} onChange={setSubject} />
         </div>
         <TextField label="Outcome" value={outcome} onChange={setOutcome} placeholder="For example: Customer asked for a revised scope" />
         <TextArea label="Notes" value={notes} onChange={setNotes} />

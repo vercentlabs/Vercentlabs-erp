@@ -17,7 +17,7 @@ export interface ListToolbarProps {
 export function ListToolbar({ savedViews, actionBar, filterBar, bulkActionBar }: ListToolbarProps) {
   if (!savedViews && !actionBar && !bulkActionBar && !filterBar) return null;
   const bulk = Boolean(bulkActionBar && bulkActionBar.selectedCount > 0);
-  const inlineViews = Boolean(savedViews && actionBar && !bulk && savedViewsAsMenu(savedViews.views));
+  const inlineViews = Boolean(savedViews && actionBar && !bulk && savedViewsAsMenu(savedViews.views, savedViews.pinned));
   return (
     <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-[var(--shadow-subtle)] sm:p-4">
       {savedViews && !inlineViews && <SavedViewBar {...savedViews} />}

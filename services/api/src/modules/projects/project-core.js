@@ -10,6 +10,8 @@ export const PROJECT = Object.freeze({
   links: "projects.links.manage", start: "projects.start", hold: "projects.hold", resume: "projects.resume", complete: "projects.complete", reopen: "projects.reopen",
   cancel: "projects.cancel", archive: "projects.archive", financialView: "projects.financial_view", export: "projects.export", reports: "projects.reports.view",
   settings: "projects.settings.manage",
+  customerView: "projects.customer.view", customerAssign: "projects.customer.assign", customerChange: "projects.customer.change", customerContacts: "projects.customer.contacts.manage",
+  customerSalesLink: "projects.customer.sales_link", customerSites: "projects.customer.address.manage", customerHistory: "projects.customer.history.view", customerExport: "projects.customer.export",
 });
 export const STATUS_LABEL = Object.freeze({ DRAFT: "Draft", PLANNED: "Planned", IN_PROGRESS: "In progress", ON_HOLD: "On hold", COMPLETED: "Completed", CANCELLED: "Cancelled" });
 export const PRIORITIES = Object.freeze(["LOW", "NORMAL", "HIGH", "URGENT"]);
@@ -18,8 +20,19 @@ export const ACTIVE_STATUSES = Object.freeze(["PLANNED", "IN_PROGRESS", "ON_HOLD
 
 const MESSAGES = Object.freeze({
   PROJECT_NAME_REQUIRED: "Enter a project name.",
-  PROJECT_CUSTOMER_REQUIRED: "Select a customer for this project.",
-  PROJECT_CUSTOMER_INVALID: "The selected customer is not available to your Company.",
+  PROJECT_CUSTOMER_REQUIRED: "Select a customer before activating this project.",
+  PROJECT_CUSTOMER_NOT_FOUND: "The selected customer could not be found.",
+  PROJECT_CUSTOMER_INACTIVE: "This customer is inactive. Choose an eligible customer or request authorization.",
+  PROJECT_CUSTOMER_COMPANY_MISMATCH: "This customer belongs to a different Company.",
+  PROJECT_CUSTOMER_CONTACT_INVALID: "This contact is not associated with the selected customer.",
+  PROJECT_CUSTOMER_PRIMARY_DUPLICATE: "Only one primary contact is allowed.",
+  PROJECT_CUSTOMER_SALES_MISMATCH: "The Sales document belongs to a different customer.",
+  PROJECT_CUSTOMER_CHANGE_BLOCKED: "Resolve linked financial or delivery obligations before changing the customer.",
+  PROJECT_CUSTOMER_APPROVAL_REQUIRED: "A manager must approve this customer change.",
+  PROJECT_CUSTOMER_MAPPING_UNRESOLVED: "The CRM Account must be linked to a valid Customer record.",
+  PROJECT_CUSTOMER_MERGE_REVIEW: "This customer merge requires review before updating the project.",
+  PROJECT_CUSTOMER_VERSION_CONFLICT: "Project details changed. Refresh and review.",
+  PROJECT_CUSTOMER_PERMISSION_DENIED: "You do not have permission for this action.",
   PROJECT_MANAGER_REQUIRED: "Assign a Project Manager before starting.",
   PROJECT_MANAGER_INVALID: "Select an active, authorized team member.",
   PROJECT_DATE_INVALID: "The target date cannot be before the start date.",
@@ -78,7 +91,11 @@ export const today = async (client) => (await client.query(`SELECT to_char(curre
 export async function projectSettings(client, c) {
   const row = (await client.query(`SELECT * FROM tenant.project_settings WHERE organization_id = $1`, [c.organizationId])).rows[0] ?? {};
   return { activationApprovalRequired: Boolean(row.activation_approval_required), selfApprovalAllowed: Boolean(row.self_approval_allowed),
-    dueSoonDays: Number(row.due_soon_days ?? 7), customerAcceptanceRequired: Boolean(row.customer_acceptance_required) };
+    dueSoonDays: Number(row.due_soon_days ?? 7), customerAcceptanceRequired: Boolean(row.customer_acceptance_required),
+    // Customer Association: a customer change past the draft needs someone else's approval; activation needs a primary contact; an inactive
+    // customer may be chosen for a new association.
+    customerChangeApprovalRequired: row.customer_change_approval_required ?? true, primaryContactRequired: Boolean(row.primary_contact_required),
+    inactiveCustomerAllowed: Boolean(row.inactive_customer_allowed) };
 }
 const STANDARD_TYPES = [["IMPLEMENTATION", "Customer implementation", 10], ["SOFTWARE", "Software development", 20], ["DESIGN", "Design", 30], ["CONSTRUCTION", "Construction or installation", 40],
   ["MARKETING", "Marketing campaign", 50], ["CONSULTING", "Consulting engagement", 60], ["SERVICE_DELIVERY", "Service delivery", 70], ["INTERNAL", "Internal initiative", 80], ["OTHER", "Other", 90]];

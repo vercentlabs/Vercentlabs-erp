@@ -101,6 +101,6 @@ export const searchAttachments = (filters: { search?: string; kind?: string; rel
   request<{ attachments: LibraryAttachment[]; total: number; limit: number; offset: number }>(`/api/crm/attachments/library${query(filters)}`);
 
 // Where a note or file lives: the record it belongs to.
-export const RELATED_TYPE_LABELS: Record<string, string> = { lead: "Lead", party: "Account", contact: "Contact", opportunity: "Opportunity" };
+export const RELATED_TYPE_LABELS: Record<string, string> = { lead: "Lead", party: "Company", contact: "Contact", opportunity: "Deal" };
 export const relatedRecordHref = (relatedType: string, relatedId: string, tab?: "notes" | "attachments") =>
   `/crm/${{ lead: "leads", party: "accounts", contact: "contacts", opportunity: "opportunities" }[relatedType] ?? "leads"}/${relatedId}${tab ? `?tab=${tab}` : ""}`;

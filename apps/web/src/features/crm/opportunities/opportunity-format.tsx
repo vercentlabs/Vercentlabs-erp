@@ -25,7 +25,7 @@ export function OpportunityStageBadge({ opportunity }: { opportunity: Pick<Oppor
 }
 
 export function PriorityBadge({ priority }: { priority: Opportunity["priority"] }) {
-  return <Badge tone={priority === "high" ? "danger" : priority === "medium" ? "warning" : "neutral"}>{priority}</Badge>;
+  return <Badge tone={priority === "high" ? "danger" : priority === "medium" ? "warning" : "neutral"}>{PRIORITY_OPTIONS.find((entry) => entry.value === priority)?.label ?? priority}</Badge>;
 }
 
 // Overdue and stale are calculated from the dates, never stored as a status.

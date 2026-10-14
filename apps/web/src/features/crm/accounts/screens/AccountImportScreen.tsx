@@ -21,7 +21,8 @@ import { ErrorBanner } from "../account-format";
 const SKIP = "__skip__";
 const NONE = "__none__";
 
-export function AccountImportScreen() {
+// embedded: shown inside Import data, which carries the page title; the importer shows its template link in a compact row.
+export function AccountImportScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "account-options"), queryFn: getAccountOptions, staleTime: 60_000 });
@@ -58,7 +59,7 @@ export function AccountImportScreen() {
 
   if (optionsQuery.isLoading) return <LoadingState label="Loading" />;
   if (options && !(options.capabilities.import && options.capabilities.create))
-    return <PermissionState title="You can't import accounts" description="Ask an administrator for the Import accounts and Create accounts permissions." />;
+    return <PermissionState title="You can't import companies" description="Ask an administrator for the Import companies and Create companies permissions." />;
 
   const chooseFile = (chosen: File | null) => {
     setFile(chosen);
@@ -80,18 +81,27 @@ export function AccountImportScreen() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Import accounts"
-        description="Bring in companies from a CSV or Excel (.xlsx) file, up to 2,000 rows at a time. A row with a complete address also gets that address."
-        secondaryActions={
-          <>
-            <LinkButton variant="outline" href="/crm/accounts">Back to accounts</LinkButton>
-            <a className={buttonVariants({ variant: "outline" })} href={accountImportTemplateUrl} download>
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-text-secondary">Bring in companies from a CSV or Excel (.xlsx) file, up to 2,000 rows at a time. A row with a complete address also gets that address.</p>
+          <a className={buttonVariants({ variant: "outline" })} href={accountImportTemplateUrl} download>
               <Download className="size-4" aria-hidden="true" />Download template
             </a>
-          </>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          title="Import companies"
+          description="Bring in companies from a CSV or Excel (.xlsx) file, up to 2,000 rows at a time. A row with a complete address also gets that address."
+          secondaryActions={
+            <>
+              <LinkButton variant="outline" href="/crm/accounts">Back to companies</LinkButton>
+              <a className={buttonVariants({ variant: "outline" })} href={accountImportTemplateUrl} download>
+                <Download className="size-4" aria-hidden="true" />Download template
+              </a>
+            </>
+          }
+        />
+      )}
       <ErrorBanner message={error} />
 
       <Step number={1} title="Choose the file">
@@ -180,7 +190,7 @@ export function AccountImportScreen() {
               <div><Button variant="outline" onPress={downloadErrors}><Download className="size-4" aria-hidden="true" />Download failed rows</Button></div>
             </>
           )}
-          <div><LinkButton variant="primary" href="/crm/accounts">View accounts</LinkButton></div>
+          <div><LinkButton variant="primary" href="/crm/accounts">View companies</LinkButton></div>
         </section>
       )}
     </div>

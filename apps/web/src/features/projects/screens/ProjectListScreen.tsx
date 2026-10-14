@@ -25,7 +25,9 @@ import {
 
 const VIEWS = [{ id: "all", label: "All projects" }, { id: "active", label: "Active" }, { id: "on_hold", label: "On hold" }, { id: "completed", label: "Completed" },
   { id: "archived", label: "Archived" }, { id: "drafts", label: "Drafts" }, { id: "cancelled", label: "Cancelled" }];
-const FILTER_KEYS = ["status", "priority", "health", "due", "managerId", "classification", "typeId", "tag"] as const;
+const FILTER_KEYS = ["status", "priority", "health", "due", "managerId", "classification", "customer", "typeId", "tag"] as const;
+const CUSTOMER_FILTERS = [{ value: "review", label: "Needs commercial review" }, { value: "no_primary_contact", label: "No primary contact" },
+  { value: "provisional", label: "CRM account, not yet a Customer" }, { value: "inactive", label: "Inactive customer" }];
 type Filters = Partial<Record<(typeof FILTER_KEYS)[number], string>>;
 const SORT_ID: Record<string, string> = { code: "code", name: "name", status: "status", priority: "priority", target: "target", manager: "manager", customer: "customer", health: "health", updated: "updated" };
 
@@ -80,9 +82,11 @@ export function ProjectListScreen({ mine = false }: { mine?: boolean }) {
   const columns = useMemo<ColumnDef<ProjectRow, unknown>[]>(() => [
     { id: "code", accessorKey: "code", header: "Project", enableHiding: false, cell: ({ row }) => (
       <span className="flex min-w-0 flex-col"><span className="truncate font-medium text-text" title={row.original.name ?? undefined}>{row.original.name ?? "Untitled draft"}</span>
-        <span className="text-xs text-text-muted">{row.original.code} · {row.original.classification === "CUSTOMER" ? row.original.customer ?? "Customer not set" : "Internal"}</span></span>) },
+        <span className="text-xs text-text-muted">{row.original.code} · {row.original.classification === "CUSTOMER" ? `${row.original.customer ?? "Customer not set"}${row.original.customerNumber ? ` (${row.original.customerNumber})` : ""}` : "Internal"}
+          {row.original.provisionalCustomer ? " · CRM account" : ""}{row.original.customerInactive ? " · inactive customer" : ""}</span></span>) },
     { id: "status", accessorKey: "status", header: "Status", cell: ({ row }) => <span className="flex flex-wrap gap-1"><StatusBadge tone={STATUS_TONE[row.original.status]}>{row.original.statusLabel}</StatusBadge>
-      {row.original.archived && <StatusBadge tone="neutral">Archived</StatusBadge>}{row.original.approval === "PENDING" && <StatusBadge tone="info">Awaiting approval</StatusBadge>}</span> },
+      {row.original.archived && <StatusBadge tone="neutral">Archived</StatusBadge>}{row.original.approval === "PENDING" && <StatusBadge tone="info">Awaiting approval</StatusBadge>}
+      {row.original.customerReview && <StatusBadge tone="warning">Review</StatusBadge>}</span> },
     { id: "health", accessorKey: "health", header: "Health", cell: ({ row }) => <span title={row.original.healthReasons.join("\n")}><StatusBadge tone={HEALTH_TONE[row.original.health]}>{row.original.healthLabel}</StatusBadge></span> },
     { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <StatusBadge tone={PRIORITY_TONE[row.original.priority]}>{PRIORITY_LABEL[row.original.priority]}</StatusBadge> },
     { id: "manager", accessorKey: "manager", header: "Manager", cell: ({ row }) => row.original.manager ?? <span className="text-text-muted">Not assigned</span> },
@@ -102,6 +106,7 @@ export function ProjectListScreen({ mine = false }: { mine?: boolean }) {
     { id: "due", active: Boolean(filters.due), label: filters.due === "overdue" ? "Overdue" : "Due soon", clear: () => setFilter("due")(null) },
     { id: "managerId", active: Boolean(filters.managerId), label: `Manager: ${filters.managerId ? managerName(filters.managerId) : ""}`, clear: () => setFilter("managerId")(null) },
     { id: "classification", active: Boolean(filters.classification), label: filters.classification === "CUSTOMER" ? "Customer projects" : "Internal projects", clear: () => setFilter("classification")(null) },
+    { id: "customer", active: Boolean(filters.customer), label: CUSTOMER_FILTERS.find((row) => row.value === filters.customer)?.label ?? "", clear: () => setFilter("customer")(null) },
     { id: "typeId", active: Boolean(filters.typeId), label: `Type: ${options.data?.types.find((type) => type.id === filters.typeId)?.name ?? ""}`, clear: () => setFilter("typeId")(null) },
     { id: "tag", active: Boolean(filters.tag), label: `Tag: ${filters.tag}`, clear: () => setFilter("tag")(null) },
   ];
@@ -132,6 +137,8 @@ export function ProjectListScreen({ mine = false }: { mine?: boolean }) {
               options={(options.data?.users ?? []).map((user) => ({ value: user.id, label: user.name }))} />
             <Select aria-label="Kind" label="Kind" size="compact" placeholder="Internal and customer" selectedKey={filters.classification ?? null} onSelectionChange={(key) => setFilter("classification")(key ? String(key) : null)}
               options={[{ value: "CUSTOMER", label: "Customer projects" }, { value: "INTERNAL", label: "Internal projects" }]} />
+            <Select aria-label="Customer" label="Customer" size="compact" placeholder="Any customer state" selectedKey={filters.customer ?? null} onSelectionChange={(key) => setFilter("customer")(key ? String(key) : null)}
+              options={CUSTOMER_FILTERS} />
             <Select aria-label="Type" label="Type" size="compact" placeholder="Any type" selectedKey={filters.typeId ?? null} onSelectionChange={(key) => setFilter("typeId")(key ? String(key) : null)}
               options={(options.data?.types ?? []).map((type) => ({ value: type.id, label: type.name }))} />
           </>

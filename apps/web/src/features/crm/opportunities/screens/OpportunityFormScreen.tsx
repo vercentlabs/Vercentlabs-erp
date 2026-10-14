@@ -1,5 +1,8 @@
 "use client";
 
+// New and edit deal: the name, company, primary contact, value, close date and (when creating) stage first; currency, priority, source,
+// product interest and description under More details; "The deal" and Next step folded until opened, as they are filled while the deal
+// moves; then — when creating — who owns it. Save and Cancel are at the top and the bottom.
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -22,6 +25,7 @@ import {
 } from "../api/opportunities-api";
 import { ErrorBanner, PRIORITY_OPTIONS } from "../opportunity-format";
 import { useSubmitKey } from "@/shared/http/submit-once";
+import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
 
 const NONE = "";
 const UNASSIGNED = "__unassigned__";
@@ -70,14 +74,14 @@ export function OpportunityFormScreen({ opportunityId, initialAccountId }: { opp
     queryKey: scopedQueryKey(workspace, "crm", "account", initialAccountId), queryFn: () => getAccount(initialAccountId as string), enabled: Boolean(initialAccountId) && !opportunityId,
   });
   const opportunity = opportunityQuery.data;
-  const back = { label: "Back to opportunities", onPress: () => router.push("/crm/opportunities") };
+  const back = { label: "Back to deals", onPress: () => router.push("/crm/opportunities") };
 
-  if (optionsQuery.isLoading || (opportunityId && opportunityQuery.isLoading) || accountQuery.isLoading) return <LoadingState label={opportunityId ? "Loading opportunity" : "Loading"} />;
-  if (opportunityId && (opportunityQuery.isError || !opportunity)) return <ErrorState title="Could not load this opportunity" description={errorMessage(opportunityQuery.error)} action={back} />;
+  if (optionsQuery.isLoading || (opportunityId && opportunityQuery.isLoading) || accountQuery.isLoading) return <LoadingState label={opportunityId ? "Loading deal" : "Loading"} />;
+  if (opportunityId && (opportunityQuery.isError || !opportunity)) return <ErrorState title="Could not load this deal" description={errorMessage(opportunityQuery.error)} action={back} />;
   if (!optionsQuery.data) return <ErrorState title="Could not load this page" description="Refresh to try again." />;
   if (opportunity && (opportunity.status !== "open" || opportunity.archivedAt))
-    return <ErrorState title={`This opportunity is ${opportunity.archivedAt ? "archived" : opportunity.status}`} description="Reopen or restore it before changing its details."
-      action={{ label: "Open opportunity", onPress: () => router.push(`/crm/opportunities/${opportunity.id}`) }} />;
+    return <ErrorState title={`This deal is ${opportunity.archivedAt ? "archived" : opportunity.status}`} description="Reopen or restore it before changing its details."
+      action={{ label: "Open deal", onPress: () => router.push(`/crm/opportunities/${opportunity.id}`) }} />;
   const account = accountQuery.data ? { id: accountQuery.data.id, name: accountQuery.data.displayName } : undefined;
   return <OpportunityForm key={opportunity?.id ?? account?.id ?? "new"} opportunity={opportunity} options={optionsQuery.data} account={account} />;
 }
@@ -143,12 +147,15 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
   const amount = Number(values.amount);
   const cancelHref = opportunity ? `/crm/opportunities/${opportunity.id}` : account ? `/crm/accounts/${account.id}` : "/crm/opportunities";
   const ready = Boolean(values.name.trim() && values.accountId);
+  // The currency field shows only when the organization works in more than one.
+  const singleCurrency = options.currencies.length <= 1 && values.currencyCode === options.baseCurrency;
 
   return (
     <RecordFormPage
+      repeatActions
       header={{
-        title: opportunity ? `Edit ${opportunity.code}` : "New opportunity",
-        description: opportunity ? undefined : "A deal with an account. Only the name and the account are needed to start.",
+        title: opportunity ? `Edit ${opportunity.code}` : "New deal",
+        description: opportunity ? undefined : "A deal with a company. Only the name and the company are needed to start.",
       }}
       banner={
         <div className="flex flex-col gap-3">
@@ -156,14 +163,14 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
           {similar.length > 0 && (
             <div role="status" className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm">
               <p className="font-medium">
-                {similar.length === 1 ? "A similar open opportunity already exists for this account." : `${similar.length} similar open opportunities already exist for this account.`}
+                {similar.length === 1 ? "A similar open deal already exists for this company." : `${similar.length} similar open deals already exist for this company.`}
               </p>
               <ul className="flex flex-col gap-1">
                 {similar.map((match) => (
                   <li key={match.id} className="flex flex-wrap items-center gap-x-2">
                     {match.canOpen
                       ? <Link className="font-medium text-brand underline-offset-2 hover:underline" href={`/crm/opportunities/${match.id}`} target="_blank">{match.code} · {match.name}</Link>
-                      : <span className="font-medium">An opportunity you cannot open</span>}
+                      : <span className="font-medium">A deal you cannot open</span>}
                     <span className="text-text-secondary">
                       {[match.stageName, match.amount !== undefined ? formatMoney(match.currencyCode ?? options.baseCurrency, match.amount) : null, match.ownerName, match.reasons.join(", ")].filter(Boolean).join(" · ")}
                     </span>
@@ -179,61 +186,66 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
         <>
           <Button variant="secondary" onPress={() => router.replace(cancelHref)}>Cancel</Button>
           <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending || mutation.isSuccess} isDisabled={!ready}>
-            {opportunity ? "Save changes" : similar.length ? "Continue anyway" : "Create opportunity"}
+            {opportunity ? "Save changes" : similar.length ? "Continue anyway" : "Create deal"}
           </Button>
         </>
       }
     >
-      <FormSection title="Opportunity" description="What the deal is and who it is with.">
-        <TextField label="Opportunity name" isRequired className="sm:col-span-2" value={values.name} onChange={set("name")} errorMessage={fieldErrors.name}
+      <FormSection title="Deal" description="What the deal is, who it is with, and when it should close.">
+        <TextField label="Deal name" isRequired className="sm:col-span-2" value={values.name} onChange={set("name")} errorMessage={fieldErrors.name}
           placeholder="For example: Acme – ERP implementation" />
         {account && !opportunity ? (
-          <TextField label="Account" isReadOnly value={values.accountName} onChange={() => undefined} description="Opened from this account." />
+          <TextField label="Company" isReadOnly value={values.accountName} onChange={() => undefined} description="Opened from this company." />
         ) : (
-          <AccountPicker label="Account *" value={values.accountId || null}
-            description={fieldErrors.accountId || (values.accountName ? `Chosen: ${values.accountName}` : "Every opportunity belongs to an account.")}
+          <AccountPicker label="Company" isRequired value={values.accountId || null} errorMessage={fieldErrors.accountId || undefined}
+            description={values.accountName ? `Chosen: ${values.accountName}` : "Every deal belongs to a company."}
             onChange={(id, name) => setValues((current) => ({ ...current, accountId: id ?? "", accountName: name ?? "", contactId: NONE }))} />
         )}
         <Select label="Primary contact" isDisabled={!values.accountId} selectedKey={values.contactId} onSelectionChange={(key) => set("contactId")(String(key ?? NONE))}
-          description="More contacts can be added on the opportunity."
-          options={[{ value: NONE, label: !values.accountId ? "Choose an account first" : contacts.length ? "No primary contact" : "This account has no contacts" },
+          description="More contacts can be added on the deal."
+          options={[{ value: NONE, label: !values.accountId ? "Choose a company first" : contacts.length ? "No primary contact" : "This company has no contacts" },
             ...contacts.map((row) => ({ value: row.id, label: row.displayName }))]} />
-        <TextArea label="Product / service interest" className="sm:col-span-2" value={values.productInterest} onChange={set("productInterest")}
-          description="In words. Products with quantities and prices are added on the opportunity." />
-        <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} />
-      </FormSection>
-
-      <FormSection title="Value and timing">
-        <TextField label="Estimated value" inputMode="decimal" value={values.amount} onChange={set("amount")} errorMessage={fieldErrors.amount}
+        <TextField label="Value" inputMode="decimal" value={values.amount} onChange={set("amount")} errorMessage={fieldErrors.amount}
           description={mode === "create" && stage && Number.isFinite(amount) && amount > 0 ? `Weighted at ${stage.probability}%: ${formatMoney(values.currencyCode, Math.round(amount * stage.probability) / 100)}` : undefined} />
-        <Select label="Currency" selectedKey={values.currencyCode} onSelectionChange={(key) => set("currencyCode")(String(key))}
-          options={options.currencies.map((code) => ({ value: code, label: code }))} />
-        <DateInput label="Expected close date" value={values.expectedCloseDate} onChange={set("expectedCloseDate")} />
-        <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key))} options={PRIORITY_OPTIONS} />
+        <DateInput label="Close date" value={values.expectedCloseDate} onChange={set("expectedCloseDate")} errorMessage={fieldErrors.expectedCloseDate} />
         {mode === "create" && (
           <Select label="Sales stage" selectedKey={values.stageId} onSelectionChange={(key) => set("stageId")(String(key))}
             description="The stage sets the starting probability."
             options={options.stages.map((entry) => ({ value: entry.id, label: `${entry.name} · ${entry.probability}%` }))} />
         )}
-        <Select label="Source" selectedKey={values.sourceId} onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
-          options={[{ value: NONE, label: "Not set" }, ...options.sources.map((source) => ({ value: source.id, label: source.name }))]} />
       </FormSection>
 
-      <FormSection title="The deal" description="What the customer needs and what you propose. Fill these in as the deal moves forward.">
+      <MoreDetails description={`${singleCurrency ? "" : "Currency, "}priority, source, product interest and description.`}
+        hasContent={Boolean(values.productInterest || values.description || values.sourceId || values.priority !== "medium" || values.currencyCode !== options.baseCurrency
+          || fieldErrors.productInterest || fieldErrors.description || fieldErrors.currencyCode)}>
+        {!singleCurrency && (
+          <Select label="Currency" selectedKey={values.currencyCode} onSelectionChange={(key) => set("currencyCode")(String(key))}
+            options={options.currencies.map((code) => ({ value: code, label: code }))} />
+        )}
+        <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key))} options={PRIORITY_OPTIONS} />
+        <Select label="Source" selectedKey={values.sourceId} onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
+          options={[{ value: NONE, label: "Not set" }, ...options.sources.map((source) => ({ value: source.id, label: source.name }))]} />
+        <TextArea label="Product / service interest" className="sm:col-span-2" value={values.productInterest} onChange={set("productInterest")}
+          description="In words. Products with quantities and prices are added on the deal." />
+        <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} />
+      </MoreDetails>
+
+      <MoreDetails title="The deal" description="Business problem, requirements, proposed solution and commercial notes. Fill these in as the deal moves forward."
+        hasContent={Boolean(values.businessProblem || values.requirements || values.proposedSolution || values.commercialNotes)}>
         <TextArea label="Business problem" value={values.businessProblem} onChange={set("businessProblem")} />
         <TextArea label="Requirements" value={values.requirements} onChange={set("requirements")} />
         <TextArea label="Proposed solution" value={values.proposedSolution} onChange={set("proposedSolution")} />
         <TextArea label="Commercial notes" description="Budget, terms, discounts discussed." value={values.commercialNotes} onChange={set("commercialNotes")} />
-      </FormSection>
+      </MoreDetails>
 
-      <FormSection title="Next step">
+      <MoreDetails title="Next step" description="What happens next, and by when." hasContent={Boolean(values.nextStep || values.nextStepDueAt)}>
         <TextField label="Next step" value={values.nextStep} onChange={set("nextStep")} placeholder="For example: Send the revised proposal" />
         <DateTimeInput label="Next step due" value={values.nextStepDueAt} onChange={set("nextStepDueAt")} />
-      </FormSection>
+      </MoreDetails>
 
       {mode === "create" && (
-        <FormSection title="Ownership" description="The opportunity is yours unless you give it to someone else.">
-          <Select label="Opportunity owner" selectedKey={values.ownerUserId} onSelectionChange={(key) => set("ownerUserId")(String(key))}
+        <FormSection title="Ownership" description="The deal is yours unless you give it to someone else.">
+          <Select label="Deal owner" selectedKey={values.ownerUserId} onSelectionChange={(key) => set("ownerUserId")(String(key))}
             options={[
               ...(canAssignOthers ? [{ value: UNASSIGNED, label: "Leave unassigned" }] : []),
               ...options.users

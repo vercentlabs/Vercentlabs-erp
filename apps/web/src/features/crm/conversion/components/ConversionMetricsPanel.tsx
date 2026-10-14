@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { CalendarDays } from "lucide-react";
 import { MetricCard } from "@vercentlabs/design-system";
 
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -8,7 +9,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 import { getConversionMetrics } from "../api/conversion-api";
 
-// Lead → opportunity conversions in the period, over the leads the user can see.
+// Lead → deal conversions in the period, over the leads the user can see.
 export function ConversionMetricsPanel({ from, to }: { from: string; to: string }) {
   const workspace = useWorkspaceContext();
   const metrics = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "leads", "conversion-metrics", from, to), queryFn: () => getConversionMetrics({ from, to }) });
@@ -16,10 +17,10 @@ export function ConversionMetricsPanel({ from, to }: { from: string; to: string 
   const data = metrics.data;
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-base font-semibold">Conversions</h2>
+      <h2 className="flex items-center gap-1.5 text-base font-semibold"><CalendarDays className="size-4 text-brand" aria-label="Uses the date range" />Conversions in the range</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Leads converted" value={data.converted} />
-        <MetricCard label="Lead → opportunity rate" value={`${data.conversionRate}%`} />
+        <MetricCard label="Lead → deal rate" value={`${data.conversionRate}%`} />
         <MetricCard label="Average days to convert" value={data.averageDaysToConvert === null ? "–" : data.averageDaysToConvert} />
         <MetricCard label="Converted with an override" value={data.convertedWithOverride} />
       </div>

@@ -6,7 +6,7 @@ import { MatchReasons, MatchStateBadge, MatchStrengthBadge } from "@/features/cr
 import type { LeadDuplicateMatch } from "../api/leads-api";
 import { STATUS_LABELS } from "../lead-format";
 
-const KIND = { lead: { label: "Lead", path: "leads" }, contact: { label: "Contact", path: "contacts" }, account: { label: "Account", path: "accounts" } } as const;
+const KIND = { lead: { label: "Lead", path: "leads" }, contact: { label: "Contact", path: "contacts" }, account: { label: "Company", path: "accounts" } } as const;
 
 function matchHref(match: LeadDuplicateMatch) {
   return `/crm/${KIND[match.kind].path}/${match.id}`;
@@ -20,7 +20,7 @@ export function DuplicateWarning({ matches, blocking, children }: { matches: Lea
   return (
     <div role="alert" className={`flex flex-col gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-sm ${blocking ? "border-warning-emphasis/40 bg-warning-soft" : "border-border bg-surface-muted"}`}>
       <p className="font-medium">
-        {blocking ? "This looks like a duplicate of a record you already have." : "Similar records already exist. Check that this is a different person, and use the existing account if the company is already there."}
+        {blocking ? "This looks like a duplicate of a record you already have." : "Similar records already exist. Check that this is a different person, and use the existing company if it is already there."}
       </p>
       <ul className="flex flex-col gap-2">
         {matches.map((match) => (

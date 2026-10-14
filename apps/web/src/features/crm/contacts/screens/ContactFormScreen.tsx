@@ -1,5 +1,8 @@
 "use client";
 
+// New and edit contact: first name, last name, company (when creating, with the primary tick), job title, mobile and work email first;
+// everything else under More details; then — when creating — who owns it. A first name and a way to reach the person are needed. Save
+// and Cancel are at the top and the bottom.
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +23,7 @@ import { DuplicateOverride } from "@/features/crm/duplicates/DuplicateParts";
 import { ContactDuplicateWarning } from "../components/ContactDuplicateWarning";
 import { ErrorBanner } from "../contact-format";
 import { useSubmitKey } from "@/shared/http/submit-once";
+import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
 
 const NONE = "";
 const AUTO = "__auto__";
@@ -163,6 +167,7 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
 
   return (
     <RecordFormPage
+      repeatActions
       header={{
         title: mode === "edit" ? `Edit ${contact?.displayName ?? "contact"}` : "New contact",
         description: mode === "edit" ? contact?.contactNumber ?? undefined : "A first name and a way to reach the person are enough to start. The company is optional.",
@@ -189,50 +194,58 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
         </>
       }
     >
-      <FormSection title="Person">
+      <FormSection title="Contact" description={sensitiveHidden ? undefined : "At least a work email or mobile (or a work phone, under More details)."}>
         <TextField label="First name" isRequired value={values.firstName} onChange={set("firstName")} errorMessage={fieldErrors.firstName} />
-        <TextField label="Middle name" value={values.middleName} onChange={set("middleName")} />
         <TextField label="Last name" value={values.lastName} onChange={set("lastName")} errorMessage={fieldErrors.lastName} />
-        <TextField label="Display name" description="Leave empty to use the full name." value={values.displayName} onChange={set("displayName")} />
+        {mode === "create" && (
+          <div className="flex flex-col gap-2">
+            <AccountPicker label="Company" description="Optional. A person can be linked to more companies later." value={values.accountId} onChange={(id) => set("accountId")(id)} />
+            {values.accountId && <Checkbox isSelected={values.makePrimary} onChange={set("makePrimary")}>Primary contact for this company</Checkbox>}
+          </div>
+        )}
+        <TextField label="Job title" description={contact?.accountName ? `At ${contact.accountName}.` : undefined} value={values.jobTitle} onChange={set("jobTitle")} />
+        {!sensitiveHidden && (
+          <>
+            <TextField label="Mobile" type="tel" value={values.mobile} onChange={set("mobile")} errorMessage={fieldErrors.mobile} />
+            <TextField label="Work email" type="email" value={values.email} onChange={set("email")} errorMessage={fieldErrors.email} />
+          </>
+        )}
       </FormSection>
 
-      {mode === "create" && (
-        <FormSection title="Company" description="Optional. A person can be linked to more companies later.">
-          <AccountPicker label="Company" value={values.accountId} onChange={(id) => set("accountId")(id)} />
-          {values.accountId && <Checkbox isSelected={values.makePrimary} onChange={set("makePrimary")}>Primary contact for this company</Checkbox>}
-        </FormSection>
-      )}
-
-      <FormSection title="Position" description={contact?.accountName ? `At ${contact.accountName}.` : undefined}>
-        <TextField label="Job title" value={values.jobTitle} onChange={set("jobTitle")} />
+      <MoreDetails description="Middle and display name, department, role, other emails and phones, preferences, address, source and description."
+        hasContent={Boolean(values.middleName || values.displayName || values.department || values.role || values.isDecisionMaker || values.secondaryEmail || values.phone
+          || values.alternatePhone || values.preferredContactMethod || values.doNotEmail || values.doNotCall || values.doNotSms || values.addressLine1 || values.city
+          || values.sourceId || values.description || (!sensitiveHidden && !values.email.trim() && !values.mobile.trim() && Boolean(values.phone.trim()))
+          || Object.entries(fieldErrors).some(([key, message]) => message && !["firstName", "lastName", "mobile", "email"].includes(key)))}>
+        <TextField label="Middle name" value={values.middleName} onChange={set("middleName")} />
+        <TextField label="Display name" description="Follows the full name until you change it." value={values.displayName} onChange={set("displayName")} />
         <TextField label="Department" value={values.department} onChange={set("department")} />
-        <Select label="Role" description="Who this person is in the buying process." selectedKey={values.role} onSelectionChange={(key) => set("role")(String(key ?? NONE))} options={roleOptions} />
-        <Checkbox isSelected={values.isDecisionMaker} onChange={set("isDecisionMaker")}>Decision maker</Checkbox>
-      </FormSection>
-
-      {!sensitiveHidden && (
-        <FormSection title="Contact details" description="At least a work email, mobile or work phone.">
-          <TextField label="Work email" type="email" value={values.email} onChange={set("email")} errorMessage={fieldErrors.email} />
-          <TextField label="Secondary email" type="email" value={values.secondaryEmail} onChange={set("secondaryEmail")} errorMessage={fieldErrors.secondaryEmail} />
-          <TextField label="Mobile" type="tel" value={values.mobile} onChange={set("mobile")} errorMessage={fieldErrors.mobile} />
-          <TextField label="Work phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />
-          <TextField label="Alternate phone" type="tel" value={values.alternatePhone} onChange={set("alternatePhone")} errorMessage={fieldErrors.alternatePhone} />
-          <Select label="Preferred contact method" selectedKey={values.preferredContactMethod} onSelectionChange={(key) => set("preferredContactMethod")(String(key ?? NONE))}
-            options={[{ value: NONE, label: "Not set" }, ...options.preferredContactMethods.map((entry) => ({ value: entry.code, label: entry.label }))]} />
-        </FormSection>
-      )}
-
-      <FormSection title="Communication preferences">
-        <Checkbox isSelected={values.doNotEmail} onChange={set("doNotEmail")}>Do not email</Checkbox>
-        <Checkbox isSelected={values.doNotCall} onChange={set("doNotCall")}>Do not call</Checkbox>
-        <Checkbox isSelected={values.doNotSms} onChange={set("doNotSms")}>Do not SMS</Checkbox>
+        <div className="flex flex-col gap-2">
+          <Select label="Role" description="Who this person is in the buying process." selectedKey={values.role} onSelectionChange={(key) => set("role")(String(key ?? NONE))} options={roleOptions} />
+          <Checkbox isSelected={values.isDecisionMaker} onChange={set("isDecisionMaker")}>Decision maker</Checkbox>
+        </div>
+        {!sensitiveHidden && (
+          <>
+            <TextField label="Secondary email" type="email" value={values.secondaryEmail} onChange={set("secondaryEmail")} errorMessage={fieldErrors.secondaryEmail} />
+            <TextField label="Work phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />
+            <TextField label="Alternate phone" type="tel" value={values.alternatePhone} onChange={set("alternatePhone")} errorMessage={fieldErrors.alternatePhone} />
+            <Select label="Preferred contact method" selectedKey={values.preferredContactMethod} onSelectionChange={(key) => set("preferredContactMethod")(String(key ?? NONE))}
+              options={[{ value: NONE, label: "Not set" }, ...options.preferredContactMethods.map((entry) => ({ value: entry.code, label: entry.label }))]} />
+          </>
+        )}
+        <fieldset className="flex flex-col gap-2 sm:col-span-2">
+          <legend className="mb-1 text-sm font-medium">Communication preferences</legend>
+          <div className="flex flex-wrap gap-4">
+            <Checkbox isSelected={values.doNotEmail} onChange={set("doNotEmail")}>Do not email</Checkbox>
+            <Checkbox isSelected={values.doNotCall} onChange={set("doNotCall")}>Do not call</Checkbox>
+            <Checkbox isSelected={values.doNotSms} onChange={set("doNotSms")}>Do not SMS</Checkbox>
+          </div>
+        </fieldset>
         <Select label="Marketing" selectedKey={values.marketingConsent} onSelectionChange={(key) => set("marketingConsent")(String(key))}
           options={options.marketingConsent.map((entry) => ({ value: entry.code, label: entry.label }))} />
-      </FormSection>
-
-      <FormSection title="Address">
-        <Checkbox isSelected={values.useAccountAddress} onChange={set("useAccountAddress")}>Use the company address</Checkbox>
-        <span className="hidden sm:block" />
+        <Select label="Source" selectedKey={values.sourceId} onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
+          options={[{ value: NONE, label: "Not set" }, ...options.sources.filter((source) => source.isActive || source.id === values.sourceId).map((source) => ({ value: source.id, label: source.name }))]} />
+        <Checkbox className="sm:col-span-2" isSelected={values.useAccountAddress} onChange={set("useAccountAddress")}>Use the company address</Checkbox>
         {!values.useAccountAddress && (
           <>
             <TextField label="Address line 1" className="sm:col-span-2" value={values.addressLine1} onChange={set("addressLine1")} />
@@ -243,16 +256,11 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
             <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
           </>
         )}
-      </FormSection>
-
-      <FormSection title="Source and notes">
-        <Select label="Source" selectedKey={values.sourceId} onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
-          options={[{ value: NONE, label: "Not set" }, ...options.sources.filter((source) => source.isActive || source.id === values.sourceId).map((source) => ({ value: source.id, label: source.name }))]} />
         <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} />
-      </FormSection>
+      </MoreDetails>
 
       {mode === "create" && (
-        <FormSection title="Ownership" description="Left on automatic, the company's owner owns the contact; without a company, you do.">
+        <FormSection title="Ownership" description="Automatic: the company's owner; without a company, you.">
           <Select label="Contact owner" selectedKey={values.ownerUserId} onSelectionChange={(key) => set("ownerUserId")(String(key))}
             options={[
               { value: AUTO, label: "Automatic" },

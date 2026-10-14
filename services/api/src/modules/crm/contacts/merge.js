@@ -6,6 +6,7 @@
 // contact. The duplicate is archived, never deleted, and an alias remembers
 // where it went.
 import { recordAccountHistory } from "../accounts/history.js";
+import { applyProjectContactMerge } from "../../projects/project-customer.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { requireContactPermission } from "./access.js";
@@ -181,5 +182,7 @@ export async function mergeContacts(client, context, input = {}) {
   await recordContactHistory(client, context, keep.id, "merged", `${duplicateName} (${duplicate.contact_number ?? ""}) merged into this contact`, { mergedFrom: duplicate.id, changes });
   if (keep.party_id) await recordAccountHistory(client, context, keep.party_id, "updated", `Contact ${duplicateName} merged into ${keepName}`, { contactId: keep.id, mergedFrom: duplicate.id });
   await queueOutboxEvent(client, context, "crm.contacts.merged", "contact", keep.id, { contactId: keep.id, mergedContactId: duplicate.id });
+  // A project role the duplicate held is held by the kept person.
+  await applyProjectContactMerge(client, context, duplicate.id, keep.id);
   return { keptContactId: keep.id, mergedContactId: duplicate.id };
 }

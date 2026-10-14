@@ -45,7 +45,7 @@ export function AccountDuplicatesPanel({ account, canMerge, hideWhenEmpty = fals
           <div className="flex flex-wrap gap-2">
             {mergeable.map((match) => (
               <Button key={match.id} variant="outline" size="compact" onPress={() => setMergingId(match.id)}>
-                Merge {match.name ?? match.code} into this account
+                Merge {match.name ?? match.code} into this company
               </Button>
             ))}
           </div>

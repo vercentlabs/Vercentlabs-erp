@@ -7,16 +7,17 @@ import {
 } from "./project-core.js";
 import { LINK_LABEL, cancellationReview, completionCheck, healthContext, progressOf, resolvedLinks } from "./project-summary.js";
 import { LINK_SOURCES, validateProjectActivation } from "./project-service.js";
+import { CUSTOMER_REPORTS, getProjectCustomerReport, searchProjectEligibleCustomers } from "./project-customer.js";
 
 const PRIORITY_RANK = Object.freeze({ URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 });
 const day = (value) => (value ? isoDay(value) : null);
-const BASE_SELECT = `SELECT project.*, type.name AS type_name, type.code AS type_code, customer.display_name AS customer_name, customer.customer_number,
+const BASE_SELECT = `SELECT project.*, type.name AS type_name, type.code AS type_code, customer.display_name AS customer_name, customer.customer_number, customer.status AS customer_status,
        manager.full_name AS manager_name, manager.email AS manager_email,
        (SELECT count(*)::int FROM tenant.project_members member WHERE member.project_id = project.id AND member.left_at IS NULL) AS member_count,
        (SELECT max(event.occurred_at) FROM tenant.project_events event WHERE event.project_id = project.id) AS last_activity_at
   FROM tenant.projects project
   LEFT JOIN tenant.project_types type ON type.id = project.project_type_id
-  LEFT JOIN tenant.business_parties customer ON customer.id = project.customer_id
+  LEFT JOIN tenant.business_parties customer ON customer.id = COALESCE(project.customer_id, project.crm_account_id)
   LEFT JOIN public.users manager ON manager.id = project.manager_user_id`;
 
 // ------------------------------------------------------------------ the directory
@@ -40,6 +41,7 @@ async function directory(client, c, filters = {}) {
   if (filters.search) {
     const term = push(`%${text(filters.search, 100).toLowerCase()}%`);
     where.push(`(lower(project.project_code) LIKE ${term} OR lower(COALESCE(project.name, '')) LIKE ${term} OR lower(COALESCE(customer.display_name, '')) LIKE ${term}
+      OR lower(COALESCE(customer.customer_number, '')) LIKE ${term}
       OR EXISTS (SELECT 1 FROM unnest(project.tags) tag WHERE lower(tag) LIKE ${term}))`);
   }
   const list = (value) => String(value ?? "").split(",").map((item) => item.trim().toUpperCase()).filter(Boolean);
@@ -47,7 +49,12 @@ async function directory(client, c, filters = {}) {
   if (filters.priority) where.push(`project.priority = ANY(${push(list(filters.priority))}::text[])`);
   if (filters.classification) where.push(`project.classification = ${push(String(filters.classification).toUpperCase())}`);
   if (filters.managerId) where.push(`project.manager_user_id = ${push(uuid(filters.managerId, "Manager"))}`);
-  if (filters.customerId) where.push(`project.customer_id = ${push(uuid(filters.customerId, "Customer"))}`);
+  if (filters.customerId) { const id = push(uuid(filters.customerId, "Customer")); where.push(`(project.customer_id = ${id} OR project.crm_account_id = ${id})`); }
+  // Customer Association: projects still on a provisional CRM account, flagged for a commercial review, or a customer project with no primary contact.
+  if (filters.customer === "provisional") where.push("project.crm_account_id IS NOT NULL");
+  if (filters.customer === "review") where.push("project.customer_review_required");
+  if (filters.customer === "no_primary_contact") where.push("project.classification = 'CUSTOMER' AND project.customer_contact_id IS NULL AND project.status <> 'CANCELLED'");
+  if (filters.customer === "inactive") where.push("customer.status <> 'active' AND project.customer_id IS NOT NULL");
   if (filters.typeId) where.push(`project.project_type_id = ${push(uuid(filters.typeId, "Project type"))}`);
   if (filters.tag) where.push(`EXISTS (SELECT 1 FROM unnest(project.tags) tag WHERE lower(tag) = lower(${push(text(filters.tag, 40))}))`);
   const rows = (await client.query(`${BASE_SELECT} WHERE ${where.join(" AND ")} ORDER BY project.updated_at DESC LIMIT 5000`, values)).rows;
@@ -66,6 +73,8 @@ async function directory(client, c, filters = {}) {
 }
 const rowView = (row) => ({
   id: row.id, code: row.project_code, name: row.name, classification: row.classification, type: row.type_name ?? null, customer: row.customer_name ?? null, customerId: row.customer_id,
+  customerNumber: row.customer_number ?? null, customerInactive: Boolean(row.customer_id) && row.customer_status !== "active", provisionalCustomer: Boolean(row.crm_account_id),
+  customerReview: Boolean(row.customer_review_required),
   managerId: row.manager_user_id, manager: row.manager_name || row.manager_email || null, status: row.status, statusLabel: STATUS_LABEL[row.status], priority: row.priority,
   plannedStartDate: day(row.planned_start_date), targetEndDate: day(row.target_end_date), actualStartDate: day(row.actual_start_date), completedAt: day(row.completed_at),
   health: row.health.state, healthLabel: row.health.label, healthReasons: row.health.reasons, progress: row.progress.percent, progressLabel: row.progress.label, tags: row.tags ?? [],
@@ -96,12 +105,17 @@ export async function getProject(client, c, projectId) {
     [row.customer_contact_id])).rows[0] : null;
   const names = await userNames(client, [row.created_by, row.approval_requested_by, row.approved_by, row.completed_by, row.cancelled_by, row.archived_by, row.health_noted_by, hold?.owner_user_id]);
   const activation = row.status === "DRAFT" ? await validateProjectActivation(client, c, row.id) : null;
+  // Contact email and phone only for someone who may see project customers.
+  const customerDetails = has(c, PROJECT.customerView);
   const settings = health.settings;
   const can = access.can;
   const status = row.status;
   return {
     id: row.id, code: row.project_code, name: row.name, description: row.description, classification: row.classification, typeId: row.project_type_id, type: row.type_name ?? null,
-    customerId: row.customer_id, customer: row.customer_name ?? null, customerNumber: row.customer_number ?? null, contact: contact ? { id: contact.id, name: contact.name, email: contact.email, phone: contact.phone } : null,
+    customerId: row.customer_id, customer: row.customer_name ?? null, customerNumber: row.customer_number ?? null,
+    contact: contact ? { id: contact.id, name: contact.name, email: customerDetails ? contact.email : null, phone: customerDetails ? contact.phone : null } : null,
+    crmAccountId: row.crm_account_id, customerStatus: row.customer_status ?? null, customerInactive: Boolean(row.customer_id) && row.customer_status !== "active",
+    customerReview: row.customer_review_required ? { reason: row.customer_review_reason, at: row.customer_review_at } : null,
     managerId: row.manager_user_id, manager: row.manager_name || row.manager_email || null, managerActive: !row.manager_user_id || health.managers.has(row.manager_user_id),
     status, statusLabel: STATUS_LABEL[status], previousStatus: row.previous_status, priority: row.priority, source: row.source,
     plannedStartDate: day(row.planned_start_date), targetEndDate: day(row.target_end_date), actualStartDate: day(row.actual_start_date), completedAt: day(row.completed_at),
@@ -124,7 +138,7 @@ export async function getProject(client, c, projectId) {
       resume: can.resume && status === "ON_HOLD", complete: can.complete && status === "IN_PROGRESS", reopen: can.reopen && status === "COMPLETED" && !row.archived_at,
       cancel: can.cancel && ["DRAFT", ...ACTIVE_STATUSES].includes(status), archive: can.archive && ["COMPLETED", "CANCELLED"].includes(status) && !row.archived_at,
       restore: can.archive && Boolean(row.archived_at), delete: status === "DRAFT" && (can.archive || (can.edit && row.created_by === c.userId)),
-      members: can.members && !["COMPLETED", "CANCELLED"].includes(status), links: can.links,
+      members: can.members && !["COMPLETED", "CANCELLED"].includes(status), links: can.links, customer: customerDetails,
     },
   };
 }
@@ -159,9 +173,12 @@ export async function getProjectLinks(client, c, projectId) {
 }
 export async function getProjectNotes(client, c, projectId) {
   const { project, access } = await visibleProject(client, c, projectId);
-  const rows = (await client.query(`SELECT * FROM tenant.project_notes WHERE organization_id = $1 AND project_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 500`, [c.organizationId, project.id])).rows;
+  const rows = (await client.query(`SELECT note.*, COALESCE(NULLIF(contact.display_name, ''), btrim(concat_ws(' ', contact.first_name, contact.last_name))) AS contact_name
+      FROM tenant.project_notes note LEFT JOIN tenant.contacts contact ON contact.id = note.customer_contact_id
+     WHERE note.organization_id = $1 AND note.project_id = $2 AND note.deleted_at IS NULL ORDER BY note.created_at DESC LIMIT 500`, [c.organizationId, project.id])).rows;
   const names = await userNames(client, rows.map((row) => row.author_user_id));
   return { notes: rows.map((row) => ({ id: row.id, body: row.body, author: names.get(row.author_user_id) ?? null, createdAt: row.created_at, editedAt: row.edited_at, version: row.row_version,
+    customerContactId: row.customer_contact_id, customerContact: row.contact_name ?? null,
     mine: row.author_user_id === c.userId, mayRemove: row.author_user_id === c.userId || access.can.edit })), can: { add: access.can.contribute } };
 }
 export async function getProjectActivity(client, c, projectId, { limit = 300 } = {}) {
@@ -215,11 +232,13 @@ export async function getProjectsOverview(client, c) {
     can: { create: has(c, PROJECT.create), reports: has(c, PROJECT.reports), viewAll: seesAll(c) },
   };
 }
-export const PROJECT_REPORTS = Object.freeze(["by-status", "by-manager", "by-customer", "by-priority", "near-deadline", "overdue", "on-hold", "task-progress", "milestone-summary", "completed", "activity"]);
+export const PROJECT_REPORTS = Object.freeze(["by-status", "by-manager", "by-customer", "by-priority", "near-deadline", "overdue", "on-hold", "task-progress", "milestone-summary", "completed", "activity",
+  ...CUSTOMER_REPORTS]);
 // The overview reports, over the projects the person may see (so they reconcile with the directory).
 export async function getProjectReport(client, c, kind = "by-status", filters = {}) {
   need(c, PROJECT.reports);
   if (!PROJECT_REPORTS.includes(kind)) throw projectError(400, "PROJECT_INPUT_INVALID", "Choose a project report.");
+  if (CUSTOMER_REPORTS.includes(kind)) return getProjectCustomerReport(client, c, kind);
   const { rows, settings } = await directory(client, c, { ...filters, view: ["completed", "activity"].includes(kind) ? "everything" : filters.view ?? "all" });
   const group = (key, labelOf) => {
     const map = new Map();
@@ -292,19 +311,17 @@ export async function getProjectOptions(client, c) {
   return { types, users, priorities: PRIORITIES, roles: Object.entries(ROLES).filter(([code]) => code !== "MANAGER").map(([code, name]) => ({ code, name })),
     settings: await projectSettings(client, c), currentUserId: c.userId,
     can: { create: has(c, PROJECT.create), viewAll: seesAll(c), export: has(c, PROJECT.export), reports: has(c, PROJECT.reports), settings: has(c, PROJECT.settings),
-      inviteUsers: has(c, "users.manage") } };
+      inviteUsers: has(c, "users.manage"), customerAssign: has(c, PROJECT.customerAssign), customerExport: has(c, PROJECT.customerExport), crmAccounts: has(c, "crm.accounts.view") } };
 }
-export async function searchProjectCustomers(client, c, search = "") {
-  if (!canView(c)) throw projectError(403, "PROJECT_PERMISSION_DENIED");
-  return (await client.query(`SELECT id, display_name AS name, customer_number AS number FROM tenant.business_parties WHERE organization_id = $1 AND status = 'active'
-      AND (customer_number IS NOT NULL OR party_type IN ('customer', 'both')) AND ($2 = '' OR lower(display_name) LIKE $3 OR lower(COALESCE(customer_number, '')) LIKE $3)
-      ORDER BY display_name LIMIT 30`, [c.organizationId, text(search, 100), `%${text(search, 100).toLowerCase()}%`])).rows;
+export async function searchProjectCustomers(client, c, search = "", options = {}) {
+  return searchProjectEligibleCustomers(client, c, { search, includeCrmAccounts: options.includeCrmAccounts });
 }
+// The active contacts of a customer, for choosing a draft's primary contact (someone who may assign the customer).
 export async function listProjectCustomerContacts(client, c, customerId) {
-  if (!canView(c)) throw projectError(403, "PROJECT_PERMISSION_DENIED");
+  if (!canView(c) || !(has(c, PROJECT.customerAssign) || has(c, PROJECT.customerChange) || has(c, PROJECT.customerContacts))) throw projectError(403, "PROJECT_CUSTOMER_PERMISSION_DENIED");
   return (await client.query(`SELECT DISTINCT contact.id, COALESCE(NULLIF(contact.display_name, ''), btrim(concat_ws(' ', contact.first_name, contact.last_name))) AS name, contact.email
-      FROM tenant.contacts contact WHERE contact.organization_id = $1 AND contact.archived_at IS NULL
-        AND (contact.party_id = $2 OR EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships relation WHERE relation.contact_id = contact.id AND relation.party_id = $2))
+      FROM tenant.contacts contact WHERE contact.organization_id = $1 AND contact.status = 'active'
+        AND (contact.party_id = $2 OR EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships relation WHERE relation.contact_id = contact.id AND relation.party_id = $2 AND relation.status = 'active'))
       ORDER BY 2 LIMIT 100`, [c.organizationId, uuid(customerId, "Customer")])).rows;
 }
 const SEARCH = Object.freeze({

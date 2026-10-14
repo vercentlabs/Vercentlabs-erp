@@ -198,18 +198,18 @@ export async function getLead(client, context, leadId) {
 // ------------------------------------------------------------------ list
 
 export const LEAD_VIEWS = Object.freeze([
-  { key: "all", label: "All Active Leads" },
-  { key: "mine", label: "My Leads" },
-  { key: "unassigned", label: "Unassigned Leads" },
-  { key: "no_activity", label: "Assigned, No Activity" },
-  { key: "new", label: "New Leads" },
-  { key: "follow_up", label: "Requiring Follow-up" },
-  { key: "due_today", label: "Follow-ups Due Today" },
-  { key: "overdue", label: "Overdue Follow-ups" },
-  { key: "no_follow_up", label: "No Follow-up Scheduled" },
-  { key: "qualified", label: "Qualified Leads" },
-  { key: "disqualified", label: "Disqualified Leads" },
-  { key: "converted", label: "Converted Leads" },
+  { key: "all", label: "All active leads" },
+  { key: "mine", label: "My leads" },
+  { key: "unassigned", label: "Unassigned" },
+  { key: "no_activity", label: "No activity yet" },
+  { key: "new", label: "New" },
+  { key: "follow_up", label: "Needs follow-up" },
+  { key: "due_today", label: "Due today" },
+  { key: "overdue", label: "Overdue" },
+  { key: "no_follow_up", label: "No follow-up scheduled" },
+  { key: "qualified", label: "Qualified" },
+  { key: "disqualified", label: "Disqualified" },
+  { key: "converted", label: "Converted" },
   { key: "archived", label: "Archived" },
 ]);
 
@@ -293,6 +293,10 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   if (filters.assignedTo) where.push(`lead.assigned_at < ${bind(filters.assignedTo)}::date + interval '1 day'`);
   if (filters.createdFrom) where.push(`lead.created_at >= ${bind(filters.createdFrom)}::date`);
   if (filters.createdTo) where.push(`lead.created_at < ${bind(filters.createdTo)}::date + interval '1 day'`);
+  if (filters.qualifiedFrom) where.push(`lead.qualified_at >= ${bind(filters.qualifiedFrom)}::date`);
+  if (filters.qualifiedTo) where.push(`lead.qualified_at < ${bind(filters.qualifiedTo)}::date + interval '1 day'`);
+  if (filters.convertedFrom) where.push(`lead.converted_at >= ${bind(filters.convertedFrom)}::date`);
+  if (filters.convertedTo) where.push(`lead.converted_at < ${bind(filters.convertedTo)}::date + interval '1 day'`);
   if (Array.isArray(filters.ids) && filters.ids.length) where.push(`lead.id = ANY (${bind(filters.ids.filter(isUuid))}::uuid[])`);
 
   const search = String(filters.search ?? "").trim().toLowerCase();

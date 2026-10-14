@@ -43,12 +43,14 @@ export type ProjectRow = {
   manager: string | null; status: ProjectStatus; statusLabel: string; priority: Priority; plannedStartDate: string | null; targetEndDate: string | null; actualStartDate: string | null;
   completedAt: string | null; health: Health; healthLabel: string; healthReasons: string[]; progress: number | null; progressLabel: string; tags: string[]; members: number; archived: boolean;
   approval: string; targetIn: number | null; overdue: boolean; lastActivityAt: string | null; updatedAt: string;
+  customerNumber: string | null; customerInactive: boolean; provisionalCustomer: boolean; customerReview: boolean;
 };
 export type ProjectList = { rows: ProjectRow[]; total: number; page: number; pageSize: number; pages: number; can: { create: boolean; export: boolean; viewAll: boolean } };
 export type WorkCounts = { total: number; completed: number; open: number; overdue: number; overdueCritical?: number; openRequired?: number } | null;
 export type Project = {
   id: string; code: string; name: string | null; description: string | null; classification: "INTERNAL" | "CUSTOMER"; typeId: string | null; type: string | null;
   customerId: string | null; customer: string | null; customerNumber: string | null; contact: { id: string; name: string; email: string | null; phone: string | null } | null;
+  crmAccountId: string | null; customerStatus: string | null; customerInactive: boolean; customerReview: { reason: string; at: string } | null;
   managerId: string | null; manager: string | null; managerActive: boolean; status: ProjectStatus; statusLabel: string; previousStatus: ProjectStatus | null; priority: Priority; source: string;
   plannedStartDate: string | null; targetEndDate: string | null; actualStartDate: string | null; completedAt: string | null; completionNote: string | null; completedBy: string | null;
   cancelledAt: string | null; cancelReason: string | null; cancelledBy: string | null;
@@ -61,7 +63,7 @@ export type Project = {
   activation: { ready: boolean; problems: Array<{ code: string; field: string; message: string }> } | null;
   tags: string[]; template: { id: string; name: string } | null; archived: boolean; archivedAt: string | null; archivedBy: string | null; members: number; createdBy: string | null; createdAt: string;
   updatedAt: string; lastActivityAt: string | null; version: number; role: string | null; roleLabel: string | null;
-  can: Record<"edit" | "members" | "links" | "start" | "hold" | "resume" | "complete" | "reopen" | "cancel" | "archive" | "approve" | "contribute" | "financials" | "activate" | "restore" | "delete", boolean>;
+  can: Record<"edit" | "members" | "links" | "start" | "hold" | "resume" | "complete" | "reopen" | "cancel" | "archive" | "approve" | "contribute" | "financials" | "activate" | "restore" | "delete" | "customer", boolean>;
 };
 export type ActivityEntry = { id: string; action: string; summary: string | null; actor: string; at: string };
 export type ProjectSummary = { project: Project; links: Array<{ type: string; label: string; count: number }>; activity: ActivityEntry[]; next: string };
@@ -70,13 +72,15 @@ export type Member = { id: string; userId: string; name: string; email: string; 
 export type Link = { id: string; sourceModule: string; sourceType: string; typeLabel: string; sourceId: string; sourceLineId: string | null; linkType: string; note: string | null; createdAt: string;
   createdBy: string | null; record: { missing: true } | { restricted: true } | { number: string | null; title: string | null; status: string | null; billingStatus: string | null; paymentStatus: string | null;
     amount: string | null; outstanding: string | null; href: string } };
-export type Note = { id: string; body: string; author: string | null; createdAt: string; editedAt: string | null; version: number; mine: boolean; mayRemove: boolean };
+export type Note = { id: string; body: string; author: string | null; createdAt: string; editedAt: string | null; version: number; mine: boolean; mayRemove: boolean;
+  customerContactId: string | null; customerContact: string | null };
 export type ProjectFile = { id: string; fileName: string; mimeType: string; sizeBytes: number; uploadedAt: string; uploadedBy: string | null };
 export type Check = { key: string; label: string; state: "PASS" | "FAIL" | "WARN" | "NOT_TRACKED" | "TO_CONFIRM"; message: string; blocking: boolean };
 export type Options = {
   types: Array<{ id: string; code: string; name: string }>; users: Array<{ id: string; name: string; email: string }>; priorities: Priority[]; roles: Array<{ code: string; name: string }>;
-  settings: { activationApprovalRequired: boolean; selfApprovalAllowed: boolean; dueSoonDays: number; customerAcceptanceRequired: boolean }; currentUserId: string;
-  can: { create: boolean; viewAll: boolean; export: boolean; reports: boolean; settings: boolean; inviteUsers: boolean };
+  settings: { activationApprovalRequired: boolean; selfApprovalAllowed: boolean; dueSoonDays: number; customerAcceptanceRequired: boolean; customerChangeApprovalRequired: boolean;
+    primaryContactRequired: boolean; inactiveCustomerAllowed: boolean }; currentUserId: string;
+  can: { create: boolean; viewAll: boolean; export: boolean; reports: boolean; settings: boolean; inviteUsers: boolean; customerAssign: boolean; customerExport: boolean; crmAccounts: boolean };
 };
 export type Overview = {
   counts: Record<"active" | "inProgress" | "onHold" | "overdue" | "dueSoon" | "atRisk" | "drafts" | "pendingApproval" | "completedThisMonth" | "mine" | "noManager", number>;
@@ -97,7 +101,9 @@ export const updateProject = (id: string, input: Record<string, unknown>) => sen
 export const projectAction = (id: string, action: string, input: Record<string, unknown> = {}) => send<{ projectId: string; status?: string; approval?: string }>(`/${id}/${action}`, input);
 export const createFromSalesOrder = (salesOrderId: string, input: Record<string, unknown> = {}) => send<{ projectId: string; projectCode: string; replayed?: boolean }>("/from-sales-order", { salesOrderId, ...input });
 export const getOptions = () => call<{ options: Options }>("/options").then((r) => r.options);
-export const searchCustomers = (search: string) => call<{ customers: Array<{ id: string; name: string; number: string | null }> }>(`/customers${qs({ search })}`).then((r) => r.customers);
+export type EligibleCustomer = { id: string; name: string; legalName: string | null; number: string | null; kind: "CUSTOMER" | "CRM_ACCOUNT"; city: string | null; state: string | null;
+  status: string; inactive: boolean; salesBlocked: boolean; similarNames: boolean; selectable: boolean; note: string | null };
+export const searchCustomers = (search: string, crmAccounts = false) => call<{ customers: EligibleCustomer[] }>(`/customers${qs({ search, crmAccounts: crmAccounts ? 1 : undefined })}`).then((r) => r.customers);
 export const customerContacts = (customerId: string) => call<{ contacts: Array<{ id: string; name: string; email: string | null }> }>(`/customers/${customerId}/contacts`).then((r) => r.contacts);
 export const getMembers = (id: string) => call<{ members: Member[]; can: { manage: boolean } }>(`/${id}/members`);
 export const addMember = (id: string, userId: string, role: string) => send(`/${id}/members`, { userId, role });
@@ -108,7 +114,7 @@ export const searchLinkable = (id: string, type: string, search: string) => call
 export const addLink = (id: string, input: Record<string, unknown>) => send(`/${id}/links`, input);
 export const removeLink = (id: string, linkId: string) => send(`/${id}/links/${linkId}`, {}, "DELETE");
 export const getNotes = (id: string) => call<{ notes: Note[]; can: { add: boolean } }>(`/${id}/notes`);
-export const addNote = (id: string, body: string) => send(`/${id}/notes`, { body });
+export const addNote = (id: string, body: string, customerContactId?: string | null) => send(`/${id}/notes`, { body, customerContactId: customerContactId || undefined });
 export const editNote = (id: string, noteId: string, body: string, expectedVersion: number) => send(`/${id}/notes/${noteId}`, { body, expectedVersion }, "PATCH");
 export const removeNote = (id: string, noteId: string) => send(`/${id}/notes/${noteId}`, {}, "DELETE");
 export const getFiles = (id: string) => call<{ files: ProjectFile[] }>(`/${id}/files`).then((r) => r.files);
@@ -137,3 +143,49 @@ export const dateLabel = (value: string | null | undefined) => {
 };
 export const targetLabel = (row: { targetIn: number | null; status: ProjectStatus }) => (row.targetIn === null || !["PLANNED", "IN_PROGRESS", "ON_HOLD"].includes(row.status) ? null
   : row.targetIn < 0 ? `${-row.targetIn} day(s) overdue` : row.targetIn === 0 ? "Due today" : `${row.targetIn} day(s) left`);
+
+// ------------------------------------------------------------------ Customer Association
+export type CustomerAddress = { id: string; type: string; label: string | null; line1: string; line2: string | null; city: string; district: string | null; state: string | null; stateCode: string | null;
+  postalCode: string | null; countryCode: string; gstin: string | null; defaultBilling: boolean; defaultShipping: boolean; primary: boolean };
+export type ProjectContact = { id: string; contactId: string; name: string; designation: string | null; role: ContactRole; roleLabel: string; title: string | null; primary: boolean;
+  email: string | null; phone: string | null; active: boolean; contactStatus: string; relatedToCustomer: boolean; addedBy: string | null; addedAt: string; removedBy: string | null;
+  removedAt: string | null; removalNote: string | null; version: number };
+export type ContactRole = "PRIMARY" | "SPONSOR" | "TECHNICAL" | "BILLING" | "APPROVAL" | "OTHER";
+export const CONTACT_ROLE_LABEL: Record<ContactRole, string> = { PRIMARY: "Primary Contact", SPONSOR: "Project Sponsor", TECHNICAL: "Technical Contact", BILLING: "Billing Contact",
+  APPROVAL: "Approval Contact", OTHER: "Other" };
+export type ProjectSite = { id: string; name: string; sourceAddressId: string | null; line1: string; line2: string | null; city: string; district: string | null; state: string | null;
+  stateCode: string | null; postalCode: string | null; countryCode: string; primary: boolean; active: boolean; createdAt: string; updatedAt: string; removedAt: string | null; version: number };
+export type ChangeReview = { blocking: Array<{ code: string; message: string }>; warnings: Array<{ code: string; message: string }> };
+export type ProjectCustomer = {
+  projectId: string; code: string; status: ProjectStatus; classification: "INTERNAL" | "CUSTOMER"; version: number;
+  customer: { id: string; name: string; legalName: string | null; number: string | null; code: string | null; status: string; inactive: boolean; merged: { id: string; name: string } | null;
+    salesBlocked: boolean; salesBlockReason: string | null; tax: { gstin: string | null; stateCode: string | null; state: string | null; placeOfSupply: string | null; treatment: string | null };
+    phone: string | null; email: string | null; addresses: CustomerAddress[]; projects: { total: number; active: number } | null } | null;
+  provisional: { id: string; name: string; status: string; nowCustomer: boolean; mergedInto: { id: string; name: string } | null } | null;
+  contacts: ProjectContact[]; sites: ProjectSite[]; primaryContactRequired: boolean; gstStates: Array<{ code: string; name: string }>; salesLinks: Array<{ type: string; count: number }>;
+  review: { reason: string; at: string } | null;
+  changeRequest: { id: string; toCustomerId: string; toCustomer: string; reason: string; review: ChangeReview; requestedBy: string | null; requestedById: string; requestedAt: string } | null;
+  changeApprovalRequired: boolean;
+  can: Record<"view" | "assign" | "change" | "approve" | "contacts" | "sites" | "salesLink" | "history" | "review" | "resolveMapping" | "approveRequest" | "withdrawRequest", boolean>;
+};
+export type CustomerHistoryEntry = { id: string; type: string; summary: string; reason: string | null; from: string | null; to: string | null; contact: string | null; actor: string; at: string };
+export const getProjectCustomer = (id: string) => call<{ customer: ProjectCustomer }>(`/${id}/customer`).then((r) => r.customer);
+export const assignCustomer = (id: string, input: Record<string, unknown>) => send(`/${id}/customer`, input, "PUT");
+export const customerAction = (id: string, action: string, input: Record<string, unknown> = {}) => send<{ status?: string; requestId?: string }>(`/${id}/customer/${action}`, input);
+export const getCustomerHistory = (id: string) => call<{ history: CustomerHistoryEntry[] }>(`/${id}/customer/history`).then((r) => r.history);
+export const previewCustomerChange = (id: string, toCustomerId: string) => call<{ review: ChangeReview & { approvalRequired: boolean; toCustomer: { id: string; name: string; inactive: boolean } } }>(
+  `/${id}/customer/change-preview${qs({ toCustomerId })}`).then((r) => r.review);
+export const decideCustomerChange = (id: string, requestId: string, input: { action: "decide" | "withdraw"; decision?: "APPROVE" | "REJECT"; note?: string }) =>
+  send(`/${id}/customer/change-requests/${requestId}`, input);
+export const eligibleContacts = (id: string, search = "") => call<{ contacts: Array<{ id: string; name: string; email: string | null; designation: string | null }> }>(
+  `/${id}/customer/eligible-contacts${qs({ search })}`).then((r) => r.contacts);
+export const getProjectContacts = (id: string, includeRemoved = false) => call<{ contacts: ProjectContact[]; can: { manage: boolean } }>(`/${id}/customer/contacts${qs({ removed: includeRemoved ? 1 : undefined })}`);
+export const addProjectContact = (id: string, input: { contactId: string; role: ContactRole; title?: string; replacePrimary?: boolean }) => send(`/${id}/customer/contacts`, input);
+export const updateProjectContact = (id: string, rowId: string, input: Record<string, unknown>) => send(`/${id}/customer/contacts/${rowId}`, input, "PATCH");
+export const replaceProjectContact = (id: string, rowId: string, input: { contactId: string; note?: string }) => send(`/${id}/customer/contacts/${rowId}`, input);
+export const removeProjectContact = (id: string, rowId: string, note?: string) => send(`/${id}/customer/contacts/${rowId}`, { note }, "DELETE");
+export const getProjectSites = (id: string, includeRemoved = false) => call<{ sites: ProjectSite[]; can: { manage: boolean } }>(`/${id}/customer/sites${qs({ removed: includeRemoved ? 1 : undefined })}`);
+export const addProjectSite = (id: string, input: Record<string, unknown>) => send(`/${id}/customer/sites`, input);
+export const updateProjectSite = (id: string, siteId: string, input: Record<string, unknown>) => send(`/${id}/customer/sites/${siteId}`, input, "PATCH");
+export const removeProjectSite = (id: string, siteId: string) => send(`/${id}/customer/sites/${siteId}`, {}, "DELETE");
+export const customerExportHref = (customerId?: string) => `/api/projects/customers/export${qs({ customerId })}`;

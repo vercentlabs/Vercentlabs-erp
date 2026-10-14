@@ -10,6 +10,7 @@
 // quotations, orders, invoices, payments, projects or tickets cannot be
 // merged, and neither can two customer accounts (merging two Customer
 // Masters is a finance decision, not a CRM one).
+import { applyProjectCustomerMerge } from "../../projects/project-customer.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { requireAccountPermission } from "./access.js";
@@ -178,5 +179,7 @@ export async function mergeAccounts(client, context, input = {}, { linkingCustom
   await recordAccountHistory(client, context, duplicate.id, "merged", `Merged into ${keep.display_name} (${keep.code})`, { mergedInto: keep.id });
   await recordAccountHistory(client, context, keep.id, "merged", `${duplicate.display_name} (${duplicate.code}) merged into this account`, { mergedFrom: duplicate.id, changes });
   await queueOutboxEvent(client, context, "crm.accounts.merged", "account", keep.id, { accountId: keep.id, mergedAccountId: duplicate.id });
+  // A draft project that referenced the duplicate as its (provisional) CRM account follows it to the kept account.
+  await applyProjectCustomerMerge(client, context, duplicate.id, keep.id);
   return { keptAccountId: keep.id, mergedAccountId: duplicate.id };
 }

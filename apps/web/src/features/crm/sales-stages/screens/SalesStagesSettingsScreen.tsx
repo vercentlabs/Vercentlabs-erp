@@ -18,6 +18,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import { createSalesStage, errorMessage, listSalesStages, reorderSalesStages, stageInUseCount, updateSalesStage, type SalesStage } from "../api/sales-stages-api";
+import { SetupBackLink } from "@/features/crm/settings/screens/SetupBackLink";
 
 export function SalesStagesSettingsScreen() {
   const workspace = useWorkspaceContext();
@@ -63,9 +64,10 @@ export function SalesStagesSettingsScreen() {
 
   return (
     <div className="flex flex-col gap-6">
+      <SetupBackLink />
       <PageHeader
-        title="Sales stages"
-        description="The steps an opportunity moves through while it is open. They are the columns of the pipeline, and each gives a deal its default probability."
+        title="Deal stages"
+        description="The steps a deal moves through while it is open. They are the columns of the pipeline, and each gives a deal its default probability."
         primaryAction={<Button variant="primary" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New stage</Button>}
         secondaryActions={<LinkButton variant="outline" href="/crm/pipeline">Open pipeline</LinkButton>}
       />
@@ -83,6 +85,12 @@ export function SalesStagesSettingsScreen() {
                   {!stage.isActive && <StatusBadge tone="neutral">Inactive</StatusBadge>}
                 </div>
                 {stage.description && <span className="text-text-secondary">{stage.description}</span>}
+                {/* The goals as the deal page shows them under the stage track. */}
+                {stage.guidance && (
+                  <ul className="flex flex-col gap-0.5 text-text-secondary">
+                    {stage.guidance.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => <li key={line} className="flex gap-1.5"><span aria-hidden="true">•</span>{line}</li>)}
+                  </ul>
+                )}
                 <span className="text-xs text-text-muted">
                   {stage.isActive ? `Sequence ${stage.sequence} · ` : ""}{stage.openCount} open {stage.openCount === 1 ? "opportunity" : "opportunities"} in this stage
                 </span>
@@ -113,7 +121,7 @@ export function SalesStagesSettingsScreen() {
         })}
       </ol>
       <div className="flex max-w-4xl flex-col gap-2 text-sm text-text-secondary">
-        <p>Changing the order changes how the pipeline is displayed. It does not move any opportunity or rewrite its stage history. Renaming a stage keeps every opportunity and its history attached to it.</p>
+        <p>Changing the order changes how the pipeline is displayed. It does not move any deal or rewrite its stage history. Renaming a stage keeps every deal and its history attached to it.</p>
         <p>A stage is never deleted, only deactivated, so the history of deals that passed through it stays readable. Changing a stage&apos;s probability updates the open deals in it, except those whose probability was set by hand.</p>
         <p>Two checks follow the standard stages whatever you call them: a deal needs a primary contact and an estimated value to enter Proposal, and an expected close date to enter Closing. Won and Lost are outcomes, set with Mark won and Mark lost, not stages.</p>
       </div>
@@ -144,14 +152,14 @@ function StageDialog({ stage, onClose, onSaved }: { stage: SalesStage | null; on
   });
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={stage ? "Edit stage" : "New stage"} size="lg"
-      description={stage ? "Opportunities in this stage and its history show the new name." : "The new stage is added after the last one; move it to where it belongs."}>
+      description={stage ? "Deals in this stage and its history show the new name." : "The new stage is added after the last one; move it to where it belongs."}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <div className="grid gap-4 sm:grid-cols-[1fr_12rem]">
           <TextField label="Stage name" isRequired value={name} onChange={(next) => { setName(next); setError(null); }} />
           <TextField label="Default probability (%)" isRequired inputMode="numeric" value={probability} onChange={(next) => { setProbability(next); setError(null); }} />
         </div>
-        <TextArea label="Description" description="One or two lines: when does a deal belong in this stage? Shown to everyone working opportunities." value={description} onChange={setDescription} />
+        <TextArea label="Description" description="One or two lines: when does a deal belong in this stage? Shown to everyone working deals." value={description} onChange={setDescription} />
         <TextArea label="Guidance" description="The goals of the stage, one per line." value={guidance} onChange={setGuidance} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Cancel</Button>
@@ -172,10 +180,10 @@ function DeactivateDialog({ stage, openCount, targets, onClose, onDone }: { stag
   });
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={`Deactivate ${stage.name}`}
-      description={`${openCount} open ${openCount === 1 ? "opportunity currently uses" : "opportunities currently use"} this stage. Choose the stage to move ${openCount === 1 ? "it" : "them"} to; each move is recorded in the opportunity's stage history.`}>
+      description={`${openCount} open ${openCount === 1 ? "deal currently uses" : "deals currently use"} this stage. Choose the stage to move ${openCount === 1 ? "it" : "them"} to; each move is recorded in the deal's stage history.`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
-        <Select label="Move the open opportunities to" isRequired selectedKey={target} onSelectionChange={(key) => setTarget(String(key ?? ""))}
+        <Select label="Move the open deals to" isRequired selectedKey={target} onSelectionChange={(key) => setTarget(String(key ?? ""))}
           options={targets.map((entry) => ({ value: entry.id, label: `${entry.name} · ${entry.probability}%` }))} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Cancel</Button>

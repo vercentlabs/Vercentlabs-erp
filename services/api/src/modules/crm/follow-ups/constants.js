@@ -48,14 +48,14 @@ export const FOLLOW_UP_REMINDER_OPTIONS = Object.freeze([
 ]);
 
 export const FOLLOW_UP_VIEWS = Object.freeze([
-  { key: "due_today", label: "Due Today" },
-  { key: "mine", label: "My Follow-ups" },
+  { key: "mine", label: "My follow-ups" },
+  { key: "due_today", label: "Due today" },
   { key: "overdue", label: "Overdue" },
   { key: "upcoming", label: "Upcoming" },
   { key: "completed", label: "Completed" },
-  { key: "created_by_me", label: "Created by Me" },
-  { key: "team", label: "Team Follow-ups" },
-  { key: "all", label: "All Follow-ups" },
+  { key: "team", label: "Team follow-ups" },
+  { key: "created_by_me", label: "Created by me" },
+  { key: "all", label: "All follow-ups" },
   { key: "cancelled", label: "Cancelled" },
 ]);
 

@@ -16,6 +16,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 import { createLeadSource, errorMessage, listLeadSources, updateLeadSource, type LeadSource } from "../api/leads-api";
 import { ErrorBanner } from "../lead-format";
+import { SetupBackLink } from "@/features/crm/settings/screens/SetupBackLink";
 
 function useCanManage() {
   return useWorkspaceContext().permissions.includes(CRM_PERMISSIONS.settingsManage);
@@ -54,6 +55,7 @@ export function LeadSourcesSettingsScreen() {
   if (!canManage) return <NoAccess />;
   return (
     <div className="flex flex-col gap-4">
+      <SetupBackLink />
       <ErrorBanner message={error} />
       <EnterpriseListPage
         header={{

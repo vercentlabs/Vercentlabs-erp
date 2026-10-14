@@ -54,6 +54,12 @@ export function ProjectSettingsScreen() {
           onChange={(value) => run(() => saveSettings({ selfApprovalAllowed: value }), value ? "Requesters may approve their own projects." : "Someone other than the requester approves.")}>The requester may approve their own project</Checkbox>}
         <Checkbox isDisabled={!can.manage || busy} isSelected={settings.customerAcceptanceRequired} onChange={(value) => run(() => saveSettings({ customerAcceptanceRequired: value }), value ? "Customer projects record the customer's acceptance at completion." : "Customer acceptance is optional.")}>
           A customer project records the customer&apos;s acceptance when it is completed</Checkbox>
+        <Checkbox isDisabled={!can.manage || busy} isSelected={settings.customerChangeApprovalRequired} onChange={(value) => run(() => saveSettings({ customerChangeApprovalRequired: value }), value ? "A planned project's customer change needs approval." : "A planned project's customer changes after review, without approval.")}>
+          A planned project&apos;s customer change is approved by someone else (a running or held project&apos;s always is)</Checkbox>
+        <Checkbox isDisabled={!can.manage || busy} isSelected={settings.primaryContactRequired} onChange={(value) => run(() => saveSettings({ primaryContactRequired: value }), value ? "Customer projects need a primary contact to activate." : "A primary contact is optional.")}>
+          A customer project names the customer&apos;s primary contact before it is activated</Checkbox>
+        <Checkbox isDisabled={!can.manage || busy} isSelected={settings.inactiveCustomerAllowed} onChange={(value) => run(() => saveSettings({ inactiveCustomerAllowed: value }), value ? "Inactive customers may be chosen." : "Only active customers may be chosen.")}>
+          An inactive customer may be chosen for a new project</Checkbox>
         <div className="flex flex-wrap items-end gap-2">
           <TextField label="Due soon means within (days)" inputMode="numeric" className="w-56" isDisabled={!can.manage} value={days ?? String(settings.dueSoonDays)} onChange={setDays}
             description="Projects this close to their target date are flagged and their managers alerted." />

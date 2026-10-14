@@ -3,51 +3,49 @@
 import Link from "next/link";
 
 import { FollowUpListScreen } from "@/features/crm/follow-ups/screens/FollowUpListScreen";
-import { NotesFilesScreen } from "@/features/crm/notes/screens/NotesFilesScreen";
+import { FilesSearchScreen, NotesSearchScreen } from "@/features/crm/notes/screens/NotesFilesScreen";
 import { TaskListScreen } from "@/features/crm/tasks/screens/TaskListScreen";
 
 import { ACTIVITY_TABS, type ActivityTab } from "./activity-tabs";
 
-// CRM Activities: one workspace for tasks, follow-ups, and notes and files. Each tab is its own screen (same API clients, permissions and
-// actions); only the selected tab is mounted, so nothing else fetches. The tab is in the URL (/crm/activities?tab=tasks), so it survives
-// refresh, back/forward and sharing.
-function TabContent({ tab }: { tab: ActivityTab }) {
-  switch (tab) {
-    case "follow-ups":
-      return <FollowUpListScreen />;
-    case "notes-files":
-      return <NotesFilesScreen />;
-    default:
-      return <TaskListScreen />;
-  }
+// CRM To-dos: one page — one title, one row of tabs (Tasks · Follow-ups · Notes · Files). Each tab is its own screen (same API clients,
+// permissions and actions) that draws the page title with its own primary button (New task, Schedule follow-up, none for notes and files) and
+// this tab row under it; only the selected tab is mounted, so nothing else fetches. The tab is in the URL (/crm/activities?tab=tasks).
+export function TodoTabs({ current }: { current: ActivityTab }) {
+  return (
+    <nav aria-label="To-dos" className="-mt-2 overflow-x-auto">
+      <ul className="flex min-w-max gap-1 border-b border-border">
+        {ACTIVITY_TABS.map((item) => {
+          const selected = item.id === current;
+          return (
+            <li key={item.id}>
+              <Link
+                href={`/crm/activities?tab=${item.id}`}
+                aria-current={selected ? "page" : undefined}
+                className={[
+                  "-mb-px flex border-b-2 px-3 py-2 text-sm font-medium transition-colors outline-none",
+                  "focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
+                  selected ? "border-brand text-text" : "border-transparent text-text-secondary hover:text-text",
+                ].join(" ")}
+              >
+                {item.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
 }
 
+export const TODOS_TITLE = "To-dos";
+
 export function ActivitiesScreen({ tab }: { tab: ActivityTab }) {
-  return (
-    <div className="flex flex-1 flex-col gap-4">
-      <nav aria-label="Activities" className="-mb-1 overflow-x-auto">
-        <ul className="flex min-w-max gap-1 border-b border-border">
-          {ACTIVITY_TABS.map((item) => {
-            const current = item.id === tab;
-            return (
-              <li key={item.id}>
-                <Link
-                  href={`/crm/activities?tab=${item.id}`}
-                  aria-current={current ? "page" : undefined}
-                  className={[
-                    "-mb-px flex border-b-2 px-3 py-2 text-sm font-medium transition-colors outline-none",
-                    "focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
-                    current ? "border-brand text-text" : "border-transparent text-text-secondary hover:text-text",
-                  ].join(" ")}
-                >
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-      <TabContent tab={tab} />
-    </div>
-  );
+  const tabs = <TodoTabs current={tab} />;
+  switch (tab) {
+    case "follow-ups": return <FollowUpListScreen tabs={tabs} />;
+    case "notes": return <NotesSearchScreen tabs={tabs} />;
+    case "files": return <FilesSearchScreen tabs={tabs} />;
+    default: return <TaskListScreen tabs={tabs} />;
+  }
 }

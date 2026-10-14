@@ -5,7 +5,7 @@
 // so the whole relationship reads in one place. Calls, meetings and
 // follow-ups can name the contact involved; a task can belong to the account
 // or to one of its opportunities.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Dialog, EmptyState, Select, TextArea, TextField } from "@vercentlabs/design-system";
@@ -24,8 +24,6 @@ import {
 import { ErrorBanner } from "../account-format";
 import { LIVE_ACCOUNT_QUERY } from "../live-query";
 
-const FOLLOW_UP_TYPE_LABELS: Record<string, string> = { call: "Call", email: "Email", meeting: "Meeting", task: "Task", other: "Other" };
-const NO_NEXT_ACTION = "none";
 const NO_CONTACT = "__none__";
 
 type PanelProps = { accountId: string; options: AccountOptions; canEdit: boolean };
@@ -97,7 +95,7 @@ export function AccountActivitiesPanel({ accountId, options, canEdit }: PanelPro
     <>
       <PanelShell
         title="Activities"
-        action={canEdit && <Button variant="primary" size="compact" onPress={() => setLogging(true)}>Log activity</Button>}
+        action={canEdit && <Button variant="secondary" size="compact" onPress={() => setLogging(true)}>Log activity</Button>}
         query={query}
         isEmpty={logged.length === 0}
         emptyTitle="No activities logged"
@@ -122,8 +120,8 @@ export function AccountActivitiesPanel({ accountId, options, canEdit }: PanelPro
   );
 }
 
-export function LogAccountActivityDialog({ isOpen, onOpenChange, accountId, options, onDone }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; accountId: string; options: AccountOptions; onDone: () => void;
+export function LogAccountActivityDialog({ isOpen, onOpenChange, accountId, options, onDone , onScheduleNext }: {
+  isOpen: boolean; onOpenChange: (open: boolean) => void; accountId: string; options: AccountOptions; onDone: () => void; onScheduleNext?: () => void;
 }) {
   const contactOptions = useContactOptions(accountId);
   const [type, setType] = useState("call");
@@ -132,24 +130,20 @@ export function LogAccountActivityDialog({ isOpen, onOpenChange, accountId, opti
   const [outcome, setOutcome] = useState("");
   const [notes, setNotes] = useState("");
   const [occurredAt, setOccurredAt] = useState("");
-  const [nextType, setNextType] = useState(NO_NEXT_ACTION);
-  const [nextDueAt, setNextDueAt] = useState("");
-  const [nextNotes, setNextNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const thenSchedule = useRef(false);
 
   const reset = () => {
-    setContactId(NO_CONTACT); setSubject(""); setOutcome(""); setNotes(""); setOccurredAt(""); setNextType(NO_NEXT_ACTION); setNextDueAt(""); setNextNotes(""); setError(null);
+    setContactId(NO_CONTACT); setSubject(""); setOutcome(""); setNotes(""); setOccurredAt(""); setError(null);
   };
   const contact = contactId === NO_CONTACT ? undefined : contactId;
   const mutation = useMutation({
     mutationFn: () => logAccountActivity(accountId, {
       type, subject, outcome, notes, occurredAt: occurredAt || undefined, contactId: contact,
-      ...(nextType !== NO_NEXT_ACTION ? { nextAction: { type: nextType, dueAt: nextDueAt, notes: nextNotes, contactId: contact } } : {}),
     }),
-    onSuccess: () => { onDone(); reset(); onOpenChange(false); },
+    onSuccess: () => { onDone(); reset(); onOpenChange(false); if (thenSchedule.current) onScheduleNext?.(); },
     onError: (failure) => setError(errorMessage(failure)),
   });
-  const nextActionIncomplete = nextType !== NO_NEXT_ACTION && !nextDueAt;
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Log activity" description="Record something that has already happened." size="lg">
@@ -164,19 +158,10 @@ export function LogAccountActivityDialog({ isOpen, onOpenChange, accountId, opti
         <TextField label="Subject" description="Leave empty to use the activity type and account name." value={subject} onChange={setSubject} />
         <TextField label="Outcome" value={outcome} onChange={setOutcome} placeholder="For example: Asked for a revised quote" />
         <TextArea label="Notes" value={notes} onChange={setNotes} />
-        <div className="flex flex-col gap-4 rounded-[var(--radius-control)] border border-border p-3">
-          <Select label="Next action" selectedKey={nextType} onSelectionChange={(key) => setNextType(String(key))}
-            options={[{ value: NO_NEXT_ACTION, label: "None" }, ...options.followUpTypes.map((entry) => ({ value: entry, label: `Follow-up: ${FOLLOW_UP_TYPE_LABELS[entry] ?? entry}` }))]} />
-          {nextType !== NO_NEXT_ACTION && (
-            <>
-              <DateTimeInput label="Follow-up date and time" isRequired value={nextDueAt} onChange={setNextDueAt} />
-              <TextField label="Follow-up notes" value={nextNotes} onChange={setNextNotes} />
-            </>
-          )}
-        </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={nextActionIncomplete}>Log activity</Button>
+          {onScheduleNext && <Button variant="secondary" onPress={() => { thenSchedule.current = true; mutation.mutate(); }} isLoading={mutation.isPending}>Log and schedule next</Button>}
+          <Button variant="primary" onPress={() => { thenSchedule.current = false; mutation.mutate(); }} isLoading={mutation.isPending}>Log activity</Button>
         </div>
       </div>
     </Dialog>

@@ -35,15 +35,15 @@ export const TASK_REMINDER_OPTIONS = Object.freeze([
 ]);
 
 export const TASK_VIEWS = Object.freeze([
-  { key: "mine", label: "My Tasks" },
-  { key: "due_today", label: "Due Today" },
-  { key: "upcoming", label: "Upcoming" },
+  { key: "mine", label: "My tasks" },
+  { key: "due_today", label: "Due today" },
   { key: "overdue", label: "Overdue" },
-  { key: "high_priority", label: "High Priority" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "high_priority", label: "High priority" },
   { key: "completed", label: "Completed" },
-  { key: "created_by_me", label: "Tasks I Created" },
-  { key: "team", label: "Team Tasks" },
-  { key: "all", label: "All Tasks" },
+  { key: "team", label: "Team tasks" },
+  { key: "created_by_me", label: "Tasks I created" },
+  { key: "all", label: "All tasks" },
   { key: "cancelled", label: "Cancelled" },
 ]);
 

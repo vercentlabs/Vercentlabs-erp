@@ -25,9 +25,9 @@ const TABS: Array<{ type: DuplicateQueueType; label: string }> = [
   { type: "lead_lead", label: "Leads" },
   { type: "lead_contact", label: "Lead and contact" },
   { type: "contact_contact", label: "Contacts" },
-  { type: "account_account", label: "Accounts" },
+  { type: "account_account", label: "Companies" },
 ];
-const RECORD_LABEL = { lead: "Lead", contact: "Contact", account: "Account" } as const;
+const RECORD_LABEL = { lead: "Lead", contact: "Contact", account: "Company" } as const;
 const recordHref = (record: DuplicateQueueRecord) => `/crm/${record.type === "account" ? "accounts" : record.type === "contact" ? "contacts" : "leads"}/${record.id}`;
 
 function RecordCard({ record }: { record: DuplicateQueueRecord }) {
@@ -90,7 +90,8 @@ export function DuplicateReviewScreen({ embedded = false }: { embedded?: boolean
                             <RecordCard record={pair.b} />
                           </div>
                           <div className="flex flex-wrap items-center gap-2 text-sm">
-                            <Link href={recordHref(pair.a)} className="font-medium text-brand underline-offset-2 hover:underline">
+                            {/* Review and merge opens the first record's merge dialog with the other record already chosen. */}
+                            <Link href={pair.canMerge ? `${recordHref(pair.a)}?merge=${pair.b.id}` : recordHref(pair.a)} className="font-medium text-brand underline-offset-2 hover:underline">
                               {pair.canMerge ? "Review and merge" : "Open the lead to convert or disqualify it"}
                             </Link>
                             <Button variant="secondary" size="compact" onPress={() => setClearing(pair)}>Not a duplicate</Button>

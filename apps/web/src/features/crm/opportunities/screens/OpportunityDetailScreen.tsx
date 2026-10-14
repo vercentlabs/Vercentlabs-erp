@@ -1,18 +1,21 @@
 "use client";
 
+// The deal page. The header keeps the name, number, status, stage and flags, and four facts: company, owner, value ("₹12 L at 40%", the
+// weighted value beneath) and close date. The primary action follows the deal: Next stage while it is open, Mark won in the last stage,
+// Reopen once closed, Restore when archived. Everything else is in the "…" menu, grouped, with Archive and Delete last. Six tabs: Overview,
+// People, Products, Quotes, Activity (one feed with chips) and Files & related.
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal } from "lucide-react";
-import {
-  AlertDialog, Button, Dialog, ErrorState, Menu, MenuItem, MenuTrigger, RecordDetailsPage, Tab, TabList, TabPanel, Tabs, TextArea, TextField,
-} from "@vercentlabs/design-system";
+import { AlertDialog, Button, Dialog, ErrorState, RecordDetailsPage, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
 import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
+import { RecordActivityFeed, type ActivityChip } from "@/features/crm/shared/RecordActivityFeed";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
+import { MoreMenu, type MoreMenuItem } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/shared/ui/PropertyList";
 import { formatDate, formatDateTime, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -21,7 +24,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 import {
   archiveOpportunity, deleteOpportunity, errorMessage, getOpportunity, getOpportunityOptions, restoreOpportunity, setOpportunityProbability,
-  type Opportunity, type OpportunityOptions, type OpportunityStageAction,
+  type Opportunity, type OpportunityOptions, type OpportunityStage, type OpportunityStageAction,
 } from "../api/opportunities-api";
 import { AssignOpportunitiesDialog } from "../components/OpportunityActionDialogs";
 import { CorrectCloseReasonDialog, MarkLostDialog, MarkWonDialog, ReopenOpportunityDialog } from "@/features/crm/close-reasons/components/CloseDialogs";
@@ -29,24 +32,32 @@ import { CloseSummaryPanel } from "@/features/crm/close-reasons/components/Close
 import {
   LogActivityDialog, OpportunityContactsPanel, OpportunityHistoryPanel, OpportunityProductsPanel, OpportunityWorkPanel,
 } from "../components/OpportunityPanels";
-import { CreateQuotationDialog } from "@/features/crm/quotations/components/CreateQuotationDialog";
 import { OpportunityQuotationsPanel } from "@/features/crm/quotations/components/OpportunityQuotationsPanel";
+import { createQuotationHref } from "@/features/crm/quotations/screens/CreateQuotationScreen";
 import { useStageChange } from "@/features/crm/sales-stages/components/StageChange";
 import { RelatedTasksPanel } from "@/features/crm/tasks/components/RelatedTasksPanel";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { LIVE_OPPORTUNITY_QUERY } from "../live-query";
 import { ErrorBanner, OpportunityFlags, OpportunityStageBadge, OpportunityStatusBadge, PriorityBadge, days } from "../opportunity-format";
+import { useCrmShortcut } from "@/features/crm/shared/shortcuts";
 
-type DialogKind = "assign" | "won" | "lost" | "reopen" | "activity" | "followUp" | "probability" | "archive" | "delete" | "quotation" | "correctReason" | null;
+type DialogKind = "assign" | "won" | "lost" | "reopen" | "activity" | "followUp" | "probability" | "archive" | "delete" | "correctReason" | null;
+
+// Old ?tab= values (links from search, Notes & Files, notifications) open the tab — and the Activity chip — that now holds them.
+const TAB_OF: Record<string, { tab: string; chip?: ActivityChip }> = {
+  overview: { tab: "overview" }, people: { tab: "people" }, contacts: { tab: "people" }, products: { tab: "products" }, quotes: { tab: "quotes" },
+  quotations: { tab: "quotes" }, activity: { tab: "activity" }, activities: { tab: "activity", chip: "calls" }, tasks: { tab: "activity", chip: "tasks" },
+  followUps: { tab: "activity", chip: "followUps" }, notes: { tab: "activity", chip: "notes" }, history: { tab: "activity", chip: "changes" },
+  files: { tab: "files" }, attachments: { tab: "files" }, related: { tab: "files" },
+};
 
 export function OpportunityDetailScreen({ opportunityId }: { opportunityId: string }) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogKind>(null);
-  // ?tab=notes or ?tab=attachments opens that tab (links from search and from Notes & Files).
-  const requestedTab = useSearchParams().get("tab");
-  const [tab, setTab] = useState(requestedTab === "notes" || requestedTab === "attachments" || requestedTab === "related" ? requestedTab : "overview");
+  const requested = TAB_OF[useSearchParams().get("tab") ?? ""] ?? TAB_OF.overview;
+  const [tab, setTab] = useState(requested.tab);
   const [error, setError] = useState<string | null>(null);
 
   const key = scopedQueryKey(workspace, "crm", "opportunity", opportunityId);
@@ -68,20 +79,21 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
     onError: (failure) => setError(errorMessage(failure)),
   });
 
-  if (opportunityQuery.isLoading || optionsQuery.isLoading) return <LoadingState label="Loading opportunity" />;
+  if (opportunityQuery.isLoading || optionsQuery.isLoading) return <LoadingState label="Loading deal" />;
   if (opportunityQuery.isError || !opportunity)
-    return <ErrorState title="Opportunity not found" description="It may have been removed, or you may not have access to it." action={{ label: "Back to opportunities", onPress: () => router.push("/crm/opportunities") }} />;
+    return <ErrorState title="Deal not found" description="It may have been removed, or you may not have access to it." action={{ label: "Back to deals", onPress: () => router.push("/crm/opportunities") }} />;
   if (!options) return <ErrorState title="Could not load this page" description="Refresh to try again." />;
 
   return (
-    <OpportunityDetail opportunity={opportunity} options={options} tab={tab} setTab={setTab} dialog={dialog} setDialog={setDialog} error={error} setError={setError}
-      refresh={refresh} run={(work) => action.mutate(work)} isRunning={action.isPending} />
+    <OpportunityDetail opportunity={opportunity} options={options} tab={tab} setTab={setTab} initialChip={requested.chip} dialog={dialog} setDialog={setDialog} error={error}
+      setError={setError} refresh={refresh} run={(work) => action.mutate(work)} isRunning={action.isPending} />
   );
 }
 
-function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialog, error, setError, refresh, run, isRunning }: {
-  opportunity: Opportunity; options: OpportunityOptions; tab: string; setTab: (tab: string) => void; dialog: DialogKind; setDialog: (dialog: DialogKind) => void;
-  error: string | null; setError: (message: string | null) => void; refresh: () => void; run: (work: () => Promise<unknown>) => void; isRunning: boolean;
+function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dialog, setDialog, error, setError, refresh, run, isRunning }: {
+  opportunity: Opportunity; options: OpportunityOptions; tab: string; setTab: (tab: string) => void; initialChip?: ActivityChip; dialog: DialogKind;
+  setDialog: (dialog: DialogKind) => void; error: string | null; setError: (message: string | null) => void; refresh: () => void;
+  run: (work: () => Promise<unknown>) => void; isRunning: boolean;
 }) {
   const router = useRouter();
   const workspace = useWorkspaceContext();
@@ -101,34 +113,53 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
   const canMove = open && can.changeStage;
   const currentStage = options.stages.find((stage) => stage.id === opportunity.stageId);
   const nextStage = currentStage ? options.stages[options.stages.indexOf(currentStage) + 1] : undefined;
+  const inLastStage = Boolean(currentStage) && !nextStage;
   // What the stage suggests, limited to what this person may do.
-  const stageActions: Record<OpportunityStageAction, { label: string; show: boolean; run: () => void }> = {
+  // Create quotation shows to everyone who may quote from a deal; without Sales' own permission it is disabled, with the reason.
+  const quoteBlocked = can.createQuotation && !can.quoteInSales ? "Creating a quotation also needs the Sales permission to create quotations." : null;
+  const stageActions: Record<OpportunityStageAction, { label: string; show: boolean; run: () => void; blocked?: string | null }> = {
     log_activity: { label: "Log activity", show: can.edit, run: () => setDialog("activity") },
     schedule_follow_up: { label: "Schedule follow-up", show: can.edit, run: () => setDialog("followUp") },
     edit_details: { label: "Add requirements", show: can.edit, run: () => router.push(`/crm/opportunities/${opportunity.id}/edit`) },
     add_products: { label: "Add products", show: can.edit, run: () => setTab("products") },
-    create_quotation: { label: opportunity.quotationCount ? "Create revised quotation" : "Create quotation", show: can.createQuotation, run: () => setDialog("quotation") },
-    view_quotations: { label: "View quotations", show: opportunity.quotationCount > 0, run: () => setTab("quotations") },
+    create_quotation: { label: opportunity.quotationCount ? "Create revised quotation" : "Create quotation", show: can.createQuotation, blocked: quoteBlocked, run: () => router.push(createQuotationHref(opportunity.id)) },
+    view_quotations: { label: "View quotations", show: opportunity.quotationCount > 0, run: () => setTab("quotes") },
     mark_won: { label: "Mark won", show: can.markWon, run: () => setDialog("won") },
     mark_lost: { label: "Mark lost", show: can.markLost, run: () => setDialog("lost") },
   };
-  const suggested = open && currentStage ? currentStage.suggestedActions.map((action) => stageActions[action]).filter((action) => action?.show) : [];
+  const suggestedCodes = open && currentStage ? currentStage.suggestedActions.filter((code) => stageActions[code]?.show) : [];
+  const suggested = suggestedCodes.map((code) => stageActions[code]);
+  // Beside Next stage: the stage's first suggested action (not one already in the buttons), then Log activity.
+  const stageFirst = suggestedCodes.find((code) => !["log_activity", "mark_won", "mark_lost"].includes(code));
 
   const primaryAction = archived
-    ? can.delete && <Button variant="primary" onPress={() => run(() => restoreOpportunity(opportunity.id))} isLoading={isRunning}>Restore opportunity</Button>
-    : open && can.markWon
-      ? <Button variant="primary" onPress={() => setDialog("won")}>Mark won</Button>
-      : opportunity.status !== "open" && can.reopen
-        ? <Button variant="primary" onPress={() => setDialog("reopen")}>Reopen</Button>
-        : undefined;
+    ? can.delete && <Button variant="primary" onPress={() => run(() => restoreOpportunity(opportunity.id))} isLoading={isRunning}>Restore deal</Button>
+    : !open
+      ? can.reopen && <Button variant="primary" onPress={() => setDialog("reopen")}>Reopen</Button>
+      : inLastStage
+        ? can.markWon && <Button variant="primary" onPress={() => setDialog("won")}>Mark won</Button>
+        : canMove && nextStage
+          ? <Button variant="primary" isLoading={stageChange.isPending} onPress={() => stageChange.move(opportunity, nextStage.id)}>Next stage: {nextStage.name}</Button>
+          : undefined;
+  const wonInButtons = open && inLastStage && can.markWon;
+  const lostInButtons = open && inLastStage && can.markLost;
 
-  const menuActions = [
-    { id: "edit", label: "Edit opportunity", show: canEdit, run: () => router.push(`/crm/opportunities/${opportunity.id}/edit`) },
-    { id: "assign", label: opportunity.ownerUserId ? "Reassign" : "Assign", show: canAssign, run: () => setDialog("assign") },
-    { id: "probability", label: "Set probability", show: open && can.changeProbability, run: () => setDialog("probability") },
-    { id: "archive", label: "Archive opportunity", show: !archived && can.delete, run: () => setDialog("archive") },
-    { id: "delete", label: "Delete opportunity", show: can.delete, run: () => setDialog("delete") },
+  // The menu, grouped: Edit · Ownership · Deal · Outcome, then Archive and Delete (red, last).
+  const menuActions: Array<MoreMenuItem & { show: boolean }> = [
+    { id: "edit", label: "Edit deal", show: canEdit, onAction: () => router.push(`/crm/opportunities/${opportunity.id}/edit`) },
+    { id: "assign", group: "Ownership", label: opportunity.ownerUserId ? "Reassign" : "Assign", show: canAssign, onAction: () => setDialog("assign") },
+    { id: "probability", group: "Deal", label: "Set probability", show: open && can.changeProbability, onAction: () => setDialog("probability") },
+    { id: "followUp", group: "Deal", label: "Schedule follow-up", show: canEdit, onAction: () => setDialog("followUp") },
+    { id: "won", group: "Outcome", label: "Mark won", show: open && can.markWon && !wonInButtons, onAction: () => setDialog("won") },
+    { id: "lost", group: "Outcome", label: "Mark lost", show: open && can.markLost && !lostInButtons, onAction: () => setDialog("lost") },
+    { id: "archive", label: "Archive deal", danger: true, show: !archived && can.delete, onAction: () => setDialog("archive") },
+    { id: "delete", label: "Delete deal", danger: true, show: can.delete, onAction: () => setDialog("delete") },
   ].filter((entry) => entry.show);
+
+  const valueAmount = opportunity.status === "won" ? opportunity.wonAmount ?? opportunity.amount : opportunity.amount;
+  // E edits the deal and L logs an activity on it, while it is open.
+  useCrmShortcut("e", canEdit ? () => router.push(`/crm/opportunities/${opportunity.id}/edit`) : undefined);
+  useCrmShortcut("l", open && can.edit ? () => setDialog("activity") : undefined);
 
   return (
     <>
@@ -143,30 +174,32 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
             </span>
           ),
           fields: [
-            { label: "Account", value: opportunity.accountId ? <Link className="hover:underline" href={`/crm/accounts/${opportunity.accountId}`}>{opportunity.accountName}</Link> : "Not set" },
+            { label: "Company", value: opportunity.accountId ? <Link className="hover:underline" href={`/crm/accounts/${opportunity.accountId}`}>{opportunity.accountName}</Link> : "Not set" },
             { label: "Owner", value: opportunity.ownerName ?? "Unassigned" },
-            { label: opportunity.status === "won" ? "Final value" : "Estimated value", value: money(opportunity.status === "won" ? opportunity.wonAmount ?? opportunity.amount : opportunity.amount) },
-            { label: "Probability", value: `${opportunity.probability}%${open ? (opportunity.probabilitySource === "manual_override" ? " (set by hand)" : " (stage default)") : ""}` },
-            { label: "Weighted value", value: money(opportunity.weightedValue) },
+            {
+              label: opportunity.status === "won" ? "Final value" : "Value",
+              value: (
+                <span className="flex flex-col">
+                  <span title={open ? (opportunity.probabilitySource === "manual_override" ? "Probability set by hand" : "The stage's probability") : undefined}>
+                    {money(valueAmount)}{opportunity.status === "open" ? ` at ${opportunity.probability}%` : ""}
+                  </span>
+                  {opportunity.status === "open" && <span className="text-xs font-normal text-text-muted">Weighted {money(opportunity.weightedValue)}</span>}
+                </span>
+              ),
+            },
             opportunity.status === "open"
-              ? { label: "Expected close", value: opportunity.expectedCloseDate ? <span className={opportunity.isOverdue ? "font-medium text-danger" : ""}>{formatDate(opportunity.expectedCloseDate)}</span> : "Not set" }
+              ? { label: "Close date", value: opportunity.expectedCloseDate ? <span className={opportunity.isOverdue ? "font-medium text-danger" : ""}>{formatDate(opportunity.expectedCloseDate)}</span> : "Not set" }
               : { label: "Closed", value: formatDate(opportunity.actualCloseDate) },
           ],
-          primaryAction,
+          primaryAction: primaryAction || undefined,
           secondaryActions: (
             <>
-              {open && can.markLost && <Button variant="secondary" onPress={() => setDialog("lost")}>Mark lost</Button>}
-              {open && can.createQuotation && <Button variant="secondary" onPress={() => setDialog("quotation")}>Create quotation</Button>}
-              {can.edit && !archived && <Button variant="secondary" onPress={() => setDialog("activity")}>Log activity</Button>}
-              {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
-              {menuActions.length > 0 && (
-                <MenuTrigger>
-                  <Button variant="outline" aria-label="More actions"><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
-                  <Menu onAction={(id) => menuActions.find((entry) => entry.id === id)?.run()}>
-                    {menuActions.map((entry) => <MenuItem key={entry.id} id={entry.id}>{entry.label}</MenuItem>)}
-                  </Menu>
-                </MenuTrigger>
+              {open && !inLastStage && stageFirst && (
+                <Button variant="secondary" isDisabled={Boolean(stageActions[stageFirst].blocked)} onPress={stageActions[stageFirst].run}>{stageActions[stageFirst].label}</Button>
               )}
+              {lostInButtons && <Button variant="secondary" onPress={() => setDialog("lost")}>Mark lost</Button>}
+              {open && can.edit && <Button variant="secondary" onPress={() => setDialog("activity")}>Log activity</Button>}
+              <MoreMenu label="More deal actions" items={menuActions} />
             </>
           ),
         }}
@@ -175,38 +208,33 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
             <ErrorBanner message={error} />
             <OutcomeBanner opportunity={opportunity} currency={currency} />
             <StageBar opportunity={opportunity} options={options} canChange={canMove} isChanging={stageChange.isPending} onChange={(stageId) => stageChange.move(opportunity, stageId)} />
-            {open && currentStage && (currentStage.description || currentStage.guidance || suggested.length > 0 || nextStage) && (
+            {open && currentStage && (currentStage.description || currentStage.guidance || suggested.length > 0) && (
               <section aria-label={`About ${currentStage.name}`} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">
                 {currentStage.description && <p><span className="font-medium">{currentStage.name}:</span> {currentStage.description}</p>}
                 {currentStage.guidance && (
                   <ul className="list-disc pl-5 text-text-secondary">
-                    {currentStage.guidance.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => <li key={line}>{line}</li>)}
+                    {currentStage.guidance.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => <li key={line}>{line}</li>)}
                   </ul>
                 )}
-                <div className="flex flex-wrap items-center gap-2">
-                  {suggested.map((action) => <Button key={action.label} variant="outline" size="compact" onPress={action.run}>{action.label}</Button>)}
-                  {canMove && nextStage && (
-                    <Button variant="secondary" size="compact" isLoading={stageChange.isPending} onPress={() => stageChange.move(opportunity, nextStage.id)}>Next stage: {nextStage.name}</Button>
-                  )}
-                </div>
+                {suggested.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {suggested.map((entry) => <Button key={entry.label} variant="outline" size="compact" isDisabled={Boolean(entry.blocked)} onPress={entry.run}>{entry.label}</Button>)}
+                  </div>
+                )}
+                {suggested.some((entry) => entry.blocked) && <p className="text-xs text-text-muted">{quoteBlocked}</p>}
               </section>
             )}
           </div>
         }
       >
         <Tabs selectedKey={tab} onSelectionChange={(selected) => setTab(String(selected))}>
-          <TabList aria-label="Opportunity sections">
+          <TabList aria-label="Deal sections">
             <Tab id="overview">Overview</Tab>
-            <Tab id="contacts">Contacts</Tab>
+            <Tab id="people">People</Tab>
             <Tab id="products">Products{opportunity.productCount ? ` (${opportunity.productCount})` : ""}</Tab>
-            <Tab id="activities">Activities</Tab>
-            <Tab id="tasks">Tasks</Tab>
-            <Tab id="followUps">Follow-ups</Tab>
-            <Tab id="quotations">Quotations{opportunity.quotationCount ? ` (${opportunity.quotationCount})` : ""}</Tab>
-            <Tab id="related">Related</Tab>
-            <Tab id="notes">Notes</Tab>
-            <Tab id="attachments">Attachments</Tab>
-            <Tab id="history">History</Tab>
+            <Tab id="quotes">Quotes{opportunity.quotationCount ? ` (${opportunity.quotationCount})` : ""}</Tab>
+            <Tab id="activity">Activity</Tab>
+            <Tab id="files">Files &amp; related</Tab>
           </TabList>
 
           <TabPanel id="overview">
@@ -220,8 +248,8 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
                   : open ? <span className="font-medium text-warning">No next activity</span> : null },
                 { label: "Last activity", value: opportunity.lastActivityAt ? `${formatDateTime(opportunity.lastActivityAt)} (${days(opportunity.daysSinceActivity)} ago)` : null },
               ]} />
-              <PropertyList title="Opportunity details" columns={3} items={[
-                { label: "Account", value: opportunity.accountId ? <Link className="hover:underline" href={`/crm/accounts/${opportunity.accountId}`}>{opportunity.accountName}</Link> : null },
+              <PropertyList title="Deal details" columns={3} items={[
+                { label: "Company", value: opportunity.accountId ? <Link className="hover:underline" href={`/crm/accounts/${opportunity.accountId}`}>{opportunity.accountName}</Link> : null },
                 { label: "Primary contact", value: opportunity.contactId ? <Link className="hover:underline" href={`/crm/contacts/${opportunity.contactId}`}>{opportunity.contactName}</Link> : null },
                 { label: "Owner", value: opportunity.ownerName ?? "Unassigned" },
                 { label: "Team", value: opportunity.teamName },
@@ -230,7 +258,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
                 { label: "Estimated value", value: money(opportunity.amount) },
                 { label: "Products total", value: opportunity.productCount ? money(opportunity.productsTotal) : null },
                 { label: "Currency", value: currency },
-                { label: "Expected close date", value: opportunity.expectedCloseDate ? formatDate(opportunity.expectedCloseDate) : null },
+                { label: "Close date", value: opportunity.expectedCloseDate ? formatDate(opportunity.expectedCloseDate) : null },
                 { label: "Source", value: opportunity.sourceName },
                 { label: "Created from lead", value: opportunity.leadId ? <Link className="hover:underline" href={`/crm/leads/${opportunity.leadId}`}>{opportunity.leadCode ?? "Open lead"}</Link> : null },
                 { label: "Latest quotation", value: opportunity.latestQuotationId ? (
@@ -253,20 +281,33 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
               ]} />
             </div>
           </TabPanel>
-          <TabPanel id="contacts"><OpportunityContactsPanel opportunity={opportunity} options={options} canEdit={can.edit && !archived} onChanged={refresh} /></TabPanel>
+          <TabPanel id="people"><OpportunityContactsPanel opportunity={opportunity} options={options} canEdit={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="products"><OpportunityProductsPanel key={opportunity.updatedAt} opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
-          <TabPanel id="activities"><OpportunityWorkPanel kind="activities" opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
-          <TabPanel id="tasks"><RelatedTasksPanel relatedType="opportunity" relatedId={opportunity.id} relatedName={opportunity.name} canCreate={can.edit && !archived} onChanged={refresh} /></TabPanel>
-          <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "opportunity", id: opportunity.id, name: opportunity.name, accountId: opportunity.accountId }} canCreate={can.edit && !archived} onChanged={refresh} /></TabPanel>
-          <TabPanel id="quotations"><OpportunityQuotationsPanel opportunity={{ id: opportunity.id, status: opportunity.status, archivedAt: opportunity.archivedAt, estimatedValue: opportunity.amount, currencyCode: opportunity.currencyCode }} canCreate={can.createQuotation} canEdit={can.edit && !archived} onChanged={refresh}
-            onMarkWon={can.markWon ? (quotationId) => { setWinningQuotationId(quotationId); setDialog("won"); } : undefined} /></TabPanel>
-          <TabPanel id="related"><RelatedDocuments type="opportunity" id={opportunity.id} /></TabPanel>
-          <TabPanel id="notes"><RecordNotesPanel relatedType="opportunity" relatedId={opportunity.id} /></TabPanel>
-          <TabPanel id="attachments"><RecordAttachmentsPanel relatedType="opportunity" relatedId={opportunity.id} /></TabPanel>
-          <TabPanel id="history">
+          <TabPanel id="quotes">
+            <OpportunityQuotationsPanel opportunity={{ id: opportunity.id, status: opportunity.status, archivedAt: opportunity.archivedAt, estimatedValue: opportunity.amount, currencyCode: opportunity.currencyCode }}
+              canCreate={can.createQuotation} createBlocked={quoteBlocked} canEdit={can.edit && !archived} onChanged={refresh}
+              onMarkWon={can.markWon ? (quotationId) => { setWinningQuotationId(quotationId); setDialog("won"); } : undefined} />
+          </TabPanel>
+          <TabPanel id="activity">
+            <RecordActivityFeed entityType="opportunity" entityId={opportunity.id} initial={initialChip} canAdd={can.edit && !archived}
+              onLogActivity={() => setDialog("activity")} onScheduleFollowUp={canEdit ? () => setDialog("followUp") : undefined}
+              sections={{
+                calls: <OpportunityWorkPanel kind="activities" opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} />,
+                tasks: <RelatedTasksPanel relatedType="opportunity" relatedId={opportunity.id} relatedName={opportunity.name} canCreate={can.edit && !archived} onChanged={refresh} />,
+                followUps: <RelatedFollowUpsPanel related={{ type: "opportunity", id: opportunity.id, name: opportunity.name, accountId: opportunity.accountId }} canCreate={can.edit && !archived} onChanged={refresh} />,
+                notes: <RecordNotesPanel relatedType="opportunity" relatedId={opportunity.id} />,
+                changes: (
+                  <>
+                    <RecordTimelinePanel entityType="opportunity" entityId={opportunity.id} kinds={["stage", "history"]} />
+                    <OpportunityHistoryPanel opportunity={opportunity} />
+                  </>
+                ),
+              }} />
+          </TabPanel>
+          <TabPanel id="files">
             <div className="flex flex-col gap-6">
-              <RecordTimelinePanel entityType="opportunity" entityId={opportunity.id} />
-              <OpportunityHistoryPanel opportunity={opportunity} />
+              <RecordAttachmentsPanel relatedType="opportunity" relatedId={opportunity.id} />
+              <RelatedDocuments type="opportunity" id={opportunity.id} />
             </div>
           </TabPanel>
         </Tabs>
@@ -275,7 +316,6 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
       {stageChange.dialog}
       <AssignOpportunitiesDialog isOpen={dialog === "assign"} onOpenChange={close} opportunityIds={[opportunity.id]} opportunity={opportunity} options={options} onDone={refresh} />
       {/* Re-created when the deal changes, so each dialog starts from its current value and version. */}
-      <CreateQuotationDialog opportunityId={opportunity.id} isOpen={dialog === "quotation"} onOpenChange={close} onCreated={() => { refresh(); setTab("quotations"); }} />
       <MarkWonDialog key={`won:${opportunity.updatedAt}:${winningQuotationId ?? ""}`} isOpen={dialog === "won"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} winningQuotationId={winningQuotationId} />
       <CorrectCloseReasonDialog key={`correct:${opportunity.updatedAt}`} isOpen={dialog === "correctReason"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} />
       <MarkLostDialog key={`lost:${opportunity.updatedAt}`} isOpen={dialog === "lost"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} />
@@ -284,15 +324,15 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
       <ScheduleFollowUpForRecord isOpen={dialog === "followUp"} onOpenChange={close} related={{ type: "opportunity", id: opportunity.id, name: opportunity.name, accountId: opportunity.accountId }} onDone={refresh} />
       <ProbabilityDialog key={`probability:${opportunity.updatedAt}`} isOpen={dialog === "probability"} onOpenChange={close} opportunity={opportunity} options={options} onDone={refresh} />
       <AlertDialog
-        isOpen={dialog === "archive"} onOpenChange={close} tone="danger" confirmLabel="Archive opportunity" isConfirming={isRunning}
-        title="Archive this opportunity?"
+        isOpen={dialog === "archive"} onOpenChange={close} tone="danger" confirmLabel="Archive deal" isConfirming={isRunning}
+        title="Archive this deal?"
         description="It leaves the working lists and the pipeline but keeps its history, notes, files, activities and quotations. It can be restored from the Archived view."
         onConfirm={() => run(async () => { await archiveOpportunity(opportunity.id); setDialog(null); })}
       />
       <AlertDialog
-        isOpen={dialog === "delete"} onOpenChange={close} tone="danger" confirmLabel="Delete opportunity" isConfirming={isRunning}
-        title="Delete this opportunity?"
-        description="Only an opportunity that was never used can be deleted: no quotations, activities, products, notes or files, and never won or lost. Otherwise archive it instead. This cannot be undone."
+        isOpen={dialog === "delete"} onOpenChange={close} tone="danger" confirmLabel="Delete deal" isConfirming={isRunning}
+        title="Delete this deal?"
+        description="Only a deal that was never used can be deleted: no quotations, activities, products, notes or files, and never won or lost. Otherwise archive it instead. This cannot be undone."
         onConfirm={() => run(async () => {
           try { await deleteOpportunity(opportunity.id); } finally { setDialog(null); }
           router.replace("/crm/opportunities");
@@ -325,9 +365,14 @@ function OutcomeBanner({ opportunity, currency }: { opportunity: Opportunity; cu
   );
 }
 
-// The sales stages as a clickable track. Stage is where the deal is in the
-// process; status (open, won, lost) is its outcome and is shown in the
-// header. An open deal can move to any stage, forwards or backwards.
+// What a stage needs before a deal may enter it, with a tick or a cross for this deal (shown in the step's tooltip, so a refusal is expected).
+function requirementLines(stage: OpportunityStage, opportunity: Opportunity) {
+  const met = { contact: Boolean(opportunity.contactId), value: opportunity.amount > 0, closeDate: Boolean(opportunity.expectedCloseDate) };
+  return (stage.requirements ?? []).map((requirement) => `${met[requirement.key] ? "✓" : "✗"} ${requirement.label}`);
+}
+
+// The sales stages as a clickable track. Stage is where the deal is in the process; status (open, won, lost) is its outcome and is shown in
+// the header. An open deal can move to any stage, forwards or backwards. Each step's tooltip lists what the stage needs.
 function StageBar({ opportunity, options, canChange, isChanging, onChange }: {
   opportunity: Opportunity; options: OpportunityOptions; canChange: boolean; isChanging: boolean; onChange: (stageId: string) => void;
 }) {
@@ -339,17 +384,19 @@ function StageBar({ opportunity, options, canChange, isChanging, onChange }: {
       {options.stages.map((stage, index) => {
         const isCurrent = index === currentIndex;
         const mark = isCurrent ? "●" : index < currentIndex ? "✓" : "○";
+        const needs = requirementLines(stage, opportunity);
+        const tip = [`${canChange && !isCurrent ? "Move to " : ""}${stage.name} (${stage.probability}%)`, ...(needs.length ? ["Needs:", ...needs] : [])].join("\n");
         const className = `flex-1 rounded-[var(--radius-control)] border px-3 py-2 text-center text-sm font-medium transition-colors ${
           isCurrent ? "border-brand bg-brand text-text-inverse" : index < currentIndex ? "border-brand-border bg-brand-soft text-brand-active" : "border-border bg-surface text-text-secondary"}`;
         return (
           <li key={stage.id} className="flex min-w-32 flex-1" aria-current={isCurrent ? "step" : undefined}>
             {canChange && !isCurrent ? (
-              <button type="button" disabled={isChanging} className={`${className} hover:border-brand disabled:opacity-60`} onClick={() => onChange(stage.id)}
-                title={`Move to ${stage.name} (${stage.probability}%)`}>
+              <button type="button" disabled={isChanging} className={`${className} hover:border-brand disabled:opacity-60`} onClick={() => onChange(stage.id)} title={tip}>
                 <span aria-hidden="true">{mark} </span>{stage.name}
+                {needs.length > 0 && <span className="sr-only">. Needs: {needs.join(", ")}</span>}
               </button>
             ) : (
-              <span className={className}>
+              <span className={className} title={tip}>
                 <span aria-hidden="true">{mark} </span>{stage.name}
                 {isCurrent && isOpen && <span className="font-normal"> · {days(opportunity.stageAgeDays)}</span>}
               </span>

@@ -347,7 +347,7 @@ function GridRow<TRow>({ row, onRowClick, rowPaddingClass }: { row: Row<TRow>; o
       data-selected={row.getIsSelected() || undefined}
       onClick={onRowClick ? () => onRowClick(row.original) : undefined}
       className={cn(
-        "border-b border-border last:border-b-0 transition-colors",
+        "group border-b border-border last:border-b-0 transition-colors",
         "hover:bg-surface-muted data-[selected]:bg-brand-soft",
         onRowClick && "cursor-pointer",
       )}

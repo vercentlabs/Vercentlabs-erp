@@ -9,6 +9,8 @@ import { Stack } from "../layout/Stack.tsx";
 
 export interface EnterpriseListPageProps {
   header: PageHeaderProps;
+  /** Page-level tabs between the header and the toolbar (one page, several lists — e.g. CRM To-dos). */
+  tabs?: ReactNode;
   savedViews?: SavedViewBarProps;
   actionBar?: ActionBarProps;
   filterBar?: FilterBarProps;
@@ -27,7 +29,7 @@ export interface EnterpriseListPageProps {
  * EnterpriseDataGrid instance and domain-specific filter/saved-view state;
  * this component has no knowledge of any specific record type.
  */
-export function EnterpriseListPage({ header, savedViews, actionBar, filterBar, bulkActionBar, children }: EnterpriseListPageProps) {
+export function EnterpriseListPage({ header, tabs, savedViews, actionBar, filterBar, bulkActionBar, children }: EnterpriseListPageProps) {
   return (
     // The header sits on the page canvas as its own chrome, deliberately
     // more separated (gap-6) from the work area below than that work
@@ -35,6 +37,7 @@ export function EnterpriseListPage({ header, savedViews, actionBar, filterBar, b
     // read as one connected surface, not three independent blocks.
     <Stack gap={6}>
       <PageHeader {...header} />
+      {tabs}
       <Stack gap={3}>
         <ListToolbar savedViews={savedViews} actionBar={actionBar} filterBar={filterBar} bulkActionBar={bulkActionBar} />
         {children}

@@ -1,16 +1,21 @@
 "use client";
 
+// Companies: the businesses you sell to and work with. The common views are chips (My companies, Prospects, Customers, No recent activity)
+// with their counts, the rest under More views; one Filters button holds every filter, each applying the moment it changes. New company
+// is the primary action; Import and Export sit in the "…" menu, and the company report lives under Insights → Reports.
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState, VisibilityState } from "@tanstack/react-table";
-import { BarChart3, Columns3, Download, Plus, Upload } from "lucide-react";
+import { Columns3, Plus } from "lucide-react";
 import {
-  Button, Checkbox, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, MetricCard, NoResultsState, PermissionState, Popover,
+  Button, Checkbox, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, Popover,
   PopoverTrigger, SearchField, Select, buttonVariants, type ActiveFilter,
 } from "@vercentlabs/design-system";
 
 import { FollowUpCell } from "@/features/crm/leads/lead-format";
+import { FiltersPopover } from "@/features/crm/shared/ui/FiltersPopover";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { formatDate, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -26,18 +31,20 @@ import { LIVE_ACCOUNT_QUERY } from "../live-query";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
-const COLUMN_STORAGE_KEY = "crm.accounts.columns";
+const COLUMN_STORAGE_KEY = "crm.accounts.columns.v2";
+const PINNED_VIEWS = ["mine", "prospects", "customers", "no_recent_activity"];
 
-// Columns the user can hide. Account name and status always stay visible.
+// Columns the user can hide; the company name always stays. Seven show by default.
 const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boolean }> = [
   { id: "accountType", label: "Type" },
-  { id: "industry", label: "Industry" },
-  { id: "city", label: "Location" },
+  { id: "city", label: "City" },
   { id: "ownerName", label: "Owner" },
-  { id: "openPipelineValue", label: "Open pipeline" },
-  { id: "contacts", label: "Contacts", hiddenByDefault: true },
-  { id: "nextFollowUpAt", label: "Next follow-up" },
+  { id: "openPipelineValue", label: "Open deals" },
+  { id: "contacts", label: "Contacts" },
   { id: "lastActivityAt", label: "Last activity" },
+  { id: "status", label: "Status", hiddenByDefault: true },
+  { id: "industry", label: "Industry", hiddenByDefault: true },
+  { id: "nextFollowUpAt", label: "Next follow-up", hiddenByDefault: true },
   { id: "sourceName", label: "Source", hiddenByDefault: true },
   { id: "teamName", label: "Team", hiddenByDefault: true },
   { id: "phone", label: "Phone", hiddenByDefault: true },
@@ -61,7 +68,7 @@ type FilterKey = "accountType" | "ownerId" | "industry" | "sourceId" | "hasOpenO
 type Filters = Record<FilterKey, string>;
 const NO_FILTERS: Filters = { accountType: ANY, ownerId: ANY, industry: ANY, sourceId: ANY, hasOpenOpportunity: ANY, countryCode: ANY };
 const FILTER_NAMES: Record<FilterKey, string> = {
-  accountType: "Type", ownerId: "Owner", industry: "Industry", sourceId: "Source", hasOpenOpportunity: "Open opportunity", countryCode: "Country",
+  accountType: "Type", ownerId: "Owner", industry: "Industry", sourceId: "Source", hasOpenOpportunity: "Open deals", countryCode: "Country",
 };
 
 type DialogKind = "assign" | AccountStatus | null;
@@ -72,7 +79,10 @@ export function AccountListScreen() {
   const params = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [view, setViewState] = useState<AccountViewKey>((params.get("view") as AccountViewKey) || "all");
+  // People who see every company start on all companies; everyone else on their own.
+  const seesAll = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("crm.accounts.view_all");
+  const defaultView: AccountViewKey = seesAll ? "all" : "mine";
+  const [view, setViewState] = useState<AccountViewKey>((params.get("view") as AccountViewKey) || defaultView);
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [submittedSearch, setSubmittedSearchState] = useState(params.get("search") ?? "");
   const [filters, setFiltersState] = useState<Filters>(() => ({
@@ -133,9 +143,11 @@ export function AccountListScreen() {
     placeholderData: keepPreviousData,
     ...LIVE_ACCOUNT_QUERY,
   });
+  // The chips' counts: every company the search and filters match, whichever view is chosen.
+  const summaryFilters = useMemo(() => ({ ...listFilters, view: "all" as AccountViewKey, sortBy: undefined, sortDirection: undefined }), [listFilters]);
   const summaryQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "accounts", "summary", listFilters),
-    queryFn: () => getAccountListSummary(listFilters),
+    queryKey: scopedQueryKey(workspace, "crm", "accounts", "summary", summaryFilters),
+    queryFn: () => getAccountListSummary(summaryFilters),
     placeholderData: keepPreviousData,
     ...LIVE_ACCOUNT_QUERY,
   });
@@ -145,16 +157,22 @@ export function AccountListScreen() {
   const can = options?.capabilities;
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
   const money = (value: number) => formatMoney(options?.baseCurrency, value);
+  const counts: Partial<Record<AccountViewKey, number>> = summary
+    ? { prospects: summary.prospects, customers: summary.customers, no_recent_activity: summary.withoutRecentActivity }
+    : {};
 
   const columns = useMemo<ColumnDef<Account, unknown>[]>(() => [
     {
       id: "displayName",
       accessorKey: "displayName",
-      header: "Account",
+      header: "Company",
       enableHiding: false,
       cell: ({ row }) => (
         <span className="flex min-w-44 flex-col">
-          <span className="font-medium text-text">{row.original.displayName}</span>
+          <span className="flex flex-wrap items-center gap-1.5 font-medium text-text">
+            {row.original.displayName}
+            {row.original.status !== "active" && <AccountStatusBadge status={row.original.status} />}
+          </span>
           <span className="text-xs whitespace-nowrap text-text-muted">
             {row.original.code}{row.original.customerNumber ? ` · ${row.original.customerNumber}` : ""}{row.original.parentName ? ` · part of ${row.original.parentName}` : ""}
           </span>
@@ -162,21 +180,21 @@ export function AccountListScreen() {
       ),
     },
     { id: "accountType", accessorKey: "accountType", header: "Type", cell: ({ row }) => <AccountTypeBadge type={row.original.accountType} /> },
-    { id: "status", accessorKey: "status", header: "Status", enableHiding: false, cell: ({ row }) => <AccountStatusBadge status={row.original.status} /> },
-    { id: "industry", accessorKey: "industry", header: "Industry", cell: ({ row }) => row.original.industry ?? "" },
-    { id: "city", accessorKey: "city", header: "Location", cell: ({ row }) => <span className="whitespace-nowrap">{locationOf(row.original)}</span> },
+    { id: "city", accessorKey: "city", header: "City", cell: ({ row }) => <span className="whitespace-nowrap">{locationOf(row.original)}</span> },
     { id: "ownerName", accessorKey: "ownerName", header: "Owner", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.ownerName ?? <span className="text-text-muted">Unassigned</span>}</span> },
     {
       id: "openPipelineValue",
       accessorKey: "openPipelineValue",
-      header: "Open pipeline",
+      header: "Open deals",
       cell: ({ row }) => row.original.openOpportunities
         ? <span className="flex flex-col tabular-nums"><span>{money(row.original.openPipelineValue)}</span><span className="text-xs text-text-muted">{row.original.openOpportunities} open</span></span>
         : <span className="text-text-muted">None</span>,
     },
     { id: "contacts", header: "Contacts", enableSorting: false, cell: ({ row }) => <span className="tabular-nums">{row.original.contactCount}</span> },
-    { id: "nextFollowUpAt", accessorKey: "nextFollowUpAt", header: "Next follow-up", cell: ({ row }) => <FollowUpCell value={row.original.nextFollowUpAt} /> },
     { id: "lastActivityAt", accessorKey: "lastActivityAt", header: "Last activity", cell: ({ row }) => row.original.lastActivityAt ? formatDate(row.original.lastActivityAt) : <span className="text-text-muted">Never</span> },
+    { id: "status", accessorKey: "status", header: "Status", cell: ({ row }) => <AccountStatusBadge status={row.original.status} /> },
+    { id: "industry", accessorKey: "industry", header: "Industry", cell: ({ row }) => row.original.industry ?? "" },
+    { id: "nextFollowUpAt", accessorKey: "nextFollowUpAt", header: "Next follow-up", cell: ({ row }) => <FollowUpCell value={row.original.nextFollowUpAt} /> },
     { id: "sourceName", accessorKey: "sourceName", header: "Source", cell: ({ row }) => row.original.sourceName ?? "" },
     { id: "teamName", header: "Team", enableSorting: false, cell: ({ row }) => row.original.teamName ?? "" },
     { id: "phone", header: "Phone", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.phone ?? ""}</span> },
@@ -194,7 +212,7 @@ export function AccountListScreen() {
   const ownerOptions = options
     ? filterOptions([{ value: "me", label: "Me" }, { value: "unassigned", label: "Unassigned" }, ...options.users.map((user) => ({ value: user.id, label: user.name }))], "Any owner")
     : [];
-  const yesNo = [{ value: "yes", label: "Has open opportunities" }, { value: "no", label: "No open opportunities" }];
+  const yesNo = [{ value: "yes", label: "Has open deals" }, { value: "no", label: "No open deals" }];
   const labelOf = (key: FilterKey, value: string) => {
     if (!options) return value;
     if (key === "accountType") return options.types.find((entry) => entry.code === value)?.label ?? value;
@@ -217,10 +235,10 @@ export function AccountListScreen() {
     setLastActivityBefore("");
     setFilters(NO_FILTERS);
   };
-  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== "all";
+  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== defaultView;
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.accounts.view"))
-    return <PermissionState title="You don't have access to accounts" description="Ask an administrator for the View accounts permission." />;
+    return <PermissionState title="You don't have access to companies" description="Ask an administrator for the View accounts permission." />;
 
   return (
     <div className="flex flex-col gap-4">
@@ -233,45 +251,41 @@ export function AccountListScreen() {
           <Button variant="ghost" size="compact" onPress={() => setBulkResult(null)}>Dismiss</Button>
         </div>
       )}
-      <ErrorBanner message={optionsQuery.isError ? "The account filters could not be loaded. Refresh the page." : null} />
+      <ErrorBanner message={optionsQuery.isError ? "The company filters could not be loaded. Refresh the page." : null} />
 
       <EnterpriseListPage
         header={{
-          title: "Accounts",
-          description: "The companies you sell to and work with — prospects, customers and partners — with their people, deals and history.",
-          primaryAction: can?.create ? <LinkButton href="/crm/accounts/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New account</LinkButton> : undefined,
-          secondaryActions: (
-            <>
-              <LinkButton href="/crm/accounts/report" variant="outline"><BarChart3 className="size-4" aria-hidden="true" />Report</LinkButton>
-              {can?.import && <LinkButton href="/crm/accounts/import" variant="outline"><Upload className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Import</span></LinkButton>}
-              {can?.export && (
-                <a className={buttonVariants({ variant: "outline" })} href={accountExportUrl(listFilters)} download>
-                  <Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span>
-                </a>
-              )}
-            </>
-          ),
+          title: "Companies",
+          description: "The businesses you sell to and work with — prospects, customers and partners — with their people, deals and history.",
+          primaryAction: can?.create ? <LinkButton href="/crm/accounts/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New company</LinkButton> : undefined,
+          secondaryActions: <MoreMenu label="More company actions" items={[
+            ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=companies") }] : []),
+            ...(can?.export ? [{ id: "export", label: "Export", onAction: () => { window.location.href = accountExportUrl(listFilters); } }] : []),
+          ]} />,
         }}
-        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as AccountViewKey) } : undefined}
+        savedViews={options ? {
+          views: options.views.map((entry) => ({ id: entry.key, label: entry.label, count: counts[entry.key] })),
+          activeViewId: view, onSelect: (id) => setView(id as AccountViewKey), pinned: PINNED_VIEWS,
+        } : undefined}
         actionBar={{
           start: (
             <>
-              <SearchField aria-label="Search accounts" placeholder="Search name, number, website, GSTIN or contact" className="w-full sm:w-80" value={search} onChange={setSearch}
+              <SearchField aria-label="Search companies" placeholder="Search name, number, website, GSTIN or contact" className="w-full sm:min-w-64 sm:flex-1" value={search} onChange={setSearch}
                 onSubmit={(value) => setSubmittedSearch(value.trim())} />
               {options && (
-                <>
-                  <Select aria-label="Type" size="compact" selectedKey={filters.accountType} onSelectionChange={(key) => setFilters({ ...filters, accountType: String(key) })}
+                <FiltersPopover active={activeFilters.length} onClear={clearFilters}>
+                  <Select label="Type" size="compact" selectedKey={filters.accountType} onSelectionChange={(key) => setFilters({ ...filters, accountType: String(key) })}
                     options={filterOptions(options.types.map((entry) => ({ value: entry.code, label: entry.label })), "Any type")} />
-                  <Select aria-label="Owner" size="compact" selectedKey={filters.ownerId} onSelectionChange={(key) => setFilters({ ...filters, ownerId: String(key) })} options={ownerOptions} />
+                  <Select label="Owner" size="compact" selectedKey={filters.ownerId} onSelectionChange={(key) => setFilters({ ...filters, ownerId: String(key) })} options={ownerOptions} />
                   {options.industries.length > 0 && (
-                    <Select aria-label="Industry" size="compact" selectedKey={filters.industry} onSelectionChange={(key) => setFilters({ ...filters, industry: String(key) })}
+                    <Select label="Industry" size="compact" selectedKey={filters.industry} onSelectionChange={(key) => setFilters({ ...filters, industry: String(key) })}
                       options={filterOptions(options.industries.map((entry) => ({ value: entry, label: entry })), "Any industry")} />
                   )}
-                  <Select aria-label="Source" size="compact" selectedKey={filters.sourceId} onSelectionChange={(key) => setFilters({ ...filters, sourceId: String(key) })}
+                  <Select label="Source" size="compact" selectedKey={filters.sourceId} onSelectionChange={(key) => setFilters({ ...filters, sourceId: String(key) })}
                     options={filterOptions(options.sources.map((entry) => ({ value: entry.id, label: entry.name })), "Any source")} />
-                  <Select aria-label="Open opportunities" size="compact" selectedKey={filters.hasOpenOpportunity}
-                    onSelectionChange={(key) => setFilters({ ...filters, hasOpenOpportunity: String(key) })} options={filterOptions(yesNo, "Any pipeline")} />
-                </>
+                  <Select label="Open deals" size="compact" selectedKey={filters.hasOpenOpportunity}
+                    onSelectionChange={(key) => setFilters({ ...filters, hasOpenOpportunity: String(key) })} options={filterOptions(yesNo, "Any")} />
+                </FiltersPopover>
               )}
             </>
           ),
@@ -308,33 +322,26 @@ export function AccountListScreen() {
           ),
         } : undefined}
       >
-        {summary && (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <MetricCard label="Accounts" value={summary.total} />
-            <button type="button" className="text-left" onClick={() => setFilters({ ...filters, hasOpenOpportunity: "yes" })}>
-              <MetricCard label={`With open opportunities · ${money(summary.openPipelineValue)}`} value={summary.withOpenOpportunities} />
-            </button>
-            <button type="button" className="text-left" onClick={() => setView("customers")}>
-              <MetricCard label="Customers" value={summary.customers} />
-            </button>
-            <button type="button" className="text-left" onClick={() => { setLastActivityBefore(new Date(Date.now() - summary.staleDays * 86_400_000).toISOString().slice(0, 10)); restart(); }}>
-              <MetricCard label={`No activity in ${summary.staleDays} days`} value={summary.withoutRecentActivity} />
-            </button>
-          </div>
+        {listQuery.data && total > 0 && summary && (
+          <p className="text-sm text-text-secondary">
+            {total} {total === 1 ? "company" : "companies"}
+            {summary.withOpenOpportunities > 0 && <> · <button type="button" className="font-medium text-brand underline-offset-2 hover:underline" onClick={() => setFilters({ ...filters, hasOpenOpportunity: "yes" })}>
+              {summary.withOpenOpportunities} with open deals</button> worth {money(summary.openPipelineValue)}</>}
+          </p>
         )}
         <EnterpriseDataGrid<Account>
-          aria-label="Accounts"
+          aria-label="Companies"
           columns={columns}
           data={accounts}
           getRowId={(row) => row.id}
           state={listQuery.isLoading ? "loading" : listQuery.isError ? "error" : accounts.length === 0 ? (hasCriteria ? "no-results" : "empty") : "ready"}
-          loadingContent={<LoadingState label="Loading accounts" rows={8} onRetry={() => void listQuery.refetch()} />}
-          errorContent={<ErrorState title="Could not load accounts" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}
+          loadingContent={<LoadingState label="Loading companies" rows={8} onRetry={() => void listQuery.refetch()} />}
+          errorContent={<ErrorState title="Could not load companies" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}
           emptyContent={
-            <EmptyState title="No accounts yet" description="Add your first company, import a list, or convert a qualified lead."
-              action={can?.create ? { label: "New account", onPress: () => router.push("/crm/accounts/new") } : undefined} />
+            <EmptyState title="No companies yet" description="Add your first company, import a list, or convert a qualified lead."
+              action={can?.create ? { label: "New company", onPress: () => router.push("/crm/accounts/new") } : undefined} />
           }
-          noResultsContent={<NoResultsState title="No accounts match" description="Try a different view, search or filter." />}
+          noResultsContent={<NoResultsState title="No companies match" description="Try a different view, search or filter." />}
           manualSorting
           sorting={sorting}
           onSortingChange={setSorting}

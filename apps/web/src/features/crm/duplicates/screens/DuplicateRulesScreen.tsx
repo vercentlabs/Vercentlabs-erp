@@ -1,7 +1,8 @@
 "use client";
 
-// Duplicate Detection Rules: what the system compares, and whether a match
-// is strong (stops the save) or possible (a warning). Shown in plain words;
+// How duplicates are found: what the system compares, and whether a match
+// is strong (stops the save) or possible (a warning), each rule written as
+// an example ("Same mobile → blocked"). Shown in plain words;
 // the scoring behind it is not something an administrator has to tune.
 import { useQuery } from "@tanstack/react-query";
 import { Badge, PageHeader, PermissionState } from "@vercentlabs/design-system";
@@ -11,6 +12,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import { duplicatesErrorMessage, getDuplicateRules, type DuplicateRule } from "../api/duplicates-api";
+import { SetupBackLink } from "@/features/crm/settings/screens/SetupBackLink";
 
 function RuleTable({ title, rules }: { title: string; rules: DuplicateRule[] }) {
   return (
@@ -19,7 +21,7 @@ function RuleTable({ title, rules }: { title: string; rules: DuplicateRule[] }) 
       <ul className="flex flex-col divide-y divide-border text-sm">
         {rules.map((rule) => (
           <li key={rule.signal} className="flex items-center justify-between gap-3 py-2">
-            <span>{rule.label}</span>
+            <span>{rule.label} → <span className="text-text-secondary">{rule.strength === "strong" ? "blocked" : "warns"}</span></span>
             <Badge tone={rule.strength === "strong" ? "warning" : "neutral"}>{rule.strength === "strong" ? "Strong" : "Possible"}</Badge>
           </li>
         ))}
@@ -35,7 +37,8 @@ export function DuplicateRulesScreen() {
   if (!canManage) return <PermissionState title="You cannot open CRM settings" description="Ask a CRM administrator for access." />;
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <PageHeader title="Duplicate Detection Rules" description="Checked whenever a lead, contact or account is created, imported or converted. Matches found later are reviewed under Data Quality." />
+      <SetupBackLink />
+      <PageHeader title="How duplicates are found" description="Checked whenever a lead, contact or company is created, imported or converted. Matches found later are reviewed under Data quality." />
       {query.isLoading ? <LoadingState label="Loading rules" rows={4} />
         : query.isError || !query.data ? <p role="alert" className="text-sm text-danger">{duplicatesErrorMessage(query.error, "The rules could not be loaded.")}</p>
         : (

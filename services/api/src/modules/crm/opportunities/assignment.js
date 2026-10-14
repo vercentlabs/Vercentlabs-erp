@@ -108,7 +108,7 @@ export async function bulkAssignOpportunities(client, context, input = {}) {
       userId: assignment.ownerUserId,
       category: "crm_opportunity_assignment",
       title: received === 1 ? "An opportunity was assigned to you" : `${received} opportunities were assigned to you`,
-      message: "Open My Opportunities to see them.",
+      message: "Open My deals to see them.",
       href: "/crm/opportunities?view=mine",
       entityType: "opportunity",
       entityId: null,

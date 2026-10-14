@@ -294,7 +294,7 @@ async function reportUnusableRule(client, context, rule, why) {
     category: "crm_lead_assignment_failed",
     title: `Assignment rule "${rule.name}" could not assign a lead`,
     message: `${why} The lead was passed to the next rule. Update or deactivate the rule.`,
-    href: "/crm/settings/assignment",
+    href: "/crm/settings/leads/assignment",
     entityType: "lead_assignment_rule",
     entityId: rule.id,
   });

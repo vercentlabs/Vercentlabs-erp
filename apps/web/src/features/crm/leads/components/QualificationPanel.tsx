@@ -173,7 +173,7 @@ export function QualificationPanel({ lead, options, onChanged, onQualify, onDisq
         <p className="rounded-[var(--radius-control)] border border-success-emphasis/20 bg-success-soft px-3 py-2 text-sm text-success">
           Qualified on {formatDateTime(lead.qualifiedAt)}{lead.qualifiedByName ? ` by ${lead.qualifiedByName}` : ""}.
           {lead.qualificationOverrideReason ? ` Qualified with missing information: ${lead.qualificationOverrideReason}` : ""}
-          {lead.status === "qualified" ? " Convert the lead to create its account, contact and opportunity." : ""}
+          {lead.status === "qualified" ? " Convert the lead to create its company, contact and deal." : ""}
         </p>
       )}
       {lead.status === "disqualified" && (
@@ -343,7 +343,7 @@ export function QualifyLeadDialog({ isOpen, onOpenChange, lead, options, onQuali
             <Button variant="outline" onPress={() => mutation.mutate(false)} isDisabled={blocked || mutation.isPending}>Qualify only</Button>
             {options.capabilities.convert
               ? <Button variant="primary" onPress={() => mutation.mutate(true)} isLoading={mutation.isPending} isDisabled={blocked}>Qualify and convert</Button>
-              : <Badge tone="info">Someone with the Convert permission creates the opportunity</Badge>}
+              : <Badge tone="info">Someone with the Convert permission creates the deal</Badge>}
           </div>
         </div>
       )}

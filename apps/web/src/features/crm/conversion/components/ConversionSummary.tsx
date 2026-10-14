@@ -13,15 +13,15 @@ export function ConversionSummary({ lead }: { lead: Lead }) {
     lead.convertedOpportunityAmount ? formatMoney(lead.currencyCode ?? undefined, lead.convertedOpportunityAmount) : null,
   ].filter(Boolean).join(" — ");
   const links = [
-    lead.convertedPartyId && { label: "Account", name: lead.convertedAccountName, href: `/crm/accounts/${lead.convertedPartyId}` },
+    lead.convertedPartyId && { label: "Company", name: lead.convertedAccountName, href: `/crm/accounts/${lead.convertedPartyId}` },
     lead.convertedContactId && { label: "Contact", name: lead.convertedContactName, href: `/crm/contacts/${lead.convertedContactId}` },
-    lead.convertedOpportunityId && { label: "Opportunity", name: opportunity, href: `/crm/opportunities/${lead.convertedOpportunityId}` },
+    lead.convertedOpportunityId && { label: "Deal", name: opportunity, href: `/crm/opportunities/${lead.convertedOpportunityId}` },
   ].filter((entry): entry is { label: string; name: string | null; href: string } => Boolean(entry));
   return (
     <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-success/40 bg-success-soft p-4" aria-label="Conversion">
       <div>
         <h2 className="text-base font-semibold">Converted</h2>
-        <p className="text-sm text-text-secondary">This lead is kept as a read-only record. Continue the work on the opportunity.</p>
+        <p className="text-sm text-text-secondary">This lead is kept as a read-only record. Continue the work on the deal.</p>
       </div>
       <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
         {links.map((link) => (

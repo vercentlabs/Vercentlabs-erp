@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import {
+  Header,
+  MenuSection as AriaMenuSection,
   MenuTrigger,
   Menu as AriaMenu,
   MenuItem as AriaMenuItem,
@@ -42,5 +44,15 @@ export function MenuItem({ className, children, isDanger, ...props }: MenuItemPr
 }
 
 export const MenuSeparator = () => <Separator className="my-1 h-px bg-border" />;
+
+/** A titled group of menu items ("Ownership", "Status"). */
+export function MenuSection({ title, children }: { title?: string; children: ReactNode }) {
+  return (
+    <AriaMenuSection className="flex flex-col gap-0.5">
+      {title && <Header className="px-2 pt-1.5 pb-0.5 text-xs font-semibold tracking-wide text-text-muted uppercase">{title}</Header>}
+      {children}
+    </AriaMenuSection>
+  );
+}
 
 export { MenuTrigger };

@@ -35,14 +35,18 @@ const MERGE_FIELDS: Array<{ field: keyof Lead; label: string }> = [
 ];
 const shown = (value: unknown) => (value === null || value === undefined || value === "" ? "" : String(value));
 
-export function LeadDuplicatesPanel({ lead, canResolve, hideWhenEmpty = false, onMerged }: {
+// mergeWith: a duplicate to merge straight away (Data quality's "Review and merge" opens the lead with the other one chosen).
+export function LeadDuplicatesPanel({ lead, canResolve, hideWhenEmpty = false, onMerged, mergeWith = null }: {
   lead: Lead;
   canResolve: boolean;
   hideWhenEmpty?: boolean;
   onMerged?: () => void;
+  mergeWith?: string | null;
 }) {
   const workspace = useWorkspaceContext();
-  const [merging, setMerging] = useState<LeadDuplicateMatch | null>(null);
+  const [mergingId, setMergingId] = useState<string | null>(canResolve && mergeWith && mergeWith !== lead.id ? mergeWith : null);
+  const setMerging = (match: LeadDuplicateMatch | null) => setMergingId(match?.id ?? null);
+  const dialog = mergingId ? <MergeLeadsDialog keep={lead} duplicateId={mergingId} onClose={() => setMergingId(null)} onMerged={onMerged} /> : null;
 
   const key = scopedQueryKey(workspace, "crm", "lead", lead.id, "duplicates");
   const query = useQuery({
@@ -56,8 +60,8 @@ export function LeadDuplicatesPanel({ lead, canResolve, hideWhenEmpty = false, o
 
   const matches = query.data?.matches ?? [];
   if (matches.length === 0) {
-    if (hideWhenEmpty || query.isLoading) return null;
-    return <p className="text-sm text-text-secondary">No similar leads, contacts or accounts were found for {leadName(lead)}.</p>;
+    if (hideWhenEmpty || query.isLoading) return dialog;
+    return <><p className="text-sm text-text-secondary">No similar leads, contacts or companies were found for {leadName(lead)}.</p>{dialog}</>;
   }
   const mergeable = matches.filter((match) => match.kind === "lead" && match.canOpen && match.status !== "converted" && !match.isArchived);
 
@@ -74,7 +78,7 @@ export function LeadDuplicatesPanel({ lead, canResolve, hideWhenEmpty = false, o
           </div>
         )}
       </DuplicateWarning>
-      {merging && <MergeLeadsDialog keep={lead} duplicateId={merging.id} onClose={() => setMerging(null)} onMerged={onMerged} />}
+      {dialog}
     </section>
   );
 }

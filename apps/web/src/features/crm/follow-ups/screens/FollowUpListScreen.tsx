@@ -1,20 +1,23 @@
 "use client";
 
-// CRM Follow-ups: the salesperson's daily action queue. Due Today is the
-// default: who to contact today, how, about which record and why.
-import { useEffect, useMemo, useState } from "react";
+// CRM To-dos › Follow-ups: the salesperson's action queue — who to contact, how, about which record and why. My follow-ups is the default,
+// with the same figures (overdue, due today, upcoming) and view chips as tasks, the columns in the same order (When · What · About · Contact ·
+// Assigned to · Status), every filter in one Filters button, and Complete, Reschedule and Snooze on a row on hover.
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState } from "@tanstack/react-table";
-import { Download, Filter, Plus } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 import {
-  AlertDialog, Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, MetricCard, NoResultsState, PermissionState, Popover,
-  PopoverTrigger, SearchField, Select, TextField, buttonVariants, type ActiveFilter,
+  AlertDialog, Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, MetricCard, NoResultsState, PermissionState,
+  SearchField, Select, TextField, buttonVariants, type ActiveFilter,
 } from "@vercentlabs/design-system";
 
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
+import { FiltersPopover } from "@/features/crm/shared/ui/FiltersPopover";
+import { WorkRowActions } from "@/features/crm/shared/ui/WorkRowActions";
 import { formatDate } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -24,7 +27,7 @@ import {
   bulkFollowUpAction, errorMessage, followUpExportUrl, getFollowUpOptions, getFollowUpSummary, listFollowUps,
   type FollowUp, type FollowUpBulkResult, type FollowUpListFilters, type FollowUpOptions, type FollowUpViewKey,
 } from "../api/follow-ups-api";
-import { CompleteFollowUpDialog, ScheduleFollowUpDialog } from "../components/FollowUpDialogs";
+import { ScheduleFollowUpDialog } from "../components/FollowUpDialogs";
 import { ErrorBanner, FollowUpStatusBadge, FollowUpWhen, RELATED_LABELS, STATUS_LABELS, TYPE_LABELS } from "../follow-up-format";
 
 const PAGE_SIZE = 25;
@@ -37,25 +40,27 @@ const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", type: "Type"
 type MoreKey = "accountId" | "dueFrom" | "dueTo";
 const NO_MORE: Record<MoreKey, string> = { accountId: "", dueFrom: "", dueTo: "" };
 type BulkKind = "reassign" | "reschedule" | "cancel";
+// The views always shown as chips (the same as tasks); the rarely used ones sit under More views.
+const PINNED_VIEWS = ["mine", "due_today", "overdue", "upcoming", "completed", "team"];
 
-export function FollowUpListScreen() {
+// tabs: the To-dos tab row, drawn under the page title.
+export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const params = useSearchParams();
   const queryClient = useQueryClient();
-  const initialView = (params.get("view") as FollowUpViewKey) || (params.get("due") === "overdue" ? "overdue" : params.get("due") === "today" ? "due_today" : "due_today");
+  const initialView = (params.get("view") as FollowUpViewKey) || (params.get("due") === "overdue" ? "overdue" : params.get("due") === "today" ? "due_today" : "mine");
   const [view, setViewState] = useState<FollowUpViewKey>(initialView);
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [submittedSearch, setSubmittedSearch] = useState(params.get("search") ?? "");
   const [filters, setFiltersState] = useState(() => Object.fromEntries(FILTER_KEYS.map((key) => [key, params.get(key) ?? ANY])) as Record<FilterKey, string>);
   const [more, setMoreState] = useState<Record<MoreKey, string>>({ accountId: params.get("accountId") ?? "", dueFrom: params.get("dueFrom") ?? "", dueTo: params.get("dueTo") ?? "" });
-  const [moreDraft, setMoreDraft] = useState(more);
   const [accountName, setAccountName] = useState<string | null>(null);
   const [sorting, setSortingState] = useState<SortingState>([]);
   const [pageIndex, setPageIndex] = useState(0);
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [creating, setCreating] = useState(params.get("new") === "1");
-  const [completing, setCompleting] = useState<FollowUp | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [bulk, setBulk] = useState<BulkKind | null>(null);
   const [bulkResult, setBulkResult] = useState<FollowUpBulkResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +68,7 @@ export function FollowUpListScreen() {
   const restart = () => { setPageIndex(0); setSelection({}); };
   const setView = (next: FollowUpViewKey) => { setViewState(next); restart(); };
   const setFilters = (next: Record<FilterKey, string>) => { setFiltersState(next); restart(); };
-  const setMore = (next: Record<MoreKey, string>) => { setMoreState(next); setMoreDraft(next); restart(); };
+  const setMore = (next: Record<MoreKey, string>) => { setMoreState(next); restart(); };
   useEffect(() => {
     const timer = setTimeout(() => { setSubmittedSearch(search.trim()); setPageIndex(0); }, 350);
     return () => clearTimeout(timer);
@@ -100,44 +105,34 @@ export function FollowUpListScreen() {
   const columns = useMemo<ColumnDef<FollowUp, unknown>[]>(() => [
     { id: "scheduledAt", accessorKey: "scheduledAt", header: "When", cell: ({ row }) => <FollowUpWhen followUp={row.original} /> },
     {
-      id: "who", header: "Contact", enableSorting: false,
-      cell: ({ row }) => (
-        <span className="flex min-w-40 flex-col">
-          <span className="font-medium">{row.original.contactName ?? row.original.relatedName ?? "—"}</span>
-          <span className="text-xs text-text-muted">{row.original.accountName ?? ""}</span>
-        </span>
-      ),
-    },
-    { id: "type", accessorKey: "type", header: "How", enableSorting: false, cell: ({ row }) => TYPE_LABELS[row.original.type] },
-    {
-      id: "subject", accessorKey: "subject", header: "Why",
+      id: "subject", accessorKey: "subject", header: "What",
       cell: ({ row }) => (
         <span className="flex min-w-48 flex-col">
-          <span className={row.original.status === "completed" ? "text-text-secondary line-through" : ""}>{row.original.subject}</span>
+          <span className={row.original.status === "completed" ? "text-text-secondary line-through" : "font-medium"}>{TYPE_LABELS[row.original.type]} · {row.original.subject}</span>
           <span className="text-xs text-text-muted">{row.original.number}</span>
         </span>
       ),
     },
     {
-      id: "related", header: "Record", enableSorting: false,
+      id: "related", header: "About", enableSorting: false,
       cell: ({ row }) => row.original.relatedHref ? (
         <span onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} role="presentation" className="flex flex-col">
           <Link className="hover:underline" href={row.original.relatedHref}>{row.original.relatedName}</Link>
-          <span className="text-xs text-text-muted">{RELATED_LABELS[row.original.relatedType ?? ""]}</span>
+          <span className="text-xs text-text-muted">{RELATED_LABELS[row.original.relatedType ?? ""]}{row.original.accountName && row.original.relatedType !== "party" ? ` · ${row.original.accountName}` : ""}</span>
         </span>
       ) : "",
     },
-    { id: "status", accessorKey: "status", header: "Status", enableSorting: false, cell: ({ row }) => <span className="flex flex-col gap-1"><FollowUpStatusBadge status={row.original.status} />{row.original.outcomeLabel && <span className="text-xs text-text-muted">{row.original.outcomeLabel}</span>}</span> },
+    { id: "who", header: "Contact", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.contactName ?? "—"}</span> },
     { id: "assignee", accessorKey: "assignedName", header: "Assigned to", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.assignedName ?? "Unassigned"}</span> },
+    { id: "status", accessorKey: "status", header: "Status", enableSorting: false, cell: ({ row }) => <span className="flex flex-col gap-1"><FollowUpStatusBadge status={row.original.status} />{row.original.outcomeLabel && <span className="text-xs text-text-muted">{row.original.outcomeLabel}</span>}</span> },
     {
       id: "actions", header: "", enableSorting: false,
-      cell: ({ row }) => row.original.status === "scheduled" && can?.complete ? (
-        <span onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} role="presentation">
-          <Button variant="secondary" size="compact" onPress={() => setCompleting(row.original)}>Complete</Button>
-        </span>
-      ) : null,
+      // Snooze is for the person the reminder goes to.
+      cell: ({ row }) => row.original.status === "scheduled" && can?.complete
+        ? <WorkRowActions kind="follow_up" id={row.original.id} snooze={row.original.assignedTo === options?.currentUserId} onDone={() => refresh()} onMessage={setNotice} /> : null,
     },
-  ], [can?.complete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh only invalidates the list
+  ], [can?.complete, options?.currentUserId]);
 
   const withAny = (list: Array<{ value: string; label: string }>, label: string) => [{ value: ANY, label }, ...list];
   const people = (options?.users ?? []).map((user) => ({ value: user.id, label: user.name }));
@@ -151,7 +146,7 @@ export function FollowUpListScreen() {
   };
   const activeFilters: ActiveFilter[] = [
     ...FILTER_KEYS.filter((key) => filters[key] !== ANY).map((key) => ({ id: key, label: `${FILTER_NAMES[key]}: ${labelOf(key, filters[key])}` })),
-    ...(more.accountId ? [{ id: "more:accountId", label: `Account: ${accountName ?? "chosen account"}` }] : []),
+    ...(more.accountId ? [{ id: "more:accountId", label: `Company: ${accountName ?? "chosen company"}` }] : []),
     ...(more.dueFrom || more.dueTo ? [{ id: "more:due", label: `Date: ${more.dueFrom ? formatDate(more.dueFrom) : "any"} – ${more.dueTo ? formatDate(more.dueTo) : "any"}` }] : []),
   ];
   const removeFilter = (id: string) => {
@@ -159,9 +154,9 @@ export function FollowUpListScreen() {
     else if (id === "more:accountId") setMore({ ...more, accountId: "" });
     else setFilters({ ...filters, [id]: ANY });
   };
-  const draft = (key: MoreKey) => (value: string) => setMoreDraft((current) => ({ ...current, [key]: value }));
+  const draft = (key: MoreKey) => (value: string) => setMore({ ...more, [key]: value });
   const summary = summaryQuery.data;
-  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== "due_today";
+  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== "mine";
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.follow_ups.view") && !workspace.permissions.includes("crm.activities.manage"))
     return <PermissionState title="You don't have access to follow-ups" description="Ask an administrator for the View follow-ups permission." />;
@@ -178,52 +173,41 @@ export function FollowUpListScreen() {
         </div>
       )}
       <ErrorBanner message={error ?? (optionsQuery.isError ? "The follow-up filters could not be loaded. Refresh the page." : null)} />
+      {notice && <p role="status" className="text-sm text-text-secondary">{notice}</p>}
 
       <EnterpriseListPage
+        tabs={tabs}
         header={{
-          title: "Follow-ups",
-          description: "Who to contact, how, for which deal and why: overdue first, then today, then what is coming up.",
+          title: tabs ? "To-dos" : "Follow-ups",
+          description: "Who to contact, how, about which record and why: overdue first, then today, then what is coming up.",
           primaryAction: can?.create ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />Schedule follow-up</Button> : undefined,
           secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={followUpExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a> : undefined,
         }}
-        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as FollowUpViewKey) } : undefined}
+        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as FollowUpViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
           start: (
             <>
-              <SearchField aria-label="Search follow-ups" placeholder="Search subject, contact, account or number" className="w-full sm:w-80" value={search} onChange={setSearch}
+              <SearchField aria-label="Search follow-ups" placeholder="Search subject, contact, company or number" className="w-full sm:w-80" value={search} onChange={setSearch}
                 onSubmit={(value) => { setSubmittedSearch(value.trim()); setPageIndex(0); }} />
               {options && (
-                <>
-                  <Select aria-label="Type" size="compact" selectedKey={filters.type} onSelectionChange={(key) => setFilters({ ...filters, type: String(key) })}
+                <FiltersPopover active={activeFilters.length} onClear={() => { setMore(NO_MORE); setFilters(Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Record<FilterKey, string>); }}>
+                  <Select label="Type" selectedKey={filters.type} onSelectionChange={(key) => setFilters({ ...filters, type: String(key) })}
                     options={withAny(options.types.map((entry) => ({ value: entry.code, label: entry.label })), "Any type")} />
-                  <Select aria-label="Status" size="compact" selectedKey={filters.status} onSelectionChange={(key) => setFilters({ ...filters, status: String(key) })}
+                  <Select label="Status" selectedKey={filters.status} onSelectionChange={(key) => setFilters({ ...filters, status: String(key) })}
                     options={withAny([...options.statuses.map((entry) => ({ value: entry.code, label: entry.label })), { value: "overdue", label: "Overdue" }], "Any status")} />
-                  <Select aria-label="Assigned to" size="compact" selectedKey={filters.assigneeId} onSelectionChange={(key) => setFilters({ ...filters, assigneeId: String(key) })}
+                  <Select label="Assigned to" selectedKey={filters.assigneeId} onSelectionChange={(key) => setFilters({ ...filters, assigneeId: String(key) })}
                     options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
-                  <Select aria-label="About" size="compact" selectedKey={filters.relatedType} onSelectionChange={(key) => setFilters({ ...filters, relatedType: String(key) })}
-                    options={withAny(options.relatedTypes.map((entry) => ({ value: entry.code, label: entry.label })), "Any record")} />
-                  <PopoverTrigger>
-                    <Button variant="outline" size="compact"><Filter className="size-4" aria-hidden="true" />Account, people and dates</Button>
-                    <Popover placement="bottom start">
-                      <div className="grid w-[min(24rem,calc(100vw-4rem))] grid-cols-2 gap-3">
-                        <div className="col-span-2">
-                          <AccountPicker label="Account" description="Follow-ups on the account, its opportunities and its contacts." value={moreDraft.accountId || null}
-                            onChange={(id, name) => { draft("accountId")(id ?? ""); setAccountName(name); }} />
-                        </div>
-                        <Select label="Created by" selectedKey={filters.createdBy} onSelectionChange={(key) => setFilters({ ...filters, createdBy: String(key) })} options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
-                        <Select label="Completed by" selectedKey={filters.completedBy} onSelectionChange={(key) => setFilters({ ...filters, completedBy: String(key) })} options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
-                        <Select label="Outcome" className="col-span-2" selectedKey={filters.outcome} onSelectionChange={(key) => setFilters({ ...filters, outcome: String(key) })}
-                          options={withAny(options.outcomes.map((entry) => ({ value: entry.code, label: entry.label })), "Any outcome")} />
-                        <DateInput label="From" value={moreDraft.dueFrom} onChange={draft("dueFrom")} />
-                        <DateInput label="To" value={moreDraft.dueTo} onChange={draft("dueTo")} />
-                        <div className="col-span-2 flex justify-end gap-2">
-                          <Button variant="ghost" size="compact" onPress={() => setMore(NO_MORE)}>Clear</Button>
-                          <Button variant="primary" size="compact" onPress={() => setMore(moreDraft)}>Apply</Button>
-                        </div>
-                      </div>
-                    </Popover>
-                  </PopoverTrigger>
-                </>
+                  <Select label="About" selectedKey={filters.relatedType} onSelectionChange={(key) => setFilters({ ...filters, relatedType: String(key) })}
+                    options={withAny(options.relatedTypes.map((entry) => ({ value: entry.code, label: RELATED_LABELS[entry.code] ?? entry.label })), "Any record")} />
+                  <AccountPicker label="Company" description="Follow-ups on the company, its deals and its contacts." value={more.accountId || null}
+                    onChange={(id, name) => { draft("accountId")(id ?? ""); setAccountName(name); }} />
+                  <Select label="Outcome" selectedKey={filters.outcome} onSelectionChange={(key) => setFilters({ ...filters, outcome: String(key) })}
+                    options={withAny(options.outcomes.map((entry) => ({ value: entry.code, label: entry.label })), "Any outcome")} />
+                  <Select label="Created by" selectedKey={filters.createdBy} onSelectionChange={(key) => setFilters({ ...filters, createdBy: String(key) })} options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
+                  <Select label="Completed by" selectedKey={filters.completedBy} onSelectionChange={(key) => setFilters({ ...filters, completedBy: String(key) })} options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
+                  <DateInput label="From" value={more.dueFrom} onChange={draft("dueFrom")} />
+                  <DateInput label="To" value={more.dueTo} onChange={draft("dueTo")} />
+                </FiltersPopover>
               )}
             </>
           ),
@@ -244,8 +228,8 @@ export function FollowUpListScreen() {
         <div className="flex flex-col gap-4">
           {summary && (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <SummaryCard label="Due today" value={summary.dueToday} onPress={() => setView("due_today")} />
               <SummaryCard label="Overdue" value={summary.overdue} onPress={() => setView("overdue")} />
+              <SummaryCard label="Due today" value={summary.dueToday} onPress={() => setView("due_today")} />
               <SummaryCard label="Upcoming" value={summary.upcoming} onPress={() => setView("upcoming")} />
               {summary.teamOverdue !== null && <SummaryCard label="Team overdue" value={summary.teamOverdue} onPress={() => { setView("team"); setFilters({ ...filters, status: "overdue" }); }} />}
             </div>
@@ -258,7 +242,7 @@ export function FollowUpListScreen() {
             state={listQuery.isLoading ? "loading" : listQuery.isError ? "error" : rows.length === 0 ? (hasCriteria ? "no-results" : "empty") : "ready"}
             loadingContent={<LoadingState label="Loading follow-ups" rows={8} onRetry={() => void listQuery.refetch()} />}
             errorContent={<ErrorState title="Could not load follow-ups" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}
-            emptyContent={<EmptyState title="Nobody to contact today" description="Schedule a follow-up from a lead, account, contact or opportunity, or here."
+            emptyContent={<EmptyState title="Nobody to contact today" description="Schedule a follow-up from a lead, company, contact or deal, or here."
               action={can?.create ? { label: "Schedule follow-up", onPress: () => setCreating(true) } : undefined} />}
             noResultsContent={<NoResultsState title="No follow-ups here" description="Try a different view, search or filter." />}
             manualSorting
@@ -285,7 +269,6 @@ export function FollowUpListScreen() {
       </EnterpriseListPage>
 
       {options && creating && <ScheduleFollowUpDialog isOpen onOpenChange={setCreating} options={options} onSaved={(saved) => { refresh(); router.push(`/crm/follow-ups/${saved.id}`); }} />}
-      {options && completing && <CompleteFollowUpDialog isOpen onOpenChange={(isOpen) => !isOpen && setCompleting(null)} followUp={completing} options={options} onDone={() => refresh()} />}
       {options && bulk && <BulkDialog kind={bulk} ids={selectedIds} options={options} onClose={() => setBulk(null)} onDone={refresh} onError={setError} />}
     </div>
   );

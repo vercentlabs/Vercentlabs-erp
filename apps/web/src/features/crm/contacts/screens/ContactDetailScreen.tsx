@@ -1,18 +1,24 @@
 "use client";
 
+// The contact page. The header keeps the name, number, status and role badges, and the facts (email and phone are links). Log activity is
+// the primary action (Reactivate when archived); Schedule follow-up and Call (hidden when the person is marked do-not-call) sit beside it;
+// the rest is in the "…" menu, grouped like the company's. Five tabs: Overview, Companies & deals, Activity, Sales, Files.
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal } from "lucide-react";
 import {
-  AlertDialog, Badge, Button, ErrorState, LinkButton, Menu, MenuItem, MenuTrigger, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
+  AlertDialog, Badge, Button, ErrorState, LinkButton, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
 } from "@vercentlabs/design-system";
 
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
+import { fieldLabel } from "@/features/crm/shared/field-labels";
+import { RecordActivityFeed, type ActivityChip } from "@/features/crm/shared/RecordActivityFeed";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
+import { FilterChips } from "@/features/crm/shared/ui/FilterChips";
+import { MoreMenu, type MoreMenuItem } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/shared/ui/PropertyList";
 import { countryName, formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -29,17 +35,31 @@ import { ContactRelatedListPanel, ContactSummaryCards } from "../components/Cont
 import {
   ContactActivitiesPanel, ContactTasksPanel, LogContactActivityDialog,
 } from "../components/ContactWorkPanels";
+import { useCrmShortcut } from "@/features/crm/shared/shortcuts";
 
 type DialogKind = "assign" | "activity" | "followUp" | "merge" | "delete" | ContactStatus | null;
+type SalesList = "quotations" | "orders" | "projects" | "tickets";
+
+// Old ?tab= values (links from search, Notes & Files, notifications) open the tab — and the Activity chip — that now holds them.
+const TAB_OF: Record<string, { tab: string; chip?: ActivityChip; list?: SalesList }> = {
+  overview: { tab: "overview" }, companies: { tab: "companies" }, opportunities: { tab: "companies" }, deals: { tab: "companies" },
+  activity: { tab: "activity" }, activities: { tab: "activity", chip: "calls" }, tasks: { tab: "activity", chip: "tasks" },
+  followUps: { tab: "activity", chip: "followUps" }, notes: { tab: "activity", chip: "notes" }, history: { tab: "activity", chip: "changes" },
+  sales: { tab: "sales" }, quotations: { tab: "sales", list: "quotations" }, orders: { tab: "sales", list: "orders" }, projects: { tab: "sales", list: "projects" },
+  tickets: { tab: "sales", list: "tickets" }, files: { tab: "files" }, attachments: { tab: "files" },
+};
 
 export function ContactDetailScreen({ contactId }: { contactId: string }) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [dialog, setDialog] = useState<DialogKind>(null);
-  // ?tab=notes or ?tab=attachments opens that tab (links from search and from Notes & Files).
-  const requestedTab = useSearchParams().get("tab");
-  const [tab, setTab] = useState(requestedTab === "notes" || requestedTab === "attachments" ? requestedTab : "overview");
+  const params = useSearchParams();
+  // ?merge=<id> (from Data quality's "Review and merge") opens the merge with that duplicate chosen.
+  const mergeWith = params.get("merge");
+  const [dialog, setDialog] = useState<DialogKind>(mergeWith ? "merge" : null);
+  const requested = TAB_OF[params.get("tab") ?? ""] ?? TAB_OF.overview;
+  const [tab, setTab] = useState(requested.tab);
+  const [salesList, setSalesList] = useState<SalesList | null>(requested.list ?? null);
   const [error, setError] = useState<string | null>(null);
 
   const contactKey = scopedQueryKey(workspace, "crm", "contact", contactId);
@@ -63,6 +83,11 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
     onError: (failure) => { setDialog(null); setError(errorMessage(failure)); },
   });
 
+  // E edits the contact and L logs an activity on it, unless it is archived.
+  const editable = Boolean(contact && options?.capabilities.edit && contact.status !== "archived");
+  useCrmShortcut("e", editable ? () => router.push(`/crm/contacts/${contactId}/edit`) : undefined);
+  useCrmShortcut("l", editable ? () => setDialog("activity") : undefined);
+
   if (contactQuery.isLoading || optionsQuery.isLoading) return <LoadingState label="Loading contact" />;
   if (contactQuery.isError || !contact)
     return <ErrorState title="Contact not found" description="It may have been merged or deleted, or you may not have access to it." action={{ label: "Back to contacts", onPress: () => router.push("/crm/contacts") }} />;
@@ -76,22 +101,26 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
   const phone = bestPhone(contact);
   const hidden = contact.sensitiveDataRestricted ? "Hidden" : "Not set";
 
-  const menuActions: Array<{ id: string; label: string; show: boolean; run: () => void }> = [
-    { id: "edit", label: "Edit contact", show: canEdit, run: () => router.push(`/crm/contacts/${contact.id}/edit`) },
-    { id: "assign", label: contact.ownerUserId ? "Reassign" : "Assign", show: canAssign, run: () => setDialog("assign") },
-    { id: "merge", label: "Merge a duplicate into this contact", show: can.merge && !archived, run: () => setDialog("merge") },
-    { id: "inactive", label: "Deactivate", show: can.archive && contact.status === "active", run: () => setDialog("inactive") },
-    { id: "active", label: "Reactivate", show: can.archive && contact.status === "inactive", run: () => setDialog("active") },
-    { id: "archived", label: "Archive", show: can.archive && !archived, run: () => setDialog("archived") },
-    { id: "delete", label: "Delete contact", show: can.delete, run: () => setDialog("delete") },
+  const close = (open: boolean) => !open && setDialog(null);
+  // The menu, grouped like the company's: Edit · Ownership · Duplicates · Status (each says what it means), then Delete.
+  const menuActions: Array<MoreMenuItem & { show: boolean }> = [
+    { id: "edit", label: "Edit contact", show: canEdit, onAction: () => router.push(`/crm/contacts/${contact.id}/edit`) },
+    { id: "assign", group: "Ownership", label: contact.ownerUserId ? "Reassign" : "Assign", show: canAssign, onAction: () => setDialog("assign") },
+    { id: "merge", group: "Duplicates", label: "Merge a duplicate into this contact", show: can.merge && !archived, onAction: () => setDialog("merge") },
+    { id: "inactive", group: "Status", label: "Deactivate — still searchable", show: can.archive && contact.status === "active", onAction: () => setDialog("inactive") },
+    { id: "active", group: "Status", label: "Reactivate", show: can.archive && contact.status === "inactive", onAction: () => setDialog("active") },
+    { id: "archived", group: "Status", label: "Archive — hidden and read-only", show: can.archive && !archived, onAction: () => setDialog("archived") },
+    { id: "delete", label: "Delete contact", danger: true, show: can.delete, onAction: () => setDialog("delete") },
   ].filter((entry) => entry.show);
 
-  const relatedTabs: Array<{ id: "quotations" | "orders" | "projects" | "tickets"; label: string; show: boolean }> = [
+  const salesLists: Array<{ id: SalesList; label: string; show: boolean }> = [
     { id: "quotations", label: "Quotations", show: modules.sales },
-    { id: "orders", label: "Sales", show: modules.sales },
+    { id: "orders", label: "Sales orders", show: modules.sales },
     { id: "projects", label: "Projects", show: modules.projects },
     { id: "tickets", label: "Support tickets", show: modules.support },
   ];
+  const shownSales = salesLists.filter((entry) => entry.show);
+  const activeSales = shownSales.find((entry) => entry.id === salesList) ?? shownSales[0];
 
   return (
     <>
@@ -120,15 +149,8 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
           secondaryActions: (
             <>
               {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
-              {phone && !contact.doNotCall && <LinkButton variant="outline" href={`tel:${phone}`}>Call</LinkButton>}
-              {menuActions.length > 0 && (
-                <MenuTrigger>
-                  <Button variant="outline" aria-label="More actions"><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
-                  <Menu onAction={(key) => menuActions.find((entry) => entry.id === key)?.run()}>
-                    {menuActions.map((entry) => <MenuItem key={entry.id} id={entry.id}>{entry.label}</MenuItem>)}
-                  </Menu>
-                </MenuTrigger>
-              )}
+              {phone && !contact.doNotCall && <LinkButton variant="secondary" href={`tel:${phone}`}>Call</LinkButton>}
+              <MoreMenu label="More contact actions" items={menuActions} />
             </>
           ),
         }}
@@ -151,15 +173,10 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
         <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
           <TabList aria-label="Contact sections">
             <Tab id="overview">Overview</Tab>
-            <Tab id="companies">Company / Accounts</Tab>
-            <Tab id="opportunities">Opportunities</Tab>
-            <Tab id="activities">Activities</Tab>
-            <Tab id="tasks">Tasks</Tab>
-            <Tab id="followUps">Follow-ups</Tab>
-            <Tab id="notes">Notes</Tab>
-            <Tab id="attachments">Attachments</Tab>
-            {relatedTabs.filter((entry) => entry.show).map((entry) => <Tab key={entry.id} id={entry.id}>{entry.label}</Tab>)}
-            <Tab id="history">Activity history</Tab>
+            <Tab id="companies">Companies &amp; deals</Tab>
+            <Tab id="activity">Activity</Tab>
+            {shownSales.length > 0 && <Tab id="sales">Sales</Tab>}
+            <Tab id="files">Files</Tab>
           </TabList>
 
           <TabPanel id="overview">
@@ -214,40 +231,56 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
               />
             </div>
           </TabPanel>
-          <TabPanel id="companies"><ContactCompaniesPanel contact={contact} options={options} canEdit={canEdit} /></TabPanel>
-          <TabPanel id="opportunities">
-            <ContactRelatedListPanel contactId={contact.id} list="opportunities"
-              action={canEdit && contact.accountId && <LinkButton variant="primary" size="compact" href={`/crm/opportunities/new?accountId=${contact.accountId}`}>New opportunity</LinkButton>} />
-          </TabPanel>
-          <TabPanel id="activities"><ContactActivitiesPanel contactId={contact.id} options={options} canEdit={canEdit} /></TabPanel>
-          <TabPanel id="tasks"><ContactTasksPanel contactId={contact.id} options={options} canEdit={canEdit} /></TabPanel>
-          <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "contact", id: contact.id, name: contact.displayName, accountId: contact.accountId }} canCreate={canEdit} onChanged={refresh} /></TabPanel>
-          <TabPanel id="notes"><RecordNotesPanel relatedType="contact" relatedId={contact.id} /></TabPanel>
-          <TabPanel id="attachments"><RecordAttachmentsPanel relatedType="contact" relatedId={contact.id} /></TabPanel>
-          {relatedTabs.filter((entry) => entry.show).map((entry) => (
-            <TabPanel key={entry.id} id={entry.id}><ContactRelatedListPanel contactId={contact.id} list={entry.id} /></TabPanel>
-          ))}
-          <TabPanel id="history">
+          <TabPanel id="companies">
             <div className="flex flex-col gap-6">
-              <RecordTimelinePanel entityType="contact" entityId={contact.id} />
-              <AuditTrail contactId={contact.id} />
+              <ContactCompaniesPanel contact={contact} options={options} canEdit={canEdit} />
+              <ContactRelatedListPanel contactId={contact.id} list="opportunities"
+                action={canEdit && contact.accountId && <LinkButton variant="secondary" size="compact" href={`/crm/opportunities/new?accountId=${contact.accountId}`}>New deal</LinkButton>} />
             </div>
           </TabPanel>
+          <TabPanel id="activity">
+            <RecordActivityFeed entityType="contact" entityId={contact.id} initial={requested.chip} canAdd={canEdit}
+              onLogActivity={() => setDialog("activity")} onScheduleFollowUp={() => setDialog("followUp")}
+              sections={{
+                calls: <ContactActivitiesPanel contactId={contact.id} options={options} canEdit={canEdit} />,
+                tasks: <ContactTasksPanel contactId={contact.id} options={options} canEdit={canEdit} />,
+                followUps: <RelatedFollowUpsPanel related={{ type: "contact", id: contact.id, name: contact.displayName, accountId: contact.accountId }} canCreate={canEdit} onChanged={refresh} />,
+                notes: <RecordNotesPanel relatedType="contact" relatedId={contact.id} />,
+                changes: (
+                  <>
+                    <RecordTimelinePanel entityType="contact" entityId={contact.id} kinds={["stage", "history"]} />
+                    <AuditTrail contactId={contact.id} />
+                  </>
+                ),
+              }} />
+          </TabPanel>
+          {shownSales.length > 0 && activeSales && (
+            <TabPanel id="sales">
+              <div className="flex flex-col gap-4">
+                {shownSales.length > 1 && (
+                  <FilterChips label="Show" chips={shownSales.map((entry) => ({ id: entry.id, label: entry.label }))} selected={activeSales.id} onSelect={(id) => setSalesList(id as SalesList)} />
+                )}
+                <ContactRelatedListPanel key={activeSales.id} contactId={contact.id} list={activeSales.id} />
+              </div>
+            </TabPanel>
+          )}
+          <TabPanel id="files"><RecordAttachmentsPanel relatedType="contact" relatedId={contact.id} /></TabPanel>
         </Tabs>
       </RecordDetailsPage>
 
-      <AssignContactsDialog isOpen={dialog === "assign"} onOpenChange={(open) => !open && setDialog(null)} contactIds={[contact.id]} options={options} onDone={refresh} />
+      <AssignContactsDialog isOpen={dialog === "assign"} onOpenChange={close} contactIds={[contact.id]} options={options} onDone={refresh} />
       {(dialog === "active" || dialog === "inactive" || dialog === "archived") && (
-        <ContactStatusDialog isOpen onOpenChange={(open) => !open && setDialog(null)} contactIds={[contact.id]} status={dialog} onDone={refresh} />
+        <ContactStatusDialog isOpen onOpenChange={close} contactIds={[contact.id]} status={dialog} onDone={refresh} />
       )}
-      <LogContactActivityDialog isOpen={dialog === "activity"} onOpenChange={(open) => !open && setDialog(null)} contactId={contact.id} options={options} onDone={refresh} />
-      <ScheduleFollowUpForRecord isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} related={{ type: "contact", id: contact.id, name: contact.displayName, accountId: contact.accountId }} onDone={refresh} />
-      <MergeContactsDialog keep={contact} isOpen={dialog === "merge"} onOpenChange={(open) => !open && setDialog(null)} onMerged={refresh} />
+      <LogContactActivityDialog isOpen={dialog === "activity"} onOpenChange={close} contactId={contact.id} options={options} onDone={refresh}
+        onScheduleNext={() => setDialog("followUp")} />
+      <ScheduleFollowUpForRecord isOpen={dialog === "followUp"} onOpenChange={close} related={{ type: "contact", id: contact.id, name: contact.displayName, accountId: contact.accountId }} onDone={refresh} />
+      <MergeContactsDialog keep={contact} isOpen={dialog === "merge"} onOpenChange={close} initialDuplicateId={mergeWith} onMerged={refresh} />
       <AlertDialog
         isOpen={dialog === "delete"}
-        onOpenChange={(open) => !open && setDialog(null)}
+        onOpenChange={close}
         title="Delete this contact permanently?"
-        description="Only a contact created by mistake, with no opportunities, quotations, orders, tickets or activities, can be deleted. Otherwise archive it instead."
+        description="Only a contact created by mistake, with no deals, quotations, orders, tickets or activities, can be deleted. Otherwise archive it instead."
         tone="danger"
         confirmLabel="Delete contact"
         isConfirming={remove.isPending}
@@ -272,7 +305,7 @@ function AuditTrail({ contactId }: { contactId: string }) {
                 <ul className="text-text-secondary">
                   {Object.entries(entry.changes).filter(([, value]) => value && typeof value === "object" && "to" in (value as object)).map(([field, value]) => {
                     const change = value as { from: unknown; to: unknown };
-                    return <li key={field}>{field}: {String(change.from ?? "empty")} → {String(change.to ?? "empty")}</li>;
+                    return <li key={field}>{fieldLabel(field)}: {String(change.from ?? "empty")} → {String(change.to ?? "empty")}</li>;
                   })}
                 </ul>
               )}

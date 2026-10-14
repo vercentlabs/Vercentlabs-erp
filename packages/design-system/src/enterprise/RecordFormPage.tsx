@@ -11,6 +11,8 @@ export interface RecordFormPageProps {
   /** Rendered above the form surface — ServerErrorSummary/ConflictBanner
    * go here so they're visible before scrolling into the fields. */
   banner?: ReactNode;
+  /** Also show the form actions at the top, beside the title (long forms: Save is reachable without scrolling). */
+  repeatActions?: boolean;
   children: ReactNode;
 }
 
@@ -20,10 +22,10 @@ export interface RecordFormPageProps {
  * to the actual form state), an optional banner slot for server/conflict
  * errors, and the form surface itself.
  */
-export function RecordFormPage({ header, formActions, banner, children }: RecordFormPageProps) {
+export function RecordFormPage({ header, formActions, banner, repeatActions = false, children }: RecordFormPageProps) {
   return (
     <Stack gap={4}>
-      <PageHeader {...header} />
+      <PageHeader {...header} secondaryActions={repeatActions ? <div className="flex gap-2">{formActions}</div> : undefined} />
       {banner}
       <Surface padding="lg">
         <Stack gap={4}>

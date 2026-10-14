@@ -42,6 +42,6 @@ export async function projectsMutation<I, T>(
 
 // The list filters a request may carry.
 export const listFilters = (url: URL) => Object.fromEntries(
-  ["view", "search", "status", "priority", "classification", "managerId", "customerId", "typeId", "tag", "health", "due", "sort", "direction", "page", "pageSize"]
+  ["view", "search", "status", "priority", "classification", "managerId", "customerId", "customer", "typeId", "tag", "health", "due", "sort", "direction", "page", "pageSize"]
     .map((key) => [key, url.searchParams.get(key) ?? undefined]).filter(([, value]) => value !== undefined && value !== ""),
 );

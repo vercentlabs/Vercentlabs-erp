@@ -1,4 +1,4 @@
-// Projects (0125): the project master and its lifecycle — identity, scope, an accountable manager and team, typed links to other modules'
+// Projects (0125, Customer Association 0126): the project master and its lifecycle — identity, scope, an accountable manager and team, typed links to other modules'
 // records, derived progress and explainable health, holds, completion checks, cancellation review, archive, notes, files, activity, saved
 // views, import/export, overview reports, notifications and automation events. Tasks, milestones, time, budgets and billing are later
 // features that plug into it (registerProjectWorkSource).
@@ -16,3 +16,10 @@ export {
   notifyProjectAlerts, searchLinkableRecords, searchProjectCustomers,
 } from "./project-read.js";
 export { registerProjectWorkSource } from "./project-summary.js";
+export {
+  CONTACT_ROLES as PROJECT_CONTACT_ROLES, CUSTOMER_REPORTS as PROJECT_CUSTOMER_REPORTS, addProjectCustomerContact, addProjectSite, applyProjectContactMerge, applyProjectCustomerMerge,
+  assignProjectCustomer, clearProjectCustomerReview, decideProjectCustomerChange, exportProjectCustomers, getCustomerAssociationHistory, getCustomerProjects, getProjectCustomer,
+  getProjectCustomerReport, listEligibleProjectContacts, listProjectCustomerContactsOnProject, listProjectSites, noteSalesOrderChangeForProjects, previewProjectCustomerChange,
+  removeProjectCustomerContact, removeProjectSite, replaceProjectCustomerContact, requestProjectCustomerChange, resolveProjectCustomerMapping, searchProjectEligibleCustomers,
+  setProjectPrimaryContact, updateProjectCustomerContact, updateProjectSite, withdrawProjectCustomerChange,
+} from "./project-customer.js";

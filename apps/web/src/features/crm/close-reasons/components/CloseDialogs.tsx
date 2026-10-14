@@ -42,7 +42,7 @@ function Actions({ onCancel, onConfirm, label, isLoading, isDisabled, danger }: 
 function OpenWorkChoice({ count, value, onChange, won, kind = "task" }: { count: number; value: string; onChange: (value: string) => void; won?: boolean; kind?: "task" | "follow-up" }) {
   if (!count) return null;
   return (
-    <Select label={`${count} open ${count === 1 ? kind : `${kind}s`} on this opportunity`} selectedKey={value} onSelectionChange={(key) => onChange(String(key))}
+    <Select label={`${count} open ${count === 1 ? kind : `${kind}s`} on this deal`} selectedKey={value} onSelectionChange={(key) => onChange(String(key))}
       description={won ? (kind === "task" ? "A won deal may still need work, such as the implementation handoff." : "A handoff or customer call can stay.") : kind === "follow-up" ? "Keep one if the customer may come back later." : undefined}
       options={[{ value: "keep", label: "Keep them open" }, { value: "cancel", label: "Cancel them" }]} />
   );
@@ -82,7 +82,7 @@ export function MarkWonDialog({ isOpen, onOpenChange, options, opportunity, onDo
     if (chosen?.total) setFinalValue(String(chosen.total));
   };
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Mark opportunity won"
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Mark deal won"
       description={`${opportunity.name} · ${opportunity.stageName} · estimated ${formatMoney(opportunity.currencyCode ?? undefined, opportunity.amount)}. The probability becomes 100% and the deal stays in ${opportunity.stageName} as its final stage.`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
@@ -140,7 +140,7 @@ export function MarkLostDialog({ isOpen, onOpenChange, options, opportunity, onD
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Mark opportunity lost"
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Mark deal lost"
       description={`${opportunity.name} · final stage ${opportunity.stageName} · ${formatMoney(opportunity.currencyCode ?? undefined, opportunity.amount)}. The value and stage are kept for reporting; the probability becomes 0%. It can be reopened later.`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
@@ -158,7 +158,7 @@ export function MarkLostDialog({ isOpen, onOpenChange, options, opportunity, onD
               <p className="text-sm">Duplicate of <span className="font-medium">{original.label}</span> <Button variant="ghost" size="compact" onPress={() => setOriginal(null)}>Change</Button></p>
             ) : (
               <>
-                <TextField label="Original opportunity" description="Optional. Search by name or number." value={originalSearch} onChange={setOriginalSearch} />
+                <TextField label="Original deal" description="Optional. Search by name or number." value={originalSearch} onChange={setOriginalSearch} />
                 {(originals.data?.rows ?? []).filter((row) => row.id !== opportunity.id).map((row) => (
                   <Button key={row.id} variant="ghost" size="compact" onPress={() => setOriginal({ id: row.id, label: `${row.code} ${row.name}` })}>{row.code} · {row.name}</Button>
                 ))}
@@ -192,9 +192,9 @@ export function ReopenOpportunityDialog({ isOpen, onOpenChange, options, opportu
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Reopen opportunity"
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Reopen deal"
       description={opportunity.status === "won"
-        ? "A won deal can be reopened only while it has no sales order or accepted quotation. Otherwise, create a new opportunity."
+        ? "A won deal can be reopened only while it has no sales order or accepted quotation. Otherwise, create a new deal."
         : "The lost reason, close date, competitor and notes stay in the close history."}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
@@ -222,7 +222,7 @@ export function CorrectCloseReasonDialog({ isOpen, onOpenChange, options, opport
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`Correct the ${opportunity.status} reason`} description="The earlier reason and this correction are both kept in the opportunity's history.">
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`Correct the ${opportunity.status} reason`} description="The earlier reason and this correction are both kept in the deal's history.">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <Select label={opportunity.status === "won" ? "Won reason" : "Lost reason"} isRequired selectedKey={reasonId} onSelectionChange={(key) => setReasonId(String(key ?? NONE))}

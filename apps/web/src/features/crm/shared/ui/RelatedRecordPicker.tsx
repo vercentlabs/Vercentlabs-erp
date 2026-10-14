@@ -19,9 +19,9 @@ export type RelatedValue = {
 const TYPES = [
   { value: "general", label: "Nothing (general)" },
   { value: "lead", label: "Lead" },
-  { value: "party", label: "Account" },
+  { value: "party", label: "Company" },
   { value: "contact", label: "Contact" },
-  { value: "opportunity", label: "Opportunity" },
+  { value: "opportunity", label: "Deal" },
 ];
 
 type Row = Record<string, unknown> & { id: string };
