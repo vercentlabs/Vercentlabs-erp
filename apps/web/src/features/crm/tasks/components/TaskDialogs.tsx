@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button, Checkbox, Dialog, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
-import { DateInput, DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
+import { DateInput, DateTimeInput, TimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
 
 import {
@@ -83,7 +83,7 @@ export function TaskFormDialog({ isOpen, onOpenChange, options, related, task, o
         <TextField label="Task" isRequired value={title} onChange={setTitle} placeholder="For example: Send revised quotation" />
         <div className="grid gap-4 sm:grid-cols-3">
           <DateInput label="Due date" isRequired value={dueDate} onChange={setDueDate} />
-          <TextField label="Due time" type="time" description="Optional." value={dueTime} onChange={setDueTime} />
+          <TimeInput label="Due time" description="Optional." value={dueTime} onChange={setDueTime} />
           <Select label="Priority" selectedKey={priority} onSelectionChange={(key) => setPriority(String(key) as TaskPriority)} options={PRIORITY_OPTIONS} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">

@@ -75,7 +75,7 @@ export async function listCloseReasons(client, context, options = {}) {
 // A reason of the given kind, active, in the caller's organization.
 export async function requireCloseReason(client, context, reasonId, outcome) {
   if (!UUID.test(text(reasonId)))
-    throw new CrmError(400, outcome === "won" ? "Choose why this opportunity was won." : "Choose why this opportunity was lost.",
+    throw new CrmError(400, outcome === "won" ? "Choose why this deal was won." : "Choose why this deal was lost.",
       outcome === "won" ? "CRM_OPPORTUNITY_WON_REASON_REQUIRED" : "CRM_OPPORTUNITY_LOST_REASON_REQUIRED");
   const { rows } = await client.query(
     `SELECT * FROM tenant.crm_lost_reasons WHERE organization_id = $1 AND id = $2 AND status = 'active' AND outcome_type = $3`,
@@ -216,7 +216,7 @@ export async function deleteCloseReason(client, context, reasonId) {
     [context.organizationId, current.id],
   );
   if (Number(used.rows[0].uses) > 0)
-    throw new CrmError(409, "This reason has been used on closed opportunities. Deactivate it instead, so they keep showing it.", "CRM_CLOSE_REASON_IN_USE");
+    throw new CrmError(409, "This reason has been used on closed deals. Deactivate it instead, so they keep showing it.", "CRM_CLOSE_REASON_IN_USE");
   if (DEFAULT_CLOSE_REASONS.some((entry) => entry.code === current.code))
     throw new CrmError(409, "A standard reason cannot be deleted. Deactivate it instead.", "CRM_CLOSE_REASON_STANDARD");
   await client.query(`DELETE FROM tenant.crm_lost_reasons WHERE organization_id = $1 AND id = $2`, [context.organizationId, current.id]);

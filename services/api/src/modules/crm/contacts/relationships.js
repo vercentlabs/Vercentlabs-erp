@@ -56,7 +56,7 @@ async function visibleAccount(client, context, accountId) {
       WHERE account.organization_id = $1 AND account.id = $2 AND account.party_type <> 'supplier'${accountScopeSql(context, values, "account")}`,
     values,
   );
-  if (!rows[0]) throw new CrmError(404, "Account not found.", "CRM_ACCOUNT_NOT_FOUND");
+  if (!rows[0]) throw new CrmError(404, "Company not found.", "CRM_ACCOUNT_NOT_FOUND");
   return rows[0];
 }
 
@@ -134,7 +134,7 @@ export async function updateContactRelationship(client, context, contactId, acco
   const contact = await lockContact(client, context, contactId);
   const account = await visibleAccount(client, context, accountId);
   const relationship = await relationshipOf(client, context, contact.id, account.id);
-  if (!relationship) throw new CrmError(404, "This contact is not linked to this account.", "CRM_ACCOUNT_CONTACT_NOT_LINKED");
+  if (!relationship) throw new CrmError(404, "This contact is not linked to this company.", "CRM_ACCOUNT_CONTACT_NOT_LINKED");
   const fields = relationshipFields(input);
   if (has(input, "status")) {
     if (!["active", "inactive"].includes(input.status)) throw new CrmError(400, "Choose active or inactive.", "CRM_CONTACT_VALIDATION");
@@ -171,7 +171,7 @@ export async function setPrimaryAccount(client, context, contactId, accountId) {
   const contact = await lockContact(client, context, contactId);
   const account = await visibleAccount(client, context, accountId);
   const relationship = await relationshipOf(client, context, contact.id, account.id);
-  if (!relationship || relationship.status !== "active") throw new CrmError(409, "Link the contact to this account first.", "CRM_ACCOUNT_CONTACT_NOT_LINKED");
+  if (!relationship || relationship.status !== "active") throw new CrmError(409, "Link the contact to this company first.", "CRM_ACCOUNT_CONTACT_NOT_LINKED");
   if (relationship.is_primary_account) return { changed: false };
   await client.query(`UPDATE tenant.crm_contact_account_relationships SET is_primary_account = false WHERE organization_id = $1 AND contact_id = $2 AND is_primary_account`,
     [context.organizationId, contact.id]);
@@ -242,7 +242,7 @@ export async function setPrimaryContact(client, context, partyId, contactId) {
   if (contactId) {
     contact = await lockContact(client, context, contactId);
     relationship = await relationshipOf(client, context, contact.id, account.id);
-    if (!relationship || relationship.status !== "active") throw new CrmError(409, "This contact is not linked to this account.", "CRM_ACCOUNT_CONTACT_NOT_LINKED");
+    if (!relationship || relationship.status !== "active") throw new CrmError(409, "This contact is not linked to this company.", "CRM_ACCOUNT_CONTACT_NOT_LINKED");
     if (contact.status !== "active") throw new CrmError(409, "An inactive contact cannot be the primary contact.", "CRM_ACCOUNT_CONTACT_INACTIVE");
     if (relationship.is_primary_contact) return { changed: false };
   }

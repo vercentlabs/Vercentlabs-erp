@@ -9,7 +9,7 @@ import { isUuid } from "../leads/validation.js";
 import { conversionCapabilities, requireConversionPermission } from "./access.js";
 import { CONVERSION_PERMISSIONS } from "./constants.js";
 import { accountDifferences, accountMatches, contactConflicts, contactMatches, opportunityMatches } from "./matching.js";
-import { blockedReason, conversionChecks, missingQualification, qualificationSummary } from "./readiness.js";
+import { blockedReason, conversionChecks, missingQualification, qualificationSummary, qualifiedWithOverride } from "./readiness.js";
 import { readConversionByLead, toConversion } from "./records.js";
 
 const text = (value) => String(value ?? "").trim();
@@ -77,6 +77,7 @@ export async function previewLeadConversion(client, context, leadId, options = {
 
   const checks = conversionChecks(lead, requirements);
   const missing = missingQualification(checks);
+  const approved = qualifiedWithOverride(lead);
 
   const accounts = await accountMatches(client, context, { displayName: lead.company_name, website: lead.website, email: lead.email, phone: lead.phone, city: lead.city });
   const visibleAccounts = accounts.filter((match) => match.canOpen);
@@ -135,8 +136,10 @@ export async function previewLeadConversion(client, context, leadId, options = {
     capabilities,
     checks,
     missing,
-    requiresOverride: missing.length > 0,
-    canConvert: !blocked && capabilities.convert && (missing.length === 0 || capabilities.overrideQualification),
+    requiresOverride: missing.length > 0 && !approved,
+    canConvert: !blocked && capabilities.convert && (missing.length === 0 || approved || capabilities.overrideQualification),
+    // Shown on step 1 instead of asking again: who approved the missing qualification, and why.
+    qualificationOverride: approved && missing.length > 0 ? { reason: lead.q_override_reason, byName: lead.q_overridden_by_name ?? null } : null,
     accountMatches: accounts,
     contactMatches: contacts,
     opportunityMatches: deals,

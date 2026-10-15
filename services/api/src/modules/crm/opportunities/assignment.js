@@ -26,7 +26,7 @@ const text = (value) => String(value ?? "").trim();
 export async function assignOpportunity(client, context, opportunityId, input = {}, { notify = true } = {}) {
   if (!has(input, "ownerUserId") && !has(input, "teamId")) throw new CrmError(400, "Choose an owner or a team.", "CRM_OPPORTUNITY_VALIDATION");
   const opportunity = await lockOpportunity(client, context, opportunityId);
-  if (opportunity.archived_at) throw new CrmError(409, "Restore this opportunity before reassigning it.", "CRM_OPPORTUNITY_ARCHIVED");
+  if (opportunity.archived_at) throw new CrmError(409, "Restore this deal before reassigning it.", "CRM_OPPORTUNITY_ARCHIVED");
   assertNotStale(opportunity, input.expectedUpdatedAt);
   const ownerUserId = has(input, "ownerUserId") ? input.ownerUserId || null : opportunity.owner_user_id;
   const teamId = has(input, "teamId") ? input.teamId || null : opportunity.team_id;
@@ -77,7 +77,7 @@ export async function assignOpportunity(client, context, opportunityId, input = 
         organizationId: context.organizationId,
         userId: ownerUserId,
         category: "crm_opportunity_assignment",
-        title: opportunity.owner_user_id ? "Opportunity reassigned to you" : "Opportunity assigned to you",
+        title: opportunity.owner_user_id ? "Deal reassigned to you" : "Deal assigned to you",
         message: `${opportunity.name} (${opportunity.code})${opportunity.account_name ? ` · ${opportunity.account_name}` : ""}`,
         href: `/crm/opportunities/${opportunity.id}`,
         entityType: "opportunity",
@@ -94,7 +94,7 @@ export async function assignOpportunity(client, context, opportunityId, input = 
 // Assigns many opportunities in one request. Each succeeds or fails on its
 // own; every new owner gets one summary notification.
 export async function bulkAssignOpportunities(client, context, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.reassign, "You do not have permission to assign opportunities in bulk.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.reassign, "You do not have permission to assign deals in bulk.");
   const { opportunityIds, ...assignment } = input;
   let received = 0;
   const result = await runOpportunityBulkOperation(client, opportunityIds, async (id) => {
@@ -107,7 +107,7 @@ export async function bulkAssignOpportunities(client, context, input = {}) {
       organizationId: context.organizationId,
       userId: assignment.ownerUserId,
       category: "crm_opportunity_assignment",
-      title: received === 1 ? "An opportunity was assigned to you" : `${received} opportunities were assigned to you`,
+      title: received === 1 ? "A deal was assigned to you" : `${received} deals were assigned to you`,
       message: "Open My deals to see them.",
       href: "/crm/opportunities?view=mine",
       entityType: "opportunity",

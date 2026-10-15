@@ -51,7 +51,7 @@ export async function createCrmRecord(client, context, resource, input) {
   if (resource === "leads")
     throw new CrmError(410, "Use the Lead operations.", "CRM_LEAD_API_MOVED");
   if (resource === "opportunities")
-    throw new CrmError(410, "Use the Opportunity operations.", "CRM_OPPORTUNITY_API_MOVED");
+    throw new CrmError(410, "Use the Deal operations.", "CRM_OPPORTUNITY_API_MOVED");
   if (resource === "sources")
     throw new CrmError(
       410,
@@ -138,7 +138,7 @@ export async function updateCrmRecord(
   if (resource === "leads")
     throw new CrmError(410, "Use the Lead operations.", "CRM_LEAD_API_MOVED");
   if (resource === "opportunities")
-    throw new CrmError(410, "Use the Opportunity operations.", "CRM_OPPORTUNITY_API_MOVED");
+    throw new CrmError(410, "Use the Deal operations.", "CRM_OPPORTUNITY_API_MOVED");
   if (resource === "sources")
     throw new CrmError(
       410,
@@ -282,7 +282,7 @@ export async function archiveCrmRecord(
   if (resource === "leads")
     throw new CrmError(410, "Use the Lead operations.", "CRM_LEAD_API_MOVED");
   if (resource === "opportunities")
-    throw new CrmError(410, "Use the Opportunity operations.", "CRM_OPPORTUNITY_API_MOVED");
+    throw new CrmError(410, "Use the Deal operations.", "CRM_OPPORTUNITY_API_MOVED");
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
   if (resource === "activities" && before.activityType === "call")

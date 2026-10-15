@@ -17,7 +17,7 @@ const NO_CHANGE = "__no_change__";
 const UNASSIGNED = "__unassigned__";
 const NO_TEAM = "__no_team__";
 const NONE = "";
-const count = (ids: string[]) => `${ids.length} ${ids.length === 1 ? "opportunity" : "opportunities"}`;
+const count = (ids: string[]) => `${ids.length} ${ids.length === 1 ? "deal" : "deals"}`;
 
 type DialogProps = { isOpen: boolean; onOpenChange: (open: boolean) => void; options: OpportunityOptions };
 
@@ -63,7 +63,7 @@ export function AssignOpportunitiesDialog({ isOpen, onOpenChange, options, oppor
   });
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={single ? "Assign opportunity" : `Assign ${count(opportunityIds)}`}
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={single ? "Assign deal" : `Assign ${count(opportunityIds)}`}
       description={opportunity ? `Current owner: ${opportunity.ownerName ?? "Unassigned"}${opportunity.teamName ? ` · Team ${opportunity.teamName}` : ""}. The stage and status do not change.` : "The stage and status of each deal stay as they are."}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />

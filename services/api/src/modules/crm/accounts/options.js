@@ -11,7 +11,7 @@ import { ACCOUNT_VIEWS } from "./records.js";
 import { ACCOUNT_RELATED_LISTS } from "./summary.js";
 
 export async function getAccountOptions(client, context) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view companies.");
   const { users, teams } = await listLeadAssignmentOptions(client, context);
   const organizationId = [context.organizationId];
   const currencies = await client.query(`SELECT code, is_base FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`, organizationId);

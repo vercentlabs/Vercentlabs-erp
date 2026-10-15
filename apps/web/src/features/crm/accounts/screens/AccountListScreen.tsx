@@ -238,7 +238,7 @@ export function AccountListScreen() {
   const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== defaultView;
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.accounts.view"))
-    return <PermissionState title="You don't have access to companies" description="Ask an administrator for the View accounts permission." />;
+    return <PermissionState title="You don't have access to companies" description="Ask an administrator for the View companies permission." />;
 
   return (
     <div className="flex flex-col gap-4">

@@ -6,26 +6,18 @@ import { CrmError } from "../data-management/errors.js";
 import { opportunityScopeSql, requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_PERMISSIONS, OPPORTUNITY_STALE_DAYS, opportunityPriorityLabel, opportunityStatusLabel } from "./constants.js";
 import { OPPORTUNITY_SELECT, buildOpportunityListWhere, toOpportunity } from "./records.js";
+import { orgMonthStart, orgPeriod, orgToday } from "../data-management/org-date.js";
 
 const NOT_ARCHIVED = "opportunity.archived_at IS NULL AND opportunity.status NOT IN ('archived', 'abandoned')";
 const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-// The "closed between" range for the results; this month to today when not given.
-function closedBounds(input = {}) {
-  const today = new Date();
-  const from = DATE.test(String(input.from ?? "")) ? input.from : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)).toISOString().slice(0, 10);
-  const to = DATE.test(String(input.to ?? "")) ? input.to : today.toISOString().slice(0, 10);
-  return { from, to };
-}
 
 export async function getOpportunityDashboard(client, context, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
-  const period = closedBounds(input);
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
+  const period = await orgPeriod(client, context.organizationId, input);
   const values = [context.organizationId, period.from, period.to];
   const scope = opportunityScopeSql(context, values, "opportunity");
-  const month = "date_trunc('month', current_date)";
+  const month = orgMonthStart("$1");
   // Results (won, lost, win rate, deal size, cycle) count the deals closed in the period; the pipeline figures are now.
   const closed = (alias) => `${alias}.actual_close_date >= $2::date AND ${alias}.actual_close_date <= $3::date`;
   const totals = (await client.query(
@@ -42,7 +34,7 @@ export async function getOpportunityDashboard(client, context, input = {}) {
               WHERE lost.organization_id = $1 AND lost.status = 'lost' AND lost.archived_at IS NULL AND ${closed("lost")}
                 AND lost.id IN (SELECT opportunity.id FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1${scope})
               GROUP BY reason.name ORDER BY count(*) DESC, reason.name LIMIT 1) AS top_lost_reason_in_period,
-            count(*) FILTER (WHERE opportunity.status = 'open' AND opportunity.expected_close_date < current_date)::int AS overdue,
+            count(*) FILTER (WHERE opportunity.status = 'open' AND opportunity.expected_close_date < ${orgToday("$1")})::int AS overdue,
             count(*) FILTER (WHERE opportunity.status = 'open' AND COALESCE(opportunity.last_activity_at, opportunity.created_at) < now() - interval '${OPPORTUNITY_STALE_DAYS} days')::int AS stale,
             count(*) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")})::int AS won,
             count(*) FILTER (WHERE opportunity.status = 'lost' AND ${closed("opportunity")})::int AS lost,
@@ -104,7 +96,7 @@ const REPORT_GROUPS = Object.freeze({
   owner: { expression: "COALESCE(counted.owner_name, 'Unassigned')", label: "Owner" },
   team: { expression: "COALESCE(counted.team_name, 'No team')", label: "Team" },
   source: { expression: "COALESCE(counted.source_name, 'No source')", label: "Source" },
-  account: { expression: "COALESCE(counted.account_name, 'No account')", label: "Account" },
+  account: { expression: "COALESCE(counted.account_name, 'No account')", label: "Company" },
   product: { expression: "COALESCE(NULLIF(btrim(counted.product_interest), ''), 'Not set')", label: "Product / service" },
   priority: { expression: "counted.priority", label: "Priority" },
   closeMonth: { expression: "COALESCE(to_char(date_trunc('month', counted.expected_close_date), 'YYYY-MM'), 'No close date')", label: "Expected close month" },
@@ -114,7 +106,7 @@ const REPORT_GROUPS = Object.freeze({
 // CRM Opportunities by Stage. One dataset, grouped and filtered many ways:
 // input.groupBy plus every filter the opportunity list accepts.
 export async function getOpportunitiesByStageReport(client, context, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
   const groupBy = REPORT_GROUPS[input.groupBy] ? input.groupBy : "stage";
   const group = REPORT_GROUPS[groupBy];
   const values = [];
@@ -193,12 +185,12 @@ const EXPORT_COLUMNS = Object.freeze([
 
 // Exports exactly the opportunities the list shows for the same view and filters.
 export async function exportOpportunities(client, context, filters = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.export, "You do not have permission to export opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.export, "You do not have permission to export deals.");
   const values = [];
   const where = buildOpportunityListWhere(context, filters, values);
   const { rows } = await client.query(`${OPPORTUNITY_SELECT} ${where} ORDER BY opportunity.created_at DESC, opportunity.id DESC LIMIT ${EXPORT_ROW_LIMIT + 1}`, values);
   if (rows.length > EXPORT_ROW_LIMIT)
-    throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} opportunities. Narrow the filters and try again.`, "CRM_OPPORTUNITY_EXPORT_TOO_LARGE");
+    throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} deals. Narrow the filters and try again.`, "CRM_OPPORTUNITY_EXPORT_TOO_LARGE");
   const opportunities = rows.map(toOpportunity);
   return {
     fileName: `opportunities-${new Date().toISOString().slice(0, 10)}.csv`,

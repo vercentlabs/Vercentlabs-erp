@@ -5,19 +5,12 @@
 // are those of the lead at the moment it was converted (the conversion record).
 import { leadScopeSql, requireLeadPermission } from "../leads/access.js";
 import { LEAD_PERMISSIONS } from "../leads/constants.js";
+import { orgPeriod } from "../data-management/org-date.js";
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-function period(input = {}) {
-  const today = new Date();
-  const from = DATE.test(String(input.from ?? "")) ? input.from : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)).toISOString().slice(0, 10);
-  const to = DATE.test(String(input.to ?? "")) ? input.to : today.toISOString().slice(0, 10);
-  return { from, to };
-}
 
 export async function getLeadConversionMetrics(client, context, input = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.view, "You do not have permission to view leads.");
-  const { from, to } = period(input);
+  const { from, to } = await orgPeriod(client, context.organizationId, input);
   const values = [context.organizationId, from, to];
   const scope = leadScopeSql(context, values, "lead");
   const converted = `FROM tenant.crm_lead_conversions conversion

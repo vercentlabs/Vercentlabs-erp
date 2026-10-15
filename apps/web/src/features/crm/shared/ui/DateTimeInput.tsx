@@ -1,6 +1,9 @@
 "use client";
 
-import { TextField } from "@vercentlabs/design-system";
+// Date and time entry on the design system's React Aria fields. They follow the app's locale (I18nProvider, en-IN by default), so a
+// date reads dd/mm/yyyy and a time 12-hour, whatever the browser's language — a native <input type="date"> would follow the browser.
+// The helpers keep plain strings at their edges: "YYYY-MM-DD" for a date, "HH:MM" for a time, the ISO instant for a date and time.
+import { DatePicker, TimeField, parseDate, parseTime, type CalendarDate, type Time } from "@vercentlabs/design-system";
 
 import {
   browserTimezone,
@@ -8,6 +11,28 @@ import {
   localToIso,
   timezoneLabel,
 } from "@/shared/format/human";
+
+const pad = (value: number) => String(value).padStart(2, "0");
+
+function toCalendarDate(value: string): CalendarDate | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  try {
+    return parseDate(value);
+  } catch {
+    return null;
+  }
+}
+
+function toTime(value: string): Time | null {
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(value)) return null;
+  try {
+    return parseTime(value);
+  } catch {
+    return null;
+  }
+}
+
+const timeString = (time: Time | null) => (time ? `${pad(time.hour)}:${pad(time.minute)}` : "");
 
 // Date + time entry with the time zone stated. The value it hands back is the ISO instant the backend already
 // stores, so nothing downstream changes; nobody types a timestamp by hand.
@@ -43,18 +68,16 @@ export function DateTimeInput({
         {isRequired && <span className="text-danger"> *</span>}
       </legend>
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,9rem)] gap-2">
-        <TextField
+        <DatePicker
           aria-label={`${label} date`}
-          type="date"
-          value={parts.date}
-          onChange={(date) => emit(date, parts.time)}
+          value={toCalendarDate(parts.date)}
+          onChange={(date) => emit(date ? date.toString() : "", parts.time)}
           isRequired={isRequired}
         />
-        <TextField
+        <TimeField
           aria-label={`${label} time`}
-          type="time"
-          value={parts.time}
-          onChange={(time) => emit(parts.date, time)}
+          value={toTime(parts.time)}
+          onChange={(time) => emit(parts.date, timeString(time))}
           isRequired={isRequired}
         />
       </div>
@@ -97,11 +120,41 @@ export function DateInput({
 }) {
   const iso = value instanceof Date ? value.toISOString() : value;
   return (
-    <TextField
+    <DatePicker
       label={label}
-      type="date"
-      value={iso ? iso.slice(0, 10) : ""}
-      onChange={onChange}
+      value={toCalendarDate(iso ? iso.slice(0, 10) : "")}
+      onChange={(date) => onChange(date ? date.toString() : "")}
+      isRequired={isRequired}
+      errorMessage={errorMessage}
+      description={description}
+      className={className}
+    />
+  );
+}
+
+// A time of day only: "HH:MM" in and out (empty when not set), shown in the app's locale.
+export function TimeInput({
+  label,
+  value,
+  onChange,
+  isRequired,
+  errorMessage,
+  description,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (time: string) => void;
+  isRequired?: boolean;
+  errorMessage?: string;
+  description?: string;
+  className?: string;
+}) {
+  return (
+    <TimeField
+      label={label}
+      value={toTime(value)}
+      onChange={(time) => onChange(timeString(time))}
       isRequired={isRequired}
       errorMessage={errorMessage}
       description={description}

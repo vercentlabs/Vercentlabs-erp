@@ -142,7 +142,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "setup",
         label: "Setup",
         icon: Settings,
-        collapsible: true,
+        flat: true,
         items: [
           {
             ...available("Setup", "/crm/settings"),

@@ -16,6 +16,7 @@ import { ensureDefaultSalesPipeline } from "../sales-stages/defaults.js";
 import { opportunityCan, opportunityCapabilities, opportunityScopeSql, requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_CLOSING_SOON_DAYS, OPPORTUNITY_NUMBER_DOCUMENT_TYPE, OPPORTUNITY_PERMISSIONS, OPPORTUNITY_PRIORITIES, OPPORTUNITY_STALE_DAYS } from "./constants.js";
 import { recordOpportunityHistory } from "./history.js";
+import { orgMonthStart, orgToday } from "../data-management/org-date.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -45,13 +46,13 @@ export const OPPORTUNITY_SELECT = `
          creator.full_name AS created_by_name, updater.full_name AS updated_by_name, winner.full_name AS won_by_name, loser.full_name AS lost_by_name,
          follow_up.next_follow_up_at AS pending_follow_up_at,
          next_activity.subject AS next_activity_subject, next_activity.due_at AS next_activity_due_at, next_activity.activity_type AS next_activity_type,
-         (opportunity.expected_close_date >= current_date AND opportunity.expected_close_date <= current_date + ${OPPORTUNITY_CLOSING_SOON_DAYS}) AS closing_soon,
+         (opportunity.expected_close_date >= ${orgToday("opportunity.organization_id")} AND opportunity.expected_close_date <= ${orgToday("opportunity.organization_id")} + ${OPPORTUNITY_CLOSING_SOON_DAYS}) AS closing_soon,
          EXISTS (SELECT 1 FROM tenant.sales_quotations accepted
                   WHERE accepted.organization_id = opportunity.organization_id AND accepted.source_opportunity_id = opportunity.id
                     AND accepted.lifecycle_status = 'accepted') AS has_accepted_quotation,
          -- calendar days, as text: a date has no time zone to shift it
          to_char(opportunity.expected_close_date, 'YYYY-MM-DD') AS expected_close_on, to_char(opportunity.actual_close_date, 'YYYY-MM-DD') AS actual_close_on,
-         (opportunity.expected_close_date < current_date) AS past_expected_close,
+         (opportunity.expected_close_date < ${orgToday("opportunity.organization_id")}) AS past_expected_close,
          COALESCE(products.total, 0) AS products_total, COALESCE(products.lines, 0) AS product_count,
          (SELECT count(*) FROM tenant.crm_activities open_task WHERE open_task.organization_id = opportunity.organization_id AND open_task.activity_type = 'task'
              AND open_task.entity_type = 'opportunity' AND open_task.entity_id = opportunity.id AND open_task.status IN ('planned', 'in_progress', 'overdue'))::int AS open_task_count,
@@ -232,7 +233,7 @@ async function loadOpportunityRow(client, context, opportunityId, { lock = false
     `${OPPORTUNITY_SELECT} WHERE opportunity.organization_id = $1 AND opportunity.id = $2${scope}${lock ? " FOR UPDATE OF opportunity" : ""}`,
     values,
   );
-  if (!rows[0]) throw new CrmError(404, "Opportunity not found.", "CRM_OPPORTUNITY_NOT_FOUND");
+  if (!rows[0]) throw new CrmError(404, "Deal not found.", "CRM_OPPORTUNITY_NOT_FOUND");
   return rows[0];
 }
 
@@ -246,7 +247,7 @@ export async function readOpportunityRow(client, context, opportunityId, options
 }
 
 export async function getOpportunity(client, context, opportunityId) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
   return toOpportunity(await loadOpportunityRow(client, context, opportunityId));
 }
 
@@ -254,14 +255,14 @@ export async function getOpportunity(client, context, opportunityId) {
 // instead of silently overwriting the first.
 export function assertNotStale(row, expectedUpdatedAt) {
   if (expectedUpdatedAt && new Date(expectedUpdatedAt).getTime() !== new Date(row.updated_at).getTime())
-    throw new CrmError(409, "This opportunity was changed by someone else. Reload it and try again.", "CRM_STALE_WRITE");
+    throw new CrmError(409, "This deal was changed by someone else. Reload it and try again.", "CRM_STALE_WRITE");
 }
 
 export function assertOpen(row, action = "changed") {
   if (row.archived_at || ["archived", "abandoned"].includes(row.status))
-    throw new CrmError(409, "Restore this opportunity before changing it.", "CRM_OPPORTUNITY_ARCHIVED");
+    throw new CrmError(409, "Restore this deal before changing it.", "CRM_OPPORTUNITY_ARCHIVED");
   if (row.status !== "open")
-    throw new CrmError(409, `A ${row.status} opportunity cannot be ${action}. Reopen it first.`, "CRM_OPPORTUNITY_CLOSED");
+    throw new CrmError(409, `A ${row.status} deal cannot be ${action}. Reopen it first.`, "CRM_OPPORTUNITY_CLOSED");
 }
 
 // ------------------------------------------------------------------ list
@@ -302,7 +303,8 @@ const SORT_COLUMNS = Object.freeze({
 // so "what I see" and "what I export" can never differ.
 export function buildOpportunityListWhere(context, filters = {}, values = []) {
   const bind = (value) => { values.push(value); return `$${values.length}`; };
-  const where = [`opportunity.organization_id = ${bind(context.organizationId)}`];
+  const org = bind(context.organizationId);
+  const where = [`opportunity.organization_id = ${org}`];
   const view = filters.view || "all";
   where.push(view === "archived" ? ARCHIVED_SQL : `NOT ${ARCHIVED_SQL}`);
   if (view === "mine") where.push(`opportunity.owner_user_id = ${bind(context.userId)}`);
@@ -312,8 +314,8 @@ export function buildOpportunityListWhere(context, filters = {}, values = []) {
   }
   if (view === "open" || view === "closing_this_month" || view === "overdue" || view === "stale") where.push("opportunity.status = 'open'");
   if (view === "closing_this_month")
-    where.push("opportunity.expected_close_date >= date_trunc('month', current_date) AND opportunity.expected_close_date < date_trunc('month', current_date) + interval '1 month'");
-  if (view === "overdue") where.push("opportunity.expected_close_date < current_date");
+    where.push(`opportunity.expected_close_date >= ${orgMonthStart(org)} AND opportunity.expected_close_date < ${orgMonthStart(org)} + interval '1 month'`);
+  if (view === "overdue") where.push(`opportunity.expected_close_date < ${orgToday(org)}`);
   if (view === "stale" || filters.stale === "yes")
     where.push(`opportunity.status = 'open' AND COALESCE(opportunity.last_activity_at, opportunity.created_at) < now() - interval '${OPPORTUNITY_STALE_DAYS} days'`);
   if (view === "won" || view === "lost") where.push(`opportunity.status = ${bind(view)}`);
@@ -363,7 +365,7 @@ export function buildOpportunityListWhere(context, filters = {}, values = []) {
 }
 
 export async function listOpportunities(client, context, filters = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
   const limit = Math.min(Math.max(Number(filters.limit) || 25, 1), 500);
   const offset = Math.max(Number(filters.offset) || 0, 0);
   const sortColumn = SORT_COLUMNS[filters.sortBy] ?? SORT_COLUMNS.updatedAt;
@@ -446,8 +448,8 @@ function normalize(input, { creating = false } = {}) {
     if (!PRIORITY_CODES.includes(out.priority)) throw invalid("Priority must be low, medium or high.", "priority");
   }
   for (const field of ["sourceId", "contactId"]) if (has(input, field)) out[field] = input[field] ? requireUuid(input[field], field === "sourceId" ? "Source" : "Contact") : null;
-  if (creating && !out.name) throw invalid("Enter a name for this opportunity.", "name");
-  if (has(out, "name") && !out.name) throw invalid("Enter a name for this opportunity.", "name");
+  if (creating && !out.name) throw invalid("Enter a name for this deal.", "name");
+  if (has(out, "name") && !out.name) throw invalid("Enter a name for this deal.", "name");
   return out;
 }
 
@@ -466,7 +468,7 @@ async function requireAccount(client, context, accountId) {
       WHERE account.organization_id = $1 AND account.id = $2 AND account.status = 'active' AND account.party_type <> 'supplier'${accountScopeSql(context, values, "account")}`,
     values,
   );
-  if (!rows[0]) throw new CrmError(404, "Choose an active account.", "CRM_OPPORTUNITY_ACCOUNT_INVALID");
+  if (!rows[0]) throw new CrmError(404, "Choose an active company.", "CRM_OPPORTUNITY_ACCOUNT_INVALID");
   return rows[0];
 }
 
@@ -479,7 +481,7 @@ export async function requireAccountContact(client, context, contactId, accountI
               WHERE link.organization_id = contact.organization_id AND link.contact_id = contact.id AND link.party_id = $3 AND link.status = 'active'))`,
     [context.organizationId, requireUuid(contactId, "Contact"), accountId],
   );
-  if (!rows[0]) throw new CrmError(409, "Choose a contact who belongs to this opportunity's account.", "CRM_OPPORTUNITY_CONTACT_INVALID");
+  if (!rows[0]) throw new CrmError(409, "Choose a contact who belongs to this deal's company.", "CRM_OPPORTUNITY_CONTACT_INVALID");
   return rows[0];
 }
 
@@ -522,11 +524,11 @@ async function startingStage(client, context, stageId) {
 // Returns the opportunity; a similar open deal on the same account is a
 // warning for the caller to show (findDuplicateOpportunities), never a refusal.
 export async function createOpportunity(client, context, input = {}, { origin = "manual", historySummary = null } = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.create, "You do not have permission to create opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.create, "You do not have permission to create deals.");
   for (const [field, message] of Object.entries(GOVERNED))
     if (has(input, field) && !["stageId", "ownerUserId", "teamId"].includes(field)) throw new CrmError(409, message, "CRM_OPPORTUNITY_FIELD_GOVERNED");
   const fields = normalize(input, { creating: true });
-  if (!input.accountId) throw invalid("Choose the account this opportunity is for.", "accountId");
+  if (!input.accountId) throw invalid("Choose the company this deal is for.", "accountId");
   const account = await requireAccount(client, context, input.accountId);
   if (fields.contactId) await requireAccountContact(client, context, fields.contactId, account.id);
   await requireSource(client, context, fields.sourceId);
@@ -539,7 +541,7 @@ export async function createOpportunity(client, context, input = {}, { origin = 
   if (has(input, "ownerUserId")) {
     ownerUserId = input.ownerUserId || null;
     if (ownerUserId && ownerUserId !== context.userId) {
-      requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.assign, "You do not have permission to assign opportunities.");
+      requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.assign, "You do not have permission to assign deals.");
       await assertCrmOwnerAssignable(client, context, ownerUserId, "You can only assign opportunities to yourself or to members of a team you manage.", { resource: "opportunities" });
     }
   }
@@ -576,11 +578,11 @@ export async function createOpportunity(client, context, input = {}, { origin = 
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [context.organizationId, id, ownerUserId, teamId, origin === "lead_conversion" ? "Owner of the converted lead" : "Created", context.userId ?? null],
     );
-  await recordOpportunityHistory(client, context, id, "created", historySummary ?? `Opportunity ${code} created`, { origin, stage: stage.name, amount: fields.amount ?? 0 });
+  await recordOpportunityHistory(client, context, id, "created", historySummary ?? `Deal ${code} created`, { origin, stage: stage.name, amount: fields.amount ?? 0 });
   // The account and the contact each show the deal in their own history.
-  await recordAccountHistory(client, context, account.id, "opportunity_created", `Opportunity ${code} created: ${fields.name}`, { opportunityId: id });
+  await recordAccountHistory(client, context, account.id, "opportunity_created", `Deal ${code} created: ${fields.name}`, { opportunityId: id });
   if (fields.contactId)
-    await recordContactHistory(client, context, fields.contactId, "opportunity_associated", `Primary contact of opportunity ${code} ${fields.name}`, { opportunityId: id });
+    await recordContactHistory(client, context, fields.contactId, "opportunity_associated", `Primary contact of deal ${code} ${fields.name}`, { opportunityId: id });
   await queueOutboxEvent(client, context, "crm.opportunities.created", "opportunities", id, { partyId: account.id, ownerUserId, amount: fields.amount ?? 0 });
   return toOpportunity(await loadOpportunityRow(client, context, id, { skipScope: true }));
 }
@@ -597,7 +599,7 @@ const shown = (value) => (value === null || value === undefined || value === "" 
 // expectedUpdatedAt (optional): refuses the save when someone else changed
 // the opportunity since the caller loaded it.
 export async function updateOpportunity(client, context, opportunityId, input = {}, { expectedUpdatedAt = null } = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit deals.");
   for (const [field, message] of Object.entries(GOVERNED)) if (has(input, field)) throw new CrmError(409, message, "CRM_OPPORTUNITY_FIELD_GOVERNED");
   const row = await loadOpportunityRow(client, context, opportunityId, { lock: true });
   assertOpen(row, "edited");
@@ -608,7 +610,7 @@ export async function updateOpportunity(client, context, opportunityId, input = 
   // The account can change only before anything was quoted against it.
   let accountId = row.party_id;
   if (has(input, "accountId") && input.accountId !== row.party_id) {
-    if (Number(row.quotation_count) > 0) throw new CrmError(409, "This opportunity has quotations for its account. Create a new opportunity for another account.", "CRM_OPPORTUNITY_ACCOUNT_LOCKED");
+    if (Number(row.quotation_count) > 0) throw new CrmError(409, "This deal has quotations for its company. Create a new deal for another company.", "CRM_OPPORTUNITY_ACCOUNT_LOCKED");
     accountId = (await requireAccount(client, context, input.accountId)).id;
     fields.accountId = accountId;
   }
@@ -665,29 +667,29 @@ async function usage(client, context, opportunityId) {
 
 // Hides an opportunity from the working lists; everything on it stays.
 export async function archiveOpportunity(client, context, opportunityId) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.delete, "You do not have permission to archive opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.delete, "You do not have permission to archive deals.");
   const row = await loadOpportunityRow(client, context, opportunityId, { lock: true });
   if (row.archived_at) return { changed: false };
   await client.query(`UPDATE tenant.crm_opportunities SET archived_at = now(), archived_by = $3, updated_by = $3 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, row.id, context.userId ?? null]);
-  await recordOpportunityHistory(client, context, row.id, "archived", "Opportunity archived");
+  await recordOpportunityHistory(client, context, row.id, "archived", "Deal archived");
   return { changed: true };
 }
 
 export async function restoreOpportunity(client, context, opportunityId) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.delete, "You do not have permission to restore opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.delete, "You do not have permission to restore deals.");
   const row = await loadOpportunityRow(client, context, opportunityId, { lock: true });
   if (!row.archived_at) return { changed: false };
   await client.query(`UPDATE tenant.crm_opportunities SET archived_at = NULL, archived_by = NULL, updated_by = $3 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, row.id, context.userId ?? null]);
-  await recordOpportunityHistory(client, context, row.id, "restored", "Opportunity restored");
+  await recordOpportunityHistory(client, context, row.id, "restored", "Deal restored");
   return { changed: true };
 }
 
 // Only an opportunity created by mistake and never used can be deleted:
 // still open, with no quotations, orders, activities or notes.
 export async function deleteOpportunity(client, context, opportunityId) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.delete, "You do not have permission to delete opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.delete, "You do not have permission to delete deals.");
   const row = await loadOpportunityRow(client, context, opportunityId, { lock: true });
   const used = await usage(client, context, row.id);
   const reasons = [
@@ -698,7 +700,7 @@ export async function deleteOpportunity(client, context, opportunityId) {
     used.notes > 0 && "it has notes",
     row.lead_id && "it came from a converted lead",
   ].filter(Boolean);
-  if (reasons.length) throw new CrmError(409, `This opportunity cannot be deleted because ${reasons.join(", ")}. Archive it instead.`, "CRM_OPPORTUNITY_IN_USE", { reasons });
+  if (reasons.length) throw new CrmError(409, `This deal cannot be deleted because ${reasons.join(", ")}. Archive it instead.`, "CRM_OPPORTUNITY_IN_USE", { reasons });
   await client.query(`DELETE FROM tenant.crm_opportunities WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id]);
   await queueOutboxEvent(client, context, "crm.opportunities.deleted", "opportunities", row.id, { code: row.code });
   return { deleted: true };

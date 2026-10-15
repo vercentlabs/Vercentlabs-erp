@@ -138,7 +138,10 @@ function buildBranch(kind, entityType, entityId, context, values) {
     const own = `SELECT history.id,'history'::text AS kind,history.event_type AS subtype,history.summary AS title,
          history.created_at AS occurred_at,NULL::text AS status,history.actor_user_id,history.actor_user_id AS created_by
        FROM tenant.${source[0]} history
-       WHERE history.organization_id=$1 AND history.${source[1]}=${entityIdParam}`;
+       WHERE history.organization_id=$1 AND history.${source[1]}=${entityIdParam}` +
+      // A deal's stage moves, wins, losses and reopens are also in its stage history (the stage branch above, which carries the reason
+      // and notes), so the feed shows them once, from there. The history rows stay for the audit trail.
+      (entityType === "opportunity" ? " AND history.event_type NOT IN ('stage_changed','won','lost','reopened')" : "");
     const taskIdParam = add(values, entityId);
     const tasks = `SELECT history.id,'history'::text AS kind,'task_' || history.event_type AS subtype,'Task ' || COALESCE(task.task_number || ' ', '') || '"' || task.subject || '": ' || history.summary AS title,
          history.created_at AS occurred_at,NULL::text AS status,history.actor_user_id,history.actor_user_id AS created_by

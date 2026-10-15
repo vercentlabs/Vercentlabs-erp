@@ -61,7 +61,7 @@ export async function scheduleLeadFollowUp(client, context, leadId, input = {}) 
   if (!input.dueAt && !input.scheduledDate) throw new CrmError(400, "Choose the follow-up date.", "CRM_LEAD_FOLLOW_UP_VALIDATION");
   const lead = await lockLead(client, context, leadId);
   if (lead.status === "converted")
-    throw new CrmError(409, "This lead is converted. Schedule the follow-up on its opportunity.", "CRM_LEAD_CONVERTED");
+    throw new CrmError(409, "This lead is converted. Schedule the follow-up on its deal.", "CRM_LEAD_CONVERTED");
   return scheduleFollowUp(client, context, {
     relatedType: "lead", relatedId: lead.id, type: input.type, subject: input.subject, notes: input.notes, contactId: input.contactId, assignedTo: input.assignedTo,
     scheduledDate: input.scheduledDate, scheduledTime: input.scheduledTime, scheduledAt: input.dueAt, reminderOffsetMinutes: input.reminderOffsetMinutes,

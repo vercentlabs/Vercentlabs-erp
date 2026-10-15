@@ -29,15 +29,16 @@ function subscribeToPinned(callback: () => void) {
     window.removeEventListener(PINNED_CHANGE_EVENT, callback);
   };
 }
+// Pinned (shown) by default: only an explicit "0" — the user clicked unpin — hides it.
 function getPinnedSnapshot() {
   try {
-    return window.localStorage.getItem(PIN_STORAGE_KEY) === "1";
+    return window.localStorage.getItem(PIN_STORAGE_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 function getPinnedServerSnapshot() {
-  return false;
+  return true; // server HTML matches the default, so there is no jump on load
 }
 
 function isActiveRoute(pathname: string, route: string) {
@@ -74,8 +75,8 @@ const SecondarySidebarContext =
   createContext<SecondarySidebarContextValue | null>(null);
 
 // Desktop-only interaction model for the module secondary sidebar (UI
-// refinement addendum, requirement #1): hidden by default, revealed as a
-// flyover on hover/keyboard-focus of the rail+flyout region, click-openable
+// refinement addendum, requirement #1): shown (pinned) by default and can be
+// unpinned; once unpinned it is revealed as a flyover on hover/keyboard-focus of the rail+flyout region, click-openable
 // via the handle in ModuleRail for non-hover input, and pinnable (persisted
 // per-browser) for anyone who wants it permanently in the layout flow
 // instead of floating. Mobile/tablet never mounts this — MobileNav's

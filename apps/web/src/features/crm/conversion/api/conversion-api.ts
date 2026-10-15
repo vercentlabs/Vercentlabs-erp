@@ -46,6 +46,8 @@ export type LeadConversionPreview = {
   checks?: ConversionCheck[];
   missing?: Array<{ key: string; label: string }>;
   requiresOverride?: boolean;
+  // The lead was qualified with "Qualify anyway": who approved what was missing, and why (the conversion asks no second reason).
+  qualificationOverride?: { reason: string; byName: string | null } | null;
   canConvert?: boolean;
   accountMatches?: ConversionAccountMatch[];
   contactMatches?: ConversionContactMatch[];

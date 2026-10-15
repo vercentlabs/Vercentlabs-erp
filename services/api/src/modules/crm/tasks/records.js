@@ -255,7 +255,7 @@ export async function getTaskSummary(client, context) {
 // The record a task is about: one the caller can see, in this organization.
 async function requireRelated(client, context, type, id) {
   if (!type && !id) return null;
-  if (!RELATED_CODES.includes(type)) throw invalid("Choose what the task is about: a lead, account, contact or opportunity.", "relatedType");
+  if (!RELATED_CODES.includes(type)) throw invalid("Choose what the task is about: a lead, company, contact or deal.", "relatedType");
   const values = [context.organizationId, requireUuid(id, "Related record")];
   const row = { entity_type: type, entity_id: id };
   const scope = taskRelatedScopeSql(context, values, "task");

@@ -82,9 +82,9 @@ export async function listAccountAddresses(client, context, partyId, { includeIn
 }
 
 export async function addAccountAddress(client, context, partyId, input = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to edit accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to edit companies.");
   const account = await lockAccount(client, context, partyId);
-  if (account.status === "archived") throw new CrmError(409, "Reactivate this account before changing it.", "CRM_ACCOUNT_ARCHIVED");
+  if (account.status === "archived") throw new CrmError(409, "Reactivate this company before changing it.", "CRM_ACCOUNT_ARCHIVED");
   const address = normalizeAddress(input);
   // The first address of an account becomes its default billing and shipping address.
   const existing = await client.query(`SELECT count(*)::int AS n FROM tenant.addresses WHERE organization_id = $1 AND party_id = $2 AND status = 'active'`, [context.organizationId, account.id]);
@@ -112,7 +112,7 @@ async function lockAddress(client, context, partyId, addressId) {
 }
 
 export async function updateAccountAddress(client, context, partyId, addressId, input = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to edit accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to edit companies.");
   const account = await lockAccount(client, context, partyId);
   const current = toAddress(await lockAddress(client, context, account.id, addressId));
   if (current.status !== "active") throw new CrmError(409, "This address has been removed.", "CRM_ACCOUNT_ADDRESS_INACTIVE");
@@ -132,7 +132,7 @@ export async function updateAccountAddress(client, context, partyId, addressId, 
 }
 
 export async function removeAccountAddress(client, context, partyId, addressId) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to edit accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to edit companies.");
   const account = await lockAccount(client, context, partyId);
   const current = toAddress(await lockAddress(client, context, account.id, addressId));
   if (current.status !== "active") return { changed: false };

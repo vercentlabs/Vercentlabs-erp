@@ -199,7 +199,7 @@ export async function deactivateSalesStage(client, context, stageId, { moveOpenT
       throw new CrmError(409, `${openCount} ${openCount === 1 ? "opportunity currently uses" : "opportunities currently use"} this stage. Choose the stage to move ${openCount === 1 ? "it" : "them"} to.`,
         "CRM_SALES_STAGE_IN_USE", { openCount });
     const target = rows.find((row) => row.id === moveOpenTo && row.id !== stage.id && row.status === "active" && isSalesStage(row));
-    if (!target) throw invalid("Choose an active stage to move the opportunities to.", "moveOpenTo");
+    if (!target) throw invalid("Choose an active stage to move the deals to.", "moveOpenTo");
     const open = await client.query(
       `SELECT id, stage_id, probability, probability_overridden FROM tenant.crm_opportunities
         WHERE organization_id = $1 AND stage_id = $2 AND status = 'open' AND archived_at IS NULL FOR UPDATE`,

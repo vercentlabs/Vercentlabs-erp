@@ -103,7 +103,7 @@ async function loadAccountRow(client, context, partyId, { lock = false, skipScop
     `${ACCOUNT_SELECT} WHERE account.organization_id = $1 AND account.id = $2 AND ${CRM_ACCOUNT_PARTY_SQL("account")}${scope}${lock ? " FOR UPDATE OF account" : ""}`,
     values,
   );
-  if (!rows[0]) throw new CrmError(404, "Account not found.", "CRM_ACCOUNT_NOT_FOUND");
+  if (!rows[0]) throw new CrmError(404, "Company not found.", "CRM_ACCOUNT_NOT_FOUND");
   return rows[0];
 }
 
@@ -112,7 +112,7 @@ export async function lockAccount(client, context, partyId, options = {}) {
 }
 
 export async function getAccount(client, context, partyId) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view companies.");
   return projectAccountForContext(context, toAccount(await loadAccountRow(client, context, partyId)));
 }
 
@@ -215,7 +215,7 @@ export function buildAccountListWhere(context, filters = {}, values = []) {
 }
 
 export async function listAccounts(client, context, filters = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view companies.");
   const limit = Math.min(Math.max(Number(filters.limit) || 25, 1), 200);
   const offset = Math.max(Number(filters.offset) || 0, 0);
   const view = filters.view || "all";
@@ -252,7 +252,7 @@ async function assertActiveSource(client, context, sourceId) {
 //   duplicateReason   why a strong duplicate is saved anyway (with allowDuplicate; needs crm.duplicates.override)
 //   onDuplicateCheck  receives what the duplicate check found (imports count possible duplicates)
 export async function createAccount(client, context, input = {}, { allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", historySummary = null } = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.create, "You do not have permission to create accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.create, "You do not have permission to create companies.");
   // Owner and team are set below through their own rules.
   const { ownerUserId: _owner, teamId: _team, duplicateReason: inputReason, ...accountFields } = input;
   const normalized = normalizeAccountInput(accountFields);
@@ -260,7 +260,7 @@ export async function createAccount(client, context, input = {}, { allowDuplicat
   // A customer account comes into being through Create customer, which gives
   // it its Customer Master; a new record starts as a prospect, partner or other.
   if (normalized.accountType === "customer")
-    throw new CrmError(409, "Create the account as a prospect, then use Create customer.", "CRM_ACCOUNT_TYPE_GOVERNED");
+    throw new CrmError(409, "Create the company as a prospect, then use Create customer.", "CRM_ACCOUNT_TYPE_GOVERNED");
   assertValidAccount(normalized);
   await assertActiveSource(client, context, normalized.sourceId);
   const duplicates = await assertNoBlockingAccountDuplicate(client, context, normalized, { allowDuplicate, reason: duplicateReason ?? inputReason });
@@ -270,7 +270,7 @@ export async function createAccount(client, context, input = {}, { allowDuplicat
   if (has(input, "ownerUserId")) {
     ownerUserId = input.ownerUserId || null;
     if (ownerUserId && ownerUserId !== context.userId) {
-      requireAccountPermission(context, ACCOUNT_PERMISSIONS.assign, "You do not have permission to assign accounts.");
+      requireAccountPermission(context, ACCOUNT_PERMISSIONS.assign, "You do not have permission to assign companies.");
       await assertCrmOwnerAssignable(client, context, ownerUserId, "You can only assign accounts to yourself or to members of a team you manage.");
     }
   }
@@ -285,7 +285,7 @@ export async function createAccount(client, context, input = {}, { allowDuplicat
   );
   const account = inserted.rows[0];
   await recordDuplicateOverride(client, context, "account", account.id, duplicates);
-  await recordAccountHistory(client, context, account.id, "created", historySummary ?? `Account ${code} created`, {
+  await recordAccountHistory(client, context, account.id, "created", historySummary ?? `Company ${code} created`, {
     origin,
     ...(duplicates.hasBlockingMatch ? { duplicateConfirmed: duplicates.matches.filter((match) => match.strength === "exact").map((match) => match.id) } : {}),
   });
@@ -297,16 +297,16 @@ export async function createAccount(client, context, input = {}, { allowDuplicat
 // ------------------------------------------------------------------ update
 
 export async function updateAccount(client, context, partyId, input = {}, { allowDuplicate = false, expectedUpdatedAt = null } = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to edit accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to edit companies.");
   const row = await loadAccountRow(client, context, partyId, { lock: true });
-  if (row.status === "archived") throw new CrmError(409, "Reactivate this account before changing it.", "CRM_ACCOUNT_ARCHIVED");
+  if (row.status === "archived") throw new CrmError(409, "Reactivate this company before changing it.", "CRM_ACCOUNT_ARCHIVED");
   if (expectedUpdatedAt && new Date(expectedUpdatedAt).getTime() !== new Date(row.updated_at).getTime())
-    throw new CrmError(409, "This account was changed by someone else. Reload it and try again.", "CRM_ACCOUNT_VERSION_CONFLICT");
+    throw new CrmError(409, "This company was changed by someone else. Reload it and try again.", "CRM_ACCOUNT_VERSION_CONFLICT");
   const before = toAccount(row);
   const normalized = normalizeAccountInput(input);
   // Customer status follows the Customer Master, not a dropdown.
   if (has(normalized, "accountType") && normalized.accountType !== before.accountType && (normalized.accountType === "customer" || before.accountType === "customer"))
-    throw new CrmError(409, before.isCustomer ? "This account is a customer; its type follows its Customer Master." : "Use Create customer to make this account a customer.", "CRM_ACCOUNT_TYPE_GOVERNED");
+    throw new CrmError(409, before.isCustomer ? "This company is a customer; its type follows its Customer Master." : "Use Create customer to make this company a customer.", "CRM_ACCOUNT_TYPE_GOVERNED");
   assertValidAccount(normalized, before);
   if (has(normalized, "sourceId") && normalized.sourceId !== before.sourceId) await assertActiveSource(client, context, normalized.sourceId);
 
@@ -339,7 +339,7 @@ const STATUS_EVENTS = Object.freeze({ active: "reactivated", inactive: "deactiva
 // active -> inactive (deactivate), inactive/archived -> active (reactivate),
 // any -> archived (archive). Nothing is deleted.
 export async function setAccountStatus(client, context, partyId, status, { note = null } = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.archive, "You do not have permission to change the status of accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.archive, "You do not have permission to change the status of companies.");
   if (!STATUS_EVENTS[status]) throw new CrmError(400, "Choose a status.", "CRM_ACCOUNT_STATUS_INVALID");
   const row = await loadAccountRow(client, context, partyId, { lock: true });
   if (row.status === status) return { changed: false };
@@ -358,8 +358,8 @@ export async function setAccountStatus(client, context, partyId, status, { note 
 // Each account succeeds or fails on its own.
 export async function runAccountBulkOperation(client, partyIds, operation) {
   const ids = [...new Set(Array.isArray(partyIds) ? partyIds : [])];
-  if (!ids.length) throw new CrmError(400, "Select at least one account.", "CRM_ACCOUNT_VALIDATION");
-  if (ids.length > BULK_LIMIT) throw new CrmError(400, `Select up to ${BULK_LIMIT} accounts at a time.`, "CRM_ACCOUNT_BULK_LIMIT");
+  if (!ids.length) throw new CrmError(400, "Select at least one company.", "CRM_ACCOUNT_VALIDATION");
+  if (ids.length > BULK_LIMIT) throw new CrmError(400, `Select up to ${BULK_LIMIT} companies at a time.`, "CRM_ACCOUNT_BULK_LIMIT");
   const results = [];
   for (const partyId of ids) {
     await client.query("SAVEPOINT account_bulk_operation");
@@ -414,13 +414,13 @@ export async function accountReferences(client, context, partyId) {
 // Permanently removes an account created by mistake. Only an account that
 // nothing refers to, and that has never been a customer, can be deleted.
 export async function deleteUnusedAccount(client, context, partyId) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.delete, "You do not have permission to delete accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.delete, "You do not have permission to delete companies.");
   const row = await loadAccountRow(client, context, partyId, { lock: true });
   if (row.customer_number || ["customer", "both"].includes(row.party_type))
-    throw new CrmError(409, "A customer account cannot be deleted. Archive it instead.", "CRM_ACCOUNT_IN_USE");
+    throw new CrmError(409, "A customer company cannot be deleted. Archive it instead.", "CRM_ACCOUNT_IN_USE");
   const references = await accountReferences(client, context, row.id);
   if (references.length)
-    throw new CrmError(409, `This account has ${references.join(", ")}. Archive it instead of deleting it.`, "CRM_ACCOUNT_IN_USE", { references });
+    throw new CrmError(409, `This company has ${references.join(", ")}. Archive it instead of deleting it.`, "CRM_ACCOUNT_IN_USE", { references });
   await client.query(`DELETE FROM tenant.business_parties WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id]);
   await queueOutboxEvent(client, context, "crm.accounts.archived", "account", row.id, { accountId: row.id, deleted: true });
   return { deleted: true };

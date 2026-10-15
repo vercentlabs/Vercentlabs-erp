@@ -62,8 +62,8 @@ export async function createCustomerFromAccount(client, context, partyId, input 
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.createCustomer, "You do not have permission to create customers.");
   const account = await lockAccount(client, context, partyId);
   if (account.customer_number || ["customer", "both"].includes(account.party_type))
-    throw new CrmError(409, "This account is already a customer.", "CRM_ACCOUNT_ALREADY_CUSTOMER");
-  if (account.status !== "active") throw new CrmError(409, "Only an active account can become a customer.", "CRM_ACCOUNT_INACTIVE");
+    throw new CrmError(409, "This company is already a customer.", "CRM_ACCOUNT_ALREADY_CUSTOMER");
+  if (account.status !== "active") throw new CrmError(409, "Only an active company can become a customer.", "CRM_ACCOUNT_INACTIVE");
   const billing = await client.query(`SELECT 1 FROM tenant.addresses WHERE organization_id = $1 AND party_id = $2 AND status = 'active' AND is_default_billing`,
     [context.organizationId, account.id]);
   if (!billing.rows[0]) throw new CrmError(409, "Add a billing address before creating the customer.", "CRM_ACCOUNT_BILLING_ADDRESS_REQUIRED");
@@ -115,10 +115,10 @@ export async function linkCustomer(client, context, partyId, input = {}) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.createCustomer, "You do not have permission to link customers.");
   const customerId = requireUuid(input.customerId, "Customer");
   const account = await getAccount(client, context, partyId);
-  if (account.isCustomer) throw new CrmError(409, "This account is already a customer.", "CRM_ACCOUNT_ALREADY_CUSTOMER");
+  if (account.isCustomer) throw new CrmError(409, "This company is already a customer.", "CRM_ACCOUNT_ALREADY_CUSTOMER");
   const customer = await getAccount(client, context, customerId);
   if (!customer.isCustomer) throw new CrmError(409, "Choose an existing customer.", "CRM_ACCOUNT_NOT_CUSTOMER");
   const result = await mergeAccounts(client, context, { keepId: customer.id, duplicateId: account.id, choices: input.choices }, { linkingCustomer: true });
-  await recordAccountHistory(client, context, customer.id, "customer_linked", `CRM account ${account.displayName} (${account.code}) linked to this customer`, { accountId: account.id });
+  await recordAccountHistory(client, context, customer.id, "customer_linked", `CRM company ${account.displayName} (${account.code}) linked to this customer`, { accountId: account.id });
   return result;
 }

@@ -63,7 +63,7 @@ export async function listOpportunityQuotations(client, context, opportunityId) 
 
 // Marks one of the deal's quotations as the one that counts. input: { quotationId | null }
 export async function setPrimaryOpportunityQuotation(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit deals.");
   const row = await lockOpportunity(client, context, opportunityId);
   let quotation = null;
   if (input.quotationId) {
@@ -71,7 +71,7 @@ export async function setPrimaryOpportunityQuotation(client, context, opportunit
       `SELECT id, quotation_number, lifecycle_status FROM tenant.sales_quotations WHERE organization_id = $1 AND id = $2 AND source_opportunity_id = $3`,
       [context.organizationId, requireUuid(input.quotationId, "Quotation"), row.id],
     )).rows[0];
-    if (!quotation) throw new CrmError(409, "Choose a quotation raised from this opportunity.", "CRM_OPPORTUNITY_QUOTATION_INVALID");
+    if (!quotation) throw new CrmError(409, "Choose a quotation raised from this deal.", "CRM_OPPORTUNITY_QUOTATION_INVALID");
     if (quotation.lifecycle_status === "cancelled") throw new CrmError(409, "A cancelled quotation cannot be the primary one.", "CRM_OPPORTUNITY_QUOTATION_INVALID");
   }
   await client.query(`UPDATE tenant.crm_opportunities SET primary_quotation_id = $3, updated_by = $4 WHERE organization_id = $1 AND id = $2`,

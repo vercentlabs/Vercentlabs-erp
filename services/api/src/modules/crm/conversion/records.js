@@ -14,7 +14,7 @@ export async function loadVisibleAccount(client, context, accountId) {
       WHERE account.organization_id = $1 AND account.id = $2 AND account.status = 'active' AND account.party_type <> 'supplier'${accountScopeSql(context, values, "account")}`,
     values,
   );
-  if (!rows[0]) throw new CrmError(404, "Choose an active account you have access to.", "CRM_CONVERSION_ACCOUNT_NOT_FOUND");
+  if (!rows[0]) throw new CrmError(404, "Choose an active company you have access to.", "CRM_CONVERSION_ACCOUNT_NOT_FOUND");
   return rows[0];
 }
 

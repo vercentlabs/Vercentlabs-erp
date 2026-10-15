@@ -21,13 +21,15 @@ import { OPPORTUNITY_PERMISSIONS } from "./constants.js";
 import { recordOpportunityHistory } from "./history.js";
 import { assertNotStale, assertOpen, lockOpportunity, readOpportunityRow, requireUuid } from "./records.js";
 import { pipelineStage, writeStage } from "./stages.js";
+import { orgToday } from "../data-management/org-date.js";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const text = (value) => String(value ?? "").trim();
 const can = (context, permission) => Boolean(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(permission));
 
-async function today(client) {
-  return (await client.query(`SELECT current_date::text AS today`)).rows[0].today;
+// Today in the organization's time zone (a deal closed at 00:30 in India is closed today, not tomorrow).
+async function today(client, context) {
+  return (await client.query(`SELECT ${orgToday("$1")}::text AS today`, [context.organizationId])).rows[0].today;
 }
 
 // The owner hears about an outcome someone else recorded on their deal.
@@ -51,14 +53,14 @@ async function requireOwnQuotation(client, context, opportunity, quotationId) {
     `SELECT id, quotation_number, lifecycle_status FROM tenant.sales_quotations WHERE organization_id = $1 AND id = $2 AND source_opportunity_id = $3`,
     [context.organizationId, requireUuid(quotationId, "Quotation"), opportunity.id],
   );
-  if (!rows[0]) throw new CrmError(409, "Choose a quotation raised from this opportunity.", "CRM_OPPORTUNITY_QUOTATION_INVALID");
+  if (!rows[0]) throw new CrmError(409, "Choose a quotation raised from this deal.", "CRM_OPPORTUNITY_QUOTATION_INVALID");
   if (rows[0].lifecycle_status === "cancelled") throw new CrmError(409, "A cancelled quotation cannot be the winning one.", "CRM_OPPORTUNITY_QUOTATION_INVALID");
   return rows[0];
 }
 
 // The date the deal really closed: today unless given, never in the future.
-async function closeDateOf(client, value) {
-  const now = await today(client);
+async function closeDateOf(client, context, value) {
+  const now = await today(client, context);
   const closeDate = text(value).slice(0, 10) || now;
   if (!DATE.test(closeDate) || Number.isNaN(Date.parse(`${closeDate}T00:00:00Z`))) throw new CrmError(400, "Enter the date the deal closed.", "CRM_OPPORTUNITY_CLOSE_DATE_REQUIRED");
   if (closeDate > now) throw new CrmError(400, "The close date cannot be in the future.", "CRM_OPPORTUNITY_CLOSE_DATE_REQUIRED");
@@ -68,7 +70,7 @@ async function closeDateOf(client, value) {
 // The stage a deal closes in: its own stage, even if that stage was deactivated since.
 async function currentStage(client, context, opportunity) {
   const { rows } = await client.query(`SELECT * FROM tenant.crm_pipeline_stages WHERE organization_id = $1 AND id = $2`, [context.organizationId, opportunity.stage_id]);
-  if (!rows[0]) throw new CrmError(409, "This opportunity has no valid stage.", "CRM_OPPORTUNITY_STAGE_INVALID");
+  if (!rows[0]) throw new CrmError(409, "This deal has no valid stage.", "CRM_OPPORTUNITY_STAGE_INVALID");
   return rows[0];
 }
 
@@ -98,16 +100,16 @@ const moneyText = (value, currency) => `${currency ? `${currency.trim()} ` : ""}
 //          expectedUpdatedAt?, openTasks?: "keep" | "cancel", openFollowUps?: "keep" | "cancel" }
 // Open tasks on the deal are never removed silently: kept (a won deal may still need its handoff) or cancelled.
 export async function markOpportunityWon(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.markWon, "You do not have permission to mark opportunities as won.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.markWon, "You do not have permission to mark deals as won.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
-  if (opportunity.status === "won") throw new CrmError(409, "This opportunity is already won.", "CRM_OPPORTUNITY_ALREADY_CLOSED");
+  if (opportunity.status === "won") throw new CrmError(409, "This deal is already won.", "CRM_OPPORTUNITY_ALREADY_CLOSED");
   assertOpen(opportunity, "marked won");
   assertNotStale(opportunity, input.expectedUpdatedAt);
   const reason = await requireCloseReason(client, context, input.reasonId, "won");
   const notes = text(input.notes).slice(0, 4000) || null;
   const competitorName = text(input.competitorName).slice(0, 200) || null;
   checkReasonRules(reason, { notes, competitorName });
-  const closeDate = await closeDateOf(client, input.actualCloseDate);
+  const closeDate = await closeDateOf(client, context, input.actualCloseDate);
   const finalValue = input.finalValue === undefined || input.finalValue === null || text(input.finalValue) === "" ? Number(opportunity.amount) : Number(input.finalValue);
   if (!Number.isFinite(finalValue) || finalValue < 0) throw new CrmError(400, "Enter a final deal value of zero or more.", "CRM_OPPORTUNITY_VALIDATION");
   const quotation = input.winningQuotationId ? await requireOwnQuotation(client, context, opportunity, input.winningQuotationId) : null;
@@ -146,23 +148,23 @@ async function requireOriginal(client, context, opportunity, originalId) {
       WHERE opportunity.organization_id = $1 AND opportunity.id = $2${opportunityScopeSql(context, values, "opportunity")}`,
     values,
   );
-  if (!rows[0] || rows[0].id === opportunity.id) throw new CrmError(400, "Choose the original opportunity this one duplicates.", "CRM_OPPORTUNITY_DUPLICATE_OF_INVALID");
+  if (!rows[0] || rows[0].id === opportunity.id) throw new CrmError(400, "Choose the original deal this one duplicates.", "CRM_OPPORTUNITY_DUPLICATE_OF_INVALID");
   return rows[0];
 }
 
 // input: { reasonId (required), actualCloseDate? (today), notes?, competitorName?, duplicateOfOpportunityId?,
 //          followUp?: { date, subject? } (for a reason that may come back), expectedUpdatedAt?, openTasks?, openFollowUps? }
 export async function markOpportunityLost(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.markLost, "You do not have permission to mark opportunities as lost.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.markLost, "You do not have permission to mark deals as lost.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
-  if (opportunity.status === "lost") throw new CrmError(409, "This opportunity is already lost.", "CRM_OPPORTUNITY_ALREADY_CLOSED");
+  if (opportunity.status === "lost") throw new CrmError(409, "This deal is already lost.", "CRM_OPPORTUNITY_ALREADY_CLOSED");
   assertOpen(opportunity, "marked lost");
   assertNotStale(opportunity, input.expectedUpdatedAt);
   const reason = await requireCloseReason(client, context, input.reasonId, "lost");
   const notes = text(input.notes).slice(0, 4000) || null;
   const competitorName = text(input.competitorName).slice(0, 200) || null;
   checkReasonRules(reason, { notes, competitorName });
-  const closeDate = await closeDateOf(client, input.actualCloseDate);
+  const closeDate = await closeDateOf(client, context, input.actualCloseDate);
   const original = input.duplicateOfOpportunityId ? await requireOriginal(client, context, opportunity, input.duplicateOfOpportunityId) : null;
   const followUpDate = text(input.followUp?.date).slice(0, 10);
   if (followUpDate && (!DATE.test(followUpDate) || followUpDate <= closeDate)) throw new CrmError(400, "Choose a future date for the follow-up.", "CRM_OPPORTUNITY_VALIDATION");
@@ -206,12 +208,12 @@ export async function markOpportunityLost(client, context, opportunityId, input 
 // is a new opportunity. The earlier close stays in the close history.
 // input: { reason (required), stageId? } — reopens in the stage it closed in unless another open stage is given.
 export async function reopenOpportunity(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.reopen, "You do not have permission to reopen opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.reopen, "You do not have permission to reopen deals.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
-  if (opportunity.archived_at) throw new CrmError(409, "Restore this opportunity before reopening it.", "CRM_OPPORTUNITY_ARCHIVED");
-  if (!["won", "lost"].includes(opportunity.status)) throw new CrmError(409, "This opportunity is already open.", "CRM_OPPORTUNITY_NOT_CLOSED");
+  if (opportunity.archived_at) throw new CrmError(409, "Restore this deal before reopening it.", "CRM_OPPORTUNITY_ARCHIVED");
+  if (!["won", "lost"].includes(opportunity.status)) throw new CrmError(409, "This deal is already open.", "CRM_OPPORTUNITY_NOT_CLOSED");
   const reason = text(input.reason).slice(0, 500);
-  if (!reason) throw new CrmError(400, "Explain why this opportunity is being reopened.", "CRM_OPPORTUNITY_REOPEN_REASON_REQUIRED");
+  if (!reason) throw new CrmError(400, "Explain why this deal is being reopened.", "CRM_OPPORTUNITY_REOPEN_REASON_REQUIRED");
   if (opportunity.status === "won") {
     const downstream = await client.query(
       `SELECT (SELECT count(*) FROM tenant.sales_orders WHERE organization_id = $1 AND source_opportunity_id = $2)::int AS orders,
@@ -219,11 +221,11 @@ export async function reopenOpportunity(client, context, opportunityId, input = 
       [context.organizationId, opportunity.id],
     );
     if (downstream.rows[0].orders > 0 || downstream.rows[0].accepted > 0)
-      throw new CrmError(409, "This deal was won and has a sales order or an accepted quotation. Create a new opportunity for new work.", "CRM_OPPORTUNITY_WON_LOCKED");
+      throw new CrmError(409, "This deal was won and has a sales order or an accepted quotation. Create a new deal for new work.", "CRM_OPPORTUNITY_WON_LOCKED");
   }
   const stageId = input.stageId || opportunity.stage_id;
   const stage = await pipelineStage(client, context, opportunity.pipeline_id, stageId);
-  if (!stage || stage.is_won || stage.is_lost || stage.status !== "active") throw new CrmError(409, "Choose an open stage to reopen this opportunity into.", "CRM_OPPORTUNITY_STAGE_INVALID");
+  if (!stage || stage.is_won || stage.is_lost || stage.status !== "active") throw new CrmError(409, "Choose an open stage to reopen this deal into.", "CRM_OPPORTUNITY_STAGE_INVALID");
 
   await writeStage(client, context, opportunity, stage, {
     status: "open", probability: Number(stage.probability), note: `Reopened: ${reason}`,
@@ -238,7 +240,7 @@ export async function reopenOpportunity(client, context, opportunityId, input = 
       WHERE organization_id = $1 AND opportunity_id = $2 AND reopened_at IS NULL`,
     [context.organizationId, opportunity.id, context.userId ?? null, reason, stage.id],
   );
-  await recordOpportunityHistory(client, context, opportunity.id, "reopened", `Opportunity reopened into ${stage.name}: ${reason}`, {
+  await recordOpportunityHistory(client, context, opportunity.id, "reopened", `Deal reopened into ${stage.name}: ${reason}`, {
     from: opportunity.status, to: "open", reason, previousCloseDate: opportunity.actual_close_on ?? null, previousReason: opportunity.outcome_reason_name ?? opportunity.lost_reason_name ?? null,
     previousNotes: opportunity.outcome_notes ?? opportunity.loss_notes ?? null, previousCompetitor: opportunity.competitor_name ?? null,
     previousWonAmount: opportunity.won_amount === null ? null : Number(opportunity.won_amount), stage: stage.name,
@@ -253,9 +255,9 @@ export async function reopenOpportunity(client, context, opportunityId, input = 
 // Needs its own permission and a reason for the correction; both values stay in the history.
 // input: { reasonId, notes?, competitorName?, correctionReason }
 export async function correctOpportunityCloseReason(client, context, opportunityId, input = {}) {
-  if (!can(context, CLOSE_REASON_PERMISSIONS.correct)) throw new CrmError(403, "You do not have permission to correct the reason of a closed opportunity.", "PERMISSION_DENIED");
+  if (!can(context, CLOSE_REASON_PERMISSIONS.correct)) throw new CrmError(403, "You do not have permission to correct the reason of a closed deal.", "PERMISSION_DENIED");
   const opportunity = await lockOpportunity(client, context, opportunityId);
-  if (!["won", "lost"].includes(opportunity.status)) throw new CrmError(409, "Only a closed opportunity has a close reason to correct.", "CRM_OPPORTUNITY_NOT_CLOSED");
+  if (!["won", "lost"].includes(opportunity.status)) throw new CrmError(409, "Only a closed deal has a close reason to correct.", "CRM_OPPORTUNITY_NOT_CLOSED");
   const correctionReason = text(input.correctionReason).slice(0, 500);
   if (!correctionReason) throw new CrmError(400, "Explain why the reason is being corrected.", "CRM_OPPORTUNITY_CORRECTION_REASON_REQUIRED");
   const reason = await requireCloseReason(client, context, input.reasonId, opportunity.status);
@@ -288,7 +290,7 @@ export async function correctOpportunityCloseReason(client, context, opportunity
 
 // Every close of the opportunity, newest first, with any reopen and correction.
 export async function listOpportunityCloseHistory(client, context, opportunityId) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
   const opportunity = await readOpportunityRow(client, context, opportunityId);
   const { rows } = await client.query(
     `SELECT history.*, closer.full_name AS closed_by_name, reopener.full_name AS reopened_by_name, corrector.full_name AS corrected_by_name,

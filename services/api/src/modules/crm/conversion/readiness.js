@@ -37,7 +37,7 @@ export function conversionChecks(lead, requirements) {
     { key: "product", label: "Product or service interest", met: item("product").done, overridable: true, value: item("product").value },
     ...["budget", "authority", "timeline"].filter((key) => requirements[key])
       .map((key) => ({ key, label: item(key).label, met: item(key).done, overridable: true, value: item(key).value })),
-    { key: "company", label: "Company or account", met: Boolean(text(lead.company_name)), overridable: false,
+    { key: "company", label: "Company", met: Boolean(text(lead.company_name)), overridable: false,
       value: text(lead.company_name) || "Not on the lead: choose or enter an account" },
     { key: "contact", label: "Contact name and a way to reach them", met: hasPerson, overridable: false,
       value: hasPerson ? [lead.full_name, lead.email || lead.mobile || lead.phone].join(" · ") : "Choose an existing contact or enter the contact's details" },
@@ -54,3 +54,6 @@ export function qualificationSummary(lead, requirements) {
   const { checklist, score, suggestedRating } = evaluateLeadQualification(lead, requirements);
   return { score, suggestedRating, checklist: checklist.map(({ key, label, done, value }) => ({ key, label, done, value })) };
 }
+
+// A lead qualified with "Qualify anyway" already carries a manager's approval for what was missing (reopening clears it).
+export const qualifiedWithOverride = (lead) => lead.status === "qualified" && Boolean(lead.q_override_reason);

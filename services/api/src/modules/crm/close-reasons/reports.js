@@ -9,8 +9,8 @@
 import { opportunityScopeSql, requireOpportunityPermission } from "../opportunities/access.js";
 import { OPPORTUNITY_PERMISSIONS } from "../opportunities/constants.js";
 import { CLOSE_REPORT_GROUPS } from "./constants.js";
+import { orgPeriod } from "../data-management/org-date.js";
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
 const rate = (won, lost) => (won + lost ? Math.round((won / (won + lost)) * 1000) / 10 : null);
@@ -27,17 +27,10 @@ const GROUP_SQL = Object.freeze({
   month: ["to_char(history.actual_close_date, 'YYYY-MM')", "to_char(history.actual_close_date, 'Mon YYYY')"],
 });
 
-function period(input) {
-  const today = new Date();
-  const from = DATE.test(String(input.from ?? "")) ? input.from : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)).toISOString().slice(0, 10);
-  const to = DATE.test(String(input.to ?? "")) ? input.to : today.toISOString().slice(0, 10);
-  return { from, to };
-}
-
 // input: { from?, to?, groupBy?, ownerId?, teamId?, sourceId?, outcome? }
 export async function getWinLossReport(client, context, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
-  const { from, to } = period(input);
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
+  const { from, to } = await orgPeriod(client, context.organizationId, input);
   const groupBy = GROUP_SQL[input.groupBy] ? input.groupBy : "reason";
   const values = [context.organizationId, from, to];
   const bind = (value) => { values.push(value); return `$${values.length}`; };

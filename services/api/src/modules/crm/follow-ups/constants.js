@@ -25,18 +25,18 @@ export const ACTIVITY_OF_TYPE = Object.freeze({ call: "call", email: "email", me
 
 export const FOLLOW_UP_OUTCOMES = Object.freeze([
   { code: "connected", label: "Connected" },
-  { code: "no_response", label: "No Response" },
+  { code: "no_response", label: "No response" },
   { code: "interested", label: "Interested" },
-  { code: "not_interested", label: "Not Interested" },
-  { code: "meeting_scheduled", label: "Meeting Scheduled" },
+  { code: "not_interested", label: "Not interested" },
+  { code: "meeting_scheduled", label: "Meeting scheduled" },
   { code: "other", label: "Other" },
 ]);
 
 export const FOLLOW_UP_RELATED_TYPES = Object.freeze([
   { code: "lead", label: "Lead" },
-  { code: "party", label: "Account" },
+  { code: "party", label: "Company" },
   { code: "contact", label: "Contact" },
-  { code: "opportunity", label: "Opportunity" },
+  { code: "opportunity", label: "Deal" },
 ]);
 
 export const FOLLOW_UP_REMINDER_OPTIONS = Object.freeze([

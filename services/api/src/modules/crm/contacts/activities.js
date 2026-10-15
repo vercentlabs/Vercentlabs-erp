@@ -79,7 +79,7 @@ async function assertContactOpportunity(client, context, contact, opportunityId)
         AND (contact_id = $3 OR party_id = $4 OR EXISTS (SELECT 1 FROM tenant.crm_opportunity_contact_roles r WHERE r.organization_id = $1 AND r.opportunity_id = $2 AND r.contact_id = $3))`,
     [context.organizationId, requireUuid(opportunityId, "Opportunity"), contact.id, contact.party_id],
   );
-  if (!rows[0]) throw new CrmError(400, "Choose an opportunity of this contact or their company.", "CRM_CONTACT_ACTIVITY_VALIDATION");
+  if (!rows[0]) throw new CrmError(400, "Choose a deal of this contact or their company.", "CRM_CONTACT_ACTIVITY_VALIDATION");
   return rows[0].id;
 }
 

@@ -14,7 +14,7 @@ import { OPPORTUNITY_VIEWS } from "./records.js";
 import { listOpportunityStages } from "./stages.js";
 
 export async function getOpportunityOptions(client, context) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
   await ensureDefaultSalesPipeline(client, context);
   const { users, teams } = await listLeadAssignmentOptions(client, context);
   const stages = await listOpportunityStages(client, context);

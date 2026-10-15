@@ -30,7 +30,7 @@ const MATCHERS = Object.freeze({
 });
 
 function matcher(type) {
-  if (!MATCHERS[type]) throw new CrmError(400, "Duplicates can be checked for leads, contacts and accounts.", "CRM_DUPLICATE_VALIDATION");
+  if (!MATCHERS[type]) throw new CrmError(400, "Duplicates can be checked for leads, contacts and companies.", "CRM_DUPLICATE_VALIDATION");
   return MATCHERS[type];
 }
 

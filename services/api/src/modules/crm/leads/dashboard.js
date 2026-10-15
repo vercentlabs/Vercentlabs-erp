@@ -6,21 +6,15 @@ import { LEAD_DISQUALIFICATION_REASONS, LEAD_PERMISSIONS, LEAD_QUALIFICATION_STA
 import { ensureDefaultLeadStages } from "./stages.js";
 import { QUALIFICATION_STATUS_SQL } from "./records.js";
 import { isUuid } from "./validation.js";
+import { orgDayStart, orgPeriod } from "../data-management/org-date.js";
 
 const PENDING_FOLLOW_UP = `SELECT min(activity.due_at) AS due_at FROM tenant.crm_activities activity
    WHERE activity.organization_id = lead.organization_id AND activity.entity_type = 'lead' AND activity.entity_id = lead.id
      AND activity.activity_type = 'follow_up' AND activity.status IN ('planned', 'in_progress', 'overdue')`;
 
-function periodBounds(input = {}) {
-  const today = new Date();
-  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(input.from ?? "")) ? input.from : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)).toISOString().slice(0, 10);
-  const to = /^\d{4}-\d{2}-\d{2}$/.test(String(input.to ?? "")) ? input.to : today.toISOString().slice(0, 10);
-  return { from, to };
-}
-
 export async function getLeadDashboard(client, context, input = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.view, "You do not have permission to view leads.");
-  const { from, to } = periodBounds(input);
+  const { from, to } = await orgPeriod(client, context.organizationId, input);
   const values = [context.organizationId, from, to];
   const scope = leadScopeSql(context, values, "lead");
   const visible = `FROM tenant.crm_leads lead LEFT JOIN LATERAL (${PENDING_FOLLOW_UP}) follow_up ON true
@@ -31,10 +25,10 @@ export async function getLeadDashboard(client, context, input = {}) {
     `SELECT count(*) FILTER (WHERE lead.status = 'open')::int AS open,
             count(*) FILTER (WHERE lead.status = 'open' AND lead.stage = 'new')::int AS new,
             count(*) FILTER (WHERE lead.status = 'open' AND lead.owner_user_id IS NULL)::int AS unassigned,
-            count(*) FILTER (WHERE lead.assigned_at >= current_date)::int AS assigned_today,
+            count(*) FILTER (WHERE lead.assigned_at >= ${orgDayStart("$1")})::int AS assigned_today,
             count(*) FILTER (WHERE lead.status = 'open' AND lead.owner_user_id IS NOT NULL AND lead.first_activity_at IS NULL)::int AS no_activity,
             count(*) FILTER (WHERE lead.created_at >= $2::date AND lead.created_at < $3::date + interval '1 day')::int AS created_in_period,
-            count(*) FILTER (WHERE follow_up.due_at >= current_date AND follow_up.due_at < current_date + interval '1 day')::int AS follow_ups_due_today,
+            count(*) FILTER (WHERE follow_up.due_at >= ${orgDayStart("$1")} AND follow_up.due_at < ${orgDayStart("$1")} + interval '1 day')::int AS follow_ups_due_today,
             count(*) FILTER (WHERE follow_up.due_at < now())::int AS overdue_follow_ups,
             count(*) FILTER (WHERE lead.status = 'qualified')::int AS qualified,
             count(*)::int AS total,

@@ -333,7 +333,7 @@ export function AccountHierarchyPanel({ account, canEdit }: { account: Account; 
       <SectionHeader title="Company structure" action={canEdit && (
         <>
           {account.parentPartyId && <Button variant="ghost" size="compact" onPress={() => mutation.mutate(null)} isLoading={mutation.isPending && !isChoosing}>Remove parent</Button>}
-          <Button variant="secondary" size="compact" onPress={() => setChoosing(true)}>{account.parentPartyId ? "Change parent" : "Set parent account"}</Button>
+          <Button variant="secondary" size="compact" onPress={() => setChoosing(true)}>{account.parentPartyId ? "Change parent" : "Set parent company"}</Button>
         </>
       )} />
       <ErrorBanner message={error} />
@@ -349,7 +349,7 @@ export function AccountHierarchyPanel({ account, canEdit }: { account: Account; 
                 </span>
               ))}
             </p>
-          ) : <p className="text-text-muted">No parent account.</p>}
+          ) : <p className="text-text-muted">No parent company.</p>}
           {hierarchy.children.length > 0 && (
             <div className="flex flex-col gap-1">
               <p className="font-medium">Branches and subsidiaries</p>

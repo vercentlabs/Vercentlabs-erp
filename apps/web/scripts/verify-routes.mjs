@@ -173,8 +173,82 @@ walk(appRoot, (file, name) => {
   }
 });
 
+// --- Check 6: every URL a CRM client builds has its own route.ts ----------
+// The CRM screens call /api/crm/... through small api modules. When a route
+// file is deleted but its client stays, the request falls through to the
+// generic /api/crm/[resource] catch-all, which answers 404 ("Unknown CRM
+// resource") and the screen quietly shows nothing. So a client URL counts as
+// covered only when a route.ts matches it outside that catch-all. `${...}`
+// right after a "/" is a path segment (an id); any other `${...}` or a "?"
+// starts the query string and ends the path.
+const featuresRoot = path.resolve(appRoot, "../features/crm");
+const crmApiRoot = path.join(appRoot, "api", "crm");
+const CATCH_ALL = "[resource]";
+let clientUrlsChecked = 0;
+
+function readPlaceholder(source, start) {
+  // source[start] is "$" of "${"; returns the index after the matching "}".
+  let depth = 0;
+  for (let at = start + 1; at < source.length; at += 1) {
+    if (source[at] === "{") depth += 1;
+    else if (source[at] === "}") {
+      depth -= 1;
+      if (depth === 0) return at + 1;
+    }
+  }
+  return source.length;
+}
+
+function readPath(source, start, initial) {
+  let result = initial;
+  let at = start;
+  while (at < source.length) {
+    const char = source[at];
+    if (char === "$" && source[at + 1] === "{") {
+      if (!result.endsWith("/")) break;
+      result += "*";
+      at = readPlaceholder(source, at);
+      continue;
+    }
+    if (/[\s"'`?#)]/.test(char)) break;
+    result += char;
+    at += 1;
+  }
+  return result.replace(/\/+$/, "");
+}
+
+function routeExists(dir, segments, topLevel) {
+  if (segments.length === 0) return fs.existsSync(path.join(dir, "route.ts"));
+  const [segment, ...rest] = segments;
+  const entries = fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory()) : [];
+  const dynamic = entries.filter((entry) => entry.name.startsWith("[") && !(topLevel && entry.name === CATCH_ALL));
+  const candidates = segment === "*" ? dynamic : [...entries.filter((entry) => entry.name === segment), ...dynamic];
+  return candidates.some((entry) => routeExists(path.join(dir, entry.name), rest, false));
+}
+
+walk(featuresRoot, (file, name) => {
+  if (!/\.(ts|tsx)$/.test(name)) return;
+  const source = fs.readFileSync(file, "utf8");
+  if (!source.includes("/api/crm")) return;
+  const bases = new Map();
+  for (const match of source.matchAll(/const\s+(\w+)\s*=\s*["'`](\/api\/crm[^"'`$]*)["'`]/g)) bases.set(match[1], match[2]);
+  const urls = new Set();
+  for (const match of source.matchAll(/["'`](\/api\/crm)/g)) urls.add(readPath(source, match.index + 1 + match[1].length, match[1]));
+  for (const [constant, base] of bases) {
+    for (const match of source.matchAll(new RegExp(`\\$\\{${constant}\\}`, "g"))) urls.add(readPath(source, match.index + match[0].length, base));
+  }
+  for (const url of urls) {
+    const segments = url.replace(/^\/api\/crm\/?/, "").split("/").filter(Boolean);
+    if (!segments.length) continue;
+    clientUrlsChecked += 1;
+    if (!routeExists(crmApiRoot, segments, true)) {
+      fail(`${path.relative(featuresRoot, file).split(path.sep).join("/")}: calls ${url}, but no route.ts under app/api/crm matches it (it would reach the [resource] catch-all and 404)`);
+    }
+  }
+});
+
 console.log(
-  `Checked ${pagesChecked} page.tsx, ${routesChecked} route.ts (${crmRoutesChecked} CRM) file(s) under src/app.`,
+  `Checked ${pagesChecked} page.tsx, ${routesChecked} route.ts (${crmRoutesChecked} CRM) file(s) under src/app, and ${clientUrlsChecked} CRM client URL(s).`,
 );
 if (failures > 0) {
   console.error(`\nverify:routes summary — ${failures} failing check(s).`);

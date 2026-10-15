@@ -52,7 +52,7 @@ function ModuleRailInner(props: {
           // DOM is what lets it win that tie and stay clickable while the
           // flyout is open, rather than the flyout's own empty left edge
           // silently swallowing the click.
-          className="absolute left-16 top-1/2 z-[var(--z-drawer)] flex h-10 w-3.5 -translate-y-1/2 items-center justify-center rounded-r-[var(--radius-control)] border border-l-0 border-border bg-surface text-text-muted opacity-0 shadow-[var(--shadow-subtle)] transition-opacity hover:opacity-100 focus-visible:opacity-100"
+          className="absolute left-16 top-1/2 z-[var(--z-drawer)] flex h-10 w-3.5 -translate-y-1/2 items-center justify-center rounded-r-[var(--radius-control)] border border-l-0 border-border bg-surface text-text-muted opacity-70 shadow-[var(--shadow-subtle)] transition-opacity hover:opacity-100 focus-visible:opacity-100"
         >
           <ChevronRight
             aria-hidden="true"

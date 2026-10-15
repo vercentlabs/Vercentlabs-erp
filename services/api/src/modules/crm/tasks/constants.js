@@ -5,7 +5,7 @@
 // the due date and never stored.
 export const TASK_STATUSES = Object.freeze([
   { code: "open", label: "Open" },
-  { code: "in_progress", label: "In Progress" },
+  { code: "in_progress", label: "In progress" },
   { code: "completed", label: "Completed" },
   { code: "cancelled", label: "Cancelled" },
 ]);
@@ -21,9 +21,9 @@ export const TASK_PRIORITIES = Object.freeze([
 // What a task can be about. A task with no related record is a personal one.
 export const TASK_RELATED_TYPES = Object.freeze([
   { code: "lead", label: "Lead" },
-  { code: "party", label: "Account" },
+  { code: "party", label: "Company" },
   { code: "contact", label: "Contact" },
-  { code: "opportunity", label: "Opportunity" },
+  { code: "opportunity", label: "Deal" },
 ]);
 
 // The reminders offered; a custom date and time is also accepted.

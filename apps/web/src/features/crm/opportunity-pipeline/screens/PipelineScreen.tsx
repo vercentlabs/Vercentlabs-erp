@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Settings2 } from "lucide-react";
-import { EnterpriseListPage, ErrorState, LinkButton, PermissionState, SearchField, Select, TextField, type ActiveFilter } from "@vercentlabs/design-system";
+import { Button, EnterpriseListPage, ErrorState, LinkButton, PermissionState, SearchField, Select, TextField, type ActiveFilter } from "@vercentlabs/design-system";
 
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { getOpportunityOptions, opportunityExportUrl, type Opportunity, type OpportunityListFilters, type OpportunityViewKey } from "@/features/crm/opportunities/api/opportunities-api";
@@ -250,6 +250,10 @@ export function PipelineScreen() {
       >
         <div className="flex flex-col gap-4">
           {summaryQuery.data && <PipelineSummaryStrip summary={summaryQuery.data} currency={currency} onSelect={onSummarySelect} />}
+          {summaryQuery.isError && (
+            <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger">Pipeline figures couldn&apos;t be loaded.
+              <Button variant="ghost" size="compact" onPress={() => void summaryQuery.refetch()}>Try again</Button></p>
+          )}
 
           {pipelineQuery.isLoading || !options ? <LoadingState label="Loading pipeline" rows={6} />
             : pipelineQuery.isError || !pipeline ? <ErrorState title="Could not load the pipeline" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void pipelineQuery.refetch() }} />

@@ -35,7 +35,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 // The account becomes (or is linked to) a customer. Returns the customer's party id.
 async function resolveCustomer(client, context, opportunityRow, input) {
   const account = await loadAccount(client, context, opportunityRow.party_id);
-  if (!account || account.status !== "active") throw new CrmError(409, "Add an active account to this opportunity before creating a quotation.", "CRM_OPPORTUNITY_ACCOUNT_REQUIRED");
+  if (!account || account.status !== "active") throw new CrmError(409, "Add an active company to this deal before creating a quotation.", "CRM_OPPORTUNITY_ACCOUNT_REQUIRED");
   if (isCustomer(account)) return { partyId: account.id, decision: "existing" };
   const mode = input?.mode;
   if (mode === "link") {
@@ -48,7 +48,7 @@ async function resolveCustomer(client, context, opportunityRow, input) {
     const matches = await customerMatches(client, context, account);
     const strong = matches.filter((match) => match.strength === "exact");
     if (strong.length)
-      throw new CrmError(409, "This company is already a customer. Link the account to the existing customer instead of creating another.", "CRM_QUOTATION_CUSTOMER_EXISTS", { matches });
+      throw new CrmError(409, "This company is already a customer. Link the company to the existing customer instead of creating another.", "CRM_QUOTATION_CUSTOMER_EXISTS", { matches });
     if (matches.length && input.confirmNoMatch !== true)
       throw new CrmError(409, "Possible matching customers found. Link one of them, or confirm this is a new customer.", "CRM_QUOTATION_CUSTOMER_POSSIBLE_MATCH", { matches });
     if (input.billingAddress) await addAccountAddress(client, context, account.id, { ...input.billingAddress, addressType: input.billingAddress.addressType || "billing", isDefaultBilling: true });
@@ -57,7 +57,7 @@ async function resolveCustomer(client, context, opportunityRow, input) {
     });
     return { partyId: account.id, decision: "created" };
   }
-  throw new CrmError(409, "This account is not a customer yet. Create its customer master or link it to an existing customer.", "CRM_QUOTATION_CUSTOMER_REQUIRED", {
+  throw new CrmError(409, "This company is not a customer yet. Create its customer master or link it to an existing customer.", "CRM_QUOTATION_CUSTOMER_REQUIRED", {
     matches: await customerMatches(client, context, account),
   });
 }
@@ -96,7 +96,7 @@ function readLines(input) {
 //   lines               [{ itemId, description?, quantity, discountPercent?, unitPrice? + manualPriceReason }]
 //   makePrimary         mark it the opportunity's primary quotation (default: when it has none)
 export async function createQuotationFromOpportunity(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.createQuotation, "You do not have permission to create quotations from opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.createQuotation, "You do not have permission to create quotations from deals.");
   if (!can(context, "sales.quotation.create")) throw new CrmError(403, "You need the Sales permission to create quotations.", "PERMISSION_DENIED");
   const idempotencyKey = text(input.idempotencyKey, 200);
   const idempotency = await beginIdempotentOperation(client, context, {
@@ -109,7 +109,7 @@ export async function createQuotationFromOpportunity(client, context, opportunit
   // The row lock serialises two people quoting the same deal.
   const opportunity = await lockOpportunity(client, context, opportunityId);
   assertOpen(opportunity, "quoted");
-  if (!opportunity.owner_user_id) throw new CrmError(409, "Assign an owner to this opportunity before creating a quotation.", "CRM_QUOTATION_OWNER_REQUIRED");
+  if (!opportunity.owner_user_id) throw new CrmError(409, "Assign an owner to this deal before creating a quotation.", "CRM_QUOTATION_OWNER_REQUIRED");
   // Without a date the quotation is valid for the Sales settings default.
   const validUntil = text(input.validUntil, 10);
   if (validUntil && !DATE.test(validUntil)) throw new CrmError(400, "Choose the date the quotation is valid until.", "CRM_QUOTATION_VALIDATION", { field: "validUntil" });

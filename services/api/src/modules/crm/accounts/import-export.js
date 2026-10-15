@@ -26,9 +26,9 @@ const ADDRESS_KEYS = ["line1", "line2", "city", "state", "postalCode", "countryC
 // Importable fields, in template order. `aliases` are other header spellings
 // the column mapping recognizes automatically.
 export const ACCOUNT_IMPORT_FIELDS = Object.freeze([
-  { key: "displayName", label: "Account Name", aliases: ["name", "company", "company name", "account", "organization", "organisation"], sample: "Mehta Fabrics" },
+  { key: "displayName", label: "Company Name", aliases: ["name", "company", "account name", "account", "organization", "organisation"], sample: "Mehta Fabrics" },
   { key: "legalName", label: "Legal Name", aliases: ["registered name", "legal company name"], sample: "Mehta Fabrics Private Limited" },
-  { key: "accountType", label: "Account Type", aliases: ["type"], sample: "Prospect" },
+  { key: "accountType", label: "Company Type", aliases: ["type", "account type"], sample: "Prospect" },
   { key: "industry", label: "Industry", aliases: ["sector"], sample: "Textiles" },
   { key: "website", label: "Website", aliases: ["url", "web"], sample: "https://mehtafabrics.example" },
   { key: "email", label: "Email", aliases: ["email address", "e-mail", "company email"], sample: "info@mehtafabrics.example" },
@@ -83,7 +83,7 @@ function suggestMapping(headers) {
 
 // Step 1: read the file and suggest how its columns map to account fields.
 export async function analyzeAccountImport(_client, context, { bytes, fileName }) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.import, "You do not have permission to import accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.import, "You do not have permission to import companies.");
   const parsed = parseUpload(bytes, fileName);
   return {
     fileName,
@@ -112,12 +112,12 @@ function rowToInput(record, mapping) {
 // options: mapping { header: fieldKey }, defaultSourceId, defaultOwnerUserId,
 //          skipDuplicates (default true: a duplicate row is reported, not created)
 export async function importAccounts(client, context, { bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true }) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.import, "You do not have permission to import accounts.");
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.create, "You do not have permission to create accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.import, "You do not have permission to import companies.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.create, "You do not have permission to create companies.");
   const parsed = parseUpload(bytes, fileName);
   const unknown = Object.keys(mapping).filter((header) => !parsed.headers.includes(header));
   if (unknown.length) throw new CrmError(400, `The file has no column named "${unknown[0]}".`, "CRM_ACCOUNT_IMPORT_MAPPING");
-  if (!Object.values(mapping).includes("displayName")) throw new CrmError(400, "Map the Account Name column.", "CRM_ACCOUNT_IMPORT_MAPPING");
+  if (!Object.values(mapping).includes("displayName")) throw new CrmError(400, "Map the Company Name column.", "CRM_ACCOUNT_IMPORT_MAPPING");
   if (defaultOwnerUserId) await assertEligibleMember(client, context, defaultOwnerUserId);
 
   const ownerByEmail = new Map();
@@ -231,13 +231,13 @@ const EXPORT_COLUMNS = Object.freeze([
 
 // Exports exactly the accounts the list shows for the same view and filters.
 export async function exportAccounts(client, context, filters = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.export, "You do not have permission to export accounts.");
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.viewSensitive, "You do not have permission to export account contact details.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.export, "You do not have permission to export companies.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.viewSensitive, "You do not have permission to export company contact details.");
   const values = [];
   const where = buildAccountListWhere(context, filters, values);
   const { rows } = await client.query(`${ACCOUNT_SELECT} ${where} ORDER BY lower(account.display_name), account.id LIMIT ${EXPORT_ROW_LIMIT + 1}`, values);
   if (rows.length > EXPORT_ROW_LIMIT)
-    throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} accounts. Narrow the filters and try again.`, "CRM_ACCOUNT_EXPORT_TOO_LARGE");
+    throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} companies. Narrow the filters and try again.`, "CRM_ACCOUNT_EXPORT_TOO_LARGE");
   const accounts = rows.map(toAccount);
   return {
     fileName: `accounts-${new Date().toISOString().slice(0, 10)}.csv`,

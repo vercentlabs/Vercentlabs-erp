@@ -11,6 +11,7 @@ import { OPPORTUNITY_PERMISSIONS, OPPORTUNITY_STALE_DAYS } from "../opportunitie
 import { OPPORTUNITY_SELECT, buildOpportunityListWhere, toOpportunity } from "../opportunities/records.js";
 import { listOpportunityStages } from "../opportunities/stages.js";
 import { ensureDefaultSalesPipeline } from "../sales-stages/defaults.js";
+import { orgMonthStart } from "../data-management/org-date.js";
 
 const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
 const CARDS_PER_STAGE = 50;
@@ -114,7 +115,8 @@ export async function getPipelineSummary(client, context, filters = {}) {
   const open = { ...filters, status: "open", view: ["won", "lost", "archived"].includes(filters.view) ? "all" : filters.view };
   const values = [];
   const counted = `(${OPPORTUNITY_SELECT} ${buildOpportunityListWhere(context, open, values)}) counted`;
-  const month = "date_trunc('month', current_date)";
+  // the organization is the list query's first parameter
+  const month = orgMonthStart("$1");
   const closingThisMonth = `counted.expected_close_date >= ${month} AND counted.expected_close_date < ${month} + interval '1 month'`;
 
   const totals = (await client.query(

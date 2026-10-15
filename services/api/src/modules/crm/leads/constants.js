@@ -6,7 +6,7 @@
 // these and add their own, so code tests the stage code, never the name.
 export const DEFAULT_LEAD_STAGES = Object.freeze([
   { code: "new", label: "New" },
-  { code: "attempting_contact", label: "Attempting Contact" },
+  { code: "attempting_contact", label: "Attempting contact" },
   { code: "contacted", label: "Contacted" },
   { code: "nurturing", label: "Nurturing" },
   { code: "qualification", label: "Qualification" },
@@ -28,8 +28,8 @@ export const LEAD_RATINGS = Object.freeze(["cold", "warm", "hot"]);
 // Qualification status is derived from the lead's status and whether
 // qualification has started; it is never stored on its own.
 export const LEAD_QUALIFICATION_STATUSES = Object.freeze([
-  { code: "not_started", label: "Not Qualified Yet" },
-  { code: "in_progress", label: "In Qualification" },
+  { code: "not_started", label: "Not qualified yet" },
+  { code: "in_progress", label: "In qualification" },
   { code: "qualified", label: "Qualified" },
   { code: "disqualified", label: "Disqualified" },
 ]);
@@ -44,14 +44,14 @@ export const LEAD_BUDGET_STATUSES = Object.freeze([
   { code: "confirmed", label: "Confirmed" },
   { code: "likely", label: "Likely" },
   { code: "unknown", label: "Unknown" },
-  { code: "no_budget", label: "No Budget" },
+  { code: "no_budget", label: "No budget" },
 ]);
 
 export const LEAD_AUTHORITY_STATUSES = Object.freeze([
-  { code: "decision_maker", label: "Decision Maker" },
+  { code: "decision_maker", label: "Decision maker" },
   { code: "influencer", label: "Influencer" },
   { code: "unknown", label: "Unknown" },
-  { code: "no_authority", label: "No Authority" },
+  { code: "no_authority", label: "No authority" },
 ]);
 
 export const LEAD_PURCHASE_TIMEFRAMES = Object.freeze([
@@ -65,16 +65,16 @@ export const LEAD_PURCHASE_TIMEFRAMES = Object.freeze([
 ]);
 
 export const LEAD_DISQUALIFICATION_REASONS = Object.freeze([
-  { code: "no_requirement", label: "No Requirement" },
-  { code: "no_budget", label: "No Budget" },
-  { code: "not_decision_maker", label: "No Authority" },
-  { code: "timing_not_suitable", label: "Timing Not Suitable" },
-  { code: "not_interested", label: "Not Interested" },
+  { code: "no_requirement", label: "No requirement" },
+  { code: "no_budget", label: "No budget" },
+  { code: "not_decision_maker", label: "No authority" },
+  { code: "timing_not_suitable", label: "Timing not suitable" },
+  { code: "not_interested", label: "Not interested" },
   { code: "unable_to_contact", label: "Unable to Contact" },
-  { code: "invalid_contact", label: "Invalid Lead" },
+  { code: "invalid_contact", label: "Invalid lead" },
   { code: "duplicate", label: "Duplicate" },
-  { code: "competitor_selected", label: "Competitor Selected" },
-  { code: "bad_fit", label: "Poor Fit" },
+  { code: "competitor_selected", label: "Competitor selected" },
+  { code: "bad_fit", label: "Poor fit" },
   { code: "other", label: "Other" },
 ]);
 

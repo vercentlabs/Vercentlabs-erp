@@ -23,6 +23,7 @@ import { LEAD_PERMISSIONS, leadAssignmentMethodLabel } from "./constants.js";
 import { recordLeadHistory } from "./history.js";
 import { requireUuid } from "./validation.js";
 import { transferOpenFollowUps } from "../follow-ups/lifecycle.js";
+import { orgDayStart } from "../data-management/org-date.js";
 
 const BULK_LIMIT = 200;
 const OPEN_STATUSES = "('open', 'qualified')";
@@ -224,7 +225,7 @@ export async function lockVisibleLead(client, context, leadId) {
 
 function assertAssignable(lead, expectedUpdatedAt) {
   if (lead.status === "converted")
-    throw new CrmError(409, "A converted lead cannot be reassigned. Reassign its account, contact or opportunity instead.", "CRM_LEAD_CONVERTED");
+    throw new CrmError(409, "A converted lead cannot be reassigned. Reassign its company, contact or deal instead.", "CRM_LEAD_CONVERTED");
   // Two people assigning the same lead at once: the second sees a conflict instead of silently overwriting.
   if (expectedUpdatedAt && new Date(expectedUpdatedAt).getTime() !== new Date(lead.updated_at).getTime())
     throw new CrmError(409, "This lead was changed by someone else. Reload it and try again.", "CRM_STALE_WRITE");
@@ -439,7 +440,7 @@ export async function getLeadAssignmentWorkload(client, context) {
     `SELECT app_user.id, app_user.full_name AS name,
             count(lead.id) FILTER (WHERE lead.status = 'open')::int AS open_leads,
             count(lead.id) FILTER (WHERE lead.status = 'qualified')::int AS qualified_leads,
-            count(lead.id) FILTER (WHERE lead.assigned_at >= current_date)::int AS assigned_today,
+            count(lead.id) FILTER (WHERE lead.assigned_at >= ${orgDayStart("$1")})::int AS assigned_today,
             count(lead.id) FILTER (WHERE lead.first_activity_at IS NULL AND lead.assigned_at < now() - interval '2 days')::int AS no_activity,
             count(lead.id) FILTER (WHERE follow_up.overdue)::int AS overdue_follow_ups
        FROM organization_memberships membership

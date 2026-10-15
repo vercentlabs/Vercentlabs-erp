@@ -119,7 +119,7 @@ export function AccountImportScreen({ embedded = false }: { embedded?: boolean }
           <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border">
             <table className="w-full text-sm">
               <thead className="bg-surface-muted text-left text-text-secondary">
-                <tr><th className="px-3 py-2 font-medium">Column in your file</th><th className="px-3 py-2 font-medium">Example</th><th className="px-3 py-2 font-medium">Account field</th></tr>
+                <tr><th className="px-3 py-2 font-medium">Column in your file</th><th className="px-3 py-2 font-medium">Example</th><th className="px-3 py-2 font-medium">Company field</th></tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {analysis.headers.map((header) => (
@@ -128,7 +128,7 @@ export function AccountImportScreen({ embedded = false }: { embedded?: boolean }
                     <td className="px-3 py-2 text-text-secondary">{analysis.sampleRows.find((row) => row[header])?.[header] ?? ""}</td>
                     <td className="px-3 py-2">
                       <Select
-                        aria-label={`Account field for ${header}`}
+                        aria-label={`Company field for ${header}`}
                         size="compact"
                         selectedKey={mapping[header] ?? SKIP}
                         onSelectionChange={(key) => {
@@ -148,7 +148,7 @@ export function AccountImportScreen({ embedded = false }: { embedded?: boolean }
               </tbody>
             </table>
           </div>
-          {!hasName && <ErrorBanner message="Map the Account Name column." />}
+          {!hasName && <ErrorBanner message="Map the Company Name column." />}
         </Step>
       )}
 

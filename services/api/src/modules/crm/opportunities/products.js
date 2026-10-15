@@ -44,7 +44,7 @@ export async function listOpportunityProducts(client, context, opportunityId) {
 
 // Products and services that can be put on a deal.
 export async function searchOpportunityProducts(client, context, search = "") {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
   const { rows } = await client.query(
     `SELECT id, code, name, item_type FROM tenant.items
       WHERE organization_id = $1 AND status = 'active' AND is_sellable AND ($2 = '' OR lower(name || ' ' || code) LIKE $2)
@@ -75,7 +75,7 @@ function amounts(input, current = {}) {
 
 // input: { productId (required), quantity?, unitPrice? (defaults to the price on the account's or the default price list, when it has one), discountPercent?, description? }
 export async function addOpportunityProduct(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit deals.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
   assertOpen(opportunity, "changed");
   const product = (await client.query(`SELECT id, name FROM tenant.items WHERE organization_id = $1 AND id = $2 AND status = 'active' AND is_sellable`,
@@ -100,7 +100,7 @@ async function lockLine(client, context, opportunityId, lineId) {
 
 // input: { quantity?, unitPrice?, discountPercent?, description? }
 export async function updateOpportunityProduct(client, context, opportunityId, lineId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit deals.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
   assertOpen(opportunity, "changed");
   const current = await lockLine(client, context, opportunity.id, lineId);
@@ -118,7 +118,7 @@ export async function updateOpportunityProduct(client, context, opportunityId, l
 }
 
 export async function removeOpportunityProduct(client, context, opportunityId, lineId) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit deals.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
   assertOpen(opportunity, "changed");
   const current = await lockLine(client, context, opportunity.id, lineId);

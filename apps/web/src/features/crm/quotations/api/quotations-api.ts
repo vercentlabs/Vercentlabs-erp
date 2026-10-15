@@ -15,7 +15,8 @@ export type QuotationCapabilities = Record<
   "createFromOpportunity" | "viewSales" | "overridePrice" | "applyDiscount" | "createCustomer" | "send" | "revise" | "accept" | "reject" | "cancel" | "createOrder",
   boolean
 >;
-export type QuotationCheck = { key: string; label: string; met: boolean; blocking?: boolean; value: string | null };
+// format: show the value as money (with currencyCode) or as a date; the server sends the raw number and the ISO date.
+export type QuotationCheck = { key: string; label: string; met: boolean; blocking?: boolean; value: string | null; format?: "money" | "date"; currencyCode?: string };
 export type CustomerMatch = {
   id: string; code: string | null; name: string; legalName?: string | null; customerNumber?: string | null; website?: string | null; city?: string | null;
   ownerName?: string | null; strength: string; signals: string[]; canOpen: boolean;

@@ -83,9 +83,9 @@ export function AssignAccountsDialog({ isOpen, onOpenChange, partyIds, options, 
 }
 
 const STATUS_COPY: Record<AccountStatus, { title: string; description: string; confirm: string }> = {
-  inactive: { title: "Deactivate", description: "An inactive account stays searchable with all its history, but is marked as not in use.", confirm: "Deactivate" },
+  inactive: { title: "Deactivate", description: "An inactive company stays searchable with all its history, but is marked as not in use.", confirm: "Deactivate" },
   active: { title: "Reactivate", description: "The company becomes active again.", confirm: "Reactivate" },
-  archived: { title: "Archive", description: "An archived account is hidden from the working lists and can no longer be changed until it is reactivated. Nothing is deleted.", confirm: "Archive" },
+  archived: { title: "Archive", description: "An archived company is hidden from the working lists and can no longer be changed until it is reactivated. Nothing is deleted.", confirm: "Archive" },
 };
 
 export function AccountStatusDialog({ isOpen, onOpenChange, partyIds, status, onDone }: Omit<ActionDialogProps, "options"> & { status: AccountStatus }) {

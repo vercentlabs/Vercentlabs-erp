@@ -107,7 +107,7 @@ export const DUPLICATE_QUEUE_TYPES = Object.freeze([
   { code: "lead_lead", label: "Lead and lead" },
   { code: "lead_contact", label: "Lead and contact" },
   { code: "contact_contact", label: "Contact and contact" },
-  { code: "account_account", label: "Account and account" },
+  { code: "account_account", label: "Company and company" },
 ]);
 
 const side = (row, prefix, type) => ({

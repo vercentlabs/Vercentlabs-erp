@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays } from "lucide-react";
-import { ErrorState, LinkButton, PageHeader, Select, TextField } from "@vercentlabs/design-system";
+import { Button, ErrorState, LinkButton, PageHeader, Select, TextField } from "@vercentlabs/design-system";
 
 import { WinLossReportPanel } from "@/features/crm/close-reasons/components/WinLossReportPanel";
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
@@ -79,7 +79,7 @@ export function OpportunityDashboardScreen() {
         <p className="flex items-center gap-1.5 pb-2 text-sm font-semibold"><CalendarDays className="size-4 text-brand" aria-hidden="true" />Deals closed between</p>
         <DateInput label="From" value={from} onChange={setFrom} />
         <DateInput label="To" value={to} onChange={setTo} />
-        <p className="pb-2 text-xs text-text-muted">Results and Won and lost use this range; the pipeline figures are as of now.</p>
+        <p className="pb-2 text-xs text-text-muted">Results and why deals were won and lost use this range; the pipeline figures are as of now.</p>
       </section>
 
       {dashboardQuery.isLoading ? <LoadingState label="Loading dashboard" rows={6} />
@@ -111,8 +111,12 @@ export function OpportunityDashboardScreen() {
               </div>
             </section>
 
-            {currency && <WinLossReportPanel currency={currency} period={{ from, to }} />}
+            {currency && <WinLossReportPanel currency={currency} period={{ from, to }} hideTotals />}
 
+            {summaryQuery.isError && (
+              <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger">Pipeline figures couldn&apos;t be loaded.
+              <Button variant="ghost" size="compact" onPress={() => void summaryQuery.refetch()}>Try again</Button></p>
+            )}
             {summaryQuery.data && currency && (
               <PipelineBreakdowns summary={summaryQuery.data} pipeline={pipelineQuery.data} currency={currency}
                 onSelectOwner={(ownerId) => router.push(`/crm/pipeline?ownerId=${ownerId ?? "unassigned"}`)} />

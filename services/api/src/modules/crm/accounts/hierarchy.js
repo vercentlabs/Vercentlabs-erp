@@ -8,21 +8,21 @@ import { getAccount, lockAccount } from "./records.js";
 import { requireUuid } from "./validation.js";
 
 export async function setAccountParent(client, context, partyId, input = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to edit accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to edit companies.");
   const account = await lockAccount(client, context, partyId);
   const parentId = input.parentPartyId ? requireUuid(input.parentPartyId, "Parent account") : null;
   if ((account.parent_party_id || null) === parentId) return { changed: false };
   let parent = null;
   if (parentId) {
-    if (parentId === account.id) throw new CrmError(409, "An account cannot be its own parent.", "CRM_ACCOUNT_PARENT_SELF");
+    if (parentId === account.id) throw new CrmError(409, "A company cannot be its own parent.", "CRM_ACCOUNT_PARENT_SELF");
     const values = [context.organizationId, parentId];
     parent = (await client.query(
       `SELECT account.id, account.display_name, account.status FROM tenant.business_parties account
         WHERE account.organization_id = $1 AND account.id = $2 AND ${CRM_ACCOUNT_PARTY_SQL("account")}${accountScopeSql(context, values, "account")}`,
       values,
     )).rows[0];
-    if (!parent) throw new CrmError(404, "Parent account not found.", "CRM_ACCOUNT_NOT_FOUND");
-    if (parent.status === "archived") throw new CrmError(409, "Choose an account that is not archived.", "CRM_ACCOUNT_ARCHIVED");
+    if (!parent) throw new CrmError(404, "Parent company not found.", "CRM_ACCOUNT_NOT_FOUND");
+    if (parent.status === "archived") throw new CrmError(409, "Choose a company that is not archived.", "CRM_ACCOUNT_ARCHIVED");
     // The new parent must not already sit below this account.
     const loop = await client.query(
       `WITH RECURSIVE chain AS (
@@ -33,7 +33,7 @@ export async function setAccountParent(client, context, partyId, input = {}) {
        SELECT 1 FROM chain WHERE id = $3 LIMIT 1`,
       [context.organizationId, parentId, account.id],
     );
-    if (loop.rows[0]) throw new CrmError(409, "That account is already below this one, so it cannot be its parent.", "CRM_ACCOUNT_PARENT_CYCLE");
+    if (loop.rows[0]) throw new CrmError(409, "That company is already below this one, so it cannot be its parent.", "CRM_ACCOUNT_PARENT_CYCLE");
   }
   await client.query(`UPDATE tenant.business_parties SET parent_party_id = $3, updated_by = $4, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, account.id, parentId, context.userId ?? null]);

@@ -17,7 +17,8 @@ import { WIN_LOSS_GROUPS, errorMessage, getWinLossReport, type WinLossReasonShar
 const monthStart = () => { const now = new Date(); return new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString().slice(0, 10); };
 
 // period: the page's own "closed between" range (the deal dashboard); without it the panel shows its own date fields.
-export function WinLossReportPanel({ currency, period }: { currency: string; period?: { from: string; to: string } }) {
+// hideTotals: the page already shows the won/lost figures, so the panel is only the explanation (reason shares and the breakdown).
+export function WinLossReportPanel({ currency, period, hideTotals = false }: { currency: string; period?: { from: string; to: string }; hideTotals?: boolean }) {
   const workspace = useWorkspaceContext();
   const [ownFrom, setFrom] = useState(monthStart);
   const [ownTo, setTo] = useState(() => new Date().toISOString().slice(0, 10));
@@ -29,7 +30,7 @@ export function WinLossReportPanel({ currency, period }: { currency: string; per
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 className="text-base font-semibold">Won and lost</h2>
+        <h2 className="text-base font-semibold">{hideTotals ? "Why deals were won and lost" : "Won and lost"}</h2>
         <div className="flex flex-wrap items-end gap-3">
           {!period && <DateInput label="Closed from" value={from} onChange={setFrom} />}
           {!period && <DateInput label="To" value={to} onChange={setTo} />}
@@ -39,14 +40,14 @@ export function WinLossReportPanel({ currency, period }: { currency: string; per
       {report.isError && <p role="alert" className="text-sm text-danger">{errorMessage(report.error, "The report could not be loaded.")}</p>}
       {data && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          {!hideTotals && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <MetricCard label="Won" value={data.totals.won} />
             <MetricCard label="Won value" value={formatMoney(currency, data.totals.wonValue)} />
             <MetricCard label="Lost" value={data.totals.lost} />
             <MetricCard label="Lost pipeline value" value={formatMoney(currency, data.totals.lostValue)} />
             <MetricCard label="Win rate" value={data.totals.winRate === null ? "–" : `${data.totals.winRate}%`} />
             <MetricCard label="Top lost reason" value={data.totals.topLostReason ?? "–"} />
-          </div>
+          </div>}
           <div className="grid gap-6 lg:grid-cols-2">
             <ReasonShares title="Lost reasons" rows={data.lostReasons} empty="No lost deals in this period." />
             <ReasonShares title="Won reasons" rows={data.wonReasons} empty="No won deals in this period." />

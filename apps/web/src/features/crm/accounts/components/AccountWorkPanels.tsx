@@ -99,7 +99,7 @@ export function AccountActivitiesPanel({ accountId, options, canEdit }: PanelPro
         query={query}
         isEmpty={logged.length === 0}
         emptyTitle="No activities logged"
-        emptyDescription="Calls, emails and meetings with this company and its people appear here, including those logged on its contacts and opportunities."
+        emptyDescription="Calls, emails and meetings with this company and its people appear here, including those logged on its contacts and deals."
       >
         {logged.map((activity) => (
           <li key={activity.id} className="flex flex-col gap-1 px-4 py-3 text-sm">
@@ -155,7 +155,7 @@ export function LogAccountActivityDialog({ isOpen, onOpenChange, accountId, opti
           <DateTimeInput label="When" description="Leave empty for now." value={occurredAt} onChange={setOccurredAt} />
         </div>
         <Select label="Contact" selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key))} options={contactOptions} />
-        <TextField label="Subject" description="Leave empty to use the activity type and account name." value={subject} onChange={setSubject} />
+        <TextField label="Subject" description="Leave empty to use the activity type and company name." value={subject} onChange={setSubject} />
         <TextField label="Outcome" value={outcome} onChange={setOutcome} placeholder="For example: Asked for a revised quote" />
         <TextArea label="Notes" value={notes} onChange={setNotes} />
         <div className="flex justify-end gap-2">

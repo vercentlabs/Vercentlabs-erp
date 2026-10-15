@@ -39,10 +39,10 @@ export async function listOpportunityActivities(client, context, opportunityId) 
 
 // input: { type: call | email | meeting | task | other, dueAt, assignedTo?, notes?, subject? }
 export async function scheduleOpportunityFollowUp(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to schedule follow-ups on opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to schedule follow-ups on deals.");
   if (!input.dueAt && !input.scheduledDate) throw new CrmError(400, "Choose the follow-up date.", "CRM_OPPORTUNITY_FOLLOW_UP_VALIDATION");
   const opportunity = await lockOpportunity(client, context, opportunityId);
-  if (opportunity.status !== "open") throw new CrmError(409, `This opportunity is ${opportunity.status}. Reopen it to schedule more work.`, "CRM_OPPORTUNITY_CLOSED");
+  if (opportunity.status !== "open") throw new CrmError(409, `This deal is ${opportunity.status}. Reopen it to schedule more work.`, "CRM_OPPORTUNITY_CLOSED");
   return scheduleFollowUp(client, context, {
     relatedType: "opportunity", relatedId: opportunity.id, type: input.type, subject: input.subject, notes: input.notes, contactId: input.contactId, assignedTo: input.assignedTo,
     scheduledDate: input.scheduledDate, scheduledTime: input.scheduledTime, scheduledAt: input.dueAt, reminderOffsetMinutes: input.reminderOffsetMinutes,
@@ -53,7 +53,7 @@ export async function scheduleOpportunityFollowUp(client, context, opportunityId
 // input: { type: call | email | meeting | demo | other, subject?, notes?, outcome?, occurredAt?, contactId?,
 //          nextAction?: { type, dueAt, assignedTo?, notes? } }
 export async function addOpportunityActivity(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to log activities on opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to log activities on deals.");
   const type = TYPES.get(text(input.type).toLowerCase());
   if (!type) throw new CrmError(400, "Choose an activity type.", "CRM_OPPORTUNITY_ACTIVITY_VALIDATION");
   const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
@@ -65,7 +65,7 @@ export async function addOpportunityActivity(client, context, opportunityId, inp
   if (notes.length > 4000 || outcome.length > 1000) throw new CrmError(400, "The notes or outcome are too long.", "CRM_OPPORTUNITY_ACTIVITY_VALIDATION");
 
   const opportunity = await lockOpportunity(client, context, opportunityId);
-  if (opportunity.archived_at) throw new CrmError(409, "Restore this opportunity before logging work on it.", "CRM_OPPORTUNITY_ARCHIVED");
+  if (opportunity.archived_at) throw new CrmError(409, "Restore this deal before logging work on it.", "CRM_OPPORTUNITY_ARCHIVED");
   const contact = isUuid(input.contactId) ? await requireAccountContact(client, context, input.contactId, opportunity.party_id) : null;
   const subject = (text(input.subject) || `${type.label}${contact ? ` with ${contact.display_name}` : ""}: ${opportunity.name}`).slice(0, 300);
   const { rows } = await client.query(

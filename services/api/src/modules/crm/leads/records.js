@@ -19,6 +19,7 @@ import { recordLeadHistory } from "./history.js";
 import { assertActiveLeadSource } from "./sources.js";
 import { applyLeadStage, ensureDefaultLeadStages, recordLeadStageEntry, requireStageChangePermission } from "./stages.js";
 import { LEAD_WRITABLE_COLUMNS, assertValidLead, isUuid, normalizeLeadInput, requireUuid } from "./validation.js";
+import { orgDayStart } from "../data-management/org-date.js";
 
 const DUPLICATE_IDENTITY_FIELDS = ["email", "phone", "mobile", "firstName", "lastName", "companyName"];
 const BULK_LIMIT = 200;
@@ -34,7 +35,7 @@ export const LEAD_SELECT = `
          qualification.need_status AS q_need_status, qualification.need_description AS q_need_description,
          qualification.budget_status AS q_budget_status, qualification.budget_min AS q_budget_min, qualification.budget_max AS q_budget_max,
          qualification.authority_status AS q_authority_status, qualification.authority_detail AS q_authority_detail,
-         qualification.notes AS q_notes, qualification.started_at AS q_started_at, qualification.override_reason AS q_override_reason,
+         qualification.notes AS q_notes, qualification.started_at AS q_started_at, qualification.override_reason AS q_override_reason, overrider.full_name AS q_overridden_by_name,
          stage_def.name AS stage_name, stage_def.sequence AS stage_sequence,
          floor(EXTRACT(epoch FROM now() - lead.stage_changed_at) / 86400)::int AS stage_age_days,
          floor(EXTRACT(epoch FROM now() - COALESCE(lead.last_activity_at, lead.created_at)) / 86400)::int AS days_since_activity,
@@ -59,6 +60,7 @@ export const LEAD_SELECT = `
     LEFT JOIN public.users qualifier ON qualifier.id = lead.qualified_by
     LEFT JOIN public.users disqualifier ON disqualifier.id = lead.disqualified_by
     LEFT JOIN tenant.crm_lead_qualifications qualification ON qualification.organization_id = lead.organization_id AND qualification.lead_id = lead.id
+    LEFT JOIN public.users overrider ON overrider.id = qualification.overridden_by
     LEFT JOIN tenant.crm_lead_assignment_rules assignment_rule ON assignment_rule.organization_id = lead.organization_id AND assignment_rule.id = lead.assignment_rule_id
     LEFT JOIN tenant.crm_sales_teams team ON team.organization_id = lead.organization_id AND team.id = lead.team_id
     LEFT JOIN LATERAL (
@@ -245,7 +247,8 @@ export const QUALIFICATION_STATUS_SQL = Object.freeze({
 // so "what I see" and "what I export" can never differ.
 export function buildLeadListWhere(context, filters = {}, values = []) {
   const bind = (value) => { values.push(value); return `$${values.length}`; };
-  const where = [`lead.organization_id = ${bind(context.organizationId)}`];
+  const org = bind(context.organizationId);
+  const where = [`lead.organization_id = ${org}`];
   const view = filters.view || "all";
   where.push(view === "archived" ? "lead.archived_at IS NOT NULL" : "lead.archived_at IS NULL");
   // The working list views leave converted leads out; they stay under Converted Leads, in search,
@@ -258,7 +261,7 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   if (view === "no_activity") where.push("lead.owner_user_id IS NOT NULL AND lead.status = 'open' AND lead.first_activity_at IS NULL");
   if (view === "new") where.push("lead.stage = 'new' AND lead.status = 'open'");
   if (view === "follow_up") where.push("follow_up.next_follow_up_at IS NOT NULL");
-  if (view === "due_today") where.push("follow_up.next_follow_up_at >= current_date AND follow_up.next_follow_up_at < current_date + interval '1 day'");
+  if (view === "due_today") where.push(`follow_up.next_follow_up_at >= ${orgDayStart(org)} AND follow_up.next_follow_up_at < ${orgDayStart(org)} + interval '1 day'`);
   if (view === "overdue") where.push("follow_up.next_follow_up_at < now()");
   if (view === "no_follow_up") where.push("lead.status = 'open' AND follow_up.next_follow_up_at IS NULL");
   if (["qualified", "disqualified", "converted"].includes(view)) where.push(`lead.status = ${bind(view)}`);
@@ -413,7 +416,7 @@ export async function createLead(client, context, input = {}, {
 function assertEditable(lead) {
   if (lead.archived_at) throw new CrmError(409, "Restore this lead before changing it.", "CRM_LEAD_ARCHIVED");
   if (lead.status === "converted")
-    throw new CrmError(409, "A converted lead is read-only. Work on its opportunity instead.", "CRM_LEAD_CONVERTED");
+    throw new CrmError(409, "A converted lead is read-only. Work on its deal instead.", "CRM_LEAD_CONVERTED");
 }
 
 // expectedUpdatedAt (optional): refuses the save when someone else changed

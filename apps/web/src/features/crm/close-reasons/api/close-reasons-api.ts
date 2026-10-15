@@ -41,7 +41,7 @@ export const CLOSE_REASON_CATEGORIES = [
 ];
 export const WIN_LOSS_GROUPS = [
   { value: "reason", label: "Reason" }, { value: "owner", label: "Owner" }, { value: "team", label: "Team" }, { value: "source", label: "Lead source" },
-  { value: "product", label: "Product" }, { value: "account", label: "Account" }, { value: "industry", label: "Industry" }, { value: "stage", label: "Final stage" },
+  { value: "product", label: "Product" }, { value: "account", label: "Company" }, { value: "industry", label: "Industry" }, { value: "stage", label: "Final stage" },
   { value: "month", label: "Close month" },
 ];
 

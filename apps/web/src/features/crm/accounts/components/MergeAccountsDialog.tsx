@@ -58,8 +58,8 @@ export function MergeAccountsDialog({ keep, isOpen, onOpenChange, initialDuplica
       description="Everything recorded against the duplicate moves to this company. The duplicate is archived, not deleted, and links to it open this company." size="lg">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
-        <AccountPicker label="Duplicate account" value={duplicateId} excludeId={keep.id} onChange={(id) => { setDuplicateId(id); setChoices({}); setError(null); }} />
-        {duplicateId && preview.isLoading && <LoadingState label="Comparing accounts" rows={3} />}
+        <AccountPicker label="Duplicate company" value={duplicateId} excludeId={keep.id} onChange={(id) => { setDuplicateId(id); setChoices({}); setError(null); }} />
+        {duplicateId && preview.isLoading && <LoadingState label="Comparing companies" rows={3} />}
         {preview.isError && <ErrorBanner message={errorMessage(preview.error)} />}
         {data && (
           <>
@@ -91,7 +91,7 @@ export function MergeAccountsDialog({ keep, isOpen, onOpenChange, initialDuplica
         )}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="danger" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!data || data.blockers.length > 0}>Merge accounts</Button>
+          <Button variant="danger" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!data || data.blockers.length > 0}>Merge companies</Button>
         </div>
       </div>
     </Dialog>

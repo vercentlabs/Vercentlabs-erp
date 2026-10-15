@@ -65,16 +65,16 @@ async function assertAccountContact(client, context, partyId, contactId) {
   if (!contactId) return null;
   const { rows } = await client.query(`SELECT contact_id AS id FROM tenant.crm_contact_account_relationships WHERE organization_id = $1 AND contact_id = $2 AND party_id = $3 AND status = 'active'`,
     [context.organizationId, requireUuid(contactId, "Contact"), partyId]);
-  if (!rows[0]) throw new CrmError(400, "Choose a contact of this account.", "CRM_ACCOUNT_ACTIVITY_VALIDATION");
+  if (!rows[0]) throw new CrmError(400, "Choose a contact of this company.", "CRM_ACCOUNT_ACTIVITY_VALIDATION");
   return rows[0].id;
 }
 
 // input: { type: call | email | meeting | task | other, dueAt, assignedTo?, notes?, subject?, contactId? }
 export async function scheduleAccountFollowUp(client, context, partyId, input = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to schedule follow-ups on accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to schedule follow-ups on companies.");
   if (!input.dueAt && !input.scheduledDate) throw new CrmError(400, "Choose the follow-up date.", "CRM_ACCOUNT_FOLLOW_UP_VALIDATION");
   const account = await lockAccount(client, context, partyId);
-  if (account.status === "archived") throw new CrmError(409, "Reactivate this account before scheduling work on it.", "CRM_ACCOUNT_ARCHIVED");
+  if (account.status === "archived") throw new CrmError(409, "Reactivate this company before scheduling work on it.", "CRM_ACCOUNT_ARCHIVED");
   const contactId = await assertAccountContact(client, context, account.id, input.contactId);
   return scheduleFollowUp(client, context, {
     relatedType: "party", relatedId: account.id, type: input.type, subject: input.subject, notes: input.notes, contactId: input.contactId, assignedTo: input.assignedTo,
@@ -85,7 +85,7 @@ export async function scheduleAccountFollowUp(client, context, partyId, input = 
 
 // input: { type: call | email | meeting | other, subject?, notes?, outcome?, occurredAt?, contactId?, nextAction?: { type, dueAt, assignedTo?, notes? } }
 export async function addAccountActivity(client, context, partyId, input = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to log activities on accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to log activities on companies.");
   const type = text(input.type).toLowerCase();
   if (!ACTIVITY_TYPES.has(type)) throw new CrmError(400, "Choose an activity type.", "CRM_ACCOUNT_ACTIVITY_VALIDATION");
   const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
@@ -97,7 +97,7 @@ export async function addAccountActivity(client, context, partyId, input = {}) {
   if (notes.length > 4000 || outcome.length > 1000) throw new CrmError(400, "The notes or outcome are too long.", "CRM_ACCOUNT_ACTIVITY_VALIDATION");
 
   const account = await lockAccount(client, context, partyId);
-  if (account.status === "archived") throw new CrmError(409, "Reactivate this account before logging work on it.", "CRM_ACCOUNT_ARCHIVED");
+  if (account.status === "archived") throw new CrmError(409, "Reactivate this company before logging work on it.", "CRM_ACCOUNT_ARCHIVED");
   const contactId = await assertAccountContact(client, context, account.id, input.contactId);
   const subject = (text(input.subject) || `${ACTIVITY_TYPES.get(type)} with ${account.display_name}`).slice(0, 300);
   const { rows } = await client.query(

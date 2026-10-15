@@ -254,8 +254,8 @@ export async function loadLinkableAccount(client, context, accountId) {
       WHERE account.organization_id = $1 AND account.id = $2 AND account.party_type <> 'supplier'${accountScopeSql(context, values, "account")}`,
     values,
   );
-  if (!rows[0]) throw new CrmError(404, "Account not found.", "CRM_ACCOUNT_NOT_FOUND");
-  if (rows[0].status === "archived") throw new CrmError(409, "This account is archived. Choose an active account.", "CRM_ACCOUNT_ARCHIVED");
+  if (!rows[0]) throw new CrmError(404, "Company not found.", "CRM_ACCOUNT_NOT_FOUND");
+  if (rows[0].status === "archived") throw new CrmError(409, "This company is archived. Choose an active company.", "CRM_ACCOUNT_ARCHIVED");
   return rows[0];
 }
 

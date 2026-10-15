@@ -13,7 +13,7 @@ const STALE_DAYS = ACCOUNT_STALE_DAYS;
 
 // The cards above the account list, for the current view and filters.
 export async function getAccountListSummary(client, context, filters = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view companies.");
   const values = [];
   const where = buildAccountListWhere(context, filters, values);
   const { rows } = await client.query(
@@ -46,7 +46,7 @@ export async function getAccountListSummary(client, context, filters = {}) {
 
 const REPORT_GROUPS = Object.freeze({
   owner: { expression: "COALESCE(owner.full_name, 'Unassigned')", label: "Owner" },
-  type: { expression: "account.account_type", label: "Account type" },
+  type: { expression: "account.account_type", label: "Company type" },
   status: { expression: "account.status", label: "Status" },
   industry: { expression: "COALESCE(NULLIF(account.industry, ''), 'No industry')", label: "Industry" },
   source: { expression: "COALESCE(source.name, 'No source')", label: "Source" },
@@ -58,7 +58,7 @@ const REPORT_GROUPS = Object.freeze({
 // with open opportunities and accounts without recent activity. Accepts the
 // account list's filters (createdFrom/To, ownerId, accountType, …).
 export async function getAccountReport(client, context, input = {}) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view companies.");
   const groupBy = REPORT_GROUPS[input.groupBy] ? input.groupBy : "owner";
   const values = [];
   const where = buildAccountListWhere(context, { ...input, view: input.view || "all" }, values);

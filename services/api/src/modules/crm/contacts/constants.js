@@ -8,7 +8,7 @@ export const CONTACT_STATUSES = Object.freeze([
 ]);
 
 export const CONTACT_ROLES = Object.freeze([
-  { code: "decision_maker", label: "Decision Maker" },
+  { code: "decision_maker", label: "Decision maker" },
   { code: "influencer", label: "Influencer" },
   { code: "champion", label: "Champion" },
   { code: "procurement", label: "Procurement" },
@@ -17,9 +17,9 @@ export const CONTACT_ROLES = Object.freeze([
   { code: "operations", label: "Operations" },
   { code: "user", label: "User" },
   { code: "executive", label: "Executive" },
-  { code: "billing", label: "Billing Contact" },
-  { code: "shipping", label: "Shipping Contact" },
-  { code: "support", label: "Support Contact" },
+  { code: "billing", label: "Billing contact" },
+  { code: "shipping", label: "Shipping contact" },
+  { code: "support", label: "Support contact" },
   { code: "other", label: "Other" },
 ]);
 

@@ -117,5 +117,5 @@ export async function assertNoBlockingAccountDuplicate(client, context, input, {
     normalizeGstin(input.gstin), normalizeDomain(input.website), normalizeCompanyName(input.displayName), normalizeCompanyName(input.legalName),
   ]);
   const result = await findDuplicateAccounts(client, context, input, { excludeId });
-  return enforceDuplicatePolicy(context, result, { allowDuplicate, reason, code: "CRM_ACCOUNT_DUPLICATE", message: "An account like this already exists." });
+  return enforceDuplicatePolicy(context, result, { allowDuplicate, reason, code: "CRM_ACCOUNT_DUPLICATE", message: "A company like this already exists." });
 }

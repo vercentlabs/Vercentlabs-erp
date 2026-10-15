@@ -8,7 +8,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, Checkbox, Dialog, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { listContacts } from "@/features/crm/contacts/api/contacts-api";
-import { DateInput, DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
+import { DateInput, DateTimeInput, TimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -103,7 +103,7 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
         <div className="grid gap-4 sm:grid-cols-3">
           <Select label="Type" selectedKey={type} onSelectionChange={(key) => setType(String(key) as FollowUpType)} options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} />
           {!editing && <DateInput label="Date" isRequired value={scheduledDate} onChange={setScheduledDate} />}
-          {!editing && <TextField label="Time" type="time" description="Optional." value={scheduledTime} onChange={setScheduledTime} />}
+          {!editing && <TimeInput label="Time" description="Optional." value={scheduledTime} onChange={setScheduledTime} />}
         </div>
         <TextField label="Subject" description="Leave empty to use the type and the record's name." value={subject} onChange={setSubject} placeholder="For example: Follow up on ERP pricing" />
         <div className="grid gap-4 sm:grid-cols-2">
@@ -142,7 +142,7 @@ export function RescheduleFollowUpDialog({ isOpen, onOpenChange, followUp, onDon
         <ErrorBanner message={error} />
         <div className="grid gap-4 sm:grid-cols-2">
           <DateInput label="New date" isRequired value={scheduledDate} onChange={setScheduledDate} />
-          <TextField label="New time" type="time" description="Optional." value={scheduledTime} onChange={setScheduledTime} />
+          <TimeInput label="New time" description="Optional." value={scheduledTime} onChange={setScheduledTime} />
         </div>
         <TextField label="Reason" description="Optional." value={reason} onChange={setReason} />
         <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Reschedule" isLoading={mutation.isPending} isDisabled={!scheduledDate} />
@@ -188,7 +188,7 @@ export function CompleteFollowUpDialog({ isOpen, onOpenChange, followUp, options
           <div className="grid gap-4 sm:grid-cols-3">
             <Select label="Type" selectedKey={nextType} onSelectionChange={(key) => setNextType(String(key) as FollowUpType)} options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} />
             <DateInput label="Date" isRequired value={nextDate} onChange={setNextDate} />
-            <TextField label="Time" type="time" value={nextTime} onChange={setNextTime} />
+            <TimeInput label="Time" value={nextTime} onChange={setNextTime} />
           </div>
         )}
         <Checkbox isSelected={nextTask} onChange={setNextTask}>Create a task</Checkbox>

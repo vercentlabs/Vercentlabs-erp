@@ -10,17 +10,17 @@
 // `label` is the requirement in a word or two, shown on the stage track before anyone tries the move.
 const REQUIREMENTS = Object.freeze({
   PROPOSAL: [
-    { key: "contact", label: "Primary contact", missing: (row) => !row.contact_id, message: "Choose a primary contact before moving this opportunity to" },
-    { key: "value", label: "Estimated value", missing: (row) => !(Number(row.amount) > 0), message: "Enter the estimated value before moving this opportunity to" },
+    { key: "contact", label: "Primary contact", missing: (row) => !row.contact_id, message: "Choose a primary contact before moving this deal to" },
+    { key: "value", label: "Estimated value", missing: (row) => !(Number(row.amount) > 0), message: "Enter the estimated value before moving this deal to" },
   ],
   CLOSING: [
-    { key: "closeDate", label: "Expected close date", missing: (row) => !row.expected_close_date, message: "Set the expected close date before moving this opportunity to" },
+    { key: "closeDate", label: "Expected close date", missing: (row) => !row.expected_close_date, message: "Set the expected close date before moving this deal to" },
   ],
 });
 
 // Does not refuse: the caller confirms and the move goes ahead.
 const WARNINGS = Object.freeze({
-  PROPOSAL: [{ applies: (row) => Number(row.quotation_count ?? 0) === 0, message: "No quotation exists for this opportunity yet." }],
+  PROPOSAL: [{ applies: (row) => Number(row.quotation_count ?? 0) === 0, message: "No quotation exists for this deal yet." }],
   CLOSING: [{ applies: (row) => !row.next_activity_subject, message: "No next activity is scheduled." }],
 });
 

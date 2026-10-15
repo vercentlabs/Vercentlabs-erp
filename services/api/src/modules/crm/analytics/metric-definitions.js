@@ -23,7 +23,7 @@ const PERIOD_OPEN = "f.status='open' AND f.expected_close_date BETWEEN {from} AN
 const PERIOD_CLOSED = (status) => `f.status='${status}' AND f.actual_close_date BETWEEN {from} AND {to}`;
 
 export const METRIC_POPULATIONS = Object.freeze({
-  open: { label: "Open opportunities", sql: "f.status='open'", period: false },
+  open: { label: "Open deals", sql: "f.status='open'", period: false },
   closing: { label: "Open, expected to close in the period", sql: PERIOD_OPEN, period: true },
   commit: { label: "Commit: open, closing in the period, category Commit", sql: `${PERIOD_OPEN} AND f.forecast_category='committed'`, period: true },
   best_case: { label: "Best case: open, closing in the period, category Commit or Best case", sql: `${PERIOD_OPEN} AND f.forecast_category IN ('committed','best_case')`, period: true },
@@ -38,7 +38,7 @@ export const METRIC_POPULATIONS = Object.freeze({
 // measure: "count" | "amount" (converted amount) | "weighted" (converted
 // expected revenue = amount x probability / 100, F011).
 export const PIPELINE_METRICS = Object.freeze({
-  open_opportunities: { label: "Open opportunities", unit: "count", population: "open", measure: "count", timeBasis: "Current state" },
+  open_opportunities: { label: "Open deals", unit: "count", population: "open", measure: "count", timeBasis: "Current state" },
   open_pipeline: { label: "Open pipeline", unit: "money", population: "open", measure: "amount", timeBasis: "Current state" },
   weighted_pipeline: { label: "Weighted pipeline", unit: "money", population: "open", measure: "weighted", timeBasis: "Current state" },
   closing_opportunities: { label: "Deals closing in period", unit: "count", population: "closing", measure: "count", timeBasis: "Expected close date in the period" },
@@ -52,8 +52,8 @@ export const PIPELINE_METRICS = Object.freeze({
   lost_amount: { label: "Lost", unit: "money", population: "lost", measure: "amount", timeBasis: "Actual close date in the period" },
   lost_count: { label: "Deals lost", unit: "count", population: "lost", measure: "count", timeBasis: "Actual close date in the period" },
   win_rate: { label: "Win rate", unit: "percent", population: "closed", measure: "ratio", numerator: "won_count", denominator: "closed_count", timeBasis: "Actual close date in the period" },
-  stalled_opportunities: { label: "Stalled opportunities", unit: "count", population: "stalled", measure: "count", timeBasis: "Current state" },
-  unassigned_opportunities: { label: "Unassigned opportunities", unit: "count", population: "unassigned", measure: "count", timeBasis: "Current state" },
+  stalled_opportunities: { label: "Stalled deals", unit: "count", population: "stalled", measure: "count", timeBasis: "Current state" },
+  unassigned_opportunities: { label: "Unassigned deals", unit: "count", population: "unassigned", measure: "count", timeBasis: "Current state" },
 });
 
 export const BREAKDOWN_DIMENSIONS = Object.freeze({

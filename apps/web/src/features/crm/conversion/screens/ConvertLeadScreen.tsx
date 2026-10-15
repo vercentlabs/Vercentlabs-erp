@@ -239,6 +239,12 @@ function ConversionForm({ leadId, preview, options, isRefreshing, accountChoice,
               ))}
             </ul>
           </section>
+          {preview.qualificationOverride && (
+            <p role="status" className="rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">
+              Qualified with missing {(preview.missing ?? []).map((entry) => entry.label).join(" and ")} — approved
+              {preview.qualificationOverride.byName ? ` by ${preview.qualificationOverride.byName}` : ""}: &lsquo;{preview.qualificationOverride.reason}&rsquo;.
+            </p>
+          )}
           {needsOverride && (can.overrideQualification
             ? <TextArea label="Reason for converting with missing qualification" isRequired description={`Missing: ${(preview.missing ?? []).map((entry) => entry.label).join(", ")}. Recorded in the lead's history.`} value={overrideReason} onChange={setOverrideReason} />
             : <Banner tone="warning" message={`This lead cannot be converted yet. Missing: ${(preview.missing ?? []).map((entry) => entry.label).join(", ")}. Qualify it first, or ask a manager to convert it.`} />)}

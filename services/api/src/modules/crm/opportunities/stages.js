@@ -60,7 +60,7 @@ export async function pipelineStage(client, context, pipelineId, stageId) {
     `SELECT * FROM tenant.crm_pipeline_stages WHERE organization_id = $1 AND id = $2 AND pipeline_id = $3 AND status = 'active'`,
     [context.organizationId, requireUuid(stageId, "Sales stage"), pipelineId],
   );
-  if (!rows[0]) throw new CrmError(409, "The selected stage is not part of this opportunity's pipeline.", "CRM_OPPORTUNITY_STAGE_INVALID");
+  if (!rows[0]) throw new CrmError(409, "The selected stage is not part of this deal's pipeline.", "CRM_OPPORTUNITY_STAGE_INVALID");
   return rows[0];
 }
 
@@ -96,7 +96,7 @@ export async function writeStage(client, context, opportunity, stage, { status =
 //               look (no quotation yet, nothing scheduled); the caller confirms and repeats
 //               the call without it. Requirements are refused either way.
 export async function changeOpportunityStage(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.changeStage, "You do not have permission to change the stage of opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.changeStage, "You do not have permission to change the stage of deals.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
   assertOpen(opportunity, "moved");
   assertNotStale(opportunity, input.expectedUpdatedAt);
@@ -104,7 +104,7 @@ export async function changeOpportunityStage(client, context, opportunityId, inp
   if (opportunity.stage_id === input.stageId) return { changed: false };
   const stage = await pipelineStage(client, context, opportunity.pipeline_id, input.stageId);
   if (stage.is_won || stage.is_lost)
-    throw new CrmError(409, `Use Mark ${stage.is_won ? "won" : "lost"} to close this opportunity.`, "CRM_OPPORTUNITY_STAGE_TERMINAL");
+    throw new CrmError(409, `Use Mark ${stage.is_won ? "won" : "lost"} to close this deal.`, "CRM_OPPORTUNITY_STAGE_TERMINAL");
   const blockers = stageEntryBlockers(opportunity, stage);
   if (blockers.length) throw new CrmError(409, blockers[0], "CRM_OPPORTUNITY_STAGE_REQUIREMENTS", { missingRequirements: blockers });
   const warnings = input.warn ? stageEntryWarnings(opportunity, stage) : [];
@@ -120,7 +120,7 @@ export async function changeOpportunityStage(client, context, opportunityId, inp
       organizationId: context.organizationId,
       userId: opportunity.owner_user_id,
       category: "crm_opportunity_stage",
-      title: `Your opportunity reached ${stage.name}`,
+      title: `Your deal reached ${stage.name}`,
       message: `${opportunity.name} (${opportunity.code})`,
       href: `/crm/opportunities/${opportunity.id}`,
       entityType: "opportunity",
@@ -132,7 +132,7 @@ export async function changeOpportunityStage(client, context, opportunityId, inp
 
 // Overrides the stage's default probability for this deal. input: { probability, reason? }
 export async function setOpportunityProbability(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.changeProbability, "You do not have permission to change the probability of opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.changeProbability, "You do not have permission to change the probability of deals.");
   const probability = Number(input.probability);
   if (!Number.isFinite(probability) || probability < 0 || probability > 100)
     throw new CrmError(400, "Enter a probability from 0 to 100.", "CRM_OPPORTUNITY_VALIDATION");
@@ -155,9 +155,9 @@ export async function setOpportunityProbability(client, context, opportunityId, 
 // Runs one operation per opportunity; each succeeds or fails on its own.
 export async function runOpportunityBulkOperation(client, opportunityIds, operation, context = null) {
   const ids = [...new Set(Array.isArray(opportunityIds) ? opportunityIds : [])];
-  if (!ids.length) throw new CrmError(400, "Select at least one opportunity.", "CRM_OPPORTUNITY_VALIDATION");
-  if (ids.length > 200) throw new CrmError(400, "Select up to 200 opportunities at a time.", "CRM_OPPORTUNITY_BULK_LIMIT");
-  if (ids.length > 1 && context) requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.bulkUpdate, "You do not have permission to change several opportunities at once.");
+  if (!ids.length) throw new CrmError(400, "Select at least one deal.", "CRM_OPPORTUNITY_VALIDATION");
+  if (ids.length > 200) throw new CrmError(400, "Select up to 200 deals at a time.", "CRM_OPPORTUNITY_BULK_LIMIT");
+  if (ids.length > 1 && context) requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.bulkUpdate, "You do not have permission to change several deals at once.");
   const results = [];
   for (const opportunityId of ids) {
     await client.query("SAVEPOINT opportunity_bulk_operation");

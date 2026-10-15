@@ -270,7 +270,7 @@ export async function getFollowUpSummary(client, context) {
 // The record a follow-up is about: visible to the caller, in this organization.
 // Returns its owner (the default assignee) and its account.
 async function requireRelated(client, context, type, id) {
-  if (!RELATED_CODES.includes(type)) throw invalid("Choose what the follow-up is about: a lead, account, contact or opportunity.", "relatedType");
+  if (!RELATED_CODES.includes(type)) throw invalid("Choose what the follow-up is about: a lead, company, contact or deal.", "relatedType");
   const values = [context.organizationId, requireUuid(id, "Related record")];
   const scope = followUpRelatedScopeSql(context, values, "follow_up");
   const { rows } = await client.query(`SELECT 1 FROM (SELECT $1::uuid AS organization_id, $2::uuid AS entity_id, '${type}'::text AS entity_type) follow_up WHERE true${scope}`, values);
@@ -284,7 +284,7 @@ async function requireRelated(client, context, type, id) {
   const record = (await client.query(sql, [context.organizationId, id])).rows[0];
   if (!record) throw new CrmError(404, "The related record was not found.", "CRM_FOLLOW_UP_RELATED_INVALID");
   if (record.archived) throw new CrmError(409, "This record is archived. Restore it before scheduling follow-ups on it.", "CRM_FOLLOW_UP_RELATED_ARCHIVED");
-  if (type === "lead" && record.status === "converted") throw new CrmError(409, "This lead is converted. Schedule the follow-up on its opportunity.", "CRM_FOLLOW_UP_RELATED_CLOSED");
+  if (type === "lead" && record.status === "converted") throw new CrmError(409, "This lead is converted. Schedule the follow-up on its deal.", "CRM_FOLLOW_UP_RELATED_CLOSED");
   return { entity_type: type, entity_id: id, ownerUserId: record.owner_user_id, accountId: record.account_id };
 }
 
@@ -296,14 +296,14 @@ async function requireContact(client, context, contactId, related) {
     if (contactId !== related.entity_id) throw invalid("This follow-up is about that contact already.", "contactId");
     return contactId;
   }
-  if (!related.accountId) throw invalid("Choose a contact only for an account, contact or opportunity follow-up.", "contactId");
+  if (!related.accountId) throw invalid("Choose a contact only for a company, contact or deal follow-up.", "contactId");
   const { rows } = await client.query(
     `SELECT contact.id FROM tenant.contacts contact WHERE contact.organization_id = $1 AND contact.id = $2 AND contact.status <> 'archived'
         AND (contact.party_id = $3 OR EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships link
               WHERE link.organization_id = contact.organization_id AND link.contact_id = contact.id AND link.party_id = $3 AND link.status = 'active'))`,
     [context.organizationId, contactId, related.accountId],
   );
-  if (!rows[0]) throw invalid("Choose a contact who belongs to this account.", "contactId");
+  if (!rows[0]) throw invalid("Choose a contact who belongs to this company.", "contactId");
   return contactId;
 }
 

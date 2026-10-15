@@ -57,9 +57,9 @@ async function setPrimary(client, context, opportunityId, contactId) {
 
 // input: { contactId (required), role?, isPrimary?, notes? }
 export async function addOpportunityContact(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit deals.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
-  if (opportunity.archived_at) throw new CrmError(409, "Restore this opportunity before changing it.", "CRM_OPPORTUNITY_ARCHIVED");
+  if (opportunity.archived_at) throw new CrmError(409, "Restore this deal before changing it.", "CRM_OPPORTUNITY_ARCHIVED");
   const contact = await requireAccountContact(client, context, input.contactId, opportunity.party_id);
   // The first person on a deal is its primary contact.
   const makePrimary = input.isPrimary === true || !opportunity.contact_id;
@@ -81,13 +81,13 @@ async function lockLink(client, context, opportunityId, linkId) {
       WHERE link.organization_id = $1 AND link.opportunity_id = $2 AND link.id = $3 AND link.status = 'active' FOR UPDATE OF link`,
     [context.organizationId, opportunityId, requireUuid(linkId, "Contact")],
   );
-  if (!rows[0]) throw new CrmError(404, "This contact is not on the opportunity.", "CRM_OPPORTUNITY_CONTACT_NOT_FOUND");
+  if (!rows[0]) throw new CrmError(404, "This contact is not on the deal.", "CRM_OPPORTUNITY_CONTACT_NOT_FOUND");
   return rows[0];
 }
 
 // input: { role?, notes?, isPrimary?: true }
 export async function updateOpportunityContact(client, context, opportunityId, linkId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit deals.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
   const link = await lockLink(client, context, opportunity.id, linkId);
   await client.query(`UPDATE tenant.crm_opportunity_contact_roles SET role = $3, notes = $4, updated_by = $5, updated_at = now() WHERE organization_id = $1 AND id = $2`,
@@ -101,7 +101,7 @@ export async function updateOpportunityContact(client, context, opportunityId, l
 
 // Removing the primary contact makes the next stakeholder primary, if there is one.
 export async function removeOpportunityContact(client, context, opportunityId, linkId) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit deals.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
   const link = await lockLink(client, context, opportunity.id, linkId);
   await client.query(`UPDATE tenant.crm_opportunity_contact_roles SET status = 'inactive', is_primary = false, updated_by = $3, updated_at = now() WHERE organization_id = $1 AND id = $2`,

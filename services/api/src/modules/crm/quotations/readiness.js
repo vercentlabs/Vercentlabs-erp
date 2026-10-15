@@ -9,6 +9,7 @@ import { requireOpportunityPermission } from "../opportunities/access.js";
 import { OPPORTUNITY_PERMISSIONS } from "../opportunities/constants.js";
 import { getOpportunity } from "../opportunities/records.js";
 import { CrmError } from "../data-management/errors.js";
+import { orgToday } from "../data-management/org-date.js";
 
 const can = (context, permission) => Boolean(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(permission));
 const trimmed = (value) => (value === null || value === undefined ? null : String(value).trim() || null);
@@ -78,7 +79,7 @@ export async function proposalStageSuggestion(client, context, opportunity) {
 }
 
 export async function getQuotationReadiness(client, context, opportunityId) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.createQuotation, "You do not have permission to create quotations from opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.createQuotation, "You do not have permission to create quotations from deals.");
   if (!can(context, "sales.view")) throw new CrmError(403, "You need access to Sales to create quotations.", "PERMISSION_DENIED");
   const opportunity = await getOpportunity(client, context, opportunityId);
   const account = opportunity.accountId ? await loadAccount(client, context, opportunity.accountId) : null;
@@ -111,12 +112,12 @@ export async function getQuotationReadiness(client, context, opportunityId) {
     () => client.query(
       `SELECT id, code, name, currency_code, tax_inclusive FROM tenant.price_lists
         WHERE organization_id = $1 AND price_list_type = 'sales' AND status = 'active'
-          AND (valid_from IS NULL OR valid_from <= current_date) AND (valid_to IS NULL OR valid_to >= current_date) ORDER BY name`,
+          AND (valid_from IS NULL OR valid_from <= ${orgToday("$1")}) AND (valid_to IS NULL OR valid_to >= ${orgToday("$1")}) ORDER BY name`,
       [context.organizationId]),
     () => client.query(`SELECT id, code, name FROM tenant.payment_terms WHERE organization_id = $1 AND status = 'active' ORDER BY name`, [context.organizationId]),
     () => client.query(`SELECT code, is_base FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`, [context.organizationId]),
     () => client.query(`SELECT * FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId]),
-    () => client.query(`SELECT current_date::text AS today`),
+    () => client.query(`SELECT ${orgToday("$1")}::text AS today`, [context.organizationId]),
   ];
   const results = [];
   for (const run of queries) results.push(await run());
@@ -138,25 +139,28 @@ export async function getQuotationReadiness(client, context, opportunityId) {
   const matches = account && !customer ? await customerMatches(client, context, account) : [];
 
   const checks = [
-    { key: "status", label: "Opportunity is open", met: opportunity.status === "open" && !opportunity.archivedAt, blocking: true,
-      value: opportunity.status === "open" ? "Open" : `${opportunity.status[0].toUpperCase()}${opportunity.status.slice(1)}: a closed opportunity is not quoted` },
-    { key: "account", label: "Account", met: Boolean(account && account.status === "active"), blocking: true, value: account?.display_name ?? "No account" },
+    { key: "status", label: "Deal is open", met: opportunity.status === "open" && !opportunity.archivedAt, blocking: true,
+      value: opportunity.status === "open" ? "Open" : `${opportunity.status[0].toUpperCase()}${opportunity.status.slice(1)}: a closed deal can't be quoted` },
+    { key: "account", label: "Company", met: Boolean(account && account.status === "active"), blocking: true, value: account?.display_name ?? "No company" },
     { key: "salesBlock", label: "Customer not blocked for sales", met: !account || account.sales_block !== "all", blocking: true,
       value: account?.sales_block === "all" ? `Blocked: ${account.sales_block_reason}` : "Not blocked" },
     { key: "customer", label: "Customer master", met: customer, blocking: false,
-      value: customer ? `${account.display_name} (${account.customer_number ?? account.code})` : "The account is a prospect: create or link its customer in the dialog" },
+      value: customer ? `${account.display_name} (${account.customer_number ?? account.code})` : "Prospect: create or link its customer below" },
     { key: "contact", label: "Contact person", met: Boolean(opportunity.contactId && contactIds.has(opportunity.contactId)), blocking: false,
-      value: opportunity.contactName ?? "None on the opportunity: choose one in the dialog" },
+      value: opportunity.contactName ?? "None on the deal: choose one below" },
     { key: "currency", label: "Currency", met: activeCurrencies.includes(currencyCode), blocking: true, value: currencyCode },
     { key: "lines", label: "Products or services", met: lines.rows.length > 0, blocking: false,
-      value: lines.rows.length ? `${lines.rows.length} line(s) on the opportunity` : "None on the opportunity: add lines in the dialog" },
-    { key: "owner", label: "Opportunity owner", met: Boolean(opportunity.ownerUserId), blocking: true, value: opportunity.ownerName ?? "Unassigned" },
+      value: lines.rows.length ? `${lines.rows.length} ${lines.rows.length === 1 ? "line" : "lines"} on the deal` : "None on the deal: add lines below" },
+    { key: "owner", label: "Deal owner", met: Boolean(opportunity.ownerUserId), blocking: true, value: opportunity.ownerName ?? "Unassigned" },
     { key: "sales", label: "Permission to create quotations in Sales", met: capabilities.createFromOpportunity, blocking: true,
       value: capabilities.createFromOpportunity ? "Yes" : "Ask for the Sales quotation permission" },
   ];
   const recommended = [
-    { key: "amount", label: "Estimated value", met: Number(opportunity.amount) > 0, value: Number(opportunity.amount) > 0 ? String(opportunity.amount) : "Not set" },
-    { key: "closeDate", label: "Expected close date", met: Boolean(opportunity.expectedCloseDate), value: opportunity.expectedCloseDate ?? "Not set" },
+    // `format` tells the page to show the value as money or a date; the server sends the raw number and the ISO date.
+    { key: "amount", label: "Estimated value", met: Number(opportunity.amount) > 0, value: Number(opportunity.amount) > 0 ? String(Number(opportunity.amount)) : "Not set",
+      ...(Number(opportunity.amount) > 0 ? { format: "money", currencyCode } : {}) },
+    { key: "closeDate", label: "Expected close date", met: Boolean(opportunity.expectedCloseDate), value: opportunity.expectedCloseDate ?? "Not set",
+      ...(opportunity.expectedCloseDate ? { format: "date" } : {}) },
     { key: "productInterest", label: "Product / service interest", met: Boolean(trimmed(opportunity.productInterest)), value: trimmed(opportunity.productInterest) ?? "Not set" },
   ];
 

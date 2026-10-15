@@ -6,10 +6,10 @@ import { LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_NEED_STATUSES, LEAD
 
 // The four criteria an organization can require before a lead is qualified.
 export const QUALIFICATION_CRITERIA = Object.freeze([
-  { key: "need", label: "Business Need", checklist: "Requirement understood" },
+  { key: "need", label: "Business need", checklist: "Requirement understood" },
   { key: "budget", label: "Budget", checklist: "Budget confirmed or likely" },
-  { key: "authority", label: "Decision Authority", checklist: "Decision maker or influencer identified" },
-  { key: "timeline", label: "Purchase Timeframe", checklist: "Purchase timeframe captured" },
+  { key: "authority", label: "Decision authority", checklist: "Decision maker or influencer identified" },
+  { key: "timeline", label: "Purchase timeframe", checklist: "Purchase timeframe captured" },
 ]);
 
 export const DEFAULT_QUALIFICATION_REQUIREMENTS = Object.freeze({ need: true, budget: false, authority: true, timeline: false });

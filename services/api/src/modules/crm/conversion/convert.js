@@ -32,8 +32,9 @@ import { conversionCapabilities, operationContext, requireConversionPermission }
 import { CONVERSION_PERMISSIONS, MAX_OPPORTUNITY_VALUE, OPEN_WORK_CHOICES } from "./constants.js";
 import { accountMatches, contactConflicts, contactMatches, opportunityMatches } from "./matching.js";
 import { defaultOpportunityName } from "./preview.js";
-import { blockedReason, conversionChecks, missingQualification } from "./readiness.js";
+import { blockedReason, conversionChecks, missingQualification, qualifiedWithOverride } from "./readiness.js";
 import { loadVisibleAccount, loadVisibleContact, readConversionByKey, readConversionByLead, toConversion, userName } from "./records.js";
+import { orgToday } from "../data-management/org-date.js";
 
 const text = (value) => String(value ?? "").trim();
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -42,10 +43,10 @@ const labelIn = (list, code) => list.find((entry) => entry.code === code)?.label
 const invalid = (message, field, code = "CRM_CONVERSION_INVALID") => new CrmError(400, message, code, { field });
 
 function assertAccountName(name) {
-  if (!name) throw invalid("Enter the account's company name, or choose an existing account.", "account.name", "CRM_CONVERSION_ACCOUNT_NAME_REQUIRED");
+  if (!name) throw invalid("Enter the company name, or choose an existing company.", "account.name", "CRM_CONVERSION_ACCOUNT_NAME_REQUIRED");
   if (name.length < 2 || !/[\p{L}\p{N}]/u.test(name) || PLACEHOLDER_NAMES.has(name.toLowerCase()))
-    throw invalid("Enter the company's real name for the new account.", "account.name", "CRM_CONVERSION_ACCOUNT_NAME_INVALID");
-  if (name.length > 200) throw invalid("Use 200 characters or fewer for the account name.", "account.name");
+    throw invalid("Enter the real name of the new company.", "account.name", "CRM_CONVERSION_ACCOUNT_NAME_INVALID");
+  if (name.length > 200) throw invalid("Use 200 characters or fewer for the company name.", "account.name");
 }
 
 // What the lead learned about budget, authority and timing, for the opportunity's commercial notes.
@@ -61,7 +62,7 @@ function commercialNotes(lead, overrideReason) {
     lead.estimated_value !== null && lead.estimated_value !== undefined ? `Estimated value on the lead: ${Number(lead.estimated_value)}${lead.currency_code ? ` ${lead.currency_code.trim()}` : ""}` : null,
     lead.q_notes ? `Qualification notes: ${lead.q_notes}` : null,
     lead.q_override_reason ? `Qualified with an override: ${lead.q_override_reason}` : null,
-    overrideReason ? `Converted with missing qualification: ${overrideReason}` : null,
+    overrideReason && overrideReason !== lead.q_override_reason ? `Converted with missing qualification: ${overrideReason}` : null,
   ].filter(Boolean);
   return lines.join("\n").slice(0, 10000);
 }
@@ -69,7 +70,7 @@ function commercialNotes(lead, overrideReason) {
 function readOpportunityInput(lead, input, accountName) {
   const name = (text(input.name) || defaultOpportunityName(accountName, input.productInterest ?? lead.product_interest)).slice(0, 200);
   const expectedCloseDate = text(input.expectedCloseDate).slice(0, 10);
-  if (!expectedCloseDate) throw invalid("Choose the expected close date for the opportunity.", "opportunity.expectedCloseDate", "CRM_CONVERSION_CLOSE_DATE_REQUIRED");
+  if (!expectedCloseDate) throw invalid("Choose the expected close date for the deal.", "opportunity.expectedCloseDate", "CRM_CONVERSION_CLOSE_DATE_REQUIRED");
   if (!DATE.test(expectedCloseDate) || Number.isNaN(Date.parse(`${expectedCloseDate}T00:00:00Z`))) throw invalid("Enter a valid expected close date.", "opportunity.expectedCloseDate");
   let amount = lead.estimated_value === null || lead.estimated_value === undefined ? 0 : Number(lead.estimated_value);
   if (input.amount !== undefined && input.amount !== null && text(input.amount) !== "") {
@@ -130,7 +131,11 @@ export async function convertLead(client, context, leadId, input = {}) {
   const checks = conversionChecks(lead, await getLeadQualificationSettings(client, context));
   const missing = missingQualification(checks);
   let overrideReason = null;
-  if (missing.length) {
+  if (missing.length && qualifiedWithOverride(lead)) {
+    // Qualified with an override: that approval and its reason carry into the conversion, so it is not asked for twice and a
+    // salesperson without the override permission can convert a lead a manager approved.
+    overrideReason = text(input.overrideReason).slice(0, 500) || lead.q_override_reason;
+  } else if (missing.length) {
     const detail = { missing, canOverride: capabilities.overrideQualification };
     if (!capabilities.overrideQualification)
       throw new CrmError(409, `This lead cannot be converted yet. Missing: ${missing.map((entry) => entry.label).join(", ")}.`, "CRM_CONVERSION_QUALIFICATION_INCOMPLETE", detail);
@@ -177,10 +182,10 @@ export async function convertLead(client, context, leadId, input = {}) {
   let existingAccount = null;
   let newAccount = null;
   if (accountMode === "existing") {
-    if (!capabilities.useExisting) throw new CrmError(403, "You do not have permission to convert into an existing account.", "PERMISSION_DENIED");
+    if (!capabilities.useExisting) throw new CrmError(403, "You do not have permission to convert into an existing company.", "PERMISSION_DENIED");
     existingAccount = await loadVisibleAccount(client, context, accountInput.id);
   } else if (accountMode === "new") {
-    if (!capabilities.createAccount) throw new CrmError(403, "You do not have permission to create an account while converting. Choose an existing account.", "PERMISSION_DENIED");
+    if (!capabilities.createAccount) throw new CrmError(403, "You do not have permission to create a company while converting. Choose an existing company.", "PERMISSION_DENIED");
     const name = text(accountInput.name) || text(lead.company_name);
     assertAccountName(name);
     newAccount = {
@@ -194,7 +199,7 @@ export async function convertLead(client, context, leadId, input = {}) {
     newAccount.allowDuplicate = duplicateGate("account", matches, accountInput.acknowledgeMatches === true);
     newAccount.ownerUserId = await ownerFor(accountInput.ownerUserId, "account");
   } else {
-    throw invalid("Choose an existing account or create a new one.", "account.mode");
+    throw invalid("Choose an existing company or create a new one.", "account.mode");
   }
 
   // ---- resolveContact
@@ -228,12 +233,12 @@ export async function convertLead(client, context, leadId, input = {}) {
 
   // ---- checkDuplicates (opportunity) and the opportunity's own values
   const opportunityInput = readOpportunityInput(lead, input.opportunity ?? {}, existingAccount?.display_name ?? newAccount.displayName);
-  const today = (await client.query(`SELECT current_date::text AS today`)).rows[0].today;
+  const today = (await client.query(`SELECT ${orgToday("$1")}::text AS today`, [context.organizationId])).rows[0].today;
   if (opportunityInput.expectedCloseDate < today) throw invalid("Choose today or a later date as the expected close date.", "opportunity.expectedCloseDate");
   if (existingAccount) {
     const similar = (await opportunityMatches(client, context, existingAccount.id, opportunityInput)).filter((deal) => deal.similar);
     if (similar.length && !opportunityInput.acknowledgeMatches)
-      throw new CrmError(409, "This account already has a similar open opportunity. Open it, or confirm a new opportunity.", "CRM_CONVERSION_OPPORTUNITY_POSSIBLE_DUPLICATE", { matches: similar });
+      throw new CrmError(409, "This company already has a similar open deal. Open it, or confirm a new deal.", "CRM_CONVERSION_OPPORTUNITY_POSSIBLE_DUPLICATE", { matches: similar });
   }
   const opportunityOwner = await ownerFor(opportunityInput.ownerUserId, "opportunity", opportunityInput.teamId);
 
@@ -329,7 +334,7 @@ export async function convertLead(client, context, leadId, input = {}) {
     ...(overrideReason ? { qualificationOverride: { missing: missing.map((entry) => entry.key), reason: overrideReason } } : {}),
     ...(duplicateOverrides.length ? { duplicateOverride: { reason: duplicateReason, overrides: duplicateOverrides } } : {}),
   };
-  await recordLeadHistory(client, context, lead.id, "converted", `Lead converted by ${actor}. Opportunity ${opportunity.code} created`, decisions);
+  await recordLeadHistory(client, context, lead.id, "converted", `Lead converted by ${actor}. Deal ${opportunity.code} created`, decisions);
   // Each override gets its own line in the lead's history (kept under the "converted" event).
   if (overrideReason)
     await recordLeadHistory(client, context, lead.id, "converted", `Converted with missing qualification (${missing.map((entry) => entry.label).join(", ")}): ${overrideReason}`,

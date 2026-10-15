@@ -128,9 +128,13 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
     mark_lost: { label: "Mark lost", show: can.markLost, run: () => setDialog("lost") },
   };
   const suggestedCodes = open && currentStage ? currentStage.suggestedActions.filter((code) => stageActions[code]?.show) : [];
-  const suggested = suggestedCodes.map((code) => stageActions[code]);
   // Beside Next stage: the stage's first suggested action (not one already in the buttons), then Log activity.
   const stageFirst = suggestedCodes.find((code) => !["log_activity", "mark_won", "mark_lost"].includes(code));
+  // The stage panel leaves out what the header already shows (in the last stage: Mark won, Mark lost and Log activity).
+  const inHeader = new Set<OpportunityStageAction>(inLastStage ? ["mark_won", "mark_lost", "log_activity"] : [...(stageFirst ? [stageFirst] : []), "log_activity"]);
+  const panelActions = suggestedCodes.filter((code) => !inHeader.has(code)).map((code) => stageActions[code]);
+  // Why Create quotation is disabled, wherever it shows.
+  const showQuoteBlocked = Boolean(quoteBlocked) && (panelActions.some((entry) => entry.blocked) || (!inLastStage && stageFirst === "create_quotation"));
 
   const primaryAction = archived
     ? can.delete && <Button variant="primary" onPress={() => run(() => restoreOpportunity(opportunity.id))} isLoading={isRunning}>Restore deal</Button>
@@ -208,7 +212,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
             <ErrorBanner message={error} />
             <OutcomeBanner opportunity={opportunity} currency={currency} />
             <StageBar opportunity={opportunity} options={options} canChange={canMove} isChanging={stageChange.isPending} onChange={(stageId) => stageChange.move(opportunity, stageId)} />
-            {open && currentStage && (currentStage.description || currentStage.guidance || suggested.length > 0) && (
+            {open && currentStage && (currentStage.description || currentStage.guidance || panelActions.length > 0 || showQuoteBlocked) && (
               <section aria-label={`About ${currentStage.name}`} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">
                 {currentStage.description && <p><span className="font-medium">{currentStage.name}:</span> {currentStage.description}</p>}
                 {currentStage.guidance && (
@@ -216,12 +220,12 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
                     {currentStage.guidance.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => <li key={line}>{line}</li>)}
                   </ul>
                 )}
-                {suggested.length > 0 && (
+                {panelActions.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
-                    {suggested.map((entry) => <Button key={entry.label} variant="outline" size="compact" isDisabled={Boolean(entry.blocked)} onPress={entry.run}>{entry.label}</Button>)}
+                    {panelActions.map((entry) => <Button key={entry.label} variant="outline" size="compact" isDisabled={Boolean(entry.blocked)} onPress={entry.run}>{entry.label}</Button>)}
                   </div>
                 )}
-                {suggested.some((entry) => entry.blocked) && <p className="text-xs text-text-muted">{quoteBlocked}</p>}
+                {showQuoteBlocked && <p className="text-xs text-text-muted">{quoteBlocked}</p>}
               </section>
             )}
           </div>

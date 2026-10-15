@@ -11,7 +11,7 @@ const text = (value) => String(value ?? "").trim();
 
 // input: { accountId, name?, productInterest? }. Returns { matches }.
 export async function findDuplicateOpportunities(client, context, input = {}, { excludeId = null, limit = 5 } = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
   if (!isUuid(input.accountId) || (!text(input.name) && !text(input.productInterest))) return { matches: [] };
   const values = [context.organizationId, input.accountId, text(input.name).toLowerCase(), text(input.productInterest).toLowerCase(), isUuid(excludeId) ? excludeId : null, SIMILAR];
   const visible = opportunityScopeSql(context, values, "opportunity");

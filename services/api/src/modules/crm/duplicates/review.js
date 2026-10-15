@@ -68,7 +68,7 @@ export function getDuplicateRules() {
     .map(({ weight: _weight, ...rule }) => rule);
   return {
     people: { label: "Leads and contacts", rules: rules(DUPLICATE_SIGNALS.lead) },
-    companies: { label: "Accounts", rules: rules(DUPLICATE_SIGNALS.account) },
+    companies: { label: "Companies", rules: rules(DUPLICATE_SIGNALS.account) },
     behaviour: {
       strong: "A strong match stops the save: use the existing record, or (with permission) create anyway with a reason.",
       possible: "A possible match is a warning: the user can continue.",

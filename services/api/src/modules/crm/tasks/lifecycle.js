@@ -79,7 +79,7 @@ export async function completeTask(client, context, taskId, input = {}) {
   const next = input.nextFollowUp;
   if (next && !next.scheduledDate && (!next.dueAt || Number.isNaN(new Date(next.dueAt).getTime())))
     throw new CrmError(400, "Choose when to follow up.", "CRM_TASK_VALIDATION", { issues: [{ field: "nextFollowUp.dueAt", message: "Choose when to follow up." }] });
-  if (next && !row.entity_id) throw new CrmError(409, "A follow-up is about a lead, account, contact or opportunity. This task is not linked to one.", "CRM_TASK_VALIDATION");
+  if (next && !row.entity_id) throw new CrmError(409, "A follow-up is about a lead, company, contact or deal. This task is not linked to one.", "CRM_TASK_VALIDATION");
 
   await client.query(
     `UPDATE tenant.crm_activities SET status = 'completed', completed_at = now(), completed_by = $3, outcome = COALESCE($4, outcome), updated_by = $3

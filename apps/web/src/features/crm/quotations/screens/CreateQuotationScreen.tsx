@@ -12,6 +12,8 @@ import { ArrowLeft, Check, Plus, Trash2, X } from "lucide-react";
 import { Button, Checkbox, IconButton, PageHeader, Radio, RadioGroup, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { changeOpportunityStage, searchOpportunityProducts } from "@/features/crm/opportunities/api/opportunities-api";
+import { GST_STATES, gstStateByName } from "@/features/crm/shared/gst-states";
+import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { formatDate, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -44,7 +46,7 @@ export function CreateQuotationScreen({ opportunityId }: { opportunityId: string
       <Link href={dealHref} className="inline-flex w-fit items-center gap-1 text-sm text-text-secondary hover:text-text focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none">
         <ArrowLeft aria-hidden="true" className="size-4" />Deal
       </Link>
-      <PageHeader title="Create quotation" description="A Draft quotation for this deal. Sales prices it from the price list and applies tax; nothing is created until you confirm." />
+      <PageHeader title="Create quotation" description="A Draft quotation for this deal. Sales prices it from the price list and applies tax; nothing is created until you click Create draft quotation." />
       <Flow opportunityId={opportunityId} onClose={() => router.push(`${dealHref}?tab=quotes`)}
         onCreated={() => {
           void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunity", opportunityId) });
@@ -166,7 +168,7 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
           {[...readiness.checks, ...readiness.recommended.map((check) => ({ ...check, recommended: true }))].map((check) => (
             <li key={check.key} className="flex items-start gap-2">
               {check.met ? <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" /> : <X className={`mt-0.5 size-4 shrink-0 ${check.blocking ? "text-danger" : "text-warning"}`} aria-hidden="true" />}
-              <span><span className="font-medium">{check.label}</span><span className="text-text-secondary"> · {check.value}</span>{"recommended" in check && !check.met ? <span className="text-text-muted"> (recommended)</span> : null}</span>
+              <span><span className="font-medium">{check.label}</span><span className="text-text-secondary"> · {checkValue(check)}</span>{"recommended" in check && !check.met ? <span className="text-text-muted"> (recommended)</span> : null}</span>
             </li>
           ))}
         </ul>
@@ -195,10 +197,16 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
                   <TextField label="Address line 1" isRequired value={address.line1} onChange={(line1) => setAddress({ ...address, line1 })} />
                   <TextField label="Address line 2" value={address.line2} onChange={(line2) => setAddress({ ...address, line2 })} />
                   <TextField label="City" isRequired value={address.city} onChange={(city) => setAddress({ ...address, city })} />
-                  <TextField label="State" isRequired value={address.state} onChange={(state) => setAddress({ ...address, state })} />
-                  <TextField label="GST state code" description="For example 27 for Maharashtra." value={address.stateCode} onChange={(stateCode) => setAddress({ ...address, stateCode })} />
+                  {/* In India the state comes from the GST list, with its code beside it; choosing one fills the GST state code. */}
+                  {address.countryCode === "IN" ? (
+                    <Select label="State" isRequired selectedKey={address.state || null}
+                      options={GST_STATES.map((state) => ({ value: state.name, label: `${state.name} (${state.code})` }))}
+                      onSelectionChange={(key) => setAddress({ ...address, state: String(key ?? ""), stateCode: gstStateByName(String(key ?? ""))?.code ?? "" })} />
+                  ) : (
+                    <TextField label="State" isRequired value={address.state} onChange={(state) => setAddress({ ...address, state, stateCode: "" })} />
+                  )}
                   <TextField label="Postal code" isRequired value={address.postalCode} onChange={(postalCode) => setAddress({ ...address, postalCode })} />
-                  <TextField label="Country code" isRequired value={address.countryCode} onChange={(countryCode) => setAddress({ ...address, countryCode: countryCode.toUpperCase() })} />
+                  <CountrySelect value={address.countryCode} onChange={(countryCode) => setAddress({ ...address, countryCode, state: "", stateCode: "" })} />
                 </fieldset>
               )}
             </div>
@@ -318,6 +326,14 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
     </aside>
     </div>
   );
+}
+
+// A check's value as the page shows it: money and dates arrive raw and are formatted here.
+function checkValue(check: { value: string | null; format?: "money" | "date"; currencyCode?: string }) {
+  if (check.value === null) return "";
+  if (check.format === "money") return formatMoney(check.currencyCode, Number(check.value));
+  if (check.format === "date") return formatDate(check.value);
+  return check.value;
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {

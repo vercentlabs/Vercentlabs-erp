@@ -63,7 +63,7 @@ export async function recordVisible(client, context, type, id) {
 }
 
 export async function requireRecordVisible(client, context, type, id) {
-  if (!RECORD_TYPES.includes(type)) throw new CrmError(400, "Notes and files belong to a lead, account, contact or opportunity.", "CRM_CONTENT_RECORD_INVALID");
+  if (!RECORD_TYPES.includes(type)) throw new CrmError(400, "Notes and files belong to a lead, company, contact or deal.", "CRM_CONTENT_RECORD_INVALID");
   if (!(await recordVisible(client, context, type, id))) throw new CrmError(404, "The record was not found, or you do not have access to it.", "CRM_CONTENT_RECORD_INVALID");
 }
 

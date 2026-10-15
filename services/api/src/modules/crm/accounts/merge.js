@@ -83,13 +83,13 @@ function blockersFor(keep, duplicate, transactions) {
 
 function assertDistinct(keepId, duplicateId) {
   if (requireUuid(keepId, "Account") === requireUuid(duplicateId, "Account"))
-    throw new CrmError(400, "Choose two different accounts to merge.", "CRM_ACCOUNT_MERGE_INVALID");
+    throw new CrmError(400, "Choose two different companies to merge.", "CRM_ACCOUNT_MERGE_INVALID");
 }
 
 // Side-by-side view for the merge screen: both records, what will move, and
 // anything that prevents the merge.
 export async function previewAccountMerge(client, context, keepId, duplicateId) {
-  requireAccountPermission(context, ACCOUNT_PERMISSIONS.merge, "You do not have permission to merge accounts.");
+  requireAccountPermission(context, ACCOUNT_PERMISSIONS.merge, "You do not have permission to merge companies.");
   assertDistinct(keepId, duplicateId);
   const keep = await getAccount(client, context, keepId);
   const duplicate = await getAccount(client, context, duplicateId);
@@ -105,7 +105,7 @@ export async function previewAccountMerge(client, context, keepId, duplicateId) 
 // duplicate's when the kept account has none.
 // linkingCustomer: called by linkCustomer, which checks its own permission.
 export async function mergeAccounts(client, context, input = {}, { linkingCustomer = false } = {}) {
-  if (!linkingCustomer) requireAccountPermission(context, ACCOUNT_PERMISSIONS.merge, "You do not have permission to merge accounts.");
+  if (!linkingCustomer) requireAccountPermission(context, ACCOUNT_PERMISSIONS.merge, "You do not have permission to merge companies.");
   const { keepId, duplicateId } = input;
   assertDistinct(keepId, duplicateId);
   // Lock in a stable order so two opposite merges cannot deadlock.
@@ -177,7 +177,7 @@ export async function mergeAccounts(client, context, input = {}, { linkingCustom
   const before = toAccount(keep);
   const changes = Object.fromEntries(Object.entries(MERGE_FIELDS).filter(([, column]) => column in updates).map(([field, column]) => [field, { from: before[field] ?? null, to: updates[column] }]));
   await recordAccountHistory(client, context, duplicate.id, "merged", `Merged into ${keep.display_name} (${keep.code})`, { mergedInto: keep.id });
-  await recordAccountHistory(client, context, keep.id, "merged", `${duplicate.display_name} (${duplicate.code}) merged into this account`, { mergedFrom: duplicate.id, changes });
+  await recordAccountHistory(client, context, keep.id, "merged", `${duplicate.display_name} (${duplicate.code}) merged into this company`, { mergedFrom: duplicate.id, changes });
   await queueOutboxEvent(client, context, "crm.accounts.merged", "account", keep.id, { accountId: keep.id, mergedAccountId: duplicate.id });
   // A draft project that referenced the duplicate as its (provisional) CRM account follows it to the kept account.
   await applyProjectCustomerMerge(client, context, duplicate.id, keep.id);

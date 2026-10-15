@@ -18,3 +18,5 @@ export { DateField, type DateFieldProps } from "./DateField.tsx";
 export { DatePicker, type DatePickerProps } from "./DatePicker.tsx";
 export { TimeField, type TimeFieldProps } from "./TimeField.tsx";
 export { DateTimeField, type DateTimeFieldProps } from "./DateTimeField.tsx";
+// The date and time values the pickers above take and give, so callers can keep plain "YYYY-MM-DD" / "HH:MM" strings.
+export { parseDate, parseTime, type CalendarDate, type Time } from "@internationalized/date";

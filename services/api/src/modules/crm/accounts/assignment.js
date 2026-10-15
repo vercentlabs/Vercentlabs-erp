@@ -49,7 +49,7 @@ export async function applyAccountAssignment(client, context, account, target, {
         organizationId: context.organizationId,
         userId: ownerUserId,
         category: "crm_account_assignment",
-        title: account.owner_user_id ? "Account reassigned to you" : "Account assigned to you",
+        title: account.owner_user_id ? "Company reassigned to you" : "Company assigned to you",
         message: `${account.display_name} (${account.code}) is now yours.`,
         href: `/crm/accounts/${account.id}`,
         entityType: "account",
@@ -77,8 +77,8 @@ export async function assignAccount(client, context, partyId, input = {}) {
     values,
   );
   const account = rows[0];
-  if (!account) throw new CrmError(404, "Account not found.", "CRM_ACCOUNT_NOT_FOUND");
-  if (account.status === "archived") throw new CrmError(409, "Reactivate this account before reassigning it.", "CRM_ACCOUNT_ARCHIVED");
+  if (!account) throw new CrmError(404, "Company not found.", "CRM_ACCOUNT_NOT_FOUND");
+  if (account.status === "archived") throw new CrmError(409, "Reactivate this company before reassigning it.", "CRM_ACCOUNT_ARCHIVED");
   const target = {};
   if (has(input, "ownerUserId")) target.ownerUserId = input.ownerUserId || null;
   if (has(input, "teamId")) target.teamId = input.teamId || null;
@@ -96,8 +96,8 @@ export async function assignAccount(client, context, partyId, input = {}) {
 
 export async function bulkAssignAccounts(client, context, input = {}) {
   const ids = [...new Set(Array.isArray(input.partyIds) ? input.partyIds : [])];
-  if (!ids.length) throw new CrmError(400, "Select at least one account.", "CRM_ACCOUNT_VALIDATION");
-  if (ids.length > BULK_LIMIT) throw new CrmError(400, `Select up to ${BULK_LIMIT} accounts at a time.`, "CRM_ACCOUNT_BULK_LIMIT");
+  if (!ids.length) throw new CrmError(400, "Select at least one company.", "CRM_ACCOUNT_VALIDATION");
+  if (ids.length > BULK_LIMIT) throw new CrmError(400, `Select up to ${BULK_LIMIT} companies at a time.`, "CRM_ACCOUNT_BULK_LIMIT");
   const results = [];
   for (const partyId of ids) {
     await client.query("SAVEPOINT account_bulk_assign");
