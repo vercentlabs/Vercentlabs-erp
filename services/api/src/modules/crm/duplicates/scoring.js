@@ -47,8 +47,17 @@ export const DUPLICATE_SIGNALS =Object.freeze({ lead: PERSON_SIGNALS, contact: P
 //   matchStrength  "strong" | "possible"
 //   score          0–100
 //   reasons        [{ signal, label, strong }], strongest first
-export function gradeMatch(kind, signals = []) {
-  const catalogue = DUPLICATE_SIGNALS[kind] ?? PERSON_SIGNALS;
+// options.individual: an account that is a person (customer_kind "individual"): two "Amit Kumar"s are two customers, so the same name
+// is only a possible match — mobile, email or GSTIN decide.
+export function gradeMatch(kind, signals = [], { individual = false } = {}) {
+  const base = DUPLICATE_SIGNALS[kind] ?? PERSON_SIGNALS;
+  let catalogue = individual && kind === "account" ? { ...base, name: { label: "Same name", weight: 40, strong: false } } : base;
+  // People: a parent enquiring for two children, or a household, share one mobile. With a different name it is a warning ("Same mobile
+  // number, different name"), never a refusal; with the same (or a similar) name it stays a strong duplicate. The same email stays strong:
+  // it identifies a person (a name typed differently would otherwise slip through).
+  const NAMED = ["name", "similar_name", "name_company", "name_email_domain", "phone_name"];
+  if ((kind === "lead" || kind === "contact") && !signals.some((signal) => NAMED.includes(signal)) && signals.includes("mobile") && !signals.includes("email"))
+    catalogue = { ...catalogue, mobile: { label: "Same mobile number, different name", weight: 65, strong: false } };
   // "Same company name" already says "similar name": show the stronger reason only.
   const implied = (signal) => (IMPLIED_BY[signal] ?? []).some((stronger) => signals.includes(stronger));
   const reasons = [...new Set(signals)]

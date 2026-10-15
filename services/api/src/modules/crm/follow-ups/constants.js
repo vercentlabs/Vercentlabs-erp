@@ -16,12 +16,14 @@ export const FOLLOW_UP_TYPES = Object.freeze([
   { code: "email", label: "Email" },
   { code: "meeting", label: "Meeting" },
   { code: "demo", label: "Demo" },
+  { code: "visit", label: "Visit" },
+  { code: "whatsapp", label: "WhatsApp" },
   { code: "other", label: "Other" },
 ]);
 // The older channel column keeps a value the activity table already accepts.
-export const CHANNEL_OF_TYPE = Object.freeze({ call: "call", email: "email", meeting: "meeting", demo: "meeting", other: "other" });
+export const CHANNEL_OF_TYPE = Object.freeze({ call: "call", email: "email", meeting: "meeting", demo: "meeting", visit: "meeting", whatsapp: "whatsapp", other: "other" });
 // The activity a completed follow-up records on the timeline; Other records none.
-export const ACTIVITY_OF_TYPE = Object.freeze({ call: "call", email: "email", meeting: "meeting", demo: "meeting" });
+export const ACTIVITY_OF_TYPE = Object.freeze({ call: "call", email: "email", meeting: "meeting", demo: "meeting", visit: "meeting", whatsapp: "whatsapp" });
 
 export const FOLLOW_UP_OUTCOMES = Object.freeze([
   { code: "connected", label: "Connected" },

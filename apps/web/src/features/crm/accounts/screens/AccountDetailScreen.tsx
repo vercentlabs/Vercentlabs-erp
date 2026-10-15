@@ -212,11 +212,12 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
                 columns={3}
                 items={[
                   { label: "Company name", value: account.displayName },
-                  { label: "Legal name", value: account.legalName },
+                  ...(account.isIndividual ? [] : [{ label: "Legal name", value: account.legalName }]),
                   { label: "Company number", value: account.code },
-                  { label: "Industry", value: account.industry },
-                  { label: "Employees", value: account.employeeRange },
-                  { label: "Annual revenue", value: account.annualRevenue !== null ? formatMoney(currency, account.annualRevenue) : null },
+                  // A person has no industry, headcount or revenue.
+                  ...(account.isIndividual ? [{ label: "Kind", value: "Individual customer" }] : [{ label: "Industry", value: account.industry },
+                    { label: "Employees", value: account.employeeRange },
+                    { label: "Annual revenue", value: account.annualRevenue !== null ? formatMoney(currency, account.annualRevenue) : null }]),
                   { label: "Email", value: account.email ? <a className="hover:underline" href={`mailto:${account.email}`}>{account.email}</a> : account.sensitiveDataRestricted ? "Hidden" : null },
                   { label: "Phone", value: account.phone ? <a className="hover:underline" href={`tel:${account.phone}`}>{account.phone}</a> : account.sensitiveDataRestricted ? "Hidden" : null },
                   { label: "Secondary phone", value: account.secondaryPhone ?? null },

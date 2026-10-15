@@ -287,7 +287,7 @@ export function updateLeadStage(client: QueryClient, context: CrmContext, id: st
 export function reorderLeadStages(client: QueryClient, context: CrmContext, orderedIds: string[]): Promise<LeadStageDefinition[]>;
 export function listLeadStageHistory(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadStageHistoryEntry[]>;
 export function bulkChangeLeadStage(client: QueryClient, context: CrmContext, input: { leadIds: string[]; stage: string }): Promise<LeadBulkResult>;
-export function archiveLead(client: QueryClient, context: CrmContext, leadId: string): Promise<{ changed: boolean }>;
+export function archiveLead(client: QueryClient, context: CrmContext, leadId: string, input?: { openWork?: "keep" | "cancel" }): Promise<{ changed: boolean; cancelledTasks?: number; cancelledFollowUps?: number }>;
 export function restoreLead(client: QueryClient, context: CrmContext, leadId: string): Promise<{ changed: boolean }>;
 
 // assignment

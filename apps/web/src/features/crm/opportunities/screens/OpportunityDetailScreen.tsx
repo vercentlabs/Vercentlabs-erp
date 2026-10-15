@@ -8,7 +8,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertDialog, Button, Dialog, ErrorState, RecordDetailsPage, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
+import { AlertDialog, Button, Checkbox, Dialog, ErrorState, RecordDetailsPage, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
@@ -96,6 +96,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
   run: (work: () => Promise<unknown>) => void; isRunning: boolean;
 }) {
   const router = useRouter();
+  const [keepWork, setKeepWork] = useState(false);
   const workspace = useWorkspaceContext();
   // Set when Mark won is started from an accepted quotation.
   const [winningQuotationId, setWinningQuotationId] = useState<string | undefined>(undefined);
@@ -248,7 +249,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
                 { label: "Next step", value: opportunity.nextStep },
                 { label: "Next step due", value: opportunity.nextStepDueAt ? formatDateTime(opportunity.nextStepDueAt) : null },
                 { label: "Next activity", value: opportunity.nextActivity
-                  ? `${opportunity.nextActivity.subject}${opportunity.nextActivity.dueAt ? ` · ${formatDateTime(opportunity.nextActivity.dueAt)}` : ""}`
+                  ? `${opportunity.nextActivity.subject}${opportunity.nextActivity.dueAt ? ` · ${opportunity.nextActivity.dueTimeSet === false ? formatDate(opportunity.nextActivity.dueAt) : formatDateTime(opportunity.nextActivity.dueAt)}` : ""}`
                   : open ? <span className="font-medium text-warning">No next activity</span> : null },
                 { label: "Last activity", value: opportunity.lastActivityAt ? `${formatDateTime(opportunity.lastActivityAt)} (${days(opportunity.daysSinceActivity)} ago)` : null },
               ]} />
@@ -330,8 +331,10 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
       <AlertDialog
         isOpen={dialog === "archive"} onOpenChange={close} tone="danger" confirmLabel="Archive deal" isConfirming={isRunning}
         title="Archive this deal?"
-        description="It leaves the working lists and the pipeline but keeps its history, notes, files, activities and quotations. It can be restored from the Archived view."
-        onConfirm={() => run(async () => { await archiveOpportunity(opportunity.id); setDialog(null); })}
+        description={<span className="flex flex-col gap-2"><span>It leaves the working lists and the pipeline but keeps its history, notes, files, activities and quotations. It can be restored from the Archived view.
+          Its open tasks and follow-ups are cancelled so no reminders keep firing.</span>
+          <Checkbox isSelected={keepWork} onChange={setKeepWork}>Keep its open tasks and follow-ups instead</Checkbox></span>}
+        onConfirm={() => run(async () => { await archiveOpportunity(opportunity.id, keepWork ? "keep" : "cancel"); setDialog(null); })}
       />
       <AlertDialog
         isOpen={dialog === "delete"} onOpenChange={close} tone="danger" confirmLabel="Delete deal" isConfirming={isRunning}

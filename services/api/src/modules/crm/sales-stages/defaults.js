@@ -11,7 +11,7 @@
 export const DEFAULT_SALES_STAGES = Object.freeze([
   {
     code: "DISCOVERY", name: "Discovery", probability: 10, forecastCategory: "pipeline",
-    description: "The opportunity has been created and you are understanding the customer's situation.",
+    description: "The deal has been created and you are understanding the customer's situation.",
     guidance: "Understand the business problem\nIdentify the stakeholders\nUnderstand the high-level scope\nEstablish whether the deal is real",
   },
   {
@@ -32,7 +32,7 @@ export const DEFAULT_SALES_STAGES = Object.freeze([
   {
     code: "CLOSING", name: "Closing", probability: 90, forecastCategory: "committed",
     description: "The deal is near its final decision. It stays open until the outcome is confirmed.",
-    guidance: "Get the final approval or purchase order\nGet the final quotation accepted\nGet the contract signed\nThen mark the opportunity won or lost",
+    guidance: "Get the final approval or purchase order\nGet the final quotation accepted\nGet the contract signed\nThen mark the deal won or lost",
   },
   { code: "WON", name: "Closed Won", probability: 100, forecastCategory: "closed", isWon: true },
   { code: "LOST", name: "Closed Lost", probability: 0, forecastCategory: "closed", isLost: true },

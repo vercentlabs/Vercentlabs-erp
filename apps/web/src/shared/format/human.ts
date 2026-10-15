@@ -125,7 +125,9 @@ export const CURRENCY_CODES = [
   "SAR",
 ];
 
-// 12,50,000 rendered as the currency's own symbol and grouping, never a bare number when the currency is known.
+// 12,50,000 rendered as the currency's own symbol and grouping, never a bare number when the currency is known. Indian grouping and the
+// lakh / crore short forms are for rupees; other currencies use international grouping ($100,000, $1.2M). Compact rupees show the full
+// amount below one lakh (₹30,000 — Intl's compact "₹30T" reads as trillions), then L and Cr.
 export function formatMoney(
   currencyCode: string | null | undefined,
   value: number | string | null | undefined,
@@ -134,16 +136,26 @@ export function formatMoney(
   if (value === null || value === undefined || value === "") return "";
   const numeric = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numeric)) return String(value);
-  if (!currencyCode) return numeric.toLocaleString("en-IN");
+  const code = currencyCode?.toUpperCase();
+  const locale = !code || code === "INR" ? "en-IN" : "en-US";
+  if (!code) return numeric.toLocaleString(locale);
+  const fraction = numeric % 1 === 0 ? 0 : 2;
   try {
-    return new Intl.NumberFormat("en-IN", {
+    if (options.compact && code === "INR") {
+      const size = Math.abs(numeric);
+      if (size < 100000) return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(numeric);
+      const [divisor, suffix] = size >= 10000000 ? [10000000, "Cr"] : [100000, "L"];
+      const short = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(size / divisor);
+      return `${numeric < 0 ? "-" : ""}₹${short}${suffix}`;
+    }
+    return new Intl.NumberFormat(locale, {
       style: "currency",
-      currency: currencyCode.toUpperCase(),
-      maximumFractionDigits: numeric % 1 === 0 ? 0 : 2,
+      currency: code,
+      maximumFractionDigits: options.compact ? Math.min(fraction, 1) : fraction,
       notation: options.compact ? "compact" : "standard",
     }).format(numeric);
   } catch {
-    return `${currencyCode} ${numeric.toLocaleString("en-IN")}`;
+    return `${code} ${numeric.toLocaleString(locale)}`;
   }
 }
 

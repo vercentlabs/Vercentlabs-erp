@@ -40,7 +40,9 @@ export function LeadImportScreen({ embedded = false }: { embedded?: boolean } = 
 
   const analyze = useMutation({
     mutationFn: (chosen: File) => analyzeLeadImport(chosen),
-    onSuccess: (data) => { setAnalysis(data); setMapping(data.suggestedMapping); setResult(null); setError(null); },
+    // A file with no owner column runs the assignment rules unless the person chooses otherwise (never every row unassigned by default).
+    onSuccess: (data) => { setAnalysis(data); setMapping(data.suggestedMapping); setResult(null); setError(null);
+      setAssignmentMode(Object.values(data.suggestedMapping).includes("ownerEmail") ? "file" : "rules"); },
     onError: (failure) => { setAnalysis(null); setError(errorMessage(failure)); },
   });
   const run = useMutation({
@@ -170,6 +172,9 @@ export function LeadImportScreen({ embedded = false }: { embedded?: boolean } = 
             <Radio value="file">Use the Owner Email column in the file</Radio>
             <Radio value="rules">Ignore the file and run the assignment rules on every row</Radio>
           </RadioGroup>
+          {assignmentMode === "file" && !Object.values(mapping).includes("ownerEmail") && defaultOwnerUserId === NONE && (
+            <p className="pl-6 text-sm text-warning">No column is mapped to Owner Email, so every imported lead will be unassigned unless you choose an owner below.</p>
+          )}
           {assignmentMode === "file" && (
             <div className="grid gap-4 pl-6 sm:grid-cols-2">
               <Select

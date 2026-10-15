@@ -211,6 +211,51 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     defaultInAppEnabled: true,
     userConfigurable: true,
   },
+  {
+    // Projects — Milestones: you are made a milestone's owner, it is submitted, reviewed, blocked, completed, reopened or cancelled.
+    key: "project_milestone",
+    displayName: "Milestone updates",
+    description: "When you are made a milestone's owner, or a milestone you own or manage is submitted, reviewed, blocked, rescheduled, completed, reopened or cancelled.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects (worker, daily): a milestone due soon or overdue — each once per due date.
+    key: "project_milestone_alert",
+    displayName: "Milestone deadlines",
+    description: "When a milestone you own or manage is due soon or overdue.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects -> Sales: a completed milestone's billing is requested on a sales order (Sales invoices it).
+    key: "project_milestone_billing",
+    displayName: "Milestone billing requests",
+    description: "When a completed project milestone is ready to be invoiced on a sales order you handle.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects — Tasks: a task is assigned to you, reassigned, blocked, sent for your review, returned with changes, done, or you are mentioned on it.
+    key: "project_task",
+    displayName: "Task updates",
+    description: "When a task is assigned to you or reassigned, is blocked, needs your review, comes back with changes, is done, or someone mentions you on it.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects (worker, daily): a task due soon (one reminder) or overdue (with the Project Manager) — each once per due date.
+    key: "project_task_alert",
+    displayName: "Task deadlines",
+    description: "When a task assigned to you is due soon or overdue; managers hear about overdue tasks on their projects.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
 ]);
 
 const BY_KEY = new Map(NOTIFICATION_CATEGORIES.map((category) => [category.key, category]));

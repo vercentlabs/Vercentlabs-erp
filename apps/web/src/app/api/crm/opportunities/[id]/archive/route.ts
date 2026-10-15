@@ -8,6 +8,6 @@ import { type OpportunityRouteParams } from "@/features/crm/opportunities/server
 
 export async function POST(request: Request, route: OpportunityRouteParams) {
   return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesDelete, billingWrite: true }, async ({ client, session }) =>
-    ok(await archiveOpportunity(client, crmContext(session), (await route.params).id)),
+    ok(await archiveOpportunity(client, crmContext(session), (await route.params).id, { openWork: new URL(request.url).searchParams.get("openWork") === "keep" ? "keep" : "cancel" })),
   );
 }

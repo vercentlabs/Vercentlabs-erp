@@ -103,6 +103,8 @@ function ConversionForm({ leadId, preview, options, isRefreshing, accountChoice,
 
   const newAccountDefaults = defaults.account.mode === "new" ? defaults.account : { name: lead.company ?? "", website: lead.website ?? "", industry: lead.industry ?? "", ownerUserId: lead.ownerUserId };
   const [account, setAccount] = useState({ name: newAccountDefaults.name, legalName: "", website: newAccountDefaults.website, industry: newAccountDefaults.industry, ownerUserId: newAccountDefaults.ownerUserId ?? "" });
+  // A person buying for themselves or their household: no company to invent.
+  const [individual, setIndividual] = useState((newAccountDefaults as { kind?: string }).kind === "individual");
   const [acknowledgeAccounts, setAcknowledgeAccounts] = useState(false);
 
   const newContactDefaults = defaults.contact.mode === "new" ? defaults.contact
@@ -180,7 +182,7 @@ function ConversionForm({ leadId, preview, options, isRefreshing, accountChoice,
   const input = (): LeadConversionInput => ({
     idempotencyKey,
     account: accountChoice === NEW
-      ? { mode: "new", name: account.name.trim(), legalName: account.legalName.trim() || undefined, website: account.website.trim(), industry: account.industry.trim(), ownerUserId: account.ownerUserId || undefined, acknowledgeMatches: acknowledgeAccounts }
+      ? { mode: "new" as const, kind: (individual ? "individual" : "business") as "individual" | "business", name: account.name.trim(), legalName: individual ? undefined : account.legalName.trim() || undefined, website: account.website.trim(), industry: account.industry.trim(), ownerUserId: account.ownerUserId || undefined, acknowledgeMatches: acknowledgeAccounts }
       : { mode: "existing", id: accountChoice },
     contact: contactChoice === NEW
       ? { mode: "new", firstName: contact.firstName.trim(), lastName: contact.lastName.trim(), email: contact.email.trim(), mobile: contact.mobile.trim(), phone: contact.phone.trim(), jobTitle: contact.jobTitle.trim(), ownerUserId: contact.ownerUserId || undefined, acknowledgeMatches: acknowledgeContacts }
@@ -263,10 +265,12 @@ function ConversionForm({ leadId, preview, options, isRefreshing, accountChoice,
           {hiddenStrongAccount && <Banner tone="warning" message="A company you cannot open matches this one. Ask a manager before creating a new one." />}
           {accountChoice === NEW && (
             <div className="grid gap-3 rounded-[var(--radius-card)] border border-border p-3 sm:grid-cols-2">
-              <TextField label="Company name" isRequired value={account.name} onChange={(name) => setAccount({ ...account, name })} />
-              <TextField label="Legal name" description="Optional." value={account.legalName} onChange={(legalName) => setAccount({ ...account, legalName })} />
-              <TextField label="Website" value={account.website} onChange={(website) => setAccount({ ...account, website })} />
-              <TextField label="Industry" value={account.industry} onChange={(industry) => setAccount({ ...account, industry })} />
+              <Checkbox className="sm:col-span-2" isSelected={individual} onChange={setIndividual}>A person, not a company (an individual customer)</Checkbox>
+              {individual && <p className="text-sm text-text-secondary sm:col-span-2">No company is needed: the customer is created as an individual, named after the person. Untick it if they buy for an organization.</p>}
+              <TextField label={individual ? "Customer name" : "Company name"} isRequired value={account.name} onChange={(name) => setAccount({ ...account, name })} />
+              {!individual && <TextField label="Legal name" description="Optional." value={account.legalName} onChange={(legalName) => setAccount({ ...account, legalName })} />}
+              {!individual && <TextField label="Website" value={account.website} onChange={(website) => setAccount({ ...account, website })} />}
+              {!individual && <TextField label="Industry" value={account.industry} onChange={(industry) => setAccount({ ...account, industry })} />}
               <Select label="Company owner" isRequired isDisabled={ownerLocked} description={ownerLocked ? "The lead owner." : undefined} selectedKey={account.ownerUserId}
                 onSelectionChange={(key) => setAccount({ ...account, ownerUserId: String(key) })} options={userOptions} />
               {accountMatches.length > 0 && (newAccountBlockedByStrong

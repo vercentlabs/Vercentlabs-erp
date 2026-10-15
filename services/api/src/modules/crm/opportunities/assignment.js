@@ -11,7 +11,7 @@ import { createNotification } from "../../../core/platform/notifications/index.j
 import { assertCrmOwnerAssignable } from "../data-management/crm-access-scope.js";
 import { CrmError } from "../data-management/errors.js";
 import { assertActiveTeam, assertEligibleLeadAssignee } from "../leads/assignment.js";
-import { canViewAllOpportunities, requireOpportunityPermission } from "./access.js";
+import { canViewAllOpportunities, opportunityCan, requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_PERMISSIONS } from "./constants.js";
 import { recordOpportunityHistory } from "./history.js";
 import { assertNotStale, getOpportunity, lockOpportunity } from "./records.js";
@@ -36,13 +36,13 @@ export async function assignOpportunity(client, context, opportunityId, input = 
 
   const moving = (ownerChanging && opportunity.owner_user_id) || (teamChanging && opportunity.team_id);
   requireOpportunityPermission(context, moving ? OPPORTUNITY_PERMISSIONS.reassign : OPPORTUNITY_PERMISSIONS.assign,
-    moving ? "You do not have permission to reassign opportunities." : "You do not have permission to assign opportunities.");
+    moving ? "You do not have permission to reassign deals." : "You do not have permission to assign deals.");
   const team = teamChanging && teamId ? await assertActiveTeam(client, context, teamId) : null;
   let owner = null;
   if (ownerChanging && ownerUserId) {
     // Outside the teams the caller manages needs the wider view.
     if (ownerUserId !== context.userId && !canViewAllOpportunities(context))
-      await assertCrmOwnerAssignable(client, context, ownerUserId, "You can only assign opportunities to yourself or to members of a team you manage.", { resource: "opportunities" });
+      await assertCrmOwnerAssignable(client, context, ownerUserId, "You can only assign deals to yourself or to members of a team you manage.", { resource: "opportunities" });
     owner = await assertEligibleLeadAssignee(client, context, ownerUserId, { teamId: teamChanging ? teamId : null });
   }
   const reason = text(input.reason).slice(0, 500) || null;
@@ -94,7 +94,9 @@ export async function assignOpportunity(client, context, opportunityId, input = 
 // Assigns many opportunities in one request. Each succeeds or fails on its
 // own; every new owner gets one summary notification.
 export async function bulkAssignOpportunities(client, context, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.reassign, "You do not have permission to assign deals in bulk.");
+  // Assigning unowned deals needs only Assign; each deal that already has an owner is checked for Reassign on its own (assignOpportunity).
+  if (!opportunityCan(context, OPPORTUNITY_PERMISSIONS.reassign))
+    requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.assign, "You do not have permission to assign deals in bulk.");
   const { opportunityIds, ...assignment } = input;
   let received = 0;
   const result = await runOpportunityBulkOperation(client, opportunityIds, async (id) => {

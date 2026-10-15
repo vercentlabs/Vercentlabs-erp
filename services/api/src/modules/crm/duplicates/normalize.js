@@ -15,9 +15,24 @@ export function normalizeEmail(value) {
 // the trunk zero are how a number was typed, not who it reaches, so
 // "+91 98765 43210", "09876543210" and "9876543210" all become "9876543210".
 // The same rule as tenant.crm_normalize_phone in the database.
+// Search text that is a phone number ("+91 98765 43211", "98765-43211", "9876543211"): its digits, as stored in the normalized phone
+// columns (the last ten). Anything with letters ("OPP-00002") is not a phone search.
+export function phoneSearchDigits(value) {
+  const raw = text(value);
+  if (!/^[\d\s+\-().]+$/.test(raw)) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 5) return null;
+  if (raw.startsWith("+") && !digits.startsWith("91")) return digits;
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
+// Indian numbers compare on their last ten digits (+91 98765 43211 = 098765 43211 = 9876543211). A number written with another country
+// code (+44, +971) keeps all its digits, so it never falsely matches an Indian one. Same rule as tenant.crm_normalize_phone.
 export function normalizePhone(value) {
-  const digits = text(value).replace(/\D/g, "");
+  const raw = text(value);
+  const digits = raw.replace(/\D/g, "");
   if (digits.length < 7 || digits.length > 15) return null;
+  if (raw.startsWith("+") && !digits.startsWith("91")) return digits;
   return digits.slice(-10);
 }
 

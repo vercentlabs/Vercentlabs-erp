@@ -114,13 +114,13 @@ export async function changeOpportunityStage(client, context, opportunityId, inp
     from: opportunity.stage_id, to: stage.id, fromName: opportunity.stage_name, toName: stage.name, probabilityBefore: Number(opportunity.probability), probability,
     note: text(input.note).slice(0, 500) || null,
   });
-  // One stage is worth a word to the owner: someone else brought their deal to the point of decision.
-  if (String(stage.code).toUpperCase() === "CLOSING" && opportunity.owner_user_id && opportunity.owner_user_id !== context.userId)
+  // The owner hears when someone else moves their deal (on the board or the deal page), whichever stage it goes to.
+  if (opportunity.owner_user_id && opportunity.owner_user_id !== context.userId)
     await createNotification(client, {
       organizationId: context.organizationId,
       userId: opportunity.owner_user_id,
       category: "crm_opportunity_stage",
-      title: `Your deal reached ${stage.name}`,
+      title: `Your deal moved to ${stage.name}`,
       message: `${opportunity.name} (${opportunity.code})`,
       href: `/crm/opportunities/${opportunity.id}`,
       entityType: "opportunity",

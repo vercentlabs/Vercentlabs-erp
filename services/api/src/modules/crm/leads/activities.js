@@ -86,6 +86,8 @@ export async function addLeadActivity(client, context, leadId, input = {}) {
   if (notes.length > 4000 || outcome.length > 1000) throw new CrmError(400, "The notes or outcome are too long.", "CRM_LEAD_ACTIVITY_VALIDATION");
 
   const lead = await lockLead(client, context, leadId);
+  // A converted lead's work continues on its deal, where everyone working it will see the call.
+  if (lead.status === "converted") throw new CrmError(409, "This lead is converted. Log it on its deal.", "CRM_LEAD_CONVERTED");
   const subject = (text(input.subject) || `${ACTIVITY_TYPES.get(type)} with ${leadLabel(lead)}`).slice(0, 300);
   const { rows } = await client.query(
     `INSERT INTO tenant.crm_activities (organization_id, entity_type, entity_id, activity_type, subject, description, status, outcome,

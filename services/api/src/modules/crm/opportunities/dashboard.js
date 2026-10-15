@@ -2,6 +2,7 @@
 // export. All three count only the deals the caller can see, with the same
 // scope and filters as the opportunity list, so a figure and the list behind
 // it always agree.
+import { csvCellWriter, dayIn, organizationTimeZone } from "../data-management/csv.js";
 import { CrmError } from "../data-management/errors.js";
 import { opportunityScopeSql, requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_PERMISSIONS, OPPORTUNITY_STALE_DAYS, opportunityPriorityLabel, opportunityStatusLabel } from "./constants.js";
@@ -79,8 +80,9 @@ export async function getOpportunityDashboard(client, context, input = {}) {
       staleDays: OPPORTUNITY_STALE_DAYS,
       averageDealSize: money(totals.average_deal_size),
       // won ÷ (won + lost), as a percentage
-      winRate: decided ? Math.round((totals.won / decided) * 1000) / 10 : 0,
-      lossRate: decided ? Math.round((totals.lost / decided) * 1000) / 10 : 0,
+      // Nothing closed in the period: no rate (shown as –), never a 0% that reads as a result.
+      winRate: decided ? Math.round((totals.won / decided) * 1000) / 10 : null,
+      lossRate: decided ? Math.round((totals.lost / decided) * 1000) / 10 : null,
       // from the day the deal was created to the day it was won
       averageSalesCycleDays: totals.average_sales_cycle_days ?? null,
     },
@@ -129,7 +131,7 @@ export async function getOpportunitiesByStageReport(client, context, input = {})
   const label = (key) => (groupBy === "status" ? opportunityStatusLabel(key) : groupBy === "priority" ? opportunityPriorityLabel(key) : key);
   const reportRows = rows.map((row) => ({
     group: label(row.group_key), total: row.total, open: row.open, won: row.won, lost: row.lost, value: money(row.value), weightedValue: money(row.weighted),
-    winRate: row.won + row.lost ? Math.round((row.won / (row.won + row.lost)) * 1000) / 10 : 0,
+    winRate: row.won + row.lost ? Math.round((row.won / (row.won + row.lost)) * 1000) / 10 : null,
   }));
   return {
     groupBy,
@@ -147,16 +149,11 @@ export async function getOpportunitiesByStageReport(client, context, input = {})
 const EXPORT_ROW_LIMIT = 10000;
 
 // A value starting with a formula character would run in a spreadsheet.
-function csvCell(value) {
-  let cell = value === null || value === undefined ? "" : value instanceof Date ? value.toISOString() : String(value);
-  if (/^[=+\-@\t\r]/.test(cell)) cell = `'${cell}`;
-  return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
-}
 
 const EXPORT_COLUMNS = Object.freeze([
-  ["Opportunity Number", (row) => row.code],
-  ["Opportunity", (row) => row.name],
-  ["Account", (row) => row.accountName],
+  ["Deal Number", (row) => row.code],
+  ["Deal", (row) => row.name],
+  ["Company", (row) => row.accountName],
   ["Primary Contact", (row) => row.contactName],
   ["Stage", (row) => row.stageName],
   ["Status", (row) => opportunityStatusLabel(row.status)],
@@ -192,8 +189,10 @@ export async function exportOpportunities(client, context, filters = {}) {
   if (rows.length > EXPORT_ROW_LIMIT)
     throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} deals. Narrow the filters and try again.`, "CRM_OPPORTUNITY_EXPORT_TOO_LARGE");
   const opportunities = rows.map(toOpportunity);
+  const timeZone = await organizationTimeZone(client, context);
+  const csvCell = csvCellWriter(timeZone);
   return {
-    fileName: `opportunities-${new Date().toISOString().slice(0, 10)}.csv`,
+    fileName: `deals-${dayIn(timeZone)}.csv`,
     rowCount: opportunities.length,
     csv: `﻿${[EXPORT_COLUMNS.map(([label]) => label), ...opportunities.map((row) => EXPORT_COLUMNS.map(([, read]) => read(row)))].map((line) => line.map(csvCell).join(",")).join("\r\n")}\r\n`,
   };

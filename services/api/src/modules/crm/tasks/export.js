@@ -1,4 +1,5 @@
 // The task list as a file: exactly the tasks the list shows for the same view and filters.
+import { csvCellWriter, dayIn, organizationTimeZone } from "../data-management/csv.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireTaskPermission } from "./access.js";
 import { TASK_PERMISSIONS } from "./constants.js";
@@ -24,11 +25,6 @@ const COLUMNS = Object.freeze([
   ["Description", (task) => task.description],
 ]);
 
-function csvCell(value) {
-  let cell = value === null || value === undefined ? "" : value instanceof Date ? value.toISOString() : String(value);
-  if (/^[=+\-@\t\r]/.test(cell)) cell = `'${cell}`;
-  return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
-}
 
 export async function exportTasks(client, context, filters = {}) {
   requireTaskPermission(context, TASK_PERMISSIONS.export, "You do not have permission to export.");
@@ -37,8 +33,10 @@ export async function exportTasks(client, context, filters = {}) {
   const { rows } = await client.query(`${TASK_SELECT} ${where} ORDER BY task.due_at ASC NULLS LAST, task.id LIMIT ${EXPORT_ROW_LIMIT + 1}`, values);
   if (rows.length > EXPORT_ROW_LIMIT) throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} tasks. Narrow the filters and try again.`, "CRM_TASK_EXPORT_TOO_LARGE");
   const tasks = rows.map(toTask);
+  const timeZone = await organizationTimeZone(client, context);
+  const csvCell = csvCellWriter(timeZone);
   return {
-    fileName: `tasks-${new Date().toISOString().slice(0, 10)}.csv`,
+    fileName: `tasks-${dayIn(timeZone)}.csv`,
     rowCount: tasks.length,
     csv: `﻿${[COLUMNS.map(([label]) => label), ...tasks.map((task) => COLUMNS.map(([, read]) => read(task)))].map((line) => line.map(csvCell).join(",")).join("\r\n")}\r\n`,
   };

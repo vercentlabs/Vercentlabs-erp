@@ -1,6 +1,8 @@
 // The contact record: create, read, list, update, status changes and
 // deletion of contacts with no history. Owner and team change only through
 // assignment.js; company links through relationships.js.
+import { updatedSummary } from "../data-management/field-labels.js";
+import { phoneSearchDigits } from "../duplicates/normalize.js";
 import { accountScopeSql } from "../accounts/access.js";
 import { recordAccountHistory } from "../accounts/history.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
@@ -203,10 +205,10 @@ export function buildContactListWhere(context, filters = {}, values = []) {
     const details = contactCan(context, CONTACT_PERMISSIONS.viewSensitive)
       ? "|| ' ' || COALESCE(contact.email, '') || ' ' || COALESCE(contact.secondary_email, '') || ' ' || COALESCE(contact.phone, '') || ' ' || COALESCE(contact.mobile, '') || ' ' || COALESCE(contact.alternate_phone, '')"
       : "";
-    const digits = search.replace(/\D/g, "");
+    const digits = phoneSearchDigits(search) ?? "";
     where.push(`(lower(COALESCE(contact.contact_number, '') || ' ' || COALESCE(contact.display_name, '') || ' ' || contact.first_name || ' ' || COALESCE(contact.middle_name, '') || ' '
         || COALESCE(contact.last_name, '') || ' ' || COALESCE(contact.designation, '') || ' ' || COALESCE(account.display_name, '') ${details}) LIKE ${pattern}${
-      details && digits.length >= 5 ? ` OR contact.normalized_mobile LIKE ${bind(`%${digits}`)} OR contact.normalized_work_phone LIKE $${values.length}` : ""})`);
+      details && digits ? ` OR contact.normalized_mobile LIKE ${bind(`%${digits}%`)} OR contact.normalized_work_phone LIKE $${values.length}` : ""})`);
   }
   return `WHERE ${where.join(" AND ")}${contactScopeValues(context, values, "contact")}`;
 }
@@ -387,7 +389,7 @@ export async function updateContact(client, context, contactId, input = {}, { al
   const changed = [...changedColumns, ...changedRole];
   if (changed.length) {
     const changes = Object.fromEntries(changed.map((field) => [field, { from: before[field] ?? null, to: normalized[field] ?? null }]));
-    await recordContactHistory(client, context, row.id, "updated", `Updated ${changed.length === 1 ? changed[0] : `${changed.length} fields`}`, changes);
+    await recordContactHistory(client, context, row.id, "updated", updatedSummary(changed), changes);
     await queueOutboxEvent(client, context, "crm.contacts.updated", "contact", row.id, { contactId: row.id, changedFields: changed });
   }
   return projectContactForContext(context, toContact(await loadContactRow(client, context, row.id)));

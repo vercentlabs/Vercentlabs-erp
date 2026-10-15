@@ -6,6 +6,8 @@
 // assignment rules, history and notifications behave exactly as they do for a
 // lead typed in by hand. A row that fails is reported with its reason and
 // never stops the rest of the file.
+import { csvCellWriter, dayIn, organizationTimeZone } from "../data-management/csv.js";
+import { createNotification } from "../../../core/platform/notifications/index.js";
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { CrmError } from "../data-management/errors.js";
@@ -16,7 +18,8 @@ import { LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, leadAssignmentMethodLabel, 
 import { LEAD_SELECT, buildLeadListWhere, createLead, toLead } from "./records.js";
 import { assertActiveLeadSource, findLeadSourceByName } from "./sources.js";
 
-const IMPORT_ROW_LIMIT = 2000;
+// One request and one transaction: a size that finishes well inside a proxy's timeout. Larger files are split.
+const IMPORT_ROW_LIMIT = 1000;
 const EXPORT_ROW_LIMIT = 10000;
 // A timeframe is read from its label ("1–3 months", also typed "1-3 months"),
 // its code ("within_3_months") or the code's wording ("within 3 months").
@@ -27,6 +30,7 @@ const TIMEFRAME_LABELS = new Map(LEAD_PURCHASE_TIMEFRAMES.map((entry) => [entry.
 // Importable fields, in template order. `aliases` are other header spellings
 // the column mapping recognizes automatically.
 export const LEAD_IMPORT_FIELDS = Object.freeze([
+  { key: "fullName", label: "Full Name", aliases: ["name", "full name", "contact name", "customer name", "lead name"], sample: "" },
   { key: "firstName", label: "First Name", aliases: ["first", "given name"], sample: "Asha" },
   { key: "lastName", label: "Last Name", aliases: ["last", "surname", "family name"], sample: "Rao" },
   { key: "companyName", label: "Company", aliases: ["company name", "organization", "organisation", "account"], sample: "Rao Textiles Pvt Ltd" },
@@ -37,7 +41,7 @@ export const LEAD_IMPORT_FIELDS = Object.freeze([
   { key: "website", label: "Website", aliases: ["url", "web"], sample: "https://raotextiles.example" },
   { key: "city", label: "City", aliases: ["town"], sample: "Mumbai" },
   { key: "state", label: "State", aliases: ["province", "region"], sample: "Maharashtra" },
-  { key: "countryCode", label: "Country Code", aliases: ["country"], sample: "IN" },
+  { key: "countryCode", label: "Country", aliases: ["country", "country code"], sample: "IN" },
   { key: "source", label: "Lead Source", aliases: ["source"], sample: "Referral" },
   { key: "sourceDetail", label: "Source Detail", aliases: ["campaign", "referral name", "referred by"], sample: "Referred by Mehta Fabrics" },
   { key: "industry", label: "Industry", aliases: ["sector"], sample: "Textiles" },
@@ -54,14 +58,10 @@ const FIELD_BY_KEY = new Map(LEAD_IMPORT_FIELDS.map((field) => [field.key, field
 const headerKey = (value) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 // A value starting with a formula character would run in a spreadsheet.
-function csvCell(value) {
-  let cell = value === null || value === undefined ? "" : value instanceof Date ? value.toISOString() : String(value);
-  if (/^[=+\-@\t\r]/.test(cell)) cell = `'${cell}`;
-  return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
-}
+const csvCell = csvCellWriter("UTC");
 
-function toCsv(rows) {
-  return `﻿${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
+function toCsv(rows, cell = csvCell) {
+  return `﻿${rows.map((row) => row.map(cell).join(",")).join("\r\n")}\r\n`;
 }
 
 export function buildLeadImportTemplate() {
@@ -97,6 +97,22 @@ export async function analyzeLeadImport(_client, context, { bytes, fileName }) {
   };
 }
 
+// Country names (and codes) to ISO codes, from the platform's own region names ("India" -> IN, "United Arab Emirates" -> AE).
+let COUNTRY_BY_NAME = null;
+function countryCodeOf(value) {
+  const raw = String(value).trim();
+  if (/^[A-Za-z]{2}$/.test(raw)) return raw.toUpperCase();
+  if (!COUNTRY_BY_NAME) {
+    COUNTRY_BY_NAME = new Map([["usa", "US"], ["uk", "GB"], ["uae", "AE"], ["bharat", "IN"]]);
+    const names = new Intl.DisplayNames(["en"], { type: "region" });
+    for (let a = 65; a <= 90; a += 1) for (let b = 65; b <= 90; b += 1) {
+      const code = String.fromCharCode(a, b);
+      try { const name = names.of(code); if (name && name !== code) COUNTRY_BY_NAME.set(name.toLowerCase(), code); } catch { /* not a region */ }
+    }
+  }
+  return COUNTRY_BY_NAME.get(raw.toLowerCase().replace(/\s+/g, " ")) ?? null;
+}
+
 function rowToInput(record, mapping) {
   const input = {};
   for (const [header, fieldKey] of Object.entries(mapping)) {
@@ -105,6 +121,16 @@ function rowToInput(record, mapping) {
     const value = String(record[header] ?? "").trim().replace(/^'(?=[=+\-@])/, "");
     if (value) input[fieldKey] = value;
   }
+  // "Suresh Patil" in one Name column: everything before the last space is the first name.
+  if (input.fullName) {
+    const name = input.fullName.replace(/\s+/g, " ").trim();
+    const cut = name.lastIndexOf(" ");
+    if (!input.firstName) input.firstName = cut > 0 ? name.slice(0, cut) : name;
+    if (!input.lastName && cut > 0) input.lastName = name.slice(cut + 1);
+    delete input.fullName;
+  }
+  // "India" or "IN": a country name becomes its code; anything else is reported with what to write.
+  if (input.countryCode) input.countryCode = countryCodeOf(input.countryCode) ?? input.countryCode;
   if (input.priority) input.priority = input.priority.toLowerCase();
   if (input.rating) input.rating = input.rating.toLowerCase();
   if (input.estimatedValue) input.estimatedValue = input.estimatedValue.replace(/[,\s]/g, "");
@@ -129,8 +155,8 @@ export async function importLeads(client, context, {
   const parsed = parseUpload(bytes, fileName);
   const unknown = Object.keys(mapping).filter((header) => !parsed.headers.includes(header));
   if (unknown.length) throw new CrmError(400, `The file has no column named "${unknown[0]}".`, "CRM_LEAD_IMPORT_MAPPING");
-  if (!Object.values(mapping).some((field) => ["firstName", "lastName", "companyName"].includes(field)))
-    throw new CrmError(400, "Map at least one of First Name, Last Name or Company.", "CRM_LEAD_IMPORT_MAPPING");
+  if (!Object.values(mapping).some((field) => ["fullName", "firstName", "lastName", "companyName"].includes(field)))
+    throw new CrmError(400, "Map at least one of Full Name, First Name, Last Name or Company.", "CRM_LEAD_IMPORT_MAPPING");
   if (defaultSourceId) await assertActiveLeadSource(client, context, defaultSourceId);
   if (!["file", "rules"].includes(assignmentMode)) throw new CrmError(400, "Choose how the imported leads are assigned.", "CRM_LEAD_IMPORT_ASSIGNMENT");
   const useRules = assignmentMode === "rules";
@@ -162,6 +188,8 @@ export async function importLeads(client, context, {
   };
   const sourceByName = new Map();
   const results = [];
+  // Owner -> how many imported leads they received: one notification each, not one per lead.
+  const assignedTo = new Map();
   for (const [index, record] of parsed.records.entries()) {
     const rowNumber = index + 2;
     const input = rowToInput(record, mapping);
@@ -187,8 +215,9 @@ export async function importLeads(client, context, {
 
       const created = await createLead(client, context, lead, {
         allowDuplicate: !skipDuplicates, duplicateReason: "Imported with Create anyway", origin: "import",
-        onDuplicateCheck: (found) => { possibleDuplicate = found.matches.length > 0; }, routing, assignmentReason ,
+        onDuplicateCheck: (found) => { possibleDuplicate = found.matches.length > 0; }, routing, assignmentReason, notify: false,
       });
+      if (created.ownerUserId) assignedTo.set(created.ownerUserId, (assignedTo.get(created.ownerUserId) ?? 0) + 1);
       await client.query("RELEASE SAVEPOINT lead_import_row");
       results.push({ row: rowNumber, ok: true, possibleDuplicate, leadId: created.id, code: created.code, assigned: Boolean(created.ownerUserId), fellBack: routing === "fallback" });
     } catch (error) {
@@ -196,6 +225,8 @@ export async function importLeads(client, context, {
       if (!(error instanceof CrmError)) throw error;
       const duplicate = error.code === "CRM_LEAD_DUPLICATE";
       const match = duplicate ? error.details?.matches?.[0] : null;
+      if (!duplicate && input.countryCode && /country/i.test(error.message))
+        error.message = `Country "${input.countryCode}" is not recognised. Write the country's name (India) or its 2-letter code (IN).`;
       results.push({
         row: rowNumber,
         ok: false,
@@ -208,6 +239,11 @@ export async function importLeads(client, context, {
   }
 
   const failed = results.filter((entry) => !entry.ok);
+  for (const [userId, count] of assignedTo) {
+    if (userId === context.userId) continue;
+    await createNotification(client, { organizationId: context.organizationId, userId, category: "crm_assignment", title: `${count} imported lead(s) assigned to you`,
+      message: `From the import of ${fileName ?? "a file"}.`, href: "/crm/leads?view=mine", entityType: "crm.lead_import", entityId: null });
+  }
   return {
     total: results.length,
     created: results.length - failed.length,
@@ -279,9 +315,10 @@ export async function exportLeads(client, context, filters = {}) {
   if (rows.length > EXPORT_ROW_LIMIT)
     throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} leads. Narrow the filters and try again.`, "CRM_LEAD_EXPORT_TOO_LARGE");
   const leads = rows.map(toLead);
+  const timeZone = await organizationTimeZone(client, context);
   return {
-    fileName: `leads-${new Date().toISOString().slice(0, 10)}.csv`,
+    fileName: `leads-${dayIn(timeZone)}.csv`,
     rowCount: leads.length,
-    csv: toCsv([EXPORT_COLUMNS.map(([label]) => label), ...leads.map((lead) => EXPORT_COLUMNS.map(([, read]) => read(lead)))]),
+    csv: toCsv([EXPORT_COLUMNS.map(([label]) => label), ...leads.map((lead) => EXPORT_COLUMNS.map(([, read]) => read(lead)))], csvCellWriter(timeZone)),
   };
 }

@@ -625,7 +625,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "my-work",
         label: "My Work",
-        items: [{ ...available("My Projects", "/projects/my"), aliases: ["my projects", "assigned projects", "projects i manage"] }],
+        items: [
+          { ...available("My Tasks", "/projects/tasks?view=mine"), aliases: ["my tasks", "my work", "assigned to me", "task queue"], requiredPermission: "projects.tasks.view" },
+          { ...available("My Projects", "/projects/my"), aliases: ["my projects", "assigned projects", "projects i manage"] },
+        ],
       },
       {
         id: "projects",
@@ -636,6 +639,26 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("On Hold", "/projects/all?view=on_hold"), aliases: ["paused projects", "project hold"] },
           { ...available("Completed", "/projects/all?view=completed"), aliases: ["completed projects", "delivered projects"] },
           { ...available("Archived", "/projects/all?view=archived"), aliases: ["archived projects"] },
+        ],
+      },
+      {
+        id: "tasks",
+        label: "Tasks",
+        items: [
+          { ...available("All Tasks", "/projects/tasks?view=open"), aliases: ["project tasks", "task list", "task board", "kanban", "bulk tasks"], requiredPermission: "projects.tasks.view" },
+          { ...available("Overdue", "/projects/tasks?view=overdue"), aliases: ["overdue tasks", "late tasks"], requiredPermission: "projects.tasks.view" },
+          { ...available("Blocked", "/projects/tasks?view=blocked"), aliases: ["blocked tasks"], requiredPermission: "projects.tasks.view" },
+          { ...available("In Review", "/projects/tasks?view=in_review"), aliases: ["tasks in review", "task approval", "review tasks"], requiredPermission: "projects.tasks.view" },
+        ],
+      },
+      {
+        id: "milestones",
+        label: "Milestones",
+        items: [
+          { ...available("All Milestones", "/projects/milestones"), aliases: ["project milestones", "milestone list", "deliverables", "phase gates"], requiredPermission: "projects.milestones.view" },
+          { ...available("Due Soon", "/projects/milestones?view=upcoming"), aliases: ["upcoming milestones", "milestones due"], requiredPermission: "projects.milestones.view" },
+          { ...available("Overdue", "/projects/milestones?view=overdue"), aliases: ["overdue milestones", "late milestones"], requiredPermission: "projects.milestones.view" },
+          { ...available("Pending Approval", "/projects/milestones?view=pending_approval"), aliases: ["milestone approval", "milestones to review", "customer acceptance"], requiredPermission: "projects.milestones.view" },
         ],
       },
       {

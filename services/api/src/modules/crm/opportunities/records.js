@@ -3,6 +3,10 @@
 // Owner and team change only through assignment.js; stage through stages.js;
 // status (won, lost, reopened) through outcome.js. This file never writes
 // those columns except to set the starting stage and owner on create.
+import { updatedSummary } from "../data-management/field-labels.js";
+import { phoneSearchDigits } from "../duplicates/normalize.js";
+import { settleOpenFollowUps } from "../follow-ups/lifecycle.js";
+import { settleOpenTasks } from "../tasks/lifecycle.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { accountScopeSql } from "../accounts/access.js";
 import { recordAccountHistory } from "../accounts/history.js";
@@ -20,6 +24,8 @@ import { orgMonthStart, orgToday } from "../data-management/org-date.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+// A real calendar day: 2026-02-31 matches the shape but is no day, and must be refused before it reaches the database.
+const isRealDay = (value) => DATE.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 const MAX_VALUE = 1_000_000_000_000;
 const PRIORITY_CODES = OPPORTUNITY_PRIORITIES.map((priority) => priority.code);
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -45,7 +51,7 @@ export const OPPORTUNITY_SELECT = `
          closer.full_name AS closed_by_name, duplicate_of.code AS duplicate_of_code, duplicate_of.name AS duplicate_of_name,
          creator.full_name AS created_by_name, updater.full_name AS updated_by_name, winner.full_name AS won_by_name, loser.full_name AS lost_by_name,
          follow_up.next_follow_up_at AS pending_follow_up_at,
-         next_activity.subject AS next_activity_subject, next_activity.due_at AS next_activity_due_at, next_activity.activity_type AS next_activity_type,
+         next_activity.subject AS next_activity_subject, next_activity.due_at AS next_activity_due_at, next_activity.activity_type AS next_activity_type, next_activity.due_time_set AS next_activity_due_time_set,
          (opportunity.expected_close_date >= ${orgToday("opportunity.organization_id")} AND opportunity.expected_close_date <= ${orgToday("opportunity.organization_id")} + ${OPPORTUNITY_CLOSING_SOON_DAYS}) AS closing_soon,
          EXISTS (SELECT 1 FROM tenant.sales_quotations accepted
                   WHERE accepted.organization_id = opportunity.organization_id AND accepted.source_opportunity_id = opportunity.id
@@ -88,7 +94,7 @@ export const OPPORTUNITY_SELECT = `
     ) follow_up ON true
     -- the next thing planned on the deal: the open task, follow-up, call or meeting due first
     LEFT JOIN LATERAL (
-      SELECT activity.subject, activity.due_at, activity.activity_type
+      SELECT activity.subject, activity.due_at, activity.activity_type, activity.due_time_set
         FROM tenant.crm_activities activity
        WHERE activity.organization_id = opportunity.organization_id AND activity.entity_type = 'opportunity' AND activity.entity_id = opportunity.id
          AND activity.status IN ('planned', 'in_progress', 'overdue')
@@ -170,7 +176,7 @@ export function toOpportunity(row) {
     nextStep: row.next_step,
     nextStepDueAt: row.next_step_due_at,
     nextFollowUpAt: row.pending_follow_up_at ?? null,
-    nextActivity: row.next_activity_subject ? { subject: row.next_activity_subject, dueAt: row.next_activity_due_at, type: row.next_activity_type } : null,
+    nextActivity: row.next_activity_subject ? { subject: row.next_activity_subject, dueAt: row.next_activity_due_at, type: row.next_activity_type, dueTimeSet: row.next_activity_due_time_set !== false } : null,
     // an open deal with nothing planned; calculated, never stored
     hasNoNextActivity: open && !row.next_activity_subject,
     isClosingSoon: open && row.closing_soon === true,
@@ -351,7 +357,7 @@ export function buildOpportunityListWhere(context, filters = {}, values = []) {
     expectedCloseFrom: "opportunity.expected_close_date >= $::date", expectedCloseTo: "opportunity.expected_close_date <= $::date",
     createdFrom: "opportunity.created_at >= $::date", createdTo: "opportunity.created_at < $::date + interval '1 day'",
     closedFrom: "opportunity.actual_close_date >= $::date", closedTo: "opportunity.actual_close_date <= $::date",
-  })) if (DATE.test(String(filters[key] ?? ""))) where.push(sql.replace("$", bind(filters[key])));
+  })) if (isRealDay(String(filters[key] ?? ""))) where.push(sql.replace("$", bind(filters[key])));
   for (const [key, operator] of Object.entries({ valueMin: ">=", valueMax: "<=" })) {
     const amount = Number(filters[key]);
     if (text(filters[key]) && Number.isFinite(amount)) where.push(`opportunity.amount ${operator} ${bind(amount)}`);
@@ -359,8 +365,12 @@ export function buildOpportunityListWhere(context, filters = {}, values = []) {
   if (Array.isArray(filters.ids) && filters.ids.length) where.push(`opportunity.id = ANY (${bind(filters.ids.filter(isUuid))}::uuid[])`);
 
   const search = text(filters.search).toLowerCase();
-  if (search)
-    where.push(`lower(opportunity.code || ' ' || opportunity.name || ' ' || COALESCE(account.display_name, '') || ' ' || COALESCE(contact.display_name, '') || ' ' || COALESCE(opportunity.product_interest, '')) LIKE ${bind(contains(search))}`);
+  if (search) {
+    const digits = phoneSearchDigits(search);
+    const phone = digits ? bind(`%${digits}%`) : null;
+    where.push(`(lower(opportunity.code || ' ' || opportunity.name || ' ' || COALESCE(account.display_name, '') || ' ' || COALESCE(contact.display_name, '') || ' ' || COALESCE(opportunity.product_interest, '')) LIKE ${bind(contains(search))}${
+      phone ? ` OR contact.normalized_mobile LIKE ${phone} OR contact.normalized_work_phone LIKE ${phone} OR right(regexp_replace(COALESCE(account.phone, ''), '\\D', '', 'g'), 10) LIKE ${phone}` : ""})`);
+  }
   return `WHERE ${where.join(" AND ")}${opportunityScopeSql(context, values, "opportunity")}`;
 }
 
@@ -437,7 +447,7 @@ function normalize(input, { creating = false } = {}) {
   }
   if (has(input, "expectedCloseDate")) {
     out.expectedCloseDate = text(input.expectedCloseDate).slice(0, 10) || null;
-    if (out.expectedCloseDate && !DATE.test(out.expectedCloseDate)) throw invalid("Enter a valid expected close date.", "expectedCloseDate");
+    if (out.expectedCloseDate && !isRealDay(out.expectedCloseDate)) throw invalid("Enter a valid expected close date.", "expectedCloseDate");
   }
   if (has(input, "nextStepDueAt")) {
     out.nextStepDueAt = input.nextStepDueAt ? new Date(input.nextStepDueAt) : null;
@@ -523,13 +533,28 @@ async function startingStage(client, context, stageId) {
 // options.origin: "manual" | "account" | "lead_conversion" — recorded in history.
 // Returns the opportunity; a similar open deal on the same account is a
 // warning for the caller to show (findDuplicateOpportunities), never a refusal.
+// A deal for a person (a parent buying a course): no company to invent. The deal is for the company the contact works at, or — when they
+// have none — for an individual customer named after them, created here and linked to them.
+async function accountForPerson(client, context, contactId) {
+  if (!contactId) throw invalid("Choose the company this deal is for, or the person buying.", "accountId");
+  const { loadVisibleContact } = await import("../conversion/records.js");
+  const contact = await loadVisibleContact(client, context, contactId);
+  if (contact.party_id) return contact.party_id;
+  const { createAccount } = await import("../accounts/records.js");
+  const { linkContactToAccount } = await import("../contacts/relationships.js");
+  const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.display_name;
+  const account = await createAccount(client, context, { displayName: name, customerKind: "individual", ownerUserId: context.userId ?? null },
+    { origin: "opportunity", historySummary: `Individual customer created for ${name}` });
+  await linkContactToAccount(client, context, contact.id, { accountId: account.id });
+  return account.id;
+}
+
 export async function createOpportunity(client, context, input = {}, { origin = "manual", historySummary = null } = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.create, "You do not have permission to create deals.");
   for (const [field, message] of Object.entries(GOVERNED))
     if (has(input, field) && !["stageId", "ownerUserId", "teamId"].includes(field)) throw new CrmError(409, message, "CRM_OPPORTUNITY_FIELD_GOVERNED");
   const fields = normalize(input, { creating: true });
-  if (!input.accountId) throw invalid("Choose the company this deal is for.", "accountId");
-  const account = await requireAccount(client, context, input.accountId);
+  const account = await requireAccount(client, context, input.accountId || await accountForPerson(client, context, fields.contactId));
   if (fields.contactId) await requireAccountContact(client, context, fields.contactId, account.id);
   await requireSource(client, context, fields.sourceId);
   fields.currencyCode = fields.currencyCode || account.currency_code?.trim() || (await baseCurrency(client, context));
@@ -613,6 +638,8 @@ export async function updateOpportunity(client, context, opportunityId, input = 
     if (Number(row.quotation_count) > 0) throw new CrmError(409, "This deal has quotations for its company. Create a new deal for another company.", "CRM_OPPORTUNITY_ACCOUNT_LOCKED");
     accountId = (await requireAccount(client, context, input.accountId)).id;
     fields.accountId = accountId;
+    // The old company's person never stays on a deal for a new company: the contact is the one given for it, or none.
+    if (!has(input, "contactId")) fields.contactId = null;
   }
   if (fields.contactId) await requireAccountContact(client, context, fields.contactId, accountId);
   if (has(fields, "sourceId") && fields.sourceId !== row.source_id) await requireSource(client, context, fields.sourceId);
@@ -645,7 +672,7 @@ export async function updateOpportunity(client, context, opportunityId, input = 
     });
   const others = changed.filter((name) => !AUDITED[name]);
   if (others.length)
-    await recordOpportunityHistory(client, context, row.id, "updated", `Updated ${others.length === 1 ? others[0] : `${others.length} fields`}`,
+    await recordOpportunityHistory(client, context, row.id, "updated", updatedSummary(others),
       Object.fromEntries(others.map((field) => [field, { from: current[field] ?? null, to: comparable(field, fields[field]) }])));
   await queueOutboxEvent(client, context, "crm.opportunities.updated", "opportunities", row.id, { changedFields: changed });
   return toOpportunity(await loadOpportunityRow(client, context, row.id));
@@ -659,21 +686,28 @@ async function usage(client, context, opportunityId) {
     `SELECT (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id = $1 AND source_opportunity_id = $2)::int AS quotations,
             (SELECT count(*) FROM tenant.sales_orders WHERE organization_id = $1 AND source_opportunity_id = $2)::int AS orders,
             (SELECT count(*) FROM tenant.crm_activities WHERE organization_id = $1 AND entity_type = 'opportunity' AND entity_id = $2)::int AS activities,
-            (SELECT count(*) FROM tenant.crm_notes WHERE organization_id = $1 AND entity_type = 'opportunity' AND entity_id = $2)::int AS notes`,
+            (SELECT count(*) FROM tenant.crm_notes WHERE organization_id = $1 AND entity_type = 'opportunity' AND entity_id = $2)::int AS notes,
+            ((SELECT count(*) FROM tenant.crm_opportunities WHERE organization_id = $1 AND duplicate_of_opportunity_id = $2)
+              + (SELECT count(*) FROM tenant.crm_opportunity_close_history WHERE organization_id = $1 AND duplicate_of_opportunity_id = $2))::int AS duplicates`,
     [context.organizationId, opportunityId],
   );
   return rows[0];
 }
 
 // Hides an opportunity from the working lists; everything on it stays.
-export async function archiveOpportunity(client, context, opportunityId) {
+// input.openWork: "cancel" (default) or "keep" — as when a deal is won or lost.
+export async function archiveOpportunity(client, context, opportunityId, input = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.delete, "You do not have permission to archive deals.");
   const row = await loadOpportunityRow(client, context, opportunityId, { lock: true });
   if (row.archived_at) return { changed: false };
   await client.query(`UPDATE tenant.crm_opportunities SET archived_at = now(), archived_by = $3, updated_by = $3 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, row.id, context.userId ?? null]);
-  await recordOpportunityHistory(client, context, row.id, "archived", "Deal archived");
-  return { changed: true };
+  const action = input.openWork === "keep" ? "keep" : "cancel";
+  const tasks = await settleOpenTasks(client, context, "opportunity", row.id, { action, reason: "Deal archived" });
+  const followUps = await settleOpenFollowUps(client, context, "opportunity", row.id, { action, reason: "Deal archived" });
+  await recordOpportunityHistory(client, context, row.id, "archived", action === "cancel" && (tasks.cancelled || followUps.cancelled)
+    ? `Deal archived; ${tasks.cancelled} open task(s) and ${followUps.cancelled} follow-up(s) cancelled` : "Deal archived");
+  return { changed: true, cancelledTasks: tasks.cancelled, cancelledFollowUps: followUps.cancelled };
 }
 
 export async function restoreOpportunity(client, context, opportunityId) {
@@ -698,6 +732,7 @@ export async function deleteOpportunity(client, context, opportunityId) {
     used.orders > 0 && "it has sales orders",
     used.activities > 0 && "it has activities",
     used.notes > 0 && "it has notes",
+    used.duplicates > 0 && "another deal was closed as its duplicate",
     row.lead_id && "it came from a converted lead",
   ].filter(Boolean);
   if (reasons.length) throw new CrmError(409, `This deal cannot be deleted because ${reasons.join(", ")}. Archive it instead.`, "CRM_OPPORTUNITY_IN_USE", { reasons });

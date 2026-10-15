@@ -106,7 +106,7 @@ export function LeadStagesSettingsScreen() {
                 { id: "up", label: "Move up", isDisabled: index === 0 || change.isPending, onAction: () => move(index, -1) },
                 { id: "down", label: "Move down", isDisabled: index === stages.length - 1 || change.isPending, onAction: () => move(index, 1) },
                 { id: "rename", label: "Rename", onAction: () => setEditing(stage) },
-                ...(!stage.isSystem ? [{ id: "active", label: stage.isActive ? "Deactivate" : "Activate", isDisabled: change.isPending,
+                ...(!["new", "qualification"].includes(stage.code) ? [{ id: "active", label: stage.isActive ? "Deactivate" : "Activate", isDisabled: change.isPending,
                   onAction: () => change.mutate(() => updateLeadStage(stage.id, { isActive: !stage.isActive })) }] : []),
               ]} />
             </div>
@@ -114,7 +114,8 @@ export function LeadStagesSettingsScreen() {
               <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} up`} isDisabled={index === 0 || change.isPending} onPress={() => move(index, -1)}><ArrowUp className="size-4" aria-hidden="true" /></Button>
               <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} down`} isDisabled={index === stages.length - 1 || change.isPending} onPress={() => move(index, 1)}><ArrowDown className="size-4" aria-hidden="true" /></Button>
               <Button variant="ghost" size="compact" onPress={() => setEditing(stage)}>Rename</Button>
-              {!stage.isSystem && (
+              {/* New and Qualification are always kept; any other stage may be switched off for a simpler funnel. */}
+              {!["new", "qualification"].includes(stage.code) && (
                 <Button variant="ghost" size="compact" isDisabled={change.isPending} onPress={() => change.mutate(() => updateLeadStage(stage.id, { isActive: !stage.isActive }))}>
                   {stage.isActive ? "Deactivate" : "Activate"}
                 </Button>

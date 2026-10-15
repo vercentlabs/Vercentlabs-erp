@@ -63,7 +63,7 @@ export type Opportunity = {
   nextStepDueAt: string | null;
   nextFollowUpAt: string | null;
   // the open task, follow-up, call or meeting due first
-  nextActivity: { subject: string; dueAt: string | null; type: string } | null;
+  nextActivity: { subject: string; dueAt: string | null; type: string; dueTimeSet?: boolean } | null;
   hasNoNextActivity: boolean;
   isClosingSoon: boolean;
   hasAcceptedQuotation: boolean;
@@ -187,11 +187,11 @@ export type OpportunityDuplicate = {
 export type OpportunityDashboard = {
   totals: {
     open: number; openValue: number; weightedValue: number; closingThisMonth: number; won: number; wonValue: number; lost: number; lostValue: number; topLostReason: string | null;
-    overdue: number; stale: number; staleDays: number; averageDealSize: number; winRate: number; lossRate: number; averageSalesCycleDays: number | null;
+    overdue: number; stale: number; staleDays: number; averageDealSize: number; winRate: number | null; lossRate: number | null; averageSalesCycleDays: number | null;
   };
   byStage: Array<{ stageId: string; label: string; total: number; value: number; weightedValue: number }>;
 };
-export type OpportunityReportRow = { group: string; total: number; open: number; won: number; lost: number; value: number; weightedValue: number; winRate: number };
+export type OpportunityReportRow = { group: string; total: number; open: number; won: number; lost: number; value: number; weightedValue: number; winRate: number | null };
 export type OpportunityReport = { groupBy: string; groupLabel: string; rows: OpportunityReportRow[]; totals: Omit<OpportunityReportRow, "group" | "winRate"> };
 
 const BASE = "/api/crm/opportunities";
@@ -213,7 +213,7 @@ export const getOpportunity = (id: string) => request<{ record: Opportunity }>(`
 export const createOpportunity = (input: Record<string, unknown>) => post<{ record: Opportunity }>(BASE, input).then((result) => result.record);
 export const updateOpportunity = (id: string, input: Record<string, unknown>) =>
   request<{ record: Opportunity }>(`${BASE}/${id}`, { method: "PATCH", json: input }).then((result) => result.record);
-export const archiveOpportunity = (id: string) => post<{ changed: boolean }>(`${BASE}/${id}/archive`);
+export const archiveOpportunity = (id: string, openWork: "keep" | "cancel" = "cancel") => post<{ changed: boolean }>(`${BASE}/${id}/archive?openWork=${openWork}`);
 export const restoreOpportunity = (id: string) => post<{ changed: boolean }>(`${BASE}/${id}/restore`);
 export const deleteOpportunity = (id: string) => request<{ deleted: boolean }>(`${BASE}/${id}`, { method: "DELETE" });
 export const findDuplicateOpportunities = (input: { accountId: string; name?: string; productInterest?: string; excludeId?: string }) =>

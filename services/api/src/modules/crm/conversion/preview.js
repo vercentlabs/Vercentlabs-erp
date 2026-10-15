@@ -16,7 +16,7 @@ const text = (value) => String(value ?? "").trim();
 const TIMEFRAME_DAYS = Object.freeze({ immediate: 14, within_1_month: 30, within_3_months: 90, within_6_months: 180, within_12_months: 365 });
 
 export function defaultOpportunityName(accountName, productInterest) {
-  return `${text(accountName) || "New account"} — ${text(productInterest).slice(0, 80) || "New opportunity"}`.slice(0, 200);
+  return `${text(accountName) || "New company"} — ${text(productInterest).slice(0, 80) || "New deal"}`.slice(0, 200);
 }
 
 // The purchase timeframe, as a suggested close date.
@@ -79,7 +79,9 @@ export async function previewLeadConversion(client, context, leadId, options = {
   const missing = missingQualification(checks);
   const approved = qualifiedWithOverride(lead);
 
-  const accounts = await accountMatches(client, context, { displayName: lead.company_name, website: lead.website, email: lead.email, phone: lead.phone, city: lead.city });
+  const accounts = await accountMatches(client, context, lead.company_name
+    ? { displayName: lead.company_name, website: lead.website, email: lead.email, phone: lead.phone, city: lead.city }
+    : { displayName: lead.full_name, customerKind: "individual", email: lead.email, phone: lead.mobile || lead.phone, city: lead.city });
   const visibleAccounts = accounts.filter((match) => match.canOpen);
   if (visibleAccounts.length) {
     const { rows } = await client.query(
@@ -148,7 +150,9 @@ export async function previewLeadConversion(client, context, leadId, options = {
     defaults: {
       account: chosenAccount
         ? { mode: "existing", id: chosenAccount.id }
-        : { mode: "new", name: lead.company_name ?? "", website: lead.website ?? "", industry: lead.industry ?? "", ownerUserId: lead.owner_user_id ?? context.userId },
+        // No company on the lead: the person becomes an individual customer (named after them) unless the rep types a company.
+        : { mode: "new", kind: lead.company_name ? "business" : "individual", name: lead.company_name ?? lead.full_name ?? "", website: lead.website ?? "", industry: lead.industry ?? "",
+          ownerUserId: lead.owner_user_id ?? context.userId },
       contact: suggestedContact
         ? { mode: "existing", id: suggestedContact.id }
         : { mode: "new", firstName: lead.first_name ?? "", lastName: lead.last_name ?? "", email: lead.email ?? "", mobile: lead.mobile ?? "", phone: lead.phone ?? "", jobTitle: lead.job_title ?? "", ownerUserId: lead.owner_user_id ?? context.userId },

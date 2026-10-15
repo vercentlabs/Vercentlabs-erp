@@ -96,7 +96,7 @@ export function LeadDashboardScreen() {
 
             <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
               <div>
-                <h2 className="text-base font-semibold">Open leads by stage</h2>
+                <h2 className="text-base font-semibold">Open leads by stage, now</h2>
                 <p className="text-sm text-text-secondary">Stuck means in the same stage for more than {dashboard.totals.staleDays} days.</p>
               </div>
               <table className="w-full text-sm">
@@ -121,8 +121,8 @@ export function LeadDashboardScreen() {
             </section>
 
             <div className="grid gap-6 lg:grid-cols-2">
-              <Breakdown title="Leads by source" rows={dashboard.bySource} />
-              <Breakdown title="Leads by owner" rows={dashboard.byOwner} />
+              <Breakdown title="Leads by source (all time)" rows={dashboard.bySource} />
+              <Breakdown title="Leads by owner (all time)" rows={dashboard.byOwner} />
             </div>
 
             <MoreDetails title="More breakdowns" columns={1}
@@ -140,10 +140,10 @@ export function LeadDashboardScreen() {
               </section>
               <ConversionMetricsPanel from={from} to={to} />
               <div className="grid gap-6 lg:grid-cols-2">
-                <Breakdown title="Leads by status" rows={dashboard.byStatus.map((row) => ({ label: row.label, total: row.total }))} />
-                <Breakdown title="Leads by team" rows={dashboard.byTeam} />
-                <Breakdown title="Qualified leads by owner" rows={dashboard.qualifiedByOwner} />
-                <Breakdown title="Qualified leads by source" rows={dashboard.qualifiedBySource} />
+                <Breakdown title="Leads by status (all time)" rows={dashboard.byStatus.map((row) => ({ label: row.label, total: row.total }))} />
+                <Breakdown title="Leads by team (all time)" rows={dashboard.byTeam} />
+                <Breakdown title="Qualified leads by owner (all time)" rows={dashboard.qualifiedByOwner} />
+                <Breakdown title="Qualified leads by source (all time)" rows={dashboard.qualifiedBySource} />
                 <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 lg:col-span-2">
                   <h2 className="text-base font-semibold">Active leads per salesperson</h2>
                   {dashboard.workload.length === 0 ? <p className="text-sm text-text-secondary">No active leads.</p> : (

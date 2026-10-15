@@ -34,6 +34,8 @@ export const OPPORTUNITY_ACTIVITY_TYPES = Object.freeze([
   { code: "email", label: "Email", activityType: "email" },
   { code: "meeting", label: "Meeting", activityType: "meeting" },
   { code: "demo", label: "Demo", activityType: "meeting" },
+  { code: "whatsapp", label: "WhatsApp", activityType: "whatsapp" },
+  { code: "sms", label: "SMS", activityType: "sms" },
   { code: "other", label: "General activity", activityType: "other" },
 ]);
 

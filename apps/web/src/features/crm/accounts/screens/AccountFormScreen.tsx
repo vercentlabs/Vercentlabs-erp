@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Checkbox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import { CurrencySelect } from "@/features/crm/shared/ui/CurrencySelect";
@@ -101,6 +101,7 @@ function AccountForm({ account, options }: { account?: Account; options: Account
   const router = useRouter();
   const queryClient = useQueryClient();
   const [values, setValues] = useState<FormValues>(() => (account ? valuesFromAccount(account) : { ...EMPTY, currencyCode: options.baseCurrency }));
+  const [individual, setIndividual] = useState(Boolean(account?.isIndividual));
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [blockingMatches, setBlockingMatches] = useState<AccountDuplicateMatch[] | null>(null);
@@ -135,7 +136,7 @@ function AccountForm({ account, options }: { account?: Account; options: Account
   const submit = useSubmitKey();
   const mutation = useMutation({
     mutationFn: (allowDuplicate: boolean) => submit.run(async () => {
-      const input = { ...toInput(values, mode, sensitiveHidden, options), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
+      const input = { ...toInput(values, mode, sensitiveHidden, options), customerKind: individual ? "individual" : "business", allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
       return mode === "edit" ? updateAccount(accountId as string, { ...input, expectedUpdatedAt: account?.updatedAt }) : createAccount(input);
     }),
     onSuccess: (saved) => {
@@ -196,7 +197,8 @@ function AccountForm({ account, options }: { account?: Account; options: Account
       }
     >
       <FormSection title="Company">
-        <TextField label="Company name" isRequired value={values.displayName} onChange={set("displayName")} errorMessage={fieldErrors.displayName} />
+        <Checkbox isSelected={individual} onChange={setIndividual} isDisabled={Boolean(account?.isCustomer)}>A person, not a company (an individual customer)</Checkbox>
+        <TextField label={individual ? "Name" : "Company name"} isRequired value={values.displayName} onChange={set("displayName")} errorMessage={fieldErrors.displayName} />
         {account?.isCustomer ? (
           <TextField label="Type" value="Customer" isDisabled description="Customer — follows the Customer Master." />
         ) : (
@@ -227,12 +229,14 @@ function AccountForm({ account, options }: { account?: Account; options: Account
         hasContent={Boolean(values.legalName || values.industry || values.website || values.employeeRange || values.annualRevenue || values.secondaryPhone || values.sourceId
           || values.sourceDetail || values.description || values.teamId || values.parentPartyId || (values.currencyCode && values.currencyCode !== options.baseCurrency)
           || fieldErrors.legalName || fieldErrors.industry || fieldErrors.website || fieldErrors.annualRevenue || fieldErrors.secondaryPhone || fieldErrors.description)}>
-        <TextField label="Legal name" description="The registered name, if different." value={values.legalName} onChange={set("legalName")} errorMessage={fieldErrors.legalName} />
-        <TextField label="Industry" value={values.industry} onChange={set("industry")} errorMessage={fieldErrors.industry} />
-        <TextField label="Website" value={values.website} onChange={set("website")} placeholder="https://" errorMessage={fieldErrors.website} />
-        <Select label="Employees" selectedKey={values.employeeRange} onSelectionChange={(key) => set("employeeRange")(String(key ?? NONE))}
-          options={[{ value: NONE, label: "Not set" }, ...options.employeeRanges.map((range) => ({ value: range, label: range }))]} />
-        <TextField label="Annual revenue" inputMode="decimal" value={values.annualRevenue} onChange={set("annualRevenue")} errorMessage={fieldErrors.annualRevenue} />
+        {!individual && <>
+          <TextField label="Legal name" description="The registered name, if different." value={values.legalName} onChange={set("legalName")} errorMessage={fieldErrors.legalName} />
+          <TextField label="Industry" value={values.industry} onChange={set("industry")} errorMessage={fieldErrors.industry} />
+          <TextField label="Website" value={values.website} onChange={set("website")} placeholder="https://" errorMessage={fieldErrors.website} />
+          <Select label="Employees" selectedKey={values.employeeRange} onSelectionChange={(key) => set("employeeRange")(String(key ?? NONE))}
+            options={[{ value: NONE, label: "Not set" }, ...options.employeeRanges.map((range) => ({ value: range, label: range }))]} />
+          <TextField label="Annual revenue" inputMode="decimal" value={values.annualRevenue} onChange={set("annualRevenue")} errorMessage={fieldErrors.annualRevenue} />
+        </>}
         <CurrencySelect value={values.currencyCode} onChange={set("currencyCode")} />
         {!sensitiveHidden && (
           <TextField label="Secondary phone" type="tel" value={values.secondaryPhone} onChange={set("secondaryPhone")} errorMessage={fieldErrors.secondaryPhone} />
@@ -245,8 +249,8 @@ function AccountForm({ account, options }: { account?: Account; options: Account
           <>
             <Select label="Sales team" selectedKey={values.teamId} onSelectionChange={(key) => set("teamId")(String(key ?? NONE))}
               options={[{ value: NONE, label: "No team" }, ...options.teams.map((team) => ({ value: team.id, label: team.name }))]} />
-            <AccountPicker label="Parent company" description="For a branch or subsidiary of another company." value={values.parentPartyId}
-              onChange={(id) => set("parentPartyId")(id)} />
+            {!individual && <AccountPicker label="Parent company" description="For a branch or subsidiary of another company." value={values.parentPartyId}
+              onChange={(id) => set("parentPartyId")(id)} />}
           </>
         )}
       </MoreDetails>

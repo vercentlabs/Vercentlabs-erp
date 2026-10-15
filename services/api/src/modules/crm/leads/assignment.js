@@ -156,11 +156,25 @@ export async function applyLeadAssignment(client, context, lead, target, {
     if (seen.rows[0]) return false;
   }
 
-  const teamId = teamChanging ? target.teamId || null : lead.team_id;
+  let teamId = teamChanging ? target.teamId || null : lead.team_id;
   const newTeam = teamChanging && teamId ? await assertActiveTeam(client, context, teamId) : null;
-  // An owner given together with a team must belong to that team.
-  const newOwner = ownerChanging && target.ownerUserId
-    ? await assertEligibleLeadAssignee(client, context, target.ownerUserId, { teamId: teamChanging ? teamId : null }) : null;
+  // The owner always belongs to the lead's team — the one given with it, or the one it keeps. Someone taking a team's queued lead for
+  // themselves must be in that team; a manager giving it to someone outside the team moves it off the team (said in the history), so
+  // conversion never fails later on a team the owner is not in.
+  let teamCleared = false;
+  let newOwner = null;
+  if (ownerChanging && target.ownerUserId) {
+    try {
+      newOwner = await assertEligibleLeadAssignee(client, context, target.ownerUserId, { teamId });
+    } catch (error) {
+      if (error?.code !== "CRM_LEAD_ASSIGNEE_NOT_IN_TEAM" || teamChanging) throw error;
+      const team = (await client.query(`SELECT name FROM tenant.crm_sales_teams WHERE organization_id = $1 AND id = $2`, [context.organizationId, lead.team_id])).rows[0]?.name ?? "its";
+      if (method === "self") throw new CrmError(403, `This lead is queued for the ${team} team: only its members can take it.`, "CRM_LEAD_TEAM_MEMBER_REQUIRED");
+      newOwner = await assertEligibleLeadAssignee(client, context, target.ownerUserId);
+      teamId = null;
+      teamCleared = true;
+    }
+  }
   const ownerUserId = ownerChanging ? newOwner?.id ?? null : lead.owner_user_id;
   const cleanReason = text(reason).slice(0, 500) || null;
 
@@ -200,11 +214,11 @@ export async function applyLeadAssignment(client, context, lead, target, {
     if (notify) await notifyAssignment(client, context, lead, { previousOwnerId: lead.owner_user_id, newOwnerId: ownerUserId });
     await queueOutboxEvent(client, context, "crm.leads.assigned", "leads", lead.id, { previousOwnerUserId: lead.owner_user_id, ownerUserId, method });
   }
-  if (teamChanging) {
+  if (teamChanging || teamCleared) {
     const previous = lead.team_id
       ? (await client.query(`SELECT name FROM tenant.crm_sales_teams WHERE organization_id = $1 AND id = $2`, [context.organizationId, lead.team_id])).rows[0]?.name ?? "Unknown"
       : "No team";
-    await recordLeadHistory(client, context, lead.id, "team_changed", `Team: ${previous} → ${newTeam?.name ?? "No team"} (${how})`, {
+    await recordLeadHistory(client, context, lead.id, "team_changed", `Team: ${previous} → ${newTeam?.name ?? "No team"} (${teamCleared ? `${newOwner?.full_name ?? "the new owner"} is not in it` : how})`, {
       from: lead.team_id, to: teamId, method, ruleId: rule?.id ?? null, reason: cleanReason,
     });
   }
@@ -275,7 +289,7 @@ export async function assignLeadToSelf(client, context, leadId, input = {}) {
   assertAssignable(lead, input.expectedUpdatedAt);
   if (lead.owner_user_id === context.userId) return { changed: false };
   if (lead.owner_user_id) throw new CrmError(409, "This lead already has an owner. Ask a manager to reassign it.", "CRM_LEAD_ALREADY_OWNED");
-  // A lead queued for a team can only be taken by a member of that team.
+  // A lead queued for a team can only be taken by a member of that team (checked in applyLeadAssignment).
   const changed = await applyLeadAssignment(client, context, lead, { ownerUserId: context.userId }, {
     method: "self", reason: input.reason, requestKey: text(input.requestKey) || null,
   });

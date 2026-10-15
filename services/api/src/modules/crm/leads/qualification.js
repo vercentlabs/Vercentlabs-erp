@@ -12,6 +12,7 @@
 // qualification history.
 import { CrmError } from "../data-management/errors.js";
 import { settleOpenFollowUps } from "../follow-ups/lifecycle.js";
+import { settleOpenTasks } from "../tasks/lifecycle.js";
 import { leadCan, requireLeadPermission } from "./access.js";
 import {
   LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_DISQUALIFICATION_REASONS, LEAD_NEED_STATUSES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES,
@@ -214,9 +215,22 @@ export async function updateQualification(client, context, leadId, input = {}) {
   if (lead.status !== "open" && Object.keys(FIELDS).some((field) => field !== "rating" && has(input, field) && !same(stored(lead, field), FIELDS[field].normalize(input[field]))))
     throw new CrmError(409, `Reopen this lead before changing its qualification. It is ${lead.status}.`, "CRM_LEAD_STATUS_CONFLICT");
   const changed = await writeAnswers(client, context, lead, input);
+  if (changed.length && !has(input, "rating")) await followSuggestedRating(client, context, lead.id);
   return { changed: changed.length > 0, fields: changed };
 }
 export const saveLeadQualification = updateQualification;
+
+// The rating follows the qualification answers (Cold -> Warm -> Hot) until a person sets it; from then on theirs stands.
+async function followSuggestedRating(client, context, leadId) {
+  const manual = (await client.query(`SELECT 1 FROM tenant.crm_lead_history WHERE organization_id = $1 AND lead_id = $2 AND event_type = 'updated' AND changes ? 'rating' LIMIT 1`,
+    [context.organizationId, leadId])).rows[0];
+  if (manual) return;
+  const lead = await lockLead(client, context, leadId);
+  const { suggestedRating } = evaluateLeadQualification(lead, await getLeadQualificationSettings(client, context));
+  if (!suggestedRating || suggestedRating === lead.rating) return;
+  await client.query(`UPDATE tenant.crm_leads SET rating = $3, updated_by = $4 WHERE organization_id = $1 AND id = $2`, [context.organizationId, lead.id, suggestedRating, context.userId ?? null]);
+  await recordLeadHistory(client, context, lead.id, "qualification_updated", `Rating: ${lead.rating ?? "none"} → ${suggestedRating} (from the qualification answers)`, {});
+}
 
 // ------------------------------------------------------------------ decisions
 
@@ -244,8 +258,14 @@ export async function qualifyLead(client, context, leadId, input = {}) {
   }
 
   await ensureStarted(client, context, lead);
-  // A lead that is qualified went through qualification, wherever it was.
-  await applyLeadStage(client, context, lead, QUALIFICATION_STAGE, { automatic: true, note: "Lead qualified" });
+  // A lead that is qualified went through qualification: one still before it moves there; one already past it (a stage set up after
+  // Qualification) stays where it is.
+  const order = (await client.query(`SELECT code, sequence FROM tenant.crm_lead_stages WHERE organization_id = $1 AND code = ANY($2::text[])`,
+    [context.organizationId, [lead.stage, QUALIFICATION_STAGE].filter(Boolean)])).rows;
+  const at = order.find((row) => row.code === lead.stage)?.sequence;
+  const target = order.find((row) => row.code === QUALIFICATION_STAGE)?.sequence;
+  if (lead.stage !== QUALIFICATION_STAGE && (at === undefined || target === undefined || Number(at) < Number(target)))
+    await applyLeadStage(client, context, lead, QUALIFICATION_STAGE, { automatic: true, note: "Lead qualified" });
   await client.query(
     `UPDATE tenant.crm_leads SET status = 'qualified', qualified_at = now(), qualified_by = $3, updated_by = $3 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, lead.id, context.userId ?? null],
@@ -293,8 +313,9 @@ export async function disqualifyLead(client, context, leadId, input = {}) {
   });
   const openFollowUps = ["keep", "cancel"].includes(input.openFollowUps) ? input.openFollowUps : reason === "timing_not_suitable" ? "keep" : "cancel";
   const { cancelled } = await settleOpenFollowUps(client, context, "lead", lead.id, { action: openFollowUps, reason: `Lead disqualified — ${leadDisqualificationReasonLabel(reason)}` });
+  const tasks = await settleOpenTasks(client, context, "lead", lead.id, { action: openFollowUps, reason: `Lead disqualified — ${leadDisqualificationReasonLabel(reason)}` });
   await notifyLeadOutcome(client, context, lead, "Your lead was disqualified", `Reason: ${leadDisqualificationReasonLabel(reason)}`);
-  return { status: "disqualified", cancelledFollowUps: cancelled };
+  return { status: "disqualified", cancelledFollowUps: cancelled, cancelledTasks: tasks.cancelled };
 }
 
 // Returns a qualified or disqualified lead to open so qualification can

@@ -75,7 +75,7 @@ function PanelShell({ title, action, query, isEmpty, emptyTitle, emptyDescriptio
 // Where the activity was recorded, when not on the account itself.
 function SourceLine({ activity }: { activity: AccountActivity }) {
   const parts = [
-    activity.source === "opportunity" && activity.opportunityName ? <Link key="o" href={`/crm/opportunities/${activity.sourceId}`} className="hover:underline">Opportunity: {activity.opportunityName}</Link> : null,
+    activity.source === "opportunity" && activity.opportunityName ? <Link key="o" href={`/crm/opportunities/${activity.sourceId}`} className="hover:underline">Deal: {activity.opportunityName}</Link> : null,
     activity.contactName ? <Link key="c" href={`/crm/contacts/${activity.contactId}`} className="hover:underline">With {activity.contactName}</Link> : null,
   ].filter(Boolean);
   if (!parts.length) return null;
@@ -152,7 +152,7 @@ export function LogAccountActivityDialog({ isOpen, onOpenChange, accountId, opti
         <div className="grid gap-4 sm:grid-cols-2">
           <Select label="Type" isRequired selectedKey={type} onSelectionChange={(key) => setType(String(key))}
             options={options.activityTypes.map((entry) => ({ value: entry.code, label: entry.label }))} />
-          <DateTimeInput label="When" description="Leave empty for now." value={occurredAt} onChange={setOccurredAt} />
+          <DateTimeInput label="When" description="Leave empty to use the current time." value={occurredAt} onChange={setOccurredAt} />
         </div>
         <Select label="Contact" selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key))} options={contactOptions} />
         <TextField label="Subject" description="Leave empty to use the activity type and company name." value={subject} onChange={setSubject} />

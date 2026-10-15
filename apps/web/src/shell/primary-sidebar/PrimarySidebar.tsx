@@ -81,7 +81,8 @@ export function PrimarySidebar({
           className="my-2 h-px w-8 shrink-0 bg-white/10"
         />
 
-        {MODULE_NAV_ENTRIES.map((entry) => {
+        {/* Only the modules this person can open: a rail of locked icons tells them nothing they can act on. */}
+        {MODULE_NAV_ENTRIES.filter((entry) => accessByModuleKey.get(entry.moduleKey)?.accessible).map((entry) => {
           const access = accessByModuleKey.get(entry.moduleKey);
           // Backend is the authority: a module never renders as available
           // just because the registry lists it. Entitlement/permission
@@ -129,7 +130,8 @@ export function PrimarySidebar({
       </div>
 
       <div className="flex shrink-0 flex-col items-center gap-1 pt-2">
-        {UTILITY_NAV.filter((entry) => entry.placement !== "topbar").map(
+        {/* Nothing planned is shown locked: an entry appears once it opens. */}
+        {UTILITY_NAV.filter((entry) => entry.placement !== "topbar" && entry.availability !== "planned").map(
           (entry) => (
             <PrimaryNavItem
               key={entry.key}

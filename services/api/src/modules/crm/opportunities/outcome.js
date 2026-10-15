@@ -8,6 +8,7 @@
 // stays the stage it closed in (its final stage). These are operations, not
 // field edits. Every close is written to the close history, which keeps it
 // through reopens and corrections, so reopening never erases an outcome.
+import { MAX_OPPORTUNITY_VALUE } from "../conversion/constants.js";
 import { createNotification } from "../../../core/platform/notifications/index.js";
 import { CLOSE_REASON_PERMISSIONS } from "../close-reasons/constants.js";
 import { requireCloseReason } from "../close-reasons/records.js";
@@ -112,6 +113,9 @@ export async function markOpportunityWon(client, context, opportunityId, input =
   const closeDate = await closeDateOf(client, context, input.actualCloseDate);
   const finalValue = input.finalValue === undefined || input.finalValue === null || text(input.finalValue) === "" ? Number(opportunity.amount) : Number(input.finalValue);
   if (!Number.isFinite(finalValue) || finalValue < 0) throw new CrmError(400, "Enter a final deal value of zero or more.", "CRM_OPPORTUNITY_VALIDATION");
+  // The same limits as the deal form: under 1,00,000 crore, at most two decimal places.
+  if (finalValue > MAX_OPPORTUNITY_VALUE) throw new CrmError(400, "The final deal value is too large.", "CRM_OPPORTUNITY_VALIDATION");
+  if (Math.round(finalValue * 100) !== Math.round(finalValue * 1000) / 10) throw new CrmError(400, "Use at most two decimal places for the final deal value.", "CRM_OPPORTUNITY_VALIDATION");
   const quotation = input.winningQuotationId ? await requireOwnQuotation(client, context, opportunity, input.winningQuotationId) : null;
   const stage = await currentStage(client, context, opportunity);
 
@@ -127,13 +131,13 @@ export async function markOpportunityWon(client, context, opportunityId, input =
   });
   await recordClose(client, context, opportunity, { outcome: "won", reason, notes, competitorName, finalValue, quotationId: quotation?.id, closeDate });
   await recordOpportunityHistory(client, context, opportunity.id, "won",
-    `Opportunity marked Won — Reason: ${reason.name} — Final value: ${moneyText(finalValue, opportunity.currency_code)}${quotation ? ` — Quotation ${quotation.quotation_number}` : ""}`, {
+    `Deal marked Won — Reason: ${reason.name} — Final value: ${moneyText(finalValue, opportunity.currency_code)}${quotation ? ` — Quotation ${quotation.quotation_number}` : ""}`, {
       from: "open", to: "won", finalStage: opportunity.stage_name, closeDate, reasonId: reason.id, reason: reason.name, notes, competitorName,
       estimatedValue: Number(opportunity.amount), finalValue, quotationId: quotation?.id ?? null,
     });
-  await settleOpenTasks(client, context, "opportunity", opportunity.id, { action: input.openTasks, reason: "Opportunity won" });
-  await settleOpenFollowUps(client, context, "opportunity", opportunity.id, { action: input.openFollowUps, reason: "Opportunity won" });
-  await notifyOutcome(client, context, opportunity, "Your opportunity was marked won", `Reason: ${reason.name}`);
+  await settleOpenTasks(client, context, "opportunity", opportunity.id, { action: input.openTasks, reason: "Deal won" });
+  await settleOpenFollowUps(client, context, "opportunity", opportunity.id, { action: input.openFollowUps, reason: "Deal won" });
+  await notifyOutcome(client, context, opportunity, "Your deal was marked won", `Reason: ${reason.name}`);
   await queueOutboxEvent(client, context, "crm.opportunity.won", "opportunities", opportunity.id, { amount: finalValue, closeDate, reasonId: reason.id });
   return { status: "won" };
 }
@@ -182,12 +186,12 @@ export async function markOpportunityLost(client, context, opportunityId, input 
   });
   await recordClose(client, context, opportunity, { outcome: "lost", reason, notes, competitorName, duplicateOfId: original?.id, closeDate });
   await recordOpportunityHistory(client, context, opportunity.id, "lost",
-    `Opportunity marked Lost — Reason: ${reason.name}${competitorName ? ` — Competitor: ${competitorName}` : ""}${original ? ` — Duplicate of ${original.code}` : ""}`, {
+    `Deal marked Lost — Reason: ${reason.name}${competitorName ? ` — Competitor: ${competitorName}` : ""}${original ? ` — Duplicate of ${original.code}` : ""}`, {
       from: "open", to: "lost", finalStage: opportunity.stage_name, closeDate, reasonId: reason.id, reason: reason.name, notes, competitorName,
       duplicateOf: original?.id ?? null, estimatedValue: Number(opportunity.amount),
     });
-  await settleOpenTasks(client, context, "opportunity", opportunity.id, { action: input.openTasks, reason: "Opportunity lost" });
-  await settleOpenFollowUps(client, context, "opportunity", opportunity.id, { action: input.openFollowUps, reason: "Opportunity lost" });
+  await settleOpenTasks(client, context, "opportunity", opportunity.id, { action: input.openTasks, reason: "Deal lost" });
+  await settleOpenFollowUps(client, context, "opportunity", opportunity.id, { action: input.openFollowUps, reason: "Deal lost" });
   // A deal that may come back: a follow-up to revisit it later.
   let followUp = null;
   if (followUpDate)
@@ -196,7 +200,7 @@ export async function markOpportunityLost(client, context, opportunityId, input 
       subject: text(input.followUp.subject).slice(0, 200) || `Revisit ${opportunity.name} (lost: ${reason.name})`,
       notes: notes ? `Lost: ${reason.name}. ${notes}` : `Lost: ${reason.name}.`,
     });
-  await notifyOutcome(client, context, opportunity, "Your opportunity was marked lost", `Reason: ${reason.name}`);
+  await notifyOutcome(client, context, opportunity, "Your deal was marked lost", `Reason: ${reason.name}`);
   await queueOutboxEvent(client, context, "crm.opportunity.lost", "opportunities", opportunity.id, { reasonId: reason.id });
   return { status: "lost", followUpId: followUp?.id ?? null };
 }
@@ -293,7 +297,7 @@ export async function listOpportunityCloseHistory(client, context, opportunityId
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
   const opportunity = await readOpportunityRow(client, context, opportunityId);
   const { rows } = await client.query(
-    `SELECT history.*, closer.full_name AS closed_by_name, reopener.full_name AS reopened_by_name, corrector.full_name AS corrected_by_name,
+    `SELECT history.*, to_char(history.actual_close_date, 'YYYY-MM-DD') AS actual_close_day, closer.full_name AS closed_by_name, reopener.full_name AS reopened_by_name, corrector.full_name AS corrected_by_name,
             reopen_stage.name AS reopened_to_stage_name, quote.quotation_number, original.code AS duplicate_of_code
        FROM tenant.crm_opportunity_close_history history
        LEFT JOIN public.users closer ON closer.id = history.closed_by
@@ -311,7 +315,7 @@ export async function listOpportunityCloseHistory(client, context, opportunityId
     duplicateOfOpportunityId: row.duplicate_of_opportunity_id, duplicateOfCode: row.duplicate_of_code ?? null,
     finalStageName: row.final_stage_name, estimatedValue: row.estimated_value === null ? null : Number(row.estimated_value),
     finalValue: row.final_value === null ? null : Number(row.final_value), winningQuotationId: row.winning_quotation_id, winningQuotationNumber: row.quotation_number ?? null,
-    actualCloseDate: row.actual_close_date, closedByName: row.closed_by_name ?? null, closedAt: row.closed_at,
+    actualCloseDate: row.actual_close_day, closedByName: row.closed_by_name ?? null, closedAt: row.closed_at,
     correctedAt: row.corrected_at, correctedByName: row.corrected_by_name ?? null, correctionReason: row.correction_reason,
     reopenedAt: row.reopened_at, reopenedByName: row.reopened_by_name ?? null, reopenReason: row.reopen_reason, reopenedToStageName: row.reopened_to_stage_name ?? null,
   }));

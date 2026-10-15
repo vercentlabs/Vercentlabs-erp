@@ -103,8 +103,8 @@ export function OpportunityDashboardScreen() {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Figure href={`/crm/opportunities?view=won&${closedRange}`} label="Won" value={`${dashboard.totals.won} · ${money(dashboard.totals.wonValue)}`} />
                 <Figure href={`/crm/opportunities?view=lost&${closedRange}`} label="Lost" value={`${dashboard.totals.lost} · ${money(dashboard.totals.lostValue)}`} />
-                <Figure label="Win rate" value={`${dashboard.totals.winRate}%`} />
-                <Figure label="Loss rate" value={`${dashboard.totals.lossRate}%`} />
+                <Figure label="Win rate" value={dashboard.totals.winRate === null ? "–" : `${dashboard.totals.winRate}%`} />
+                <Figure label="Loss rate" value={dashboard.totals.lossRate === null ? "–" : `${dashboard.totals.lossRate}%`} />
                 <Figure label="Top lost reason" value={dashboard.totals.topLostReason ?? "–"} />
                 <Figure label="Average deal size (won)" value={money(dashboard.totals.averageDealSize)} />
                 <Figure label="Average sales cycle" value={dashboard.totals.averageSalesCycleDays === null ? "–" : days(dashboard.totals.averageSalesCycleDays)} />
@@ -161,7 +161,7 @@ export function OpportunitiesByStageReport() {
   const type = (key: keyof typeof text) => (value: string) => setText((current) => ({ ...current, [key]: value }));
   const exportCsv = report && report.rows.length > 0 ? () => downloadCsv("deals-by-stage.csv",
     [report.groupLabel, "Deals", "Open", "Won", "Lost", "Win rate %", "Value", "Weighted value"],
-    report.rows.map((row) => [row.group, row.total, row.open, row.won, row.lost, row.winRate, row.value, row.weightedValue])) : undefined;
+    report.rows.map((row) => [row.group, row.total, row.open, row.won, row.lost, row.winRate ?? "", row.value, row.weightedValue])) : undefined;
 
   return (
     <section className="flex flex-col gap-4">
@@ -215,7 +215,7 @@ export function OpportunitiesByStageReport() {
                   <tr key={row.group}>
                     <td className="px-3 py-2 font-medium">{row.group}</td>
                     {[row.total, row.open, row.won, row.lost].map((value, index) => <td key={index} className="px-3 py-2 text-right tabular-nums">{value}</td>)}
-                    <td className="px-3 py-2 text-right tabular-nums">{row.winRate}%</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{row.winRate === null ? "–" : `${row.winRate}%`}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{money(row.value)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{money(row.weightedValue)}</td>
                   </tr>

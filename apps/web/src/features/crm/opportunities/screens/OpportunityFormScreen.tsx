@@ -11,6 +11,7 @@ import { Button, ErrorState, RecordFormPage, Select, TextArea, TextField } from 
 
 import { getAccount } from "@/features/crm/accounts/api/accounts-api";
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
+import { ContactPicker } from "@/features/crm/contacts/components/ContactPicker";
 import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { DateInput, DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { FormSection } from "@/shared/ui/FormSection";
@@ -146,7 +147,8 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
   const stage = options.stages.find((entry) => entry.id === values.stageId);
   const amount = Number(values.amount);
   const cancelHref = opportunity ? `/crm/opportunities/${opportunity.id}` : account ? `/crm/accounts/${account.id}` : "/crm/opportunities";
-  const ready = Boolean(values.name.trim() && values.accountId);
+  // A deal is for a company, or for a person (their company, or an individual customer created for them).
+  const ready = Boolean(values.name.trim() && (values.accountId || (mode === "create" && values.contactId && values.contactId !== NONE)));
   // The currency field shows only when the organization works in more than one.
   const singleCurrency = options.currencies.length <= 1 && values.currencyCode === options.baseCurrency;
 
@@ -198,13 +200,18 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
           <TextField label="Company" isReadOnly value={values.accountName} onChange={() => undefined} description="Opened from this company." />
         ) : (
           <AccountPicker label="Company" isRequired value={values.accountId || null} errorMessage={fieldErrors.accountId || undefined}
-            description={values.accountName ? `Chosen: ${values.accountName}` : "Every deal belongs to a company."}
+            description={values.accountName ? `Chosen: ${values.accountName}` : mode === "create" ? "Leave empty to sell to a person: choose them below." : "Every deal belongs to a company."}
             onChange={(id, name) => setValues((current) => ({ ...current, accountId: id ?? "", accountName: name ?? "", contactId: NONE }))} />
         )}
-        <Select label="Primary contact" isDisabled={!values.accountId} selectedKey={values.contactId} onSelectionChange={(key) => set("contactId")(String(key ?? NONE))}
+        {mode === "create" && !values.accountId && !account && (
+          <ContactPicker label="Person buying" value={values.contactId && values.contactId !== NONE ? values.contactId : null}
+            description="For a sale to a person: the deal is for their company, or for them as an individual customer."
+            onChange={(id) => setValues((current) => ({ ...current, contactId: id ?? NONE }))} />
+        )}
+        {(values.accountId || account) && <Select label="Primary contact" isDisabled={!values.accountId} selectedKey={values.contactId} onSelectionChange={(key) => set("contactId")(String(key ?? NONE))}
           description="More contacts can be added on the deal."
           options={[{ value: NONE, label: !values.accountId ? "Choose a company first" : contacts.length ? "No primary contact" : "This company has no contacts" },
-            ...contacts.map((row) => ({ value: row.id, label: row.displayName }))]} />
+            ...contacts.map((row) => ({ value: row.id, label: row.displayName }))]} />}
         <TextField label="Value" inputMode="decimal" value={values.amount} onChange={set("amount")} errorMessage={fieldErrors.amount}
           description={mode === "create" && stage && Number.isFinite(amount) && amount > 0 ? `Weighted at ${stage.probability}%: ${formatMoney(values.currencyCode, Math.round(amount * stage.probability) / 100)}` : undefined} />
         <DateInput label="Close date" value={values.expectedCloseDate} onChange={set("expectedCloseDate")} errorMessage={fieldErrors.expectedCloseDate} />

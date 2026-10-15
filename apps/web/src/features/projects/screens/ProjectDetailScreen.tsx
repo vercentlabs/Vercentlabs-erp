@@ -21,9 +21,11 @@ import {
   getProject, getStatusHistory, getSummary, newKey, projectAction, type Check, type Project,
 } from "../api/projects-api";
 import { CustomerTab } from "../components/CustomerTab";
+import { MilestonesTab } from "../components/MilestonesTab";
+import { TasksTab } from "../components/TasksTab";
 import { DocumentsTab, RelatedTab, TeamTab } from "../components/ProjectTabs";
 
-const TABS = [{ id: "overview", label: "Overview" }, { id: "customer", label: "Customer & Contacts" }, { id: "team", label: "Team" }, { id: "documents", label: "Documents" },
+const TABS = [{ id: "overview", label: "Overview" }, { id: "tasks", label: "Tasks" }, { id: "milestones", label: "Milestones" }, { id: "customer", label: "Customer & Contacts" }, { id: "team", label: "Team" }, { id: "documents", label: "Documents" },
   { id: "related", label: "Related" }, { id: "activity", label: "Activity" }];
 const CHECK_TONE = { PASS: "success", FAIL: "danger", WARN: "warning", NOT_TRACKED: "neutral", TO_CONFIRM: "info" } as const;
 const CHECK_LABEL = { PASS: "Done", FAIL: "Outstanding", WARN: "Note", NOT_TRACKED: "Not tracked yet", TO_CONFIRM: "Confirm at completion" } as const;
@@ -140,6 +142,8 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
         </Tabs>
         <div className="mt-4">
           {tab === "overview" && <OverviewTab project={project} onTab={selectTab} />}
+          {tab === "tasks" && <TasksTab project={project} />}
+          {tab === "milestones" && <MilestonesTab project={project} />}
           {tab === "customer" && project.classification === "CUSTOMER" && <CustomerTab project={project} onChanged={refresh} onTab={selectTab} />}
           {tab === "team" && <TeamTab project={project} onChanged={refresh} />}
           {tab === "documents" && <DocumentsTab project={project} />}
@@ -174,11 +178,11 @@ function OverviewTab({ project, onTab }: { project: Project; onTab: (tab: string
         {project.health.note && <p className="text-sm text-text-secondary">{`Explanation${project.health.noteBy ? ` by ${project.health.noteBy}` : ""}: ${project.health.note.text}`}</p>}
         {project.risk.flagged && <Notice tone="warning">{`Delivery risk: ${project.risk.note ?? ""}`}</Notice>}
       </Panel>
-      <Panel title="Work" description="Progress is counted from tracked tasks — never typed in.">
-        {tasks ? <FactList columns={3} items={[["Tasks", `${tasks.completed} of ${tasks.total} done`], ["Open", String(tasks.open)], ["Overdue", String(tasks.overdue)]]} />
-          : <p className="text-sm text-text-muted">No progress data: tasks are not tracked for projects yet. A project with no tasks never shows as complete.</p>}
-        {milestones ? <FactList columns={3} items={[["Milestones", `${milestones.completed} of ${milestones.total} done`], ["Open", String(milestones.open)], ["Overdue", String(milestones.overdue)]]} />
-          : <p className="text-sm text-text-muted">Milestones are not tracked for projects yet.</p>}
+      <Panel title="Work" description="Progress is done tasks over all tasks but the cancelled — never typed in. Milestones show which outcomes are reached.">
+        {tasks && tasks.total > 0 ? <FactList columns={3} items={[["Tasks", `${tasks.completed} of ${tasks.total} done`], ["Open", String(tasks.open)], ["Overdue", String(tasks.overdue)]]} />
+          : <p className="text-sm text-text-muted">No tasks yet, so no progress data (a project with no tasks never shows as complete). <button type="button" className="text-brand underline" onClick={() => onTab("tasks")}>Add tasks</button>.</p>}
+        {milestones && milestones.total > 0 ? <FactList columns={3} items={[["Milestones", `${milestones.completed} of ${milestones.total} done`], ["Open", String(milestones.open)], ["Overdue", String(milestones.overdue)]]} />
+          : <p className="text-sm text-text-muted">No milestones yet. <button type="button" className="text-brand underline" onClick={() => onTab("milestones")}>Plan them</button> to track the project&apos;s checkpoints.</p>}
       </Panel>
       {summary.data && <Notice tone="info">{`Next: ${summary.data.next}`}</Notice>}
       <FactList title="Details" items={[

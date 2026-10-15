@@ -12,6 +12,15 @@ export const PROJECT = Object.freeze({
   settings: "projects.settings.manage",
   customerView: "projects.customer.view", customerAssign: "projects.customer.assign", customerChange: "projects.customer.change", customerContacts: "projects.customer.contacts.manage",
   customerSalesLink: "projects.customer.sales_link", customerSites: "projects.customer.address.manage", customerHistory: "projects.customer.history.view", customerExport: "projects.customer.export",
+  milestoneView: "projects.milestones.view", milestoneCreate: "projects.milestones.create", milestoneEdit: "projects.milestones.edit", milestoneAssign: "projects.milestones.assign",
+  milestoneLinks: "projects.milestones.links.manage", milestoneSubmit: "projects.milestones.submit", milestoneApprove: "projects.milestones.approve",
+  milestoneCustomer: "projects.milestones.customer_acceptance", milestoneWaive: "projects.milestones.waive", milestoneComplete: "projects.milestones.complete",
+  milestoneReopen: "projects.milestones.reopen", milestoneCancel: "projects.milestones.cancel", milestoneBilling: "projects.milestones.billing.view",
+  milestoneExport: "projects.milestones.export",
+  taskView: "projects.tasks.view", taskCreate: "projects.tasks.create", taskEdit: "projects.tasks.edit", taskAssign: "projects.tasks.assign", taskStart: "projects.tasks.start",
+  taskBlock: "projects.tasks.block", taskComplete: "projects.tasks.complete", taskSubmit: "projects.tasks.submit_review", taskApprove: "projects.tasks.approve",
+  taskRequestChanges: "projects.tasks.request_changes", taskReopen: "projects.tasks.reopen", taskCancel: "projects.tasks.cancel", taskBulk: "projects.tasks.bulk_manage",
+  taskExport: "projects.tasks.export",
 });
 export const STATUS_LABEL = Object.freeze({ DRAFT: "Draft", PLANNED: "Planned", IN_PROGRESS: "In progress", ON_HOLD: "On hold", COMPLETED: "Completed", CANCELLED: "Cancelled" });
 export const PRIORITIES = Object.freeze(["LOW", "NORMAL", "HIGH", "URGENT"]);
@@ -49,6 +58,75 @@ const MESSAGES = Object.freeze({
   PROJECT_INPUT_INVALID: "Check the highlighted information.",
   PROJECT_REASON_REQUIRED: "Give a reason.",
   PROJECT_TYPE_REQUIRED: "Choose the project type.",
+  // Milestones (0128).
+  MILESTONE_PROJECT_INVALID: "Select a valid Project.",
+  MILESTONE_NOT_FOUND: "The milestone could not be found.",
+  MILESTONE_NAME_REQUIRED: "Enter a milestone name.",
+  MILESTONE_OWNER_INVALID: "Select an authorized project member.",
+  MILESTONE_DATE_INVALID: "Review the milestone dates.",
+  MILESTONE_INPUT_INVALID: "Check the highlighted information.",
+  MILESTONE_DEPENDENCY_CYCLE: "This dependency would create a circular sequence.",
+  MILESTONE_DEPENDENCY_INVALID: "This milestone cannot depend on that one.",
+  MILESTONE_DEPENDENCY_OPEN: "Complete the prerequisite milestones first.",
+  MILESTONE_DEPENDENTS_EXIST: "Review the milestones that depend on this one first.",
+  MILESTONE_REQUIRED_TASKS_OPEN: "Complete or resolve required tasks first.",
+  MILESTONE_TASKS_NOT_AVAILABLE: "Project tasks are not available yet.",
+  MILESTONE_TASK_INVALID: "Link a task of the same project that is not counted toward another milestone.",
+  MILESTONE_CRITERIA_INCOMPLETE: "Complete the required deliverables.",
+  MILESTONE_CRITERIA_REQUIRED: "Add at least one completion criterion first.",
+  MILESTONE_EVIDENCE_MISSING: "Add the required completion evidence.",
+  MILESTONE_BLOCKED: "Resolve the open blockers first.",
+  MILESTONE_APPROVAL_REQUIRED: "The milestone requires approval.",
+  MILESTONE_APPROVAL_NOT_NEEDED: "This milestone needs no approval: complete it directly.",
+  MILESTONE_CUSTOMER_ACCEPTANCE_REQUIRED: "Record the required customer acceptance.",
+  MILESTONE_CUSTOMER_CONTACT_INVALID: "Choose one of the project's active customer contacts.",
+  MILESTONE_APPROVAL_STALE: "Milestone details changed. Submit them for approval again.",
+  MILESTONE_SELF_APPROVAL: "Someone other than the submitter must approve this milestone.",
+  MILESTONE_ALREADY_DECIDED: "This submission already has that decision.",
+  MILESTONE_ALREADY_COMPLETED: "This milestone has already been completed.",
+  MILESTONE_SUBMITTED_LOCKED: "This milestone is under review. Withdraw the submission to change it.",
+  MILESTONE_STATUS_INVALID: "This action is not allowed in the milestone's current status.",
+  MILESTONE_BILLING_ALREADY_REQUESTED: "A billing request already exists for this milestone.",
+  MILESTONE_BILLING_BLOCKED: "Review the linked Sales Order and billing stage.",
+  MILESTONE_BILLING_REQUESTED: "This milestone has a billing request. Acknowledge that it stays with Sales.",
+  MILESTONE_PROJECT_ON_HOLD: "Project work is on Hold.",
+  MILESTONE_PROJECT_CLOSED: "The project is closed: its milestones are read-only.",
+  MILESTONE_VERSION_CONFLICT: "Another user changed this milestone. Refresh and review.",
+  MILESTONE_PERMISSION_DENIED: "You do not have permission for this action.",
+  MILESTONE_REASON_REQUIRED: "Give a reason.",
+  TASK_TITLE_REQUIRED: "Enter a Task name.",
+  TASK_PROJECT_INVALID: "This Project is not available.",
+  TASK_NOT_FOUND: "The task could not be found.",
+  TASK_ASSIGNEE_INVALID: "Select an authorized Project member.",
+  TASK_REVIEWER_INVALID: "Select a reviewer who works on this Project.",
+  TASK_DUE_DATE_INVALID: "Enter a valid due date.",
+  TASK_MILESTONE_INVALID: "Select a milestone from this Project.",
+  TASK_INPUT_INVALID: "Check the task details.",
+  TASK_DEPENDENCY_CYCLE: "This dependency would create a circular sequence.",
+  TASK_DEPENDENCY_INVALID: "Choose another task of this Project as the prerequisite.",
+  TASK_DEPENDENCY_OPEN: "Complete the required earlier Task first.",
+  TASK_DEPENDENTS_EXIST: "Other tasks depend on this task. Review them first.",
+  TASK_CHECKLIST_INCOMPLETE: "Complete the required checklist items.",
+  TASK_EVIDENCE_REQUIRED: "Add the completion evidence: a note, a file or a document reference.",
+  TASK_REVIEW_REQUIRED: "Submit this Task for review.",
+  TASK_REVIEW_NOT_REQUIRED: "This task needs no review: complete it directly.",
+  TASK_REVIEW_STALE: "The Task changed. Submit it for review again.",
+  TASK_SELF_REVIEW: "Someone other than the person who submitted it must review this task.",
+  TASK_ALREADY_DECIDED: "This submission has already been decided.",
+  TASK_IN_REVIEW: "This task is under review. Withdraw it from review to change it.",
+  TASK_BLOCKER_ACTIVE: "Resolve the Task blocker before continuing.",
+  TASK_PROJECT_ON_HOLD: "This Project is on Hold.",
+  TASK_PROJECT_NOT_STARTED: "Start the Project before working on its tasks.",
+  TASK_PROJECT_CLOSED: "This Project is closed: its tasks are read-only.",
+  TASK_ALREADY_COMPLETED: "This Task is already completed.",
+  TASK_STATUS_INVALID: "This task cannot do that in its current status.",
+  TASK_REOPEN_APPROVAL_REQUIRED: "Reopening requires authorization.",
+  TASK_MILESTONE_REVIEW: "Its milestone is under review or complete. Confirm you have reviewed the impact on the milestone.",
+  TASK_RECURRENCE_UNSUPPORTED: "Recurring tasks are not available yet. Create the task once.",
+  TASK_VERSION_CONFLICT: "This Task was updated by someone else. Refresh and review.",
+  TASK_PERMISSION_DENIED: "You do not have permission for this action.",
+  TASK_REASON_REQUIRED: "Give a reason.",
+  PROJECT_MEMBER_HAS_TASKS: "This member still has open tasks on the project. Reassign them, or record an authorized exception.",
 });
 export class ProjectError extends Error {
   constructor(status, code, message, details) {
@@ -95,7 +173,11 @@ export async function projectSettings(client, c) {
     // Customer Association: a customer change past the draft needs someone else's approval; activation needs a primary contact; an inactive
     // customer may be chosen for a new association.
     customerChangeApprovalRequired: row.customer_change_approval_required ?? true, primaryContactRequired: Boolean(row.primary_contact_required),
-    inactiveCustomerAllowed: Boolean(row.inactive_customer_allowed) };
+    inactiveCustomerAllowed: Boolean(row.inactive_customer_allowed),
+    // Milestones: whoever submitted may also approve; a new milestone needs internal approval unless the form says otherwise.
+    milestoneSelfApprovalAllowed: Boolean(row.milestone_self_approval_allowed), milestoneInternalApprovalDefault: row.milestone_internal_approval_default ?? true,
+    // Tasks: whoever submitted may also approve; a new task needs review by default; the due-soon reminder's lead time.
+    taskSelfReviewAllowed: Boolean(row.task_self_review_allowed), taskReviewDefault: Boolean(row.task_review_default), taskReminderDays: Number(row.task_reminder_days ?? 1) };
 }
 const STANDARD_TYPES = [["IMPLEMENTATION", "Customer implementation", 10], ["SOFTWARE", "Software development", 20], ["DESIGN", "Design", 30], ["CONSTRUCTION", "Construction or installation", 40],
   ["MARKETING", "Marketing campaign", 50], ["CONSULTING", "Consulting engagement", 60], ["SERVICE_DELIVERY", "Service delivery", 70], ["INTERNAL", "Internal initiative", 80], ["OTHER", "Other", 90]];
@@ -168,7 +250,7 @@ export async function eligibleUsers(client, c, userIds) {
        JOIN public.user_role_assignments assignment ON assignment.organization_id = membership.organization_id AND assignment.user_id = membership.user_id AND assignment.status = 'active'
         AND (assignment.starts_at IS NULL OR assignment.starts_at <= now()) AND (assignment.expires_at IS NULL OR assignment.expires_at > now())
        JOIN public.roles role ON role.id = assignment.role_id AND role.status = 'active'
-      WHERE membership.organization_id = $1 AND membership.status = 'active' AND membership.user_id = ANY($2::uuid[])
+      WHERE membership.organization_id = $1 AND membership.status = 'active' AND person.status = 'active' AND membership.user_id = ANY($2::uuid[])
         AND (role.slug IN ('organization_owner', 'system_administrator')
              OR EXISTS (SELECT 1 FROM public.role_permissions grant_row WHERE grant_row.role_id = role.id AND grant_row.permission_key IN ('projects.view', 'projects.view_all')))`,
     [c.organizationId, ids])).rows;
@@ -207,4 +289,8 @@ export async function notifyProject(client, c, project, userIds, { category = "p
 export async function activeMemberIds(client, c, projectId) {
   return (await client.query(`SELECT user_id FROM tenant.project_members WHERE organization_id = $1 AND project_id = $2 AND left_at IS NULL`, [c.organizationId, projectId])).rows.map((row) => row.user_id);
 }
+// Checks run before someone leaves a project team (Tasks: open tasks are reassigned, or kept by an authorized exception).
+const MEMBER_LEAVE_HOOKS = [];
+export function registerMemberLeaveHook(hook) { if (typeof hook === "function" && !MEMBER_LEAVE_HOOKS.includes(hook)) MEMBER_LEAVE_HOOKS.push(hook); }
+export async function beforeMemberLeaves(client, c, project, userId, input = {}) { for (const hook of MEMBER_LEAVE_HOOKS) await hook(client, c, project, userId, input); }
 export const label = (project) => `${project.project_code}${project.name ? ` · ${project.name}` : ""}`;

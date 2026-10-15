@@ -6,7 +6,7 @@ function parseClock(value, fallbackHour) {
   return match ? [Number(match[1]), Number(match[2])] : [fallbackHour, 0];
 }
 
-export function addBusinessMinutes(startValue, minutesValue, schedule = {}) {
+function addWallMinutes(startValue, minutesValue, schedule = {}) {
   const weekdays = new Set(Array.isArray(schedule.weekdays) && schedule.weekdays.length ? schedule.weekdays.map(Number) : [1, 2, 3, 4, 5]);
   const [startHour, startMinute] = parseClock(schedule.start, 9);
   const [endHour, endMinute] = parseClock(schedule.end, 18);
@@ -39,4 +39,22 @@ export function addBusinessMinutes(startValue, minutesValue, schedule = {}) {
     }
   }
   return cursor;
+}
+
+// How far the zone's clock is ahead of UTC at an instant, in minutes (IST: 330).
+function zoneOffsetMinutes(timeZone, at) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    .formatToParts(at).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+  return Math.round((Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - at.getTime()) / 60000);
+}
+
+// The working window is read on the schedule's own clock (schedule.timezone, e.g. Asia/Kolkata: 09:00-18:00 IST), not UTC.
+export function addBusinessMinutes(startValue, minutesValue, schedule = {}) {
+  const start = new Date(startValue);
+  let offset = 0;
+  try { offset = schedule.timezone ? zoneOffsetMinutes(schedule.timezone, start) : 0; } catch { offset = 0; }
+  const wall = addWallMinutes(new Date(start.getTime() + offset * 60000), minutesValue, schedule);
+  let back = offset;
+  try { back = schedule.timezone ? zoneOffsetMinutes(schedule.timezone, new Date(wall.getTime() - offset * 60000)) : 0; } catch { back = offset; }
+  return new Date(wall.getTime() - back * 60000);
 }

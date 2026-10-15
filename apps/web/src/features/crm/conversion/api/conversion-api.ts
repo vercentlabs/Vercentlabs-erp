@@ -66,7 +66,7 @@ export type LeadConversionPreview = {
 };
 export type LeadConversionInput = {
   idempotencyKey: string;
-  account: { mode: "existing"; id: string } | { mode: "new"; name: string; legalName?: string; website?: string; industry?: string; ownerUserId?: string; acknowledgeMatches?: boolean };
+  account: { mode: "existing"; id: string } | { mode: "new"; kind?: "business" | "individual"; name: string; legalName?: string; website?: string; industry?: string; ownerUserId?: string; acknowledgeMatches?: boolean };
   contact: { mode: "existing"; id: string; updates?: Record<string, "lead" | "existing"> }
     | { mode: "new"; firstName: string; lastName?: string; email?: string; mobile?: string; phone?: string; jobTitle?: string; ownerUserId?: string; acknowledgeMatches?: boolean };
   opportunity: {

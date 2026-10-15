@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertDialog, Badge, Button, ErrorState, LinkButton, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
+  AlertDialog, Badge, Button, Checkbox, ErrorState, LinkButton, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
 } from "@vercentlabs/design-system";
 
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
@@ -51,6 +51,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogKind>(null);
+  const [keepWork, setKeepWork] = useState(false);
   // ?tab= opens a tab (links from search and from To-dos › Notes and Files); ?merge=<lead> opens the merge with that lead chosen.
   const params = useSearchParams();
   const requested = TAB_OF[params.get("tab") ?? ""] ?? TAB_OF.overview;
@@ -154,7 +155,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             { label: "Owner", value: lead.ownerName ?? "Unassigned" },
             { label: "Priority", value: <PriorityBadge priority={lead.priority} /> },
             { label: "Email", value: lead.email ? <a className="hover:underline" href={`mailto:${lead.email}`}>{lead.email}</a> : lead.sensitiveDataRestricted ? "Hidden" : "Not set" },
-            { label: "Phone", value: lead.mobile || lead.phone ? <a className="hover:underline" href={`tel:${(lead.mobile || lead.phone || "").replace(/[^0-9+]/g, "")}`}>{lead.mobile || lead.phone}</a>
+            { label: lead.mobile ? "Mobile" : "Phone", value: lead.mobile || lead.phone ? <a className="hover:underline" href={`tel:${(lead.mobile || lead.phone || "").replace(/[^0-9+]/g, "")}`}>{lead.mobile || lead.phone}</a>
               : lead.sensitiveDataRestricted ? "Hidden" : "Not set" },
             { label: "Next follow-up", value: <FollowUpCell value={lead.nextFollowUpAt} /> },
           ],
@@ -276,7 +277,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
       <AssignLeadsDialog isOpen={dialog === "assign"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} lead={lead} options={options} onDone={refresh} />
       {/* Qualifying normally continues straight into converting the lead (the conversion page). */}
       <QualifyLeadDialog isOpen={dialog === "qualify"} onOpenChange={(open) => !open && setDialog(null)} lead={lead} options={options}
-        onQualified={(convert) => { refresh(); setDialog(null); if (convert) router.push(`/crm/leads/${lead.id}/convert`); }} />
+        onQualified={(convert) => { refresh(); setDialog(null); if (convert) router.push(`/crm/leads/${lead.id}/convert`); }}
+        onAnswer={() => { setDialog(null); setTab("qualify"); }} />
       <DisqualifyLeadsDialog isOpen={dialog === "disqualify"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} options={options} onDone={refresh} />
       <LogActivityDialog isOpen={dialog === "activity"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh}
         onScheduleNext={() => setDialog("followUp")}
@@ -287,11 +289,13 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         isOpen={dialog === "archive"}
         onOpenChange={(open) => !open && setDialog(null)}
         title="Archive this lead?"
-        description="The lead leaves the working lists but keeps its history, notes, files and activities. It can be restored from the Archived view."
+        description={<span className="flex flex-col gap-2"><span>The lead leaves the working lists but keeps its history, notes, files and activities. It can be restored from the Archived view.
+          Its open tasks and follow-ups are cancelled so no reminders keep firing.</span>
+          <Checkbox isSelected={keepWork} onChange={setKeepWork}>Keep its open tasks and follow-ups instead</Checkbox></span>}
         tone="danger"
         confirmLabel="Archive lead"
         isConfirming={action.isPending}
-        onConfirm={() => action.mutate(async () => { await archiveLead(lead.id); setDialog(null); })}
+        onConfirm={() => action.mutate(async () => { await archiveLead(lead.id, keepWork ? "keep" : "cancel"); setDialog(null); })}
       />
     </>
   );
@@ -309,13 +313,18 @@ function StageBar({ lead, options, canChange, isChanging, onChange }: {
     ? options.stages
     : [{ code: lead.stage, label: lead.stageName }, ...options.stages];
   const currentIndex = stages.findIndex((stage) => stage.code === lead.stage);
+  // Ticks show the stages the lead really went through (its stage history), not every stage before the current one.
+  const workspace = useWorkspaceContext();
+  const history = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead", lead.id, "stage-history", lead.updatedAt), queryFn: () => listLeadStageHistory(lead.id) });
+  const visited = new Set((history.data ?? []).flatMap((entry) => [entry.fromStage, entry.toStage]).filter(Boolean));
+  const passed = (index: number) => index < currentIndex && (!history.data || visited.has(stages[index].code));
   return (
     <ol aria-label="Lead stage" className="flex flex-wrap gap-1">
       {stages.map((stage, index) => {
         const isCurrent = index === currentIndex;
-        const mark = isCurrent ? "●" : index < currentIndex ? "✓" : "○";
+        const mark = isCurrent ? "●" : passed(index) ? "✓" : "○";
         const className = `flex-1 rounded-[var(--radius-control)] border px-3 py-2 text-center text-sm font-medium transition-colors ${
-          isCurrent ? "border-brand bg-brand text-text-inverse" : index < currentIndex ? "border-brand-border bg-brand-soft text-brand-active" : "border-border bg-surface text-text-secondary"}`;
+          isCurrent ? "border-brand bg-brand text-text-inverse" : passed(index) ? "border-brand-border bg-brand-soft text-brand-active" : "border-border bg-surface text-text-secondary"}`;
         return (
           <li key={stage.code} className="flex min-w-32 flex-1" aria-current={isCurrent ? "step" : undefined}>
             {canChange && !isCurrent ? (

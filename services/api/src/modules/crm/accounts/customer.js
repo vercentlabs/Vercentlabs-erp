@@ -69,6 +69,9 @@ export async function createCustomerFromAccount(client, context, partyId, input 
   if (!billing.rows[0]) throw new CrmError(409, "Add a billing address before creating the customer.", "CRM_ACCOUNT_BILLING_ADDRESS_REQUIRED");
 
   const terms = normalizeCommercialTerms(input);
+  // Business or individual: as chosen here, else as the company already is (a person converted from a lead), else business.
+  const kind = String(input.customerKind ?? "").toLowerCase();
+  if (kind && !["business", "individual"].includes(kind)) throw new CrmError(400, "Choose business or individual.", "CRM_ACCOUNT_VALIDATION");
   if (terms.gstin) {
     const taken = await client.query(`SELECT code, display_name FROM tenant.business_parties WHERE organization_id = $1 AND gstin = $2 AND id <> $3`,
       [context.organizationId, terms.gstin, account.id]);
@@ -84,9 +87,10 @@ export async function createCustomerFromAccount(client, context, partyId, input 
     `UPDATE tenant.business_parties
         SET party_type = 'customer', account_type = 'customer', customer_number = $3, customer_since = now(), customer_created_by = $4,
             gstin = COALESCE($5, gstin), pan = COALESCE($6, pan), payment_term_id = COALESCE($7, payment_term_id),
-            credit_limit = COALESCE($8, credit_limit), currency_code = COALESCE($9, currency_code), updated_by = $4, updated_at = now()
+            credit_limit = COALESCE($8, credit_limit), currency_code = COALESCE($9, currency_code),
+            customer_kind = COALESCE($10, customer_kind, 'business'), updated_by = $4, updated_at = now()
       WHERE organization_id = $1 AND id = $2`,
-    [context.organizationId, account.id, customerNumber, context.userId ?? null, terms.gstin, terms.pan, terms.paymentTermId, terms.creditLimit, terms.currencyCode],
+    [context.organizationId, account.id, customerNumber, context.userId ?? null, terms.gstin, terms.pan, terms.paymentTermId, terms.creditLimit, terms.currencyCode, kind || null],
   );
   await recordAccountHistory(client, context, account.id, "customer_created", `Customer ${customerNumber} created`, {
     customerNumber, from: account.account_type, to: "customer",

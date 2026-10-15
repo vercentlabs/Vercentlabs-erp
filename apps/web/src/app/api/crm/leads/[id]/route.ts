@@ -27,6 +27,6 @@ export async function PATCH(request: Request, route: LeadRouteParams) {
 // Archives the lead. Leads are never hard-deleted.
 export async function DELETE(request: Request, route: LeadRouteParams) {
   return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsDelete, billingWrite: true }, async ({ client, session }) =>
-    ok(await archiveLead(client, crmContext(session), (await route.params).id)),
+    ok(await archiveLead(client, crmContext(session), (await route.params).id, { openWork: new URL(request.url).searchParams.get("openWork") === "keep" ? "keep" : "cancel" })),
   );
 }

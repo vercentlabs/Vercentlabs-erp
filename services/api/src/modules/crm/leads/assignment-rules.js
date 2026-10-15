@@ -288,6 +288,10 @@ async function nextRoundRobinMember(client, context, teamId, excludeUserId) {
 async function reportUnusableRule(client, context, rule, why) {
   const recipient = rule.updated_by || rule.created_by;
   if (!recipient) return;
+  // Once a day per rule, however many leads pass it by (an import would otherwise send one per lead).
+  const told = (await client.query(`SELECT 1 FROM notifications WHERE organization_id = $1 AND user_id = $2 AND category = 'crm_lead_assignment_failed'
+      AND entity_id::text = $3 AND created_at > now() - interval '1 day' LIMIT 1`, [context.organizationId, recipient, rule.id])).rows[0];
+  if (told) return;
   await createNotification(client, {
     organizationId: context.organizationId,
     userId: recipient,

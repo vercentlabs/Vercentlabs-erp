@@ -166,7 +166,7 @@ export async function getLeadsByStatusReport(client, context, input = {}) {
   if (QUALIFICATION_STATUS_SQL[input.qualificationStatus]) where.push(QUALIFICATION_STATUS_SQL[input.qualificationStatus]);
   if (LEAD_DISQUALIFICATION_REASONS.some((reason) => reason.code === input.disqualificationReason)) where.push(`lead.disqualification_reason = ${bind(input.disqualificationReason)}`);
   if (String(input.productInterest ?? "").trim())
-    where.push(`lower(COALESCE(lead.product_interest, '')) LIKE ${bind(`%${String(input.productInterest).trim().toLowerCase().replace(/[\\%_]/g, "\\  if (isUuid(input.teamId)) where.push(")}%`)}`);
+    where.push(`lower(COALESCE(lead.product_interest, '')) LIKE ${bind(`%${String(input.productInterest).trim().toLowerCase().replace(/[\\%_]/g, "\\$&")}%`)}`);
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(input.qualifiedFrom ?? ""))) where.push(`lead.qualified_at >= ${bind(input.qualifiedFrom)}::date`);
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(input.qualifiedTo ?? ""))) where.push(`lead.qualified_at < ${bind(input.qualifiedTo)}::date + interval '1 day'`);
   if (isUuid(input.teamId)) where.push(`lead.team_id = ${bind(input.teamId)}`);

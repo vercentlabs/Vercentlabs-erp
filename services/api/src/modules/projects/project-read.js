@@ -8,6 +8,8 @@ import {
 import { LINK_LABEL, cancellationReview, completionCheck, healthContext, progressOf, resolvedLinks } from "./project-summary.js";
 import { LINK_SOURCES, validateProjectActivation } from "./project-service.js";
 import { CUSTOMER_REPORTS, getProjectCustomerReport, searchProjectEligibleCustomers } from "./project-customer.js";
+import { evaluateMilestoneDeadlines } from "./project-milestone-read.js";
+import { evaluateTaskDeadlines } from "./project-task-read.js";
 
 const PRIORITY_RANK = Object.freeze({ URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 });
 const day = (value) => (value ? isoDay(value) : null);
@@ -376,5 +378,7 @@ export async function notifyProjectAlerts(client, c) {
       sent += 1;
     }
   }
-  return { checked: rows.length, sent };
+  const milestones = await evaluateMilestoneDeadlines(client, c);
+  const tasks = await evaluateTaskDeadlines(client, c);
+  return { checked: rows.length, sent: sent + milestones.sent + tasks.sent, milestones, tasks };
 }

@@ -2,6 +2,8 @@
 // deletion of unused accounts. Owner and team change only through
 // assignment.js; the parent through hierarchy.js; the customer link through
 // customer.js.
+import { updatedSummary } from "../data-management/field-labels.js";
+import { phoneSearchDigits } from "../duplicates/normalize.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { assertCrmOwnerAssignable } from "../data-management/crm-access-scope.js";
 import { CrmError } from "../data-management/errors.js";
@@ -54,6 +56,8 @@ export function toAccount(row) {
     displayName: row.display_name,
     legalName: row.legal_name,
     accountType: row.account_type,
+    customerKind: row.customer_kind ?? "business",
+    isIndividual: row.customer_kind === "individual",
     status: row.status,
     partyType: row.party_type,
     industry: row.industry,
@@ -205,8 +209,13 @@ export function buildAccountListWhere(context, filters = {}, values = []) {
     const pattern = bind(`%${search.replace(/[\\%_]/g, "\\$&")}%`);
     const contactDetails = accountCan(context, ACCOUNT_PERMISSIONS.viewSensitive)
       ? "|| ' ' || COALESCE(account.email, '') || ' ' || COALESCE(account.phone, '') || ' ' || COALESCE(account.secondary_phone, '')" : "";
+    const digits = contactDetails ? phoneSearchDigits(search) : null;
+    const phone = digits ? bind(`%${digits}%`) : null;
     where.push(`(lower(COALESCE(account.code, '') || ' ' || COALESCE(account.display_name, '') || ' ' || COALESCE(account.legal_name, '') || ' '
         || COALESCE(account.website, '') || ' ' || COALESCE(account.customer_number, '') || ' ' || COALESCE(account.gstin, '') ${contactDetails}) LIKE ${pattern}
+      ${phone ? `OR right(regexp_replace(COALESCE(account.phone, ''), '\\D', '', 'g'), 10) LIKE ${phone} OR right(regexp_replace(COALESCE(account.secondary_phone, ''), '\\D', '', 'g'), 10) LIKE ${phone}
+      OR EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships link JOIN tenant.contacts contact ON contact.organization_id = link.organization_id AND contact.id = link.contact_id
+                  WHERE link.organization_id = account.organization_id AND link.party_id = account.id AND (contact.normalized_mobile LIKE ${phone} OR contact.normalized_work_phone LIKE ${phone}))` : ""}
       OR EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships link JOIN tenant.contacts contact ON contact.organization_id = link.organization_id AND contact.id = link.contact_id
                   WHERE link.organization_id = account.organization_id AND link.party_id = account.id
                     AND lower(COALESCE(contact.display_name, '') || ' ' || contact.first_name || ' ' || COALESCE(contact.last_name, '')) LIKE ${pattern}))`);
@@ -325,7 +334,7 @@ export async function updateAccount(client, context, partyId, input = {}, { allo
       await recordAccountHistory(client, context, row.id, "type_changed", `Type: ${accountTypeLabel(before.accountType)} → ${accountTypeLabel(normalized.accountType)}`, changes.accountType);
     const others = changed.filter((field) => field !== "accountType");
     if (others.length)
-      await recordAccountHistory(client, context, row.id, "updated", `Updated ${others.length === 1 ? others[0] : `${others.length} fields`}`,
+      await recordAccountHistory(client, context, row.id, "updated", updatedSummary(others),
         Object.fromEntries(others.map((field) => [field, changes[field]])));
     await queueOutboxEvent(client, context, "crm.accounts.updated", "account", row.id, { accountId: row.id, changedFields: changed });
   }

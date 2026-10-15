@@ -34,6 +34,10 @@ export function verifyAttachmentContent(bytes, mimeType) {
     (normalized === "application/pdf" && startsWith(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d])) ||
     (normalized === "image/png" && startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ||
     (normalized === "image/jpeg" && startsWith(bytes, [0xff, 0xd8, 0xff])) ||
+    // WebP: a RIFF container of kind WEBP. HEIC/HEIF (iPhone photos): an ISO media file whose brand is a HEIF one.
+    (normalized === "image/webp" && startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) && Buffer.from(bytes.subarray(8, 12)).toString("ascii") === "WEBP") ||
+    ((normalized === "image/heic" || normalized === "image/heif") && Buffer.from(bytes.subarray(4, 8)).toString("ascii") === "ftyp"
+      && ["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"].includes(Buffer.from(bytes.subarray(8, 12)).toString("ascii"))) ||
     ((normalized === "text/plain" || normalized === "text/csv") && !bytes.includes(0)) ||
     // Office files: the 2007+ formats are ZIP containers holding their own XML part; the older ones are OLE compound files.
     (OOXML_PART[normalized] && startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) && containsAscii(bytes, OOXML_PART[normalized])) ||

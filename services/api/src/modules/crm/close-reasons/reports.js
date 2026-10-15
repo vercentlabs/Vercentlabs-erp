@@ -21,7 +21,7 @@ const GROUP_SQL = Object.freeze({
   team: ["opportunity.team_id::text", "COALESCE(team.name, 'No team')"],
   source: ["opportunity.source_id::text", "COALESCE(source.name, 'No source')"],
   product: ["lower(COALESCE(NULLIF(btrim(opportunity.product_interest), ''), ''))", "COALESCE(NULLIF(btrim(opportunity.product_interest), ''), 'Not set')"],
-  account: ["opportunity.party_id::text", "COALESCE(account.display_name, 'No account')"],
+  account: ["opportunity.party_id::text", "COALESCE(account.display_name, 'No company')"],
   industry: ["lower(COALESCE(NULLIF(btrim(account.industry), ''), ''))", "COALESCE(NULLIF(btrim(account.industry), ''), 'Not set')"],
   stage: ["history.final_stage_id::text", "COALESCE(history.final_stage_name, 'Unknown')"],
   month: ["to_char(history.actual_close_date, 'YYYY-MM')", "to_char(history.actual_close_date, 'Mon YYYY')"],

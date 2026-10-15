@@ -20,6 +20,30 @@ const PROJECT_EVENTS = [
   ["member_added", "Project member added", "Someone joined a project team."], ["member_removed", "Project member removed", "Someone left a project team."],
   ["linked", "Project record linked", "A CRM, sales or procurement record was linked to a project."],
 ];
+// Projects — Milestones: the lifecycle and the decisions, with the milestone's code, project and status (never the deliverables or amounts).
+const milestoneEvent = (key, label, description) => define(`projects.milestone.${key}`, label, description, "projects.milestone",
+  (event) => ({ milestoneId: event.entityId, ...pick(event.payload, ["milestoneCode", "projectId", "status", "decision", "reviewer", "approvalStatus", "dueDate", "completionDate", "salesOrderId"]) }),
+  [{ key: "status", label: "Milestone status" }, { key: "decision", label: "Decision" }]);
+const MILESTONE_EVENTS = [
+  ["created", "Milestone created", "A project milestone was planned."], ["started", "Milestone started", "Work on a milestone started."],
+  ["blocked", "Milestone blocked", "A blocker was raised on a milestone."], ["submitted", "Milestone submitted", "A milestone was submitted for review."],
+  ["reviewed", "Milestone reviewed", "An internal approval decision was recorded on a milestone."],
+  ["customer_decision", "Milestone customer decision", "The customer's acceptance (or request for changes) was recorded on a milestone."],
+  ["completed", "Milestone completed", "A milestone was completed."], ["reopened", "Milestone reopened", "A completed milestone was reopened."],
+  ["cancelled", "Milestone cancelled", "A milestone was cancelled."], ["due_date_changed", "Milestone rescheduled", "A milestone's due date changed."],
+  ["billing_requested", "Milestone billing requested", "A completed milestone's billing was requested from Sales."],
+];
+// Projects — Tasks: the lifecycle, assignment and review, with the task's code, project, status and assignee (never its description or files).
+const taskEvent = (key, label, description) => define(`projects.task.${key}`, label, description, "projects.task",
+  (event) => ({ taskId: event.entityId, ...pick(event.payload, ["taskCode", "projectId", "milestoneId", "status", "assigneeUserId", "decision", "from", "to", "dueDate"]) }),
+  [{ key: "status", label: "Task status" }, { key: "assigneeUserId", label: "Assignee", type: "user" }]);
+const TASK_EVENTS = [
+  ["created", "Task created", "A project task was created."], ["reassigned", "Task reassigned", "A task was given to someone else."],
+  ["started", "Task started", "Work on a task started."], ["blocked", "Task blocked", "A task was blocked."], ["unblocked", "Task unblocked", "A task's blocker was resolved."],
+  ["submitted", "Task submitted for review", "A task was submitted for review."], ["approved", "Task approved", "A task was approved in review and is done."],
+  ["changes_requested", "Task changes requested", "A task came back from review with changes requested."], ["completed", "Task completed", "A task was completed."],
+  ["reopened", "Task reopened", "A done task was reopened."], ["cancelled", "Task cancelled", "A task was cancelled."], ["due_date_changed", "Task rescheduled", "A task's due date changed."],
+];
 
 const define = (key, label, description, entityType, project, conditionFields) =>
   Object.freeze({ key, moduleKey: key.split(".")[0], label, description, entityType, payloadVersion: 1, project, conditionFields: Object.freeze(conditionFields) });
@@ -103,6 +127,8 @@ export const DOMAIN_EVENTS = Object.freeze([
     [],
   ),
   ...PROJECT_EVENTS.map(([key, label, description]) => projectEvent(key, label, description)),
+  ...MILESTONE_EVENTS.map(([key, label, description]) => milestoneEvent(key, label, description)),
+  ...TASK_EVENTS.map(([key, label, description]) => taskEvent(key, label, description)),
 ]);
 
 const BY_KEY = new Map(DOMAIN_EVENTS.map((event) => [event.key, event]));

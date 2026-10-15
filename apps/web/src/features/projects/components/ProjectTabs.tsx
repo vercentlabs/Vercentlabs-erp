@@ -17,7 +17,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  addLink, addMember, addNote, changeMemberRole, editNote, errorDetails, errorMessage, fileHref, getFiles, getLinks, getMembers, getNotes, getOptions, getProjectContacts, removeFile, removeLink,
+  addLink, addMember, addNote, changeMemberRole, editNote, errorCode, errorDetails, errorMessage, fileHref, getFiles, getLinks, getMembers, getNotes, getOptions, getProjectContacts, removeFile, removeLink,
   removeMember, removeNote, searchLinkable, uploadFile, type Project,
 } from "../api/projects-api";
 
@@ -33,6 +33,8 @@ export function TeamTab({ project, onChanged }: { project: Project; onChanged: (
   const [role, setRole] = useState("MEMBER");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Someone with open tasks leaves only once they are reassigned (or kept by a recorded exception).
+  const [leaving, setLeaving] = useState<{ memberId: string; name: string; userId: string; tasks: Array<{ code: string; title: string }> } | null>(null);
   if (team.isLoading) return <LoadingState label="Loading the team" rows={4} />;
   const members = team.data?.members ?? [];
   const current = members.filter((row) => row.active);
@@ -55,7 +57,13 @@ export function TeamTab({ project, onChanged }: { project: Project; onChanged: (
                 : <Select aria-label={`Role of ${row.name}`} size="compact" selectedKey={row.role} isDisabled={busy} options={ROLE_OPTIONS}
                     onSelectionChange={(key) => run(() => changeMemberRole(project.id, row.id, String(key)), `${row.name} is now a ${ROLE_OPTIONS.find((option) => option.value === key)?.label}.`)} />}</Cell>
               <Cell>{formatDateTime(row.joinedAt)}{row.addedBy ? ` · ${row.addedBy}` : ""}</Cell>
-              <Cell>{manage && row.role !== "MANAGER" && <Button size="compact" variant="ghost" isDisabled={busy} onPress={() => run(() => removeMember(project.id, row.id), `${row.name} left the project.`)}>Remove</Button>}</Cell>
+              <Cell>{manage && row.role !== "MANAGER" && <Button size="compact" variant="ghost" isDisabled={busy} onPress={() => run(async () => {
+                try { await removeMember(project.id, row.id); } catch (failure) {
+                  if (errorCode(failure) !== "PROJECT_MEMBER_HAS_TASKS") throw failure;
+                  setLeaving({ memberId: row.id, name: row.name, userId: row.userId, tasks: (errorDetails(failure).tasks as Array<{ code: string; title: string }> | undefined) ?? [] });
+                  throw new Error(`${row.name} still has open tasks: reassign them first.`);
+                }
+              }, `${row.name} left the project.`)}>Remove</Button>}</Cell>
             </tr>
           ))}
         </LinesTable>
@@ -84,7 +92,39 @@ export function TeamTab({ project, onChanged }: { project: Project; onChanged: (
           </LinesTable>
         </Panel>
       )}
+      {leaving && <LeaveDialog projectId={project.id} leaving={leaving} candidates={current.filter((row) => row.userId !== leaving.userId && ["MANAGER", "MEMBER"].includes(row.role))}
+        onClose={() => setLeaving(null)} onDone={async (text) => { setLeaving(null); setError(null); await queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "projects") }); await onChanged(text); }} />}
     </div>
+  );
+}
+
+// Leaving with open tasks: hand them to someone on the team, or keep them with the person by an exception (recorded on each task).
+function LeaveDialog({ projectId, leaving, candidates, onClose, onDone }: { projectId: string; leaving: { memberId: string; name: string; tasks: Array<{ code: string; title: string }> };
+  candidates: Array<{ userId: string; name: string }>; onClose: () => void; onDone: (text: string) => Promise<void> }) {
+  const [to, setTo] = useState<string | null>(null);
+  const [exception, setException] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Dialog isOpen isDismissable onOpenChange={(next) => { if (!next) onClose(); }} title={`${leaving.name} has open tasks`}>
+      <div className="flex flex-col gap-3">
+        <ul className="flex flex-col gap-1 text-sm">{leaving.tasks.map((task) => <li key={task.code}>{`• ${task.code} ${task.title}`}</li>)}</ul>
+        <Select label="Reassign them to" selectedKey={to} onSelectionChange={(next) => setTo(String(next))} options={candidates.map((row) => ({ value: row.userId, label: row.name }))}
+          description="Their comments, files and time entries stay theirs." />
+        <TextArea label="Or keep them with this person — the reason (an authorized exception)" value={exception} onChange={setException} maxLength={2000} />
+        {error && <Notice tone="danger">{error}</Notice>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onPress={onClose}>Cancel</Button>
+          <Button variant="primary" isLoading={busy} isDisabled={busy || (!to && exception.trim().length < 3)} onPress={async () => {
+            setBusy(true); setError(null);
+            try {
+              await removeMember(projectId, leaving.memberId, to ? { reassignToUserId: to } : { taskException: exception });
+              await onDone(to ? `${leaving.name} left the project; their open tasks were reassigned.` : `${leaving.name} left the project; their open tasks stay with them by exception.`);
+            } catch (failure) { setError(errorMessage(failure)); } finally { setBusy(false); }
+          }}>Remove from the project</Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

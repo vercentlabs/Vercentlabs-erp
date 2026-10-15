@@ -90,8 +90,8 @@ export async function createLeadStage(client, context, input = {}) {
   return toStage(rows[0]);
 }
 
-// input: { name?, isActive? }. A system stage can be renamed but not
-// deactivated; a stage with open leads in it cannot be deactivated.
+// input: { name?, isActive? }. Every stage can be renamed. New (where leads start) and Qualification (where qualified leads go) are
+// always kept; another standard stage may be switched off for a simpler funnel. A stage with open leads in it cannot be deactivated.
 export async function updateLeadStage(client, context, id, input = {}) {
   requireStageManager(context);
   const stage = (await client.query(`SELECT * FROM tenant.crm_lead_stages WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
@@ -99,7 +99,8 @@ export async function updateLeadStage(client, context, id, input = {}) {
   if (!stage) throw new CrmError(404, "Stage not found.", "CRM_LEAD_STAGE_NOT_FOUND");
   const name = Object.hasOwn(input, "name") ? await stageName(client, context, input.name, stage.id) : stage.name;
   const isActive = Object.hasOwn(input, "isActive") ? input.isActive === true : stage.is_active;
-  if (!isActive && stage.is_system) throw new CrmError(409, `${stage.name} is a standard stage. It can be renamed, but not deactivated.`, "CRM_LEAD_STAGE_SYSTEM");
+  if (!isActive && stage.is_system && ["new", QUALIFICATION_STAGE].includes(stage.code))
+    throw new CrmError(409, `${stage.name} is where ${stage.code === "new" ? "every lead starts" : "qualified leads go"}. It can be renamed, but not deactivated.`, "CRM_LEAD_STAGE_SYSTEM");
   if (!isActive && stage.is_active) {
     const inUse = await client.query(
       `SELECT count(*)::int AS n FROM tenant.crm_leads WHERE organization_id = $1 AND stage = $2 AND status = 'open' AND archived_at IS NULL`,

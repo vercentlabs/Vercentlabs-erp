@@ -153,7 +153,8 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
 
   const chosenContact = readiness.contacts.find((contact) => contact.id === contactId);
   const customerName = isCustomer ? account?.name : linking ? visibleMatches.find((match) => match.id === customerChoice)?.name : account?.name;
-  const customerState = isCustomer ? "Customer" : linking ? "Links to this existing customer" : "Customer created from the company";
+  const blockedOnCustomer = Boolean(account) && !isCustomer && !can.createCustomer;
+  const customerState = isCustomer ? "Customer" : linking ? "Links to this existing customer" : blockedOnCustomer ? "A manager must create the customer first" : "Customer created from the company";
   // The deal's own estimate for the lines it knows a price for; Sales prices the quotation when it is saved.
   const estimate = lines.reduce((sum, line) => (line.estimate === null ? sum
     : sum + line.estimate * (Number(line.quantity) || 0) * (1 - (Number(line.discountPercent) || 0) / 100)), 0);
@@ -162,6 +163,8 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
     <div className="flex min-w-0 flex-col gap-5">
+      {/* Said before the form, so nobody fills it in only to find Create disabled. */}
+      {blockedOnCustomer && <Banner tone="warning" message={`${account?.name ?? "This company"} is not a customer yet, and you cannot create or link customers. A manager must create its customer first; then come back to quote it.`} />}
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">{readiness.opportunity.code} · {readiness.opportunity.name}</h2>
         <ul className="grid gap-1 text-sm sm:grid-cols-2">

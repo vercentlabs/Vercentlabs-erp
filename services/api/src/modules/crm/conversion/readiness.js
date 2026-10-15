@@ -26,19 +26,23 @@ export function blockedReason(lead) {
 
 // Every check shown in the conversion dialog. `overridable` checks can be
 // waived by a manager with a reason; the others are resolved in the dialog
-// itself (choosing or entering an account and a contact).
+// itself (choosing or entering a company and a contact). The qualification
+// checks follow the organization's Qualification settings: with none ticked,
+// a lead converts directly (a walk-in buyer needs no BANT). A lead with no
+// company converts into an individual customer named after the person.
 export function conversionChecks(lead, requirements) {
   const { checklist } = evaluateLeadQualification(lead, requirements);
   const item = (key) => checklist.find((entry) => entry.key === key);
   const hasPerson = Boolean(text(lead.full_name) && (text(lead.email) || text(lead.mobile) || text(lead.phone)));
+  const asksQualification = ["need", "budget", "authority", "timeline"].some((key) => requirements[key]);
   const checks = [
-    { key: "qualified", label: "Lead qualified", met: lead.status === "qualified", overridable: true, value: lead.status === "qualified" ? "Qualified" : "Not qualified yet" },
-    { key: "need", label: "Business need identified", met: item("need").done, overridable: true, value: item("need").value },
-    { key: "product", label: "Product or service interest", met: item("product").done, overridable: true, value: item("product").value },
+    ...(asksQualification ? [{ key: "qualified", label: "Lead qualified", met: lead.status === "qualified", overridable: true, value: lead.status === "qualified" ? "Qualified" : "Not qualified yet" }] : []),
+    ...(requirements.need ? [{ key: "need", label: "Need identified", met: item("need").done, overridable: true, value: item("need").value },
+      { key: "product", label: "Product or service interest", met: item("product").done, overridable: true, value: item("product").value }] : []),
     ...["budget", "authority", "timeline"].filter((key) => requirements[key])
       .map((key) => ({ key, label: item(key).label, met: item(key).done, overridable: true, value: item(key).value })),
-    { key: "company", label: "Company", met: Boolean(text(lead.company_name)), overridable: false,
-      value: text(lead.company_name) || "Not on the lead: choose or enter an account" },
+    { key: "company", label: "Company or individual", met: Boolean(text(lead.company_name)) || Boolean(text(lead.full_name)), overridable: false,
+      value: text(lead.company_name) || (text(lead.full_name) ? `No company: ${text(lead.full_name)} becomes an individual customer` : "Not on the lead: choose or enter a company") },
     { key: "contact", label: "Contact name and a way to reach them", met: hasPerson, overridable: false,
       value: hasPerson ? [lead.full_name, lead.email || lead.mobile || lead.phone].join(" · ") : "Choose an existing contact or enter the contact's details" },
   ];

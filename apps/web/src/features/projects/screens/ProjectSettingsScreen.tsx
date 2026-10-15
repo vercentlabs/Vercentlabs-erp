@@ -23,6 +23,7 @@ export function ProjectSettingsScreen() {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "settings"), queryFn: getSettings });
   const [days, setDays] = useState<string | null>(null);
+  const [reminder, setReminder] = useState<string | null>(null);
   const [ask, setAsk] = useState<Ask | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,6 +65,21 @@ export function ProjectSettingsScreen() {
           <TextField label="Due soon means within (days)" inputMode="numeric" className="w-56" isDisabled={!can.manage} value={days ?? String(settings.dueSoonDays)} onChange={setDays}
             description="Projects this close to their target date are flagged and their managers alerted." />
           {can.manage && days !== null && <Button variant="primary" isDisabled={busy || !/^\d+$/.test(days)} onPress={() => run(async () => { await saveSettings({ dueSoonDays: Number(days) }); setDays(null); }, "Saved.")}>Save</Button>}
+        </div>
+      </Panel>
+      <Panel title="Milestones and tasks" description="How milestone approvals and task reviews work, and when people are reminded of a task's due date.">
+        <Checkbox isDisabled={!can.manage || busy} isSelected={settings.milestoneInternalApprovalDefault ?? true} onChange={(value) => run(() => saveSettings({ milestoneInternalApprovalDefault: value }), "Saved.")}>
+          A new milestone needs internal approval (unless whoever adds it says otherwise)</Checkbox>
+        <Checkbox isDisabled={!can.manage || busy} isSelected={settings.milestoneSelfApprovalAllowed ?? false} onChange={(value) => run(() => saveSettings({ milestoneSelfApprovalAllowed: value }), "Saved.")}>
+          Whoever submitted a milestone may also approve it</Checkbox>
+        <Checkbox isDisabled={!can.manage || busy} isSelected={settings.taskReviewDefault ?? false} onChange={(value) => run(() => saveSettings({ taskReviewDefault: value }), "Saved.")}>
+          A new task needs review before it is done (unless whoever adds it says otherwise)</Checkbox>
+        <Checkbox isDisabled={!can.manage || busy} isSelected={settings.taskSelfReviewAllowed ?? false} onChange={(value) => run(() => saveSettings({ taskSelfReviewAllowed: value }), "Saved.")}>
+          Whoever submitted a task for review may also approve it</Checkbox>
+        <div className="flex flex-wrap items-end gap-2">
+          <TextField label="Remind the assignee this many days before a task is due" inputMode="numeric" className="w-72" isDisabled={!can.manage} value={reminder ?? String(settings.taskReminderDays ?? 1)} onChange={setReminder}
+            description="One reminder; 0 reminds on the day. Overdue tasks are reported to the assignee and the Project Manager." />
+          {can.manage && reminder !== null && <Button variant="primary" isDisabled={busy || !/^\d+$/.test(reminder)} onPress={() => run(async () => { await saveSettings({ taskReminderDays: Number(reminder) }); setReminder(null); }, "Saved.")}>Save</Button>}
         </div>
       </Panel>
       <Panel title="Project types" description="A simple category for each project." actions={can.manage ? <Button size="compact" variant="secondary" onPress={() => setAsk(typeAsk())}>New type</Button> : undefined}>

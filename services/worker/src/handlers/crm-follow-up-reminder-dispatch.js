@@ -119,7 +119,7 @@ export async function dispatchFollowUpRemindersHandler(_client, _systemContext, 
           to: activity.assignedEmail,
           subject: `Follow-up reminder: ${activity.subject || "Untitled"}`,
           heading: "Follow-up reminder",
-          body: `${activity.subject || "A Follow-up"} is due ${new Date(activity.dueAt).toLocaleString()}.`,
+          body: `${activity.subject || "A follow-up"} is due ${when(activity)}.`,
           actionLabel: "Open Follow-up",
           actionUrl: null,
         });

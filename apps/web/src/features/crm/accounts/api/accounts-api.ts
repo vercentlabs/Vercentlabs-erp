@@ -22,6 +22,9 @@ export type Account = {
   displayName: string;
   legalName: string | null;
   accountType: AccountType;
+  // A person buying for themselves or their household: shown without the company-only fields.
+  customerKind?: "business" | "individual";
+  isIndividual?: boolean;
   status: AccountStatus;
   partyType: string;
   industry: string | null;

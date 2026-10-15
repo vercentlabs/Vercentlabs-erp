@@ -22,18 +22,18 @@ export const SEARCH_PROVIDERS = Object.freeze([
     moduleKey: "crm",
     requiredPermission: "crm.leads.view",
     async execute(client, context, term, limit) {
-      const { leads } = await listLeads(client, context, { search: term, limit });
+      const { leads } = await listLeads(client, context, { view: "all", search: term, limit });
       return leads.map((lead) => ({ recordId: lead.id, title: text(lead.fullName) || text(lead.companyName) || "Lead", detail: text(lead.fullName ? lead.companyName : lead.code), href: `/crm/leads/${lead.id}` }));
     },
   },
   {
     key: "crm.accounts",
-    label: "Accounts",
+    label: "Companies",
     moduleKey: "crm",
     requiredPermission: "crm.accounts.view",
     async execute(client, context, term, limit) {
       const { accounts } = await listAccounts(client, context, { search: term, limit });
-      return accounts.map((account) => ({ recordId: account.id, title: text(account.displayName) || "Account", detail: joined(account.code, account.city), href: `/crm/accounts/${account.id}` }));
+      return accounts.map((account) => ({ recordId: account.id, title: text(account.displayName) || "Company", detail: joined(account.code, account.city), href: `/crm/accounts/${account.id}` }));
     },
   },
   {
@@ -49,12 +49,12 @@ export const SEARCH_PROVIDERS = Object.freeze([
   },
   {
     key: "crm.opportunities",
-    label: "Opportunities",
+    label: "Deals",
     moduleKey: "crm",
     requiredPermission: "crm.view",
     async execute(client, context, term, limit) {
       const { opportunities } = await listOpportunities(client, context, { search: term, limit });
-      return opportunities.map((row) => ({ recordId: row.id, title: text(row.name) || "Opportunity", detail: joined(row.code, row.accountName ? `· ${row.accountName}` : null), href: `/crm/opportunities/${row.id}` }));
+      return opportunities.map((row) => ({ recordId: row.id, title: text(row.name) || "Deal", detail: joined(row.code, row.accountName ? `· ${row.accountName}` : null), href: `/crm/opportunities/${row.id}` }));
     },
   },
   {
@@ -63,7 +63,7 @@ export const SEARCH_PROVIDERS = Object.freeze([
     moduleKey: "crm",
     requiredPermission: "crm.tasks.view",
     async execute(client, context, term, limit) {
-      const { tasks } = await listTasks(client, context, { view: "mine", search: term, limit });
+      const { tasks } = await listTasks(client, context, { view: "all", search: term, limit });
       return tasks.map((task) => ({ recordId: task.id, title: text(task.title) || "Task", detail: joined(task.number, task.relatedName ? `· ${task.relatedName}` : null), href: `/crm/tasks/${task.id}` }));
     },
   },

@@ -89,6 +89,8 @@ export const DOCUMENT_TYPES = Object.freeze(
     std("project", "projects", "Project", "PRJ"),
     std("project_billing", "projects", "Project billing", "PBL"),
     std("project_issue", "projects", "Project issue", "ISS"),
+    std("project_milestone", "projects", "Project milestone", "MS"),
+    std("project_task", "projects", "Project task", "TASK"),
     std("project_risk", "projects", "Project risk", "RSK"),
     std("project_task", "projects", "Project task (per project)", "TASK", { family: true, configurable: false }),
     // Manufacturing

@@ -12,6 +12,7 @@
 //   stamp the lead, write the conversion record and the history
 //
 // All checks run before the first write, so a refused conversion changes nothing.
+import { fieldLabel } from "../data-management/field-labels.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { assertCrmOwnerAssignable } from "../data-management/crm-access-scope.js";
@@ -59,7 +60,7 @@ function commercialNotes(lead, overrideReason) {
     lead.q_authority_status && lead.q_authority_status !== "unknown"
       ? `Decision authority: ${labelIn(LEAD_AUTHORITY_STATUSES, lead.q_authority_status)}${lead.q_authority_detail ? ` — ${lead.q_authority_detail}` : ""}` : null,
     lead.purchase_timeframe && lead.purchase_timeframe !== "unknown" ? `Purchase timeframe: ${labelIn(LEAD_PURCHASE_TIMEFRAMES, lead.purchase_timeframe)}` : null,
-    lead.estimated_value !== null && lead.estimated_value !== undefined ? `Estimated value on the lead: ${Number(lead.estimated_value)}${lead.currency_code ? ` ${lead.currency_code.trim()}` : ""}` : null,
+    Number(lead.estimated_value) > 0 ? `Estimated value on the lead: ${lead.currency_code && lead.currency_code.trim() !== "INR" ? `${lead.currency_code.trim()} ` : "₹"}${Number(lead.estimated_value).toLocaleString(lead.currency_code && lead.currency_code.trim() !== "INR" ? "en-US" : "en-IN")}` : null,
     lead.q_notes ? `Qualification notes: ${lead.q_notes}` : null,
     lead.q_override_reason ? `Qualified with an override: ${lead.q_override_reason}` : null,
     overrideReason && overrideReason !== lead.q_override_reason ? `Converted with missing qualification: ${overrideReason}` : null,
@@ -186,16 +187,21 @@ export async function convertLead(client, context, leadId, input = {}) {
     existingAccount = await loadVisibleAccount(client, context, accountInput.id);
   } else if (accountMode === "new") {
     if (!capabilities.createAccount) throw new CrmError(403, "You do not have permission to create a company while converting. Choose an existing company.", "PERMISSION_DENIED");
-    const name = text(accountInput.name) || text(lead.company_name);
+    // No company on the lead (a parent, a walk-in buyer): the customer is the person — named after them and marked as an individual,
+    // so nobody has to invent a company. A rep may still type a company name instead.
+    const personName = text(lead.full_name) || [text(lead.first_name), text(lead.last_name)].filter(Boolean).join(" ");
+    const individual = accountInput.kind === "individual" || (accountInput.kind !== "business" && !text(accountInput.name) && !text(lead.company_name));
+    const name = text(accountInput.name) || text(lead.company_name) || (individual ? personName : "");
     assertAccountName(name);
     newAccount = {
+      customerKind: individual ? "individual" : "business",
       displayName: name,
       legalName: text(accountInput.legalName) || null,
       website: (accountInput.website === undefined ? text(lead.website) : text(accountInput.website)) || null,
       gstin: text(accountInput.gstin).toUpperCase() || null,
       industry: (accountInput.industry === undefined ? text(lead.industry) : text(accountInput.industry)) || null,
     };
-    const matches = await accountMatches(client, context, { ...newAccount, email: lead.email, phone: lead.phone, city: lead.city });
+    const matches = await accountMatches(client, context, { ...newAccount, email: lead.email, phone: lead.mobile || lead.phone, city: lead.city });
     newAccount.allowDuplicate = duplicateGate("account", matches, accountInput.acknowledgeMatches === true);
     newAccount.ownerUserId = await ownerFor(accountInput.ownerUserId, "account");
   } else {
@@ -256,7 +262,9 @@ export async function convertLead(client, context, leadId, input = {}) {
       ...(activeSource ? { sourceId: lead.source_id, sourceDetail: lead.source_detail } : {}),
       currencyCode: opportunityInput.currencyCode || lead.currency_code?.trim() || null,
       ownerUserId: newAccount.ownerUserId,
-    }, { allowDuplicate: newAccount.allowDuplicate, duplicateReason, origin: "lead_conversion", historySummary: `Account created from lead ${lead.code}` });
+      customerKind: newAccount.customerKind,
+    }, { allowDuplicate: newAccount.allowDuplicate, duplicateReason, origin: "lead_conversion",
+      historySummary: newAccount.customerKind === "individual" ? `Individual customer created from lead ${lead.code}` : `Company created from lead ${lead.code}` });
     partyId = account.id;
   }
 
@@ -299,11 +307,13 @@ export async function convertLead(client, context, leadId, input = {}) {
   let movedWorkCount = 0;
   if (openWork === "move") {
     const moved = await client.query(
+      // The person and company the work was about come along: a moved follow-up names who to call (never "Call: Company" with nobody).
       `UPDATE tenant.crm_activities SET entity_type = 'opportunity', entity_id = $3, updated_by = $4,
-              origin_lead_id = CASE WHEN activity_type = 'follow_up' THEN $2 ELSE origin_lead_id END
+              origin_lead_id = CASE WHEN activity_type = 'follow_up' THEN $2 ELSE origin_lead_id END,
+              related_contact_id = COALESCE(related_contact_id, $5), related_party_id = COALESCE(related_party_id, $6)
         WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2
           AND activity_type IN ('task', 'follow_up') AND status IN ('planned', 'in_progress', 'overdue')`,
-      [context.organizationId, lead.id, opportunity.id, context.userId ?? null],
+      [context.organizationId, lead.id, opportunity.id, context.userId ?? null, contactId ?? null, partyId ?? null],
     );
     movedWorkCount = moved.rowCount ?? 0;
   }
@@ -342,11 +352,11 @@ export async function convertLead(client, context, leadId, input = {}) {
   if (duplicateOverrides.length)
     await recordLeadHistory(client, context, lead.id, "converted", `New ${duplicateOverrides.map((entry) => entry.kind).join(" and ")} created despite a matching record: ${duplicateReason}`,
       { kind: "duplicate_override", ...decisions.duplicateOverride });
-  await recordAccountHistory(client, context, partyId, "lead_converted", `Lead ${lead.code} (${lead.full_name || lead.company_name || lead.code}) converted${existingAccount ? " into this account" : ""}`, { leadId: lead.id, contactId, opportunityId: opportunity.id });
-  await recordContactHistory(client, context, contactId, "lead_converted", `Lead ${lead.code} converted${Object.keys(contactUpdates).length ? `; updated ${Object.keys(contactUpdates).join(", ")} from the lead` : ""}`,
+  await recordAccountHistory(client, context, partyId, "lead_converted", `Lead ${lead.code} (${lead.full_name || lead.company_name || lead.code}) converted${existingAccount ? " into this company" : ""}`, { leadId: lead.id, contactId, opportunityId: opportunity.id });
+  await recordContactHistory(client, context, contactId, "lead_converted", `Lead ${lead.code} converted${Object.keys(contactUpdates).length ? `; updated ${Object.keys(contactUpdates).map(fieldLabel).join(", ")} from the lead` : ""}`,
     { leadId: lead.id, accountId: partyId, opportunityId: opportunity.id, ...(Object.keys(contactUpdates).length ? { updated: contactUpdates } : {}) });
-  await recordLeadQualificationEvent(client, context, lead.id, { type: "converted", newValue: `Opportunity ${opportunity.code} created`, notes: overrideReason });
-  await notifyLeadOutcome(client, context, lead, "Your lead was converted", `Opportunity ${opportunity.code} was created`);
+  await recordLeadQualificationEvent(client, context, lead.id, { type: "converted", newValue: `Deal ${opportunity.code} created`, notes: overrideReason });
+  await notifyLeadOutcome(client, context, lead, "Your lead was converted", `Deal ${opportunity.code} was created`);
   await queueOutboxEvent(client, context, "crm.lead.converted", "lead", lead.id, { partyId, contactId, opportunityId: opportunity.id });
   return toConversion(await readConversionByLead(client, context, lead.id));
 }

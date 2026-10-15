@@ -77,7 +77,7 @@ function blockersFor(keep, duplicate, transactions) {
   if (duplicate.status === "archived") blockers.push("The duplicate is already archived.");
   if (isCustomer(keep) && isCustomer(duplicate)) blockers.push("Both accounts are customers. Customer Masters cannot be merged from CRM.");
   else if (isCustomer(duplicate)) blockers.push("The duplicate is a customer. Keep the customer account and merge the other one into it.");
-  if (transactions.length) blockers.push(`The duplicate has ${transactions.join(", ")}. Accounts with sales or finance records cannot be merged away.`);
+  if (transactions.length) blockers.push(`The duplicate has ${transactions.join(", ")}. Companies with sales or finance records cannot be merged away.`);
   return blockers;
 }
 

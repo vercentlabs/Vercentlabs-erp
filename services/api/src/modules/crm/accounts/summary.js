@@ -28,8 +28,16 @@ export async function getAccountSummary(client, context, partyId) {
     `SELECT (SELECT count(*) FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2 AND status = 'won')::int AS won_opportunities,
             (SELECT COALESCE(sum(amount), 0) FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2 AND status = 'won') AS won_value,
             (SELECT count(*) FROM tenant.crm_leads WHERE organization_id = $1 AND converted_party_id = $2)::int AS converted_leads,
-            (SELECT count(*) FROM tenant.crm_activities WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2
-                AND status IN ('planned', 'in_progress', 'overdue') AND activity_type IN ('task', 'follow_up'))::int AS open_tasks`,
+            -- The company's work: on the company itself, on its deals and on its people (a manager opening the company sees all of it).
+            (SELECT count(*) FROM tenant.crm_activities activity WHERE activity.organization_id = $1
+                AND activity.status IN ('planned', 'in_progress', 'overdue') AND activity.activity_type IN ('task', 'follow_up')
+                AND ((activity.entity_type = 'party' AND activity.entity_id = $2) OR activity.related_party_id = $2
+                  OR (activity.entity_type = 'opportunity' AND activity.entity_id IN (SELECT id FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2))
+                  OR (activity.entity_type = 'contact' AND activity.entity_id IN (SELECT id FROM tenant.contacts WHERE organization_id = $1 AND party_id = $2))))::int AS open_tasks,
+            (SELECT max(COALESCE(activity.completed_at, activity.start_at)) FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status = 'completed'
+                AND ((activity.entity_type = 'party' AND activity.entity_id = $2) OR activity.related_party_id = $2
+                  OR (activity.entity_type = 'opportunity' AND activity.entity_id IN (SELECT id FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2))
+                  OR (activity.entity_type = 'contact' AND activity.entity_id IN (SELECT id FROM tenant.contacts WHERE organization_id = $1 AND party_id = $2)))) AS last_activity_at`,
   );
   const summary = {
     access: can,
@@ -41,7 +49,7 @@ export async function getAccountSummary(client, context, partyId) {
       contacts: account.contactCount,
       convertedLeads: crm.converted_leads,
       openTasks: crm.open_tasks,
-      lastActivityAt: account.lastActivityAt,
+      lastActivityAt: [account.lastActivityAt, crm.last_activity_at].filter(Boolean).sort((a, b) => new Date(b) - new Date(a))[0] ?? null,
       nextFollowUpAt: account.nextFollowUpAt,
     },
   };
@@ -93,7 +101,7 @@ const RELATED = Object.freeze({
   opportunities: {
     module: null,
     sql: `SELECT opportunity.id, opportunity.code, opportunity.name AS title, opportunity.status, stage.name AS stage, opportunity.amount, opportunity.currency_code,
-                 opportunity.expected_close_date AS date, owner.full_name AS owner_name
+                 to_char(opportunity.expected_close_date, 'YYYY-MM-DD') AS date, owner.full_name AS owner_name
             FROM tenant.crm_opportunities opportunity
             LEFT JOIN tenant.crm_pipeline_stages stage ON stage.organization_id = opportunity.organization_id AND stage.id = opportunity.stage_id
             LEFT JOIN public.users owner ON owner.id = opportunity.owner_user_id

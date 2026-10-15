@@ -128,7 +128,7 @@ export function LogActivityDialog({ isOpen, onOpenChange, leadId, options, onDon
         <div className="grid gap-4 sm:grid-cols-2">
           <Select label="Type" isRequired selectedKey={type} onSelectionChange={(key) => setType(String(key))}
             options={options.activityTypes.map((entry) => ({ value: entry.code, label: entry.label }))} />
-          <DateTimeInput label="When" description="Leave empty for now." value={occurredAt} onChange={setOccurredAt} />
+          <DateTimeInput label="When" description="Leave empty to use the current time." value={occurredAt} onChange={setOccurredAt} />
         </div>
         <TextField label="Subject" description="Leave empty to use the activity type and lead name." value={subject} onChange={setSubject} />
         <TextField label="Outcome" value={outcome} onChange={setOutcome} placeholder="For example: Interested, asked for a quote" />

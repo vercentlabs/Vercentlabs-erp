@@ -306,7 +306,7 @@ export function LogActivityDialog({ isOpen, onOpenChange, opportunity, options, 
         <div className="grid gap-4 sm:grid-cols-2">
           <Select label="Type" isRequired selectedKey={type} onSelectionChange={(selected) => setType(String(selected))}
             options={options.activityTypes.map((entry) => ({ value: entry.code, label: entry.label }))} />
-          <DateTimeInput label="When" description="Leave empty for now." value={occurredAt} onChange={setOccurredAt} />
+          <DateTimeInput label="When" description="Leave empty to use the current time." value={occurredAt} onChange={setOccurredAt} />
           <Select label="Contact" selectedKey={contactId} onSelectionChange={(selected) => setContactId(String(selected ?? NONE))}
             options={[{ value: NONE, label: "No contact" }, ...(contacts.data ?? []).map((entry) => ({ value: entry.contactId, label: entry.name }))]} />
           <TextField label="Subject" description="Leave empty to use the type and the deal name." value={subject} onChange={setSubject} />

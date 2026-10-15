@@ -79,7 +79,8 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
           secondaryActions: (
             <>
               {open && can.reschedule && <Button variant="secondary" onPress={() => setDialog("reschedule")}>Reschedule</Button>}
-              {open && followUp.assignedTo === options.currentUserId && (
+              {/* Only a follow-up with a reminder has one to snooze. */}
+              {open && followUp.assignedTo === options.currentUserId && followUp.reminderAt && (
                 <MenuTrigger>
                   <Button variant="secondary">Snooze reminder</Button>
                   <Menu onAction={(choice) => snooze(String(choice))}>{snoozeChoices().map((choice) => <MenuItem key={choice.id} id={choice.id}>{choice.label}</MenuItem>)}</Menu>

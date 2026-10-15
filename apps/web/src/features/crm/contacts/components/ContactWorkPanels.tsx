@@ -79,7 +79,7 @@ function PanelShell({ title, action, query, isEmpty, emptyTitle, emptyDescriptio
 function SourceLine({ activity }: { activity: ContactActivity }) {
   const parts = [
     activity.accountName ? <Link key="a" href={`/crm/accounts/${activity.accountId}`} className="hover:underline">{activity.accountName}</Link> : null,
-    activity.opportunityName ? <Link key="o" href={`/crm/opportunities/${activity.opportunityId}`} className="hover:underline">Opportunity: {activity.opportunityName}</Link> : null,
+    activity.opportunityName ? <Link key="o" href={`/crm/opportunities/${activity.opportunityId}`} className="hover:underline">Deal: {activity.opportunityName}</Link> : null,
   ].filter(Boolean);
   if (!parts.length) return null;
   return <p className="flex flex-wrap gap-x-3 text-xs text-text-secondary">{parts}</p>;
@@ -154,7 +154,7 @@ export function LogContactActivityDialog({ isOpen, onOpenChange, contactId, opti
         <div className="grid gap-4 sm:grid-cols-2">
           <Select label="Type" isRequired selectedKey={type} onSelectionChange={(key) => setType(String(key))}
             options={options.activityTypes.map((entry) => ({ value: entry.code, label: entry.label }))} />
-          <DateTimeInput label="When" description="Leave empty for now." value={occurredAt} onChange={setOccurredAt} />
+          <DateTimeInput label="When" description="Leave empty to use the current time." value={occurredAt} onChange={setOccurredAt} />
         </div>
         <Select label="About a deal" selectedKey={opportunityId} onSelectionChange={(key) => setOpportunityId(String(key))}
           options={[{ value: NO_OPPORTUNITY, label: "No specific deal" }, ...opportunities.map((row) => ({ value: row.id, label: row.title ?? row.code ?? "Opportunity" }))]} />

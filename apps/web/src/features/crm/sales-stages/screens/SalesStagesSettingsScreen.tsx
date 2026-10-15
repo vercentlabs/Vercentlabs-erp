@@ -92,7 +92,7 @@ export function SalesStagesSettingsScreen() {
                   </ul>
                 )}
                 <span className="text-xs text-text-muted">
-                  {stage.isActive ? `Sequence ${stage.sequence} · ` : ""}{stage.openCount} open {stage.openCount === 1 ? "opportunity" : "opportunities"} in this stage
+                  {stage.openCount} open {stage.openCount === 1 ? "deal" : "deals"} in this stage
                 </span>
               </div>
               {/* On a phone the actions sit in a menu so each stage stays one compact row. */}

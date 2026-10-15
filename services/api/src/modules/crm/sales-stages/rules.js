@@ -11,16 +11,19 @@
 const REQUIREMENTS = Object.freeze({
   PROPOSAL: [
     { key: "contact", label: "Primary contact", missing: (row) => !row.contact_id, message: "Choose a primary contact before moving this deal to" },
-    { key: "value", label: "Estimated value", missing: (row) => !(Number(row.amount) > 0), message: "Enter the estimated value before moving this deal to" },
   ],
   CLOSING: [
     { key: "closeDate", label: "Expected close date", missing: (row) => !row.expected_close_date, message: "Set the expected close date before moving this deal to" },
   ],
 });
 
-// Does not refuse: the caller confirms and the move goes ahead.
+// Does not refuse: the caller confirms and the move goes ahead. A free trial or a fixed-price course is a real offer without a value or a
+// quotation, so those only ask.
 const WARNINGS = Object.freeze({
-  PROPOSAL: [{ applies: (row) => Number(row.quotation_count ?? 0) === 0, message: "No quotation exists for this deal yet." }],
+  PROPOSAL: [
+    { applies: (row) => !(Number(row.amount) > 0), message: "The deal has no estimated value yet." },
+    { applies: (row) => Number(row.quotation_count ?? 0) === 0, message: "No quotation exists for this deal yet." },
+  ],
   CLOSING: [{ applies: (row) => !row.next_activity_subject, message: "No next activity is scheduled." }],
 });
 

@@ -41,7 +41,7 @@ const RELATED = Object.freeze({
   opportunities: {
     module: null,
     sql: `SELECT opportunity.id, opportunity.code, opportunity.name AS title, opportunity.status, stage.name AS stage, opportunity.amount, opportunity.currency_code,
-                 opportunity.expected_close_date AS date, owner.full_name AS owner_name,
+                 to_char(opportunity.expected_close_date, 'YYYY-MM-DD') AS date, owner.full_name AS owner_name,
                  CASE WHEN opportunity.contact_id = $2 THEN 'Primary contact' ELSE initcap(replace(COALESCE(role.role, 'stakeholder'), '_', ' ')) END AS kind
             FROM tenant.crm_opportunities opportunity
             LEFT JOIN tenant.crm_opportunity_contact_roles role ON role.organization_id = opportunity.organization_id AND role.opportunity_id = opportunity.id

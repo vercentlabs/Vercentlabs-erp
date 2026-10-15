@@ -42,6 +42,9 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "manufacturing.production_hold": { moduleKey: "manufacturing", purposes: ["attachment"] },
   // Project documents: requirements, scope of work, customer approvals, drawings, references and delivery evidence.
   "projects.project": { moduleKey: "projects", purposes: ["attachment"] },
+  // A milestone's deliverables and acceptance evidence.
+  "projects.milestone": { moduleKey: "projects", purposes: ["attachment"] },
+  "projects.task": { moduleKey: "projects", purposes: ["attachment"] },
   "stock.opening_stock": { moduleKey: "stock", purposes: ["attachment"] },
   "stock.goods_issue": { moduleKey: "stock", purposes: ["attachment"] },
   "stock.inventory_adjustment": { moduleKey: "stock", purposes: ["attachment"] },

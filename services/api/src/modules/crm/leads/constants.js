@@ -67,14 +67,14 @@ export const LEAD_PURCHASE_TIMEFRAMES = Object.freeze([
 export const LEAD_DISQUALIFICATION_REASONS = Object.freeze([
   { code: "no_requirement", label: "No requirement" },
   { code: "no_budget", label: "No budget" },
-  { code: "not_decision_maker", label: "No authority" },
+  { code: "not_decision_maker", label: "Not the one who decides" },
   { code: "timing_not_suitable", label: "Timing not suitable" },
   { code: "not_interested", label: "Not interested" },
-  { code: "unable_to_contact", label: "Unable to Contact" },
+  { code: "unable_to_contact", label: "Unable to contact" },
   { code: "invalid_contact", label: "Invalid lead" },
   { code: "duplicate", label: "Duplicate" },
-  { code: "competitor_selected", label: "Competitor selected" },
-  { code: "bad_fit", label: "Poor fit" },
+  { code: "competitor_selected", label: "Chose another provider" },
+  { code: "bad_fit", label: "Not a fit" },
   { code: "other", label: "Other" },
 ]);
 
@@ -91,6 +91,9 @@ export const DEFAULT_LEAD_SOURCES = Object.freeze([
   { code: "partner", name: "Partner", channel: "partner" },
   { code: "outbound_sales", name: "Outbound Sales", channel: "other" },
   { code: "existing_customer", name: "Existing Customer", channel: "other" },
+  // How people buy in person or on chat (shops, clinics, coaching institutes).
+  { code: "walk_in", name: "Walk-in", channel: "walk_in" },
+  { code: "whatsapp", name: "WhatsApp", channel: "whatsapp" },
   { code: "other", name: "Other", channel: "other" },
 ]);
 
@@ -99,6 +102,8 @@ export const LEAD_ACTIVITY_TYPES = Object.freeze([
   { code: "call", label: "Call" },
   { code: "email", label: "Email" },
   { code: "meeting", label: "Meeting" },
+  { code: "whatsapp", label: "WhatsApp" },
+  { code: "sms", label: "SMS" },
   { code: "other", label: "General activity" },
 ]);
 

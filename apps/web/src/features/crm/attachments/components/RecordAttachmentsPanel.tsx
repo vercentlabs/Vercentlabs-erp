@@ -142,7 +142,7 @@ export function RecordAttachmentsPanel({ relatedType, relatedId, noteId, compact
                 </div>
                 {file.description && <span className="text-sm text-text-secondary">{file.description}</span>}
                 <span className="text-xs text-text-muted">
-                  {[file.mimeType.split("/").pop()?.toUpperCase().slice(0, 12), formatSize(file.sizeBytes), file.uploadedByName ?? "Unknown", dateTime.format(new Date(file.uploadedAt))].join(" · ")}
+                  {[(/\.([a-z0-9]{1,8})$/i.exec(file.fileName ?? "")?.[1] ?? file.mimeType.split("/").pop() ?? "").toUpperCase().slice(0, 12), formatSize(file.sizeBytes), file.uploadedByName ?? "Unknown", dateTime.format(new Date(file.uploadedAt))].join(" · ")}
                 </span>
               </div>
               <div className="flex items-center gap-1">

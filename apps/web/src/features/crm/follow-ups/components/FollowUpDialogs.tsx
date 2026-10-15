@@ -96,7 +96,7 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={editing ? `Edit ${followUp?.number ?? "follow-up"}` : "Schedule follow-up"} size="lg"
-      description={related ? `With ${related.name ?? "this record"}. It also appears in CRM Follow-ups.` : "When to contact the customer again, how, and why."}>
+      description={related ? `With ${related.name ?? "this record"}. It also appears in To-dos.` : "When to contact the customer again, how, and why."}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         {!related && !editing && <RelatedRecordPicker label="About" value={link} onChange={setLink} />}

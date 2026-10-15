@@ -38,7 +38,7 @@ export async function setAccountParent(client, context, partyId, input = {}) {
   await client.query(`UPDATE tenant.business_parties SET parent_party_id = $3, updated_by = $4, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, account.id, parentId, context.userId ?? null]);
   await recordAccountHistory(client, context, account.id, "parent_changed",
-    parent ? `Parent account: ${parent.display_name}` : "Parent account removed", { from: account.parent_party_id, to: parentId });
+    parent ? `Parent company: ${parent.display_name}` : "Parent company removed", { from: account.parent_party_id, to: parentId });
   return { changed: true };
 }
 

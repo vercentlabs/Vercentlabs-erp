@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 
 import { archiveFile, listFiles, prepareFileUpload, readFileContent, storeFile } from "../../core/platform/files/index.js";
 import {
-  ACTIVE_STATUSES, PRIORITIES, PROJECT, ROLES, STATUS_LABEL, accessOf, activeMemberIds, eligibleUsers, ensureProjectTypes, has, isoDay, label, loadProject, need,
+  ACTIVE_STATUSES, PRIORITIES, PROJECT, ROLES, STATUS_LABEL, accessOf, activeMemberIds, beforeMemberLeaves, eligibleUsers, ensureProjectTypes, has, isoDay, label, loadProject, need,
   nextProjectCode, notifyProject, projectError, projectEvent, projectSettings, publishProjectEvent, requireAccess, statusEvent, text, today, uuid, versionCheck, visibleProject,
 } from "./project-core.js";
 import { completionCheck, cancellationReview } from "./project-summary.js";
@@ -573,6 +573,8 @@ export async function removeProjectMember(client, c, projectId, memberId, input 
   if (row.role === "MANAGER" || row.user_id === project.manager_user_id) throw projectError(409, "PROJECT_MANAGER_REQUIRED", "Assign another Project Manager before removing this one.");
   const hold = (await client.query(`SELECT id FROM tenant.project_holds WHERE project_id = $1 AND resolved_at IS NULL AND owner_user_id = $2`, [project.id, row.user_id])).rows[0];
   if (hold) throw projectError(409, "PROJECT_ACTIVE_HOLD", "This person owns the project's active hold: resume the project or have the manager own it first.");
+  // Open work they carry is reassigned (input.reassignToUserId) or kept by an authorized exception (input.taskException).
+  await beforeMemberLeaves(client, c, project, row.user_id, input);
   await client.query(`UPDATE tenant.project_members SET left_at = clock_timestamp(), removed_by = $2, removal_note = $3 WHERE id = $1`, [row.id, c.userId ?? null, text(input.note, 500) || null]);
   await projectEvent(client, c, project.id, "MEMBER_REMOVED", `${ROLES[row.role]} left the project`, { userId: row.user_id });
   await publishProjectEvent(client, c, project, "member_removed", { memberUserId: row.user_id });
@@ -832,14 +834,23 @@ export async function saveProjectSettings(client, c, input = {}) {
     customerChangeApprovalRequired: input.customerChangeApprovalRequired === undefined ? current.customerChangeApprovalRequired : Boolean(input.customerChangeApprovalRequired),
     primaryContactRequired: input.primaryContactRequired === undefined ? current.primaryContactRequired : Boolean(input.primaryContactRequired),
     inactiveCustomerAllowed: input.inactiveCustomerAllowed === undefined ? current.inactiveCustomerAllowed : Boolean(input.inactiveCustomerAllowed),
+    milestoneSelfApprovalAllowed: input.milestoneSelfApprovalAllowed === undefined ? current.milestoneSelfApprovalAllowed : Boolean(input.milestoneSelfApprovalAllowed),
+    milestoneInternalApprovalDefault: input.milestoneInternalApprovalDefault === undefined ? current.milestoneInternalApprovalDefault : Boolean(input.milestoneInternalApprovalDefault),
+    taskSelfReviewAllowed: input.taskSelfReviewAllowed === undefined ? current.taskSelfReviewAllowed : Boolean(input.taskSelfReviewAllowed),
+    taskReviewDefault: input.taskReviewDefault === undefined ? current.taskReviewDefault : Boolean(input.taskReviewDefault),
+    taskReminderDays: input.taskReminderDays === undefined ? current.taskReminderDays : Number(input.taskReminderDays),
   };
+  if (!Number.isInteger(next.taskReminderDays) || next.taskReminderDays < 0 || next.taskReminderDays > 30) throw projectError(400, "PROJECT_INPUT_INVALID", "Use 0 to 30 days.", { field: "taskReminderDays" });
   if (!Number.isInteger(next.dueSoonDays) || next.dueSoonDays < 1 || next.dueSoonDays > 90) throw projectError(400, "PROJECT_INPUT_INVALID", "Use 1 to 90 days.", { field: "dueSoonDays" });
   await client.query(`INSERT INTO tenant.project_settings (organization_id, activation_approval_required, self_approval_allowed, due_soon_days, customer_acceptance_required, updated_by,
-        customer_change_approval_required, primary_contact_required, inactive_customer_allowed)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (organization_id) DO UPDATE SET activation_approval_required = $2, self_approval_allowed = $3, due_soon_days = $4,
-      customer_acceptance_required = $5, updated_by = $6, updated_at = now(), customer_change_approval_required = $7, primary_contact_required = $8, inactive_customer_allowed = $9`,
+        customer_change_approval_required, primary_contact_required, inactive_customer_allowed, milestone_self_approval_allowed, milestone_internal_approval_default,
+        task_self_review_allowed, task_review_default, task_reminder_days)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (organization_id) DO UPDATE SET activation_approval_required = $2, self_approval_allowed = $3, due_soon_days = $4,
+      customer_acceptance_required = $5, updated_by = $6, updated_at = now(), customer_change_approval_required = $7, primary_contact_required = $8, inactive_customer_allowed = $9,
+      milestone_self_approval_allowed = $10, milestone_internal_approval_default = $11, task_self_review_allowed = $12, task_review_default = $13, task_reminder_days = $14`,
     [c.organizationId, next.activationApprovalRequired, next.selfApprovalAllowed, next.dueSoonDays, next.customerAcceptanceRequired, c.userId ?? null,
-      next.customerChangeApprovalRequired, next.primaryContactRequired, next.inactiveCustomerAllowed]);
+      next.customerChangeApprovalRequired, next.primaryContactRequired, next.inactiveCustomerAllowed, next.milestoneSelfApprovalAllowed, next.milestoneInternalApprovalDefault,
+      next.taskSelfReviewAllowed, next.taskReviewDefault, next.taskReminderDays]);
   return next;
 }
 // input: { id?, code?, name, description?, status? }

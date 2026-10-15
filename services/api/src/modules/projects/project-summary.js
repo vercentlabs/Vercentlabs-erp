@@ -42,7 +42,7 @@ export function healthOf(project, { day, dueSoonDays, managerActive = true, hold
   if (target) {
     const left = daysBetween(day, target);
     if (left < 0) reasons.push(`The target date passed ${-left} day(s) ago.`);
-    else if (left <= dueSoonDays && (!work?.tasks || work.tasks.open > 0)) reasons.push(`The target date is in ${left} day(s)${work?.tasks ? ` with ${work.tasks.open} task(s) open` : ""}.`);
+    else if (left <= dueSoonDays && (!work?.tasks || !work.tasks.total || work.tasks.open > 0)) reasons.push(`The target date is in ${left} day(s)${work?.tasks?.total ? ` with ${work.tasks.open} task(s) open` : ""}.`);
   }
   if (project.status === "PLANNED" && project.planned_start_date && isoDay(project.planned_start_date) < day) reasons.push("The planned start date passed and the project has not started.");
   if (work?.tasks?.overdueCritical) reasons.push(`${work.tasks.overdueCritical} critical task(s) overdue.`);
@@ -126,9 +126,11 @@ export async function completionCheck(client, c, project, input = {}, { preview 
   const add = (key, label, state, message, blocking = state === "FAIL") => checks.push({ key, label, state, message, blocking });
   add("status", "In progress", project.status === "IN_PROGRESS" ? "PASS" : "FAIL", project.status === "IN_PROGRESS" ? "The project is in progress." : `The project is ${STATUS_LABEL[project.status].toLowerCase()}.`);
   if (!work.tasks) add("tasks", "Required tasks", "NOT_TRACKED", "Tasks are not tracked for projects yet.");
-  else add("tasks", "Required tasks", work.tasks.openRequired ? "FAIL" : "PASS", work.tasks.openRequired ? `${work.tasks.openRequired} required task(s) are still open.` : "Every required task is done.");
+  else add("tasks", "Required tasks", work.tasks.openRequired ? "FAIL" : "PASS", work.tasks.openRequired ? `${work.tasks.openRequired} task(s) are still open. Complete or cancel them first.` : work.tasks.total ? "Every task is done (cancelled tasks do not count)." : "The project has no tasks.");
   if (!work.milestones) add("milestones", "Required milestones", "NOT_TRACKED", "Milestones are not tracked for projects yet.");
-  else add("milestones", "Required milestones", work.milestones.openRequired ? "FAIL" : "PASS", work.milestones.openRequired ? `${work.milestones.openRequired} required milestone(s) are still open.` : "Every required milestone is done.");
+  else add("milestones", "Required milestones", work.milestones.openRequired ? "FAIL" : "PASS", work.milestones.openRequired
+    ? `${work.milestones.openRequired} required milestone(s) are still open${work.milestones.openRequiredNames?.length ? `: ${work.milestones.openRequiredNames.slice(0, 5).join(", ")}` : ""}. Complete them, or waive them with a reason.`
+    : work.milestones.total ? "Every required milestone is complete or waived." : "The project has no milestones.");
   add("blockers", "Open blockers", project.risk_flagged ? "FAIL" : "PASS", project.risk_flagged ? `A delivery risk is flagged: ${project.risk_note ?? ""} Clear it first.` : "No blocker is open.");
   add("time", "Time entries and expenses", "NOT_TRACKED", "Time and expenses are not tracked for projects yet.");
   const openPurchases = links.filter((link) => link.sourceType === "PURCHASE_ORDER" && link.raw && OPEN_PO(link.raw.status));
@@ -164,10 +166,18 @@ export async function cancellationReview(client, c, project) {
     .map((link) => ({ type: link.typeLabel, number: link.raw?.number ?? null, status: link.raw?.status ?? null, message: `${link.typeLabel} ${link.raw?.number ?? ""} stays as ${link.sourceModule === "PROCUREMENT" ? "Procurement" : link.sourceModule === "FINANCE" ? "Finance" : "Sales"} keeps it.` }));
   const members = Number((await client.query(`SELECT count(*) AS n FROM tenant.project_members WHERE project_id = $1 AND left_at IS NULL`, [project.id])).rows[0].n);
   const hold = (await client.query(`SELECT reason FROM tenant.project_holds WHERE project_id = $1 AND resolved_at IS NULL`, [project.id])).rows[0] ?? null;
+  const milestones = (await client.query(`SELECT count(*) FILTER (WHERE status IN ('NOT_STARTED', 'IN_PROGRESS', 'BLOCKED', 'SUBMITTED'))::int AS open,
+      count(*) FILTER (WHERE id IN (SELECT milestone_id FROM tenant.project_milestone_billing_requests WHERE status = 'OPEN'))::int AS billing
+     FROM tenant.project_milestones WHERE organization_id = $1 AND project_id = $2`, [c.organizationId, project.id])).rows[0];
+  const tasks = (await client.query(`SELECT count(*) FILTER (WHERE status IN ('TO_DO', 'IN_PROGRESS', 'BLOCKED', 'IN_REVIEW'))::int AS open FROM tenant.project_tasks
+     WHERE organization_id = $1 AND project_id = $2`, [c.organizationId, project.id])).rows[0];
   return { dependencies, members, hold: hold?.reason ?? null, notes: [
     "Cancelling deletes nothing: linked documents, notes, files and history stay.",
     members > 1 ? `${members} people are on the team; they keep read access to the history.` : null,
     hold ? `The open hold is closed with the cancellation (${hold.reason}).` : null,
+    milestones.open ? `${milestones.open} open milestone(s) stay as they are, read-only, with their history.` : null,
+    tasks.open ? `${tasks.open} open task(s) stay as they are, read-only; time entries and expenses on them stay in their own modules.` : null,
+    milestones.billing ? `${milestones.billing} milestone billing request(s) are still open with Sales; Sales decides on them.` : null,
   ].filter(Boolean) };
 }
 export { ACTIVE_STATUSES };

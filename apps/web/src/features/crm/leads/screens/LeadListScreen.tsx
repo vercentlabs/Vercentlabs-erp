@@ -441,6 +441,13 @@ export function LeadListScreen() {
             <div className="flex flex-col gap-1">
               <span className="font-medium">{leadName(row)}</span>
               <span className="text-xs text-text-muted">{row.code}{row.companyName && row.fullName ? ` · ${row.companyName}` : ""}</span>
+              {/* On a phone the number is what a rep needs: tap to call, or the email to write. */}
+              {(row.mobile || row.phone || row.email) && (
+                <span className="flex flex-wrap gap-3 text-sm" onClick={(event) => event.stopPropagation()}>
+                  {(row.mobile || row.phone) && <a className="text-brand" href={`tel:${(row.mobile || row.phone || "").replace(/[^0-9+]/g, "")}`}>{row.mobile || row.phone}</a>}
+                  {row.email && <a className="truncate text-brand" href={`mailto:${row.email}`}>{row.email}</a>}
+                </span>
+              )}
               <span className="flex flex-wrap gap-1"><LeadStatusBadge status={row.status} /><LeadStageBadge name={row.stageName} /><StaleBadge lead={row} /></span>
               {(row.ownerName || row.nextFollowUpAt) && (
                 <span className="text-xs text-text-secondary">{row.ownerName ?? "Unassigned"}{row.nextFollowUpAt ? ` · Follow-up ${formatDate(row.nextFollowUpAt)}` : ""}</span>

@@ -177,7 +177,7 @@ export function MobileNav({
 
             <div aria-hidden="true" className="my-2 h-px bg-border" />
 
-            {MODULE_NAV_ENTRIES.map((entry) => {
+            {MODULE_NAV_ENTRIES.filter((entry) => accessByModuleKey.get(entry.moduleKey)?.accessible).map((entry) => {
               const access = accessByModuleKey.get(entry.moduleKey);
               const accessible = access?.accessible ?? false;
               const inModule = accessible && isActive(pathname, entry.href);

@@ -100,7 +100,8 @@ function Checklist({ qualification }: { qualification: LeadQualificationView }) 
     <ul className="flex flex-col gap-1.5 text-sm">
       {qualification.checklist.map((item) => (
         <li key={item.key} className="flex items-start gap-2">
-          {item.done ? <Check className="mt-0.5 size-4 shrink-0 text-success" aria-label="Done" /> : <span className="mt-0.5 size-4 shrink-0 rounded-sm border border-border-strong" aria-label="Not done" />}
+          {/* Shown as ticks and crosses: the answers are given on the Qualify tab, not ticked here. */}
+          {item.done ? <Check className="mt-0.5 size-4 shrink-0 text-success" aria-label="Done" /> : <X className="mt-0.5 size-4 shrink-0 text-text-muted" aria-label="Not done" />}
           <span className={item.done ? "" : "text-text-secondary"}>
             {item.label}{item.required && <span className="text-text-muted"> · required</span>}
           </span>
@@ -264,12 +265,14 @@ export function QualificationPanel({ lead, options, onChanged, onQualify, onDisq
 // The Qualify confirmation: what is being qualified, what is still missing,
 // and (for a manager) qualifying anyway with a reason. Qualifying normally
 // continues straight into conversion.
-export function QualifyLeadDialog({ isOpen, onOpenChange, lead, options, onQualified }: {
+export function QualifyLeadDialog({ isOpen, onOpenChange, lead, options, onQualified, onAnswer }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   lead: Lead;
   options: LeadOptions;
   onQualified: (convert: boolean) => void;
+  // Opens the Qualify tab, where the questions are answered.
+  onAnswer?: () => void;
 }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
@@ -333,8 +336,9 @@ export function QualifyLeadDialog({ isOpen, onOpenChange, lead, options, onQuali
                   {override && <TextArea label="Why is this lead being qualified with missing information?" isRequired value={reason} onChange={setReason} />}
                 </>
               ) : (
-                <p>Add the missing answers on the Qualification tab, or ask a manager to qualify it.</p>
+                <p>Add the missing answers on the Qualify tab, or ask a manager to qualify it.</p>
               )}
+              {onAnswer && <span><Button variant="secondary" size="compact" onPress={onAnswer}>Answer the questions</Button></span>}
             </div>
           )}
 

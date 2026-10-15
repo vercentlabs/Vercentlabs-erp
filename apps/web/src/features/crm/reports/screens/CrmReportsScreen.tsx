@@ -23,7 +23,7 @@ export function CrmReportsScreen({ report }: { report: string | null }) {
   const selected = tabs.some((tab) => tab.id === report) ? report! : tabs[0]?.id;
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <PageHeader title="Reports" description="Leads by status, deals by stage and companies, over the records you can see. Each number opens the matching list." />
+      <PageHeader title="Reports" description="Leads by status, deals by stage and companies, over the records you can see." />
       <Tabs selectedKey={selected} onSelectionChange={(key) => router.replace(`/crm/reports?report=${String(key)}`, { scroll: false })}>
         <TabList aria-label="Reports">{tabs.map((tab) => <Tab key={tab.id} id={tab.id}>{tab.label}</Tab>)}</TabList>
         {tabs.map((tab) => <TabPanel key={tab.id} id={tab.id}><div className="pt-3">{tab.body}</div></TabPanel>)}

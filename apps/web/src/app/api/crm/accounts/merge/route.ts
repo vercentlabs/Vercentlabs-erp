@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const keepId = url.searchParams.get("keepId");
     const duplicateId = url.searchParams.get("duplicateId");
-    if (!keepId || !duplicateId) throw new HttpError(400, "Choose the two accounts to merge.");
+    if (!keepId || !duplicateId) throw new HttpError(400, "Choose the two companies to merge.");
     return ok({ preview: await previewAccountMerge(client, crmContext(session), keepId, duplicateId) });
   });
 }

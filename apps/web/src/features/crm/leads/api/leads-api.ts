@@ -352,7 +352,7 @@ export const getLead = (id: string) => request<{ record: Lead }>(`${BASE}/${id}`
 export const createLead = (input: Record<string, unknown>) => post<{ record: Lead }>(BASE, input).then((result) => result.record);
 export const updateLead = (id: string, input: Record<string, unknown>) =>
   request<{ record: Lead }>(`${BASE}/${id}`, { method: "PATCH", json: input }).then((result) => result.record);
-export const archiveLead = (id: string) => request<{ changed: boolean }>(`${BASE}/${id}`, { method: "DELETE" });
+export const archiveLead = (id: string, openWork: "keep" | "cancel" = "cancel") => request<{ changed: boolean }>(`${BASE}/${id}?openWork=${openWork}`, { method: "DELETE" });
 export const restoreLead = (id: string) => post<{ changed: boolean }>(`${BASE}/${id}/restore`);
 export const checkLeadDuplicates = (input: Record<string, unknown>) =>
   post<{ matches: LeadDuplicateMatch[]; hasBlockingMatch: boolean }>(`${BASE}/duplicates`, input);

@@ -40,6 +40,8 @@ export const CONTACT_ACTIVITY_TYPES = Object.freeze([
   { code: "call", label: "Call" },
   { code: "email", label: "Email" },
   { code: "meeting", label: "Meeting" },
+  { code: "whatsapp", label: "WhatsApp" },
+  { code: "sms", label: "SMS" },
   { code: "other", label: "General activity" },
 ]);
 

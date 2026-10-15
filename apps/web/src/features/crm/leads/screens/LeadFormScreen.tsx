@@ -38,7 +38,7 @@ type FormValues = {
 const EMPTY: FormValues = {
   firstName: "", lastName: "", companyName: "", jobTitle: "", email: "", phone: "", mobile: "", website: "", city: "", state: "", countryCode: "",
   sourceId: NONE, sourceDetail: "", industry: "", productInterest: "", estimatedValue: "", currencyCode: "", purchaseTimeframe: NONE,
-  priority: "medium", rating: "warm", description: "", ownerUserId: AUTO, teamId: NONE,
+  priority: "medium", rating: "cold", description: "", ownerUserId: AUTO, teamId: NONE,
 };
 
 function valuesFromLead(lead: Lead): FormValues {
@@ -55,9 +55,11 @@ function valuesFromLead(lead: Lead): FormValues {
 
 // Owner and team are set here only when creating; afterwards they change
 // through Assign so the change is recorded and notified.
-function toInput(values: FormValues, mode: "create" | "edit") {
+// Contact details the person may not see are never sent: an empty field would otherwise clear them.
+function toInput(values: FormValues, mode: "create" | "edit", contactHidden = false) {
   const { ownerUserId, teamId, ...fields } = values;
   const input: Record<string, unknown> = { ...fields, sourceId: fields.sourceId || null, purchaseTimeframe: fields.purchaseTimeframe || null };
+  if (contactHidden) { delete input.email; delete input.mobile; delete input.phone; }
   if (mode === "create") {
     if (ownerUserId !== AUTO) input.ownerUserId = ownerUserId === UNASSIGNED ? null : ownerUserId;
     if (teamId) input.teamId = teamId;
@@ -113,15 +115,17 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `identity` stands for the fields read above
   }, [identity, leadId, canCheckDuplicates]);
 
+  const submit = useSubmitKey();
+  const contactHidden = mode === "edit" && Boolean(lead?.sensitiveDataRestricted);
+  // Changing a field clears its error, and the banner of a failed save (it described what was typed before).
   const set = <K extends keyof FormValues>(key: K) => (value: FormValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }));
     setFieldErrors((current) => ({ ...current, [key]: "" }));
+    setError(null);
   };
-
-  const submit = useSubmitKey();
   const mutation = useMutation({
     mutationFn: (allowDuplicate: boolean) => submit.run(async () => {
-      const input = { ...toInput(values, mode), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
+      const input = { ...toInput(values, mode, contactHidden), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
       return mode === "edit" ? updateLead(leadId as string, { ...input, expectedUpdatedAt: lead?.updatedAt }) : createLead(input);
     }),
     onSuccess: (saved) => {
@@ -183,8 +187,10 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
         <TextField label="First name" value={values.firstName} onChange={set("firstName")} errorMessage={fieldErrors.firstName} />
         <TextField label="Last name" value={values.lastName} onChange={set("lastName")} errorMessage={fieldErrors.lastName} />
         <TextField label="Company" value={values.companyName} onChange={set("companyName")} errorMessage={fieldErrors.companyName} />
-        <TextField label="Mobile" type="tel" value={values.mobile} onChange={set("mobile")} errorMessage={fieldErrors.mobile} />
-        <TextField label="Email" type="email" value={values.email} onChange={set("email")} errorMessage={fieldErrors.email} />
+        {contactHidden ? <p className="text-sm text-text-secondary sm:col-span-2">This lead&apos;s email and phone numbers are hidden from you; saving keeps them as they are.</p> : <>
+          <TextField label="Mobile" type="tel" value={values.mobile} onChange={set("mobile")} errorMessage={fieldErrors.mobile} />
+          <TextField label="Email" type="email" value={values.email} onChange={set("email")} errorMessage={fieldErrors.email} />
+        </>}
         <Select
           label="Lead source"
           selectedKey={values.sourceId}
@@ -196,12 +202,12 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
 
       <MoreDetails description="Job title, industry, website, phone, location, value, timeframe, priority, rating and description."
         hasContent={Boolean(values.jobTitle || values.industry || values.website || values.phone || values.city || values.state || values.sourceDetail || values.estimatedValue
-          || values.purchaseTimeframe || values.description || (mode === "edit" && (values.priority !== "medium" || values.rating !== "warm"))
+          || values.purchaseTimeframe || values.description || (mode === "edit" && (values.priority !== "medium" || values.rating !== "cold"))
           || Object.entries(fieldErrors).some(([key, message]) => message && !["firstName", "lastName", "companyName", "mobile", "email"].includes(key)))}>
         <TextField label="Job title" value={values.jobTitle} onChange={set("jobTitle")} />
         <TextField label="Industry" value={values.industry} onChange={set("industry")} />
         <TextField label="Website" value={values.website} onChange={set("website")} placeholder="https://" />
-        <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />
+        {!contactHidden && <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />}
         <TextField label="City" value={values.city} onChange={set("city")} />
         <TextField label="State" value={values.state} onChange={set("state")} />
         <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />

@@ -17,6 +17,10 @@ export const CRM_FILE_TYPES = Object.freeze({
   jpg: { mimeType: "image/jpeg", kind: "image", preview: "image" },
   jpeg: { mimeType: "image/jpeg", kind: "image", preview: "image" },
   png: { mimeType: "image/png", kind: "image", preview: "image" },
+  // Phone photos: WebP (WhatsApp desktop) shows in the browser; HEIC (iPhone) downloads, as browsers cannot show it.
+  webp: { mimeType: "image/webp", kind: "image", preview: "image" },
+  heic: { mimeType: "image/heic", kind: "image" },
+  heif: { mimeType: "image/heif", kind: "image" },
   txt: { mimeType: "text/plain", kind: "document", preview: "text" },
 });
 

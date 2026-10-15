@@ -69,7 +69,7 @@ export async function findDuplicateAccounts(client, context, input = {}, { exclu
             OR account.normalized_legal_company_name IN (probe.p_name, probe.p_legal_name)
             OR account.normalized_company_name % COALESCE(probe.p_name, probe.p_legal_name))
      )
-     SELECT candidate.id, candidate.code, candidate.display_name, candidate.legal_name, candidate.website, candidate.account_type, candidate.status,
+     SELECT candidate.id, candidate.code, candidate.display_name, candidate.legal_name, candidate.website, candidate.account_type, candidate.status, candidate.customer_kind,
             candidate.customer_number, owner.full_name AS owner_name, address.city AS address_city, (true${visible}) AS can_open,
             array_remove(ARRAY[
               CASE WHEN candidate.p_domain IS NOT NULL AND candidate.website_domain = candidate.p_domain
@@ -97,7 +97,8 @@ export async function findDuplicateAccounts(client, context, input = {}, { exclu
     .filter((row) => row.signals.length)
     .slice(0, Number(limit))
     .map((row) => {
-      const match = { kind: "account", id: row.id, signals: row.signals, ...gradeMatch("account", row.signals), canOpen: row.can_open };
+      const individual = input.customerKind === "individual" || row.customer_kind === "individual";
+      const match = { kind: "account", id: row.id, signals: row.signals, ...gradeMatch("account", row.signals, { individual }), canOpen: row.can_open };
       if (!row.can_open) return match;
       return {
         ...match, code: row.code, name: row.display_name, legalName: row.legal_name, website: row.website, city: row.address_city,

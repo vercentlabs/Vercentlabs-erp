@@ -32,6 +32,8 @@ export const ACCOUNT_WRITABLE_COLUMNS = Object.freeze({
   annualRevenue: "annual_revenue",
   sourceId: "source_id",
   currencyCode: "currency_code",
+  // A business, or a person buying for themselves or their household (shown and quoted without company fields).
+  customerKind: "customer_kind",
 });
 
 const GOVERNED_FIELDS = Object.freeze({
@@ -88,6 +90,11 @@ export function normalizeAccountInput(input = {}) {
     if (has(input, field)) normalized[field] = text(input[field]) || null;
   }
   if (has(input, "currencyCode")) normalized.currencyCode = text(input.currencyCode).toUpperCase() || null;
+  if (has(input, "customerKind")) {
+    const kind = text(input.customerKind).toLowerCase();
+    if (kind && !["business", "individual"].includes(kind)) throw new CrmError(400, "Choose business or individual.", "CRM_ACCOUNT_VALIDATION", { field: "customerKind" });
+    normalized.customerKind = kind || null;
+  }
   if (has(input, "annualRevenue")) {
     const raw = text(input.annualRevenue).replace(/[,\s]/g, "");
     normalized.annualRevenue = raw === "" ? null : Number(raw);

@@ -23,3 +23,29 @@ export {
   removeProjectCustomerContact, removeProjectSite, replaceProjectCustomerContact, requestProjectCustomerChange, resolveProjectCustomerMapping, searchProjectEligibleCustomers,
   setProjectPrimaryContact, updateProjectCustomerContact, updateProjectSite, withdrawProjectCustomerChange,
 } from "./project-customer.js";
+// Milestones (0128): planned checkpoints with deliverables, tasks, prerequisites, blockers, submissions, internal approval and customer
+// acceptance evidence, completion, and the billing handoff to Sales.
+export {
+  MILESTONE_REPORTS, getMilestoneActivity, getMilestoneDetails, getMilestoneNotes, getMilestoneReport, getProjectMilestones, exportMilestones, evaluateMilestoneDeadlines,
+  listMilestoneQueue, searchMilestoneTasks,
+} from "./project-milestone-read.js";
+export { MILESTONE_STATUS_LABEL, registerMilestoneTaskSource } from "./project-milestone-rules.js";
+export {
+  acknowledgeMilestoneBilling, addMilestoneCriterion, addMilestoneDependency, addMilestoneNote, applyProjectMilestonePlan, assignMilestoneOwner, cancelProjectMilestone,
+  completeMilestoneCriterion, completeProjectMilestone, createProjectMilestone, linkMilestoneTask, listMilestoneFiles, raiseMilestoneBlocker, readMilestoneFile, recordCustomerAcceptanceEvidence,
+  recordMilestoneApproval, removeMilestoneCriterion, removeMilestoneDependency, removeMilestoneFile, reopenMilestoneCriterion, reopenProjectMilestone, reorderMilestoneCriteria,
+  requestMilestoneBilling, resolveMilestoneBlocker, setMilestoneBillingStage, startProjectMilestone, submitProjectMilestone, updateMilestoneCriterion, updateMilestoneTaskLink,
+  updateProjectMilestone, uploadMilestoneFile, waiveMilestoneCriterion, waiveMilestoneForProjectCompletion, withdrawMilestoneBilling, withdrawMilestoneSubmission,
+} from "./project-milestones.js";
+// Tasks (0129): the accountable work items of a project — lifecycle, checklist, dependencies, blockers, review, comments, files, queues, board,
+// bulk changes, reports — feeding project progress and the milestones' task links.
+export {
+  TASK_REPORTS, PROJECT_TASK_VIEWS, evaluateTaskDeadlines, exportProjectTasks, getProjectTasks, getTaskActivity, getTaskComments, getTaskDetails, getTaskProgressHistory, getTaskReport, listTaskQueue,
+  listTaskViews,
+} from "./project-task-read.js";
+export { TASK_STATUS_LABEL, registerTaskRecordSource } from "./project-task-rules.js";
+export {
+  addTaskComment, approveTaskReview, archiveProjectTask, assignProjectTask, blockProjectTask, bulkUpdateProjectTasks, cancelProjectTask, completeProjectTask, createProjectTask, decideTaskReview,
+  listTaskFiles, manageTaskChecklist, manageTaskDependency, readTaskFile, recordTaskEvidence, removeTaskComment, removeTaskFile, removeTaskView, reopenProjectTask, requestTaskChanges,
+  resolveTaskBlocker, saveTaskView, startProjectTask, submitTaskForReview, transitionProjectTask, updateProjectTask, uploadTaskFile, withdrawTaskReview,
+} from "./project-tasks.js";

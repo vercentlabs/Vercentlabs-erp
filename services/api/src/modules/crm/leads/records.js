@@ -3,12 +3,16 @@
 // Owner and team change only through assignment.js; status only through
 // qualification.js (qualify / disqualify / reopen) and ../conversion. This
 // file never writes those columns except to set the initial owner on create.
+import { updatedSummary } from "../data-management/field-labels.js";
+import { phoneSearchDigits } from "../duplicates/normalize.js";
+import { settleOpenFollowUps } from "../follow-ups/lifecycle.js";
+import { settleOpenTasks } from "../tasks/lifecycle.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { assertCrmOwnerAssignable } from "../data-management/crm-access-scope.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { managedTeamMembersSql } from "../data-management/record-utils.js";
-import { leadCan, leadCapabilities, leadScopeSql, projectLeadForContext, requireLeadPermission } from "./access.js";
+import { canViewSensitiveLeadContent, leadCan, leadCapabilities, leadScopeSql, projectLeadForContext, requireLeadPermission } from "./access.js";
 import { applyLeadAssignment } from "./assignment.js";
 import { evaluateLeadAssignment, fallbackLeadAssignment, getLeadAssignmentSettings } from "./assignment-rules.js";
 import { LEAD_NUMBER_DOCUMENT_TYPE, LEAD_PERMISSIONS, LEAD_STALE_DAYS } from "./constants.js";
@@ -290,16 +294,16 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   if (Number.isInteger(olderThanDays) && olderThanDays > 0 && olderThanDays <= 3650) where.push(`lead.created_at < now() - make_interval(days => ${bind(olderThanDays)}::int)`);
   if (filters.stale === "yes" || filters.stale === true)
     where.push(`lead.status = 'open' AND COALESCE(lead.last_activity_at, lead.created_at) < now() - interval '${LEAD_STALE_DAYS} days'`);
-  if (filters.stageEnteredFrom) where.push(`lead.stage_changed_at >= ${bind(filters.stageEnteredFrom)}::date`);
-  if (filters.stageEnteredTo) where.push(`lead.stage_changed_at < ${bind(filters.stageEnteredTo)}::date + interval '1 day'`);
-  if (filters.assignedFrom) where.push(`lead.assigned_at >= ${bind(filters.assignedFrom)}::date`);
-  if (filters.assignedTo) where.push(`lead.assigned_at < ${bind(filters.assignedTo)}::date + interval '1 day'`);
-  if (filters.createdFrom) where.push(`lead.created_at >= ${bind(filters.createdFrom)}::date`);
-  if (filters.createdTo) where.push(`lead.created_at < ${bind(filters.createdTo)}::date + interval '1 day'`);
-  if (filters.qualifiedFrom) where.push(`lead.qualified_at >= ${bind(filters.qualifiedFrom)}::date`);
-  if (filters.qualifiedTo) where.push(`lead.qualified_at < ${bind(filters.qualifiedTo)}::date + interval '1 day'`);
-  if (filters.convertedFrom) where.push(`lead.converted_at >= ${bind(filters.convertedFrom)}::date`);
-  if (filters.convertedTo) where.push(`lead.converted_at < ${bind(filters.convertedTo)}::date + interval '1 day'`);
+  if (filters.stageEnteredFrom) where.push(`lead.stage_changed_at >= ${bind(dayFilter(filters.stageEnteredFrom))}::date`);
+  if (filters.stageEnteredTo) where.push(`lead.stage_changed_at < ${bind(dayFilter(filters.stageEnteredTo))}::date + interval '1 day'`);
+  if (filters.assignedFrom) where.push(`lead.assigned_at >= ${bind(dayFilter(filters.assignedFrom))}::date`);
+  if (filters.assignedTo) where.push(`lead.assigned_at < ${bind(dayFilter(filters.assignedTo))}::date + interval '1 day'`);
+  if (filters.createdFrom) where.push(`lead.created_at >= ${bind(dayFilter(filters.createdFrom))}::date`);
+  if (filters.createdTo) where.push(`lead.created_at < ${bind(dayFilter(filters.createdTo))}::date + interval '1 day'`);
+  if (filters.qualifiedFrom) where.push(`lead.qualified_at >= ${bind(dayFilter(filters.qualifiedFrom))}::date`);
+  if (filters.qualifiedTo) where.push(`lead.qualified_at < ${bind(dayFilter(filters.qualifiedTo))}::date + interval '1 day'`);
+  if (filters.convertedFrom) where.push(`lead.converted_at >= ${bind(dayFilter(filters.convertedFrom))}::date`);
+  if (filters.convertedTo) where.push(`lead.converted_at < ${bind(dayFilter(filters.convertedTo))}::date + interval '1 day'`);
   if (Array.isArray(filters.ids) && filters.ids.length) where.push(`lead.id = ANY (${bind(filters.ids.filter(isUuid))}::uuid[])`);
 
   const search = String(filters.search ?? "").trim().toLowerCase();
@@ -308,9 +312,19 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
     const haystack = leadCan(context, LEAD_PERMISSIONS.viewSensitive)
       ? "lower(COALESCE(lead.code, '') || ' ' || COALESCE(lead.full_name, '') || ' ' || COALESCE(lead.company_name, '') || ' ' || COALESCE(lead.email, '') || ' ' || COALESCE(lead.mobile, '') || ' ' || COALESCE(lead.phone, ''))"
       : "lower(COALESCE(lead.code, '') || ' ' || COALESCE(lead.full_name, '') || ' ' || COALESCE(lead.company_name, ''))";
-    where.push(`${haystack} LIKE ${bind(`%${search.replace(/[\\%_]/g, "\\$&")}%`)}`);
+    const digits = leadCan(context, LEAD_PERMISSIONS.viewSensitive) ? phoneSearchDigits(search) : null;
+    where.push(`(${haystack} LIKE ${bind(`%${search.replace(/[\\%_]/g, "\\$&")}%`)}${digits
+      ? ` OR lead.normalized_mobile LIKE ${bind(`%${digits}%`)} OR lead.normalized_business_phone LIKE $${values.length}` : ""})`);
   }
   return `WHERE ${where.join(" AND ")}${leadScopeSql(context, values, "lead")}`;
+}
+
+// A date filter is a real calendar day (YYYY-MM-DD), or the request is refused with the reason — never a server error.
+function dayFilter(value) {
+  const day = String(value ?? "").trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T00:00:00Z`) : null;
+  if (!parsed || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== day) throw new CrmError(400, "Enter dates as a real day (YYYY-MM-DD).", "CRM_LEAD_FILTER_INVALID");
+  return day;
 }
 
 export async function listLeads(client, context, filters = {}) {
@@ -374,7 +388,7 @@ async function initialLeadAssignment(client, context, input, normalized, { origi
 //   duplicateReason   why a strong duplicate is saved anyway (with allowDuplicate; needs crm.duplicates.override)
 //   onDuplicateCheck  receives what the duplicate check found (imports count possible duplicates)
 export async function createLead(client, context, input = {}, {
-  allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", routing = "auto", assignmentReason = null,
+  allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", routing = "auto", assignmentReason = null, notify = true,
 } = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.create, "You do not have permission to create leads.");
   const normalized = normalizeLeadInput(input);
@@ -403,7 +417,7 @@ export async function createLead(client, context, input = {}, {
   await recordLeadStageEntry(client, context, lead.id, { to: lead.stage });
   if (assignment.method)
     await applyLeadAssignment(client, context, lead, { ownerUserId: assignment.ownerUserId, teamId: assignment.teamId }, {
-      method: assignment.method, rule: assignment.rule, reason: assignmentReason,
+      method: assignment.method, rule: assignment.rule, reason: assignmentReason, notify,
     });
   await queueOutboxEvent(client, context, "crm.leads.created", "leads", lead.id, { status: lead.status, sourceId: lead.source_id, ownerUserId: assignment.ownerUserId ?? null });
   // A rule may have routed the lead to someone outside the creator's own
@@ -430,6 +444,9 @@ export async function updateLead(client, context, leadId, input = {}, { allowDup
   if (expectedUpdatedAt && new Date(expectedUpdatedAt).getTime() !== new Date(row.updated_at).getTime())
     throw new CrmError(409, "This lead was changed by someone else. Reload it and try again.", "CRM_LEAD_VERSION_CONFLICT");
 
+  // Contact details the caller cannot see are never changed by them (an empty field from a form that hid them would clear them).
+  if (!canViewSensitiveLeadContent(context) && ["email", "phone", "mobile"].some((field) => has(input, field)))
+    throw new CrmError(403, "You cannot change a lead's email or phone numbers without access to its contact details.", "CRM_LEAD_SENSITIVE_FORBIDDEN");
   const before = toLead(row);
   const normalized = normalizeLeadInput(input);
   assertValidLead(normalized, before);
@@ -447,7 +464,7 @@ export async function updateLead(client, context, leadId, input = {}, { allowDup
       [context.organizationId, row.id, ...changedFields.map((field) => normalized[field]), context.userId ?? null],
     );
     const changes = Object.fromEntries(changedFields.map((field) => [field, { from: before[field] ?? null, to: normalized[field] ?? null }]));
-    await recordLeadHistory(client, context, row.id, "updated", `Updated ${changedFields.length === 1 ? changedFields[0] : `${changedFields.length} fields`}`, changes);
+    await recordLeadHistory(client, context, row.id, "updated", updatedSummary(changedFields), changes);
     await queueOutboxEvent(client, context, "crm.leads.updated", "leads", row.id, { before, after: { ...before, ...normalized }, changedFields });
   }
   return projectLeadForContext(context, toLead(await loadLeadRow(client, context, row.id)));
@@ -498,7 +515,8 @@ export async function bulkChangeLeadStage(client, context, input = {}) {
 // Leads are never hard-deleted. Archiving hides a lead from the working
 // lists; its history, notes, files and activities stay. A converted lead
 // cannot be archived: it is the record behind an account and an opportunity.
-export async function archiveLead(client, context, leadId) {
+// input.openWork: "cancel" (default — an archived lead fires no reminders or overdue alerts) or "keep".
+export async function archiveLead(client, context, leadId, input = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.delete, "You do not have permission to archive leads.");
   const row = await loadLeadRow(client, context, leadId, { lock: true, includeArchived: true });
   if (row.archived_at) return { changed: false };
@@ -507,9 +525,13 @@ export async function archiveLead(client, context, leadId) {
     `UPDATE tenant.crm_leads SET archived_at = now(), archived_by = $3, updated_by = $3 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, row.id, context.userId ?? null],
   );
-  await recordLeadHistory(client, context, row.id, "archived", "Lead archived");
+  const action = input.openWork === "keep" ? "keep" : "cancel";
+  const tasks = await settleOpenTasks(client, context, "lead", row.id, { action, reason: "Lead archived" });
+  const followUps = await settleOpenFollowUps(client, context, "lead", row.id, { action, reason: "Lead archived" });
+  await recordLeadHistory(client, context, row.id, "archived", action === "cancel" && (tasks.cancelled || followUps.cancelled)
+    ? `Lead archived; ${tasks.cancelled} open task(s) and ${followUps.cancelled} follow-up(s) cancelled` : "Lead archived");
   await queueOutboxEvent(client, context, "crm.leads.archived", "leads", row.id, {});
-  return { changed: true };
+  return { changed: true, cancelledTasks: tasks.cancelled, cancelledFollowUps: followUps.cancelled };
 }
 
 export async function restoreLead(client, context, leadId) {

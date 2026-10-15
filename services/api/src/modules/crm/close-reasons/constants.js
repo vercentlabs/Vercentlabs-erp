@@ -56,7 +56,7 @@ export const DEFAULT_CLOSE_REASONS = Object.freeze([
   reason("poor_fit", "Poor Fit", "fit", "lost"),
   reason("timing_not_suitable", "Timing Not Suitable", "timing", "lost", { offersFollowUp: true }),
   reason("internal_decision", "Internal Customer Decision", "other", "lost"),
-  reason("duplicate_opportunity", "Duplicate Opportunity", "duplicate", "lost", { linksDuplicate: true }),
+  reason("duplicate_opportunity", "Duplicate deal", "duplicate", "lost", { linksDuplicate: true }),
   reason("other", "Other", "other", "lost", { requiresNotes: true }),
 ]);
 

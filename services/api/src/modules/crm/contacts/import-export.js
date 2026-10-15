@@ -152,9 +152,9 @@ export async function importContacts(client, context, { bytes, fileName, mapping
         const key = company.toLowerCase();
         if (!accountByName.has(key)) accountByName.set(key, await matchAccount(client, context, company));
         const match = accountByName.get(key);
-        if (match === "ambiguous") warning = `More than one account is called "${company}"; imported without a company.`;
+        if (match === "ambiguous") warning = `More than one company is called "${company}"; imported without a company.`;
         else if (match) contact.accountId = match;
-        else warning = `No account called "${company}"; imported without a company.`;
+        else warning = `No company called "${company}"; imported without a company.`;
       }
       if (source) {
         const key = source.toLowerCase();

@@ -55,7 +55,7 @@ export function createOpportunity(
 export function updateOpportunity(
   client: QueryClient, context: CrmContext, opportunityId: string, input?: Input, options?: { expectedUpdatedAt?: string | null },
 ): Promise<Opportunity>;
-export function archiveOpportunity(client: QueryClient, context: CrmContext, opportunityId: string): Promise<{ changed: boolean }>;
+export function archiveOpportunity(client: QueryClient, context: CrmContext, opportunityId: string, input?: { openWork?: "keep" | "cancel" }): Promise<{ changed: boolean; cancelledTasks?: number; cancelledFollowUps?: number }>;
 export function restoreOpportunity(client: QueryClient, context: CrmContext, opportunityId: string): Promise<{ changed: boolean }>;
 export function deleteOpportunity(client: QueryClient, context: CrmContext, opportunityId: string): Promise<{ deleted: boolean }>;
 export function findDuplicateOpportunities(
