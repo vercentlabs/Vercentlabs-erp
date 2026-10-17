@@ -27,6 +27,8 @@ import { AssetOpeningPanel } from "../opening/OpeningScreens";
 import { AssetCapitalizationPanel } from "../capitalization/CapitalizationScreens";
 import { AssetTransferPanel } from "../transfers/TransferScreens";
 import { AssetMovementHistoryPanel } from "../movements/MovementScreens";
+import { AssetMaintenancePanel } from "../maintenance/MaintenanceScreens";
+import { AssetDisposalPanel } from "../disposals/DisposalScreens";
 import { AssetDepreciationPanel } from "../depreciation/DepreciationScreens";
 import { AssetAssignmentPanel } from "../assignments/AssignmentScreens";
 import {
@@ -34,8 +36,11 @@ import {
   type AssetDetail, type AssetStatus,
 } from "./register-api";
 
-const TABS = [{ id: "overview", label: "Overview" }, { id: "acquisition", label: "Acquisition" }, { id: "financials", label: "Financials" }, { id: "custody", label: "Custody & Location" },
-  { id: "warranty", label: "Maintenance & Warranty" }, { id: "documents", label: "Documents" }, { id: "verification", label: "Verification" }, { id: "activity", label: "Activity & status history" }];
+const TABS = [{ id: "overview", label: "Overview" }, { id: "identification", label: "Identification" }, { id: "acquisition", label: "Acquisition" }, { id: "financials", label: "Financials" },
+  { id: "custody", label: "Assignments & Transfers" }, { id: "movements", label: "Movement History" }, { id: "warranty", label: "Maintenance & Warranty" }, { id: "disposal", label: "Disposal" },
+  { id: "documents", label: "Documents" }, { id: "activity", label: "Activity & Audit" }];
+// Earlier links keep working: the verification tab is part of Identification now.
+const TAB_ALIAS: Record<string, string> = { verification: "identification" };
 
 export function AssetDetailScreen({ assetId }: { assetId: string }) {
   const workspace = useWorkspaceContext();
@@ -46,7 +51,8 @@ export function AssetDetailScreen({ assetId }: { assetId: string }) {
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "assets", "asset", assetId), queryFn: () => getAsset(assetId), retry: false });
   const statusQuery = useQuery({ queryKey: scopedQueryKey(workspace, "assets", "asset-view", assetId, "status"), queryFn: () => getAssetView<AssetStatus>(assetId, "status"), retry: false });
   const options = useQuery({ queryKey: scopedQueryKey(workspace, "assets", "options"), queryFn: getOptions, staleTime: 60_000 });
-  const [tab, setTab] = useState(TABS.some((row) => row.id === params.get("tab")) ? params.get("tab")! : "overview");
+  const asked = TAB_ALIAS[params.get("tab") ?? ""] ?? params.get("tab");
+  const [tab, setTab] = useState(TABS.some((row) => row.id === asked) ? asked! : "overview");
   const [ask, setAsk] = useState<Ask | null>(null);
   const [dialog, setDialog] = useState<"edit" | "label" | "verify" | "reclassify" | null>(params.get("via") === "qr" ? "verify" : null);
   const [message, setMessage] = useState<{ tone: "success" | "danger" | "warning"; text: string } | null>(null);
@@ -106,13 +112,15 @@ export function AssetDetailScreen({ assetId }: { assetId: string }) {
           <TabList aria-label="Asset sections">{tabs.map((row) => <Tab key={row.id} id={row.id}>{row.label}</Tab>)}</TabList>
         </Tabs>
         <div className="mt-4">
-          {tab === "overview" && <OverviewTab asset={a} status={statusQuery.data} onAct={act} onDone={refresh} />}
+          {tab === "overview" && <OverviewTab asset={a} status={statusQuery.data} onAct={act} />}
           {tab === "acquisition" && <div className="flex flex-col gap-4"><AssetOpeningPanel assetId={a.id} /><AcquisitionTab asset={a} onDone={refresh} /></div>}
           {tab === "financials" && a.can.financials && <div className="flex flex-col gap-4"><AssetCapitalizationPanel assetId={a.id} /><FinancialsTab assetId={a.id} /><AssetDepreciationPanel assetId={a.id} /></div>}
+          {tab === "identification" && <div className="flex flex-col gap-4"><IdentificationPanel asset={a} onDone={refresh} /><VerificationTab asset={a} onVerify={() => setDialog("verify")} /></div>}
           {tab === "custody" && <div className="flex flex-col gap-4"><AssetCustodyPanel assetId={a.id} /><AssetAssignmentPanel assetId={a.id} /><AssetTransferPanel assetId={a.id} /><AssetLocationPanel assetId={a.id} /><CustodyTab asset={a} /></div>}
+          {tab === "movements" && <AssetMovementHistoryPanel assetId={a.id} />}
           {tab === "warranty" && <WarrantyTab asset={a} />}
+          {tab === "disposal" && <AssetDisposalPanel assetId={a.id} assetCode={a.code} />}
           {tab === "documents" && <DocumentsTab asset={a} onDone={refresh} />}
-          {tab === "verification" && <VerificationTab asset={a} onVerify={() => setDialog("verify")} />}
           {tab === "activity" && <ActivityTab assetId={a.id} />}
         </div>
       </RecordDetailsPage>
@@ -125,14 +133,13 @@ export function AssetDetailScreen({ assetId }: { assetId: string }) {
   );
 }
 
-function OverviewTab({ asset: a, status, onAct, onDone }: { asset: AssetDetail; status: AssetStatus | undefined; onAct: (action: string) => void; onDone: (text: string) => Promise<void> }) {
+function OverviewTab({ asset: a, status, onAct }: { asset: AssetDetail; status: AssetStatus | undefined; onAct: (action: string) => void }) {
   return (
     <div className="flex flex-col gap-4">
       {a.lifecycle === "LOST" && <Notice tone="danger">This asset is confirmed lost. Finance decides any write-off; its history is kept. Record a recovery if it is found.</Notice>}
       {status && <StatusPanel asset={a} status={status} onAct={onAct} />}
       {a.verificationDue && <Notice tone="warning">{`Not verified within the verification period${a.lastVerifiedAt ? ` (last ${formatDateTime(a.lastVerifiedAt)})` : ""}.`}</Notice>}
       {a.lifecycle === "REGISTERED" && !a.hasSource && a.capitalizationClass !== "TRACKED_ONLY" && <Notice tone="info">Link its acquisition source (Acquisition tab) before commissioning it.</Notice>}
-      <IdentificationPanel asset={a} onDone={onDone} />
       <FactList title="What it is" items={[["Name", a.name], ["Category", a.category ?? "—"], ["Type", a.assetTypeLabel], ["Manufacturer", a.manufacturer ?? "—"], ["Model", a.model ?? "—"],
         ["Ownership", a.ownershipLabel], ["Tracking", a.capitalizationLabel], ["Criticality", a.criticality]]} />
       <FactList title="Where it is" items={[["Location", a.location ?? "Not set"], ["Department", a.department ?? "—"], ["Custodian", a.custodian ?? "Unassigned"], ["Availability", a.availabilityLabel],
@@ -221,7 +228,6 @@ function CustodyTab({ asset: a }: { asset: AssetDetail }) {
     <div className="flex flex-col gap-4">
       <Notice tone="neutral">{`${d.note} Owner: ${d.ownership}.`}</Notice>
       {["ACTIVE", "ON_HOLD"].includes(a.lifecycle) && <p className="text-sm"><Link className="text-brand hover:underline" href="/assets/custody">Custody & Handovers</Link>{" and "}<Link className="text-brand hover:underline" href="/assets/transfers">Transfers</Link>{" change its custody."}</p>}
-      <AssetMovementHistoryPanel assetId={a.id} />
     </div>
   );
 }
@@ -235,8 +241,8 @@ function WarrantyTab({ asset: a }: { asset: AssetDetail }) {
   return (
     <div className="flex flex-col gap-4">
       <FactList title="Warranty" items={[["Status", WARRANTY_LABEL[w.state]], ["Provider", w.provider ?? "—"], ["Reference", w.reference ?? "—"], ["From", dateLabel(w.startDate)], ["Until", dateLabel(w.endDate)], ["Support contact", w.supportContact ?? "—"]]} />
-      <FactList title="Maintenance" items={[["Availability", a.availabilityLabel], ["Condition", a.conditionLabel ?? "—"], ["Open work orders", String(w.openMaintenanceOrders)]]} />
-      <p className="text-sm"><Link className="text-brand hover:underline" href="/assets/work-orders">Work orders</Link>{" and "}<Link className="text-brand hover:underline" href="/assets/maintenance-plans">maintenance plans</Link>{" are kept by Maintenance; nothing here raises a supplier claim."}</p>
+      <FactList title="Availability" items={[["Availability", a.availabilityLabel], ["Condition", a.conditionLabel ?? "—"]]} />
+      <AssetMaintenancePanel assetId={a.id} />
       {w.history.length > 0 && <Panel title="Warranty history"><LinesTable columns={["Recorded", "Provider", "From", "Until", "Reference"]}>
         {w.history.map((h) => <tr key={h.id}><Cell>{formatDateTime(h.at)}</Cell><Cell>{h.provider ?? "—"}</Cell><Cell>{dateLabel(h.startDate)}</Cell><Cell>{dateLabel(h.endDate)}</Cell><Cell>{h.reference ?? "—"}</Cell></tr>)}
       </LinesTable></Panel>}

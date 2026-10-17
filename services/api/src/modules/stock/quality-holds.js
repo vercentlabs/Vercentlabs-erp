@@ -475,6 +475,11 @@ export async function resolveStockHold(client, c, holdId, input = {}) {
     if (allocation.tracking_type === "serial") need(c, P.serial, "You do not have permission to handle held serial-numbered stock.");
   }
   if (action === "release" && partial) need(c, P.partialRelease, "You do not have permission to release part of a hold.");
+  // Stock held for a receipt's Quality requirements is released only up to what Quality cleared (passed, partly accepted or waived).
+  if (action === "release" && row.source_document_type === "goods_receipt" && row.source_line_id) {
+    const { assertQualityRelease } = await import("../quality/control-points/qcp-engine.js");
+    await assertQualityRelease(client, c, { sourceLineId: row.source_line_id, quantity: plan.reduce((sum, entry) => sum + entry.quantity, 0) });
+  }
   const stock = stockContext(c);
   const group = await openMovementGroup(client, c, { sourceType: "inventory_stock_hold", sourceId: row.id, sourceNumber: row.document_number, operation: "disposition_move",
     postingKey: `inventory_stock_hold:${row.id}:${action}:${crypto.randomUUID()}` });

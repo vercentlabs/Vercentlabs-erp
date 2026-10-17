@@ -18,7 +18,7 @@ export type Finance = Record<string, string | null>;
 export type Category = {
   id: string; code: string; name: string; description: string | null; assetType: string; assetTypeLabel: string; capitalizationGuidance: string; capitalizationGuidanceLabel: string;
   serialNumberPolicy: string; serialNumberPolicyLabel: string; assetTagPolicy: string; assetTagPolicyLabel: string; locationRequired: boolean; custodianPolicy: string; custodianPolicyLabel: string;
-  warrantyApplicable: boolean; maintenanceApplicable: boolean; verificationApplicable: boolean; suggestedCondition: string | null; defaultDepartmentId: string | null; ownershipApplicability: string;
+  warrantyApplicable: boolean; maintenanceApplicable: boolean; verificationApplicable: boolean; scrapEvidenceRequired?: boolean; suggestedCondition: string | null; defaultDepartmentId: string | null; ownershipApplicability: string;
   ownershipApplicabilityLabel: string; active: boolean; policyVersion: number; version: number; template: string | null; createdAt: string; updatedAt: string | null;
   counts?: { total: number; active: number; ended: number; tracked: number; capitalized: number }; finance?: Finance; financePolicyComplete: boolean;
 };

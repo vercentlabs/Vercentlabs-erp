@@ -1,25 +1,7 @@
 export type AssetDeskContext = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
 export declare class AssetError extends Error { status: number; code: string; constructor(status: number, message: string, code?: string); }
 export declare function assetsContext(session: Record<string, unknown>): AssetDeskContext;
-export declare function addAssetWorkOrderPart(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function approveAssetDisposal(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function cancelAssetDisposal(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function cancelAssetWorkOrder(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function completeAssetDisposal(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function completeAssetWorkOrder(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function createAssetWorkOrder(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function generateDueMaintenance(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function getAssetRepairHistory(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
 export declare function getAssetSettings(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function getAssetWorkOrder(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function holdAssetWorkOrder(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
 export declare function listAssetAssignments(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function listAssetDisposals(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
 export declare function listAssetOptions(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function listAssetWorkOrders(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function listMaintenancePlans(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function rejectAssetDisposal(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function requestAssetDisposal(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
 export declare function saveAssetSettings(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function saveMaintenancePlan(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;
-export declare function startAssetWorkOrder(client: any, context: AssetDeskContext, ...args: any[]): Promise<any>;

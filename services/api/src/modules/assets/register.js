@@ -46,7 +46,12 @@ export async function saveAssetSettings(client, c, input) {
     [c.organizationId, bool("requireCapitalizationApproval", "require_capitalization_approval"), bool("requireDisposalApproval", "require_disposal_approval"), bool("prohibitSelfApproval", "prohibit_self_approval"), method, bool("postToAccounting", "post_to_accounting"), bool("requireTransferApproval", "require_transfer_approval"), bool("requireValueAdjustmentApproval", "require_value_adjustment_approval"), convention,
       nonNegative(input.warrantyAlertDays, "Warranty alert days", cur.warranty_alert_days), nonNegative(input.maintenanceLeadDays, "Maintenance lead days", cur.maintenance_lead_days), nonNegative(input.calibrationAlertDays, "Calibration alert days", cur.calibration_alert_days)],
   );
-  return res.rows[0];
+  // The maintenance and disposal approval thresholds and the safety restriction policy (0158, 0159).
+  const more = await client.query(`UPDATE tenant.asset_settings SET maintenance_approval_threshold = $2, disposal_management_threshold = $3, maintenance_restrict_on_safety = $4 WHERE organization_id = $1 RETURNING *`,
+    [c.organizationId, String(nonNegative(input.maintenanceApprovalThreshold, "Maintenance approval threshold", res.rows[0].maintenance_approval_threshold ?? 10000)),
+      String(nonNegative(input.disposalManagementThreshold, "Disposal management threshold", res.rows[0].disposal_management_threshold ?? 100000)),
+      input.maintenanceRestrictOnSafety === undefined ? res.rows[0].maintenance_restrict_on_safety !== false : Boolean(input.maintenanceRestrictOnSafety)]);
+  return more.rows[0] ?? res.rows[0];
 }
 
 // ------------------------------------------------------------------ the asset master

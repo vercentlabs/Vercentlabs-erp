@@ -7,8 +7,4 @@ export {
 export {
   listAssignments as listAssetAssignments,
 } from "./custody.js";
-export {
-  listMaintenancePlans, saveMaintenancePlan, generateDueMaintenance, listWorkOrders as listAssetWorkOrders, getWorkOrder as getAssetWorkOrder, createWorkOrder as createAssetWorkOrder, startWorkOrder as startAssetWorkOrder, holdWorkOrder as holdAssetWorkOrder, cancelWorkOrder as cancelAssetWorkOrder, addWorkOrderPart as addAssetWorkOrderPart, completeWorkOrder as completeAssetWorkOrder, getRepairHistory as getAssetRepairHistory,
-} from "./maintenance.js";
-export { listDisposals as listAssetDisposals, requestDisposal as requestAssetDisposal, approveDisposal as approveAssetDisposal, rejectDisposal as rejectAssetDisposal, cancelDisposal as cancelAssetDisposal, completeDisposal as completeAssetDisposal } from "./disposal.js";
 export { assetsContext, AssetError } from "./common.js";

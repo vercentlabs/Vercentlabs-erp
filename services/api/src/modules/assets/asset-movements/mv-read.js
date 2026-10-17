@@ -7,8 +7,8 @@ import { ORDER_DESC, syncAssetMovements, syncCompanyMovements, syncState } from 
 
 const NAME = (alias) => `COALESCE(NULLIF(${alias}.full_name, ''), ${alias}.email)`;
 const HREF = Object.freeze({
-  asset_transfer: (id) => `/assets/transfers/${id}`, asset_assignment: (id) => `/assets/assignments/${id}`, asset_disposal: () => "/assets/disposals",
-  asset_maintenance_order: () => "/assets/maintenance", asset_location_discrepancy: () => "/assets/locations", asset_missing_incident: () => "/assets/status",
+  asset_transfer: (id) => `/assets/transfers/${id}`, asset_assignment: (id) => `/assets/assignments/${id}`, asset_disposal: () => "/assets/disposals", asset_disposal_case: (id) => `/assets/disposals/${id}`,
+  asset_maintenance_order: () => "/assets/maintenance", asset_maintenance_work_order: (id) => `/assets/maintenance/work-orders/${id}`, asset_location_discrepancy: () => "/assets/locations", asset_missing_incident: () => "/assets/status",
   asset_verification: () => "/assets/verification", asset_opening: () => "/assets/opening", asset_opening_row: () => "/assets/opening",
 });
 const EXCEPTION_TYPES = ["MOVEMENT_EXCEPTION", "MISSING_REPORTED", "LOCATION_DISCREPANCY", "HANDOVER_DISPUTED"];

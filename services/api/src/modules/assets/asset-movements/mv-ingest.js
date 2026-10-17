@@ -190,6 +190,21 @@ export const NORMALIZERS = Object.freeze([
        ORDER BY le.recorded_at DESC, le.id DESC LIMIT 1) AS loc) at
     WHERE w.organization_id = $1 AND ($2::uuid IS NULL OR w.asset_id = $2) AND w.took_asset_out_of_service AND m.at IS NOT NULL AND m.rec >= $3::timestamptz ${ON_CONFLICT}`],
 
+  // A maintenance Work Order that restricted use: the asset is with the technician or vendor from the start until it is closed or cancelled.
+  ["MAINTENANCE_WORK_ORDER", `INSERT INTO tenant.asset_movement_events (${COLS})
+    SELECT w.organization_id, w.asset_id, 'MAINTENANCE_ORDER', w.id, m.milestone, 'MAINTENANCE', w.id, w.work_order_number,
+      CASE m.milestone WHEN 'STARTED' THEN 'TEMPORARY_MOVEMENT' ELSE 'RETURN_FROM_TEMPORARY_MOVEMENT' END, 'CONFIRMED', false, false,
+      at.loc, ${LOC("at.loc", "m.at")}, at.loc, ${LOC("at.loc", "m.at")}, CASE WHEN at.loc IS NULL THEN NULL ELSE 'CONFIRMED' END,
+      NULL, NULL, NULL, NULL, NULL, NULL, NULL, w.title, m.at, m.at, m.at, m.at, m.actor, NULL,
+      'asset_maintenance_work_order', w.id, w.work_order_number, NULL,
+      jsonb_build_object('maintenanceType', w.maintenance_type, 'supplierId', w.supplier_id, 'external', w.execution <> 'INTERNAL', 'status', w.status, 'outcome', w.outcome)
+    FROM tenant.asset_maintenance_work_orders w
+    CROSS JOIN LATERAL (VALUES ('STARTED', w.actual_start_at, w.technician_user_id),
+      ('ENDED', CASE WHEN w.status IN ('CLOSED', 'CANCELLED') AND w.actual_start_at IS NOT NULL THEN GREATEST(COALESCE(w.closed_at, w.updated_at), w.actual_start_at) END, NULL::uuid)) AS m(milestone, at, actor)
+    CROSS JOIN LATERAL (SELECT (SELECT le.new_location_id FROM tenant.asset_location_events le WHERE le.asset_id = w.asset_id AND le.recorded_at <= m.at
+       ORDER BY le.recorded_at DESC, le.id DESC LIMIT 1) AS loc) at
+    WHERE w.organization_id = $1 AND ($2::uuid IS NULL OR w.asset_id = $2) AND w.restrict_use AND w.legacy_order_id IS NULL AND m.at IS NOT NULL AND m.at >= $3::timestamptz ${ON_CONFLICT}`],
+
   ["DISPOSAL", `INSERT INTO tenant.asset_movement_events (${COLS})
     SELECT x.organization_id, x.asset_id, 'DISPOSAL', x.id, 'MAIN', 'DISPOSAL', x.id, x.disposal_number, 'DISPOSED', 'CONFIRMED', false, false,
       at.loc, ${LOC("at.loc", "x.completed_at")}, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, COALESCE(x.reason, x.disposal_method),
@@ -200,6 +215,17 @@ export const NORMALIZERS = Object.freeze([
     CROSS JOIN LATERAL (SELECT (SELECT le.new_location_id FROM tenant.asset_location_events le WHERE le.asset_id = x.asset_id AND le.recorded_at <= x.completed_at
        ORDER BY le.recorded_at DESC, le.id DESC LIMIT 1) AS loc) at
     WHERE ${scope("x", "x.completed_at")} AND x.completed_at IS NOT NULL AND x.status IN ('completed', 'posted') ${ON_CONFLICT}`],
+
+  // A completed disposal case line: the asset left the Company (or was written off as lost) — its final event.
+  ["DISPOSAL_CASE", `INSERT INTO tenant.asset_movement_events (${COLS})
+    SELECT l.organization_id, l.asset_id, 'DISPOSAL', l.id, 'MAIN', 'DISPOSAL', k.id, k.case_number, 'DISPOSED', 'CONFIRMED', false, false,
+      at.loc, ${LOC("at.loc", "l.completed_at")}, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, COALESCE(l.handover_recipient, k.explanation),
+      LEAST(COALESCE(l.actual_disposition_date::timestamptz, l.completed_at), l.completed_at), LEAST(COALESCE(l.actual_disposition_date::timestamptz, l.completed_at), l.completed_at),
+      l.completed_at, l.completed_at, l.completed_by, NULL, 'asset_disposal_case', k.id, k.case_number, NULL, jsonb_build_object('method', k.disposal_type, 'handover', l.handover_kind)
+    FROM tenant.asset_disposal_lines l JOIN tenant.asset_disposal_cases k ON k.id = l.case_id
+    CROSS JOIN LATERAL (SELECT (SELECT le.new_location_id FROM tenant.asset_location_events le WHERE le.asset_id = l.asset_id AND le.recorded_at <= l.completed_at
+       ORDER BY le.recorded_at DESC, le.id DESC LIMIT 1) AS loc) at
+    WHERE ${scope("l", "l.completed_at")} AND l.completed_at IS NOT NULL AND l.line_status IN ('COMPLETED', 'REINSTATED') ${ON_CONFLICT}`],
 
   // An applied correction is itself an event: the original's facts with the corrected time; the original stays and points to it.
   ["CORRECTION", `INSERT INTO tenant.asset_movement_events (${COLS.replace("correction_of_event_id, details", "correction_of_event_id, details")})

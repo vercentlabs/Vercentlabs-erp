@@ -45,7 +45,7 @@ export async function getAssetStatus(client, c, assetId) {
   const incident = (await client.query(`SELECT i.*, ${NAME("r")} AS reporter_name FROM tenant.asset_missing_incidents i LEFT JOIN public.users r ON r.id = i.reported_by WHERE i.asset_id = $1 AND i.status = 'OPEN'`, [row.id])).rows[0] ?? null;
   const work = {
     transfer: (await client.query(`SELECT o.transfer_number FROM tenant.asset_transfer_lines l JOIN tenant.asset_transfer_orders o ON o.id = l.transfer_id WHERE l.asset_id = $1 AND l.line_status IN ('PENDING', 'APPROVED', 'DISPATCHED', 'RECEIVED', 'RECEIPT_EXCEPTION', 'RETURN_IN_PROGRESS') LIMIT 1`, [row.id])).rows[0] ?? null,
-    maintenance: (await client.query(`SELECT work_order_number FROM tenant.asset_maintenance_orders WHERE asset_id = $1 AND status = 'in_progress' LIMIT 1`, [row.id])).rows[0] ?? null,
+    maintenance: (await client.query(`SELECT work_order_number FROM (SELECT work_order_number FROM tenant.asset_maintenance_orders WHERE asset_id = $1 AND status = 'in_progress' UNION ALL SELECT work_order_number FROM tenant.asset_maintenance_work_orders WHERE asset_id = $1 AND status IN ('IN_PROGRESS', 'WAITING_FOR_PARTS', 'WAITING_FOR_VENDOR', 'WORK_COMPLETED', 'PENDING_VERIFICATION')) m LIMIT 1`, [row.id])).rows[0] ?? null,
   };
   const proposed = (await client.query(`SELECT e.new_condition, e.reason, e.created_at, ${NAME("u")} AS by FROM tenant.asset_condition_events e LEFT JOIN public.users u ON u.id = e.observed_by
       WHERE e.asset_id = $1 AND e.status = 'PROPOSED' AND e.created_at > COALESCE((SELECT max(x.created_at) FROM tenant.asset_condition_events x WHERE x.asset_id = e.asset_id AND x.status = 'APPLIED'), '-infinity')

@@ -9,6 +9,7 @@ import { JOB_TYPE as LOW_STOCK_DISPATCH_JOB_TYPE } from "./handlers/stock-low-st
 import { JOB_TYPE as HOLD_OVERDUE_JOB_TYPE } from "./handlers/manufacturing-hold-overdue.js";
 import { JOB_TYPE as PROJECT_ALERTS_JOB_TYPE } from "./handlers/projects-alerts.js";
 import { JOB_TYPE as DEPRECIATION_AUTOMATION_JOB_TYPE } from "./handlers/assets-depreciation-automation.js";
+import { JOB_TYPE as MAINTENANCE_SCHEDULE_JOB_TYPE } from "./handlers/assets-maintenance.js";
 
 const logger = createLogger("worker-scheduler");
 
@@ -138,6 +139,21 @@ export async function runSchedulerTick(pool, config) {
       else enqueued += 1;
     } catch (error) {
       logger.error("depreciation automation tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // Asset maintenance: once a day (calendar-date key) — due preventive services become Work Orders once each, then overdue work is notified.
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, {
+          jobType: MAINTENANCE_SCHEDULE_JOB_TYPE,
+          idempotencyKey: `asset-maintenance:${snapshotDay}`,
+          payload: { date: snapshotDay },
+          maxAttempts: 3,
+        }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("asset maintenance tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
   }
   logger.info("scheduler tick complete", { organizations: organizationIds.length, enqueued, deduped, bucket });

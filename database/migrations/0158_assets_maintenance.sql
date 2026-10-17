@@ -340,12 +340,12 @@ BEGIN
       estimated_minutes, last_completed_date, created_by, created_at, legacy_plan_id)
   SELECT p.organization_id, 'AMP-C' || lpad(row_number() OVER (PARTITION BY p.organization_id ORDER BY p.created_at)::text, 5, '0'), p.asset_id, p.name,
     CASE WHEN p.maintenance_type IN ('inspection', 'calibration', 'statutory') THEN 'INSPECTION' ELSE 'PREVENTIVE' END,
-    CASE p.frequency_unit WHEN 'day' THEN 'DAYS' WHEN 'week' THEN 'DAYS' ELSE 'MONTHS' END,
-    CASE p.frequency_unit WHEN 'week' THEN p.frequency_value * 7 WHEN 'year' THEN p.frequency_value * 12 ELSE p.frequency_value END,
+    CASE p.frequency_unit WHEN 'days' THEN 'DAYS' WHEN 'weeks' THEN 'DAYS' ELSE 'MONTHS' END,
+    CASE p.frequency_unit WHEN 'weeks' THEN p.frequency_value * 7 WHEN 'years' THEN p.frequency_value * 12 ELSE p.frequency_value END,
     COALESCE(p.next_due_date, current_date), COALESCE(p.next_due_date, current_date), COALESCE(p.lead_days, 7), p.supplier_id,
     CASE WHEN p.estimated_hours > 0 THEN (p.estimated_hours * 60)::integer END, p.last_completed_date, p.created_by, p.created_at, p.id
   FROM tenant.asset_maintenance_plans p
-  WHERE p.active AND p.asset_id IS NOT NULL AND p.frequency_unit IN ('day', 'week', 'month', 'year') AND p.frequency_value > 0
+  WHERE p.active AND p.asset_id IS NOT NULL AND p.frequency_unit IN ('days', 'weeks', 'months', 'years') AND p.frequency_value > 0
     AND NOT EXISTS (SELECT 1 FROM tenant.asset_maintenance_service_plans s WHERE s.legacy_plan_id = p.id);
   UPDATE tenant.asset_maintenance_plans p SET active = false WHERE p.active AND EXISTS (SELECT 1 FROM tenant.asset_maintenance_service_plans s WHERE s.legacy_plan_id = p.id);
 END $$;

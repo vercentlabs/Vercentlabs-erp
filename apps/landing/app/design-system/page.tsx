@@ -36,7 +36,8 @@ export default function DesignSystemPage() {
 
       <Heading level="display">Operational Ledger — Design System</Heading>
       <Text variant="lead" className="mt-3 max-w-[70ch]">
-        Every reusable primitive, in every state it supports.
+        Every reusable primitive shipped in Phase 2, in every state it supports. See{" "}
+        <InlineCode>docs/landing-redesign/phase-2/component-inventory.md</InlineCode> for the full written spec.
       </Text>
 
       {/* Colour */}
@@ -69,7 +70,7 @@ export default function DesignSystemPage() {
         </Grid>
 
         <Text variant="label" className="mt-8 block">
-          Module accents (all landing-original — see landing-content modules/*.js)
+          Module accents (all landing-original — see modules.js)
         </Text>
         <Inline gap={2} className="mt-3">
           {LANDING_MODULES.map((module) => (
@@ -77,7 +78,7 @@ export default function DesignSystemPage() {
           ))}
         </Inline>
         <Text variant="caption" className="mt-2">
-          Landing-owned colors, not sourced from the product.
+          Landing-owned colors, not sourced from the product. See creative-direction.md.
         </Text>
       </Section>
 
@@ -100,7 +101,7 @@ export default function DesignSystemPage() {
           <Text variant="eyebrow">Eyebrow label</Text>
           <Text variant="caption">Caption text, for image captions and fine print.</Text>
           <Text variant="dataValue" className="tabular-data">
-            1,284
+            991
           </Text>
           <Text variant="dataLabel">Data label</Text>
           <Text variant="body">

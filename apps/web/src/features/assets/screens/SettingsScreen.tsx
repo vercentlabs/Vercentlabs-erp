@@ -31,6 +31,11 @@ const TOGGLES: Array<[string, string, string]> = [
     "Transfers need approval before they complete",
   ],
   [
+    "maintenanceRestrictOnSafety",
+    "maintenance_restrict_on_safety",
+    "Restrict an asset's use at once when a problem is reported as possibly unsafe",
+  ],
+  [
     "requireDisposalApproval",
     "require_disposal_approval",
     "Disposals need approval before they complete",
@@ -75,6 +80,9 @@ export function AssetsSettingsScreen() {
         defaultDepreciationMethod: form.default_depreciation_method,
         depreciationConvention: form.depreciation_convention,
         maintenanceLeadDays: form.maintenance_lead_days,
+        maintenanceApprovalThreshold: form.maintenance_approval_threshold,
+        disposalManagementThreshold: form.disposal_management_threshold,
+        maintenanceRestrictOnSafety: form.maintenance_restrict_on_safety,
       }),
     onSuccess: () => {
       setMessage("Settings saved.");
@@ -151,6 +159,24 @@ export function AssetsSettingsScreen() {
             value={Number(form.maintenance_lead_days ?? 7)}
             onChange={(v) =>
               setForm((f) => ({ ...f, maintenance_lead_days: v }))
+            }
+            minValue={0}
+          />
+          <NumberField
+            label="Maintenance approval from (estimate, ₹)"
+            isDisabled={!editable}
+            value={Number(form.maintenance_approval_threshold ?? 10000)}
+            onChange={(v) =>
+              setForm((f) => ({ ...f, maintenance_approval_threshold: v }))
+            }
+            minValue={0}
+          />
+          <NumberField
+            label="Disposal management approval from (carrying value, ₹)"
+            isDisabled={!editable}
+            value={Number(form.disposal_management_threshold ?? 100000)}
+            onChange={(v) =>
+              setForm((f) => ({ ...f, disposal_management_threshold: v }))
             }
             minValue={0}
           />

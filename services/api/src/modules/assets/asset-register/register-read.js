@@ -173,7 +173,8 @@ export async function getAssetView(client, c, assetId, view) {
     case "warranty": {
       const rows = await q(`SELECT w.*, to_char(w.start_date, 'YYYY-MM-DD') AS s, to_char(w.end_date, 'YYYY-MM-DD') AS e FROM tenant.asset_warranties w WHERE w.asset_id = $1 ORDER BY w.created_at DESC`);
       const ctx = await ctxOf(client, c);
-      const maintenance = (await client.query(`SELECT count(*)::int AS n FROM tenant.asset_maintenance_orders WHERE asset_id = $1 AND status NOT IN ('completed', 'cancelled')`, [asset.id]).catch(() => ({ rows: [{ n: 0 }] }))).rows[0].n;
+      const maintenance = (await client.query(`SELECT ((SELECT count(*) FROM tenant.asset_maintenance_orders WHERE asset_id = $1 AND status NOT IN ('completed', 'cancelled'))
+        + (SELECT count(*) FROM tenant.asset_maintenance_work_orders WHERE asset_id = $1 AND status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SCHEDULED', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'WAITING_FOR_VENDOR', 'WORK_COMPLETED', 'PENDING_VERIFICATION', 'RECOVERY_REQUIRED')))::int AS n`, [asset.id]).catch(() => ({ rows: [{ n: 0 }] }))).rows[0].n;
       return { provider: asset.warranty_provider, reference: asset.warranty_reference, startDate: asset.warranty_start_date ?? null, endDate: asset.warranty_end_date ?? null,
         state: warrantyState(asset.warranty_end_date, ctx.today, ctx.alertDays), supportContact: asset.support_contact, openMaintenanceOrders: maintenance, availability: asset.availability_status,
         history: rows.map((r) => ({ id: r.id, provider: r.provider_name, startDate: r.s, endDate: r.e, reference: r.terms, at: r.created_at })) };

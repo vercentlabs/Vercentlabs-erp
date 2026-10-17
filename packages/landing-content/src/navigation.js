@@ -1,9 +1,7 @@
 /**
- * Global navigation and the CTA contract.
- *
- * `navGroup` values in MODULE_NAV_GROUPS must match the `navGroup` field
- * assigned to each module in modules/*.js. The groups are reading aids for the
- * module map, not industries or target markets.
+ * Mega-menu and CTA structure from docs/landing-redesign/phase-1/information-architecture.md
+ * and conversion-architecture.md. `navGroup` values here must match the `navGroup` field
+ * assigned to each module in modules.js.
  */
 export const MODULE_NAV_GROUPS = Object.freeze([
   { key: "revenue", label: "Revenue", moduleKeys: ["crm", "sales", "point-of-sale"] },
@@ -13,74 +11,68 @@ export const MODULE_NAV_GROUPS = Object.freeze([
   { key: "delivery", label: "Delivery", moduleKeys: ["projects"] },
 ]);
 
-/**
- * Header navigation. Industries and Solutions are deliberately not top-level:
- * they are use-case entry points (footer and contextual links), not the brand.
- * Every href must be a real route (enforced by apps/landing tests).
- */
 export const PRIMARY_NAV = Object.freeze([
   {
     label: "Product",
     href: "/product",
     children: [
-      { label: "Product Overview", href: "/product" },
       { label: "Platform", href: "/product/platform" },
-      { label: "Built-In Controls", href: "/product/automation" },
-      { label: "Reporting", href: "/product/analytics" },
-      { label: "Responsive Access", href: "/product/mobile" },
-      { label: "Import & Export", href: "/product/integrations" },
+      { label: "Automation", href: "/product/automation" },
+      { label: "Analytics", href: "/product/analytics" },
+      { label: "Mobile", href: "/product/mobile" },
       { label: "Security", href: "/security" },
+      { label: "Integrations", href: "/product/integrations" },
       { label: "Implementation", href: "/implementation" },
+      { label: "Solutions", href: "/solutions" },
+      { label: "Workflows", href: "/workflows" },
     ],
   },
   { label: "Modules", href: "/modules" },
-  { label: "Workflows", href: "/workflows" },
+  { label: "Industries", href: "/industries" },
   { label: "Resources", href: "/resources" },
-  { label: "Security", href: "/security" },
 ]);
 
 /**
- * The global CTA contract — the one place the site's conversion hierarchy is
- * defined. Components render these by role, never by hard-coded label:
- *
- *   primary          the main evaluation action (header, hero, final CTA,
- *                    sticky mobile bar, footer). Today: explore the public
- *                    product pages. When a self-serve trial is approved and
- *                    built, change this entry — not the components.
- *   talkToSpecialist assisted evaluation via the /book-demo lead form.
- *   bookDemo         the same form, for contexts that explicitly ask for a
- *                    tailored demo (campaign and sales-assisted pages).
- *
- * "Sign in" is the remaining utility action; its URL comes from the
- * deployment (NEXT_PUBLIC_APP_URL), so only its label lives here.
- *
- * Labels name the action and the object — never "Learn More"/"Get Started" —
- * and never promise an experience that doesn't exist (no trial, sandbox, live
- * demo, or product tour).
+ * CTA labels and wording rules from conversion-architecture.md: never generic
+ * ("Learn More"/"Get Started") — always name the action and, where relevant, the object.
  */
 export const CTAS = Object.freeze({
-  primary: Object.freeze({ label: "Explore the ERP", href: "/product" }),
-  talkToSpecialist: Object.freeze({ label: "Talk to an ERP Specialist", href: "/book-demo?intent=specialist" }),
-  bookDemo: Object.freeze({ label: "Book a Demo", href: "/book-demo" }),
+  primary: { label: "Book a Demo", href: "/book-demo" },
+  exploreProduct: { label: "Explore the Platform", href: "/product/platform" },
+  exploreModules: { label: "Explore Modules", href: "/modules" },
+  watchTour: { label: "Watch Product Tour", href: "/product-tour" },
+  seeHowItWorks: { label: "See How It Works", href: "/workflows" },
+  talkToSpecialist: { label: "Talk to an ERP Specialist", href: "/book-demo?intent=specialist" },
 });
-
-export const SIGN_IN_LABEL = "Sign in";
 
 /**
  * Site-wide top announcement bar (components/layout/announcement-banner.tsx).
- * Only for a real, time-bound announcement — set to null when there is none,
- * and the bar doesn't render. `id` is a dismissal key stored in localStorage:
- * use a new id for each new announcement. No fabricated offers or amounts.
+ * `id` is a dismissal key stored in localStorage — bump it whenever the message
+ * changes so visitors who dismissed an earlier announcement see the new one.
+ * No fabricated offer/discount/credit amount here: this project's evidence rules
+ * (docs/landing-redesign/phase-1's "never fabricate" rule) apply to promotional
+ * claims exactly as they do to product claims — a specific number here would be a
+ * real commercial promise, not filler copy.
  */
-export const ANNOUNCEMENT_BANNER = null;
+export const ANNOUNCEMENT_BANNER = Object.freeze({
+  id: "launch-2026-08",
+  message: "Vercentlabs ERP is live — see it running your workflows.",
+  ctaLabel: "Book a Demo",
+  href: "/book-demo",
+});
 
 /**
  * Analytics event names not tied to a specific homepage section (those are
  * declared per-section via `analyticsId` in homepage.js instead — see
- * apps/landing/lib/analytics.ts's HomepageAnalyticsId type). This array and
- * index.d.ts's ANALYTICS_EVENTS tuple type must be kept in exact sync —
- * nothing at runtime validates track() calls against this array, so drift
- * would otherwise typecheck clean. tests/analytics-events-sync.test.mjs parses
+ * apps/landing/lib/analytics.ts's HomepageAnalyticsId type). Reconciled in
+ * Phase 3 against what apps/landing actually calls track() with, and again in
+ * Phase 4 for the new module/platform events — this array and index.d.ts's
+ * ANALYTICS_EVENTS tuple type must be kept in exact sync (a Phase 4 Cycle 2
+ * review caught this array drifting behind the .d.ts: the type declared 7
+ * event names the runtime array never actually had, which typechecked clean
+ * only because nothing at runtime validates track() calls against this array
+ * — see docs/landing-redesign/phase-4/decision-log.md). This is no longer
+ * just a documented convention: tests/analytics-events-sync.test.mjs parses
  * index.d.ts's literal-union source and fails the build if it and this array
  * ever diverge again. "product_tour_play" remains reserved for a page that
  * doesn't exist yet.

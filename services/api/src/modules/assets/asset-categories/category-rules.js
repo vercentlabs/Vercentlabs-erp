@@ -22,17 +22,17 @@ export const CUSTODIAN_POLICY = Object.freeze({ ALLOWED: "Can be assigned to a p
 export const OWNERSHIP_APPLICABILITY = Object.freeze({ ANY: "Owned or external", OWNED_ONLY: "Company-owned only", EXTERNAL_ONLY: "Leased or third-party only" });
 // The operational rules, which a version snapshot records.
 export const OPERATIONAL = ["assetType", "capitalizationGuidance", "serialNumberPolicy", "assetTagPolicy", "locationRequired", "custodianPolicy", "warrantyApplicable", "maintenanceApplicable",
-  "verificationApplicable", "suggestedCondition", "defaultDepartmentId", "ownershipApplicability"];
+  "verificationApplicable", "scrapEvidenceRequired", "suggestedCondition", "defaultDepartmentId", "ownershipApplicability"];
 // The Finance references: set only with the financial-policy permission, seen only by those allowed.
 export const FINANCE = ["accountingClass", "depreciationMethod", "usefulLifeMonths", "residualValuePercent", "decliningRate", "depreciationConvention", "taxDepreciationReference", "capitalizationThreshold",
-  "assetAccountId", "accumulatedDepreciationAccountId", "depreciationExpenseAccountId", "gainLossAccountId", "cwipAccountId", "financePolicyEffectiveFrom"];
+  "assetAccountId", "accumulatedDepreciationAccountId", "depreciationExpenseAccountId", "gainLossAccountId", "disposalLossAccountId", "proceedsAccountId", "cwipAccountId", "financePolicyEffectiveFrom"];
 export const COLUMN = Object.freeze({
   name: "name", description: "description", assetType: "asset_type", capitalizationGuidance: "capitalization_guidance", serialNumberPolicy: "serial_number_policy", assetTagPolicy: "asset_tag_policy",
-  locationRequired: "location_required", custodianPolicy: "custodian_policy", warrantyApplicable: "warranty_applicable", maintenanceApplicable: "maintenance_applicable",
+  locationRequired: "location_required", custodianPolicy: "custodian_policy", warrantyApplicable: "warranty_applicable", maintenanceApplicable: "maintenance_applicable", scrapEvidenceRequired: "scrap_evidence_required",
   verificationApplicable: "verification_applicable", suggestedCondition: "suggested_condition", defaultDepartmentId: "default_department_id", ownershipApplicability: "ownership_applicability",
   accountingClass: "accounting_class", depreciationMethod: "depreciation_method", usefulLifeMonths: "useful_life_months", residualValuePercent: "residual_value_percent", decliningRate: "declining_rate",
   depreciationConvention: "depreciation_convention", taxDepreciationReference: "tax_depreciation_reference", capitalizationThreshold: "capitalization_threshold", assetAccountId: "asset_account_id",
-  accumulatedDepreciationAccountId: "accumulated_depreciation_account_id", depreciationExpenseAccountId: "depreciation_expense_account_id", gainLossAccountId: "gain_loss_account_id", cwipAccountId: "cwip_account_id",
+  accumulatedDepreciationAccountId: "accumulated_depreciation_account_id", depreciationExpenseAccountId: "depreciation_expense_account_id", gainLossAccountId: "gain_loss_account_id", disposalLossAccountId: "disposal_loss_account_id", proceedsAccountId: "proceeds_account_id", cwipAccountId: "cwip_account_id",
   financePolicyEffectiveFrom: "finance_policy_effective_from",
 });
 // Starter templates — examples a Company chooses from, never created unasked. [key, name, type, guidance, serial, tag, location, custodian, warranty, maintenance, description]

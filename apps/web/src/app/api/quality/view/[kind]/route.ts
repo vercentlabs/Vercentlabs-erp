@@ -1,7 +1,5 @@
 import {
   getQualitySettings,
-  listQualityPlans,
-  getQualityPlan,
   listInspections,
   getInspection,
   listNonconformances,
@@ -30,18 +28,6 @@ export async function GET(
           return { options: await listQualityOptions(client, context) };
         case "settings":
           return { settings: await getQualitySettings(client, context) };
-        case "plans":
-          return {
-            rows: await listQualityPlans(client, context, {
-              planType: get("planType"),
-              status: get("status"),
-              itemId: get("itemId"),
-            }),
-          };
-        case "plan":
-          return {
-            plan: await getQualityPlan(client, context, get("id") ?? ""),
-          };
         case "inspections":
           return {
             rows: await listInspections(client, context, {

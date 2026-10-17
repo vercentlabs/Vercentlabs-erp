@@ -11,6 +11,8 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { readView, type Row } from "@/features/quality/shared/client";
 import { quantity } from "@/features/quality/shared/format";
+import { SpecificationsHomePanel } from "@/features/quality/specifications/SpecScreens";
+import { ControlPointsHomePanel } from "@/features/quality/control-points/QcpScreens";
 
 // F342: the Quality KPI dashboard.
 export function QualityDashboardScreen() {
@@ -32,8 +34,10 @@ export function QualityDashboardScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Quality"
-        description="Inspections, holds and non-conformances, at a glance."
+        description="Specifications, inspections, holds and non-conformances, at a glance."
       />
+      <ControlPointsHomePanel />
+      <SpecificationsHomePanel />
       {d && (
         <MetricStrip
           metrics={[

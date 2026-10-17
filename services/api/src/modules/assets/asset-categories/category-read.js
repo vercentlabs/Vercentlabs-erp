@@ -19,7 +19,7 @@ function shape(c, row) {
     capitalizationGuidance: row.capitalization_guidance, capitalizationGuidanceLabel: GUIDANCE[row.capitalization_guidance], serialNumberPolicy: row.serial_number_policy,
     serialNumberPolicyLabel: SERIAL_POLICY[row.serial_number_policy], assetTagPolicy: row.asset_tag_policy, assetTagPolicyLabel: TAG_POLICY[row.asset_tag_policy], locationRequired: row.location_required,
     custodianPolicy: row.custodian_policy, custodianPolicyLabel: CUSTODIAN_POLICY[row.custodian_policy], warrantyApplicable: row.warranty_applicable, maintenanceApplicable: row.maintenance_applicable,
-    verificationApplicable: row.verification_applicable, suggestedCondition: row.suggested_condition, defaultDepartmentId: row.default_department_id, ownershipApplicability: row.ownership_applicability,
+    verificationApplicable: row.verification_applicable, scrapEvidenceRequired: row.scrap_evidence_required === true, suggestedCondition: row.suggested_condition, defaultDepartmentId: row.default_department_id, ownershipApplicability: row.ownership_applicability,
     ownershipApplicabilityLabel: OWNERSHIP_APPLICABILITY[row.ownership_applicability], active: row.active, policyVersion: row.policy_version, version: row.row_version, template: row.template_key,
     createdAt: row.created_at, updatedAt: row.updated_at,
     counts: row.total === undefined ? undefined : { total: row.total, active: row.active, ended: row.ended, tracked: row.tracked, capitalized: row.capitalized },

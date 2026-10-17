@@ -1,35 +1,32 @@
 
-import {
-  CAPABILITY_GROUPS,
-  CONTENT_AUTHORS,
-  LANDING_MODULES,
-  LAUNCH_CAPABILITY_SUMMARY,
-  LAUNCH_CAPABILITY_TOTAL,
-  SHARED_PLATFORM_KEY,
-  getCapabilityGroupOwner,
-  getFreshness,
-  getLaunchCapabilityOwner,
-  getResourceGuide,
-} from "@vercentlabs/landing-content";
+import { CAPABILITY_GROUPS, LANDING_MODULES, getResourceGuide, getFreshness, getTotalRequirementCount, CONTENT_AUTHORS } from "@vercentlabs/landing-content";
 import { Container, Section, Stack } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { ArticleHeader } from "@/components/content/article-header";
 import { RequirementsChecklist, type ChecklistGroup } from "@/components/resources/requirements-checklist";
 import { FaqAccordion } from "@/components/marketing/faq-accordion";
-import { ContextualCta } from "@/components/conversion/contextual-cta";
+import { ContextualCta } from "@/components/shared/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
 import { Reveal } from "@/components/motion/reveal";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
-import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID, editorialAttributionJsonLd } from "@/lib/seo/json-ld";
+import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
 import { absoluteUrl } from "@/lib/site";
 
 const AUTHOR = CONTENT_AUTHORS[0];
 
+const PLATFORM_AREA_LABELS: Record<string, string> = {
+  platform: "Platform Architecture",
+  security: "Security & Governance",
+  automation: "Workflow Automation",
+  analytics: "Reporting & Analytics",
+  mobile: "Mobile ERP",
+};
+
 export const metadata = buildPageMetadata({
   title: "The ERP Requirements Checklist",
-  description: `A structured, filterable ERP requirements checklist built from Vercentlabs ERP's ${LAUNCH_CAPABILITY_SUMMARY} — no login required, nothing transmitted.`,
+  description: "A structured, filterable ERP requirements checklist covering 991 documented requirements across 12 modules and a shared platform layer — no login required, nothing transmitted.",
   path: "/resources/erp-requirements-checklist",
 });
 
@@ -37,19 +34,20 @@ export default function RequirementsChecklistPage() {
   const guide = getResourceGuide("erp-requirements-checklist");
   if (!guide) return null;
   const freshness = getFreshness("/resources/erp-requirements-checklist");
+  const totalRequirements = getTotalRequirementCount();
 
-  const moduleNameByKey = new Map(LANDING_MODULES.map((m) => [m.key, m.displayName]));
+  const moduleNameByKey = new Map(LANDING_MODULES.map((m) => [m.key, m.name]));
 
   const groups: ChecklistGroup[] = CAPABILITY_GROUPS.map((group) => {
-    const filterKey = getCapabilityGroupOwner(group);
+    const filterKey = group.moduleId ?? group.platformArea ?? "platform";
     const filterLabel = group.moduleId
       ? (moduleNameByKey.get(group.moduleId) ?? group.moduleId)
-      : (getLaunchCapabilityOwner(SHARED_PLATFORM_KEY)?.label ?? "Shared Platform");
+      : (PLATFORM_AREA_LABELS[group.platformArea ?? "platform"] ?? "Platform");
     return {
       id: group.id,
       name: group.name,
       description: group.description,
-      capabilities: [...group.capabilities],
+      requirementCount: group.requirementCount,
       publicPage: group.publicPage,
       filterKey,
       filterLabel,
@@ -57,8 +55,8 @@ export default function RequirementsChecklistPage() {
   });
 
   const filters = [
-    ...LANDING_MODULES.map((m) => ({ key: m.key, label: m.displayName })),
-    { key: SHARED_PLATFORM_KEY, label: getLaunchCapabilityOwner(SHARED_PLATFORM_KEY)?.label ?? "Shared Platform" },
+    ...LANDING_MODULES.map((m) => ({ key: m.key, label: m.name })),
+    ...Object.entries(PLATFORM_AREA_LABELS).map(([key, label]) => ({ key, label })),
   ].filter((filter) => groups.some((g) => g.filterKey === filter.key));
 
   const breadcrumbTrail = [
@@ -72,7 +70,7 @@ export default function RequirementsChecklistPage() {
     headline: guide.title,
     description: guide.metaDescription,
     url: absoluteUrl("/resources/erp-requirements-checklist"),
-    ...editorialAttributionJsonLd(AUTHOR.name),
+    author: { "@type": "Organization", name: AUTHOR.name },
     datePublished: freshness.publishedAt,
     dateModified: freshness.lastModifiedAt,
     isPartOf: { "@id": SOFTWARE_APPLICATION_ID },
@@ -114,7 +112,7 @@ export default function RequirementsChecklistPage() {
             <div>
               <span className="vl-folio">BUYER WORKSHEET / 01</span>
               <p className="mt-6 tabular-data text-6xl font-semibold tracking-[-0.06em] text-(--color-text-primary)">{groups.length}</p>
-              <Text variant="caption">capability groups / {LAUNCH_CAPABILITY_TOTAL} approved MVP capabilities</Text>
+              <Text variant="caption">capability groups / {totalRequirements} source requirements</Text>
             </div>
             <div className="border-t border-(--color-border-default)">
               {guide.sections.map((section, sectionIndex) => (

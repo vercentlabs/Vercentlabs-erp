@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { QUALITY_PAGES } from "@/features/quality/pages";
 import { QualityPage } from "@/features/quality/QualityPage";
@@ -18,6 +18,8 @@ export default async function Page({
   params: Promise<{ page: string }>;
 }) {
   const { page } = await params;
+  // Quality plans became Inspection Specifications (each published version is mirrored as the plan an inspection uses).
+  if (page === "plans" || page === "plan-builder") redirect("/quality/specifications");
   if (!(page in QUALITY_PAGES)) notFound();
   return <QualityPage name={page} />;
 }

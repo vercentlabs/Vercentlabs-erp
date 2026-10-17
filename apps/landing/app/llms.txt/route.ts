@@ -9,14 +9,13 @@ import {
   STANDALONE_GLOSSARY_SLUGS,
   GLOSSARY_TERMS,
   VERCENTLABS_VS_ODOO,
-  LAUNCH_CAPABILITY_SUMMARY,
-  POSITIONING,
 } from "@vercentlabs/landing-content";
 import { SITE, absoluteUrl } from "@/lib/site";
 
 /**
  * llms.txt — NOT a ranking mechanism and not treated as one anywhere on
- * this site. This is
+ * this site (see .claude/rules/landing-content.md and
+ * docs/landing-redesign/phase-6/decision-log.md's llms.txt entry). This is
  * an optional interoperability artifact: a plain-text index of real,
  * canonical routes, generated from the same content data every other page
  * reads from — so it can't silently drift out of sync with the live site
@@ -29,18 +28,16 @@ function buildLlmsTxt(): string {
   const lines: string[] = [
     `# ${SITE.productName}`,
     "",
-    `> ${SITE.productName} is ${SITE.category.toLowerCase().replace("erp", "ERP")} — ${POSITIONING.masterPromise.charAt(0).toLowerCase()}${POSITIONING.masterPromise.slice(1, -1)}, with ${LAUNCH_CAPABILITY_SUMMARY}.`,
-    "",
-    `${POSITIONING.descriptor} It is a multi-tenant, multi-company web application made by ${SITE.name}.`,
+    `> ${SITE.productName} is a multi-tenant, multi-company ERP covering 12 operational modules and a shared platform layer.`,
     "",
     "## Product",
     `- [Product overview](${absoluteUrl("/product")})`,
     ...PLATFORM_PAGES.map((page) => `- [${page.title}](${absoluteUrl(page.slug)})`),
     "",
     "## Modules",
-    ...LANDING_MODULES.map((moduleInfo) => `- [${moduleInfo.displayName}](${absoluteUrl(`/modules/${moduleInfo.key}`)})`),
+    ...LANDING_MODULES.map((moduleInfo) => `- [${moduleInfo.name}](${absoluteUrl(`/modules/${moduleInfo.key}`)})`),
     "",
-    "## Industry use cases",
+    "## Industries",
     ...LANDING_INDUSTRIES.map((industry) => `- [${industry.name}](${absoluteUrl(`/industries/${industry.slug}`)})`),
     "",
     "## Solutions",

@@ -1,12 +1,15 @@
 /**
  * Buyer-role perspectives woven into industry and workflow pages (via the
- * shared RolePerspective component), not built as standalone pages.
+ * shared RolePerspective component), not built as standalone pages — per
+ * Phase 5's brief: "not necessarily new dedicated indexable pages."
  *
- * Grounded in each ICP's buying committee (Owner/MD, Plant/Operations Head,
- * Finance Head/CFO for Manufacturing; Owner/Operations Director, Purchasing
- * Manager for Distribution/Retail; Managing Partner, Project/Delivery Heads,
- * Finance, HR for Professional Services) — every `proofPoint` traces to a
- * real, cited capability, not invented.
+ * Grounded in docs/landing-redesign/phase-1/icp-and-buyer-map.md's buying
+ * committees (Owner/MD, Plant/Operations Head, Finance Head/CFO for
+ * Manufacturing; Owner/Operations Director, Purchasing Manager for
+ * Distribution/Retail; Managing Partner, Project/Delivery Heads, Finance,
+ * HR for Professional Services) and docs/landing-redesign/phase-1/
+ * product-intelligence.md's per-module "Best marketing angle" lines —
+ * every `proofPoint` traces to a real, cited capability, not invented.
  */
 export const BUYER_ROLES = Object.freeze([
   {
@@ -14,12 +17,12 @@ export const BUYER_ROLES = Object.freeze([
     title: "CEO / Owner",
     concernSummary: "Margin, control, and whether the business can grow without the wheels coming off.",
     primaryConcerns: [
-      "One set of numbers for sales, stock, and the books",
+      "Real margin visibility, not a month-end guess",
       "Whether the team will actually adopt a new system",
-      "Control across companies and branches without handing out all-or-nothing access",
+      "Control across companies and branches without micromanaging every approval",
     ],
     relevantModuleKeys: ["accounting", "manufacturing", "projects"],
-    proofPoint: "Roles, permissions, and company and branch access let an owner give each person access to the companies, branches, and records they need — without handing out all-or-nothing admin rights.",
+    proofPoint: "Time-bound, scoped role assignments mean an owner can grant real access — to a specific company, branch, or department — without handing out all-or-nothing admin rights.",
   },
   {
     slug: "coo",
@@ -28,46 +31,46 @@ export const BUYER_ROLES = Object.freeze([
     primaryConcerns: [
       "One stock number across every location, not a reconciled-at-month-end estimate",
       "Procurement and production actually staying synchronised",
-      "Stock reservations and quality holds that keep promises reliable",
+      "Governed approvals that don't slow the business down",
     ],
     relevantModuleKeys: ["stock", "procurement", "manufacturing"],
-    proofPoint: "Goods receipts, sales orders, Manufacturing, and Point of Sale all work on the same real-time stock ledger — not a nightly batch sync between separate systems.",
+    proofPoint: "Manufacturing and Point of Sale both post real, race-safe stock movements into the same ledger in the same database transaction as the underlying event — not a nightly batch sync.",
   },
   {
     slug: "cfo",
     title: "CFO / Finance Head",
     concernSummary: "Costing accuracy, an audit trail that holds up, and a close that doesn't depend on tribal knowledge.",
     primaryConcerns: [
-      "Production costing and inventory valuation from real movements",
-      "Fiscal years, accounting periods, and double-entry enforcement on every journal",
+      "Real-time costing instead of a month-end guess",
+      "A close process that mechanically blocks completion until exceptions are resolved",
       "An audit trail no one — including an app bug — can quietly alter",
     ],
     relevantModuleKeys: ["accounting", "procurement", "projects"],
-    proofPoint: "The platform audit log is protected at the database level — a trigger rejects any attempt to update or delete an entry, even from inside the application.",
+    proofPoint: "Every audit log entry is immutable at the database level — a Postgres trigger rejects UPDATE and DELETE even against application bugs, not just a UI restriction.",
   },
   {
     slug: "sales-leader",
     title: "Sales Leader",
     concernSummary: "Whether the pipeline reflects real qualification, and whether quotes convert without friction.",
     primaryConcerns: [
-      "A pipeline built on real qualification stages, not optimism",
-      "Quotations created straight from the opportunity, without re-typing",
-      "Stock availability checked before an order is confirmed, not after",
+      "A forecast built on evidence, not optimism",
+      "Fast, self-service quote acceptance that doesn't stall a deal",
+      "Real-time credit visibility before a deal is confirmed, not after",
     ],
     relevantModuleKeys: ["crm", "sales"],
-    proofPoint: "An opportunity converts into a Sales quotation, and the resulting sales order checks availability and reserves stock before it's confirmed.",
+    proofPoint: "A quotation can be accepted or rejected by the customer via a public, single-use, hashed share link with a typed digital signature — no login required, no separate portal to build.",
   },
   {
     slug: "plant-manager",
     title: "Plant / Operations Manager",
     concernSummary: "Whether the shop floor can actually run on the system, day to day, without a paper backup.",
     primaryConcerns: [
-      "Manufacturing orders checked for material availability before production starts",
+      "Work orders that can't be released without proven material availability",
       "Quality holds that actually stop bad material from moving, not a note in a spreadsheet",
       "Usability the shop floor will adopt, not just the planning office",
     ],
     relevantModuleKeys: ["manufacturing", "quality", "stock"],
-    proofPoint: "Each manufacturing order checks material availability against its bill of materials, and every material issue and finished-goods receipt posts to the same stock ledger.",
+    proofPoint: "A released work order cannot proceed without proven component availability, and every material issue and finished-goods receipt posts as a real, auditable stock movement in the same transaction.",
   },
   {
     slug: "hr-leader",
@@ -79,7 +82,7 @@ export const BUYER_ROLES = Object.freeze([
       "A single employee record instead of parallel HR and payroll spreadsheets",
     ],
     relevantModuleKeys: ["hr-payroll"],
-    proofPoint: "An approver can't approve a payroll that includes their own pay, and nobody can decide their own leave request — enforced by the system, not left to policy.",
+    proofPoint: "Payroll runs require a different approver than the preparer, and leave requests cannot be approved by the person who submitted them — enforced in the code, not left to policy.",
   },
 ]);
 

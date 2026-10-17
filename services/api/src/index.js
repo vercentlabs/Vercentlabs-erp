@@ -80,10 +80,15 @@ export * from "./modules/assets/asset-assignments/index.js";
 export * from "./modules/assets/asset-movements/index.js";
 export * from "./modules/assets/asset-depreciation/index.js";
 export * from "./modules/assets/asset-depreciation-automation/index.js";
+export * from "./modules/assets/asset-maintenance/index.js";
+export * from "./modules/assets/asset-disposal/index.js";
+export * from "./modules/assets/asset-overview/index.js";
 export * from "./modules/point-of-sale/index.js";
 export { qualityContext } from "./modules/quality/common.js";
+export * from "./modules/quality/specifications/index.js";
+export * from "./modules/quality/control-points/index.js";
 export {
-  getQualitySettings, saveQualitySettings, listQualityPlans, getQualityPlan, createQualityPlan as defineQualityPlan, approveQualityPlan, reviseQualityPlan, retireQualityPlan, listInspections, getInspection, createInspection as createQualityInspection, recordInspectionResults, completeInspection as completeQualityInspection, releaseInspection as releaseQualityInspection, cancelInspection as cancelQualityInspection,
+  getQualitySettings, saveQualitySettings, listInspections, getInspection, createInspection as createQualityInspection, recordInspectionResults, completeInspection as completeQualityInspection, releaseInspection as releaseQualityInspection, cancelInspection as cancelQualityInspection,
 } from "./modules/quality/inspections.js";
 export {
   listNonconformances, getNonconformance, createNonconformance as createQualityNonconformance, transitionNonconformance, setDisposition, approveUseAsIs, closeNonconformance, cancelNonconformance,

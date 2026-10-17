@@ -2,10 +2,6 @@ import { z } from "zod";
 
 import {
   saveQualitySettings,
-  defineQualityPlan,
-  approveQualityPlan,
-  reviseQualityPlan,
-  retireQualityPlan,
   createQualityInspection,
   recordInspectionResults,
   completeQualityInspection,
@@ -43,25 +39,6 @@ export async function POST(
       switch (action) {
         case "settings-save":
           return { record: await saveQualitySettings(client, context, input) };
-        case "plan-create":
-          return { record: await defineQualityPlan(client, context, input) };
-        case "plan-approve":
-          return {
-            record: await approveQualityPlan(client, context, idOf(input)),
-          };
-        case "plan-revise":
-          return {
-            record: await reviseQualityPlan(client, context, idOf(input)),
-          };
-        case "plan-retire":
-          return {
-            record: await retireQualityPlan(
-              client,
-              context,
-              idOf(input),
-              String(input.reason ?? ""),
-            ),
-          };
         case "inspection-create":
           return {
             record: await createQualityInspection(client, context, input),

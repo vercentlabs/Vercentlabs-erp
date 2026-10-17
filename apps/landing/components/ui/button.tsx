@@ -2,8 +2,8 @@ import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "reac
 import Link from "next/link";
 import { cx } from "@/lib/utils";
 
-export type ButtonVariant = "primary" | "secondary" | "tertiary" | "inverse" | "inverse-secondary";
-type ButtonSize = "md" | "sm";
+export type ButtonVariant = "primary" | "secondary" | "tertiary" | "inverse";
+export type ButtonSize = "md" | "sm";
 
 const BASE_CLASSES =
   "group inline-flex items-center justify-center gap-2 rounded-[2px] font-semibold tracking-[-0.015em] transition-[color,background-color,border-color,transform] duration-(--duration-fast) ease-(--ease-standard) active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus) disabled:cursor-not-allowed disabled:opacity-50";
@@ -27,8 +27,6 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     "vl-editorial-link rounded-none text-(--color-text-brand) after:ml-1 after:inline-block after:content-['→']",
   inverse:
     "border border-white bg-white text-(--vl-ink) hover:border-(--vl-brand-wash) hover:bg-(--vl-brand-wash)",
-  // Secondary action on dark (inverse/brand) sections — paired with `inverse` as the primary.
-  "inverse-secondary": "border border-white/60 bg-transparent text-white hover:border-white hover:bg-white/10",
 };
 
 function sizeClasses(variant: ButtonVariant, size: ButtonSize): string {

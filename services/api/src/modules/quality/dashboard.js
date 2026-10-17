@@ -27,7 +27,9 @@ export async function listQualityOptions(client, c) {
     () => qx(client, `SELECT id, code, name FROM tenant.items WHERE organization_id=$1 ORDER BY code LIMIT 2000`, p).catch(() => ({ rows: [] })),
     () => qx(client, `SELECT id, code, display_name AS name FROM tenant.business_parties WHERE organization_id=$1 AND party_type IN ('supplier','both') AND status='active' ORDER BY display_name LIMIT 2000`, [c.organizationId]),
     () => qx(client, `SELECT id, code, name FROM tenant.warehouses WHERE organization_id=$1 ORDER BY code LIMIT 500`, p).catch(() => ({ rows: [] })),
-    () => qx(client, `SELECT id, code || ' v' || version AS code, name FROM tenant.quality_plans WHERE organization_id=$1 AND status='active' ORDER BY code LIMIT 500`, p),
+    () => qx(client, `SELECT p.id, COALESCE(s.specification_code || ' v' || v.version_number, p.code || ' v' || p.version) AS code, COALESCE(s.name, p.name) AS name FROM tenant.quality_plans p
+      LEFT JOIN tenant.quality_inspection_spec_versions v ON v.id = p.spec_version_id LEFT JOIN tenant.quality_inspection_specifications s ON s.id = v.specification_id
+      WHERE p.organization_id=$1 AND p.status='active' ORDER BY 2 LIMIT 500`, p),
     () => qx(client, `SELECT id, nonconformance_number AS code, description AS name FROM tenant.quality_nonconformances WHERE organization_id=$1 AND status NOT IN ('closed','cancelled') ORDER BY created_at DESC LIMIT 500`, p),
     () => qx(client, `SELECT id, code, display_name AS name FROM tenant.business_parties WHERE organization_id=$1 AND party_type IN ('customer','both') AND status='active' ORDER BY display_name LIMIT 2000`, [c.organizationId]),
   ]);

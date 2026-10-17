@@ -65,6 +65,8 @@ async function assertAssignable(client, c, a, target, { ownRequestId = null } = 
   const fail = (code, message) => { throw asgError(409, code, message); };
   if (a.archived_at || ["DISPOSED", "LOST", "RETIRED"].includes(a.lifecycle_status)) fail("ASSET_ASSIGNMENT_ASSET_UNAVAILABLE", `${a.asset_number} is ${a.lifecycle_status.toLowerCase()}.`);
   if (a.lifecycle_status === "ON_HOLD") fail("ASSET_ASSIGNMENT_ASSET_UNAVAILABLE", `${a.asset_number} is on hold.`);
+  const pendingDisposal = (await client.query(`SELECT tenant.asset_disposal_pending($1) AS p`, [a.id])).rows[0].p;
+  if (pendingDisposal) fail("ASSET_ASSIGNMENT_ASSET_UNAVAILABLE", `${a.asset_number} is committed to disposal ${pendingDisposal}.`);
   if (target.type !== "ASSET_STORE" && a.lifecycle_status !== "ACTIVE") fail("ASSET_ASSIGNMENT_ASSET_UNAVAILABLE", `${a.asset_number} is not commissioned; it can only go to a store.`);
   if (a.effective === "UNDER_MAINTENANCE") fail("ASSET_ASSIGNMENT_ASSET_UNAVAILABLE", `${a.asset_number} is under maintenance.`);
   if (target.type !== "ASSET_STORE" && a.condition === "UNSERVICEABLE") fail("ASSET_ASSIGNMENT_ASSET_UNAVAILABLE", `${a.asset_number} is unserviceable.`);

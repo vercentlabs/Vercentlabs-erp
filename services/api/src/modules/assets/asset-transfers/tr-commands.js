@@ -106,6 +106,8 @@ async function checkAsset(client, c, order, raw) {
   const repairMove = ["REPAIR", "RETURN_FROM_REPAIR"].includes(reason);
   if (a.archived_at || a.lifecycle_status === "DISPOSED") return fail("ASSET_TRANSFER_ASSET_UNAVAILABLE", `${a.asset_number} is disposed.`);
   if (a.lifecycle_status === "LOST") return fail("ASSET_TRANSFER_ASSET_UNAVAILABLE", `${a.asset_number} is lost; it moves again once recovered.`);
+  const pendingDisposal = (await client.query(`SELECT tenant.asset_disposal_pending($1) AS p`, [a.id])).rows[0].p;
+  if (pendingDisposal && reason !== "DISPOSAL_MOVEMENT") return fail("ASSET_TRANSFER_ASSET_UNAVAILABLE", `${a.asset_number} is committed to disposal ${pendingDisposal}: only its disposal movement.`);
   if (a.lifecycle_status === "ON_HOLD" && !(repairMove && (reason === "RETURN_FROM_REPAIR" || dest?.kind === "REPAIR_FACILITY"))) return fail("ASSET_TRANSFER_ASSET_UNAVAILABLE", `${a.asset_number} is on hold: it moves only to or from repair.`);
   if (a.effective === "UNDER_MAINTENANCE" && !repairMove) return fail("ASSET_TRANSFER_ASSET_UNAVAILABLE", `${a.asset_number} is under maintenance: only a repair movement is possible.`);
   if (["DRAFT", "REGISTERED"].includes(a.lifecycle_status) && !(dest?.is_asset_store && type === "LOCATION")) return fail("ASSET_TRANSFER_ASSET_UNAVAILABLE", `${a.asset_number} is not commissioned: it moves only into an asset store.`);

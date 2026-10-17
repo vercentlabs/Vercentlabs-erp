@@ -2,16 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CTAS, LAUNCH_BUSINESS_MODULE_COUNT, SITE_IDENTITY } from "@vercentlabs/landing-content";
 import { track } from "@/lib/analytics";
 
-/**
- * Mobile-only bar carrying the global primary CTA. Hidden on the lead form
- * (it would compete with the form) and on the page the CTA itself points to.
- */
 export function StickyMobileCta() {
   const pathname = usePathname();
-  if (pathname?.startsWith("/book-demo") || pathname === CTAS.primary.href) return null;
+  if (pathname?.startsWith("/book-demo")) return null;
 
   return (
     <div
@@ -20,16 +15,16 @@ export function StickyMobileCta() {
     >
       <div className="grid grid-cols-[1fr_auto] items-center gap-3">
         <div className="min-w-0">
-          <p className="text-[0.61rem] font-bold uppercase tracking-[0.12em] text-(--color-text-muted)">{SITE_IDENTITY.productName}</p>
-          <p className="truncate text-xs font-semibold text-(--color-text-primary)">{LAUNCH_BUSINESS_MODULE_COUNT} business modules, one ERP</p>
+          <p className="text-[0.61rem] font-bold uppercase tracking-[0.12em] text-(--color-text-muted)">See it on your workflow</p>
+          <p className="truncate text-xs font-semibold text-(--color-text-primary)">30-minute working session</p>
         </div>
         <Link
-          href={CTAS.primary.href}
+          href="/book-demo"
           prefetch={false}
-          onClick={() => track("sticky_mobile_cta_click", { ctaLocation: "sticky_mobile_bar", ctaDestination: CTAS.primary.href })}
+          onClick={() => track("sticky_mobile_cta_click", { ctaLocation: "sticky_mobile_bar", ctaDestination: "/book-demo" })}
           className="flex min-h-10 items-center justify-center rounded-[3px] border border-(--color-bg-brand) bg-(--color-bg-brand) px-4 text-xs font-bold text-white"
         >
-          {CTAS.primary.label}
+          Book a Demo
         </Link>
       </div>
     </div>

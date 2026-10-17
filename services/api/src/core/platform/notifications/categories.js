@@ -239,6 +239,25 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    // Assets — Asset Disposal: a disposal waiting for approval, approved, rejected or sent back, and completed — one per case, never one per asset.
+    key: "asset_disposal",
+    displayName: "Asset disposal",
+    description: "When a disposal waits for your approval, is approved, rejected or sent back, or is completed.",
+    moduleKey: "assets",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Assets — Asset Maintenance: a problem reported (and any safety restriction), a Work Order assigned, work waiting for verification,
+    // preventive services due, overdue work, an asset found unrepairable. One per event, to the maintenance team or the person concerned.
+    key: "asset_maintenance",
+    displayName: "Asset maintenance",
+    description: "When an asset problem is reported, maintenance is assigned to you, a repair waits for verification, a service is due or work is overdue.",
+    moduleKey: "assets",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     // Assets — Automatic Depreciation Accounting: a run ready for approval, posted, blocked or being verified; automatic posting turned on or off.
     // One notification per run outcome, never one per asset.
     key: "asset_depreciation",

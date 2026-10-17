@@ -12,8 +12,7 @@ export interface ChecklistGroup {
   id: string;
   name: string;
   description: string;
-  /** Approved launch capability names in this group (from the launch capability register). */
-  capabilities: string[];
+  requirementCount: number;
   publicPage: string;
   filterKey: string;
   filterLabel: string;
@@ -28,7 +27,9 @@ const STORAGE_KEY = "vercentlabs-requirements-checklist-progress-v1";
  * progress are a progressive-enhancement layer only: progress is
  * localStorage-only, never sent to analytics or a server (this can reveal
  * a buyer's real evaluation criteria, which is exactly the kind of
- * confidential signal that must stay private by default). Only the *filter selection itself* (which
+ * confidential signal .claude/rules/landing-content.md's evidence rules
+ * and docs/landing-redesign/phase-6/requirements-checklist-spec.md treat
+ * as private by default). Only the *filter selection itself* (which
  * module a visitor is looking at) is tracked — never which boxes are
  * checked.
  */
@@ -127,20 +128,17 @@ export function RequirementsChecklist({ groups, filters }: { groups: ChecklistGr
             <div className="min-w-0">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <Heading level="h4" as="h3">{group.name}</Heading>
-                <span className="vl-index sm:hidden">{group.capabilities.length} CAP</span>
+                <span className="vl-index sm:hidden">{group.requirementCount} REQ</span>
               </div>
               <Text variant="bodySmall" className="mt-1">
                 {group.description}
-              </Text>
-              <Text variant="caption" className="mt-2">
-                {group.capabilities.join(" · ")}
               </Text>
               <Link href={group.publicPage} prefetch={false} className="vl-editorial-link mt-2 inline-block text-xs font-bold text-(--color-text-brand) print:hidden">
                 See how Vercentlabs implements this →
               </Link>
             </div>
             <div className="hidden border-l border-(--color-border-default) pl-5 sm:block">
-              <span className="vl-index">{group.capabilities.length} CAP</span>
+              <span className="vl-index">{group.requirementCount} REQ</span>
               <p className="mt-2 text-xs font-semibold text-(--color-text-secondary)">{group.filterLabel}</p>
             </div>
           </li>

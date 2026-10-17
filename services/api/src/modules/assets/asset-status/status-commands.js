@@ -55,7 +55,7 @@ async function usersWith(client, c, permission) {
 }
 async function openWork(client, assetId) {
   const transfer = (await client.query(`SELECT o.transfer_number FROM tenant.asset_transfer_lines l JOIN tenant.asset_transfer_orders o ON o.id = l.transfer_id WHERE l.asset_id = $1 AND l.line_status IN ('PENDING', 'APPROVED', 'DISPATCHED', 'RECEIVED', 'RECEIPT_EXCEPTION', 'RETURN_IN_PROGRESS') LIMIT 1`, [assetId])).rows[0] ?? null;
-  const maintenance = (await client.query(`SELECT work_order_number FROM tenant.asset_maintenance_orders WHERE asset_id = $1 AND status = 'in_progress' LIMIT 1`, [assetId])).rows[0] ?? null;
+  const maintenance = (await client.query(`SELECT work_order_number FROM (SELECT work_order_number FROM tenant.asset_maintenance_orders WHERE asset_id = $1 AND status = 'in_progress' UNION ALL SELECT work_order_number FROM tenant.asset_maintenance_work_orders WHERE asset_id = $1 AND status IN ('IN_PROGRESS', 'WAITING_FOR_PARTS', 'WAITING_FOR_VENDOR', 'WORK_COMPLETED', 'PENDING_VERIFICATION')) m LIMIT 1`, [assetId])).rows[0] ?? null;
   return { transfer, maintenance };
 }
 async function activeUser(client, c, userId, label) {

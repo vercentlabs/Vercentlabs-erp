@@ -1,41 +1,35 @@
 import { WORKSPACE_EMAILS } from "@vercentlabs/config";
 
 /**
- * Site-wide identity and the master brand contract. Brand surfaces (homepage,
- * metadata, OpenGraph image, manifest, footer, llms.txt) read from here.
- *
- * Vercentlabs ERP is positioned as horizontal ERP: one system for the whole
- * business. Industries and regions are use-case and localisation contexts on
- * their own pages, never the master positioning.
+ * Site-wide metadata constants from docs/landing-redesign/phase-1/positioning-and-messaging.md.
+ * Consumed by the generateMetadata helper Prompt 2 scaffolds — no page content is written here.
  */
 export const SITE_IDENTITY = Object.freeze({
   name: "Vercentlabs",
   productName: "Vercentlabs ERP",
   titleTemplate: "%s | Vercentlabs ERP",
-  category: "ERP / Business Management Software",
+  category: "Operational ERP for growing, multi-location businesses",
 });
 
 export const POSITIONING = Object.freeze({
-  /** The master headline — exact punctuation and capitalisation. */
-  heroHeadline: "One ERP. Your entire business.",
-  masterPromise: "Run your entire business in one ERP.",
-  coreIdea: "Every major business function connected in one system.",
-  problemStatement: "Stop running one business through disconnected systems.",
-  /** Short descriptor for footers, manifests, and summaries. */
-  descriptor:
-    "Vercentlabs ERP connects CRM, sales, procurement, inventory, manufacturing, projects, assets, POS, quality, support, HR & payroll, and finance in one business system.",
+  heroHeadline: "The ERP for businesses that outgrew spreadsheets.",
+  heroSubhead:
+    "Sales, inventory, procurement, production, and finance — on one live system, from the first order to the balance sheet.",
+  promise:
+    "Every part of the business runs on the same live numbers — because it's the same system, not five that happen to export to Excel.",
 });
 
 /**
- * Single source of truth for legal/company identity. Only fields
+ * Single source of truth for legal/company identity — Phase 8. Only fields
  * verifiable against real, existing usage elsewhere in the codebase are
  * populated with confidence: "Vercentlabs LLP" is the real legal name already
  * used in apps/web's production auth emails (src/core/mailer.ts) and account
- * UI (src/core/components/auth-card.tsx), not invented.
+ * UI (src/core/components/auth-card.tsx), not invented for this phase.
  *
  * registeredAddress and llpin are intentionally null — no registered office
  * address or LLP Identification Number exists anywhere in this repository,
- * and neither may be fabricated. Both are real BLOCKERs for a fully complete
+ * and neither may be fabricated (see docs/landing-redesign/phase-8/
+ * company-identity-and-trust.md). Both are real BLOCKERs for a fully complete
  * Privacy Policy/Terms of Use under India's DPDPA — the pages ship with
  * accurate placeholder language rather than an invented address, and the gap
  * is flagged explicitly, not hidden.

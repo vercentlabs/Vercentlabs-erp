@@ -8,6 +8,7 @@ import { notifyOverdueTasksHandler, JOB_TYPE as TASK_OVERDUE_JOB_TYPE, payloadSc
 import { notifyOverdueProductionHoldsHandler, JOB_TYPE as HOLD_OVERDUE_JOB_TYPE, payloadSchema as holdOverduePayloadSchema } from "./manufacturing-hold-overdue.js";
 import { notifyProjectAlertsHandler, JOB_TYPE as PROJECT_ALERTS_JOB_TYPE, payloadSchema as projectAlertsPayloadSchema } from "./projects-alerts.js";
 import { runDepreciationAutomationHandler, JOB_TYPE as DEPRECIATION_AUTOMATION_JOB_TYPE, payloadSchema as depreciationAutomationPayloadSchema } from "./assets-depreciation-automation.js";
+import { runMaintenanceScheduleHandler, JOB_TYPE as MAINTENANCE_SCHEDULE_JOB_TYPE, payloadSchema as maintenanceSchedulePayloadSchema } from "./assets-maintenance.js";
 
 // Registers every currently-wired job type. Called once at worker
 // startup (bin/start.mjs) and by tests that need a populated registry.
@@ -72,6 +73,13 @@ export function registerBuiltinHandlers() {
     handler: runDepreciationAutomationHandler,
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // UNIQUE(organization, execution_key) per book and month, an advisory lock per Company, and idempotent posting by the run's source
+    maxAttempts: 3,
+  });
+  registerJobHandler(MAINTENANCE_SCHEDULE_JOB_TYPE, {
+    schema: maintenanceSchedulePayloadSchema,
+    handler: runMaintenanceScheduleHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // UNIQUE(plan, due_date) per occurrence, an advisory lock per Company, and one overdue notice per Work Order and day
     maxAttempts: 3,
   });
 }

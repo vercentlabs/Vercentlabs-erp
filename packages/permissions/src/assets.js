@@ -58,6 +58,21 @@ export const ASSET_PERMISSIONS = Object.freeze({
   // Automatic Depreciation Accounting (0157).
   depreciationAutomationView: "assets.depreciation.automation_view", depreciationAutomationConfigure: "assets.depreciation.automation_configure",
   depreciationAutomationEnable: "assets.depreciation.automation_enable", depreciationRetry: "assets.depreciation.retry",
+  // Asset Maintenance (0158).
+  maintenanceView: "assets.maintenance.view", maintenanceRequest: "assets.maintenance.request", maintenanceTriage: "assets.maintenance.triage",
+  maintenanceCreateWorkOrder: "assets.maintenance.create_work_order", maintenanceAssign: "assets.maintenance.assign", maintenanceApprove: "assets.maintenance.approve",
+  maintenanceSchedule: "assets.maintenance.schedule", maintenanceExecute: "assets.maintenance.execute", maintenanceRecordParts: "assets.maintenance.record_parts",
+  maintenanceViewCost: "assets.maintenance.view_cost", maintenanceComplete: "assets.maintenance.complete", maintenanceVerify: "assets.maintenance.verify",
+  maintenanceRelease: "assets.maintenance.release", maintenanceManagePlans: "assets.maintenance.manage_plans", maintenanceCancel: "assets.maintenance.cancel",
+  maintenanceReopen: "assets.maintenance.reopen", maintenanceExport: "assets.maintenance.export", maintenanceViewAudit: "assets.maintenance.view_audit",
+  // Asset Disposal (0159).
+  disposalView: "assets.disposal.view", disposalCreate: "assets.disposal.create", disposalSubmit: "assets.disposal.submit", disposalApprove: "assets.disposal.approve",
+  disposalReject: "assets.disposal.reject", disposalConfirmHandover: "assets.disposal.confirm_handover", disposalViewFinancials: "assets.disposal.view_financials",
+  disposalFinanceReview: "assets.disposal.finance_review", disposalRequestDerecognition: "assets.disposal.request_derecognition", disposalComplete: "assets.disposal.complete",
+  disposalCancel: "assets.disposal.cancel", disposalCorrect: "assets.disposal.correct", disposalBulk: "assets.disposal.bulk", disposalReconcile: "assets.disposal.reconcile",
+  disposalExport: "assets.disposal.export", disposalViewAudit: "assets.disposal.view_audit",
+  // Asset Sale / Scrap (0160).
+  disposalManageSale: "assets.disposal.manage_sale", disposalManageScrap: "assets.disposal.manage_scrap", disposalRecordEvidence: "assets.disposal.record_evidence",
   manage: "assets.manage",
   create: "assets.create",
   capitalize: "assets.capitalize",

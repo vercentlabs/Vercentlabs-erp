@@ -28,6 +28,8 @@ import { StockError, moveStockWithinWarehouse, postStockMovement, reverseStockMo
 import { defaultLocationOf, validateWarehouseOperation } from "../../stock/warehouses.js";
 import { QualityError } from "../../quality/common.js";
 import { cancelInspection, createInspection } from "../../quality/inspections.js";
+import { specificationForSource } from "../../quality/specifications/qs-resolver.js";
+import { assertQualityRelease, createReceiptObligations, planReceiptLineQuality, reconcileReversedReceipt } from "../../quality/control-points/qcp-engine.js";
 import { loadPurchaseOrder, requirePoAccess, requirePoPermission } from "./access.js";
 import { postReceiptAccrual, reverseReceiptAccrual } from "./accrual.js";
 import { PO_PERMISSIONS, PurchaseOrderError, STATUS, dayOf, fail, has, optionalUuid, readDate, requireUuid, text } from "./constants.js";
@@ -531,20 +533,22 @@ async function findOrCreateBatch(client, context, line) {
     [context.organizationId, line.product_id, line.batch_number, line.manufactured_date, line.expiry_date, context.userId ?? null])).rows[0].id;
 }
 
-// An incoming Quality inspection for goods held at receipt, when an active incoming plan applies to the product, supplier and warehouse.
+// An incoming Quality inspection for goods held at receipt: Quality's resolver chooses the one approved Inspection Specification version that
+// applies to the product, its category, the supplier and the site on the receipt date, and the inspection binds to it. Two equally specific
+// specifications, or a required inspection without one, are recorded as Quality configuration exceptions; the goods stay on hold either way
+// (nothing here accepts or releases them), and a receipt without any inspection requirement is not held because Quality is installed.
 async function openInspection(client, context, receipt, order, line, orderLine, quantity, batchId) {
-  const plan = (await client.query(
-    `SELECT id FROM tenant.quality_plans WHERE organization_id = $1 AND status = 'active' AND plan_type = 'incoming'
-        AND (item_id IS NULL OR item_id = $2) AND (item_group_id IS NULL OR item_group_id = $3) AND (supplier_id IS NULL OR supplier_id = $4) AND (warehouse_id IS NULL OR warehouse_id = $5)
-        AND (effective_from IS NULL OR effective_from <= current_date) AND (effective_to IS NULL OR effective_to >= current_date)
-      ORDER BY (item_id IS NOT NULL) DESC, (item_group_id IS NOT NULL) DESC, (supplier_id IS NOT NULL) DESC, (warehouse_id IS NOT NULL) DESC LIMIT 1`,
-    [context.organizationId, line.product_id, orderLine.item_group_id, order.supplier_id, receipt.warehouse_id])).rows[0];
-  if (!plan) return null;
+  const quality = qualityContextFor(context);
+  const lotQuantity = formatDecimal(roundMoney(mul(quantity, line.conversion_factor), 6));
+  const found = await specificationForSource(client, quality, { stage: "INCOMING", itemId: line.product_id, supplierId: order.supplier_id, warehouseId: receipt.warehouse_id,
+    date: dayOf(receipt.receipt_date), quantity: lotQuantity, sourceType: "goods_receipt", sourceId: receipt.id, sourceLineId: line.id,
+    sourceLabel: `${receipt.receipt_number} line ${orderLine.line_number}` });
+  if (found.status !== "RESOLVED") return null;
   try {
-    const inspection = await createInspection(client, qualityContextFor(context), {
-      planId: plan.id, inspectionType: "incoming", sourceType: "procurement_receipt", sourceId: receipt.id, itemId: line.product_id, supplierId: order.supplier_id,
-      warehouseId: receipt.warehouse_id, batchId, lotQuantity: formatDecimal(roundMoney(mul(quantity, line.conversion_factor), 6)),
-    });
+    const inspection = await createInspection(client, quality, {
+      planId: found.planId, inspectionType: "incoming", sourceType: "procurement_receipt", sourceId: receipt.id, itemId: line.product_id, supplierId: order.supplier_id,
+      warehouseId: receipt.warehouse_id, batchId, lotQuantity, specResolution: found.resolution,
+    }, { boundVersionId: found.versionId, allowPendingSample: true });
     return inspection.inspection?.id ?? inspection.id ?? null;
   } catch (error) {
     if (error instanceof QualityError) throw new PurchaseOrderError(error.status ?? 409, `Line ${orderLine.line_number}: ${error.message}`, error.code);
@@ -590,15 +594,25 @@ async function postInventoryReceipt(client, context, receipt, order, line, order
 
 // recordReceiptDispositions: what was held at posting, as its own records (released or returned later; the line itself never changes).
 // Damaged goods are blocked from the start: their rejection case owns them.
-async function recordReceiptDispositions(client, context, receipt, order, line, orderLine, posted) {
+async function recordReceiptDispositions(client, context, receipt, order, line, orderLine, posted, quality = null) {
   const ids = {};
+  const controlled = Boolean(quality?.candidates?.length);
   for (const [quantity, disposition] of [[posted.inspection, "inspection_hold"], [posted.damaged, "damaged"]]) {
     if (quantity <= 0n) continue;
-    const inspectionId = disposition === "inspection_hold" ? await openInspection(client, context, receipt, order, line, orderLine, quantity, posted.batchId) : null;
+    // Goods held for inspection without a control point get the inspection their specification's applicability resolves.
+    const inspectionId = disposition === "inspection_hold" && !controlled ? await openInspection(client, context, receipt, order, line, orderLine, quantity, posted.batchId) : null;
     ids[disposition] = (await client.query(
       `INSERT INTO tenant.goods_receipt_dispositions (organization_id, goods_receipt_id, goods_receipt_line_id, disposition, quantity, location_id, quality_inspection_id, blocked_quantity)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
       [context.organizationId, receipt.id, line.id, disposition, formatDecimal(quantity), posted.holdLocationId, inspectionId, disposition === "damaged" ? formatDecimal(quantity) : "0"])).rows[0].id;
+  }
+  // One inspection obligation per applicable control point, bound to the exact control point and specification versions (quantities in base units).
+  if (controlled) {
+    const base = (value) => formatDecimal(roundMoney(mul(value, line.conversion_factor), 6));
+    const made = await createReceiptObligations(client, qualityContextFor(context), quality, { receipt, line: { ...line, line_number: orderLine.line_number }, dispositionId: ids.inspection_hold ?? null,
+      heldBase: base(posted.inspection), receivedBase: base(add(line.accepted_quantity, posted.inspection)), batchId: posted.batchId });
+    if (made.firstInspection && ids.inspection_hold)
+      await client.query(`UPDATE tenant.goods_receipt_dispositions SET quality_inspection_id = $3 WHERE organization_id = $1 AND id = $2`, [context.organizationId, ids.inspection_hold, made.firstInspection]);
   }
   return ids;
 }
@@ -628,13 +642,26 @@ export async function postGoodsReceipt(client, context, receiptId) {
   const organizationId = context.organizationId;
   const lines = (await client.query(`SELECT * FROM tenant.goods_receipt_lines WHERE organization_id = $1 AND goods_receipt_id = $2 ORDER BY line_number`, [organizationId, receipt.id])).rows;
   const orderLines = await orderLinesById(client, organizationId, order.id);
-  for (const line of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    let line = lines[index];
     const orderLine = orderLines.get(line.purchase_order_line_id);
     let dispositions = {};
     let stockLine = line;
     if (line.product_type === "stock" && add(line.accepted_quantity, line.held_quantity) > 0n) {
+      // Quality Control Points first: a mandatory stock-hold point keeps the whole received quantity restricted from the moment it is received
+      // (in this same transaction), so it never becomes available before Quality clears it.
+      const quality = await planReceiptLineQuality(client, qualityContextFor(context), { itemId: line.product_id, supplierId: order.supplier_id, warehouseId: line.warehouse_id,
+        date: dayOf(receipt.receipt_date) });
+      if (quality.forceHold && decimal(line.accepted_quantity) > 0n) {
+        if (!(await qualityLocation(client, organizationId, line.warehouse_id)))
+          throw new PurchaseOrderError(409, `Line ${orderLine.line_number}: Quality must clear this product before use, and the warehouse has no quality location to hold it in.`, "QUALITY_QCP_INVENTORY_HOLD_PENDING");
+        line = (await client.query(`UPDATE tenant.goods_receipt_lines SET held_quantity = held_quantity + accepted_quantity, accepted_quantity = 0 WHERE organization_id = $1 AND id = $2 RETURNING *`,
+          [organizationId, line.id])).rows[0];
+        lines[index] = line;
+        stockLine = line;
+      }
       const posted = await postInventoryReceipt(client, context, receipt, order, line, orderLine);
-      dispositions = await recordReceiptDispositions(client, context, receipt, order, line, orderLine, posted);
+      dispositions = await recordReceiptDispositions(client, context, receipt, order, line, orderLine, posted, quality);
       // What the receipt put on hold (inspection hold, and goods that came in damaged) is explained by an Inventory Quality Hold opened for it.
       const held = add(posted.inspection, posted.damaged);
       if (held > 0n && posted.holdLocationId) {
@@ -750,6 +777,7 @@ export async function reversePostedGoodsReceipt(client, context, receiptId, inpu
         AND inspection.id = disposition.quality_inspection_id WHERE disposition.organization_id = $1 AND disposition.goods_receipt_id = $2 AND inspection.status = 'draft'`,
     [organizationId, receipt.id])).rows;
   for (const draft of drafts) await cancelInspection(client, qualityContextFor(context), draft.id, `Goods receipt ${receipt.receipt_number} reversed`);
+  await reconcileReversedReceipt(client, qualityContextFor(context), receipt.id);
   // Its rejection cases go with it: what the receipt recorded did not happen as recorded.
   for (const entry of cases)
     await client.query(`UPDATE tenant.receiving_rejections SET status = 'cancelled', cancelled_by = $3, cancelled_at = now(), cancel_reason = $4, updated_at = now() WHERE organization_id = $1 AND id = $2`,
@@ -815,6 +843,8 @@ export async function releaseHeldGoods(client, context, dispositionId, input = {
     throw new PurchaseOrderError(409, decimal(disposition.blocked_quantity) > 0n ? `Only ${dec(open)} is still held and undecided; ${dec(disposition.blocked_quantity)} is rejected and is handled through its rejection case.` : `Only ${dec(open)} is still held.`,
       "GOODS_RECEIPT_RELEASE_EXCEEDS_HELD");
   if (line.expiry_date && dayOf(line.expiry_date) < await databaseToday(client)) fail(`The lot expired on ${dayOf(line.expiry_date)}; it cannot be released to usable stock.`, "quantity", "GOODS_RECEIPT_LOT_EXPIRED", 409);
+  // Quality's gate first: stock of a line with Quality requirements is released only up to what Quality cleared (Inventory checks it again).
+  await assertQualityRelease(client, qualityContextFor(context), { sourceLineId: line.id, quantity: Number(formatDecimal(roundMoney(mul(quantity, line.conversion_factor), 6))) });
   const destination = optionalUuid(input.warehouseLocationId, "Location") ?? line.warehouse_location_id ?? null;
   const stock = stockContextFor(context);
   // Released from hold: a disposition change inside the warehouse, posted as the receipt line's own movement.

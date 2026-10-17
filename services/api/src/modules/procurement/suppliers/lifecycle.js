@@ -78,7 +78,8 @@ const USES = Object.freeze([
   ["procurement_supplier_qualifications", "parent_id", "qualifications"], ["procurement_supplier_scorecards", "parent_id", "scorecards"],
   ["assets", "supplier_id", "assets"], ["asset_maintenance_orders", "supplier_id", "maintenance orders"], ["asset_maintenance_plans", "supplier_id", "maintenance plans"],
   ["asset_warranties", "supplier_id", "warranties"], ["project_expenses", "supplier_id", "project expenses"], ["quality_inspections", "supplier_id", "quality inspections"],
-  ["quality_nonconformances", "supplier_id", "nonconformances"], ["quality_plans", "supplier_id", "quality plans"], ["quality_supplier_records", "supplier_id", "quality records"],
+  ["quality_nonconformances", "supplier_id", "nonconformances"], ["quality_plans", "supplier_id", "quality plans"], ["quality_spec_applicability_rules", "supplier_id", "inspection specification rules"],
+  ["quality_inspection_requirements", "supplier_id", "inspection requirements"], ["quality_supplier_records", "supplier_id", "quality records"],
   ["sales_drop_ship_requests", "supplier_id", "drop-ship requests"], ["accounting_supplier_bank_accounts", "supplier_id", "payment details"],
 ]);
 const PARTY_USES = Object.freeze([["accounting_vendor_bills", "supplier bills"], ["accounting_vendor_payments", "supplier payments"]]);

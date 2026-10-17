@@ -54,6 +54,8 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "stock.opening_stock": { moduleKey: "stock", purposes: ["attachment"] },
   "stock.goods_issue": { moduleKey: "stock", purposes: ["attachment"] },
   "stock.inventory_adjustment": { moduleKey: "stock", purposes: ["attachment"] },
+  // An inspection specification's drawings, standards, test procedures and reference photos; the specification decides who may read them.
+  "quality.specification": { moduleKey: "quality", purposes: ["attachment"] },
   // On a quality hold: inspection notes, photos, certificates, supplier correspondence.
   "stock.inventory_stock_hold": { moduleKey: "stock", purposes: ["attachment"] },
   "platform.export": { moduleKey: null, purposes: ["export"] },

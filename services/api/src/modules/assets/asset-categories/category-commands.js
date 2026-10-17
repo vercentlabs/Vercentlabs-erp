@@ -15,8 +15,8 @@ const ENUMS = {
   suggestedCondition: ["NEW", "GOOD", "FAIR", "DAMAGED", "UNSERVICEABLE"], depreciationMethod: ["straight_line", "declining_balance", "units_of_production", "none"],
   depreciationConvention: ["full_month", "mid_month", "next_month"],
 };
-const BOOLS = ["locationRequired", "warrantyApplicable", "maintenanceApplicable", "verificationApplicable"];
-const ACCOUNTS = ["assetAccountId", "accumulatedDepreciationAccountId", "depreciationExpenseAccountId", "gainLossAccountId", "cwipAccountId"];
+const BOOLS = ["locationRequired", "warrantyApplicable", "maintenanceApplicable", "verificationApplicable", "scrapEvidenceRequired"];
+const ACCOUNTS = ["assetAccountId", "accumulatedDepreciationAccountId", "depreciationExpenseAccountId", "gainLossAccountId", "disposalLossAccountId", "proceedsAccountId", "cwipAccountId"];
 
 async function loadCategory(client, c, id, { lock = false } = {}) {
   let categoryId;

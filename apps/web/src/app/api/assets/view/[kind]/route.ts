@@ -1,12 +1,7 @@
 import {
-  getAssetRepairHistory,
   getAssetSettings,
-  getAssetWorkOrder,
   listAssetAssignments,
-  listAssetDisposals,
   listAssetOptions,
-  listAssetWorkOrders,
-  listMaintenancePlans,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -34,38 +29,6 @@ export async function GET(
           return {
             rows: await listAssetAssignments(client, context, {
               status: get("status"),
-            }),
-          };
-        case "plans":
-          return {
-            rows: await listMaintenancePlans(client, context, {
-              assetId: get("assetId"),
-            }),
-          };
-        case "work-orders":
-          return {
-            rows: await listAssetWorkOrders(client, context, {
-              status: get("status"),
-              type: get("type"),
-            }),
-          };
-        case "work-order":
-          return {
-            order: await getAssetWorkOrder(client, context, get("id") ?? ""),
-          };
-        case "repair-history":
-          return {
-            history: await getAssetRepairHistory(
-              client,
-              context,
-              get("id") ?? "",
-            ),
-          };
-        case "disposals":
-          return {
-            rows: await listAssetDisposals(client, context, {
-              status: get("status"),
-              group: get("group"),
             }),
           };
         default:

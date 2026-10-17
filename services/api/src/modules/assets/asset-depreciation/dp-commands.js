@@ -480,8 +480,9 @@ async function calculate(client, c, run) {
   const lines = [];
   const add = (l) => lines.push(l);
   const assets = (await client.query(`SELECT a.*, b.id AS basis_id, b.cost_basis, b.accumulated_before, b.impairment_before, b.convention, b.expense_account_id AS b_expense, b.accumulated_account_id AS b_accum,
-      b.commencement_date AS b_commencement, s.id AS schedule_id, (SELECT d.disposal_date FROM tenant.asset_disposals d WHERE d.asset_id = a.id AND d.status IN ('approved', 'completed') ORDER BY d.created_at DESC LIMIT 1) AS disposal_date,
-      (SELECT d.status FROM tenant.asset_disposals d WHERE d.asset_id = a.id AND d.status IN ('approved', 'completed') ORDER BY d.created_at DESC LIMIT 1) AS disposal_status,
+      b.commencement_date AS b_commencement, s.id AS schedule_id, COALESCE((SELECT COALESCE(dl.actual_disposition_date, dk.proposed_effective_date) FROM tenant.asset_disposal_lines dl JOIN tenant.asset_disposal_cases dk ON dk.id = dl.case_id WHERE dl.asset_id = a.id AND dl.line_status IN ('PENDING_HANDOVER', 'PENDING_FINANCE', 'POSTING', 'RECOVERY_REQUIRED', 'COMPLETED')
+        ORDER BY (dl.line_status = 'COMPLETED') DESC, dl.completed_at DESC NULLS LAST LIMIT 1), (SELECT d.disposal_date FROM tenant.asset_disposals d WHERE d.asset_id = a.id AND d.status IN ('approved', 'completed') ORDER BY d.created_at DESC LIMIT 1)) AS disposal_date,
+      CASE WHEN EXISTS (SELECT 1 FROM tenant.asset_disposal_lines dl WHERE dl.asset_id = a.id AND dl.line_status = 'COMPLETED') THEN 'completed' ELSE (SELECT d.status FROM tenant.asset_disposals d WHERE d.asset_id = a.id AND d.status IN ('approved', 'completed') ORDER BY d.created_at DESC LIMIT 1) END AS disposal_status,
       EXISTS (SELECT 1 FROM tenant.asset_depreciation_bases pb WHERE pb.asset_id = a.id AND pb.status = 'PROPOSED') AS has_proposal
     FROM tenant.assets a LEFT JOIN tenant.asset_depreciation_bases b ON b.asset_id = a.id AND b.status = 'APPROVED' LEFT JOIN tenant.asset_depreciation_schedule_versions s ON s.asset_id = a.id AND s.status = 'CURRENT'
     WHERE a.organization_id = $1 AND a.capitalization_class IN ('CAPITALIZED', 'PENDING') AND a.lifecycle_status NOT IN ('DRAFT')`, [org])).rows;

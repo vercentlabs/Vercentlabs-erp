@@ -32,8 +32,8 @@ import {
 const errorText = (e: unknown) =>
   e instanceof QualityApiError ? e.message : "This could not be completed.";
 
-// F312-315: pick a plan, a source and a lot quantity; the server sizes the sample from the plan's own
-// sampling method.
+// F312-315: pick an active inspection specification (its mirrored plan), a source and a lot quantity; the server sizes the sample
+// from the specification version's own sampling rule and binds the inspection to that exact version.
 export function InspectionNewScreen() {
   const router = useRouter();
   const options = useQualityOptions();
@@ -63,16 +63,16 @@ export function InspectionNewScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="New inspection"
-        description="Choose the plan this inspection is against, and the lot it covers."
+        description="Choose the inspection specification this inspection is against, and the lot it covers."
       />
       {error && <QualityAlert>{error}</QualityAlert>}
       <QualityPanel>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select
-            label="Plan"
+            label="Inspection specification"
             options={(options.data?.plans ?? []).map((o) => ({
               value: o.id,
-              label: o.name,
+              label: `${o.code} · ${o.name}`,
             }))}
             selectedKey={planId || null}
             onSelectionChange={(k) => setPlanId(String(k ?? ""))}
@@ -288,7 +288,7 @@ export function InspectionDetailScreen({ id }: { id: string }) {
                             inspectionPointId: p.id,
                           };
                           if (p.result_type === "numeric")
-                            body.numericValue = Number(v);
+                            body.numericValue = String(v).trim();
                           else if (p.result_type === "selection")
                             body.textValue = v;
                           else body.resultStatus = v;

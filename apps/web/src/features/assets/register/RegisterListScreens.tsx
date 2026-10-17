@@ -15,12 +15,11 @@ import {
 import { filterBarOf, useDebouncedValue } from "@/shared/ui/list";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { Notice } from "@/shared/ui/Panel";
-import { CountList, OverviewCards, OverviewHeader, OverviewPanel, TileGrid } from "@/shared/ui/overview";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  ASSETS_BASE, AVAILABILITY_TONE, LIFECYCLE_TONE, REGISTER_BASE, WARRANTY_LABEL, dateLabel, errorMessage, errorStatus, exportHref, getOptions, getOverview, identifiersExportHref, listAssets, lookup, money,
+  AVAILABILITY_TONE, LIFECYCLE_TONE, REGISTER_BASE, WARRANTY_LABEL, dateLabel, errorMessage, errorStatus, exportHref, getOptions, identifiersExportHref, listAssets, lookup, money,
   type AssetRow, type BulkResult, type Candidate,
 } from "./register-api";
 import { CandidateList } from "./IdentificationScreens";
@@ -52,52 +51,6 @@ export function ScanBox({ compact = false }: { compact?: boolean }) {
       </form>
       {error && <p className="text-sm text-danger">{error}</p>}
       {matches && <CandidateList matches={matches} />}
-    </div>
-  );
-}
-
-export function AssetsOverviewScreen() {
-  const workspace = useWorkspaceContext();
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "assets", "overview"), queryFn: getOverview, retry: false });
-  if (query.isLoading) return <LoadingState label="Loading assets" rows={6} />;
-  if (query.isError || !query.data) {
-    if (errorStatus(query.error) === 403) return <PermissionState title="You don't have access to assets" description="Ask an administrator for access." />;
-    return <ErrorState title="Could not load assets" description={errorMessage(query.error)} />;
-  }
-  const { counts, byStatus, byCategory, exceptions, can } = query.data;
-  const reg = REGISTER_BASE;
-  return (
-    <div className="flex flex-col gap-6">
-      <OverviewHeader description="Everything the Company owns or tracks: where it is, who looks after it, and what needs attention."
-        action={<span className="flex flex-wrap gap-2">{can.create && <LinkButton variant="primary" href={`${reg}/new`}>Add asset</LinkButton>}
-          {can.registerBulk && <LinkButton variant="secondary" href={`${reg}/from-purchase`}>Register from purchase</LinkButton>}</span>} />
-      <ScanBox />
-      <OverviewCards label="Assets at a glance" cards={[
-        { label: "Total assets", value: counts.total, href: reg }, { label: "Assigned", value: counts.inUse, href: `${reg}?view=active&availability=ASSIGNED` },
-        { label: "Available", value: counts.available, href: `${reg}?view=available` }, { label: "Under maintenance", value: counts.maintenance, href: `${reg}?view=maintenance` },
-      ]} />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <OverviewPanel title="Needs attention">
-          <CountList rows={[
-            { label: "Drafts and registered, not yet commissioned", value: counts.drafts, href: `${reg}?view=drafts` },
-            { label: "In use with no custodian or department", value: counts.unassigned, href: `${reg}?filter=unassigned`, tone: "warning" },
-            { label: "Warranty ending soon", value: counts.warrantyExpiring, href: `${reg}?warranty=expiring`, tone: "warning" },
-            { label: "Not verified within the period", value: counts.unverified, href: `${reg}?filter=unverified`, tone: "warning" },
-            { label: "Without an acquisition source", value: counts.noSource, href: `${reg}?filter=no_source`, tone: "warning" },
-            { label: "On hold", value: counts.onHold, href: `${reg}?view=on_hold`, tone: "warning" },
-            { label: "Reported missing, under investigation", value: counts.missingReports, href: `${reg}?view=lost`, tone: "danger" },
-            { label: "Confirmed lost", value: counts.lost, href: `${reg}?lifecycle=LOST`, tone: "danger" },
-            ...(query.data.statusExceptions ? [{ label: "Status exceptions", value: query.data.statusExceptions, href: `${ASSETS_BASE}/reports?report=status-conflicts`, tone: "warning" as const }] : []),
-            ...(exceptions ? [{ label: "Registration exceptions", value: exceptions, href: `${ASSETS_BASE}/reports?report=duplicate-exceptions`, tone: "danger" as const }] : []),
-          ]} />
-        </OverviewPanel>
-        <OverviewPanel title="By category" action={<LinkButton variant="ghost" size="compact" href={`${ASSETS_BASE}/categories`}>Categories</LinkButton>}>
-          <CountList empty="No assets yet." rows={byCategory.map((row) => ({ label: row.name, value: row.n, href: reg }))} />
-        </OverviewPanel>
-      </div>
-      <OverviewPanel title="By status" action={<LinkButton variant="ghost" size="compact" href={`${ASSETS_BASE}/reports`}>Reports</LinkButton>}>
-        <TileGrid tiles={byStatus.filter((row) => row.count > 0 || ["ACTIVE", "REGISTERED"].includes(row.status)).map((row) => ({ key: row.status, label: row.label, value: String(row.count), href: `${reg}?lifecycle=${row.status}` }))} />
-      </OverviewPanel>
     </div>
   );
 }

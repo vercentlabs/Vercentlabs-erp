@@ -166,7 +166,8 @@ export async function previewAssetLocationDeactivation(client, c, locationId) {
     subtreeAssets: await n(`${sub} SELECT count(*)::int AS n FROM tenant.assets a WHERE a.location_id IN (SELECT id FROM s WHERE id <> $1) AND ${inUse}`),
     activeChildren: await n(`SELECT count(*)::int AS n FROM tenant.asset_locations WHERE parent_id = $1 AND active`),
     pendingTransfers: await n(`SELECT count(*)::int AS n FROM tenant.asset_transfer_lines WHERE (to_location_id = $1 OR from_location_id = $1) AND line_status IN ('PENDING', 'APPROVED', 'DISPATCHED', 'RECEIVED', 'RECEIPT_EXCEPTION', 'RETURN_IN_PROGRESS')`),
-    openMaintenance: await n(`SELECT count(*)::int AS n FROM tenant.asset_maintenance_orders m JOIN tenant.assets a ON a.id = m.asset_id WHERE a.location_id = $1 AND m.status IN ('planned', 'scheduled', 'in_progress', 'on_hold')`),
+    openMaintenance: await n(`SELECT (SELECT count(*) FROM tenant.asset_maintenance_orders m JOIN tenant.assets a ON a.id = m.asset_id WHERE a.location_id = $1 AND m.status IN ('planned', 'scheduled', 'in_progress', 'on_hold'))
+      + (SELECT count(*) FROM tenant.asset_maintenance_work_orders w JOIN tenant.assets a ON a.id = w.asset_id WHERE a.location_id = $1 AND w.status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SCHEDULED', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'WAITING_FOR_VENDOR', 'WORK_COMPLETED', 'PENDING_VERIFICATION', 'RECOVERY_REQUIRED')) AS n`),
     openDiscrepancies: await n(`SELECT count(*)::int AS n FROM tenant.asset_location_discrepancies WHERE (expected_location_id = $1 OR observed_location_id = $1) AND status = 'OPEN'`),
     historicalAssets: await n(`SELECT count(*)::int AS n FROM tenant.assets a WHERE a.location_id = $1 AND NOT (${inUse})`),
   };

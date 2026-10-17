@@ -191,10 +191,10 @@ export function ReclassificationsPanel({ title, rows, canDecide, showAsset = fal
 // ------------------------------------------------------------------ the operational setup (new and edit)
 type Setup = Record<string, string | boolean>;
 const blankSetup = (): Setup => ({ name: "", description: "", assetType: "TANGIBLE", capitalizationGuidance: "REVIEW", serialNumberPolicy: "OPTIONAL", assetTagPolicy: "OPTIONAL", locationRequired: true,
-  custodianPolicy: "ALLOWED", ownershipApplicability: "ANY", suggestedCondition: "NEW", defaultDepartmentId: "", warrantyApplicable: true, maintenanceApplicable: true, verificationApplicable: true });
+  custodianPolicy: "ALLOWED", ownershipApplicability: "ANY", suggestedCondition: "NEW", defaultDepartmentId: "", warrantyApplicable: true, maintenanceApplicable: true, verificationApplicable: true, scrapEvidenceRequired: false });
 const setupOf = (c: Category): Setup => ({ name: c.name, description: c.description ?? "", assetType: c.assetType, capitalizationGuidance: c.capitalizationGuidance, serialNumberPolicy: c.serialNumberPolicy,
   assetTagPolicy: c.assetTagPolicy, locationRequired: c.locationRequired, custodianPolicy: c.custodianPolicy, ownershipApplicability: c.ownershipApplicability, suggestedCondition: c.suggestedCondition ?? "",
-  defaultDepartmentId: c.defaultDepartmentId ?? "", warrantyApplicable: c.warrantyApplicable, maintenanceApplicable: c.maintenanceApplicable, verificationApplicable: c.verificationApplicable });
+  defaultDepartmentId: c.defaultDepartmentId ?? "", warrantyApplicable: c.warrantyApplicable, maintenanceApplicable: c.maintenanceApplicable, verificationApplicable: c.verificationApplicable, scrapEvidenceRequired: Boolean(c.scrapEvidenceRequired) });
 function SetupFields({ value, onChange, departments, inUse = 0 }: { value: Setup; onChange: (next: Setup) => void; departments: Array<{ id: string; name: string }>; inUse?: number }) {
   const set = (k: string) => (v: string | boolean) => onChange({ ...value, [k]: v });
   const pick = (k: string, label: string, labels: Record<string, string>, description?: string, isRequired = true) => (
@@ -223,6 +223,7 @@ function SetupFields({ value, onChange, departments, inUse = 0 }: { value: Setup
       <FormSection title="What applies to them?">
         <Checkbox isSelected={Boolean(value.warrantyApplicable)} onChange={set("warrantyApplicable")}>Warranty is tracked</Checkbox>
         <Checkbox isSelected={Boolean(value.maintenanceApplicable)} onChange={set("maintenanceApplicable")}>Maintenance applies</Checkbox>
+        <Checkbox isSelected={Boolean(value.scrapEvidenceRequired)} onChange={set("scrapEvidenceRequired")}>Scrapping needs a recycler certificate or destruction evidence (e-waste, batteries)</Checkbox>
         <Checkbox isSelected={Boolean(value.verificationApplicable)} onChange={set("verificationApplicable")}>Included in physical verification</Checkbox>
       </FormSection>
     </>
@@ -340,7 +341,7 @@ function CategoryOverview({ category: c }: { category: CategoryDetail }) {
       <FactList title="Registration rules" description={`Policy version ${c.policyVersion}. Assets keep the version they were registered under.`} items={[["Serial number", c.serialNumberPolicyLabel], ["Asset tag", c.assetTagPolicyLabel],
         ["Location", c.locationRequired ? "Required" : "Optional"], ["Custodian", c.custodianPolicyLabel], ["Ownership", c.ownershipApplicabilityLabel], ["Default department", c.defaultDepartment ?? "None"],
         ["Suggested condition", c.suggestedCondition ? LABELS.condition[c.suggestedCondition as keyof typeof LABELS.condition] ?? c.suggestedCondition : "None"]]} />
-      <FactList title="What applies" items={[["Warranty tracking", yes(c.warrantyApplicable)], ["Maintenance", yes(c.maintenanceApplicable)], ["Physical verification", yes(c.verificationApplicable)]]} />
+      <FactList title="What applies" items={[["Warranty tracking", yes(c.warrantyApplicable)], ["Maintenance", yes(c.maintenanceApplicable)], ["Physical verification", yes(c.verificationApplicable)], ["Scrap evidence required", yes(Boolean(c.scrapEvidenceRequired))]]} />
       {c.counts && <FactList title="Assets in this category" items={[["Total", String(c.counts.total)], ["Active", String(c.counts.active)], ["Retired, disposed or lost", String(c.counts.ended)],
         ["Tracked only", String(c.counts.tracked)], ["Capitalized", String(c.counts.capitalized)]]} />}
     </div>
@@ -348,7 +349,7 @@ function CategoryOverview({ category: c }: { category: CategoryDetail }) {
 }
 
 const ACCOUNT_FIELDS = [["assetAccountId", "Asset account"], ["accumulatedDepreciationAccountId", "Accumulated depreciation account"], ["depreciationExpenseAccountId", "Depreciation expense account"],
-  ["gainLossAccountId", "Gain or loss on disposal account"], ["cwipAccountId", "Capital work in progress account"]] as const;
+  ["gainLossAccountId", "Gain (or gain and loss) on disposal account"], ["disposalLossAccountId", "Loss on disposal account (when separate)"], ["proceedsAccountId", "Disposal proceeds (clearing) account"], ["cwipAccountId", "Capital work in progress account"]] as const;
 function FinancePolicyTab({ category: c, onEdit }: { category: CategoryDetail; onEdit: () => void }) {
   const f = c.finance ?? {};
   const account = (id: string | null | undefined) => (id ? c.accountOptions?.find((a) => a.id === id) : null);

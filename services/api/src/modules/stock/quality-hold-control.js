@@ -59,12 +59,14 @@ export async function followHeldStock(client, c, { input, movement, signed, ledg
     documentNumber: group?.source_document_number ?? movement.movement_number };
   if (signed < 0) {
     const allocations = (await client.query(
+      // A receipt line moving its own held goods takes them from its own hold first (each receipt's Quality requirements gate its own stock).
       `SELECT allocation.*, allocation.held_base_quantity - allocation.resolved_base_quantity AS remaining FROM tenant.inventory_stock_hold_allocations allocation
+         JOIN tenant.inventory_stock_holds hold ON hold.organization_id = allocation.organization_id AND hold.id = allocation.hold_id
         WHERE allocation.organization_id = $1 AND allocation.item_id = $2 AND allocation.warehouse_id = $3 AND allocation.location_id IS NOT DISTINCT FROM $4
           AND allocation.batch_id IS NOT DISTINCT FROM $5 AND ($6::uuid IS NULL OR allocation.serial_id = $6) AND allocation.status = 'active'
           AND (allocation.carried_reference_id IS NULL OR allocation.carried_reference_id = $7)
-        ORDER BY allocation.created_at, allocation.id FOR UPDATE`,
-      [c.organizationId, movement.item_id, movement.warehouse_id, movement.warehouse_location_id, movement.batch_id, movement.serial_id, input.referenceId ?? null])).rows;
+        ORDER BY ($8::text = 'goods_receipt_line' AND hold.source_line_id IS NOT DISTINCT FROM $7) DESC, allocation.created_at, allocation.id FOR UPDATE OF allocation`,
+      [c.organizationId, movement.item_id, movement.warehouse_id, movement.warehouse_location_id, movement.batch_id, movement.serial_id, input.referenceId ?? null, input.referenceType ?? null])).rows;
     if (!allocations.length) return;
     const carry = MOVE_TYPES.has(ledgerType);
     const action = carry ? "transferred" : ledgerType === "purchase_return" ? "purchase_return"
@@ -114,6 +116,13 @@ export async function followHeldStock(client, c, { input, movement, signed, ledg
     }
     // Into available stock: released (by the document that moved it); into damaged: resolved as damaged.
     const action = destination.disposition === "damaged" ? "damaged" : "released";
+    if (action === "released") {
+      const hold = (await client.query(`SELECT source_document_type, source_line_id FROM tenant.inventory_stock_holds WHERE organization_id = $1 AND id = $2`, [c.organizationId, entry.hold_id])).rows[0];
+      if (hold?.source_document_type === "goods_receipt" && hold.source_line_id) {
+        const { assertQualityRelease } = await import("../quality/control-points/qcp-engine.js");
+        await assertQualityRelease(client, c, { sourceLineId: hold.source_line_id, quantity });
+      }
+    }
     await recordResolution(client, c, { holdId: entry.hold_id, lineId: entry.line_id, allocationId: entry.allocation_id, action, quantity, fromDisposition: entry.current_disposition,
       toDisposition: destination.disposition, toLocationId: movement.warehouse_location_id, movementId: movement.id, ...document });
     await client.query(`UPDATE tenant.inventory_stock_hold_lines SET unresolved_base_quantity = greatest(unresolved_base_quantity - $3, 0), version = version + 1, updated_at = now()
