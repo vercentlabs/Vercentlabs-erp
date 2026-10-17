@@ -343,7 +343,7 @@ export function OpportunityListScreen() {
             </>
           ),
           end: (
-            <PopoverTrigger>
+            <span className="hidden md:flex">{/* cards below md: no columns to choose */}<PopoverTrigger>
                 <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Columns</span></Button>
                 <Popover>
                   <div className="flex flex-col gap-2 p-1">
@@ -353,7 +353,7 @@ export function OpportunityListScreen() {
                     ))}
                   </div>
                 </Popover>
-            </PopoverTrigger>
+            </PopoverTrigger></span>
           ),
         }}
         filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: clearFilters } : undefined}

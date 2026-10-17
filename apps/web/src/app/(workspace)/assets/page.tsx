@@ -1,7 +1,8 @@
-import { AssetsDashboardScreen } from "@/features/assets/AssetsPage";
+import { Suspense } from "react";
+
+import { AssetsOverviewScreen } from "@/features/assets/register/RegisterListScreens";
 
 export const metadata = { title: "Assets" };
-
-export default function AssetsHomePage() {
-  return <AssetsDashboardScreen />;
+export default function Page() {
+  return <Suspense><AssetsOverviewScreen /></Suspense>;
 }

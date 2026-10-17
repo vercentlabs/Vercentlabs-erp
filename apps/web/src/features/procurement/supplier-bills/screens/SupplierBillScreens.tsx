@@ -179,6 +179,7 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
           <div className="flex flex-wrap gap-2">
             {actions.edit && <LinkButton variant="secondary" href={`/procurement/supplier-bills/${bill.id}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
             {actions.createCredit && <LinkButton variant="secondary" href={`/procurement/debit-notes-credits/vendor-credits/new?supplierBillId=${bill.id}${bill.supplierId ? `&supplierId=${bill.supplierId}` : ""}`}>Record Vendor Credit</LinkButton>}
+            {bill.documentStatus === "posted" && <LinkButton variant="ghost" href={`/assets/capitalization/invoices/${bill.id}`}>Create Assets</LinkButton>}
             {actions.raiseClaim && <LinkButton variant="ghost" href={`/procurement/debit-notes-credits/claims/new?supplierBillId=${bill.id}${bill.supplierId ? `&supplierId=${bill.supplierId}` : ""}`}>Create Debit Claim</LinkButton>}
             {actions.applyAdvance && <Button variant="ghost" onPress={() => setDialog("advance")}>Apply advance</Button>}
             {actions.applyCredit && <Button variant="ghost" onPress={() => setDialog("credit")}>Apply credit</Button>}

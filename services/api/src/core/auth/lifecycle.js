@@ -68,7 +68,7 @@ export async function createEmailVerificationToken(client, userId, env = process
     [randomUUID(), userId, tokenHash(token)],
   );
   const delivered = await deliverAuthMessage(
-    { type: "verify-email", email: user.email, url: tokenUrl(env, "/verify-email", token) },
+    { type: "verify-email", email: user.email, url: tokenUrl(env, "/verify-email", token), expiresIn: `${VERIFICATION_TOKEN_TTL_HOURS} hours` },
     env,
   );
   return { alreadyVerified: false, delivered };
@@ -133,7 +133,7 @@ export async function requestPasswordReset(client, email, env = process.env) {
      VALUES ($1, $2, $3, now() + interval '${RESET_TOKEN_TTL_HOURS} hours')`,
     [randomUUID(), user.id, tokenHash(token)],
   );
-  await deliverAuthMessage({ type: "reset-password", email: user.email, url: tokenUrl(env, "/reset-password", token) }, env);
+  await deliverAuthMessage({ type: "reset-password", email: user.email, url: tokenUrl(env, "/reset-password", token), expiresIn: `${RESET_TOKEN_TTL_HOURS} hours` }, env);
   return { requested: true };
 }
 
@@ -296,7 +296,7 @@ export async function createOrganizationInvitation(
   });
 
   const delivered = await deliverAuthMessage(
-    { type: "organization-invitation", email, url: pathTokenUrl(env, "/invitations", token), organizationName: organization.name },
+    { type: "organization-invitation", email, url: pathTokenUrl(env, "/invitations", token), organizationName: organization.name, expiresIn: `${INVITATION_TOKEN_TTL_DAYS} days` },
     env,
   );
   return { invitationId, delivered };
@@ -572,7 +572,7 @@ export async function resendOrganizationInvitation(client, { organizationId, inv
     [invitationId, tokenHash(token)],
   );
   const delivered = await deliverAuthMessage(
-    { type: "organization-invitation", email: invitation.email, url: pathTokenUrl(env, "/invitations", token), organizationName: invitation.organization_name },
+    { type: "organization-invitation", email: invitation.email, url: pathTokenUrl(env, "/invitations", token), organizationName: invitation.organization_name, expiresIn: `${INVITATION_TOKEN_TTL_DAYS} days` },
     env,
   );
   return { delivered };

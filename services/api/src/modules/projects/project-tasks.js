@@ -8,11 +8,14 @@ import { publishDomainEvent } from "../../core/platform/events/index.js";
 import { archiveFile, listFiles, readFileContent, storeFile } from "../../core/platform/files/index.js";
 import { createNotification } from "../../core/platform/notifications/index.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
-import { PRIORITIES, PROJECT, eligibleUsers, has, isoDay, projectError, registerMemberLeaveHook, text, userNames, uuid } from "./project-core.js";
+import { PROJECT, has, isoDay, progressChanged, projectError, text, userNames, uuid } from "./project-core.js";
+import { announceBulkAssignment, assignProjectTask, projectContributor } from "./assignees/index.js";
+import { announceBulkPriority, priorityChangeFor, recordTaskPriorityChange, updateTaskPriority, validatePriority } from "./priority/index.js";
 import {
   checklistOf, currentDecisionOf, projectTaskScope, taskDependentsOf, taskFilesOf, taskPrerequisitesOf, taskReadinessFor, taskScope,
 } from "./project-task-read.js";
 import { BLOCKER_REASONS, TASK_ENTITY, TASK_STATUS_LABEL, TASK_TYPES, createsTaskCycle } from "./project-task-rules.js";
+import { executionState } from "./status/status-rules.js";
 
 const err = (status, code, message, details) => projectError(status, code, message, details);
 const need = (can, key) => { if (!can[key]) throw err(403, "TASK_PERMISSION_DENIED"); };
@@ -49,10 +52,11 @@ const estimateOf = (value) => {
 };
 
 // ------------------------------------------------------------------ history, notifications, automation
-async function taskEvent(client, c, task, action, summary, { from = null, to = null, details = {}, key = null } = {}) {
+export async function taskEvent(client, c, task, action, summary, { from = null, to = null, details = {}, key = null } = {}) {
   await client.query(`INSERT INTO tenant.project_task_events (organization_id, task_id, project_id, action, summary, details, from_status, to_status, actor_user_id, idempotency_key)
     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`,
     [c.organizationId, task.id, task.project_id, action, summary ? String(summary).slice(0, 1000) : null, JSON.stringify(details), from, to, c.userId ?? null, key]);
+  if (to) await progressChanged(client, c, task.project_id, { type: "TASK", id: task.id, action, from, to });
   await publishDomainEvent(client, { organizationId: c.organizationId, moduleKey: "projects", eventType: `projects.task.${action.toLowerCase()}`, entityType: TASK_ENTITY, entityId: task.id,
     payload: { taskCode: task.task_code, projectId: task.project_id, status: to ?? task.status, assigneeUserId: task.assignee_user_id, milestoneId: task.milestone_id, ...details } });
 }
@@ -85,14 +89,16 @@ async function milestoneNote(client, c, milestoneId, action, summary) {
 }
 
 // ------------------------------------------------------------------ guards
-const closed = (project) => ["COMPLETED", "CANCELLED"].includes(project.status) || Boolean(project.archived_at) || Boolean(project.deleted_at);
-// Planning (creating, editing, assigning, checklists, comments, files, cancelling) happens while the project is open — on Hold included.
-function projectOpen(project) { if (closed(project)) throw err(409, "TASK_PROJECT_CLOSED"); }
-// Execution (starting, ticking the checklist, completing, submitting, approving) only while the project is in progress.
+const closed = (project) => executionState(project) === "CLOSED";
+// What the project's status allows comes from Project Status (status/): planning (creating, editing, assigning, checklists, comments, files,
+// cancelling) while the project is open — on Hold included; execution (starting, ticking the checklist, completing, submitting, approving)
+// only while it is in progress.
+function projectOpen(project) { if (executionState(project) === "CLOSED") throw err(409, "TASK_PROJECT_CLOSED"); }
 function projectWorking(project) {
-  projectOpen(project);
-  if (project.status === "ON_HOLD") throw err(409, "TASK_PROJECT_ON_HOLD");
-  if (project.status !== "IN_PROGRESS") throw err(409, "TASK_PROJECT_NOT_STARTED");
+  const state = executionState(project);
+  if (state === "CLOSED") throw err(409, "TASK_PROJECT_CLOSED");
+  if (state === "ON_HOLD") throw err(409, "TASK_PROJECT_ON_HOLD");
+  if (state === "NOT_STARTED") throw err(409, "TASK_PROJECT_NOT_STARTED");
 }
 function taskOpen(task) {
   if (task.status === "DONE") throw err(409, "TASK_ALREADY_COMPLETED");
@@ -116,18 +122,6 @@ async function changeScope(client, c, task, input, what) {
   return write(client, c, task, { scope_version: task.scope_version + 1, ...(task.approval_status === "APPROVED" ? { approval_status: task.review_required ? "NOT_SUBMITTED" : "NOT_REQUIRED" } : {}) });
 }
 
-// ------------------------------------------------------------------ people
-// An assignee (or reviewer) is an active company user who can use Projects and works on this project: its manager or a member who contributes.
-async function memberOf(client, c, project, userId, label, code = "TASK_ASSIGNEE_INVALID") {
-  let id;
-  try { id = uuid(userId, label); } catch { throw err(400, code, undefined, { field: label === "Reviewer" ? "reviewerUserId" : "assigneeUserId" }); }
-  if (!(await eligibleUsers(client, c, [id])).has(id)) throw err(400, code, undefined, { field: label === "Reviewer" ? "reviewerUserId" : "assigneeUserId" });
-  if (project.manager_user_id !== id) {
-    const member = (await client.query(`SELECT role FROM tenant.project_members WHERE organization_id = $1 AND project_id = $2 AND user_id = $3 AND left_at IS NULL`, [c.organizationId, project.id, id])).rows[0];
-    if (!member || !["MANAGER", "MEMBER"].includes(member.role)) throw err(400, code, undefined, { field: label === "Reviewer" ? "reviewerUserId" : "assigneeUserId" });
-  }
-  return id;
-}
 // The milestone a task is filed under: one of this project's, still open to new work.
 async function milestoneFor(client, c, project, milestoneId) {
   let id;
@@ -185,15 +179,15 @@ async function insertTask(client, c, project, raw, key) {
   const title = text(input.title, 300);
   if (title.length < 2 || title.length > 200) throw err(400, "TASK_TITLE_REQUIRED", undefined, { field: "title" });
   if (!input.assigneeUserId) throw err(400, "TASK_ASSIGNEE_INVALID", "Choose who the task is assigned to.", { field: "assigneeUserId" });
-  const assignee = await memberOf(client, c, project, input.assigneeUserId, "Assignee");
+  const assignee = await projectContributor(client, c, project, input.assigneeUserId);
   if (!input.dueDate) throw err(400, "TASK_DUE_DATE_INVALID", "Choose the due date.", { field: "dueDate" });
   const due = dateOf(input.dueDate);
   const plannedStart = input.plannedStartDate ? dateOf(input.plannedStartDate, "plannedStartDate") : null;
   if (plannedStart && plannedStart > due) throw err(400, "TASK_DUE_DATE_INVALID", "The start date cannot be after the due date.", { field: "plannedStartDate" });
   const settings = (await client.query(`SELECT task_review_default FROM tenant.project_settings WHERE organization_id = $1`, [c.organizationId])).rows[0];
   const reviewRequired = input.reviewRequired === undefined ? Boolean(settings?.task_review_default) : Boolean(input.reviewRequired);
-  const reviewer = input.reviewerUserId ? await memberOf(client, c, project, input.reviewerUserId, "Reviewer", "TASK_REVIEWER_INVALID") : null;
-  const priority = enumOf(input.priority, PRIORITIES, "NORMAL", "Choose low, normal, high or urgent.", "priority");
+  const reviewer = input.reviewerUserId ? await projectContributor(client, c, project, input.reviewerUserId, { label: "Reviewer", code: "TASK_REVIEWER_INVALID" }) : null;
+  const priority = validatePriority(input.priority);
   const type = enumOf(input.taskType, Object.keys(TASK_TYPES), "GENERAL", "Choose a task type.", "taskType");
   const checklist = (Array.isArray(input.checklist) ? input.checklist : []).map((item) => (typeof item === "string" ? { title: item } : item)).map((item) => ({
     title: text(item.title, 300), isRequired: item.isRequired !== false })).filter((item) => item.title);
@@ -228,9 +222,10 @@ export async function updateProjectTask(client, c, taskId, input = {}) {
   need(can, "edit");
   versionCheck(task, input.expectedVersion);
   projectOpen(project);
+  const priorityChange = priorityChangeFor(task, input, "DONE");
   taskOpen(task);
   const given = (name) => input[name] !== undefined;
-  const sets = {};
+  const sets = priorityChange ? { priority: priorityChange.to } : {};
   const changes = [];
   const material = [];
   if (given("title")) {
@@ -239,7 +234,6 @@ export async function updateProjectTask(client, c, taskId, input = {}) {
     if (title !== task.title) { sets.title = title; material.push("title"); }
   }
   if (given("description")) { const value = text(input.description, 10000) || null; if (value !== task.description) { sets.description = value; material.push("description"); } }
-  if (given("priority")) { const value = enumOf(input.priority, PRIORITIES, task.priority, "Choose low, normal, high or urgent.", "priority"); if (value !== task.priority) { sets.priority = value; changes.push("priority"); } }
   if (given("taskType")) { const value = enumOf(input.taskType, Object.keys(TASK_TYPES), task.task_type, "Choose a task type.", "taskType"); if (value !== task.task_type) { sets.task_type = value; changes.push("type"); } }
   if (given("tags")) { const value = tagsOf(input.tags); if (value.join(",") !== (task.tags ?? []).join(",")) { sets.tags = value; changes.push("tags"); } }
   if (given("estimateMinutes")) { const value = estimateOf(input.estimateMinutes); if (value !== task.estimate_minutes) { sets.estimate_minutes = value; changes.push("estimate"); } }
@@ -254,7 +248,7 @@ export async function updateProjectTask(client, c, taskId, input = {}) {
   }
   if (given("evidenceRequired") && Boolean(input.evidenceRequired) !== task.evidence_required) { sets.evidence_required = Boolean(input.evidenceRequired); material.push("evidence requirement"); }
   if (given("reviewerUserId")) {
-    const value = input.reviewerUserId ? await memberOf(client, c, project, input.reviewerUserId, "Reviewer", "TASK_REVIEWER_INVALID") : null;
+    const value = input.reviewerUserId ? await projectContributor(client, c, project, input.reviewerUserId, { label: "Reviewer", code: "TASK_REVIEWER_INVALID" }) : null;
     if (value !== task.reviewer_user_id) { sets.reviewer_user_id = value; changes.push("reviewer"); }
   }
   let row = task;
@@ -262,7 +256,7 @@ export async function updateProjectTask(client, c, taskId, input = {}) {
     if (task.status === "IN_REVIEW" && !input.withdrawReview) throw err(409, "TASK_IN_REVIEW");
     row = await fileUnder(client, c, row, project, input.milestoneId || null);
   }
-  if (!changes.length && !material.length && !dueChange) return { taskId: row.id, version: row.row_version, changed: row === task ? [] : ["milestone"] };
+  if (!changes.length && !material.length && !dueChange && !priorityChange) return { taskId: row.id, version: row.row_version, changed: row === task ? [] : ["milestone"] };
   if (material.length) row = await changeScope(client, c, row, input, material.join(", "));
   if (material.length && row.status !== "IN_REVIEW") {
     const review = sets.review_required ?? row.review_required;
@@ -273,27 +267,10 @@ export async function updateProjectTask(client, c, taskId, input = {}) {
     await taskEvent(client, c, row, "DUE_DATE_CHANGED", `Due ${dueChange.from} → ${dueChange.to}${dueChange.reason ? `: ${dueChange.reason}` : ""}`, { details: dueChange });
     await notify(client, c, row, [row.assignee_user_id], { title: `${row.task_code} is now due ${dueChange.to}`, message: `${row.title}${dueChange.reason ? `: ${dueChange.reason}` : ""}` });
   }
+  // The priority is recorded on its own (with its reason); the request's key goes to it when nothing else changed.
+  if (priorityChange) await recordTaskPriorityChange(client, c, { task, row, project, change: priorityChange, key: changes.length || material.length ? null : keyOf(input), notify: input.notify !== false });
   if (changes.length || material.length) await taskEvent(client, c, row, "UPDATED", `Changed: ${[...changes, ...material].join(", ")}`, { details: { fields: [...changes, ...material] }, key: keyOf(input) });
-  return { taskId: row.id, version: row.row_version, changed: [...changes, ...material, ...(dueChange ? ["due date"] : [])], status: row.status };
-}
-
-// input: { assigneeUserId, note?, expectedVersion?, idempotencyKey? }. The old assignee keeps their history (comments, files, time).
-export async function assignProjectTask(client, c, taskId, input = {}) {
-  const done = await replay(client, c, keyOf(input));
-  if (done) return done;
-  const { task, project, can } = await taskScope(client, c, taskId, { lock: true });
-  need(can, "assign");
-  versionCheck(task, input.expectedVersion);
-  projectOpen(project);
-  taskOpen(task);
-  const assignee = await memberOf(client, c, project, input.assigneeUserId, "Assignee");
-  if (assignee === task.assignee_user_id) return { taskId: task.id, assigneeUserId: assignee, replayed: true };
-  const row = await write(client, c, task, { assignee_user_id: assignee });
-  const note = text(input.note, 500) || null;
-  await taskEvent(client, c, row, "REASSIGNED", `Reassigned${note ? `: ${note}` : ""}`, { details: { from: task.assignee_user_id, to: assignee, note }, key: keyOf(input) });
-  await notify(client, c, row, [assignee], { title: `Task assigned to you: ${row.task_code}`, message: `${row.title} — due ${day(row.due_date)}.` });
-  await notify(client, c, row, [task.assignee_user_id, project.manager_user_id].filter((id) => id !== assignee), { title: `${row.task_code} was reassigned`, message: row.title });
-  return { taskId: row.id, assigneeUserId: assignee, version: row.row_version };
+  return { taskId: row.id, version: row.row_version, changed: [...(priorityChange ? ["priority"] : []), ...changes, ...material, ...(dueChange ? ["due date"] : [])], status: row.status, priority: row.priority };
 }
 
 // ------------------------------------------------------------------ the lifecycle (one authority)
@@ -354,7 +331,7 @@ export async function blockProjectTask(client, c, taskId, input = {}) {
   const description = text(input.description, 1000);
   if (description.length < 3) throw err(400, "TASK_REASON_REQUIRED", "Describe what is blocking the task.", { field: "description" });
   const reason = enumOf(input.reason ?? input.reasonCode, Object.keys(BLOCKER_REASONS), "OTHER", "Choose why the task is blocked.", "reason");
-  const owner = input.ownerUserId ? await memberOf(client, c, project, input.ownerUserId, "Blocker owner") : task.assignee_user_id;
+  const owner = input.ownerUserId ? await projectContributor(client, c, project, input.ownerUserId, { label: "Blocker owner" }) : task.assignee_user_id;
   const blocker = (await client.query(`INSERT INTO tenant.project_task_blockers (organization_id, task_id, reason_code, description, owner_user_id, raised_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
     [c.organizationId, task.id, reason, description, owner, c.userId ?? null])).rows[0];
   const row = ["TO_DO", "IN_PROGRESS"].includes(task.status) ? await write(client, c, task, { status: "BLOCKED", previous_status: task.status }) : await write(client, c, task, {});
@@ -735,44 +712,7 @@ export async function manageTaskDependency(client, c, taskId, input = {}) {
   return { taskId: task.id, dependencyId };
 }
 
-// ------------------------------------------------------------------ comments and files
-// input: { body, mentionUserIds?, idempotencyKey? }. Only project people can be mentioned; each is told once (a customer contact named in the
-// text gains no access).
-export async function addTaskComment(client, c, taskId, input = {}) {
-  const key = keyOf(input);
-  if (key) {
-    const existing = (await client.query(`SELECT id, task_id FROM tenant.project_task_comments WHERE organization_id = $1 AND idempotency_key = $2`, [c.organizationId, key])).rows[0];
-    if (existing) return { taskId: existing.task_id, commentId: existing.id, replayed: true };
-  }
-  const { task, project, can } = await taskScope(client, c, taskId);
-  need(can, "comment");
-  projectOpen(project);
-  const body = text(input.body, 5000);
-  if (!body) throw err(400, "TASK_INPUT_INVALID", "Write the comment.", { field: "body" });
-  const mentions = [];
-  for (const userId of [...new Set(Array.isArray(input.mentionUserIds) ? input.mentionUserIds : [])]) {
-    const id = uuid(userId, "Mentioned person");
-    const onProject = project.manager_user_id === id || (await client.query(`SELECT 1 FROM tenant.project_members WHERE project_id = $1 AND user_id = $2 AND left_at IS NULL`, [project.id, id])).rows[0];
-    if (!onProject || !(await eligibleUsers(client, c, [id])).has(id)) throw err(400, "TASK_INPUT_INVALID", "Mention only people who work on this project.", { field: "mentionUserIds" });
-    mentions.push(id);
-  }
-  const row = (await client.query(`INSERT INTO tenant.project_task_comments (organization_id, task_id, body, mentions, author_user_id, idempotency_key) VALUES ($1,$2,$3,$4::uuid[],$5,$6) RETURNING id`,
-    [c.organizationId, task.id, body, mentions, c.userId ?? null, key])).rows[0];
-  await taskEvent(client, c, task, "COMMENTED", body.slice(0, 200), { details: { commentId: row.id } });
-  const names = await userNames(client, [c.userId]);
-  await notify(client, c, task, mentions, { title: `${names.get(c.userId) ?? "Someone"} mentioned you on ${task.task_code}`, message: body.slice(0, 200) });
-  return { taskId: task.id, commentId: row.id };
-}
-export async function removeTaskComment(client, c, taskId, input = {}) {
-  const { task, can } = await taskScope(client, c, taskId);
-  const row = (await client.query(`SELECT * FROM tenant.project_task_comments WHERE organization_id = $1 AND task_id = $2 AND id = $3`, [c.organizationId, task.id, uuid(input.commentId, "Comment")])).rows[0];
-  if (!row) throw err(404, "TASK_NOT_FOUND", "Comment not found.");
-  if (row.removed_at) return { removed: true, replayed: true };
-  if (row.author_user_id !== c.userId && !can.edit) throw err(403, "TASK_PERMISSION_DENIED");
-  await client.query(`UPDATE tenant.project_task_comments SET removed_at = clock_timestamp(), removed_by = $3 WHERE organization_id = $1 AND id = $2`, [c.organizationId, row.id, c.userId ?? null]);
-  await taskEvent(client, c, task, "COMMENT_REMOVED", "A comment was removed", { details: { commentId: row.id } });
-  return { removed: true };
-}
+// ------------------------------------------------------------------ files (the discussion is Comments and Collaboration)
 export async function listTaskFiles(client, c, taskId) {
   const { task } = await taskScope(client, c, taskId);
   const rows = await listFiles(client, { organizationId: c.organizationId, entityType: TASK_ENTITY, entityId: task.id });
@@ -850,41 +790,27 @@ export async function bulkUpdateProjectTasks(client, c, input = {}) {
       const { task, can } = await taskScope(client, c, taskId);
       if (!can.bulk) throw err(403, "TASK_PERMISSION_DENIED");
       let result;
-      if (action === "assign") result = await assignProjectTask(client, c, taskId, { assigneeUserId: input.assigneeUserId, note: input.reason, expectedVersion, idempotencyKey: each });
-      else if (action === "priority") result = await updateProjectTask(client, c, taskId, { priority: input.priority, expectedVersion, idempotencyKey: each });
+      if (action === "assign") result = await assignProjectTask(client, c, taskId, { assigneeUserId: input.assigneeUserId, reasonCode: input.reasonCode, reasonText: input.reason, expectedVersion,
+        idempotencyKey: each, notify: false });
+      else if (action === "priority") result = await updateTaskPriority(client, c, taskId, { priority: input.priority, reason: input.reason, expectedVersion, idempotencyKey: each, notify: false });
       else if (action === "due_date") result = await updateProjectTask(client, c, taskId, { dueDate: input.dueDate, dueDateReason: input.reason, expectedVersion, idempotencyKey: each });
       else if (action === "cancel") result = await cancelProjectTask(client, c, taskId, { reason: input.reason, expectedVersion, idempotencyKey: each, acknowledgeDependents: Boolean(input.acknowledgeDependents) });
       else result = await transitionProjectTask(client, c, taskId, { to: input.to, reason: input.reason, expectedVersion, idempotencyKey: each });
       await client.query("RELEASE SAVEPOINT task_bulk");
-      results.push({ taskId, code: task.task_code, ok: true, status: result.status ?? null, replayed: Boolean(result.replayed) });
+      results.push({ taskId, code: task.task_code, ok: true, status: result.status ?? null, replayed: Boolean(result.replayed), ...(action === "priority" ? { changed: result.changed !== false } : {}) });
     } catch (failure) {
       await client.query("ROLLBACK TO SAVEPOINT task_bulk");
-      if (!failure?.code || !String(failure.code).match(/^(TASK_|PROJECT_)/)) throw failure;
+      if (!failure?.code || !String(failure.code).match(/^(TASK_|PROJECT_|ASSIGNEE_|PRIORITY_)/)) throw failure;
       const code = (await client.query(`SELECT task_code FROM tenant.project_tasks WHERE organization_id = $1 AND id = $2`, [c.organizationId, taskId])).rows[0]?.task_code ?? null;
       results.push({ taskId, code, ok: false, error: { code: failure.code, message: failure.message } });
     }
   }
   const succeeded = results.filter((row) => row.ok).length;
-  return { results, succeeded, failed: results.length - succeeded, summary: succeeded === results.length ? `All ${succeeded} task(s) updated.` : `${succeeded} of ${results.length} task(s) updated; ${results.length - succeeded} could not be.` };
+  if (action === "assign") await announceBulkAssignment(client, c, input.assigneeUserId, results);
+  if (action === "priority") await announceBulkPriority(client, c, input.priority, input.reason, results);
+  return { results, succeeded, failed: results.length - succeeded, summary: succeeded === results.length ? `All ${succeeded} task(s) updated.` : `${succeeded} of ${results.length} task(s) updated; ${results.length - succeeded} could not be.`,
+    ...(action === "priority" && succeeded < results.length ? { code: "PRIORITY_BULK_PARTIAL_FAILURE" } : {}) };
 }
 
-// ------------------------------------------------------------------ when someone leaves the team
-// Their open tasks on the project are reassigned (input.reassignToUserId), or stay with them by an authorized exception (input.taskException, a
-// reason) recorded on each task; otherwise they cannot leave.
-registerMemberLeaveHook(async (client, c, project, userId, input) => {
-  const open = (await client.query(`SELECT * FROM tenant.project_tasks WHERE organization_id = $1 AND project_id = $2 AND assignee_user_id = $3 AND status IN ('TO_DO', 'IN_PROGRESS', 'BLOCKED', 'IN_REVIEW')`,
-    [c.organizationId, project.id, userId])).rows;
-  if (!open.length) return;
-  if (input.reassignToUserId) {
-    if (input.reassignToUserId === userId) throw err(400, "TASK_ASSIGNEE_INVALID", "Reassign the tasks to someone else.");
-    for (const task of open) await assignProjectTask(client, c, task.id, { assigneeUserId: input.reassignToUserId, note: "Reassigned: the previous assignee left the project" });
-    return;
-  }
-  if (input.taskException) {
-    const reason = reasonOf(input.taskException, "Say why the open tasks stay with this person.");
-    if (!has(c, PROJECT.taskAssign)) throw err(403, "TASK_PERMISSION_DENIED");
-    for (const task of open) await taskEvent(client, c, task, "ASSIGNEE_LEFT", `The assignee left the project; kept by exception: ${reason}`, { details: { reason } });
-    return;
-  }
-  throw err(409, "PROJECT_MEMBER_HAS_TASKS", undefined, { tasks: open.map((row) => ({ id: row.id, code: row.task_code, title: row.title, status: row.status })) });
-});
+// For the Assignees and Priority features, which change tasks through the same history, notifications and versioning as every task command.
+export { closed as isProjectClosed, notify as notifyTask, replay as replayTaskCommand, write as writeTask };

@@ -4,6 +4,7 @@ export declare function deliverAuthMessage(
     email: string;
     url: string;
     organizationName?: string;
+    expiresIn?: string;
   },
   env?: any,
 ): Promise<boolean>;

@@ -2,8 +2,10 @@
 // readiness; a project's milestones (list and timeline); the company-wide queue; reports; export; deadline alerts; and the work source that
 // feeds project progress, health and the completion check. Everything is rebuilt from the milestone's own records on each read.
 import { createNotification } from "../../core/platform/notifications/index.js";
-import { PROJECT, has, isoDay, projectError, text, userNames, uuid, visibleProject, visibilitySql } from "./project-core.js";
+import { PROJECT, has, isoDay, projectError, projectSettings, text, userNames, uuid, visibleProject, visibilitySql } from "./project-core.js";
 import { registerProjectWorkSource } from "./project-summary.js";
+import { PRIORITY_LABEL, prioritySortSql } from "./priority/priority-rules.js";
+import { priorityLevelsOf } from "./priority/priority-read.js";
 import {
   APPROVAL_LABEL, BLOCKER_CATEGORIES, MILESTONE_STATUS_LABEL, MILESTONE_TYPES, OPEN_STATUSES, milestoneAccess, readinessOf, taskSource,
 } from "./project-milestone-rules.js";
@@ -269,12 +271,6 @@ export async function getMilestoneActivity(client, c, milestoneId) {
   const names = await userNames(client, rows.map((row) => row.actor_user_id));
   return rows.map((row) => ({ id: row.id, action: row.action, summary: row.summary, from: row.from_status, to: row.to_status, details: row.details, actor: names.get(row.actor_user_id) ?? "System", at: row.occurred_at }));
 }
-export async function getMilestoneNotes(client, c, milestoneId) {
-  const { milestone } = await milestoneScope(client, c, milestoneId);
-  const rows = (await client.query(`SELECT * FROM tenant.project_notes WHERE organization_id = $1 AND milestone_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC`, [c.organizationId, milestone.id])).rows;
-  const names = await userNames(client, rows.map((row) => row.author_user_id));
-  return rows.map((row) => ({ id: row.id, body: row.body, author: names.get(row.author_user_id) ?? null, createdAt: row.created_at, mine: row.author_user_id === c.userId }));
-}
 // Tasks of the milestone's project that may be linked (not yet counted toward a milestone).
 export async function searchMilestoneTasks(client, c, milestoneId, term = "") {
   const { milestone } = await milestoneScope(client, c, milestoneId);
@@ -286,7 +282,7 @@ export async function searchMilestoneTasks(client, c, milestoneId, term = "") {
 }
 
 // ------------------------------------------------------------------ the company-wide queue
-const QUEUE_SORT = { due: "milestone.current_due_date", code: "milestone.milestone_code", project: "project.project_code", status: "milestone.status", priority: "milestone.priority", updated: "milestone.updated_at" };
+const QUEUE_SORT = { due: "milestone.current_due_date", code: "milestone.milestone_code", project: "project.project_code", status: "milestone.status", priority: prioritySortSql("milestone.priority"), updated: "milestone.updated_at" };
 // filters: { view: all | mine | upcoming | overdue | pending_approval | pending_customer | blocked | completed, search, projectId, ownerId, status, sort, direction, page, pageSize }
 export async function listMilestoneQueue(client, c, filters = {}) {
   if (!has(c, PROJECT.milestoneView) || !(has(c, PROJECT.view) || has(c, PROJECT.viewAll))) throw err(403, "MILESTONE_PERMISSION_DENIED");
@@ -310,6 +306,8 @@ export async function listMilestoneQueue(client, c, filters = {}) {
   if (filters.projectId) { values.push(uuid(filters.projectId, "Project")); where.push(`milestone.project_id = $${values.length}`); }
   if (filters.ownerId) { values.push(uuid(filters.ownerId, "Owner")); where.push(`milestone.owner_user_id = $${values.length}`); }
   if (filters.status && MILESTONE_STATUS_LABEL[String(filters.status).toUpperCase()]) { values.push(String(filters.status).toUpperCase()); where.push(`milestone.status = $${values.length}`); }
+  const levels = priorityLevelsOf(filters.priority);
+  if (levels.length) { values.push(levels); where.push(`milestone.priority = ANY($${values.length}::text[])`); }
   if (filters.search) {
     values.push(`%${text(filters.search, 100).replace(/[%_]/g, "\\$&")}%`);
     where.push(`(milestone.name ILIKE $${values.length} OR milestone.milestone_code ILIKE $${values.length} OR project.project_code ILIKE $${values.length} OR project.name ILIKE $${values.length})`);
@@ -419,7 +417,9 @@ export async function evaluateMilestoneDeadlines(client, c) {
     const due = day(row.current_due_date);
     const left = daysBetween(today, due);
     if (left < 0 && await once(row, `milestone:${row.id}:overdue:${due}`)) {
-      await tell(row, [row.owner_user_id, row.manager_user_id], `${row.milestone_code} is overdue`, `${row.name} (${row.project_code}) was due on ${due}.`);
+      // An overdue High or Urgent milestone is a delivery risk, and says so.
+      const important = ["URGENT", "HIGH"].includes(row.priority) ? `${PRIORITY_LABEL[row.priority]} milestone ` : "";
+      await tell(row, [row.owner_user_id, row.manager_user_id], `${important}${row.milestone_code} is overdue`, `${row.name} (${row.project_code}) was due on ${due}.${important ? " Delivery is at risk." : ""}`);
       sent += 1;
     } else if (left >= 0 && left <= dueSoon && await once(row, `milestone:${row.id}:due:${due}`)) {
       await tell(row, [row.owner_user_id], `${row.milestone_code} is due in ${left} day(s)`, `${row.name} (${row.project_code}) — due ${due}.`);
@@ -430,10 +430,12 @@ export async function evaluateMilestoneDeadlines(client, c) {
 }
 
 // ------------------------------------------------------------------ the project's milestone work (progress, health, completion check)
+const addDays = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 registerProjectWorkSource(async (client, c, projectIds, map) => {
   if (!projectIds.length) return;
   const today = await orgDay(client, c);
-  const rows = (await client.query(`SELECT project_id, milestone_code, name, status, required_for_completion, waived_at, current_due_date FROM tenant.project_milestones
+  const settings = await projectSettings(client, c);
+  const rows = (await client.query(`SELECT project_id, milestone_code, name, status, approval_status, required_for_completion, waived_at, current_due_date FROM tenant.project_milestones
      WHERE organization_id = $1 AND project_id = ANY($2::uuid[]) AND status <> 'CANCELLED'`, [c.organizationId, projectIds])).rows;
   for (const id of projectIds) {
     const own = rows.filter((row) => row.project_id === id);
@@ -445,6 +447,8 @@ registerProjectWorkSource(async (client, c, projectIds, map) => {
       total: own.length, completed: own.length - open.length, open: open.length,
       overdue: required.filter((row) => day(row.current_due_date) < today).length,
       openRequired: required.length, openRequiredNames: required.map((row) => `${row.milestone_code} ${row.name}`),
+      // Submitted (awaiting approval or the customer's acceptance) with the due date close or passed.
+      awaitingNearDue: required.filter((row) => (row.status === "SUBMITTED" || row.approval_status === "PENDING") && day(row.current_due_date) <= addDays(today, settings.dueSoonDays)).length,
     };
   }
 });

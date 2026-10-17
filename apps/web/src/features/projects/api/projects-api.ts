@@ -1,6 +1,7 @@
 "use client";
 
 // Projects: the client of /api/projects.
+import type { HoldReason, StatusAction } from "../status/status-api";
 export class ProjectApiError extends Error {
   constructor(message: string, public readonly status: number, public readonly code?: string, public readonly details: Record<string, unknown> = {}) {
     super(message);
@@ -59,7 +60,10 @@ export type Project = {
   risk: { flagged: boolean; note: string | null };
   health: { state: Health; label: string; reasons: string[]; final?: boolean; note: { text: string; at: string } | null; noteBy: string | null };
   progress: { state: "NO_DATA" | "TRACKED"; percent: number | null; label: string; tasks: WorkCounts; milestones: WorkCounts };
-  hold: { reason: string; owner: string | null; startedAt: string } | null;
+  hold: { reason: string; owner: string | null; startedAt: string; openReasons: number; reasons: HoldReason[] } | null;
+  reopenCount: number; lastReopenedAt: string | null;
+  // The status actions this person may take now, each with the reason when they may not (Project Status).
+  statusActions: StatusAction[];
   activation: { ready: boolean; problems: Array<{ code: string; field: string; message: string }> } | null;
   tags: string[]; template: { id: string; name: string } | null; archived: boolean; archivedAt: string | null; archivedBy: string | null; members: number; createdBy: string | null; createdAt: string;
   updatedAt: string; lastActivityAt: string | null; version: number; role: string | null; roleLabel: string | null;
@@ -75,13 +79,12 @@ export type Link = { id: string; sourceModule: string; sourceType: string; typeL
 export type Note = { id: string; body: string; author: string | null; createdAt: string; editedAt: string | null; version: number; mine: boolean; mayRemove: boolean;
   customerContactId: string | null; customerContact: string | null };
 export type ProjectFile = { id: string; fileName: string; mimeType: string; sizeBytes: number; uploadedAt: string; uploadedBy: string | null };
-export type Check = { key: string; label: string; state: "PASS" | "FAIL" | "WARN" | "NOT_TRACKED" | "TO_CONFIRM"; message: string; blocking: boolean };
 export type Options = {
   types: Array<{ id: string; code: string; name: string }>; users: Array<{ id: string; name: string; email: string }>; priorities: Priority[]; roles: Array<{ code: string; name: string }>;
   settings: { activationApprovalRequired: boolean; selfApprovalAllowed: boolean; dueSoonDays: number; customerAcceptanceRequired: boolean; customerChangeApprovalRequired: boolean;
     primaryContactRequired: boolean; inactiveCustomerAllowed: boolean; milestoneSelfApprovalAllowed?: boolean; milestoneInternalApprovalDefault?: boolean;
     taskSelfReviewAllowed?: boolean; taskReviewDefault?: boolean; taskReminderDays?: number }; currentUserId: string;
-  can: { create: boolean; viewAll: boolean; export: boolean; reports: boolean; settings: boolean; inviteUsers: boolean; customerAssign: boolean; customerExport: boolean; crmAccounts: boolean };
+  can: { create: boolean; viewAll: boolean; export: boolean; reports: boolean; settings: boolean; inviteUsers: boolean; customerAssign: boolean; customerExport: boolean; crmAccounts: boolean; commentExport?: boolean; progressExport?: boolean };
 };
 export type Overview = {
   counts: Record<"active" | "inProgress" | "onHold" | "overdue" | "dueSoon" | "atRisk" | "drafts" | "pendingApproval" | "completedThisMonth" | "mine" | "noManager", number>;
@@ -94,9 +97,6 @@ export const listProjects = (filters: Record<string, string | number | undefined
 export const getProject = (id: string) => call<{ project: Project }>(`/${id}`).then((r) => r.project);
 export const getSummary = (id: string) => call<{ summary: ProjectSummary }>(`/${id}/summary`).then((r) => r.summary);
 export const getActivity = (id: string) => call<{ activity: ActivityEntry[] }>(`/${id}/activity`).then((r) => r.activity);
-export const getStatusHistory = (id: string) => call<{ history: Array<{ action: string; from: string | null; to: string; reason: string | null; actor: string; at: string }> }>(`/${id}/status-history`).then((r) => r.history);
-export const getCompletionCheck = (id: string) => call<{ check: { checks: Check[]; completionDate: string; ready: boolean } }>(`/${id}/completion-check`).then((r) => r.check);
-export const getCancellationReview = (id: string) => call<{ review: { dependencies: Array<{ type: string; number: string | null; status: string | null; message: string }>; members: number; hold: string | null; notes: string[] } }>(`/${id}/cancellation-review`).then((r) => r.review);
 export const createProject = (input: Record<string, unknown>) => send<{ projectId: string; projectCode: string; replayed?: boolean }>("", input);
 export const updateProject = (id: string, input: Record<string, unknown>) => send<{ projectId: string; version: number; changed: string[] }>(`/${id}`, input, "PATCH");
 export const projectAction = (id: string, action: string, input: Record<string, unknown> = {}) => send<{ projectId: string; status?: string; approval?: string }>(`/${id}/${action}`, input);
@@ -252,7 +252,6 @@ export const getMilestone = (id: string) => call<MilestoneDetail>(`/milestones/$
 export const updateMilestone = (id: string, input: Record<string, unknown>) => send<{ milestoneId: string; changed: string[] }>(`/milestones/${id}`, input, "PATCH");
 export const milestoneAction = <T = Record<string, unknown>>(id: string, action: string, input: Record<string, unknown> = {}) => send<T>(`/milestones/${id}/${action}`, input);
 export const getMilestoneActivity = (id: string) => call<{ activity: MilestoneActivity[] }>(`/milestones/${id}/activity`).then((r) => r.activity);
-export const getMilestoneNotes = (id: string) => call<{ notes: Array<{ id: string; body: string; author: string | null; createdAt: string; mine: boolean }> }>(`/milestones/${id}/notes`).then((r) => r.notes);
 export const searchMilestoneTasks = (id: string, search: string) => call<{ tasks: { tracked: boolean; tasks: Array<{ id: string; title: string; code?: string | null; status?: string }> } }>(
   `/milestones/${id}/task-search${qs({ search })}`).then((r) => r.tasks);
 export const listMilestoneQueue = (filters: Record<string, string | number | undefined>) => call<MilestoneQueue>(`/milestones${qs(filters)}`);
@@ -283,8 +282,10 @@ export type TaskRow = {
   approvalStatus: TaskApproval; approvalLabel: string; priority: Priority; type: string; typeLabel: string; tags: string[]; plannedStartDate: string | null; dueDate: string; originalDueDate: string;
   rescheduled: boolean; completedAt: string | null; reviewRequired: boolean; estimateMinutes: number | null; archived: boolean; overdue: boolean; dueIn: number | null; updatedAt: string; version: number;
   projectCode?: string; projectName?: string | null; projectStatus?: ProjectStatus; milestone?: { id: string; code: string; name: string } | null; checklist?: { total: number; done: number };
+  needsOwner?: boolean; attention?: string[];
 };
-export type TaskQueue = { rows: TaskRow[]; total: number; page: number; pageSize: number; pages: number; can: { export: boolean; bulk: boolean } };
+export type TaskQueue = { rows: TaskRow[]; total: number; page: number; pageSize: number; pages: number; can: { export: boolean; bulk: boolean }; sort?: string;
+  priorityCounts?: Record<Priority, number> };
 export type ProjectTasks = TaskQueue & {
   projectId: string; projectCode: string; projectStatus: ProjectStatus; targetEndDate: string | null; milestones: Array<{ id: string; code: string; name: string; status: string; linkable: boolean }>;
   summary: { total: number; done: number; open: number; blocked: number; inReview: number; overdue: number; percent: number | null };
@@ -312,7 +313,6 @@ export type TaskDetail = TaskRow & {
     | "reopen" | "cancel" | "archive" | "restore" | "comment" | "evidence" | "dependencies", boolean>;
 };
 export type TaskActivity = { id: string; action: string; summary: string | null; from: string | null; to: string | null; actor: string; at: string };
-export type TaskComment = { id: string; body: string; author: string | null; mine: boolean; createdAt: string; mentions: string[] };
 export type TaskBulkResult = { results: Array<{ taskId: string; code: string | null; ok: boolean; status?: string | null; replayed?: boolean; error?: { code: string; message: string } }>;
   succeeded: number; failed: number; summary: string };
 export const TASKS_BASE = "/projects/tasks";
@@ -323,7 +323,6 @@ export const getTask = (id: string) => call<TaskDetail>(`/tasks/${id}`);
 export const updateTask = (id: string, input: Record<string, unknown>) => send<{ taskId: string; changed: string[] }>(`/tasks/${id}`, input, "PATCH");
 export const taskAction = <T = Record<string, unknown>>(id: string, action: string, input: Record<string, unknown> = {}) => send<T>(`/tasks/${id}/${action}`, input);
 export const getTaskActivity = (id: string) => call<{ activity: TaskActivity[] }>(`/tasks/${id}/activity`).then((r) => r.activity);
-export const getTaskComments = (id: string) => call<{ comments: TaskComment[] }>(`/tasks/${id}/comments`).then((r) => r.comments);
 export const listTasks = (filters: Record<string, string | number | undefined>) => call<TaskQueue>(`/tasks${qs(filters)}`);
 export const bulkTasks = (input: Record<string, unknown>) => send<TaskBulkResult>("/tasks/bulk", input);
 export const taskExportHref = (filters: Record<string, string | number | undefined>) => `/api/projects/tasks/export${qs(filters)}`;

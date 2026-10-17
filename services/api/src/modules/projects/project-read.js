@@ -1,12 +1,14 @@
 // Projects — the reads: the directory (views, search, filters, sorting and paging, only what the person may see), one project with its team,
 // health, progress, hold, approval and what the person may do; the workspace summary; the team and its history; links; notes; the activity
 // timeline; the module overview; the overview reports; the directory export; the options a form needs; and the due-date and health alerts.
+import { evaluateTimesheetReminders } from "./timesheets/time-submissions.js";
 import {
   ACTIVE_STATUSES, PRIORITIES, PROJECT, ROLES, STATUS_LABEL, canView, eligibleUsers, ensureProjectTypes, has, isoDay, need, notifyProject, projectError, projectSettings, seesAll, text,
   today, userNames, uuid, visibilitySql, visibleProject,
 } from "./project-core.js";
-import { LINK_LABEL, cancellationReview, completionCheck, healthContext, progressOf, resolvedLinks } from "./project-summary.js";
-import { LINK_SOURCES, validateProjectActivation } from "./project-service.js";
+import { LINK_LABEL, healthContext, progressOf, resolvedLinks } from "./project-summary.js";
+import { LINK_SOURCES } from "./project-service.js";
+import { activationReadiness, availableActions, holdOf } from "./status/index.js";
 import { CUSTOMER_REPORTS, getProjectCustomerReport, searchProjectEligibleCustomers } from "./project-customer.js";
 import { evaluateMilestoneDeadlines } from "./project-milestone-read.js";
 import { evaluateTaskDeadlines } from "./project-task-read.js";
@@ -106,7 +108,8 @@ export async function getProject(client, c, projectId) {
   const contact = row.customer_contact_id ? (await client.query(`SELECT id, COALESCE(NULLIF(display_name, ''), btrim(concat_ws(' ', first_name, last_name))) AS name, email, phone FROM tenant.contacts WHERE id = $1`,
     [row.customer_contact_id])).rows[0] : null;
   const names = await userNames(client, [row.created_by, row.approval_requested_by, row.approved_by, row.completed_by, row.cancelled_by, row.archived_by, row.health_noted_by, hold?.owner_user_id]);
-  const activation = row.status === "DRAFT" ? await validateProjectActivation(client, c, row.id) : null;
+  const activation = row.status === "DRAFT" ? await activationReadiness(client, c, row) : null;
+  const activeHold = row.status === "ON_HOLD" ? await holdOf(client, c, row.id) : null;
   // Contact email and phone only for someone who may see project customers.
   const customerDetails = has(c, PROJECT.customerView);
   const settings = health.settings;
@@ -128,7 +131,10 @@ export async function getProject(client, c, projectId) {
     risk: { flagged: row.risk_flagged, note: row.risk_note },
     health: { ...health.of(row), noteBy: names.get(row.health_noted_by) ?? null },
     progress: progressOf(health.work.get(row.id)),
-    hold: hold ? { reason: hold.reason, owner: names.get(hold.owner_user_id) ?? null, startedAt: hold.started_at } : null,
+    hold: hold ? { reason: hold.reason, owner: names.get(hold.owner_user_id) ?? null, startedAt: hold.started_at, openReasons: activeHold?.open ?? 0, reasons: activeHold?.reasons ?? [] } : null,
+    reopenCount: row.reopen_count ?? 0, lastReopenedAt: row.last_reopened_at ?? null,
+    // The status actions this person may take now, each with the reason when they may not (the server checks again).
+    statusActions: availableActions(row, { can, approvalPending: row.approval_status === "PENDING", openBlockers: activeHold?.open ?? 0, activationProblems: activation?.problems ?? [] }),
     activation, tags: row.tags ?? [], template: row.template_name ? { id: row.template_id, name: row.template_name } : null,
     archived: Boolean(row.archived_at), archivedAt: row.archived_at, archivedBy: names.get(row.archived_by) ?? null,
     members: row.member_count, createdBy: names.get(row.created_by) ?? null, createdAt: row.created_at, updatedAt: row.updated_at, lastActivityAt: row.last_activity_at, version: row.row_version,
@@ -138,7 +144,7 @@ export async function getProject(client, c, projectId) {
       edit: can.edit && !["COMPLETED", "CANCELLED"].includes(status) && !row.archived_at,
       activate: can.start && status === "DRAFT" && row.approval_status !== "PENDING", start: can.start && status === "PLANNED", hold: can.hold && ["PLANNED", "IN_PROGRESS"].includes(status) && !row.archived_at,
       resume: can.resume && status === "ON_HOLD", complete: can.complete && status === "IN_PROGRESS", reopen: can.reopen && status === "COMPLETED" && !row.archived_at,
-      cancel: can.cancel && ["DRAFT", ...ACTIVE_STATUSES].includes(status), archive: can.archive && ["COMPLETED", "CANCELLED"].includes(status) && !row.archived_at,
+      cancel: can.cancel && ACTIVE_STATUSES.includes(status) && !row.archived_at, archive: can.archive && ["COMPLETED", "CANCELLED"].includes(status) && !row.archived_at,
       restore: can.archive && Boolean(row.archived_at), delete: status === "DRAFT" && (can.archive || (can.edit && row.created_by === c.userId)),
       members: can.members && !["COMPLETED", "CANCELLED"].includes(status), links: can.links, customer: customerDetails,
     },
@@ -189,21 +195,6 @@ export async function getProjectActivity(client, c, projectId, { limit = 300 } =
   const names = await userNames(client, rows.map((row) => row.actor_user_id));
   return rows.map((row) => ({ id: row.id, action: row.action, summary: row.summary, actor: names.get(row.actor_user_id) ?? "System", at: row.occurred_at }));
 }
-export async function getProjectStatusHistory(client, c, projectId) {
-  const { project } = await visibleProject(client, c, projectId);
-  const rows = (await client.query(`SELECT * FROM tenant.project_status_events WHERE organization_id = $1 AND project_id = $2 ORDER BY occurred_at`, [c.organizationId, project.id])).rows;
-  const names = await userNames(client, rows.map((row) => row.actor_user_id));
-  return rows.map((row) => ({ action: row.action, from: row.from_status, to: row.to_status, reason: row.reason, actor: names.get(row.actor_user_id) ?? "System", at: row.occurred_at }));
-}
-export async function getProjectCompletionCheck(client, c, projectId) {
-  const { project } = await visibleProject(client, c, projectId);
-  return completionCheck(client, c, project, {}, { preview: true });
-}
-export async function getProjectCancellationReview(client, c, projectId) {
-  const { project } = await visibleProject(client, c, projectId);
-  return cancellationReview(client, c, project);
-}
-
 // ------------------------------------------------------------------ the module overview and reports
 export async function getProjectsOverview(client, c) {
   const { rows, settings } = await directory(client, c, { view: "everything" });
@@ -313,7 +304,8 @@ export async function getProjectOptions(client, c) {
   return { types, users, priorities: PRIORITIES, roles: Object.entries(ROLES).filter(([code]) => code !== "MANAGER").map(([code, name]) => ({ code, name })),
     settings: await projectSettings(client, c), currentUserId: c.userId,
     can: { create: has(c, PROJECT.create), viewAll: seesAll(c), export: has(c, PROJECT.export), reports: has(c, PROJECT.reports), settings: has(c, PROJECT.settings),
-      inviteUsers: has(c, "users.manage"), customerAssign: has(c, PROJECT.customerAssign), customerExport: has(c, PROJECT.customerExport), crmAccounts: has(c, "crm.accounts.view") } };
+      inviteUsers: has(c, "users.manage"), customerAssign: has(c, PROJECT.customerAssign), customerExport: has(c, PROJECT.customerExport), crmAccounts: has(c, "crm.accounts.view"),
+      commentExport: has(c, "projects.comments.export"), progressExport: has(c, "projects.progress.export") } };
 }
 export async function searchProjectCustomers(client, c, search = "", options = {}) {
   return searchProjectEligibleCustomers(client, c, { search, includeCrmAccounts: options.includeCrmAccounts });
@@ -380,5 +372,7 @@ export async function notifyProjectAlerts(client, c) {
   }
   const milestones = await evaluateMilestoneDeadlines(client, c);
   const tasks = await evaluateTaskDeadlines(client, c);
-  return { checked: rows.length, sent: sent + milestones.sent + tasks.sent, milestones, tasks };
+  const timesheets = await evaluateTimesheetReminders(client, c);
+  return { checked: rows.length, sent: sent + milestones.sent + tasks.sent + timesheets.sent, milestones, tasks, timesheets };
 }
+export { directory as projectDirectory, rowView as projectRowView };

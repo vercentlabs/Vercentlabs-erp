@@ -7,13 +7,15 @@ import { publishDomainEvent } from "../../core/platform/events/index.js";
 import { archiveFile, listFiles, readFileContent, storeFile } from "../../core/platform/files/index.js";
 import { createNotification } from "../../core/platform/notifications/index.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
-import { PRIORITIES, eligibleUsers, has, isoDay, projectError, projectEvent, text, uuid, visibleProject } from "./project-core.js";
+import { eligibleUsers, has, isoDay, progressChanged, projectError, projectEvent, text, uuid, visibleProject } from "./project-core.js";
+import { priorityChangeFor, recordMilestonePriorityChange, validatePriority } from "./priority/index.js";
 import {
   approvalsOf, billingRequestOf, criteriaOf, currentLineOf, dependentsOf, milestoneScope, orgDay, prerequisitesOf, projectScope, readinessFor, tasksOf,
 } from "./project-milestone-read.js";
 import {
   BLOCKER_CATEGORIES, MILESTONE_ENTITY, MILESTONE_STATUS_LABEL, MILESTONE_TYPES, OPEN_STATUSES, approvalAfter, createsCycle, milestoneAccess, needsApproval, taskSource,
 } from "./project-milestone-rules.js";
+import { executionState } from "./status/status-rules.js";
 
 const err = (status, code, message, details) => projectError(status, code, message, details);
 const need = (can, key) => { if (!can[key]) throw err(403, "MILESTONE_PERMISSION_DENIED"); };
@@ -29,10 +31,11 @@ const versionCheck = (milestone, expected) => {
 };
 
 // ------------------------------------------------------------------ history, notifications, automation
-async function milestoneEvent(client, c, milestone, action, summary, { from = null, to = null, details = {}, key = null } = {}) {
+export async function milestoneEvent(client, c, milestone, action, summary, { from = null, to = null, details = {}, key = null } = {}) {
   await client.query(`INSERT INTO tenant.project_milestone_events (organization_id, milestone_id, project_id, action, summary, details, from_status, to_status, actor_user_id, idempotency_key)
     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`,
     [c.organizationId, milestone.id, milestone.project_id, action, summary ? String(summary).slice(0, 1000) : null, JSON.stringify(details), from, to, c.userId ?? null, key]);
+  if (to || action === "WAIVED_FOR_COMPLETION" || action === "CREATED" || action === "UPDATED") await progressChanged(client, c, milestone.project_id, { type: "MILESTONE", id: milestone.id, action, from, to });
   await publishDomainEvent(client, { organizationId: c.organizationId, moduleKey: "projects", eventType: `projects.milestone.${action.toLowerCase()}`, entityType: MILESTONE_ENTITY,
     entityId: milestone.id, payload: { milestoneCode: milestone.milestone_code, projectId: milestone.project_id, status: to ?? milestone.status, ...details } });
 }
@@ -59,13 +62,15 @@ async function write(client, c, milestone, sets) {
 
 // ------------------------------------------------------------------ guards
 // Planning and evidence work happen while the project is open; starting, submitting and completing while it is in progress.
+// What the project's status allows comes from Project Status (status/).
 function projectOpen(project) {
-  if (["COMPLETED", "CANCELLED"].includes(project.status) || project.archived_at || project.deleted_at) throw err(409, "MILESTONE_PROJECT_CLOSED");
+  if (executionState(project) === "CLOSED") throw err(409, "MILESTONE_PROJECT_CLOSED");
 }
 function projectWorking(project) {
-  projectOpen(project);
-  if (project.status === "ON_HOLD") throw err(409, "MILESTONE_PROJECT_ON_HOLD");
-  if (project.status !== "IN_PROGRESS") throw err(409, "MILESTONE_STATUS_INVALID", "Start the project before starting, submitting or completing its milestones.");
+  const state = executionState(project);
+  if (state === "CLOSED") throw err(409, "MILESTONE_PROJECT_CLOSED");
+  if (state === "ON_HOLD") throw err(409, "MILESTONE_PROJECT_ON_HOLD");
+  if (state === "NOT_STARTED") throw err(409, "MILESTONE_STATUS_INVALID", "Start the project before starting, submitting or completing its milestones.");
 }
 function milestoneOpen(milestone) {
   if (milestone.status === "COMPLETED") throw err(409, "MILESTONE_ALREADY_COMPLETED");
@@ -157,7 +162,7 @@ async function insertMilestone(client, c, project, input, key) {
   if (customer && (project.classification !== "CUSTOMER" || !project.customer_id)) throw err(400, "MILESTONE_CUSTOMER_CONTACT_INVALID", "Customer acceptance needs a customer project with its customer chosen.");
   const contact = input.customerContactId ? await acceptanceContactOf(client, c, project, input.customerContactId) : null;
   const type = enumOf(input.milestoneType, Object.keys(MILESTONE_TYPES), "DELIVERABLE", "Choose deliverable, approval, phase gate or other.", "milestoneType");
-  const priority = enumOf(input.priority, PRIORITIES, "NORMAL", "Choose low, normal, high or urgent.", "priority");
+  const priority = validatePriority(input.priority);
   const criteria = (Array.isArray(input.criteria) ? input.criteria : []).map(criterionInput);
   if (criteria.length > 50) throw err(400, "MILESTONE_INPUT_INVALID", "Use at most 50 completion criteria.", { field: "criteria" });
   const sequence = input.sequence ? Math.max(1, Math.floor(Number(input.sequence)) || 1)
@@ -217,9 +222,11 @@ export async function updateProjectMilestone(client, c, milestoneId, input = {})
   need(can, "edit");
   versionCheck(milestone, input.expectedVersion);
   projectOpen(project);
+  // The milestone's own priority only: its tasks keep theirs.
+  const priorityChange = priorityChangeFor(milestone, input, "COMPLETED");
   milestoneOpen(milestone);
   const given = (name) => input[name] !== undefined;
-  const sets = {};
+  const sets = priorityChange ? { priority: priorityChange.to } : {};
   const changes = [];
   if (given("name")) {
     const name = text(input.name, 300);
@@ -228,7 +235,6 @@ export async function updateProjectMilestone(client, c, milestoneId, input = {})
   }
   if (given("description")) { const value = text(input.description, 10000) || null; if (value !== milestone.description) { sets.description = value; changes.push("description"); } }
   if (given("milestoneType")) { const value = enumOf(input.milestoneType, Object.keys(MILESTONE_TYPES), milestone.milestone_type, "Choose deliverable, approval, phase gate or other.", "milestoneType"); if (value !== milestone.milestone_type) { sets.milestone_type = value; changes.push("type"); } }
-  if (given("priority")) { const value = enumOf(input.priority, PRIORITIES, milestone.priority, "Choose low, normal, high or urgent.", "priority"); if (value !== milestone.priority) { sets.priority = value; changes.push("priority"); } }
   if (given("sequence")) { const value = Math.max(1, Math.floor(Number(input.sequence)) || 1); if (value !== milestone.sequence) { sets.sequence = value; changes.push("order"); } }
   if (given("requiredForCompletion")) { const value = Boolean(input.requiredForCompletion); if (value !== milestone.required_for_completion) { sets.required_for_completion = value; changes.push("required for completion"); } }
   const plannedStart = given("plannedStartDate") ? (input.plannedStartDate ? isoDay(input.plannedStartDate) : null) : day(milestone.planned_start_date);
@@ -251,7 +257,7 @@ export async function updateProjectMilestone(client, c, milestoneId, input = {})
     const value = input.customerContactId ? await acceptanceContactOf(client, c, project, input.customerContactId) : null;
     if (value !== milestone.customer_contact_id) { sets.customer_contact_id = value; material.push("acceptance contact"); }
   }
-  if (!changes.length && !material.length && !dueChange) return { milestoneId: milestone.id, version: milestone.row_version, changed: [] };
+  if (!changes.length && !material.length && !dueChange && !priorityChange) return { milestoneId: milestone.id, version: milestone.row_version, changed: [] };
   let row = milestone;
   if (material.length) row = await changeScope(client, c, milestone, input, material.join(", "));
   else if (milestone.status === "SUBMITTED" && (changes.includes("name") || changes.includes("description"))) row = await changeScope(client, c, milestone, input, "the milestone's details");
@@ -264,8 +270,10 @@ export async function updateProjectMilestone(client, c, milestoneId, input = {})
     await milestoneEvent(client, c, row, "DUE_DATE_CHANGED", `Due date ${dueChange.from} → ${dueChange.to}: ${dueChange.reason}`, { details: dueChange });
     await notify(client, c, row, [row.owner_user_id, project.manager_user_id], { title: `${row.milestone_code} is now due ${dueChange.to}`, message: `${row.name}: ${dueChange.reason}` });
   }
+  if (priorityChange) await recordMilestonePriorityChange(client, c, { milestone, row, project, change: priorityChange, key: changes.length || material.length ? null : keyOf(input) });
   if (changes.length || material.length) await milestoneEvent(client, c, row, "UPDATED", `Changed: ${[...changes, ...material].join(", ")}`, { details: { fields: [...changes, ...material] }, key: keyOf(input) });
-  return { milestoneId: row.id, version: row.row_version, changed: [...changes, ...material, ...(dueChange ? ["due date"] : [])], status: row.status };
+  return { milestoneId: row.id, version: row.row_version, changed: [...(priorityChange ? ["priority"] : []), ...changes, ...material, ...(dueChange ? ["due date"] : [])], status: row.status,
+    priority: row.priority };
 }
 
 // input: { ownerUserId, note?, expectedVersion?, idempotencyKey? }
@@ -926,17 +934,7 @@ export async function acknowledgeMilestoneBilling(client, c, milestoneId, input 
   return { milestoneId: milestone.id, status: "ACKNOWLEDGED" };
 }
 
-// ------------------------------------------------------------------ notes and files
-export async function addMilestoneNote(client, c, milestoneId, input = {}) {
-  const { milestone, access } = await milestoneScope(client, c, milestoneId);
-  if (!access.can.contribute) throw err(403, "MILESTONE_PERMISSION_DENIED");
-  const body = text(input.body, 5000);
-  if (!body) throw err(400, "MILESTONE_INPUT_INVALID", "Write the note.", { field: "body" });
-  const row = (await client.query(`INSERT INTO tenant.project_notes (organization_id, project_id, milestone_id, body, author_user_id) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-    [c.organizationId, milestone.project_id, milestone.id, body, c.userId ?? null])).rows[0];
-  await milestoneEvent(client, c, milestone, "NOTE_ADDED", body.slice(0, 200));
-  return { milestoneId: milestone.id, noteId: row.id };
-}
+// ------------------------------------------------------------------ files (the discussion is Comments and Collaboration)
 export async function listMilestoneFiles(client, c, milestoneId) {
   const { milestone } = await milestoneScope(client, c, milestoneId);
   const rows = await listFiles(client, { organizationId: c.organizationId, entityType: MILESTONE_ENTITY, entityId: milestone.id });

@@ -8,6 +8,7 @@ import { JOB_TYPE as REORDER_RECONCILE_JOB_TYPE } from "./handlers/stock-reorder
 import { JOB_TYPE as LOW_STOCK_DISPATCH_JOB_TYPE } from "./handlers/stock-low-stock-dispatch.js";
 import { JOB_TYPE as HOLD_OVERDUE_JOB_TYPE } from "./handlers/manufacturing-hold-overdue.js";
 import { JOB_TYPE as PROJECT_ALERTS_JOB_TYPE } from "./handlers/projects-alerts.js";
+import { JOB_TYPE as DEPRECIATION_AUTOMATION_JOB_TYPE } from "./handlers/assets-depreciation-automation.js";
 
 const logger = createLogger("worker-scheduler");
 
@@ -121,6 +122,22 @@ export async function runSchedulerTick(pool, config) {
       else enqueued += 1;
     } catch (error) {
       logger.error("project alerts tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // Automatic depreciation accounting: once a day (calendar-date key). The month it processes is decided by the Company's policy and
+      // Finance's calendar, and claimed once per book and month, so daily ticks never prepare or post twice.
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, {
+          jobType: DEPRECIATION_AUTOMATION_JOB_TYPE,
+          idempotencyKey: `depreciation-automation:${snapshotDay}`,
+          payload: { date: snapshotDay },
+          maxAttempts: 3,
+        }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("depreciation automation tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
   }
   logger.info("scheduler tick complete", { organizations: organizationIds.length, enqueued, deduped, bucket });

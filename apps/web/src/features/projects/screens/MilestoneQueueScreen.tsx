@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import { EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, SearchField, StatusBadge } from "@vercentlabs/design-system";
+import { EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, SearchField, Select, StatusBadge } from "@vercentlabs/design-system";
 
 import { useDebouncedValue } from "@/shared/ui/list";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -14,8 +14,10 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  APPROVAL_TONE, MILESTONES_BASE, MILESTONE_TONE, PRIORITY_LABEL, PRIORITY_TONE, dateLabel, dueLabel, errorMessage, errorStatus, listMilestoneQueue, milestoneExportHref, type MilestoneRow,
+  APPROVAL_TONE, MILESTONES_BASE, MILESTONE_TONE, PRIORITY_LABEL, dateLabel, dueLabel, errorMessage, errorStatus, listMilestoneQueue, milestoneExportHref, type MilestoneRow,
 } from "../api/projects-api";
+import { PriorityBadge } from "../priority/Priority";
+import { PRIORITIES } from "../priority/priority-api";
 
 const VIEWS = [{ id: "all", label: "All" }, { id: "mine", label: "My milestones" }, { id: "upcoming", label: "Due soon" }, { id: "overdue", label: "Overdue" },
   { id: "pending_approval", label: "Pending approval" }, { id: "pending_customer", label: "Pending customer" }, { id: "blocked", label: "Blocked" }, { id: "completed", label: "Completed" }];
@@ -30,6 +32,7 @@ export function MilestoneQueueScreen() {
   const params = useSearchParams();
   const [view, setView] = useState(() => (VIEWS.some((row) => row.id === params.get("view")) ? params.get("view")! : "all"));
   const [search, setSearch] = useState("");
+  const [priority, setPriority] = useState<string | null>(null);
   const term = useDebouncedValue(search);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [page, setPage] = useState(0);
@@ -39,7 +42,7 @@ export function MilestoneQueueScreen() {
     setSeenUrlView(urlView);
     if (urlView && VIEWS.some((row) => row.id === urlView)) { setView(urlView); setPage(0); }
   }
-  const query = { view, search: term || undefined, sort: sorting[0] ? SORT_ID[sorting[0].id] : undefined, direction: sorting[0] ? (sorting[0].desc ? "desc" : "asc") : undefined, page: page + 1, pageSize: 25 };
+  const query = { view, search: term || undefined, priority: priority ?? undefined, sort: sorting[0] ? SORT_ID[sorting[0].id] : undefined, direction: sorting[0] ? (sorting[0].desc ? "desc" : "asc") : undefined, page: page + 1, pageSize: 25 };
   const list = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "milestone-queue", query), queryFn: () => listMilestoneQueue(query), placeholderData: (previous) => previous, retry: false });
   const rows = list.data?.rows ?? [];
   const columns = useMemo<ColumnDef<MilestoneRow, unknown>[]>(() => [
@@ -55,7 +58,7 @@ export function MilestoneQueueScreen() {
     { id: "status", accessorKey: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={MILESTONE_TONE[row.original.status]}>{row.original.statusLabel}</StatusBadge> },
     { id: "approval", accessorKey: "approvalStatus", header: "Approval", enableSorting: false, cell: ({ row }) => (row.original.approvalStatus === "NOT_REQUIRED" ? <span className="text-text-muted">None</span>
       : <StatusBadge tone={APPROVAL_TONE[row.original.approvalStatus]}>{row.original.approvalLabel}</StatusBadge>) },
-    { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <StatusBadge tone={PRIORITY_TONE[row.original.priority]}>{PRIORITY_LABEL[row.original.priority]}</StatusBadge> },
+    { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <PriorityBadge priority={row.original.priority} /> },
   ], []);
   if (list.error && errorStatus(list.error) === 403) return <PermissionState title="You don't have access to milestones" description="Ask an administrator for access to project milestones." />;
   const select = (id: string) => { setView(id); setPage(0); router.replace(`${pathname}?view=${id}`); };
@@ -64,7 +67,13 @@ export function MilestoneQueueScreen() {
       header={{ title: "Milestones", description: "The checkpoints of every project you can see: who owns each, when it is due and what it waits for.",
         secondaryActions: list.data?.can.export ? <LinkButton variant="secondary" href={milestoneExportHref({ view, search: term || undefined })}>Export</LinkButton> : undefined }}
       savedViews={{ views: VIEWS, activeViewId: view, onSelect: select }}
-      actionBar={{ start: <SearchField aria-label="Search milestones" placeholder="Milestone, code or project" className="w-full sm:w-80" value={search} onChange={(value) => { setSearch(value); setPage(0); }} /> }}
+      actionBar={{ start: (
+        <>
+          <SearchField aria-label="Search milestones" placeholder="Milestone, code or project" className="w-full sm:w-80" value={search} onChange={(value) => { setSearch(value); setPage(0); }} />
+          <Select aria-label="Priority" label="Priority" size="compact" placeholder="Any priority" selectedKey={priority} onSelectionChange={(key) => { setPriority(key ? String(key) : null); setPage(0); }}
+            options={[{ value: "URGENT,HIGH", label: "Urgent and High" }, ...PRIORITIES.map((level) => ({ value: level, label: PRIORITY_LABEL[level] }))]} />
+        </>
+      ) }}
     >
       <EnterpriseDataGrid<MilestoneRow>
         aria-label="Milestones" columns={columns} data={rows} getRowId={(row) => row.id}

@@ -77,7 +77,13 @@ export const DOCUMENT_TYPES = Object.freeze(
     std("inventory_stock_hold", "stock", "Quality hold", "QH", { defaultResetPolicy: "calendar_year" }),
     // Assets
     std("asset", "assets", "Asset", "AST", { configurable: false }),
+    std("asset_category", "assets", "Asset category", "ACAT", { configurable: false }),
+    std("asset_location", "assets", "Asset location", "ALOC", { configurable: false }),
+    std("asset_assignment", "assets", "Asset assignment", "ASG"),
+    std("asset_assignment_batch", "assets", "Bulk asset assignment", "ASB"),
+    std("asset_movement_correction", "assets", "Movement correction", "MVC"),
     std("asset_calibration", "assets", "Asset calibration", "CAL"),
+    std("asset_depreciation_policy", "assets", "Depreciation policy", "DPP", { configurable: false }),
     std("asset_depreciation_run", "assets", "Depreciation run", "DEP"),
     std("asset_disposal", "assets", "Asset disposal", "DSP"),
     std("asset_inspection", "assets", "Asset inspection", "INS"),

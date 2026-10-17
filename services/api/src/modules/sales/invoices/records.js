@@ -20,12 +20,18 @@ import {
   creditStatusOf, invoiceStatusLabel, invoiceStatusOf, paymentStatusOf,
 } from "./constants.js";
 
+// Other modules that keep records billed on an invoice (Projects' time billing) hear of each invoice event in the same transaction, so the
+// invoice and their records never disagree; a listener may refuse the change by throwing.
+const LIFECYCLE_LISTENERS = [];
+export function registerInvoiceLifecycleListener(listener) { if (typeof listener === "function" && !LIFECYCLE_LISTENERS.includes(listener)) LIFECYCLE_LISTENERS.push(listener); }
+
 // Sales events of an invoice; the event table keeps sales invoices as 'invoice_request'.
 export async function recordInvoiceEvent(client, context, invoiceId, eventType, fromStatus, toStatus, metadata = {}) {
   await client.query(
     `INSERT INTO tenant.sales_document_events (organization_id, entity_type, entity_id, event_type, from_status, to_status, metadata, actor_user_id, occurred_at)
      VALUES ($1, 'invoice_request', $2, $3, $4, $5, $6::jsonb, $7, clock_timestamp())`,
     [context.organizationId, invoiceId, eventType, fromStatus, toStatus, JSON.stringify(metadata), context.userId ?? null]);
+  for (const listener of LIFECYCLE_LISTENERS) await listener(client, context, { invoiceId, eventType, fromStatus, toStatus });
 }
 async function recordOrderEvent(client, context, orderId, eventType, status, metadata) {
   await client.query(

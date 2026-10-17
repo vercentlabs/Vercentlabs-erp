@@ -9,7 +9,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import type { ColumnDef, RowSelectionState, SortingState } from "@tanstack/react-table";
 import { Download, Plus } from "lucide-react";
 import {
-  AlertDialog, Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, MetricCard, NoResultsState, PermissionState,
+  AlertDialog, Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState,
   SearchField, Select, TextField, buttonVariants, type ActiveFilter,
 } from "@vercentlabs/design-system";
 
@@ -189,7 +189,7 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
             <a className={buttonVariants({ variant: "outline" })} href={taskExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a>
           ) : undefined,
         }}
-        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as TaskViewKey), pinned: PINNED_VIEWS } : undefined}
+        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label, count: ({ overdue: summary?.overdue, due_today: summary?.dueToday, upcoming: summary?.upcoming, high_priority: summary?.highPriority } as Record<string, number | undefined>)[entry.key] })), activeViewId: view, onSelect: (id) => setView(id as TaskViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
           start: (
             <>
@@ -233,16 +233,12 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
         } : undefined}
       >
         <div className="flex flex-col gap-4">
-          {summary && (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <SummaryCard label="Overdue" value={summary.overdue} onPress={() => setView("overdue")} />
-              <SummaryCard label="Due today" value={summary.dueToday} onPress={() => setView("due_today")} />
-              <SummaryCard label="Upcoming" value={summary.upcoming} onPress={() => setView("upcoming")} />
-              {summary.teamOverdue !== null
-                ? <SummaryCard label="Team overdue" value={summary.teamOverdue} onPress={() => { setView("team"); setFilters({ ...filters, status: "overdue" }); }} />
-                : <SummaryCard label="High priority" value={summary.highPriority} onPress={() => setView("high_priority")} />}
-            </div>
-          )}
+          {summary?.teamOverdue ? (
+            <button type="button" onClick={() => { setView("team"); setFilters({ ...filters, status: "overdue" }); }}
+              className="flex items-center gap-2 self-start rounded-[var(--radius-control)] bg-danger-soft px-3 py-1.5 text-sm font-medium text-danger outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand">
+              {`${summary.teamOverdue} of your team's tasks ${summary.teamOverdue === 1 ? "is" : "are"} overdue`}<span aria-hidden="true">→</span>
+            </button>
+          ) : null}
           <EnterpriseDataGrid<Task>
             aria-label="Tasks"
             columns={columns}
@@ -280,14 +276,6 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
       {options && creating && <TaskFormDialog isOpen onOpenChange={setCreating} options={options} onSaved={(task) => { refresh(); router.push(`/crm/tasks/${task.id}`); }} />}
       {options && bulk && <BulkDialog kind={bulk} taskIds={selectedIds} options={options} onClose={() => setBulk(null)} onDone={refresh} onError={setError} />}
     </div>
-  );
-}
-
-function SummaryCard({ label, value, onPress }: { label: string; value: number; onPress: () => void }) {
-  return (
-    <button type="button" onClick={onPress} className="rounded-[var(--radius-card)] text-left outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand">
-      <MetricCard label={label} value={value} />
-    </button>
   );
 }
 

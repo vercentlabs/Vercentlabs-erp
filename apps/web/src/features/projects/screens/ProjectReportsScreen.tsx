@@ -4,10 +4,11 @@
 // priority; near deadline, overdue and on hold; task progress and milestones (once those features track work); completed; activity. The customer
 // reports (projects per customer, active and completed customer projects, managers, sales-linked projects, missing primary contacts, customer
 // mismatches, reassignment history and the customer summary) read the same associations the projects hold.
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ErrorState, LinkButton, PageHeader, PermissionState, StatusBadge, Tab, TabList, Tabs } from "@vercentlabs/design-system";
+import { ErrorState, LinkButton, PageHeader, PermissionState, StatusBadge, Tab, TabList, Tabs, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -17,9 +18,28 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  APPROVAL_TONE, HEALTH_TONE, MILESTONES_BASE, MILESTONE_TONE, PRIORITY_LABEL, PROJECTS_BASE, STATUS_TONE, TASKS_BASE, TASK_TONE, customerExportHref, dateLabel, dueLabel, errorMessage, errorStatus,
+  APPROVAL_TONE, HEALTH_TONE, MILESTONES_BASE, MILESTONE_TONE, PROJECTS_BASE, STATUS_TONE, TASKS_BASE, TASK_TONE, customerExportHref, dateLabel, dueLabel, errorMessage, errorStatus,
   getMilestoneReport, getOptions, getReport, getTaskReport, milestoneExportHref, minutesLabel, targetLabel, taskExportHref, type MilestoneRow, type ProjectRow, type ProjectStatus, type TaskRow,
 } from "../api/projects-api";
+import { PriorityBadge } from "../priority/Priority";
+import { getPriorityReport } from "../priority/priority-api";
+import { PRIORITY_REPORT_TABS, PriorityReport } from "../priority/PriorityViews";
+import { getStatusReport } from "../status/status-api";
+import { STATUS_REPORT_TABS, StatusReport } from "../status/StatusReports";
+import { BILLABLE_REPORT_TABS, BillableReport } from "../billable/BillableReports";
+import { getBillableReport } from "../billable/billable-api";
+import { TIME_REPORT_TABS, TimeReport } from "../timesheets/TimeReports";
+import { getCollaborationReport } from "../collaboration/collaboration-api";
+import { getProgressReport, progressExportHref } from "../progress/progress-api";
+import { PROGRESS_REPORT_TABS, ProgressReport } from "../progress/ProgressViews";
+import { getExpenseReport } from "../expenses/expenses-api";
+import { EXPENSE_REPORT_TABS, ExpenseReport } from "../expenses/ExpenseScreens";
+import { TIME_INVOICE_REPORT_TABS, TimeInvoiceReport, getTimeInvoiceReport } from "../time-invoicing/TimeInvoicing";
+import { COST_REPORT_TABS, CostReport, getCostReport } from "../costing/ProjectCost";
+import { REVENUE_REPORT_TABS, RevenueReport, getRevenueReport } from "../revenue/ProjectRevenue";
+import { PROFITABILITY_REPORT_TABS, ProfitabilityReport, getProfitabilityReport } from "../profitability/ProjectProfitability";
+import { COLLABORATION_REPORT_TABS, CollaborationReport, collaborationExportHref } from "../collaboration/DiscussionScreens";
+import { getTimeReport } from "../timesheets/timesheets-api";
 
 const REPORTS = [{ id: "by-status", label: "By status" }, { id: "by-manager", label: "By manager" }, { id: "by-customer", label: "By customer" }, { id: "by-priority", label: "By priority" },
   { id: "near-deadline", label: "Near deadline" }, { id: "overdue", label: "Overdue" }, { id: "on-hold", label: "On hold" }, { id: "task-progress", label: "Task progress" },
@@ -36,8 +56,25 @@ const MILESTONE_REPORTS = [{ id: "ms-by-project", label: "By project" }, { id: "
 const TASK_REPORTS = [{ id: "tk-by-project", label: "By project" }, { id: "tk-my-open", label: "My open tasks" }, { id: "tk-by-status", label: "By status" }, { id: "tk-by-assignee", label: "Workload" },
   { id: "tk-overdue", label: "Overdue" }, { id: "tk-due-soon", label: "Due soon" }, { id: "tk-high-priority", label: "High priority" }, { id: "tk-blocked", label: "Blocked" },
   { id: "tk-in-review", label: "In review" }, { id: "tk-by-milestone", label: "By milestone" }, { id: "tk-completion-trend", label: "Completion trend" },
-  { id: "tk-reassignments", label: "Reassignments" }, { id: "tk-completion-evidence", label: "Completion evidence" }];
-const ALL_REPORTS = [...REPORTS, ...CUSTOMER_REPORTS, ...MILESTONE_REPORTS, ...TASK_REPORTS];
+  { id: "tk-reassignments", label: "Reassignments" }, { id: "tk-completion-evidence", label: "Completion evidence" }, { id: "tk-needs-owner", label: "Needs an owner" }];
+const ALL_REPORTS = [...REPORTS, ...CUSTOMER_REPORTS, ...MILESTONE_REPORTS, ...TASK_REPORTS, ...PRIORITY_REPORT_TABS, ...STATUS_REPORT_TABS, ...TIME_REPORT_TABS, ...BILLABLE_REPORT_TABS, ...COLLABORATION_REPORT_TABS, ...PROGRESS_REPORT_TABS, ...EXPENSE_REPORT_TABS, ...TIME_INVOICE_REPORT_TABS, ...COST_REPORT_TABS, ...REVENUE_REPORT_TABS, ...PROFITABILITY_REPORT_TABS];
+// Reports grouped the way people look for them: six categories, each holding one or more report sets (a set's reports share a prefix).
+const SET_LABEL: Record<string, string> = { portfolio: "Portfolio", progress: "Progress", status: "Status", customers: "Customers", collaboration: "Discussions", tasks: "Tasks", milestones: "Milestones",
+  priority: "Priority", time: "Time", billable: "Billable hours", expenses: "Expenses", costs: "Cost", revenue: "Revenue", "time-invoices": "Invoices from time", profitability: "Profitability" };
+const FIRST_REPORT: Record<string, string> = { portfolio: "by-status", progress: "pg-overview", status: "st-by-status", customers: "customer-count", collaboration: "cm-recent", tasks: "tk-by-project",
+  milestones: "ms-by-project", priority: "pr-distribution", time: "tm-project-hours", billable: "bt-billable-vs-nonbillable", expenses: "ex-by-project", costs: "pc-summary", revenue: "rv-contract-value",
+  "time-invoices": "ti-unbilled", profitability: "pf-summary" };
+const REPORT_CATEGORIES = [
+  { id: "delivery", label: "Project Delivery", sets: ["portfolio", "progress", "status", "customers", "collaboration"] },
+  { id: "work", label: "Tasks & Milestones", sets: ["tasks", "milestones", "priority"] },
+  { id: "time", label: "Timesheets & Expenses", sets: ["time", "billable", "expenses"] },
+  { id: "costs", label: "Costs & Forecasts", sets: ["costs"] },
+  { id: "revenue", label: "Revenue & Billing", sets: ["revenue", "time-invoices"] },
+  { id: "profit", label: "Profitability & Audit", sets: ["profitability"] },
+];
+const PREFIX_SET: Record<string, string> = { "customer-": "customers", "ms-": "milestones", "tk-": "tasks", "pr-": "priority", "st-": "status", "tm-": "time", "bt-": "billable", "cm-": "collaboration",
+  "pg-": "progress", "ex-": "expenses", "ti-": "time-invoices", "pc-": "costs", "rv-": "revenue", "pf-": "profitability" };
+const setOf = (id: string) => Object.entries(PREFIX_SET).find(([prefix]) => id.startsWith(prefix))?.[1] ?? "portfolio";
 const REQUEST_LABEL: Record<string, string> = { OPEN: "Requested", ACKNOWLEDGED: "Taken up by Sales", ELIGIBLE: "Ready to request", NOT_YET: "Not complete yet" };
 type Row = Record<string, unknown>;
 const s = (value: unknown) => (value === null || value === undefined ? "" : String(value));
@@ -51,9 +88,25 @@ export function ProjectReportsScreen() {
   const customerReport = CUSTOMER_REPORTS.some((row) => row.id === kind);
   const milestoneReport = kind.startsWith("ms-");
   const taskReport = kind.startsWith("tk-");
-  const set = customerReport ? "customers" : milestoneReport ? "milestones" : taskReport ? "tasks" : "portfolio";
+  const priorityReport = kind.startsWith("pr-");
+  const statusReport = kind.startsWith("st-");
+  const timeReport = kind.startsWith("tm-");
+  const billableReport = kind.startsWith("bt-");
+  const collaborationReport = kind.startsWith("cm-");
+  const progressReport = kind.startsWith("pg-");
+  const expenseReport = kind.startsWith("ex-");
+  const timeInvoiceReport = kind.startsWith("ti-");
+  const costReport = kind.startsWith("pc-");
+  const revenueReport = kind.startsWith("rv-");
+  const profitabilityReport = kind.startsWith("pf-");
+  const set = customerReport ? "customers" : milestoneReport ? "milestones" : taskReport ? "tasks" : priorityReport ? "priority" : statusReport ? "status" : timeReport ? "time" : billableReport ? "billable" : collaborationReport ? "collaboration" : progressReport ? "progress" : expenseReport ? "expenses" : timeInvoiceReport ? "time-invoices" : costReport ? "costs" : revenueReport ? "revenue" : profitabilityReport ? "profitability" : "portfolio";
+  const [search, setSearch] = useState("");
+  const category = REPORT_CATEGORIES.find((row) => row.sets.includes(set)) ?? REPORT_CATEGORIES[0];
+  const term = search.trim().toLowerCase();
+  const found = term.length < 2 ? [] : ALL_REPORTS.filter((row) => row.label.toLowerCase().includes(term) || SET_LABEL[setOf(row.id)].toLowerCase().includes(term)).slice(0, 12);
   const options = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "options"), queryFn: getOptions, staleTime: 60_000 });
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "report", kind), queryFn: () => (milestoneReport ? getMilestoneReport<Row>(kind.slice(3)) : taskReport ? getTaskReport<Row>(kind.slice(3)) : getReport<Row>(kind)) });
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "report", kind), queryFn: () => (milestoneReport ? getMilestoneReport<Row>(kind.slice(3)) : taskReport ? getTaskReport<Row>(kind.slice(3))
+    : priorityReport ? getPriorityReport<Row>(kind.slice(3)) : statusReport ? getStatusReport<Row>(kind.slice(3)) : timeReport ? getTimeReport<Row>(kind.slice(3)) : billableReport ? getBillableReport<Row>(kind.slice(3)) : collaborationReport ? getCollaborationReport<Row>(kind.slice(3)) : progressReport ? getProgressReport<Row>(kind.slice(3)) : expenseReport ? getExpenseReport<Row>(kind.slice(3)) : timeInvoiceReport ? getTimeInvoiceReport<Row>(kind.slice(3)) : costReport ? getCostReport<Row>(kind.slice(3)) : revenueReport ? getRevenueReport<Row>(kind.slice(3)) : profitabilityReport ? getProfitabilityReport<Row>(kind.slice(3)) : getReport<Row>(kind)) });
   if (query.isError && errorStatus(query.error) === 403 && set === "portfolio") return <PermissionState title="You don't have access to project reports" description="Ask an administrator for the View project reports permission." />;
   const rows = query.data ?? [];
   const open = (row: Row) => <Link className="text-brand underline" href={`${PROJECTS_BASE}/${s(row.id ?? row.projectId)}`}>{s(row.name) || "Untitled draft"} <span className="text-text-muted">{s(row.code)}</span></Link>;
@@ -108,14 +161,25 @@ export function ProjectReportsScreen() {
     <LinesTable columns={["Task", "Project", "Assigned to", "Status", "Priority", "Due"]}>
       {(rows as Array<TaskRow & Row>).map((row) => (
         <tr key={row.id}><Cell>{task(row)}</Cell><Cell>{s(row.projectCode)}</Cell><Cell>{row.assignee ?? "—"}</Cell>
-          <Cell><StatusBadge tone={TASK_TONE[row.status]}>{row.statusLabel}</StatusBadge></Cell><Cell>{PRIORITY_LABEL[row.priority]}</Cell>
+          <Cell><StatusBadge tone={TASK_TONE[row.status]}>{row.statusLabel}</StatusBadge></Cell><Cell><PriorityBadge priority={row.priority} /></Cell>
           <Cell>{dateLabel(row.dueDate)}{dueLabel(row) ? <span className={`block text-xs ${row.overdue ? "text-danger" : "text-text-muted"}`}>{dueLabel(row)}</span> : null}</Cell></tr>
       ))}
     </LinesTable>
   );
   const table = () => {
+    if (priorityReport) return <PriorityReport kind={kind} rows={rows} taskRows={taskRows} />;
+    if (statusReport) return <StatusReport kind={kind} rows={rows} />;
+    if (timeReport) return <TimeReport kind={kind} rows={rows} />;
+    if (billableReport) return <BillableReport kind={kind} rows={rows} />;
+    if (collaborationReport) return <CollaborationReport kind={kind} rows={rows} />;
+    if (progressReport) return <ProgressReport kind={kind} rows={rows} />;
+    if (expenseReport) return <ExpenseReport kind={kind} rows={rows} />;
+    if (timeInvoiceReport) return <TimeInvoiceReport kind={kind} rows={rows} />;
+    if (costReport) return <CostReport kind={kind} rows={rows} />;
+    if (revenueReport) return <RevenueReport kind={kind} rows={rows} />;
+    if (profitabilityReport) return <ProfitabilityReport kind={kind} rows={rows} />;
     switch (kind) {
-      case "tk-my-open": case "tk-overdue": case "tk-due-soon": case "tk-high-priority": case "tk-blocked": case "tk-in-review": return taskRows();
+      case "tk-my-open": case "tk-needs-owner": case "tk-overdue": case "tk-due-soon": case "tk-high-priority": case "tk-blocked": case "tk-in-review": return taskRows();
       case "tk-by-project": return <LinesTable columns={["Project", { label: "Tasks", numeric: true }, { label: "Done", numeric: true }, { label: "Open", numeric: true }, { label: "Blocked", numeric: true }, { label: "Overdue", numeric: true }, { label: "Progress", numeric: true }]}>
         {rows.map((row) => <tr key={s(row.projectId)}><Cell><Link className="text-brand underline" href={`${PROJECTS_BASE}/${s(row.projectId)}?tab=tasks`}>{s(row.projectName) || s(row.projectCode)} <span className="text-text-muted">{s(row.projectCode)}</span></Link></Cell>
           <Cell numeric>{s(row.total)}</Cell><Cell numeric>{s(row.done)}</Cell><Cell numeric>{s(row.open)}</Cell><Cell numeric>{s(row.blocked)}</Cell><Cell numeric>{s(row.overdue)}</Cell><Cell numeric>{row.percent === null ? "—" : `${s(row.percent)}%`}</Cell></tr>)}</LinesTable>;
@@ -178,12 +242,22 @@ export function ProjectReportsScreen() {
       <PageHeader title="Project Reports" description="The project portfolio from the projects you may see. Financial reports follow with project budgets, time and billing."
         secondaryActions={milestoneReport ? <LinkButton variant="secondary" href={milestoneExportHref({ view: "all" })}>Export milestones</LinkButton>
           : taskReport ? <LinkButton variant="secondary" href={taskExportHref({ view: "all" })}>Export tasks</LinkButton>
+          : progressReport && options.data?.can.progressExport ? <LinkButton variant="secondary" href={progressExportHref()}>Export progress</LinkButton>
+          : collaborationReport && options.data?.can.commentExport ? <LinkButton variant="secondary" href={collaborationExportHref()}>Export discussions</LinkButton>
           : options.data?.can.customerExport ? <LinkButton variant="secondary" href={customerExportHref()}>Export customer associations</LinkButton> : undefined} />
-      <Tabs selectedKey={set} onSelectionChange={(value) => router.replace(`${pathname}?report=${String(value) === "customers" ? "customer-count" : String(value) === "milestones" ? "ms-by-project" : String(value) === "tasks" ? "tk-by-project" : "by-status"}`)}>
-        <TabList aria-label="Report sets"><Tab id="portfolio">Portfolio</Tab><Tab id="customers">Customers</Tab><Tab id="tasks">Tasks</Tab><Tab id="milestones">Milestones</Tab></TabList>
+      <TextField label="Find a report" value={search} onChange={setSearch} placeholder="e.g. overdue, margin, unbilled" />
+      {found.length > 0 && <ul className="flex flex-wrap gap-2 text-sm">{found.map((row) => <li key={row.id}><button type="button" className="rounded border border-border px-2 py-1 hover:bg-surface-muted"
+        onClick={() => { setSearch(""); router.replace(`${pathname}?report=${row.id}`); }}>{`${row.label} · ${SET_LABEL[setOf(row.id)]}`}</button></li>)}</ul>}
+      <Tabs selectedKey={category.id} onSelectionChange={(value) => router.replace(`${pathname}?report=${FIRST_REPORT[REPORT_CATEGORIES.find((row) => row.id === String(value))!.sets[0]]}`)}>
+        <TabList aria-label="Report categories">{REPORT_CATEGORIES.map((row) => <Tab key={row.id} id={row.id}>{row.label}</Tab>)}</TabList>
       </Tabs>
+      {category.sets.length > 1 && (
+        <Tabs selectedKey={set} onSelectionChange={(value) => router.replace(`${pathname}?report=${FIRST_REPORT[String(value)]}`)}>
+          <TabList aria-label="Report sets">{category.sets.map((id) => <Tab key={id} id={id}>{SET_LABEL[id]}</Tab>)}</TabList>
+        </Tabs>
+      )}
       <Tabs selectedKey={kind} onSelectionChange={(value) => router.replace(`${pathname}?report=${String(value)}`)}>
-        <TabList aria-label="Reports">{(customerReport ? CUSTOMER_REPORTS : milestoneReport ? MILESTONE_REPORTS : taskReport ? TASK_REPORTS : REPORTS).map((row) => <Tab key={row.id} id={row.id}>{row.label}</Tab>)}</TabList>
+        <TabList aria-label="Reports">{(customerReport ? CUSTOMER_REPORTS : milestoneReport ? MILESTONE_REPORTS : taskReport ? TASK_REPORTS : priorityReport ? PRIORITY_REPORT_TABS : statusReport ? STATUS_REPORT_TABS : timeReport ? TIME_REPORT_TABS : billableReport ? BILLABLE_REPORT_TABS : collaborationReport ? COLLABORATION_REPORT_TABS : progressReport ? PROGRESS_REPORT_TABS : expenseReport ? EXPENSE_REPORT_TABS : timeInvoiceReport ? TIME_INVOICE_REPORT_TABS : costReport ? COST_REPORT_TABS : revenueReport ? REVENUE_REPORT_TABS : profitabilityReport ? PROFITABILITY_REPORT_TABS : REPORTS).map((row) => <Tab key={row.id} id={row.id}>{row.label}</Tab>)}</TabList>
       </Tabs>
       {query.isLoading && <LoadingState label="Preparing the report" rows={6} />}
       {query.isError && <ErrorState title="Could not load the report" description={errorStatus(query.error) === 403 ? "This report needs a permission you do not hold." : errorMessage(query.error)} />}

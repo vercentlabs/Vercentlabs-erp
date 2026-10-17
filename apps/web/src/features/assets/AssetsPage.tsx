@@ -1,7 +1,6 @@
 "use client";
 
 import { REGISTERS } from "@/features/assets/configs-all";
-import { AssetsDashboardScreen } from "@/features/assets/screens/DashboardScreen";
 import { AssetsSettingsScreen } from "@/features/assets/screens/SettingsScreen";
 import { Register } from "@/features/assets/shared/Register";
 
@@ -14,4 +13,3 @@ export function AssetsPage({ name }: { name: string }) {
   return <Register config={config} />;
 }
 
-export { AssetsDashboardScreen };

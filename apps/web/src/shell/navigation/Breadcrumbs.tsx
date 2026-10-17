@@ -40,24 +40,25 @@ function crumbsForPathname(pathname: string, search = ""): Crumb[] {
 }
 
 // The query (a tab or section of one page) is read inside Suspense, so pages rendered without it still show their trail.
-export function Breadcrumbs() {
+// `fallback` names a page with no trail (Home) where a title is still wanted (the mobile top bar).
+export function Breadcrumbs({ fallback }: { fallback?: string } = {}) {
   const pathname = usePathname();
   return (
-    <Suspense fallback={<Trail crumbs={crumbsForPathname(pathname)} />}>
-      <BreadcrumbsWithQuery pathname={pathname} />
+    <Suspense fallback={<Trail crumbs={crumbsForPathname(pathname)} fallback={fallback} />}>
+      <BreadcrumbsWithQuery pathname={pathname} fallback={fallback} />
     </Suspense>
   );
 }
 
-function BreadcrumbsWithQuery({ pathname }: { pathname: string }) {
+function BreadcrumbsWithQuery({ pathname, fallback }: { pathname: string; fallback?: string }) {
   const search = useSearchParams()?.toString() ?? "";
-  return <Trail crumbs={crumbsForPathname(pathname, search)} />;
+  return <Trail crumbs={crumbsForPathname(pathname, search)} fallback={fallback} />;
 }
 
 // A phone has no room for the whole trail: it shows the last two levels, the
 // section and the page (the section opens its page when it has one).
-function Trail({ crumbs }: { crumbs: Crumb[] }) {
-  if (!crumbs.length) return null;
+function Trail({ crumbs, fallback }: { crumbs: Crumb[]; fallback?: string }) {
+  if (!crumbs.length) return fallback ? <span aria-current="page" className="truncate text-sm font-semibold text-text">{fallback}</span> : null;
   const current = crumbs[crumbs.length - 1];
   const parent = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
 

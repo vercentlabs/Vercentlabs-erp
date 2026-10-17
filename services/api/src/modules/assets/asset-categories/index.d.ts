@@ -1,0 +1,26 @@
+// Assets — Asset Categories (types for the web).
+type Client = any;
+type Ctx = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
+export declare const ASSET_CATEGORY_PERMISSIONS: Readonly<Record<string, string>>;
+export declare const ASSET_CATEGORY_MESSAGES: Readonly<Record<string, string>>;
+export declare const ASSET_CATEGORY_TEMPLATES: readonly unknown[];
+export declare const ASSET_CATEGORY_REPORTS: readonly string[];
+export declare function addStarterCategories(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function createAssetCategory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function deactivateAssetCategory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function decideAssetReclassification(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function deleteAssetCategory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function previewAssetReclassification(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function reactivateAssetCategory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function reclassifyAsset(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function setCategoryFinancialPolicy(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function updateAssetCategory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function exportAssetCategories(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetCategories(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetCategory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetCategoryAssets(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetCategoryHistory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetCategoryReport(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getCategoryTemplates(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getSelectableCategories(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetReclassifications(client: Client, c: Ctx, ...args: any[]): Promise<any>;

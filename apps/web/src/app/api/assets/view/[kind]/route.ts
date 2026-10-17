@@ -1,25 +1,12 @@
 import {
-  getAssetDesk,
-  getAssetProfile,
   getAssetRepairHistory,
   getAssetSettings,
-  getAssetTagPayload,
   getAssetWorkOrder,
-  getDepreciationRun,
   listAssetAssignments,
-  listAssetDeskCategories,
   listAssetDisposals,
-  listAssetLocations,
-  listAssetMovements,
   listAssetOptions,
-  listAssetRegister,
-  listAssetSourceLines,
-  listAssetTransfers,
   listAssetWorkOrders,
-  listDepreciationRuns,
-  listDepreciationSchedule,
   listMaintenancePlans,
-  resolveAssetByTag,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -43,70 +30,11 @@ export async function GET(
           return { options: await listAssetOptions(client, context) };
         case "settings":
           return { settings: await getAssetSettings(client, context) };
-        case "dashboard":
-          return { dashboard: await getAssetDesk(client, context) };
-        case "register":
-          return {
-            rows: await listAssetRegister(client, context, {
-              status: get("status"),
-              categoryId: get("categoryId"),
-              locationId: get("locationId"),
-              search: get("search"),
-              criticality: get("criticality"),
-            }),
-          };
-        case "drafts":
-          return {
-            rows: await listAssetRegister(client, context, { status: "draft" }),
-          };
-        case "profile":
-          return {
-            profile: await getAssetProfile(client, context, get("id") ?? ""),
-          };
-        case "tag":
-          return {
-            asset: await resolveAssetByTag(client, context, get("tag") ?? ""),
-          };
-        case "tag-payload":
-          return {
-            payload: await getAssetTagPayload(client, context, get("id") ?? ""),
-          };
-        case "categories":
-          return { rows: await listAssetDeskCategories(client, context) };
-        case "locations":
-          return { rows: await listAssetLocations(client, context) };
-        case "source-lines":
-          return { rows: await listAssetSourceLines(client, context) };
         case "assignments":
           return {
             rows: await listAssetAssignments(client, context, {
               status: get("status"),
             }),
-          };
-        case "movements":
-          return {
-            rows: await listAssetMovements(client, context, {
-              assetId: get("assetId"),
-            }),
-          };
-        case "transfers":
-          return {
-            rows: await listAssetTransfers(client, context, {
-              status: get("status"),
-            }),
-          };
-        case "schedule":
-          return {
-            rows: await listDepreciationSchedule(client, context, {
-              assetId: get("assetId"),
-              status: get("status"),
-            }),
-          };
-        case "runs":
-          return { rows: await listDepreciationRuns(client, context) };
-        case "run":
-          return {
-            run: await getDepreciationRun(client, context, get("id") ?? ""),
           };
         case "plans":
           return {

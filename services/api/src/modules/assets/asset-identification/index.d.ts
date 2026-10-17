@@ -1,0 +1,21 @@
+// Assets — Asset Identification (types for the web).
+type Client = any;
+type Ctx = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
+export declare const ASSET_IDENTIFICATION_PERMISSIONS: Readonly<Record<string, string>>;
+export declare const ASSET_IDENTIFICATION_MESSAGES: Readonly<Record<string, string>>;
+export declare const ASSET_IDENTIFICATION_REPORTS: readonly string[];
+export declare function normalizeAssetIdentifier(value: unknown): string | null;
+export declare function code128Svg(text: string, options?: { module?: number; height?: number; label?: boolean }): string;
+export declare function attachAssetLegacyCode(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function correctAssetSerial(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function markAssetLabelsPrinted(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function replaceAssetTag(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function setAssetLegacyCode(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function exportAssetIdentifiers(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetIdentification(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetIdentifierHistory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetLabels(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getIdentificationExceptions(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getIdentificationReport(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function resolveAssetIdentifier(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function searchAssetsForPicker(client: Client, c: Ctx, ...args: any[]): Promise<any>;

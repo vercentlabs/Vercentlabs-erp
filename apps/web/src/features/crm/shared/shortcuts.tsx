@@ -1,12 +1,11 @@
 "use client";
 
 // Desktop keyboard shortcuts for the CRM. They only press what is already on the page: N opens the list's New record, / focuses the list
-// search, J / K move through the list's rows and Enter opens the marked one, E edits the open record, L logs an activity on it. "?" (or the
-// keyboard button in the top bar) lists them. Keys are ignored while typing, with a modifier held, or when a dialog is open.
+// search, J / K move through the list's rows and Enter opens the marked one, E edits the open record, L logs an activity on it. "?" lists
+// them. Keys are ignored while typing, with a modifier held, or when a dialog is open.
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Keyboard } from "lucide-react";
-import { Dialog, IconButton } from "@vercentlabs/design-system";
+import { Dialog } from "@vercentlabs/design-system";
 
 type RecordKey = "e" | "l";
 const recordHandlers = new Map<RecordKey, () => void>();
@@ -98,7 +97,6 @@ export function CrmShortcuts() {
 
   return (
     <>
-      <IconButton aria-label="Keyboard shortcuts" size="compact" variant="ghost" onPress={() => setOpen(true)}><Keyboard className="size-4" aria-hidden="true" /></IconButton>
       <Dialog isOpen={isOpen} onOpenChange={setOpen} title="Keyboard shortcuts" description="They press the buttons already on the page, so they do only what you could do with the mouse.">
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
           {SHORTCUTS.map(([keys, does]) => (

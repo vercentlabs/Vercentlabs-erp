@@ -82,8 +82,10 @@ export function useColumnVisibility(storageKey: string, columns: OptionalColumn[
   return { visibility, setVisibility: change, columns };
 }
 
+// Below the tablet breakpoint lists show cards, not columns, so the button is left out there (it would take a row of its own for nothing).
 export function ColumnsMenu({ columns, visibility, onChange }: { columns: OptionalColumn[]; visibility: VisibilityState; onChange: (next: VisibilityState) => void }) {
   return (
+    <span className="hidden md:flex">
     <PopoverTrigger>
       <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Columns</span></Button>
       <Popover>
@@ -95,6 +97,7 @@ export function ColumnsMenu({ columns, visibility, onChange }: { columns: Option
         </div>
       </Popover>
     </PopoverTrigger>
+    </span>
   );
 }
 

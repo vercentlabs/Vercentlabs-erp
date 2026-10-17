@@ -133,7 +133,8 @@ export function ActionBar({ className, start, end, leading, activeFilterCount, o
       <div className="flex flex-1 flex-wrap items-center gap-2 max-sm:contents">
         {leading}
         {search && (
-          <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:min-w-64 sm:flex-1">
+          // On a phone the search leads the row with just enough room left beside it for the Filters icon; everything else wraps below.
+          <div className="min-w-0 flex-1 max-sm:order-first max-sm:basis-[calc(100%-3.75rem)] sm:min-w-64">
             {cloneElement(search, { className: "w-full" })}
           </div>
         )}

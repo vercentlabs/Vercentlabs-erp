@@ -19,9 +19,10 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  HEALTH_TONE, PRIORITY_LABEL, PRIORITY_TONE, PROJECTS_BASE, STATUS_TONE, dateLabel, deleteView, errorMessage, errorStatus, exportHref, getOptions, getViews, importProjects, listProjects,
+  HEALTH_TONE, PRIORITY_LABEL, PROJECTS_BASE, STATUS_TONE, dateLabel, deleteView, errorMessage, errorStatus, exportHref, getOptions, getViews, importProjects, listProjects,
   newKey, saveView, targetLabel, type ProjectRow,
 } from "../api/projects-api";
+import { PriorityBadge } from "../priority/Priority";
 
 const VIEWS = [{ id: "all", label: "All projects" }, { id: "active", label: "Active" }, { id: "on_hold", label: "On hold" }, { id: "completed", label: "Completed" },
   { id: "archived", label: "Archived" }, { id: "drafts", label: "Drafts" }, { id: "cancelled", label: "Cancelled" }];
@@ -88,7 +89,7 @@ export function ProjectListScreen({ mine = false }: { mine?: boolean }) {
       {row.original.archived && <StatusBadge tone="neutral">Archived</StatusBadge>}{row.original.approval === "PENDING" && <StatusBadge tone="info">Awaiting approval</StatusBadge>}
       {row.original.customerReview && <StatusBadge tone="warning">Review</StatusBadge>}</span> },
     { id: "health", accessorKey: "health", header: "Health", cell: ({ row }) => <span title={row.original.healthReasons.join("\n")}><StatusBadge tone={HEALTH_TONE[row.original.health]}>{row.original.healthLabel}</StatusBadge></span> },
-    { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <StatusBadge tone={PRIORITY_TONE[row.original.priority]}>{PRIORITY_LABEL[row.original.priority]}</StatusBadge> },
+    { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <PriorityBadge priority={row.original.priority} /> },
     { id: "manager", accessorKey: "manager", header: "Manager", cell: ({ row }) => row.original.manager ?? <span className="text-text-muted">Not assigned</span> },
     { id: "target", accessorKey: "targetEndDate", header: "Target", cell: ({ row }) => <span className="flex flex-col"><span>{dateLabel(row.original.targetEndDate)}</span>
       {targetLabel(row.original) && <span className={`text-xs ${row.original.overdue ? "text-danger" : "text-text-muted"}`}>{targetLabel(row.original)}</span>}</span> },

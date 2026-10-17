@@ -230,6 +230,97 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    // Assets — Asset Register: an asset placed in your care, a warranty ending, an asset declared missing, assets due for verification.
+    key: "asset_register",
+    displayName: "Asset register",
+    description: "When an asset is assigned to you, its warranty is ending, it is declared missing, or assets you registered are due for verification.",
+    moduleKey: "assets",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Assets — Automatic Depreciation Accounting: a run ready for approval, posted, blocked or being verified; automatic posting turned on or off.
+    // One notification per run outcome, never one per asset.
+    key: "asset_depreciation",
+    displayName: "Depreciation accounting",
+    description: "When a depreciation run is ready for approval, posted, blocked or being verified, and when automatic posting is turned on or off.",
+    moduleKey: "assets",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects — Project Profitability: a recorded snapshot found new financial warnings (a forecast loss, a low margin, an overrun).
+    key: "project_profitability",
+    displayName: "Project profitability warnings",
+    description: "When a project you manage shows a new financial warning: a loss, a forecast margin below the threshold, or a budget overrun.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects — Project Cost: a project's cost (or its estimate at completion) reached the company's alert threshold of its budget.
+    key: "project_cost",
+    displayName: "Project cost alerts",
+    description: "When a project you manage reaches the cost alert threshold of its approved budget, or its forecast exceeds it.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects — Project Expenses: a claim waits for your approval or Finance review, or yours was approved, returned, rejected or paid.
+    key: "project_expense",
+    displayName: "Project expense claims",
+    description: "When an expense claim needs your approval or review, or a decision or payment is recorded on yours.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects — Progress Tracking: a project you manage turned at risk or blocked, became ready to complete, or its weekly summary.
+    key: "project_progress",
+    displayName: "Project progress alerts",
+    description: "When a project you manage becomes at risk or blocked, is ready to complete, or gets its weekly progress summary.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects — Comments and Collaboration: someone mentioned you in a project, task or milestone discussion.
+    key: "project_comment_mention",
+    displayName: "Mentions in project discussions",
+    description: "When someone mentions you in a comment on a project, task or milestone you can see.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects — Comments and Collaboration: a reply to your comment, or a new comment in a discussion you follow.
+    key: "project_comment",
+    displayName: "Replies and followed discussions",
+    description: "When someone replies to your comment, or comments in a project, task or milestone discussion you follow.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects — Timesheets: a timesheet waits for your review, or yours was approved or returned; a correction of your time was decided.
+    key: "project_timesheet",
+    displayName: "Timesheet reviews",
+    description: "When a timesheet waits for your review, yours is approved or returned for changes, or a correction of approved time is decided.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Projects — Timesheets (worker, daily, or a manager's reminder): a week's time is due or late — each once per week and day.
+    key: "project_timesheet_reminder",
+    displayName: "Timesheet reminders",
+    description: "When your week's time is due or late, or a late timesheet on a project you manage needs following up.",
+    moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     // Projects -> Sales: a completed milestone's billing is requested on a sales order (Sales invoices it).
     key: "project_milestone_billing",
     displayName: "Milestone billing requests",

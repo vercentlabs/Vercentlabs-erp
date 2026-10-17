@@ -1,0 +1,26 @@
+// Assets — Asset Movement History (types for the web).
+type Client = any;
+type Ctx = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
+export declare const ASSET_MOVEMENT_PERMISSIONS: Readonly<Record<string, string>>;
+export declare const ASSET_MOVEMENT_MESSAGES: Readonly<Record<string, string>>;
+export declare const ASSET_MOVEMENT_EVENTS: Readonly<Record<string, string>>;
+export declare const ASSET_MOVEMENT_REPORTS: readonly string[];
+export declare function decideMovementCorrection(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function reconcileAssetMovementHistory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function requestMovementCorrection(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function resolveMovementIssue(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function rebuildAssetMovementProjection(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function syncAssetMovements(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function syncCompanyMovements(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function ingestAssetMovements(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function exportAssetMovementHistory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetCustodyAsOf(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetLocationAsOf(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetMovement(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetMovementCorrections(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetMovementHistory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetMovementSource(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetPositionAsOf(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getCompanyAssetMovements(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getMovementExceptions(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getMovementReport(client: Client, c: Ctx, ...args: any[]): Promise<any>;

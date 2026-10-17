@@ -20,6 +20,8 @@ import {
   addLink, addMember, addNote, changeMemberRole, editNote, errorCode, errorDetails, errorMessage, fileHref, getFiles, getLinks, getMembers, getNotes, getOptions, getProjectContacts, removeFile, removeLink,
   removeMember, removeNote, searchLinkable, uploadFile, type Project,
 } from "../api/projects-api";
+import { MemberLeaveImpact, TeamWorkloadPanel } from "../assignees/AssigneeViews";
+import { TeamPriorityPanel } from "../priority/PriorityViews";
 
 const ROLE_OPTIONS = [{ value: "MEMBER", label: "Project Member" }, { value: "VIEWER", label: "Project Viewer" }, { value: "FINANCIAL_VIEWER", label: "Project Financial Viewer" }];
 const ROLE_HELP = "Members contribute updates and documents; viewers read; financial viewers also see amounts on linked records. A project role never grants more than the person's company role.";
@@ -59,7 +61,7 @@ export function TeamTab({ project, onChanged }: { project: Project; onChanged: (
               <Cell>{formatDateTime(row.joinedAt)}{row.addedBy ? ` · ${row.addedBy}` : ""}</Cell>
               <Cell>{manage && row.role !== "MANAGER" && <Button size="compact" variant="ghost" isDisabled={busy} onPress={() => run(async () => {
                 try { await removeMember(project.id, row.id); } catch (failure) {
-                  if (errorCode(failure) !== "PROJECT_MEMBER_HAS_TASKS") throw failure;
+                  if (errorCode(failure) !== "ASSIGNEE_MEMBER_HAS_OPEN_WORK") throw failure;
                   setLeaving({ memberId: row.id, name: row.name, userId: row.userId, tasks: (errorDetails(failure).tasks as Array<{ code: string; title: string }> | undefined) ?? [] });
                   throw new Error(`${row.name} still has open tasks: reassign them first.`);
                 }
@@ -84,6 +86,8 @@ export function TeamTab({ project, onChanged }: { project: Project; onChanged: (
         )}
         <p className="text-xs text-text-muted">The Project Manager is changed on the project itself (Edit); the previous manager stays on the team.</p>
       </Panel>
+      <TeamWorkloadPanel projectId={project.id} />
+      <TeamPriorityPanel projectId={project.id} />
       {past.length > 0 && (
         <Panel title="Former members" description="Their contributions stay attributed to them; they no longer have project access through this team.">
           <LinesTable columns={["Person", "Role", "Joined", "Left"]}>
@@ -112,6 +116,7 @@ function LeaveDialog({ projectId, leaving, candidates, onClose, onDone }: { proj
         <Select label="Reassign them to" selectedKey={to} onSelectionChange={(next) => setTo(String(next))} options={candidates.map((row) => ({ value: row.userId, label: row.name }))}
           description="Their comments, files and time entries stay theirs." />
         <TextArea label="Or keep them with this person — the reason (an authorized exception)" value={exception} onChange={setException} maxLength={2000} />
+        <MemberLeaveImpact projectId={projectId} memberId={leaving.memberId} />
         {error && <Notice tone="danger">{error}</Notice>}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onPress={onClose}>Cancel</Button>

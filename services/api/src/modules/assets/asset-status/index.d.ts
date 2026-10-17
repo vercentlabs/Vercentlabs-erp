@@ -1,0 +1,23 @@
+// Assets — Asset Status (types for the web).
+type Client = any;
+type Ctx = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
+export declare const ASSET_STATUS_PERMISSIONS: Readonly<Record<string, string>>;
+export declare const ASSET_STATUS_MESSAGES: Readonly<Record<string, string>>;
+export declare const ASSET_HOLD_REASONS: Readonly<Record<string, string>>;
+export declare const ASSET_EFFECTIVE_AVAILABILITY: Readonly<Record<string, string>>;
+export declare const ASSET_STATUS_REPORTS: readonly string[];
+export declare function bulkAssetStatusAction(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function closeAssetMissingReport(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function confirmAssetLost(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function placeAssetOnHold(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function recordAssetCondition(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function recoverAsset(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function reinstateAsset(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function releaseAssetHold(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function reportMissingAsset(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function retireAsset(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetStatus(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetStatusCounts(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetStatusExceptions(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetStatusHistory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetStatusReport(client: Client, c: Ctx, ...args: any[]): Promise<any>;

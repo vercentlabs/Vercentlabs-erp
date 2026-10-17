@@ -20,13 +20,16 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 import { AskDialog, type Ask, type Field } from "@/features/manufacturing/orders/components/MoDialogs";
 import {
-  APPROVAL_TONE, BLOCKER_LABEL, MILESTONES_BASE, MILESTONE_TONE, MILESTONE_TYPE_LABEL, PRIORITY_LABEL, PRIORITY_TONE, PROJECTS_BASE, dateLabel, dueLabel, errorDetails,
-  errorMessage, errorStatus, getLinks, getMembers, getMilestone, getMilestoneActivity, getMilestoneNotes, getProjectContacts, getProjectMilestones, milestoneAction, milestoneFileHref,
+  APPROVAL_TONE, BLOCKER_LABEL, MILESTONES_BASE, MILESTONE_TONE, MILESTONE_TYPE_LABEL, PROJECTS_BASE, dateLabel, dueLabel, errorDetails,
+  errorMessage, errorStatus, getLinks, getMembers, getMilestone, getMilestoneActivity, getProjectContacts, getProjectMilestones, milestoneAction, milestoneFileHref,
   newKey, removeMilestoneFile, searchMilestoneTasks, updateMilestone, uploadMilestoneFile, getMilestoneFiles, type BillingStage, type MilestoneCheck, type MilestoneDetail,
 } from "../api/projects-api";
+import { AssignTaskDialog } from "../assignees/AssignTaskDialog";
+import { PriorityBadge, PriorityDialog, PriorityField, priorityReasonMissing } from "../priority/Priority";
+import { CommentThread, CommentsTabLabel } from "../collaboration/CommentThread";
 
 const TABS = [{ id: "overview", label: "Overview" }, { id: "deliverables", label: "Deliverables" }, { id: "tasks", label: "Tasks" }, { id: "dependencies", label: "Dependencies" },
-  { id: "approvals", label: "Approvals" }, { id: "billing", label: "Billing" }, { id: "notes", label: "Notes & files" }, { id: "activity", label: "Activity" }];
+  { id: "approvals", label: "Approvals" }, { id: "billing", label: "Billing" }, { id: "files", label: "Files" }, { id: "comments", label: "Comments" }, { id: "activity", label: "Activity" }];
 const CHECK_TONE = { PASS: "success", FAIL: "danger", NOT_TRACKED: "neutral", WAIVED: "warning" } as const;
 const CHECK_LABEL = { PASS: "Done", FAIL: "Outstanding", NOT_TRACKED: "Not tracked yet", WAIVED: "By exception" } as const;
 const DECISION_LABEL = { APPROVED: "Approved", CHANGES_REQUESTED: "Changes requested", REJECTED: "Rejected" } as const;
@@ -42,9 +45,9 @@ export function MilestoneDetailScreen({ milestoneId }: { milestoneId: string }) 
   const params = useSearchParams();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "milestone", milestoneId), queryFn: () => getMilestone(milestoneId), retry: false });
-  const [tab, setTab] = useState(TABS.some((row) => row.id === params.get("tab")) ? params.get("tab")! : "overview");
+  const [tab, setTab] = useState(params.get("tab") === "notes" ? "files" : TABS.some((row) => row.id === params.get("tab")) ? params.get("tab")! : "overview");
   const [ask, setAsk] = useState<Ask | null>(null);
-  const [dialog, setDialog] = useState<"edit" | "customer" | "billing-stage" | "owner" | null>(null);
+  const [dialog, setDialog] = useState<"edit" | "customer" | "billing-stage" | "owner" | "priority" | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "danger" | "warning"; text: string } | null>(null);
   if (query.isLoading) return <LoadingState label="Loading the milestone" rows={8} />;
   if (query.isError || !query.data) {
@@ -91,6 +94,7 @@ export function MilestoneDetailScreen({ milestoneId }: { milestoneId: string }) 
   const activeDependents = milestone.dependents.filter((row) => row.status !== "CANCELLED");
   const more: MoreAction[] = [
     { id: "edit", label: "Edit", show: can.edit, run: () => setDialog("edit") },
+    { id: "priority", label: "Change priority", show: can.edit && !["COMPLETED", "CANCELLED"].includes(milestone.status), run: () => setDialog("priority") },
     { id: "assign", label: "Change owner", show: can.assign, run: () => setDialog("owner") },
     ...steps.filter((row) => row.show && row.id !== next?.id),
     { id: "block", label: "Raise a blocker", show: can.block, run: () => setAsk({ title: "Raise a blocker", confirm: "Raise",
@@ -135,7 +139,7 @@ export function MilestoneDetailScreen({ milestoneId }: { milestoneId: string }) 
             { label: "Due", value: `${dateLabel(milestone.dueDate)}${milestone.rescheduled ? ` (was ${dateLabel(milestone.originalDueDate)})` : ""}` },
             { label: "Deliverables", value: milestone.criteriaProgress.total ? `${milestone.criteriaProgress.done} of ${milestone.criteriaProgress.total}` : "None yet" },
             { label: "Acceptance", value: [milestone.internalApprovalRequired ? "Internal approval" : null, milestone.customerAcceptanceRequired ? "Customer acceptance" : null].filter(Boolean).join(" + ") || "None" },
-            { label: "Priority", value: <StatusBadge tone={PRIORITY_TONE[milestone.priority]}>{PRIORITY_LABEL[milestone.priority]}</StatusBadge> },
+            { label: "Priority", value: <PriorityBadge priority={milestone.priority} /> },
           ],
           primaryAction: primary,
           secondaryActions: <MoreActions actions={more} />,
@@ -153,7 +157,7 @@ export function MilestoneDetailScreen({ milestoneId }: { milestoneId: string }) 
         }
       >
         <Tabs selectedKey={tab} onSelectionChange={(key) => selectTab(String(key))}>
-          <TabList aria-label="Milestone sections">{TABS.map((row) => <Tab key={row.id} id={row.id}>{row.label}</Tab>)}</TabList>
+          <TabList aria-label="Milestone sections">{TABS.map((row) => <Tab key={row.id} id={row.id}>{row.id === "comments" ? <CommentsTabLabel parentType="MILESTONE" parentId={milestone.id} /> : row.label}</Tab>)}</TabList>
         </Tabs>
         <div className="mt-4">
           {tab === "overview" && <OverviewTab milestone={milestone} act={act} setAsk={setAsk} />}
@@ -162,11 +166,14 @@ export function MilestoneDetailScreen({ milestoneId }: { milestoneId: string }) 
           {tab === "dependencies" && <DependenciesTab milestone={milestone} act={act} setAsk={setAsk} />}
           {tab === "approvals" && <ApprovalsTab milestone={milestone} />}
           {tab === "billing" && <BillingTab milestone={milestone} act={act} setAsk={setAsk} onStage={() => setDialog("billing-stage")} />}
-          {tab === "notes" && <NotesTab milestone={milestone} onChanged={refresh} />}
+          {tab === "files" && <FilesTab milestone={milestone} onChanged={refresh} />}
+          {tab === "comments" && <CommentThread parentType="MILESTONE" parentId={milestone.id} />}
           {tab === "activity" && <ActivityTab milestone={milestone} />}
         </div>
       </RecordDetailsPage>
       {ask && <AskDialog ask={ask} onClose={() => setAsk(null)} />}
+      {dialog === "priority" && <PriorityDialog target={{ kind: "milestone", id: milestone.id, code: milestone.code, name: milestone.name, priority: milestone.priority, version: milestone.version }}
+        onClose={() => setDialog(null)} onDone={(text) => refresh(text)} />}
       {dialog === "edit" && <EditDialog milestone={milestone} onClose={() => setDialog(null)} onDone={refresh} />}
       {dialog === "customer" && <CustomerDecisionDialog milestone={milestone} onClose={() => setDialog(null)} act={act} />}
       {dialog === "billing-stage" && <BillingStageDialog milestone={milestone} onClose={() => setDialog(null)} act={act} />}
@@ -266,7 +273,7 @@ function DeliverablesTab({ milestone, act, setAsk }: TabProps) {
               <span className="flex flex-wrap items-center gap-1">
                 <StatusBadge tone={row.status === "COMPLETED" ? "success" : row.status === "WAIVED" ? "warning" : "neutral"}>{row.status === "COMPLETED" ? "Done" : row.status === "WAIVED" ? "Waived" : "Outstanding"}</StatusBadge>
                 {can.work && row.status === "PENDING" && <Button size="compact" variant="secondary" onPress={() => setAsk({ title: `Complete: ${row.description}`, confirm: "Mark done",
-                  description: row.evidenceRequired ? "Evidence is required: choose a file uploaded to this milestone (Notes & files), give a reference, or both." : undefined,
+                  description: row.evidenceRequired ? "Evidence is required: choose a file uploaded to this milestone (Files), give a reference, or both." : undefined,
                   fields: [{ name: "file", label: "Evidence file", kind: "select", options: evidenceOptions, initial: "" }, { name: "note", label: "Evidence reference or note", kind: "text" }],
                   run: (values) => act("complete-criterion", { criterionId: row.id, evidenceFileId: values.file || undefined, evidenceNote: values.note || undefined }, "Deliverable done.") })}>Done</Button>}
                 {can.work && row.status !== "PENDING" && (row.status === "COMPLETED" || can.waive) && <Button size="compact" variant="ghost" onPress={() => setAsk({ title: "Back to outstanding", confirm: "Reopen",
@@ -291,6 +298,7 @@ function DeliverablesTab({ milestone, act, setAsk }: TabProps) {
 }
 
 function TasksTab({ milestone, act, setAsk }: TabProps) {
+  const [assigning, setAssigning] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const term = useDebouncedValue(search);
   const workspace = useWorkspaceContext();
@@ -303,7 +311,9 @@ function TasksTab({ milestone, act, setAsk }: TabProps) {
         <LinesTable columns={["Task", "Status", "Counts", ""]} empty={milestone.tasks.length ? undefined : "No tasks linked."}>
           {milestone.tasks.map((row) => (
             <tr key={row.linkId}>
-              <Cell>{row.task ? `${row.task.code ? `${row.task.code} ` : ""}${row.task.title}` : "Task not found"}{row.disposition && <span className="block text-xs text-text-muted">{`Disposition: ${row.disposition}`}</span>}</Cell>
+              <Cell>{row.task ? <Link className="text-brand hover:underline" href={`/projects/tasks/${row.taskId}`}>{`${row.task.code ? `${row.task.code} ` : ""}${row.task.title}`}</Link> : "Task not found"}
+                {row.disposition && <span className="block text-xs text-text-muted">{`Disposition: ${row.disposition}`}</span>}
+                {row.task && !row.task.completed && !row.task.cancelled && <button type="button" className="block text-xs text-brand hover:underline" onClick={() => setAssigning(row.taskId)}>Reassign</button>}</Cell>
               <Cell>{row.task ? <StatusBadge tone={row.task.completed ? "success" : row.task.cancelled ? "neutral" : "info"}>{row.task.status}</StatusBadge> : null}</Cell>
               <Cell>{row.required ? "Required" : "Optional"}</Cell>
               <Cell>{milestone.can.links && (
@@ -332,6 +342,7 @@ function TasksTab({ milestone, act, setAsk }: TabProps) {
           </ul>
         </Panel>
       )}
+      {assigning && <AssignTaskDialog taskId={assigning} projectId={milestone.projectId} onClose={() => setAssigning(null)} onDone={() => undefined} />}
     </div>
   );
 }
@@ -449,12 +460,10 @@ function BillingTab({ milestone, act, setAsk, onStage }: TabProps & { onStage: (
   );
 }
 
-function NotesTab({ milestone, onChanged }: { milestone: MilestoneDetail; onChanged: (text: string) => Promise<void> }) {
+function FilesTab({ milestone, onChanged }: { milestone: MilestoneDetail; onChanged: (text: string) => Promise<void> }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const notes = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "milestone-notes", milestone.id), queryFn: () => getMilestoneNotes(milestone.id) });
   const files = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "milestone-files", milestone.id), queryFn: () => getMilestoneFiles(milestone.id) });
-  const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -481,15 +490,6 @@ function NotesTab({ milestone, onChanged }: { milestone: MilestoneDetail; onChan
             </tr>
           ))}
         </LinesTable>
-      </Panel>
-      <Panel title="Notes">
-        {milestone.can.note && (
-          <div className="flex flex-col gap-2">
-            <TextArea label="Add a note" value={body} onChange={setBody} maxLength={5000} />
-            <span><Button size="compact" variant="primary" isDisabled={busy || !body.trim()} onPress={() => run(async () => { await milestoneAction(milestone.id, "note", { body }); setBody(""); }, "Note added.")}>Add note</Button></span>
-          </div>
-        )}
-        <HistoryList title={null} empty="No notes yet." entries={(notes.data ?? []).map((row) => ({ summary: <span className="whitespace-pre-wrap">{row.body}</span>, at: row.createdAt, actor: row.author }))} />
       </Panel>
     </div>
   );
@@ -522,7 +522,7 @@ function EditDialog({ milestone, onClose, onDone }: { milestone: MilestoneDetail
   const queryClient = useQueryClient();
   const customer = milestone.projectClassification === "CUSTOMER";
   const contacts = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "project-contacts", milestone.projectId), queryFn: () => getProjectContacts(milestone.projectId), enabled: customer });
-  const [form, setForm] = useState({ name: milestone.name, description: milestone.description ?? "", type: milestone.type, priority: milestone.priority, sequence: String(milestone.sequence),
+  const [form, setForm] = useState({ name: milestone.name, description: milestone.description ?? "", type: milestone.type, priority: milestone.priority, priorityReason: "", sequence: String(milestone.sequence),
     plannedStartDate: milestone.plannedStartDate ?? "", dueDate: milestone.dueDate, dueDateReason: "", internal: milestone.internalApprovalRequired, customer: milestone.customerAcceptanceRequired,
     contactId: milestone.customerContactId ?? "", required: milestone.requiredForCompletion, withdraw: false });
   const [key] = useState(newKey);
@@ -536,7 +536,7 @@ function EditDialog({ milestone, onClose, onDone }: { milestone: MilestoneDetail
         <TextField label="Name" value={form.name} onChange={set("name")} isRequired maxLength={200} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Select label="Type" selectedKey={form.type} onSelectionChange={(next) => set("type")(String(next))} options={Object.entries(MILESTONE_TYPE_LABEL).map(([value, label]) => ({ value, label }))} />
-          <Select label="Priority" selectedKey={form.priority} onSelectionChange={(next) => set("priority")(String(next))} options={Object.entries(PRIORITY_LABEL).map(([value, label]) => ({ value, label }))} />
+          <PriorityField value={form.priority} onChange={(next) => set("priority")(next)} original={milestone.priority} reason={form.priorityReason} onReasonChange={set("priorityReason")} />
           <TextField label="Planned start" type="date" value={form.plannedStartDate} onChange={set("plannedStartDate")} />
           <TextField label="Due date" type="date" value={form.dueDate} onChange={set("dueDate")} isRequired description={`Originally ${dateLabel(milestone.originalDueDate)}; the original is kept.`} />
           <TextField label="Order" inputMode="numeric" value={form.sequence} onChange={set("sequence")} />
@@ -551,9 +551,9 @@ function EditDialog({ milestone, onClose, onDone }: { milestone: MilestoneDetail
         {error && <Notice tone="danger">{error}</Notice>}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" isLoading={busy} isDisabled={busy || form.name.trim().length < 2 || !form.dueDate || (moved && form.dueDateReason.trim().length < 3)} onPress={() => save(async () => {
+          <Button variant="primary" isLoading={busy} isDisabled={busy || form.name.trim().length < 2 || !form.dueDate || (moved && form.dueDateReason.trim().length < 3) || priorityReasonMissing(milestone.priority, form.priority, form.priorityReason)} onPress={() => save(async () => {
             const result = await updateMilestone(milestone.id, { expectedVersion: milestone.version, idempotencyKey: key, name: form.name, description: form.description, milestoneType: form.type,
-              priority: form.priority, sequence: Number(form.sequence) || milestone.sequence, plannedStartDate: form.plannedStartDate || null, dueDate: form.dueDate,
+              priority: form.priority, priorityReason: form.priorityReason.trim() || undefined, sequence: Number(form.sequence) || milestone.sequence, plannedStartDate: form.plannedStartDate || null, dueDate: form.dueDate,
               dueDateReason: moved ? form.dueDateReason : undefined, internalApprovalRequired: form.internal, customerAcceptanceRequired: customer && form.customer,
               customerContactId: customer && form.customer ? form.contactId || null : null, requiredForCompletion: form.required, withdrawSubmission: form.withdraw || undefined });
             await queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "projects") });

@@ -17,9 +17,9 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  APPROVAL_TONE, MILESTONES_BASE, MILESTONE_TONE, MILESTONE_TYPE_LABEL, PRIORITY_LABEL, createMilestone, dateLabel, dueLabel, errorDetails, errorMessage, getMembers, getOptions,
-  getProjectContacts, getProjectMilestones, milestoneExportHref, newKey, type MilestoneRow, type Project, type ProjectMilestones,
-} from "../api/projects-api";
+  APPROVAL_TONE, MILESTONES_BASE, MILESTONE_TONE, MILESTONE_TYPE_LABEL, createMilestone, dateLabel, dueLabel, errorDetails, errorMessage, getMembers, getOptions,
+  getProjectContacts, getProjectMilestones, milestoneExportHref, newKey, type MilestoneRow, type Project, type ProjectMilestones, type Priority } from "../api/projects-api";
+import { PriorityBadge, PriorityField } from "../priority/Priority";
 
 export function MilestonesTab({ project }: { project: Project }) {
   const workspace = useWorkspaceContext();
@@ -68,7 +68,7 @@ function DueCell({ row }: { row: MilestoneRow }) {
 
 function MilestoneTable({ rows }: { rows: MilestoneRow[] }) {
   return (
-    <LinesTable columns={["#", "Milestone", "Owner", "Due", "Status", "Approval", "Deliverables"]}>
+    <LinesTable columns={["#", "Milestone", "Owner", "Due", "Priority", "Status", "Approval", "Deliverables"]}>
       {rows.map((row) => (
         <tr key={row.id} className={row.status === "CANCELLED" ? "opacity-60" : undefined}>
           <Cell>{row.sequence}</Cell>
@@ -80,6 +80,7 @@ function MilestoneTable({ rows }: { rows: MilestoneRow[] }) {
           </Cell>
           <Cell>{row.owner}</Cell>
           <Cell><DueCell row={row} /></Cell>
+          <Cell><PriorityBadge priority={row.priority} /></Cell>
           <Cell><StatusBadge tone={MILESTONE_TONE[row.status]}>{row.statusLabel}</StatusBadge></Cell>
           <Cell>{row.approvalStatus === "NOT_REQUIRED" ? <span className="text-text-muted">None</span> : <StatusBadge tone={APPROVAL_TONE[row.approvalStatus]}>{row.approvalLabel}</StatusBadge>}</Cell>
           <Cell>{row.criteria && row.criteria.total ? `${row.criteria.done} of ${row.criteria.total}` : "None yet"}</Cell>
@@ -150,7 +151,7 @@ function AddMilestoneDialog({ project, existing, onClose }: { project: Project; 
           <TextField label="Target date" type="date" value={form.dueDate} onChange={set("dueDate")} isRequired
             description={project.targetEndDate ? `On or before the project's target (${dateLabel(project.targetEndDate)}).` : undefined} />
           <TextField label="Planned start" type="date" value={form.plannedStartDate} onChange={set("plannedStartDate")} />
-          <Select label="Priority" selectedKey={form.priority} onSelectionChange={(key) => set("priority")(String(key))} options={Object.entries(PRIORITY_LABEL).map(([value, label]) => ({ value, label }))} />
+          <PriorityField value={form.priority as Priority} onChange={(next) => set("priority")(next)} />
         </div>
         <TextArea label="Description" value={form.description} onChange={set("description")} maxLength={4000} />
         <TextArea label="Deliverables (one per line)" value={form.criteria} onChange={set("criteria")} maxLength={10000}

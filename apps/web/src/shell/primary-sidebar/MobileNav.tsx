@@ -14,6 +14,7 @@ import {
   GLOBAL_NAV_TOP,
   GLOBAL_NAV_BOTTOM,
 } from "@/shell/navigation/moduleNavigationRegistry";
+import { Breadcrumbs } from "@/shell/navigation/Breadcrumbs";
 import { ProfileMenu } from "@/shell/primary-sidebar/ProfileMenu";
 import { getModuleNavigation } from "@/shell/navigation/module-navigation-registry";
 import {
@@ -135,9 +136,10 @@ export function MobileNav({
         >
           <MenuIcon aria-hidden="true" className="size-5" />
         </IconButton>
-        <span className="flex-1 truncate text-sm font-semibold text-text">
-          {organizationName || "Vercentlabs ERP"}
-        </span>
+        {/* Where the person is (CRM, or "Leads › Ayush" further in), not the company name: below desktop this bar is the only header. */}
+        <div className="min-w-0 flex-1">
+          <Breadcrumbs fallback="Home" />
+        </div>
         {/* Search, Settings and the account menu (profile, help, sign out) sit here, not in the drawer. */}
         <div className="flex shrink-0 items-center gap-0.5">
           <IconButton aria-label="Search" variant="ghost" onPress={openSearch}>

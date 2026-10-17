@@ -119,14 +119,15 @@ export function WorkspaceTopBar() {
     // Horizontal padding must match <main>'s (AppShell.tsx: px-6 md:px-8) so
     // the breadcrumb's left edge lines up with the page title directly
     // below it, instead of sitting a few pixels to its left.
-    <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-6 md:px-8">
+    // Desktop only: below 1024px MobileNav's bar carries the trail, search, settings and the account menu, so this row would only repeat it.
+    <div className="hidden h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-6 md:px-8 lg:flex">
       <Breadcrumbs />
       {/* ml-auto, not just justify-between: Breadcrumbs renders nothing on
           Home, which would otherwise leave this cluster as the row's only
           child, stranded on the left. */}
       <div className="ml-auto flex items-center gap-2">
-        {/* Inside CRM: the keyboard shortcuts (and the button that lists them). */}
-        {isActive(pathname, "/crm") ? <span className="hidden lg:flex"><CrmShortcuts /></span> : null}
+        {/* Inside CRM: the keyboard shortcuts ("?" lists them). */}
+        {isActive(pathname, "/crm") ? <CrmShortcuts /> : null}
         {/* Inside CRM: start a lead, company, contact, deal, task or follow-up from any page. */}
         {isActive(pathname, "/crm") && pathname !== "/crm" ? (
           <span className="hidden lg:flex">
@@ -161,7 +162,7 @@ export function WorkspaceTopBar() {
           <span className="flex-1 truncate text-left">Search…</span>
           <kbd className="rounded border border-border px-1.5 font-sans text-[11px] text-text-muted">Ctrl K</kbd>
         </button>
-        <span className="hidden max-w-[220px] truncate px-2 text-sm font-medium text-text md:inline">
+        <span className="max-w-[220px] truncate px-2 text-sm font-medium text-text">
           {organizationName || "Workspace"}
         </span>
         <div className="hidden items-center gap-1 lg:flex">

@@ -1,0 +1,28 @@
+// Assets — Asset Transfers (types for the web).
+type Client = any;
+type Ctx = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
+export declare const ASSET_TRANSFER_PERMISSIONS: Readonly<Record<string, string>>;
+export declare const ASSET_TRANSFER_MESSAGES: Readonly<Record<string, string>>;
+export declare const ASSET_TRANSFER_REPORTS: readonly string[];
+export declare function approveAssetTransfer(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function cancelAssetTransfer(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function createAssetTransfer(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function createReturnTransfer(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function dispatchAssetTransfer(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function receiveTransferLine(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function rejectAssetTransfer(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function reportTransferException(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function requestTransferChanges(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function resolveTransferException(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function sendTransferReminders(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function submitAssetTransfer(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function updateAssetTransfer(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function validateAssetTransfer(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function exportAssetTransfers(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetTransfer(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetTransferPanel(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getTransferExceptions(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getTransferHistory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getTransferReconciliation(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getTransferReport(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function listAssetTransfers(client: Client, c: Ctx, ...args: any[]): Promise<any>;

@@ -85,8 +85,8 @@ export async function completeDisposal(client, c, disposalId) {
   if (d.status === "completed") return d;
   if (d.status !== "approved") throw new AssetError(409, "A disposal must be approved before it is completed.", "ASSET_STATE_INVALID");
   const a = await loadAsset(client, c, d.asset_id, { lock: true });
-  const unposted = await client.query(`SELECT count(*)::int AS n FROM tenant.asset_depreciation_schedules WHERE asset_id=$1 AND period_end<=$2 AND status IN ('planned','ready') AND depreciation_amount>0`, [a.id, d.disposal_date]);
-  if (unposted.rows[0].n > 0) throw new AssetError(409, "Post the depreciation due up to the disposal date before completing this disposal.", "ASSET_DEPRECIATION_PENDING");
+  const { assertDepreciationSettled } = await import("./asset-depreciation/dp-commands.js");
+  await assertDepreciationSettled(client, c, a, d.disposal_date instanceof Date ? `${d.disposal_date.getFullYear()}-${String(d.disposal_date.getMonth() + 1).padStart(2, "0")}-${String(d.disposal_date.getDate()).padStart(2, "0")}` : String(d.disposal_date).slice(0, 10));
   const cost = toCents(a.capitalized_cost);
   const accDep = toCents(a.accumulated_depreciation) + toCents(a.impairment_accumulated);
   const nbv = cost - accDep;
@@ -104,11 +104,12 @@ export async function completeDisposal(client, c, disposalId) {
     if (gainLoss < 0n) lines.push({ accountId: cat.gain_loss_account_id, debitCents: -gainLoss, description: "Loss on disposal" });
     accounting = await postAssetJournal(client, c, { date: String(d.disposal_date).slice(0, 10), reference: d.disposal_number, description: `Disposal ${d.disposal_number} of ${a.asset_number}`, sourceType: "asset_disposal", sourceId: d.id, sourceNumber: d.disposal_number, lines });
   }
-  await client.query(`UPDATE tenant.asset_depreciation_schedules SET status='reversed' WHERE asset_id=$1 AND status IN ('planned','ready') AND run_id IS NULL`, [a.id]);
   await client.query(`UPDATE tenant.asset_assignments SET assignment_status='returned',returned_at=now(),returned_by=$2 WHERE asset_id=$1 AND assignment_status='active'`, [a.id, c.userId]);
   await client.query(`INSERT INTO tenant.asset_movements(organization_id,asset_id,movement_type,effective_date,from_user_id,from_department_id,from_location_id,reference_type,reference_id,reason,actor_user_id) VALUES($1,$2,'status_change',$3,$4,$5,$6,'asset_disposal',$7,$8,$9)`, [c.organizationId, a.id, d.disposal_date, a.current_user_id, a.current_department_id, a.location_id, d.id, `Disposed (${d.disposal_method})`, c.userId]);
   await client.query(`UPDATE tenant.assets SET status='disposed',disposed_at=$2,current_user_id=NULL,current_department_id=NULL,current_cost_center_id=NULL,net_book_value=0,updated_at=now() WHERE id=$1`, [a.id, d.disposal_date]);
   const res = (await qx(client, `UPDATE tenant.asset_disposals SET status='completed',net_book_value=$2,gain_loss_amount=$3,original_cost=$4,accumulated_depreciation=$5,completed_by=$6,completed_at=now(),accounting_journal_id=$7,disposal_journal_status=$8 WHERE id=$1 RETURNING *`, [d.id, fromCents(nbv), fromCents(gainLoss), fromCents(cost), fromCents(accDep), c.userId, accounting.journalEntryId, accounting.status])).rows[0];
   await recordAssetEvent(client, c, a.id, "asset.disposed", { disposalId: d.id, gainLoss: fromCents(gainLoss), accounting: accounting.status });
+  const { onAssetDisposed } = await import("./asset-depreciation/dp-commands.js");
+  await onAssetDisposed(client, c, a.id, d.disposal_date instanceof Date ? `${d.disposal_date.getFullYear()}-${String(d.disposal_date.getMonth() + 1).padStart(2, "0")}-${String(d.disposal_date.getDate()).padStart(2, "0")}` : String(d.disposal_date).slice(0, 10));
   return res;
 }

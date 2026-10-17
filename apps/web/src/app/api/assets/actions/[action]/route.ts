@@ -3,35 +3,18 @@ import { z } from "zod";
 import {
   addAssetWorkOrderPart,
   approveAssetDisposal,
-  approveAssetTransfer,
-  approveDepreciationRun,
-  assignAssetToCustodian,
   cancelAssetDisposal,
-  cancelAssetTransfer,
   cancelAssetWorkOrder,
-  capitalizeAssetRecord,
   completeAssetDisposal,
-  completeAssetTransfer,
   completeAssetWorkOrder,
-  createAssetFromSource,
   createAssetWorkOrder,
-  createDepreciationRun,
   generateDueMaintenance,
   holdAssetWorkOrder,
-  postDepreciationRun,
-  registerAsset,
   rejectAssetDisposal,
-  rejectAssetTransfer,
   requestAssetDisposal,
-  requestAssetTransfer,
-  returnAsset,
-  reverseDepreciationRun,
-  saveAssetCategory,
-  saveAssetLocation,
   saveAssetSettings,
   saveMaintenancePlan,
   startAssetWorkOrder,
-  updateAssetRecord,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -60,103 +43,6 @@ export async function POST(
       switch (action) {
         case "settings-save":
           return { record: await saveAssetSettings(client, context, input) };
-        case "category-save":
-          return { record: await saveAssetCategory(client, context, input) };
-        case "location-save":
-          return { record: await saveAssetLocation(client, context, input) };
-        case "asset-register":
-          return { record: await registerAsset(client, context, input) };
-        case "asset-update":
-          return {
-            record: await updateAssetRecord(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "asset-from-source":
-          return {
-            record: await createAssetFromSource(client, context, input),
-          };
-        case "asset-capitalize":
-          return {
-            record: await capitalizeAssetRecord(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "asset-assign":
-          return {
-            record: await assignAssetToCustodian(
-              client,
-              context,
-              str(input, "assetId") || idOf(input),
-              input,
-            ),
-          };
-        case "asset-return":
-          return {
-            record: await returnAsset(
-              client,
-              context,
-              str(input, "assetId") || idOf(input),
-              input,
-            ),
-          };
-        case "transfer-request":
-          return {
-            record: await requestAssetTransfer(
-              client,
-              context,
-              str(input, "assetId"),
-              input,
-            ),
-          };
-        case "transfer-approve":
-          return {
-            record: await approveAssetTransfer(client, context, idOf(input)),
-          };
-        case "transfer-reject":
-          return {
-            record: await rejectAssetTransfer(
-              client,
-              context,
-              idOf(input),
-              str(input, "reason"),
-            ),
-          };
-        case "transfer-cancel":
-          return {
-            record: await cancelAssetTransfer(client, context, idOf(input)),
-          };
-        case "transfer-complete":
-          return {
-            record: await completeAssetTransfer(client, context, idOf(input)),
-          };
-        case "run-create":
-          return {
-            record: await createDepreciationRun(client, context, input),
-          };
-        case "run-approve":
-          return {
-            record: await approveDepreciationRun(client, context, idOf(input)),
-          };
-        case "run-post":
-          return {
-            record: await postDepreciationRun(client, context, idOf(input)),
-          };
-        case "run-reverse":
-          return {
-            record: await reverseDepreciationRun(
-              client,
-              context,
-              idOf(input),
-              str(input, "reason"),
-            ),
-          };
         case "plan-save":
           return { record: await saveMaintenancePlan(client, context, input) };
         case "plans-generate":

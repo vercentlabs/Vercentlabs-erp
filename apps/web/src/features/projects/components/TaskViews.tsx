@@ -17,9 +17,11 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
 import {
-  PRIORITY_LABEL, PRIORITY_TONE, TASKS_BASE, TASK_BLOCKER_LABEL, TASK_STATUS_TEXT, TASK_TONE, TASK_TYPE_LABEL, createTask, dateLabel, dueLabel, errorMessage, getMembers, newKey, taskAction,
-  type ProjectTasks, type TaskRow, type TaskStatus,
-} from "../api/projects-api";
+  TASKS_BASE, TASK_BLOCKER_LABEL, TASK_STATUS_TEXT, TASK_TONE, TASK_TYPE_LABEL, createTask, dateLabel, dueLabel, errorMessage, getMembers, newKey, taskAction,
+  type ProjectTasks, type TaskRow, type TaskStatus, type Priority } from "../api/projects-api";
+import { AssignTaskDialog } from "../assignees/AssignTaskDialog";
+import { NeedsOwnerBadge } from "../assignees/AssigneeViews";
+import { PriorityBadge, PriorityField } from "../priority/Priority";
 
 export type GroupBy = "none" | "project" | "milestone" | "assignee";
 export const GROUP_OPTIONS = [{ value: "none", label: "No grouping" }, { value: "project", label: "By project" }, { value: "milestone", label: "By milestone" }, { value: "assignee", label: "By assignee" }];
@@ -39,6 +41,7 @@ const groupKey = (row: TaskRow, by: GroupBy) => (by === "project" ? `${row.proje
   : by === "milestone" ? (row.milestone ? `${row.milestone.code} ${row.milestone.name}` : "No milestone") : by === "assignee" ? row.assignee ?? "Unassigned" : "");
 
 export function TaskTable({ rows, groupBy = "none", showProject = true }: { rows: TaskRow[]; groupBy?: GroupBy; showProject?: boolean }) {
+  const [assigning, setAssigning] = useState<TaskRow | null>(null);
   const groups = groupBy === "none" ? [["", rows] as const] : [...rows.reduce((map, row) => map.set(groupKey(row, groupBy), [...(map.get(groupKey(row, groupBy)) ?? []), row]), new Map<string, TaskRow[]>()).entries()];
   return (
     <div className="flex flex-col gap-4">
@@ -52,9 +55,12 @@ export function TaskTable({ rows, groupBy = "none", showProject = true }: { rows
                   <span className="text-xs text-text-muted">{`${row.code}${row.reviewRequired ? " · review" : ""}${row.tags.length ? ` · ${row.tags.join(", ")}` : ""}`}</span></span></Cell>
                 {showProject && <Cell>{row.projectCode}</Cell>}
                 <Cell>{row.milestone ? row.milestone.code : null}</Cell>
-                <Cell>{row.assignee}</Cell>
+                <Cell><span className="flex flex-col items-start">
+                  <span>{row.assignee}{row.needsOwner && <NeedsOwnerBadge />}</span>
+                  {["TO_DO", "IN_PROGRESS", "BLOCKED", "IN_REVIEW"].includes(row.status) && <button type="button" className="text-xs text-brand hover:underline" onClick={() => setAssigning(row)}>Reassign</button>}
+                </span></Cell>
                 <Cell><StatusBadge tone={TASK_TONE[row.status]}>{row.statusLabel}</StatusBadge></Cell>
-                <Cell><StatusBadge tone={PRIORITY_TONE[row.priority]}>{PRIORITY_LABEL[row.priority]}</StatusBadge></Cell>
+                <Cell><PriorityBadge priority={row.priority} /></Cell>
                 <Cell><DueText row={row} /></Cell>
                 <Cell>{row.checklist?.total ? `${row.checklist.done} / ${row.checklist.total}` : null}</Cell>
                 <Cell>{dateLabel(row.updatedAt)}</Cell>
@@ -63,6 +69,7 @@ export function TaskTable({ rows, groupBy = "none", showProject = true }: { rows
           </LinesTable>
         </div>
       ))}
+      {assigning && <AssignTaskDialog taskId={assigning.id} projectId={assigning.projectId} onClose={() => setAssigning(null)} onDone={() => undefined} />}
     </div>
   );
 }
@@ -76,6 +83,7 @@ export function TaskBoard({ rows, onChanged }: { rows: TaskRow[]; onChanged: () 
   const [over, setOver] = useState<TaskStatus | null>(null);
   const [ask, setAsk] = useState<Ask | null>(null);
   const [message, setMessage] = useState<{ tone: "danger" | "success"; text: string } | null>(null);
+  const [assigning, setAssigning] = useState<TaskRow | null>(null);
   const statusOf = (row: TaskRow) => moved[row.id] ?? row.status;
   // The card moves at once and snaps back if the server refuses.
   const move = async (row: TaskRow, to: TaskStatus, input: Record<string, unknown> = {}) => {
@@ -130,11 +138,13 @@ export function TaskBoard({ rows, onChanged }: { rows: TaskRow[]; onChanged: () 
                   <Link className="font-medium text-brand hover:underline" href={`${TASKS_BASE}/${row.id}`}>{row.title}</Link>
                   <span className="text-xs text-text-muted">{[row.code, row.assignee, row.milestone?.code].filter(Boolean).join(" · ")}</span>
                   <span className="flex flex-wrap items-center gap-1 text-xs">
-                    <StatusBadge tone={PRIORITY_TONE[row.priority]}>{PRIORITY_LABEL[row.priority]}</StatusBadge>
+                    <PriorityBadge priority={row.priority} />
                     <span className={row.overdue ? "text-danger" : "text-text-muted"}>{dueLabel(row) ?? dateLabel(row.dueDate)}</span>
                     {row.checklist?.total ? <span className="text-text-muted">{`☑ ${row.checklist.done}/${row.checklist.total}`}</span> : null}
                     {row.reviewRequired && <span className="text-text-muted">review</span>}
+                    {row.needsOwner && <NeedsOwnerBadge />}
                   </span>
+                  {statusOf(row) !== "DONE" && <button type="button" className="self-start text-xs text-brand hover:underline" onClick={() => setAssigning(row)}>Reassign</button>}
                   <Select aria-label={`Move ${row.code}`} size="compact" placeholder="Move…" selectedKey={null} options={MOVE_OPTIONS.filter((option) => option.value !== statusOf(row))}
                     onSelectionChange={(key) => key && request(row, String(key) as TaskStatus)} />
                 </article>
@@ -145,6 +155,7 @@ export function TaskBoard({ rows, onChanged }: { rows: TaskRow[]; onChanged: () 
       </div>
       <p className="text-xs text-text-muted">Drag a card, or use its Move menu. Each move is checked like the task page: earlier tasks, the checklist, evidence and review all still apply.</p>
       {ask && <AskDialog ask={ask} onClose={() => setAsk(null)} />}
+      {assigning && <AssignTaskDialog taskId={assigning.id} projectId={assigning.projectId} onClose={() => setAssigning(null)} onDone={async (text) => { await onChanged(); setMessage({ tone: "success", text }); }} />}
     </div>
   );
 }
@@ -182,7 +193,7 @@ export function AddTaskDialog({ data, managerId, managerName, onClose }: { data:
           <Select label="Assigned to" selectedKey={form.assigneeUserId || null} onSelectionChange={(next) => set("assigneeUserId")(String(next))} options={people} isRequired
             description="The Project Manager or a project member." />
           <TextField label="Due date" type="date" value={form.dueDate} onChange={set("dueDate")} isRequired />
-          <Select label="Priority" selectedKey={form.priority} onSelectionChange={(next) => set("priority")(String(next))} options={Object.entries(PRIORITY_LABEL).map(([value, label]) => ({ value, label }))} />
+          <PriorityField value={form.priority as Priority} onChange={(next) => set("priority")(next)} />
           <Select label="Milestone" selectedKey={form.milestoneId} onSelectionChange={(next) => set("milestoneId")(String(next ?? ""))} options={milestones} />
         </div>
         <Button variant="ghost" size="compact" onPress={() => setMore(!more)}>{more ? "Fewer details" : "More details"}</Button>

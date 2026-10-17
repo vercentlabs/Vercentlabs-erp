@@ -18,9 +18,10 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  PROJECTS_BASE, PRIORITY_LABEL, createProject, customerContacts, errorDetails, errorMessage, errorStatus, getOptions, getProject, newKey, searchCustomers, updateProject,
+  PROJECTS_BASE, createProject, customerContacts, errorDetails, errorMessage, errorStatus, getOptions, getProject, newKey, searchCustomers, updateProject,
   type EligibleCustomer, type Options, type Priority, type Project,
 } from "../api/projects-api";
+import { PriorityField, priorityReasonMissing } from "../priority/Priority";
 
 type Values = {
   name: string; classification: "INTERNAL" | "CUSTOMER"; customerId: string | null; crmAccountId: string | null; customerName: string; customerContactId: string | null; managerUserId: string | null;
@@ -55,6 +56,10 @@ export function ProjectFormScreen({ projectId }: { projectId?: string }) {
 
 function ProjectForm({ project, options }: { project?: Project; options: Options }) {
   const mode = project ? "edit" : "create";
+  // Raising the project to Urgent, or lowering it from Urgent, says why (its milestones and tasks keep their own priorities).
+  const [priorityReason, setPriorityReason] = useState("");
+  // Progress Tracking: a running project's target date moving later says why (the original target and every revision are kept).
+  const [targetChangeReason, setTargetChangeReason] = useState("");
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -95,6 +100,8 @@ function ProjectForm({ project, options }: { project?: Project; options: Options
     const body: Record<string, unknown> = {
       name: values.name.trim() || null, classification: values.classification, managerUserId: values.managerUserId, plannedStartDate: values.plannedStartDate || null,
       targetEndDate: values.targetEndDate || null, projectTypeId: values.projectTypeId, priority: values.priority, description: values.description.trim() || null, tags,
+      ...(mode === "edit" && priorityReason.trim() ? { priorityReason: priorityReason.trim() } : {}),
+      ...(mode === "edit" && targetChangeReason.trim() ? { targetChangeReason: targetChangeReason.trim() } : {}),
     };
     // The customer is sent only by someone who may choose it, on a draft (past the draft it changes on the Customer & Contacts tab).
     if (mayAssign) {
@@ -132,7 +139,7 @@ function ProjectForm({ project, options }: { project?: Project; options: Options
       formActions={
         <div className="flex justify-end gap-2">
           <Button variant="ghost" isDisabled={busy} onPress={() => router.replace(cancelHref)}>Cancel</Button>
-          <Button variant="primary" isLoading={busy} isDisabled={busy || Boolean(dateProblem)} onPress={() => { setError(null); mutation.mutate(); }}>{mode === "edit" ? "Save changes" : "Save draft"}</Button>
+          <Button variant="primary" isLoading={busy} isDisabled={busy || Boolean(dateProblem) || priorityReasonMissing(project?.priority, values.priority, priorityReason)} onPress={() => { setError(null); mutation.mutate(); }}>{mode === "edit" ? "Save changes" : "Save draft"}</Button>
         </div>
       }
       banner={error ? <Notice tone="danger">{error}</Notice> : undefined}
@@ -162,12 +169,15 @@ function ProjectForm({ project, options }: { project?: Project; options: Options
           options={userOptions} errorMessage={fieldErrors.managerUserId} description="An active colleague whose role can use Projects." />
         <TextField label="Planned start" type="date" value={values.plannedStartDate} onChange={set("plannedStartDate")} errorMessage={fieldErrors.plannedStartDate} />
         <TextField label="Target end" type="date" value={values.targetEndDate} onChange={set("targetEndDate")} errorMessage={dateProblem || fieldErrors.targetEndDate} />
+        {project && ["IN_PROGRESS", "ON_HOLD"].includes(project.status) && project.targetEndDate && values.targetEndDate > project.targetEndDate && (
+          <TextArea label="Why the target date moves later" value={targetChangeReason} onChange={setTargetChangeReason} isRequired maxLength={1000}
+            errorMessage={fieldErrors.targetChangeReason} description="Kept with the schedule history; the original target stays on record." />
+        )}
       </FormSection>
       <FormSection title="Details" description="Optional now; the type is needed to activate.">
         <Select label="Project type" placeholder="Choose" selectedKey={values.projectTypeId} onSelectionChange={(key) => set("projectTypeId")(key ? String(key) : null)}
           options={options.types.map((type) => ({ value: type.id, label: type.name }))} errorMessage={fieldErrors.projectTypeId} />
-        <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key) as Priority)}
-          options={options.priorities.map((priority) => ({ value: priority, label: PRIORITY_LABEL[priority] }))} />
+        <PriorityField value={values.priority} onChange={(next) => set("priority")(next)} original={project?.priority ?? null} reason={priorityReason} onReasonChange={setPriorityReason} />
         {values.classification === "CUSTOMER" && partyId && mayAssign && (
           <Select label="Primary contact" placeholder={contacts.data?.length ? "Choose" : "No contacts for this customer"} selectedKey={values.customerContactId}
             onSelectionChange={(key) => set("customerContactId")(key ? String(key) : null)} options={(contacts.data ?? []).map((row) => ({ value: row.id, label: `${row.name}${row.email ? ` · ${row.email}` : ""}` }))}

@@ -45,6 +45,12 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   // A milestone's deliverables and acceptance evidence.
   "projects.milestone": { moduleKey: "projects", purposes: ["attachment"] },
   "projects.task": { moduleKey: "projects", purposes: ["attachment"] },
+  // Files attached to a project discussion comment; the comment's record (project, task or milestone) decides who may read them.
+  "projects.comment": { moduleKey: "projects", purposes: ["attachment"] },
+  // Receipts and invoices on a project expense claim; the expense (and its project) decides who may read them.
+  "projects.expense": { moduleKey: "projects", purposes: ["attachment"] },
+  // An asset's photos, manuals, purchase invoices, warranty certificates; the asset decides who may read them.
+  "assets.asset": { moduleKey: "assets", purposes: ["attachment"] },
   "stock.opening_stock": { moduleKey: "stock", purposes: ["attachment"] },
   "stock.goods_issue": { moduleKey: "stock", purposes: ["attachment"] },
   "stock.inventory_adjustment": { moduleKey: "stock", purposes: ["attachment"] },

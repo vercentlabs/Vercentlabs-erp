@@ -19,9 +19,13 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 import { AskDialog, type Ask, type Field } from "@/features/manufacturing/orders/components/MoDialogs";
 import {
-  MILESTONES_BASE, PRIORITY_LABEL, PRIORITY_TONE, PROJECTS_BASE, TASKS_BASE, TASK_BLOCKER_LABEL, TASK_TONE, TASK_TYPE_LABEL, dateLabel, dueLabel, errorMessage, errorStatus, getMembers,
-  getProjectTasks, getTask, getTaskActivity, getTaskComments, minutesLabel, newKey, removeTaskFile, taskAction, taskFileHref, updateTask, uploadTaskFile, type TaskCheck, type TaskDetail,
+  MILESTONES_BASE, PROJECTS_BASE, TASKS_BASE, TASK_BLOCKER_LABEL, TASK_TONE, TASK_TYPE_LABEL, dateLabel, dueLabel, errorMessage, errorStatus, getMembers,
+  getProjectTasks, getTask, getTaskActivity, minutesLabel, newKey, removeTaskFile, taskAction, taskFileHref, updateTask, uploadTaskFile, type TaskCheck, type TaskDetail,
 } from "../api/projects-api";
+import { AssignTaskDialog } from "../assignees/AssignTaskDialog";
+import { AssignmentHistory } from "../assignees/AssigneeViews";
+import { PriorityBadge, PriorityDialog, PriorityField, priorityReasonMissing } from "../priority/Priority";
+import { CommentThread, CommentsTabLabel } from "../collaboration/CommentThread";
 
 const TABS = [{ id: "overview", label: "Overview" }, { id: "checklist", label: "Checklist" }, { id: "dependencies", label: "Dependencies" }, { id: "comments", label: "Comments" },
   { id: "files", label: "Files" }, { id: "time", label: "Time & expenses" }, { id: "activity", label: "Activity" }];
@@ -39,7 +43,7 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "task", taskId), queryFn: () => getTask(taskId), retry: false });
   const [tab, setTab] = useState(TABS.some((row) => row.id === params.get("tab")) ? params.get("tab")! : "overview");
   const [ask, setAsk] = useState<Ask | null>(null);
-  const [dialog, setDialog] = useState<"edit" | "assign" | null>(null);
+  const [dialog, setDialog] = useState<"edit" | "assign" | "priority" | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "danger" | "warning"; text: string } | null>(null);
   if (query.isLoading) return <LoadingState label="Loading the task" rows={8} />;
   if (query.isError || !query.data) {
@@ -85,6 +89,7 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
   const more: MoreAction[] = [
     { id: "edit", label: "Edit", show: can.edit, run: () => setDialog("edit") },
     { id: "assign", label: "Reassign", show: can.assign, run: () => setDialog("assign") },
+    { id: "priority", label: "Change priority", show: can.edit && ["TO_DO", "IN_PROGRESS", "BLOCKED", "IN_REVIEW"].includes(task.status), run: () => setDialog("priority") },
     ...steps.filter((row) => row.show && row.id !== next?.id),
     { id: "block", label: "Mark blocked", show: can.block, run: () => setAsk({ title: `Block ${task.code}`, confirm: "Mark blocked",
       description: "The task shows as blocked until every blocker is resolved; it then resumes where it was. The project is not put on hold.",
@@ -121,7 +126,7 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
             { label: "Milestone", value: task.milestone ? <Link className="text-brand hover:underline" href={`${MILESTONES_BASE}/${task.milestone.id}`}>{`${task.milestone.code} ${task.milestone.name}`}</Link> : "None" },
             { label: "Assigned to", value: task.assignee ?? "—" },
             { label: "Due", value: `${dateLabel(task.dueDate)}${dueLabel(task) ? ` · ${dueLabel(task)}` : ""}` },
-            { label: "Priority", value: <StatusBadge tone={PRIORITY_TONE[task.priority]}>{PRIORITY_LABEL[task.priority]}</StatusBadge> },
+            { label: "Priority", value: <PriorityBadge priority={task.priority} /> },
             { label: "Checklist", value: task.checklistProgress.total ? `${task.checklistProgress.done} of ${task.checklistProgress.total}` : "None" },
           ],
           primaryAction: next ? <Button variant="primary" onPress={next.run}>{next.label}</Button> : undefined,
@@ -140,13 +145,13 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
         }
       >
         <Tabs selectedKey={tab} onSelectionChange={(key) => selectTab(String(key))}>
-          <TabList aria-label="Task sections">{TABS.map((row) => <Tab key={row.id} id={row.id}>{row.label}</Tab>)}</TabList>
+          <TabList aria-label="Task sections">{TABS.map((row) => <Tab key={row.id} id={row.id}>{row.id === "comments" ? <CommentsTabLabel parentType="TASK" parentId={task.id} /> : row.label}</Tab>)}</TabList>
         </Tabs>
         <div className="mt-4">
           {tab === "overview" && <OverviewTab task={task} act={act} setAsk={setAsk} />}
           {tab === "checklist" && <ChecklistTab task={task} act={act} setAsk={setAsk} />}
           {tab === "dependencies" && <DependenciesTab task={task} act={act} />}
-          {tab === "comments" && <CommentsTab task={task} onChanged={refresh} />}
+          {tab === "comments" && <CommentThread parentType="TASK" parentId={task.id} />}
           {tab === "files" && <FilesTab task={task} onChanged={refresh} />}
           {tab === "time" && <TimeTab task={task} />}
           {tab === "activity" && <ActivityTab task={task} />}
@@ -154,7 +159,8 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
       </RecordDetailsPage>
       {ask && <AskDialog ask={ask} onClose={() => setAsk(null)} />}
       {dialog === "edit" && <EditDialog task={task} onClose={() => setDialog(null)} onDone={refresh} />}
-      {dialog === "assign" && <AssignDialog task={task} onClose={() => setDialog(null)} act={act} />}
+      {dialog === "priority" && <PriorityDialog target={{ kind: "task", id: task.id, code: task.code, name: task.title, priority: task.priority, version: task.version }} onClose={() => setDialog(null)} onDone={refresh} />}
+      {dialog === "assign" && <AssignTaskDialog taskId={task.id} projectId={task.projectId} onClose={() => setDialog(null)} onDone={refresh} />}
     </>
   );
 }
@@ -202,6 +208,7 @@ function OverviewTab({ task, act, setAsk }: TabProps) {
           </ul>
         </Panel>
       )}
+      <AssignmentHistory taskId={task.id} version={task.version} />
       <FactList title="Details" items={[
         ["Code", task.code], ["Type", TASK_TYPE_LABEL[task.type] ?? task.type], ["Assigned to", task.assignee ?? "—"], ["Reported by", task.reporter ?? "—"],
         ["Reviewer", task.reviewRequired ? task.reviewer ?? "Anyone who reviews on the project" : "No review"], ["Start date", dateLabel(task.plannedStartDate)],
@@ -314,41 +321,6 @@ function DependenciesTab({ task, act }: { task: TaskDetail; act: Act }) {
   );
 }
 
-function CommentsTab({ task, onChanged }: { task: TaskDetail; onChanged: (text: string) => Promise<void> }) {
-  const workspace = useWorkspaceContext();
-  const comments = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "task-comments", task.id), queryFn: () => getTaskComments(task.id) });
-  const team = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "members", task.projectId), queryFn: () => getMembers(task.projectId), enabled: task.can.comment });
-  const [body, setBody] = useState("");
-  const [mentions, setMentions] = useState<string[]>([]);
-  const [key, setKey] = useState(newKey);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const people = (team.data?.members ?? []).filter((row) => row.active && row.accountActive !== false);
-  return (
-    <Panel title="Comments" description="The discussion about this task. Mention project people to tell them; customer contacts named here gain no access.">
-      <HistoryList title={null} empty="No comments yet." entries={(comments.data ?? []).map((row) => ({ summary: <span className="whitespace-pre-wrap">{row.body}</span>, at: row.createdAt, actor: row.author,
-        detail: row.mentions.length ? `Mentioned: ${row.mentions.join(", ")}` : undefined }))} />
-      {task.can.comment && (
-        <div className="flex flex-col gap-2">
-          <TextArea label="Add a comment" value={body} onChange={setBody} maxLength={5000} />
-          {people.length > 0 && (
-            <fieldset className="flex flex-wrap gap-3">
-              <legend className="text-xs text-text-muted">Mention</legend>
-              {people.map((row) => <Checkbox key={row.userId} isSelected={mentions.includes(row.userId)} onChange={(on) => setMentions((current) => (on ? [...current, row.userId] : current.filter((id) => id !== row.userId)))}>{row.name}</Checkbox>)}
-            </fieldset>
-          )}
-          {error && <Notice tone="danger">{error}</Notice>}
-          <span><Button size="compact" variant="primary" isLoading={busy} isDisabled={busy || !body.trim()} onPress={async () => {
-            setBusy(true); setError(null);
-            try { await taskAction(task.id, "comment", { body, mentionUserIds: mentions, idempotencyKey: key }); setBody(""); setMentions([]); setKey(newKey()); await onChanged("Comment added."); }
-            catch (failure) { setError(errorMessage(failure)); } finally { setBusy(false); }
-          }}>Comment</Button></span>
-        </div>
-      )}
-    </Panel>
-  );
-}
-
 function FilesTab({ task, onChanged }: { task: TaskDetail; onChanged: (text: string) => Promise<void> }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -403,7 +375,7 @@ function EditDialog({ task, onClose, onDone }: { task: TaskDetail; onClose: () =
   const workspace = useWorkspaceContext();
   const team = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "members", task.projectId), queryFn: () => getMembers(task.projectId) });
   const tasks = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "project-tasks", task.projectId, { view: "all" }), queryFn: () => getProjectTasks(task.projectId, { view: "all" }) });
-  const [form, setForm] = useState({ title: task.title, description: task.description ?? "", priority: task.priority, type: task.type, tags: task.tags.join(", "), plannedStartDate: task.plannedStartDate ?? "",
+  const [form, setForm] = useState({ title: task.title, description: task.description ?? "", priority: task.priority, priorityReason: "", type: task.type, tags: task.tags.join(", "), plannedStartDate: task.plannedStartDate ?? "",
     dueDate: task.dueDate, dueDateReason: "", hours: task.estimateMinutes ? String(task.estimateMinutes / 60) : "", reviewerUserId: task.reviewerId ?? "", milestoneId: task.milestone?.id ?? "" });
   const [review, setReview] = useState(task.reviewRequired);
   const [evidence, setEvidence] = useState(task.evidenceRequired);
@@ -421,7 +393,7 @@ function EditDialog({ task, onClose, onDone }: { task: TaskDetail; onClose: () =
         <TextField label="Task" value={form.title} onChange={set("title")} isRequired maxLength={200} />
         <TextArea label="Description" value={form.description} onChange={set("description")} maxLength={4000} />
         <div className="grid gap-3 sm:grid-cols-2">
-          <Select label="Priority" selectedKey={form.priority} onSelectionChange={(next) => set("priority")(String(next))} options={Object.entries(PRIORITY_LABEL).map(([value, label]) => ({ value, label }))} />
+          <PriorityField value={form.priority} onChange={(next) => set("priority")(next)} original={task.priority} reason={form.priorityReason} onReasonChange={set("priorityReason")} />
           <Select label="Type" selectedKey={form.type} onSelectionChange={(next) => set("type")(String(next))} options={Object.entries(TASK_TYPE_LABEL).map(([value, label]) => ({ value, label }))} />
           <TextField label="Start date" type="date" value={form.plannedStartDate} onChange={set("plannedStartDate")} />
           <TextField label="Due date" type="date" value={form.dueDate} onChange={set("dueDate")} isRequired description={`Originally ${dateLabel(task.originalDueDate)}; the original is kept.`} />
@@ -437,10 +409,10 @@ function EditDialog({ task, onClose, onDone }: { task: TaskDetail; onClose: () =
         {error && <Notice tone="danger">{error}</Notice>}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" isLoading={busy} isDisabled={busy || form.title.trim().length < 2 || !form.dueDate} onPress={async () => {
+          <Button variant="primary" isLoading={busy} isDisabled={busy || form.title.trim().length < 2 || !form.dueDate || priorityReasonMissing(task.priority, form.priority, form.priorityReason)} onPress={async () => {
             setBusy(true); setError(null);
             try {
-              const result = await updateTask(task.id, { expectedVersion: task.version, idempotencyKey: key, title: form.title, description: form.description, priority: form.priority, taskType: form.type,
+              const result = await updateTask(task.id, { expectedVersion: task.version, idempotencyKey: key, title: form.title, description: form.description, priority: form.priority, priorityReason: form.priorityReason.trim() || undefined, taskType: form.type,
                 tags: form.tags, plannedStartDate: form.plannedStartDate || null, dueDate: form.dueDate, dueDateReason: moved ? form.dueDateReason || undefined : undefined,
                 estimateMinutes: form.hours ? Math.round(Number(form.hours) * 60) : null, reviewRequired: review, reviewerUserId: review ? form.reviewerUserId || null : null, evidenceRequired: evidence,
                 milestoneId: form.milestoneId || null, withdrawReview: withdraw || undefined });
@@ -453,29 +425,3 @@ function EditDialog({ task, onClose, onDone }: { task: TaskDetail; onClose: () =
   );
 }
 
-function AssignDialog({ task, onClose, act }: { task: TaskDetail; onClose: () => void; act: Act }) {
-  const workspace = useWorkspaceContext();
-  const team = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "members", task.projectId), queryFn: () => getMembers(task.projectId) });
-  const [person, setPerson] = useState<string | null>(task.assigneeId);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const options = (team.data?.members ?? []).filter((row) => row.active && ["MANAGER", "MEMBER"].includes(row.role) && row.accountActive !== false).map((row) => ({ value: row.userId, label: `${row.name} · ${row.roleLabel}` }));
-  return (
-    <Dialog isOpen isDismissable onOpenChange={(next) => { if (!next) onClose(); }} title={`Reassign ${task.code}`}>
-      <div className="flex flex-col gap-3">
-        {team.isLoading ? <LoadingState label="Loading the team" rows={2} /> : <Select label="Assigned to" selectedKey={person} onSelectionChange={(next) => setPerson(String(next))} options={options}
-          description="A project member. The previous assignee keeps their history; their time entries stay theirs." />}
-        <TextField label="Note" value={note} onChange={setNote} />
-        {error && <Notice tone="danger">{error}</Notice>}
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" isLoading={busy} isDisabled={busy || !person || person === task.assigneeId} onPress={async () => {
-            setBusy(true); setError(null);
-            try { await act("assign", { assigneeUserId: person, note: note || undefined }, "Reassigned: they were told."); onClose(); } catch (failure) { setError(errorMessage(failure)); } finally { setBusy(false); }
-          }}>Reassign</Button>
-        </div>
-      </div>
-    </Dialog>
-  );
-}

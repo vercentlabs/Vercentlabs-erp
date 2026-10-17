@@ -14,6 +14,12 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
 import { errorMessage, errorStatus, getSettings, saveSettings, saveType } from "../api/projects-api";
+import { BillingSettingsPanel } from "../billable/BillableReports";
+import { TimeSettingsPanel } from "../timesheets/TimeReports";
+import { CommentSettingsPanel } from "../collaboration/DiscussionScreens";
+import { ProgressSettingsPanel } from "../progress/ProgressViews";
+import { ExpenseSettingsPanel } from "../expenses/ExpenseScreens";
+import { OverheadPolicyPanel } from "../costing/ProjectCost";
 
 const ROLE_HELP: Record<string, string> = { MANAGER: "Leads the project: scope, team, dates and lifecycle.", MEMBER: "Works on the project; adds updates, notes and files.",
   VIEWER: "Reads the project.", FINANCIAL_VIEWER: "Reads the project and the amounts on its linked commercial records." };
@@ -48,6 +54,12 @@ export function ProjectSettingsScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader title="Project Settings" description="How projects are run in your company." />
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
+      <TimeSettingsPanel />
+      <BillingSettingsPanel />
+      <CommentSettingsPanel />
+      <ProgressSettingsPanel />
+      <ExpenseSettingsPanel />
+      <OverheadPolicyPanel />
       <Panel title="Policy">
         <Checkbox isDisabled={!can.manage || busy} isSelected={settings.activationApprovalRequired} onChange={(value) => run(() => saveSettings({ activationApprovalRequired: value }), value ? "Activation now needs approval." : "Projects activate without approval.")}>
           A draft is approved before it is activated</Checkbox>

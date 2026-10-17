@@ -1,0 +1,28 @@
+// Assets — Opening / Existing Assets (types for the web).
+type Client = any;
+type Ctx = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
+export declare const ASSET_OPENING_PERMISSIONS: Readonly<Record<string, string>>;
+export declare const ASSET_OPENING_MESSAGES: Readonly<Record<string, string>>;
+export declare const ASSET_OPENING_COLUMNS: readonly string[];
+export declare const ASSET_OPENING_REPORTS: readonly string[];
+export declare function approveOpeningFinancials(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function cancelOpeningBatch(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function closeOpeningBatch(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function correctOpeningPosition(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function createManualOpeningAsset(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function createOpeningBatch(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function prepareFinanceOpeningBalance(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function registerOpeningBatch(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function updateOpeningPosition(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function updateOpeningRow(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function validateOpeningBatch(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function exportOpeningBatch(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetOpening(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getOpeningBatch(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getOpeningExceptions(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getOpeningHistory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getOpeningOverview(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getOpeningReconciliation(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getOpeningReport(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getOpeningTemplate(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function listOpeningBatches(client: Client, c: Ctx, ...args: any[]): Promise<any>;

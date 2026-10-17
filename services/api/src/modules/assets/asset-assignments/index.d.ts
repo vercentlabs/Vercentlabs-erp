@@ -1,0 +1,27 @@
+// Assets — Asset Assignment (types for the web).
+type Client = any;
+type Ctx = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
+export declare const ASSET_ASSIGNMENT_PERMISSIONS: Readonly<Record<string, string>>;
+export declare const ASSET_ASSIGNMENT_MESSAGES: Readonly<Record<string, string>>;
+export declare const ASSET_ASSIGNMENT_REPORTS: readonly string[];
+export declare function approveAssignmentRequest(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function bulkAssignAssets(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function cancelAssignmentRequest(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function completeAssignmentReturn(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function createAssignmentRequest(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function extendAssignment(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function issueAssignedAsset(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function rejectAssignmentRequest(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function requestAssignmentChanges(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function requestAssignmentReturn(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function sendAssignmentReminders(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function submitAssignmentRequest(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function exportAssignments(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssetAssignmentPanel(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssignableAssets(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssignmentExceptions(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssignmentHistory(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssignmentReport(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getAssignmentRequest(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function getMyAssignmentRequests(client: Client, c: Ctx, ...args: any[]): Promise<any>;
+export declare function listAssignmentRequests(client: Client, c: Ctx, ...args: any[]): Promise<any>;

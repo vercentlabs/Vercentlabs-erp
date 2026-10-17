@@ -126,7 +126,38 @@ const MESSAGES = Object.freeze({
   TASK_VERSION_CONFLICT: "This Task was updated by someone else. Refresh and review.",
   TASK_PERMISSION_DENIED: "You do not have permission for this action.",
   TASK_REASON_REQUIRED: "Give a reason.",
-  PROJECT_MEMBER_HAS_TASKS: "This member still has open tasks on the project. Reassign them, or record an authorized exception.",
+  ASSIGNEE_TASK_STATUS_INVALID: "This Task cannot be reassigned in its current status.",
+  ASSIGNEE_PROJECT_STATUS_INVALID: "Assignment changes are not allowed in this Project state.",
+  ASSIGNEE_REASON_REQUIRED: "Explain why this Task is being reassigned.",
+  ASSIGNEE_VERSION_CONFLICT: "The Task has changed. Refresh before assigning it.",
+  ASSIGNEE_MEMBER_HAS_OPEN_WORK: "Reassign open Tasks before removing this team member.",
+  ASSIGNEE_TASK_ALREADY_ASSIGNED: "This Task is already assigned to the selected person.",
+  ASSIGNEE_REVIEWER_CONFLICT: "The reviewer cannot also be the assignee.",
+  PROJECT_STATUS_INVALID_TRANSITION: "This action is not allowed in the project's current status.",
+  PROJECT_STATUS_ACTIVATION_INCOMPLETE: "Complete the required project details before activating.",
+  PROJECT_STATUS_MANAGER_REQUIRED: "Assign an active Project Manager.",
+  PROJECT_STATUS_HOLD_ALREADY_ACTIVE: "This project is already on Hold.",
+  PROJECT_STATUS_HOLD_REASON_REQUIRED: "Explain why the project must be paused.",
+  PROJECT_STATUS_HOLD_UNRESOLVED: "Resolve the outstanding Hold reasons before resuming.",
+  PROJECT_STATUS_REQUIRED_TASKS_OPEN: "Required Tasks are still incomplete.",
+  PROJECT_STATUS_MILESTONES_OPEN: "Required Milestones are not yet completed.",
+  PROJECT_STATUS_CUSTOMER_ACCEPTANCE: "Customer acceptance is still required.",
+  PROJECT_STATUS_COMPLETION_CHECKS: "Complete the closing checks before completing the project.",
+  PROJECT_STATUS_COMPLETION_APPROVAL: "A Project Manager or authorized approver must approve completion.",
+  PROJECT_STATUS_CANCEL_DEPENDENCIES: "Review outstanding work and linked business obligations before cancelling.",
+  PROJECT_STATUS_REOPEN_NOT_ALLOWED: "This project cannot be reopened using the ordinary workflow.",
+  PROJECT_STATUS_VERSION_CONFLICT: "The project changed. Refresh and review before proceeding.",
+  PROJECT_STATUS_PERMISSION_DENIED: "You do not have permission for this action.",
+  PROJECT_STATUS_OPERATION_UNKNOWN: "Checking the previous request. Do not submit again.",
+  PRIORITY_INVALID: "Select Low, Normal, High or Urgent.",
+  PRIORITY_RECORD_NOT_FOUND: "This Project, Milestone or Task could not be found.",
+  PRIORITY_REASON_REQUIRED: "Explain why this work is being marked Urgent or reduced from Urgent.",
+  PRIORITY_PERMISSION_DENIED: "You do not have permission to change this priority.",
+  PRIORITY_RECORD_COMPLETED: "Reopen this completed work through the authorized workflow before making this change.",
+  PRIORITY_RECORD_CANCELLED: "Cancelled work cannot be reprioritized.",
+  PRIORITY_VERSION_CONFLICT: "Someone changed this record. Refresh before continuing.",
+  PRIORITY_BULK_PARTIAL_FAILURE: "Some priorities could not be updated. Review the results.",
+  PRIORITY_OPERATION_UNKNOWN: "Checking whether the previous update succeeded. Do not submit it again.",
 });
 export class ProjectError extends Error {
   constructor(status, code, message, details) {
@@ -293,4 +324,9 @@ export async function activeMemberIds(client, c, projectId) {
 const MEMBER_LEAVE_HOOKS = [];
 export function registerMemberLeaveHook(hook) { if (typeof hook === "function" && !MEMBER_LEAVE_HOOKS.includes(hook)) MEMBER_LEAVE_HOOKS.push(hook); }
 export async function beforeMemberLeaves(client, c, project, userId, input = {}) { for (const hook of MEMBER_LEAVE_HOOKS) await hook(client, c, project, userId, input); }
+// Progress Tracking listens to every change of scope or state (a task added, done, reopened or cancelled; a milestone completed, reopened,
+// cancelled or waived; the project's lifecycle) and records how progress moved, in the same transaction.
+const PROGRESS_LISTENERS = [];
+export function registerProgressListener(listener) { if (typeof listener === "function" && !PROGRESS_LISTENERS.includes(listener)) PROGRESS_LISTENERS.push(listener); }
+export async function progressChanged(client, c, projectId, cause) { for (const listener of PROGRESS_LISTENERS) await listener(client, c, projectId, cause); }
 export const label = (project) => `${project.project_code}${project.name ? ` · ${project.name}` : ""}`;

@@ -9,13 +9,14 @@ const pick = (source, fields) =>
 const leadState = (state) => pick(state, ["status", "sourceId", "ownerUserId"]);
 // Projects: every lifecycle change, team change and link, with the project's code, status and manager (never the scope or amounts).
 const projectEvent = (key, label, description) => define(`projects.project.${key}`, label, description, "projects.project",
-  (event) => ({ projectId: event.entityId, ...pick(event.payload, ["projectCode", "status", "previousStatus", "managerUserId", "source", "changedFields", "memberUserId", "role", "sourceType", "sourceId"]) }),
+  (event) => ({ projectId: event.entityId, ...pick(event.payload, ["projectCode", "status", "previousStatus", "managerUserId", "source", "changedFields", "memberUserId", "role", "sourceType", "sourceId", "action", "reasonCode", "version"]) }),
   [{ key: "status", label: "Project status" }, { key: "managerUserId", label: "Project Manager", type: "user" }]);
 const PROJECT_EVENTS = [
   ["created", "Project created", "A project was created (as a draft)."], ["updated", "Project updated", "A project's details changed."],
   ["activated", "Project activated", "A draft project became planned."], ["approved", "Project approved", "A project's activation was approved."],
   ["started", "Project started", "A project's execution started."], ["held", "Project put on hold", "A project was paused."], ["resumed", "Project resumed", "A paused project resumed."],
   ["completed", "Project completed", "A project was completed."], ["reopened", "Project reopened", "A completed project was reopened."], ["cancelled", "Project cancelled", "A project was cancelled."],
+  ["status_changed", "Project status changed", "A project moved to another status (one event for every transition, with the action and its reason code)."],
   ["archived", "Project archived", "A completed or cancelled project was archived."], ["restored", "Project restored", "An archived project was restored."],
   ["member_added", "Project member added", "Someone joined a project team."], ["member_removed", "Project member removed", "Someone left a project team."],
   ["linked", "Project record linked", "A CRM, sales or procurement record was linked to a project."],
@@ -43,6 +44,17 @@ const TASK_EVENTS = [
   ["submitted", "Task submitted for review", "A task was submitted for review."], ["approved", "Task approved", "A task was approved in review and is done."],
   ["changes_requested", "Task changes requested", "A task came back from review with changes requested."], ["completed", "Task completed", "A task was completed."],
   ["reopened", "Task reopened", "A done task was reopened."], ["cancelled", "Task cancelled", "A task was cancelled."], ["due_date_changed", "Task rescheduled", "A task's due date changed."],
+];
+// Projects — Timesheets: a week's time submitted, approved or returned, a correction applied, approved time handed to billing — with the
+// submission's project, employee, week and minutes (never the descriptions, rates or costs).
+const timesheetEvent = (key, label, description) => define(`projects.timesheet.${key}`, label, description, "projects.timesheet",
+  (event) => ({ submissionId: event.entityId, ...pick(event.payload, ["projectId", "employeeUserId", "periodStart", "status", "version", "totalMinutes", "billableMinutes", "correctionId", "billingRequestId"]) }),
+  [{ key: "status", label: "Timesheet status" }, { key: "employeeUserId", label: "Employee", type: "user" }]);
+const TIMESHEET_EVENTS = [
+  ["submitted", "Timesheet submitted", "An employee submitted a week's time on a project for review."], ["approved", "Timesheet approved", "A submitted timesheet was approved; its time is locked."],
+  ["changes_requested", "Timesheet returned", "A submitted timesheet was returned to the employee for correction."],
+  ["correction_applied", "Approved time corrected", "A correction of approved time was approved and applied."],
+  ["billing_requested", "Time billing requested", "Approved billable time was handed to Sales for invoicing."],
 ];
 
 const define = (key, label, description, entityType, project, conditionFields) =>
@@ -129,6 +141,7 @@ export const DOMAIN_EVENTS = Object.freeze([
   ...PROJECT_EVENTS.map(([key, label, description]) => projectEvent(key, label, description)),
   ...MILESTONE_EVENTS.map(([key, label, description]) => milestoneEvent(key, label, description)),
   ...TASK_EVENTS.map(([key, label, description]) => taskEvent(key, label, description)),
+  ...TIMESHEET_EVENTS.map(([key, label, description]) => timesheetEvent(key, label, description)),
 ]);
 
 const BY_KEY = new Map(DOMAIN_EVENTS.map((event) => [event.key, event]));

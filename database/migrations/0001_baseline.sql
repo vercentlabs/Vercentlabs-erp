@@ -16639,14 +16639,6 @@ ALTER TABLE ONLY tenant.assets
 
 
 --
--- Name: assets assets_organization_id_serial_number_key; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.assets
-    ADD CONSTRAINT assets_organization_id_serial_number_key UNIQUE (organization_id, serial_number);
-
-
---
 -- Name: assets assets_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
 --
 
@@ -45804,7 +45796,6 @@ INSERT INTO public.permissions VALUES ('projects.expense.approve', 'Approve proj
 INSERT INTO public.permissions VALUES ('projects.budget.manage', 'Manage project budgets', 'Projects', 'Manage project financial baselines') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('projects.procurement.link', 'Link project procurement', 'Projects', 'Link procurement documents to projects') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('projects.billing.manage', 'Manage project billing', 'Projects', 'Manage governed project billing requests') ON CONFLICT DO NOTHING;
-INSERT INTO public.permissions VALUES ('projects.profitability.view', 'View project profitability', 'Projects', 'View project margin and cost performance') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('projects.reports.view', 'View project reports', 'Projects', 'View project portfolio reports') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('projects.settings.manage', 'Manage project settings', 'Projects', 'Manage project policies and defaults') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('projects.audit.view', 'View project audit', 'Projects', 'View project audit events') ON CONFLICT DO NOTHING;

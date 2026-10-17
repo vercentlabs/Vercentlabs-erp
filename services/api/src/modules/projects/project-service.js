@@ -1,20 +1,20 @@
-// Projects — the commands: a draft created (once per request; directly, from a confirmed sales order, or by import) and edited; activation
-// checked and, where the company asks, approved by someone else; started, put on hold (resuming to the status it interrupted), completed
-// once its closing checks pass, reopened with a reason, cancelled after its dependencies are reviewed, archived and restored, and an unused
-// draft removed. The team (one accountable Project Manager), typed links to other modules' records, notes, files, saved views and the
+// Projects — the commands: a draft created (once per request; directly, from a confirmed sales order, or by import) and edited; archived and
+// restored, and an unused draft removed (the lifecycle — activation, start, hold, resume, completion, reopening, cancellation — is status/). The team (one accountable Project Manager), typed links to other modules' records, notes, files, saved views and the
 // company's project policy and types. Every change is versioned, written to the activity timeline and announced to automation.
 import { randomUUID } from "node:crypto";
 
 import { archiveFile, listFiles, prepareFileUpload, readFileContent, storeFile } from "../../core/platform/files/index.js";
 import {
-  ACTIVE_STATUSES, PRIORITIES, PROJECT, ROLES, STATUS_LABEL, accessOf, activeMemberIds, beforeMemberLeaves, eligibleUsers, ensureProjectTypes, has, isoDay, label, loadProject, need,
-  nextProjectCode, notifyProject, projectError, projectEvent, projectSettings, publishProjectEvent, requireAccess, statusEvent, text, today, uuid, versionCheck, visibleProject,
+  PROJECT, ROLES, STATUS_LABEL, accessOf, activeMemberIds, beforeMemberLeaves, eligibleUsers, ensureProjectTypes, has, isoDay, label, loadProject, need,
+  nextProjectCode, notifyProject, projectError, projectEvent, projectSettings, publishProjectEvent, requireAccess, statusEvent, text, uuid, versionCheck, visibleProject,
 } from "./project-core.js";
-import { completionCheck, cancellationReview } from "./project-summary.js";
+import { activationProblems } from "./status/status-read.js";
 import {
   CUSTOMER_SCOPED, contactRecord, crmAccountRecord, customerEvent, customerRecord, isCustomerParty, mayLinkSales, needsSalesLink, partyRow, projectParty, recordMatchesCustomer,
   removeContactsNotOf, setPrimaryContactRow,
 } from "./project-customer-rules.js";
+import { priorityChangeFor, recordProjectPriorityChange, validatePriority } from "./priority/index.js";
+import { recordTargetRevision } from "./progress/progress-record.js";
 
 const FILE_ENTITY = "projects.project";
 
@@ -88,11 +88,7 @@ async function fieldsOf(client, c, input, current = {}) {
       ? (await contactRecord(client, c, input.customerContactId, customerId, { purpose: input.customerContactId === current.customer_contact_id ? "existing" : "new" })).id : null;
   } else if (out.customer_id !== undefined && out.customer_id !== current.customer_id && current.customer_contact_id) out.customer_contact_id = null;
   if (given("managerUserId")) out.manager_user_id = input.managerUserId ? await managerOf(client, c, input.managerUserId) : null;
-  if (given("priority")) {
-    const value = String(input.priority ?? "NORMAL").toUpperCase();
-    if (!PRIORITIES.includes(value)) throw projectError(400, "PROJECT_INPUT_INVALID", "Choose low, normal, high or urgent.", { field: "priority" });
-    out.priority = value;
-  }
+  if (given("priority")) out.priority = validatePriority(input.priority);
   if (given("plannedStartDate")) out.planned_start_date = isoDay(input.plannedStartDate);
   if (given("targetEndDate")) out.target_end_date = isoDay(input.targetEndDate);
   const start = out.planned_start_date !== undefined ? out.planned_start_date : isoDayOr(current.planned_start_date);
@@ -105,48 +101,6 @@ async function fieldsOf(client, c, input, current = {}) {
   return out;
 }
 const isoDayOr = (value) => (value ? isoDay(value) : null);
-
-// What activation needs, each problem with the field to fix.
-export function activationProblems(project, settings = {}) {
-  const problems = [];
-  if (!project.name) problems.push({ code: "PROJECT_NAME_REQUIRED", field: "name", message: "Enter a project name." });
-  if (!project.project_type_id) problems.push({ code: "PROJECT_TYPE_REQUIRED", field: "projectTypeId", message: "Choose the project type." });
-  if (project.classification === "CUSTOMER" && !project.customer_id) {
-    problems.push(project.crm_account_id ? { code: "PROJECT_CUSTOMER_MAPPING_UNRESOLVED", field: "customerId", message: "The CRM Account must be linked to a valid Customer record before activation." }
-      : { code: "PROJECT_CUSTOMER_REQUIRED", field: "customerId", message: "Select a customer before activating this project." });
-  }
-  if (project.classification === "CUSTOMER" && project.customer_id && settings.primaryContactRequired && !project.customer_contact_id) {
-    problems.push({ code: "PROJECT_CUSTOMER_CONTACT_INVALID", field: "customerContactId", message: "Choose the customer's primary contact before activating this project." });
-  }
-  if (!project.manager_user_id) problems.push({ code: "PROJECT_MANAGER_REQUIRED", field: "managerUserId", message: "Assign a Project Manager before starting." });
-  if (!project.planned_start_date) problems.push({ code: "PROJECT_DATE_INVALID", field: "plannedStartDate", message: "Enter the planned start date." });
-  if (!project.target_end_date) problems.push({ code: "PROJECT_DATE_INVALID", field: "targetEndDate", message: "Enter the target end date." });
-  return problems;
-}
-export async function validateProjectActivation(client, c, projectId) {
-  const { project } = await visibleProject(client, c, projectId);
-  const settings = await projectSettings(client, c);
-  const problems = activationProblems(project, settings);
-  if (project.manager_user_id && !(await eligibleUsers(client, c, [project.manager_user_id])).has(project.manager_user_id)) {
-    problems.push({ code: "PROJECT_MANAGER_INVALID", field: "managerUserId", message: "The Project Manager is no longer an active, authorized member: choose a replacement." });
-  }
-  if (project.customer_id) {
-    try { await customerRecord(client, c, project.customer_id, { purpose: "new", settings }); } catch (error) {
-      problems.push({ code: error.code ?? "PROJECT_CUSTOMER_NOT_FOUND", field: "customerId", message: error.message });
-    }
-    if (project.customer_contact_id) {
-      try { await contactRecord(client, c, project.customer_contact_id, project.customer_id); } catch (error) {
-        problems.push({ code: "PROJECT_CUSTOMER_CONTACT_INVALID", field: "customerContactId", message: `The primary contact is no longer an active contact of the customer: ${error.message}` });
-      }
-    }
-  }
-  if (project.classification === "CUSTOMER" && projectParty(project)) {
-    for (const mismatch of await mismatchedLinks(client, c, project, projectParty(project))) {
-      problems.push({ code: "PROJECT_CUSTOMER_SALES_MISMATCH", field: "links", message: `${mismatch.label} belongs to another customer: unlink it before activating.` });
-    }
-  }
-  return { ready: problems.length === 0, problems };
-}
 
 // ------------------------------------------------------------------ membership helpers
 async function setManagerMembership(client, c, project, managerId, previousId) {
@@ -236,6 +190,8 @@ export async function updateProject(client, c, projectId, input = {}) {
   const { project, access } = await visibleProject(client, c, projectId, { lock: true });
   requireAccess(access, "edit");
   versionCheck(project, input.expectedVersion);
+  // The project's own priority only: its milestones and tasks keep theirs.
+  const priorityChange = priorityChangeFor(project, input, "COMPLETED");
   if (["COMPLETED", "CANCELLED"].includes(project.status) || project.archived_at) {
     throw projectError(409, "PROJECT_STATUS_INVALID", `${project.project_code} is ${STATUS_LABEL[project.status].toLowerCase()}: its details are kept as they were${project.status === "COMPLETED" ? " (reopen it to change them)" : ""}.`);
   }
@@ -257,6 +213,8 @@ export async function updateProject(client, c, projectId, input = {}) {
     const problems = activationProblems(merged, await projectSettings(client, c));
     if (problems.length) throw projectError(400, problems[0].code, `${problems[0].message} A ${STATUS_LABEL[project.status].toLowerCase()} project keeps it.`, { problems });
   }
+  // Progress Tracking: a started project's target date keeps its history; moving it later needs a reason.
+  if (changed.includes("target_end_date")) await recordTargetRevision(client, c, project, fields.target_end_date ?? null, input.targetChangeReason);
   const sets = changed.map((key, index) => `${key} = $${index + 3}`);
   await client.query(`UPDATE tenant.projects SET ${sets.join(", ")}, row_version = row_version + 1, updated_by = $${changed.length + 3}, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [c.organizationId, project.id, ...changed.map((key) => fields[key]), c.userId ?? null]);
@@ -286,191 +244,16 @@ export async function updateProject(client, c, projectId, input = {}) {
         message: dates.map((key) => `${COLUMN_LABEL[key]} now ${fields[key] ?? "not set"}`).join("; ") });
     }
   }
-  const rest = changed.filter((key) => !["manager_user_id", "planned_start_date", "target_end_date"].includes(key));
+  if (priorityChange) await recordProjectPriorityChange(client, c, { project, managerUserId: fields.manager_user_id ?? project.manager_user_id, name: merged.name, change: priorityChange,
+    key: text(input.idempotencyKey, 200) || null });
+  const rest = changed.filter((key) => !["manager_user_id", "planned_start_date", "target_end_date", "priority"].includes(key));
   if (rest.length) await projectEvent(client, c, project.id, changed.includes("description") ? "SCOPE_EDITED" : "DETAILS_EDITED", `Changed ${rest.map((key) => COLUMN_LABEL[key] ?? key).join(", ")}`);
   await publishProjectEvent(client, c, merged, "updated", { changedFields: changed });
-  return { projectId: project.id, version: project.row_version + 1, changed };
+  return { projectId: project.id, version: project.row_version + 1, changed, priority: merged.priority };
 }
 const normal = (value) => (value instanceof Date ? isoDay(value) : Array.isArray(value) ? value : value ?? null);
 
-// ------------------------------------------------------------------ lifecycle
-async function moveTo(client, c, project, status, action, { reason = null, key = null, extra = {}, event = null } = {}) {
-  const sets = ["status = $3", "row_version = row_version + 1", "updated_by = $4", "updated_at = now()"];
-  const values = [c.organizationId, project.id, status, c.userId ?? null];
-  for (const [column, value] of Object.entries(extra)) { values.push(value); sets.push(`${column} = $${values.length}`); }
-  await client.query(`UPDATE tenant.projects SET ${sets.join(", ")} WHERE organization_id = $1 AND id = $2`, values);
-  await statusEvent(client, c, project, action, status, reason, key);
-  await projectEvent(client, c, project.id, action, event ?? `${STATUS_LABEL[project.status]} → ${STATUS_LABEL[status]}${reason ? `: ${reason}` : ""}`);
-  await publishProjectEvent(client, c, { ...project, status }, action.toLowerCase(), { status, previousStatus: project.status });
-}
-const replay = async (client, c, key) => {
-  if (!key) return null;
-  const row = (await client.query(`SELECT project_id, to_status FROM tenant.project_status_events WHERE organization_id = $1 AND idempotency_key = $2`, [c.organizationId, key])).rows[0];
-  return row ? { projectId: row.project_id, status: row.to_status, replayed: true } : null;
-};
-const statusRefusal = (project, allowed, verb) => {
-  if (!allowed.includes(project.status)) {
-    throw projectError(409, project.status === "ON_HOLD" && !allowed.includes("ON_HOLD") ? "PROJECT_ACTIVE_HOLD" : "PROJECT_STATUS_INVALID",
-      project.status === "ON_HOLD" && !allowed.includes("ON_HOLD") ? undefined : `${project.project_code} is ${STATUS_LABEL[project.status].toLowerCase()}: it cannot be ${verb}.`);
-  }
-  if (project.archived_at) throw projectError(409, "PROJECT_ALREADY_ARCHIVED", "Restore the project first.");
-};
-
-// Draft → Planned, or a request for approval where the company asks for it. input: { expectedVersion?, idempotencyKey? }
-export async function activateProject(client, c, projectId, input = {}) {
-  const done = await replay(client, c, text(input.idempotencyKey, 200));
-  if (done) return done;
-  const { project, access } = await visibleProject(client, c, projectId, { lock: true });
-  requireAccess(access, "start");
-  versionCheck(project, input.expectedVersion);
-  if (project.status === "PLANNED") return { projectId: project.id, status: project.status, replayed: true };
-  statusRefusal(project, ["DRAFT"], "activated");
-  const check = await validateProjectActivation(client, c, project.id);
-  if (!check.ready) throw projectError(400, check.problems[0].code, check.problems[0].message, { problems: check.problems });
-  const settings = await projectSettings(client, c);
-  if (settings.activationApprovalRequired && project.approval_status !== "APPROVED") {
-    if (project.approval_status === "PENDING") return { projectId: project.id, status: "DRAFT", approval: "PENDING", replayed: true };
-    await client.query(`UPDATE tenant.projects SET approval_status = 'PENDING', approval_requested_by = $3, approval_requested_at = now(), approval_note = NULL, row_version = row_version + 1, updated_at = now()
-        WHERE organization_id = $1 AND id = $2`, [c.organizationId, project.id, c.userId ?? null]);
-    await projectEvent(client, c, project.id, "APPROVAL_REQUESTED", "Activation sent for approval");
-    return { projectId: project.id, status: "DRAFT", approval: "PENDING" };
-  }
-  await moveTo(client, c, project, "PLANNED", "ACTIVATED", { key: text(input.idempotencyKey, 200) || null });
-  return { projectId: project.id, status: "PLANNED" };
-}
-// input: { decision: APPROVE | REJECT, note? } — someone other than the requester (unless the company allows self-approval).
-export async function decideProjectActivation(client, c, projectId, input = {}) {
-  const { project, access } = await visibleProject(client, c, projectId, { lock: true });
-  requireAccess(access, "approve");
-  if (project.status !== "DRAFT" || project.approval_status !== "PENDING") throw projectError(409, "PROJECT_STATUS_INVALID", "This project is not waiting for approval.");
-  const settings = await projectSettings(client, c);
-  if (project.approval_requested_by === c.userId && !settings.selfApprovalAllowed) throw projectError(403, "PROJECT_PERMISSION_DENIED", "Someone other than the requester approves a project.");
-  const decision = String(input.decision ?? "").toUpperCase();
-  const note = text(input.note, 1000) || null;
-  if (decision === "REJECT") {
-    if (!note || note.length < 3) throw projectError(400, "PROJECT_REASON_REQUIRED", "Say why the project is not approved.");
-    await client.query(`UPDATE tenant.projects SET approval_status = 'REJECTED', approval_note = $3, row_version = row_version + 1, updated_at = now() WHERE organization_id = $1 AND id = $2`,
-      [c.organizationId, project.id, note]);
-    await projectEvent(client, c, project.id, "APPROVAL_REJECTED", note);
-    await notifyProject(client, c, project, [project.approval_requested_by, project.manager_user_id], { title: `${project.project_code} was not approved`, message: note });
-    return { projectId: project.id, status: "DRAFT", approval: "REJECTED" };
-  }
-  if (decision !== "APPROVE") throw projectError(400, "PROJECT_INPUT_INVALID", "Approve or reject.");
-  const check = await validateProjectActivation(client, c, project.id);
-  if (!check.ready) throw projectError(400, check.problems[0].code, check.problems[0].message, { problems: check.problems });
-  await moveTo(client, c, project, "PLANNED", "APPROVED", { reason: note, extra: { approval_status: "APPROVED", approved_by: c.userId ?? null, approved_at: new Date(), approval_note: note } });
-  await notifyProject(client, c, project, [project.approval_requested_by, project.manager_user_id], { title: `${project.project_code} approved`, message: "The project is planned and ready to start." });
-  return { projectId: project.id, status: "PLANNED", approval: "APPROVED" };
-}
-// Planned → In progress. input: { startDate?, expectedVersion?, idempotencyKey? }
-export async function startProject(client, c, projectId, input = {}) {
-  const done = await replay(client, c, text(input.idempotencyKey, 200));
-  if (done) return done;
-  const { project, access } = await visibleProject(client, c, projectId, { lock: true });
-  requireAccess(access, "start");
-  versionCheck(project, input.expectedVersion);
-  if (project.status === "IN_PROGRESS") return { projectId: project.id, status: project.status, replayed: true };
-  statusRefusal(project, ["PLANNED"], "started");
-  if (!(await eligibleUsers(client, c, [project.manager_user_id])).has(project.manager_user_id)) throw projectError(409, "PROJECT_MANAGER_INVALID", "The Project Manager is no longer active: assign a replacement first.");
-  const day = input.startDate ? isoDay(input.startDate) : await today(client);
-  if (day > await today(client)) throw projectError(400, "PROJECT_DATE_INVALID", "A project starts today or on a past date.");
-  await moveTo(client, c, project, "IN_PROGRESS", "STARTED", { key: text(input.idempotencyKey, 200) || null, extra: { actual_start_date: day } });
-  await notifyProject(client, c, project, await activeMemberIds(client, c, project.id), { title: `${project.project_code} has started`, message: `${project.name} is in progress.` });
-  return { projectId: project.id, status: "IN_PROGRESS" };
-}
-// Planned or In progress → On hold, remembering which. input: { reason, ownerUserId?, expectedResolutionDate?, expectedVersion?, idempotencyKey? }
-export async function placeProjectOnHold(client, c, projectId, input = {}) {
-  const done = await replay(client, c, text(input.idempotencyKey, 200));
-  if (done) return done;
-  const { project, access } = await visibleProject(client, c, projectId, { lock: true });
-  requireAccess(access, "hold");
-  versionCheck(project, input.expectedVersion);
-  if (project.status === "ON_HOLD") throw projectError(409, "PROJECT_ACTIVE_HOLD", "The project is already on hold.");
-  statusRefusal(project, ["PLANNED", "IN_PROGRESS"], "put on hold");
-  const reason = text(input.reason, 2000);
-  if (reason.length < 3) throw projectError(400, "PROJECT_REASON_REQUIRED", "Say why the project is paused.");
-  const owner = input.ownerUserId ? await managerOf(client, c, input.ownerUserId) : project.manager_user_id;
-  const expected = input.expectedResolutionDate ? isoDay(input.expectedResolutionDate) : null;
-  await client.query(`INSERT INTO tenant.project_holds (organization_id, project_id, previous_status, reason, owner_user_id, expected_resolution_date, started_by) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [c.organizationId, project.id, project.status, reason, owner, expected, c.userId ?? null]);
-  await moveTo(client, c, project, "ON_HOLD", "HELD", { reason, key: text(input.idempotencyKey, 200) || null, extra: { previous_status: project.status } });
-  await notifyProject(client, c, project, [...await activeMemberIds(client, c, project.id), owner], { title: `${project.project_code} is on hold`, message: reason });
-  return { projectId: project.id, status: "ON_HOLD" };
-}
-// On hold → the status it interrupted, once the hold is resolved by someone authorized. input: { resolution, expectedVersion?, idempotencyKey? }
-export async function resumeProject(client, c, projectId, input = {}) {
-  const done = await replay(client, c, text(input.idempotencyKey, 200));
-  if (done) return done;
-  const { project, access } = await visibleProject(client, c, projectId, { lock: true });
-  requireAccess(access, "resume");
-  versionCheck(project, input.expectedVersion);
-  statusRefusal(project, ["ON_HOLD"], "resumed");
-  const resolution = text(input.resolution, 2000);
-  if (resolution.length < 3) throw projectError(400, "PROJECT_REASON_REQUIRED", "Say how the hold was resolved.");
-  await client.query(`UPDATE tenant.project_holds SET resolved_at = clock_timestamp(), resolved_by = $3, resolution = $4 WHERE organization_id = $1 AND project_id = $2 AND resolved_at IS NULL`,
-    [c.organizationId, project.id, c.userId ?? null, resolution]);
-  const back = project.previous_status;
-  await moveTo(client, c, project, back, "RESUMED", { reason: resolution, key: text(input.idempotencyKey, 200) || null, extra: { previous_status: null } });
-  await notifyProject(client, c, project, await activeMemberIds(client, c, project.id), { title: `${project.project_code} resumed`, message: `Back to ${STATUS_LABEL[back].toLowerCase()}: ${resolution}` });
-  return { projectId: project.id, status: back };
-}
-// In progress → Completed once the closing checks pass. input: { completionDate?, closingNote, deliverablesConfirmed, customerAcceptance?, acknowledgeOutstanding?,
-// expectedVersion?, idempotencyKey? }
-export async function completeProject(client, c, projectId, input = {}) {
-  const done = await replay(client, c, text(input.idempotencyKey, 200));
-  if (done) return done;
-  const { project, access } = await visibleProject(client, c, projectId, { lock: true });
-  requireAccess(access, "complete");
-  versionCheck(project, input.expectedVersion);
-  if (project.status === "COMPLETED") return { projectId: project.id, status: project.status, replayed: true };
-  statusRefusal(project, ["IN_PROGRESS"], "completed");
-  const check = await completionCheck(client, c, project, input);
-  const blocking = check.checks.filter((row) => row.blocking);
-  if (blocking.length) throw projectError(409, "PROJECT_COMPLETION_BLOCKED", blocking.map((row) => row.message).join(" "), { checks: check.checks });
-  const day = check.completionDate;
-  await moveTo(client, c, project, "COMPLETED", "COMPLETED", { reason: text(input.closingNote, 2000), key: text(input.idempotencyKey, 200) || null,
-    extra: { completed_at: day, completed_by: c.userId ?? null, completion_note: text(input.closingNote, 4000) } });
-  await notifyProject(client, c, project, await activeMemberIds(client, c, project.id), { title: `${project.project_code} completed`, message: `${project.name} was completed on ${day}.` });
-  return { projectId: project.id, status: "COMPLETED", completedAt: day };
-}
-// Completed → In progress, with a reason; the original completion stays in the history; finance and sales postings are untouched.
-export async function reopenProject(client, c, projectId, input = {}) {
-  const done = await replay(client, c, text(input.idempotencyKey, 200));
-  if (done) return done;
-  const { project, access } = await visibleProject(client, c, projectId, { lock: true });
-  requireAccess(access, "reopen");
-  versionCheck(project, input.expectedVersion);
-  statusRefusal(project, ["COMPLETED"], "reopened");
-  const reason = text(input.reason, 2000);
-  if (reason.length < 3) throw projectError(400, "PROJECT_REASON_REQUIRED", "Say why the project is reopened.");
-  if (!(await eligibleUsers(client, c, [project.manager_user_id])).has(project.manager_user_id)) throw projectError(409, "PROJECT_MANAGER_INVALID", "The Project Manager is no longer active: assign a replacement first.");
-  await moveTo(client, c, project, "IN_PROGRESS", "REOPENED", { reason, key: text(input.idempotencyKey, 200) || null,
-    extra: { completed_at: null, completed_by: null }, event: `Reopened (completed ${isoDayOr(project.completed_at)}): ${reason}` });
-  await notifyProject(client, c, project, await activeMemberIds(client, c, project.id), { title: `${project.project_code} reopened`, message: reason });
-  return { projectId: project.id, status: "IN_PROGRESS" };
-}
-// Draft, Planned, In progress or On hold → Cancelled, after the dependencies are reviewed. input: { reason, acknowledgeDependencies?, expectedVersion?, idempotencyKey? }
-export async function cancelProject(client, c, projectId, input = {}) {
-  const done = await replay(client, c, text(input.idempotencyKey, 200));
-  if (done) return done;
-  const { project, access } = await visibleProject(client, c, projectId, { lock: true });
-  requireAccess(access, "cancel");
-  versionCheck(project, input.expectedVersion);
-  if (project.status === "CANCELLED") return { projectId: project.id, status: project.status, replayed: true };
-  statusRefusal(project, ["DRAFT", ...ACTIVE_STATUSES], "cancelled");
-  const reason = text(input.reason, 2000);
-  if (reason.length < 3) throw projectError(400, "PROJECT_REASON_REQUIRED", "Say why the project is cancelled.");
-  const review = await cancellationReview(client, c, project);
-  if (review.dependencies.length && !input.acknowledgeDependencies) throw projectError(409, "PROJECT_DEPENDENCIES_EXIST", undefined, { review });
-  if (project.status === "ON_HOLD") {
-    await client.query(`UPDATE tenant.project_holds SET resolved_at = clock_timestamp(), resolved_by = $3, resolution = $4 WHERE organization_id = $1 AND project_id = $2 AND resolved_at IS NULL`,
-      [c.organizationId, project.id, c.userId ?? null, `Project cancelled: ${reason}`.slice(0, 2000)]);
-  }
-  await moveTo(client, c, project, "CANCELLED", "CANCELLED", { reason, key: text(input.idempotencyKey, 200) || null,
-    extra: { cancelled_at: new Date(), cancelled_by: c.userId ?? null, cancel_reason: reason, previous_status: null } });
-  await notifyProject(client, c, project, await activeMemberIds(client, c, project.id), { title: `${project.project_code} cancelled`, message: reason });
-  return { projectId: project.id, status: "CANCELLED" };
-}
+// ------------------------------------------------------------------ archive and removal (the lifecycle itself is status/)
 export async function archiveProject(client, c, projectId, input = {}) {
   const { project, access } = await visibleProject(client, c, projectId, { lock: true });
   requireAccess(access, "archive");
@@ -491,8 +274,8 @@ export async function restoreProject(client, c, projectId) {
   await publishProjectEvent(client, c, project, "restored");
   return { projectId: project.id, archived: false };
 }
-// An unused draft removed (softly): nothing linked, noted, filed or started.
-export async function deleteDraftProject(client, c, projectId) {
+// A draft no longer needed is discarded (removed softly), never cancelled; one with links, notes or files says why, and keeps them.
+export async function deleteDraftProject(client, c, projectId, input = {}) {
   const { project, access } = await visibleProject(client, c, projectId, { lock: true });
   if (!(access.can.archive || (access.can.edit && project.created_by === c.userId))) throw projectError(403, "PROJECT_PERMISSION_DENIED");
   if (project.status !== "DRAFT") throw projectError(409, "PROJECT_STATUS_INVALID", "Only an unused draft is removed; cancel or archive the others.");
@@ -500,10 +283,10 @@ export async function deleteDraftProject(client, c, projectId) {
     `SELECT (SELECT count(*) FROM tenant.project_links WHERE project_id = $2 AND removed_at IS NULL) + (SELECT count(*) FROM tenant.project_notes WHERE project_id = $2 AND deleted_at IS NULL)
           + (SELECT count(*) FROM public.attachments WHERE organization_id = $1 AND entity_type = $3 AND entity_id = $2::text AND archived_at IS NULL) AS n`,
     [c.organizationId, project.id, FILE_ENTITY])).rows[0].n;
-  if (Number(used)) throw projectError(409, "PROJECT_DEPENDENCIES_EXIST", "This draft has links, notes or files: cancel it instead.");
+  if (Number(used) && text(input.reason, 500).length < 3) throw projectError(400, "PROJECT_REASON_REQUIRED", "This draft has links, notes or files: say why it is discarded (they stay with it).");
   await client.query(`UPDATE tenant.projects SET deleted_at = now(), deleted_by = $3, row_version = row_version + 1, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [c.organizationId, project.id, c.userId ?? null]);
-  await projectEvent(client, c, project.id, "REMOVED", "Unused draft removed");
+  await projectEvent(client, c, project.id, "REMOVED", text(input.reason, 500) ? `Draft discarded: ${text(input.reason, 500)}` : "Unused draft removed");
   return { projectId: project.id, removed: true };
 }
 // input: { flagged, note? } — a delivery risk the manager flags (part of health, with its note).

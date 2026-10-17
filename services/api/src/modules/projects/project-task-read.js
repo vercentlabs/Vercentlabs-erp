@@ -7,9 +7,13 @@ import { PROJECT, has, isoDay, projectError, text, userNames, uuid, visibleProje
 import { orgDay } from "./project-milestone-read.js";
 import { MILESTONE_STATUS_LABEL, registerMilestoneTaskSource } from "./project-milestone-rules.js";
 import { registerProjectWorkSource } from "./project-summary.js";
+import { ASSIGNMENT_REASONS, NEEDS_OWNER_SQL } from "./assignees/assignee-rules.js";
+import { PRIORITY_LABEL, PRIORITY_LEVELS, prioritySortSql } from "./priority/priority-rules.js";
+import { attentionOf, attentionOrderSql, priorityLevelsOf } from "./priority/priority-read.js";
 import {
   BLOCKER_REASONS, OPEN_TASK_STATUSES, TASK_APPROVAL_LABEL, TASK_ENTITY, TASK_STATUS_LABEL, TASK_TYPES, taskAccess, taskReadiness, taskRecordSources,
 } from "./project-task-rules.js";
+import { taskPercent } from "./progress/progress-rules.js";
 
 const err = (status, code, message, details) => projectError(status, code, message, details);
 const day = (value) => (value ? isoDay(value) : null);
@@ -160,18 +164,11 @@ export async function getTaskActivity(client, c, taskId) {
   const names = await userNames(client, rows.map((row) => row.actor_user_id));
   return rows.map((row) => ({ id: row.id, action: row.action, summary: row.summary, from: row.from_status, to: row.to_status, actor: names.get(row.actor_user_id) ?? "System", at: row.occurred_at }));
 }
-export async function getTaskComments(client, c, taskId) {
-  const { task } = await taskScope(client, c, taskId);
-  const rows = (await client.query(`SELECT * FROM tenant.project_task_comments WHERE organization_id = $1 AND task_id = $2 AND removed_at IS NULL ORDER BY created_at`, [c.organizationId, task.id])).rows;
-  const names = await userNames(client, rows.flatMap((row) => [row.author_user_id, ...(row.mentions ?? [])]));
-  return rows.map((row) => ({ id: row.id, body: row.body, author: names.get(row.author_user_id) ?? null, mine: row.author_user_id === c.userId, createdAt: row.created_at,
-    mentions: (row.mentions ?? []).map((id) => names.get(id) ?? "Someone") }));
-}
 
 // ------------------------------------------------------------------ the work queue (a project's tasks, My Tasks, All Tasks, the board)
-const QUEUE_SORT = { due: "task.due_date", code: "task.task_code", title: "task.title", project: "project.project_code", status: "task.status", priority: "array_position(ARRAY['URGENT','HIGH','NORMAL','LOW'], task.priority)",
+const QUEUE_SORT = { due: "task.due_date", code: "task.task_code", title: "task.title", project: "project.project_code", status: "task.status", priority: prioritySortSql("task.priority"),
   assignee: "assignee.full_name", updated: "task.updated_at" };
-export const PROJECT_TASK_VIEWS = Object.freeze(["all", "open", "mine", "due_soon", "overdue", "in_review", "my_reviews", "blocked", "completed", "cancelled", "archived"]);
+export const PROJECT_TASK_VIEWS = Object.freeze(["all", "open", "mine", "due_soon", "overdue", "in_review", "my_reviews", "blocked", "completed", "cancelled", "archived", "unassigned"]);
 // filters: { view, projectId, milestoneId, assigneeId, status (one or comma list), priority, type, tag, search, due: overdue | soon, sort, direction, page, pageSize }
 export async function listTaskQueue(client, c, filters = {}) {
   if (!has(c, PROJECT.taskView) || !(has(c, PROJECT.view) || has(c, PROJECT.viewAll))) throw err(403, "TASK_PERMISSION_DENIED");
@@ -194,6 +191,8 @@ export async function listTaskQueue(client, c, filters = {}) {
   if (view === "completed") where.push("task.status = 'DONE'");
   if (view === "cancelled") where.push("task.status = 'CANCELLED'");
   if (view === "archived") where.push("task.archived_at IS NOT NULL");
+  // Needs an owner: open, but its assignee is inactive or no longer on the team (an offboarding, a removal kept by exception).
+  if (view === "unassigned") where.push(open, NEEDS_OWNER_SQL);
   if (filters.projectId) where.push(`task.project_id = ${bind(uuid(filters.projectId, "Project"))}`);
   if (filters.milestoneId) where.push(filters.milestoneId === "none" ? "task.milestone_id IS NULL" : `task.milestone_id = ${bind(uuid(filters.milestoneId, "Milestone"))}`);
   if (filters.assigneeId) where.push(`task.assignee_user_id = ${bind(uuid(filters.assigneeId, "Assignee"))}`);
@@ -201,7 +200,10 @@ export async function listTaskQueue(client, c, filters = {}) {
     const statuses = String(filters.status).toUpperCase().split(",").filter((value) => TASK_STATUS_LABEL[value]);
     if (statuses.length) where.push(`task.status = ANY(${bind(statuses)}::text[])`);
   }
-  if (filters.priority && ["LOW", "NORMAL", "HIGH", "URGENT"].includes(String(filters.priority).toUpperCase())) where.push(`task.priority = ${bind(String(filters.priority).toUpperCase())}`);
+  // One or more priorities, combined with the other filters. The counts by priority below leave this filter out, so each level shows what it would give.
+  const levels = priorityLevelsOf(filters.priority);
+  const priorityClause = levels.length ? `task.priority = ANY(${bind(levels)}::text[])` : null;
+  if (priorityClause) where.push(priorityClause);
   if (filters.type && TASK_TYPES[String(filters.type).toUpperCase()]) where.push(`task.task_type = ${bind(String(filters.type).toUpperCase())}`);
   if (filters.tag) where.push(`${bind(text(filters.tag, 40).toLowerCase())} = ANY(task.tags)`);
   if (filters.due === "overdue") where.push(open, `task.due_date < ${bind(today)}::date`);
@@ -210,7 +212,9 @@ export async function listTaskQueue(client, c, filters = {}) {
     const term = bind(`%${text(filters.search, 100).replace(/[%_]/g, "\\$&")}%`);
     where.push(`(task.title ILIKE ${term} OR task.task_code ILIKE ${term} OR project.project_code ILIKE ${term} OR project.name ILIKE ${term} OR array_to_string(task.tags, ' ') ILIKE ${term})`);
   }
-  const sort = QUEUE_SORT[filters.sort] ?? QUEUE_SORT.due;
+  // My Tasks opens on "Needs attention"; other views on the due date.
+  const sortKey = filters.sort ?? (view === "mine" ? "attention" : "due");
+  const sort = QUEUE_SORT[sortKey] ?? QUEUE_SORT.due;
   const direction = String(filters.direction).toLowerCase() === "desc" ? "DESC" : "ASC";
   const pageSize = Math.min(Math.max(Number(filters.pageSize) || 25, 1), 500);
   const page = Math.max(Number(filters.page) || 1, 1);
@@ -218,17 +222,26 @@ export async function listTaskQueue(client, c, filters = {}) {
     LEFT JOIN public.users assignee ON assignee.id = task.assignee_user_id
     LEFT JOIN tenant.project_milestones milestone ON milestone.id = task.milestone_id WHERE ${where.join(" AND ")}`;
   const total = Number((await client.query(`SELECT count(*) AS n ${from}`, values)).rows[0].n);
+  const unfiltered = priorityClause ? from.replace(priorityClause, `cardinality(${priorityClause.match(/\$\d+/)[0]}::text[]) >= 0`) : from;
+  const counted = (await client.query(`SELECT task.priority, count(*)::int AS n ${unfiltered} GROUP BY task.priority`, values)).rows;
+  const priorityCounts = Object.fromEntries(PRIORITY_LEVELS.map((level) => [level.code, counted.find((row) => row.priority === level.code)?.n ?? 0]));
+  const order = sortKey === "attention" ? attentionOrderSql(bind(today), bind(soon)) : `${sort} ${direction} NULLS LAST, task.task_code`;
   const limit = bind(pageSize);
   const offset = bind((page - 1) * pageSize);
   const rows = (await client.query(`SELECT task.*, project.project_code, project.name AS project_name, project.status AS project_status, milestone.milestone_code, milestone.name AS milestone_name,
+      (task.status IN ('TO_DO', 'IN_PROGRESS', 'BLOCKED', 'IN_REVIEW') AND ${NEEDS_OWNER_SQL}) AS needs_owner,
       (SELECT count(*) FROM tenant.project_task_checklist_items item WHERE item.task_id = task.id AND item.removed_at IS NULL)::int AS checklist_total,
       (SELECT count(*) FROM tenant.project_task_checklist_items item WHERE item.task_id = task.id AND item.removed_at IS NULL AND item.status <> 'PENDING')::int AS checklist_done
-      ${from} ORDER BY ${sort} ${direction} NULLS LAST, task.task_code LIMIT ${limit} OFFSET ${offset}`, values)).rows;
+      ${from} ORDER BY ${order} LIMIT ${limit} OFFSET ${offset}`, values)).rows;
   const names = await userNames(client, rows.map((row) => row.assignee_user_id));
   return {
-    rows: rows.map((row) => taskRow(row, names, today, { projectCode: row.project_code, projectName: row.project_name, projectStatus: row.project_status,
-      milestone: row.milestone_id ? { id: row.milestone_id, code: row.milestone_code, name: row.milestone_name } : null, checklist: { total: row.checklist_total, done: row.checklist_done } })),
-    total, page, pageSize, pages: Math.max(1, Math.ceil(total / pageSize)),
+    rows: rows.map((row) => {
+      const shaped = taskRow(row, names, today, { projectCode: row.project_code, projectName: row.project_name, projectStatus: row.project_status,
+        milestone: row.milestone_id ? { id: row.milestone_id, code: row.milestone_code, name: row.milestone_name } : null, checklist: { total: row.checklist_total, done: row.checklist_done },
+        needsOwner: Boolean(row.needs_owner) });
+      return { ...shaped, attention: attentionOf(shaped, soon) };
+    }),
+    total, page, pageSize, pages: Math.max(1, Math.ceil(total / pageSize)), sort: sortKey, priorityCounts,
     can: { export: has(c, PROJECT.taskExport), bulk: has(c, PROJECT.taskBulk) },
   };
 }
@@ -272,14 +285,14 @@ export async function getTaskProgressHistory(client, c, projectId, { weeks = 12 
     for (const event of events) if (event.day <= at) state.set(event.task_id, event.to_status);
     const active = [...state.values()].filter((status) => status !== "CANCELLED");
     const done = active.filter((status) => status === "DONE").length;
-    points.push({ date: at, total: active.length, done, percent: active.length ? Math.floor((done / active.length) * 100) : null });
+    points.push({ date: at, total: active.length, done, percent: taskPercent(done, active.length) });
   }
   return points;
 }
 
 // ------------------------------------------------------------------ reports
 export const TASK_REPORTS = Object.freeze(["by-project", "my-open", "by-status", "by-assignee", "overdue", "due-soon", "high-priority", "blocked", "in-review", "by-milestone",
-  "completion-trend", "reassignments", "completion-evidence"]);
+  "completion-trend", "reassignments", "completion-evidence", "needs-owner"]);
 export async function getTaskReport(client, c, kind = "by-project", filters = {}) {
   if (!TASK_REPORTS.includes(kind)) throw err(400, "TASK_INPUT_INVALID", "Unknown task report.");
   if (!has(c, PROJECT.taskView)) throw err(403, "TASK_PERMISSION_DENIED");
@@ -290,6 +303,7 @@ export async function getTaskReport(client, c, kind = "by-project", filters = {}
   if (kind === "high-priority") return (await queue("open")).filter((row) => ["HIGH", "URGENT"].includes(row.priority));
   if (kind === "blocked") return queue("blocked");
   if (kind === "in-review") return queue("in_review");
+  if (kind === "needs-owner") return queue("unassigned");
   const values = [c.organizationId, c.userId ?? null];
   const visible = `project.deleted_at IS NULL AND ${visibilitySql(c, "project", "$2")}`;
   const tz = `COALESCE((SELECT timezone FROM public.organizations WHERE id = $1), 'UTC')`;
@@ -336,7 +350,7 @@ export async function getTaskReport(client, c, kind = "by-project", filters = {}
        ORDER BY event.occurred_at DESC LIMIT 500`, values)).rows;
     const names = await userNames(client, rows.flatMap((row) => [row.actor_user_id, row.details?.from, row.details?.to]));
     return rows.map((row) => ({ taskId: row.task_id, code: row.task_code, title: row.title, projectCode: row.project_code, from: names.get(row.details?.from) ?? null, to: names.get(row.details?.to) ?? null,
-      reason: row.details?.note ?? null, actor: names.get(row.actor_user_id) ?? null, at: row.occurred_at }));
+      reason: row.details?.reasonText ?? row.details?.note ?? (row.details?.reasonCode ? ASSIGNMENT_REASONS[row.details.reasonCode] ?? null : null), actor: names.get(row.actor_user_id) ?? null, at: row.occurred_at }));
   }
   // completion-evidence: done tasks with what shows they were done.
   const rows = (await client.query(`SELECT task.*, project.project_code,
@@ -388,7 +402,9 @@ export async function evaluateTaskDeadlines(client, c) {
     const left = daysBetween(today, due);
     if (left < 0 && await once(row, `task:${row.id}:overdue:${due}`)) {
       // Overdue: the assignee, and the Project Manager (the escalation).
-      await tell(row, [row.assignee_user_id, row.manager_user_id], `${row.task_code} is overdue`, `${row.title} (${row.project_code}) was due on ${due}.`);
+      // Overdue High or Urgent work says so in the alert.
+      const important = ["URGENT", "HIGH"].includes(row.priority) ? `${PRIORITY_LABEL[row.priority]} task ` : "";
+      await tell(row, [row.assignee_user_id, row.manager_user_id], `${important}${row.task_code} is overdue`, `${row.title} (${row.project_code}) was due on ${due}.`);
       sent += 1;
     } else if (left >= 0 && left <= before && await once(row, `task:${row.id}:due:${due}`)) {
       await tell(row, [row.assignee_user_id], left === 0 ? `${row.task_code} is due today` : `${row.task_code} is due in ${left} day(s)`, `${row.title} (${row.project_code}) — due ${due}.`);
@@ -407,14 +423,14 @@ registerProjectWorkSource(async (client, c, projectIds, map) => {
       count(*) FILTER (WHERE status IN ('TO_DO', 'IN_PROGRESS', 'BLOCKED', 'IN_REVIEW'))::int AS open,
       count(*) FILTER (WHERE status IN ('TO_DO', 'IN_PROGRESS', 'BLOCKED', 'IN_REVIEW') AND due_date < $3::date)::int AS overdue,
       count(*) FILTER (WHERE status IN ('TO_DO', 'IN_PROGRESS', 'BLOCKED', 'IN_REVIEW') AND due_date < $3::date AND priority = 'URGENT')::int AS overdue_critical,
-      count(*) FILTER (WHERE status = 'BLOCKED')::int AS blocked
+      count(*) FILTER (WHERE status = 'BLOCKED')::int AS blocked, count(*) FILTER (WHERE status = 'BLOCKED' AND priority IN ('HIGH', 'URGENT'))::int AS blocked_critical
      FROM tenant.project_tasks WHERE organization_id = $1 AND project_id = ANY($2::uuid[]) AND status <> 'CANCELLED' GROUP BY project_id`, [c.organizationId, projectIds, today])).rows;
   for (const id of projectIds) {
     const row = rows.find((entry) => entry.project_id === id);
     const work = map.get(id);
     if (!work) continue;
     work.tasks = { total: row?.total ?? 0, completed: row?.completed ?? 0, open: row?.open ?? 0, overdue: row?.overdue ?? 0, overdueCritical: row?.overdue_critical ?? 0, openRequired: row?.open ?? 0,
-      blocked: row?.blocked ?? 0 };
+      blocked: row?.blocked ?? 0, blockedCritical: row?.blocked_critical ?? 0 };
   }
 });
 

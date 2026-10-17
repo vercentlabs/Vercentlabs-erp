@@ -50,8 +50,6 @@ const ROWS: Row[] = [
       const reminder = (minutes: number | null, list: Array<{ minutes: number; label: string }>) => (minutes === null ? "no reminder" : `reminder ${list.find((entry) => entry.minutes === minutes)?.label ?? `${minutes} min`}`);
       return `Tasks: ${label(choices.taskPriorities, defaults.taskPriority)}, ${reminder(defaults.taskReminderMinutes, choices.taskReminderOptions)} · Follow-ups: ${label(choices.followUpTypes, defaults.followUpType)}, ${reminder(defaults.followUpReminderMinutes, choices.followUpReminderOptions)}`;
     } },
-  { id: "duplicates", step: 8, title: "How duplicates are found", purpose: "What is compared for people and companies, and which matches block saving.", href: "/crm/settings/data-quality",
-    permission: "crm.settings.manage", state: async () => "Strong matches block saving; possible matches warn" },
   { id: "teams", step: null, title: "Teams", purpose: "The sales teams leads and deals are assigned to. Opens in Settings.", href: "/settings/teams", permission: "crm.settings.manage",
     state: async () => "Opens Settings", external: true },
 ];
