@@ -11,6 +11,7 @@ import {
   localToIso,
   timezoneLabel,
 } from "@/shared/format/human";
+import { displayTimeZone } from "@/shared/format/display-time-zone";
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
@@ -57,7 +58,8 @@ export function DateTimeInput({
   className?: string;
   hideZone?: boolean;
 }) {
-  const zone = timeZone ?? browserTimezone();
+  // A time typed here is a time in the workspace's time zone (the person's, else the organization's), as it is shown everywhere else.
+  const zone = timeZone ?? displayTimeZone() ?? browserTimezone();
   const parts = isoToLocalParts(value, zone);
   const emit = (date: string, time: string) =>
     onChange(date ? localToIso(date, time || "09:00", zone) : "");

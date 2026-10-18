@@ -15,14 +15,14 @@ export async function GET(request: Request) {
   return workspaceRoute(
     request,
     { module: "crm" },
-    async ({ client, session }) => {
+    async ({ client, session, snapshot }) => {
       const filters = analyticsFiltersFromSearchParams(
         new URL(request.url).searchParams,
       );
       return ok({
         dashboard: await getPipelineDashboard(
           client,
-          crmContext(session),
+          crmContext(session, snapshot),
           filters,
         ),
       });

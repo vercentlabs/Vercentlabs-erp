@@ -66,8 +66,8 @@ export function buildAccountImportTemplate() {
   return toCsv([ACCOUNT_IMPORT_FIELDS.map((field) => field.label), ACCOUNT_IMPORT_FIELDS.map((field) => field.sample)]);
 }
 
-function parseUpload(bytes, fileName) {
-  return isXlsxFileName(fileName) ? parseXlsxUpload(bytes, { maxRows: IMPORT_ROW_LIMIT }) : parseCsvUpload(bytes, { maxRows: IMPORT_ROW_LIMIT });
+function parseUpload(bytes, fileName, maxRows = IMPORT_ROW_LIMIT) {
+  return isXlsxFileName(fileName) ? parseXlsxUpload(bytes, { maxRows }) : parseCsvUpload(bytes, { maxRows });
 }
 
 function suggestMapping(headers) {
@@ -82,9 +82,9 @@ function suggestMapping(headers) {
 }
 
 // Step 1: read the file and suggest how its columns map to account fields.
-export async function analyzeAccountImport(_client, context, { bytes, fileName }) {
+export async function analyzeAccountImport(_client, context, { bytes, fileName, maxRows }) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.import, "You do not have permission to import companies.");
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   return {
     fileName,
     headers: parsed.headers,
@@ -111,10 +111,10 @@ function rowToInput(record, mapping) {
 // Step 2: create the accounts.
 // options: mapping { header: fieldKey }, defaultSourceId, defaultOwnerUserId,
 //          skipDuplicates (default true: a duplicate row is reported, not created)
-export async function importAccounts(client, context, { bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true }) {
+export async function importAccounts(client, context, { bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true, maxRows }) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.import, "You do not have permission to import companies.");
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.create, "You do not have permission to create companies.");
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   const unknown = Object.keys(mapping).filter((header) => !parsed.headers.includes(header));
   if (unknown.length) throw new CrmError(400, `The file has no column named "${unknown[0]}".`, "CRM_ACCOUNT_IMPORT_MAPPING");
   if (!Object.values(mapping).includes("displayName")) throw new CrmError(400, "Map the Company Name column.", "CRM_ACCOUNT_IMPORT_MAPPING");
@@ -230,14 +230,14 @@ const EXPORT_COLUMNS = Object.freeze([
 ]);
 
 // Exports exactly the accounts the list shows for the same view and filters.
-export async function exportAccounts(client, context, filters = {}) {
+export async function exportAccounts(client, context, filters = {}, { limit = EXPORT_ROW_LIMIT } = {}) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.export, "You do not have permission to export companies.");
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.viewSensitive, "You do not have permission to export company contact details.");
   const values = [];
   const where = buildAccountListWhere(context, filters, values);
-  const { rows } = await client.query(`${ACCOUNT_SELECT} ${where} ORDER BY lower(account.display_name), account.id LIMIT ${EXPORT_ROW_LIMIT + 1}`, values);
-  if (rows.length > EXPORT_ROW_LIMIT)
-    throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} companies. Narrow the filters and try again.`, "CRM_ACCOUNT_EXPORT_TOO_LARGE");
+  const { rows } = await client.query(`${ACCOUNT_SELECT} ${where} ORDER BY lower(account.display_name), account.id LIMIT ${limit + 1}`, values);
+  if (rows.length > limit)
+    throw new CrmError(413, `This export has more than ${limit} companies. Narrow the filters, or export it in the background.`, "CRM_ACCOUNT_EXPORT_TOO_LARGE");
   const accounts = rows.map(toAccount);
   return {
     fileName: `accounts-${new Date().toISOString().slice(0, 10)}.csv`,

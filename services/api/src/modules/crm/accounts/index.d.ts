@@ -65,6 +65,15 @@ export type Account = {
   parentName: string | null;
   customerNumber: string | null;
   customerSince: string | null;
+  gstin: string | null;
+  pan: string | null;
+  gstTreatment: string | null;
+  gstTreatmentLabel: string | null;
+  gstStateCode: string | null;
+  billingStateCode: string | null;
+  paymentTermId: string | null;
+  paymentTermName: string | null;
+  taxIdentity?: { editable: boolean; reason: "permission" | "sales" | null };
   isCustomer: boolean;
   city: string | null;
   state: string | null;
@@ -252,6 +261,9 @@ export function previewAccountMerge(client: QueryClient, context: CrmContext, ke
 export function mergeAccounts(client: QueryClient, context: CrmContext, input: { keepId: string; duplicateId: string; choices?: Record<string, "keep" | "duplicate"> }, options?: { linkingCustomer?: boolean }): Promise<{ keptAccountId: string; mergedAccountId: string }>;
 export function customerReadiness(client: QueryClient, context: CrmContext, partyId: string): Promise<{ account: Account; ready: boolean; missing: string[] }>;
 export function createCustomerFromAccount(client: QueryClient, context: CrmContext, partyId: string, input?: { gstin?: string; pan?: string; paymentTermId?: string; creditLimit?: number | string; currencyCode?: string }): Promise<Account>;
+export function taxIdentityEditable(context: CrmContext, row: Record<string, unknown>): { editable: boolean; reason: "permission" | "sales" | null };
+export function taxWarnings(account: Account): Array<{ code: string; message: string }>;
+export function updateAccountTaxIdentity(client: QueryClient, context: CrmContext, partyId: string, input: { gstin?: string | null; pan?: string | null; gstTreatment?: string | null; paymentTermId?: string | null; expectedUpdatedAt?: string }): Promise<{ account: Account; warnings: Array<{ code: string; message: string }> }>;
 export function searchLinkableCustomers(client: QueryClient, context: CrmContext, partyId: string, search?: string): Promise<Array<{ id: string; code: string; customerNumber: string | null; name: string; gstin: string | null }>>;
 export function linkCustomer(client: QueryClient, context: CrmContext, partyId: string, input: { customerId: string; choices?: Record<string, "keep" | "duplicate"> }): Promise<{ keptAccountId: string; mergedAccountId: string }>;
 
@@ -266,9 +278,9 @@ export function listAccountHistory(client: QueryClient, context: CrmContext, par
 
 // import / export and reports
 export function buildAccountImportTemplate(): string;
-export function analyzeAccountImport(client: QueryClient, context: CrmContext, file: { bytes: Uint8Array; fileName: string }): Promise<AccountImportAnalysis>;
-export function importAccounts(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; mapping: Record<string, string>; defaultSourceId?: string | null; defaultOwnerUserId?: string | null; skipDuplicates?: boolean }): Promise<AccountImportResult>;
-export function exportAccounts(client: QueryClient, context: CrmContext, filters?: AccountListFilters): Promise<{ fileName: string; rowCount: number; csv: string }>;
+export function analyzeAccountImport(client: QueryClient, context: CrmContext, file: { bytes: Uint8Array; fileName: string; maxRows?: number }): Promise<AccountImportAnalysis>;
+export function importAccounts(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; maxRows?: number; mapping: Record<string, string>; defaultSourceId?: string | null; defaultOwnerUserId?: string | null; skipDuplicates?: boolean }): Promise<AccountImportResult>;
+export function exportAccounts(client: QueryClient, context: CrmContext, filters?: AccountListFilters, options?: { limit?: number }): Promise<{ fileName: string; rowCount: number; csv: string }>;
 export function getAccountListSummary(client: QueryClient, context: CrmContext, filters?: AccountListFilters): Promise<AccountListSummary>;
 export function getAccountReport(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<AccountReport>;
 export function getAccountOptions(client: QueryClient, context: CrmContext): Promise<AccountOptions>;

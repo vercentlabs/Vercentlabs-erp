@@ -12,6 +12,7 @@ import { OPPORTUNITY_SELECT, buildOpportunityListWhere, toOpportunity } from "..
 import { listOpportunityStages } from "../opportunities/stages.js";
 import { ensureDefaultSalesPipeline } from "../sales-stages/defaults.js";
 import { orgMonthStart } from "../data-management/org-date.js";
+import { currencyDisclosure, reportingCurrencyOf, sumReporting, sumWeightedReporting, unconvertedCount, unconvertedCurrencies } from "../data-management/reporting-currency.js";
 
 const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
 const CARDS_PER_STAGE = 50;
@@ -50,8 +51,9 @@ export async function getOpportunityPipeline(client, context, filters = {}) {
   const counted = `(${OPPORTUNITY_SELECT} ${buildOpportunityListWhere(context, applied, values)}) counted`;
 
   const totals = (await client.query(
-    `SELECT ${COLUMN} AS column_id, count(*)::int AS total, COALESCE(sum(counted.amount), 0)::float8 AS value,
-            COALESCE(sum(counted.amount * counted.probability / 100), 0)::float8 AS weighted,
+    `SELECT ${COLUMN} AS column_id, count(*)::int AS total, ${sumReporting("counted")} AS value,
+            ${sumWeightedReporting("counted")} AS weighted,
+            ${unconvertedCount("counted")} AS unconverted_count, ${unconvertedCurrencies("counted")} AS unconverted_currencies,
             round(avg(counted.stage_age_days) FILTER (WHERE counted.status = 'open'), 1)::float8 AS average_days
        FROM ${counted}
       GROUP BY 1`,
@@ -86,7 +88,9 @@ export async function getOpportunityPipeline(client, context, filters = {}) {
     return {
       id: stage.id, code: stage.code, name: stage.name, sequence: stage.sequence, probability: stage.probability, isInactive: Boolean(stage.isInactive),
       count: row?.total ?? 0,
+      // in the base currency; deals whose currency has no rate are counted but not added
       value: money(row?.value),
+      unconvertedCount: row?.unconverted_count ?? 0,
       // estimated value × probability, summed over the stage
       weightedValue: money(row?.weighted),
       // how long the open deals in this stage have been there, on average
@@ -103,6 +107,10 @@ export async function getOpportunityPipeline(client, context, filters = {}) {
     total: columns.reduce((sum, stage) => sum + stage.count, 0),
     totalValue: money(columns.reduce((sum, stage) => sum + stage.value, 0)),
     weightedValue: money(columns.reduce((sum, stage) => sum + stage.weightedValue, 0)),
+    currency: currencyDisclosure(await reportingCurrencyOf(client, context.organizationId), {
+      unconverted_count: totals.reduce((sum, row) => sum + row.unconverted_count, 0),
+      unconverted_currencies: [...new Set(totals.flatMap((row) => row.unconverted_currencies ?? []))],
+    }),
     capabilities: opportunityCapabilities(context),
   };
 }
@@ -120,10 +128,11 @@ export async function getPipelineSummary(client, context, filters = {}) {
   const closingThisMonth = `counted.expected_close_date >= ${month} AND counted.expected_close_date < ${month} + interval '1 month'`;
 
   const totals = (await client.query(
-    `SELECT count(*)::int AS open, COALESCE(sum(counted.amount), 0)::float8 AS value,
-            COALESCE(sum(counted.amount * counted.probability / 100), 0)::float8 AS weighted,
+    `SELECT count(*)::int AS open, ${sumReporting("counted")} AS value,
+            ${sumWeightedReporting("counted")} AS weighted,
             count(*) FILTER (WHERE ${closingThisMonth})::int AS closing_this_month,
-            COALESCE(sum(counted.amount) FILTER (WHERE ${closingThisMonth}), 0)::float8 AS closing_this_month_value,
+            ${sumReporting("counted", closingThisMonth)} AS closing_this_month_value,
+            ${unconvertedCount("counted")} AS unconverted_count, ${unconvertedCurrencies("counted")} AS unconverted_currencies,
             count(*) FILTER (WHERE counted.past_expected_close)::int AS overdue,
             count(*) FILTER (WHERE counted.days_since_activity >= ${OPPORTUNITY_STALE_DAYS})::int AS stale,
             count(*) FILTER (WHERE counted.next_activity_subject IS NULL)::int AS no_next_activity
@@ -132,8 +141,8 @@ export async function getPipelineSummary(client, context, filters = {}) {
   )).rows[0];
 
   const breakdown = async (key, label) => (await client.query(
-    `SELECT ${key} AS id, ${label} AS label, count(*)::int AS total, COALESCE(sum(counted.amount), 0)::float8 AS value,
-            COALESCE(sum(counted.amount * counted.probability / 100), 0)::float8 AS weighted
+    `SELECT ${key} AS id, ${label} AS label, count(*)::int AS total, ${sumReporting("counted")} AS value,
+            ${sumWeightedReporting("counted")} AS weighted
        FROM ${counted}
       GROUP BY 1, 2
       ORDER BY value DESC, label
@@ -145,7 +154,7 @@ export async function getPipelineSummary(client, context, filters = {}) {
 
   // Each owner's open deals by stage, for the team view.
   const ownerStages = (await client.query(
-    `SELECT counted.owner_user_id AS owner_id, counted.stage_id, count(*)::int AS total, COALESCE(sum(counted.amount), 0)::float8 AS value
+    `SELECT counted.owner_user_id AS owner_id, counted.stage_id, count(*)::int AS total, ${sumReporting("counted")} AS value
        FROM ${counted}
       GROUP BY 1, 2`,
     values,
@@ -190,6 +199,7 @@ export async function getPipelineSummary(client, context, filters = {}) {
       staleDays: OPPORTUNITY_STALE_DAYS,
       noNextActivity: totals.no_next_activity,
     },
+    currency: currencyDisclosure(await reportingCurrencyOf(client, context.organizationId), totals),
     byOwner,
     bySource,
     stageAging: aging.map((row) => ({

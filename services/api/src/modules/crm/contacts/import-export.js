@@ -63,8 +63,8 @@ export function buildContactImportTemplate() {
   return toCsv([CONTACT_IMPORT_FIELDS.map((field) => field.label), CONTACT_IMPORT_FIELDS.map((field) => field.sample)]);
 }
 
-function parseUpload(bytes, fileName) {
-  return isXlsxFileName(fileName) ? parseXlsxUpload(bytes, { maxRows: IMPORT_ROW_LIMIT }) : parseCsvUpload(bytes, { maxRows: IMPORT_ROW_LIMIT });
+function parseUpload(bytes, fileName, maxRows = IMPORT_ROW_LIMIT) {
+  return isXlsxFileName(fileName) ? parseXlsxUpload(bytes, { maxRows }) : parseCsvUpload(bytes, { maxRows });
 }
 
 function suggestMapping(headers) {
@@ -78,9 +78,9 @@ function suggestMapping(headers) {
   return mapping;
 }
 
-export async function analyzeContactImport(_client, context, { bytes, fileName }) {
+export async function analyzeContactImport(_client, context, { bytes, fileName, maxRows }) {
   requireContactPermission(context, CONTACT_PERMISSIONS.import, "You do not have permission to import contacts.");
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   return {
     fileName,
     headers: parsed.headers,
@@ -126,10 +126,10 @@ async function matchAccount(client, context, name) {
 
 // options: mapping { header: fieldKey }, defaultSourceId, defaultOwnerUserId,
 //          skipDuplicates (default true: a duplicate row is reported, not created)
-export async function importContacts(client, context, { bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true }) {
+export async function importContacts(client, context, { bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true, maxRows }) {
   requireContactPermission(context, CONTACT_PERMISSIONS.import, "You do not have permission to import contacts.");
   requireContactPermission(context, CONTACT_PERMISSIONS.create, "You do not have permission to create contacts.");
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   const unknown = Object.keys(mapping).filter((header) => !parsed.headers.includes(header));
   if (unknown.length) throw new CrmError(400, `The file has no column named "${unknown[0]}".`, "CRM_CONTACT_IMPORT_MAPPING");
   if (!Object.values(mapping).some((field) => field === "firstName" || field === "fullName"))
@@ -246,14 +246,14 @@ const EXPORT_COLUMNS = Object.freeze([
   ["Updated At", (contact) => contact.updatedAt],
 ]);
 
-export async function exportContacts(client, context, filters = {}) {
+export async function exportContacts(client, context, filters = {}, { limit = EXPORT_ROW_LIMIT } = {}) {
   requireContactPermission(context, CONTACT_PERMISSIONS.export, "You do not have permission to export contacts.");
   requireContactPermission(context, CONTACT_PERMISSIONS.viewSensitive, "You do not have permission to export contact details.");
   const values = [];
   const where = buildContactListWhere(context, filters, values);
-  const { rows } = await client.query(`${CONTACT_SELECT} ${where} ORDER BY lower(contact.first_name), contact.id LIMIT ${EXPORT_ROW_LIMIT + 1}`, values);
-  if (rows.length > EXPORT_ROW_LIMIT)
-    throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} contacts. Narrow the filters and try again.`, "CRM_CONTACT_EXPORT_TOO_LARGE");
+  const { rows } = await client.query(`${CONTACT_SELECT} ${where} ORDER BY lower(contact.first_name), contact.id LIMIT ${limit + 1}`, values);
+  if (rows.length > limit)
+    throw new CrmError(413, `This export has more than ${limit} contacts. Narrow the filters, or export it in the background.`, "CRM_CONTACT_EXPORT_TOO_LARGE");
   const contacts = rows.map(toContact);
   return {
     fileName: `contacts-${new Date().toISOString().slice(0, 10)}.csv`,

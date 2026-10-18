@@ -10,6 +10,10 @@ import { opportunityScopeSql, requireOpportunityPermission } from "../opportunit
 import { OPPORTUNITY_PERMISSIONS } from "../opportunities/constants.js";
 import { CLOSE_REPORT_GROUPS } from "./constants.js";
 import { orgPeriod } from "../data-management/org-date.js";
+import { reportingRate } from "../data-management/reporting-currency.js";
+
+// Values in the base currency at the rate on the close date, in the deal's own currency (no rate: left out of the sums).
+const HISTORY_RATE = reportingRate("history.organization_id", "opportunity.currency_code", "history.actual_close_date");
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
@@ -53,14 +57,14 @@ export async function getWinLossReport(client, context, input = {}) {
 
   const totals = (await client.query(
     `SELECT count(*) FILTER (WHERE history.outcome = 'won')::int AS won, count(*) FILTER (WHERE history.outcome = 'lost')::int AS lost,
-            COALESCE(sum(COALESCE(history.final_value, history.estimated_value)) FILTER (WHERE history.outcome = 'won'), 0)::float8 AS won_value,
-            COALESCE(sum(history.estimated_value) FILTER (WHERE history.outcome = 'lost'), 0)::float8 AS lost_value
+            COALESCE(sum(COALESCE(history.final_value, history.estimated_value) * ${HISTORY_RATE}) FILTER (WHERE history.outcome = 'won'), 0)::float8 AS won_value,
+            COALESCE(sum(history.estimated_value * ${HISTORY_RATE}) FILTER (WHERE history.outcome = 'lost'), 0)::float8 AS lost_value
        ${base}`,
     values,
   )).rows[0];
   const reasons = (await client.query(
     `SELECT history.outcome, history.reason_id, COALESCE(history.reason_name, reason.name, 'No reason') AS name, count(*)::int AS total,
-            COALESCE(sum(CASE WHEN history.outcome = 'won' THEN COALESCE(history.final_value, history.estimated_value) ELSE history.estimated_value END), 0)::float8 AS value
+            COALESCE(sum((CASE WHEN history.outcome = 'won' THEN COALESCE(history.final_value, history.estimated_value) ELSE history.estimated_value END) * ${HISTORY_RATE}), 0)::float8 AS value
        ${base}
       GROUP BY 1, 2, 3 ORDER BY total DESC, name`,
     values,
@@ -69,8 +73,8 @@ export async function getWinLossReport(client, context, input = {}) {
   const groups = (await client.query(
     `SELECT ${keySql} AS key, ${labelSql} AS label,
             count(*) FILTER (WHERE history.outcome = 'won')::int AS won, count(*) FILTER (WHERE history.outcome = 'lost')::int AS lost,
-            COALESCE(sum(COALESCE(history.final_value, history.estimated_value)) FILTER (WHERE history.outcome = 'won'), 0)::float8 AS won_value,
-            COALESCE(sum(history.estimated_value) FILTER (WHERE history.outcome = 'lost'), 0)::float8 AS lost_value,
+            COALESCE(sum(COALESCE(history.final_value, history.estimated_value) * ${HISTORY_RATE}) FILTER (WHERE history.outcome = 'won'), 0)::float8 AS won_value,
+            COALESCE(sum(history.estimated_value * ${HISTORY_RATE}) FILTER (WHERE history.outcome = 'lost'), 0)::float8 AS lost_value,
             mode() WITHIN GROUP (ORDER BY COALESCE(history.reason_name, reason.name)) FILTER (WHERE history.outcome = 'lost') AS top_lost_reason,
             mode() WITHIN GROUP (ORDER BY COALESCE(history.reason_name, reason.name)) FILTER (WHERE history.outcome = 'won') AS top_won_reason
        ${base}

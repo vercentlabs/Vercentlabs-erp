@@ -105,6 +105,34 @@ function readOpportunityInput(lead, input, accountName) {
 //   openWork         "move" (default: open tasks and follow-ups move to the opportunity) | "keep"
 //   overrideReason   why a lead with missing qualification is converted (managers)
 //   duplicateReason  why a new account or contact is created despite a strong match (managers)
+
+// A lead's contact preferences as a contact's: per-channel consent, and do-not-contact as a refusal of every channel.
+function consentFromLead(lead) {
+  if (lead.do_not_contact)
+    return { doNotEmail: true, doNotCall: true, doNotSms: true, doNotWhatsapp: true, consentEmail: false, consentSms: false, consentWhatsapp: false, marketingConsent: "opted_out" };
+  const consentEmail = Boolean(lead.consent_email);
+  const consentSms = Boolean(lead.consent_sms);
+  const consentWhatsapp = Boolean(lead.consent_whatsapp);
+  return { consentEmail, consentSms, consentWhatsapp, ...(consentEmail || consentSms || consentWhatsapp ? { marketingConsent: "opted_in" } : {}) };
+}
+
+// The changes that join a lead's preferences to an existing contact's (nothing when they add nothing).
+function mergedConsent(contact, lead) {
+  const changes = {};
+  const from = consentFromLead(lead);
+  for (const field of ["doNotEmail", "doNotCall", "doNotSms", "doNotWhatsapp"]) {
+    const column = field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    if (from[field] && !contact[column]) changes[field] = true;
+  }
+  for (const [field, refusal] of [["consentEmail", "do_not_email"], ["consentSms", "do_not_sms"], ["consentWhatsapp", "do_not_whatsapp"]]) {
+    const column = field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    if (from[field] && !contact[column] && !contact[refusal] && !changes[`doNot${field.slice(7)}`]) changes[field] = true;
+  }
+  if (from.marketingConsent === "opted_out" && contact.marketing_consent !== "opted_out") changes.marketingConsent = "opted_out";
+  else if (from.marketingConsent === "opted_in" && contact.marketing_consent === "unknown") changes.marketingConsent = "opted_in";
+  return changes;
+}
+
 export async function convertLead(client, context, leadId, input = {}) {
   requireConversionPermission(context, CONVERSION_PERMISSIONS.convert, "You do not have permission to convert leads.");
   const idempotencyKey = text(input.idempotencyKey).slice(0, 200) || null;
@@ -272,11 +300,15 @@ export async function convertLead(client, context, leadId, input = {}) {
   if (existingContact) {
     // An existing person is linked to the account; their other companies are kept.
     if (existingContact.party_id !== partyId) await linkContactToAccount(client, operations, existingContact.id, { accountId: partyId });
-    if (Object.keys(contactUpdates).length) await updateContact(client, operations, existingContact.id, contactUpdates);
+    // The lead's consent joins the person's: a refusal on either side stands, a consent is added only where not refused.
+    const consent = mergedConsent(existingContact, lead);
+    if (Object.keys(contactUpdates).length || Object.keys(consent).length) await updateContact(client, operations, existingContact.id, { ...contactUpdates, ...consent });
   } else {
     const contact = await createContact(client, operations, {
       accountId: partyId, firstName: newContact.firstName, lastName: newContact.lastName, jobTitle: newContact.jobTitle,
       email: newContact.email, mobile: newContact.mobile, phone: newContact.phone,
+      // The consent the lead gave (or its do-not-contact) travels with the person.
+      ...consentFromLead(lead),
       ...(activeSource ? { sourceId: lead.source_id } : {}),
       ownerUserId: newContact.ownerUserId,
     }, { allowDuplicate: newContact.allowDuplicate, duplicateReason, origin: "lead_conversion", historySummary: `Contact created from lead ${lead.code}` });

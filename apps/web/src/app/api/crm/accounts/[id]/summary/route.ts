@@ -9,7 +9,7 @@ import type { AccountRouteParams } from "@/features/crm/accounts/server/account-
 // The Customer 360 summary cards. Sales, Finance, Projects and Support
 // figures are included only for callers who can open those modules.
 export async function GET(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) =>
-    ok({ summary: await getAccountSummary(client, crmContext(session), (await route.params).id) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session, snapshot }) =>
+    ok({ summary: await getAccountSummary(client, crmContext(session, snapshot), (await route.params).id) }),
   );
 }

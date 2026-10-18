@@ -7,8 +7,8 @@ import { csvResponse, leadFiltersFromUrl } from "@/features/crm/leads/server/lea
 
 // Downloads the leads the list shows for the same view and filters.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsExport }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsExport }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const url = new URL(request.url);
     const ids = url.searchParams.get("ids");
     const exported = await exportLeads(client, context, { ...leadFiltersFromUrl(url), ...(ids ? { ids: ids.split(",") } : {}) });

@@ -22,12 +22,12 @@ export async function GET(request: Request, context: RouteContext) {
   return workspaceRoute(
     request,
     { module: "crm", action: "crm.resource.get" },
-    async ({ client, session }) => {
+    async ({ client, session, snapshot }) => {
       const { resource, id } = await context.params;
       if (!isCrmResource(resource))
         throw new HttpError(404, "Unknown CRM resource.");
       return ok({
-        record: await getCrmRecord(client, crmContext(session), resource, id),
+        record: await getCrmRecord(client, crmContext(session, snapshot), resource, id),
       });
     },
   );
@@ -37,7 +37,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   return workspaceRoute(
     request,
     { module: "crm", action: "crm.resource.update" },
-    async ({ client, session }) => {
+    async ({ client, session, snapshot }) => {
       const { resource, id } = await context.params;
       if (!isCrmResource(resource))
         throw new HttpError(404, "Unknown CRM resource.");
@@ -53,7 +53,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       };
       const record = await updateCrmRecord(
         client,
-        crmContext(session),
+        crmContext(session, snapshot),
         resource,
         id,
         body.input ?? {},
@@ -68,7 +68,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   return workspaceRoute(
     request,
     { module: "crm", action: "crm.resource.archive" },
-    async ({ client, session }) => {
+    async ({ client, session, snapshot }) => {
       const { resource, id } = await context.params;
       if (!isCrmResource(resource))
         throw new HttpError(404, "Unknown CRM resource.");
@@ -83,7 +83,7 @@ export async function DELETE(request: Request, context: RouteContext) {
       return ok({
         record: await archiveCrmRecord(
           client,
-          crmContext(session),
+          crmContext(session, snapshot),
           resource,
           id,
           { expectedUpdatedAt, requireVersion: true },

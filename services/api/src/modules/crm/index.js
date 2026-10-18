@@ -47,5 +47,6 @@ export {
 export * from "./leads/index.js";
 export * from "./duplicates/index.js";
 export * from "./opportunities/index.js";
+export * from "./data-jobs/index.js";
 export * from "./accounts/index.js";
 export * from "./contacts/index.js";

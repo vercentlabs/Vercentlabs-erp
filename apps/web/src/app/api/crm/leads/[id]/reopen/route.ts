@@ -8,7 +8,7 @@ import { readBody, type LeadRouteParams } from "@/features/crm/leads/server/lead
 
 // Body: { note? }
 export async function POST(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsReopen, billingWrite: true }, async ({ client, session }) =>
-    ok(await reopenLead(client, crmContext(session), (await route.params).id, await readBody(request))),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsReopen, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await reopenLead(client, crmContext(session, snapshot), (await route.params).id, await readBody(request))),
   );
 }

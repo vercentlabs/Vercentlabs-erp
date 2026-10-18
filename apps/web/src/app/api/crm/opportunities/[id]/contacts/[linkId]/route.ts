@@ -10,15 +10,15 @@ type LinkParams = { params: Promise<{ id: string; linkId: string }> };
 
 // Body: { role?, notes?, isPrimary?: true }
 export async function PATCH(request: Request, route: LinkParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesEdit, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { id, linkId } = await route.params;
-    return ok({ contacts: await updateOpportunityContact(client, crmContext(session), id, linkId, await readBody(request)) });
+    return ok({ contacts: await updateOpportunityContact(client, crmContext(session, snapshot), id, linkId, await readBody(request)) });
   });
 }
 
 export async function DELETE(request: Request, route: LinkParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesEdit, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { id, linkId } = await route.params;
-    return ok({ contacts: await removeOpportunityContact(client, crmContext(session), id, linkId) });
+    return ok({ contacts: await removeOpportunityContact(client, crmContext(session, snapshot), id, linkId) });
   });
 }

@@ -20,6 +20,7 @@ export { findDuplicateOpportunities } from "./duplicates.js";
 export { addOpportunityActivity, listOpportunityActivities, scheduleOpportunityFollowUp } from "./activities.js";
 export { exportOpportunities, getOpportunitiesByStageReport, getOpportunityDashboard } from "./dashboard.js";
 export { getOpportunityOptions } from "./options.js";
+export { OPPORTUNITY_IMPORT_FIELDS, analyzeOpportunityImport, buildOpportunityImportTemplate, importOpportunities } from "./import.js";
 
 import { getOpportunity } from "./records.js";
 import { listOpportunityHistoryEntries } from "./history.js";

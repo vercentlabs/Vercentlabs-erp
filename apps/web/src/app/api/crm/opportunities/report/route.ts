@@ -8,7 +8,7 @@ import { opportunityFiltersFromUrl } from "@/features/crm/opportunities/server/o
 
 // CRM Opportunities by Stage. Query: groupBy plus every list filter.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.reportsView }, async ({ client, session }) =>
-    ok({ report: await getOpportunitiesByStageReport(client, crmContext(session), opportunityFiltersFromUrl(new URL(request.url))) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.reportsView }, async ({ client, session, snapshot }) =>
+    ok({ report: await getOpportunitiesByStageReport(client, crmContext(session, snapshot), opportunityFiltersFromUrl(new URL(request.url))) }),
   );
 }

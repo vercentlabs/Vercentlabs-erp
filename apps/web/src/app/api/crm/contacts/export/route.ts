@@ -7,8 +7,8 @@ import { contactFiltersFromUrl, csvResponse } from "@/features/crm/contacts/serv
 
 // Downloads the contacts the list shows for the same view and filters.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsExport }, async ({ client, session }) => {
-    const exported = await exportContacts(client, crmContext(session), contactFiltersFromUrl(new URL(request.url)));
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsExport }, async ({ client, session, snapshot }) => {
+    const exported = await exportContacts(client, crmContext(session, snapshot), contactFiltersFromUrl(new URL(request.url)));
     return csvResponse(exported.csv, exported.fileName);
   });
 }

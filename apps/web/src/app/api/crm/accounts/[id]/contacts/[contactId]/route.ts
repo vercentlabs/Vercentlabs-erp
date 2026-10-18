@@ -10,8 +10,8 @@ type Params = { params: Promise<{ id: string; contactId: string }> };
 
 // Body: { department?, isDecisionMaker?, isPrimary? }
 export async function PATCH(request: Request, route: Params) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const { id, contactId } = await route.params;
     const { isPrimary, ...role } = await readBody(request);
     if (isPrimary === true) await setPrimaryContact(client, context, id, contactId);
@@ -22,8 +22,8 @@ export async function PATCH(request: Request, route: Params) {
 
 // Unlinks the contact; it stays in CRM without a company.
 export async function DELETE(request: Request, route: Params) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { id, contactId } = await route.params;
-    return ok(await unlinkContact(client, crmContext(session), id, contactId));
+    return ok(await unlinkContact(client, crmContext(session, snapshot), id, contactId));
   });
 }

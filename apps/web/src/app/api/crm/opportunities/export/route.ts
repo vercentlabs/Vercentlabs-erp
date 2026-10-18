@@ -7,8 +7,8 @@ import { csvResponse, opportunityFiltersFromUrl } from "@/features/crm/opportuni
 
 // The opportunities the list shows for the same view and filters, as CSV.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesExport }, async ({ client, session }) => {
-    const file = await exportOpportunities(client, crmContext(session), opportunityFiltersFromUrl(new URL(request.url)));
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesExport }, async ({ client, session, snapshot }) => {
+    const file = await exportOpportunities(client, crmContext(session, snapshot), opportunityFiltersFromUrl(new URL(request.url)));
     return csvResponse(file.csv, file.fileName);
   });
 }

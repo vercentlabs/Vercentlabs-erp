@@ -7,15 +7,15 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 import { readBody, type AccountRouteParams } from "@/features/crm/accounts/server/account-http";
 
 export async function GET(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) =>
-    ok({ record: await getAccount(client, crmContext(session), (await route.params).id) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session, snapshot }) =>
+    ok({ record: await getAccount(client, crmContext(session, snapshot), (await route.params).id) }),
   );
 }
 
 export async function PATCH(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { allowDuplicate, expectedUpdatedAt, ...input } = await readBody(request);
-    const record = await updateAccount(client, crmContext(session), (await route.params).id, input, {
+    const record = await updateAccount(client, crmContext(session, snapshot), (await route.params).id, input, {
       allowDuplicate: allowDuplicate === true,
       expectedUpdatedAt: typeof expectedUpdatedAt === "string" ? expectedUpdatedAt : null,
     });
@@ -26,7 +26,7 @@ export async function PATCH(request: Request, route: AccountRouteParams) {
 // Permanently deletes an account created by mistake. Refused when anything
 // refers to the account; such an account is archived instead.
 export async function DELETE(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsDelete, billingWrite: true }, async ({ client, session }) =>
-    ok(await deleteUnusedAccount(client, crmContext(session), (await route.params).id)),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsDelete, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await deleteUnusedAccount(client, crmContext(session, snapshot), (await route.params).id)),
   );
 }

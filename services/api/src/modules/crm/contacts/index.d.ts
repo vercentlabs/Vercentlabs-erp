@@ -199,7 +199,7 @@ export function recordContactHistory(client: QueryClient, context: CrmContext, c
 export function listContactHistory(client: QueryClient, context: CrmContext, contactId: string, options?: { limit?: number }): Promise<ContactHistoryEntry[]>;
 
 export function buildContactImportTemplate(): string;
-export function analyzeContactImport(client: QueryClient, context: CrmContext, file: { bytes: Uint8Array; fileName: string }): Promise<ContactImportAnalysis>;
-export function importContacts(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; mapping: Record<string, string>; defaultSourceId?: string | null; defaultOwnerUserId?: string | null; skipDuplicates?: boolean }): Promise<ContactImportResult>;
-export function exportContacts(client: QueryClient, context: CrmContext, filters?: ContactListFilters): Promise<{ fileName: string; rowCount: number; csv: string }>;
+export function analyzeContactImport(client: QueryClient, context: CrmContext, file: { bytes: Uint8Array; fileName: string; maxRows?: number }): Promise<ContactImportAnalysis>;
+export function importContacts(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; maxRows?: number; mapping: Record<string, string>; defaultSourceId?: string | null; defaultOwnerUserId?: string | null; skipDuplicates?: boolean }): Promise<ContactImportResult>;
+export function exportContacts(client: QueryClient, context: CrmContext, filters?: ContactListFilters, options?: { limit?: number }): Promise<{ fileName: string; rowCount: number; csv: string }>;
 export function getContactOptions(client: QueryClient, context: CrmContext): Promise<ContactOptions>;

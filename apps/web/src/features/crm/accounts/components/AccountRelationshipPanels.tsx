@@ -250,7 +250,7 @@ function AddressDialog({ accountId, address, options, onClose, onDone }: {
   const [values, setValues] = useState({
     addressType: address?.addressType ?? "billing",
     line1: address?.line1 ?? "", line2: address?.line2 ?? "", city: address?.city ?? "", state: address?.state ?? "", stateCode: address?.stateCode ?? "",
-    postalCode: address?.postalCode ?? "", countryCode: address?.countryCode ?? "IN",
+    postalCode: address?.postalCode ?? "", countryCode: address?.countryCode ?? "IN", gstin: address?.gstin ?? "",
     isDefaultBilling: address?.isDefaultBilling ?? false, isDefaultShipping: address?.isDefaultShipping ?? false,
   });
   const [error, setError] = useState<string | null>(null);
@@ -298,8 +298,12 @@ function AddressDialog({ accountId, address, options, onClose, onDone }: {
             <TextField label="State" isRequired value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
           )}
           <TextField label="GST state code" description={india ? "Filled in from the state." : "For an Indian address, for example 27."} value={values.stateCode} onChange={set("stateCode")} errorMessage={fieldErrors.stateCode} />
-          <TextField label="Postal code" isRequired value={values.postalCode} onChange={set("postalCode")} errorMessage={fieldErrors.postalCode} />
+          <TextField label={india ? "PIN code" : "Postal code"} isRequired inputMode={india ? "numeric" : undefined} value={values.postalCode} onChange={set("postalCode")} errorMessage={fieldErrors.postalCode} />
           <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
+          {india && (
+            <TextField label="GSTIN of this address" className="sm:col-span-2" value={values.gstin} onChange={(value) => set("gstin")(value.toUpperCase())}
+              description="For a branch registered separately, in the branch's own state. Leave empty to use the company's." errorMessage={fieldErrors.gstin} />
+          )}
         </div>
         <Checkbox isSelected={values.isDefaultBilling} onChange={set("isDefaultBilling")}>Default billing address</Checkbox>
         <Checkbox isSelected={values.isDefaultShipping} onChange={set("isDefaultShipping")}>Default shipping address</Checkbox>

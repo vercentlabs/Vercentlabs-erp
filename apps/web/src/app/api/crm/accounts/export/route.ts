@@ -7,8 +7,8 @@ import { accountFiltersFromUrl, csvResponse } from "@/features/crm/accounts/serv
 
 // Downloads the accounts the list shows for the same view and filters.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsExport }, async ({ client, session }) => {
-    const exported = await exportAccounts(client, crmContext(session), accountFiltersFromUrl(new URL(request.url)));
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsExport }, async ({ client, session, snapshot }) => {
+    const exported = await exportAccounts(client, crmContext(session, snapshot), accountFiltersFromUrl(new URL(request.url)));
     return csvResponse(exported.csv, exported.fileName);
   });
 }

@@ -13,10 +13,10 @@ export async function GET(request: Request) {
   return workspaceRoute(
     request,
     { module: "crm" },
-    async ({ client, session }) => {
+    async ({ client, session, snapshot }) => {
       const params = new URL(request.url).searchParams;
       return ok({
-        drilldown: await getMetricDrilldown(client, crmContext(session), {
+        drilldown: await getMetricDrilldown(client, crmContext(session, snapshot), {
           metric: params.get("metric") ?? "",
           filters: analyticsFiltersFromSearchParams(params),
           cursor: params.get("cursor"),

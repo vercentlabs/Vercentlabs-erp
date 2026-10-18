@@ -7,7 +7,7 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 
 // Everything the account screens need for their pickers, in one request.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) =>
-    ok({ options: await getAccountOptions(client, crmContext(session)) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session, snapshot }) =>
+    ok({ options: await getAccountOptions(client, crmContext(session, snapshot)) }),
   );
 }

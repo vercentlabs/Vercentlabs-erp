@@ -7,7 +7,7 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 
 // Everything the contact screens need for their pickers, in one request.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsView }, async ({ client, session }) =>
-    ok({ options: await getContactOptions(client, crmContext(session)) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsView }, async ({ client, session, snapshot }) =>
+    ok({ options: await getContactOptions(client, crmContext(session, snapshot)) }),
   );
 }

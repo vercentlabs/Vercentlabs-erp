@@ -2,6 +2,7 @@
 // workspace, not a BI dashboard: a few counts over the records the caller can
 // see, each opening the list behind it, the caller's own work, the open
 // pipeline by stage, and the latest activity.
+import { currencyDisclosure, dealRate, reportingCurrencyOf } from "../data-management/reporting-currency.js";
 import { leadScopeSql, leadCan } from "../leads/access.js";
 import { LEAD_PERMISSIONS, LEAD_STALE_DAYS } from "../leads/constants.js";
 import { opportunityCan, opportunityScopeSql } from "../opportunities/access.js";
@@ -73,8 +74,10 @@ export async function getCrmHome(client, context) {
     const scope = opportunityScopeSql(context, values, "opportunity");
     const open = `opportunity.organization_id = $1 AND opportunity.status = 'open' AND opportunity.archived_at IS NULL${scope}`;
     opportunities = (await client.query(
-      `SELECT count(*)::int AS open, COALESCE(sum(opportunity.amount), 0)::float8 AS value,
-              COALESCE(sum(opportunity.amount * opportunity.probability / 100), 0)::float8 AS weighted,
+      `SELECT count(*)::int AS open, COALESCE(sum(opportunity.amount * ${dealRate("opportunity")}), 0)::float8 AS value,
+              COALESCE(sum(opportunity.amount * opportunity.probability / 100 * ${dealRate("opportunity")}), 0)::float8 AS weighted,
+              count(*) FILTER (WHERE ${dealRate("opportunity")} IS NULL)::int AS unconverted_count,
+              COALESCE(array_agg(DISTINCT opportunity.currency_code) FILTER (WHERE ${dealRate("opportunity")} IS NULL), '{}') AS unconverted_currencies,
               count(*) FILTER (WHERE COALESCE(opportunity.last_activity_at, opportunity.created_at) < now() - interval '${OPPORTUNITY_STALE_DAYS} days')::int AS stale,
               count(*) FILTER (WHERE opportunity.expected_close_date BETWEEN ${TODAY} AND ${TODAY} + ${CLOSING_SOON_DAYS})::int AS closing_soon,
               count(*) FILTER (WHERE opportunity.expected_close_date < ${TODAY})::int AS overdue
@@ -82,7 +85,7 @@ export async function getCrmHome(client, context) {
       values,
     )).rows[0];
     stages = (await client.query(
-      `SELECT stage.id, stage.name, stage.sequence, count(opportunity.id)::int AS total, COALESCE(sum(opportunity.amount), 0)::float8 AS value
+      `SELECT stage.id, stage.name, stage.sequence, count(opportunity.id)::int AS total, COALESCE(sum(opportunity.amount * ${dealRate("opportunity")}), 0)::float8 AS value
          FROM tenant.crm_pipeline_stages stage
          JOIN tenant.crm_pipelines pipeline ON pipeline.organization_id = stage.organization_id AND pipeline.id = stage.pipeline_id AND pipeline.status = 'active' AND pipeline.is_default
          LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND ${open}
@@ -94,7 +97,7 @@ export async function getCrmHome(client, context) {
     const closed = `opportunity.organization_id = $1 AND opportunity.archived_at IS NULL${scope}`;
     outcomes = (await client.query(
       `SELECT count(*) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= ${MONTH})::int AS won_this_month,
-              COALESCE(sum(COALESCE(opportunity.won_amount, opportunity.amount)) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= ${MONTH}), 0)::float8 AS won_value_this_month,
+              COALESCE(sum(COALESCE(opportunity.won_amount, opportunity.amount) * ${dealRate("opportunity")}) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= ${MONTH}), 0)::float8 AS won_value_this_month,
               count(*) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= ${TODAY} - ${WIN_RATE_DAYS})::int AS won_recent,
               count(*) FILTER (WHERE opportunity.status = 'lost' AND opportunity.actual_close_date >= ${TODAY} - ${WIN_RATE_DAYS})::int AS lost_recent
          FROM tenant.crm_opportunities opportunity WHERE ${closed}`,
@@ -102,7 +105,7 @@ export async function getCrmHome(client, context) {
     )).rows[0];
     // The open deals due to close soonest (or already past their date).
     closingSoon = (await client.query(
-      `SELECT opportunity.id, opportunity.code, opportunity.name, opportunity.amount::float8 AS amount, opportunity.probability::float8 AS probability,
+      `SELECT opportunity.id, opportunity.code, opportunity.name, opportunity.amount::float8 AS amount, opportunity.currency_code, opportunity.probability::float8 AS probability,
               to_char(opportunity.expected_close_date, 'YYYY-MM-DD') AS expected_close_date, opportunity.expected_close_date < ${TODAY} AS overdue,
               stage.name AS stage_name, account.display_name AS account_name, owner.full_name AS owner_name
          FROM tenant.crm_opportunities opportunity
@@ -151,11 +154,13 @@ export async function getCrmHome(client, context) {
   }
   recent.sort((left, right) => new Date(right.created_at) - new Date(left.created_at));
 
-  const currency = (await client.query(`SELECT code FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code LIMIT 1`, [context.organizationId])).rows[0];
+  // Totals are in the organization's base currency (the one deals are converted into).
+  const reportingCurrency = await reportingCurrencyOf(client, context.organizationId);
 
   return {
     sees,
-    baseCurrency: String(currency?.code ?? "INR").trim(),
+    baseCurrency: String(reportingCurrency ?? "INR").trim(),
+    currency: opportunities ? currencyDisclosure(reportingCurrency, opportunities) : null,
     totals: {
       openLeads: leads?.open ?? null,
       openOpportunities: opportunities?.open ?? null,
@@ -177,7 +182,7 @@ export async function getCrmHome(client, context) {
       winRateDays: WIN_RATE_DAYS,
     } : null,
     closingSoon: closingSoon.map((row) => ({
-      id: row.id, code: row.code, name: row.name, amount: row.amount === null ? null : money(row.amount), probability: row.probability,
+      id: row.id, code: row.code, name: row.name, amount: row.amount === null ? null : money(row.amount), currencyCode: row.currency_code ? String(row.currency_code).trim() : null, probability: row.probability,
       expectedCloseDate: row.expected_close_date, overdue: row.overdue, stageName: row.stage_name ?? null, accountName: row.account_name ?? null, ownerName: row.owner_name ?? null,
     })),
     agenda: agenda.slice(0, 8),

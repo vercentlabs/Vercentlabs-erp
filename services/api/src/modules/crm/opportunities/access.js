@@ -5,6 +5,7 @@
 //   Team — opportunities owned by members of a sales team the caller manages,
 //          and opportunities assigned to a team the caller belongs to or manages;
 //   Own  — opportunities the caller owns, plus unowned ones.
+import { canInApp } from "../data-management/apps.js";
 import { crmOwnerScopeSql } from "../data-management/crm-access-scope.js";
 import { CrmError } from "../data-management/errors.js";
 import { OPPORTUNITY_PERMISSIONS } from "./constants.js";
@@ -57,6 +58,8 @@ export function opportunityScopeSql(context, values, alias = "opportunity") {
 // quoteInSales: creating a quotation also needs Sales' own permission, so the button shows only when the quote would be accepted.
 export function opportunityCapabilities(context) {
   const capabilities = Object.fromEntries(Object.entries(OPPORTUNITY_PERMISSIONS).map(([name, permission]) => [name, opportunityCan(context, permission)]));
-  const salesCan = Boolean(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("sales.quotation.create"));
-  return { ...capabilities, quoteInSales: Boolean(capabilities.createQuotation) && salesCan };
+  // …and only while the organization has Sales: the owner passes Sales checks only when Sales is on.
+  const salesCan = canInApp(context, "sales", "sales.quotation.create");
+  // seesSales: links into Sales documents (the deal's quotations and orders) show only to whoever may open them.
+  return { ...capabilities, quoteInSales: Boolean(capabilities.createQuotation) && salesCan, seesSales: canInApp(context, "sales", "sales.view") };
 }

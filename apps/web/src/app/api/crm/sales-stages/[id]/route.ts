@@ -8,7 +8,7 @@ import { readBody, type OpportunityRouteParams } from "@/features/crm/opportunit
 
 // Body: any of { name, description, guidance, probability, isActive }, plus moveOpenTo when deactivating a stage that has open opportunities.
 export async function PATCH(request: Request, route: OpportunityRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView, billingWrite: true }, async ({ client, session }) =>
-    ok({ stage: await updateSalesStage(client, crmContext(session), (await route.params).id, await readBody(request)) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok({ stage: await updateSalesStage(client, crmContext(session, snapshot), (await route.params).id, await readBody(request)) }),
   );
 }

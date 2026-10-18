@@ -14,6 +14,7 @@
 //
 // The opportunity stays open: a quotation never wins a deal. A Proposal stage
 // move is only suggested, never made here.
+import { canInApp, hasApp, loadApps } from "../data-management/apps.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { addAccountAddress } from "../accounts/addresses.js";
 import { createCustomerFromAccount, linkCustomer } from "../accounts/customer.js";
@@ -25,7 +26,6 @@ import { assertOpen, lockOpportunity, requireUuid } from "../opportunities/recor
 import { createQuotation } from "../../sales/index.js";
 import { customerMatches, isCustomer, loadAccount, proposalStageSuggestion } from "./readiness.js";
 
-const can = (context, permission) => Boolean(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(permission));
 const text = (value, maximum = 4000) => {
   const result = value === null || value === undefined ? "" : String(value).trim();
   return result ? result.slice(0, maximum) : null;
@@ -97,7 +97,9 @@ function readLines(input) {
 //   makePrimary         mark it the opportunity's primary quotation (default: when it has none)
 export async function createQuotationFromOpportunity(client, context, opportunityId, input = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.createQuotation, "You do not have permission to create quotations from deals.");
-  if (!can(context, "sales.quotation.create")) throw new CrmError(403, "You need the Sales permission to create quotations.", "PERMISSION_DENIED");
+  await loadApps(client, context);
+  if (!hasApp(context, "sales")) throw new CrmError(403, "Sales is not switched on for your organization, so deals cannot be quoted.", "CRM_APP_NOT_ENABLED");
+  if (!canInApp(context, "sales", "sales.quotation.create")) throw new CrmError(403, "You need the Sales permission to create quotations.", "PERMISSION_DENIED");
   const idempotencyKey = text(input.idempotencyKey, 200);
   const idempotency = await beginIdempotentOperation(client, context, {
     operation: "crm.opportunity.quotation",

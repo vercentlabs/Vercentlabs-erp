@@ -2,6 +2,11 @@
 // deletion of unused accounts. Owner and team change only through
 // assignment.js; the parent through hierarchy.js; the customer link through
 // customer.js.
+import { normalizePhones } from "../data-management/phones.js";
+import { GST_TREATMENTS } from "@vercentlabs/shared-types";
+import { loadApps } from "../data-management/apps.js";
+import { taxIdentityEditable } from "./tax-identity.js";
+import { dealRate } from "../data-management/reporting-currency.js";
 import { updatedSummary } from "../data-management/field-labels.js";
 import { phoneSearchDigits } from "../duplicates/normalize.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
@@ -18,6 +23,7 @@ import { recordAccountHistory } from "./history.js";
 import { ACCOUNT_WRITABLE_COLUMNS, assertValidAccount, isUuid, normalizeAccountInput, requireUuid } from "./validation.js";
 
 const BULK_LIMIT = 200;
+const GST_TREATMENT_LABELS = new Map(GST_TREATMENTS.map((entry) => [entry.code, entry.label]));
 const DUPLICATE_IDENTITY_FIELDS = ["displayName", "legalName", "website", "email", "phone"];
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 
@@ -27,6 +33,9 @@ export const ACCOUNT_SELECT = `
          address.city AS address_city, address.state AS address_state, address.country_code AS address_country_code,
          follow_up.next_follow_up_at,
          pipeline.open_opportunities, pipeline.open_pipeline_value,
+         term.code AS payment_term_code, term.name AS payment_term_name,
+         (SELECT billing.state_code FROM tenant.addresses billing WHERE billing.organization_id = account.organization_id AND billing.party_id = account.id
+             AND billing.status = 'active' AND billing.is_default_billing LIMIT 1) AS billing_state_code,
          (SELECT count(*) FROM tenant.crm_contact_account_relationships link JOIN tenant.contacts contact ON contact.organization_id = link.organization_id AND contact.id = link.contact_id
            WHERE link.organization_id = account.organization_id AND link.party_id = account.id AND link.status = 'active' AND contact.status = 'active')::int AS contact_count
     FROM tenant.business_parties account
@@ -36,6 +45,7 @@ export const ACCOUNT_SELECT = `
     LEFT JOIN tenant.crm_sales_teams team ON team.organization_id = account.organization_id AND team.id = account.team_id
     LEFT JOIN tenant.crm_lead_sources source ON source.organization_id = account.organization_id AND source.id = account.source_id
     LEFT JOIN tenant.business_parties parent ON parent.organization_id = account.organization_id AND parent.id = account.parent_party_id
+    LEFT JOIN tenant.payment_terms term ON term.organization_id = account.organization_id AND term.id = account.payment_term_id
     LEFT JOIN LATERAL (
       SELECT a.city, a.state, a.country_code FROM tenant.addresses a
        WHERE a.organization_id = account.organization_id AND a.party_id = account.id AND a.status = 'active'
@@ -45,7 +55,7 @@ export const ACCOUNT_SELECT = `
        WHERE activity.organization_id = account.organization_id AND activity.entity_type = 'party' AND activity.entity_id = account.id
          AND activity.activity_type = 'follow_up' AND activity.status IN ('planned', 'in_progress', 'overdue')) follow_up ON true
     LEFT JOIN LATERAL (
-      SELECT count(*)::int AS open_opportunities, COALESCE(sum(opportunity.amount), 0) AS open_pipeline_value
+      SELECT count(*)::int AS open_opportunities, COALESCE(sum(opportunity.amount * ${dealRate("opportunity")}), 0) AS open_pipeline_value
         FROM tenant.crm_opportunities opportunity
        WHERE opportunity.organization_id = account.organization_id AND opportunity.party_id = account.id AND opportunity.status = 'open') pipeline ON true`;
 
@@ -81,6 +91,15 @@ export function toAccount(row) {
     parentName: row.parent_name ?? null,
     customerNumber: row.customer_number,
     customerSince: row.customer_since,
+    // Tax identity and terms (accounts/tax-identity.js).
+    gstin: row.gstin ?? null,
+    pan: row.pan ?? null,
+    gstTreatment: row.tax_treatment ?? null,
+    gstTreatmentLabel: row.tax_treatment ? (GST_TREATMENT_LABELS.get(row.tax_treatment) ?? row.tax_treatment) : null,
+    gstStateCode: row.gst_state_code ?? null,
+    billingStateCode: row.billing_state_code ?? null,
+    paymentTermId: row.payment_term_id ?? null,
+    paymentTermName: row.payment_term_name ?? null,
     isCustomer: Boolean(row.customer_number) || ["customer", "both"].includes(row.party_type),
     city: row.address_city ?? null,
     state: row.address_state ?? null,
@@ -117,7 +136,9 @@ export async function lockAccount(client, context, partyId, options = {}) {
 
 export async function getAccount(client, context, partyId) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view companies.");
-  return projectAccountForContext(context, toAccount(await loadAccountRow(client, context, partyId)));
+  await loadApps(client, context);
+  const row = await loadAccountRow(client, context, partyId);
+  return { ...projectAccountForContext(context, toAccount(row)), taxIdentity: taxIdentityEditable(context, row) };
 }
 
 // ------------------------------------------------------------------ list
@@ -265,6 +286,7 @@ export async function createAccount(client, context, input = {}, { allowDuplicat
   // Owner and team are set below through their own rules.
   const { ownerUserId: _owner, teamId: _team, duplicateReason: inputReason, ...accountFields } = input;
   const normalized = normalizeAccountInput(accountFields);
+  await normalizePhones(client, context, normalized, ["phone", "secondaryPhone"], normalized.countryCode ?? input.address?.countryCode, "CRM_ACCOUNT_VALIDATION");
   if (!normalized.accountType) normalized.accountType = "prospect";
   // A customer account comes into being through Create customer, which gives
   // it its Customer Master; a new record starts as a prospect, partner or other.
@@ -313,6 +335,7 @@ export async function updateAccount(client, context, partyId, input = {}, { allo
     throw new CrmError(409, "This company was changed by someone else. Reload it and try again.", "CRM_ACCOUNT_VERSION_CONFLICT");
   const before = toAccount(row);
   const normalized = normalizeAccountInput(input);
+  await normalizePhones(client, context, normalized, ["phone", "secondaryPhone"], normalized.countryCode ?? before.countryCode, "CRM_ACCOUNT_VALIDATION");
   // Customer status follows the Customer Master, not a dropdown.
   if (has(normalized, "accountType") && normalized.accountType !== before.accountType && (normalized.accountType === "customer" || before.accountType === "customer"))
     throw new CrmError(409, before.isCustomer ? "This company is a customer; its type follows its Customer Master." : "Use Create customer to make this company a customer.", "CRM_ACCOUNT_TYPE_GOVERNED");

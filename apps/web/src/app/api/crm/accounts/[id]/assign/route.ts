@@ -9,7 +9,7 @@ import { readBody, type AccountRouteParams } from "@/features/crm/accounts/serve
 // Body: { ownerUserId?, teamId?, reason? } — an absent key is unchanged, null clears it.
 // The operation decides whether this is an assignment or a reassignment.
 export async function POST(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView, billingWrite: true }, async ({ client, session }) =>
-    ok(await assignAccount(client, crmContext(session), (await route.params).id, await readBody(request))),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await assignAccount(client, crmContext(session, snapshot), (await route.params).id, await readBody(request))),
   );
 }

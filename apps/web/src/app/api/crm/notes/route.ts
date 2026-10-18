@@ -7,18 +7,18 @@ import { readBody, relatedRecordFromUrl } from "@/features/crm/notes/server/cont
 
 // The notes on one record, pinned first then newest: ?relatedType&relatedId&search
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session, snapshot }) => {
     const url = new URL(request.url);
     const { relatedType, relatedId } = relatedRecordFromUrl(url);
-    return ok({ notes: await listNotes(client, crmContext(session), relatedType, relatedId, { search: url.searchParams.get("search") ?? undefined }) });
+    return ok({ notes: await listNotes(client, crmContext(session, snapshot), relatedType, relatedId, { search: url.searchParams.get("search") ?? undefined }) });
   });
 }
 
 // Body: { relatedType, relatedId, title?, body (rich text), isPinned?, visibility? }
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session, snapshot }) => {
     const body = await readBody(request);
     if (typeof body.relatedType !== "string" || typeof body.relatedId !== "string") throw new HttpError(400, "relatedType and relatedId are required.");
-    return ok({ note: await createNote(client, crmContext(session), body.relatedType, body.relatedId, body) }, 201);
+    return ok({ note: await createNote(client, crmContext(session, snapshot), body.relatedType, body.relatedId, body) }, 201);
   });
 }

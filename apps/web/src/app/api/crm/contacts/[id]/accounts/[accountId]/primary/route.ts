@@ -9,8 +9,8 @@ type Params = { params: Promise<{ id: string; accountId: string }> };
 
 // Makes this company the person's primary company.
 export async function POST(request: Request, route: Params) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsEdit, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { id, accountId } = await route.params;
-    return ok(await setPrimaryAccount(client, crmContext(session), id, accountId));
+    return ok(await setPrimaryAccount(client, crmContext(session, snapshot), id, accountId));
   });
 }

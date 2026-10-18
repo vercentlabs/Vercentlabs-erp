@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   return workspaceRoute(
     request,
     { module: "crm" },
-    async ({ client, session }) => {
+    async ({ client, session, snapshot }) => {
       const url = new URL(request.url);
       const entityType = url.searchParams.get("entityType") ?? "";
       const entityId = url.searchParams.get("entityId") ?? "";
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       const kinds = kindsParam as TimelineKind[] | undefined;
       const page = await getCrmRecordTimelinePage(
         client,
-        crmContext(session),
+        crmContext(session, snapshot),
         entityType as TimelineEntityType,
         entityId,
         {

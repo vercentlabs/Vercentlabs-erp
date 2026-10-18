@@ -9,7 +9,7 @@ import { readUpload } from "@/features/crm/accounts/server/account-http";
 // Import step 2: create the accounts. Multipart fields: file, mapping (JSON
 // { header: field }), defaultSourceId?, defaultOwnerUserId?, skipDuplicates.
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsImport, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsImport, billingWrite: true }, async ({ client, session, snapshot }) => {
     const upload = await readUpload(request);
     let mapping: Record<string, string>;
     try {
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     } catch {
       throw new HttpError(400, "The column mapping is not valid.");
     }
-    const result = await importAccounts(client, crmContext(session), {
+    const result = await importAccounts(client, crmContext(session, snapshot), {
       bytes: upload.bytes,
       fileName: upload.fileName,
       mapping,

@@ -266,11 +266,15 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
                 { label: "Close date", value: opportunity.expectedCloseDate ? formatDate(opportunity.expectedCloseDate) : null },
                 { label: "Source", value: opportunity.sourceName },
                 { label: "Created from lead", value: opportunity.leadId ? <Link className="hover:underline" href={`/crm/leads/${opportunity.leadId}`}>{opportunity.leadCode ?? "Open lead"}</Link> : null },
-                { label: "Latest quotation", value: opportunity.latestQuotationId ? (
-                  <Link className="hover:underline" href={`/sales/quotations/${opportunity.latestQuotationId}`}>
-                    {opportunity.latestQuotationNumber}{opportunity.latestQuotationTotal !== null ? ` · ${formatMoney(opportunity.latestQuotationCurrency ?? currency, opportunity.latestQuotationTotal)}` : ""}
-                  </Link>
-                ) : null },
+                { label: "Latest quotation", value: opportunity.latestQuotationId ? (() => {
+                  const label = `${opportunity.latestQuotationNumber ?? ""}${opportunity.latestQuotationTotal !== null ? ` · ${formatMoney(opportunity.latestQuotationCurrency ?? currency, opportunity.latestQuotationTotal)}` : ""}`;
+                  // A link into Sales only for whoever may open Sales documents (and only while the organization has Sales).
+                  return can.seesSales ? <Link className="hover:underline" href={`/sales/quotations/${opportunity.latestQuotationId}`}>{label}</Link> : label;
+                })() : null },
+                { label: "Sales order", value: opportunity.latestOrder ? (can.seesSales
+                  ? <Link className="hover:underline" href={`/sales/orders/${opportunity.latestOrder.id}`}>{opportunity.latestOrder.number}</Link> : opportunity.latestOrder.number) : null },
+                { label: "Buyer's PO", value: opportunity.latestOrder?.customerPoNumber
+                  ? `${opportunity.latestOrder.customerPoNumber}${opportunity.latestOrder.customerPoDate ? ` · ${formatDate(opportunity.latestOrder.customerPoDate)}` : ""}` : null },
                 { label: "Product / service interest", value: opportunity.productInterest, wide: true },
                 { label: "Description", value: opportunity.description ? <span className="whitespace-pre-wrap">{opportunity.description}</span> : null, wide: true },
               ]} />

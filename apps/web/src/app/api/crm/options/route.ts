@@ -11,8 +11,8 @@ export async function GET(request: Request) {
   return workspaceRoute(
     request,
     { module: "crm" },
-    async ({ client, session }) => {
-      const options = await getCrmOptions(client, crmContext(session));
+    async ({ client, session, snapshot }) => {
+      const options = await getCrmOptions(client, crmContext(session, snapshot));
       return ok({ options });
     },
   );

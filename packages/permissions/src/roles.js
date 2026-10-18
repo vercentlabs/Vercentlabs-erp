@@ -52,7 +52,7 @@ const opportunityWorker = [
 ];
 // Running the pipeline: moving deals between people, reopening closed deals,
 // archiving or deleting mistakes, and export.
-const opportunityManager = [...opportunityWorker, "crm.opportunities.reassign", "crm.opportunities.reopen", "crm.opportunities.edit_close_reason", "crm.opportunities.delete", "crm.opportunities.export", "crm.opportunities.bulk_update", ...taskManager, ...followUpManager, ...contentManager];
+const opportunityManager = [...opportunityWorker, "crm.opportunities.reassign", "crm.opportunities.reopen", "crm.opportunities.edit_close_reason", "crm.opportunities.delete", "crm.opportunities.export", "crm.opportunities.import", "crm.opportunities.bulk_update", ...taskManager, ...followUpManager, ...contentManager];
 // Working accounts day to day: adding companies, keeping them current and
 // giving an unowned account an owner.
 const accountWorker = ["crm.accounts.create", "crm.accounts.edit", "crm.accounts.assign"];
@@ -282,6 +282,56 @@ const ROLE_DEFINITIONS = [
       "automation.view",
       "crm.teams.manage",
       "crm.reports.schedule",
+    ]),
+  },
+  // CRM-only roles (CRM plan 1.6): for a business that runs CRM without Sales, or keeps selling and quoting apart. They carry no
+  // permission of another app; quoting from a deal needs Sales and a Sales role as well.
+  {
+    name: "CRM Sales Manager",
+    slug: "crm_sales_manager",
+    description:
+      "Leads, deals, companies, contacts and follow-ups for their teams, with assignment and the pipeline's settings — CRM only, no Sales documents.",
+    moduleKey: "crm",
+    riskLevel: "sensitive",
+    assignable: true,
+    permissions: unique([
+      ...crmReader,
+      "crm.contacts.view_sensitive",
+      "crm.accounts.view_sensitive",
+      "parties.manage",
+      ...leadManager,
+      ...leadRouting,
+      "crm.leads.view_sensitive",
+      "crm.saved_views.share",
+      "crm.opportunities.manage",
+      ...opportunityManager,
+      "crm.activities.manage",
+      ...accountManager,
+      "crm.accounts.create_customer",
+      ...contactManager,
+      "crm.reports.schedule",
+    ]),
+  },
+  {
+    name: "CRM Salesperson",
+    slug: "crm_salesperson",
+    description: "Their own leads, deals, companies, contacts, tasks and follow-ups — CRM only, no Sales documents.",
+    moduleKey: "crm",
+    riskLevel: "standard",
+    assignable: true,
+    permissions: unique([
+      ...crmReader,
+      "crm.contacts.view_sensitive",
+      "crm.accounts.view_sensitive",
+      "parties.manage",
+      ...leadWorker,
+      "crm.leads.view_sensitive",
+      "crm.opportunities.manage",
+      ...opportunityWorker,
+      "crm.activities.manage",
+      ...accountWorker,
+      "crm.accounts.create_customer",
+      ...contactWorker,
     ]),
   },
   {
@@ -2630,9 +2680,24 @@ function withOutletPermissions(role) {
   };
 }
 
+// Exchange rates (as migration 0164 grants): seen by whoever sees deals, Sales, Finance or stock valuation (cross-currency totals are
+// reported in the base currency); maintained by whoever manages Finance or Sales settings.
+function withExchangeRatePermissions(role) {
+  if (!Array.isArray(role.permissions)) return role;
+  const has = (key) => role.permissions.includes(key);
+  return {
+    ...role,
+    permissions: unique([
+      ...role.permissions,
+      ...(has("crm.opportunities.view") || has("sales.view") || has("accounting.view") || has("stock.valuation.view_exchange_rate") ? ["exchange_rates.view"] : []),
+      ...(has("accounting.settings.manage") || has("sales.settings.manage") ? ["exchange_rates.view", "exchange_rates.manage"] : []),
+    ]),
+  };
+}
+
 export const ROLE_TEMPLATES = Object.freeze(
   ROLE_DEFINITIONS.map(withCustomerPermissions).map(withProductPermissions).map(withPriceListPermissions).map(withQuotationPermissions).map(withDiscountPermissions)
-    .map(withTaxPermissions).map(withOrderPermissions).map(withWarehousePermissions).map(withOutletPermissions),
+    .map(withTaxPermissions).map(withOrderPermissions).map(withWarehousePermissions).map(withOutletPermissions).map(withExchangeRatePermissions),
 );
 
 export const ROLE_TEMPLATE_BY_SLUG = new Map(

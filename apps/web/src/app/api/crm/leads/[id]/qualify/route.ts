@@ -11,7 +11,7 @@ import { readBody, type LeadRouteParams } from "@/features/crm/leads/server/lead
 // { override: true, overrideReason } to qualify anyway, which needs
 // crm.leads.override_qualification (checked by the operation).
 export async function POST(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsQualify, billingWrite: true }, async ({ client, session }) =>
-    ok(await qualifyLead(client, crmContext(session), (await route.params).id, await readBody(request))),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsQualify, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await qualifyLead(client, crmContext(session, snapshot), (await route.params).id, await readBody(request))),
   );
 }

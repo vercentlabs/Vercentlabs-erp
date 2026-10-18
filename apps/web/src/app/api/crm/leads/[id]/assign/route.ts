@@ -10,7 +10,7 @@ import { readBody, type LeadRouteParams } from "@/features/crm/leads/server/lead
 // moveOpenActivities?, requestKey? } — an absent key is left unchanged.
 // Moving an existing owner needs crm.leads.reassign, which the operation checks.
 export async function POST(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsAssign, billingWrite: true }, async ({ client, session }) =>
-    ok(await assignLead(client, crmContext(session), (await route.params).id, await readBody(request))),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsAssign, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await assignLead(client, crmContext(session, snapshot), (await route.params).id, await readBody(request))),
   );
 }

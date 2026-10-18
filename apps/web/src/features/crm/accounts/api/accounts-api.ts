@@ -48,6 +48,10 @@ export type Account = {
   parentName: string | null;
   customerNumber: string | null;
   customerSince: string | null;
+  gstin: string | null; pan: string | null; gstTreatment: string | null; gstTreatmentLabel: string | null; gstStateCode: string | null; billingStateCode: string | null;
+  paymentTermId: string | null; paymentTermName: string | null;
+  // Whether CRM may change the tax identity and terms here, and why not ("sales": a customer's are kept in Sales' Customer Master).
+  taxIdentity?: { editable: boolean; reason: "permission" | "sales" | null };
   isCustomer: boolean;
   city: string | null;
   state: string | null;
@@ -86,6 +90,7 @@ export type AccountOptions = {
   teams: Array<{ id: string; name: string }>;
   industries: string[];
   paymentTerms: Array<{ id: string; code: string; name: string; dueDays: number }>;
+  gstTreatments: Array<{ code: string; label: string; needsGstin: boolean }>;
   currencies: string[];
   baseCurrency: string;
   currentUserId: string;
@@ -146,6 +151,7 @@ export type AccountAddress = {
   city: string;
   state: string;
   stateCode: string | null;
+  gstin: string | null;
   postalCode: string;
   countryCode: string | null;
   isDefaultBilling: boolean;
@@ -277,6 +283,9 @@ export const getAccount = (id: string) => request<{ record: Account }>(`${BASE}/
 export const createAccount = (input: Record<string, unknown>) => post<{ record: Account }>(BASE, input).then((result) => result.record);
 export const updateAccount = (id: string, input: Record<string, unknown>) =>
   request<{ record: Account }>(`${BASE}/${id}`, { method: "PATCH", json: input }).then((result) => result.record);
+export type TaxIdentityInput = { gstin?: string | null; pan?: string | null; gstTreatment?: string | null; paymentTermId?: string | null; expectedUpdatedAt?: string };
+export const updateAccountTaxIdentity = (id: string, input: TaxIdentityInput) =>
+  request<{ account: Account; warnings: Array<{ code: string; message: string }> }>(`${BASE}/${id}/tax-identity`, { method: "PATCH", json: input });
 export const deleteAccount = (id: string) => request<{ deleted: boolean }>(`${BASE}/${id}`, { method: "DELETE" });
 export const setAccountStatus = (id: string, status: AccountStatus, note?: string) => post<Changed>(`${BASE}/${id}/status`, { status, note });
 export const assignAccount = (id: string, input: { ownerUserId?: string | null; teamId?: string | null }) => post<Changed>(`${BASE}/${id}/assign`, input);

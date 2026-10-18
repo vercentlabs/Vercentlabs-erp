@@ -3,6 +3,7 @@
 // Owner and team change only through assignment.js; status only through
 // qualification.js (qualify / disqualify / reopen) and ../conversion. This
 // file never writes those columns except to set the initial owner on create.
+import { normalizePhones } from "../data-management/phones.js";
 import { updatedSummary } from "../data-management/field-labels.js";
 import { phoneSearchDigits } from "../duplicates/normalize.js";
 import { settleOpenFollowUps } from "../follow-ups/lifecycle.js";
@@ -98,6 +99,10 @@ export function toLead(row) {
     sourceDetail: row.source_detail,
     industry: row.industry,
     productInterest: row.product_interest,
+    consentEmail: Boolean(row.consent_email),
+    consentSms: Boolean(row.consent_sms),
+    consentWhatsapp: Boolean(row.consent_whatsapp),
+    doNotContact: Boolean(row.do_not_contact),
     estimatedValue: Number(row.estimated_value ?? 0),
     currencyCode: row.currency_code?.trim() ?? null,
     purchaseTimeframe: row.purchase_timeframe,
@@ -392,6 +397,7 @@ export async function createLead(client, context, input = {}, {
 } = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.create, "You do not have permission to create leads.");
   const normalized = normalizeLeadInput(input);
+  await normalizePhones(client, context, normalized, ["phone", "mobile"], normalized.countryCode, "CRM_LEAD_VALIDATION");
   assertValidLead(normalized);
   await assertActiveLeadSource(client, context, normalized.sourceId);
   const duplicates = await assertNoBlockingLeadDuplicate(client, context, normalized, { allowDuplicate, reason: duplicateReason ?? input.duplicateReason });
@@ -449,6 +455,7 @@ export async function updateLead(client, context, leadId, input = {}, { allowDup
     throw new CrmError(403, "You cannot change a lead's email or phone numbers without access to its contact details.", "CRM_LEAD_SENSITIVE_FORBIDDEN");
   const before = toLead(row);
   const normalized = normalizeLeadInput(input);
+  await normalizePhones(client, context, normalized, ["phone", "mobile"], normalized.countryCode ?? before.countryCode, "CRM_LEAD_VALIDATION");
   assertValidLead(normalized, before);
   if (has(normalized, "sourceId") && normalized.sourceId !== before.sourceId) await assertActiveLeadSource(client, context, normalized.sourceId);
 

@@ -8,8 +8,8 @@ import { type LeadRouteParams } from "@/features/crm/leads/server/lead-http";
 
 // The audit trail. Loading the lead first is what enforces visibility.
 export async function GET(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const { id } = await route.params;
     await getLead(client, context, id);
     return ok({ history: await listLeadHistory(client, context, id) });

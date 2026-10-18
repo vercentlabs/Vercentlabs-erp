@@ -8,6 +8,7 @@
 // "Link customer" is for a customer that already exists in Sales: the CRM
 // account is merged into it, so the customer keeps its documents and gains
 // the account's contacts, opportunities and history.
+import { isValidPan, parseGstin } from "@vercentlabs/shared-types";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
@@ -18,27 +19,28 @@ import { mergeAccounts } from "./merge.js";
 import { getAccount, lockAccount } from "./records.js";
 import { requireUuid } from "./validation.js";
 
-const GSTIN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
-const PAN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const text = (value) => String(value ?? "").trim();
 
+// The GSTIN is read with the shared validator (every kind, check character included); it carries the GST state and, usually, the PAN.
 function normalizeCommercialTerms(input) {
+  const gstin = parseGstin(input.gstin);
   const terms = {
-    gstin: text(input.gstin).toUpperCase() || null,
+    gstin: gstin.gstin || null,
+    gstStateCode: gstin.valid ? gstin.stateCode : null,
     pan: text(input.pan).toUpperCase() || null,
     paymentTermId: text(input.paymentTermId) || null,
     creditLimit: input.creditLimit === undefined || input.creditLimit === null || input.creditLimit === "" ? null : Number(input.creditLimit),
     currencyCode: text(input.currencyCode).toUpperCase() || null,
   };
   const issues = [];
-  if (terms.gstin && !GSTIN.test(terms.gstin)) issues.push({ field: "gstin", message: "Enter a valid 15-character GSTIN." });
-  if (terms.pan && !PAN.test(terms.pan)) issues.push({ field: "pan", message: "Enter a valid 10-character PAN." });
-  if (terms.gstin && terms.pan && terms.gstin.slice(2, 12) !== terms.pan) issues.push({ field: "pan", message: "The PAN does not match the GSTIN." });
+  if (terms.gstin && !gstin.valid) issues.push({ field: "gstin", message: gstin.error });
+  if (terms.pan && !isValidPan(terms.pan)) issues.push({ field: "pan", message: "Enter a valid 10-character PAN." });
+  if (gstin.pan && terms.pan && gstin.pan !== terms.pan) issues.push({ field: "pan", message: "The PAN does not match the GSTIN." });
   if (terms.creditLimit !== null && (!Number.isFinite(terms.creditLimit) || terms.creditLimit < 0)) issues.push({ field: "creditLimit", message: "Enter a credit limit of 0 or more." });
   if (terms.currencyCode && !/^[A-Z]{3}$/.test(terms.currencyCode)) issues.push({ field: "currencyCode", message: "Choose a currency." });
   if (terms.paymentTermId) requireUuid(terms.paymentTermId, "Payment terms");
   if (issues.length) throw new CrmError(400, issues[0].message, "CRM_ACCOUNT_CUSTOMER_VALIDATION", { issues });
-  if (terms.gstin && !terms.pan) terms.pan = terms.gstin.slice(2, 12);
+  if (gstin.pan && !terms.pan) terms.pan = gstin.pan;
   return terms;
 }
 
@@ -87,10 +89,11 @@ export async function createCustomerFromAccount(client, context, partyId, input 
     `UPDATE tenant.business_parties
         SET party_type = 'customer', account_type = 'customer', customer_number = $3, customer_since = now(), customer_created_by = $4,
             gstin = COALESCE($5, gstin), pan = COALESCE($6, pan), payment_term_id = COALESCE($7, payment_term_id),
+            gst_state_code = COALESCE($11, gst_state_code), tax_treatment = COALESCE(tax_treatment, CASE WHEN $5::text IS NOT NULL THEN 'registered_regular' END),
             credit_limit = COALESCE($8, credit_limit), currency_code = COALESCE($9, currency_code),
             customer_kind = COALESCE($10, customer_kind, 'business'), updated_by = $4, updated_at = now()
       WHERE organization_id = $1 AND id = $2`,
-    [context.organizationId, account.id, customerNumber, context.userId ?? null, terms.gstin, terms.pan, terms.paymentTermId, terms.creditLimit, terms.currencyCode, kind || null],
+    [context.organizationId, account.id, customerNumber, context.userId ?? null, terms.gstin, terms.pan, terms.paymentTermId, terms.creditLimit, terms.currencyCode, kind || null, terms.gstStateCode],
   );
   await recordAccountHistory(client, context, account.id, "customer_created", `Customer ${customerNumber} created`, {
     customerNumber, from: account.account_type, to: "customer",

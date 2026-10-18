@@ -8,7 +8,7 @@ import { readBody, type OpportunityRouteParams } from "@/features/crm/opportunit
 
 // Body: { reasonId (lost reason), actualCloseDate?, notes?, competitorName?, duplicateOfOpportunityId?, followUp?: { date, subject? }, expectedUpdatedAt?, openTasks?, openFollowUps? }
 export async function POST(request: Request, route: OpportunityRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesMarkLost, billingWrite: true }, async ({ client, session }) =>
-    ok(await markOpportunityLost(client, crmContext(session), (await route.params).id, await readBody(request))),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesMarkLost, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await markOpportunityLost(client, crmContext(session, snapshot), (await route.params).id, await readBody(request))),
   );
 }

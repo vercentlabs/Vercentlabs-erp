@@ -12,8 +12,8 @@ import { readBody } from "@/features/crm/leads/server/lead-http";
 //   disqualify  { reason, notes? }
 // Each lead succeeds or fails on its own; the response lists every outcome.
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsEdit, billingWrite: true }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const { action, ...input } = await readBody(request);
     const payload = input as { leadIds: string[] } & Record<string, unknown>;
     if (action === "assign") return ok(await bulkAssignLeads(client, context, payload));

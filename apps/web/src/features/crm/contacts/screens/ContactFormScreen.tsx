@@ -3,6 +3,7 @@
 // New and edit contact: first name, last name, company (when creating, with the primary tick), job title, mobile and work email first;
 // everything else under More details; then — when creating — who owns it. A first name and a way to reach the person are needed. Save
 // and Cancel are at the top and the bottom.
+import { StateField } from "@/features/crm/shared/ui/StateField";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,7 +33,7 @@ const UNASSIGNED = "__unassigned__";
 type FormValues = {
   firstName: string; middleName: string; lastName: string; displayName: string; jobTitle: string; department: string; role: string; isDecisionMaker: boolean;
   email: string; secondaryEmail: string; phone: string; mobile: string; alternatePhone: string; preferredContactMethod: string;
-  doNotEmail: boolean; doNotCall: boolean; doNotSms: boolean; marketingConsent: string;
+  doNotEmail: boolean; doNotCall: boolean; doNotSms: boolean; doNotWhatsapp: boolean; consentEmail: boolean; consentSms: boolean; consentWhatsapp: boolean; marketingConsent: string;
   useAccountAddress: boolean; addressLine1: string; addressLine2: string; city: string; state: string; postalCode: string; countryCode: string;
   sourceId: string; description: string; accountId: string | null; makePrimary: boolean; ownerUserId: string; teamId: string;
 };
@@ -40,7 +41,7 @@ type FormValues = {
 const EMPTY: FormValues = {
   firstName: "", middleName: "", lastName: "", displayName: "", jobTitle: "", department: "", role: NONE, isDecisionMaker: false,
   email: "", secondaryEmail: "", phone: "", mobile: "", alternatePhone: "", preferredContactMethod: NONE,
-  doNotEmail: false, doNotCall: false, doNotSms: false, marketingConsent: "unknown",
+  doNotEmail: false, doNotCall: false, doNotSms: false, doNotWhatsapp: false, consentEmail: false, consentSms: false, consentWhatsapp: false, marketingConsent: "unknown",
   useAccountAddress: true, addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", countryCode: "",
   sourceId: NONE, description: "", accountId: null, makePrimary: false, ownerUserId: AUTO, teamId: NONE,
 };
@@ -52,7 +53,8 @@ function valuesFromContact(contact: Contact): FormValues {
     jobTitle: contact.jobTitle ?? "", department: contact.department ?? "", role: contact.role ?? NONE, isDecisionMaker: contact.isDecisionMaker,
     email: contact.email ?? "", secondaryEmail: contact.secondaryEmail ?? "", phone: contact.phone ?? "", mobile: contact.mobile ?? "",
     alternatePhone: contact.alternatePhone ?? "", preferredContactMethod: contact.preferredContactMethod ?? NONE,
-    doNotEmail: contact.doNotEmail, doNotCall: contact.doNotCall, doNotSms: contact.doNotSms, marketingConsent: contact.marketingConsent,
+    doNotEmail: contact.doNotEmail, doNotCall: contact.doNotCall, doNotSms: contact.doNotSms, doNotWhatsapp: contact.doNotWhatsapp,
+    consentEmail: contact.consentEmail, consentSms: contact.consentSms, consentWhatsapp: contact.consentWhatsapp, marketingConsent: contact.marketingConsent,
     useAccountAddress: contact.useAccountAddress, addressLine1: contact.addressLine1 ?? "", addressLine2: contact.addressLine2 ?? "", city: contact.city ?? "",
     state: contact.state ?? "", postalCode: contact.postalCode ?? "", countryCode: contact.countryCode ?? "",
     sourceId: contact.sourceId ?? NONE, description: contact.description ?? "",
@@ -214,7 +216,7 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
 
       <MoreDetails description="Middle and display name, department, role, other emails and phones, preferences, address, source and description."
         hasContent={Boolean(values.middleName || values.displayName || values.department || values.role || values.isDecisionMaker || values.secondaryEmail || values.phone
-          || values.alternatePhone || values.preferredContactMethod || values.doNotEmail || values.doNotCall || values.doNotSms || values.addressLine1 || values.city
+          || values.alternatePhone || values.preferredContactMethod || values.doNotEmail || values.doNotCall || values.doNotSms || values.doNotWhatsapp || values.addressLine1 || values.city
           || values.sourceId || values.description || (!sensitiveHidden && !values.email.trim() && !values.mobile.trim() && Boolean(values.phone.trim()))
           || Object.entries(fieldErrors).some(([key, message]) => message && !["firstName", "lastName", "mobile", "email"].includes(key)))}>
         <TextField label="Middle name" value={values.middleName} onChange={set("middleName")} />
@@ -239,6 +241,13 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
             <Checkbox isSelected={values.doNotEmail} onChange={set("doNotEmail")}>Do not email</Checkbox>
             <Checkbox isSelected={values.doNotCall} onChange={set("doNotCall")}>Do not call</Checkbox>
             <Checkbox isSelected={values.doNotSms} onChange={set("doNotSms")}>Do not SMS</Checkbox>
+            <Checkbox isSelected={values.doNotWhatsapp} onChange={set("doNotWhatsapp")}>Do not WhatsApp</Checkbox>
+          </div>
+          <p className="text-xs text-text-muted">Agreed to receive messages by:</p>
+          <div className="flex flex-wrap gap-4">
+            <Checkbox isSelected={values.consentEmail && !values.doNotEmail} isDisabled={values.doNotEmail} onChange={set("consentEmail")}>Email</Checkbox>
+            <Checkbox isSelected={values.consentSms && !values.doNotSms} isDisabled={values.doNotSms} onChange={set("consentSms")}>SMS</Checkbox>
+            <Checkbox isSelected={values.consentWhatsapp && !values.doNotWhatsapp} isDisabled={values.doNotWhatsapp} onChange={set("consentWhatsapp")}>WhatsApp</Checkbox>
           </div>
         </fieldset>
         <Select label="Marketing" selectedKey={values.marketingConsent} onSelectionChange={(key) => set("marketingConsent")(String(key))}
@@ -251,7 +260,7 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
             <TextField label="Address line 1" className="sm:col-span-2" value={values.addressLine1} onChange={set("addressLine1")} />
             <TextField label="Address line 2" className="sm:col-span-2" value={values.addressLine2} onChange={set("addressLine2")} />
             <TextField label="City" value={values.city} onChange={set("city")} />
-            <TextField label="State" value={values.state} onChange={set("state")} />
+            <StateField countryCode={values.countryCode} value={values.state} onChange={set("state")} />
             <TextField label="Postal code" value={values.postalCode} onChange={set("postalCode")} />
             <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
           </>

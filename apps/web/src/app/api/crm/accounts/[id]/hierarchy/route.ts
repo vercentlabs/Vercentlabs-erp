@@ -8,15 +8,15 @@ import { readBody, type AccountRouteParams } from "@/features/crm/accounts/serve
 
 // The parent chain and the child accounts.
 export async function GET(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) =>
-    ok({ hierarchy: await getAccountHierarchy(client, crmContext(session), (await route.params).id) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session, snapshot }) =>
+    ok({ hierarchy: await getAccountHierarchy(client, crmContext(session, snapshot), (await route.params).id) }),
   );
 }
 
 // Body: { parentPartyId: uuid | null }
 export async function PUT(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { parentPartyId } = await readBody(request);
-    return ok(await setAccountParent(client, crmContext(session), (await route.params).id, { parentPartyId: typeof parentPartyId === "string" ? parentPartyId : null }));
+    return ok(await setAccountParent(client, crmContext(session, snapshot), (await route.params).id, { parentPartyId: typeof parentPartyId === "string" ? parentPartyId : null }));
   });
 }

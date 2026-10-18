@@ -3,30 +3,35 @@
 // account's own visibility; Sales, Finance, Projects and Support data is
 // shown only to callers who can open that module, and is never editable
 // from here.
+import { canInApp, loadApps } from "../data-management/apps.js";
+import { dealRate } from "../data-management/reporting-currency.js";
 import { CrmError } from "../data-management/errors.js";
-import { accountCan } from "./access.js";
 import { getAccount } from "./records.js";
 import { getCustomerProjects } from "../../projects/project-customer.js";
 
+// Each tab: the app (module) it reads and the permission it needs. A tab shows only while the organization has that app.
 const MODULE_PERMISSIONS = Object.freeze({ sales: "sales.view", finance: "accounting.view", projects: "projects.view", support: "support.view" });
+const MODULE_APPS = Object.freeze({ sales: "sales", finance: "accounting", projects: "projects", support: "support" });
+export const tabAllowed = (context, tab) => canInApp(context, MODULE_APPS[tab], MODULE_PERMISSIONS[tab]);
 const OPEN_QUOTATION = "('draft', 'pending_approval', 'approved', 'sent')";
 const OPEN_INVOICE = "('posted', 'partially_paid', 'overdue', 'disputed')";
 const OPEN_TICKET = "('new', 'open', 'pending_customer', 'pending_internal')";
 const num = (value) => Number(value ?? 0);
 
 function access(context) {
-  return Object.fromEntries(Object.entries(MODULE_PERMISSIONS).map(([module, permission]) => [module, accountCan(context, permission)]));
+  return Object.fromEntries(Object.keys(MODULE_PERMISSIONS).map((tab) => [tab, tabAllowed(context, tab)]));
 }
 
 export async function getAccountSummary(client, context, partyId) {
   const account = await getAccount(client, context, partyId);
+  await loadApps(client, context);
   const can = access(context);
   const values = [context.organizationId, account.id];
   const one = async (sql) => (await client.query(sql, values)).rows[0];
 
   const crm = await one(
     `SELECT (SELECT count(*) FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2 AND status = 'won')::int AS won_opportunities,
-            (SELECT COALESCE(sum(amount), 0) FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2 AND status = 'won') AS won_value,
+            (SELECT COALESCE(sum(COALESCE(won.won_amount, won.amount) * ${dealRate("won")}), 0) FROM tenant.crm_opportunities won WHERE won.organization_id = $1 AND won.party_id = $2 AND won.status = 'won') AS won_value,
             (SELECT count(*) FROM tenant.crm_leads WHERE organization_id = $1 AND converted_party_id = $2)::int AS converted_leads,
             -- The company's work: on the company itself, on its deals and on its people (a manager opening the company sees all of it).
             (SELECT count(*) FROM tenant.crm_activities activity WHERE activity.organization_id = $1
@@ -163,7 +168,8 @@ export async function listAccountRelated(client, context, partyId, list) {
   const definition = RELATED[list];
   if (!definition) throw new CrmError(404, "Unknown related list.", "CRM_ACCOUNT_RELATED_UNKNOWN");
   const account = await getAccount(client, context, partyId);
-  if (definition.module && !accountCan(context, MODULE_PERMISSIONS[definition.module]))
+  await loadApps(client, context);
+  if (definition.module && !tabAllowed(context, definition.module))
     throw new CrmError(403, "You do not have access to this information.", "PERMISSION_DENIED");
   if (definition.projects) {
     const { projects } = await getCustomerProjects(client, context, account.id);

@@ -8,7 +8,7 @@ import type { OpportunityRouteParams } from "@/features/crm/opportunities/server
 
 // Every close of the opportunity, with any reopen and correction.
 export async function GET(request: Request, route: OpportunityRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session }) =>
-    ok({ history: await listOpportunityCloseHistory(client, crmContext(session), (await route.params).id) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session, snapshot }) =>
+    ok({ history: await listOpportunityCloseHistory(client, crmContext(session, snapshot), (await route.params).id) }),
   );
 }

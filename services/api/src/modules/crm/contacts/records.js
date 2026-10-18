@@ -1,6 +1,7 @@
 // The contact record: create, read, list, update, status changes and
 // deletion of contacts with no history. Owner and team change only through
 // assignment.js; company links through relationships.js.
+import { normalizePhones } from "../data-management/phones.js";
 import { updatedSummary } from "../data-management/field-labels.js";
 import { phoneSearchDigits } from "../duplicates/normalize.js";
 import { accountScopeSql } from "../accounts/access.js";
@@ -71,6 +72,10 @@ export function toContact(row) {
     doNotEmail: row.do_not_email,
     doNotCall: row.do_not_call,
     doNotSms: row.do_not_sms,
+    doNotWhatsapp: row.do_not_whatsapp ?? false,
+    consentEmail: row.consent_email ?? false,
+    consentSms: row.consent_sms ?? false,
+    consentWhatsapp: row.consent_whatsapp ?? false,
     marketingConsent: row.marketing_consent,
     useAccountAddress: row.use_account_address,
     addressLine1: row.address_line1,
@@ -273,6 +278,7 @@ export async function createContact(client, context, input = {}, {
   requireContactPermission(context, CONTACT_PERMISSIONS.create, "You do not have permission to create contacts.");
   const { ownerUserId: requestedOwner, teamId, accountId, duplicateReason: inputReason, ...fields } = input;
   const normalized = normalizeContactInput(fields);
+  await normalizePhones(client, context, normalized, ["phone", "mobile", "alternatePhone"], normalized.countryCode, "CRM_CONTACT_VALIDATION");
   assertValidContact(normalized);
   await assertActiveSource(client, context, normalized.sourceId);
   const account = accountId ? await loadLinkableAccount(client, context, accountId) : null;
@@ -338,6 +344,7 @@ export async function updateContact(client, context, contactId, input = {}, { al
   const before = toContact(row);
   const fields = input;
   const normalized = normalizeContactInput(fields);
+  await normalizePhones(client, context, normalized, ["phone", "mobile", "alternatePhone"], normalized.countryCode ?? before.countryCode, "CRM_CONTACT_VALIDATION");
   // Contact details hidden from the caller cannot be changed by them.
   if (!contactCan(context, CONTACT_PERMISSIONS.viewSensitive))
     for (const field of ["email", "secondaryEmail", "phone", "mobile", "alternatePhone"])

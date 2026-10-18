@@ -11,8 +11,8 @@ type Params = { params: Promise<{ id: string; accountId: string }> };
 // The person's position at this company. Body: { jobTitle?, department?,
 // role?, isDecisionMaker?, status? } — status "inactive" records that they left.
 export async function PATCH(request: Request, route: Params) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsEdit, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { id, accountId } = await route.params;
-    return ok(await updateContactRelationship(client, crmContext(session), id, accountId, await readBody(request)));
+    return ok(await updateContactRelationship(client, crmContext(session, snapshot), id, accountId, await readBody(request)));
   });
 }

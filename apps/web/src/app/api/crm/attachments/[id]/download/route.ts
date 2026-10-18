@@ -7,9 +7,9 @@ import { contentDisposition, type ContentRouteParams } from "@/features/crm/note
 // Private, authorized file download. ?inline=1 shows a PDF, image or text file
 // in the browser; every other file, and every file without inline, downloads.
 export async function GET(request: Request, { params }: ContentRouteParams) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session, snapshot }) => {
     const wantsInline = new URL(request.url).searchParams.get("inline") === "1";
-    const file = await downloadAttachment(client, crmContext(session), (await params).id, { inline: wantsInline });
+    const file = await downloadAttachment(client, crmContext(session, snapshot), (await params).id, { inline: wantsInline });
     const inline = wantsInline && file.inline;
     const contentType = !inline ? "application/octet-stream" : file.preview === "text" ? "text/plain; charset=utf-8" : file.mimeType;
     return new Response(new Uint8Array(file.body), {

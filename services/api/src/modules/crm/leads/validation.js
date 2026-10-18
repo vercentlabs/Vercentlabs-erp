@@ -1,6 +1,8 @@
 // Input normalization and validation for the lead record. A lead often
 // arrives incomplete, so only an identity is required: a person's name or a
 // company. Everything else is optional and validated only when present.
+import { findIndianState } from "@vercentlabs/shared-types";
+
 import { CrmError } from "../data-management/errors.js";
 import { LEAD_PRIORITIES, LEAD_PURCHASE_TIMEFRAMES, LEAD_RATINGS } from "./constants.js";
 
@@ -38,6 +40,11 @@ export const LEAD_WRITABLE_COLUMNS = Object.freeze({
   purchaseTimeframe: "purchase_timeframe",
   priority: "priority",
   rating: "rating",
+  // Contact preferences: consent per channel, and do-not-contact (carried to the contact when the lead is converted).
+  consentEmail: "consent_email",
+  consentSms: "consent_sms",
+  consentWhatsapp: "consent_whatsapp",
+  doNotContact: "do_not_contact",
 });
 
 const GOVERNED_FIELDS = Object.freeze({
@@ -95,6 +102,10 @@ export function normalizeLeadInput(input = {}) {
     const raw = input.estimatedValue;
     normalized.estimatedValue = raw === null || text(raw) === "" ? 0 : Number(raw);
   }
+  for (const field of ["consentEmail", "consentSms", "consentWhatsapp", "doNotContact"])
+    if (has(input, field)) normalized[field] = input[field] === true || input[field] === "true";
+  // Do not contact withdraws every consent.
+  if (normalized.doNotContact) Object.assign(normalized, { consentEmail: false, consentSms: false, consentWhatsapp: false });
   return normalized;
 }
 
@@ -115,6 +126,12 @@ export function validateLead(normalized, existing = {}) {
     if (normalized[field] && !usablePhone(normalized[field])) issue(field, "Enter a phone number with 7 to 15 digits.");
   }
   if (normalized.countryCode && !/^[A-Z]{2}$/.test(normalized.countryCode)) issue("countryCode", "Choose a country.");
+  // An Indian lead's state is one of the states (any common spelling is stored as the state's name).
+  if (candidate.countryCode === "IN" && text(normalized.state ?? (has(normalized, "countryCode") ? candidate.state : ""))) {
+    const state = findIndianState({ name: normalized.state ?? candidate.state });
+    if (!state) issue("state", "Choose the state from the list.");
+    else normalized.state = state.name;
+  }
   if (normalized.currencyCode && !/^[A-Z]{3}$/.test(normalized.currencyCode)) issue("currencyCode", "Choose a currency.");
   if (normalized.sourceId && !isUuid(normalized.sourceId)) issue("sourceId", "Choose a lead source.");
   if (normalized.purchaseTimeframe && !TIMEFRAMES.has(normalized.purchaseTimeframe)) issue("purchaseTimeframe", "Choose a purchase timeframe.");

@@ -67,11 +67,21 @@ export async function listCustomerContacts(client, context, customerId, { includ
     `${CONTACT_SELECT} WHERE link.organization_id = $1 AND link.party_id = $2 AND ($3 OR (link.status = 'active' AND contact.status = 'active')) AND contact.status <> 'archived'
         AND ($5::uuid IS NULL OR link.address_id = $5)
         AND (lower(concat_ws(' ', contact.display_name, contact.first_name, contact.last_name, contact.email, contact.mobile, contact.phone, link.job_title, link.department, link.role)) LIKE $4
-             OR link.role = ANY ($6::text[]))
+             OR link.role = ANY ($6::text[])
+             -- a number however it is typed ("98200 55555") against the stored E.164 (+919820055555)
+             OR ($7::text IS NOT NULL AND regexp_replace(concat_ws(' ', contact.mobile, contact.phone), '[^0-9]', '', 'g') LIKE '%' || $7 || '%'))
       ORDER BY link.status = 'active' DESC, link.is_primary_contact DESC, lower(contact.first_name), lower(COALESCE(contact.last_name, ''))`,
-    [context.organizationId, customer.id, includeInactive, like(search), isUuid(addressId) ? addressId : null, roleCodes],
+    [context.organizationId, customer.id, includeInactive, like(search), isUuid(addressId) ? addressId : null, roleCodes, phoneDigits(search)],
   );
   return rows.map(toContact);
+}
+
+// The digits of a search that looks like a phone number (at least five of them), for matching stored numbers.
+function phoneDigits(search) {
+  const value = text(search);
+  if (!/^[+0-9\s().-]+$/.test(value)) return null;
+  const digits = value.replace(/\D/g, "").replace(/^0+/, "");
+  return digits.length >= 5 ? digits : null;
 }
 
 async function lockLink(client, context, partyId, contactId) {
@@ -270,9 +280,10 @@ export async function searchLinkableCustomerContacts(client, context, customerId
       WHERE contact.organization_id = $1 AND contact.status = 'active'
         AND NOT EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships link WHERE link.organization_id = contact.organization_id
                          AND link.contact_id = contact.id AND link.party_id = $2 AND link.status = 'active')
-        AND lower(concat_ws(' ', contact.display_name, contact.first_name, contact.last_name, contact.email, contact.mobile, contact.phone)) LIKE $3
+        AND (lower(concat_ws(' ', contact.display_name, contact.first_name, contact.last_name, contact.email, contact.mobile, contact.phone)) LIKE $3
+             OR ($4::text IS NOT NULL AND regexp_replace(concat_ws(' ', contact.mobile, contact.phone), '[^0-9]', '', 'g') LIKE '%' || $4 || '%'))
       ORDER BY lower(contact.first_name) LIMIT 20`,
-    [context.organizationId, customer.id, like(search)],
+    [context.organizationId, customer.id, like(search), phoneDigits(search)],
   );
   return rows.map((row) => ({ id: row.id, name: nameOf(row), email: row.email, jobTitle: row.designation, accountName: row.account_name }));
 }

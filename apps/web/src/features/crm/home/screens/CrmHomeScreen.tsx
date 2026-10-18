@@ -9,6 +9,7 @@
 // tablets pair the side panels, desktops keep the agenda beside them, and very
 // wide screens stop growing at a readable width. Every figure and row opens the record or list behind it.
 // A section the user may not see (no permission) is left out.
+import { UnconvertedNotice } from "@/features/crm/shared/ui/UnconvertedNotice";
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +22,7 @@ import { CrmCreateMenu } from "@/features/crm/shared/CrmCreateMenu";
 import { readableHistory } from "@/features/crm/shared/field-labels";
 import { WorkRowActions } from "@/features/crm/shared/ui/WorkRowActions";
 import { clockLabel } from "@/features/crm/shared/when";
+import { dayInDisplayZone, displayTimeZone } from "@/shared/format/display-time-zone";
 import { formatDate, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -50,12 +52,14 @@ export function CrmHomeScreen() {
   const home = query.data;
   const firstName = workspace.fullName.split(" ")[0] || workspace.fullName;
   const now = new Date();
-  const today = now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+  // The greeting, the date and "today" follow the workspace's time zone, not the browser's.
+  const today = now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: displayTimeZone() });
+  const hour = Number(now.toLocaleString("en-US", { hour: "numeric", hourCycle: "h23", timeZone: displayTimeZone() }));
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 md:gap-6">
       {/* The greeting and date use the browser clock, so they appear once data has loaded on the client (never in server HTML). */}
-      <PageHeader title={home ? `${greeting(now.getHours())}, ${firstName}` : `Welcome back, ${firstName}`} description={home ? todayLine(today, home) : "Your CRM at a glance."} primaryAction={<CrmCreateMenu />} />
+      <PageHeader title={home ? `${greeting(hour)}, ${firstName}` : `Welcome back, ${firstName}`} description={home ? todayLine(today, home) : "Your CRM at a glance."} primaryAction={<CrmCreateMenu />} />
       {query.isLoading ? <LoadingState label="Loading your CRM" rows={5} />
         : query.isError || !home ? <ErrorState title="Could not load CRM Home" description="Refresh to try again." action={{ label: "Try again", onPress: () => void query.refetch() }} />
         : <HomeBody home={home} />}
@@ -71,7 +75,7 @@ function todayLine(today: string, home: CrmHome) {
   return `${today} · ${due} due today${overdue ? `, ${overdue} overdue` : ""}`;
 }
 
-const ymd = (date: Date) => date.toLocaleDateString("en-CA");
+const ymd = (date: Date) => dayInDisplayZone(date);
 // The last day of the "closing soon" window, counted from today.
 function closingBy(days: number) {
   const until = new Date();
@@ -81,15 +85,16 @@ function closingBy(days: number) {
 
 function HomeBody({ home }: { home: CrmHome }) {
   const money = (value: number | null, compact = false) => (value === null ? "" : formatMoney(home.baseCurrency, value, { compact }));
-  const now = new Date();
-  const monthStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1));
-  const monthEnd = ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  const [year, month] = dayInDisplayZone().split("-").map(Number);
+  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const monthEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
   const dueToday = home.sees.tasks || home.sees.followUps ? sum(home.myWork.tasksDueToday, home.myWork.followUpsToday) : null;
   const overdue = sum(home.myWork.overdueTasks, home.myWork.overdueFollowUps);
   const dueTodayHref = home.sees.tasks ? "/crm/activities?tab=tasks&view=due_today" : "/crm/activities?tab=follow-ups&view=due_today";
 
   return (
     <>
+      <UnconvertedNotice currency={home.currency} />
       <section aria-label="Headline figures" className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {home.totals.openLeads !== null && (
           <Kpi icon={<UserPlus />} tone="brand" label="Open leads" value={home.totals.openLeads} href="/crm/leads?status=open"
@@ -114,7 +119,7 @@ function HomeBody({ home }: { home: CrmHome }) {
       <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-4 md:gap-6 lg:col-span-2">
           {(home.sees.tasks || home.sees.followUps) && <TodayPanel home={home} dueTodayHref={dueTodayHref} />}
-          {home.sees.opportunities && <ClosingSoonPanel home={home} money={money} grow />}
+          {home.sees.opportunities && <ClosingSoonPanel home={home} grow />}
         </div>
         {/* Tablets pair the side panels under the agenda; desktops stack them beside it. */}
         <div className="grid min-w-0 content-start gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-1">
@@ -228,7 +233,7 @@ function TodayPanel({ home, dueTodayHref }: { home: CrmHome; dueTodayHref: strin
   );
 }
 
-function ClosingSoonPanel({ home, money, grow = false }: { home: CrmHome; money: (value: number | null) => string; grow?: boolean }) {
+function ClosingSoonPanel({ home, grow = false }: { home: CrmHome; grow?: boolean }) {
   return (
     <Panel grow={grow} title="Closing soon" description={`Open deals due to close in the next ${home.needsAttention.closingSoonDays} days, or already past their date`}
       action={<PanelLink href={`/crm/opportunities?view=open&expectedCloseTo=${closingBy(home.needsAttention.closingSoonDays)}`}>All deals</PanelLink>}>
@@ -244,7 +249,7 @@ function ClosingSoonPanel({ home, money, grow = false }: { home: CrmHome; money:
                   <span className="truncate text-xs text-text-muted">{[deal.accountName, deal.stageName, deal.ownerName].filter(Boolean).join(" · ")}</span>
                 </span>
                 <span className="flex items-center justify-between gap-4 sm:justify-end">
-                  <span className="text-sm font-semibold tabular-nums">{money(deal.amount)}</span>
+                  <span className="text-sm font-semibold tabular-nums">{deal.amount === null ? "" : formatMoney(deal.currencyCode ?? home.baseCurrency, deal.amount)}</span>
                   <span className={`text-right text-xs sm:w-28 ${deal.overdue ? "font-medium text-danger" : "text-text-secondary"}`}>
                     {deal.overdue ? "Was due " : ""}{formatDate(deal.expectedCloseDate)}
                   </span>
@@ -390,13 +395,12 @@ function PipelinePanel({ home, money }: { home: CrmHome; money: (value: number |
 // beneath when there is more to say, and the time of day. The record opens from its name.
 const dayLabel = (value: string) => {
   const date = new Date(value);
-  const today = new Date();
-  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-  if (date.toDateString() === today.toDateString()) return "Today";
-  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return date.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+  const day = dayInDisplayZone(date);
+  if (day === dayInDisplayZone()) return "Today";
+  if (day === dayInDisplayZone(new Date(Date.now() - 86_400_000))) return "Yesterday";
+  return date.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: displayTimeZone() });
 };
-const timeOfDay = (value: string) => new Date(value).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+const timeOfDay = (value: string) => new Date(value).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: displayTimeZone() });
 const initials = (name: string | null) => (name ?? "").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "?";
 // A steady colour per person, so the same person reads the same everywhere.
 const AVATAR = ["bg-brand-soft text-brand", "bg-success-soft text-success", "bg-warning-soft text-warning", "bg-danger-soft text-danger"];
@@ -447,7 +451,7 @@ function ActivityPanel({ home }: { home: CrmHome }) {
                           </p>
                           {detail && <p className="text-xs text-text-muted">{detail}</p>}
                         </div>
-                        <time dateTime={entry.at} title={new Date(entry.at).toLocaleString("en-IN")} className="shrink-0 text-xs leading-6 text-text-muted tabular-nums">{timeOfDay(entry.at)}</time>
+                        <time dateTime={entry.at} title={new Date(entry.at).toLocaleString("en-IN", { timeZone: displayTimeZone() })} className="shrink-0 text-xs leading-6 text-text-muted tabular-nums">{timeOfDay(entry.at)}</time>
                       </div>
                     </li>
                   );

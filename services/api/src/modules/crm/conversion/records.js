@@ -23,7 +23,9 @@ export async function loadVisibleContact(client, context, contactId) {
   const values = [context.organizationId, requireUuid(contactId, "Contact")];
   const bind = (value) => { values.push(value); return `$${values.length}`; };
   const { rows } = await client.query(
-    `SELECT contact.id, contact.contact_number, contact.display_name, contact.party_id, contact.email, contact.mobile, contact.phone, contact.designation, contact.owner_user_id
+    `SELECT contact.id, contact.contact_number, contact.display_name, contact.party_id, contact.email, contact.mobile, contact.phone, contact.designation, contact.owner_user_id,
+            contact.do_not_email, contact.do_not_call, contact.do_not_sms, contact.do_not_whatsapp, contact.consent_email, contact.consent_sms, contact.consent_whatsapp,
+            contact.marketing_consent
        FROM tenant.contacts contact
       WHERE contact.organization_id = $1 AND contact.id = $2 AND contact.status = 'active'${contactScopeSql(context, bind, "contact")}`,
     values,

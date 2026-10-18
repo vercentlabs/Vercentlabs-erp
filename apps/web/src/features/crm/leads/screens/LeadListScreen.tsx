@@ -3,6 +3,7 @@
 // CRM Leads: opens on the user's own leads (managers and admins on all of them), with the five most used views as chips and the rest under
 // More views; search first; every filter in one popover, applying at once; eight columns by default with the status shown beside the name;
 // and a call link, an email link and Log activity on a row on hover. Import and Export sit in the "…" menu; the dashboard is under Insights.
+import { formatPhone } from "@vercentlabs/shared-types";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ import {
 import { formatDate, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { ON_SCREEN_EXPORT_LIMIT, startExport } from "@/features/crm/shared/data-jobs-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import { getLeadOptions, leadExportUrl, listLeads, type Lead, type LeadBulkResult, type LeadListFilters, type LeadViewKey } from "../api/leads-api";
@@ -216,7 +218,7 @@ export function LeadListScreen() {
       cell: ({ row }) => (
         <span className="flex flex-col text-xs">
           <span>{row.original.email}</span>
-          <span className="text-text-muted">{row.original.mobile || row.original.phone}</span>
+          <span className="text-text-muted">{formatPhone(row.original.mobile || row.original.phone)}</span>
         </span>
       ),
     },
@@ -325,7 +327,7 @@ export function LeadListScreen() {
           ) : undefined,
           secondaryActions: <MoreMenu label="More lead actions" items={[
             ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=leads") }] : []),
-            ...(can?.export ? [{ id: "export", label: "Export", onAction: () => { window.location.href = leadExportUrl(listFilters); } }] : []),
+            ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("leads", leadExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
           ]} />,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as LeadViewKey), pinned: PINNED_VIEWS } : undefined}
@@ -444,7 +446,7 @@ export function LeadListScreen() {
               {/* On a phone the number is what a rep needs: tap to call, or the email to write. */}
               {(row.mobile || row.phone || row.email) && (
                 <span className="flex flex-wrap gap-3 text-sm" onClick={(event) => event.stopPropagation()}>
-                  {(row.mobile || row.phone) && <a className="text-brand" href={`tel:${(row.mobile || row.phone || "").replace(/[^0-9+]/g, "")}`}>{row.mobile || row.phone}</a>}
+                  {(row.mobile || row.phone) && <a className="text-brand" href={`tel:${(row.mobile || row.phone || "").replace(/[^0-9+]/g, "")}`}>{formatPhone(row.mobile || row.phone)}</a>}
                   {row.email && <a className="truncate text-brand" href={`mailto:${row.email}`}>{row.email}</a>}
                 </span>
               )}

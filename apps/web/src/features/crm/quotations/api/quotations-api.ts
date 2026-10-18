@@ -12,7 +12,7 @@ const { request } = crmApiClient(QuotationApiError, "body");
 const BASE = "/api/crm/opportunities";
 
 export type QuotationCapabilities = Record<
-  "createFromOpportunity" | "viewSales" | "overridePrice" | "applyDiscount" | "createCustomer" | "send" | "revise" | "accept" | "reject" | "cancel" | "createOrder",
+  "salesEnabled" | "createFromOpportunity" | "viewSales" | "overridePrice" | "applyDiscount" | "createCustomer" | "send" | "revise" | "accept" | "reject" | "cancel" | "createOrder",
   boolean
 >;
 // format: show the value as money (with currencyCode) or as a date; the server sends the raw number and the ISO date.

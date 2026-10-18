@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { History, Lock, Paperclip, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
 import { AlertDialog, Button, Checkbox, Dialog, EmptyState, IconButton, StatusBadge, TextField } from "@vercentlabs/design-system";
 
+import { displayTimeZone } from "@/shared/format/display-time-zone";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
@@ -12,7 +13,8 @@ import { contentCan } from "../content-permissions";
 import { createNote, deleteNote, errorMessage, listNotes, listNoteVersions, pinNote, updateNote, type CrmNote, type CrmRecordType } from "../api/notes-api";
 import { isBlankNote, NoteBody, NoteEditor } from "./NoteEditor";
 
-const dateTime = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+// In the workspace's time zone, not the browser's.
+const dateTime = { format: (at: Date) => at.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: displayTimeZone() }) };
 
 // The notes on one record: a quick Add Note box, then the notes, pinned
 // first and newest next. An opportunity also shows, read-only, the notes of

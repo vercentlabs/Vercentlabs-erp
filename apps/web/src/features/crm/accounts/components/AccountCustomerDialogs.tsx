@@ -58,7 +58,7 @@ export function CreateCustomerDialog({ account, options, isOpen, onOpenChange, o
           <>
             <p className="text-sm text-text-secondary">Commercial terms are optional here and are maintained by Sales afterwards.</p>
             <div className="grid gap-4 sm:grid-cols-2">
-              <TextField label="GSTIN" value={values.gstin} onChange={(value) => set("gstin")(value.toUpperCase())} errorMessage={fieldErrors.gstin} placeholder="27ABCDE1234F1Z5" />
+              <TextField label="GSTIN" value={values.gstin} onChange={(value) => set("gstin")(value.toUpperCase())} errorMessage={fieldErrors.gstin} placeholder="27ABCDE1234F1Z0" />
               <TextField label="PAN" description="Filled from the GSTIN when left empty." value={values.pan} onChange={(value) => set("pan")(value.toUpperCase())} errorMessage={fieldErrors.pan} />
               <Select label="Payment terms" selectedKey={values.paymentTermId} onSelectionChange={(key) => set("paymentTermId")(String(key ?? NONE))}
                 options={[{ value: NONE, label: "Not set" }, ...options.paymentTerms.map((term) => ({ value: term.id, label: term.name }))]} />

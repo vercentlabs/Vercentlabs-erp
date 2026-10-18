@@ -8,7 +8,7 @@ import { type OpportunityRouteParams } from "@/features/crm/opportunities/server
 
 // Every change of owner or team, newest first.
 export async function GET(request: Request, route: OpportunityRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session }) =>
-    ok({ history: await listOpportunityAssignmentHistory(client, crmContext(session), (await route.params).id) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session, snapshot }) =>
+    ok({ history: await listOpportunityAssignmentHistory(client, crmContext(session, snapshot), (await route.params).id) }),
   );
 }

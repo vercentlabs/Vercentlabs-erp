@@ -41,6 +41,11 @@ export const CONTACT_WRITABLE_COLUMNS = Object.freeze({
   doNotEmail: "do_not_email",
   doNotCall: "do_not_call",
   doNotSms: "do_not_sms",
+  doNotWhatsapp: "do_not_whatsapp",
+  // Consent per channel, as a lead records it (carried over when a lead is converted).
+  consentEmail: "consent_email",
+  consentSms: "consent_sms",
+  consentWhatsapp: "consent_whatsapp",
   marketingConsent: "marketing_consent",
   useAccountAddress: "use_account_address",
 });
@@ -91,7 +96,11 @@ export function normalizeContactInput(input = {}, { allowGoverned = false } = {}
   for (const field of ["preferredContactMethod", "sourceId", "marketingConsent"]) if (has(input, field)) normalized[field] = text(input[field]).toLowerCase() || null;
   if (has(input, "sourceId")) normalized.sourceId = text(input.sourceId) || null;
   if (has(input, "countryCode")) normalized.countryCode = text(input.countryCode).toUpperCase() || null;
-  for (const field of ["doNotEmail", "doNotCall", "doNotSms", "useAccountAddress"]) if (has(input, field)) normalized[field] = input[field] === true || input[field] === "true";
+  for (const field of ["doNotEmail", "doNotCall", "doNotSms", "doNotWhatsapp", "consentEmail", "consentSms", "consentWhatsapp", "useAccountAddress"])
+    if (has(input, field)) normalized[field] = input[field] === true || input[field] === "true";
+  // A refused channel has no consent.
+  for (const [refusal, consent] of [["doNotEmail", "consentEmail"], ["doNotSms", "consentSms"], ["doNotWhatsapp", "consentWhatsapp"]])
+    if (normalized[refusal] === true) normalized[consent] = false;
   if (normalized.marketingConsent === null) normalized.marketingConsent = "unknown";
   // Role fields (job title accepted under its old name, designation, too).
   if (has(input, "jobTitle") || has(input, "designation")) normalized.jobTitle = text(input.jobTitle ?? input.designation).slice(0, 160) || null;

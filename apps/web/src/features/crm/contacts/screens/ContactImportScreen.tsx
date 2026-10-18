@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Upload } from "lucide-react";
 import { Button, Checkbox, LinkButton, PageHeader, PermissionState, Select, buttonVariants } from "@vercentlabs/design-system";
 
+import { BackgroundRunsPanel, QueuedImportNotice, useBackgroundImport } from "@/features/crm/shared/ui/BackgroundRunsPanel";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -42,13 +43,14 @@ export function ContactImportScreen({ embedded = false }: { embedded?: boolean }
     onSuccess: (data) => { setAnalysis(data); setMapping(data.suggestedMapping); setResult(null); setError(null); },
     onError: (failure) => { setAnalysis(null); setError(errorMessage(failure)); },
   });
-  const run = useMutation({
-    mutationFn: () => importContacts(file as File, {
+  const importOptions = () => ({
       mapping,
       defaultSourceId: defaultSourceId === NONE ? undefined : defaultSourceId,
       defaultOwnerUserId: defaultOwnerUserId === NONE ? undefined : defaultOwnerUserId,
       skipDuplicates,
-    }),
+  });
+  const run = useMutation({
+    mutationFn: () => importContacts(file as File, importOptions()),
     onSuccess: (data) => {
       setResult(data);
       setError(null);
@@ -56,6 +58,8 @@ export function ContactImportScreen({ embedded = false }: { embedded?: boolean }
     },
     onError: (failure) => setError(errorMessage(failure)),
   });
+
+  const background = useBackgroundImport("contacts", (failure) => setError(errorMessage(failure)));
 
   if (optionsQuery.isLoading) return <LoadingState label="Loading" />;
   if (options && !(options.capabilities.import && options.capabilities.create))
@@ -65,6 +69,7 @@ export function ContactImportScreen({ embedded = false }: { embedded?: boolean }
     setFile(chosen);
     setAnalysis(null);
     setResult(null);
+    background.reset();
     if (chosen) analyze.mutate(chosen);
   };
   const mappedFields = new Set(Object.values(mapping));
@@ -83,7 +88,7 @@ export function ContactImportScreen({ embedded = false }: { embedded?: boolean }
     <div className="flex flex-col gap-6">
       {embedded ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-text-secondary">Bring in people from a CSV or Excel (.xlsx) file, up to 2,000 rows at a time. The Company column is matched against your existing companies.</p>
+          <p className="text-sm text-text-secondary">Bring in people from a CSV or Excel (.xlsx) file, up to 2,000 rows at once, or up to 20,000 in the background. The Company column is matched against your existing companies.</p>
           <a className={buttonVariants({ variant: "outline" })} href={contactImportTemplateUrl} download>
               <Download className="size-4" aria-hidden="true" />Download template
             </a>
@@ -91,7 +96,7 @@ export function ContactImportScreen({ embedded = false }: { embedded?: boolean }
       ) : (
         <PageHeader
           title="Import contacts"
-          description="Bring in people from a CSV or Excel (.xlsx) file, up to 2,000 rows at a time. The Company column is matched against your existing companies."
+          description="Bring in people from a CSV or Excel (.xlsx) file, up to 2,000 rows at once, or up to 20,000 in the background. The Company column is matched against your existing companies."
           secondaryActions={
             <>
               <LinkButton variant="outline" href="/crm/contacts">Back to contacts</LinkButton>
@@ -166,12 +171,16 @@ export function ContactImportScreen({ embedded = false }: { embedded?: boolean }
             Skip rows that match an existing contact (same email or phone number — recommended)
           </Checkbox>
           <div>
-            <Button variant="primary" onPress={() => run.mutate()} isLoading={run.isPending} isDisabled={!hasName || !file}>
-              Import {analysis.rowCount} {analysis.rowCount === 1 ? "row" : "rows"}
+            <Button variant="primary" onPress={() => (analysis.rowCount > background.limit ? background.queue.mutate({ file: file as File, ...importOptions() }) : run.mutate())}
+              isLoading={run.isPending || background.queue.isPending} isDisabled={!hasName || !file || Boolean(background.queued)}>
+              Import {analysis.rowCount} {analysis.rowCount === 1 ? "row" : "rows"}{analysis.rowCount > background.limit ? " in the background" : ""}
             </Button>
           </div>
         </Step>
       )}
+
+      <QueuedImportNotice job={background.queued} />
+      <BackgroundRunsPanel entity="contacts" />
 
       {result && (
         <section aria-live="polite" className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">

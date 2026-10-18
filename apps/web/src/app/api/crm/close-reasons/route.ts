@@ -8,10 +8,10 @@ import { readBody } from "@/features/crm/opportunities/server/opportunity-http";
 
 // The won and lost reasons: ?outcome=won|lost&includeInactive=1
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session, snapshot }) => {
     const url = new URL(request.url);
     const outcome = url.searchParams.get("outcome");
-    return ok({ reasons: await listCloseReasons(client, crmContext(session), {
+    return ok({ reasons: await listCloseReasons(client, crmContext(session, snapshot), {
       outcome: outcome === "won" || outcome === "lost" ? outcome : undefined, includeInactive: url.searchParams.get("includeInactive") === "1",
     }) });
   });
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
 // Body: { outcome, name, category?, requiresNotes?, capturesCompetitor?, requiresCompetitor?, offersFollowUp?, linksDuplicate? }
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesManageCloseReasons, billingWrite: true }, async ({ client, session }) =>
-    ok({ reason: await createCloseReason(client, crmContext(session), await readBody(request)) }, 201),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesManageCloseReasons, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok({ reason: await createCloseReason(client, crmContext(session, snapshot), await readBody(request)) }, 201),
   );
 }

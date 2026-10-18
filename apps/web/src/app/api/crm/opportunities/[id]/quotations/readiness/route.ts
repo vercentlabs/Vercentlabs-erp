@@ -8,7 +8,7 @@ import type { OpportunityRouteParams } from "@/features/crm/opportunities/server
 
 // What the Create Quotation dialog shows: checks, customer resolution, contacts, addresses, lines and Sales defaults.
 export async function GET(request: Request, route: OpportunityRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesCreateQuotation }, async ({ client, session }) =>
-    ok({ readiness: await getQuotationReadiness(client, crmContext(session), (await route.params).id) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesCreateQuotation }, async ({ client, session, snapshot }) =>
+    ok({ readiness: await getQuotationReadiness(client, crmContext(session, snapshot), (await route.params).id) }),
   );
 }

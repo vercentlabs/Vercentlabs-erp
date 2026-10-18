@@ -3,6 +3,7 @@
 // The contact page. The header keeps the name, number, status and role badges, and the facts (email and phone are links). Log activity is
 // the primary action (Reactivate when archived); Schedule follow-up and Call (hidden when the person is marked do-not-call) sit beside it;
 // the rest is in the "…" menu, grouped like the company's. Five tabs: Overview, Companies & deals, Activity, Sales, Files.
+import { formatPhone } from "@vercentlabs/shared-types";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -139,8 +140,8 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
             { label: "Company", value: contact.accountId ? <Link className="hover:underline" href={`/crm/accounts/${contact.accountId}`}>{contact.accountName}</Link> : "No company" },
             { label: "Job title", value: contact.jobTitle ?? "Not set" },
             { label: "Email", value: contact.email ? <a className="hover:underline" href={`mailto:${contact.email}`}>{contact.email}</a> : hidden },
-            { label: "Mobile", value: contact.mobile ? <a className="hover:underline" href={`tel:${contact.mobile}`}>{contact.mobile}</a> : hidden },
-            { label: "Phone", value: contact.phone ? <a className="hover:underline" href={`tel:${contact.phone}`}>{contact.phone}</a> : hidden },
+            { label: "Mobile", value: contact.mobile ? <a className="hover:underline" href={`tel:${contact.mobile}`}>{formatPhone(contact.mobile)}</a> : hidden },
+            { label: "Phone", value: contact.phone ? <a className="hover:underline" href={`tel:${contact.phone}`}>{formatPhone(contact.phone)}</a> : hidden },
             { label: "Owner", value: contact.ownerName ?? "Unassigned" },
           ],
           primaryAction: archived
@@ -149,7 +150,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
           secondaryActions: (
             <>
               {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
-              {phone && !contact.doNotCall && <LinkButton variant="secondary" href={`tel:${phone}`}>Call</LinkButton>}
+              {phone && !contact.doNotCall && <LinkButton variant="secondary" href={`tel:${phone.replace(/[^0-9+]/g, "")}`}>Call</LinkButton>}
               <MoreMenu label="More contact actions" items={menuActions} />
             </>
           ),
@@ -157,9 +158,9 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
         tabs={
           <div className="flex flex-col gap-3">
             <ErrorBanner message={error} />
-            {(contact.doNotEmail || contact.doNotCall || contact.doNotSms) && (
+            {(contact.doNotEmail || contact.doNotCall || contact.doNotSms || contact.doNotWhatsapp) && (
               <p role="status" className="rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-3 py-2 text-sm">
-                {[contact.doNotCall && "Do not call", contact.doNotEmail && "Do not email", contact.doNotSms && "Do not SMS"].filter(Boolean).join(" · ")}
+                {[contact.doNotCall && "Do not call", contact.doNotEmail && "Do not email", contact.doNotSms && "Do not SMS", contact.doNotWhatsapp && "Do not WhatsApp"].filter(Boolean).join(" · ")}
               </p>
             )}
             {archived && (
@@ -204,9 +205,9 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
                 items={[
                   { label: "Work email", value: contact.email ?? (contact.sensitiveDataRestricted ? "Hidden" : null) },
                   { label: "Secondary email", value: contact.secondaryEmail ?? null },
-                  { label: "Mobile", value: contact.mobile ?? null },
-                  { label: "Work phone", value: contact.phone ?? null },
-                  { label: "Alternate phone", value: contact.alternatePhone ?? null },
+                  { label: "Mobile", value: contact.mobile ? formatPhone(contact.mobile) : null },
+                  { label: "Work phone", value: contact.phone ? formatPhone(contact.phone) : null },
+                  { label: "Alternate phone", value: contact.alternatePhone ? formatPhone(contact.alternatePhone) : null },
                   { label: "Preferred method", value: options.preferredContactMethods.find((entry) => entry.code === contact.preferredContactMethod)?.label },
                   { label: "Marketing", value: options.marketingConsent.find((entry) => entry.code === contact.marketingConsent)?.label },
                   {

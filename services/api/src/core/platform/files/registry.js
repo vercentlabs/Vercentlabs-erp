@@ -7,6 +7,8 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "crm.opportunity": { moduleKey: "crm", purposes: ["attachment"] },
   "crm.party": { moduleKey: "crm", purposes: ["attachment"] },
   "crm.contact": { moduleKey: "crm", purposes: ["attachment"] },
+  // A large CRM import or export run in the background: the uploaded file (attachment) and the file it produced (export).
+  "crm.data_job": { moduleKey: "crm", purposes: ["attachment", "export"] },
   "support.ticket": { moduleKey: "support", purposes: ["attachment", "inbound_mail"] },
   // Shared by every module that uses the catalogue; the product module checks access.
   "products.item": { moduleKey: null, purposes: ["attachment"] },

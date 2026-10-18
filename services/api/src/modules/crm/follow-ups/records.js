@@ -6,6 +6,7 @@
 // 'follow_up', the table every CRM timeline already reads. The account and
 // contact it concerns are kept on the row (related_party_id,
 // related_contact_id), so account and contact pages show it without a copy.
+import { assertMayContact, channelOf } from "../data-management/contact-preferences.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { resolveMemberExecutionContext } from "../../../core/platform/reporting/execution-context.js";
 import { CrmError } from "../data-management/errors.js";
@@ -406,6 +407,8 @@ export async function scheduleFollowUp(client, context, input = {}) {
   const related = await requireRelated(client, context, input.relatedType, input.relatedId);
   const type = validType(input.type);
   const contactId = await requireContact(client, context, input.contactId || null, related);
+  // Never planned by a channel the person refused (a lead marked do-not-contact, a contact who opted out of calls, email, SMS or WhatsApp).
+  await assertMayContact(client, context, preferenceTarget(related.entity_type, related.entity_id, contactId), channelOf(type));
   const subject = validSubject(input.subject, `${typeLabel(type)}: ${await relatedLabel(client, context, related)}`.slice(0, 300));
   const notes = validNotes(input.notes);
   const assignedTo = input.assignedTo || related.ownerUserId || context.userId;
@@ -438,6 +441,12 @@ export async function scheduleFollowUp(client, context, input = {}) {
   await queueOutboxEvent(client, context, "crm.follow_up.scheduled", "follow_ups", id, { relatedType: related.entity_type, relatedId: related.entity_id, assignedTo });
   return followUp ?? { id };
 }
+
+// Who a follow-up reaches: the lead itself, the contact itself, or the contact chosen on a deal or company.
+const preferenceTarget = (entityType, entityId, contactId) => ({
+  leadId: entityType === "lead" ? entityId : null,
+  contactId: entityType === "contact" ? entityId : contactId ?? null,
+});
 
 // ------------------------------------------------------------------ update
 
@@ -488,6 +497,12 @@ export async function updateFollowUp(client, context, followUpId, input = {}) {
     }
   }
   if (!sets.length) return toFollowUp(row);
+  // A new type or contact is checked against the person's preferences as a new follow-up would be.
+  if (has(input, "type") || has(input, "contactId")) {
+    const type = has(input, "type") ? validType(input.type) : row.follow_up_type;
+    const contactId = row.entity_type === "contact" ? row.entity_id : has(input, "contactId") ? (input.contactId || null) : row.related_contact_id;
+    await assertMayContact(client, context, preferenceTarget(row.entity_type, row.entity_id, contactId), channelOf(type));
+  }
   values.push(context.userId ?? null);
   await client.query(`UPDATE tenant.crm_activities SET ${sets.join(", ")}, updated_by = $${values.length} WHERE organization_id = $1 AND id = $2`, values);
   if (reminderOffset !== row.reminder_offset_minutes) await replaceActivityReminder(client, context, row.id, row.due_at, reminderOffset);

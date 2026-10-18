@@ -41,6 +41,10 @@ export type Contact = {
   doNotEmail: boolean;
   doNotCall: boolean;
   doNotSms: boolean;
+  doNotWhatsapp: boolean;
+  consentEmail: boolean;
+  consentSms: boolean;
+  consentWhatsapp: boolean;
   marketingConsent: "unknown" | "opted_in" | "opted_out";
   useAccountAddress: boolean;
   addressLine1: string | null;

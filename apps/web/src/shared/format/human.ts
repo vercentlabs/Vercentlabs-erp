@@ -1,6 +1,8 @@
 // One place for turning stored values into words a person would use. Backend values stay canonical (ISO
 // timestamps, snake_case enums, integer reminder minutes, country and currency codes); this file only translates.
 
+import { displayTimeZone } from "./display-time-zone.ts";
+
 const ACRONYMS: Record<string, string> = {
   crm: "CRM",
   sms: "SMS",
@@ -172,11 +174,13 @@ export function formatDate(
 ): string {
   const date = toDate(value);
   if (!date) return "";
+  // A plain date ("2026-12-15") is a calendar day, not a moment: it reads the same in every time zone.
+  const plainDay = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
   return date.toLocaleDateString("en-IN", {
     day: "numeric",
     month: "short",
     year: "numeric",
-    timeZone,
+    timeZone: plainDay ? "UTC" : (timeZone ?? displayTimeZone()),
   });
 }
 
@@ -194,7 +198,7 @@ export function formatDateTime(
     hour: "numeric",
     minute: "2-digit",
     timeZoneName: "short",
-    timeZone,
+    timeZone: timeZone ?? displayTimeZone(),
   });
 }
 
@@ -361,7 +365,7 @@ export function dueState(
 ): DueState {
   const date = toDate(value);
   if (!date) return "none";
-  const dayOf = (d: Date) => d.toLocaleDateString("en-CA", { timeZone });
+  const dayOf = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: timeZone ?? displayTimeZone() });
   if (date.getTime() < now.getTime() && dayOf(date) !== dayOf(now))
     return "overdue";
   if (dayOf(date) === dayOf(now))

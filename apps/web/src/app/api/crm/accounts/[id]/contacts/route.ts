@@ -9,8 +9,8 @@ import { readBody, type AccountRouteParams } from "@/features/crm/accounts/serve
 // The account's contacts; with ?linkable=<search>, the contacts that could be
 // linked to it instead.
 export async function GET(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const { id } = await route.params;
     const linkable = new URL(request.url).searchParams.get("linkable");
     if (linkable !== null) return ok({ contacts: await searchLinkableContacts(client, context, id, linkable) });
@@ -21,8 +21,8 @@ export async function GET(request: Request, route: AccountRouteParams) {
 // Body: { contactId } links an existing contact; otherwise the body is a new
 // contact (firstName, lastName, email, mobile, …, department, isDecisionMaker, makePrimary).
 export async function POST(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const { id } = await route.params;
     const body = await readBody(request);
     if (typeof body.contactId === "string") return ok(await linkContact(client, context, id, body.contactId));

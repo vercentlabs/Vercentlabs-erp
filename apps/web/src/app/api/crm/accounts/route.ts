@@ -7,8 +7,8 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 import { accountFiltersFromUrl, readBody } from "@/features/crm/accounts/server/account-http";
 
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) => {
-    const { accounts, ...page } = await listAccounts(client, crmContext(session), accountFiltersFromUrl(new URL(request.url)));
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session, snapshot }) => {
+    const { accounts, ...page } = await listAccounts(client, crmContext(session, snapshot), accountFiltersFromUrl(new URL(request.url)));
     return ok({ rows: accounts, ...page });
   });
 }
@@ -19,8 +19,8 @@ export async function GET(request: Request) {
 //   parentPartyId?         the parent account
 // Everything is saved in one transaction: a bad address saves nothing.
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsCreate, billingWrite: true }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsCreate, billingWrite: true }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const { allowDuplicate, address, parentPartyId, ...input } = await readBody(request);
     const created = await createAccount(client, context, input, { allowDuplicate: allowDuplicate === true });
     if (address && typeof address === "object") await addAccountAddress(client, context, created.id, address as Record<string, unknown>);

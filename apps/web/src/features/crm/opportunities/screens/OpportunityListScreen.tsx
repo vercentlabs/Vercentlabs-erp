@@ -3,6 +3,7 @@
 // Deals: every deal, any status, as a list. The common views are chips (My deals, Closing this month, Overdue, Won, Lost) with the rest under
 // More views; one Filters button holds every filter, each applying the moment it changes, and the active ones show as chips. New deal is the
 // primary action; Export sits in the "…" menu and the dashboard is under Insights.
+import { UnconvertedNotice } from "@/features/crm/shared/ui/UnconvertedNotice";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +22,7 @@ import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { formatDate, formatDateTime, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { ON_SCREEN_EXPORT_LIMIT, startExport } from "@/features/crm/shared/data-jobs-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
@@ -295,7 +297,8 @@ export function OpportunityListScreen() {
           description: "Every deal with your companies, open or closed. Move each through the sales stages, quote it, and mark it won or lost.",
           primaryAction: can?.create ? <LinkButton href="/crm/opportunities/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New deal</LinkButton> : undefined,
           secondaryActions: <MoreMenu label="More deal actions" items={[
-            ...(can?.export ? [{ id: "export", label: "Export", onAction: () => { window.location.href = opportunityExportUrl(listFilters); } }] : []),
+            ...(can?.import && can?.create ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=deals") }] : []),
+            ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("opportunities", opportunityExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
           ]} />,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as OpportunityViewKey), pinned: PINNED_VIEWS } : undefined}
@@ -379,6 +382,7 @@ export function OpportunityListScreen() {
                 {total} {total === 1 ? "deal" : "deals"} · value {formatMoney(baseCurrency, listQuery.data.totalValue)} · weighted {formatMoney(baseCurrency, listQuery.data.weightedValue)}
               </p>
             )}
+            {listQuery.data && <UnconvertedNotice currency={listQuery.data.currency} />}
             <EnterpriseDataGrid<Opportunity>
               aria-label="Deals"
               columns={columns}

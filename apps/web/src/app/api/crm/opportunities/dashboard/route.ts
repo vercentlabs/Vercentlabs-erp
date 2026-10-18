@@ -8,7 +8,7 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const period = { from: url.searchParams.get("from") ?? undefined, to: url.searchParams.get("to") ?? undefined };
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session }) =>
-    ok({ dashboard: await getOpportunityDashboard(client, crmContext(session), period) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session, snapshot }) =>
+    ok({ dashboard: await getOpportunityDashboard(client, crmContext(session, snapshot), period) }),
   );
 }

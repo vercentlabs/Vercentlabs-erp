@@ -1,16 +1,19 @@
 // The contact's summary and its read-only related lists. Opportunities,
 // quotations, orders and tickets are read from their own modules — never
 // copied into CRM — and shown only to callers who can open those modules.
-import { contactCan } from "./access.js";
+import { canInApp, loadApps } from "../data-management/apps.js";
 import { CrmError } from "../data-management/errors.js";
 import { getContact } from "./records.js";
 
+// Each tab: the app (module) it reads and the permission it needs. A tab shows only while the organization has that app.
 const MODULE_PERMISSIONS = Object.freeze({ sales: "sales.view", projects: "projects.view", support: "support.view" });
+export const contactTabAllowed = (context, tab) => canInApp(context, tab, MODULE_PERMISSIONS[tab]);
 const OPEN_TICKET = "('new', 'open', 'pending_customer', 'pending_internal')";
 
 export async function getContactSummary(client, context, contactId) {
   const contact = await getContact(client, context, contactId);
-  const access = Object.fromEntries(Object.entries(MODULE_PERMISSIONS).map(([module, permission]) => [module, contactCan(context, permission)]));
+  await loadApps(client, context);
+  const access = Object.fromEntries(Object.keys(MODULE_PERMISSIONS).map((tab) => [tab, contactTabAllowed(context, tab)]));
   const values = [context.organizationId, contact.id];
   const { rows } = await client.query(
     `SELECT (SELECT count(*) FROM tenant.crm_activities WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2
@@ -98,7 +101,8 @@ export async function listContactRelated(client, context, contactId, list) {
   const definition = RELATED[list];
   if (!definition) throw new CrmError(404, "Unknown related list.", "CRM_CONTACT_RELATED_UNKNOWN");
   const contact = await getContact(client, context, contactId);
-  if (definition.module && !contactCan(context, MODULE_PERMISSIONS[definition.module]))
+  await loadApps(client, context);
+  if (definition.module && !contactTabAllowed(context, definition.module))
     throw new CrmError(403, "You do not have access to this information.", "PERMISSION_DENIED");
   const { rows } = await client.query(definition.sql, [context.organizationId, contact.id]);
   return rows.map((row) => ({

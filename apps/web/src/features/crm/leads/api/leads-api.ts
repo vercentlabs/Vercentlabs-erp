@@ -43,6 +43,7 @@ export type Lead = {
   sourceDetail: string | null;
   industry: string | null;
   productInterest: string | null;
+  consentEmail: boolean; consentSms: boolean; consentWhatsapp: boolean; doNotContact: boolean;
   estimatedValue: number;
   currencyCode: string | null;
   purchaseTimeframe: string | null;

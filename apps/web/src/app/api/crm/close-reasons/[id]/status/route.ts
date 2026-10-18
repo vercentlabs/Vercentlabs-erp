@@ -8,7 +8,7 @@ import { readBody } from "@/features/crm/opportunities/server/opportunity-http";
 
 // Body: { active: boolean }
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesManageCloseReasons, billingWrite: true }, async ({ client, session }) =>
-    ok(await setCloseReasonActive(client, crmContext(session), (await params).id, (await readBody(request)).active === true)),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesManageCloseReasons, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await setCloseReasonActive(client, crmContext(session, snapshot), (await params).id, (await readBody(request)).active === true)),
   );
 }

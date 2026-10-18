@@ -8,7 +8,7 @@ import { readBody, type LeadRouteParams } from "@/features/crm/leads/server/lead
 
 // Runs the assignment rules on this lead now. Rules never run on an edit.
 export async function POST(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsAssign, billingWrite: true }, async ({ client, session }) =>
-    ok(await runLeadAssignmentRules(client, crmContext(session), (await route.params).id, await readBody(request))),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsAssign, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await runLeadAssignmentRules(client, crmContext(session, snapshot), (await route.params).id, await readBody(request))),
   );
 }

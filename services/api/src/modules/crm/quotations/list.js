@@ -2,13 +2,13 @@
 // with its current revision, status (Expired is derived from the validity
 // date), amount, validity, how it was sent and any sales order it became.
 // One can be marked as the primary quotation of the deal.
+import { canInApp, loadApps } from "../data-management/apps.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireOpportunityPermission } from "../opportunities/access.js";
 import { OPPORTUNITY_PERMISSIONS } from "../opportunities/constants.js";
 import { getOpportunity, lockOpportunity, requireUuid } from "../opportunities/records.js";
 import { quotationCapabilities } from "./readiness.js";
 
-const can = (context, permission) => Boolean(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(permission));
 const STATUS_LABELS = Object.freeze({
   draft: "Draft", pending_approval: "Awaiting approval", approved: "Confirmed", sent: "Sent", accepted: "Accepted", rejected: "Rejected", withdrawn: "Superseded",
   cancelled: "Cancelled",
@@ -16,8 +16,9 @@ const STATUS_LABELS = Object.freeze({
 
 export async function listOpportunityQuotations(client, context, opportunityId) {
   const opportunity = await getOpportunity(client, context, opportunityId);
-  // Sales documents are shown only to those who may see Sales.
-  if (!can(context, "sales.view")) return { quotations: [], visible: false, capabilities: quotationCapabilities(context) };
+  // Sales documents are shown only while the organization has Sales, to those who may see Sales.
+  await loadApps(client, context);
+  if (!canInApp(context, "sales", "sales.view")) return { quotations: [], visible: false, capabilities: quotationCapabilities(context) };
   const { rows } = await client.query(
     `SELECT quote.id, quote.quotation_number, quote.lifecycle_status, quote.valid_until, quote.created_at, quote.converted_order_id, quote.sent_at, quote.sent_to,
             quote.sent_channel, quote.accepted_at, quote.rejected_at, quote.cancelled_at, quote.customer_reference, quote.decision_reference, quote.decision_notes,

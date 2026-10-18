@@ -3,6 +3,7 @@
 // New and edit company: the name (the only required field), type, phone, email and — when creating — owner first; everything else under
 // More details; and, when creating, an optional first address folded under "Add an address now" (once started, Save waits for it to be
 // complete). Save and Cancel are at the top and the bottom.
+import { StateField } from "@/features/crm/shared/ui/StateField";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -261,7 +262,7 @@ function AccountForm({ account, options }: { account?: Account; options: Account
           <TextField label="Address line 1" className="sm:col-span-2" value={values.line1} onChange={set("line1")} errorMessage={fieldErrors.line1} />
           <TextField label="Address line 2" className="sm:col-span-2" value={values.line2} onChange={set("line2")} />
           <TextField label="City" value={values.city} onChange={set("city")} errorMessage={fieldErrors.city} />
-          <TextField label="State" value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
+          <StateField countryCode={values.countryCode} value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
           <TextField label="Postal code" value={values.postalCode} onChange={set("postalCode")} errorMessage={fieldErrors.postalCode} />
           <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
           {!addressComplete && <p className="text-xs text-warning sm:col-span-2">Complete line 1, city, state, postal code and country, or clear the address.</p>}

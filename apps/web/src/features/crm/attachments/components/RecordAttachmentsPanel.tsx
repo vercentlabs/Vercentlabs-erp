@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, FileText, Pencil, Trash2, Upload } from "lucide-react";
 import { AlertDialog, Button, Dialog, EmptyState, IconButton, ProgressBar, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
+import { displayTimeZone } from "@/shared/format/display-time-zone";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { contentCan } from "@/features/crm/notes/content-permissions";
@@ -14,7 +15,8 @@ import {
 } from "@/features/crm/notes/api/notes-api";
 import { FilePreviewDialog } from "./FilePreviewDialog";
 
-const dateTime = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+// In the workspace's time zone, not the browser's.
+const dateTime = { format: (at: Date) => at.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: displayTimeZone() }) };
 const ACCEPT = ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.txt,.csv";
 const KINDS = [
   { value: "all", label: "All files" }, { value: "document", label: "Documents" }, { value: "spreadsheet", label: "Spreadsheets" },

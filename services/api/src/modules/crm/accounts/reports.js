@@ -1,12 +1,13 @@
 // The account summary cards and the account report. Both use the account
 // list's WHERE clause (view, filters and visibility), so a figure and the
 // list behind it always agree.
+import { dealRate } from "../data-management/reporting-currency.js";
 import { requireAccountPermission } from "./access.js";
 import { ACCOUNT_PERMISSIONS, ACCOUNT_STATUSES, ACCOUNT_TYPES } from "./constants.js";
 import { ACCOUNT_STALE_DAYS, buildAccountListWhere } from "./records.js";
 
 const PIPELINE = `LEFT JOIN LATERAL (
-    SELECT count(*)::int AS open_opportunities, COALESCE(sum(opportunity.amount), 0) AS open_pipeline_value
+    SELECT count(*)::int AS open_opportunities, COALESCE(sum(opportunity.amount * ${dealRate("opportunity")}), 0) AS open_pipeline_value
       FROM tenant.crm_opportunities opportunity
      WHERE opportunity.organization_id = account.organization_id AND opportunity.party_id = account.id AND opportunity.status = 'open') pipeline ON true`;
 const STALE_DAYS = ACCOUNT_STALE_DAYS;

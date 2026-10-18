@@ -10,8 +10,8 @@ import { readUpload } from "@/features/crm/leads/server/lead-http";
 // { header: field }), defaultSourceId?, defaultOwnerUserId?, skipDuplicates,
 // assignmentMode (file | rules), invalidOwnerAction (error | fallback).
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsImport, billingWrite: true }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsImport, billingWrite: true }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const upload = await readUpload(request);
     let mapping: Record<string, string>;
     try {

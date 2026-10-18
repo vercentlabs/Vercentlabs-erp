@@ -7,10 +7,10 @@ import { relatedRecordFromUrl } from "@/features/crm/notes/server/content-http";
 
 // The files on one record: ?relatedType&relatedId&kind&sortBy=uploadedAt|name|type|uploadedBy&search&noteId
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session, snapshot }) => {
     const url = new URL(request.url);
     const { relatedType, relatedId } = relatedRecordFromUrl(url);
-    const attachments = await listAttachments(client, crmContext(session), relatedType, relatedId, {
+    const attachments = await listAttachments(client, crmContext(session, snapshot), relatedType, relatedId, {
       kind: url.searchParams.get("kind"),
       sortBy: url.searchParams.get("sortBy") ?? undefined,
       search: url.searchParams.get("search") ?? undefined,
@@ -28,7 +28,7 @@ function text(form: FormData, key: string) {
 // Multipart: file, relatedType, relatedId, description?, noteId?, idempotencyKey?
 // The file's type, size and content are checked from its bytes, never from the browser's claims.
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session, snapshot }) => {
     const form = await request.formData().catch(() => {
       throw new HttpError(400, "Choose a file to upload.");
     });
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const relatedId = text(form, "relatedId");
     if (!relatedType || !relatedId) throw new HttpError(400, "relatedType and relatedId are required.");
     const prepared = await prepareAttachmentUpload({ fileName: file.name, bytes: Buffer.from(await file.arrayBuffer()) }, process.env);
-    const attachment = await uploadAttachment(client, crmContext(session), relatedType, relatedId, {
+    const attachment = await uploadAttachment(client, crmContext(session, snapshot), relatedType, relatedId, {
       prepared,
       description: text(form, "description"),
       noteId: text(form, "noteId"),

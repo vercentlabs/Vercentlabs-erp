@@ -8,7 +8,7 @@ import { readBody, type LeadRouteParams } from "@/features/crm/leads/server/lead
 
 // Body: { name?, isActive? }. A standard stage cannot be deactivated.
 export async function PATCH(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView, billingWrite: true }, async ({ client, session }) =>
-    ok({ stage: await updateLeadStage(client, crmContext(session), (await route.params).id, await readBody(request)) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok({ stage: await updateLeadStage(client, crmContext(session, snapshot), (await route.params).id, await readBody(request)) }),
   );
 }

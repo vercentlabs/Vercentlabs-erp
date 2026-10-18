@@ -7,5 +7,5 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 import { type TaskRouteParams } from "@/features/crm/tasks/server/task-http";
 
 export async function GET(request: Request, route: TaskRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView }, async ({ client, session }) => ok({ history: await listTaskHistory(client, crmContext(session), (await route.params).id) }));
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView }, async ({ client, session, snapshot }) => ok({ history: await listTaskHistory(client, crmContext(session, snapshot), (await route.params).id) }));
 }

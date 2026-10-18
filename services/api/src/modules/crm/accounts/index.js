@@ -20,6 +20,7 @@ export {
 export { assertNoBlockingAccountDuplicate, findDuplicateAccounts } from "./duplicates.js";
 export { MERGE_FIELDS, mergeAccounts, previewAccountMerge } from "./merge.js";
 export { createCustomerFromAccount, customerReadiness, linkCustomer, searchLinkableCustomers } from "./customer.js";
+export { taxIdentityEditable, taxWarnings, updateAccountTaxIdentity } from "./tax-identity.js";
 export { ACCOUNT_RELATED_LISTS, getAccountSummary, listAccountRelated } from "./summary.js";
 export { addAccountActivity, listAccountActivities, scheduleAccountFollowUp } from "./activities.js";
 export { listAccountHistory, recordAccountHistory } from "./history.js";

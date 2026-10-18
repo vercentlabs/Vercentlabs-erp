@@ -1,0 +1,12 @@
+export type GstinType = "regular" | "tds" | "tcs" | "non_resident" | "uin" | "oidar";
+export declare const GSTIN_TYPES: ReadonlyArray<{ code: GstinType; label: string; pattern: RegExp; hasPan: boolean }>;
+export declare const GST_TREATMENTS: ReadonlyArray<{ code: string; label: string; needsGstin: boolean }>;
+export type ParsedGstin = { gstin: string; valid: boolean; type: GstinType | null; typeLabel: string | null; stateCode: string | null; pan: string | null; error: string | null };
+export declare function gstinCheckCharacter(first14: string): string | null;
+export declare function normalizeGstin(value: unknown): string;
+export declare function parseGstin(value: unknown): ParsedGstin;
+export declare const PAN_PATTERN: RegExp;
+export declare function isValidPan(value: unknown): boolean;
+export declare function isValidPin(value: unknown): boolean;
+export declare const GST_STATES: ReadonlyArray<{ code: string; name: string }>;
+export declare function findIndianState(input?: { code?: string | null; name?: string | null }): { code: string; name: string } | null;

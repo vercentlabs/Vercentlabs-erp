@@ -1,5 +1,6 @@
 "use client";
 
+import { displayTimeZone } from "@/shared/format/display-time-zone";
 import { useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
@@ -26,10 +27,8 @@ import {
 import { readableHistory } from "./field-labels";
 import { FilterChips } from "./ui/FilterChips";
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+// In the workspace's time zone, not the browser's.
+const dateTimeFormatter = { format: (at: Date) => at.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: displayTimeZone() }) };
 
 const FILTERS: { id: string; label: string; kinds?: TimelineKind[] }[] = [
   { id: "all", label: "All" },

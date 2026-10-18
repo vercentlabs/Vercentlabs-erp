@@ -166,6 +166,7 @@ export function failCalendarSync(
 ): Promise<{ failed: true; code: string }>;
 export * from "./leads/index.js";
 export * from "./opportunities/index.js";
+export * from "./data-jobs/index.js";
 export * from "./pipeline/index.js";
 export * from "./sales-stages/index.js";
 export * from "./tasks/index.js";

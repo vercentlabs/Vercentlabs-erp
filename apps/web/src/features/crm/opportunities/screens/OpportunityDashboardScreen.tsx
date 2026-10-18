@@ -3,6 +3,7 @@
 // The deal dashboard and the Deals by stage report. Every figure counts only the deals the signed-in user can see, and links to the list
 // behind it. One "Deals closed between" range at the top drives Results and Won and lost (marked with a calendar); the pipeline figures
 // are now. The breakdowns by owner, stage and source live here (not on the pipeline board).
+import { UnconvertedNotice } from "@/features/crm/shared/ui/UnconvertedNotice";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,7 +17,7 @@ import { getPipeline, getPipelineSummary } from "@/features/crm/opportunity-pipe
 import { PipelineBreakdowns } from "@/features/crm/opportunity-pipeline/components/PipelineInsights";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { ReportToolbar, downloadCsv } from "@/features/crm/shared/ui/ReportToolbar";
-import { formatMoney } from "@/shared/format/human";
+import { formatDate, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -66,6 +67,7 @@ export function OpportunityDashboardScreen() {
   const currency = optionsQuery.data?.baseCurrency;
   const money = (amount: number) => formatMoney(currency, amount);
   const closedRange = `closedFrom=${from}&closedTo=${to}`;
+  const forecastHref = dashboard ? `/crm/opportunities?view=open&expectedCloseFrom=${dashboard.forecast.from}&expectedCloseTo=${dashboard.forecast.to}` : "/crm/opportunities?view=open";
 
   return (
     <div className="flex flex-col gap-8">
@@ -86,6 +88,7 @@ export function OpportunityDashboardScreen() {
         : dashboardQuery.isError || !dashboard ? <ErrorState title="Could not load the dashboard" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void dashboardQuery.refetch() }} />
         : (
           <>
+            <UnconvertedNotice currency={dashboard.currency} />
             <section className="flex flex-col gap-3">
               <h2 className="text-base font-semibold">Pipeline <span className="text-sm font-normal text-text-muted">· now</span></h2>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -96,6 +99,18 @@ export function OpportunityDashboardScreen() {
                 <Figure href="/crm/opportunities?view=overdue" label="Overdue (past close date)" value={dashboard.totals.overdue} />
                 <Figure href="/crm/opportunities?view=stale" label={`Stale (no activity ${dashboard.totals.staleDays}+ days)`} value={dashboard.totals.stale} />
               </div>
+            </section>
+
+            <section className="flex flex-col gap-3">
+              <h2 className="text-base font-semibold">Forecast <span className="text-sm font-normal text-text-muted">· open deals expected to close {formatDate(dashboard.forecast.from)} – {formatDate(dashboard.forecast.to)}</span></h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <Figure href={forecastHref} label="Deals closing" value={dashboard.forecast.deals} />
+                <Figure label="Commit" value={money(dashboard.forecast.commit)} />
+                <Figure label="Best case (incl. commit)" value={money(dashboard.forecast.bestCase)} />
+                <Figure href={forecastHref} label="Pipeline (not omitted)" value={money(dashboard.forecast.pipeline)} />
+                <Figure label="Weighted" value={money(dashboard.forecast.weighted)} />
+              </div>
+              <p className="text-xs text-text-muted">Each stage sets its forecast category; Best case includes Commit, Pipeline includes both.</p>
             </section>
 
             <section className="flex flex-col gap-3">

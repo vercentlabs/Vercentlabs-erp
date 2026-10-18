@@ -7,7 +7,7 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 
 // The pickers and capabilities the lead screens need, in one request.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView }, async ({ client, session }) =>
-    ok({ options: await getLeadOptions(client, crmContext(session)) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView }, async ({ client, session, snapshot }) =>
+    ok({ options: await getLeadOptions(client, crmContext(session, snapshot)) }),
   );
 }

@@ -2,6 +2,7 @@
 
 // A lead: its header with the one primary action its status calls for, the qualification summary and the clickable stage track, then five tabs
 // — Overview, Qualify, Activity (one feed: logged activities, tasks, follow-ups, notes, files and changes, with filter chips), Files and Related.
+import { formatPhone } from "@vercentlabs/shared-types";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -155,7 +156,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             { label: "Owner", value: lead.ownerName ?? "Unassigned" },
             { label: "Priority", value: <PriorityBadge priority={lead.priority} /> },
             { label: "Email", value: lead.email ? <a className="hover:underline" href={`mailto:${lead.email}`}>{lead.email}</a> : lead.sensitiveDataRestricted ? "Hidden" : "Not set" },
-            { label: lead.mobile ? "Mobile" : "Phone", value: lead.mobile || lead.phone ? <a className="hover:underline" href={`tel:${(lead.mobile || lead.phone || "").replace(/[^0-9+]/g, "")}`}>{lead.mobile || lead.phone}</a>
+            { label: lead.mobile ? "Mobile" : "Phone", value: lead.mobile || lead.phone ? <a className="hover:underline" href={`tel:${(lead.mobile || lead.phone || "").replace(/[^0-9+]/g, "")}`}>{formatPhone(lead.mobile || lead.phone)}</a>
               : lead.sensitiveDataRestricted ? "Hidden" : "Not set" },
             { label: "Next follow-up", value: <FollowUpCell value={lead.nextFollowUpAt} /> },
           ],
@@ -172,6 +173,11 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         tabs={
           <div className="flex flex-col gap-3">
             <ErrorBanner message={error} />
+            {lead.doNotContact && (
+              <p role="status" className="rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-3 py-2 text-sm">
+                Do not contact: this lead asked not to be contacted. Calls, emails and messages to them cannot be scheduled.
+              </p>
+            )}
             {lead.mergedIntoLeadId && (
               <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm">
                 <p>This lead was merged into <span className="font-medium">{lead.mergedIntoLeadName ?? lead.mergedIntoLeadCode}</span>. It is kept here for its history.</p>
@@ -214,8 +220,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                   { label: "Industry", value: lead.industry },
                   { label: "Website", value: lead.website ? <a className="hover:underline" href={lead.website} target="_blank" rel="noreferrer">{lead.website}</a> : null },
                   { label: "Email", value: lead.email },
-                  { label: "Mobile", value: lead.mobile },
-                  { label: "Phone", value: lead.phone },
+                  { label: "Mobile", value: lead.mobile ? formatPhone(lead.mobile) : null },
+                  { label: "Phone", value: lead.phone ? formatPhone(lead.phone) : null },
                   { label: "City", value: lead.city },
                   { label: "State", value: lead.state },
                   { label: "Country", value: lead.countryCode ? countryName(lead.countryCode) : null },

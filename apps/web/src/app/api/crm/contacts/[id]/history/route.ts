@@ -8,8 +8,8 @@ import type { ContactRouteParams } from "@/features/crm/contacts/server/contact-
 
 // The contact's audit trail. Loading the contact first enforces visibility.
 export async function GET(request: Request, route: ContactRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsView }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsView }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const contact = await getContact(client, context, (await route.params).id);
     return ok({ history: await listContactHistory(client, context, contact.id) });
   });

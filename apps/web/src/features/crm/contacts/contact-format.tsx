@@ -1,5 +1,6 @@
 import { Badge, StatusBadge } from "@vercentlabs/design-system";
 
+import { formatPhone } from "@vercentlabs/shared-types";
 import type { Contact, ContactStatus } from "./api/contacts-api";
 
 export { ErrorBanner } from "@/features/crm/accounts/account-format";
@@ -24,6 +25,8 @@ export function positionOf(contact: Pick<Contact, "jobTitle" | "accountName">) {
 
 // The best number to reach someone on, respecting their preference.
 export function bestPhone(contact: Pick<Contact, "mobile" | "phone" | "alternatePhone" | "preferredContactMethod">) {
-  if (contact.preferredContactMethod === "phone" && contact.phone) return contact.phone;
-  return contact.mobile || contact.phone || contact.alternatePhone || null;
+  // Shown grouped the international way (+91 98765 43210); dial links use the stored E.164 number.
+  if (contact.preferredContactMethod === "phone" && contact.phone) return formatPhone(contact.phone);
+  const best = contact.mobile || contact.phone || contact.alternatePhone || null;
+  return best ? formatPhone(best) : null;
 }

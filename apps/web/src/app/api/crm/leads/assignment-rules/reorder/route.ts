@@ -8,8 +8,8 @@ import { readBody } from "@/features/crm/leads/server/lead-http";
 
 // Body: { ids } — every rule id, highest priority first.
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { ids } = await readBody(request);
-    return ok({ rules: await reorderLeadAssignmentRules(client, crmContext(session), Array.isArray(ids) ? ids.map(String) : []) });
+    return ok({ rules: await reorderLeadAssignmentRules(client, crmContext(session, snapshot), Array.isArray(ids) ? ids.map(String) : []) });
   });
 }

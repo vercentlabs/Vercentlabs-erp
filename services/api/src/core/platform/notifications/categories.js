@@ -156,6 +156,14 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    key: "crm_data_job_finished",
+    displayName: "Import or export finished",
+    description: "When a CRM import or export you started in the background finishes.",
+    moduleKey: "crm",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     // Sent by Settings > Automations workflows triggered by CRM events.
     key: "crm_workflow",
     displayName: "Automations about CRM records",

@@ -3,6 +3,7 @@
 // the account's contacts and addresses, the opportunity's product lines and
 // the Sales defaults (price list, payment terms, validity, currency).
 // Nothing is written.
+import { canInApp, hasApp, loadApps } from "../data-management/apps.js";
 import { resolveSalesPriceList } from "../../sales/price-lists/resolver.js";
 import { findDuplicateAccounts } from "../accounts/duplicates.js";
 import { requireOpportunityPermission } from "../opportunities/access.js";
@@ -12,21 +13,24 @@ import { CrmError } from "../data-management/errors.js";
 import { orgToday } from "../data-management/org-date.js";
 
 const can = (context, permission) => Boolean(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(permission));
+// A Sales permission counts only while the organization has Sales (the owner included).
+const sales = (context, permission) => canInApp(context, "sales", permission);
 const trimmed = (value) => (value === null || value === undefined ? null : String(value).trim() || null);
 
 export function quotationCapabilities(context) {
   return {
-    createFromOpportunity: can(context, OPPORTUNITY_PERMISSIONS.createQuotation) && can(context, "sales.quotation.create"),
-    viewSales: can(context, "sales.view"),
-    overridePrice: can(context, "sales.price.override"),
-    applyDiscount: can(context, "sales.discount.apply") || can(context, "sales.price.override"),
+    salesEnabled: hasApp(context, "sales"),
+    createFromOpportunity: can(context, OPPORTUNITY_PERMISSIONS.createQuotation) && sales(context, "sales.quotation.create"),
+    viewSales: sales(context, "sales.view"),
+    overridePrice: sales(context, "sales.price.override"),
+    applyDiscount: sales(context, "sales.discount.apply") || sales(context, "sales.price.override"),
     createCustomer: can(context, "crm.accounts.create_customer"),
-    send: can(context, "sales.quotation.send"),
-    revise: can(context, "sales.quotation.revise"),
-    accept: can(context, "sales.quotation.accept_on_behalf"),
-    reject: can(context, "sales.quotation.reject"),
-    cancel: can(context, "sales.quotation.cancel"),
-    createOrder: can(context, "sales.order.create"),
+    send: sales(context, "sales.quotation.send"),
+    revise: sales(context, "sales.quotation.revise"),
+    accept: sales(context, "sales.quotation.accept_on_behalf"),
+    reject: sales(context, "sales.quotation.reject"),
+    cancel: sales(context, "sales.quotation.cancel"),
+    createOrder: sales(context, "sales.order.create"),
   };
 }
 
@@ -80,7 +84,9 @@ export async function proposalStageSuggestion(client, context, opportunity) {
 
 export async function getQuotationReadiness(client, context, opportunityId) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.createQuotation, "You do not have permission to create quotations from deals.");
-  if (!can(context, "sales.view")) throw new CrmError(403, "You need access to Sales to create quotations.", "PERMISSION_DENIED");
+  await loadApps(client, context);
+  if (!hasApp(context, "sales")) throw new CrmError(403, "Sales is not switched on for your organization, so deals cannot be quoted.", "CRM_APP_NOT_ENABLED");
+  if (!sales(context, "sales.view")) throw new CrmError(403, "You need access to Sales to create quotations.", "PERMISSION_DENIED");
   const opportunity = await getOpportunity(client, context, opportunityId);
   const account = opportunity.accountId ? await loadAccount(client, context, opportunity.accountId) : null;
   const capabilities = quotationCapabilities(context);

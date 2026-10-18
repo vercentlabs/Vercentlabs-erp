@@ -6,7 +6,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 import { crmContext } from "@/features/crm/shared/crm-context";
 
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session }) =>
-    ok({ options: await getOpportunityOptions(client, crmContext(session)) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session, snapshot }) =>
+    ok({ options: await getOpportunityOptions(client, crmContext(session, snapshot)) }),
   );
 }

@@ -363,9 +363,9 @@ export function updateLeadSource(client: QueryClient, context: CrmContext, id: s
 // import / export
 export const LEAD_IMPORT_FIELDS: ReadonlyArray<{ key: string; label: string; aliases: string[]; sample: string }>;
 export function buildLeadImportTemplate(): string;
-export function analyzeLeadImport(client: QueryClient, context: CrmContext, file: { bytes: Uint8Array; fileName: string }): Promise<LeadImportAnalysis>;
-export function importLeads(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; mapping: Record<string, string>; defaultSourceId?: string | null; defaultOwnerUserId?: string | null; skipDuplicates?: boolean; assignmentMode?: "file" | "rules"; invalidOwnerAction?: "error" | "fallback" }): Promise<LeadImportResult>;
-export function exportLeads(client: QueryClient, context: CrmContext, filters?: LeadListFilters): Promise<{ fileName: string; rowCount: number; csv: string }>;
+export function analyzeLeadImport(client: QueryClient, context: CrmContext, file: { bytes: Uint8Array; fileName: string; maxRows?: number }): Promise<LeadImportAnalysis>;
+export function importLeads(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; maxRows?: number; mapping: Record<string, string>; defaultSourceId?: string | null; defaultOwnerUserId?: string | null; skipDuplicates?: boolean; assignmentMode?: "file" | "rules"; invalidOwnerAction?: "error" | "fallback" }): Promise<LeadImportResult>;
+export function exportLeads(client: QueryClient, context: CrmContext, filters?: LeadListFilters, options?: { limit?: number }): Promise<{ fileName: string; rowCount: number; csv: string }>;
 
 // dashboard and report
 export function getLeadDashboard(client: QueryClient, context: CrmContext, input?: { from?: string; to?: string }): Promise<LeadDashboard>;

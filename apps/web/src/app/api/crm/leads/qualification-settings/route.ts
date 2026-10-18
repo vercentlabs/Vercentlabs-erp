@@ -8,14 +8,14 @@ import { readBody } from "@/features/crm/leads/server/lead-http";
 
 // Which criteria must be met before a lead can be qualified.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView }, async ({ client, session }) =>
-    ok({ requirements: await getLeadQualificationSettings(client, crmContext(session)) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView }, async ({ client, session, snapshot }) =>
+    ok({ requirements: await getLeadQualificationSettings(client, crmContext(session, snapshot)) }),
   );
 }
 
 // Body: { need?, budget?, authority?, timeline? } — booleans
 export async function PUT(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) =>
-    ok({ requirements: await saveLeadQualificationSettings(client, crmContext(session), await readBody(request)) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok({ requirements: await saveLeadQualificationSettings(client, crmContext(session, snapshot), await readBody(request)) }),
   );
 }

@@ -8,8 +8,8 @@ import type { AccountRouteParams } from "@/features/crm/accounts/server/account-
 
 // The account's audit trail. Loading the account first enforces visibility.
 export async function GET(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const account = await getAccount(client, context, (await route.params).id);
     return ok({ history: await listAccountHistory(client, context, account.id) });
   });

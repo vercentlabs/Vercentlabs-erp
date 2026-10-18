@@ -5,6 +5,7 @@ const OVERRIDES = Object.freeze({
   url: "website", estimatedValue: "estimated value", currencyCode: "currency", countryCode: "country", nextStepDueAt: "next step due date",
   expectedCloseDate: "expected close date", isDecisionMaker: "decision maker", isPrimary: "primary contact", amount: "value", jobTitle: "job title",
   parentPartyId: "parent company", employeeRange: "employee range", annualRevenue: "annual revenue", purchaseTimeframe: "purchase timeframe",
+  consentEmail: "email consent", consentSms: "SMS consent", consentWhatsapp: "WhatsApp consent", doNotWhatsapp: "do not WhatsApp", doNotSms: "do not SMS",
 });
 export function fieldLabel(key) {
   if (OVERRIDES[key]) return OVERRIDES[key];

@@ -1,3 +1,5 @@
+import { displayTimeZone } from "@/shared/format/display-time-zone";
+
 // How CRM shows a scheduled moment: 12-hour Indian time ("2:30 pm") and a short day ("Wed 14 Oct"), as Home does. A time as typed ("14:30")
 // is never shown raw.
 export function clockLabel(time: string | null | undefined): string {
@@ -22,10 +24,11 @@ export function whenLabel(date: string | null | undefined, time?: string | null)
   return time ? `${day}, ${clockLabel(time)}` : day;
 }
 
-// "14 Oct 2026" for a plain date.
+// "14 Oct 2026" for a plain date, or for the day of a moment in the workspace's time zone.
 export function dateLabel(date: string | null | undefined): string {
   if (!date) return "";
-  const at = new Date(date.length <= 10 ? `${date}T00:00:00` : date);
+  const plain = date.length <= 10;
+  const at = new Date(plain ? `${date}T00:00:00` : date);
   if (Number.isNaN(at.getTime())) return date;
-  return at.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return at.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: plain ? undefined : displayTimeZone() });
 }

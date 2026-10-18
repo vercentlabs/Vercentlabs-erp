@@ -8,7 +8,7 @@ import { type OpportunityRouteParams } from "@/features/crm/opportunities/server
 
 // Each stage the deal has been in, newest first.
 export async function GET(request: Request, route: OpportunityRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session }) =>
-    ok({ history: await listOpportunityStageHistory(client, crmContext(session), (await route.params).id) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session, snapshot }) =>
+    ok({ history: await listOpportunityStageHistory(client, crmContext(session, snapshot), (await route.params).id) }),
   );
 }

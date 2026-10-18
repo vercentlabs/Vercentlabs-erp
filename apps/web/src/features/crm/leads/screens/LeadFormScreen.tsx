@@ -3,10 +3,11 @@
 // New and edit lead: the seven fields a lead starts with (name, company, mobile, email, source, interest), then everything else under More
 // details, then — when creating — who owns it. Only a name or a company is required. The live duplicate check sits under the mobile and email
 // fields. Save and Cancel are at the top and the bottom.
+import { StateField } from "@/features/crm/shared/ui/StateField";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Checkbox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import { CurrencySelect } from "@/features/crm/shared/ui/CurrencySelect";
@@ -33,12 +34,14 @@ type FormValues = {
   city: string; state: string; countryCode: string; sourceId: string; sourceDetail: string; industry: string; productInterest: string;
   estimatedValue: string; currencyCode: string; purchaseTimeframe: string; priority: string; rating: string; description: string;
   ownerUserId: string; teamId: string;
+  consentEmail: boolean; consentSms: boolean; consentWhatsapp: boolean; doNotContact: boolean;
 };
 
 const EMPTY: FormValues = {
   firstName: "", lastName: "", companyName: "", jobTitle: "", email: "", phone: "", mobile: "", website: "", city: "", state: "", countryCode: "",
   sourceId: NONE, sourceDetail: "", industry: "", productInterest: "", estimatedValue: "", currencyCode: "", purchaseTimeframe: NONE,
   priority: "medium", rating: "cold", description: "", ownerUserId: AUTO, teamId: NONE,
+  consentEmail: false, consentSms: false, consentWhatsapp: false, doNotContact: false,
 };
 
 function valuesFromLead(lead: Lead): FormValues {
@@ -50,6 +53,7 @@ function valuesFromLead(lead: Lead): FormValues {
     industry: lead.industry ?? "", productInterest: lead.productInterest ?? "", estimatedValue: lead.estimatedValue ? String(lead.estimatedValue) : "",
     currencyCode: lead.currencyCode ?? "", purchaseTimeframe: lead.purchaseTimeframe ?? NONE, priority: lead.priority, rating: lead.rating,
     description: lead.description ?? "",
+    consentEmail: lead.consentEmail, consentSms: lead.consentSms, consentWhatsapp: lead.consentWhatsapp, doNotContact: lead.doNotContact,
   };
 }
 
@@ -202,14 +206,14 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
 
       <MoreDetails description="Job title, industry, website, phone, location, value, timeframe, priority, rating and description."
         hasContent={Boolean(values.jobTitle || values.industry || values.website || values.phone || values.city || values.state || values.sourceDetail || values.estimatedValue
-          || values.purchaseTimeframe || values.description || (mode === "edit" && (values.priority !== "medium" || values.rating !== "cold"))
+          || values.purchaseTimeframe || values.description || values.consentEmail || values.consentSms || values.consentWhatsapp || values.doNotContact || (mode === "edit" && (values.priority !== "medium" || values.rating !== "cold"))
           || Object.entries(fieldErrors).some(([key, message]) => message && !["firstName", "lastName", "companyName", "mobile", "email"].includes(key)))}>
         <TextField label="Job title" value={values.jobTitle} onChange={set("jobTitle")} />
         <TextField label="Industry" value={values.industry} onChange={set("industry")} />
         <TextField label="Website" value={values.website} onChange={set("website")} placeholder="https://" />
         {!contactHidden && <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />}
         <TextField label="City" value={values.city} onChange={set("city")} />
-        <TextField label="State" value={values.state} onChange={set("state")} />
+        <StateField countryCode={values.countryCode} value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
         <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
         <TextField label="Source detail" description="Campaign, event or the person who referred them." value={values.sourceDetail} onChange={set("sourceDetail")} />
         <TextField label="Estimated value" inputMode="decimal" value={values.estimatedValue} onChange={set("estimatedValue")} errorMessage={fieldErrors.estimatedValue} />
@@ -223,6 +227,16 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
         <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key))} options={PRIORITY_OPTIONS} />
         <Select label="Rating" selectedKey={values.rating} onSelectionChange={(key) => set("rating")(String(key))} options={RATING_OPTIONS} />
         <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} />
+        <fieldset className="flex flex-col gap-2 sm:col-span-2">
+          <legend className="mb-1 text-sm font-medium">Contact preferences</legend>
+          <p className="text-xs text-text-muted">Agreed to receive messages by:</p>
+          <div className="flex flex-wrap gap-4">
+            <Checkbox isSelected={values.consentEmail && !values.doNotContact} isDisabled={values.doNotContact} onChange={set("consentEmail")}>Email</Checkbox>
+            <Checkbox isSelected={values.consentSms && !values.doNotContact} isDisabled={values.doNotContact} onChange={set("consentSms")}>SMS</Checkbox>
+            <Checkbox isSelected={values.consentWhatsapp && !values.doNotContact} isDisabled={values.doNotContact} onChange={set("consentWhatsapp")}>WhatsApp</Checkbox>
+          </div>
+          <Checkbox isSelected={values.doNotContact} onChange={set("doNotContact")}>Do not contact — they asked not to be contacted at all</Checkbox>
+        </fieldset>
       </MoreDetails>
 
       {mode === "create" && (

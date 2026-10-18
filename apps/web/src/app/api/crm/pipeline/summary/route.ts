@@ -8,7 +8,7 @@ import { opportunityFiltersFromUrl } from "@/features/crm/opportunities/server/o
 
 // The open pipeline in figures: totals, by owner, by source and stage aging, for the same filters as the board.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session }) =>
-    ok({ summary: await getPipelineSummary(client, crmContext(session), opportunityFiltersFromUrl(new URL(request.url))) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session, snapshot }) =>
+    ok({ summary: await getPipelineSummary(client, crmContext(session, snapshot), opportunityFiltersFromUrl(new URL(request.url))) }),
   );
 }

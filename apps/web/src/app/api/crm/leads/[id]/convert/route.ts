@@ -10,9 +10,9 @@ import { readBody, type LeadRouteParams } from "@/features/crm/leads/server/lead
 // matching accounts and contacts, open deals and suggested values.
 // ?accountId: the account chosen in the dialog, so its contacts and deals are matched.
 export async function GET(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsConvert }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsConvert }, async ({ client, session, snapshot }) => {
     const accountId = new URL(request.url).searchParams.get("accountId");
-    return ok({ preview: await previewLeadConversion(client, crmContext(session), (await route.params).id, { accountId }) });
+    return ok({ preview: await previewLeadConversion(client, crmContext(session, snapshot), (await route.params).id, { accountId }) });
   });
 }
 
@@ -20,7 +20,7 @@ export async function GET(request: Request, route: LeadRouteParams) {
 // any failure rolls the whole conversion back. A retry with the same
 // idempotencyKey returns the first result.
 export async function POST(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsConvert, billingWrite: true }, async ({ client, session }) =>
-    ok({ conversion: await convertLead(client, crmContext(session), (await route.params).id, await readBody(request)) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsConvert, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok({ conversion: await convertLead(client, crmContext(session, snapshot), (await route.params).id, await readBody(request)) }),
   );
 }

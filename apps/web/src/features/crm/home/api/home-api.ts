@@ -1,5 +1,6 @@
 "use client";
 
+import type { CurrencyDisclosure } from "../../shared/ui/UnconvertedNotice";
 import { CrmApiErrorWithBody } from "@/features/crm/shared/http/crm-api-error";
 import { crmApiClient } from "@/features/crm/shared/http/crm-request";
 
@@ -11,12 +12,13 @@ const { request } = crmApiClient(CrmHomeApiError, "body");
 export type CrmHome = {
   sees: { leads: boolean; opportunities: boolean; tasks: boolean; followUps: boolean };
   baseCurrency: string;
+  currency: CurrencyDisclosure | null;
   totals: { openLeads: number | null; openOpportunities: number | null; pipelineValue: number | null; weightedPipelineValue: number | null; overdueFollowUps: number | null };
   myWork: { tasksDueToday: number | null; overdueTasks: number | null; followUpsToday: number | null; overdueFollowUps: number | null };
   leadFlow: { newThisMonth: number; qualifiedThisMonth: number; convertedThisMonth: number } | null;
   outcomes: { wonThisMonth: number; wonValueThisMonth: number; winRate: number | null; winRateDays: number } | null;
   closingSoon: Array<{
-    id: string; code: string; name: string; amount: number | null; probability: number | null; expectedCloseDate: string; overdue: boolean;
+    id: string; code: string; name: string; amount: number | null; currencyCode: string | null; probability: number | null; expectedCloseDate: string; overdue: boolean;
     stageName: string | null; accountName: string | null; ownerName: string | null;
   }>;
   agenda: Array<{

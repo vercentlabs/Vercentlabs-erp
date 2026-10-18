@@ -8,9 +8,9 @@ import { readBody, type ContactRouteParams } from "@/features/crm/contacts/serve
 
 // Deactivate, reactivate or archive. Body: { status, note? }
 export async function POST(request: Request, route: ContactRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsArchive, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsArchive, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { status, note } = await readBody(request);
     if (status !== "active" && status !== "inactive" && status !== "archived") throw new HttpError(400, "Choose a status.");
-    return ok(await setContactStatus(client, crmContext(session), (await route.params).id, status, { note: typeof note === "string" ? note : null }));
+    return ok(await setContactStatus(client, crmContext(session, snapshot), (await route.params).id, status, { note: typeof note === "string" ? note : null }));
   });
 }

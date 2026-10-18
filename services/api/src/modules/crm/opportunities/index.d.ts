@@ -112,4 +112,12 @@ export function listOpportunityHistory(
 export function getOpportunityOptions(client: QueryClient, context: CrmContext): Promise<Record<string, any>>;
 export function getOpportunityDashboard(client: QueryClient, context: CrmContext, input?: { from?: string; to?: string }): Promise<Record<string, any>>;
 export function getOpportunitiesByStageReport(client: QueryClient, context: CrmContext, input?: Input): Promise<Record<string, any>>;
-export function exportOpportunities(client: QueryClient, context: CrmContext, filters?: Input): Promise<any>;
+export function exportOpportunities(client: QueryClient, context: CrmContext, filters?: Input, options?: { limit?: number }): Promise<{ fileName: string; rowCount: number; csv: string }>;
+export const OPPORTUNITY_IMPORT_FIELDS: ReadonlyArray<{ key: string; label: string; aliases: string[]; sample: string }>;
+export function buildOpportunityImportTemplate(): string;
+export function analyzeOpportunityImport(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; maxRows?: number }): Promise<{
+  fileName: string; headers: string[]; rowCount: number; sampleRows: Record<string, string>[]; suggestedMapping: Record<string, string>; fields: Array<{ key: string; label: string }>;
+}>;
+export function importOpportunities(client: QueryClient, context: CrmContext, input: {
+  bytes: Uint8Array; fileName: string; mapping?: Record<string, string>; createMissingCompanies?: boolean; defaultOwnerUserId?: string | null; maxRows?: number;
+}): Promise<{ total: number; created: number; won: number; lost: number; failed: number; errors: Array<{ row: number; message: string }>; errorCsv: string | null }>;

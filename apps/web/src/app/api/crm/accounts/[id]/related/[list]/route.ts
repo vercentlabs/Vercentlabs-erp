@@ -10,8 +10,8 @@ type Params = { params: Promise<{ id: string; list: string }> };
 // A read-only related list on the account: leads, opportunities, quotations,
 // orders, returns, invoices, payments, projects or tickets.
 export async function GET(request: Request, route: Params) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session, snapshot }) => {
     const { id, list } = await route.params;
-    return ok({ rows: await listAccountRelated(client, crmContext(session), id, list) });
+    return ok({ rows: await listAccountRelated(client, crmContext(session, snapshot), id, list) });
   });
 }

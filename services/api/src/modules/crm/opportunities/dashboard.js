@@ -8,9 +8,14 @@ import { opportunityScopeSql, requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_PERMISSIONS, OPPORTUNITY_STALE_DAYS, opportunityPriorityLabel, opportunityStatusLabel } from "./constants.js";
 import { OPPORTUNITY_SELECT, buildOpportunityListWhere, toOpportunity } from "./records.js";
 import { orgMonthStart, orgPeriod, orgToday } from "../data-management/org-date.js";
+import { currencyDisclosure, dealRate, reportingCurrencyOf, sumReporting, sumWeightedReporting } from "../data-management/reporting-currency.js";
+import { getPipelineMetrics } from "../analytics/pipeline-metrics.js";
 
 const NOT_ARCHIVED = "opportunity.archived_at IS NULL AND opportunity.status NOT IN ('archived', 'abandoned')";
 const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
+// A deal's amount in the base currency (NULL when its currency has no rate, so it is left out of the sum).
+const RATE = dealRate("opportunity");
+const inBase = (amount) => `(${amount} * ${RATE})`;
 
 
 export async function getOpportunityDashboard(client, context, input = {}) {
@@ -23,14 +28,14 @@ export async function getOpportunityDashboard(client, context, input = {}) {
   const closed = (alias) => `${alias}.actual_close_date >= $2::date AND ${alias}.actual_close_date <= $3::date`;
   const totals = (await client.query(
     `SELECT count(*) FILTER (WHERE opportunity.status = 'open')::int AS open,
-            COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'open'), 0)::float8 AS open_value,
-            COALESCE(sum(opportunity.amount * opportunity.probability / 100) FILTER (WHERE opportunity.status = 'open'), 0)::float8 AS weighted_value,
+            COALESCE(sum(${inBase("opportunity.amount")}) FILTER (WHERE opportunity.status = 'open'), 0)::float8 AS open_value,
+            COALESCE(sum(${inBase("opportunity.amount * opportunity.probability / 100")}) FILTER (WHERE opportunity.status = 'open'), 0)::float8 AS weighted_value,
             count(*) FILTER (WHERE opportunity.status = 'open' AND opportunity.expected_close_date >= ${month} AND opportunity.expected_close_date < ${month} + interval '1 month')::int AS closing_this_month,
             count(*) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")})::int AS won_in_period,
-            COALESCE(sum(COALESCE(opportunity.won_amount, opportunity.amount)) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")}), 0)::float8 AS won_value_in_period,
+            COALESCE(sum(${inBase("COALESCE(opportunity.won_amount, opportunity.amount)")}) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")}), 0)::float8 AS won_value_in_period,
             count(*) FILTER (WHERE opportunity.status = 'lost' AND ${closed("opportunity")})::int AS lost_in_period,
             -- what was lost keeps its estimated value
-            COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'lost' AND ${closed("opportunity")}), 0)::float8 AS lost_value_in_period,
+            COALESCE(sum(${inBase("opportunity.amount")}) FILTER (WHERE opportunity.status = 'lost' AND ${closed("opportunity")}), 0)::float8 AS lost_value_in_period,
             (SELECT reason.name FROM tenant.crm_opportunities lost JOIN tenant.crm_lost_reasons reason ON reason.organization_id = lost.organization_id AND reason.id = lost.outcome_reason_id
               WHERE lost.organization_id = $1 AND lost.status = 'lost' AND lost.archived_at IS NULL AND ${closed("lost")}
                 AND lost.id IN (SELECT opportunity.id FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1${scope})
@@ -39,7 +44,9 @@ export async function getOpportunityDashboard(client, context, input = {}) {
             count(*) FILTER (WHERE opportunity.status = 'open' AND COALESCE(opportunity.last_activity_at, opportunity.created_at) < now() - interval '${OPPORTUNITY_STALE_DAYS} days')::int AS stale,
             count(*) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")})::int AS won,
             count(*) FILTER (WHERE opportunity.status = 'lost' AND ${closed("opportunity")})::int AS lost,
-            COALESCE(avg(COALESCE(opportunity.won_amount, opportunity.amount)) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")}), 0)::float8 AS average_deal_size,
+            COALESCE(avg(${inBase("COALESCE(opportunity.won_amount, opportunity.amount)")}) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")}), 0)::float8 AS average_deal_size,
+            count(*) FILTER (WHERE ${RATE} IS NULL AND (opportunity.status = 'open' OR (opportunity.status IN ('won', 'lost') AND ${closed("opportunity")})))::int AS unconverted_count,
+            COALESCE(array_agg(DISTINCT opportunity.currency_code) FILTER (WHERE ${RATE} IS NULL AND (opportunity.status = 'open' OR (opportunity.status IN ('won', 'lost') AND ${closed("opportunity")}))), '{}') AS unconverted_currencies,
             round((avg(EXTRACT(epoch FROM COALESCE(opportunity.closed_at, opportunity.actual_close_date::timestamptz) - opportunity.created_at))
                    FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")}) / 86400)::numeric, 1)::float8 AS average_sales_cycle_days
        FROM tenant.crm_opportunities opportunity
@@ -49,8 +56,8 @@ export async function getOpportunityDashboard(client, context, input = {}) {
 
   // Open deals in each stage, in process order.
   const byStage = (await client.query(
-    `SELECT stage.id, stage.name, count(opportunity.id)::int AS total, COALESCE(sum(opportunity.amount), 0)::float8 AS value,
-            COALESCE(sum(opportunity.amount * opportunity.probability / 100), 0)::float8 AS weighted
+    `SELECT stage.id, stage.name, count(opportunity.id)::int AS total, COALESCE(sum(${inBase("opportunity.amount")}), 0)::float8 AS value,
+            COALESCE(sum(${inBase("opportunity.amount * opportunity.probability / 100")}), 0)::float8 AS weighted
        FROM tenant.crm_pipeline_stages stage
        JOIN tenant.crm_pipelines pipeline ON pipeline.organization_id = stage.organization_id AND pipeline.id = stage.pipeline_id AND pipeline.status = 'active'
        LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id = stage.organization_id AND opportunity.stage_id = stage.id
@@ -64,6 +71,11 @@ export async function getOpportunityDashboard(client, context, input = {}) {
   )).rows;
 
   const decided = totals.won + totals.lost;
+  // The forecast for the period by category (cumulative: Commit, Best case = Commit + Best case, Pipeline = everything not
+  // omitted), over the open deals expected to close in the period — from the analytics engine, in the base currency.
+  // A forecast looks ahead: it runs to the end of the period's last month, not to today.
+  const forecastTo = (await client.query("SELECT to_char((date_trunc('month', $1::date) + interval '1 month - 1 day')::date, 'YYYY-MM-DD') AS d", [period.to])).rows[0].d;
+  const forecast = await getPipelineMetrics(client, context, { from: period.from, to: forecastTo, scope: "all" });
   return {
     totals: {
       open: totals.open,
@@ -87,6 +99,17 @@ export async function getOpportunityDashboard(client, context, input = {}) {
       averageSalesCycleDays: totals.average_sales_cycle_days ?? null,
     },
     period,
+    currency: currencyDisclosure(await reportingCurrencyOf(client, context.organizationId), totals),
+    forecast: {
+      from: period.from,
+      to: forecastTo,
+      deals: forecast.metrics.closing_opportunities,
+      commit: forecast.metrics.commit,
+      bestCase: forecast.metrics.best_case,
+      pipeline: forecast.metrics.forecast_pipeline,
+      weighted: forecast.metrics.weighted_closing,
+      unconvertedCount: forecast.currency.unconvertedCount,
+    },
     byStage: byStage.map((row) => ({ stageId: row.id, label: row.name, total: row.total, value: money(row.value), weightedValue: money(row.weighted) })),
   };
 }
@@ -118,8 +141,9 @@ export async function getOpportunitiesByStageReport(client, context, input = {})
             count(*) FILTER (WHERE grouped.status = 'open')::int AS open,
             count(*) FILTER (WHERE grouped.status = 'won')::int AS won,
             count(*) FILTER (WHERE grouped.status = 'lost')::int AS lost,
-            COALESCE(sum(grouped.amount), 0)::float8 AS value,
-            COALESCE(sum(grouped.amount * grouped.probability / 100) FILTER (WHERE grouped.status = 'open'), 0)::float8 AS weighted,
+            ${sumReporting("grouped")} AS value,
+            ${sumWeightedReporting("grouped", "grouped.status = 'open'")} AS weighted,
+            count(*) FILTER (WHERE grouped.reporting_rate IS NULL)::int AS unconverted,
             min(grouped.sort_key) AS sort_key
        FROM (SELECT counted.*, ${group.expression} AS group_key,
                     ${groupBy === "stage" ? "counted.stage_sequence" : "0"} AS sort_key
@@ -130,12 +154,14 @@ export async function getOpportunitiesByStageReport(client, context, input = {})
   );
   const label = (key) => (groupBy === "status" ? opportunityStatusLabel(key) : groupBy === "priority" ? opportunityPriorityLabel(key) : key);
   const reportRows = rows.map((row) => ({
-    group: label(row.group_key), total: row.total, open: row.open, won: row.won, lost: row.lost, value: money(row.value), weightedValue: money(row.weighted),
+    group: label(row.group_key), total: row.total, open: row.open, won: row.won, lost: row.lost, value: money(row.value), weightedValue: money(row.weighted), unconverted: row.unconverted,
     winRate: row.won + row.lost ? Math.round((row.won / (row.won + row.lost)) * 1000) / 10 : null,
   }));
   return {
     groupBy,
     groupLabel: group.label,
+    reportingCurrency: await reportingCurrencyOf(client, context.organizationId),
+    unconverted: reportRows.reduce((sum, row) => sum + row.unconverted, 0),
     rows: reportRows,
     totals: reportRows.reduce((sum, row) => ({
       total: sum.total + row.total, open: sum.open + row.open, won: sum.won + row.won, lost: sum.lost + row.lost,
@@ -181,13 +207,13 @@ const EXPORT_COLUMNS = Object.freeze([
 ]);
 
 // Exports exactly the opportunities the list shows for the same view and filters.
-export async function exportOpportunities(client, context, filters = {}) {
+export async function exportOpportunities(client, context, filters = {}, { limit = EXPORT_ROW_LIMIT } = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.export, "You do not have permission to export deals.");
   const values = [];
   const where = buildOpportunityListWhere(context, filters, values);
-  const { rows } = await client.query(`${OPPORTUNITY_SELECT} ${where} ORDER BY opportunity.created_at DESC, opportunity.id DESC LIMIT ${EXPORT_ROW_LIMIT + 1}`, values);
-  if (rows.length > EXPORT_ROW_LIMIT)
-    throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} deals. Narrow the filters and try again.`, "CRM_OPPORTUNITY_EXPORT_TOO_LARGE");
+  const { rows } = await client.query(`${OPPORTUNITY_SELECT} ${where} ORDER BY opportunity.created_at DESC, opportunity.id DESC LIMIT ${limit + 1}`, values);
+  if (rows.length > limit)
+    throw new CrmError(413, `This export has more than ${limit} deals. Narrow the filters, or export it in the background.`, "CRM_OPPORTUNITY_EXPORT_TOO_LARGE");
   const opportunities = rows.map(toOpportunity);
   const timeZone = await organizationTimeZone(client, context);
   const csvCell = csvCellWriter(timeZone);

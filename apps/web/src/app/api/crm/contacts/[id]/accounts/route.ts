@@ -8,15 +8,15 @@ import { readBody, type ContactRouteParams } from "@/features/crm/contacts/serve
 
 // Every company the person is or was linked to.
 export async function GET(request: Request, route: ContactRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsView }, async ({ client, session }) =>
-    ok({ accounts: await listContactAccounts(client, crmContext(session), (await route.params).id) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsView }, async ({ client, session, snapshot }) =>
+    ok({ accounts: await listContactAccounts(client, crmContext(session, snapshot), (await route.params).id) }),
   );
 }
 
 // Body: { accountId, jobTitle?, department?, role?, isDecisionMaker?, makePrimaryAccount? }
 export async function POST(request: Request, route: ContactRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsEdit, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
     const body = await readBody(request);
-    return ok(await linkContactToAccount(client, crmContext(session), (await route.params).id, { ...body, accountId: String(body.accountId ?? "") }));
+    return ok(await linkContactToAccount(client, crmContext(session, snapshot), (await route.params).id, { ...body, accountId: String(body.accountId ?? "") }));
   });
 }

@@ -7,7 +7,7 @@ import type { ContentRouteParams } from "@/features/crm/notes/server/content-htt
 
 // The earlier text of a note, newest first.
 export async function GET(request: Request, { params }: ContentRouteParams) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) =>
-    ok({ versions: await listNoteVersions(client, crmContext(session), (await params).id) }),
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session, snapshot }) =>
+    ok({ versions: await listNoteVersions(client, crmContext(session, snapshot), (await params).id) }),
   );
 }

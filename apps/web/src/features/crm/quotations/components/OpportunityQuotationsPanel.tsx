@@ -46,7 +46,9 @@ export function OpportunityQuotationsPanel({ opportunity, canCreate, createBlock
   const quotations = query.data?.quotations ?? [];
   const latest = quotations.find((entry) => entry.isLatest);
 
-  if (query.data && !query.data.visible) return <EmptyState title="Quotations are Sales documents" description="You need access to Sales to see this deal's quotations." />;
+  if (query.data && !query.data.visible) return query.data.capabilities.salesEnabled === false
+    ? <EmptyState title="Sales is not switched on" description="Quotations are Sales documents. Once your organization turns on Sales, deals can be quoted from here." />
+    : <EmptyState title="Quotations are Sales documents" description="You need access to Sales to see this deal's quotations." />;
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">

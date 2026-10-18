@@ -7,5 +7,5 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 
 // The latest merges: which record was folded into which.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.duplicatesReview }, async ({ client, session }) => ok({ merged: await listMergedRecords(client, crmContext(session)) }));
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.duplicatesReview }, async ({ client, session, snapshot }) => ok({ merged: await listMergedRecords(client, crmContext(session, snapshot)) }));
 }

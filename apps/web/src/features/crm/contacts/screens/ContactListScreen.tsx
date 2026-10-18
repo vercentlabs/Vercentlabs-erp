@@ -18,6 +18,7 @@ import { FollowUpCell } from "@/features/crm/leads/lead-format";
 import { formatDate } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { ON_SCREEN_EXPORT_LIMIT, startExport } from "@/features/crm/shared/data-jobs-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
@@ -176,7 +177,7 @@ export function ContactListScreen() {
       cell: ({ row }) => {
         const phone = bestPhone(row.original);
         return phone ? (
-          <a href={`tel:${phone}`} onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-brand hover:underline">
+          <a href={`tel:${phone.replace(/[^0-9+]/g, "")}`} onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-brand hover:underline">
             <Phone className="size-3.5 opacity-0 group-hover:opacity-100" aria-hidden="true" />{phone}
           </a>
         ) : "";
@@ -243,7 +244,7 @@ export function ContactListScreen() {
           primaryAction: can?.create ? <LinkButton href="/crm/contacts/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New contact</LinkButton> : undefined,
           secondaryActions: <MoreMenu label="More contact actions" items={[
             ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=contacts") }] : []),
-            ...(can?.export ? [{ id: "export", label: "Export", onAction: () => { window.location.href = contactExportUrl(listFilters); } }] : []),
+            ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("contacts", contactExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
           ]} />,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as ContactViewKey), pinned: PINNED_VIEWS } : undefined}

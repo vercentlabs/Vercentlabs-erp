@@ -2,6 +2,7 @@
 
 // The pipeline: the open deals by sales stage, as a board. The List toggle opens Deals with the same filters (one list, not two); the
 // breakdowns by owner, stage and source live on the deal dashboard. Four figures sit above the board, each choosing its deals.
+import { UnconvertedNotice } from "@/features/crm/shared/ui/UnconvertedNotice";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -249,6 +250,7 @@ export function PipelineScreen() {
         filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: clearFilters } : undefined}
       >
         <div className="flex flex-col gap-4">
+          <UnconvertedNotice currency={summaryQuery.data?.currency ?? pipelineQuery.data?.currency} />
           {summaryQuery.data && <PipelineSummaryStrip summary={summaryQuery.data} currency={currency} onSelect={onSummarySelect} />}
           {summaryQuery.isError && (
             <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger">Pipeline figures couldn&apos;t be loaded.

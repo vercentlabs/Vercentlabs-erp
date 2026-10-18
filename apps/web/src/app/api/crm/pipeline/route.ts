@@ -10,7 +10,7 @@ import { opportunityFiltersFromUrl } from "@/features/crm/opportunities/server/o
 // totals. Accepts every opportunity list filter, plus status (open by default,
 // won, lost, all), cardSort and cardsPerStage.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session }) =>
-    ok({ pipeline: await getOpportunityPipeline(client, crmContext(session), opportunityFiltersFromUrl(new URL(request.url))) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session, snapshot }) =>
+    ok({ pipeline: await getOpportunityPipeline(client, crmContext(session, snapshot), opportunityFiltersFromUrl(new URL(request.url))) }),
   );
 }

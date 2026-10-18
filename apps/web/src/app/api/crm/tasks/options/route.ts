@@ -6,5 +6,5 @@ import { workspaceRoute } from "@/core/workspace-route";
 import { crmContext } from "@/features/crm/shared/crm-context";
 
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView }, async ({ client, session }) => ok({ options: await getTaskOptions(client, crmContext(session)) }));
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView }, async ({ client, session, snapshot }) => ok({ options: await getTaskOptions(client, crmContext(session, snapshot)) }));
 }

@@ -10,19 +10,19 @@ type Pair = { recordTypeA: string; recordIdA: string; recordTypeB: string; recor
 
 // The pairs reviewed and cleared as not duplicates.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.duplicatesReview }, async ({ client, session }) => ok({ pairs: await listNotDuplicates(client, crmContext(session)) }));
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.duplicatesReview }, async ({ client, session, snapshot }) => ok({ pairs: await listNotDuplicates(client, crmContext(session, snapshot)) }));
 }
 
 // Body: { recordTypeA, recordIdA, recordTypeB, recordIdB, reason? } — the pair is not reported again.
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.duplicatesReview, billingWrite: true }, async ({ client, session }) =>
-    ok(await markNotDuplicate(client, crmContext(session), (await readBody(request)) as Pair)),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.duplicatesReview, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await markNotDuplicate(client, crmContext(session, snapshot), (await readBody(request)) as Pair)),
   );
 }
 
 // Withdraws the exclusion.
 export async function DELETE(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.duplicatesReview, billingWrite: true }, async ({ client, session }) =>
-    ok(await unmarkNotDuplicate(client, crmContext(session), (await readBody(request)) as Pair)),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.duplicatesReview, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await unmarkNotDuplicate(client, crmContext(session, snapshot), (await readBody(request)) as Pair)),
   );
 }

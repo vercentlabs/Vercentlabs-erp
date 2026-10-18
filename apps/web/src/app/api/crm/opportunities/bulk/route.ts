@@ -11,8 +11,8 @@ import { readBody } from "@/features/crm/opportunities/server/opportunity-http";
 //   stage   { stageId } — open stages only
 // Each opportunity succeeds or fails on its own; the response lists every outcome.
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesEdit, billingWrite: true }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const { action, ...input } = await readBody(request);
     const payload = input as { opportunityIds: string[] } & Record<string, unknown>;
     if (action === "assign") return ok(await bulkAssignOpportunities(client, context, payload));

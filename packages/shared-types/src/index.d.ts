@@ -52,3 +52,5 @@ export * from "./point-of-sale.js";
 export * from "./quality.js";
 export * from "./support.js";
 export * from "./hr-payroll.js";
+export * from "./india.js";
+export * from "./phone.js";

@@ -80,12 +80,12 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         icon: LayoutDashboard,
         collapsible: true,
         items: [
-          { ...available("Home", "/crm"), aliases: ["crm home", "overview", "dashboard", "agenda", "what to do next"] },
-          { ...available("To-dos", "/crm/activities"), aliases: ["to-do", "todos", "activities", "tasks", "follow-ups", "reminders"] },
+          { ...available("Home", "/crm"), aliases: ["crm home", "overview", "dashboard", "agenda", "what to do next"], requiredPermission: "crm.view" },
+          { ...available("To-dos", "/crm/activities"), aliases: ["to-do", "todos", "activities", "tasks", "follow-ups", "reminders"], requiredAnyPermission: ["crm.tasks.view", "crm.follow_ups.view", "crm.notes.view", "crm.attachments.view"] },
           { ...available("Tasks", "/crm/activities?tab=tasks"), parent: "to-dos", requiredPermission: "crm.tasks.view" },
           { ...available("Follow-ups", "/crm/activities?tab=follow-ups"), parent: "to-dos", requiredPermission: "crm.follow_ups.view" },
-          { ...available("Notes", "/crm/activities?tab=notes"), parent: "to-dos", aliases: ["notes & files"] },
-          { ...available("Files", "/crm/activities?tab=files"), parent: "to-dos", aliases: ["attachments", "documents"] },
+          { ...available("Notes", "/crm/activities?tab=notes"), parent: "to-dos", aliases: ["notes & files"], requiredPermission: "crm.notes.view" },
+          { ...available("Files", "/crm/activities?tab=files"), parent: "to-dos", aliases: ["attachments", "documents"], requiredPermission: "crm.attachments.view" },
         ],
       },
       {
@@ -94,9 +94,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         icon: ArrowLeftRight,
         collapsible: true,
         items: [
-          { ...available("Leads", "/crm/leads"), aliases: ["prospects", "enquiries", "lead conversion", "qualification"] },
-          { ...available("Deals", "/crm/opportunities"), aliases: ["deal", "opportunities", "opportunity", "won", "lost", "win rate"] },
-          { ...available("Pipeline", "/crm/pipeline"), aliases: ["board", "kanban", "deals by stage"] },
+          { ...available("Leads", "/crm/leads"), aliases: ["prospects", "enquiries", "lead conversion", "qualification"], requiredPermission: "crm.leads.view" },
+          { ...available("Deals", "/crm/opportunities"), aliases: ["deal", "opportunities", "opportunity", "won", "lost", "win rate"], requiredPermission: "crm.opportunities.view" },
+          { ...available("Pipeline", "/crm/pipeline"), aliases: ["board", "kanban", "deals by stage"], requiredPermission: "crm.opportunities.view" },
         ],
       },
       {
@@ -105,8 +105,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         icon: Database,
         collapsible: true,
         items: [
-          { ...available("Companies", "/crm/accounts"), aliases: ["company", "accounts", "account", "customers", "account 360", "customer 360"] },
-          { ...available("Contacts", "/crm/contacts"), aliases: ["people", "contact persons"] },
+          { ...available("Companies", "/crm/accounts"), aliases: ["company", "accounts", "account", "customers", "account 360", "customer 360"], requiredPermission: "crm.accounts.view" },
+          { ...available("Contacts", "/crm/contacts"), aliases: ["people", "contact persons"], requiredPermission: "crm.contacts.view" },
         ],
       },
       {
@@ -115,9 +115,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         icon: BarChart3,
         collapsible: true,
         items: [
-          { ...available("Lead dashboard", "/crm/leads/dashboard"), aliases: ["lead funnel", "lead metrics"] },
-          { ...available("Deal dashboard", "/crm/opportunities/dashboard"), aliases: ["opportunity dashboard", "win rate", "won and lost"] },
-          { ...available("Reports", "/crm/reports"), aliases: ["crm reports", "leads by status", "deals by stage", "opportunities by stage", "companies report", "account report"] },
+          { ...available("Lead dashboard", "/crm/leads/dashboard"), aliases: ["lead funnel", "lead metrics"], requiredPermission: "crm.leads.view" },
+          { ...available("Deal dashboard", "/crm/opportunities/dashboard"), aliases: ["opportunity dashboard", "win rate", "won and lost"], requiredPermission: "crm.opportunities.view" },
+          { ...available("Reports", "/crm/reports"), aliases: ["crm reports", "leads by status", "deals by stage", "opportunities by stage", "companies report", "account report"], requiredPermission: "crm.reports.view" },
         ],
       },
       {

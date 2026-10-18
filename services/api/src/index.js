@@ -1,6 +1,7 @@
 export * from "@vercentlabs/reporting-engine";
 export * from "./core/master-data.js";
 export * from "./core/payment-terms/index.js";
+export * from "./core/exchange-rates/index.js";
 export * from "./core/tax/index.js";
 export { INVOICE_MESSAGES, validateGstin, financialYearOf, determineRequiredSalesDocument, evaluateEInvoiceApplicability, listInvoiceSeries, saveInvoiceSeries, setEInvoiceApplicability } from "./core/invoicing/index.js";
 export * from "./core/platform/numbering/index.js";

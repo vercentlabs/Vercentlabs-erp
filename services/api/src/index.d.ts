@@ -173,6 +173,7 @@ export function seedBusinessDataFoundation(
 export * from "@vercentlabs/reporting-engine";
 export * from "./modules/crm/index.js";
 export * from "./core/payment-terms/index.js";
+export * from "./core/exchange-rates/index.js";
 export * from "./modules/sales/index.js";
 
 export * from "./modules/accounting/index.js";

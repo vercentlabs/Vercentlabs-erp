@@ -81,14 +81,14 @@ export async function GET(
   return workspaceRoute(
     request,
     { module: "crm", action: "crm.resource.list" },
-    async ({ client, session }) => {
+    async ({ client, session, snapshot }) => {
       const { resource } = await context.params;
       if (!isCrmResource(resource))
         throw new HttpError(404, "Unknown CRM resource.");
       return ok(
         await listCrmRecords(
           client,
-          crmContext(session),
+          crmContext(session, snapshot),
           resource,
           parseListFilters(new URL(request.url)),
         ),
@@ -104,7 +104,7 @@ export async function POST(
   return workspaceRoute(
     request,
     { module: "crm", action: "crm.resource.create" },
-    async ({ client, session }) => {
+    async ({ client, session, snapshot }) => {
       const { resource } = await context.params;
       if (!isCrmResource(resource))
         throw new HttpError(404, "Unknown CRM resource.");
@@ -119,7 +119,7 @@ export async function POST(
         {
           record: await createCrmRecord(
             client,
-            crmContext(session),
+            crmContext(session, snapshot),
             resource,
             input,
           ),

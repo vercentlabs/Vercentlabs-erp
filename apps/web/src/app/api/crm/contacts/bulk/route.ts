@@ -11,8 +11,8 @@ import { readBody } from "@/features/crm/contacts/server/contact-http";
 //   status  { status: active | inactive | archived }
 // Each contact succeeds or fails on its own; the response lists every outcome.
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsView, billingWrite: true }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.contactsView, billingWrite: true }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const { action, ...input } = await readBody(request);
     const payload = input as { contactIds: string[] } & Record<string, unknown>;
     if (action === "assign") return ok(await bulkAssignContacts(client, context, payload));

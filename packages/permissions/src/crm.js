@@ -50,6 +50,7 @@ export const CRM_PERMISSIONS = Object.freeze({
   opportunitiesManageCloseReasons: "crm.opportunities.manage_close_reasons",
   opportunitiesDelete: "crm.opportunities.delete",
   opportunitiesExport: "crm.opportunities.export",
+  opportunitiesImport: "crm.opportunities.import",
   opportunitiesChangeProbability: "crm.opportunities.change_probability",
   opportunitiesBulkUpdate: "crm.opportunities.bulk_update",
   pipelineManageStages: "crm.pipeline.manage_stages",

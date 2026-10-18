@@ -68,8 +68,8 @@ export function buildLeadImportTemplate() {
   return toCsv([LEAD_IMPORT_FIELDS.map((field) => field.label), LEAD_IMPORT_FIELDS.map((field) => field.sample)]);
 }
 
-function parseUpload(bytes, fileName) {
-  return isXlsxFileName(fileName) ? parseXlsxUpload(bytes, { maxRows: IMPORT_ROW_LIMIT }) : parseCsvUpload(bytes, { maxRows: IMPORT_ROW_LIMIT });
+function parseUpload(bytes, fileName, maxRows = IMPORT_ROW_LIMIT) {
+  return isXlsxFileName(fileName) ? parseXlsxUpload(bytes, { maxRows }) : parseCsvUpload(bytes, { maxRows });
 }
 
 function suggestMapping(headers) {
@@ -84,9 +84,9 @@ function suggestMapping(headers) {
 }
 
 // Step 1: read the file and suggest how its columns map to lead fields.
-export async function analyzeLeadImport(_client, context, { bytes, fileName }) {
+export async function analyzeLeadImport(_client, context, { bytes, fileName, maxRows }) {
   requireLeadPermission(context, LEAD_PERMISSIONS.import, "You do not have permission to import leads.");
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   return {
     fileName,
     headers: parsed.headers,
@@ -149,10 +149,10 @@ function rowToInput(record, mapping) {
 // A row is never silently given to the person running the import.
 export async function importLeads(client, context, {
   bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true,
-  assignmentMode = "file", invalidOwnerAction = "error",
+  assignmentMode = "file", invalidOwnerAction = "error", maxRows,
 }) {
   requireLeadPermission(context, LEAD_PERMISSIONS.import, "You do not have permission to import leads.");
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   const unknown = Object.keys(mapping).filter((header) => !parsed.headers.includes(header));
   if (unknown.length) throw new CrmError(400, `The file has no column named "${unknown[0]}".`, "CRM_LEAD_IMPORT_MAPPING");
   if (!Object.values(mapping).some((field) => ["fullName", "firstName", "lastName", "companyName"].includes(field)))
@@ -306,14 +306,14 @@ const EXPORT_COLUMNS = Object.freeze([
 ]);
 
 // Exports exactly the leads the list shows for the same view and filters.
-export async function exportLeads(client, context, filters = {}) {
+export async function exportLeads(client, context, filters = {}, { limit = EXPORT_ROW_LIMIT } = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.export, "You do not have permission to export leads.");
   requireLeadPermission(context, LEAD_PERMISSIONS.viewSensitive, "You do not have permission to export lead contact details.");
   const values = [];
   const where = buildLeadListWhere(context, filters, values);
-  const { rows } = await client.query(`${LEAD_SELECT} ${where} ORDER BY lead.created_at DESC, lead.id DESC LIMIT ${EXPORT_ROW_LIMIT + 1}`, values);
-  if (rows.length > EXPORT_ROW_LIMIT)
-    throw new CrmError(413, `This export has more than ${EXPORT_ROW_LIMIT} leads. Narrow the filters and try again.`, "CRM_LEAD_EXPORT_TOO_LARGE");
+  const { rows } = await client.query(`${LEAD_SELECT} ${where} ORDER BY lead.created_at DESC, lead.id DESC LIMIT ${limit + 1}`, values);
+  if (rows.length > limit)
+    throw new CrmError(413, `This export has more than ${limit} leads. Narrow the filters, or export it in the background.`, "CRM_LEAD_EXPORT_TOO_LARGE");
   const leads = rows.map(toLead);
   const timeZone = await organizationTimeZone(client, context);
   return {

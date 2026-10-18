@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Upload } from "lucide-react";
 import { Button, Checkbox, LinkButton, PageHeader, PermissionState, Radio, RadioGroup, Select, buttonVariants } from "@vercentlabs/design-system";
 
+import { BackgroundRunsPanel, QueuedImportNotice, useBackgroundImport } from "@/features/crm/shared/ui/BackgroundRunsPanel";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -45,15 +46,16 @@ export function LeadImportScreen({ embedded = false }: { embedded?: boolean } = 
       setAssignmentMode(Object.values(data.suggestedMapping).includes("ownerEmail") ? "file" : "rules"); },
     onError: (failure) => { setAnalysis(null); setError(errorMessage(failure)); },
   });
-  const run = useMutation({
-    mutationFn: () => importLeads(file as File, {
+  const importOptions = () => ({
       mapping,
       defaultSourceId: defaultSourceId === NONE ? undefined : defaultSourceId,
       defaultOwnerUserId: assignmentMode === "rules" || defaultOwnerUserId === NONE ? undefined : defaultOwnerUserId,
       skipDuplicates,
-      assignmentMode: assignmentMode === "rules" ? "rules" : "file",
-      invalidOwnerAction: invalidOwnerAction === "fallback" ? "fallback" : "error",
-    }),
+      assignmentMode: assignmentMode === "rules" ? "rules" as const : "file" as const,
+      invalidOwnerAction: invalidOwnerAction === "fallback" ? "fallback" as const : "error" as const,
+  });
+  const run = useMutation({
+    mutationFn: () => importLeads(file as File, importOptions()),
     onSuccess: (data) => {
       setResult(data);
       setError(null);
@@ -61,6 +63,8 @@ export function LeadImportScreen({ embedded = false }: { embedded?: boolean } = 
     },
     onError: (failure) => setError(errorMessage(failure)),
   });
+
+  const background = useBackgroundImport("leads", (failure) => setError(errorMessage(failure)));
 
   if (optionsQuery.isLoading) return <LoadingState label="Loading" />;
   if (options && !options.capabilities.import)
@@ -70,6 +74,7 @@ export function LeadImportScreen({ embedded = false }: { embedded?: boolean } = 
     setFile(chosen);
     setAnalysis(null);
     setResult(null);
+    background.reset();
     if (chosen) analyze.mutate(chosen);
   };
   const mappedFields = new Set(Object.values(mapping));
@@ -88,7 +93,7 @@ export function LeadImportScreen({ embedded = false }: { embedded?: boolean } = 
     <div className="flex flex-col gap-6">
       {embedded ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-text-secondary">Bring in leads from a CSV or Excel (.xlsx) file, up to 2,000 rows at a time.</p>
+          <p className="text-sm text-text-secondary">Bring in leads from a CSV or Excel (.xlsx) file, up to 1,000 rows at once, or up to 20,000 in the background.</p>
           <a className={buttonVariants({ variant: "outline" })} href={leadImportTemplateUrl} download>
               <Download className="size-4" aria-hidden="true" />Download template
             </a>
@@ -96,7 +101,7 @@ export function LeadImportScreen({ embedded = false }: { embedded?: boolean } = 
       ) : (
         <PageHeader
           title="Import leads"
-          description="Bring in leads from a CSV or Excel (.xlsx) file, up to 2,000 rows at a time."
+          description="Bring in leads from a CSV or Excel (.xlsx) file, up to 1,000 rows at once, or up to 20,000 in the background."
           secondaryActions={
             <>
               <LinkButton variant="outline" href="/crm/leads">Back to leads</LinkButton>
@@ -197,12 +202,16 @@ export function LeadImportScreen({ embedded = false }: { embedded?: boolean } = 
             Skip rows that match an existing lead or contact (recommended)
           </Checkbox>
           <div>
-            <Button variant="primary" onPress={() => run.mutate()} isLoading={run.isPending} isDisabled={!hasIdentity || !file}>
-              Import {analysis.rowCount} {analysis.rowCount === 1 ? "row" : "rows"}
+            <Button variant="primary" onPress={() => (analysis.rowCount > background.limit ? background.queue.mutate({ file: file as File, ...importOptions() }) : run.mutate())}
+              isLoading={run.isPending || background.queue.isPending} isDisabled={!hasIdentity || !file || Boolean(background.queued)}>
+              Import {analysis.rowCount} {analysis.rowCount === 1 ? "row" : "rows"}{analysis.rowCount > background.limit ? " in the background" : ""}
             </Button>
           </div>
         </Step>
       )}
+
+      <QueuedImportNotice job={background.queued} />
+      <BackgroundRunsPanel entity="leads" />
 
       {result && (
         <section aria-live="polite" className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">

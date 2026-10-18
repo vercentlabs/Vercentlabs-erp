@@ -8,7 +8,7 @@ import { readBody, type TaskRouteParams } from "@/features/crm/tasks/server/task
 
 // Body: { note?, expectedUpdatedAt?, nextFollowUp?: { type, dueAt, notes? } }
 export async function POST(request: Request, route: TaskRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView, billingWrite: true }, async ({ client, session }) =>
-    ok(await completeTask(client, crmContext(session), (await route.params).id, await readBody(request))),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await completeTask(client, crmContext(session, snapshot), (await route.params).id, await readBody(request))),
   );
 }

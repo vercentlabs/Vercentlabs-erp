@@ -8,7 +8,7 @@ import { readBody, type OpportunityRouteParams } from "@/features/crm/opportunit
 
 // Body: { reason, stageId? }
 export async function POST(request: Request, route: OpportunityRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesReopen, billingWrite: true }, async ({ client, session }) =>
-    ok(await reopenOpportunity(client, crmContext(session), (await route.params).id, await readBody(request))),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesReopen, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await reopenOpportunity(client, crmContext(session, snapshot), (await route.params).id, await readBody(request))),
   );
 }

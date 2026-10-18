@@ -1,7 +1,9 @@
 // Everything the contact screens need to render their pickers, in one read.
+import { loadApps } from "../data-management/apps.js";
+import { contactTabAllowed } from "./summary.js";
 import { listLeadAssignmentOptions } from "../leads/assignment.js";
 import { listLeadSources } from "../leads/sources.js";
-import { contactCan, contactCapabilities, requireContactPermission } from "./access.js";
+import { contactCapabilities, requireContactPermission } from "./access.js";
 import {
   CONTACT_ACTIVITY_TYPES, CONTACT_FOLLOW_UP_TYPES, CONTACT_PERMISSIONS, CONTACT_ROLES, CONTACT_STATUSES, MARKETING_CONSENT, PREFERRED_CONTACT_METHODS,
 } from "./constants.js";
@@ -9,6 +11,7 @@ import { CONTACT_VIEWS } from "./records.js";
 import { CONTACT_RELATED_LISTS } from "./summary.js";
 
 export async function getContactOptions(client, context) {
+  await loadApps(client, context);
   requireContactPermission(context, CONTACT_PERMISSIONS.view, "You do not have permission to view contacts.");
   const { users, teams } = await listLeadAssignmentOptions(client, context);
   const organizationId = [context.organizationId];
@@ -31,6 +34,6 @@ export async function getContactOptions(client, context) {
     departments: departments.rows.map((row) => row.department),
     currentUserId: context.userId,
     capabilities: contactCapabilities(context),
-    moduleAccess: { sales: contactCan(context, "sales.view"), projects: contactCan(context, "projects.view"), support: contactCan(context, "support.view") },
+    moduleAccess: { sales: contactTabAllowed(context, "sales"), projects: contactTabAllowed(context, "projects"), support: contactTabAllowed(context, "support") },
   };
 }

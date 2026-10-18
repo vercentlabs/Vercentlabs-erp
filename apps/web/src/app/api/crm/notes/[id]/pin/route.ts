@@ -7,9 +7,9 @@ import { optionalNumber, readBody, type ContentRouteParams } from "@/features/cr
 
 // Body: { pinned: boolean, expectedVersion? }
 export async function POST(request: Request, { params }: ContentRouteParams) {
-  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session, snapshot }) => {
     const body = await readBody(request);
-    const note = await setNotePinned(client, crmContext(session), (await params).id, body.pinned !== false, { expectedVersion: optionalNumber(body.expectedVersion) });
+    const note = await setNotePinned(client, crmContext(session, snapshot), (await params).id, body.pinned !== false, { expectedVersion: optionalNumber(body.expectedVersion) });
     return ok({ note });
   });
 }

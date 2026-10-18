@@ -4,6 +4,7 @@
 // follow-up). The primary action follows the company: Create customer for a prospect, New deal for a customer, Reactivate when archived.
 // Log activity and Schedule follow-up sit beside it; everything else is in the "…" menu, grouped (Duplicates holds both merges). Six tabs,
 // the Customer 360 figures as their badges: Overview, People, Deals, Activity, Sales & money, Details.
+import { formatPhone } from "@vercentlabs/shared-types";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +33,7 @@ import { AccountStatusDialog, AssignAccountsDialog } from "../components/Account
 import { AccountRelatedListPanel, AccountSummaryCards } from "../components/AccountCustomer360";
 import { CreateCustomerDialog, LinkCustomerDialog } from "../components/AccountCustomerDialogs";
 import { AccountDuplicatesPanel } from "../components/AccountDuplicatesPanel";
+import { AccountTaxIdentityPanel } from "../components/AccountTaxIdentity";
 import { AccountAddressesPanel, AccountContactsPanel, AccountHierarchyPanel } from "../components/AccountRelationshipPanels";
 import {
   AccountActivitiesPanel, AccountTasksPanel, LogAccountActivityDialog,
@@ -169,7 +171,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
             { label: "Owner", value: account.ownerName ?? "Unassigned" },
             { label: "Industry", value: account.industry ?? "Not set" },
             { label: "Location", value: locationOf(account) || "Not set" },
-            { label: "Phone", value: account.phone ? <a className="hover:underline" href={`tel:${account.phone}`}>{account.phone}</a> : account.sensitiveDataRestricted ? "Hidden" : "Not set" },
+            { label: "Phone", value: account.phone ? <a className="hover:underline" href={`tel:${account.phone}`}>{formatPhone(account.phone)}</a> : account.sensitiveDataRestricted ? "Hidden" : "Not set" },
             { label: "Website", value: account.website ? <a className="hover:underline" href={account.website} target="_blank" rel="noreferrer">{account.website.replace(/^https?:\/\//, "")}</a> : "Not set" },
             { label: "Next follow-up", value: <FollowUpCell value={account.nextFollowUpAt} /> },
           ],
@@ -219,12 +221,14 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
                     { label: "Employees", value: account.employeeRange },
                     { label: "Annual revenue", value: account.annualRevenue !== null ? formatMoney(currency, account.annualRevenue) : null }]),
                   { label: "Email", value: account.email ? <a className="hover:underline" href={`mailto:${account.email}`}>{account.email}</a> : account.sensitiveDataRestricted ? "Hidden" : null },
-                  { label: "Phone", value: account.phone ? <a className="hover:underline" href={`tel:${account.phone}`}>{account.phone}</a> : account.sensitiveDataRestricted ? "Hidden" : null },
-                  { label: "Secondary phone", value: account.secondaryPhone ?? null },
+                  { label: "Phone", value: account.phone ? <a className="hover:underline" href={`tel:${account.phone}`}>{formatPhone(account.phone)}</a> : account.sensitiveDataRestricted ? "Hidden" : null },
+                  { label: "Secondary phone", value: account.secondaryPhone ? formatPhone(account.secondaryPhone) : null },
                   { label: "Website", value: account.website ? <a className="hover:underline" href={account.website} target="_blank" rel="noreferrer">{account.website}</a> : null },
                   { label: "Description", value: account.description ? <span className="whitespace-pre-wrap">{account.description}</span> : null, wide: true },
                 ]}
               />
+              <AccountTaxIdentityPanel account={account} options={options} onChanged={refresh}
+                salesHref={modules.sales ? `/sales/customers/${account.id}` : null} />
               {account.isCustomer && (
                 <PropertyList
                   title="Customer Master"

@@ -9,16 +9,16 @@ import { readBody } from "@/features/crm/accounts/server/account-http";
 type Params = { params: Promise<{ id: string; addressId: string }> };
 
 export async function PATCH(request: Request, route: Params) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { id, addressId } = await route.params;
-    return ok({ address: await updateAccountAddress(client, crmContext(session), id, addressId, await readBody(request)) });
+    return ok({ address: await updateAccountAddress(client, crmContext(session, snapshot), id, addressId, await readBody(request)) });
   });
 }
 
 // Removing an address deactivates it; documents that printed it keep it.
 export async function DELETE(request: Request, route: Params) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
     const { id, addressId } = await route.params;
-    return ok(await removeAccountAddress(client, crmContext(session), id, addressId));
+    return ok(await removeAccountAddress(client, crmContext(session, snapshot), id, addressId));
   });
 }

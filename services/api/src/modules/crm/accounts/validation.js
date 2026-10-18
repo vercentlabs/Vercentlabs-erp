@@ -44,9 +44,9 @@ const GOVERNED_FIELDS = Object.freeze({
   customerNumber: "The customer number is set by Create customer.",
   partyType: "The commercial role is set by Create customer.",
   code: "The account number is generated automatically.",
-  gstin: "GST details belong to the Customer Master in Sales.",
-  pan: "Tax identity belongs to the Customer Master in Sales.",
-  paymentTermId: "Payment terms belong to the Customer Master in Sales.",
+  gstin: "Use Tax identity to change the GSTIN.",
+  pan: "Use Tax identity to change the PAN.",
+  paymentTermId: "Use Tax identity to change the payment terms.",
   creditLimit: "Credit settings belong to the Customer Master in Sales.",
 });
 

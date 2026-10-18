@@ -34,6 +34,7 @@
 //    not OFFSET — the duplicate/skip risk under concurrent inserts (an OFFSET page shifts when a new row is inserted
 //    ahead of it) cannot happen here: a cursor value that already has a
 //    stable position never moves.
+import { canInApp, loadApps } from "../../data-management/apps.js";
 import { taskScopeSql } from "../../tasks/access.js";
 import { canOverridePrivateCrmContent } from "../../data-management/crm-access-scope.js";
 import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";
@@ -150,7 +151,7 @@ function buildBranch(kind, entityType, entityId, context, values) {
        WHERE history.organization_id=$1 AND task.entity_type='${entityType}' AND task.entity_id=${taskIdParam}
          AND history.event_type IN ('created','assigned','reassigned','completed','reopened','cancelled')${taskScopeSql(context, values, "task")}`;
     // An opportunity's quotations, in words, for whoever may see Sales documents.
-    const seesSales = context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("sales.view");
+    const seesSales = canInApp(context, "sales", "sales.view");
     if (entityType !== "opportunity" || !seesSales) return `${own} UNION ALL ${tasks}`;
     const quoteIdParam = add(values, entityId);
     const quotations = `SELECT event.id,'history'::text AS kind,'quotation_' || replace(event.event_type,'quotation.','') AS subtype,
@@ -221,6 +222,7 @@ function buildSourceQuery(kind, entityType, entityId, context, values) {
 }
 
 export async function getCrmTimelinePage(client, context, entityType, entityId, { cursor, limit = 30, kinds } = {}) {
+  await loadApps(client, context);
   const allowed = await resolveCrmEntityAccess(client, context, entityType, entityId);
   if (!allowed) return { rows: [], hasMore: false, nextCursor: null };
 
@@ -271,6 +273,7 @@ export async function getCrmTimelinePage(client, context, entityType, entityId, 
 // Timeline's buildBranch uses — one authorization implementation per kind,
 // reused by both pagination styles, even though the SELECT list differs.
 export async function getCrmTimelinePageBySource(client, context, entityType, entityId, { source, offset = 0, limit = 50 } = {}) {
+  await loadApps(client, context);
   if (!SINGLE_SOURCE_KINDS.has(source)) throw new CrmError(400, "Unsupported timeline source.", "CRM_TIMELINE_SOURCE_INVALID");
   const allowed = await resolveCrmEntityAccess(client, context, entityType, entityId);
   if (!allowed) return { rows: [], hasMore: false };

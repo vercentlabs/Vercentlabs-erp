@@ -7,13 +7,13 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 import { readBody, type AccountRouteParams } from "@/features/crm/accounts/server/account-http";
 
 export async function GET(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) =>
-    ok({ addresses: await listAccountAddresses(client, crmContext(session), (await route.params).id) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session, snapshot }) =>
+    ok({ addresses: await listAccountAddresses(client, crmContext(session, snapshot), (await route.params).id) }),
   );
 }
 
 export async function POST(request: Request, route: AccountRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session }) =>
-    ok({ address: await addAccountAddress(client, crmContext(session), (await route.params).id, await readBody(request)) }, 201),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok({ address: await addAccountAddress(client, crmContext(session, snapshot), (await route.params).id, await readBody(request)) }, 201),
   );
 }

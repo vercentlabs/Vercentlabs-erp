@@ -8,7 +8,7 @@ import { readBody, type FollowUpRouteParams } from "@/features/crm/follow-ups/se
 
 // Body: { reason?, expectedUpdatedAt? }
 export async function POST(request: Request, route: FollowUpRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.followUpsView, billingWrite: true }, async ({ client, session }) =>
-    ok(await cancelFollowUp(client, crmContext(session), (await route.params).id, await readBody(request))),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.followUpsView, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await cancelFollowUp(client, crmContext(session, snapshot), (await route.params).id, await readBody(request))),
   );
 }

@@ -3,12 +3,13 @@
 // Browser client for the opportunity routes under /api/crm/opportunities.
 // One function per opportunity operation; a failed request throws
 // OpportunityApiError carrying the server's message and code.
+import type { CurrencyDisclosure } from "../../shared/ui/UnconvertedNotice";
 import { CrmApiErrorWithBody } from "@/features/crm/shared/http/crm-api-error";
 import { crmApiClient } from "@/features/crm/shared/http/crm-request";
 
 export class OpportunityApiError extends CrmApiErrorWithBody {}
 
-const { request } = crmApiClient(OpportunityApiError, "body");
+const { request, parseResponse } = crmApiClient(OpportunityApiError, "body");
 
 export type OpportunityStatus = "open" | "won" | "lost";
 export type OpportunityPriority = "low" | "medium" | "high";
@@ -96,6 +97,7 @@ export type Opportunity = {
   latestQuotationStatus: string | null;
   latestQuotationTotal: number | null;
   latestQuotationCurrency: string | null;
+  latestOrder: { id: string; number: string; status: string; customerPoNumber: string | null; customerPoDate: string | null } | null;
   quotationCount: number;
   openTaskCount: number;
   openFollowUpCount: number;
@@ -107,7 +109,7 @@ export type Opportunity = {
 };
 
 export type OpportunityCapabilities = Record<
-  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "quoteInSales" | "markWon" | "markLost" | "reopen" | "delete" | "export"
+  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "quoteInSales" | "seesSales" | "markWon" | "markLost" | "reopen" | "delete" | "export" | "import"
   | "changeProbability" | "bulkUpdate" | "manageStages",
   boolean
 >;
@@ -154,7 +156,7 @@ export type OpportunityListFilters = Partial<{
 }>;
 
 export type OpportunityList = {
-  rows: Opportunity[]; total: number; totalValue: number; weightedValue: number; limit: number; offset: number; capabilities: OpportunityCapabilities;
+  rows: Opportunity[]; total: number; totalValue: number; weightedValue: number; currency: CurrencyDisclosure; limit: number; offset: number; capabilities: OpportunityCapabilities;
 };
 
 export type OpportunityBulkResult = { results: Array<{ opportunityId: string; ok: boolean; message?: string }>; succeeded: number; failed: number };
@@ -190,11 +192,38 @@ export type OpportunityDashboard = {
     overdue: number; stale: number; staleDays: number; averageDealSize: number; winRate: number | null; lossRate: number | null; averageSalesCycleDays: number | null;
   };
   byStage: Array<{ stageId: string; label: string; total: number; value: number; weightedValue: number }>;
+  currency: CurrencyDisclosure;
+  // Open deals expected to close from `from` to `to`, by forecast category (cumulative), in the base currency.
+  forecast: { from: string; to: string; deals: number; commit: number; bestCase: number; pipeline: number; weighted: number; unconvertedCount: number };
 };
 export type OpportunityReportRow = { group: string; total: number; open: number; won: number; lost: number; value: number; weightedValue: number; winRate: number | null };
-export type OpportunityReport = { groupBy: string; groupLabel: string; rows: OpportunityReportRow[]; totals: Omit<OpportunityReportRow, "group" | "winRate"> };
+export type OpportunityReport = { groupBy: string; groupLabel: string; reportingCurrency: string; unconverted: number; rows: OpportunityReportRow[]; totals: Omit<OpportunityReportRow, "group" | "winRate"> };
 
 const BASE = "/api/crm/opportunities";
+
+// ---- import (CRM plan 2.5)
+export type OpportunityImportAnalysis = {
+  fileName: string; headers: string[]; rowCount: number; sampleRows: Array<Record<string, string>>;
+  suggestedMapping: Record<string, string>; fields: Array<{ key: string; label: string }>;
+};
+export type OpportunityImportResult = {
+  total: number; created: number; won: number; lost: number; failed: number; errors: Array<{ row: number; message: string }>; errorCsv: string | null;
+};
+export const opportunityImportTemplateUrl = `${BASE}/import/template`;
+async function upload<T>(url: string, file: File, fields: Record<string, string> = {}): Promise<T> {
+  const form = new FormData();
+  form.set("file", file);
+  for (const [key, value] of Object.entries(fields)) form.set(key, value);
+  return parseResponse<T>(await fetch(url, { method: "POST", body: form }));
+}
+export const analyzeOpportunityImport = (file: File) =>
+  upload<{ analysis: OpportunityImportAnalysis }>(`${BASE}/import/analyze`, file).then((result) => result.analysis);
+export const importOpportunities = (file: File, options: { mapping: Record<string, string>; createMissingCompanies: boolean; defaultOwnerUserId?: string }) =>
+  upload<{ result: OpportunityImportResult }>(`${BASE}/import`, file, {
+    mapping: JSON.stringify(options.mapping),
+    createMissingCompanies: String(options.createMissingCompanies),
+    defaultOwnerUserId: options.defaultOwnerUserId ?? "",
+  }).then((result) => result.result);
 
 function query(params: Record<string, unknown>) {
   const search = new URLSearchParams();

@@ -7,14 +7,14 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 import { readBody, type LeadRouteParams } from "@/features/crm/leads/server/lead-http";
 
 export async function GET(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView }, async ({ client, session }) =>
-    ok({ record: await getLead(client, crmContext(session), (await route.params).id) }),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView }, async ({ client, session, snapshot }) =>
+    ok({ record: await getLead(client, crmContext(session, snapshot), (await route.params).id) }),
   );
 }
 
 export async function PATCH(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsEdit, billingWrite: true }, async ({ client, session }) => {
-    const context = crmContext(session);
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
+    const context = crmContext(session, snapshot);
     const { allowDuplicate, expectedUpdatedAt, ...input } = await readBody(request);
     const record = await updateLead(client, context, (await route.params).id, input, {
       allowDuplicate: allowDuplicate === true,
@@ -26,7 +26,7 @@ export async function PATCH(request: Request, route: LeadRouteParams) {
 
 // Archives the lead. Leads are never hard-deleted.
 export async function DELETE(request: Request, route: LeadRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsDelete, billingWrite: true }, async ({ client, session }) =>
-    ok(await archiveLead(client, crmContext(session), (await route.params).id, { openWork: new URL(request.url).searchParams.get("openWork") === "keep" ? "keep" : "cancel" })),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsDelete, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await archiveLead(client, crmContext(session, snapshot), (await route.params).id, { openWork: new URL(request.url).searchParams.get("openWork") === "keep" ? "keep" : "cancel" })),
   );
 }

@@ -1,6 +1,7 @@
 import { registerJobHandler } from "../registry.js";
 import { internalJobBackoff } from "../backoff.js";
 import { dispatchFollowUpRemindersHandler, JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, payloadSchema as followUpReminderDispatchPayloadSchema } from "./crm-follow-up-reminder-dispatch.js";
+import { crmDataJobHandler, JOB_TYPE as CRM_DATA_JOB_TYPE, payloadSchema as crmDataJobPayloadSchema } from "./crm-data-job.js";
 import { reportRunHandler, JOB_TYPE as REPORT_RUN_JOB_TYPE, payloadSchema as reportRunPayloadSchema } from "./platform-report-run.js";
 import { reconcileReorderHandler, JOB_TYPE as REORDER_RECONCILE_JOB_TYPE, payloadSchema as reorderReconcilePayloadSchema } from "./stock-reorder-reconcile.js";
 import { dispatchLowStockNotificationsHandler, JOB_TYPE as LOW_STOCK_DISPATCH_JOB_TYPE, payloadSchema as lowStockDispatchPayloadSchema } from "./stock-low-stock-dispatch.js";
@@ -29,6 +30,16 @@ export function registerBuiltinHandlers() {
     backoff: internalJobBackoff,
     // A completed run is skipped on replay (executeReportRun checks status),
     // and its output is written in the same transaction as the status.
+    idempotency: "NATURALLY_IDEMPOTENT",
+    maxAttempts: 2,
+    transactionMode: "managed",
+  });
+  registerJobHandler(CRM_DATA_JOB_TYPE, {
+    schema: crmDataJobPayloadSchema,
+    handler: crmDataJobHandler,
+    backoff: internalJobBackoff,
+    // A finished or failed run is skipped on replay (executeCrmDataJob checks status), and an import's rows, its result and its
+    // output file are written in one transaction with the status.
     idempotency: "NATURALLY_IDEMPOTENT",
     maxAttempts: 2,
     transactionMode: "managed",

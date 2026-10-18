@@ -3,6 +3,7 @@
 // Companies: the businesses you sell to and work with. The common views are chips (My companies, Prospects, Customers, No recent activity)
 // with their counts, the rest under More views; one Filters button holds every filter, each applying the moment it changes. New company
 // is the primary action; Import and Export sit in the "…" menu, and the company report lives under Insights → Reports.
+import { formatPhone } from "@vercentlabs/shared-types";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { formatDate, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { ON_SCREEN_EXPORT_LIMIT, startExport } from "@/features/crm/shared/data-jobs-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
@@ -197,7 +199,7 @@ export function AccountListScreen() {
     { id: "nextFollowUpAt", accessorKey: "nextFollowUpAt", header: "Next follow-up", cell: ({ row }) => <FollowUpCell value={row.original.nextFollowUpAt} /> },
     { id: "sourceName", accessorKey: "sourceName", header: "Source", cell: ({ row }) => row.original.sourceName ?? "" },
     { id: "teamName", header: "Team", enableSorting: false, cell: ({ row }) => row.original.teamName ?? "" },
-    { id: "phone", header: "Phone", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.phone ?? ""}</span> },
+    { id: "phone", header: "Phone", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{formatPhone(row.original.phone)}</span> },
     { id: "createdAt", accessorKey: "createdAt", header: "Created", cell: ({ row }) => formatDate(row.original.createdAt) },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- money reads only the base currency
   ], [options?.baseCurrency]);
@@ -260,7 +262,7 @@ export function AccountListScreen() {
           primaryAction: can?.create ? <LinkButton href="/crm/accounts/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New company</LinkButton> : undefined,
           secondaryActions: <MoreMenu label="More company actions" items={[
             ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=companies") }] : []),
-            ...(can?.export ? [{ id: "export", label: "Export", onAction: () => { window.location.href = accountExportUrl(listFilters); } }] : []),
+            ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("accounts", accountExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
           ]} />,
         }}
         savedViews={options ? {

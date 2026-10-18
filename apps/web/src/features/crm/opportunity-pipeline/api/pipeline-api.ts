@@ -3,6 +3,7 @@
 // Browser client for the pipeline routes under /api/crm/pipeline. The
 // pipeline is a view over opportunities: its cards are opportunities, and
 // every change it makes goes through an opportunity operation.
+import type { CurrencyDisclosure } from "../../shared/ui/UnconvertedNotice";
 import { CrmApiErrorWithBody } from "@/features/crm/shared/http/crm-api-error";
 import { crmApiClient } from "@/features/crm/shared/http/crm-request";
 import type { Opportunity, OpportunityCapabilities, OpportunityListFilters } from "@/features/crm/opportunities/api/opportunities-api";
@@ -23,11 +24,11 @@ export type PipelineCardSort = "expectedCloseDate" | "amount" | "lastActivityAt"
 
 export type PipelineStage = {
   id: string; code: string; name: string; sequence: number; probability: number; isInactive: boolean;
-  count: number; value: number; weightedValue: number; averageDaysInStage: number | null; cards: Opportunity[]; hasMore: boolean;
+  count: number; value: number; weightedValue: number; unconvertedCount: number; averageDaysInStage: number | null; cards: Opportunity[]; hasMore: boolean;
 };
 export type Pipeline = {
   status: PipelineStatus; cardSort: PipelineCardSort; cardsPerStage: number; stages: PipelineStage[];
-  total: number; totalValue: number; weightedValue: number; capabilities: OpportunityCapabilities;
+  total: number; totalValue: number; weightedValue: number; currency: CurrencyDisclosure; capabilities: OpportunityCapabilities;
 };
 type BreakdownRow = { id: string | null; label: string; total: number; value: number; weightedValue: number };
 export type PipelineSummary = {
@@ -38,6 +39,7 @@ export type PipelineSummary = {
   byOwner: Array<BreakdownRow & { stages: Array<{ stageId: string; total: number; value: number }> }>;
   bySource: BreakdownRow[];
   stageAging: Array<{ stageId: string; entered: number; averageDays: number | null; conversionRate: number | null }>;
+  currency: CurrencyDisclosure;
 };
 // The opportunity list filters, plus the board's own.
 export type PipelineFilters = Omit<OpportunityListFilters, "status"> & Partial<{ status: PipelineStatus; cardSort: PipelineCardSort; cardsPerStage: number }>;

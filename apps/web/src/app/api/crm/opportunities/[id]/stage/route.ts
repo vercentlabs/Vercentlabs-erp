@@ -8,7 +8,7 @@ import { readBody, type OpportunityRouteParams } from "@/features/crm/opportunit
 
 // Body: { stageId, note?, expectedUpdatedAt? } — open stages only; a deal is closed with /won or /lost.
 export async function POST(request: Request, route: OpportunityRouteParams) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesChangeStage, billingWrite: true }, async ({ client, session }) =>
-    ok(await changeOpportunityStage(client, crmContext(session), (await route.params).id, await readBody(request))),
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesChangeStage, billingWrite: true }, async ({ client, session, snapshot }) =>
+    ok(await changeOpportunityStage(client, crmContext(session, snapshot), (await route.params).id, await readBody(request))),
   );
 }

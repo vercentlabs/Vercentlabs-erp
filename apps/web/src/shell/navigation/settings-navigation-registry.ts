@@ -104,6 +104,14 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         requiredPermission: "payment_terms.view",
       },
       {
+        id: "exchange-rates",
+        label: "Exchange Rates",
+        route: "/settings/finance-commercial/exchange-rates",
+        status: "AVAILABLE",
+        description: "Dated rates that convert other currencies into the base currency, for deal totals, dashboards and stock valuation.",
+        requiredPermission: "exchange_rates.view",
+      },
+      {
         id: "item-profiles",
         label: "Item Profiles",
         route: "/settings/finance-commercial/item-profiles",

@@ -13,6 +13,7 @@
 // or a retried request never makes a second revision.
 //
 // A refused attempt is recorded on the order's history with its reasons.
+import { updateDealFromConfirmedOrder } from "../../crm/quotations/order-sync.js";
 import { accrueSalesCommission } from "../pass1-operations.js";
 import { assertOrderVisible, orderCan, requireOrderPermission } from "../orders/access.js";
 import { FULFILLMENT, INVOICING, OrderError, STATUS, text } from "../orders/constants.js";
@@ -90,8 +91,20 @@ export async function confirmSalesOrder(client, context, orderId, input = {}) {
   } catch {
     await client.query("ROLLBACK TO SAVEPOINT sales_order_commission");
   }
+  // The deal the order came from now carries what was ordered (CRM); like commission, it never blocks the confirmation.
+  let deal = null;
+  if (order.source_opportunity_id) {
+    await client.query("SAVEPOINT sales_order_deal_value");
+    try {
+      deal = await updateDealFromConfirmedOrder(client, context, order.id);
+      await client.query("RELEASE SAVEPOINT sales_order_deal_value");
+    } catch {
+      await client.query("ROLLBACK TO SAVEPOINT sales_order_deal_value");
+    }
+  }
   return {
     orderId: order.id, confirmed: true, status: STATUS.confirmed, changed: true, confirmationId: confirmation.id, confirmationVersion: confirmation.version,
     fulfillmentStatus: progress.fulfillmentStatus, reservation, shortages: check.shortages, warnings: check.warnings, sourceOpportunityId: order.source_opportunity_id ?? null,
+    dealValueUpdated: Boolean(deal?.changed),
   };
 }

@@ -55,6 +55,7 @@ export const OPPORTUNITY_PERMISSIONS = Object.freeze({
   reopen: "crm.opportunities.reopen",
   delete: "crm.opportunities.delete",
   export: "crm.opportunities.export",
+  import: "crm.opportunities.import",
   changeProbability: "crm.opportunities.change_probability",
   // changing many opportunities in one action
   bulkUpdate: "crm.opportunities.bulk_update",

@@ -3,6 +3,8 @@
 // Owner and team change only through assignment.js; stage through stages.js;
 // status (won, lost, reopened) through outcome.js. This file never writes
 // those columns except to set the starting stage and owner on create.
+import { loadApps } from "../data-management/apps.js";
+import { currencyDisclosure, dealRate, reportingCurrencyOf, sumReporting, sumWeightedReporting, unconvertedCount, unconvertedCurrencies } from "../data-management/reporting-currency.js";
 import { updatedSummary } from "../data-management/field-labels.js";
 import { phoneSearchDigits } from "../duplicates/normalize.js";
 import { settleOpenFollowUps } from "../follow-ups/lifecycle.js";
@@ -67,7 +69,11 @@ export const OPPORTUNITY_SELECT = `
          quotation.id AS latest_quotation_id, quotation.quotation_number AS latest_quotation_number, quotation.lifecycle_status AS latest_quotation_status,
          quotation.grand_total AS latest_quotation_total, quotation.currency_code AS latest_quotation_currency, COALESCE(quotation.total_count, 0) AS quotation_count,
          floor(EXTRACT(epoch FROM now() - opportunity.stage_entered_at) / 86400)::int AS stage_age_days,
-         floor(EXTRACT(epoch FROM now() - COALESCE(opportunity.last_activity_at, opportunity.created_at)) / 86400)::int AS days_since_activity
+         latest_order.id AS latest_order_id, latest_order.sales_order_number AS latest_order_number, latest_order.lifecycle_status AS latest_order_status,
+         latest_order.customer_po_number AS latest_order_po_number, latest_order.customer_po_date AS latest_order_po_date,
+         floor(EXTRACT(epoch FROM now() - COALESCE(opportunity.last_activity_at, opportunity.created_at)) / 86400)::int AS days_since_activity,
+         -- converts the deal's amount into the organization's base currency; NULL when its currency has no rate
+         ${dealRate("opportunity")} AS reporting_rate
     FROM tenant.crm_opportunities opportunity
     LEFT JOIN tenant.business_parties account ON account.organization_id = opportunity.organization_id AND account.id = opportunity.party_id
     LEFT JOIN tenant.contacts contact ON contact.organization_id = opportunity.organization_id AND contact.id = opportunity.contact_id
@@ -114,7 +120,16 @@ export const OPPORTUNITY_SELECT = `
        WHERE quote.organization_id = opportunity.organization_id AND quote.source_opportunity_id = opportunity.id
        ORDER BY (quote.lifecycle_status = 'cancelled'), (quote.id = opportunity.primary_quotation_id) DESC, quote.created_at DESC
        LIMIT 1
-    ) quotation ON true`;
+    ) quotation ON true
+    -- The latest sales order raised from the deal (not a draft or cancelled one), with the buyer's purchase order.
+    LEFT JOIN LATERAL (
+      SELECT sales_order.id, sales_order.sales_order_number, sales_order.lifecycle_status, version.customer_po_number, to_char(version.customer_po_date, 'YYYY-MM-DD') AS customer_po_date
+        FROM tenant.sales_orders sales_order
+        LEFT JOIN tenant.sales_order_versions version ON version.organization_id = sales_order.organization_id AND version.id = sales_order.current_version_id
+       WHERE sales_order.organization_id = opportunity.organization_id AND sales_order.source_opportunity_id = opportunity.id
+         AND sales_order.lifecycle_status NOT IN ('draft', 'cancelled')
+       ORDER BY sales_order.confirmed_at DESC NULLS LAST, sales_order.created_at DESC LIMIT 1
+    ) latest_order ON true`;
 
 const number = (value) => (value === null || value === undefined ? null : Number(value));
 
@@ -216,6 +231,9 @@ export function toOpportunity(row) {
     latestQuotationStatus: row.latest_quotation_status ?? null,
     latestQuotationTotal: number(row.latest_quotation_total),
     latestQuotationCurrency: row.latest_quotation_currency?.trim() ?? null,
+    // The latest sales order raised from the deal, and the buyer's purchase order on it.
+    latestOrder: row.latest_order_id ? { id: row.latest_order_id, number: row.latest_order_number, status: row.latest_order_status,
+      customerPoNumber: row.latest_order_po_number ?? null, customerPoDate: row.latest_order_po_date ?? null } : null,
     quotationCount: Number(row.quotation_count ?? 0),
     openTaskCount: Number(row.open_task_count ?? 0),
     openFollowUpCount: Number(row.open_follow_up_count ?? 0),
@@ -254,6 +272,7 @@ export async function readOpportunityRow(client, context, opportunityId, options
 
 export async function getOpportunity(client, context, opportunityId) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
+  await loadApps(client, context);
   return toOpportunity(await loadOpportunityRow(client, context, opportunityId));
 }
 
@@ -376,6 +395,7 @@ export function buildOpportunityListWhere(context, filters = {}, values = []) {
 
 export async function listOpportunities(client, context, filters = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
+  await loadApps(client, context);
   const limit = Math.min(Math.max(Number(filters.limit) || 25, 1), 500);
   const offset = Math.max(Number(filters.offset) || 0, 0);
   const sortColumn = SORT_COLUMNS[filters.sortBy] ?? SORT_COLUMNS.updatedAt;
@@ -383,7 +403,8 @@ export async function listOpportunities(client, context, filters = {}) {
   const values = [];
   const where = buildOpportunityListWhere(context, filters, values);
   const totals = await client.query(
-    `SELECT count(*)::int AS total, COALESCE(sum(counted.amount), 0)::float8 AS value, COALESCE(sum(counted.amount * counted.probability / 100), 0)::float8 AS weighted
+    `SELECT count(*)::int AS total, ${sumReporting("counted")} AS value, ${sumWeightedReporting("counted")} AS weighted,
+            ${unconvertedCount("counted")} AS unconverted_count, ${unconvertedCurrencies("counted")} AS unconverted_currencies
        FROM (${OPPORTUNITY_SELECT} ${where}) counted`,
     values,
   );
@@ -396,6 +417,7 @@ export async function listOpportunities(client, context, filters = {}) {
     total: totals.rows[0].total,
     totalValue: totals.rows[0].value,
     weightedValue: Math.round(totals.rows[0].weighted * 100) / 100,
+    currency: currencyDisclosure(await reportingCurrencyOf(client, context.organizationId), totals.rows[0]),
     limit,
     offset,
     capabilities: opportunityCapabilities(context),
