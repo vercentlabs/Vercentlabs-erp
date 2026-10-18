@@ -1,11 +1,12 @@
 // Everything the contact screens need to render their pickers, in one read.
+import { activityTypeChoices } from "../activity-types/records.js";
 import { loadApps } from "../data-management/apps.js";
 import { contactTabAllowed } from "./summary.js";
 import { listLeadAssignmentOptions } from "../leads/assignment.js";
 import { listLeadSources } from "../leads/sources.js";
 import { contactCapabilities, requireContactPermission } from "./access.js";
 import {
-  CONTACT_ACTIVITY_TYPES, CONTACT_FOLLOW_UP_TYPES, CONTACT_PERMISSIONS, CONTACT_ROLES, CONTACT_STATUSES, MARKETING_CONSENT, PREFERRED_CONTACT_METHODS,
+  CONTACT_ACTIVITY_TYPES, CONTACT_PERMISSIONS, CONTACT_ROLES, CONTACT_STATUSES, MARKETING_CONSENT, PREFERRED_CONTACT_METHODS,
 } from "./constants.js";
 import { CONTACT_VIEWS } from "./records.js";
 import { CONTACT_RELATED_LISTS } from "./summary.js";
@@ -26,7 +27,9 @@ export async function getContactOptions(client, context) {
     preferredContactMethods: PREFERRED_CONTACT_METHODS,
     marketingConsent: MARKETING_CONSENT,
     activityTypes: CONTACT_ACTIVITY_TYPES,
-    followUpTypes: CONTACT_FOLLOW_UP_TYPES,
+    // One type list everywhere (CRM plan 5.2): the organization's activity types; followUpTypes keeps their codes.
+    followUpTypeOptions: await activityTypeChoices(client, context),
+    followUpTypes: (await activityTypeChoices(client, context)).map((type) => type.code),
     relatedLists: CONTACT_RELATED_LISTS,
     sources: await listLeadSources(client, context),
     users,

@@ -8,7 +8,7 @@ import { listAccounts } from "../../modules/crm/accounts/index.js";
 import { listContacts } from "../../modules/crm/contacts/index.js";
 import { getLeadsByStatusReport, listLeads } from "../../modules/crm/leads/index.js";
 import { listSalesOrders } from "../../modules/sales/index.js";
-import { BREAKDOWN_DIMENSIONS, getMetricDrilldown, getMetricRollup, listCrmRecords, PIPELINE_METRICS } from "../../modules/crm/index.js";
+import { BREAKDOWN_DIMENSIONS, getMetricDrilldown, getMetricRollup, PIPELINE_METRICS } from "../../modules/crm/index.js";
 
 // CRM analytical datasets (F030) are computed by the canonical CRM metric
 // layer (metric-definitions.js), so a saved or scheduled report shows the

@@ -12,6 +12,8 @@ export type PipelineStageColumn = {
   count: number; value: number; weightedValue: number; averageDaysInStage: number | null; cards: Opportunity[]; hasMore: boolean;
 };
 export type OpportunityPipeline = {
+  pipeline: { id: string; name: string; isDefault: boolean };
+  pipelines: Array<{ id: string; name: string; isDefault: boolean; openCount: number }>;
   status: "open" | "won" | "lost" | "all"; cardSort: string; cardsPerStage: number; stages: PipelineStageColumn[];
   total: number; totalValue: number; weightedValue: number; capabilities: OpportunityCapabilities;
 };
@@ -19,7 +21,7 @@ type PipelineBreakdownRow = { id: string | null; label: string; total: number; v
 export type PipelineSummary = {
   totals: {
     open: number; value: number; weightedValue: number; closingThisMonth: number; closingThisMonthValue: number; overdue: number; stale: number;
-    staleDays: number; noNextActivity: number;
+    staleDays: number; noNextActivity: number; recurringMonthly: number; recurringDeals: number;
   };
   byOwner: Array<PipelineBreakdownRow & { stages: Array<{ stageId: string; total: number; value: number }> }>;
   bySource: PipelineBreakdownRow[];

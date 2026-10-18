@@ -15,7 +15,7 @@ import { Cell, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import {
   TASKS_BASE, TASK_BLOCKER_LABEL, TASK_STATUS_TEXT, TASK_TONE, TASK_TYPE_LABEL, createTask, dateLabel, dueLabel, errorMessage, getMembers, newKey, taskAction,
   type ProjectTasks, type TaskRow, type TaskStatus, type Priority } from "../api/projects-api";

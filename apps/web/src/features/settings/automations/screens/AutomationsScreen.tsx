@@ -16,12 +16,13 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
-  TextArea,
   TextField,
 } from "@vercentlabs/design-system";
 import { useState } from "react";
 
 import { requestJson } from "@/shared/http/request-json";
+
+import { ActionEditor, actionReady, adaptAction, blankAction, type Action, type ActionDefinition } from "./ActionEditor";
 
 type Field = { key: string; label: string; type?: "user" | "list" };
 type Trigger = {
@@ -38,14 +39,6 @@ type Condition = {
   field: string;
   operator: Operator["key"];
   value: string | string[];
-};
-type Recipient =
-  { type: "event_field"; field: string } | { type: "user"; userId: string };
-type Action = {
-  type: "notify";
-  recipient: Recipient;
-  title: string;
-  message: string;
 };
 type Workflow = {
   id: string;
@@ -74,6 +67,7 @@ type Payload = {
   workflows: Workflow[];
   triggers: Trigger[];
   operators: Operator[];
+  actions: ActionDefinition[];
   limits: { maxConditions: number; maxActions: number };
   members: Array<{ id: string; name: string }>;
 };
@@ -123,7 +117,7 @@ export function AutomationsScreen({ canManage }: { canManage: boolean }) {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Automations"
-        description="When something happens, notify the right people. Automations only send in-app notifications and never act with an administrator's permissions."
+        description="When something happens, notify the right people — and, for CRM leads and deals, plan a follow-up, assign, tag, set the priority or send a template email. Automations never act with an administrator's permissions."
         primaryAction={
           <Button
             variant="primary"
@@ -271,19 +265,16 @@ function WorkflowBuilder({
     workflow?.definition.conditions ?? [],
   );
   const [actions, setActions] = useState<Action[]>(
-    workflow?.definition.actions ?? [
-      {
-        type: "notify",
-        recipient: { type: "user", userId: "" },
-        title: "",
-        message: "",
-      },
-    ],
+    workflow?.definition.actions ?? [blankAction("notify")],
   );
   const [error, setError] = useState<string | null>(null);
   const event = payload.triggers.find((entry) => entry.key === trigger);
   const fields = event?.conditionFields ?? [];
   const userFields = fields.filter((field) => field.type === "user");
+  // Notifications for any event; a module's own actions only for its events.
+  const availableFor = (moduleKey: string | undefined) =>
+    payload.actions.filter((entry) => !entry.module || entry.module === moduleKey);
+  const available = availableFor(event?.moduleKey);
   const memberOptions = payload.members.map((member) => ({
     value: member.id,
     label: member.name,
@@ -320,13 +311,8 @@ function WorkflowBuilder({
   const changeTrigger = (key: string) => {
     setTrigger(key);
     setConditions([]);
-    setActions((current) =>
-      current.map((action) =>
-        action.recipient.type === "event_field"
-          ? { ...action, recipient: { type: "user", userId: "" } }
-          : action,
-      ),
-    );
+    const next = availableFor(payload.triggers.find((entry) => entry.key === key)?.moduleKey);
+    setActions((current) => current.map((action) => adaptAction(action, next)));
   };
   const updateCondition = (index: number, patch: Partial<Condition>) =>
     setConditions((current) =>
@@ -334,11 +320,9 @@ function WorkflowBuilder({
         position === index ? { ...condition, ...patch } : condition,
       ),
     );
-  const updateAction = (index: number, patch: Partial<Action>) =>
+  const updateAction = (index: number, next: Action) =>
     setActions((current) =>
-      current.map((action, position) =>
-        position === index ? { ...action, ...patch } : action,
-      ),
+      current.map((action, position) => (position === index ? next : action)),
     );
 
   return (
@@ -493,100 +477,35 @@ function WorkflowBuilder({
             )}
         </section>
         <section className="flex flex-col gap-3" aria-label="Then">
-          <h3 className="text-sm font-semibold text-text">
-            Then send a notification
-          </h3>
-          {actions.map((action, index) => {
-            const recipientKey =
-              action.recipient.type === "event_field"
-                ? `field:${action.recipient.field}`
-                : "member";
-            return (
-              <div
-                key={index}
-                className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3"
-              >
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Select
-                    label="To"
-                    options={[
-                      ...userFields.map((field) => ({
-                        value: `field:${field.key}`,
-                        label: field.label,
-                      })),
-                      { value: "member", label: "A specific member" },
-                    ]}
-                    selectedKey={recipientKey}
-                    onSelectionChange={(key) =>
-                      updateAction(index, {
-                        recipient: String(key).startsWith("field:")
-                          ? { type: "event_field", field: String(key).slice(6) }
-                          : { type: "user", userId: "" },
-                      })
-                    }
-                  />
-                  {action.recipient.type === "user" && (
-                    <Select
-                      label="Member"
-                      options={memberOptions}
-                      selectedKey={action.recipient.userId || null}
-                      onSelectionChange={(key) =>
-                        updateAction(index, {
-                          recipient: { type: "user", userId: String(key) },
-                        })
-                      }
-                    />
-                  )}
-                </div>
-                <TextField
-                  label="Title"
-                  value={action.title}
-                  onChange={(title) => updateAction(index, { title })}
-                  isRequired
-                  maxLength={120}
-                />
-                <TextArea
-                  label="Message"
-                  value={action.message}
-                  onChange={(message) => updateAction(index, { message })}
-                  maxLength={500}
-                />
-                {actions.length > 1 && (
-                  <div>
-                    <Button
-                      variant="ghost"
-                      size="compact"
-                      onPress={() =>
-                        setActions((current) =>
-                          current.filter((_, position) => position !== index),
-                        )
-                      }
-                    >
-                      Remove notification
-                    </Button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          <h3 className="text-sm font-semibold text-text">Then</h3>
+          {actions.map((action, index) => (
+            <ActionEditor
+              key={index}
+              action={action}
+              available={available}
+              userFields={userFields}
+              members={memberOptions}
+              onChange={(next) => updateAction(index, next)}
+              onRemove={
+                actions.length > 1
+                  ? () =>
+                      setActions((current) =>
+                        current.filter((_, position) => position !== index),
+                      )
+                  : undefined
+              }
+            />
+          ))}
           {actions.length < payload.limits.maxActions && (
             <div>
               <Button
                 variant="secondary"
                 size="compact"
                 onPress={() =>
-                  setActions((current) => [
-                    ...current,
-                    {
-                      type: "notify",
-                      recipient: { type: "user", userId: "" },
-                      title: "",
-                      message: "",
-                    },
-                  ])
+                  setActions((current) => [...current, blankAction("notify")])
                 }
               >
-                Add another notification
+                Add another step
               </Button>
             </div>
           )}
@@ -605,7 +524,7 @@ function WorkflowBuilder({
             isDisabled={
               !name.trim() ||
               !trigger ||
-              actions.some((action) => !action.title.trim())
+              actions.some((action) => !actionReady(action))
             }
             isLoading={save.isPending}
             onPress={() => save.mutate()}
@@ -678,7 +597,7 @@ function RunsDialog({
                         </StatusBadge>
                       )}
                       {run.status === "succeeded" && run.matched !== false && (
-                        <span className="text-xs text-text-muted">{`${run.actionsRun} notification${run.actionsRun === 1 ? "" : "s"} sent`}</span>
+                        <span className="text-xs text-text-muted">{`${run.actionsRun} step${run.actionsRun === 1 ? "" : "s"} run`}</span>
                       )}
                       {run.error && (
                         <span className="text-xs text-danger">{run.error}</span>

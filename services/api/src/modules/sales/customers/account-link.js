@@ -11,7 +11,7 @@
 // see.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { linkCustomer } from "../../crm/accounts/customer.js";
-import { recordAccountHistory } from "../../crm/accounts/history.js";
+import { recordAccountHistory } from "../../../core/parties/history.js";
 import { queueOutboxEvent } from "../../crm/data-management/outbox.js";
 import { crmContext, requireCustomerPermission } from "./access.js";
 import { toAddress } from "./addresses.js";

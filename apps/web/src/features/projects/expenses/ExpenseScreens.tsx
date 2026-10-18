@@ -18,7 +18,7 @@ import { Cell, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { PROJECTS_BASE, dateLabel, errorCode, errorDetails, errorMessage, errorStatus, newKey } from "../api/projects-api";
 import {
   EXPENSES_BASE, STATUS_TONE, createExpense, decideCorrection, expenseAction, expensesExportHref, getExpense, getExpenseOptions, getExpenseSettings, getExpenseSummary, listExpenses, listReceipts,

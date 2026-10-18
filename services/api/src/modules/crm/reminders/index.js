@@ -32,12 +32,16 @@ function normalizeOffsets(offsets) {
 // for a time); true (default, meetings) moves a reminder outside working hours
 // to the start of the next working period.
 export async function createRemindersForActivity(client, context, activityId, dueAt, { offsets, channel = "in_app", workingHours = true } = {}) {
+  // The organization's holidays (CRM plan 5.6): a reminder moved into working hours skips them too.
+  const holidays = workingHours ? (await client.query(
+    "SELECT to_char(holiday_date, 'YYYY-MM-DD') AS day FROM tenant.crm_holidays WHERE organization_id = $1 AND holiday_date BETWEEN current_date - 1 AND current_date + 400",
+    [context.organizationId])).rows.map((row) => row.day) : [];
   if (!CHANNELS.has(channel)) throw new CrmError(400, "Reminder channel is invalid.", "CRM_REMINDER_CHANNEL_INVALID");
   const due = new Date(dueAt);
   const created = [];
   for (const offsetMinutes of normalizeOffsets(offsets)) {
     const naive = new Date(due.getTime() - offsetMinutes * 60000);
-    const fireAt = workingHours ? addBusinessMinutes(naive, 1, DEFAULT_BUSINESS_HOURS) : naive;
+    const fireAt = workingHours ? addBusinessMinutes(naive, 1, { ...DEFAULT_BUSINESS_HOURS, holidays }) : naive;
     const result = await client.query(
       `INSERT INTO tenant.crm_activity_reminders (organization_id, activity_id, offset_minutes, channel, fire_at, created_by)
        VALUES ($1, $2, $3, $4, $5, $6)

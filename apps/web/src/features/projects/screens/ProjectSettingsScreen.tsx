@@ -12,7 +12,7 @@ import { Cell, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { errorMessage, errorStatus, getSettings, saveSettings, saveType } from "../api/projects-api";
 import { BillingSettingsPanel } from "../billable/BillableReports";
 import { TimeSettingsPanel } from "../timesheets/TimeReports";

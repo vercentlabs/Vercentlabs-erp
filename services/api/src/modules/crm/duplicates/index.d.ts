@@ -33,10 +33,6 @@ export function normalizeGstin(value: unknown): string | null;
 export function gradeMatch(kind: DuplicateRecordType, signals: string[]): Pick<DuplicateMatch, "strength" | "matchStrength" | "score" | "reasons">;
 export function canOverrideDuplicates(context: CrmContext): boolean;
 
-export function findDuplicates(client: QueryClient, context: CrmContext, type: DuplicateRecordType, input: Record<string, unknown>, options?: { excludeId?: string | null; limit?: number }): Promise<DuplicateResult>;
-export function checkBeforeCreate(client: QueryClient, context: CrmContext, type: DuplicateRecordType, input: Record<string, unknown>, options?: { excludeId?: string | null; allowDuplicate?: boolean; reason?: string | null }): Promise<DuplicateResult>;
-export function checkBeforeConversion(client: QueryClient, context: CrmContext, lead: Record<string, unknown>): Promise<{ account: DuplicateResult; contact: DuplicateResult }>;
-export function checkImportRow(client: QueryClient, context: CrmContext, type: DuplicateRecordType, input: Record<string, unknown>): Promise<{ outcome: "create" | "possible" | "strong"; match: DuplicateMatch | null; matchingRecord: string | null; matchField: string | null }>;
 export function importDuplicateColumns(match: DuplicateMatch | null): { matchingRecord: string | null; matchField: string | null };
 export function recordDuplicateOverride(client: QueryClient, context: CrmContext, recordType: DuplicateRecordType, recordId: string, result: DuplicateResult): Promise<void>;
 export function markNotDuplicate(client: QueryClient, context: CrmContext, input: { recordTypeA: string; recordIdA: string; recordTypeB: string; recordIdB: string; reason?: string }): Promise<{ marked: boolean }>;

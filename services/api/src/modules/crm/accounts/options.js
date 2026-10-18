@@ -1,6 +1,7 @@
 // Everything the account screens need to render their pickers, in one read:
 // the fixed vocabulary, the organization's sources, people, teams,
 // industries, payment terms and currencies, and what the caller may do.
+import { activityTypeChoices } from "../activity-types/records.js";
 import { GST_TREATMENTS } from "@vercentlabs/shared-types";
 import { loadApps } from "../data-management/apps.js";
 import { tabAllowed } from "./summary.js";
@@ -8,7 +9,7 @@ import { listLeadAssignmentOptions } from "../leads/assignment.js";
 import { listLeadSources } from "../leads/sources.js";
 import { accountCapabilities, requireAccountPermission } from "./access.js";
 import {
-  ACCOUNT_ACTIVITY_TYPES, ACCOUNT_FOLLOW_UP_TYPES, ACCOUNT_PERMISSIONS, ACCOUNT_STATUSES, ACCOUNT_TYPES, ADDRESS_TYPES, EMPLOYEE_RANGES,
+  ACCOUNT_ACTIVITY_TYPES, ACCOUNT_PERMISSIONS, ACCOUNT_STATUSES, ACCOUNT_TYPES, ADDRESS_TYPES, EMPLOYEE_RANGES,
 } from "./constants.js";
 import { ACCOUNT_VIEWS } from "./records.js";
 import { ACCOUNT_RELATED_LISTS } from "./summary.js";
@@ -31,7 +32,9 @@ export async function getAccountOptions(client, context) {
     employeeRanges: EMPLOYEE_RANGES,
     addressTypes: ADDRESS_TYPES,
     activityTypes: ACCOUNT_ACTIVITY_TYPES,
-    followUpTypes: ACCOUNT_FOLLOW_UP_TYPES,
+    // One type list everywhere (CRM plan 5.2): the organization's activity types; followUpTypes keeps their codes.
+    followUpTypeOptions: await activityTypeChoices(client, context),
+    followUpTypes: (await activityTypeChoices(client, context)).map((type) => type.code),
     relatedLists: ACCOUNT_RELATED_LISTS,
     sources: await listLeadSources(client, context),
     users,

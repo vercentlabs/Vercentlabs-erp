@@ -31,9 +31,11 @@ function useWorkloadLabels(enabled: boolean) {
   const workspace = useWorkspaceContext();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "leads", "workload"), queryFn: getLeadWorkload, enabled, staleTime: 30_000 });
   const open = new Map((query.data ?? []).map((row) => [row.userId, row.openLeads]));
-  return (user: { id: string; name: string }, currentUserId: string) => {
+  return (user: { id: string; name: string; unavailable?: boolean }, currentUserId: string) => {
     const name = user.id === currentUserId ? `${user.name} (me)` : user.name;
-    return open.has(user.id) ? `${name} · ${open.get(user.id)} open` : name;
+    // Paused or at capacity: the rules pass them over, but they can still be chosen here.
+    const away = user.unavailable ? " · paused or full" : "";
+    return open.has(user.id) ? `${name} · ${open.get(user.id)} open${away}` : `${name}${away}`;
   };
 }
 

@@ -9,7 +9,7 @@ import { formatDateTime } from "@vercentlabs/localization";
 import { getPosSaleReceipt } from "../../modules/point-of-sale/transaction-continuity-and-documents/receipts.js";
 import { getPosSaleTaxes } from "../../modules/point-of-sale/pos-analytics/taxes.js";
 import { getRefundVoucher } from "../../modules/accounting/index.js";
-import { getCreditNoteDocument, getDeliveryNote, getOrderConfirmation, getQuotation, getReturnNote, getSalesInvoiceDocument, getSalesOrder } from "../../modules/sales/index.js";
+import { getCreditNoteDocument, getDeliveryNote, getOrderConfirmation, getProformaInvoice, getQuotation, getReturnNote, getSalesInvoiceDocument, getSalesOrder } from "../../modules/sales/index.js";
 import { getGoodsReceipt, getPurchaseOrderDocument } from "../../modules/procurement/purchase-orders/index.js";
 import { getSupplierBill } from "../../modules/procurement/supplier-bills/index.js";
 import { getPurchaseReturn } from "../../modules/procurement/purchase-returns/index.js";
@@ -59,6 +59,78 @@ const paymentTermNotes = (snapshot) => {
   const text = [snapshot?.description, snapshot?.note].filter(Boolean).join("\n");
   return text ? [{ label: `Payment terms: ${snapshot.name ?? ""}`.trim(), text }] : [];
 };
+
+// A quotation as printed (also the base of its proforma invoice).
+async function quotationModel(client, session, data) {
+  const quote = data.quotation;
+  const customer = quote.customer_snapshot || {};
+  const company = await companyDetails(client, session.organizationId);
+  const currency = String(quote.currency_code || "").trim();
+  const status = { draft: "Draft", awaiting_approval: "Draft - awaiting approval", cancelled: "Cancelled", superseded: "Superseded", expired: "Expired" }[quote.status];
+  return {
+    title: "Quotation",
+    documentNumber: quote.quotation_number,
+    issuedAt: `Date: ${day(quote.quotation_date) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      // The company registration the quotation was issued from, as stored with it.
+      { label: "From", lines: sellerLines(quote.seller_snapshot, company) },
+      { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.customerNumber ? `Customer no. ${customer.customerNumber}` : null, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
+      // The person the offer is addressed to.
+      { label: "Attention", lines: [[quote.contact_snapshot?.first_name, quote.contact_snapshot?.last_name].filter(Boolean).join(" "), quote.contact_snapshot?.designation, quote.contact_snapshot?.email].filter(Boolean) },
+      { label: "Bill to", lines: addressLines(quote.billing_address_snapshot) },
+      { label: "Ship to", lines: addressLines(quote.shipping_address_snapshot) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Quotation date", value: day(quote.quotation_date) ?? "" },
+      { label: "Valid until", value: day(quote.valid_until) ?? "" },
+      { label: "Your reference", value: quote.customer_reference ?? "" },
+      { label: "Revision of", value: quote.revision_of_number ?? "" },
+      { label: "Place of supply", value: quote.place_of_supply ? `${quote.place_of_supply_name ?? ""} (${quote.place_of_supply})`.trim() : "" },
+      { label: "Payment terms", value: quote.payment_term_snapshot?.name ?? "" },
+      { label: "Prices", value: quote.price_list_tax_inclusive ? "Inclusive of tax" : "Exclusive of tax" },
+      { label: "Sales person", value: quote.owner_name ?? "" },
+    ].filter((field) => field.value),
+    table: salesLines(data.lines, currency),
+    totals: salesTotals(quote, data.taxLines ?? []),
+    notes: [
+      ...paymentTermNotes(quote.payment_term_snapshot),
+      ...(quote.customer_notes ? [{ label: "Notes", text: quote.customer_notes }] : []),
+      ...(quote.terms_and_conditions ? [{ label: "Terms and conditions", text: quote.terms_and_conditions }] : []),
+    ],
+    footer: quote.quotation_number,
+  };
+}
+
+// The proforma invoice (CRM plan 4.7): the quotation set out as a request for payment, never a tax invoice.
+async function proformaModel(client, session, data) {
+  const base = await quotationModel(client, session, data);
+  const quote = data.quotation;
+  const { number, date, advancePercent, advanceAmount } = data.proforma;
+  const currency = String(quote.currency_code || "").trim();
+  return {
+    ...base,
+    title: "Proforma invoice",
+    documentNumber: number,
+    issuedAt: `Date: ${day(date) ?? ""}`,
+    status: "Not a tax invoice",
+    fields: [
+      { label: "Proforma date", value: day(date) ?? "" },
+      { label: "Against quotation", value: quote.quotation_number },
+      ...base.fields.filter((field) => !["Quotation date", "Revision of"].includes(field.label)),
+    ],
+    totals: [
+      ...base.totals,
+      ...(advancePercent ? [{ label: `Advance requested (${advancePercent}%) (${currency})`, value: amount(advanceAmount), emphasis: true }] : []),
+    ],
+    notes: [
+      { label: "About this document", text: "This is a proforma invoice, not a tax invoice: it cannot be used to claim input tax credit. The tax invoice, with the GST shown here, is issued when the goods or services are supplied. The prices, taxes and terms are those of the quotation it was made from." },
+      ...base.notes,
+    ],
+    footer: `${number} · against ${quote.quotation_number}`,
+  };
+}
 
 // The seller as printed: the registration stored on the document, else the organization.
 function sellerLines(seller, company) {
@@ -900,47 +972,23 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     // change to the customer, a product or a price list never changes it.
     // Internal notes, cost and margin are never printed.
     async toModel(client, session, data) {
-      const quote = data.quotation;
-      const customer = quote.customer_snapshot || {};
-      const company = await companyDetails(client, session.organizationId);
-      const currency = String(quote.currency_code || "").trim();
-      const status = { draft: "Draft", awaiting_approval: "Draft - awaiting approval", cancelled: "Cancelled", superseded: "Superseded", expired: "Expired" }[quote.status];
-      return {
-        title: "Quotation",
-        documentNumber: quote.quotation_number,
-        issuedAt: `Date: ${day(quote.quotation_date) ?? ""}`,
-        organizationName: company.name,
-        status: status ? `Status: ${status}` : null,
-        parties: [
-          // The company registration the quotation was issued from, as stored with it.
-          { label: "From", lines: sellerLines(quote.seller_snapshot, company) },
-          { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.customerNumber ? `Customer no. ${customer.customerNumber}` : null, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
-          // The person the offer is addressed to.
-          { label: "Attention", lines: [[quote.contact_snapshot?.first_name, quote.contact_snapshot?.last_name].filter(Boolean).join(" "), quote.contact_snapshot?.designation, quote.contact_snapshot?.email].filter(Boolean) },
-          { label: "Bill to", lines: addressLines(quote.billing_address_snapshot) },
-          { label: "Ship to", lines: addressLines(quote.shipping_address_snapshot) },
-        ].filter((party) => party.lines.length),
-        fields: [
-          { label: "Quotation date", value: day(quote.quotation_date) ?? "" },
-          { label: "Valid until", value: day(quote.valid_until) ?? "" },
-          { label: "Your reference", value: quote.customer_reference ?? "" },
-          { label: "Revision of", value: quote.revision_of_number ?? "" },
-          { label: "Place of supply", value: quote.place_of_supply ? `${quote.place_of_supply_name ?? ""} (${quote.place_of_supply})`.trim() : "" },
-          { label: "Payment terms", value: quote.payment_term_snapshot?.name ?? "" },
-          { label: "Prices", value: quote.price_list_tax_inclusive ? "Inclusive of tax" : "Exclusive of tax" },
-          { label: "Sales person", value: quote.owner_name ?? "" },
-        ].filter((field) => field.value),
-        table: salesLines(data.lines, currency),
-        totals: salesTotals(quote, data.taxLines ?? []),
-        notes: [
-          ...paymentTermNotes(quote.payment_term_snapshot),
-          ...(quote.customer_notes ? [{ label: "Notes", text: quote.customer_notes }] : []),
-          ...(quote.terms_and_conditions ? [{ label: "Terms and conditions", text: quote.terms_and_conditions }] : []),
-        ],
-        footer: quote.quotation_number,
-      };
+      return quotationModel(client, session, data);
     },
     fileName: (data) => `quotation-${data.quotation.quotation_number}`,
+  }),
+  Object.freeze({
+    key: "sales.proforma",
+    moduleKey: "sales",
+    permission: "sales.quotation.export",
+    label: "Proforma invoice",
+    // options.advancePercent: the advance asked for, as a percentage of the total.
+    async load(client, session, id, options = {}) {
+      return getProformaInvoice(client, salesContext(session), id, { advancePercent: options.advancePercent });
+    },
+    async toModel(client, session, data) {
+      return proformaModel(client, session, data);
+    },
+    fileName: (data) => `proforma-${data.proforma.number}`,
   }),
   Object.freeze({
     key: "sales.order",

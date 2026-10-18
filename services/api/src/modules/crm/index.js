@@ -3,12 +3,11 @@ export { getMetricDrilldown, getMetricRollup, getPipelineBreakdown, getPipelineD
 export { analyticsFiltersFromSearchParams, normalizeAnalyticsFilters } from "./analytics/opportunity-facts.js";
 export { BREAKDOWN_DIMENSIONS, listMetricDefinitions, METRIC_VERSION, PIPELINE_METRICS } from "./analytics/metric-definitions.js";
 export { CrmError } from "./data-management/errors.js";
-export { archiveCrmRecord, createCrmRecord, updateCrmRecord } from "./data-management/resource-mutation-service.js";
 export { getCrmOptions } from "./data-management/resource-options.js";
 export { queueOutboxEvent } from "./data-management/outbox.js";
 export { canViewAllCrmRecords, recordScope } from "./data-management/record-policy.js";
-export { getCrmRecord, listCrmRecords } from "./data-management/resource-query-service.js";
-export { isCrmResource, resources } from "./data-management/resource-registry.js";
+export { resources } from "./data-management/resource-registry.js";
+export { addSalesTeamMember, archiveSalesTeam, archiveSalesTeamMember, createSalesTeam, getSalesTeam, listSalesTeamMembers, listSalesTeams, SALES_TEAM_MEMBER_ROLES, updateSalesTeam } from "./sales-organization/teams.js";
 
 export * from "./pipeline/index.js";
 export * from "./sales-stages/index.js";
@@ -48,5 +47,38 @@ export * from "./leads/index.js";
 export * from "./duplicates/index.js";
 export * from "./opportunities/index.js";
 export * from "./data-jobs/index.js";
+export * from "./email/index.js";
+export * from "./capture-forms/index.js";
+export * from "./connectors/index.js";
+export * from "./campaigns/index.js";
+export * from "./tags/index.js";
+export * from "./reports/index.js";
+export * from "./whatsapp/index.js";
+export * from "./channels/index.js";
+export * from "./meetings/index.js";
+export * from "./followers/index.js";
+export * from "./activity-types/index.js";
+export * from "./custom-fields/index.js";
+export * from "./recurring/index.js";
+export * from "./images/index.js";
+export * from "./saved-views/index.js";
+export * from "./gst/index.js";
+export * from "./holidays/index.js";
+export * from "./access-levels/index.js";
+export * from "./mailings/index.js";
+export * from "./chat/index.js";
+// The leads switch, past-history import and moving in from other tools (CRM plan 5.7).
+export { convertArrivingLead, leadsEnabled, setLeadsEnabled } from "./leads/switch.js";
+export { HISTORY_IMPORT_COLUMNS, analyzeHistoryImport, buildHistoryImportTemplate, importRecordHistory } from "./data-management/history-import.js";
+export { MIGRATION_SOURCES } from "./data-management/migration-presets.js";
+export { SCORING_FIELDS, createLeadScoringRule, deleteLeadScoringRule, getLeadScoring, rescoreLead, rescoreOpenLeads, saveLeadScoringSettings, updateLeadScoringRule } from "./leads/scoring.js";
+export { CONSENT_LOCK_DAYS, addOptOut, assertConsentRequestAllowed, findPersonalData, listConsentHistory, listOptOuts, optOutOf, removeOptOut, withConsentSource } from "./data-management/consent.js";
 export * from "./accounts/index.js";
 export * from "./contacts/index.js";
+
+// CRM actions in the central audit log (CRM plan 5.7): these named exports take the place of the plain ones re-exported above.
+export {
+  bulkAssignAccounts, bulkAssignContacts, bulkAssignLeads, bulkAssignOpportunities, bulkChangeLeadStage, bulkChangeOpportunityStage, bulkConvertLeads, bulkDisqualifyLeads,
+  bulkSetAccountStatus, bulkSetContactStatus, bulkUpdateFollowUps, bulkUpdateTasks, exportAccounts, exportContacts, exportFollowUps, exportLeads, exportOpportunities, exportTasks,
+  mergeAccounts, mergeContacts, mergeLeads, mergeOpportunities,
+} from "./data-management/audited.js";

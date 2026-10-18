@@ -7,7 +7,7 @@
 //
 // Each change records who made it, when and why. None of them touches a
 // document that already exists.
-import { recordAccountHistory } from "../../crm/accounts/history.js";
+import { recordAccountHistory } from "../../../core/parties/history.js";
 import { requireCustomerPermission } from "./access.js";
 import { CUSTOMER_PERMISSIONS, CustomerError } from "./constants.js";
 import { customerStatusOf, getCustomerUnscoped, loadCustomerRow } from "./records.js";

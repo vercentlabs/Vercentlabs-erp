@@ -15,6 +15,8 @@ export type NavViewer = {
   permissions: readonly string[];
   /** organization_owner sees every destination, as it does server-side. */
   isOwner?: boolean;
+  /** Routes an organization's own setting leaves out of the sidebar (CRM's Leads, when it works without leads). */
+  hiddenRoutes?: readonly string[];
 };
 
 // A route may carry a query (a tab or view of one page, e.g. /inventory/replenishment?tab=alerts): it matches on its path; the query only
@@ -118,6 +120,7 @@ export function sidebarItems(
       items: section.items.filter(
         (item) =>
           isSidebarItem(item) &&
+          !viewer.hiddenRoutes?.includes(item.route) &&
           (item.status !== "AVAILABLE" || isItemPermitted(item, viewer)),
       ),
     }))

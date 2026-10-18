@@ -21,6 +21,8 @@ export async function GET(
   const inline = params.get("disposition") === "inline";
   // ?version= prints an earlier confirmed version of a document that keeps versions (a purchase order).
   const version = Number(params.get("version")) || null;
+  // ?advance= asks for an advance (a percentage of the total) on a proforma invoice.
+  const advancePercent = params.get("advance");
   if (!renderer) return errorResponse(new HttpError(404, "Unknown document."));
   return workspaceRoute(
     request,
@@ -35,7 +37,7 @@ export async function GET(
         session,
         renderer.key,
         id,
-        { version },
+        { version, advancePercent },
       );
       return new Response(new Uint8Array(pdf.body), {
         status: 200,

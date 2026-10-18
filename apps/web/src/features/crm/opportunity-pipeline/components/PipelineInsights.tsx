@@ -28,6 +28,8 @@ export function PipelineSummaryStrip({ summary, currency, onSelect }: { summary:
       <Metric label={`Closing this month (${totals.closingThisMonth})`} value={formatMoney(currency, totals.closingThisMonthValue)} onPress={() => onSelect("closing_this_month")} />
       <Metric label="Overdue" value={totals.overdue} onPress={() => onSelect("overdue")} />
       <Metric label="No next activity" value={totals.noNextActivity} onPress={() => onSelect("no_next_activity")} />
+      {/* recurring revenue of the open deals, as a monthly figure (CRM plan 5.3) */}
+      {totals.recurringDeals ? <p className="col-span-2 text-sm text-text-secondary md:col-span-4">Recurring: {formatMoney(currency, totals.recurringMonthly ?? 0)} a month from {totals.recurringDeals} open {totals.recurringDeals === 1 ? "deal" : "deals"}.</p> : null}
     </div>
   );
 }

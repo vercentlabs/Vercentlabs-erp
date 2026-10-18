@@ -9,6 +9,10 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
+import type { CustomValues } from "@/features/crm/shared/fields-api";
+import { CustomFieldInputs } from "@/features/crm/shared/ui/CustomFields";
+
+import { campaignChoices } from "@/features/crm/shared/marketing-api";
 import { getAccount } from "@/features/crm/accounts/api/accounts-api";
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { ContactPicker } from "@/features/crm/contacts/components/ContactPicker";
@@ -32,29 +36,33 @@ const NONE = "";
 const UNASSIGNED = "__unassigned__";
 
 type FormValues = {
-  name: string; accountId: string; accountName: string; contactId: string; stageId: string; ownerUserId: string; teamId: string; amount: string;
-  currencyCode: string; expectedCloseDate: string; priority: string; sourceId: string; productInterest: string; description: string;
+  name: string; accountId: string; accountName: string; contactId: string; pipelineId: string; stageId: string; ownerUserId: string; teamId: string; amount: string;
+  currencyCode: string; expectedCloseDate: string; priority: string; sourceId: string; campaignId: string; medium: string; productInterest: string; description: string;
   businessProblem: string; requirements: string; proposedSolution: string; commercialNotes: string; nextStep: string; nextStepDueAt: string;
 };
 
 function valuesFrom(opportunity: Opportunity | undefined, options: OpportunityOptions, account?: { id: string; name: string }): FormValues {
   return {
     name: opportunity?.name ?? "", accountId: opportunity?.accountId ?? account?.id ?? "", accountName: opportunity?.accountName ?? account?.name ?? "",
-    contactId: opportunity?.contactId ?? NONE, stageId: options.stages[0]?.id ?? NONE, ownerUserId: options.currentUserId, teamId: NONE,
+    contactId: opportunity?.contactId ?? NONE, pipelineId: NONE, stageId: NONE, ownerUserId: options.currentUserId, teamId: NONE,
     amount: opportunity?.amount ? String(opportunity.amount) : "", currencyCode: opportunity?.currencyCode ?? options.baseCurrency,
     expectedCloseDate: opportunity?.expectedCloseDate ?? "", priority: opportunity?.priority ?? "medium", sourceId: opportunity?.sourceId ?? NONE,
+    campaignId: opportunity?.campaignId ?? NONE, medium: opportunity?.medium ?? NONE,
     productInterest: opportunity?.productInterest ?? "", description: opportunity?.description ?? "", businessProblem: opportunity?.businessProblem ?? "",
     requirements: opportunity?.requirements ?? "", proposedSolution: opportunity?.proposedSolution ?? "", commercialNotes: opportunity?.commercialNotes ?? "",
     nextStep: opportunity?.nextStep ?? "", nextStepDueAt: opportunity?.nextStepDueAt ?? "",
   };
 }
 
-// Stage, owner and team are set here only when creating; afterwards they
-// change through Change stage and Assign, so each change is recorded.
+// Pipeline, stage, owner and team are set here only when creating; afterwards they
+// change through Change stage, Move to another pipeline and Assign, so each change is recorded.
+// No pipeline chosen: the team's (or owner's team's) pipeline, else the default. No stage: the pipeline's first.
 function toInput(values: FormValues, mode: "create" | "edit") {
-  const { stageId, ownerUserId, teamId, ...fields } = values;
-  const input: Record<string, unknown> = { ...fields, accountName: undefined, contactId: fields.contactId || null, sourceId: fields.sourceId || null, nextStepDueAt: fields.nextStepDueAt || null };
+  const { pipelineId, stageId, ownerUserId, teamId, ...fields } = values;
+  const input: Record<string, unknown> = { ...fields, accountName: undefined, contactId: fields.contactId || null, sourceId: fields.sourceId || null,
+    campaignId: fields.campaignId || null, medium: fields.medium || null, nextStepDueAt: fields.nextStepDueAt || null };
   if (mode === "create") {
+    if (pipelineId) input.pipelineId = pipelineId;
     if (stageId) input.stageId = stageId;
     input.ownerUserId = ownerUserId === UNASSIGNED ? null : ownerUserId;
     if (teamId) input.teamId = teamId;
@@ -93,6 +101,12 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
   const router = useRouter();
   const queryClient = useQueryClient();
   const [values, setValues] = useState<FormValues>(() => valuesFrom(opportunity, options, account));
+  // The organization's own fields and recurring revenue (CRM plan 5.3).
+  const customFields = options.customFields ?? [];
+  const recurringPlans = (options.recurringPlans ?? []).filter((plan) => plan.isActive || plan.id === opportunity?.recurringPlanId);
+  const [customValues, setCustomValues] = useState<CustomValues>(() => ({ ...(opportunity?.customFields ?? {}) }));
+  const [recurringPlanId, setRecurringPlanId] = useState(opportunity?.recurringPlanId ?? "");
+  const [recurringRevenue, setRecurringRevenue] = useState(opportunity?.recurringRevenue === null || opportunity?.recurringRevenue === undefined ? "" : String(opportunity.recurringRevenue));
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [duplicates, setDuplicates] = useState<OpportunityDuplicate[]>([]);
@@ -125,7 +139,12 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
   const submit = useSubmitKey();
   const mutation = useMutation({
     mutationFn: () => submit.run(async () => {
-      const input = toInput(values, mode);
+      const input = {
+        ...toInput(values, mode),
+        ...(customFields.length ? { customFields: Object.fromEntries(customFields.map((field) => [field.key, customValues[field.key] ?? null])) } : {}),
+        recurringPlanId: recurringPlanId || null,
+        recurringRevenue: recurringPlanId && recurringRevenue.trim() !== "" ? recurringRevenue : null,
+      };
       return opportunity ? updateOpportunity(opportunity.id, { ...input, expectedUpdatedAt: opportunity.updatedAt }) : createOpportunity(input);
     }),
     onSuccess: (saved) => {
@@ -144,7 +163,10 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
 
   const canAssignOthers = options.capabilities.assign;
   const chosenTeam = options.teams.find((team) => team.id === values.teamId);
-  const stage = options.stages.find((entry) => entry.id === values.stageId);
+  // The stages offered: the chosen pipeline's, else the default pipeline's (CRM plan 5.1).
+  const pipelines = options.pipelines ?? [];
+  const stageChoices = pipelines.find((entry) => entry.id === values.pipelineId)?.stages ?? options.stages;
+  const stage = stageChoices.find((entry) => entry.id === values.stageId) ?? stageChoices[0];
   const amount = Number(values.amount);
   const cancelHref = opportunity ? `/crm/opportunities/${opportunity.id}` : account ? `/crm/accounts/${account.id}` : "/crm/opportunities";
   // A deal is for a company, or for a person (their company, or an individual customer created for them).
@@ -215,15 +237,43 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
         <TextField label="Value" inputMode="decimal" value={values.amount} onChange={set("amount")} errorMessage={fieldErrors.amount}
           description={mode === "create" && stage && Number.isFinite(amount) && amount > 0 ? `Weighted at ${stage.probability}%: ${formatMoney(values.currencyCode, Math.round(amount * stage.probability) / 100)}` : undefined} />
         <DateInput label="Close date" value={values.expectedCloseDate} onChange={set("expectedCloseDate")} errorMessage={fieldErrors.expectedCloseDate} />
+        {mode === "create" && pipelines.length > 1 && (
+          <Select label="Pipeline" selectedKey={values.pipelineId || "auto"}
+            onSelectionChange={(key) => { const next = String(key) === "auto" ? NONE : String(key); setValues((current) => ({ ...current, pipelineId: next, stageId: NONE })); }}
+            description="Left automatic, the deal goes to its team's pipeline, else the default one."
+            options={[{ value: "auto", label: "Automatic" }, ...pipelines.map((entry) => ({ value: entry.id, label: `${entry.name}${entry.isDefault ? " (default)" : ""}` }))]} />
+        )}
         {mode === "create" && (
-          <Select label="Sales stage" selectedKey={values.stageId} onSelectionChange={(key) => set("stageId")(String(key))}
+          <Select label="Sales stage" selectedKey={values.stageId || "first"} onSelectionChange={(key) => set("stageId")(String(key) === "first" ? NONE : String(key))}
             description="The stage sets the starting probability."
-            options={options.stages.map((entry) => ({ value: entry.id, label: `${entry.name} · ${entry.probability}%` }))} />
+            options={[{ value: "first", label: `First stage${stageChoices[0] ? ` (${stageChoices[0].name})` : ""}` },
+              ...stageChoices.map((entry) => ({ value: entry.id, label: `${entry.name} · ${entry.probability}%` }))]} />
         )}
       </FormSection>
 
+      {(customFields.length > 0 || recurringPlans.length > 0) && (
+        <FormSection title="More about this deal" description="Recurring revenue, and your organization's own fields.">
+          {recurringPlans.length > 0 && (
+            <>
+              <Select label="Recurring plan" description="For revenue that repeats: an AMC, a subscription, a rental." selectedKey={recurringPlanId || "none"}
+                onSelectionChange={(key) => setRecurringPlanId(String(key) === "none" ? "" : String(key))}
+                options={[{ value: "none", label: "Not recurring" }, ...recurringPlans.map((plan) => ({ value: plan.id, label: plan.name }))]} />
+              {recurringPlanId && (
+                <TextField label="Recurring amount per period" inputMode="decimal" value={recurringRevenue} onChange={setRecurringRevenue}
+                  description={(() => {
+                    const plan = recurringPlans.find((entry) => entry.id === recurringPlanId);
+                    const amount = Number(recurringRevenue);
+                    return plan && Number.isFinite(amount) && amount > 0 ? `${formatMoney(values.currencyCode, Math.round((amount / plan.months) * 100) / 100)} a month` : undefined;
+                  })()} />
+              )}
+            </>
+          )}
+          <CustomFieldInputs fields={customFields} values={customValues} onChange={setCustomValues} />
+        </FormSection>
+      )}
+
       <MoreDetails description={`${singleCurrency ? "" : "Currency, "}priority, source, product interest and description.`}
-        hasContent={Boolean(values.productInterest || values.description || values.sourceId || values.priority !== "medium" || values.currencyCode !== options.baseCurrency
+        hasContent={Boolean(values.productInterest || values.description || values.sourceId || values.campaignId || values.medium || values.priority !== "medium" || values.currencyCode !== options.baseCurrency
           || fieldErrors.productInterest || fieldErrors.description || fieldErrors.currencyCode)}>
         {!singleCurrency && (
           <Select label="Currency" selectedKey={values.currencyCode} onSelectionChange={(key) => set("currencyCode")(String(key))}
@@ -232,6 +282,16 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
         <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key))} options={PRIORITY_OPTIONS} />
         <Select label="Source" selectedKey={values.sourceId} onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
           options={[{ value: NONE, label: "Not set" }, ...options.sources.map((source) => ({ value: source.id, label: source.name }))]} />
+        <Select label="Campaign" selectedKey={values.campaignId} errorMessage={fieldErrors.campaignId}
+          onSelectionChange={(key) => {
+            const campaignId = String(key ?? NONE);
+            set("campaignId")(campaignId);
+            const medium = options.campaigns?.find((entry) => entry.id === campaignId)?.medium;
+            if (medium && !values.medium) set("medium")(medium);
+          }}
+          options={[{ value: NONE, label: "None" }, ...campaignChoices(options.campaigns ?? [], opportunity?.campaignId ?? null, opportunity?.campaignName ?? null)]} />
+        <Select label="Medium" selectedKey={values.medium} onSelectionChange={(key) => set("medium")(String(key ?? NONE))} errorMessage={fieldErrors.medium}
+          options={[{ value: NONE, label: "Not set" }, ...(options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label }))]} />
         <TextArea label="Product / service interest" className="sm:col-span-2" value={values.productInterest} onChange={set("productInterest")}
           description="In words. Products with quantities and prices are added on the deal." />
         <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} />

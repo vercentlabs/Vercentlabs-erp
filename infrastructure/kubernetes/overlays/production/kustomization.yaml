@@ -5,7 +5,7 @@
 # Manager secret has a version (a missing version blocks pod start):
 #   ../../components/google-oauth           GOOGLE_OAUTH_CLIENT_ID + secret
 #   ../../components/microsoft-oauth        MICROSOFT_OAUTH_CLIENT_ID + secret
-#   ../../components/crm-inbound-secrets    CRM capture/inbound/provider secrets (web)
+#   ../../components/crm-inbound-secrets    CRM capture proxy secret (web)
 #   ../../components/landing-crm-capture    landing demo form -> ERP capture
 #   ../../components/razorpay-webhook-rotation  while rotating the webhook secret
 #   ../../components/legacy-encryption-key  until secrets:migrate-legacy reports 0

@@ -30,3 +30,4 @@ export async function listOpportunityHistory(client, context, opportunityId, opt
   const opportunity = await getOpportunity(client, context, opportunityId);
   return listOpportunityHistoryEntries(client, context, opportunity.id, options);
 }
+export { OPPORTUNITY_MERGE_FIELDS, mergeOpportunities } from "./merge.js";

@@ -3,6 +3,7 @@
 // pinned, and every edit keeps the previous text (crm_note_versions) so a
 // business-critical note can never be rewritten silently. Deleting a note
 // archives it: it leaves the record's notes but stays in the history.
+import { announceNote } from "../followers/records.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import {
@@ -142,6 +143,8 @@ export async function createNote(client, context, relatedType, relatedId, input 
   await recordContentHistory(client, context, { entityType: relatedType, entityId: relatedId, subjectType: "note", subjectId: id, eventType: "note_created",
     summary: `Note added${title ? `: ${title}` : ""}`, changes: { visibility, pinned } });
   await queueOutboxEvent(client, context, "crm.note.created", "note", id, { entityType: relatedType, entityId: relatedId, visibility });
+  // Mentioned people are told; followers hear of a shared note (CRM plan 4.6).
+  await announceNote(client, context, { type: relatedType, id: relatedId, text: html, isNew: true, isPrivate: visibility === "private" });
   return getNote(client, context, id);
 }
 
@@ -170,6 +173,7 @@ export async function updateNote(client, context, noteId, input = {}) {
   );
   await recordContentHistory(client, context, { entityType: row.entity_type, entityId: row.entity_id, subjectType: "note", subjectId: row.id, eventType: "note_edited",
     summary: `Note edited${next.title ? `: ${next.title}` : ""}`, changes: { previousVersion: row.version, visibility: next.visibility !== row.visibility ? next.visibility : undefined } });
+  await announceNote(client, context, { type: row.entity_type, id: row.entity_id, text: html, previousText: row.body, isNew: false, isPrivate: next.visibility === "private" });
   return getNote(client, context, row.id);
 }
 

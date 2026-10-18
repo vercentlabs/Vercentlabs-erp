@@ -3,6 +3,11 @@
 // Owner and team change only through assignment.js; status only through
 // qualification.js (qualify / disqualify / reopen) and ../conversion. This
 // file never writes those columns except to set the initial owner on create.
+import { applyCustomFields } from "../custom-fields/records.js";
+import { rescoreLead } from "./scoring.js";
+import { convertArrivingLead } from "./switch.js";
+import { crmMediumLabel } from "@vercentlabs/shared-types";
+
 import { normalizePhones } from "../data-management/phones.js";
 import { updatedSummary } from "../data-management/field-labels.js";
 import { phoneSearchDigits } from "../duplicates/normalize.js";
@@ -25,6 +30,9 @@ import { assertActiveLeadSource } from "./sources.js";
 import { applyLeadStage, ensureDefaultLeadStages, recordLeadStageEntry, requireStageChangePermission } from "./stages.js";
 import { LEAD_WRITABLE_COLUMNS, assertValidLead, isUuid, normalizeLeadInput, requireUuid } from "./validation.js";
 import { orgDayStart } from "../data-management/org-date.js";
+import { assertUsableCampaign } from "../campaigns/records.js";
+import { assertConsentRequestAllowed } from "../data-management/consent.js";
+import { tagsByRecord } from "../tags/lookup.js";
 
 const DUPLICATE_IDENTITY_FIELDS = ["email", "phone", "mobile", "firstName", "lastName", "companyName"];
 const BULK_LIMIT = 200;
@@ -41,7 +49,7 @@ export const LEAD_SELECT = `
          qualification.budget_status AS q_budget_status, qualification.budget_min AS q_budget_min, qualification.budget_max AS q_budget_max,
          qualification.authority_status AS q_authority_status, qualification.authority_detail AS q_authority_detail,
          qualification.notes AS q_notes, qualification.started_at AS q_started_at, qualification.override_reason AS q_override_reason, overrider.full_name AS q_overridden_by_name,
-         stage_def.name AS stage_name, stage_def.sequence AS stage_sequence,
+         stage_def.name AS stage_name, stage_def.sequence AS stage_sequence, stage_def.stale_after_days AS stage_stale_days,
          floor(EXTRACT(epoch FROM now() - lead.stage_changed_at) / 86400)::int AS stage_age_days,
          floor(EXTRACT(epoch FROM now() - COALESCE(lead.last_activity_at, lead.created_at)) / 86400)::int AS days_since_activity,
          converter.full_name AS converted_by_name, converted_account.display_name AS converted_account_name,
@@ -49,8 +57,12 @@ export const LEAD_SELECT = `
          converted_opportunity.code AS converted_opportunity_code, converted_opportunity.amount AS converted_opportunity_amount,
          lead.merged_into_lead_id AS merged_into_id, merged_lead.code AS merged_into_code,
          COALESCE(merged_lead.full_name, merged_lead.company_name) AS merged_into_name,
-         follow_up.next_follow_up_at AS pending_follow_up_at
+         follow_up.next_follow_up_at AS pending_follow_up_at,
+         campaign.name AS campaign_name, capture_form.name AS capture_form_name, capture_notice.version AS capture_notice_version, capture_notice.notice_text AS capture_notice_text
     FROM tenant.crm_leads lead
+    LEFT JOIN tenant.crm_campaigns campaign ON campaign.organization_id = lead.organization_id AND campaign.id = lead.campaign_id
+    LEFT JOIN tenant.crm_capture_forms capture_form ON capture_form.organization_id = lead.organization_id AND capture_form.id = lead.capture_form_id
+    LEFT JOIN tenant.crm_capture_notices capture_notice ON capture_notice.organization_id = lead.organization_id AND capture_notice.id = lead.capture_notice_id
     LEFT JOIN tenant.crm_lead_sources source ON source.organization_id = lead.organization_id AND source.id = lead.source_id
     LEFT JOIN public.users owner ON owner.id = lead.owner_user_id
     LEFT JOIN public.users creator ON creator.id = lead.created_by
@@ -95,6 +107,16 @@ export function toLead(row) {
     state: row.state,
     countryCode: row.country_code?.trim() ?? null,
     sourceId: row.source_id,
+    campaignId: row.campaign_id ?? null,
+    // the organization's custom fields (CRM plan 5.3), by key
+    customFields: row.custom_data ?? {},
+    // the lead score (CRM plan 5.3), 0 to 100, and why
+    score: row.lead_score ?? null,
+    scoreDetails: row.lead_score_details ?? null,
+    scoredAt: row.lead_scored_at ?? null,
+    campaignName: row.campaign_name ?? null,
+    medium: row.medium ?? null,
+    mediumLabel: crmMediumLabel(row.medium),
     sourceName: row.source_name ?? null,
     sourceDetail: row.source_detail,
     industry: row.industry,
@@ -102,6 +124,8 @@ export function toLead(row) {
     consentEmail: Boolean(row.consent_email),
     consentSms: Boolean(row.consent_sms),
     consentWhatsapp: Boolean(row.consent_whatsapp),
+    // The web form it came through and the consent notice version its person agreed to (CRM plan 3.2).
+    captureForm: row.capture_form_id ? { id: row.capture_form_id, name: row.capture_form_name ?? null, noticeVersion: row.capture_notice_version ?? null, noticeText: row.capture_notice_text ?? null } : null,
     doNotContact: Boolean(row.do_not_contact),
     estimatedValue: Number(row.estimated_value ?? 0),
     currencyCode: row.currency_code?.trim() ?? null,
@@ -126,7 +150,10 @@ export function toLead(row) {
     // calculated, never stored: how long in this stage, and whether it has gone quiet
     stageAgeDays: row.stage_age_days ?? 0,
     daysSinceActivity: row.days_since_activity ?? 0,
-    isStale: row.status === "open" && !row.archived_at && (row.days_since_activity ?? 0) >= LEAD_STALE_DAYS,
+    // stale after the stage's own number of days without activity (CRM plan 5.5), else the standard
+    isStale: row.status === "open" && !row.archived_at && (row.days_since_activity ?? 0) >= (row.stage_stale_days ?? LEAD_STALE_DAYS),
+    staleAfterDays: row.stage_stale_days ?? LEAD_STALE_DAYS,
+    languageCode: row.language_code ?? null,
     status: row.status,
     // qualification: the answers, and what they add up to
     qualificationStatus: leadQualificationStatus(row),
@@ -203,7 +230,8 @@ export async function lockLead(client, context, leadId, options = {}) {
 export async function getLead(client, context, leadId) {
   requireLeadPermission(context, LEAD_PERMISSIONS.view, "You do not have permission to view leads.");
   const row = await loadLeadRow(client, context, leadId, { includeArchived: true });
-  return projectLeadForContext(context, toLead(row));
+  const tags = (await tagsByRecord(client, context.organizationId, "lead", [row.id])).get(row.id) ?? [];
+  return { ...projectLeadForContext(context, toLead(row)), tags };
 }
 
 // ------------------------------------------------------------------ list
@@ -233,6 +261,7 @@ const SORT_COLUMNS = Object.freeze({
   status: "lead.status",
   priority: "CASE lead.priority WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END",
   rating: "CASE lead.rating WHEN 'hot' THEN 3 WHEN 'warm' THEN 2 ELSE 1 END",
+  score: "COALESCE(lead.lead_score, -1)",
   estimatedValue: "lead.estimated_value",
   ownerName: "lower(owner.full_name)",
   sourceName: "lower(source.name)",
@@ -258,6 +287,9 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   const bind = (value) => { values.push(value); return `$${values.length}`; };
   const org = bind(context.organizationId);
   const where = [`lead.organization_id = ${org}`];
+  // A minimum lead score (CRM plan 5.3).
+  if (filters.scoreMin !== undefined && filters.scoreMin !== null && filters.scoreMin !== "" && Number.isFinite(Number(filters.scoreMin)))
+    where.push(`lead.lead_score >= ${bind(Math.trunc(Number(filters.scoreMin)))}`);
   const view = filters.view || "all";
   where.push(view === "archived" ? "lead.archived_at IS NOT NULL" : "lead.archived_at IS NULL");
   // The working list views leave converted leads out; they stay under Converted Leads, in search,
@@ -280,8 +312,11 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
 
   const exact = { status: "lead.status", stage: "lead.stage", priority: "lead.priority", rating: "lead.rating" };
   for (const [key, column] of Object.entries(exact)) if (filters[key]) where.push(`${column} = ${bind(String(filters[key]))}`);
-  for (const [key, column] of Object.entries({ sourceId: "lead.source_id", teamId: "lead.team_id" }))
+  for (const [key, column] of Object.entries({ sourceId: "lead.source_id", teamId: "lead.team_id", campaignId: "lead.campaign_id" }))
     if (isUuid(filters[key])) where.push(`${column} = ${bind(filters[key])}`);
+  if (filters.medium) where.push(`lead.medium = ${bind(String(filters.medium))}`);
+  if (isUuid(filters.tagId))
+    where.push(`EXISTS (SELECT 1 FROM tenant.crm_record_tags tagged WHERE tagged.organization_id = lead.organization_id AND tagged.entity_type = 'lead' AND tagged.entity_id = lead.id AND tagged.tag_id = ${bind(filters.tagId)})`);
   if (filters.ownerId === "unassigned") where.push("lead.owner_user_id IS NULL");
   else if (filters.ownerId === "me") where.push(`lead.owner_user_id = ${bind(context.userId)}`);
   else if (filters.ownerId === "team") {
@@ -298,7 +333,8 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   const olderThanDays = Number(filters.olderThanDays);
   if (Number.isInteger(olderThanDays) && olderThanDays > 0 && olderThanDays <= 3650) where.push(`lead.created_at < now() - make_interval(days => ${bind(olderThanDays)}::int)`);
   if (filters.stale === "yes" || filters.stale === true)
-    where.push(`lead.status = 'open' AND COALESCE(lead.last_activity_at, lead.created_at) < now() - interval '${LEAD_STALE_DAYS} days'`);
+    where.push(`lead.status = 'open' AND COALESCE(lead.last_activity_at, lead.created_at) < now() - make_interval(days => COALESCE(
+      (SELECT stale_stage.stale_after_days FROM tenant.crm_lead_stages stale_stage WHERE stale_stage.organization_id = lead.organization_id AND stale_stage.code = lead.stage), ${LEAD_STALE_DAYS}))`);
   if (filters.stageEnteredFrom) where.push(`lead.stage_changed_at >= ${bind(dayFilter(filters.stageEnteredFrom))}::date`);
   if (filters.stageEnteredTo) where.push(`lead.stage_changed_at < ${bind(dayFilter(filters.stageEnteredTo))}::date + interval '1 day'`);
   if (filters.assignedFrom) where.push(`lead.assigned_at >= ${bind(dayFilter(filters.assignedFrom))}::date`);
@@ -349,8 +385,9 @@ export async function listLeads(client, context, filters = {}) {
     `${LEAD_SELECT} ${where} ORDER BY ${sortColumn} ${sortDirection} NULLS LAST, lead.id DESC LIMIT ${limit} OFFSET ${offset}`,
     values,
   );
+  const tagsOf = await tagsByRecord(client, context.organizationId, "lead", rows.map((row) => row.id));
   return {
-    leads: rows.map((row) => projectLeadForContext(context, toLead(row))),
+    leads: rows.map((row) => ({ ...projectLeadForContext(context, toLead(row)), tags: tagsOf.get(row.id) ?? [] })),
     total: total.rows[0].total,
     limit,
     offset,
@@ -400,6 +437,7 @@ export async function createLead(client, context, input = {}, {
   await normalizePhones(client, context, normalized, ["phone", "mobile"], normalized.countryCode, "CRM_LEAD_VALIDATION");
   assertValidLead(normalized);
   await assertActiveLeadSource(client, context, normalized.sourceId);
+  await assertUsableCampaign(client, context, normalized.campaignId);
   const duplicates = await assertNoBlockingLeadDuplicate(client, context, normalized, { allowDuplicate, reason: duplicateReason ?? input.duplicateReason });
   onDuplicateCheck?.(duplicates);
   const assignment = await initialLeadAssignment(client, context, input, normalized, { origin, routing });
@@ -425,7 +463,11 @@ export async function createLead(client, context, input = {}, {
     await applyLeadAssignment(client, context, lead, { ownerUserId: assignment.ownerUserId, teamId: assignment.teamId }, {
       method: assignment.method, rule: assignment.rule, reason: assignmentReason, notify,
     });
+  await applyCustomFields(client, context, "lead", lead.id, input.customFields);
+  await rescoreLead(client, context.organizationId, lead.id);
   await queueOutboxEvent(client, context, "crm.leads.created", "leads", lead.id, { status: lead.status, sourceId: lead.source_id, ownerUserId: assignment.ownerUserId ?? null });
+  // With leads switched off (CRM plan 5.7), an enquiry that arrived on its own becomes a deal straight away.
+  if (origin === "integration") await convertArrivingLead(client, context.organizationId, lead.id);
   // A rule may have routed the lead to someone outside the creator's own
   // visibility; they still get back what they created.
   return projectLeadForContext(context, toLead(await loadLeadRow(client, context, lead.id, { skipScope: true })));
@@ -458,6 +500,11 @@ export async function updateLead(client, context, leadId, input = {}, { allowDup
   await normalizePhones(client, context, normalized, ["phone", "mobile"], normalized.countryCode ?? before.countryCode, "CRM_LEAD_VALIDATION");
   assertValidLead(normalized, before);
   if (has(normalized, "sourceId") && normalized.sourceId !== before.sourceId) await assertActiveLeadSource(client, context, normalized.sourceId);
+  if (has(normalized, "campaignId")) await assertUsableCampaign(client, context, normalized.campaignId, before.campaignId);
+  // Consent asked again too soon after an opt-out (CRM plan 4.3): locked for 90 days unless the person asked.
+  const granted = [["consentEmail", "email"], ["consentSms", "sms"], ["consentWhatsapp", "whatsapp"]].filter(([field]) => normalized[field] === true && !before[field]).map(([, channel]) => channel)
+    .concat(normalized.doNotContact === false && before.doNotContact ? ["all", "email", "sms", "whatsapp"] : []);
+  await assertConsentRequestAllowed(client, context, "lead", row.id, granted, { source: input.consentSource ?? "manual" });
 
   const changedFields = Object.keys(normalized).filter((field) => LEAD_WRITABLE_COLUMNS[field] && (normalized[field] ?? null) !== (before[field] ?? null));
   if (changedFields.some((field) => DUPLICATE_IDENTITY_FIELDS.includes(field)))
@@ -474,6 +521,12 @@ export async function updateLead(client, context, leadId, input = {}, { allowDup
     await recordLeadHistory(client, context, row.id, "updated", updatedSummary(changedFields), changes);
     await queueOutboxEvent(client, context, "crm.leads.updated", "leads", row.id, { before, after: { ...before, ...normalized }, changedFields });
   }
+  // Custom fields (CRM plan 5.3), then the score again.
+  const customChanges = await applyCustomFields(client, context, "lead", row.id, input.customFields);
+  if (customChanges.length)
+    await recordLeadHistory(client, context, row.id, "updated", `Updated ${customChanges.map((change) => change.label).join(", ")}`,
+      Object.fromEntries(customChanges.map((change) => [`custom.${change.key}`, { from: change.from, to: change.to }])));
+  if (changedFields.length || customChanges.length) await rescoreLead(client, context.organizationId, row.id);
   return projectLeadForContext(context, toLead(await loadLeadRow(client, context, row.id)));
 }
 

@@ -16,7 +16,7 @@ import { Cell, FactList, HistoryList, LinesTable, MoreActions, type MoreAction }
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { getReclassifications } from "../categories/categories-api";
 import { ReclassificationsPanel, ReclassifyDialog } from "../categories/CategoryScreens";
 import { IdentificationPanel, LabelDialog } from "./IdentificationScreens";

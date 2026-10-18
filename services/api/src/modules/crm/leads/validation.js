@@ -1,7 +1,7 @@
 // Input normalization and validation for the lead record. A lead often
 // arrives incomplete, so only an identity is required: a person's name or a
 // company. Everything else is optional and validated only when present.
-import { findIndianState } from "@vercentlabs/shared-types";
+import { findIndianState, isCrmMedium } from "@vercentlabs/shared-types";
 
 import { CrmError } from "../data-management/errors.js";
 import { LEAD_PRIORITIES, LEAD_PURCHASE_TIMEFRAMES, LEAD_RATINGS } from "./constants.js";
@@ -36,6 +36,11 @@ export const LEAD_WRITABLE_COLUMNS = Object.freeze({
   countryCode: "country_code",
   currencyCode: "currency_code",
   sourceId: "source_id",
+  // Where it came from (CRM plan 3.4): the campaign and the medium.
+  campaignId: "campaign_id",
+  medium: "medium",
+  // The language the person speaks (CRM plan 5.5), ISO 639-1.
+  languageCode: "language_code",
   estimatedValue: "estimated_value",
   purchaseTimeframe: "purchase_timeframe",
   priority: "priority",
@@ -90,7 +95,7 @@ export function normalizeLeadInput(input = {}) {
     if (!has(input, field)) continue;
     normalized[field] = text(input[field]).toUpperCase() || null;
   }
-  for (const field of ["sourceId", "purchaseTimeframe"]) {
+  for (const field of ["sourceId", "purchaseTimeframe", "campaignId", "medium"]) {
     if (!has(input, field)) continue;
     normalized[field] = text(input[field]) || null;
   }
@@ -106,6 +111,11 @@ export function normalizeLeadInput(input = {}) {
     if (has(input, field)) normalized[field] = input[field] === true || input[field] === "true";
   // Do not contact withdraws every consent.
   if (normalized.doNotContact) Object.assign(normalized, { consentEmail: false, consentSms: false, consentWhatsapp: false });
+  if (has(input, "languageCode")) {
+    const code = String(input.languageCode ?? "").trim().toLowerCase() || null;
+    if (code && !/^[a-z]{2}$/.test(code)) throw new CrmError(400, "Choose a language from the list.", "CRM_LEAD_VALIDATION", { issues: [{ field: "languageCode", message: "Choose a language from the list." }] });
+    normalized.languageCode = code;
+  }
   return normalized;
 }
 
@@ -135,6 +145,8 @@ export function validateLead(normalized, existing = {}) {
   if (normalized.currencyCode && !/^[A-Z]{3}$/.test(normalized.currencyCode)) issue("currencyCode", "Choose a currency.");
   if (normalized.sourceId && !isUuid(normalized.sourceId)) issue("sourceId", "Choose a lead source.");
   if (normalized.purchaseTimeframe && !TIMEFRAMES.has(normalized.purchaseTimeframe)) issue("purchaseTimeframe", "Choose a purchase timeframe.");
+  if (normalized.campaignId && !isUuid(normalized.campaignId)) issue("campaignId", "Choose a campaign from the list.");
+  if (normalized.medium && !isCrmMedium(normalized.medium)) issue("medium", "Choose a medium from the list.");
   if (normalized.priority && !LEAD_PRIORITIES.includes(normalized.priority)) issue("priority", "Priority must be low, medium or high.");
   if (normalized.rating && !LEAD_RATINGS.includes(normalized.rating)) issue("rating", "Rating must be cold, warm or hot.");
   if (has(normalized, "estimatedValue")) {

@@ -6,3 +6,4 @@ export { previewLeadConversion } from "./preview.js";
 export { convertLead } from "./convert.js";
 export { getLeadConversionMetrics } from "./metrics.js";
 
+export { bulkConvertLeads } from "./bulk.js";

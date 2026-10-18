@@ -5,6 +5,7 @@ import {
 import {
   directCaptureFingerprint,
   incrementBillingUsage,
+  isAppOrigin,
   readRequestBytes,
   requireBillingWriteAccess,
   verifiedCaptureProxyFingerprint,
@@ -56,6 +57,8 @@ export async function POST(
       const captured = await captureCrmLead(client, key, input, {
         origin: request.headers.get("origin") || "",
         fingerprint,
+        // The hosted form page (and an iframe embed of it) is this app's own origin.
+        selfOrigin: isAppOrigin(request.headers.get("origin"), process.env) ? request.headers.get("origin") : null,
       });
       await incrementBillingUsage(
         client,

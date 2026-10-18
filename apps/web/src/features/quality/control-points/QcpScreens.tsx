@@ -17,7 +17,7 @@ import { Cell, FactList, HistoryList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask, type Field } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask, type Field } from "@/shared/ui/AskDialog";
 import { STATUS_TONE, dateLabel, errorIssues, errorMessage, errorStatus, getOptions as getSpecOptions } from "../specifications/spec-api";
 import {
   QCP_BASE, QCP_REPORTS, REQUIREMENT_TONE, createQcp, decideWaiver, getQcp, getQcpConflicts, getQcpHistory, getQcpOptions, getQcpOverview, getQcpReport, getRequirement, listQcps,

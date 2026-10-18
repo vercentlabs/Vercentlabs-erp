@@ -10,6 +10,9 @@ function addWallMinutes(startValue, minutesValue, schedule = {}) {
   const weekdays = new Set(Array.isArray(schedule.weekdays) && schedule.weekdays.length ? schedule.weekdays.map(Number) : [1, 2, 3, 4, 5]);
   const [startHour, startMinute] = parseClock(schedule.start, 9);
   const [endHour, endMinute] = parseClock(schedule.end, 18);
+  // Holidays (CRM plan 5.6): wall-clock days, as YYYY-MM-DD, with no working hours at all.
+  const holidays = new Set(Array.isArray(schedule.holidays) ? schedule.holidays.map(String) : []);
+  const isHoliday = (at) => holidays.size > 0 && holidays.has(at.toISOString().slice(0, 10));
   let remaining = Math.max(0, Math.ceil(Number(minutesValue) || 0));
   let cursor = new Date(startValue);
   const moveToWindow = () => {
@@ -18,7 +21,7 @@ function addWallMinutes(startValue, minutesValue, schedule = {}) {
       start.setUTCHours(startHour, startMinute, 0, 0);
       const end = new Date(cursor);
       end.setUTCHours(endHour, endMinute, 0, 0);
-      if (!weekdays.has(cursor.getUTCDay()) || cursor >= end) {
+      if (!weekdays.has(cursor.getUTCDay()) || isHoliday(cursor) || cursor >= end) {
         cursor.setUTCDate(cursor.getUTCDate() + 1);
         cursor.setUTCHours(startHour, startMinute, 0, 0);
         continue;

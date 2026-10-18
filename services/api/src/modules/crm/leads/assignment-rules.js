@@ -11,6 +11,7 @@
 // target cannot take leads (inactive user, inactive team, team with nobody
 // eligible) is skipped and its author is told. When nothing matches, the
 // fallback setting decides: leave unassigned, a default user or a default team.
+import { AVAILABLE_FOR_AUTO_ASSIGNMENT_SQL, availabilityOf } from "./availability.js";
 import { createNotification } from "../../../core/platform/notifications/index.js";
 import { CrmError } from "../data-management/errors.js";
 import { leadCan, requireLeadPermission } from "./access.js";
@@ -34,7 +35,10 @@ function requireRuleManager(context) {
 
 // ------------------------------------------------------------------ settings
 
-const DEFAULT_SETTINGS = Object.freeze({ allowSelfAssignment: true, manualCreationMode: "creator", fallbackMode: "unassigned", fallbackUserId: null, fallbackTeamId: null });
+const DEFAULT_SETTINGS = Object.freeze({
+  allowSelfAssignment: true, manualCreationMode: "creator", fallbackMode: "unassigned", fallbackUserId: null, fallbackTeamId: null,
+  firstResponseHours: null, responseEscalationHours: null, overdueEscalationHours: null, rerunUnassignedHours: null, lastRerunAt: null,
+});
 
 export async function getLeadAssignmentSettings(client, context) {
   const { rows } = await client.query(
@@ -55,6 +59,12 @@ export async function getLeadAssignmentSettings(client, context) {
     fallbackUserName: row.fallback_user_name ?? null,
     fallbackTeamId: row.fallback_team_id,
     fallbackTeamName: row.fallback_team_name ?? null,
+    // Response times and the scheduled re-run (CRM plan 3.5); null is off.
+    firstResponseHours: row.first_response_hours ?? null,
+    responseEscalationHours: row.response_escalation_hours ?? null,
+    overdueEscalationHours: row.overdue_escalation_hours ?? null,
+    rerunUnassignedHours: row.rerun_unassigned_hours ?? null,
+    lastRerunAt: row.last_rerun_at ?? null,
   };
 }
 
@@ -69,6 +79,13 @@ export async function saveLeadAssignmentSettings(client, context, input = {}) {
     fallbackUserId: has(input, "fallbackUserId") ? input.fallbackUserId || null : current.fallbackUserId,
     fallbackTeamId: has(input, "fallbackTeamId") ? input.fallbackTeamId || null : current.fallbackTeamId,
   };
+  for (const [field, maximum] of [["firstResponseHours", 720], ["responseEscalationHours", 720], ["overdueEscalationHours", 720], ["rerunUnassignedHours", 168]]) {
+    next[field] = has(input, field) ? (input[field] === null || text(input[field]) === "" ? null : Number(input[field])) : current[field] ?? null;
+    if (next[field] !== null && (!Number.isInteger(next[field]) || next[field] < 1 || next[field] > maximum))
+      throw new CrmError(400, `Enter whole hours between 1 and ${maximum}, or leave it empty to switch it off.`, "CRM_LEAD_SETTINGS_VALIDATION", { issues: [{ field, message: `Between 1 and ${maximum} hours.` }] });
+  }
+  if (next.firstResponseHours && next.responseEscalationHours && next.responseEscalationHours <= next.firstResponseHours)
+    throw new CrmError(400, "Escalate to the manager later than the owner is reminded.", "CRM_LEAD_SETTINGS_VALIDATION", { issues: [{ field: "responseEscalationHours", message: "Later than the first-response time." }] });
   if (!["creator", "rules"].includes(next.manualCreationMode)) throw new CrmError(400, "Choose what happens to leads typed in by hand.", "CRM_LEAD_SETTINGS_VALIDATION");
   if (!["unassigned", "user", "team"].includes(next.fallbackMode)) throw new CrmError(400, "Choose what happens when no rule matches.", "CRM_LEAD_SETTINGS_VALIDATION");
   if (next.fallbackMode === "user") {
@@ -80,12 +97,16 @@ export async function saveLeadAssignmentSettings(client, context, input = {}) {
     await assertActiveTeam(client, context, next.fallbackTeamId);
   } else next.fallbackTeamId = null;
   await client.query(
-    `INSERT INTO tenant.crm_lead_assignment_settings (organization_id, allow_self_assignment, manual_creation_mode, fallback_mode, fallback_user_id, fallback_team_id, updated_by, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+    `INSERT INTO tenant.crm_lead_assignment_settings (organization_id, allow_self_assignment, manual_creation_mode, fallback_mode, fallback_user_id, fallback_team_id,
+                                                      first_response_hours, response_escalation_hours, overdue_escalation_hours, rerun_unassigned_hours, updated_by, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $8, $9, $10, $11, $7, now())
      ON CONFLICT (organization_id) DO UPDATE SET allow_self_assignment = EXCLUDED.allow_self_assignment, manual_creation_mode = EXCLUDED.manual_creation_mode,
        fallback_mode = EXCLUDED.fallback_mode, fallback_user_id = EXCLUDED.fallback_user_id, fallback_team_id = EXCLUDED.fallback_team_id,
+       first_response_hours = EXCLUDED.first_response_hours, response_escalation_hours = EXCLUDED.response_escalation_hours,
+       overdue_escalation_hours = EXCLUDED.overdue_escalation_hours, rerun_unassigned_hours = EXCLUDED.rerun_unassigned_hours,
        updated_by = EXCLUDED.updated_by, updated_at = now()`,
-    [context.organizationId, next.allowSelfAssignment, next.manualCreationMode, next.fallbackMode, next.fallbackUserId, next.fallbackTeamId, context.userId ?? null],
+    [context.organizationId, next.allowSelfAssignment, next.manualCreationMode, next.fallbackMode, next.fallbackUserId, next.fallbackTeamId, context.userId ?? null,
+      next.firstResponseHours, next.responseEscalationHours, next.overdueEscalationHours, next.rerunUnassignedHours],
   );
   return getLeadAssignmentSettings(client, context);
 }
@@ -274,6 +295,8 @@ async function nextRoundRobinMember(client, context, teamId, excludeUserId) {
                      WHERE assignment.organization_id = $1 AND assignment.user_id = app_user.id AND assignment.status = 'active'
                        AND (role.slug = 'organization_owner' OR grant_row.permission_key LIKE 'crm.%'))
         AND ($3::uuid IS NULL OR app_user.id <> $3)
+        -- not on a pause, and under their 30-day lead capacity (CRM plan 3.6)
+        AND ${AVAILABLE_FOR_AUTO_ASSIGNMENT_SQL("$1", "app_user.id")}
       ORDER BY lower(app_user.full_name), app_user.id`,
     [context.organizationId, teamId, excludeUserId ?? null],
   )).rows;
@@ -304,10 +327,11 @@ async function reportUnusableRule(client, context, rule, why) {
   });
 }
 
+// For automatic assignment: an eligible assignee who is neither paused nor at their capacity (CRM plan 3.6).
 async function userCanTakeLeads(client, context, userId, teamId = null) {
   try {
     await assertEligibleLeadAssignee(client, context, userId, { teamId });
-    return true;
+    return !(await availabilityOf(client, context.organizationId, userId));
   } catch (error) {
     if (error instanceof CrmError) return false;
     throw error;

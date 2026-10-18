@@ -3,7 +3,8 @@ type Session = { organizationId: string; userId: string };
 
 export const WORKFLOW_LIMITS: Readonly<{ maxConditions: number; maxActions: number; maxNameLength: number; maxTitle: number; maxMessage: number; runsPerTick: number }>;
 export const CONDITION_OPERATORS: ReadonlyArray<Readonly<{ key: "equals" | "not_equals" | "in" | "changed_includes"; label: string }>>;
-export const WORKFLOW_ACTIONS: ReadonlyArray<Readonly<{ key: string; label: string; description: string }>>;
+export const WORKFLOW_ACTIONS: ReadonlyArray<Readonly<{ key: string; label: string; description: string; module?: string }>>;
+export const WORKFLOW_MODULE_ACTIONS: Readonly<Record<string, () => Promise<{ validate: (...args: any[]) => Promise<WorkflowAction>; execute: (...args: any[]) => Promise<Record<string, unknown>> }>>>;
 export const WORKFLOW_NOTIFICATION_CATEGORY: Readonly<Record<string, string>>;
 export const WORKFLOW_ENTITY_LINKS: Readonly<Record<string, (id: string) => string>>;
 
@@ -12,7 +13,14 @@ export class WorkflowError extends Error {
   code: string;
 }
 export type WorkflowCondition = { field: string; operator: "equals" | "not_equals" | "in" | "changed_includes"; value: string | string[] };
-export type WorkflowAction = { type: "notify"; recipient: { type: "event_field"; field: string } | { type: "user"; userId: string }; title: string; message: string };
+export type WorkflowAction =
+  | { type: "notify"; recipient: { type: "event_field"; field: string } | { type: "user"; userId: string }; title: string; message: string }
+  | { type: "crm.create_follow_up"; followUpType: string; inHours: number; subject?: string; assignee: { type: "record_owner" } | { type: "user"; userId: string } | { type: "event_field"; field: string } }
+  | { type: "crm.assign_owner"; userId: string }
+  | { type: "crm.set_priority"; priority: "low" | "medium" | "high" }
+  | { type: "crm.add_tag"; tag: string }
+  | { type: "crm.send_email"; templateId: string }
+  | { type: "crm.notify_followers"; title: string; message?: string };
 export type WorkflowInput = { name: string; trigger: string; conditions?: WorkflowCondition[]; actions: WorkflowAction[]; status?: "active" | "inactive"; expectedVersion?: number };
 export type WorkflowSummary = {
   id: string;

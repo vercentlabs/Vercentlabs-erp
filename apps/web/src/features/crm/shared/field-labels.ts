@@ -1,6 +1,6 @@
 // Field keys in history text ("Updated companyName", "companyName: A → B") shown as the labels people see on the forms ("Company name").
 const LABELS: Record<string, string> = {
-  ownerUserId: "Owner", ownerId: "Owner", assignedTo: "Assigned to", teamId: "Team", sourceId: "Source", stageId: "Stage", pipelineId: "Pipeline",
+  ownerUserId: "Owner", ownerId: "Owner", assignedTo: "Assigned to", teamId: "Team", sourceId: "Source", campaignId: "Campaign", medium: "Medium", stageId: "Stage", pipelineId: "Pipeline",
   partyId: "Company", accountId: "Company", primaryContactId: "Primary contact", contactId: "Contact", leadId: "Lead", opportunityId: "Deal",
   expectedCloseDate: "Close date", estimatedValue: "Value", amount: "Value", dueAt: "Due", dueDate: "Due date", dueTime: "Due time",
   scheduledDate: "Date", scheduledTime: "Time", reminderOffsetMinutes: "Reminder", fullName: "Name", firstName: "First name", lastName: "Last name",

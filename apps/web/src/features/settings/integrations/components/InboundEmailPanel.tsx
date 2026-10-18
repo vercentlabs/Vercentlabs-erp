@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
@@ -18,6 +19,7 @@ import {
 } from "@vercentlabs/design-system";
 import { useState } from "react";
 
+import { displayTimeZone } from "@/shared/format/display-time-zone";
 import { requestJson } from "@/shared/http/request-json";
 
 import { SecretRevealDialog, type RevealedSecret } from "./SecretRevealDialog";
@@ -38,6 +40,8 @@ type InboundEvent = {
   outcome: string | null;
   error: string | null;
   ticketId: string | null;
+  recordType?: "lead" | "opportunity" | "party" | "contact" | null;
+  recordId?: string | null;
   receivedAt: string;
   attachmentNotes: unknown;
 };
@@ -48,15 +52,20 @@ type Payload = {
 };
 
 const QUERY_KEY = ["settings", "integrations", "inbound-mail"];
-const formatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+// In the workspace's time zone, not the browser's.
+const formatter = {
+  format: (at: Date) => at.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: displayTimeZone() }),
+};
+const RECORD_HREF: Record<string, string> = { lead: "/crm/leads/", opportunity: "/crm/opportunities/", party: "/crm/accounts/", contact: "/crm/contacts/" };
 const OUTCOME: Record<string, string> = {
   new_ticket: "New ticket",
   new_ticket_after_closed: "New ticket (earlier one was closed)",
   reply: "Added to ticket",
   duplicate: "Duplicate ignored",
+  crm_new_lead: "New lead",
+  crm_reply: "Reply added to its record",
+  crm_reference: "Added to the record named in the subject",
+  crm_sender: "Added to the sender's lead",
 };
 
 export function InboundEmailPanel({ canManage }: { canManage: boolean }) {
@@ -111,7 +120,7 @@ export function InboundEmailPanel({ canManage }: { canManage: boolean }) {
       {routes.length === 0 ? (
         <EmptyState
           title="No inbound addresses"
-          description="Create one to turn customer emails into Support tickets."
+          description="Create one to turn customer emails into Support tickets or CRM leads."
         />
       ) : (
         <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface">
@@ -205,6 +214,11 @@ export function InboundEmailPanel({ canManage }: { canManage: boolean }) {
                               ? "Failed"
                               : "Processing"}
                         </span>
+                        {event.recordType && event.recordId && RECORD_HREF[event.recordType] && (
+                          <Link className="text-xs text-brand hover:underline" href={`${RECORD_HREF[event.recordType]}${event.recordId}`}>
+                            Open the record
+                          </Link>
+                        )}
                         {event.error && (
                           <span className="text-xs text-danger">
                             {event.error}

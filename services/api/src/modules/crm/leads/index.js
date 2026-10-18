@@ -32,3 +32,5 @@ export { LEAD_IMPORT_FIELDS, analyzeLeadImport, buildLeadImportTemplate, exportL
 export { getLeadDashboard, getLeadsByStatusReport } from "./dashboard.js";
 export { captureCrmLead, resolvePublicCaptureOrganization } from "./capture.js";
 export { getLeadOptions } from "./options.js";
+export { AVAILABLE_FOR_AUTO_ASSIGNMENT_SQL, availabilityOf, listSalespersonAvailability, setSalespersonAvailability } from "./availability.js";
+export { runLeadResponseWatch } from "./response-watch.js";

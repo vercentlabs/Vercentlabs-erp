@@ -16,7 +16,7 @@ import { FactList, HistoryList, MoreActions, type MoreAction } from "@/shared/ui
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import {
   HEALTH_TONE, PRIORITY_LABEL, PROJECTS_BASE, STATUS_TONE, dateLabel, errorDetails, errorMessage, errorStatus,
   getProject, getSummary, newKey, projectAction, type Project,

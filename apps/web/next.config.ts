@@ -21,6 +21,9 @@ const contentSecurityPolicy = [
   "frame-src https://api.razorpay.com https://checkout.razorpay.com",
   "worker-src 'self'",
 ].join("; ");
+// A CRM web form's hosted page (/f/{key}) is meant to be embedded in the organization's own website, so it — and only it — may be
+// framed by any https site. (Browsers follow CSP frame-ancestors over X-Frame-Options.)
+const embeddableFormPolicy = contentSecurityPolicy.replace("frame-ancestors 'none'", "frame-ancestors https: http://localhost:*");
 
 const nextConfig: NextConfig = {
   // A verification build can write elsewhere (NEXT_DIST_DIR) so it never disturbs a running dev server.
@@ -51,6 +54,16 @@ const nextConfig: NextConfig = {
     "@vercentlabs/permissions",
     "@vercentlabs/shared-types",
   ],
+  // Old CRM addresses (CRM plan 5.9): the per-record import pages and the companies report now live in Import data and Reports.
+  async redirects() {
+    return [
+      { source: "/crm/leads/import", destination: "/crm/data/import-export?type=leads", permanent: true },
+      { source: "/crm/accounts/import", destination: "/crm/data/import-export?type=companies", permanent: true },
+      { source: "/crm/contacts/import", destination: "/crm/data/import-export?type=contacts", permanent: true },
+      { source: "/crm/opportunities/import", destination: "/crm/data/import-export?type=deals", permanent: true },
+      { source: "/crm/accounts/report", destination: "/crm/reports?report=companies", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
@@ -76,6 +89,26 @@ const nextConfig: NextConfig = {
                 },
               ]
             : []),
+        ],
+      },
+      {
+        source: "/f/:key",
+        headers: [
+          { key: "Content-Security-Policy", value: embeddableFormPolicy },
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+        ],
+      },
+      // The chat's embed script is loaded by the organization's site.
+      {
+        source: "/api/crm/public/chat/:key/widget.js",
+        headers: [{ key: "Cross-Origin-Resource-Policy", value: "cross-origin" }],
+      },
+      // A website chat (CRM plan 5.8) is framed by the organization's site in the same way.
+      {
+        source: "/chat/:key",
+        headers: [
+          { key: "Content-Security-Policy", value: embeddableFormPolicy },
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
         ],
       },
     ];

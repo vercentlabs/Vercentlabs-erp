@@ -11,6 +11,7 @@ import { OPPORTUNITY_PERMISSIONS, OPPORTUNITY_STALE_DAYS } from "../opportunitie
 import { OPPORTUNITY_SELECT, buildOpportunityListWhere, toOpportunity } from "../opportunities/records.js";
 import { listOpportunityStages } from "../opportunities/stages.js";
 import { ensureDefaultSalesPipeline } from "../sales-stages/defaults.js";
+import { listPipelines, resolvePipeline } from "../sales-stages/pipelines.js";
 import { orgMonthStart } from "../data-management/org-date.js";
 import { currencyDisclosure, reportingCurrencyOf, sumReporting, sumWeightedReporting, unconvertedCount, unconvertedCurrencies } from "../data-management/reporting-currency.js";
 
@@ -36,7 +37,7 @@ function boardFilters(filters) {
   return { ...filters, status: status === "all" ? undefined : status };
 }
 
-// filters: every filter the opportunity list accepts, plus
+// filters: every filter the opportunity list accepts (pipelineId picks the pipeline: the default one when absent), plus
 //   status         open (default) | won | lost | all
 //   cardSort       expectedCloseDate (default) | amount | lastActivityAt | createdAt | priority
 //   cardsPerStage  how many cards to return per stage (default 50, at most 200)
@@ -44,7 +45,9 @@ function boardFilters(filters) {
 export async function getOpportunityPipeline(client, context, filters = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view the pipeline.");
   await ensureDefaultSalesPipeline(client, context);
-  const applied = boardFilters(filters);
+  // One pipeline at a time (CRM plan 5.1): its stages are the columns.
+  const pipeline = await resolvePipeline(client, context, filters.pipelineId || null);
+  const applied = { ...boardFilters(filters), pipelineId: pipeline.id };
   const cardSort = CARD_SORTS[filters.cardSort] ? filters.cardSort : "expectedCloseDate";
   const perStage = Math.min(Math.max(Number(filters.cardsPerStage) || CARDS_PER_STAGE, 1), 200);
   const values = [];
@@ -69,7 +72,7 @@ export async function getOpportunityPipeline(client, context, filters = {}) {
     values,
   )).rows;
 
-  const stages = (await listOpportunityStages(client, context)).filter((stage) => stage.isOpen);
+  const stages = (await listOpportunityStages(client, context, { pipelineId: pipeline.id })).filter((stage) => stage.isOpen);
   // Deals can still sit in a stage that has since been deactivated; they keep their own column.
   const known = new Set(stages.map((stage) => stage.id));
   const orphaned = totals.map((row) => row.column_id).filter((id) => id && !known.has(id));
@@ -100,6 +103,8 @@ export async function getOpportunityPipeline(client, context, filters = {}) {
     };
   });
   return {
+    pipeline: { id: pipeline.id, name: pipeline.name, isDefault: pipeline.is_default },
+    pipelines: (await listPipelines(client, context)).map((entry) => ({ id: entry.id, name: entry.name, isDefault: entry.isDefault, openCount: entry.openCount })),
     status: applied.status ?? "all",
     cardSort,
     cardsPerStage: perStage,
@@ -135,7 +140,10 @@ export async function getPipelineSummary(client, context, filters = {}) {
             ${unconvertedCount("counted")} AS unconverted_count, ${unconvertedCurrencies("counted")} AS unconverted_currencies,
             count(*) FILTER (WHERE counted.past_expected_close)::int AS overdue,
             count(*) FILTER (WHERE counted.days_since_activity >= ${OPPORTUNITY_STALE_DAYS})::int AS stale,
-            count(*) FILTER (WHERE counted.next_activity_subject IS NULL)::int AS no_next_activity
+            count(*) FILTER (WHERE counted.next_activity_subject IS NULL)::int AS no_next_activity,
+            -- recurring revenue as a monthly figure, in the base currency (CRM plan 5.3)
+            COALESCE(sum(counted.recurring_revenue / NULLIF(counted.recurring_plan_months, 0) * counted.reporting_rate), 0)::float8 AS recurring_monthly,
+            count(*) FILTER (WHERE counted.recurring_revenue IS NOT NULL)::int AS recurring_deals
        FROM ${counted}`,
     values,
   )).rows[0];
@@ -198,6 +206,8 @@ export async function getPipelineSummary(client, context, filters = {}) {
       stale: totals.stale,
       staleDays: OPPORTUNITY_STALE_DAYS,
       noNextActivity: totals.no_next_activity,
+      recurringMonthly: money(totals.recurring_monthly),
+      recurringDeals: totals.recurring_deals,
     },
     currency: currencyDisclosure(await reportingCurrencyOf(client, context.organizationId), totals),
     byOwner,

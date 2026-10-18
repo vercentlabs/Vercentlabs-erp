@@ -27,6 +27,9 @@ export type PipelineStage = {
   count: number; value: number; weightedValue: number; unconvertedCount: number; averageDaysInStage: number | null; cards: Opportunity[]; hasMore: boolean;
 };
 export type Pipeline = {
+  // the pipeline shown (CRM plan 5.1), and the ones to switch to
+  pipeline: { id: string; name: string; isDefault: boolean };
+  pipelines: Array<{ id: string; name: string; isDefault: boolean; openCount: number }>;
   status: PipelineStatus; cardSort: PipelineCardSort; cardsPerStage: number; stages: PipelineStage[];
   total: number; totalValue: number; weightedValue: number; currency: CurrencyDisclosure; capabilities: OpportunityCapabilities;
 };
@@ -34,7 +37,7 @@ type BreakdownRow = { id: string | null; label: string; total: number; value: nu
 export type PipelineSummary = {
   totals: {
     open: number; value: number; weightedValue: number; closingThisMonth: number; closingThisMonthValue: number; overdue: number; stale: number;
-    staleDays: number; noNextActivity: number;
+    staleDays: number; noNextActivity: number; recurringMonthly?: number; recurringDeals?: number;
   };
   byOwner: Array<BreakdownRow & { stages: Array<{ stageId: string; total: number; value: number }> }>;
   bySource: BreakdownRow[];

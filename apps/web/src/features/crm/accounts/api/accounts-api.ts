@@ -84,6 +84,8 @@ export type AccountOptions = {
   addressTypes: CodeLabel[];
   activityTypes: CodeLabel[];
   followUpTypes: string[];
+  // the organization's activity types (CRM plan 5.2), the one list every screen offers
+  followUpTypeOptions?: Array<{ id: string; code: string; label: string; kind: string }>;
   relatedLists: AccountRelatedList[];
   sources: Array<{ id: string; code: string; name: string; isActive: boolean }>;
   users: Array<{ id: string; name: string; email: string }>;

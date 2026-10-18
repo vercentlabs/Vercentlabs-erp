@@ -83,3 +83,8 @@ export type LeadConversionMetrics = {
 export function previewLeadConversion(client: QueryClient, context: CrmContext, leadId: string, options?: { accountId?: string | null }): Promise<LeadConversionPreview>;
 export function convertLead(client: QueryClient, context: CrmContext, leadId: string, input?: LeadConversionInput): Promise<LeadConversion>;
 export function getLeadConversionMetrics(client: QueryClient, context: CrmContext, input?: { from?: string; to?: string }): Promise<LeadConversionMetrics>;
+
+// Converting many leads at once (CRM plan 5.4).
+export function bulkConvertLeads(client: { query: (text: string, values?: unknown[]) => Promise<{ rows: any[] }> }, context: import("@vercentlabs/shared-types").CrmContext, input: {
+  leadIds: string[]; expectedCloseDate: string; owner?: { mode: "lead_owner" | "user" | "round_robin"; userId?: string; userIds?: string[] }; pipelineId?: string | null; overrideReason?: string;
+}): Promise<{ results: Array<{ leadId: string; ok: boolean; opportunityId?: string | null; message?: string; code?: string }>; succeeded: number; failed: number }>;

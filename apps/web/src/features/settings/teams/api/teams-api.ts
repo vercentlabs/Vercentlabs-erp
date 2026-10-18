@@ -9,8 +9,7 @@ export class SettingsApiError extends CrmApiError {}
 // Failed responses keep their body, so the members dialog can show which field the server refused.
 const { request, parseResponse } = crmApiClient(SettingsApiError, "body");
 
-// Teams and their members reuse the generic /api/crm/[resource] boundary
-// (crm.teams.manage); there are no dedicated routes.
+// Teams and their members: /api/crm/sales-teams and /api/crm/sales-team-members (changes need crm.teams.manage).
 export async function listSalesTeams(): Promise<CrmListResponse<SalesTeam>> {
   return request("/api/crm/sales-teams?limit=100");
 }

@@ -66,6 +66,8 @@ export type TaskOptions = {
   // what a new task starts with (CRM Settings, Task Defaults)
   defaults?: { priority: TaskPriority; reminderOffsetMinutes: number | null };
   followUpTypes: string[];
+  // the organization's activity types (CRM plan 5.2), the one list every screen offers
+  followUpTypeOptions?: Array<{ id: string; code: string; label: string; kind: string }>;
   users: Array<{ id: string; name: string; email: string }>;
   teams: Array<{ id: string; name: string; memberIds: string[] }>;
   currentUserId: string;

@@ -54,3 +54,4 @@ export * from "./support.js";
 export * from "./hr-payroll.js";
 export * from "./india.js";
 export * from "./phone.js";
+export * from "./crm-marketing.js";

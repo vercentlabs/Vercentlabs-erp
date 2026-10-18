@@ -15,15 +15,15 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
-import { countryName } from "@/shared/format/human";
+import { countryName, formatDate, formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
   deleteLeadAssignmentRule, errorMessage, getLeadAssignmentSettings, getLeadOptions, getLeadWorkload, listLeadAssignmentRules, reorderLeadAssignmentRules,
-  saveLeadAssignmentRule, saveLeadAssignmentSettings, setLeadAssignmentRuleActive,
-  type LeadAssignmentRule, type LeadAssignmentSettings, type LeadOptions, type LeadRuleCondition,
+  listSalespersonAvailability, saveLeadAssignmentRule, saveLeadAssignmentSettings, setLeadAssignmentRuleActive, setSalespersonAvailability,
+  type LeadAssignmentRule, type SalespersonAvailability, type LeadAssignmentSettings, type LeadOptions, type LeadRuleCondition,
 } from "../api/leads-api";
 import { TransferLeadsDialog } from "../components/LeadAssignment";
 import { ErrorBanner, PRIORITY_OPTIONS, RATING_OPTIONS } from "../lead-format";
@@ -168,6 +168,7 @@ export function LeadAssignmentSettingsScreen() {
       </section>
 
       <WorkloadSection />
+      <AvailabilitySection />
 
       {editing && <RuleDialog rule={editing === "new" ? null : editing} options={options} onClose={() => setEditing(null)} onSaved={refresh} />}
       <TransferLeadsDialog isOpen={transferring} onOpenChange={setTransferring} options={options} fromUserId={transferFrom}
@@ -198,6 +199,9 @@ function SettingsSection({ options, onSaved }: { options: LeadOptions; onSaved: 
   return <SettingsForm key={query.dataUpdatedAt} settings={query.data} options={options} onSaved={() => { void query.refetch(); onSaved(); }} />;
 }
 
+// An hours box: empty is off.
+const hours = (value: string) => (value.trim() ? Number(value) : null);
+
 function SettingsForm({ settings, options, onSaved }: { settings: LeadAssignmentSettings; options: LeadOptions; onSaved: () => void }) {
   const [form, setForm] = useState({
     allowSelfAssignment: settings.allowSelfAssignment,
@@ -205,6 +209,10 @@ function SettingsForm({ settings, options, onSaved }: { settings: LeadAssignment
     fallbackMode: settings.fallbackMode as string,
     fallbackUserId: settings.fallbackUserId ?? NONE,
     fallbackTeamId: settings.fallbackTeamId ?? NONE,
+    firstResponseHours: settings.firstResponseHours ? String(settings.firstResponseHours) : "",
+    responseEscalationHours: settings.responseEscalationHours ? String(settings.responseEscalationHours) : "",
+    overdueEscalationHours: settings.overdueEscalationHours ? String(settings.overdueEscalationHours) : "",
+    rerunUnassignedHours: settings.rerunUnassignedHours ? String(settings.rerunUnassignedHours) : "",
   });
   const [error, setError] = useState<string | null>(null);
   const set = <K extends keyof typeof form>(field: K) => (value: (typeof form)[K]) => { setForm((current) => ({ ...current, [field]: value })); setError(null); };
@@ -215,6 +223,10 @@ function SettingsForm({ settings, options, onSaved }: { settings: LeadAssignment
       fallbackMode: form.fallbackMode as LeadAssignmentSettings["fallbackMode"],
       fallbackUserId: form.fallbackUserId || null,
       fallbackTeamId: form.fallbackTeamId || null,
+      firstResponseHours: hours(form.firstResponseHours),
+      responseEscalationHours: hours(form.responseEscalationHours),
+      overdueEscalationHours: hours(form.overdueEscalationHours),
+      rerunUnassignedHours: hours(form.rerunUnassignedHours),
     }),
     onSuccess: onSaved,
     onError: (failure) => setError(errorMessage(failure)),
@@ -249,6 +261,20 @@ function SettingsForm({ settings, options, onSaved }: { settings: LeadAssignment
       <Checkbox isSelected={form.allowSelfAssignment} onChange={set("allowSelfAssignment")}>
         Salespeople can take unassigned leads themselves with &quot;Assign to me&quot;
       </Checkbox>
+      <fieldset className="flex flex-col gap-3 border-t border-border pt-4">
+        <legend className="text-sm font-semibold">Response times and escalation</legend>
+        <p className="text-sm text-text-secondary">Leave a box empty to switch that check off. Hours count around the clock.</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Remind the owner after (hours)" inputMode="numeric" value={form.firstResponseHours} onChange={set("firstResponseHours")}
+            description="A new lead with no call, email or meeting by then." />
+          <TextField label="Tell their manager after (hours)" inputMode="numeric" value={form.responseEscalationHours} onChange={set("responseEscalationHours")}
+            description="Still untouched by then: the team manager is told." />
+          <TextField label="Escalate overdue tasks and follow-ups after (hours)" inputMode="numeric" value={form.overdueEscalationHours} onChange={set("overdueEscalationHours")}
+            description="Still overdue that long after it was due: the assignee's manager is told." />
+          <TextField label="Run the rules again on unassigned leads every (hours)" inputMode="numeric" value={form.rerunUnassignedHours} onChange={set("rerunUnassignedHours")}
+            description={settings.lastRerunAt ? `Last run ${formatDateTime(settings.lastRerunAt)}.` : "So leads waiting in the queue find an owner once someone is free."} />
+        </div>
+      </fieldset>
       <div>
         <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={incomplete}>Save settings</Button>
       </div>
@@ -419,5 +445,77 @@ function WorkloadSection() {
         </>
       )}
     </section>
+  );
+}
+
+// ------------------------------------------------------------------ capacity and pause (CRM plan 3.6)
+
+function AvailabilitySection() {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const key = scopedQueryKey(workspace, "crm", "leads", "availability");
+  const query = useQuery({ queryKey: key, queryFn: listSalespersonAvailability });
+  const [editing, setEditing] = useState<SalespersonAvailability | null>(null);
+  const rows = query.data ?? [];
+  const pause = (row: SalespersonAvailability) => (row.pausedFrom || row.pausedUntil
+    ? `${row.pausedFrom ? formatDate(row.pausedFrom) : "Now"} – ${row.pausedUntil ? formatDate(row.pausedUntil) : "until resumed"}${row.pauseReason ? ` (${row.pauseReason})` : ""}` : "");
+  return (
+    <section className="flex flex-col gap-3">
+      <div>
+        <h2 className="text-base font-semibold">Capacity and leave</h2>
+        <p className="text-sm text-text-secondary">
+          How many leads each person can take in 30 days, and when they are away. The rules and round robin pass over someone paused or full; you can still assign to them by hand.
+        </p>
+      </div>
+      {query.isLoading ? <LoadingState label="Loading" rows={3} /> : query.isError ? <ErrorBanner message="Could not load capacity and leave." /> : (
+        <ul className="divide-y divide-border rounded-[var(--radius-card)] border border-border">
+          {rows.map((row) => (
+            <li key={row.userId} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+              <span className="min-w-40 flex-1 font-medium">{row.name}</span>
+              <span className="tabular-nums text-text-secondary">{row.leadsLast30Days}{row.monthlyLeadCapacity !== null ? ` / ${row.monthlyLeadCapacity}` : ""} leads in 30 days</span>
+              {pause(row) && <span className="text-text-secondary">Away: {pause(row)}</span>}
+              <StatusBadge tone={row.takingLeads ? "success" : "warning"}>{row.takingLeads ? "Taking leads" : "Not taking leads"}</StatusBadge>
+              <Button variant="ghost" size="compact" onPress={() => setEditing(row)}>Change</Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {editing && <AvailabilityDialog person={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void queryClient.invalidateQueries({ queryKey: key }); }} />}
+    </section>
+  );
+}
+
+function AvailabilityDialog({ person, onClose, onSaved }: { person: SalespersonAvailability; onClose: () => void; onSaved: () => void }) {
+  const [capacity, setCapacity] = useState(person.monthlyLeadCapacity !== null ? String(person.monthlyLeadCapacity) : "");
+  const [from, setFrom] = useState(person.pausedFrom ?? "");
+  const [until, setUntil] = useState(person.pausedUntil ?? "");
+  const [reason, setReason] = useState(person.pauseReason ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: () => setSalespersonAvailability(person.userId, {
+      monthlyLeadCapacity: capacity.trim() ? Number(capacity) : null, pausedFrom: from || null, pausedUntil: until || null, pauseReason: reason.trim() || null,
+    }),
+    onSuccess: onSaved,
+    onError: (failure) => setError(errorMessage(failure)),
+  });
+  return (
+    <Dialog isOpen onOpenChange={(open) => { if (!open) onClose(); }} title={`Capacity and leave: ${person.name}`}>
+      <div className="flex flex-col gap-4">
+        <ErrorBanner message={error} />
+        <TextField label="Leads in any 30 days" inputMode="numeric" value={capacity} onChange={setCapacity} description="Leave empty for no limit." />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Away from" type="date" value={from} onChange={setFrom} />
+          <TextField label="Away until" type="date" value={until} onChange={setUntil} />
+        </div>
+        <TextField label="Reason (optional)" value={reason} onChange={setReason} placeholder="Leave, trade fair…" />
+        <div className="flex justify-between gap-2">
+          <Button variant="ghost" onPress={() => { setFrom(""); setUntil(""); setReason(""); }}>Clear the leave</Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onPress={onClose}>Cancel</Button>
+            <Button variant="primary" isLoading={save.isPending} onPress={() => save.mutate()}>Save</Button>
+          </div>
+        </div>
+      </div>
+    </Dialog>
   );
 }

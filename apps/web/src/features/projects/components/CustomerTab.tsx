@@ -15,7 +15,7 @@ import { Cell, FactList, HistoryList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import {
   CONTACT_ROLE_LABEL, addProjectContact, addProjectSite, assignCustomer, customerAction, decideCustomerChange, eligibleContacts, errorCode, errorDetails, errorMessage, errorStatus,
   getCustomerHistory, getProjectContacts, getProjectCustomer, getProjectSites, newKey, previewCustomerChange, removeProjectContact, removeProjectSite, replaceProjectContact,

@@ -9,7 +9,7 @@
 //
 // When a person leaves, the relationship is made inactive. The contact itself
 // stays: they may turn up at another company.
-import { recordAccountHistory } from "../../crm/accounts/history.js";
+import { recordAccountHistory } from "../../../core/parties/history.js";
 import { findDuplicateContacts } from "../../crm/contacts/duplicates.js";
 import { createContact } from "../../crm/contacts/records.js";
 import { linkContactToAccount, setPrimaryContact, updateContactRelationship } from "../../crm/contacts/relationships.js";

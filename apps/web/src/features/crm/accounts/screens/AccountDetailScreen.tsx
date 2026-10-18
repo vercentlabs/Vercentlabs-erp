@@ -12,6 +12,11 @@ import {
   AlertDialog, Badge, Button, ErrorState, LinkButton, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
 } from "@vercentlabs/design-system";
 
+import { EmailButton } from "@/features/crm/shared/ui/EmailComposer";
+import { FollowButton } from "@/features/crm/shared/ui/FollowButton";
+import { RecordImage } from "@/features/crm/shared/ui/RecordImage";
+import { WhatsAppButton } from "@/features/crm/shared/ui/WhatsAppComposer";
+import { CallSmsButtons } from "@/features/crm/shared/ui/CallSmsButtons";
 import { FollowUpCell } from "@/features/crm/leads/lead-format";
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
@@ -178,6 +183,10 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
           primaryAction: primaryAction || undefined,
           secondaryActions: (
             <>
+              {canEdit && <EmailButton entity="accounts" recordId={account.id} />}
+              <FollowButton entity="accounts" recordId={account.id} />
+              {canEdit && <WhatsAppButton entity="accounts" recordId={account.id} />}
+              {canEdit && <CallSmsButtons entity="accounts" recordId={account.id} />}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("activity")}>Log activity</Button>}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
               <MoreMenu label="More company actions" items={menuActions} />
@@ -187,6 +196,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
         tabs={
           <div className="flex flex-col gap-3">
             <ErrorBanner message={error} />
+            <RecordImage entity="accounts" recordId={account.id} name={account.displayName} canEdit={canEdit} />
             {archived && (
               <p role="status" className="rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm text-text-secondary">
                 This company is archived{account.archivedAt ? ` since ${formatDate(account.archivedAt)}` : ""}. It is read-only until it is reactivated.

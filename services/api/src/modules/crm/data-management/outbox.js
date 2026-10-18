@@ -11,10 +11,12 @@ export async function queueOutboxEvent(
   entityId,
   payload,
 ) {
-  const eventPayload =
+  let eventPayload =
     entityType === "leads"
       ? safeLeadOutboxPayload(eventType, entityId, payload)
       : payload || {};
+  // A change an automation made is marked, so it never starts another automation (no loops).
+  if (context?.workflowOrigin) eventPayload = { ...eventPayload, origin: "workflow" };
   return publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "crm", eventType, entityType, entityId, payload: eventPayload });
 }
 

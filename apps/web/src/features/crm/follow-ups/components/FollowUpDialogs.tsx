@@ -15,7 +15,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 import {
   cancelFollowUp, completeFollowUp, errorMessage, reassignFollowUp, rescheduleFollowUp, scheduleFollowUp, updateFollowUp,
-  type FollowUp, type FollowUpOptions, type FollowUpRelatedType, type FollowUpType,
+  type FollowUp, type FollowUpOptions, type FollowUpRelatedType, type FollowUpRepeat,
 } from "../api/follow-ups-api";
 import { ErrorBanner, TYPE_LABELS } from "../follow-up-format";
 import { whenLabel } from "@/features/crm/shared/when";
@@ -33,6 +33,24 @@ function Actions({ onCancel, onConfirm, label, isLoading, isDisabled, danger }: 
     <div className="flex justify-end gap-2">
       <Button variant="secondary" onPress={onCancel}>Cancel</Button>
       <Button variant={danger ? "danger" : "primary"} onPress={onConfirm} isLoading={isLoading} isDisabled={isDisabled}>{label}</Button>
+    </div>
+  );
+}
+
+// Repeat: never, or every N days, weeks or months until an optional date (CRM plan 5.2).
+const REPEAT_UNITS = [{ value: "none", label: "Does not repeat" }, { value: "day", label: "Every … days" }, { value: "week", label: "Every … weeks" }, { value: "month", label: "Every … months" }];
+function RepeatFields({ repeat, setRepeat }: { repeat: FollowUpRepeat | null; setRepeat: (repeat: FollowUpRepeat | null) => void }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      <Select label="Repeat" selectedKey={repeat?.unit ?? "none"}
+        onSelectionChange={(key) => setRepeat(String(key) === "none" ? null : { every: repeat?.every ?? 1, unit: String(key) as FollowUpRepeat["unit"], until: repeat?.until ?? null })}
+        options={REPEAT_UNITS} />
+      {repeat && (
+        <>
+          <TextField label="Every" inputMode="numeric" value={String(repeat.every)} onChange={(value) => setRepeat({ ...repeat, every: Math.max(1, Math.min(365, Number(value) || 1)) })} />
+          <DateInput label="Until" description="Optional." value={repeat.until ?? ""} onChange={(value) => setRepeat({ ...repeat, until: value || null })} />
+        </>
+      )}
     </div>
   );
 }
@@ -66,7 +84,8 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
   isOpen: boolean; onOpenChange: (open: boolean) => void; options: FollowUpOptions; onSaved: (followUp: FollowUp) => void; related?: RelatedRecord; followUp?: FollowUp;
 }) {
   const editing = Boolean(followUp);
-  const [type, setType] = useState<FollowUpType>(followUp?.type ?? options.defaults?.type ?? "call");
+  const [type, setType] = useState<string>(followUp?.typeCode ?? options.defaults?.type ?? "call");
+  const [repeat, setRepeat] = useState<FollowUpRepeat | null>(followUp?.repeat ?? null);
   const [subject, setSubject] = useState(followUp?.subject ?? "");
   const [notes, setNotes] = useState(followUp?.notes ?? "");
   const [scheduledDate, setScheduledDate] = useState(today());
@@ -85,7 +104,7 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
 
   const mutation = useMutation({
     mutationFn: () => {
-      const common = { type, subject, notes, ...reminderInput(reminder, reminderAt), ...(canPickContact ? { contactId: contactId === NONE ? null : contactId } : {}) };
+      const common = { type, subject, notes, repeat, ...reminderInput(reminder, reminderAt), ...(canPickContact ? { contactId: contactId === NONE ? null : contactId } : {}) };
       if (followUp) return updateFollowUp(followUp.id, { ...common, expectedUpdatedAt: followUp.updatedAt });
       const target = related ?? (link.entityType !== "general" && link.entityId ? { type: link.entityType as FollowUpRelatedType, id: link.entityId } : null);
       return scheduleFollowUp({ ...common, relatedType: target?.type, relatedId: target?.id, scheduledDate, scheduledTime, ...(assignedTo ? { assignedTo } : {}), idempotencyKey });
@@ -101,7 +120,7 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
         <ErrorBanner message={error} />
         {!related && !editing && <RelatedRecordPicker label="About" value={link} onChange={setLink} />}
         <div className="grid gap-4 sm:grid-cols-3">
-          <Select label="Type" selectedKey={type} onSelectionChange={(key) => setType(String(key) as FollowUpType)} options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} />
+          <Select label="Type" selectedKey={type} onSelectionChange={(key) => setType(String(key))} options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} />
           {!editing && <DateInput label="Date" isRequired value={scheduledDate} onChange={setScheduledDate} />}
           {!editing && <TimeInput label="Time" description="Optional." value={scheduledTime} onChange={setScheduledTime} />}
         </div>
@@ -117,6 +136,7 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
           )}
           <ReminderFields options={options} reminder={reminder} setReminder={setReminder} reminderAt={reminderAt} setReminderAt={setReminderAt} />
         </div>
+        <RepeatFields repeat={repeat} setRepeat={setRepeat} />
         <TextArea label="Purpose / notes" value={notes} onChange={setNotes} />
         <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label={editing ? "Save" : "Schedule"} isLoading={mutation.isPending}
           isDisabled={(!editing && !scheduledDate) || (!related && !editing && !link.entityId) || (reminder === CUSTOM && !reminderAt)} />
@@ -159,7 +179,10 @@ export function CompleteFollowUpDialog({ isOpen, onOpenChange, followUp, options
   const [outcome, setOutcome] = useState(NONE);
   const [notes, setNotes] = useState("");
   const [nextFollowUp, setNextFollowUp] = useState(false);
-  const [nextType, setNextType] = useState<FollowUpType>(followUp.type);
+  const [nextType, setNextType] = useState<string>(followUp.typeCode);
+  const [stopRepeating, setStopRepeating] = useState(false);
+  // What the follow-up's type suggests next, once it is completed (CRM plan 5.2).
+  const [suggested, setSuggested] = useState<{ activityTypeId: string; name: string; inDays: number; scheduledDate: string } | null>(null);
   const [nextDate, setNextDate] = useState("");
   const [nextTime, setNextTime] = useState("");
   const [nextTask, setNextTask] = useState(false);
@@ -171,13 +194,33 @@ export function CompleteFollowUpDialog({ isOpen, onOpenChange, followUp, options
       outcome: outcome === NONE ? undefined : outcome, notes: notes.trim() || undefined, expectedUpdatedAt: followUp.updatedAt,
       ...(nextFollowUp ? { nextFollowUp: { type: nextType, scheduledDate: nextDate, scheduledTime: nextTime } } : {}),
       ...(nextTask ? { nextTask: { title: taskTitle, dueDate: taskDate } } : {}),
+      ...(stopRepeating ? { stopRepeating: true } : {}),
     }),
-    onSuccess: () => { setError(null); onDone(); onOpenChange(false); },
+    onSuccess: (result) => {
+      setError(null);
+      onDone();
+      if (result.suggestedNext && followUp.relatedType && followUp.relatedId) setSuggested(result.suggestedNext);
+      else onOpenChange(false);
+    },
     onError: (failure) => setError(errorMessage(failure)),
   });
+  const scheduleSuggested = useMutation({
+    mutationFn: () => scheduleFollowUp({ relatedType: followUp.relatedType ?? undefined, relatedId: followUp.relatedId ?? undefined, activityTypeId: suggested!.activityTypeId, scheduledDate: suggested!.scheduledDate }),
+    onSuccess: () => { onDone(); onOpenChange(false); },
+    onError: (failure) => setError(errorMessage(failure)),
+  });
+  if (suggested)
+    return (
+      <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Follow-up completed" description={`Next for this kind of follow-up: ${suggested.name}, in ${suggested.inDays} ${suggested.inDays === 1 ? "day" : "days"} (${whenLabel(suggested.scheduledDate, null)}).`}>
+        <div className="flex flex-col gap-4">
+          <ErrorBanner message={error} />
+          <Actions onCancel={() => onOpenChange(false)} onConfirm={() => scheduleSuggested.mutate()} label={`Schedule ${suggested.name.toLowerCase()}`} isLoading={scheduleSuggested.isPending} />
+        </div>
+      </Dialog>
+    );
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Complete follow-up" size="lg"
-      description={`${followUp.subject}${followUp.type !== "other" ? `. The ${TYPE_LABELS[followUp.type].toLowerCase()} is recorded on the timeline.` : ""}`}>
+      description={`${followUp.subject}${followUp.type !== "other" ? `. The ${(followUp.typeName ?? TYPE_LABELS[followUp.type]).toLowerCase()} is recorded on the timeline.` : ""}${followUp.repeat ? " It repeats: the next one is planned when you complete this." : ""}`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <Select label="Outcome" selectedKey={outcome} onSelectionChange={(key) => setOutcome(String(key))}
@@ -186,11 +229,12 @@ export function CompleteFollowUpDialog({ isOpen, onOpenChange, followUp, options
         <Checkbox isSelected={nextFollowUp} onChange={setNextFollowUp}>Schedule the next follow-up</Checkbox>
         {nextFollowUp && (
           <div className="grid gap-4 sm:grid-cols-3">
-            <Select label="Type" selectedKey={nextType} onSelectionChange={(key) => setNextType(String(key) as FollowUpType)} options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} />
+            <Select label="Type" selectedKey={nextType} onSelectionChange={(key) => setNextType(String(key))} options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} />
             <DateInput label="Date" isRequired value={nextDate} onChange={setNextDate} />
             <TimeInput label="Time" value={nextTime} onChange={setNextTime} />
           </div>
         )}
+        {followUp.repeat && <Checkbox isSelected={stopRepeating} onChange={setStopRepeating}>Stop repeating (do not plan the next one)</Checkbox>}
         <Checkbox isSelected={nextTask} onChange={setNextTask}>Create a task</Checkbox>
         {nextTask && (
           <div className="grid gap-4 sm:grid-cols-[1fr_12rem]">

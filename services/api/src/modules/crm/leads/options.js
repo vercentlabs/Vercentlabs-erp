@@ -1,12 +1,18 @@
 // Everything the lead screens need to render their pickers, in one read: the
 // fixed vocabulary, the organization's sources, people, teams and
 // currencies, and what the caller is allowed to do.
+import { listCustomFields } from "../custom-fields/records.js";
+import { activityTypeChoices } from "../activity-types/records.js";
+import { CRM_MEDIUMS } from "@vercentlabs/shared-types";
+
+import { listCampaignOptions } from "../campaigns/records.js";
+import { listTags } from "../tags/records.js";
 import { leadCapabilities, requireLeadPermission } from "./access.js";
 import { listLeadAssignmentOptions } from "./assignment.js";
 import { getLeadAssignmentSettings } from "./assignment-rules.js";
 import {
   LEAD_ACTIVITY_TYPES, LEAD_ASSIGNMENT_METHODS, LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_DISQUALIFICATION_REASONS, LEAD_NEED_STATUSES,
-  LEAD_QUALIFICATION_STATUSES, LEAD_FOLLOW_UP_TYPES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, LEAD_RULE_FIELDS, LEAD_RULE_OPERATORS,
+  LEAD_QUALIFICATION_STATUSES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, LEAD_RULE_FIELDS, LEAD_RULE_OPERATORS,
   LEAD_STALE_DAYS, LEAD_STATUSES,
 } from "./constants.js";
 import { QUALIFICATION_CRITERIA } from "./qualification-criteria.js";
@@ -38,12 +44,20 @@ export async function getLeadOptions(client, context) {
     qualificationCriteria: QUALIFICATION_CRITERIA.map(({ key, label }) => ({ key, label })),
     qualificationRequirements: await getLeadQualificationSettings(client, context),
     activityTypes: LEAD_ACTIVITY_TYPES,
-    followUpTypes: LEAD_FOLLOW_UP_TYPES,
+    // One type list everywhere (CRM plan 5.2): the organization's activity types; followUpTypes keeps their codes.
+    followUpTypeOptions: await activityTypeChoices(client, context),
+    // the organization's custom fields on leads (CRM plan 5.3)
+    customFields: await listCustomFields(client, context, "lead"),
+    followUpTypes: (await activityTypeChoices(client, context)).map((type) => type.code),
     assignmentMethods: LEAD_ASSIGNMENT_METHODS,
     ruleFields: LEAD_RULE_FIELDS.map(({ code, label, kind }) => ({ code, label, kind })),
     ruleOperators: LEAD_RULE_OPERATORS,
     assignment: { allowSelfAssignment: settings.allowSelfAssignment, manualCreationMode: settings.manualCreationMode },
     sources: await listLeadSources(client, context),
+    // Where it came from, and its labels (CRM plan 3.4).
+    campaigns: await listCampaignOptions(client, context),
+    mediums: CRM_MEDIUMS.map(({ code, label }) => ({ code, label })),
+    tags: await listTags(client, context),
     users,
     teams,
     currencies: currencies.rows.map((row) => String(row.code).trim()),

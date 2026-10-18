@@ -1,4 +1,4 @@
-// Inbound email -> Support (F353 email-to-ticket), connecting the platform
+// Inbound email -> Support (F353 email-to-ticket) or CRM (email to lead, CRM plan 3.1: modules/crm/email/inbound.js), connecting the platform
 // inbound-mail receipt to Support's own domain functions:
 //   new email          -> a new ticket (channel email) + the email as its first
 //                         inbound communication;
@@ -28,6 +28,8 @@ import {
 } from "../../core/platform/integrations/inbound-mail/index.js";
 import { entitlementFromBillingSummary, getEnabledModuleKeys } from "../../core/access/index.js";
 import { addAttachment, addCommunication, createTicket } from "../../modules/support/tickets.js";
+import { prepareAttachmentUpload as prepareCrmAttachment } from "../../modules/crm/attachments/records.js";
+import { deliverInboundEmailToCrm } from "../../modules/crm/email/inbound.js";
 
 const CLOSED = new Set(["closed", "cancelled", "merged"]);
 const MAX_RAW_BODY = 30 * 1024 * 1024;
@@ -41,13 +43,16 @@ function supportAuthority(route) {
   };
 }
 
-async function prepareAttachments(message, env) {
+// CRM keeps only the file types its records accept; Support takes what the platform's upload pipeline accepts.
+async function prepareAttachments(message, env, target = "support.email_to_ticket") {
   const prepared = [];
   const notes = [];
   for (const attachment of message.attachments) {
     try {
       const bytes = Buffer.from(attachment.contentBase64, "base64");
-      prepared.push(await prepareFileUpload({ fileName: attachment.fileName, mimeType: attachment.contentType, bytes, maximumBytes: 25 * 1024 * 1024 }, env));
+      prepared.push(target === "crm.email_to_lead"
+        ? await prepareCrmAttachment({ fileName: attachment.fileName, bytes }, env)
+        : await prepareFileUpload({ fileName: attachment.fileName, mimeType: attachment.contentType, bytes, maximumBytes: 25 * 1024 * 1024 }, env));
       notes.push({ fileName: attachment.fileName, status: "accepted" });
     } catch (error) {
       notes.push({ fileName: attachment.fileName, status: "rejected", reason: error?.code || "FILE_INVALID" });
@@ -56,17 +61,18 @@ async function prepareAttachments(message, env) {
   return { prepared, notes };
 }
 
-async function assertSupportAvailable(client, organizationId, env) {
+async function assertModuleAvailable(client, organizationId, env, moduleKey = "support") {
+  const label = moduleKey === "crm" ? "CRM" : "Support";
   const enabled = await getEnabledModuleKeys(client, organizationId);
-  if (!enabled.has("support")) throw new InboundMailError(409, "Support is not enabled for this organisation.", "PLATFORM_INBOUND_MAIL_TARGET_UNAVAILABLE");
+  if (!enabled.has(moduleKey)) throw new InboundMailError(409, `${label} is not enabled for this organisation.`, "PLATFORM_INBOUND_MAIL_TARGET_UNAVAILABLE");
   let billing = null;
   try {
     billing = await getBillingSummary(client, organizationId, env);
   } catch {
     billing = null;
   }
-  const { entitled, enforced } = entitlementFromBillingSummary(billing, "support");
-  if (!entitled && enforced) throw new InboundMailError(409, "Support is not included in this organisation's plan.", "PLATFORM_INBOUND_MAIL_TARGET_UNAVAILABLE");
+  const { entitled, enforced } = entitlementFromBillingSummary(billing, moduleKey);
+  if (!entitled && enforced) throw new InboundMailError(409, `${label} is not included in this organisation's plan.`, "PLATFORM_INBOUND_MAIL_TARGET_UNAVAILABLE");
   await requireBillingWriteAccess(client, organizationId, env);
 }
 
@@ -153,13 +159,17 @@ export async function receiveInboundMail({ runPlatform, runTenant }, { routeKey,
   }
   const message = normalizeInboundMessage(payload);
   const { event, replayed } = await runTenant(route.organization_id, (client) => recordInboundMailEvent(client, { route, message, payloadDigest: inboundPayloadDigest(rawBody) }));
-  if (replayed && event.status === "processed") return { eventId: event.id, replayed: true, outcome: event.outcome, ticketId: event.ticket_id };
+  if (replayed && event.status === "processed")
+    return { eventId: event.id, replayed: true, outcome: event.outcome, ticketId: event.ticket_id, recordType: event.record_type ?? null, recordId: event.record_id ?? null };
 
-  const { prepared, notes } = await prepareAttachments(message, env);
+  const crm = route.target === "crm.email_to_lead";
+  const { prepared, notes } = await prepareAttachments(message, env, route.target);
   try {
     const result = await runTenant(route.organization_id, async (client) => {
-      await assertSupportAvailable(client, route.organization_id, env);
-      const delivered = await deliverToSupport(client, route, message, prepared);
+      await assertModuleAvailable(client, route.organization_id, env, crm ? "crm" : "support");
+      const delivered = crm
+        ? await deliverInboundEmailToCrm(client, route, message, prepared, { inboundEventId: event.id })
+        : await deliverToSupport(client, route, message, prepared);
       await completeInboundMailEvent(client, event.id, { status: "processed", ...delivered, attachmentNotes: notes });
       return delivered;
     });

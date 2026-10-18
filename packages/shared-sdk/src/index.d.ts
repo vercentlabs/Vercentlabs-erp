@@ -39,7 +39,6 @@ export function createBusinessDataClient(options?: {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
 }): BusinessDataClient;
-export * from "./crm.js";
 export * from "./billing.js";
 export * from "./mobile.js";
 

@@ -7,6 +7,8 @@
 // in by hand. The Company column is matched against existing accounts by
 // normalized name ("ABC Pvt Ltd" finds "ABC Private Limited"); a company that
 // is not found is reported and the person is imported without one.
+import { withMigrationAliases } from "../data-management/migration-presets.js";
+import { withConsentSource } from "../data-management/consent.js";
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { accountScopeSql } from "../accounts/access.js";
@@ -23,7 +25,8 @@ const EXPORT_ROW_LIMIT = 10000;
 const ROLE_BY_LABEL = new Map(CONTACT_ROLES.flatMap((entry) => [[entry.label.toLowerCase(), entry.code], [entry.code, entry.code]]));
 const METHOD_BY_LABEL = new Map(PREFERRED_CONTACT_METHODS.flatMap((entry) => [[entry.label.toLowerCase(), entry.code], [entry.code, entry.code]]));
 
-export const CONTACT_IMPORT_FIELDS = Object.freeze([
+// With the column names other tools export (CRM plan 5.7: moving in from Zoho, HubSpot, Salesforce, Odoo…).
+export const CONTACT_IMPORT_FIELDS = withMigrationAliases("contacts", [
   { key: "firstName", label: "First Name", aliases: ["first", "given name"], sample: "Rahul" },
   { key: "middleName", label: "Middle Name", aliases: ["middle"], sample: "" },
   { key: "lastName", label: "Last Name", aliases: ["last", "surname", "family name"], sample: "Sharma" },
@@ -126,7 +129,7 @@ async function matchAccount(client, context, name) {
 
 // options: mapping { header: fieldKey }, defaultSourceId, defaultOwnerUserId,
 //          skipDuplicates (default true: a duplicate row is reported, not created)
-export async function importContacts(client, context, { bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true, maxRows }) {
+async function importContactsUnrecorded(client, context, { bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true, maxRows }) {
   requireContactPermission(context, CONTACT_PERMISSIONS.import, "You do not have permission to import contacts.");
   requireContactPermission(context, CONTACT_PERMISSIONS.create, "You do not have permission to create contacts.");
   const parsed = parseUpload(bytes, fileName, maxRows);
@@ -260,4 +263,9 @@ export async function exportContacts(client, context, filters = {}, { limit = EX
     rowCount: contacts.length,
     csv: toCsv([EXPORT_COLUMNS.map(([label]) => label), ...contacts.map((contact) => EXPORT_COLUMNS.map(([, read]) => read(contact)))]),
   };
+}
+
+// Consent in the file is recorded in the ledger as imported, with the file's name.
+export function importContacts(client, context, input = {}) {
+  return withConsentSource(client, "import", `Imported from ${String(input?.fileName ?? "a file").slice(0, 200)}`, () => importContactsUnrecorded(client, context, input));
 }

@@ -2,7 +2,7 @@
 
 // Import data: one page for bringing leads, companies, contacts and deals in from a file. It asks what is being imported, then runs that record's
 // own importer (template, column mapping, options and the result). The old addresses (/crm/leads/import, /crm/accounts/import,
-// /crm/contacts/import, /crm/opportunities/import) open it with the type already chosen. Export stays on each list's "…" menu, for what the
+// /crm/contacts/import, /crm/opportunities/import) redirect here with the type chosen (next.config.ts). Export stays on each list's "…" menu, for what the
 // list shows; a file too large for either runs in the background and is listed here.
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";

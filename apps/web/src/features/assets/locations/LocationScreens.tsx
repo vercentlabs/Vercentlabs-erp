@@ -25,7 +25,7 @@ import { Cell, FactList, HistoryList, LinesTable, MoreActions, type MoreAction }
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { LIFECYCLE_TONE, REGISTER_BASE, errorMessage, errorStatus, getOptions, listAssets } from "../register/register-api";
 import {
   KINDS, LOCATIONS_BASE, createLocation, getChoices, getDiscrepancies, getLocation, getLocationChanges, listLocations, locationAction, locationsExportHref, resolveDiscrepancy, updateLocation,

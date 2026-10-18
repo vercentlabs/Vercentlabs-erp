@@ -17,7 +17,7 @@ import { Cell, FactList, HistoryList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask, type Field } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask, type Field } from "@/shared/ui/AskDialog";
 import {
   REPORTS, SPEC_BASE, STATUS_TONE, archiveFile, createSpec, dateLabel, errorIssues, errorMessage, errorStatus, exportHref, fileHref, getConflicts, getExceptions, getHistory, getOptions, getOverview,
   getPreview, getReport, getSettings, getSpec, getUsage, listFiles, listSpecs, parseBulkChecks, settingsAction, specAction, uploadFile,

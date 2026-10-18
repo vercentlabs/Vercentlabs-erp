@@ -1,0 +1,46 @@
+"use client";
+
+// The organization's custom fields on a lead or deal (CRM plan 5.3): inputs on the form, and the values on the record.
+import { Checkbox, Select, TextField } from "@vercentlabs/design-system";
+
+import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
+import { formatDate } from "@/shared/format/human";
+
+import type { CustomField, CustomValues } from "../fields-api";
+
+export function CustomFieldInputs({ fields, values, onChange }: { fields: CustomField[]; values: CustomValues; onChange: (values: CustomValues) => void }) {
+  if (!fields.length) return null;
+  const set = (key: string, value: CustomValues[string]) => onChange({ ...values, [key]: value });
+  return (
+    <>
+      {fields.map((field) => {
+        const value = values[field.key];
+        const description = field.helpText ?? undefined;
+        if (field.type === "checkbox")
+          return <Checkbox key={field.key} isSelected={value === true} onChange={(selected) => set(field.key, selected)}>{field.label}</Checkbox>;
+        if (field.type === "select")
+          return (
+            <Select key={field.key} label={field.label} isRequired={field.isRequired} description={description} selectedKey={typeof value === "string" && value ? value : "none"}
+              onSelectionChange={(key) => set(field.key, String(key) === "none" ? null : String(key))}
+              options={[{ value: "none", label: "Not set" }, ...field.options.map((option) => ({ value: option, label: option }))]} />
+          );
+        if (field.type === "date")
+          return <DateInput key={field.key} label={field.label} isRequired={field.isRequired} description={description} value={typeof value === "string" ? value : ""} onChange={(next) => set(field.key, next || null)} />;
+        return (
+          <TextField key={field.key} label={field.label} isRequired={field.isRequired} description={description} inputMode={field.type === "number" ? "decimal" : undefined}
+            value={value === null || value === undefined ? "" : String(value)} onChange={(next) => set(field.key, next)} />
+        );
+      })}
+    </>
+  );
+}
+
+// The values as the record page lists them: [{ label, value }] for the property list, set ones only.
+export function customFieldProperties(fields: CustomField[], values: CustomValues | undefined) {
+  return fields
+    .filter((field) => values?.[field.key] !== undefined && values?.[field.key] !== null && values?.[field.key] !== "")
+    .map((field) => {
+      const value = values![field.key];
+      return { label: field.label, value: field.type === "checkbox" ? (value ? "Yes" : "No") : field.type === "date" ? formatDate(String(value)) : String(value) };
+    });
+}

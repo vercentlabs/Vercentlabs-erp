@@ -17,7 +17,7 @@ import { Cell, FactList, HistoryList, LinesTable, MoreActions, type MoreAction }
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask, type Field } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask, type Field } from "@/shared/ui/AskDialog";
 import {
   MILESTONES_BASE, PROJECTS_BASE, TASKS_BASE, TASK_BLOCKER_LABEL, TASK_TONE, TASK_TYPE_LABEL, dateLabel, dueLabel, errorMessage, errorStatus, getMembers,
   getProjectTasks, getTask, getTaskActivity, minutesLabel, newKey, removeTaskFile, taskAction, taskFileHref, updateTask, uploadTaskFile, type TaskCheck, type TaskDetail,

@@ -16,6 +16,8 @@ export type ContactRelatedList = "opportunities" | "quotations" | "orders" | "pr
 
 
 export type Contact = {
+  // the language they prefer (CRM plan 5.5), ISO 639-1
+  preferredLanguage?: string | null;
   id: string;
   contactNumber: string | null;
   firstName: string;
@@ -89,6 +91,8 @@ export type ContactOptions = {
   marketingConsent: CodeLabel[];
   activityTypes: CodeLabel[];
   followUpTypes: string[];
+  // the organization's activity types (CRM plan 5.2), the one list every screen offers
+  followUpTypeOptions?: Array<{ id: string; code: string; label: string; kind: string }>;
   relatedLists: ContactRelatedList[];
   sources: Array<{ id: string; code: string; name: string; isActive: boolean }>;
   users: Array<{ id: string; name: string; email: string }>;

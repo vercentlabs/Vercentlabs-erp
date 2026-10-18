@@ -1,6 +1,10 @@
 import { registerJobHandler } from "../registry.js";
 import { internalJobBackoff } from "../backoff.js";
 import { dispatchFollowUpRemindersHandler, JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, payloadSchema as followUpReminderDispatchPayloadSchema } from "./crm-follow-up-reminder-dispatch.js";
+import { calendarSyncHandler, JOB_TYPE as CALENDAR_SYNC_JOB_TYPE, payloadSchema as calendarSyncPayloadSchema } from "./crm-calendar-sync.js";
+import { mailingsSendHandler, JOB_TYPE as MAILINGS_SEND_JOB_TYPE, payloadSchema as mailingsSendPayloadSchema } from "./crm-mailings-send.js";
+import { leadResponseWatchHandler, JOB_TYPE as LEAD_RESPONSE_WATCH_JOB_TYPE, payloadSchema as leadResponseWatchPayloadSchema } from "./crm-lead-response-watch.js";
+import { pollLeadConnectorsHandler, JOB_TYPE as LEAD_CONNECTORS_POLL_JOB_TYPE, payloadSchema as leadConnectorsPollPayloadSchema } from "./crm-lead-connectors-poll.js";
 import { crmDataJobHandler, JOB_TYPE as CRM_DATA_JOB_TYPE, payloadSchema as crmDataJobPayloadSchema } from "./crm-data-job.js";
 import { reportRunHandler, JOB_TYPE as REPORT_RUN_JOB_TYPE, payloadSchema as reportRunPayloadSchema } from "./platform-report-run.js";
 import { reconcileReorderHandler, JOB_TYPE as REORDER_RECONCILE_JOB_TYPE, payloadSchema as reorderReconcilePayloadSchema } from "./stock-reorder-reconcile.js";
@@ -40,6 +44,36 @@ export function registerBuiltinHandlers() {
     backoff: internalJobBackoff,
     // A finished or failed run is skipped on replay (executeCrmDataJob checks status), and an import's rows, its result and its
     // output file are written in one transaction with the status.
+    idempotency: "NATURALLY_IDEMPOTENT",
+    maxAttempts: 2,
+    transactionMode: "managed",
+  });
+  registerJobHandler(MAILINGS_SEND_JOB_TYPE, {
+    schema: mailingsSendPayloadSchema,
+    handler: mailingsSendHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // each recipient is claimed and marked in one transaction; a sent one is never queued again
+    maxAttempts: 2,
+  });
+  registerJobHandler(CALENDAR_SYNC_JOB_TYPE, {
+    schema: calendarSyncPayloadSchema,
+    handler: calendarSyncHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // events are mapped to their activity and changed only when the meeting's version changed
+    maxAttempts: 2,
+  });
+  registerJobHandler(LEAD_RESPONSE_WATCH_JOB_TYPE, {
+    schema: leadResponseWatchPayloadSchema,
+    handler: leadResponseWatchHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // every notice is stamped in the statement that claims its row (SKIP LOCKED); the re-run moves last_rerun_at first
+    maxAttempts: 3,
+  });
+  registerJobHandler(LEAD_CONNECTORS_POLL_JOB_TYPE, {
+    schema: leadConnectorsPollPayloadSchema,
+    handler: pollLeadConnectorsHandler,
+    backoff: internalJobBackoff,
+    // UNIQUE(connector, provider lead id) makes each lead once; a connector's read window moves only when its leads are written.
     idempotency: "NATURALLY_IDEMPOTENT",
     maxAttempts: 2,
     transactionMode: "managed",

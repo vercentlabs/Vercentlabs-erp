@@ -34,6 +34,8 @@ function toStage(row) {
     sequence: row.sequence,
     isActive: row.is_active,
     isSystem: row.is_system,
+    // days without activity before an open lead in this stage is stale (null: the standard 7)
+    staleAfterDays: row.stale_after_days ?? null,
     leadCount: row.lead_count === undefined ? undefined : Number(row.lead_count),
   };
 }
@@ -109,9 +111,15 @@ export async function updateLeadStage(client, context, id, input = {}) {
     if (inUse.rows[0].n > 0)
       throw new CrmError(409, `${inUse.rows[0].n} open ${inUse.rows[0].n === 1 ? "lead is" : "leads are"} in ${stage.name}. Move them to another stage first.`, "CRM_LEAD_STAGE_IN_USE");
   }
+  let staleAfterDays = stage.stale_after_days;
+  if (Object.hasOwn(input, "staleAfterDays")) {
+    staleAfterDays = input.staleAfterDays === null || String(input.staleAfterDays).trim() === "" ? null : Number(input.staleAfterDays);
+    if (staleAfterDays !== null && (!Number.isInteger(staleAfterDays) || staleAfterDays < 1 || staleAfterDays > 365))
+      throw new CrmError(400, "Stale after 1 to 365 days, or leave it empty for the standard 7.", "CRM_LEAD_STAGE_VALIDATION");
+  }
   const { rows } = await client.query(
-    `UPDATE tenant.crm_lead_stages SET name = $3, is_active = $4, updated_by = $5 WHERE organization_id = $1 AND id = $2 RETURNING *`,
-    [context.organizationId, stage.id, name, isActive, context.userId ?? null],
+    `UPDATE tenant.crm_lead_stages SET name = $3, is_active = $4, stale_after_days = $6, updated_by = $5 WHERE organization_id = $1 AND id = $2 RETURNING *`,
+    [context.organizationId, stage.id, name, isActive, context.userId ?? null, staleAfterDays],
   );
   return toStage(rows[0]);
 }

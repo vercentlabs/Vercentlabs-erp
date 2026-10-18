@@ -15,7 +15,7 @@ import { Cell, FactList, HistoryList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import type { Ask, Field } from "@/features/manufacturing/orders/components/MoDialogs";
+import type { Ask, Field } from "@/shared/ui/AskDialog";
 import {
   ACTION_LABEL, AVAILABILITY_TONE, CONDITION_TONE, LIFECYCLE_TONE, REGISTER_BASE, assetAction, dateLabel, getAssetView, newKey, registerAction, type AssetDetail, type AssetStatus, type BulkResult,
   type Options, type StatusHistory,

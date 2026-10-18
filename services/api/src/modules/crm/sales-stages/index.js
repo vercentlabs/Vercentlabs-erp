@@ -10,4 +10,6 @@ export { DEFAULT_SALES_STAGES, DEFAULT_STAGE_CODES, ensureDefaultSalesPipeline }
 export {
   createSalesStage, deactivateSalesStage, listSalesStages, reorderSalesStages, setStageDefaultProbability, updateSalesStage,
 } from "./definitions.js";
-export { stageEntryBlockers, stageEntryWarnings, stageRequirements, suggestedStageActions } from "./rules.js";
+export { STAGE_RULES, STAGE_RULE_LEVELS, stageEntryBlockers, stageEntryWarnings, stageRequirements, stageRules, suggestedStageActions } from "./rules.js";
+// Several pipelines (CRM plan 5.1).
+export { createPipeline, listPipelines, moveOpportunityToPipeline, pipelineForTeam, resolvePipeline, setPipelineActive, updatePipeline } from "./pipelines.js";

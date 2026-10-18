@@ -5,7 +5,7 @@
 // come from Accounting's invoices and receipts and are shown only to callers
 // who may see customer financials; nothing is stored on the customer.
 import { TRACKING_COLUMNS, financeJoin, invoicingBasisSetting, quantitiesJoin, summaryFromRow, summaryLine } from "../order-tracking/summary.js";
-import { listAccountHistory } from "../../crm/accounts/history.js";
+import { listAccountHistory } from "../../../core/parties/history.js";
 import { canViewCustomerFinancials, customerCan, requireCustomerPermission } from "./access.js";
 import { CUSTOMER_PERMISSIONS, CustomerError } from "./constants.js";
 import { loadCustomerRow } from "./records.js";

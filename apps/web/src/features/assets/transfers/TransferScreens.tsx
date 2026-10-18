@@ -19,7 +19,7 @@ import { Cell, FactList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { getStores } from "../custody/custody-api";
 import { dateLabel, errorMessage, errorStatus, getAssetView, getOptions, newKey } from "../register/register-api";
 import {

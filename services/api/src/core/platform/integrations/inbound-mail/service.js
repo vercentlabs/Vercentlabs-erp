@@ -18,6 +18,7 @@ import { decryptSecret, encryptSecret } from "../../secrets/index.js";
 export const PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT = "PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT";
 export const INBOUND_MAIL_TARGETS = Object.freeze([
   Object.freeze({ key: "support.email_to_ticket", moduleKey: "support", label: "Support: new emails open tickets, replies join them" }),
+  Object.freeze({ key: "crm.email_to_lead", moduleKey: "crm", label: "CRM: new emails open leads, replies join their lead or deal" }),
 ]);
 const MAX_TEXT = 100_000;
 const MAX_ATTACHMENTS = 10;
@@ -93,7 +94,7 @@ export async function setInboundMailRouteStatus(client, session, routeId, status
 
 export async function listInboundMailEvents(client, organizationId, { routeId = null, limit = 50 } = {}) {
   const { rows } = await client.query(
-    `SELECT id, route_id, provider, subject, status, outcome, processing_error, ticket_id, received_at, processed_at, attachment_notes
+    `SELECT id, route_id, provider, subject, status, outcome, processing_error, ticket_id, record_type, record_id, received_at, processed_at, attachment_notes
        FROM inbound_mail_events WHERE organization_id=$1 AND ($2::uuid IS NULL OR route_id=$2::uuid)
       ORDER BY received_at DESC LIMIT $3`,
     [organizationId, routeId && UUID.test(routeId) ? routeId : null, Math.min(Math.max(Number(limit) || 50, 1), 200)],
@@ -107,6 +108,8 @@ export async function listInboundMailEvents(client, organizationId, { routeId = 
     outcome: row.outcome,
     error: row.processing_error ? String(row.processing_error).slice(0, 300) : null,
     ticketId: row.ticket_id,
+    recordType: row.record_type ?? null,
+    recordId: row.record_id ?? null,
     receivedAt: row.received_at,
     processedAt: row.processed_at,
     attachmentNotes: row.attachment_notes,
@@ -206,10 +209,10 @@ export async function recordInboundMailEvent(client, { route, message, payloadDi
   return { event: existing, replayed: true };
 }
 
-export async function completeInboundMailEvent(client, eventId, { status, outcome = null, error = null, ticketId = null, communicationId = null, attachmentNotes = [] }) {
+export async function completeInboundMailEvent(client, eventId, { status, outcome = null, error = null, ticketId = null, communicationId = null, recordType = null, recordId = null, attachmentNotes = [] }) {
   await client.query(
-    `UPDATE inbound_mail_events SET status=$2, outcome=$3, processing_error=$4, ticket_id=$5, communication_id=$6, attachment_notes=$7::jsonb, processed_at=now() WHERE id=$1`,
-    [eventId, status, outcome, error ? String(error).slice(0, 1000) : null, ticketId, communicationId, JSON.stringify(attachmentNotes)],
+    `UPDATE inbound_mail_events SET status=$2, outcome=$3, processing_error=$4, ticket_id=$5, communication_id=$6, attachment_notes=$7::jsonb, record_type=$8, record_id=$9, processed_at=now() WHERE id=$1`,
+    [eventId, status, outcome, error ? String(error).slice(0, 1000) : null, ticketId, communicationId, JSON.stringify(attachmentNotes), recordType, recordId],
   );
 }
 

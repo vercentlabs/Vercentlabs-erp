@@ -25,7 +25,7 @@ import {
 import { CandidateList } from "./IdentificationScreens";
 import { BulkResultDialog, BulkStatusActions, bulkAsk } from "./StatusScreens";
 import { bulkLocation } from "../locations/locations-api";
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 
 // A scanner types the label's payload and presses Enter; a person can type an asset code, serial or tag. Access is checked on the server.
 export function ScanBox({ compact = false }: { compact?: boolean }) {

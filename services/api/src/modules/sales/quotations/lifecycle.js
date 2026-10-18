@@ -16,6 +16,7 @@ import { requireQuotationPermission } from "./access.js";
 import { OPEN_STATUSES, QUOTATION_PERMISSIONS, QuotationError, STATUS, dayOf, text } from "./constants.js";
 import { assertQuotationVisible, databaseToday } from "./records.js";
 import { lockQuotation, recordQuotationEvent } from "./versions.js";
+import { recordQuotationEmailOnDeal } from "../../crm/email/outbound.js";
 
 const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
@@ -208,6 +209,17 @@ export async function emailQuotation(client, context, quotationId, input = {}, a
   }, env);
   if (!result.sent)
     throw new QuotationError(409, "Email is not set up for this workspace. Download the PDF, send it yourself and use Mark as sent.", "SALES_QUOTATION_EMAIL_UNAVAILABLE");
+  // The deal it was raised from keeps the email too (CRM plan 4.1): its timeline shows it, and a reply threads onto the deal. Never
+  // stops the send.
+  if (quote.source_opportunity_id) {
+    await client.query("SAVEPOINT quotation_email_on_deal");
+    try {
+      await recordQuotationEmailOnDeal(client, context, { opportunityId: quote.source_opportunity_id, to, cc, subject, body: message, messageId: result.messageId, quotationNumber: quote.quotation_number });
+      await client.query("RELEASE SAVEPOINT quotation_email_on_deal");
+    } catch {
+      await client.query("ROLLBACK TO SAVEPOINT quotation_email_on_deal");
+    }
+  }
   return { quotationId: quote.id, status: "sent", messageId: result.messageId };
 }
 

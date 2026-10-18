@@ -3,6 +3,11 @@
 // Owner and team change only through assignment.js; stage through stages.js;
 // status (won, lost, reopened) through outcome.js. This file never writes
 // those columns except to set the starting stage and owner on create.
+import { applyCustomFields } from "../custom-fields/records.js";
+import { crmMediumLabel, isCrmMedium } from "@vercentlabs/shared-types";
+
+import { assertUsableCampaign } from "../campaigns/records.js";
+import { tagsByRecord } from "../tags/lookup.js";
 import { loadApps } from "../data-management/apps.js";
 import { currencyDisclosure, dealRate, reportingCurrencyOf, sumReporting, sumWeightedReporting, unconvertedCount, unconvertedCurrencies } from "../data-management/reporting-currency.js";
 import { updatedSummary } from "../data-management/field-labels.js";
@@ -19,6 +24,7 @@ import { queueOutboxEvent } from "../data-management/outbox.js";
 import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { assertActiveTeam, assertEligibleLeadAssignee } from "../leads/assignment.js";
 import { ensureDefaultSalesPipeline } from "../sales-stages/defaults.js";
+import { pipelineForTeam, resolvePipeline } from "../sales-stages/pipelines.js";
 import { opportunityCan, opportunityCapabilities, opportunityScopeSql, requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_CLOSING_SOON_DAYS, OPPORTUNITY_NUMBER_DOCUMENT_TYPE, OPPORTUNITY_PERMISSIONS, OPPORTUNITY_PRIORITIES, OPPORTUNITY_STALE_DAYS } from "./constants.js";
 import { recordOpportunityHistory } from "./history.js";
@@ -48,7 +54,8 @@ export const OPPORTUNITY_SELECT = `
          contact.display_name AS contact_name, contact.email AS contact_email, owner.full_name AS owner_name, team.name AS team_name,
          stage.name AS stage_name, stage.code AS stage_code, stage.sequence AS stage_sequence, stage.probability AS stage_probability,
          stage.is_won AS stage_is_won, stage.is_lost AS stage_is_lost, pipeline.name AS pipeline_name,
-         before_close.name AS stage_before_close_name, source.name AS source_name, lead.code AS lead_code,
+         recurring.name AS recurring_plan_name, recurring.months AS recurring_plan_months,
+         before_close.name AS stage_before_close_name, source.name AS source_name, lead.code AS lead_code, campaign.name AS campaign_name,
          reason.name AS lost_reason_name, reason.code AS lost_reason_code, close_reason.name AS outcome_reason_name, close_reason.code AS outcome_reason_code,
          closer.full_name AS closed_by_name, duplicate_of.code AS duplicate_of_code, duplicate_of.name AS duplicate_of_name,
          creator.full_name AS created_by_name, updater.full_name AS updated_by_name, winner.full_name AS won_by_name, loser.full_name AS lost_by_name,
@@ -69,6 +76,9 @@ export const OPPORTUNITY_SELECT = `
          quotation.id AS latest_quotation_id, quotation.quotation_number AS latest_quotation_number, quotation.lifecycle_status AS latest_quotation_status,
          quotation.grand_total AS latest_quotation_total, quotation.currency_code AS latest_quotation_currency, COALESCE(quotation.total_count, 0) AS quotation_count,
          floor(EXTRACT(epoch FROM now() - opportunity.stage_entered_at) / 86400)::int AS stage_age_days,
+         -- the stage's time limit (CRM plan 5.1), and whether this open deal has been in the stage longer
+         stage_limit.maximum_days AS stage_time_limit_days,
+         (opportunity.status = 'open' AND stage_limit.maximum_days IS NOT NULL AND opportunity.stage_entered_at < now() - make_interval(days => stage_limit.maximum_days)) AS stage_overdue,
          latest_order.id AS latest_order_id, latest_order.sales_order_number AS latest_order_number, latest_order.lifecycle_status AS latest_order_status,
          latest_order.customer_po_number AS latest_order_po_number, latest_order.customer_po_date AS latest_order_po_date,
          floor(EXTRACT(epoch FROM now() - COALESCE(opportunity.last_activity_at, opportunity.created_at)) / 86400)::int AS days_since_activity,
@@ -86,7 +96,11 @@ export const OPPORTUNITY_SELECT = `
     LEFT JOIN tenant.crm_pipeline_stages stage ON stage.organization_id = opportunity.organization_id AND stage.id = opportunity.stage_id
     LEFT JOIN tenant.crm_pipeline_stages before_close ON before_close.organization_id = opportunity.organization_id AND before_close.id = opportunity.stage_before_close_id
     LEFT JOIN tenant.crm_pipelines pipeline ON pipeline.organization_id = opportunity.organization_id AND pipeline.id = opportunity.pipeline_id
+    LEFT JOIN tenant.crm_opportunity_stage_sla_policies stage_limit ON stage_limit.organization_id = opportunity.organization_id AND stage_limit.stage_id = opportunity.stage_id
+                                                                    AND stage_limit.status = 'active'
     LEFT JOIN tenant.crm_lead_sources source ON source.organization_id = opportunity.organization_id AND source.id = opportunity.source_id
+    LEFT JOIN tenant.crm_campaigns campaign ON campaign.organization_id = opportunity.organization_id AND campaign.id = opportunity.campaign_id
+    LEFT JOIN tenant.crm_recurring_plans recurring ON recurring.organization_id = opportunity.organization_id AND recurring.id = opportunity.recurring_plan_id
     LEFT JOIN tenant.crm_leads lead ON lead.organization_id = opportunity.organization_id AND lead.id = opportunity.lead_id
     LEFT JOIN tenant.crm_lost_reasons reason ON reason.organization_id = opportunity.organization_id AND reason.id = opportunity.lost_reason_id
     LEFT JOIN tenant.crm_lost_reasons close_reason ON close_reason.organization_id = opportunity.organization_id AND close_reason.id = opportunity.outcome_reason_id
@@ -161,6 +175,8 @@ export function toOpportunity(row) {
     stageSequence: row.stage_sequence ?? null,
     stageEnteredAt: row.stage_entered_at,
     stageAgeDays: row.stage_age_days ?? 0,
+    stageTimeLimitDays: row.stage_time_limit_days === null || row.stage_time_limit_days === undefined ? null : Number(row.stage_time_limit_days),
+    stageOverdue: row.stage_overdue === true,
     // the stage the deal was in when it was won or lost
     stageBeforeCloseId: row.stage_before_close_id ?? null,
     stageBeforeCloseName: row.stage_before_close_name ?? null,
@@ -180,6 +196,19 @@ export function toOpportunity(row) {
     expectedCloseDate: row.expected_close_on ?? null,
     actualCloseDate: row.actual_close_on ?? null,
     sourceId: row.source_id,
+    campaignId: row.campaign_id ?? null,
+    campaignName: row.campaign_name ?? null,
+    // the organization's custom fields (CRM plan 5.3), by key
+    customFields: row.custom_data ?? {},
+    // recurring revenue (CRM plan 5.3): the plan, the amount per period, and that amount as a monthly figure
+    recurringPlanId: row.recurring_plan_id ?? null,
+    recurringPlanName: row.recurring_plan_name ?? null,
+    recurringPlanMonths: row.recurring_plan_months ?? null,
+    recurringRevenue: row.recurring_revenue === null || row.recurring_revenue === undefined ? null : Number(row.recurring_revenue),
+    monthlyRecurringRevenue: row.recurring_revenue === null || row.recurring_revenue === undefined || !row.recurring_plan_months ? null
+      : Math.round((Number(row.recurring_revenue) / Number(row.recurring_plan_months)) * 100) / 100,
+    medium: row.medium ?? null,
+    mediumLabel: crmMediumLabel(row.medium),
     sourceName: row.source_name ?? null,
     leadId: row.lead_id,
     leadCode: row.lead_code ?? null,
@@ -273,7 +302,8 @@ export async function readOpportunityRow(client, context, opportunityId, options
 export async function getOpportunity(client, context, opportunityId) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
   await loadApps(client, context);
-  return toOpportunity(await loadOpportunityRow(client, context, opportunityId));
+  const row = await loadOpportunityRow(client, context, opportunityId);
+  return { ...toOpportunity(row), tags: (await tagsByRecord(client, context.organizationId, "opportunity", [row.id])).get(row.id) ?? [] };
 }
 
 // Two people changing the same deal at once: the second sees a conflict
@@ -356,9 +386,12 @@ export function buildOpportunityListWhere(context, filters = {}, values = []) {
   if (["open", "won", "lost"].includes(filters.status)) where.push(`opportunity.status = ${bind(filters.status)}`);
   if (PRIORITY_CODES.includes(filters.priority)) where.push(`opportunity.priority = ${bind(filters.priority)}`);
   for (const [key, column] of Object.entries({
-    stageId: "opportunity.stage_id", teamId: "opportunity.team_id", accountId: "opportunity.party_id", contactId: "opportunity.contact_id",
-    sourceId: "opportunity.source_id", lostReasonId: "opportunity.lost_reason_id", leadId: "opportunity.lead_id",
+    stageId: "opportunity.stage_id", pipelineId: "opportunity.pipeline_id", teamId: "opportunity.team_id", accountId: "opportunity.party_id", contactId: "opportunity.contact_id",
+    sourceId: "opportunity.source_id", lostReasonId: "opportunity.lost_reason_id", leadId: "opportunity.lead_id", campaignId: "opportunity.campaign_id",
   })) if (isUuid(filters[key])) where.push(`${column} = ${bind(filters[key])}`);
+  if (filters.medium) where.push(`opportunity.medium = ${bind(String(filters.medium))}`);
+  if (isUuid(filters.tagId))
+    where.push(`EXISTS (SELECT 1 FROM tenant.crm_record_tags tagged WHERE tagged.organization_id = opportunity.organization_id AND tagged.entity_type = 'opportunity' AND tagged.entity_id = opportunity.id AND tagged.tag_id = ${bind(filters.tagId)})`);
   if (filters.ownerId === "unassigned") where.push("opportunity.owner_user_id IS NULL");
   else if (filters.ownerId === "me") where.push(`opportunity.owner_user_id = ${bind(context.userId)}`);
   else if (isUuid(filters.ownerId)) where.push(`opportunity.owner_user_id = ${bind(filters.ownerId)}`);
@@ -412,8 +445,9 @@ export async function listOpportunities(client, context, filters = {}) {
     `${OPPORTUNITY_SELECT} ${where} ORDER BY ${sortColumn} ${sortDirection} NULLS LAST, opportunity.id DESC LIMIT ${limit} OFFSET ${offset}`,
     values,
   );
+  const tagsOf = await tagsByRecord(client, context.organizationId, "opportunity", rows.map((row) => row.id));
   return {
-    opportunities: rows.map(toOpportunity),
+    opportunities: rows.map((row) => ({ ...toOpportunity(row), tags: tagsOf.get(row.id) ?? [] })),
     total: totals.rows[0].total,
     totalValue: totals.rows[0].value,
     weightedValue: Math.round(totals.rows[0].weighted * 100) / 100,
@@ -480,6 +514,19 @@ function normalize(input, { creating = false } = {}) {
     if (!PRIORITY_CODES.includes(out.priority)) throw invalid("Priority must be low, medium or high.", "priority");
   }
   for (const field of ["sourceId", "contactId"]) if (has(input, field)) out[field] = input[field] ? requireUuid(input[field], field === "sourceId" ? "Source" : "Contact") : null;
+  if (has(input, "campaignId")) out.campaignId = input.campaignId ? requireUuid(input.campaignId, "Campaign") : null;
+  if (has(input, "medium")) {
+    out.medium = text(input.medium) || null;
+    if (out.medium && !isCrmMedium(out.medium)) throw invalid("Choose a medium from the list.", "medium");
+  }
+  // Recurring revenue (CRM plan 5.3): a plan (monthly, yearly…) and the amount per period; no plan, no amount.
+  if (has(input, "recurringPlanId")) out.recurringPlanId = input.recurringPlanId ? requireUuid(input.recurringPlanId, "Recurring plan") : null;
+  if (has(input, "recurringRevenue")) {
+    const value = input.recurringRevenue === null || text(input.recurringRevenue) === "" ? null : Number(input.recurringRevenue);
+    if (value !== null && (!Number.isFinite(value) || value < 0 || value > MAX_VALUE)) throw invalid("Enter the recurring amount per period.", "recurringRevenue");
+    out.recurringRevenue = value;
+  }
+  if (has(out, "recurringPlanId") && !out.recurringPlanId) out.recurringRevenue = null;
   if (creating && !out.name) throw invalid("Enter a name for this deal.", "name");
   if (has(out, "name") && !out.name) throw invalid("Enter a name for this deal.", "name");
   return out;
@@ -488,8 +535,19 @@ function normalize(input, { creating = false } = {}) {
 const COLUMNS = Object.freeze({
   ...Object.fromEntries(Object.entries(TEXT_FIELDS).map(([field, [column]]) => [field, column])),
   amount: "amount", currencyCode: "currency_code", expectedCloseDate: "expected_close_date", nextStepDueAt: "next_step_due_at", priority: "priority",
-  sourceId: "source_id", contactId: "contact_id",
+  sourceId: "source_id", contactId: "contact_id", campaignId: "campaign_id", medium: "medium",
+  recurringPlanId: "recurring_plan_id", recurringRevenue: "recurring_revenue",
 });
+
+// The recurring plan chosen, active; and an amount only with a plan.
+async function assertRecurring(client, context, fields, row = null) {
+  const planId = has(fields, "recurringPlanId") ? fields.recurringPlanId : row?.recurring_plan_id ?? null;
+  const amount = has(fields, "recurringRevenue") ? fields.recurringRevenue : row?.recurring_revenue ?? null;
+  if (amount !== null && amount !== undefined && !planId) throw invalid("Choose the recurring plan for the recurring amount.", "recurringPlanId");
+  if (has(fields, "recurringPlanId") && planId && planId !== (row?.recurring_plan_id ?? null)
+    && !(await client.query("SELECT 1 FROM tenant.crm_recurring_plans WHERE organization_id = $1 AND id = $2 AND status = 'active'", [context.organizationId, planId])).rows[0])
+    throw invalid("Choose an active recurring plan.", "recurringPlanId");
+}
 
 // Every opportunity belongs to an account the caller can see.
 async function requireAccount(client, context, accountId) {
@@ -533,18 +591,30 @@ async function requireSource(client, context, sourceId) {
   if (!rows[0]) throw invalid("Choose a source from the list.", "sourceId");
 }
 
-// The stage a new deal starts in: the one given, or the first open stage of the default pipeline.
-async function startingStage(client, context, stageId) {
+// The stage a new deal starts in (CRM plan 5.1): the stage given (in its pipeline), else the first open stage of the pipeline given,
+// else of the team's pipeline (the deal's team, or the owner's), else of the default pipeline.
+async function startingStage(client, context, { stageId = null, pipelineId = null, teamId = null, ownerUserId = null } = {}) {
   await ensureDefaultSalesPipeline(client, context);
+  let pipeline = null;
+  if (pipelineId) pipeline = await resolvePipeline(client, context, pipelineId);
+  else if (!stageId) {
+    const team = teamId ?? (ownerUserId ? (await client.query(
+      `SELECT member.team_id FROM tenant.crm_sales_team_members member JOIN tenant.crm_sales_teams team ON team.organization_id = member.organization_id AND team.id = member.team_id AND team.status = 'active'
+        WHERE member.organization_id = $1 AND member.user_id = $2 AND member.status = 'active' AND (member.effective_to IS NULL OR member.effective_to >= current_date)
+        ORDER BY member.effective_from DESC NULLS LAST LIMIT 1`,
+      [context.organizationId, ownerUserId])).rows[0]?.team_id ?? null : null);
+    pipeline = await pipelineForTeam(client, context, team);
+  }
   const { rows } = await client.query(
     `SELECT stage.id, stage.pipeline_id, stage.name, stage.probability, stage.forecast_category
        FROM tenant.crm_pipeline_stages stage
        JOIN tenant.crm_pipelines pipeline ON pipeline.organization_id = stage.organization_id AND pipeline.id = stage.pipeline_id AND pipeline.status = 'active'
       WHERE stage.organization_id = $1 AND stage.status = 'active' AND NOT stage.is_won AND NOT stage.is_lost AND ($2::uuid IS NULL OR stage.id = $2)
+        AND ($3::uuid IS NULL OR stage.pipeline_id = $3)
       ORDER BY pipeline.is_default DESC, stage.sequence LIMIT 1`,
-    [context.organizationId, stageId ? requireUuid(stageId, "Sales stage") : null],
+    [context.organizationId, stageId ? requireUuid(stageId, "Sales stage") : null, pipeline?.id ?? null],
   );
-  if (!rows[0]) throw new CrmError(409, "Choose an open sales stage.", "CRM_OPPORTUNITY_STAGE_INVALID");
+  if (!rows[0]) throw new CrmError(409, pipeline && stageId ? "The selected stage is not part of that pipeline." : "Choose an open sales stage.", "CRM_OPPORTUNITY_STAGE_INVALID");
   return rows[0];
 }
 
@@ -579,10 +649,10 @@ export async function createOpportunity(client, context, input = {}, { origin = 
   const account = await requireAccount(client, context, input.accountId || await accountForPerson(client, context, fields.contactId));
   if (fields.contactId) await requireAccountContact(client, context, fields.contactId, account.id);
   await requireSource(client, context, fields.sourceId);
+  await assertUsableCampaign(client, context, fields.campaignId);
+  await assertRecurring(client, context, fields);
   fields.currencyCode = fields.currencyCode || account.currency_code?.trim() || (await baseCurrency(client, context));
   if (fields.currencyCode) await requireCurrency(client, context, fields.currencyCode);
-  const stage = await startingStage(client, context, input.stageId);
-
   // Owner: the one given, else the creator. Giving it to someone else is an assignment.
   let ownerUserId = context.userId ?? null;
   if (has(input, "ownerUserId")) {
@@ -594,6 +664,7 @@ export async function createOpportunity(client, context, input = {}, { origin = 
   }
   if (ownerUserId) await assertEligibleLeadAssignee(client, context, ownerUserId);
   const teamId = input.teamId ? (await assertActiveTeam(client, context, input.teamId)).id : null;
+  const stage = await startingStage(client, context, { stageId: input.stageId || null, pipelineId: input.pipelineId || null, teamId, ownerUserId });
 
   const code = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: OPPORTUNITY_NUMBER_DOCUMENT_TYPE });
   const present = Object.keys(fields).filter((field) => COLUMNS[field] && fields[field] !== null);
@@ -630,6 +701,7 @@ export async function createOpportunity(client, context, input = {}, { origin = 
   await recordAccountHistory(client, context, account.id, "opportunity_created", `Deal ${code} created: ${fields.name}`, { opportunityId: id });
   if (fields.contactId)
     await recordContactHistory(client, context, fields.contactId, "opportunity_associated", `Primary contact of deal ${code} ${fields.name}`, { opportunityId: id });
+  await applyCustomFields(client, context, "opportunity", id, input.customFields);
   await queueOutboxEvent(client, context, "crm.opportunities.created", "opportunities", id, { partyId: account.id, ownerUserId, amount: fields.amount ?? 0 });
   return toOpportunity(await loadOpportunityRow(client, context, id, { skipScope: true }));
 }
@@ -665,13 +737,21 @@ export async function updateOpportunity(client, context, opportunityId, input = 
   }
   if (fields.contactId) await requireAccountContact(client, context, fields.contactId, accountId);
   if (has(fields, "sourceId") && fields.sourceId !== row.source_id) await requireSource(client, context, fields.sourceId);
+  if (has(fields, "campaignId")) await assertUsableCampaign(client, context, fields.campaignId, row.campaign_id);
   if (fields.currencyCode && fields.currencyCode !== before.currencyCode) await requireCurrency(client, context, fields.currencyCode);
+  await assertRecurring(client, context, fields, row);
+
+  // Custom fields (CRM plan 5.3) first: a change to them alone is a change too.
+  const customChanges = await applyCustomFields(client, context, "opportunity", row.id, input.customFields);
+  if (customChanges.length)
+    await recordOpportunityHistory(client, context, row.id, "updated", `Updated ${customChanges.map((change) => change.label).join(", ")}`,
+      Object.fromEntries(customChanges.map((change) => [`custom.${change.key}`, { from: change.from, to: change.to }])));
 
   const columns = { ...COLUMNS, accountId: "party_id" };
   const current = { ...before, nextStepDueAt: before.nextStepDueAt ? new Date(before.nextStepDueAt).toISOString() : null };
   const comparable = (field, value) => (value instanceof Date ? value.toISOString() : field === "expectedCloseDate" && value ? String(value).slice(0, 10) : value ?? null);
   const changed = Object.keys(fields).filter((field) => columns[field] && String(comparable(field, fields[field]) ?? "") !== String(current[field] ?? ""));
-  if (!changed.length) return before;
+  if (!changed.length) return customChanges.length ? toOpportunity(await loadOpportunityRow(client, context, row.id)) : before;
 
   await client.query(
     `UPDATE tenant.crm_opportunities SET ${changed.map((field, index) => `${columns[field]} = $${index + 3}`).join(", ")}, updated_by = $${changed.length + 3}

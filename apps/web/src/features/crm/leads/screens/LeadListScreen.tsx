@@ -17,9 +17,12 @@ import {
 import { formatDate, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { TagList } from "@/features/crm/shared/ui/TagChips";
 import { ON_SCREEN_EXPORT_LIMIT, startExport } from "@/features/crm/shared/data-jobs-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
+import { BulkConvertDialog } from "../components/BulkConvertDialog";
+import { SavedViews } from "@/features/crm/shared/ui/SavedViews";
 import { getLeadOptions, leadExportUrl, listLeads, type Lead, type LeadBulkResult, type LeadListFilters, type LeadViewKey } from "../api/leads-api";
 import { ChangeStageDialog, DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
 import { AssignLeadsDialog } from "../components/LeadAssignment";
@@ -41,6 +44,7 @@ const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boo
   { id: "ownerName", label: "Owner" },
   { id: "nextFollowUpAt", label: "Next follow-up" },
   { id: "rating", label: "Rating" },
+  { id: "score", label: "Score" },
   { id: "estimatedValue", label: "Value" },
   { id: "sourceName", label: "Source", hiddenByDefault: true },
   { id: "priority", label: "Priority", hiddenByDefault: true },
@@ -64,9 +68,9 @@ function storedVisibility(): VisibilityState {
   }
 }
 
-type FilterKey = "status" | "stage" | "ownerId" | "sourceId" | "priority" | "rating" | "teamId" | "qualificationStatus";
+type FilterKey = "status" | "stage" | "ownerId" | "sourceId" | "priority" | "rating" | "teamId" | "qualificationStatus" | "campaignId" | "medium" | "tagId" | "scoreMin";
 type Filters = Record<FilterKey, string>;
-const NO_FILTERS: Filters = { status: ANY, stage: ANY, ownerId: ANY, sourceId: ANY, priority: ANY, rating: ANY, teamId: ANY, qualificationStatus: ANY };
+const NO_FILTERS: Filters = { status: ANY, stage: ANY, ownerId: ANY, sourceId: ANY, priority: ANY, rating: ANY, teamId: ANY, qualificationStatus: ANY, campaignId: ANY, medium: ANY, tagId: ANY, scoreMin: ANY };
 
 // Where the lead is, what it wants and how long it has waited: the filters
 // the unassigned queue is worked by.
@@ -78,7 +82,7 @@ const AGE_OPTIONS = [
   ...[1, 2, 3, 7, 14, 30].map((days) => ({ value: String(days), label: `Created more than ${days} ${days === 1 ? "day" : "days"} ago` })),
 ];
 
-type DialogKind = "assign" | "stage" | "disqualify" | null;
+type DialogKind = "assign" | "stage" | "disqualify" | "convert" | null;
 type FilterRange = { qualifiedFrom: string; qualifiedTo: string; convertedFrom: string; convertedTo: string };
 
 export function LeadListScreen() {
@@ -101,6 +105,10 @@ export function LeadListScreen() {
     rating: params.get("rating") ?? ANY,
     teamId: params.get("teamId") ?? ANY,
     qualificationStatus: params.get("qualificationStatus") ?? ANY,
+    campaignId: params.get("campaignId") ?? ANY,
+    medium: params.get("medium") ?? ANY,
+    tagId: params.get("tagId") ?? ANY,
+    scoreMin: params.get("scoreMin") ?? ANY,
   });
   const [queue, setQueueState] = useState<QueueFilters>({
     state: params.get("state") ?? "", city: params.get("city") ?? "", productInterest: params.get("productInterest") ?? "", olderThanDays: params.get("olderThanDays") ?? "",
@@ -182,6 +190,7 @@ export function LeadListScreen() {
         <span className="flex min-w-40 flex-col">
           <span className="flex flex-wrap items-center gap-1.5 font-medium text-text">{leadName(row.original)}<LeadStatusBadge status={row.original.status} /><StaleBadge lead={row.original} /></span>
           <span className="text-xs whitespace-nowrap text-text-muted">{row.original.code}{row.original.jobTitle ? ` · ${row.original.jobTitle}` : ""}</span>
+          <TagList tags={row.original.tags} />
         </span>
       ),
     },
@@ -201,6 +210,9 @@ export function LeadListScreen() {
     { id: "sourceName", accessorKey: "sourceName", header: "Source", cell: ({ row }) => row.original.sourceName ?? "" },
     { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <PriorityBadge priority={row.original.priority} /> },
     { id: "rating", accessorKey: "rating", header: "Rating", cell: ({ row }) => <RatingBadge rating={row.original.rating} /> },
+    // the lead score (CRM plan 5.3)
+    { id: "score", accessorKey: "score", header: "Score", cell: ({ row }) => (row.original.score === null || row.original.score === undefined ? <span className="text-text-muted">—</span>
+      : <span className={`tabular-nums ${row.original.scoreDetails?.hot ? "font-semibold text-danger" : ""}`}>{row.original.score}</span>) },
     {
       id: "estimatedValue",
       accessorKey: "estimatedValue",
@@ -262,9 +274,13 @@ export function LeadListScreen() {
     if (key === "sourceId") return options.sources.find((entry) => entry.id === value)?.name ?? value;
     if (key === "teamId") return options.teams.find((entry) => entry.id === value)?.name ?? value;
     if (key === "qualificationStatus") return options.qualificationStatuses.find((entry) => entry.code === value)?.label ?? value;
+    if (key === "campaignId") return options.campaigns?.find((entry) => entry.id === value)?.name ?? "Campaign";
+    if (key === "medium") return options.mediums?.find((entry) => entry.code === value)?.label ?? value;
+    if (key === "tagId") return options.tags?.find((entry) => entry.id === value)?.name ?? "Tag";
+    if (key === "scoreMin") return `${value} or more`;
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
-  const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stage: "Stage", ownerId: "Owner", sourceId: "Source", priority: "Priority", rating: "Rating", teamId: "Team", qualificationStatus: "Qualification" };
+  const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stage: "Stage", ownerId: "Owner", sourceId: "Source", priority: "Priority", rating: "Rating", teamId: "Team", qualificationStatus: "Qualification", campaignId: "Campaign", medium: "Medium", tagId: "Tag", scoreMin: "Score" };
   const activeFilters: ActiveFilter[] = [
     ...(Object.keys(filters) as FilterKey[])
       .filter((key) => filters[key] !== ANY)
@@ -325,10 +341,10 @@ export function LeadListScreen() {
           primaryAction: can?.create ? (
             <LinkButton href="/crm/leads/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New lead</LinkButton>
           ) : undefined,
-          secondaryActions: <MoreMenu label="More lead actions" items={[
+          secondaryActions: <><SavedViews screen="leads" basePath="/crm/leads" filters={listFilters} /><MoreMenu label="More lead actions" items={[
             ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=leads") }] : []),
             ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("leads", leadExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
-          ]} />,
+          ]} /></>,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as LeadViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
@@ -356,6 +372,14 @@ export function LeadListScreen() {
                         <Select label="Qualification" size="compact" selectedKey={filters.qualificationStatus} onSelectionChange={(key) => setFilters({ ...filters, qualificationStatus: String(key) })}
                           options={filterOptions(options.qualificationStatuses.map((entry) => ({ value: entry.code, label: entry.label })), "Any qualification")} />
                         <Select label="Rating" size="compact" selectedKey={filters.rating} onSelectionChange={(key) => setFilters({ ...filters, rating: String(key) })} options={filterOptions(RATING_OPTIONS, "Any rating")} />
+                        <Select label="Score" size="compact" selectedKey={filters.scoreMin} onSelectionChange={(key) => setFilters({ ...filters, scoreMin: String(key) })}
+                          options={filterOptions([{ value: "70", label: "70 or more" }, { value: "40", label: "40 or more" }, { value: "1", label: "Scored" }], "Any score")} />
+                        <Select label="Campaign" size="compact" selectedKey={filters.campaignId} onSelectionChange={(key) => setFilters({ ...filters, campaignId: String(key) })}
+                          options={filterOptions((options.campaigns ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any campaign")} />
+                        <Select label="Medium" size="compact" selectedKey={filters.medium} onSelectionChange={(key) => setFilters({ ...filters, medium: String(key) })}
+                          options={filterOptions((options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label })), "Any medium")} />
+                        <Select label="Tag" size="compact" selectedKey={filters.tagId} onSelectionChange={(key) => setFilters({ ...filters, tagId: String(key) })}
+                          options={filterOptions((options.tags ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any tag")} />
                         <p className="border-t border-border pt-3 text-xs font-medium text-text-secondary sm:col-span-2 lg:col-span-3">Location, interest and age</p>
                         <TextField label="State" value={queue.state} onChange={(state) => setQueue({ ...queue, state })} />
                         <TextField label="City" value={queue.city} onChange={(city) => setQueue({ ...queue, city })} />
@@ -400,6 +424,7 @@ export function LeadListScreen() {
               {(selectedIds.length === 1 ? can?.assign || can?.reassign : can?.bulkAssign) && <Button variant="secondary" size="compact" onPress={() => setDialog("assign")}>Assign</Button>}
               {can?.edit && <Button variant="secondary" size="compact" onPress={() => setDialog("stage")}>Change stage</Button>}
               {can?.disqualify && <Button variant="secondary" size="compact" onPress={() => setDialog("disqualify")}>Disqualify</Button>}
+              {can?.convert && <Button variant="secondary" size="compact" onPress={() => setDialog("convert")}>Convert</Button>}
               {can?.export && (
                 <a className={buttonVariants({ variant: "secondary", size: "compact" })} href={leadExportUrl({ view: view === "archived" ? "archived" : "all", ids: selectedIds.join(",") })} download>
                   Export selected
@@ -464,6 +489,7 @@ export function LeadListScreen() {
           <AssignLeadsDialog isOpen={dialog === "assign"} onOpenChange={(open) => !open && setDialog(null)} leadIds={selectedIds}
             lead={selectedIds.length === 1 ? leads.find((entry) => entry.id === selectedIds[0]) : undefined} options={options} onDone={refresh} />
           <ChangeStageDialog isOpen={dialog === "stage"} onOpenChange={(open) => !open && setDialog(null)} leadIds={selectedIds} options={options} onDone={refresh} />
+          {dialog === "convert" && <BulkConvertDialog isOpen onOpenChange={(open) => !open && setDialog(null)} leadIds={selectedIds} options={options} onDone={refresh} />}
           <DisqualifyLeadsDialog isOpen={dialog === "disqualify"} onOpenChange={(open) => !open && setDialog(null)} leadIds={selectedIds} options={options} onDone={refresh} />
           {logging && <LogActivityDialog isOpen onOpenChange={(open) => !open && setLogging(null)} leadId={logging.id} options={options} currentStage={logging.stage} onDone={() => { setLogging(null); refresh(); }} />}
         </>

@@ -10,6 +10,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertDialog, Button, Checkbox, Dialog, ErrorState, RecordDetailsPage, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
 
+import { EmailButton } from "@/features/crm/shared/ui/EmailComposer";
+import { FollowButton } from "@/features/crm/shared/ui/FollowButton";
+import { ApplyPlanButton } from "@/features/crm/activity-types/ApplyPlanButton";
+import { WhatsAppButton } from "@/features/crm/shared/ui/WhatsAppComposer";
+import { CallSmsButtons } from "@/features/crm/shared/ui/CallSmsButtons";
+import { TagEditor } from "@/features/crm/shared/ui/TagChips";
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
 import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
@@ -17,16 +23,19 @@ import { RecordActivityFeed, type ActivityChip } from "@/features/crm/shared/Rec
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { MoreMenu, type MoreMenuItem } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/shared/ui/PropertyList";
+import { customFieldProperties } from "@/features/crm/shared/ui/CustomFields";
 import { formatDate, formatDateTime, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  archiveOpportunity, deleteOpportunity, errorMessage, getOpportunity, getOpportunityOptions, restoreOpportunity, setOpportunityProbability,
+  archiveOpportunity, deleteOpportunity, errorMessage, getOpportunity, getOpportunityOptions, optionsForDeal, restoreOpportunity, setOpportunityProbability,
   type Opportunity, type OpportunityOptions, type OpportunityStage, type OpportunityStageAction,
 } from "../api/opportunities-api";
 import { AssignOpportunitiesDialog } from "../components/OpportunityActionDialogs";
+import { MovePipelineDialog } from "../components/MovePipelineDialog";
+import { MergeDealDialog } from "../components/MergeDealDialog";
 import { CorrectCloseReasonDialog, MarkLostDialog, MarkWonDialog, ReopenOpportunityDialog } from "@/features/crm/close-reasons/components/CloseDialogs";
 import { CloseSummaryPanel } from "@/features/crm/close-reasons/components/CloseSummaryPanel";
 import {
@@ -41,7 +50,7 @@ import { LIVE_OPPORTUNITY_QUERY } from "../live-query";
 import { ErrorBanner, OpportunityFlags, OpportunityStageBadge, OpportunityStatusBadge, PriorityBadge, days } from "../opportunity-format";
 import { useCrmShortcut } from "@/features/crm/shared/shortcuts";
 
-type DialogKind = "assign" | "won" | "lost" | "reopen" | "activity" | "followUp" | "probability" | "archive" | "delete" | "correctReason" | null;
+type DialogKind = "assign" | "won" | "lost" | "reopen" | "activity" | "followUp" | "probability" | "archive" | "delete" | "correctReason" | "pipeline" | "merge" | null;
 
 // Old ?tab= values (links from search, Notes & Files, notifications) open the tab — and the Activity chip — that now holds them.
 const TAB_OF: Record<string, { tab: string; chip?: ActivityChip }> = {
@@ -85,7 +94,7 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
   if (!options) return <ErrorState title="Could not load this page" description="Refresh to try again." />;
 
   return (
-    <OpportunityDetail opportunity={opportunity} options={options} tab={tab} setTab={setTab} initialChip={requested.chip} dialog={dialog} setDialog={setDialog} error={error}
+    <OpportunityDetail opportunity={opportunity} options={optionsForDeal(options, opportunity)} tab={tab} setTab={setTab} initialChip={requested.chip} dialog={dialog} setDialog={setDialog} error={error}
       setError={setError} refresh={refresh} run={(work) => action.mutate(work)} isRunning={action.isPending} />
   );
 }
@@ -155,6 +164,8 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
     { id: "assign", group: "Ownership", label: opportunity.ownerUserId ? "Reassign" : "Assign", show: canAssign, onAction: () => setDialog("assign") },
     { id: "probability", group: "Deal", label: "Set probability", show: open && can.changeProbability, onAction: () => setDialog("probability") },
     { id: "followUp", group: "Deal", label: "Schedule follow-up", show: canEdit, onAction: () => setDialog("followUp") },
+    { id: "merge", group: "Deal", label: "Merge another deal into this one", show: open && can.edit && can.markLost, onAction: () => setDialog("merge") },
+    { id: "pipeline", group: "Deal", label: "Move to another pipeline", show: open && can.changeStage && (options.pipelines?.length ?? 0) > 1, onAction: () => setDialog("pipeline") },
     { id: "won", group: "Outcome", label: "Mark won", show: open && can.markWon && !wonInButtons, onAction: () => setDialog("won") },
     { id: "lost", group: "Outcome", label: "Mark lost", show: open && can.markLost && !lostInButtons, onAction: () => setDialog("lost") },
     { id: "archive", label: "Archive deal", danger: true, show: !archived && can.delete, onAction: () => setDialog("archive") },
@@ -199,6 +210,11 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
           primaryAction: primaryAction || undefined,
           secondaryActions: (
             <>
+              {can.edit && !archived && <EmailButton entity="opportunities" recordId={opportunity.id} />}
+              <FollowButton entity="opportunities" recordId={opportunity.id} />
+              {canEdit && <ApplyPlanButton relatedType="opportunity" relatedId={opportunity.id} onApplied={refresh} />}
+              {can.edit && !archived && <WhatsAppButton entity="opportunities" recordId={opportunity.id} />}
+              {can.edit && !archived && <CallSmsButtons entity="opportunities" recordId={opportunity.id} />}
               {open && !inLastStage && stageFirst && (
                 <Button variant="secondary" isDisabled={Boolean(stageActions[stageFirst].blocked)} onPress={stageActions[stageFirst].run}>{stageActions[stageFirst].label}</Button>
               )}
@@ -264,7 +280,14 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
                 { label: "Products total", value: opportunity.productCount ? money(opportunity.productsTotal) : null },
                 { label: "Currency", value: currency },
                 { label: "Close date", value: opportunity.expectedCloseDate ? formatDate(opportunity.expectedCloseDate) : null },
+                { label: "Recurring", value: opportunity.recurringPlanName && opportunity.recurringRevenue !== null && opportunity.recurringRevenue !== undefined
+                  ? `${money(opportunity.recurringRevenue)} ${opportunity.recurringPlanName.toLowerCase()}${opportunity.monthlyRecurringRevenue !== null && opportunity.monthlyRecurringRevenue !== undefined ? ` · ${money(opportunity.monthlyRecurringRevenue)} a month` : ""}`
+                  : opportunity.recurringPlanName ?? null },
                 { label: "Source", value: opportunity.sourceName },
+                { label: "Campaign", value: opportunity.campaignName },
+                { label: "Medium", value: opportunity.mediumLabel },
+                { label: "Tags", wide: true, value: <TagEditor entity="opportunity" recordId={opportunity.id} tags={opportunity.tags ?? []} available={options.tags ?? []}
+                  canEdit={Boolean(can.edit) && !opportunity.archivedAt} onChanged={refresh} /> },
                 { label: "Created from lead", value: opportunity.leadId ? <Link className="hover:underline" href={`/crm/leads/${opportunity.leadId}`}>{opportunity.leadCode ?? "Open lead"}</Link> : null },
                 { label: "Latest quotation", value: opportunity.latestQuotationId ? (() => {
                   const label = `${opportunity.latestQuotationNumber ?? ""}${opportunity.latestQuotationTotal !== null ? ` · ${formatMoney(opportunity.latestQuotationCurrency ?? currency, opportunity.latestQuotationTotal)}` : ""}`;
@@ -278,6 +301,9 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
                 { label: "Product / service interest", value: opportunity.productInterest, wide: true },
                 { label: "Description", value: opportunity.description ? <span className="whitespace-pre-wrap">{opportunity.description}</span> : null, wide: true },
               ]} />
+              {customFieldProperties(options.customFields ?? [], opportunity.customFields).length > 0 && (
+                <PropertyList title="More about this deal" columns={3} items={customFieldProperties(options.customFields ?? [], opportunity.customFields)} />
+              )}
               <PropertyList title="The deal" columns={2} items={[
                 { label: "Business problem", value: opportunity.businessProblem ? <span className="whitespace-pre-wrap">{opportunity.businessProblem}</span> : null },
                 { label: "Requirements", value: opportunity.requirements ? <span className="whitespace-pre-wrap">{opportunity.requirements}</span> : null },
@@ -329,6 +355,8 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
       <CorrectCloseReasonDialog key={`correct:${opportunity.updatedAt}`} isOpen={dialog === "correctReason"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} />
       <MarkLostDialog key={`lost:${opportunity.updatedAt}`} isOpen={dialog === "lost"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} />
       <ReopenOpportunityDialog isOpen={dialog === "reopen"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} />
+      {dialog === "merge" && <MergeDealDialog isOpen onOpenChange={close} opportunity={opportunity} onDone={refresh} />}
+      {dialog === "pipeline" && <MovePipelineDialog isOpen onOpenChange={close} opportunity={opportunity} pipelines={options.pipelines ?? []} onDone={refresh} />}
       <LogActivityDialog isOpen={dialog === "activity"} onOpenChange={close} opportunity={opportunity} options={options} onDone={refresh} />
       <ScheduleFollowUpForRecord isOpen={dialog === "followUp"} onOpenChange={close} related={{ type: "opportunity", id: opportunity.id, name: opportunity.name, accountId: opportunity.accountId }} onDone={refresh} />
       <ProbabilityDialog key={`probability:${opportunity.updatedAt}`} isOpen={dialog === "probability"} onOpenChange={close} opportunity={opportunity} options={options} onDone={refresh} />

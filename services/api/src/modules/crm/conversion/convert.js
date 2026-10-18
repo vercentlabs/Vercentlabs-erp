@@ -12,6 +12,7 @@
 //   stamp the lead, write the conversion record and the history
 //
 // All checks run before the first write, so a refused conversion changes nothing.
+import { withConsentSource } from "../data-management/consent.js";
 import { fieldLabel } from "../data-management/field-labels.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
@@ -22,6 +23,7 @@ import { recordContactHistory } from "../contacts/history.js";
 import { createContact, updateContact } from "../contacts/records.js";
 import { linkContactToAccount } from "../contacts/relationships.js";
 import { createOpportunity } from "../opportunities/records.js";
+import { copyLeadTagsToDeal } from "../tags/lookup.js";
 import { assertEligibleLeadAssignee } from "../leads/assignment.js";
 import { LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_PURCHASE_TIMEFRAMES } from "../leads/constants.js";
 import { recordLeadHistory } from "../leads/history.js";
@@ -87,6 +89,7 @@ function readOpportunityInput(lead, input, accountName) {
     amount,
     currencyCode,
     stageId: isUuid(input.stageId) ? input.stageId : null,
+    pipelineId: isUuid(input.pipelineId) ? input.pipelineId : null,
     teamId: input.teamId === null || input.teamId === "" ? null : isUuid(input.teamId) ? input.teamId : lead.team_id ?? null,
     productInterest: (input.productInterest === undefined ? lead.product_interest ?? "" : text(input.productInterest)).slice(0, 2000) || null,
     description: (input.description === undefined ? lead.description ?? "" : text(input.description)).slice(0, 10000) || null,
@@ -101,7 +104,7 @@ function readOpportunityInput(lead, input, accountName) {
 //   account          { mode: "existing", id } | { mode: "new", name, legalName?, website?, gstin? (matched on, never stored), industry?, ownerUserId?, acknowledgeMatches? }
 //   contact          { mode: "existing", id, updates?: { email|mobile|phone|jobTitle: "lead" } }
 //                    | { mode: "new", firstName, lastName?, email?, mobile?, phone?, jobTitle?, ownerUserId?, acknowledgeMatches? }
-//   opportunity      { name?, ownerUserId?, teamId?, stageId?, amount?, currencyCode?, expectedCloseDate, productInterest?, description?, priority?, acknowledgeMatches? }
+//   opportunity      { name?, ownerUserId?, teamId?, stageId?, pipelineId?, amount?, currencyCode?, expectedCloseDate, productInterest?, description?, priority?, acknowledgeMatches? }
 //   openWork         "move" (default: open tasks and follow-ups move to the opportunity) | "keep"
 //   overrideReason   why a lead with missing qualification is converted (managers)
 //   duplicateReason  why a new account or contact is created despite a strong match (managers)
@@ -133,7 +136,7 @@ function mergedConsent(contact, lead) {
   return changes;
 }
 
-export async function convertLead(client, context, leadId, input = {}) {
+async function convertLeadUnrecorded(client, context, leadId, input = {}) {
   requireConversionPermission(context, CONVERSION_PERMISSIONS.convert, "You do not have permission to convert leads.");
   const idempotencyKey = text(input.idempotencyKey).slice(0, 200) || null;
   if (idempotencyKey) {
@@ -310,6 +313,8 @@ export async function convertLead(client, context, leadId, input = {}) {
       // The consent the lead gave (or its do-not-contact) travels with the person.
       ...consentFromLead(lead),
       ...(activeSource ? { sourceId: lead.source_id } : {}),
+      // the language the lead speaks (CRM plan 5.5)
+      ...(lead.language_code ? { preferredLanguage: lead.language_code } : {}),
       ownerUserId: newContact.ownerUserId,
     }, { allowDuplicate: newContact.allowDuplicate, duplicateReason, origin: "lead_conversion", historySummary: `Contact created from lead ${lead.code}` });
     contactId = contact.id;
@@ -333,7 +338,20 @@ export async function convertLead(client, context, leadId, input = {}) {
     ...(opportunityInput.currencyCode ? { currencyCode: opportunityInput.currencyCode } : {}),
     expectedCloseDate: opportunityInput.expectedCloseDate,
     ...(opportunityInput.stageId ? { stageId: opportunityInput.stageId } : {}),
+    ...(opportunityInput.pipelineId ? { pipelineId: opportunityInput.pipelineId } : {}),
   }, { origin: "lead_conversion", historySummary: `Created from lead ${lead.code}` });
+  // Custom field values whose key is also a field on deals go with it (CRM plan 5.3).
+  await client.query(
+    `UPDATE tenant.crm_opportunities deal SET custom_data = COALESCE(deal.custom_data, '{}'::jsonb) || COALESCE((
+       SELECT jsonb_object_agg(entry.key, entry.value) FROM jsonb_each(COALESCE($3::jsonb, '{}'::jsonb)) entry
+        WHERE EXISTS (SELECT 1 FROM tenant.crm_custom_fields field WHERE field.organization_id = $1 AND field.entity_type = 'opportunity' AND field.key = entry.key AND field.status = 'active')), '{}'::jsonb)
+      WHERE deal.organization_id = $1 AND deal.id = $2`,
+    [context.organizationId, opportunity.id, JSON.stringify(lead.custom_data ?? {})]);
+  // The deal keeps where the lead came from — its campaign (even one archived since) and medium — and its tags (CRM plan 3.4).
+  if (lead.campaign_id || lead.medium)
+    await client.query("UPDATE tenant.crm_opportunities SET campaign_id = $3, medium = $4 WHERE organization_id = $1 AND id = $2",
+      [context.organizationId, opportunity.id, lead.campaign_id ?? null, lead.medium ?? null]);
+  await copyLeadTagsToDeal(client, context.organizationId, lead.id, opportunity.id, context.userId ?? null);
 
   // ---- transferRelevantOpenWork: future work follows the deal; completed work stays on the lead.
   let movedWorkCount = 0;
@@ -391,4 +409,9 @@ export async function convertLead(client, context, leadId, input = {}) {
   await notifyLeadOutcome(client, context, lead, "Your lead was converted", `Deal ${opportunity.code} was created`);
   await queueOutboxEvent(client, context, "crm.lead.converted", "lead", lead.id, { partyId, contactId, opportunityId: opportunity.id });
   return toConversion(await readConversionByLead(client, context, lead.id));
+}
+
+// The contact's consent comes from the lead's: the ledger records it as carried over, not given anew.
+export function convertLead(client, context, leadId, input = {}) {
+  return withConsentSource(client, "conversion", `Carried over from lead ${leadId}`, () => convertLeadUnrecorded(client, context, leadId, input));
 }

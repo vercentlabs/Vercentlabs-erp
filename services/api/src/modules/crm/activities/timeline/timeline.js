@@ -11,7 +11,7 @@
 //    public.attachments (the governed file upload record — 'crm.<entityType>'
 //    is the entity_type convention the attachment service writes, so files
 //    show up on every record type's Timeline).
-//    Deliberately NOT merged: crm_outbox_events (internal/non-user-facing),
+//    Deliberately NOT merged: platform events (internal/non-user-facing),
 //    lifecycle/stage/score/assignment/consent/merge history (these remain
 //    separate detail panels per record type — folding several more
 //    differently-shaped history tables into one feed is out of proportion;

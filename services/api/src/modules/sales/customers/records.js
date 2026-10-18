@@ -3,7 +3,7 @@
 // CRM and Sales. Status changes live in lifecycle.js, addresses in
 // addresses.js, contacts in contacts.js and the CRM link in account-link.js.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
-import { recordAccountHistory } from "../../crm/accounts/history.js";
+import { recordAccountHistory } from "../../../core/parties/history.js";
 import { queueOutboxEvent } from "../../crm/data-management/outbox.js";
 import { createContact } from "../../crm/contacts/records.js";
 import { canViewCustomerFinancials, crmContext, customerCan, customerCapabilities, customerScopeSql, requireCustomerPermission } from "./access.js";

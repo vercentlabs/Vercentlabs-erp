@@ -7,6 +7,7 @@
 // account typed in by hand. A row with a complete address also gets that
 // address as its default billing and shipping address. A row that fails is
 // reported with its reason and never stops the rest of the file.
+import { withMigrationAliases } from "../data-management/migration-presets.js";
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { CrmError } from "../data-management/errors.js";
@@ -25,7 +26,8 @@ const ADDRESS_KEYS = ["line1", "line2", "city", "state", "postalCode", "countryC
 
 // Importable fields, in template order. `aliases` are other header spellings
 // the column mapping recognizes automatically.
-export const ACCOUNT_IMPORT_FIELDS = Object.freeze([
+// With the column names other tools export (CRM plan 5.7: moving in from Zoho, HubSpot, Salesforce, Odoo…).
+export const ACCOUNT_IMPORT_FIELDS = withMigrationAliases("accounts", [
   { key: "displayName", label: "Company Name", aliases: ["name", "company", "account name", "account", "organization", "organisation"], sample: "Mehta Fabrics" },
   { key: "legalName", label: "Legal Name", aliases: ["registered name", "legal company name"], sample: "Mehta Fabrics Private Limited" },
   { key: "accountType", label: "Company Type", aliases: ["type", "account type"], sample: "Prospect" },

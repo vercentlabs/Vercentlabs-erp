@@ -7,7 +7,7 @@
 // states has one address per registration. Documents copy the address they
 // use, so changing or deactivating an address here never changes an issued
 // document; an address is never deleted, only deactivated.
-import { recordAccountHistory } from "../../crm/accounts/history.js";
+import { recordAccountHistory } from "../../../core/parties/history.js";
 import { requireCustomerPermission } from "./access.js";
 import { CUSTOMER_ADDRESS_TYPES, CUSTOMER_PERMISSIONS, CustomerError, addressTypeLabel, gstStateCode } from "./constants.js";
 import { loadCustomerRow } from "./records.js";

@@ -6225,42 +6225,6 @@ ALTER TABLE ONLY tenant.crm_opportunity_stage_sla_policies FORCE ROW LEVEL SECUR
 
 
 --
--- Name: crm_outbox_events; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_outbox_events (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    event_type text NOT NULL,
-    entity_type text NOT NULL,
-    entity_id uuid NOT NULL,
-    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
-    status text DEFAULT 'pending'::text NOT NULL,
-    attempt_count integer DEFAULT 0 NOT NULL,
-    next_attempt_at timestamp with time zone DEFAULT now() NOT NULL,
-    delivered_at timestamp with time zone,
-    last_error text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    locked_at timestamp with time zone,
-    provider_message_id text,
-    delivery_receipt jsonb DEFAULT '{}'::jsonb NOT NULL,
-    locked_by text,
-    CONSTRAINT crm_outbox_events_attempt_count_check CHECK ((attempt_count >= 0)),
-    CONSTRAINT crm_outbox_events_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'delivered'::text, 'failed'::text, 'dead_letter'::text])))
-);
-
-ALTER TABLE ONLY tenant.crm_outbox_events FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: TABLE crm_outbox_events; Type: COMMENT; Schema: tenant; Owner: -
---
-
-COMMENT ON TABLE tenant.crm_outbox_events IS 'RETIRED (tenant migration 184): migrated to tenant.platform_events. Read and written by nothing; removed in Prompt 6.';
-
-
---
 -- Name: crm_pipeline_stages; Type: TABLE; Schema: tenant; Owner: -
 --
 
@@ -16895,14 +16859,6 @@ ALTER TABLE ONLY tenant.crm_opportunity_stage_sla_policies
 
 
 --
--- Name: crm_outbox_events crm_outbox_events_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_outbox_events
-    ADD CONSTRAINT crm_outbox_events_pkey PRIMARY KEY (id);
-
-
---
 -- Name: crm_pipeline_stages crm_pipeline_stages_organization_id_pipeline_id_code_key; Type: CONSTRAINT; Schema: tenant; Owner: -
 --
 
@@ -22128,20 +22084,6 @@ CREATE UNIQUE INDEX crm_opportunity_stage_history_organization_id_id_uidx ON ten
 
 
 --
--- Name: crm_outbox_claimable_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE INDEX crm_outbox_claimable_idx ON tenant.crm_outbox_events USING btree (organization_id, status, next_attempt_at, locked_at) WHERE (status = ANY (ARRAY['pending'::text, 'failed'::text, 'processing'::text]));
-
-
---
--- Name: crm_outbox_events_organization_id_id_uidx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE UNIQUE INDEX crm_outbox_events_organization_id_id_uidx ON tenant.crm_outbox_events USING btree (organization_id, id);
-
-
---
 -- Name: crm_pipeline_stages_active_sequence_f012_uidx; Type: INDEX; Schema: tenant; Owner: -
 --
 
@@ -25205,13 +25147,6 @@ CREATE TRIGGER touch_updated_at BEFORE UPDATE ON tenant.crm_opportunities FOR EA
 --
 
 CREATE TRIGGER touch_updated_at BEFORE UPDATE ON tenant.crm_opportunity_items FOR EACH ROW EXECUTE FUNCTION tenant.touch_updated_at();
-
-
---
--- Name: crm_outbox_events touch_updated_at; Type: TRIGGER; Schema: tenant; Owner: -
---
-
-CREATE TRIGGER touch_updated_at BEFORE UPDATE ON tenant.crm_outbox_events FOR EACH ROW EXECUTE FUNCTION tenant.touch_updated_at();
 
 
 --
@@ -31036,14 +30971,6 @@ ALTER TABLE ONLY tenant.crm_opportunity_stage_sla_policies
 
 ALTER TABLE ONLY tenant.crm_opportunity_stage_sla_policies
     ADD CONSTRAINT crm_opportunity_stage_sla_policies_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_outbox_events crm_outbox_events_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_outbox_events
-    ADD CONSTRAINT crm_outbox_events_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -37287,12 +37214,6 @@ ALTER TABLE tenant.crm_opportunity_stage_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant.crm_opportunity_stage_sla_policies ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: crm_outbox_events; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_outbox_events ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: crm_pipeline_stages; Type: ROW SECURITY; Schema: tenant; Owner: -
 --
 
@@ -38603,13 +38524,6 @@ CREATE POLICY organization_isolation ON tenant.crm_opportunity_items USING ((org
 --
 
 CREATE POLICY organization_isolation ON tenant.crm_opportunity_stage_history USING ((organization_id = tenant.current_organization_id())) WITH CHECK ((organization_id = tenant.current_organization_id()));
-
-
---
--- Name: crm_outbox_events organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY organization_isolation ON tenant.crm_outbox_events USING ((organization_id = tenant.current_organization_id())) WITH CHECK ((organization_id = tenant.current_organization_id()));
 
 
 --
@@ -43336,14 +43250,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_stage_history 
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_stage_sla_policies TO vercent_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_stage_sla_policies TO vercent_worker;
-
-
---
--- Name: TABLE crm_outbox_events; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_outbox_events TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_outbox_events TO vercent_worker;
 
 
 --

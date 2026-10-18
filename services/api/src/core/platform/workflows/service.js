@@ -11,17 +11,18 @@
 //                registered actions, record output or error evidence. All
 //                actions commit together or not at all (a failed run is
 //                recorded, never half-applied).
-//   authority    actions need no user authority (notification only). Any
-//                future business-command action must run with an explicitly
-//                persisted actor and normal authorization, never the editing
-//                administrator's permissions.
+//   authority    notifications need no user authority. A module's own
+//                actions run under that module's narrow system authority,
+//                through its normal operations (never the editing
+//                administrator's permissions); a refusal is recorded on the
+//                run, not thrown.
 //   loops        actions do not publish domain events; events that carry
 //                origin "workflow" are ignored as triggers.
 import { getDomainEvent, projectDomainEvent } from "../events/index.js";
 import { isFeatureFlagEnabled } from "../configuration/index.js";
 import { createNotification } from "../notifications/index.js";
 import { audit } from "../../security/request-security.js";
-import { CONDITION_OPERATORS, WORKFLOW_ACTIONS, WORKFLOW_ENTITY_LINKS, WORKFLOW_LIMITS, WORKFLOW_NOTIFICATION_CATEGORY } from "./registry.js";
+import { CONDITION_OPERATORS, WORKFLOW_ACTIONS, WORKFLOW_ENTITY_LINKS, WORKFLOW_LIMITS, WORKFLOW_MODULE_ACTIONS, WORKFLOW_NOTIFICATION_CATEGORY } from "./registry.js";
 
 export class WorkflowError extends Error {
   constructor(status, message, code = "WORKFLOW_ERROR") {
@@ -70,7 +71,19 @@ async function validateDefinition(client, organizationId, input) {
   if (!actions.length || actions.length > WORKFLOW_LIMITS.maxActions) throw invalid(`Add between 1 and ${WORKFLOW_LIMITS.maxActions} actions.`);
   const cleanActions = [];
   for (const action of actions) {
-    if (!WORKFLOW_ACTIONS.some((entry) => entry.key === action?.type)) throw invalid("An action is not supported.");
+    const registered = WORKFLOW_ACTIONS.find((entry) => entry.key === action?.type);
+    if (!registered) throw invalid("An action is not supported.");
+    if (registered.module) {
+      if (registered.module !== event.moduleKey) throw invalid(`"${registered.label}" is not available for this trigger.`);
+      const { validate } = await WORKFLOW_MODULE_ACTIONS[registered.module]();
+      const userFields = new Set(event.conditionFields.filter((field) => field.type === "user").map((field) => field.key));
+      try {
+        cleanActions.push(await validate(client, organizationId, action, { eventEntityType: event.entityType, userFields }));
+      } catch (error) {
+        throw error?.code === "WORKFLOW_DEFINITION_INVALID" ? invalid(error.message) : error;
+      }
+      continue;
+    }
     const title = String(action.title ?? "").trim();
     const message = String(action.message ?? "").trim();
     if (!title || title.length > WORKFLOW_LIMITS.maxTitle) throw invalid("Give the notification a title (up to 120 characters).");
@@ -271,7 +284,14 @@ export async function executeWorkflowRun(client, run) {
   const link = WORKFLOW_ENTITY_LINKS[envelope.entity?.type]?.(envelope.entity?.id) ?? null;
   const results = [];
   for (const action of (definition.actions || []).slice(0, WORKFLOW_LIMITS.maxActions)) {
-    if (action.type !== "notify") throw new WorkflowError(409, "An action is not supported.", "WORKFLOW_ACTION_UNAVAILABLE");
+    const registered = WORKFLOW_ACTIONS.find((entry) => entry.key === action.type);
+    if (!registered) throw new WorkflowError(409, "An action is not supported.", "WORKFLOW_ACTION_UNAVAILABLE");
+    if (registered.module) {
+      if (registered.module !== moduleKey) throw new WorkflowError(409, "An action is not available for this event.", "WORKFLOW_ACTION_UNAVAILABLE");
+      const { execute } = await WORKFLOW_MODULE_ACTIONS[registered.module]();
+      results.push(await execute(client, run.organization_id, action, { entity: envelope.entity, data }));
+      continue;
+    }
     const userId = action.recipient.type === "user" ? action.recipient.userId : readPath(data, action.recipient.field);
     if (!UUID.test(String(userId || ""))) {
       results.push({ type: "notify", delivered: false, reason: "NO_RECIPIENT" });

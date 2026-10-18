@@ -16,7 +16,7 @@ import { Cell, FactList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { errorMessage, errorStatus, money } from "../register/register-api";
 import {
   AUTOMATION_REPORT_KINDS, EXECUTION_TONE, HEALTH_TONE, automationAction, getAutomation, getAutomationAudit, getAutomationReport, getExecutions, getJournalPreview, type Execution,

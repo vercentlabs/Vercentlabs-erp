@@ -1,17 +1,36 @@
 // Everything the opportunity screens need to render their pickers, in one
 // read: the fixed vocabulary, the organization's stages, lost reasons,
 // sources, people, teams and currencies, and what the caller may do.
+import { listCustomFields } from "../custom-fields/records.js";
+import { listRecurringPlans } from "../recurring/records.js";
+import { activityTypeChoices } from "../activity-types/records.js";
+import { CRM_MEDIUMS } from "@vercentlabs/shared-types";
+
+import { listCampaignOptions } from "../campaigns/records.js";
+import { listTags } from "../tags/records.js";
 import { listLeadAssignmentOptions } from "../leads/assignment.js";
 import { listLeadSources } from "../leads/sources.js";
 import { ensureDefaultSalesPipeline } from "../sales-stages/defaults.js";
 import { opportunityCapabilities, requireOpportunityPermission } from "./access.js";
 import {
-  OPPORTUNITY_ACTIVITY_TYPES, OPPORTUNITY_CONTACT_ROLES, OPPORTUNITY_FOLLOW_UP_TYPES, OPPORTUNITY_PERMISSIONS, OPPORTUNITY_PRIORITIES, OPPORTUNITY_STALE_DAYS,
+  OPPORTUNITY_ACTIVITY_TYPES, OPPORTUNITY_CONTACT_ROLES, OPPORTUNITY_PERMISSIONS, OPPORTUNITY_PRIORITIES, OPPORTUNITY_STALE_DAYS,
   OPPORTUNITY_STATUSES,
 } from "./constants.js";
 import { listCloseReasons } from "../close-reasons/records.js";
 import { OPPORTUNITY_VIEWS } from "./records.js";
 import { listOpportunityStages } from "./stages.js";
+import { listPipelines } from "../sales-stages/pipelines.js";
+
+// Every active pipeline with its open stages, one query at a time (one connection).
+async function pipelineChoices(client, context, defaultStages) {
+  const list = [];
+  for (const pipeline of await listPipelines(client, context))
+    list.push({
+      id: pipeline.id, name: pipeline.name, isDefault: pipeline.isDefault, teamId: pipeline.teamId,
+      stages: (pipeline.isDefault ? defaultStages : await listOpportunityStages(client, context, { pipelineId: pipeline.id })).filter((stage) => stage.isOpen),
+    });
+  return list;
+}
 
 export async function getOpportunityOptions(client, context) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
@@ -28,13 +47,24 @@ export async function getOpportunityOptions(client, context) {
     priorities: OPPORTUNITY_PRIORITIES,
     // The sales process: open stages only. Won and lost are outcomes, reached through Mark won and Mark lost.
     stages: stages.filter((stage) => stage.isOpen),
+    // Every active pipeline with its open stages (CRM plan 5.1); a deal uses its own pipeline's. The default comes first.
+    pipelines: await pipelineChoices(client, context, stages),
     // Separate lists: a lost reason never appears when marking won, and the other way round.
     wonReasons: await listCloseReasons(client, context, { outcome: "won" }),
     lostReasons: await listCloseReasons(client, context, { outcome: "lost" }),
     contactRoles: OPPORTUNITY_CONTACT_ROLES,
     activityTypes: OPPORTUNITY_ACTIVITY_TYPES.map(({ code, label }) => ({ code, label })),
-    followUpTypes: OPPORTUNITY_FOLLOW_UP_TYPES,
+    // One type list everywhere (CRM plan 5.2): the organization's activity types; followUpTypes keeps their codes.
+    followUpTypeOptions: await activityTypeChoices(client, context),
+    // the organization's custom fields on deals, and the recurring plans (CRM plan 5.3)
+    customFields: await listCustomFields(client, context, "opportunity"),
+    recurringPlans: await listRecurringPlans(client, context),
+    followUpTypes: (await activityTypeChoices(client, context)).map((type) => type.code),
     sources: await listLeadSources(client, context),
+    // Where it came from, and its labels (CRM plan 3.4).
+    campaigns: await listCampaignOptions(client, context),
+    mediums: CRM_MEDIUMS.map(({ code, label }) => ({ code, label })),
+    tags: await listTags(client, context),
     users,
     teams,
     currencies: currencies.rows.map((row) => String(row.code).trim()),

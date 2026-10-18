@@ -70,12 +70,21 @@ export function escapeHtml(value) {
  * Sends one message, optionally with CC recipients and attachments. `{ sent: false, reason: "SMTP_NOT_CONFIGURED" }` is an
  * honest outcome for an environment without mail, never a pretend send.
  */
-export async function sendMail({ to, cc, subject, text, html, replyTo, attachments }, env = process.env) {
+export async function sendMail({ to, cc, subject, text, html, replyTo, attachments, messageId, inReplyTo, references, fromName, headers }, env = process.env) {
   const transport = getMailTransport(env);
   if (!transport) return { sent: false, reason: "SMTP_NOT_CONFIGURED" };
   // attachments: [{ filename, content (Buffer), contentType }] — a document a feature sends on purpose, such as a quotation PDF.
-  const info = await transport.transporter.sendMail({ from: transport.from, replyTo: replyTo ?? transport.replyTo ?? undefined, to, cc, subject, text, html, attachments });
-  return { sent: true, messageId: info?.messageId ?? null };
+  // messageId / inReplyTo / references: a feature that threads replies (CRM email) sets its own message id and answers a known one.
+  // fromName: the sender's name on the workspace's own address ("Ravi Rep via Acme <no-reply@…>"); the address itself never changes.
+  const address = /<([^>]+)>/.exec(transport.from)?.[1] ?? transport.from;
+  const from = fromName ? { name: String(fromName).replace(/["\r\n]/g, "").slice(0, 120), address } : transport.from;
+  const info = await transport.transporter.sendMail({
+    from, replyTo: replyTo ?? transport.replyTo ?? undefined, to, cc, subject, text, html, attachments,
+    ...(messageId ? { messageId } : {}), ...(inReplyTo ? { inReplyTo } : {}), ...(references?.length ? { references } : {}),
+    // headers: extra mail headers a feature needs, such as List-Unsubscribe on a campaign email
+    ...(headers && typeof headers === "object" ? { headers } : {}),
+  });
+  return { sent: true, messageId: info?.messageId ?? messageId ?? null };
 }
 
 // Plain business transactional template: heading, body, optional action link.

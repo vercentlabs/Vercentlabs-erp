@@ -143,7 +143,17 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
   // its parent, Opportunities; items sharing a path are told apart by their query). Views and configuration pages inside a workspace are
   // never sidebar entries (navigation-resolution.ts), and a workspace the person may not open is not listed at all.
   const activeItemId = activeWorkspaceId(module, pathname, search);
-  const sections = sidebarItems(module, viewer);
+  // CRM without leads (CRM plan 5.7): Leads leaves the menu.
+  const leadsSwitch = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "leads-switch"),
+    queryFn: async () => {
+      const response = await fetch("/api/crm/leads-switch");
+      return response.ok ? ((await response.json()) as { leadsEnabled?: boolean }).leadsEnabled !== false : true;
+    },
+    enabled: module.moduleKey === "crm",
+    staleTime: 300_000,
+  });
+  const sections = sidebarItems(module, module.moduleKey === "crm" && leadsSwitch.data === false ? { ...viewer, hiddenRoutes: ["/crm/leads"] } : viewer);
   const reader = SIDEBAR_BADGES[module.moduleKey];
   const badges: Record<string, string> = useQuery({
     queryKey: scopedQueryKey(workspace, "sidebar-badges", module.moduleKey),

@@ -6,6 +6,8 @@
 // assignment rules, history and notifications behave exactly as they do for a
 // lead typed in by hand. A row that fails is reported with its reason and
 // never stops the rest of the file.
+import { withMigrationAliases } from "../data-management/migration-presets.js";
+import { withConsentSource } from "../data-management/consent.js";
 import { csvCellWriter, dayIn, organizationTimeZone } from "../data-management/csv.js";
 import { createNotification } from "../../../core/platform/notifications/index.js";
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
@@ -29,7 +31,8 @@ const TIMEFRAME_LABELS = new Map(LEAD_PURCHASE_TIMEFRAMES.map((entry) => [entry.
 
 // Importable fields, in template order. `aliases` are other header spellings
 // the column mapping recognizes automatically.
-export const LEAD_IMPORT_FIELDS = Object.freeze([
+// With the column names other tools export (CRM plan 5.7: moving in from Zoho, HubSpot, Salesforce, Odoo…).
+export const LEAD_IMPORT_FIELDS = withMigrationAliases("leads", [
   { key: "fullName", label: "Full Name", aliases: ["name", "full name", "contact name", "customer name", "lead name"], sample: "" },
   { key: "firstName", label: "First Name", aliases: ["first", "given name"], sample: "Asha" },
   { key: "lastName", label: "Last Name", aliases: ["last", "surname", "family name"], sample: "Rao" },
@@ -147,7 +150,7 @@ function rowToInput(record, mapping) {
 //   invalidOwnerAction for "file": a row whose owner cannot take leads is an
 //                      "error" (default) or goes to the "fallback" owner / team.
 // A row is never silently given to the person running the import.
-export async function importLeads(client, context, {
+async function importLeadsUnrecorded(client, context, {
   bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true,
   assignmentMode = "file", invalidOwnerAction = "error", maxRows,
 }) {
@@ -321,4 +324,9 @@ export async function exportLeads(client, context, filters = {}, { limit = EXPOR
     rowCount: leads.length,
     csv: toCsv([EXPORT_COLUMNS.map(([label]) => label), ...leads.map((lead) => EXPORT_COLUMNS.map(([, read]) => read(lead)))], csvCellWriter(timeZone)),
   };
+}
+
+// Consent in the file is recorded in the ledger as imported, with the file's name.
+export function importLeads(client, context, input = {}) {
+  return withConsentSource(client, "import", `Imported from ${String(input?.fileName ?? "a file").slice(0, 200)}`, () => importLeadsUnrecorded(client, context, input));
 }

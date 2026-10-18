@@ -13,6 +13,7 @@ import { Notice } from "@/shared/ui/Panel";
 import { PropertyList } from "@/shared/ui/PropertyList";
 
 import { errorMessage, updateAccountTaxIdentity, type Account, type AccountOptions } from "../api/accounts-api";
+import { GstinRegisterStatus } from "./GstinRegister";
 
 const NONE = "";
 const stateName = (code: string | null) => (code ? `${GST_STATES_BY_CODE.get(code) ?? "State"} (${code})` : null);
@@ -43,6 +44,7 @@ export function AccountTaxIdentityPanel({ account, options, salesHref, onChanged
         { label: "GST treatment", value: account.gstTreatmentLabel },
         { label: "Payment terms", value: account.paymentTermName },
       ]} />
+      <GstinRegisterStatus accountId={account.id} hasGstin={Boolean(account.gstin)} />
       {editing && <TaxIdentityDialog account={account} options={options} onClose={() => setEditing(false)}
         onSaved={(next) => { setWarnings(next); setEditing(false); onChanged(); }} />}
     </div>

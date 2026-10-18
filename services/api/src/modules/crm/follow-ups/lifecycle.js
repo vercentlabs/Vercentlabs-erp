@@ -82,9 +82,12 @@ export async function transferOpenFollowUps(client, context, { entityType, entit
 
 // ------------------------------------------------------------------ complete
 
-// input: { outcome?, notes?, expectedUpdatedAt?, nextFollowUp?: { type?, scheduledDate, scheduledTime?, subject?, notes? }, nextTask?: { title, dueDate } }
+// input: { outcome?, notes?, expectedUpdatedAt?, nextFollowUp?: { type?, activityTypeId?, scheduledDate, scheduledTime?, subject?, notes? },
+//          nextTask?: { title, dueDate }, stopRepeating? }
 // Completing a call, email, meeting or demo records that activity on the
 // record's timeline. The next follow-up or task is scheduled on the same record.
+// CRM plan 5.2: a repeating follow-up plans its next occurrence (unless stopRepeating, or past its end date); the type's next step is
+// planned automatically ("trigger", unless a next follow-up was given) or returned as suggestedNext ("suggest").
 export async function completeFollowUp(client, context, followUpId, input = {}) {
   requireFollowUpPermission(context, FOLLOW_UP_PERMISSIONS.complete, "You do not have permission to complete follow-ups.");
   const row = await lockFollowUp(client, context, followUpId);
@@ -105,7 +108,7 @@ export async function completeFollowUp(client, context, followUpId, input = {}) 
                                           start_at, completed_at, related_contact_id, related_party_id, created_by, updated_by)
        VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, $8, now(), now(), $9, $10, $8, $8)
        RETURNING id`,
-      [context.organizationId, row.entity_type, row.entity_id, activityType, `${typeLabel(row.follow_up_type)}: ${row.subject}`.slice(0, 300), notes,
+      [context.organizationId, row.entity_type, row.entity_id, activityType, `${row.activity_type_name ?? typeLabel(row.follow_up_type)}: ${row.subject}`.slice(0, 300), notes,
         outcomeLabel, context.userId ?? null, row.related_contact_id, row.related_party_id],
     );
     activityId = rows[0].id;
@@ -126,7 +129,9 @@ export async function completeFollowUp(client, context, followUpId, input = {}) 
   if (input.nextFollowUp) {
     const next = await scheduleFollowUp(client, context, {
       relatedType: row.entity_type, relatedId: row.entity_id, contactId: row.related_contact_id, assignedTo: row.assigned_to ?? context.userId,
-      type: input.nextFollowUp.type || row.follow_up_type, subject: input.nextFollowUp.subject || row.subject, notes: input.nextFollowUp.notes,
+      ...(input.nextFollowUp.activityTypeId ? { activityTypeId: input.nextFollowUp.activityTypeId }
+        : input.nextFollowUp.type ? { type: input.nextFollowUp.type } : row.activity_type_id ? { activityTypeId: row.activity_type_id } : { type: row.follow_up_type }),
+      subject: input.nextFollowUp.subject || row.subject, notes: input.nextFollowUp.notes,
       scheduledDate: input.nextFollowUp.scheduledDate, scheduledTime: input.nextFollowUp.scheduledTime, scheduledAt: input.nextFollowUp.scheduledAt,
       reminderOffsetMinutes: input.nextFollowUp.reminderOffsetMinutes ?? row.reminder_offset_minutes, originLeadId: row.origin_lead_id,
     });
@@ -140,8 +145,50 @@ export async function completeFollowUp(client, context, followUpId, input = {}) 
     });
     taskId = task.id;
   }
-  await queueOutboxEvent(client, context, "crm.follow_up.completed", "follow_ups", row.id, { outcome, activityId, nextFollowUpId, taskId });
-  return { changed: true, followUpId: nextFollowUpId, taskId, activityId };
+  // The next occurrence of a repeating follow-up: the first date of its cadence after now, if it is not past the end date.
+  let repeatFollowUpId = null;
+  if (row.repeat_every && !input.stopRepeating) {
+    const next = (await client.query(
+      `SELECT at, to_char(at AT TIME ZONE COALESCE(organization.timezone, 'Asia/Kolkata'), 'YYYY-MM-DD') AS on_day
+         FROM (SELECT min(candidate) AS at FROM (
+                SELECT $1::timestamptz + CASE $3 WHEN 'month' THEN make_interval(months => $2 * k) WHEN 'week' THEN make_interval(weeks => $2 * k) ELSE make_interval(days => $2 * k) END AS candidate
+                  FROM generate_series(1, 1000) k) candidates WHERE candidate > now()) next
+         JOIN public.organizations organization ON organization.id = $4`,
+      [row.due_at, row.repeat_every, row.repeat_unit, context.organizationId])).rows[0];
+    if (next?.at && (!row.repeat_until_on || next.on_day <= row.repeat_until_on)) {
+      const occurrence = await scheduleFollowUp(client, context, {
+        relatedType: row.entity_type, relatedId: row.entity_id, contactId: row.related_contact_id, assignedTo: row.assigned_to ?? context.userId,
+        ...(row.activity_type_id ? { activityTypeId: row.activity_type_id } : { type: row.follow_up_type }), subject: row.subject, notes: row.description,
+        ...(row.due_time_set ? { scheduledAt: new Date(next.at).toISOString() } : { scheduledDate: next.on_day }),
+        reminderOffsetMinutes: row.reminder_offset_minutes, originLeadId: row.origin_lead_id,
+        repeat: { every: row.repeat_every, unit: row.repeat_unit, until: row.repeat_until_on ?? null }, repeatSeriesId: row.repeat_series_id ?? row.id,
+      });
+      repeatFollowUpId = occurrence.id;
+    }
+  }
+  // What the type says comes next.
+  let chainedFollowUpId = null;
+  let suggestedNext = null;
+  if (row.activity_type_id) {
+    const { resolveActivityType } = await import("../activity-types/records.js");
+    const type = await resolveActivityType(client, context.organizationId, { activityTypeId: row.activity_type_id });
+    if (type.chaining !== "none" && type.next_type_id) {
+      const nextType = await resolveActivityType(client, context.organizationId, { activityTypeId: type.next_type_id });
+      const day = (await client.query("SELECT to_char((now() AT TIME ZONE COALESCE(timezone, 'Asia/Kolkata'))::date + $2::int, 'YYYY-MM-DD') AS d FROM public.organizations WHERE id = $1",
+        [context.organizationId, type.next_delay_days])).rows[0].d;
+      if (type.chaining === "trigger" && !input.nextFollowUp && nextType.status === "active") {
+        const chained = await scheduleFollowUp(client, context, {
+          relatedType: row.entity_type, relatedId: row.entity_id, contactId: row.related_contact_id, activityTypeId: nextType.id, scheduledDate: day,
+          originLeadId: row.origin_lead_id,
+        });
+        chainedFollowUpId = chained.id;
+      } else if (type.chaining === "suggest" && nextType.status === "active") {
+        suggestedNext = { activityTypeId: nextType.id, code: nextType.code, name: nextType.name, inDays: type.next_delay_days, scheduledDate: day };
+      }
+    }
+  }
+  await queueOutboxEvent(client, context, "crm.follow_up.completed", "follow_ups", row.id, { outcome, activityId, nextFollowUpId, taskId, repeatFollowUpId, chainedFollowUpId });
+  return { changed: true, followUpId: nextFollowUpId ?? chainedFollowUpId, taskId, activityId, repeatFollowUpId, chainedFollowUpId, suggestedNext };
 }
 
 // ------------------------------------------------------------------ cancel

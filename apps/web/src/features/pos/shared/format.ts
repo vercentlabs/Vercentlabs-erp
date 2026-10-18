@@ -1,5 +1,5 @@
 // node-postgres returns NUMERIC columns as strings — coerce defensively
-// (same rationale as apps/web/src/features/crm/shared/format.ts's money(),
+// (same rationale as CRM's former money() helper,
 // duplicated locally rather than cross-imported so POS doesn't depend on
 // CRM's file layout).
 export function money(

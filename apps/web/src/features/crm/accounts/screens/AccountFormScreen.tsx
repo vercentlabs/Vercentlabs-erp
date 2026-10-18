@@ -26,6 +26,9 @@ import { AccountPicker } from "../components/AccountPicker";
 import { ErrorBanner } from "../account-format";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
+import { parseGstin } from "@vercentlabs/shared-types";
+import { FillFromGstin } from "../components/GstinRegister";
+import { updateAccountTaxIdentity } from "../api/accounts-api";
 
 const NONE = "";
 const ME = "__me__";
@@ -134,11 +137,18 @@ function AccountForm({ account, options }: { account?: Account; options: Account
   const addressStarted = mode === "create" && ADDRESS_FIELDS.some((field) => values[field].trim());
   const addressComplete = !addressStarted || Boolean(values.line1.trim() && values.city.trim() && values.state.trim() && values.postalCode.trim() && values.countryCode);
 
+  // a GSTIN to fill the company from, and to set as its tax identity once created (CRM plan 5.6)
+  const [gstin, setGstin] = useState("");
   const submit = useSubmitKey();
   const mutation = useMutation({
     mutationFn: (allowDuplicate: boolean) => submit.run(async () => {
       const input = { ...toInput(values, mode, sensitiveHidden, options), customerKind: individual ? "individual" : "business", allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
-      return mode === "edit" ? updateAccount(accountId as string, { ...input, expectedUpdatedAt: account?.updatedAt }) : createAccount(input);
+      if (mode === "edit") return updateAccount(accountId as string, { ...input, expectedUpdatedAt: account?.updatedAt });
+      if (gstin.trim() && !parseGstin(gstin).valid) throw new Error(parseGstin(gstin).error ?? "Check the GSTIN, or clear it.");
+      const created = await createAccount(input);
+      // The GSTIN given here goes on as the company's tax identity (CRM plan 5.6).
+      if (gstin.trim()) await updateAccountTaxIdentity(created.id, { gstin: gstin.trim(), expectedUpdatedAt: created.updatedAt }).catch(() => undefined);
+      return created;
     }),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "accounts") });
@@ -198,6 +208,14 @@ function AccountForm({ account, options }: { account?: Account; options: Account
       }
     >
       <FormSection title="Company">
+        {mode === "create" && !individual && (
+          <FillFromGstin gstin={gstin} onGstinChange={setGstin} onFill={(company) => setValues((current) => ({
+            ...current,
+            displayName: current.displayName || company.displayName || "", legalName: current.legalName || company.legalName || "",
+            line1: company.address.line1 ?? current.line1, line2: company.address.line2 ?? current.line2, city: company.address.city ?? current.city,
+            state: company.address.state ?? current.state, postalCode: company.address.postalCode ?? current.postalCode, countryCode: "IN",
+          }))} />
+        )}
         <Checkbox isSelected={individual} onChange={setIndividual} isDisabled={Boolean(account?.isCustomer)}>A person, not a company (an individual customer)</Checkbox>
         <TextField label={individual ? "Name" : "Company name"} isRequired value={values.displayName} onChange={set("displayName")} errorMessage={fieldErrors.displayName} />
         {account?.isCustomer ? (

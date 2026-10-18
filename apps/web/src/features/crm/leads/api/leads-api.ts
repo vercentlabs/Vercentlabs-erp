@@ -3,8 +3,10 @@
 // Browser client for the lead routes under /api/crm/leads. One function per
 // lead operation; a failed request throws LeadApiError carrying the server's
 // message, code and (for duplicates) the matching records.
+import type { CustomField, CustomValues, ScoreDetails } from "@/features/crm/shared/fields-api";
 import { CrmApiErrorWithBody } from "@/features/crm/shared/http/crm-api-error";
 import { crmApiClient } from "@/features/crm/shared/http/crm-request";
+import type { CampaignOption, CrmTag, MediumOption } from "@/features/crm/shared/marketing-api";
 
 export class LeadApiError extends CrmApiErrorWithBody {}
 
@@ -12,7 +14,7 @@ const { request, parseResponse } = crmApiClient(LeadApiError, "body");
 
 // A stage code: one of the standard stages or one the organization added.
 export type LeadStage = string;
-export type LeadStageDefinition = { id: string; code: string; label: string; name: string; sequence: number; isActive: boolean; isSystem: boolean; leadCount?: number };
+export type LeadStageDefinition = { id: string; code: string; label: string; name: string; sequence: number; isActive: boolean; isSystem: boolean; leadCount?: number; staleAfterDays?: number | null };
 export type LeadStageHistoryEntry = {
   id: string; fromStage: string | null; fromStageName: string | null; toStage: string; toStageName: string; note: string | null; isAutomatic: boolean;
   enteredAt: string; leftAt: string | null; changedByName: string | null;
@@ -24,6 +26,12 @@ export type LeadQualificationRequirements = Record<"need" | "budget" | "authorit
 
 
 export type Lead = {
+  // the organization's custom fields (CRM plan 5.3), by key; the lead score (0 to 100) and why
+  customFields?: CustomValues;
+  languageCode?: string | null;
+  staleAfterDays?: number;
+  score?: number | null;
+  scoreDetails?: ScoreDetails | null;
   id: string;
   code: string;
   firstName: string | null;
@@ -40,10 +48,15 @@ export type Lead = {
   countryCode: string | null;
   sourceId: string | null;
   sourceName: string | null;
+  // Where it came from (CRM plan 3.4).
+  campaignId?: string | null; campaignName?: string | null; medium?: string | null; mediumLabel?: string | null;
+  tags?: CrmTag[];
   sourceDetail: string | null;
   industry: string | null;
   productInterest: string | null;
   consentEmail: boolean; consentSms: boolean; consentWhatsapp: boolean; doNotContact: boolean;
+  // The web form it came through, and the consent notice version its person agreed to.
+  captureForm?: { id: string; name: string | null; noticeVersion: number | null; noticeText: string | null } | null;
   estimatedValue: number;
   currencyCode: string | null;
   purchaseTimeframe: string | null;
@@ -117,6 +130,7 @@ export type LeadCapabilities = Record<
 type CodeLabel = { code: string; label: string };
 
 export type LeadOptions = {
+  customFields?: CustomField[];
   views: Array<{ key: LeadViewKey; label: string }>;
   stages: LeadStageDefinition[];
   qualificationStage: string;
@@ -132,12 +146,17 @@ export type LeadOptions = {
   qualificationRequirements: LeadQualificationRequirements;
   activityTypes: CodeLabel[];
   followUpTypes: string[];
+  // the organization's activity types (CRM plan 5.2), the one list every screen offers
+  followUpTypeOptions?: Array<{ id: string; code: string; label: string; kind: string }>;
   assignmentMethods: CodeLabel[];
   ruleFields: Array<{ code: string; label: string; kind: "source" | "country" | "text" | "choice" }>;
   ruleOperators: CodeLabel[];
   assignment: { allowSelfAssignment: boolean; manualCreationMode: "creator" | "rules" };
   sources: LeadSource[];
-  users: Array<{ id: string; name: string; email: string }>;
+  campaigns?: CampaignOption[];
+  mediums?: MediumOption[];
+  tags?: CrmTag[];
+  users: Array<{ id: string; name: string; email: string; unavailable?: boolean }>;
   teams: LeadTeamOption[];
   currencies: string[];
   baseCurrency: string;
@@ -151,6 +170,10 @@ export type LeadSource = { id: string; code: string; name: string; description: 
 
 export type LeadListFilters = {
   view?: LeadViewKey;
+  scoreMin?: string;
+  campaignId?: string;
+  medium?: string;
+  tagId?: string;
   search?: string;
   status?: string;
   stage?: string;
@@ -281,6 +304,17 @@ export type LeadAssignmentSettings = {
   fallbackUserName: string | null;
   fallbackTeamId: string | null;
   fallbackTeamName: string | null;
+  // Response times and the scheduled re-run (hours; null is off).
+  firstResponseHours?: number | null;
+  responseEscalationHours?: number | null;
+  overdueEscalationHours?: number | null;
+  rerunUnassignedHours?: number | null;
+  lastRerunAt?: string | null;
+};
+
+export type SalespersonAvailability = {
+  userId: string; name: string; monthlyLeadCapacity: number | null; pausedFrom: string | null; pausedUntil: string | null; pauseReason: string | null;
+  leadsLast30Days: number; openLeads: number; takingLeads: boolean;
 };
 
 export type LeadAssignmentHistoryEntry = {
@@ -367,7 +401,7 @@ export const startLeadQualification = (id: string) => post<{ started: boolean; s
 export const listLeadStages = (includeInactive = false) =>
   request<{ stages: LeadStageDefinition[] }>(`${BASE}/stages${query({ includeInactive: includeInactive || undefined })}`).then((result) => result.stages);
 export const createLeadStage = (name: string) => post<{ stage: LeadStageDefinition }>(`${BASE}/stages`, { name });
-export const updateLeadStage = (id: string, input: { name?: string; isActive?: boolean }) =>
+export const updateLeadStage = (id: string, input: { name?: string; isActive?: boolean; staleAfterDays?: number | null }) =>
   request<{ stage: LeadStageDefinition }>(`${BASE}/stages/${id}`, { method: "PATCH", json: input });
 export const reorderLeadStages = (ids: string[]) => post<{ stages: LeadStageDefinition[] }>(`${BASE}/stages/reorder`, { ids });
 // ---- assignment
@@ -378,6 +412,9 @@ export const runLeadAssignmentRules = (id: string) =>
   post<{ changed: boolean; matched: boolean; ruleName?: string | null; message?: string }>(`${BASE}/${id}/run-assignment-rules`);
 export const listLeadAssignmentHistory = (id: string) =>
   request<{ history: LeadAssignmentHistoryEntry[] }>(`${BASE}/${id}/assignment-history`).then((result) => result.history);
+export const listSalespersonAvailability = () => request<{ people: SalespersonAvailability[] }>(`${BASE}/availability`).then((result) => result.people);
+export const setSalespersonAvailability = (userId: string, input: { monthlyLeadCapacity?: number | null; pausedFrom?: string | null; pausedUntil?: string | null; pauseReason?: string | null }) =>
+  request<{ person: SalespersonAvailability }>(`${BASE}/availability/${userId}`, { method: "PUT", json: input }).then((result) => result.person);
 export const getLeadWorkload = () => request<{ workload: LeadWorkloadRow[] }>(`${BASE}/assignment/workload`).then((result) => result.workload);
 export const getUserActiveLeadCount = (userId: string) =>
   request<{ leads: { total: number; open: number; qualified: number } }>(`${BASE}/assignment/transfer${query({ userId })}`).then((result) => result.leads);
@@ -398,7 +435,7 @@ export const saveLeadQualification = (id: string, input: Record<string, unknown>
 export const qualifyLead = (id: string, input: Record<string, unknown> = {}) => post<{ status: string }>(`${BASE}/${id}/qualify`, input);
 export const disqualifyLead = (id: string, input: { reason: string; notes?: string }) => post<{ status: string }>(`${BASE}/${id}/disqualify`, input);
 export const reopenLead = (id: string, note?: string) => post<{ status: string }>(`${BASE}/${id}/reopen`, { note });
-export const bulkLeadAction = (input: { action: "assign" | "stage" | "disqualify"; leadIds: string[] } & Record<string, unknown>) =>
+export const bulkLeadAction = (input: { action: "assign" | "stage" | "disqualify" | "convert"; leadIds: string[] } & Record<string, unknown>) =>
   post<LeadBulkResult>(`${BASE}/bulk`, input);
 
 

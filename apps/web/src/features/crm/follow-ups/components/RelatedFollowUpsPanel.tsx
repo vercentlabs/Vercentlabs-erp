@@ -56,7 +56,7 @@ export function RelatedFollowUpsPanel({ related, canCreate = true, onChanged }: 
         <div className={`flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border px-4 py-3 text-sm ${next.isOverdue ? "border-danger-emphasis/40 bg-danger-soft" : "border-brand-border bg-brand-soft"}`}>
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="text-xs font-medium tracking-wide text-text-secondary uppercase">Next follow-up</span>
-            <span className="font-medium">{TYPE_LABELS[next.type]} · <FollowUpWhen followUp={next} /></span>
+            <span className="font-medium">{(next.typeName ?? TYPE_LABELS[next.type])} · <FollowUpWhen followUp={next} /></span>
             <span className="text-text-secondary">{[next.subject, next.contactName, next.assignedName].filter(Boolean).join(" · ")}</span>
           </div>
           {can?.complete && <Button variant="secondary" size="compact" onPress={() => setAction({ kind: "complete", followUp: next })}>Complete</Button>}
@@ -79,7 +79,7 @@ export function RelatedFollowUpsPanel({ related, canCreate = true, onChanged }: 
                   <FollowUpStatusBadge status={row.status} />
                 </span>
                 <span className="flex flex-wrap items-center gap-x-2 text-xs text-text-secondary">
-                  <span>{TYPE_LABELS[row.type]}</span>
+                  <span>{(row.typeName ?? TYPE_LABELS[row.type])}</span>
                   <FollowUpWhen followUp={row} />
                   {row.contactName && <span>· {row.contactName}</span>}
                   <span>· {row.assignedName ?? "Unassigned"}</span>

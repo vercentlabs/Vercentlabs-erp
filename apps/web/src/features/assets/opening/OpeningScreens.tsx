@@ -20,7 +20,7 @@ import { Cell, FactList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { REGISTER_BASE, dateLabel, errorMessage, errorStatus, getAssetView, getOptions, money } from "../register/register-api";
 import {
   BATCH_TONE, OPENING_BASE, OPENING_REPORT_KINDS, POSITION_TONE, ROW_TONE, batchAction, batchExportHref, getBatch, getBatches, getExceptions, getHistory, getOpeningReport, getOverview, getReconciliation,

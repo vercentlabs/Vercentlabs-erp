@@ -17,7 +17,7 @@ import { Cell, FactList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { dateLabel, errorMessage, errorStatus, money } from "../register/register-api";
 import {
   CONDITION_OPTIONS, MAINTENANCE_BASE, PRIORITY_OPTIONS, PRIORITY_TONE, REPORT_KINDS, REQUEST_TONE, RESTRICTION_LABEL, TYPE_OPTIONS, WO_TONE, createPlan, createRequest, createWorkOrder, generateDue,

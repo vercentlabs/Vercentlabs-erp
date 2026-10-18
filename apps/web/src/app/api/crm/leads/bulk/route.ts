@@ -1,4 +1,4 @@
-import { bulkAssignLeads, bulkChangeLeadStage, bulkDisqualifyLeads } from "@vercentlabs/api/crm";
+import { bulkAssignLeads, bulkChangeLeadStage, bulkConvertLeads, bulkDisqualifyLeads } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError, ok } from "@/core/http";
@@ -10,6 +10,7 @@ import { readBody } from "@/features/crm/leads/server/lead-http";
 //   assign      { ownerUserId?, teamId?, reason?, moveOpenActivities?, requestKey? } — needs crm.leads.bulk_assign
 //   stage       { stage }
 //   disqualify  { reason, notes? }
+//   convert     { expectedCloseDate, owner?: { mode, userId?, userIds? }, pipelineId?, overrideReason? } — CRM plan 5.4
 // Each lead succeeds or fails on its own; the response lists every outcome.
 export async function POST(request: Request) {
   return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsEdit, billingWrite: true }, async ({ client, session, snapshot }) => {
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
     if (action === "assign") return ok(await bulkAssignLeads(client, context, payload));
     if (action === "stage") return ok(await bulkChangeLeadStage(client, context, payload as { leadIds: string[]; stage: string }));
     if (action === "disqualify") return ok(await bulkDisqualifyLeads(client, context, payload as { leadIds: string[]; reason: string }));
+    if (action === "convert") return ok(await bulkConvertLeads(client, context, payload as Parameters<typeof bulkConvertLeads>[2]));
     throw new HttpError(400, "Unknown bulk action.");
   });
 }

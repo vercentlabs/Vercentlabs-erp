@@ -7,6 +7,9 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "crm.opportunity": { moduleKey: "crm", purposes: ["attachment"] },
   "crm.party": { moduleKey: "crm", purposes: ["attachment"] },
   "crm.contact": { moduleKey: "crm", purposes: ["attachment"] },
+  // A company's logo and a contact's photo (CRM plan 5.5): one current image each, kept apart from the record's files.
+  "crm.party_logo": { moduleKey: "crm", purposes: ["attachment"] },
+  "crm.contact_photo": { moduleKey: "crm", purposes: ["attachment"] },
   // A large CRM import or export run in the background: the uploaded file (attachment) and the file it produced (export).
   "crm.data_job": { moduleKey: "crm", purposes: ["attachment", "export"] },
   "support.ticket": { moduleKey: "support", purposes: ["attachment", "inbound_mail"] },

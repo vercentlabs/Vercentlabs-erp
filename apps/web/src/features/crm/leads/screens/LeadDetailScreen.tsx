@@ -10,17 +10,27 @@ import {
   AlertDialog, Badge, Button, Checkbox, ErrorState, LinkButton, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
 } from "@vercentlabs/design-system";
 
+import { ConsentHistory } from "@/features/crm/shared/ui/ConsentHistory";
+import { EmailButton } from "@/features/crm/shared/ui/EmailComposer";
+import { FollowButton } from "@/features/crm/shared/ui/FollowButton";
+import { ApplyPlanButton } from "@/features/crm/activity-types/ApplyPlanButton";
+import { WhatsAppButton } from "@/features/crm/shared/ui/WhatsAppComposer";
+import { CallSmsButtons } from "@/features/crm/shared/ui/CallSmsButtons";
+import { TagEditor } from "@/features/crm/shared/ui/TagChips";
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
 import { ConversionSummary } from "@/features/crm/conversion/components/ConversionSummary";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { RecordActivityFeed, type ActivityChip } from "@/features/crm/shared/RecordActivityFeed";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { fieldLabel, readableHistory } from "@/features/crm/shared/field-labels";
 import { MoreMenu, type MoreMenuItem } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/shared/ui/PropertyList";
+import { customFieldProperties } from "@/features/crm/shared/ui/CustomFields";
+import { languageLabel } from "@/features/crm/shared/languages";
+import { LeadScoreBadge } from "../components/LeadScore";
 import { countryName, formatDateTime, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -163,9 +173,14 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           primaryAction,
           secondaryActions: (
             <>
+              {canEdit && <EmailButton entity="leads" recordId={lead.id} />}
+              <FollowButton entity="leads" recordId={lead.id} />
+              {canEdit && <WhatsAppButton entity="leads" recordId={lead.id} />}
+              {canEdit && <CallSmsButtons entity="leads" recordId={lead.id} />}
               {canTake && <Button variant="secondary" onPress={() => action.mutate(() => assignLeadToMe(lead.id, lead.updatedAt))} isLoading={action.isPending}>Assign to me</Button>}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("activity")}>Log activity</Button>}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
+              {canEdit && <ApplyPlanButton relatedType="lead" relatedId={lead.id} onApplied={refresh} />}
               {menuActions.length > 0 && <MoreMenu items={menuActions} isBusy={action.isPending} />}
             </>
           ),
@@ -176,6 +191,13 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             {lead.doNotContact && (
               <p role="status" className="rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-3 py-2 text-sm">
                 Do not contact: this lead asked not to be contacted. Calls, emails and messages to them cannot be scheduled.
+              </p>
+            )}
+            <ConsentHistory type="leads" id={lead.id} />
+            {lead.captureForm && (
+              <p className="text-xs text-text-muted">
+                Came in through the web form {lead.captureForm.name ?? ""}
+                {lead.captureForm.noticeVersion ? <span title={lead.captureForm.noticeText ?? undefined}>, agreeing to its consent notice (version {lead.captureForm.noticeVersion})</span> : null}.
               </p>
             )}
             {lead.mergedIntoLeadId && (
@@ -218,6 +240,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                   { label: "Company", value: lead.companyName },
                   { label: "Job title", value: lead.jobTitle },
                   { label: "Industry", value: lead.industry },
+                  { label: "Language", value: languageLabel(lead.languageCode) },
                   { label: "Website", value: lead.website ? <a className="hover:underline" href={lead.website} target="_blank" rel="noreferrer">{lead.website}</a> : null },
                   { label: "Email", value: lead.email },
                   { label: "Mobile", value: lead.mobile ? formatPhone(lead.mobile) : null },
@@ -233,13 +256,20 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                 items={[
                   { label: "Lead source", value: lead.sourceName },
                   { label: "Source detail", value: lead.sourceDetail },
+                  { label: "Campaign", value: lead.campaignName },
+                  { label: "Medium", value: lead.mediumLabel },
+                  { label: "Tags", wide: true, value: <TagEditor entity="lead" recordId={lead.id} tags={lead.tags ?? []} available={options.tags ?? []} canEdit={canEdit} onChanged={refresh} /> },
                   { label: "Estimated value", value: lead.estimatedValue ? formatMoney(currency, lead.estimatedValue) : null },
                   { label: "Purchase timeframe", value: options.purchaseTimeframes.find((entry) => entry.code === lead.purchaseTimeframe)?.label },
                   { label: "Rating", value: <RatingBadge rating={lead.rating} /> },
+                  { label: "Lead score", value: <LeadScoreBadge score={lead.score} details={lead.scoreDetails} /> },
                   { label: "Product / service interest", value: lead.productInterest, wide: true },
                   { label: "Description", value: lead.description ? <span className="whitespace-pre-wrap">{lead.description}</span> : null, wide: true },
                 ]}
               />
+              {customFieldProperties(options.customFields ?? [], lead.customFields).length > 0 && (
+                <PropertyList title="More about this lead" columns={3} items={customFieldProperties(options.customFields ?? [], lead.customFields)} />
+              )}
               <LeadAssignmentPanel lead={lead} options={options} />
               <PropertyList
                 title="Record"

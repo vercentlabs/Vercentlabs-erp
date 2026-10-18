@@ -1,6 +1,7 @@
 // The contact record: create, read, list, update, status changes and
 // deletion of contacts with no history. Owner and team change only through
 // assignment.js; company links through relationships.js.
+import { assertConsentRequestAllowed } from "../data-management/consent.js";
 import { normalizePhones } from "../data-management/phones.js";
 import { updatedSummary } from "../data-management/field-labels.js";
 import { phoneSearchDigits } from "../duplicates/normalize.js";
@@ -58,6 +59,7 @@ export function toContact(row) {
     accountCode: row.account_code ?? null,
     accountType: row.account_type ?? null,
     jobTitle: row.designation,
+    preferredLanguage: row.preferred_language ?? null,
     department: row.department,
     role: row.contact_role,
     roleLabel: row.contact_role ? contactRoleLabel(row.contact_role) : null,
@@ -351,6 +353,10 @@ export async function updateContact(client, context, contactId, input = {}, { al
       if (has(normalized, field)) throw new CrmError(403, "You do not have permission to change contact details.", "PERMISSION_DENIED");
   assertValidContact(normalized, before);
   if (has(normalized, "sourceId") && normalized.sourceId !== before.sourceId) await assertActiveSource(client, context, normalized.sourceId);
+  // Consent asked again too soon after an opt-out (CRM plan 4.3): locked for 90 days unless the person asked.
+  const granted = [["consentEmail", "email"], ["consentSms", "sms"], ["consentWhatsapp", "whatsapp"]].filter(([field]) => normalized[field] === true && !before[field]).map(([, channel]) => channel)
+    .concat([["doNotEmail", "email"], ["doNotSms", "sms"], ["doNotWhatsapp", "whatsapp"], ["doNotCall", "call"]].filter(([field]) => normalized[field] === false && before[field]).map(([, channel]) => channel));
+  await assertConsentRequestAllowed(client, context, "contact", row.id, granted, { source: input.consentSource ?? "manual" });
 
   const differs = (field) => String(normalized[field] ?? "") !== String(before[field] ?? "");
   const changedColumns = Object.keys(CONTACT_WRITABLE_COLUMNS).filter((field) => has(normalized, field) && differs(field));

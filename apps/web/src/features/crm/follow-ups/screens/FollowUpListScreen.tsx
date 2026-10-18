@@ -108,7 +108,7 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
       id: "subject", accessorKey: "subject", header: "What",
       cell: ({ row }) => (
         <span className="flex min-w-48 flex-col">
-          <span className={row.original.status === "completed" ? "text-text-secondary line-through" : "font-medium"}>{TYPE_LABELS[row.original.type]} · {row.original.subject}</span>
+          <span className={row.original.status === "completed" ? "text-text-secondary line-through" : "font-medium"}>{(row.original.typeName ?? TYPE_LABELS[row.original.type])} · {row.original.subject}</span>
           <span className="text-xs text-text-muted">{row.original.number}</span>
         </span>
       ),
@@ -257,7 +257,7 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
             onRowClick={(row) => router.push(`/crm/follow-ups/${row.id}`)}
             renderMobileCard={(row) => (
               <div className="flex flex-col gap-1">
-                <span className="flex flex-wrap items-center gap-2 text-sm"><FollowUpWhen followUp={row} /> · {TYPE_LABELS[row.type]}</span>
+                <span className="flex flex-wrap items-center gap-2 text-sm"><FollowUpWhen followUp={row} /> · {(row.typeName ?? TYPE_LABELS[row.type])}</span>
                 <span className="font-medium">{row.contactName ?? row.relatedName}</span>
                 <span className="text-xs text-text-secondary">{row.subject}{row.accountName ? ` · ${row.accountName}` : ""}</span>
               </div>

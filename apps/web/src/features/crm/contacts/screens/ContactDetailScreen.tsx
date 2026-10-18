@@ -12,6 +12,13 @@ import {
   AlertDialog, Badge, Button, ErrorState, LinkButton, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
 } from "@vercentlabs/design-system";
 
+import { ConsentHistory } from "@/features/crm/shared/ui/ConsentHistory";
+import { EmailButton } from "@/features/crm/shared/ui/EmailComposer";
+import { FollowButton } from "@/features/crm/shared/ui/FollowButton";
+import { RecordImage } from "@/features/crm/shared/ui/RecordImage";
+import { languageLabel } from "@/features/crm/shared/languages";
+import { WhatsAppButton } from "@/features/crm/shared/ui/WhatsAppComposer";
+import { CallSmsButtons } from "@/features/crm/shared/ui/CallSmsButtons";
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
@@ -149,6 +156,10 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
             : canEdit ? <Button variant="primary" onPress={() => setDialog("activity")}>Log activity</Button> : undefined,
           secondaryActions: (
             <>
+              {canEdit && <EmailButton entity="contacts" recordId={contact.id} />}
+              <FollowButton entity="contacts" recordId={contact.id} />
+              {canEdit && <WhatsAppButton entity="contacts" recordId={contact.id} />}
+              {canEdit && <CallSmsButtons entity="contacts" recordId={contact.id} />}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
               {phone && !contact.doNotCall && <LinkButton variant="secondary" href={`tel:${phone.replace(/[^0-9+]/g, "")}`}>Call</LinkButton>}
               <MoreMenu label="More contact actions" items={menuActions} />
@@ -158,11 +169,13 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
         tabs={
           <div className="flex flex-col gap-3">
             <ErrorBanner message={error} />
+            <RecordImage entity="contacts" recordId={contact.id} name={contact.displayName} canEdit={canEdit} />
             {(contact.doNotEmail || contact.doNotCall || contact.doNotSms || contact.doNotWhatsapp) && (
               <p role="status" className="rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-3 py-2 text-sm">
                 {[contact.doNotCall && "Do not call", contact.doNotEmail && "Do not email", contact.doNotSms && "Do not SMS", contact.doNotWhatsapp && "Do not WhatsApp"].filter(Boolean).join(" · ")}
               </p>
             )}
+            <ConsentHistory type="contacts" id={contact.id} />
             {archived && (
               <p role="status" className="rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm text-text-secondary">
                 This contact is archived. It is read-only until it is reactivated.
@@ -193,6 +206,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
                   { label: "Last name", value: contact.lastName },
                   { label: "Company", value: contact.accountName },
                   { label: "Job title", value: contact.jobTitle },
+                  { label: "Language", value: languageLabel(contact.preferredLanguage) },
                   { label: "Department", value: contact.department },
                   { label: "Role", value: contact.roleLabel },
                   { label: "Decision maker", value: contact.isDecisionMaker ? "Yes" : "No" },

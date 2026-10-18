@@ -17,7 +17,7 @@ import { Cell, FactList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { errorMessage, errorStatus, getOptions } from "../register/register-api";
 import {
   CERTAINTY_OPTIONS, CERTAINTY_TONE, EVENT_OPTIONS, ISSUE_LABEL, MOVEMENTS_BASE, MOVEMENT_REPORT_KINDS, decideCorrection, getAsOf, getAssetMovements, getCorrections, getMovement, getMovementExceptions,

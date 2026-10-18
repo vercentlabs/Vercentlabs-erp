@@ -1,6 +1,6 @@
-// Hierarchy rule for the generic Sales team update: a team may not become
-// its own parent or its own ancestor. Called by
-// data-management/resource-mutation-service.js before the row is written.
+// Hierarchy rule for a Sales team update: a team may not become its own
+// parent or its own ancestor. Called by sales-organization/teams.js before
+// the row is written.
 
 import { CrmError } from "../data-management/errors.js";
 

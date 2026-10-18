@@ -316,7 +316,8 @@ export function LogActivityDialog({ isOpen, onOpenChange, opportunity, options, 
         {opportunity.status === "open" && (
           <div className="grid gap-4 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-2">
             <Select label="Next action" selectedKey={nextType} onSelectionChange={(selected) => setNextType(String(selected ?? NONE))}
-              options={[{ value: NONE, label: "None" }, ...options.followUpTypes.map((entry) => ({ value: entry, label: FOLLOW_UP_LABELS[entry] ?? entry }))]} />
+              options={[{ value: NONE, label: "None" }, ...(options.followUpTypeOptions?.map((entry) => ({ value: entry.code, label: entry.label }))
+                ?? options.followUpTypes.map((entry) => ({ value: entry, label: FOLLOW_UP_LABELS[entry] ?? entry })))]} />
             {nextType && <DateTimeInput label="Due" isRequired value={nextDueAt} onChange={setNextDueAt} />}
           </div>
         )}

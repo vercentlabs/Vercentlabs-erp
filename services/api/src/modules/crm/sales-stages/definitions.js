@@ -1,7 +1,7 @@
 // Configuring the sales stages: name, description, guidance, order, default
 // probability, and whether a stage is in use.
 //
-// There is one sales pipeline per organization. A stage is identified by its
+// Each pipeline has its own stages (CRM plan 5.1); without a pipeline named, the default one. A stage is identified by its
 // id and carries a stable code; nothing depends on its name, so renaming or
 // reordering never breaks the opportunities in it or their history. A stage
 // is never deleted: it is deactivated, and the history that mentions it stays
@@ -13,7 +13,9 @@ import { OPPORTUNITY_PERMISSIONS } from "../opportunities/constants.js";
 import { recordOpportunityHistory } from "../opportunities/history.js";
 import { requireUuid } from "../opportunities/records.js";
 import { withLifecycleWrite, writeStage } from "../opportunities/stages.js";
-import { DEFAULT_STAGE_CODES, ensureDefaultSalesPipeline } from "./defaults.js";
+import { DEFAULT_STAGE_CODES } from "./defaults.js";
+import { resolvePipeline } from "./pipelines.js";
+import { cleanStageRules, stageRules } from "./rules.js";
 
 const text = (value) => String(value ?? "").trim();
 const has = (input, field) => Object.prototype.hasOwnProperty.call(input, field);
@@ -21,13 +23,8 @@ const invalid = (message, field) => new CrmError(400, message, "CRM_SALES_STAGE_
 const requireManage = (context) =>
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.manageStages, "You do not have permission to manage the sales stages.");
 
-async function salesPipelineId(client, context) {
-  await ensureDefaultSalesPipeline(client, context);
-  const { rows } = await client.query(
-    `SELECT id FROM tenant.crm_pipelines WHERE organization_id = $1 AND status = 'active' ORDER BY is_default DESC, created_at LIMIT 1`,
-    [context.organizationId],
-  );
-  return rows[0].id;
+async function salesPipelineId(client, context, pipelineId = null) {
+  return (await resolvePipeline(client, context, pipelineId)).id;
 }
 
 function toStage(row) {
@@ -39,6 +36,12 @@ function toStage(row) {
     openCount: Number(row.open_count ?? 0),
     // opportunities that are in the stage or have ever been through it
     isUsed: row.is_used === true,
+    pipelineId: row.pipeline_id,
+    // what a deal needs to enter it: [{ rule, level: require | warn }]; standard until set
+    entryRules: stageRules(row),
+    rulesAreStandard: row.entry_rules === null || row.entry_rules === undefined,
+    // the most days a deal should stay in it (its owner is told after, their manager after twice as long)
+    timeLimitDays: row.time_limit_days === null || row.time_limit_days === undefined ? null : Number(row.time_limit_days),
     updatedAt: row.updated_at,
   };
 }
@@ -51,7 +54,9 @@ async function readStages(client, context, pipelineId, { lock = false } = {}) {
               WHERE opportunity.organization_id = stage.organization_id AND opportunity.stage_id = stage.id AND opportunity.status = 'open'
                 AND opportunity.archived_at IS NULL) AS open_count,
             EXISTS (SELECT 1 FROM tenant.crm_opportunity_stage_history history
-                     WHERE history.organization_id = stage.organization_id AND history.to_stage_id = stage.id) AS is_used
+                     WHERE history.organization_id = stage.organization_id AND history.to_stage_id = stage.id) AS is_used,
+            (SELECT sla.maximum_days FROM tenant.crm_opportunity_stage_sla_policies sla
+              WHERE sla.organization_id = stage.organization_id AND sla.stage_id = stage.id AND sla.status = 'active') AS time_limit_days
        FROM tenant.crm_pipeline_stages stage
       WHERE stage.organization_id = $1 AND stage.pipeline_id = $2
       ORDER BY (stage.status = 'active') DESC, stage.sequence, stage.name`,
@@ -102,26 +107,32 @@ function validText(value, field, maximum) {
 }
 
 async function findStage(client, context, stageId, { lock = true } = {}) {
-  const pipelineId = await salesPipelineId(client, context);
+  const owner = (await client.query("SELECT pipeline_id FROM tenant.crm_pipeline_stages WHERE organization_id = $1 AND id = $2", [context.organizationId, requireUuid(stageId, "Stage")])).rows[0];
+  if (!owner) throw new CrmError(404, "Stage not found.", "CRM_SALES_STAGE_NOT_FOUND");
+  const pipelineId = await salesPipelineId(client, context, owner.pipeline_id);
   const rows = await readStages(client, context, pipelineId, { lock });
   const stage = rows.find((row) => row.id === requireUuid(stageId, "Stage") && isSalesStage(row));
   if (!stage) throw new CrmError(404, "Stage not found.", "CRM_SALES_STAGE_NOT_FOUND");
   return { pipelineId, rows, stage };
 }
 
-const reread = async (client, context, id) => (await listSalesStages(client, context)).find((stage) => stage.id === id);
+const reread = async (client, context, id) => {
+  const owner = (await client.query("SELECT pipeline_id FROM tenant.crm_pipeline_stages WHERE organization_id = $1 AND id = $2", [context.organizationId, id])).rows[0];
+  return (await listSalesStages(client, context, { pipelineId: owner?.pipeline_id ?? null })).find((stage) => stage.id === id);
+};
 
-// The sales stages for the settings screen: active ones in process order, then the inactive ones.
-export async function listSalesStages(client, context) {
+// The sales stages of a pipeline (the default one unless pipelineId is given) for the settings screen: active ones in process order,
+// then the inactive ones.
+export async function listSalesStages(client, context, { pipelineId = null } = {}) {
   requireManage(context);
-  const rows = await readStages(client, context, await salesPipelineId(client, context));
+  const rows = await readStages(client, context, await salesPipelineId(client, context, pipelineId));
   return rows.filter(isSalesStage).map(toStage);
 }
 
-// input: { name, probability, description?, guidance? }. The new stage is added after the last one.
+// input: { name, probability, description?, guidance?, pipelineId?, entryRules?, timeLimitDays? }. The new stage is added after the pipeline's last one.
 export async function createSalesStage(client, context, input = {}) {
   requireManage(context);
-  const pipelineId = await salesPipelineId(client, context);
+  const pipelineId = await salesPipelineId(client, context, input.pipelineId ?? null);
   const rows = await readStages(client, context, pipelineId, { lock: true });
   const name = validName(rows, input.name);
   const probability = validProbability(input.probability);
@@ -137,23 +148,45 @@ export async function createSalesStage(client, context, input = {}) {
     [context.organizationId, pipelineId, name, code, probability, validText(input.description, "description", 500), validText(input.guidance, "guidance", 2000), context.userId ?? null],
   );
   await resequence(client, context, pipelineId, [...activeIds(rows), created.rows[0].id]);
+  // Its rules and time limit, when given with it.
+  const extras = Object.fromEntries(["entryRules", "timeLimitDays"].filter((field) => has(input, field)).map((field) => [field, input[field]]));
+  if (Object.keys(extras).length) return updateSalesStage(client, context, created.rows[0].id, extras);
   return reread(client, context, created.rows[0].id);
 }
 
-// input: any of { name, description, guidance, probability, isActive }, plus moveOpenTo when deactivating.
+// input: any of { name, description, guidance, probability, isActive, entryRules, timeLimitDays }, plus moveOpenTo when deactivating.
+//   entryRules     [{ rule, level: "require" | "warn" }]; null restores the standard rules
+//   timeLimitDays  1 to 365, or null for no limit
 export async function updateSalesStage(client, context, stageId, input = {}) {
   requireManage(context);
-  const { rows, stage } = await findStage(client, context, stageId);
+  const { pipelineId, rows, stage } = await findStage(client, context, stageId);
   const fields = {};
   if (has(input, "name")) fields.name = validName(rows, input.name, stage.id);
   if (has(input, "description")) fields.description = validText(input.description, "description", 500);
   if (has(input, "guidance")) fields.guidance = validText(input.guidance, "guidance", 2000);
+  if (has(input, "entryRules")) {
+    const rules = cleanStageRules(input.entryRules);
+    fields.entry_rules = rules === null ? null : JSON.stringify(rules);
+  }
   const assignments = Object.entries(fields);
   if (assignments.length)
     await client.query(
-      `UPDATE tenant.crm_pipeline_stages SET ${assignments.map(([column], index) => `${column} = $${index + 4}`).join(", ")}, updated_by = $3 WHERE organization_id = $1 AND id = $2`,
+      `UPDATE tenant.crm_pipeline_stages SET ${assignments.map(([column], index) => `${column} = $${index + 4}${column === "entry_rules" ? "::jsonb" : ""}`).join(", ")}, updated_by = $3 WHERE organization_id = $1 AND id = $2`,
       [context.organizationId, stage.id, context.userId ?? null, ...assignments.map(([, value]) => value)],
     );
+  if (has(input, "timeLimitDays")) {
+    const days = input.timeLimitDays === null || text(input.timeLimitDays) === "" ? null : Number(input.timeLimitDays);
+    if (days !== null && (!Number.isInteger(days) || days < 1 || days > 365)) throw invalid("Enter a time limit from 1 to 365 days, or leave it empty.", "timeLimitDays");
+    if (days === null)
+      await client.query("UPDATE tenant.crm_opportunity_stage_sla_policies SET status = 'inactive', updated_by = $3, updated_at = now() WHERE organization_id = $1 AND stage_id = $2",
+        [context.organizationId, stage.id, context.userId ?? null]);
+    else
+      await client.query(
+        `INSERT INTO tenant.crm_opportunity_stage_sla_policies (organization_id, pipeline_id, stage_id, maximum_days, status, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, 'active', $5, $5)
+         ON CONFLICT (organization_id, pipeline_id, stage_id) DO UPDATE SET maximum_days = EXCLUDED.maximum_days, status = 'active', updated_by = EXCLUDED.updated_by, updated_at = now()`,
+        [context.organizationId, pipelineId, stage.id, days, context.userId ?? null]);
+  }
   if (has(input, "probability")) await setStageDefaultProbability(client, context, stage.id, input.probability);
   if (has(input, "isActive") && Boolean(input.isActive) !== (stage.status === "active")) {
     if (input.isActive) await activateSalesStage(client, context, stage.id);
@@ -230,16 +263,16 @@ async function activateSalesStage(client, context, stageId) {
   await resequence(client, context, pipelineId, [...activeIds(rows), stage.id]);
 }
 
-// orderedIds: every active stage, in the new order. Changes how the pipeline
+// orderedIds: every active stage of the pipeline, in the new order. Changes how the pipeline
 // is displayed; it does not rewrite any opportunity's stage history.
-export async function reorderSalesStages(client, context, orderedIds) {
+export async function reorderSalesStages(client, context, orderedIds, { pipelineId: chosen = null } = {}) {
   requireManage(context);
-  const pipelineId = await salesPipelineId(client, context);
+  const pipelineId = await salesPipelineId(client, context, chosen);
   const rows = await readStages(client, context, pipelineId, { lock: true });
   const active = activeIds(rows);
   const ids = Array.isArray(orderedIds) ? [...new Set(orderedIds)] : [];
   if (ids.length !== active.length || active.some((id) => !ids.includes(id)))
     throw new CrmError(409, "The stages changed while you were reordering them. Reload and try again.", "CRM_SALES_STAGE_ORDER_STALE");
   await resequence(client, context, pipelineId, ids);
-  return listSalesStages(client, context);
+  return listSalesStages(client, context, { pipelineId });
 }

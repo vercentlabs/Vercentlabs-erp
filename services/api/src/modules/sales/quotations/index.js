@@ -9,3 +9,4 @@ export {
 } from "./lifecycle.js";
 export { createSalesOrderFromQuotation } from "./order.js";
 export { QUOTATION_FILE_ENTITY, listQuotationFiles, prepareQuotationFileUpload, readQuotationFile, removeQuotationFile, uploadQuotationFile } from "./files.js";
+export { PROFORMA_STATUSES, emailProformaInvoice, getProformaInvoice, proformaNumber } from "./proforma.js";

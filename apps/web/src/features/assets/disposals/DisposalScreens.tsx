@@ -16,7 +16,7 @@ import { Cell, FactList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { dateLabel, errorMessage, errorStatus, money } from "../register/register-api";
 import {
   CASE_TONE, CONDITION_OPTIONS, DISPOSAL_BASE, HANDOVER_OPTIONS, LINE_TONE, MILESTONE_TONE, REPORT_KINDS, SCRAP_METHOD_OPTIONS, caseAction, createCase, disposalExportHref, getAssetPanel, getAudit, getCase,

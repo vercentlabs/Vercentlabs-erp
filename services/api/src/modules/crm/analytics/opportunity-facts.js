@@ -144,6 +144,8 @@ export function opportunityFactsCte(context, filters, parameters) {
              ${rate} AS fx_rate,
              CASE WHEN COALESCE(o.currency_code, organization.base_currency)=organization.base_currency THEN NULL ELSE fx.rate_date END AS fx_rate_date,
              o.amount * ${rate} AS amount_reporting,
+             COALESCE(o.won_amount, o.amount) * ${rate} AS won_reporting,
+             o.priority, o.medium, o.campaign_id, campaign.name AS campaign_name, o.lead_id,
              COALESCE(o.expected_revenue, 0) * ${rate} AS weighted_reporting,
              (o.status='open' AND COALESCE(policy.maximum_days, stage.stale_after_days) IS NOT NULL
                AND o.stage_entered_at <= now() - (COALESCE(policy.maximum_days, stage.stale_after_days) || ' days')::interval) AS stalled,
@@ -157,6 +159,7 @@ export function opportunityFactsCte(context, filters, parameters) {
         LEFT JOIN tenant.crm_opportunity_stage_sla_policies policy ON policy.organization_id=o.organization_id AND policy.pipeline_id=o.pipeline_id AND policy.stage_id=o.stage_id AND policy.status='active'
         LEFT JOIN public.users owner_account ON owner_account.id=o.owner_user_id
         LEFT JOIN tenant.crm_lead_sources source ON source.organization_id=o.organization_id AND source.id=o.source_id
+        LEFT JOIN tenant.crm_campaigns campaign ON campaign.organization_id=o.organization_id AND campaign.id=o.campaign_id
         LEFT JOIN owner_team ON owner_team.user_id=o.owner_user_id
         LEFT JOIN LATERAL (
           SELECT rate.rate, rate.rate_date FROM tenant.exchange_rates rate

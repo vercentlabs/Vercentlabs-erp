@@ -10,7 +10,7 @@ import { Plus, Settings2 } from "lucide-react";
 import { Button, EnterpriseListPage, ErrorState, LinkButton, PermissionState, SearchField, Select, TextField, type ActiveFilter } from "@vercentlabs/design-system";
 
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
-import { getOpportunityOptions, opportunityExportUrl, type Opportunity, type OpportunityListFilters, type OpportunityViewKey } from "@/features/crm/opportunities/api/opportunities-api";
+import { getOpportunityOptions, opportunityExportUrl, optionsForDeal, type Opportunity, type OpportunityListFilters, type OpportunityViewKey } from "@/features/crm/opportunities/api/opportunities-api";
 import { MarkLostDialog, MarkWonDialog } from "@/features/crm/close-reasons/components/CloseDialogs";
 import { LogActivityDialog } from "@/features/crm/opportunities/components/OpportunityPanels";
 import { createQuotationHref } from "@/features/crm/quotations/screens/CreateQuotationScreen";
@@ -23,6 +23,7 @@ import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { FiltersPopover } from "@/features/crm/shared/ui/FiltersPopover";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
+import { SavedViews } from "@/features/crm/shared/ui/SavedViews";
 import { formatDate, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -79,6 +80,8 @@ export function PipelineScreen() {
   const [preset, setPresetState] = useState<PresetId>(PRESETS.some((entry) => entry.id === params.get("preset")) ? (params.get("preset") as PresetId) : "open");
   const [status, setStatusState] = useState<PipelineStatus>(STATUS_OPTIONS.some((entry) => entry.value === params.get("status")) ? (params.get("status") as PipelineStatus) : "open");
   const [cardSort, setCardSort] = useState<PipelineCardSort>("expectedCloseDate");
+  // Which pipeline the board shows (CRM plan 5.1); the default one until chosen.
+  const [pipelineId, setPipelineId] = useState<string>(params.get("pipelineId") ?? "");
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [submittedSearch, setSubmittedSearch] = useState(params.get("search") ?? "");
   const [filters, setFilters] = useState(() => Object.fromEntries(FILTER_KEYS.map((key) => [key, params.get(key) ?? ANY])) as Record<FilterKey, string>);
@@ -105,10 +108,11 @@ export function PipelineScreen() {
   // One set of filters for the board, the figures, the export and the Deals list.
   const shared = useMemo(() => ({
     ...PRESETS.find((entry) => entry.id === preset)?.filters,
+    ...(pipelineId ? { pipelineId } : {}),
     search: submittedSearch || undefined,
     ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ANY)),
     ...Object.fromEntries(Object.entries(more).filter(([, value]) => value.trim())),
-  }), [preset, submittedSearch, filters, more]);
+  }), [preset, submittedSearch, filters, more, pipelineId]);
   const pipelineFilters: PipelineFilters = useMemo(() => ({ ...shared, status, cardSort }), [shared, status, cardSort]);
   const listFilters: OpportunityListFilters = useMemo(() => ({
     ...shared,
@@ -150,6 +154,8 @@ export function PipelineScreen() {
   };
   const close = (isOpen: boolean) => !isOpen && setDialog(null);
   const card = dialog?.card ?? null;
+  // A card's dialogs use its own pipeline's stages.
+  const cardOptions = options && card ? optionsForDeal(options, card) : null;
 
   const withAny = (list: Array<{ value: string; label: string }>, anyLabel: string) => [{ value: ANY, label: anyLabel }, ...list];
   const ownerOptions = options
@@ -157,7 +163,7 @@ export function PipelineScreen() {
     : [];
   const labelOf = (key: FilterKey, value: string) => {
     if (!options) return value;
-    if (key === "stageId") return options.stages.find((entry) => entry.id === value)?.name ?? "Chosen stage";
+    if (key === "stageId") return (pipeline?.stages ?? options.stages).find((entry) => entry.id === value)?.name ?? "Chosen stage";
     if (key === "ownerId") return ownerOptions.find((entry) => entry.value === value)?.label ?? "Chosen owner";
     if (key === "teamId") return options.teams.find((entry) => entry.id === value)?.name ?? "Chosen team";
     if (key === "sourceId") return options.sources.find((entry) => entry.id === value)?.name ?? "Chosen source";
@@ -204,6 +210,7 @@ export function PipelineScreen() {
               {can?.manageStages && (
                 <LinkButton href="/crm/settings/opportunities/stages" variant="ghost" aria-label="Sales stages (Setup)"><Settings2 className="size-4" aria-hidden="true" /></LinkButton>
               )}
+              <SavedViews screen="pipeline" basePath="/crm/pipeline" filters={pipelineFilters} />
               {can?.export && <MoreMenu label="More pipeline actions" items={[{ id: "export", label: "Export", onAction: () => { window.location.href = opportunityExportUrl(listFilters); } }]} />}
             </>
           ),
@@ -212,6 +219,11 @@ export function PipelineScreen() {
         actionBar={{
           start: (
             <>
+              {pipeline && pipeline.pipelines.length > 1 && (
+                <Select aria-label="Pipeline" size="compact" selectedKey={pipeline.pipeline.id}
+                  onSelectionChange={(key) => { setPipelineId(String(key)); setFilters({ ...filters, stageId: ANY }); }}
+                  options={pipeline.pipelines.map((entry) => ({ value: entry.id, label: `${entry.name} (${entry.openCount})` }))} />
+              )}
               <SearchField aria-label="Search the pipeline" placeholder="Search deal, company, contact or number" className="w-full sm:min-w-64 sm:flex-1" value={search} onChange={setSearch}
                 onSubmit={(value) => setSubmittedSearch(value.trim())} />
               {options && (
@@ -220,7 +232,7 @@ export function PipelineScreen() {
                   <Select label="Team" size="compact" selectedKey={filters.teamId} onSelectionChange={(key) => setFilters({ ...filters, teamId: String(key) })}
                     options={withAny(options.teams.map((entry) => ({ value: entry.id, label: entry.name })), "Any team")} />
                   <Select label="Stage" size="compact" selectedKey={filters.stageId} onSelectionChange={(key) => setFilters({ ...filters, stageId: String(key) })}
-                    options={withAny(options.stages.map((entry) => ({ value: entry.id, label: entry.name })), "Any stage")} />
+                    options={withAny((pipeline?.stages ?? options.stages).map((entry) => ({ value: entry.id, label: entry.name })), "Any stage")} />
                   <Select label="Status" size="compact" selectedKey={status} onSelectionChange={(key) => setStatus(String(key) as PipelineStatus)} options={STATUS_OPTIONS} />
                   <Select label="Source" size="compact" selectedKey={filters.sourceId} onSelectionChange={(key) => setFilters({ ...filters, sourceId: String(key) })}
                     options={withAny(options.sources.map((entry) => ({ value: entry.id, label: entry.name })), "Any source")} />
@@ -243,7 +255,8 @@ export function PipelineScreen() {
           end: (
             <>
               <Select aria-label="Sort cards" size="compact" selectedKey={cardSort} onSelectionChange={(key) => setCardSort(String(key) as PipelineCardSort)} options={SORT_OPTIONS} />
-              <ViewToggle label="Layout" value="board" onChange={(id) => { if (id === "list") router.push(listHref()); }} options={[{ id: "board", label: "Board" }, { id: "list", label: "List" }]} />
+              <ViewToggle label="Layout" value="board" onChange={(id) => { if (id === "list") router.push(listHref()); if (id === "calendar") router.push("/crm/opportunities/calendar"); }}
+                options={[{ id: "board", label: "Board" }, { id: "list", label: "List" }, { id: "calendar", label: "Calendar" }]} />
             </>
           ),
         }}
@@ -273,12 +286,12 @@ export function PipelineScreen() {
         </div>
       </EnterpriseListPage>
 
-      {options && card && (
+      {cardOptions && card && (
         <>
-          {dialog?.kind === "quickEdit" && <QuickEditDialog opportunity={card} options={options} onClose={() => setDialog(null)} onSaved={refresh} />}
-          {dialog?.kind === "won" && <MarkWonDialog isOpen onOpenChange={close} options={options} opportunity={card} onDone={refresh} />}
-          {dialog?.kind === "lost" && <MarkLostDialog isOpen onOpenChange={close} options={options} opportunity={card} onDone={refresh} />}
-          {dialog?.kind === "activity" && <LogActivityDialog isOpen onOpenChange={close} opportunity={card} options={options} onDone={refresh} />}
+          {dialog?.kind === "quickEdit" && <QuickEditDialog opportunity={card} options={cardOptions} onClose={() => setDialog(null)} onSaved={refresh} />}
+          {dialog?.kind === "won" && <MarkWonDialog isOpen onOpenChange={close} options={cardOptions} opportunity={card} onDone={refresh} />}
+          {dialog?.kind === "lost" && <MarkLostDialog isOpen onOpenChange={close} options={cardOptions} opportunity={card} onDone={refresh} />}
+          {dialog?.kind === "activity" && <LogActivityDialog isOpen onOpenChange={close} opportunity={card} options={cardOptions} onDone={refresh} />}
           {dialog?.kind === "followUp" && (
             <ScheduleFollowUpForRecord isOpen onOpenChange={close} related={{ type: "opportunity", id: card.id, name: card.name, accountId: card.accountId }} onDone={refresh} />
           )}

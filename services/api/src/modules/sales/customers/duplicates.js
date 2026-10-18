@@ -13,7 +13,7 @@
 // the right action is to create the customer from that account.
 import { findDuplicateAccounts } from "../../crm/accounts/duplicates.js";
 import { lockDuplicateKeys, recordDuplicateOverride } from "../../crm/duplicates/policy.js";
-import { normalizeCompanyName, normalizeDomain, normalizeGstin } from "../../crm/duplicates/normalize.js";
+import { normalizeCompanyName, normalizeDomain, normalizeGstin } from "../../../core/parties/normalize.js";
 import { crmContext, customerCan, requireCustomerPermission } from "./access.js";
 import { CUSTOMER_PERMISSIONS, CustomerError } from "./constants.js";
 import { isUuid, text } from "./validation.js";

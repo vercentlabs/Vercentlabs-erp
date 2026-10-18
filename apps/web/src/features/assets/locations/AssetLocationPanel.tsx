@@ -15,7 +15,7 @@ import { FactList, HistoryList } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { assetAction, dateLabel, errorMessage, getAssetView, newKey } from "../register/register-api";
 import { LOCATIONS_BASE, getChoices, resolveDiscrepancy, type AssetLocationView } from "./locations-api";
 

@@ -6,6 +6,7 @@
 // A task is a row of tenant.crm_activities with activity_type = 'task', the
 // table every CRM timeline already reads. Its history is append-only in
 // tenant.crm_task_history.
+import { activityTypeChoices } from "../activity-types/records.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { resolveMemberExecutionContext } from "../../../core/platform/reporting/execution-context.js";
 import { replaceActivityReminder } from "../reminders/index.js";
@@ -506,7 +507,9 @@ export async function getTaskOptions(client, context) {
     reminderOptions: TASK_REMINDER_OPTIONS,
     // What a new task starts with (CRM Settings, Task Defaults).
     defaults: await taskDefaults(client, context),
-    followUpTypes: ["call", "email", "meeting", "other"],
+    // One type list everywhere (CRM plan 5.2): the organization's activity types; followUpTypes keeps their codes.
+    followUpTypeOptions: await activityTypeChoices(client, context),
+    followUpTypes: (await activityTypeChoices(client, context)).map((type) => type.code),
     users,
     teams,
     currentUserId: context.userId,

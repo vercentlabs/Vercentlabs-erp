@@ -14,6 +14,7 @@
 // it); many at once needs crm.leads.bulk_assign; handing a lead to someone
 // outside the teams you manage needs crm.leads.assign_across_teams (view-all
 // holders may already do so).
+import { AVAILABLE_FOR_AUTO_ASSIGNMENT_SQL } from "./availability.js";
 import { createNotification } from "../../../core/platform/notifications/index.js";
 import { assertCrmOwnerAssignable, managedTeamMemberIds } from "../data-management/crm-access-scope.js";
 import { CrmError } from "../data-management/errors.js";
@@ -78,7 +79,9 @@ export async function assertActiveTeam(client, context, teamId) {
 // People (with CRM access) and active teams, with each team's members, for the pickers.
 export async function listLeadAssignmentOptions(client, context) {
   const users = await client.query(
-    `SELECT app_user.id, app_user.full_name AS name, app_user.email
+    `SELECT app_user.id, app_user.full_name AS name, app_user.email,
+            -- paused or at capacity: still assignable by hand, never by the rules (CRM plan 3.6)
+            NOT ${AVAILABLE_FOR_AUTO_ASSIGNMENT_SQL("$1", "app_user.id")} AS unavailable
        FROM organization_memberships membership
        JOIN users app_user ON app_user.id = membership.user_id AND app_user.status = 'active'
       WHERE membership.organization_id = $1 AND membership.status = 'active' AND ${CRM_ACCESS_SQL("app_user.id", "$1")}

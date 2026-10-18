@@ -5,7 +5,8 @@ import { z } from "zod";
 // refused; the two honeypot fields must stay empty.
 export const publicCaptureSchema = z
   .object({
-    firstName: z.string().trim().min(1).max(120),
+    // Which fields are required is the form's own setting (checked by the domain), so none is required here.
+    firstName: z.string().trim().max(120).nullable().optional(),
     lastName: z.string().trim().max(120).nullable().optional(),
     email: z.string().trim().email().max(320).nullable().optional(),
     phone: z.string().trim().max(30).nullable().optional(),
@@ -18,6 +19,13 @@ export const publicCaptureSchema = z
     state: z.string().trim().max(160).nullable().optional(),
     countryCode: z.string().trim().max(2).nullable().optional(),
     productInterest: z.string().trim().max(4_000).nullable().optional(),
+    description: z.string().trim().max(4_000).nullable().optional(),
+    // Agreed to the form's consent notice (a form with a notice is refused without it).
+    consentAccepted: z.boolean().optional(),
+    // The page's UTM values (CRM plan 3.4): utm_campaign picks the campaign, utm_medium the medium.
+    utmSource: z.string().trim().max(200).nullable().optional(),
+    utmMedium: z.string().trim().max(200).nullable().optional(),
+    utmCampaign: z.string().trim().max(200).nullable().optional(),
     estimatedValue: z.coerce.number().min(0).max(1_000_000_000_000).optional(),
     currencyCode: z.string().trim().max(3).nullable().optional(),
     consentEmail: z.boolean().optional(),

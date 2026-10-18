@@ -2,7 +2,7 @@
 
 // The steps after a quotation is confirmed, wherever it is shown (the Sales
 // quotation page and the opportunity's quotations): download its PDF, email
-// it, mark it sent when it went out another way, record the customer's
+// it, send or download its proforma invoice (CRM plan 4.7), mark it sent when it went out another way, record the customer's
 // acceptance or rejection, create a revision, cancel it, and turn an accepted
 // one into a sales order. The server checks every step against the
 // quotation's state.
@@ -13,7 +13,8 @@ import { Button, Dialog, LinkButton, TextArea, TextField } from "@vercentlabs/de
 
 import { SalesApiError } from "@/features/sales/shared/http";
 import {
-  cancelSalesQuotation, createOrderFromQuotation, emailSalesQuotation, markSalesQuotationSent, recordSalesQuotationDecision, reviseSalesQuotation,
+  cancelSalesQuotation, createOrderFromQuotation, emailSalesProforma, emailSalesQuotation, markSalesQuotationSent, proformaPdfUrl, recordSalesQuotationDecision,
+  reviseSalesQuotation,
 } from "../api/quotations-api";
 
 export type LifecycleQuotation = {
@@ -23,7 +24,7 @@ export type LifecycleQuotation = {
   isExpired: boolean; convertedOrderId: string | null; contactName?: string | null; contactEmail?: string | null;
 };
 type Can = (permission: string) => boolean;
-type DialogKind = "email" | "markSent" | "accept" | "reject" | "cancel" | "revise" | null;
+type DialogKind = "email" | "proforma" | "markSent" | "accept" | "reject" | "cancel" | "revise" | null;
 
 const OPEN = ["approved", "sent"];
 const CANCELLABLE = ["draft", "pending_approval", "approved", "sent"];
@@ -40,6 +41,8 @@ export function QuotationLifecycleActions({ quotation, can, onChanged, size = "s
     onError: (failure) => setError(failureText(failure, "The sales order could not be created.")),
   });
   const open = OPEN.includes(quotation.status);
+  // A proforma invoice: from an open offer still valid, or an accepted one.
+  const proforma = ((open && !quotation.isExpired) || quotation.status === "accepted") && can("sales.quotation.export");
   const done = () => { setDialog(null); setError(null); onChanged(); };
 
   return (
@@ -54,6 +57,7 @@ export function QuotationLifecycleActions({ quotation, can, onChanged, size = "s
             <Button variant="secondary" size={size} onPress={() => setDialog("markSent")}>Mark as sent</Button>
           </>
         )}
+        {proforma && <Button variant="secondary" size={size} onPress={() => setDialog("proforma")}>Proforma invoice</Button>}
         {open && !quotation.isExpired && can("sales.quotation.accept_on_behalf") && <Button variant="secondary" size={size} onPress={() => setDialog("accept")}>Record acceptance</Button>}
         {open && can("sales.quotation.reject") && <Button variant="secondary" size={size} onPress={() => setDialog("reject")}>Record rejection</Button>}
         {open && can("sales.quotation.revise") && <Button variant="secondary" size={size} onPress={() => setDialog("revise")}>Create revision</Button>}
@@ -66,6 +70,7 @@ export function QuotationLifecycleActions({ quotation, can, onChanged, size = "s
       </div>
       {error && !dialog && <p role="alert" className="text-sm text-danger">{error}</p>}
       {dialog === "email" && <EmailDialog quotation={quotation} onClose={() => setDialog(null)} onDone={done} />}
+      {dialog === "proforma" && <ProformaDialog quotation={quotation} canSend={can("sales.quotation.send")} onClose={() => setDialog(null)} onDone={done} />}
       {dialog === "markSent" && <MarkSentDialog quotation={quotation} onClose={() => setDialog(null)} onDone={done} />}
       {(dialog === "accept" || dialog === "reject") && <DecisionDialog quotation={quotation} decision={dialog === "accept" ? "accepted" : "rejected"} onClose={() => setDialog(null)} onDone={done} />}
       {dialog === "cancel" && <CancelDialog quotation={quotation} onClose={() => setDialog(null)} onDone={done} />}
@@ -105,6 +110,47 @@ function EmailDialog({ quotation, onClose, onDone }: { quotation: LifecycleQuota
         <TextField label="Subject" value={subject} onChange={setSubject} />
         <TextArea label="Message" value={message} onChange={setMessage} />
         <Footer onClose={onClose} label="Send email" isLoading={send.isPending} isDisabled={!to.trim()} onPress={() => send.mutate()} />
+      </div>
+    </Dialog>
+  );
+}
+
+function ProformaDialog({ quotation, canSend, onClose, onDone }: { quotation: LifecycleQuotation; canSend: boolean; onClose: () => void; onDone: () => void }) {
+  const number = `PI-${quotation.number}`;
+  const [advance, setAdvance] = useState("");
+  const [to, setTo] = useState(quotation.contactEmail ?? "");
+  const [cc, setCc] = useState("");
+  const [subject, setSubject] = useState(`Proforma invoice ${number}`);
+  const [message, setMessage] = useState(`Dear ${quotation.contactName ?? "Sir/Madam"},
+
+Please find attached our proforma invoice ${number} against quotation ${quotation.number}.
+
+Regards`);
+  const percent = advance.trim() === "" ? null : Number(advance);
+  const advanceInvalid = percent !== null && (!Number.isFinite(percent) || percent <= 0 || percent > 100);
+  const send = useMutation({
+    mutationFn: () => emailSalesProforma(quotation.id, { to: to.trim(), cc: cc.trim() || undefined, subject, message, advancePercent: percent }),
+    onSuccess: onDone,
+  });
+  return (
+    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Proforma invoice ${number}`}
+      description="The quotation set out as a request for payment, for the customer's PO or advance. It is marked as not a tax invoice and changes nothing on the quotation." size="lg">
+      <div className="flex flex-col gap-3">
+        {send.isError && <p role="alert" className="text-sm text-danger">{failureText(send.error, "The email could not be sent.")}</p>}
+        <TextField label="Advance requested (%)" type="number" description="Optional. For example 30 asks for 30% of the total in advance." value={advance} onChange={setAdvance}
+          errorMessage={advanceInvalid ? "Enter a percentage between 1 and 100." : undefined} isInvalid={advanceInvalid} />
+        <div>
+          <LinkButton variant="secondary" href={advanceInvalid ? undefined : proformaPdfUrl(quotation.id, percent)} isDisabled={advanceInvalid} download>Download PDF</LinkButton>
+        </div>
+        {canSend && (
+          <>
+            <TextField label="To" type="email" isRequired value={to} onChange={setTo} />
+            <TextField label="CC" description="Optional. Separate addresses with commas." value={cc} onChange={setCc} />
+            <TextField label="Subject" value={subject} onChange={setSubject} />
+            <TextArea label="Message" value={message} onChange={setMessage} />
+            <Footer onClose={onClose} label="Send email" isLoading={send.isPending} isDisabled={!to.trim() || advanceInvalid} onPress={() => send.mutate()} />
+          </>
+        )}
       </div>
     </Dialog>
   );

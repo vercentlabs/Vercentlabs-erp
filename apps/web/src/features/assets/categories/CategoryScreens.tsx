@@ -25,7 +25,7 @@ import { Cell, FactList, HistoryList, LinesTable, MoreActions, type MoreAction }
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import { ASSETS_BASE, LIFECYCLE_TONE, dateLabel, errorMessage, errorStatus, getOptions, money, newKey } from "../register/register-api";
 import {
   CATEGORIES_BASE, LABELS, RECLASS_STATUS, addStarters, categoriesExportHref, categoryAction, createCategory, decideReclassification, getCategory, getCategoryAssets, getCategoryReport, getHistory,

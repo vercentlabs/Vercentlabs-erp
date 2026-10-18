@@ -3,9 +3,11 @@
 // Browser client for the opportunity routes under /api/crm/opportunities.
 // One function per opportunity operation; a failed request throws
 // OpportunityApiError carrying the server's message and code.
+import type { CustomField, CustomValues } from "@/features/crm/shared/fields-api";
 import type { CurrencyDisclosure } from "../../shared/ui/UnconvertedNotice";
 import { CrmApiErrorWithBody } from "@/features/crm/shared/http/crm-api-error";
 import { crmApiClient } from "@/features/crm/shared/http/crm-request";
+import type { CampaignOption, CrmTag, MediumOption } from "@/features/crm/shared/marketing-api";
 
 export class OpportunityApiError extends CrmApiErrorWithBody {}
 
@@ -33,10 +35,21 @@ export type Opportunity = {
   teamName: string | null;
   stageId: string;
   stageName: string | null;
+  pipelineId: string | null;
+  pipelineName: string | null;
+  // custom fields and recurring revenue (CRM plan 5.3)
+  customFields?: CustomValues;
+  recurringPlanId?: string | null;
+  recurringPlanName?: string | null;
+  recurringRevenue?: number | null;
+  monthlyRecurringRevenue?: number | null;
   stageCode: string | null;
   stageSequence: number | null;
   stageEnteredAt: string;
   stageAgeDays: number;
+  // the stage's time limit in days, and whether the deal has been in the stage longer (CRM plan 5.1)
+  stageTimeLimitDays: number | null;
+  stageOverdue: boolean;
   stageBeforeCloseName: string | null;
   status: OpportunityStatus;
   priority: OpportunityPriority;
@@ -52,6 +65,9 @@ export type Opportunity = {
   expectedCloseDate: string | null;
   actualCloseDate: string | null;
   sourceId: string | null;
+  // Where it came from (CRM plan 3.4).
+  campaignId?: string | null; campaignName?: string | null; medium?: string | null; mediumLabel?: string | null;
+  tags?: CrmTag[];
   sourceName: string | null;
   leadId: string | null;
   leadCode: string | null;
@@ -129,17 +145,34 @@ export type OpportunityCloseReason = {
   requiresNotes: boolean; capturesCompetitor: boolean; requiresCompetitor: boolean; offersFollowUp: boolean; linksDuplicate: boolean;
 };
 
+export type OpportunityPipelineOption = { id: string; name: string; isDefault: boolean; teamId: string | null; stages: OpportunityStage[] };
+
+// The options as they apply to one deal: its own pipeline's stages (the default pipeline's when it has none named).
+export function optionsForDeal<T extends OpportunityOptions>(options: T, deal: { pipelineId?: string | null } | null | undefined): T {
+  const pipeline = deal?.pipelineId ? options.pipelines?.find((entry) => entry.id === deal.pipelineId) : undefined;
+  return pipeline ? { ...options, stages: pipeline.stages } : options;
+}
+
 export type OpportunityOptions = {
   views: Array<{ key: OpportunityViewKey; label: string }>;
   statuses: CodeLabel[];
   priorities: CodeLabel[];
   stages: OpportunityStage[];
+  // every active pipeline with its open stages (CRM plan 5.1), the default first
+  pipelines?: OpportunityPipelineOption[];
+  customFields?: CustomField[];
+  recurringPlans?: Array<{ id: string; name: string; months: number; isActive: boolean }>;
   wonReasons: OpportunityCloseReason[];
   lostReasons: OpportunityCloseReason[];
   contactRoles: CodeLabel[];
   activityTypes: CodeLabel[];
   followUpTypes: string[];
+  // the organization's activity types (CRM plan 5.2), the one list every screen offers
+  followUpTypeOptions?: Array<{ id: string; code: string; label: string; kind: string }>;
   sources: Array<{ id: string; name: string }>;
+  campaigns?: CampaignOption[];
+  mediums?: MediumOption[];
+  tags?: CrmTag[];
   users: Array<{ id: string; name: string; email: string }>;
   teams: Array<{ id: string; name: string; memberIds: string[] }>;
   currencies: string[];
@@ -150,6 +183,7 @@ export type OpportunityOptions = {
 };
 
 export type OpportunityListFilters = Partial<{
+  campaignId: string; medium: string; tagId: string; pipelineId: string;
   view: OpportunityViewKey; search: string; status: string; stageId: string; ownerId: string; teamId: string; accountId: string; contactId: string;
   product: string; sourceId: string; priority: string; expectedCloseFrom: string; expectedCloseTo: string; valueMin: string; valueMax: string;
   createdFrom: string; createdTo: string; closedFrom: string; closedTo: string; stale: string; highValue: string; noNextActivity: string; ids: string; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
@@ -250,6 +284,9 @@ export const findDuplicateOpportunities = (input: { accountId: string; name?: st
 
 // ---- lifecycle
 // warn: true asks the server to refuse a move that deserves a second look; see stageWarningOf.
+// Moves an open deal into another pipeline (CRM plan 5.1): into the stage given, else its first.
+export const moveOpportunityToPipeline = (id: string, input: { pipelineId: string; stageId?: string; note?: string; expectedUpdatedAt?: string }) =>
+  post<{ changed: boolean }>(`${BASE}/${id}/pipeline`, input);
 export const changeOpportunityStage = (id: string, input: { stageId: string; note?: string; expectedUpdatedAt?: string; warn?: boolean }) =>
   post<{ changed: boolean }>(`${BASE}/${id}/stage`, input);
 export const setOpportunityProbability = (id: string, input: { probability: number; reason?: string }) => post<{ changed: boolean }>(`${BASE}/${id}/probability`, input);

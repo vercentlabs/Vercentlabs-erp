@@ -97,6 +97,7 @@ export function LeadStagesSettingsScreen() {
                 <span className="font-medium">{index + 1}. {stage.name}</span>
                 {stage.isSystem && <Badge tone="neutral">Standard</Badge>}
                 {!stage.isActive && <StatusBadge tone="neutral">Inactive</StatusBadge>}
+                {stage.staleAfterDays ? <Badge tone="warning">{`Stale after ${stage.staleAfterDays} ${stage.staleAfterDays === 1 ? "day" : "days"}`}</Badge> : null}
               </div>
               <span className="text-xs text-text-muted">{stage.leadCount ?? 0} open {stage.leadCount === 1 ? "lead" : "leads"} in this stage</span>
             </div>
@@ -105,7 +106,7 @@ export function LeadStagesSettingsScreen() {
               <MoreMenu label={`Actions for ${stage.name}`} items={[
                 { id: "up", label: "Move up", isDisabled: index === 0 || change.isPending, onAction: () => move(index, -1) },
                 { id: "down", label: "Move down", isDisabled: index === stages.length - 1 || change.isPending, onAction: () => move(index, 1) },
-                { id: "rename", label: "Rename", onAction: () => setEditing(stage) },
+                { id: "rename", label: "Edit", onAction: () => setEditing(stage) },
                 ...(!["new", "qualification"].includes(stage.code) ? [{ id: "active", label: stage.isActive ? "Deactivate" : "Activate", isDisabled: change.isPending,
                   onAction: () => change.mutate(() => updateLeadStage(stage.id, { isActive: !stage.isActive })) }] : []),
               ]} />
@@ -135,21 +136,30 @@ export function LeadStagesSettingsScreen() {
 
 function StageDialog({ stage, onClose, onSaved }: { stage: LeadStageDefinition | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(stage?.name ?? "");
+  const [staleDays, setStaleDays] = useState(stage?.staleAfterDays ? String(stage.staleAfterDays) : "");
   const [error, setError] = useState<string | null>(null);
+  const days = staleDays.trim() === "" ? null : Number(staleDays);
+  const daysValid = days === null || (Number.isInteger(days) && days >= 1 && days <= 365);
   const mutation = useMutation({
-    mutationFn: () => (stage ? updateLeadStage(stage.id, { name }) : createLeadStage(name)),
+    mutationFn: async () => {
+      if (stage) return updateLeadStage(stage.id, { name, staleAfterDays: days });
+      const created = await createLeadStage(name);
+      return days === null ? created : updateLeadStage(created.stage.id, { staleAfterDays: days });
+    },
     onSuccess: () => { onSaved(); onClose(); },
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={stage ? "Rename stage" : "New stage"}
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={stage ? "Edit stage" : "New stage"}
       description={stage ? "Leads in this stage and its history show the new name." : "The new stage is added at the end; move it to where it belongs."}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <TextField label="Stage name" isRequired value={name} onChange={(value) => { setName(value); setError(null); }} />
+        <TextField label="Stale after (days)" inputMode="numeric" description="Days without activity before an open lead in this stage is shown as stale. Empty: the standard 7."
+          value={staleDays} onChange={setStaleDays} isInvalid={!daysValid} errorMessage={daysValid ? undefined : "Enter 1 to 365, or leave it empty."} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>{stage ? "Save" : "Add stage"}</Button>
+          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim() || !daysValid}>{stage ? "Save" : "Add stage"}</Button>
         </div>
       </div>
     </Dialog>

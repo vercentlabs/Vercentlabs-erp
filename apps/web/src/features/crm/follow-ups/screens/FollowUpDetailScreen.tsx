@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertDialog, Button, ErrorState, Menu, MenuItem, MenuTrigger, RecordDetailsPage } from "@vercentlabs/design-system";
 
+import { MeetingInviteButton } from "@/features/crm/shared/ui/MeetingInvite";
 import { readableHistory } from "@/features/crm/shared/field-labels";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { whenLabel } from "@/features/crm/shared/when";
@@ -67,7 +68,7 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
       <RecordDetailsPage
         header={{
           title: <>{followUp.subject} <span className="text-base font-normal whitespace-nowrap text-text-muted">{followUp.number}</span></>,
-          status: <span className="flex flex-wrap items-center gap-2"><FollowUpStatusBadge status={followUp.status} /><span className="text-sm">{TYPE_LABELS[followUp.type]}</span></span>,
+          status: <span className="flex flex-wrap items-center gap-2"><FollowUpStatusBadge status={followUp.status} /><span className="text-sm">{(followUp.typeName ?? TYPE_LABELS[followUp.type])}</span></span>,
           fields: [
             { label: "When", value: <FollowUpWhen followUp={followUp} /> },
             { label: "Contact", value: followUp.contactId ? <Link className="hover:underline" href={`/crm/contacts/${followUp.contactId}`}>{followUp.contactName}</Link> : followUp.contactName ?? "—" },
@@ -79,6 +80,8 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
           secondaryActions: (
             <>
               {open && can.reschedule && <Button variant="secondary" onPress={() => setDialog("reschedule")}>Reschedule</Button>}
+              {/* A meeting can go to its attendees' calendars (CRM plan 4.5). */}
+              {open && followUp.type === "meeting" && can.reschedule && <MeetingInviteButton activityId={followUp.id} defaultEmail={followUp.contactEmail} />}
               {/* Only a follow-up with a reminder has one to snooze. */}
               {open && followUp.assignedTo === options.currentUserId && followUp.reminderAt && (
                 <MenuTrigger>

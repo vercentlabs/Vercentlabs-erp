@@ -18,7 +18,7 @@ import { useDebouncedValue } from "@/shared/ui/list";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask, type Field } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask, type Field } from "@/shared/ui/AskDialog";
 import {
   APPROVAL_TONE, BLOCKER_LABEL, MILESTONES_BASE, MILESTONE_TONE, MILESTONE_TYPE_LABEL, PROJECTS_BASE, dateLabel, dueLabel, errorDetails,
   errorMessage, errorStatus, getLinks, getMembers, getMilestone, getMilestoneActivity, getProjectContacts, getProjectMilestones, milestoneAction, milestoneFileHref,

@@ -13,6 +13,7 @@ import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { assertEligibleLeadAssignee } from "../leads/assignment.js";
 import { replaceActivityReminder } from "../reminders/index.js";
+import { activityTypeChoices, resolveActivityType } from "../activity-types/records.js";
 import { canViewAllFollowUps, followUpCan, followUpCapabilities, followUpRelatedScopeSql, followUpScopeSql, requireFollowUpPermission } from "./access.js";
 import {
   CHANNEL_OF_TYPE, FOLLOW_UP_NUMBER_DOCUMENT_TYPE, FOLLOW_UP_OUTCOMES, FOLLOW_UP_PERMISSIONS, FOLLOW_UP_RELATED_TYPES, FOLLOW_UP_REMINDER_OPTIONS,
@@ -53,7 +54,11 @@ export const FOLLOW_UP_SELECT = `
          related_contact.display_name AS contact_name, related_contact.email AS contact_email, related_contact.mobile AS contact_mobile,
          entity_contact.display_name AS entity_contact_name,
          account.id AS account_id, COALESCE(account.display_name, lead.company_name) AS account_name,
-         origin.code AS origin_lead_code
+         origin.code AS origin_lead_code,
+         activity_type.code AS activity_type_code, activity_type.name AS activity_type_name, plan.name AS activity_plan_name,
+         to_char(follow_up.repeat_until, 'YYYY-MM-DD') AS repeat_until_on,
+         (SELECT holiday.name FROM tenant.crm_holidays holiday WHERE holiday.organization_id = follow_up.organization_id
+             AND holiday.holiday_date = (follow_up.due_at AT TIME ZONE organization.timezone)::date) AS holiday_name
     FROM tenant.crm_activities follow_up
     JOIN public.organizations organization ON organization.id = follow_up.organization_id
     LEFT JOIN public.users assignee ON assignee.id = follow_up.assigned_to
@@ -68,7 +73,9 @@ export const FOLLOW_UP_SELECT = `
           AND related_contact.id = COALESCE(follow_up.related_contact_id, CASE WHEN follow_up.entity_type = 'contact' THEN follow_up.entity_id END)
     LEFT JOIN tenant.business_parties account ON account.organization_id = follow_up.organization_id
           AND account.id = COALESCE(follow_up.related_party_id, CASE WHEN follow_up.entity_type = 'party' THEN follow_up.entity_id END, opportunity.party_id, entity_contact.party_id)
-    LEFT JOIN tenant.crm_leads origin ON origin.organization_id = follow_up.organization_id AND origin.id = follow_up.origin_lead_id`;
+    LEFT JOIN tenant.crm_leads origin ON origin.organization_id = follow_up.organization_id AND origin.id = follow_up.origin_lead_id
+    LEFT JOIN tenant.crm_activity_types activity_type ON activity_type.organization_id = follow_up.organization_id AND activity_type.id = follow_up.activity_type_id
+    LEFT JOIN tenant.crm_activity_plans plan ON plan.organization_id = follow_up.organization_id AND plan.id = follow_up.activity_plan_id`;
 
 const STATUS_OF = Object.freeze({ planned: "scheduled", in_progress: "scheduled", overdue: "scheduled", completed: "completed", cancelled: "cancelled" });
 const RELATED_PATH = Object.freeze({ lead: "/crm/leads", opportunity: "/crm/opportunities", party: "/crm/accounts", contact: "/crm/contacts" });
@@ -83,6 +90,15 @@ export function toFollowUp(row) {
     subject: row.subject,
     notes: row.description,
     type: TYPE_CODES.includes(row.follow_up_type) ? row.follow_up_type : "other",
+    // the organization's activity type (CRM plan 5.2): its code and name; `type` above is its base kind
+    activityTypeId: row.activity_type_id ?? null,
+    typeCode: row.activity_type_code ?? (TYPE_CODES.includes(row.follow_up_type) ? row.follow_up_type : "other"),
+    typeName: row.activity_type_name ?? typeLabel(row.follow_up_type),
+    activityPlanName: row.activity_plan_name ?? null,
+    // the holiday it falls on (CRM plan 5.6), to move it
+    holidayName: row.holiday_name ?? null,
+    // repeats every N days, weeks or months, until a date (completing one plans the next)
+    repeat: row.repeat_every ? { every: row.repeat_every, unit: row.repeat_unit, until: row.repeat_until_on ?? null } : null,
     status,
     relatedType: row.entity_id && RELATED_CODES.includes(row.entity_type) ? row.entity_type : null,
     relatedId: row.entity_id ?? null,
@@ -370,6 +386,17 @@ export function validType(value) {
   return type;
 }
 
+// A repeat rule (CRM plan 5.2): { every: 1-365, unit: day | week | month, until?: YYYY-MM-DD }, or null for none.
+export function validRepeat(value) {
+  if (value === null || value === undefined || value === false) return null;
+  const every = Number(value.every);
+  if (!Number.isInteger(every) || every < 1 || every > 365) throw invalid("Repeat every 1 to 365 days, weeks or months.", "repeat");
+  if (!["day", "week", "month"].includes(value.unit)) throw invalid("Choose days, weeks or months.", "repeat");
+  const until = text(value.until) || null;
+  if (until && !DATE.test(until)) throw invalid("Choose a valid end date for the repeat.", "repeat");
+  return { every, unit: value.unit, until };
+}
+
 function validSubject(value, fallback) {
   const subject = text(value) || fallback;
   if (subject.length > 300) throw invalid("Use 300 characters or fewer.", "subject");
@@ -405,35 +432,49 @@ export async function scheduleFollowUp(client, context, input = {}) {
     if (rows[0]) return getFollowUp(client, context, rows[0].id);
   }
   const related = await requireRelated(client, context, input.relatedType, input.relatedId);
-  const type = validType(input.type);
+  // The organization's activity type (CRM plan 5.2): by id, else by code; its kind decides the channel and what completing it records.
+  const activityType = await resolveActivityType(client, context.organizationId, { activityTypeId: input.activityTypeId || null, code: input.type });
+  const type = activityType.kind;
+  const repeat = validRepeat(input.repeat);
   const contactId = await requireContact(client, context, input.contactId || null, related);
   // Never planned by a channel the person refused (a lead marked do-not-contact, a contact who opted out of calls, email, SMS or WhatsApp).
   await assertMayContact(client, context, preferenceTarget(related.entity_type, related.entity_id, contactId), channelOf(type));
-  const subject = validSubject(input.subject, `${typeLabel(type)}: ${await relatedLabel(client, context, related)}`.slice(0, 300));
+  const subject = validSubject(input.subject, `${activityType.name}: ${await relatedLabel(client, context, related)}`.slice(0, 300));
   const notes = validNotes(input.notes);
-  const assignedTo = input.assignedTo || related.ownerUserId || context.userId;
+  // Who does it: the one named, else the type's default (the record's owner, whoever plans it, or a named member).
+  const typeAssignee = activityType.default_assignee === "user" ? activityType.default_user_id : activityType.default_assignee === "creator" ? context.userId : null;
+  const assignedTo = input.assignedTo || typeAssignee || related.ownerUserId || context.userId;
   await requireAssignee(client, context, assignedTo, related);
-  const { dueAt, dueTimeSet } = await resolveSchedule(client, context, input);
-  const reminderOffset = resolveReminder(input, dueAt);
+  // When: as given, else the type's default delay from now.
+  const timing = !input.scheduledDate && !input.scheduledAt && activityType.default_delay_hours !== null && activityType.default_delay_hours !== undefined
+    ? { ...input, scheduledAt: new Date(Date.now() + activityType.default_delay_hours * 3600000).toISOString() } : input;
+  const { dueAt, dueTimeSet } = await resolveSchedule(client, context, timing);
+  const reminderOffset = has(input, "reminderOffsetMinutes") || has(input, "reminderAt") || activityType.default_reminder_minutes === null || activityType.default_reminder_minutes === undefined
+    ? resolveReminder(input, dueAt) : activityType.default_reminder_minutes;
   const number = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: FOLLOW_UP_NUMBER_DOCUMENT_TYPE });
 
   const { rows } = await client.query(
     `INSERT INTO tenant.crm_activities (organization_id, entity_type, entity_id, activity_type, subject, description, status, priority, assigned_to, due_at, due_time_set,
                                         follow_up_type, follow_up_channel, related_contact_id, related_party_id, reminder_offset_minutes, reminder_at, follow_up_number,
-                                        origin_lead_id, external_id, created_by, updated_by)
-     VALUES ($1, $2, $3, 'follow_up', $4, $5, 'planned', 'medium', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18)
+                                        origin_lead_id, external_id, created_by, updated_by, activity_type_id, repeat_every, repeat_unit, repeat_until, repeat_series_id,
+                                        activity_plan_id)
+     VALUES ($1, $2, $3, 'follow_up', $4, $5, 'planned', 'medium', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18, $19, $20, $21, $22, $23, $24)
      RETURNING id`,
     [context.organizationId, related.entity_type, related.entity_id, subject, notes, assignedTo, dueAt, dueTimeSet, type, CHANNEL_OF_TYPE[type],
       related.entity_type === "contact" ? null : contactId, related.entity_type === "party" ? null : related.accountId, reminderOffset,
       reminderOffset === null ? null : new Date(dueAt.getTime() - reminderOffset * 60000), number, isUuid(input.originLeadId) ? input.originLeadId : null,
-      key ? `follow-up:${key}` : null, context.userId ?? null],
+      key ? `follow-up:${key}` : null, context.userId ?? null, activityType.id, repeat?.every ?? null, repeat?.unit ?? null, repeat?.until ?? null,
+      repeat && isUuid(input.repeatSeriesId) ? input.repeatSeriesId : null, isUuid(input.activityPlanId) ? input.activityPlanId : null],
   );
   const id = rows[0].id;
+  // The first of a repeating series names the series.
+  if (repeat && !isUuid(input.repeatSeriesId))
+    await client.query("UPDATE tenant.crm_activities SET repeat_series_id = id WHERE organization_id = $1 AND id = $2", [context.organizationId, id]);
   await replaceActivityReminder(client, context, id, dueAt, reminderOffset);
   const followUp = await readFollowUpForNotice(client, context, id);
   await recordFollowUpHistory(client, context, id, "scheduled",
     `Scheduled for ${followUp?.scheduledDate ? formatLocalDate(followUp.scheduledDate, followUp.scheduledTime ?? null) : formatMoment(dueAt, await organizationTimezone(client, context))}${assignedTo !== context.userId ? ` — assigned to ${followUp?.assignedName ?? "someone else"}` : ""}`,
-    { type, assignedTo, scheduledAt: dueAt, reminderOffsetMinutes: reminderOffset });
+    { type, activityTypeId: activityType.id, assignedTo, scheduledAt: dueAt, reminderOffsetMinutes: reminderOffset, repeat });
   if (assignedTo !== context.userId && followUp) {
     const { notifyFollowUpAssigned } = await import("./notify.js");
     await notifyFollowUpAssigned(client, context, followUp, { reassigned: false });
@@ -473,11 +514,25 @@ export async function updateFollowUp(client, context, followUpId, input = {}) {
     set("description", validNotes(input.notes));
     events.push(["updated", "Notes changed", {}]);
   }
-  if (has(input, "type") && validType(input.type) !== row.follow_up_type) {
-    const type = validType(input.type);
-    set("follow_up_type", type);
-    set("follow_up_channel", CHANNEL_OF_TYPE[type]);
-    events.push(["updated", `Type: ${typeLabel(row.follow_up_type)} → ${typeLabel(type)}`, { from: row.follow_up_type, to: type }]);
+  const nextType = has(input, "type") || has(input, "activityTypeId")
+    ? await resolveActivityType(client, context.organizationId, { activityTypeId: input.activityTypeId || null, code: input.type }) : null;
+  if (nextType && nextType.id !== row.activity_type_id) {
+    set("follow_up_type", nextType.kind);
+    set("follow_up_channel", CHANNEL_OF_TYPE[nextType.kind]);
+    set("activity_type_id", nextType.id);
+    events.push(["updated", `Type: ${row.activity_type_name ?? typeLabel(row.follow_up_type)} → ${nextType.name}`, { from: row.follow_up_type, to: nextType.kind, activityTypeId: nextType.id }]);
+  }
+  if (has(input, "repeat")) {
+    const repeat = validRepeat(input.repeat);
+    const before = row.repeat_every ? `${row.repeat_every}:${row.repeat_unit}:${row.repeat_until_on ?? ""}` : "";
+    const after = repeat ? `${repeat.every}:${repeat.unit}:${repeat.until ?? ""}` : "";
+    if (before !== after) {
+      set("repeat_every", repeat?.every ?? null);
+      set("repeat_unit", repeat?.unit ?? null);
+      set("repeat_until", repeat?.until ?? null);
+      if (repeat && !row.repeat_series_id) set("repeat_series_id", row.id);
+      events.push(["updated", repeat ? `Repeats every ${repeat.every} ${repeat.unit}${repeat.every === 1 ? "" : "s"}${repeat.until ? ` until ${repeat.until}` : ""}` : "No longer repeats", { repeat }]);
+    }
   }
   if (has(input, "contactId") && row.entity_type !== "contact") {
     const related = { entity_type: row.entity_type, entity_id: row.entity_id, accountId: row.account_id };
@@ -498,8 +553,8 @@ export async function updateFollowUp(client, context, followUpId, input = {}) {
   }
   if (!sets.length) return toFollowUp(row);
   // A new type or contact is checked against the person's preferences as a new follow-up would be.
-  if (has(input, "type") || has(input, "contactId")) {
-    const type = has(input, "type") ? validType(input.type) : row.follow_up_type;
+  if (nextType || has(input, "contactId")) {
+    const type = nextType ? nextType.kind : row.follow_up_type;
     const contactId = row.entity_type === "contact" ? row.entity_id : has(input, "contactId") ? (input.contactId || null) : row.related_contact_id;
     await assertMayContact(client, context, preferenceTarget(row.entity_type, row.entity_id, contactId), channelOf(type));
   }
@@ -544,7 +599,8 @@ export async function getFollowUpOptions(client, context) {
   return {
     views: FOLLOW_UP_VIEWS.filter((view) => !["team", "all"].includes(view.key) || managesTeam),
     statuses: FOLLOW_UP_STATUSES,
-    types: FOLLOW_UP_TYPES,
+    // the organization's activity types, in order (CRM plan 5.2): { id, code, label, kind }
+    types: await activityTypeChoices(client, context),
     outcomes: FOLLOW_UP_OUTCOMES,
     relatedTypes: FOLLOW_UP_RELATED_TYPES,
     reminderOptions: FOLLOW_UP_REMINDER_OPTIONS,

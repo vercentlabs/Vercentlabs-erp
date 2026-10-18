@@ -478,6 +478,11 @@ export const markSalesQuotationSent = (id: string, input: { recipient?: string; 
 // Emails the quotation with its PDF attached.
 export const emailSalesQuotation = (id: string, input: { to: string; cc?: string; subject?: string; message?: string }) =>
   post<{ result: { status: string } }>(`/quotations/${id}/email`, input);
+// The quotation's proforma invoice (CRM plan 4.7): its PDF, and emailing it.
+export const proformaPdfUrl = (id: string, advancePercent: number | null) =>
+  `/api/documents/sales.proforma/${id}/pdf${advancePercent ? `?advance=${encodeURIComponent(String(advancePercent))}` : ""}`;
+export const emailSalesProforma = (id: string, input: { to: string; cc?: string; subject?: string; message?: string; advancePercent?: number | null }) =>
+  post<{ result: { proformaNumber: string } }>(`/quotations/${id}/proforma`, input);
 // The customer's answer, recorded by staff.
 export const recordSalesQuotationDecision = (id: string, input: { decision: "accepted" | "rejected"; reference?: string; notes?: string }) =>
   post<{ result: { decision: string } }>(`/quotations/${id}/decision`, input);

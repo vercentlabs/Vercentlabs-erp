@@ -48,6 +48,8 @@ export const CONTACT_WRITABLE_COLUMNS = Object.freeze({
   consentWhatsapp: "consent_whatsapp",
   marketingConsent: "marketing_consent",
   useAccountAddress: "use_account_address",
+  // The language the person prefers (CRM plan 5.5), ISO 639-1; from the lead when converted.
+  preferredLanguage: "preferred_language",
 });
 
 // Fields that describe the person's position at their primary company.
@@ -93,6 +95,11 @@ export function normalizeContactInput(input = {}, { allowGoverned = false } = {}
   const normalized = {};
   for (const field of Object.keys(TEXT_FIELDS)) if (has(input, field)) normalized[field] = text(input[field]) || null;
   for (const field of ["email", "secondaryEmail"]) if (normalized[field]) normalized[field] = normalized[field].toLowerCase();
+  if (has(input, "preferredLanguage")) {
+    normalized.preferredLanguage = text(input.preferredLanguage).toLowerCase() || null;
+    if (normalized.preferredLanguage && !/^[a-z]{2}$/.test(normalized.preferredLanguage))
+      throw new CrmError(400, "Choose a language from the list.", "CRM_CONTACT_VALIDATION", { issues: [{ field: "preferredLanguage", message: "Choose a language from the list." }] });
+  }
   for (const field of ["preferredContactMethod", "sourceId", "marketingConsent"]) if (has(input, field)) normalized[field] = text(input[field]).toLowerCase() || null;
   if (has(input, "sourceId")) normalized.sourceId = text(input.sourceId) || null;
   if (has(input, "countryCode")) normalized.countryCode = text(input.countryCode).toUpperCase() || null;

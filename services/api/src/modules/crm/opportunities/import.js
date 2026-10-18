@@ -6,6 +6,7 @@
 // by hand — and a Won or Lost row is then closed through markOpportunityWon / markOpportunityLost with its reason, so the win/loss
 // report counts it. The company is found by its number or name; a row naming a company that does not exist is refused unless the import
 // is asked to create missing companies. A failed row is reported with its reason and never stops the rest of the file.
+import { withMigrationAliases } from "../data-management/migration-presets.js";
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { accountScopeSql } from "../accounts/access.js";
@@ -20,7 +21,8 @@ import { createOpportunity } from "./records.js";
 
 export const IMPORT_ROW_LIMIT = 2000;
 
-export const OPPORTUNITY_IMPORT_FIELDS = Object.freeze([
+// With the column names other tools export (CRM plan 5.7: moving in from Zoho, HubSpot, Salesforce, Odoo…).
+export const OPPORTUNITY_IMPORT_FIELDS = withMigrationAliases("opportunities", [
   { key: "name", label: "Deal Name", aliases: ["deal", "opportunity", "opportunity name", "name", "title", "subject"], sample: "Mehta Fabrics — ERP rollout" },
   { key: "company", label: "Company", aliases: ["account", "account name", "company name", "customer", "organisation", "organization"], sample: "Mehta Fabrics" },
   { key: "contactEmail", label: "Contact Email", aliases: ["contact", "email", "contact e-mail", "primary contact email"], sample: "rahul@mehtafabrics.example" },

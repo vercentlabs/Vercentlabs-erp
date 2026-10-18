@@ -3,6 +3,8 @@
 // Deals: every deal, any status, as a list. The common views are chips (My deals, Closing this month, Overdue, Won, Lost) with the rest under
 // More views; one Filters button holds every filter, each applying the moment it changes, and the active ones show as chips. New deal is the
 // primary action; Export sits in the "…" menu and the dashboard is under Insights.
+import { SavedViews } from "@/features/crm/shared/ui/SavedViews";
+import { TagList } from "@/features/crm/shared/ui/TagChips";
 import { UnconvertedNotice } from "@/features/crm/shared/ui/UnconvertedNotice";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -72,10 +74,10 @@ function storedVisibility(): VisibilityState {
   }
 }
 
-type FilterKey = "status" | "stageId" | "ownerId" | "teamId" | "sourceId" | "priority";
+type FilterKey = "status" | "stageId" | "ownerId" | "teamId" | "sourceId" | "priority" | "campaignId" | "medium" | "tagId";
 type Filters = Record<FilterKey, string>;
-const FILTER_KEYS: FilterKey[] = ["status", "stageId", "ownerId", "teamId", "sourceId", "priority"];
-const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stageId: "Stage", ownerId: "Owner", teamId: "Team", sourceId: "Source", priority: "Priority" };
+const FILTER_KEYS: FilterKey[] = ["status", "stageId", "ownerId", "teamId", "sourceId", "priority", "campaignId", "medium", "tagId"];
+const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stageId: "Stage", ownerId: "Owner", teamId: "Team", sourceId: "Source", priority: "Priority", campaignId: "Campaign", medium: "Medium", tagId: "Tag" };
 
 // Who the deal is with, what is sold, and the ranges.
 type MoreKey = "accountId" | "contactId" | "product" | "expectedCloseFrom" | "expectedCloseTo" | "closedFrom" | "closedTo" | "valueMin" | "valueMax" | "createdFrom" | "createdTo";
@@ -184,6 +186,7 @@ export function OpportunityListScreen() {
               <OpportunityFlags opportunity={row.original} />
             </span>
             <span className="text-xs whitespace-nowrap text-text-muted">{row.original.code}</span>
+            <TagList tags={row.original.tags} />
           </span>
         ),
       },
@@ -241,6 +244,9 @@ export function OpportunityListScreen() {
     if (key === "ownerId") return ownerOptions.find((entry) => entry.value === value)?.label ?? "Chosen owner";
     if (key === "teamId") return options.teams.find((entry) => entry.id === value)?.name ?? "Chosen team";
     if (key === "sourceId") return options.sources.find((entry) => entry.id === value)?.name ?? "Chosen source";
+    if (key === "campaignId") return options.campaigns?.find((entry) => entry.id === value)?.name ?? "Chosen campaign";
+    if (key === "medium") return options.mediums?.find((entry) => entry.code === value)?.label ?? value;
+    if (key === "tagId") return options.tags?.find((entry) => entry.id === value)?.name ?? "Chosen tag";
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
   const activeFilters: ActiveFilter[] = [
@@ -296,10 +302,10 @@ export function OpportunityListScreen() {
           title: "Deals",
           description: "Every deal with your companies, open or closed. Move each through the sales stages, quote it, and mark it won or lost.",
           primaryAction: can?.create ? <LinkButton href="/crm/opportunities/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New deal</LinkButton> : undefined,
-          secondaryActions: <MoreMenu label="More deal actions" items={[
+          secondaryActions: <><SavedViews screen="opportunities" basePath="/crm/opportunities" filters={listFilters} /><MoreMenu label="More deal actions" items={[
             ...(can?.import && can?.create ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=deals") }] : []),
             ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("opportunities", opportunityExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
-          ]} />,
+          ]} /></>,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as OpportunityViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
@@ -319,6 +325,12 @@ export function OpportunityListScreen() {
                   <Select label="Source" size="compact" selectedKey={filters.sourceId} onSelectionChange={(key) => setFilters({ ...filters, sourceId: String(key) })}
                     options={withAny(options.sources.map((entry) => ({ value: entry.id, label: entry.name })), "Any source")} />
                   <Select label="Priority" size="compact" selectedKey={filters.priority} onSelectionChange={(key) => setFilters({ ...filters, priority: String(key) })} options={withAny(PRIORITY_OPTIONS, "Any priority")} />
+                  <Select label="Campaign" size="compact" selectedKey={filters.campaignId} onSelectionChange={(key) => setFilters({ ...filters, campaignId: String(key) })}
+                    options={withAny((options.campaigns ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any campaign")} />
+                  <Select label="Medium" size="compact" selectedKey={filters.medium} onSelectionChange={(key) => setFilters({ ...filters, medium: String(key) })}
+                    options={withAny((options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label })), "Any medium")} />
+                  <Select label="Tag" size="compact" selectedKey={filters.tagId} onSelectionChange={(key) => setFilters({ ...filters, tagId: String(key) })}
+                    options={withAny((options.tags ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any tag")} />
                   <p className="col-span-2 border-t border-border pt-3 text-xs font-medium text-text-secondary">Who, what and when</p>
                   <div className="col-span-2">
                     <AccountPicker label="Company" value={more.accountId || null}

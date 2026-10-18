@@ -17,7 +17,7 @@ import { Cell, FactList, HistoryList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { AskDialog, type Ask, type Field } from "@/features/manufacturing/orders/components/MoDialogs";
+import { AskDialog, type Ask, type Field } from "@/shared/ui/AskDialog";
 import { ScanBox } from "../register/RegisterListScreens";
 import { MyAssignmentRequests } from "../assignments/AssignmentScreens";
 import { REGISTER_BASE, assetAction, dateLabel, errorMessage, errorStatus, getAssetView, getOptions, newKey } from "../register/register-api";

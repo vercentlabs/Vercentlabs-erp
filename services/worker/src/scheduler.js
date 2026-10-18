@@ -10,6 +10,11 @@ import { JOB_TYPE as HOLD_OVERDUE_JOB_TYPE } from "./handlers/manufacturing-hold
 import { JOB_TYPE as PROJECT_ALERTS_JOB_TYPE } from "./handlers/projects-alerts.js";
 import { JOB_TYPE as DEPRECIATION_AUTOMATION_JOB_TYPE } from "./handlers/assets-depreciation-automation.js";
 import { JOB_TYPE as MAINTENANCE_SCHEDULE_JOB_TYPE } from "./handlers/assets-maintenance.js";
+import { JOB_TYPE as LEAD_CONNECTORS_POLL_JOB_TYPE } from "./handlers/crm-lead-connectors-poll.js";
+import { JOB_TYPE as LEAD_RESPONSE_WATCH_JOB_TYPE } from "./handlers/crm-lead-response-watch.js";
+import { JOB_TYPE as CALENDAR_SYNC_JOB_TYPE } from "./handlers/crm-calendar-sync.js";
+import { JOB_TYPE as MAILINGS_SEND_JOB_TYPE } from "./handlers/crm-mailings-send.js";
+import { hasCalendarConnections, hasDueMailings, listDueLeadConnectors } from "@vercentlabs/api/crm";
 
 const logger = createLogger("worker-scheduler");
 
@@ -154,6 +159,49 @@ export async function runSchedulerTick(pool, config) {
       else enqueued += 1;
     } catch (error) {
       logger.error("asset maintenance tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // CRM campaign emails: per tick, only for an organization with one due or sending.
+      const queued = await withTenantClient(pool, organizationId, async (client) => {
+        if (!(await hasDueMailings(client, organizationId))) return null;
+        return enqueueJob(client, organizationId, { jobType: MAILINGS_SEND_JOB_TYPE, idempotencyKey: `crm-mailings-send:${bucket}`, maxAttempts: 2 });
+      });
+      if (queued?.deduped) deduped += 1;
+      else if (queued) enqueued += 1;
+    } catch (error) {
+      logger.error("campaign email tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // CRM calendar sync (Google / Outlook): per tick, only for an organization with a connected calendar.
+      const queued = await withTenantClient(pool, organizationId, async (client) => {
+        if (!(await hasCalendarConnections(client, organizationId))) return null;
+        return enqueueJob(client, organizationId, { jobType: CALENDAR_SYNC_JOB_TYPE, idempotencyKey: `crm-calendar-sync:${bucket}`, maxAttempts: 2 });
+      });
+      if (queued?.deduped) deduped += 1;
+      else if (queued) enqueued += 1;
+    } catch (error) {
+      logger.error("calendar sync tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // CRM response times, overdue escalation and the assignment re-run (per tick; each notice once, by its stamp).
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, { jobType: LEAD_RESPONSE_WATCH_JOB_TYPE, idempotencyKey: `crm-lead-response-watch:${bucket}`, maxAttempts: 3 }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("lead response watch tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // CRM lead connectors (IndiaMART, TradeIndia): per tick, and only for an organization with a connector due to be read.
+      const queued = await withTenantClient(pool, organizationId, async (client) => {
+        if (!(await listDueLeadConnectors(client, organizationId)).length) return null;
+        return enqueueJob(client, organizationId, { jobType: LEAD_CONNECTORS_POLL_JOB_TYPE, idempotencyKey: `crm-lead-connectors-poll:${bucket}`, maxAttempts: 2 });
+      });
+      if (queued?.deduped) deduped += 1;
+      else if (queued) enqueued += 1;
+    } catch (error) {
+      logger.error("lead connectors tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
   }
   logger.info("scheduler tick complete", { organizations: organizationIds.length, enqueued, deduped, bucket });

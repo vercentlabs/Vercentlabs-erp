@@ -131,6 +131,11 @@ export function clientIp(request, env = process.env) {
   return candidate && isIP(candidate) ? candidate : "unavailable";
 }
 
+// Whether an origin is this app's own (its configured public origins), e.g. the hosted web-form page posting a lead.
+export function isAppOrigin(origin, env = process.env) {
+  return Boolean(origin) && configuredOrigins(env).has(origin);
+}
+
 export function assertSameOrigin(request, env = process.env) {
   const origin = requestOrigin(request);
   if (!origin || !configuredOrigins(env).has(origin)) {

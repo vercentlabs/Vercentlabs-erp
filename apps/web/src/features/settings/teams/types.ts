@@ -1,5 +1,4 @@
-// tenant.crm_sales_teams and tenant.crm_sales_team_members rows via the
-// generic /api/crm/[resource] boundary. Teams group people for lead
+// tenant.crm_sales_teams and tenant.crm_sales_team_members rows (services/api crm/sales-organization/teams.js). Teams group people for lead
 // assignment (round robin, team queues) and for team record visibility.
 export type SalesTeam = {
   id: string;

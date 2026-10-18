@@ -405,3 +405,14 @@ export type LeadOptions = {
   capabilities: LeadCapabilities;
 };
 export function getLeadOptions(client: QueryClient, context: CrmContext): Promise<LeadOptions>;
+
+// Capacity and pause per salesperson (CRM plan 3.6); response times and escalation (3.5).
+export type SalespersonAvailability = {
+  userId: string; name: string; monthlyLeadCapacity: number | null; pausedFrom: string | null; pausedUntil: string | null; pauseReason: string | null;
+  leadsLast30Days: number; openLeads: number; takingLeads: boolean;
+};
+export function AVAILABLE_FOR_AUTO_ASSIGNMENT_SQL(org: string, userExpr: string): string;
+export function availabilityOf(client: QueryClient, organizationId: string, userId: string): Promise<{ reason: "paused" | "full"; message: string } | null>;
+export function listSalespersonAvailability(client: QueryClient, context: CrmContext): Promise<SalespersonAvailability[]>;
+export function setSalespersonAvailability(client: QueryClient, context: CrmContext, userId: string, input: Record<string, unknown>): Promise<SalespersonAvailability | null>;
+export function runLeadResponseWatch(client: QueryClient, organizationId: string): Promise<{ alerted: number; escalated: number; followUpsOverdue: number; workEscalated: number; rerun: { routed: number; checked: number } | null; stageOverdue: number; stageEscalated: number }>;

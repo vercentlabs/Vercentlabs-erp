@@ -11,7 +11,9 @@ export class FollowUpApiError extends CrmApiErrorWithBody {}
 const { request } = crmApiClient(FollowUpApiError, "body");
 
 export type FollowUpStatus = "scheduled" | "completed" | "cancelled";
-export type FollowUpType = "call" | "email" | "meeting" | "demo" | "other";
+// The base kind of a follow-up's type; the organization's own types (CRM plan 5.2) each have one.
+export type FollowUpType = "call" | "email" | "meeting" | "demo" | "visit" | "whatsapp" | "other";
+export type FollowUpRepeat = { every: number; unit: "day" | "week" | "month"; until: string | null };
 export type FollowUpRelatedType = "lead" | "party" | "contact" | "opportunity";
 export type FollowUpViewKey = "due_today" | "mine" | "overdue" | "upcoming" | "completed" | "created_by_me" | "team" | "all" | "cancelled";
 
@@ -21,6 +23,13 @@ export type FollowUp = {
   subject: string;
   notes: string | null;
   type: FollowUpType;
+  // the organization's activity type: its id, code and name
+  activityTypeId: string | null;
+  typeCode: string;
+  typeName: string;
+  activityPlanName: string | null;
+  holidayName?: string | null;
+  repeat: FollowUpRepeat | null;
   status: FollowUpStatus;
   relatedType: FollowUpRelatedType | null;
   relatedId: string | null;
@@ -70,7 +79,7 @@ type CodeLabel<Code extends string = string> = { code: Code; label: string };
 export type FollowUpOptions = {
   views: Array<{ key: FollowUpViewKey; label: string }>;
   statuses: CodeLabel<FollowUpStatus>[];
-  types: CodeLabel<FollowUpType>[];
+  types: Array<{ code: string; label: string; id?: string; kind?: FollowUpType }>;
   outcomes: CodeLabel[];
   relatedTypes: CodeLabel<FollowUpRelatedType>[];
   reminderOptions: Array<{ minutes: number; label: string }>;
@@ -90,7 +99,7 @@ export type FollowUpSummary = { dueToday: number; overdue: number; upcoming: num
 export type FollowUpHistoryEntry = { id: string; eventType: string; summary: string; changes: Record<string, unknown>; createdAt: string; actorName: string | null };
 export type FollowUpBulkResult = { results: Array<{ followUpId: string; ok: boolean; message?: string }>; succeeded: number; failed: number };
 export type ScheduleInput = Partial<{
-  relatedType: FollowUpRelatedType; relatedId: string; type: FollowUpType; subject: string; notes: string; contactId: string | null; assignedTo: string;
+  relatedType: FollowUpRelatedType; relatedId: string; type: string; activityTypeId: string; repeat: FollowUpRepeat | null; subject: string; notes: string; contactId: string | null; assignedTo: string;
   scheduledDate: string; scheduledTime: string; reminderOffsetMinutes: number | null; reminderAt: string | null; idempotencyKey: string; expectedUpdatedAt: string;
 }>;
 
@@ -121,8 +130,12 @@ export const rescheduleFollowUp = (id: string, input: { scheduledDate: string; s
 export const reassignFollowUp = (id: string, input: { assignedTo: string; reason?: string; expectedUpdatedAt?: string }) => post<{ changed: boolean }>(`${BASE}/${id}/reassign`, input);
 export const completeFollowUp = (id: string, input: {
   outcome?: string; notes?: string; expectedUpdatedAt?: string;
-  nextFollowUp?: { type?: string; scheduledDate: string; scheduledTime?: string }; nextTask?: { title: string; dueDate: string };
-} = {}) => post<{ changed: boolean; followUpId: string | null; taskId: string | null; activityId: string | null }>(`${BASE}/${id}/complete`, input);
+  nextFollowUp?: { type?: string; scheduledDate: string; scheduledTime?: string }; nextTask?: { title: string; dueDate: string }; stopRepeating?: boolean;
+} = {}) => post<{
+  changed: boolean; followUpId: string | null; taskId: string | null; activityId: string | null; repeatFollowUpId?: string | null; chainedFollowUpId?: string | null;
+  // what the type suggests next (CRM plan 5.2), for the person to schedule or skip
+  suggestedNext?: { activityTypeId: string; code: string; name: string; inDays: number; scheduledDate: string } | null;
+}>(`${BASE}/${id}/complete`, input);
 export const cancelFollowUp = (id: string, input: { reason?: string; expectedUpdatedAt?: string } = {}) => post<{ changed: boolean }>(`${BASE}/${id}/cancel`, input);
 export const snoozeFollowUp = (id: string, input: { minutes?: number; until?: string }) => post<{ changed: boolean; remindAt: string }>(`${BASE}/${id}/snooze`, input);
 export const bulkFollowUpAction = (input: { action: "reassign" | "reschedule" | "cancel"; followUpIds: string[] } & Record<string, unknown>) =>

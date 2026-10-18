@@ -29,6 +29,12 @@ export function rejectQuotationApproval(client: QueryClient, context: Context, q
 export function markQuotationSent(client: QueryClient, context: Context, quotationId: string, input?: { recipient?: string; note?: string }): Promise<{ quotationId: string; status: "sent" }>;
 export function emailQuotation(client: QueryClient, context: Context, quotationId: string, input: { to: string; cc?: string; subject?: string; message?: string },
   attachment: { fileName: string; content: Uint8Array } | null, env?: Record<string, string | undefined>): Promise<{ quotationId: string; status: "sent"; messageId: string | null }>;
+// The proforma invoice (CRM plan 4.7): from a confirmed, sent or accepted quotation; not a tax invoice.
+export const PROFORMA_STATUSES: ReadonlyArray<string>;
+export function proformaNumber(quotationNumber: string): string;
+export function getProformaInvoice(client: QueryClient, context: Context, quotationId: string, options?: { advancePercent?: number | string | null }): Promise<any>;
+export function emailProformaInvoice(client: QueryClient, context: Context, quotationId: string, input: { to: string; cc?: string; subject?: string; message?: string; advancePercent?: number | null },
+  attachment: { fileName: string; content: Uint8Array } | null, env?: Record<string, string | undefined>): Promise<{ quotationId: string; proformaNumber: string; messageId: string | null }>;
 export function recordQuotationDecision(client: QueryClient, context: Context, quotationId: string,
   input: { decision: "accepted" | "rejected"; reference?: string; notes?: string; customerName?: string }): Promise<{ quotationId: string; decision: "accepted" | "rejected"; changed: boolean }>;
 export function cancelQuotation(client: QueryClient, context: Context, quotationId: string, input: { reason: string }): Promise<{ quotationId: string; status: "cancelled"; changed: boolean }>;
