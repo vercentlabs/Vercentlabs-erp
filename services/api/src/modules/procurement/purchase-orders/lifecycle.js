@@ -4,10 +4,13 @@
 // today's masters (supplier usable, lines, prices, warehouses, taxes) and
 // keeps the exact document as the next numbered version. It never moves
 // stock, creates a payable or books tax.
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
 import { createHash } from "node:crypto";
 
 import { decimal, formatDecimal, min, sub } from "../../../core/decimal.js";
 import { loadPurchaseOrder, requirePoPermission } from "./access.js";
+import { requireRuleApprovals } from "../../../core/platform/approvals/index.js";
+import { PURCHASE_ORDER_APPROVAL, purchaseOrderContentKey } from "./approval.js";
 import { CANCEL_REASONS, PO_PERMISSIONS, PurchaseOrderError, STATUS, dayOf, fail, readDate, requireUuid, text } from "./constants.js";
 import { databaseToday, resolveOrderDocument, validateForConfirmation } from "./document.js";
 import { recordPoEvent, updateOrderHeader } from "./persist.js";
@@ -73,6 +76,15 @@ export async function confirmPurchaseOrder(client, context, orderId, input = {})
   const { header, priced } = await resolveOrderDocument(client, context, {}, { order, today: await databaseToday(client) });
   validateForConfirmation(header, priced);
   await updateOrderHeader(client, context, order.id, header, priced);
+  // The company's approval rules (Shared Platform plan 6): a PO of this total waits for its approver(s); the draft is kept as it is.
+  const stored = (await client.query(`SELECT supplier_id, grand_total, currency_code FROM tenant.purchase_orders WHERE organization_id = $1 AND id = $2`, [context.organizationId, order.id])).rows[0];
+  const approval = await requireRuleApprovals(client, context, { documentType: PURCHASE_ORDER_APPROVAL, documentId: order.id, amount: stored.grand_total,
+    contentKey: purchaseOrderContentKey(stored), title: `Purchase order ${order.purchase_order_number ?? ""} (${stored.currency_code?.trim() ?? "INR"} ${stored.grand_total})`.replace("  ", " ") });
+  if (approval.required && !approval.approved) {
+    await recordPoEvent(client, context, order.id, "purchase_order.approval_requested", `Sent for approval (level ${approval.pending.level}${approval.pending.approver ? `: ${approval.pending.approver}` : ""})`,
+      { details: { level: approval.pending.level } });
+    return { id: order.id, versionNumber: order.version_number, status: STATUS.draft, replayed: false, approvalRequired: true, pendingApproval: approval.pending };
+  }
   const version = Number(order.version_number) + 1;
   await client.query(`UPDATE tenant.purchase_order_confirmations SET superseded_at = now() WHERE organization_id = $1 AND purchase_order_id = $2 AND superseded_at IS NULL`,
     [context.organizationId, order.id]);
@@ -91,6 +103,8 @@ export async function confirmPurchaseOrder(client, context, orderId, input = {})
   await recordPoEvent(client, context, order.id, version > 1 ? "purchase_order.reconfirmed" : "purchase_order.confirmed",
     `${version > 1 ? `Amendment confirmed as version ${version}` : "Confirmed"} · ${header.currencyCode} ${dec(priced.totals.grandTotal)}`,
     { from: STATUS.draft, to: STATUS.confirmed, details: { version, total: dec(priced.totals.grandTotal), contentHash: hash } });
+  await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "procurement", eventType: "procurement.purchase_order.confirmed", entityType: "procurement.purchase_order",
+    entityId: order.id, payload: { purchaseOrderNumber: order.purchase_order_number, supplierId: order.supplier_id, buyerUserId: order.buyer_user_id, total: dec(priced.totals.grandTotal), version } });
   return { id: order.id, versionNumber: version, status: STATUS.confirmed, replayed: false };
 }
 

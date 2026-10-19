@@ -791,7 +791,7 @@ export async function listGoodsIssues(client, c, filters = {}) {
   const limit = Math.min(Math.max(Number(filters.limit) || 100, 1), 500);
   const offset = Math.max(Number(filters.offset) || 0, 0);
   const total = Number((await client.query(`SELECT count(*) FROM tenant.goods_issues issue WHERE ${where.join(" AND ")}`, values)).rows[0].count);
-  const rows = (await client.query(`${SELECT} WHERE ${where.join(" AND ")} ORDER BY issue.issue_date DESC, issue.document_number DESC LIMIT ${bind(limit)} OFFSET ${bind(offset)}`, values)).rows;
+  const rows = (await client.query(`${SELECT} WHERE ${where.join(" AND ")} ORDER BY ${listOrder(filters, { number: "issue.document_number", issueDate: "issue.issue_date", status: "issue.status" }, "issue.issue_date DESC, issue.document_number DESC")} LIMIT ${bind(limit)} OFFSET ${bind(offset)}`, values)).rows;
   const reversedBy = new Map((await client.query(
     `SELECT line.goods_issue_id, sum(line.base_quantity) AS issued, COALESCE(sum((SELECT sum(reversal.base_quantity) FROM tenant.goods_issue_reversal_lines reversal WHERE reversal.goods_issue_line_id = line.id)), 0) AS reversed
        FROM tenant.goods_issue_lines line WHERE line.organization_id = $1 AND line.goods_issue_id = ANY($2::uuid[]) GROUP BY line.goods_issue_id`,
@@ -871,3 +871,11 @@ export async function readGoodsIssueFile(client, c, issueId, fileId, options = {
   return { fileName: file.file_name, mimeType: file.mime_type, body: content.body };
 }
 
+// The list's sort (Shared Platform plan 5: lists are paged on the server, so the server sorts): ?sort= one of the allowed columns and
+// ?sortDir=asc|desc, else newest first. The document number breaks ties.
+function listOrder(filters, columns, fallback) {
+  const column = columns[filters.sort];
+  if (!column) return fallback;
+  const direction = filters.sortDir === "asc" ? "ASC" : "DESC";
+  return `${column} ${direction}, ${Object.values(columns)[0]} ${direction}`;
+}

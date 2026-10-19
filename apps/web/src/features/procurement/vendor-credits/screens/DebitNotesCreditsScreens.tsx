@@ -2,6 +2,7 @@
 
 // Debit Notes & Vendor Credits: one list of the buyer's claims to suppliers (debit notes) and the suppliers' financial credits (vendor credits)
 // — separate records with separate statuses — and the chooser between raising a claim and recording a credit.
+import { ListStateViews } from "../../shared/ListStateViews";
 import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -59,7 +60,7 @@ export function DebitNotesCreditsScreen() {
       primaryAction: canCreate ? <LinkButton variant="primary" href="/procurement/debit-notes-credits/new"><Plus className="size-4" aria-hidden="true" />New</LinkButton> : undefined }}
       savedViews={{ views: (query.data?.views ?? options.data?.views ?? [{ key: "all", label: "All" }]).map((entry) => ({ id: entry.key,
         label: entry.key === "claims" || entry.key === "credits" || entry.key === "all" ? entry.label : `${(entry as { group?: string }).group === "claims" ? "Claims" : "Credits"} · ${entry.label}` })), activeViewId: view, onSelect: setView }}
-      actionBar={{ start: (
+      actionBar={{ end: <ListStateViews listKey="debit-notes-credits" list={list} />,  start: (
         <>
           <SearchField aria-label="Search debit claims and credits" placeholder="Number, supplier, supplier credit note" className="w-full sm:w-80" value={search} onChange={setSearch} />
           <Select aria-label="Supplier" size="compact" selectedKey={supplierId} onSelectionChange={(value) => setSupplierId(String(value))}

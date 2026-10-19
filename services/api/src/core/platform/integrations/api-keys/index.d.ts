@@ -6,7 +6,7 @@ export type ApiScopeDefinition = Readonly<{ key: string; displayName: string; de
 export const API_SCOPES: readonly ApiScopeDefinition[];
 export const API_VERSION: string;
 export function getApiScope(key: string): ApiScopeDefinition | null;
-export function listApiScopes(): Array<{ key: string; displayName: string; description: string; risk: string }>;
+export function listApiScopes(): Array<{ key: string; displayName: string; description: string; risk: string; endpoints: string[] }>;
 
 export class ApiKeyError extends Error {
   status: number;

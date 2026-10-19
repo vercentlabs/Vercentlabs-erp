@@ -21,8 +21,23 @@ export type ApprovalRequestRow = Record<string, any> & { id: string; status: str
 
 export function createApprovalRequest(
   client: Client,
-  input: { id?: string | null; organizationId: string; commandKey: string; entityId: string; title: string; requestedBy: string; assignedTo?: string | null; payload: Record<string, string> },
+  input: { id?: string | null; organizationId: string; commandKey: string; entityId: string; title: string; requestedBy: string; assignedTo?: string | null; payload: Record<string, string>;
+    approverRoleId?: string | null; approvalLevel?: number | null; approvalRuleId?: string | null },
 ): Promise<{ id: string; status: string; version: number; created: boolean }>;
+export function roleMembers(client: Client, organizationId: string, roleId: string): Promise<string[]>;
+
+// Approval rules (Shared Platform plan 6).
+type RuleSession = { organizationId: string; userId: string };
+export type ApprovalRule = { id: string; documentType: string; name: string; minAmount: string; level: number; approverUserId: string | null; approverRoleId: string | null;
+  approverName: string | null; active: boolean; updatedAt: string };
+export const APPROVAL_RULE_DOCUMENTS: ReadonlyArray<Readonly<{ key: string; moduleKey: string; label: string; commandKey: string; description: string }>>;
+export class ApprovalRuleError extends Error { status: number; code: string }
+export function listApprovalRules(client: Client, session: RuleSession): Promise<{ rules: ApprovalRule[]; documents: Array<{ key: string; label: string; description: string }>; roles: Array<{ id: string; name: string }> }>;
+export function saveApprovalRule(client: Client, session: RuleSession, input: { id?: string; documentType: string; name: string; minAmount: string | number; level: number; approverUserId?: string | null; approverRoleId?: string | null; active?: boolean }): Promise<ApprovalRule>;
+export function deleteApprovalRule(client: Client, session: RuleSession, ruleId: string): Promise<{ deleted: true }>;
+export function approvalLevelsFor(client: Client, organizationId: string, documentType: string, amount: string | number): Promise<ApprovalRule[]>;
+export function requireRuleApprovals(client: Client, context: RuleSession, input: { documentType: string; documentId: string; amount: string | number; contentKey: string; title: string }): Promise<
+  { required: false } | { required: true; approved: true; levels: number } | { required: true; approved: false; pending: { level: number; approver: string | null; levels: number } }>;
 export function finalizeApprovalRequest(
   client: Client,
   input: { organizationId: string; commandKey: string; entityId: string; approvalRequestId?: string | null; decision: "approved" | "rejected" | "cancelled"; actorUserId: string | null; note?: string | null },

@@ -8,6 +8,10 @@ import { getSeatStatus, SEAT_OVERAGE_GRACE_DAYS } from "./seats.js";
 import { billingStateKey } from "./state.js";
 import { billingAudit, subscriptionRow } from "./shared.js";
 import { queryAuditEvents } from "../platform/audit/index.js";
+import { taxInvoiceReadiness } from "./tax-invoices.js";
+import { getAppChoice } from "./app-choice.js";
+import { getUsageOverview } from "./usage.js";
+import { findIndianState } from "@vercentlabs/shared-types";
 
 const iso = (value) => (value ? new Date(value).toISOString() : null);
 
@@ -19,19 +23,7 @@ function checkoutPhase(session) {
   return "preparing";
 }
 
-// Vercentlabs tax invoices are generated only once every legal fact is
-// configured; until then Billing shows the payment provider's documents only.
-export const TAX_INVOICE_SETTINGS = Object.freeze([
-  "BILLING_SUPPLIER_LEGAL_NAME", "BILLING_SUPPLIER_GSTIN", "BILLING_SUPPLIER_STATE_CODE", "BILLING_SUPPLIER_ADDRESS",
-  "BILLING_SERVICE_SAC", "BILLING_GST_RATE_PERCENT", "BILLING_TAX_INVOICE_SERIES",
-]);
-
-export function taxInvoiceReadiness(env = process.env) {
-  const missing = TAX_INVOICE_SETTINGS.filter((key) => !String(env[key] || "").trim());
-  // Generation itself is intentionally not implemented yet: readiness alone never enables it.
-  return { available: false, configured: missing.length === 0, missing };
-}
-
+// Vercentlabs' tax invoices (tax-invoices.js) are issued once every supplier fact is configured.
 export async function getBillingOverview(client, organizationId, env = process.env) {
   const sub = await subscriptionRow(client, organizationId);
   if (!sub) throw new BillingServiceError(409, "Billing is not initialised for this organisation.", "BILLING_NOT_INITIALISED");
@@ -48,11 +40,15 @@ export async function getBillingOverview(client, organizationId, env = process.e
   ).rows[0] || null;
   const invoices = (
     await client.query(
-      `SELECT id, provider_invoice_id, amount_paise, amount_paid_paise, currency, status, invoice_url, issued_at, paid_at, document_kind
+      `SELECT id, provider_invoice_id, amount_paise, amount_paid_paise, currency, status, invoice_url, issued_at, paid_at, document_kind, invoice_number,
+              taxable_paise, tax_paise
          FROM billing_invoices WHERE organization_id=$1 ORDER BY COALESCE(issued_at, created_at) DESC LIMIT 24`,
       [organizationId],
     )
-  ).rows.map((row) => ({ ...row, amount_paise: Number(row.amount_paise), amount_paid_paise: Number(row.amount_paid_paise) }));
+  ).rows.map((row) => ({ ...row, amount_paise: Number(row.amount_paise), amount_paid_paise: Number(row.amount_paid_paise),
+    taxable_paise: row.taxable_paise === null ? null : Number(row.taxable_paise), tax_paise: Number(row.tax_paise ?? 0),
+    // Vercentlabs' own tax invoices and credit notes download as PDFs from Billing; provider documents open at the provider.
+    pdfUrl: ["tax_invoice", "credit_note"].includes(row.document_kind) ? `/api/billing/invoices/${row.id}/pdf` : null }));
   const payments = (
     await client.query(
       `SELECT id, provider_payment_id, provider_invoice_id, amount_paise, amount_refunded_paise, refund_status, currency, status, method, captured_at, created_at
@@ -81,6 +77,7 @@ export async function getBillingOverview(client, organizationId, env = process.e
       planName: sub.plan_name,
       pricingModel: sub.pricing_model,
       currentPeriodEndsAt: iso(sub.current_period_ends_at),
+      billingPeriod: sub.billing_period,
       cancelAtCycleEnd: sub.cancel_at_cycle_end,
       cancellationPending: sub.cancellation_state === "provider_pending",
       graceEndsAt: iso(sub.grace_ends_at),
@@ -99,6 +96,8 @@ export async function getBillingOverview(client, organizationId, env = process.e
     payments,
     seatChanges,
     taxInvoices: taxInvoiceReadiness(env),
+    appChoice: await getAppChoice(client, organizationId),
+    usage: await getUsageOverview(client, organizationId, env),
     checkoutEnabled: String(env.BILLING_CHECKOUT_ENABLED || "").toLowerCase() === "true",
     enforcementMode: billingEnforcementMode(env),
   };
@@ -133,6 +132,12 @@ export async function saveBillingProfile(client, ctx, input) {
     if (country !== "IN") throw new BillingServiceError(422, "A GSTIN applies only to an Indian billing address.", "BILLING_GSTIN_INVALID");
     if (!GSTIN.test(gstin)) throw new BillingServiceError(422, "That GSTIN is not valid.", "BILLING_GSTIN_INVALID");
     stateCode = gstin.slice(0, 2); // the GST state code is the GSTIN prefix
+  } else if (country === "IN") {
+    // An unregistered Indian customer: the state of the address decides CGST + SGST or IGST on Vercentlabs' invoice.
+    const state = findIndianState({ name: address.state });
+    if (!state) throw invalid("Choose the state of the billing address.");
+    stateCode = state.code;
+    address.state = state.name;
   }
   const before = (await client.query(`SELECT legal_name, gstin, state_code FROM billing_customers WHERE organization_id=$1`, [ctx.organizationId])).rows[0] || null;
   const saved = (

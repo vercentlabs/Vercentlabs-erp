@@ -3,6 +3,7 @@
 // Procurement → Billing → Supplier Bills. A bill is the supplier's financial claim, recorded as Finance's Accounts Payable
 // document; its payment, due and matching states come from Finance's records. From a bill: post it (through Finance's approval policy),
 // pay it, apply an advance or credit, correct it with a vendor credit, or reverse it while nothing settled it.
+import { ListStateViews } from "../../shared/ListStateViews";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -85,7 +86,7 @@ export function SupplierBillsScreen() {
       description: "What suppliers have charged: posted bills are Accounts Payable; payments and credits settle them.",
       primaryAction: options.data?.capabilities.create ? <LinkButton variant="primary" href="/procurement/supplier-bills/new"><Plus className="size-4" aria-hidden="true" />New Supplier Bill</LinkButton> : undefined }}
       savedViews={{ views: (options.data?.views ?? [{ key: "all", label: "All Bills" }]).map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
-      actionBar={{ start: (
+      actionBar={{ end: <ListStateViews listKey="supplier-bills" list={list} />,  start: (
         <>
           <SearchField aria-label="Search bills" placeholder="Bill, invoice, supplier, PO, line or category" className="w-full sm:w-80" value={search} onChange={setSearch} />
           <Select aria-label="Supplier" size="compact" selectedKey={supplierId} onSelectionChange={(value) => setSupplierId(String(value))}

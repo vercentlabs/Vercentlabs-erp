@@ -6,6 +6,8 @@ import {
   AlertDialog,
   Button,
   NumberField,
+  Radio,
+  RadioGroup,
   StatusBadge,
 } from "@vercentlabs/design-system";
 
@@ -13,6 +15,7 @@ import {
   cancelSubscription,
   changeSeats,
   startCheckout,
+  type BillingPeriod,
   type Overview,
   type Plan,
 } from "../api/billing-api";
@@ -40,7 +43,7 @@ export function PlansPanel({
   return (
     <BillingPanel
       title="Plan and users"
-      description="The first user is free. Each additional user on Standard is billed monthly."
+      description="Free is 1 user and 1 app. Standard is every app for every user, billed monthly or yearly."
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {overview.plans.map((plan) =>
@@ -140,13 +143,18 @@ function StandardCard({
   onResult: (report: Report) => void;
 }) {
   const s = overview.subscription;
-  const included = plan.current
-    ? (overview.seats.includedUsers ?? 1)
-    : (plan.includedUsers ?? 1);
-  const perUser = plan.current
-    ? (overview.seats.perUserPricePaise ?? plan.perUserPricePaise ?? 0)
-    : (plan.perUserPricePaise ?? 0);
   const paidNow = s.hasProviderSubscription && s.pricingModel === "per_seat";
+  const [period, setPeriod] = useState<BillingPeriod>(
+    paidNow && s.billingPeriod === "yearly" ? "yearly" : plan.prices.monthly ? "monthly" : "yearly",
+  );
+  const shownPeriod: BillingPeriod = paidNow && s.billingPeriod === "yearly" ? "yearly" : paidNow ? "monthly" : period;
+  const price = plan.prices[shownPeriod] ?? plan.prices.monthly ?? plan.prices.yearly;
+  const included = plan.current
+    ? (overview.seats.includedUsers ?? 0)
+    : (plan.includedUsers ?? 0);
+  const perUser = paidNow
+    ? (overview.seats.perUserPricePaise ?? price?.perUserPaise ?? 0)
+    : (price?.perUserPaise ?? 0);
   const currentTotal = included + overview.seats.paidSeats;
   const [users, setUsers] = useState<number>(
     paidNow ? currentTotal : Math.max(included + 1, overview.seats.used),
@@ -154,13 +162,16 @@ function StandardCard({
   const [confirmCancel, setConfirmCancel] = useState(false);
   const billable = Math.max(0, users - included);
   const monthly = billable * perUser;
+  const gstOnTop = !plan.pricesIncludeGst;
+  const gst = gstOnTop ? Math.round((monthly * plan.gstRatePercent) / 100) : 0;
+  const unit = shownPeriod === "yearly" ? "year" : "month";
   const busyCheckout =
     overview.checkout &&
     ["preparing", "verifying"].includes(overview.checkout.phase);
 
   const checkout = useMutation({
     mutationFn: async () => {
-      const session = await startCheckout(plan.priceId, users);
+      const session = await startCheckout(price?.priceId ?? plan.priceId, users, period);
       await loadRazorpay();
       return openRazorpay(session);
     },
@@ -255,11 +266,18 @@ function StandardCard({
 
   return (
     <CardShell plan={plan}>
+      {!paidNow && plan.prices.monthly && plan.prices.yearly && (
+        <RadioGroup label="Billing" orientation="horizontal" value={period} onChange={(value) => setPeriod(value as BillingPeriod)}>
+          <Radio value="monthly">Monthly</Radio>
+          <Radio value="yearly">{`Yearly (save ${Math.round((1 - plan.prices.yearly.perUserMonthlyPaise / plan.prices.monthly.perUserPaise) * 100)}%)`}</Radio>
+        </RadioGroup>
+      )}
       <p className="text-2xl font-semibold text-text">
-        {inr(perUser)}
+        {inr(shownPeriod === "yearly" ? Math.round(perUser / 12) : perUser)}
         <span className="text-sm font-normal text-text-muted">
           {" "}
-          / additional user / month
+          / user / month{shownPeriod === "yearly" ? `, billed yearly (${inr(perUser)} / user / year)` : ""}
+          {gstOnTop ? " + GST" : ""}
         </span>
       </p>
       {canCheckout || (paidNow && canManage) ? (
@@ -275,10 +293,13 @@ function StandardCard({
           />
           <p className="text-sm text-text-secondary" data-testid="price-quote">
             {users <= included
-              ? `${included} user${included === 1 ? " is" : "s are"} free.`
-              : `${included} included + ${billable} additional × ${inr(perUser)} = `}
+              ? `${included} user${included === 1 ? " is" : "s are"} included.`
+              : `${included ? `${included} included + ` : ""}${billable} user${billable === 1 ? "" : "s"} × ${inr(perUser)} = `}
             {users > included && (
-              <strong data-testid="price-total">{`${inr(monthly)} / month`}</strong>
+              <strong data-testid="price-total">{`${inr(monthly)} / ${unit}`}</strong>
+            )}
+            {users > included && gstOnTop && (
+              <span className="block text-xs text-text-muted">{`+ ${plan.gstRatePercent}% GST ${inr(gst)} = ${inr(monthly + gst)} charged per ${unit}. A GST tax invoice is issued for every charge.`}</span>
             )}
           </p>
           {!overview.checkoutEnabled && (
@@ -346,7 +367,7 @@ function StandardCard({
         description={`Your subscription stays active until ${formatDate(s.currentPeriodEndsAt)}. After that the workspace moves to the Free plan, which includes ${
           overview.plans.find((entry) => entry.code === "free")
             ?.includedUsers ?? 1
-        } user. If you have more users, you will need to remove users or subscribe again. No refund is issued for the current period.`}
+        } user and 1 app you choose. If you have more users, you will need to remove users or subscribe again. No refund is issued for the current period.`}
         confirmLabel="Cancel at renewal"
         isConfirming={cancel.isPending}
         onConfirm={() => cancel.mutate()}

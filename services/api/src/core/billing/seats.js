@@ -42,16 +42,17 @@ export async function getSeatStatus(client, organizationId, { excludeInvitationI
     available: capacity === null ? null : Math.max(0, capacity - used),
     overCapacity: capacity !== null && used > capacity,
     perUserPricePaise: sub?.pricing_model === "per_seat" ? Number(sub.plan_amount_paise) : null,
+    billingPeriod: sub?.billing_period ?? null,
     seatOverageSince: sub?.seat_overage_since ? new Date(sub.seat_overage_since).toISOString() : null,
   };
 }
 
 function seatLimitMessage(status) {
   if (status.pricingModel === "per_seat") {
-    return `All ${status.capacity} users on your ${status.planName} plan are in use. Add users in Billing (${inr(status.perUserPricePaise)} per user per month) first.`;
+    return `All ${status.capacity} users on your ${status.planName} plan are in use. Add users in Billing (${inr(status.perUserPricePaise)} per user per ${status.billingPeriod === "yearly" ? "year" : "month"}) first.`;
   }
   const included = status.includedUsers ?? COMMERCIAL_MODEL.free.includedUsers;
-  return `The ${status.planName} plan includes ${included} user${included === 1 ? "" : "s"}. Upgrade to Standard in Billing to add more (${inr(COMMERCIAL_MODEL.standard.perAdditionalUserPaise)} per additional user per month).`;
+  return `The ${status.planName} plan includes ${included} user${included === 1 ? "" : "s"}. Upgrade to Standard in Billing to add more (${inr(COMMERCIAL_MODEL.standard.perUserMonthlyPaise)} per user per month, or ${inr(Math.round(COMMERCIAL_MODEL.standard.perUserYearlyPaise / 12))} billed yearly).`;
 }
 
 // Callers hold withSeatLock around the check and the write it guards, so two

@@ -14,7 +14,7 @@
 //
 // At most one live session per organisation (unique index), so double clicks
 // or parallel requests can never create two paid subscriptions.
-import { calculateSeatCharge, currentPrice, ensureProviderPlan, MAX_SEATED_USERS } from "./catalogue.js";
+import { BILLING_PERIODS, calculateSeatCharge, currentPrice, ensureProviderPlan, MAX_SEATED_USERS } from "./catalogue.js";
 import { BillingServiceError, isDefiniteProviderRejection, redactedErrorText } from "./errors.js";
 import { billingEvent } from "./observability.js";
 import { getSeatStatus, reconcileSeatOverage } from "./seats.js";
@@ -32,21 +32,23 @@ function requireCheckoutEnabled(provider) {
   }
 }
 
-export async function startSeatCheckout(client, ctx, input, provider) {
+export async function startSeatCheckout(client, ctx, input, provider, env = process.env) {
   requireCheckoutEnabled(provider);
   const users = Number(input.users);
   if (!Number.isInteger(users) || users < 1 || users > MAX_SEATED_USERS) {
     throw new BillingServiceError(422, `Choose between 1 and ${MAX_SEATED_USERS} users.`, "BILLING_USERS_INVALID");
   }
-  // The client never chooses the price: only the single current Standard version can be bought.
-  const price = await currentPrice(client, "standard");
-  if (!price || price.availability !== "available" || price.pricing_model !== "per_seat") {
+  const billingPeriod = input.billingPeriod ?? "monthly";
+  if (!BILLING_PERIODS.includes(billingPeriod)) throw new BillingServiceError(422, "Choose monthly or yearly billing.", "BILLING_PERIOD_INVALID");
+  // The client never chooses the price: only the current Standard version for the chosen period can be bought.
+  const price = await currentPrice(client, "standard", billingPeriod);
+  if (!price || price.billing_period !== billingPeriod || price.availability !== "available" || price.pricing_model !== "per_seat") {
     throw new BillingServiceError(409, "Standard is not available for purchase.", "BILLING_PLAN_NOT_PURCHASABLE");
   }
   if (input.planPriceId && input.planPriceId !== price.price_id) {
     throw new BillingServiceError(409, "Prices have changed since this page loaded. Refresh Billing and try again.", "BILLING_PRICE_CHANGED");
   }
-  const charge = calculateSeatCharge({ includedUsers: price.included_users, perUserPaise: price.amount_paise, totalUsers: users });
+  const charge = calculateSeatCharge({ includedUsers: price.included_users, perUserPaise: price.amount_paise, totalUsers: users, env });
   if (charge.billableSeats < 1) {
     throw new BillingServiceError(422, `Standard starts at ${price.included_users + 1} users. ${price.included_users} user${price.included_users === 1 ? " is" : "s are"} free.`, "BILLING_USERS_INVALID");
   }
@@ -59,7 +61,7 @@ export async function startSeatCheckout(client, ctx, input, provider) {
   }
   if (existing.pricing_model === "custom") throw new BillingServiceError(409, "This organisation is on a Custom contract. Contact support to change it.", "BILLING_CUSTOM_CONTRACT");
 
-  const providerPlanId = await ensureProviderPlan(client, provider, price);
+  const providerPlanId = await ensureProviderPlan(client, provider, price, env);
 
   const prepared = await tx(client, async () => {
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [ctx.organizationId, "billing-checkout"]);
@@ -97,10 +99,12 @@ export async function startSeatCheckout(client, ctx, input, provider) {
                                                 next_recovery_at, metadata)
          VALUES ($1,$2,$3,'provider_creating',$4,$5,$6, now() + make_interval(secs => $7), $8::jsonb) RETURNING *`,
         [ctx.organizationId, price.price_id, sub.id, ctx.userId, providerPlanId, charge.billableSeats, CREATING_STALE_SECONDS,
-          JSON.stringify({ paid_seats: charge.billableSeats, total_users: users, monthly_paise: charge.monthlyPaise, price_version: price.version })],
+          JSON.stringify({ paid_seats: charge.billableSeats, total_users: users, monthly_paise: charge.monthlyPaise, price_paise: charge.pricePaise,
+            charged_paise: charge.chargedPaise, billing_period: billingPeriod, price_version: price.version })],
       )
     ).rows[0];
-    await billingAudit(client, { organizationId: ctx.organizationId, actorUserId: ctx.userId, eventType: "billing.checkout.started", entityId: session.id, metadata: { paidSeats: charge.billableSeats, monthlyPaise: charge.monthlyPaise } });
+    await billingAudit(client, { organizationId: ctx.organizationId, actorUserId: ctx.userId, eventType: "billing.checkout.started", entityId: session.id,
+      metadata: { paidSeats: charge.billableSeats, billingPeriod, pricePaise: charge.pricePaise, chargedPaise: charge.chargedPaise } });
     return { session };
   });
 
@@ -111,9 +115,13 @@ export async function startSeatCheckout(client, ctx, input, provider) {
     keyId: provider.publicKey,
     providerSubscriptionId,
     name: "Vercentlabs",
-    description: `Standard: ${users} users (${charge.billableSeats} additional at ${inr(price.amount_paise)} per month)`,
+    description: `Standard: ${users} user${users === 1 ? "" : "s"} at ${inr(price.amount_paise)} per user per ${billingPeriod === "yearly" ? "year" : "month"}${charge.gstPaise ? ` + GST` : ""}`,
     prefill: { name: customer.legal_name || "", email: customer.billing_email || ctx.email || "", contact: customer.phone || undefined },
     monthlyPaise: charge.monthlyPaise,
+    billingPeriod,
+    pricePaise: charge.pricePaise,
+    gstPaise: charge.gstPaise,
+    chargedPaise: charge.chargedPaise,
     paidSeats: charge.billableSeats,
     totalUsers: users,
   });

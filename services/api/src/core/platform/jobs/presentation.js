@@ -15,6 +15,8 @@ export const JOB_TYPE_PRESENTATION = Object.freeze([
   { jobType: "manufacturing.production_hold.notify_overdue", label: "Overdue production hold alerts", category: "Manufacturing automation", userVisible: false },
   { jobType: "projects.alerts.notify", label: "Project due-date alerts", category: "Projects automation", userVisible: false },
   { jobType: "sales.automation.detect_expired_quotations", label: "Expired quotation check", category: "Sales automation", userVisible: false },
+  { jobType: "platform.workspace.export", label: "Full workspace export", category: "Your data", userVisible: true },
+  { jobType: "platform.record_activities.remind", label: "Activity reminders", category: "Comments and activities", userVisible: false },
 ]);
 
 const BY_TYPE = new Map(JOB_TYPE_PRESENTATION.map((entry) => [entry.jobType, entry]));

@@ -349,6 +349,9 @@ export * from "./orchestration/integrations/event-fan-out.js";
 export * from "./orchestration/approvals/inbox.js";
 export { APPROVAL_COMMAND_REGISTRY, REGISTERED_APPROVAL_COMMAND_KEYS, approvalHref } from "./orchestration/approvals/registry.js";
 export * from "./orchestration/search/service.js";
+export * from "./orchestration/imports/index.js";
+export * from "./orchestration/public-api/index.js";
+export * from "./orchestration/compliance/index.js";
 export { SEARCH_PROVIDERS } from "./orchestration/search/providers.js";
 export * from "./orchestration/notifications/visibility.js";
 export * from "./core/platform/module-administration.js";
@@ -364,3 +367,5 @@ export {
   listPayrollPeriods, generatePayrollPeriods, lockPayrollPeriod, unlockPayrollPeriod, closePayrollPeriod, startPayrollRun, runPayrollCalculation, submitPayrollRun, returnPayrollRun, decidePayrollRun, cancelPayroll, listPayrollExceptions, resolvePayrollException, listPayrollRuns, getPayrollRun, listPayslips, getPayslip, listMyPayslips, verifyPayrollDeterminism, holdPayslip, releasePayslipHold, getPayrollDashboard,
 } from "./modules/hr-payroll/payroll.js";
 export * from "./core/platform/health/index.js";
+export * from "./core/platform/record-thread/index.js";
+export * from "./core/platform/saved-views/index.js";

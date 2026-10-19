@@ -23,6 +23,7 @@ import { normalizePhone } from "../duplicates/normalize.js";
 import { LEAD_PERMISSIONS } from "../leads/constants.js";
 import { createLead } from "../leads/records.js";
 import { recordVisible } from "../notes/access.js";
+import { countOutboundMessages } from "../../../core/billing/usage.js";
 
 const MANAGE = "crm.settings.manage";
 const EDIT = Object.freeze({ lead: "crm.leads.edit", opportunity: "crm.opportunities.edit", party: "crm.accounts.edit", contact: "crm.contacts.edit" });
@@ -212,6 +213,8 @@ export async function sendWhatsApp(client, context, type, id, input = {}, { fetc
     payload = { messaging_product: "whatsapp", to: waNumber(phone), type: "text", text: { body } };
   }
   let response;
+  // Counts towards the plan's monthly messages; refused at the limit before anything is sent.
+  await countOutboundMessages(client, context.organizationId, { channel: "whatsapp" }, env);
   try {
     response = await fetchImpl(`${GRAPH}/${encodeURIComponent(settings.phone_number_id)}/messages`, {
       method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${credentials.accessToken}` }, body: JSON.stringify(payload),

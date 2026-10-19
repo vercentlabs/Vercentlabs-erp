@@ -16,6 +16,7 @@ import { assertMayContact } from "../data-management/contact-preferences.js";
 import { CrmError } from "../data-management/errors.js";
 import { recordVisible } from "../notes/access.js";
 import { recordPerson } from "../whatsapp/records.js";
+import { countOutboundMessages } from "../../../core/billing/usage.js";
 
 const MANAGE = "crm.settings.manage";
 const EDIT = Object.freeze({ lead: "crm.leads.edit", opportunity: "crm.opportunities.edit", party: "crm.accounts.edit", contact: "crm.contacts.edit" });
@@ -306,6 +307,8 @@ export async function sendSms(client, context, type, id, input = {}, { fetchImpl
     request = { url: `https://api.msg91.com/api/sendhttp.php?${query}`, init: { method: "GET" } };
   }
   let response;
+  // Counts towards the plan's monthly messages; refused at the limit before anything is sent.
+  await countOutboundMessages(client, context.organizationId, { channel: "sms" }, env);
   try { response = await fetchImpl(request.url, request.init); } catch (error) { throw new CrmError(502, `The SMS provider could not be reached: ${error?.message ?? error}`, "CRM_SMS_UNREACHABLE"); }
   const raw = await response.text().catch(() => "");
   let parsed;

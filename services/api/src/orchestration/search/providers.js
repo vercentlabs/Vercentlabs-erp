@@ -10,10 +10,21 @@ import { listProducts } from "../../modules/products/index.js";
 import { listOpportunities, listTasks, searchAttachments, searchNotes } from "../../modules/crm/index.js";
 import { listCreditNotes, listDeliveries, listQuotations, listSalesInvoices, listSalesOrders, listSalesReturns } from "../../modules/sales/index.js";
 import { listCustomerRefunds } from "../../modules/accounting/refunds/index.js";
+import { listPurchaseOrders } from "../../modules/procurement/purchase-orders/records.js";
+import { listSupplierBills } from "../../modules/procurement/supplier-bills/records.js";
+import { listSuppliers } from "../../modules/procurement/suppliers/records.js";
+import { listWarehouses } from "../../modules/stock/warehouses.js";
+import { listProjects, listTaskQueue } from "../../modules/projects/index.js";
+import { getAssetRegister } from "../../modules/assets/asset-register/register-read.js";
+import { listPosTransactions } from "../../modules/point-of-sale/index.js";
+import { listInspections } from "../../modules/quality/inspections.js";
+import { listNonconformances } from "../../modules/quality/nonconformance.js";
 
 const CRM_RECORD_PATHS = Object.freeze({ lead: "/crm/leads", party: "/crm/accounts", contact: "/crm/contacts", opportunity: "/crm/opportunities" });
 const text = (value) => (value === null || value === undefined || value === "" ? null : String(value).slice(0, 160));
 const joined = (...parts) => text(parts.filter(Boolean).join(" ").trim());
+// Lists without a search of their own (Quality) are matched here, on the few safe fields shown.
+const matches = (term, ...values) => values.some((value) => value && String(value).toLowerCase().includes(term.toLowerCase()));
 
 export const SEARCH_PROVIDERS = Object.freeze([
   {
@@ -182,6 +193,109 @@ export const SEARCH_PROVIDERS = Object.freeze([
     async execute(client, context, term, limit) {
       const { rows } = await listCustomerRefunds(client, context, { search: term, limit });
       return rows.map((row) => ({ recordId: row.id, title: text(row.refund_number) || "Draft refund", detail: joined(row.customer_name, row.source_number && `· from ${row.source_number}`), href: `/sales/refunds/${row.id}` }));
+    },
+  },
+  // Shared Platform plan 5: every built app is searchable. Each uses its own list function (and its scope); HR, Support and
+  // Manufacturing join when those apps are rebuilt.
+  {
+    key: "procurement.suppliers",
+    label: "Suppliers",
+    moduleKey: "procurement",
+    requiredPermission: "procurement.suppliers.view",
+    async execute(client, context, term, limit) {
+      const { rows } = await listSuppliers(client, context, { search: term, limit, sort: "name" });
+      return rows.map((row) => ({ recordId: row.id, title: text(row.supplierName) || "Supplier", detail: [row.supplierNumber, row.gstin].filter(Boolean).join(" · "), href: `/procurement/suppliers/${row.id}` }));
+    },
+  },
+  {
+    key: "procurement.purchase-orders",
+    label: "Purchase orders",
+    moduleKey: "procurement",
+    requiredPermission: "procurement.po.view",
+    async execute(client, context, term, limit) {
+      const { rows } = await listPurchaseOrders(client, context, { search: term, limit });
+      return rows.map((row) => ({ recordId: row.id, title: text(row.purchaseOrderNumber) || "Draft purchase order", detail: joined(row.supplierName, row.statusLabel && `· ${row.statusLabel}`), href: `/procurement/purchase-orders/${row.id}` }));
+    },
+  },
+  {
+    key: "procurement.supplier-bills",
+    label: "Supplier bills",
+    moduleKey: "procurement",
+    requiredPermission: "procurement.bills.view",
+    async execute(client, context, term, limit) {
+      const rows = await listSupplierBills(client, context, { search: term });
+      return rows.slice(0, limit).map((row) => ({ recordId: row.id, title: text(row.billNumber ?? row.supplierInvoiceNumber) || "Draft bill", detail: joined(row.supplierName, row.supplierInvoiceNumber && `· ${row.supplierInvoiceNumber}`), href: `/procurement/supplier-bills/${row.id}` }));
+    },
+  },
+  {
+    key: "stock.warehouses",
+    label: "Warehouses",
+    moduleKey: "stock",
+    requiredPermission: "warehouses.view",
+    async execute(client, context, term, limit) {
+      const { warehouses } = await listWarehouses(client, context, { search: term });
+      return warehouses.slice(0, limit).map((row) => ({ recordId: row.id, title: text(row.name) || "Warehouse", detail: joined(row.code, row.city && `· ${row.city}`), href: `/inventory/warehouses/${row.id}` }));
+    },
+  },
+  {
+    key: "projects.projects",
+    label: "Projects",
+    moduleKey: "projects",
+    requiredPermission: "projects.view",
+    async execute(client, context, term, limit) {
+      const { rows } = await listProjects(client, context, { search: term, pageSize: limit });
+      return rows.map((row) => ({ recordId: row.id, title: text(row.name) || "Project", detail: joined(row.code, row.customer && `· ${row.customer}`), href: `/projects/${row.id}` }));
+    },
+  },
+  {
+    key: "projects.tasks",
+    label: "Project tasks",
+    moduleKey: "projects",
+    requiredPermission: "projects.tasks.view",
+    async execute(client, context, term, limit) {
+      const { rows } = await listTaskQueue(client, context, { search: term, pageSize: limit, view: "all" });
+      return rows.map((row) => ({ recordId: row.id, title: text(row.title) || "Task", detail: joined(row.code, row.projectCode && `· ${row.projectCode}`), href: `/projects/tasks/${row.id}` }));
+    },
+  },
+  {
+    key: "assets.register",
+    label: "Assets",
+    moduleKey: "assets",
+    requiredPermission: "assets.view",
+    async execute(client, context, term, limit) {
+      const { rows } = await getAssetRegister(client, context, { search: term, pageSize: limit });
+      return rows.map((row) => ({ recordId: row.id, title: text(row.name) || "Asset", detail: joined(row.code, row.location && `· ${row.location}`), href: `/assets/register/${row.id}` }));
+    },
+  },
+  {
+    key: "pos.transactions",
+    label: "POS sales",
+    moduleKey: "point-of-sale",
+    requiredPermission: "pos.view",
+    // The receipt search: receipt or invoice number, customer name or phone.
+    async execute(client, context, term, limit) {
+      const { rows } = await listPosTransactions(client, context, { search: term, limit });
+      return rows.map((row) => ({ recordId: row.id, title: text(row.invoice_number ?? row.receipt_number) || "POS sale", detail: joined(row.customer_name ?? row.buyer_name_snapshot, row.receipt_number && row.invoice_number && `· ${row.receipt_number}`), href: `/pos/transactions/${row.id}` }));
+    },
+  },
+  {
+    key: "quality.inspections",
+    label: "Inspections",
+    moduleKey: "quality",
+    requiredPermission: "quality.view",
+    async execute(client, context, term, limit) {
+      const rows = (await listInspections(client, context, {})).filter((row) => matches(term, row.inspection_number, row.plan_name, row.plan_code));
+      return rows.slice(0, limit).map((row) => ({ recordId: row.id, title: text(row.inspection_number) || "Inspection", detail: joined(row.plan_name, row.overall_result && `· ${row.overall_result}`), href: `/quality/inspection/${row.id}` }));
+    },
+  },
+  {
+    key: "quality.nonconformances",
+    label: "Non-conformances",
+    moduleKey: "quality",
+    requiredPermission: "quality.view",
+    async execute(client, context, term, limit) {
+      const rows = (await listNonconformances(client, context, {})).filter((row) => matches(term, row.nonconformance_number, row.category, row.description));
+      return rows.slice(0, limit).map((row) => ({ recordId: row.id, title: text(row.nonconformance_number) || "Non-conformance", detail: joined(row.severity, row.status && `· ${row.status}`), href: "/quality/nonconformances" }));
     },
   },
 ]);

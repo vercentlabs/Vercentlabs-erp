@@ -2,6 +2,7 @@
 // incoming/in-process/final inspection, measurement and pass/fail checks, and inspection results —
 // the server computes pass/fail from each point's own tolerance/allowed-values rather than trusting a
 // caller-supplied verdict, a real integrity improvement over this folder's original thin stub.
+import { notifyPermissionHolders } from "../../core/platform/notifications/index.js";
 import { QualityError, has, need, needAny, nonNegative, oneOf, qx, recordEvent, text, textOrNull, uuid, uuidOrNull } from "./common.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { noteInspectionOnHold } from "../stock/quality-holds.js";
@@ -204,6 +205,10 @@ export async function completeInspection(client, c, id, input = {}) {
     inspectionNumber: inspection.inspection_number, accepted: acceptedQuantity, rejected: rejectedQuantity });
   await noteObligationInspection(client, c, inspection.id, { overall, accepted: acceptedQuantity, rejected: rejectedQuantity });
   await recordEvent(client, c, "inspection", inspection.id, "quality.inspection.completed", { overall });
+  if (overall === "failed")
+    await notifyPermissionHolders(client, c, "quality.manage", { category: "quality_issue", title: `Inspection ${inspection.inspection_number ?? ""} failed`.replace("  ", " "),
+      message: `${rejectedQuantity} of ${lot} rejected. Raise a non-conformance or decide what happens to the stock.`, href: `/quality/inspection/${inspection.id}`,
+      entityType: "quality_inspection", entityId: inspection.id });
   return getInspection(client, c, inspection.id);
 }
 export async function releaseInspection(client, c, id, input = {}) {

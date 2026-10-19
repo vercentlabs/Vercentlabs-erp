@@ -1,0 +1,95 @@
+# Database migrations for one release (Shared Platform plan 1). Applied before the release's web and worker roll out:
+#   1. render with the same deploy values as the workloads (MIGRATION_IMAGE, MIGRATION_GSA, RELEASE_SHA, ...);
+#   2. kubectl apply -f <rendered migration.yaml>;
+#   3. kubectl -n vercentlabs wait --for=condition=complete --timeout=30m job/erp-migration-${RELEASE_SHA};
+#   4. only then roll out web and worker. The web's readiness refuses a database missing any expected migration, so a failed or
+#      skipped Job keeps the new release out of service rather than half-working.
+# services/worker/bin/migrate.mjs applies only what is missing, one file per transaction, under an advisory lock: re-running the Job,
+# or two Jobs at once, is safe. A failed file rolls back alone; fix it and run the Job again (docs/operations/PRODUCTION_RUNBOOK.md).
+# Not part of base/kustomization.yaml: a Job runs once per release, it is not a long-running workload.
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: migration-secrets
+  namespace: vercentlabs
+spec:
+  provider: gke
+  parameters:
+    secrets: |
+      - resourceName: "projects/${GCP_PROJECT_ID}/secrets/${SECRET_PREFIX}-database-url-migration/versions/latest"
+        path: "MIGRATION_DATABASE_URL"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: erp-migration-${RELEASE_SHA}
+  namespace: vercentlabs
+  labels: { app: vercentlabs-migration, release: "${RELEASE_SHA}" }
+spec:
+  backoffLimit: 0 # a failed migration needs a person, not a retry loop
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 604800 # keep a week of Job history and logs
+  template:
+    metadata:
+      labels: { app: vercentlabs-migration, release: "${RELEASE_SHA}" }
+    spec:
+      serviceAccountName: migration
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.3@sha256:c05efe2fed938b70ce20250e4e0d3cbe17e715c2017ace5cf3ab33211f574d2a
+          restartPolicy: Always # a native sidecar: stops when the migration container exits, so the Job completes
+          args:
+            - --private-ip
+            - --structured-logs
+            - --address=127.0.0.1
+            - --port=5432
+            - --health-check
+            - --http-address=0.0.0.0
+            - --http-port=9801
+            - ${SQL_CONNECTION_NAME}
+          ports: [{ name: proxy-health, containerPort: 9801 }]
+          startupProbe:
+            httpGet: { path: /startup, port: proxy-health }
+            periodSeconds: 2
+            failureThreshold: 30
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+      containers:
+        - name: migrate
+          image: ${MIGRATION_IMAGE}
+          env:
+            - { name: RELEASE_SHA, value: "${RELEASE_SHA}" }
+            - { name: MIGRATION_DATABASE_URL_FILE, value: /var/run/secrets/vercentlabs/MIGRATION_DATABASE_URL }
+            - { name: DATABASE_SSL, value: "false" } # through the local Cloud SQL proxy, which encrypts to the instance
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: migration-secrets, mountPath: /var/run/secrets/vercentlabs, readOnly: true }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 64Mi } }
+        - name: migration-secrets
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: migration-secrets }

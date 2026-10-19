@@ -22,6 +22,7 @@ import { SupplierStatusBadge, formatAddress } from "../supplier-format";
 import { StatusDialog, type StatusAction } from "../components/SupplierDialogs";
 import { DocumentsPanel, FilesPanel, HistoryPanel, PaymentDetailsPanel } from "../components/SupplierPanels";
 import { AddressesContactsPanel } from "../components/AddressesContactsPanel";
+import { TdsCertificatesPanel } from "../components/TdsCertificatesPanel";
 import { useTabParam } from "@/features/procurement/shared/navigation";
 import { listDebitNotesAndCredits } from "@/features/procurement/vendor-credits/api/vendor-credits-api";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
@@ -227,6 +228,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                   </ul>
                 ) : <p className="text-sm text-text-muted">No GST registrations.</p>}
               </Panel>
+              <TdsCertificatesPanel supplierId={supplier.id} />
             </div>
           </TabPanel>
           <TabPanel id="purchase-orders"><div className="pt-4"><DocumentsPanel supplierId={supplier.id} kind="orders" /></div></TabPanel>

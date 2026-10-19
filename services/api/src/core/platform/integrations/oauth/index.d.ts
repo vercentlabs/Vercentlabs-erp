@@ -45,3 +45,7 @@ export type OAuthConnectionSummary = {
 export function listOAuthConnections(client: Client, organizationId: string, options?: { userId?: string | null }): Promise<OAuthConnectionSummary[]>;
 export function revokeOAuthConnection(client: Client, session: Session, id: string, options?: { administrator?: boolean }): Promise<{ id: string; status: "revoked" }>;
 export function getOAuthAccessToken(withClient: <T>(work: (client: Client) => Promise<T>) => Promise<T>, input: { organizationId: string; connectionId: string }, env?: Env): Promise<string>;
+// Shared with Sign in with Google / Microsoft (core/auth/social-sign-in.js).
+export function oauthProviderConfig(provider: string, env?: Env): { authorizeUrl: string; tokenUrl: string; clientId: string; clientSecret: string };
+export function oauthTokenRequest(config: { tokenUrl: string; clientId: string; clientSecret: string }, parameters: Record<string, string>): Promise<{ ok: true; payload: Record<string, any> } | { ok: false; transient: boolean; error: string }>;
+export function decodeOAuthIdTokenClaims(idToken: unknown): Record<string, any>;

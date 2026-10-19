@@ -60,6 +60,41 @@ const TIMESHEET_EVENTS = [
 const define = (key, label, description, entityType, project, conditionFields) =>
   Object.freeze({ key, moduleKey: key.split(".")[0], label, description, entityType, payloadVersion: 1, project, conditionFields: Object.freeze(conditionFields) });
 
+// Shared Platform plan 6: the business events of Sales, Procurement, Stock and Point of Sale, so automations and webhooks work beyond
+// CRM and Projects. Each carries the document's number, its party, the person responsible and (where it is the point) its total;
+// never lines, prices or addresses. Manufacturing, HR and Support add theirs when those apps are rebuilt.
+const businessEvent = (key, label, description, entityType, idField, fields, conditionFields) =>
+  define(key, label, description, entityType, (event) => ({ [idField]: event.entityId, ...pick(event.payload, fields) }), conditionFields);
+const TOTAL = { key: "total", label: "Total", type: "number" };
+const BUSINESS_EVENTS = [
+  businessEvent("sales.quotation.accepted", "Quotation accepted", "The customer accepted a quotation.", "sales.quotation", "quotationId",
+    ["quotationNumber", "customerId", "ownerUserId", "total"], [{ key: "ownerUserId", label: "Salesperson", type: "user" }, { key: "customerId", label: "Customer" }, TOTAL]),
+  businessEvent("sales.quotation.rejected", "Quotation rejected", "The customer rejected a quotation.", "sales.quotation", "quotationId",
+    ["quotationNumber", "customerId", "ownerUserId", "total"], [{ key: "ownerUserId", label: "Salesperson", type: "user" }, { key: "customerId", label: "Customer" }, TOTAL]),
+  businessEvent("sales.order.confirmed", "Sales order confirmed", "A sales order was confirmed.", "sales.order", "orderId",
+    ["orderNumber", "customerId", "ownerUserId", "total", "currencyCode"], [{ key: "ownerUserId", label: "Salesperson", type: "user" }, { key: "customerId", label: "Customer" }, TOTAL]),
+  businessEvent("sales.delivery.dispatched", "Delivery dispatched", "A delivery's goods left the warehouse.", "sales.delivery", "deliveryId",
+    ["deliveryNumber", "orderId", "orderNumber", "customerId", "ownerUserId", "carrier", "dispatchDate"], [{ key: "ownerUserId", label: "Salesperson", type: "user" }, { key: "customerId", label: "Customer" }, { key: "carrier", label: "Carrier" }]),
+  businessEvent("sales.delivery.delivered", "Delivery received", "The customer received a delivery.", "sales.delivery", "deliveryId",
+    ["deliveryNumber", "orderId", "customerId", "ownerUserId"], [{ key: "ownerUserId", label: "Salesperson", type: "user" }, { key: "customerId", label: "Customer" }]),
+  businessEvent("sales.invoice.posted", "Invoice posted", "A sales invoice was posted to the customer's account.", "sales.invoice", "invoiceId",
+    ["invoiceNumber", "orderId", "customerId", "ownerUserId", "total"], [{ key: "ownerUserId", label: "Salesperson", type: "user" }, { key: "customerId", label: "Customer" }, TOTAL]),
+  businessEvent("procurement.purchase_order.confirmed", "Purchase order confirmed", "A purchase order was confirmed (or an amendment of it).", "procurement.purchase_order", "purchaseOrderId",
+    ["purchaseOrderNumber", "supplierId", "buyerUserId", "total", "version"], [{ key: "buyerUserId", label: "Buyer", type: "user" }, { key: "supplierId", label: "Supplier" }, TOTAL]),
+  businessEvent("procurement.goods_receipt.posted", "Goods received", "Goods were received against a purchase order.", "procurement.goods_receipt", "receiptId",
+    ["receiptNumber", "purchaseOrderId", "purchaseOrderNumber", "supplierId", "buyerUserId"], [{ key: "buyerUserId", label: "Buyer", type: "user" }, { key: "supplierId", label: "Supplier" }]),
+  businessEvent("procurement.supplier_bill.posted", "Supplier bill posted", "A supplier bill was posted to Accounts Payable.", "procurement.supplier_bill", "billId",
+    ["billNumber", "supplierInvoiceNumber", "purchaseOrderId", "supplierId", "total"], [{ key: "supplierId", label: "Supplier" }, TOTAL]),
+  businessEvent("stock.transfer.completed", "Transfer completed", "Stock moved between warehouses or locations arrived in full.", "stock.transfer", "transferId",
+    ["transferNumber", "sourceWarehouseId", "destinationWarehouseId"], [{ key: "sourceWarehouseId", label: "From warehouse" }, { key: "destinationWarehouseId", label: "To warehouse" }]),
+  businessEvent("stock.low_stock.raised", "Low stock", "An item fell below its minimum (or got worse) in a warehouse.", "stock.low_stock_alert", "alertId",
+    ["itemId", "sku", "warehouseId", "condition", "transition"], [{ key: "warehouseId", label: "Warehouse" }, { key: "sku", label: "SKU" }, { key: "transition", label: "Opened, reopened or escalated" }]),
+  businessEvent("pos.shift.closed", "POS shift closed", "A cashier's shift was closed.", "pos.shift", "shiftId",
+    ["shiftNumber", "storeId", "cashierUserId", "variance"], [{ key: "storeId", label: "Store" }, { key: "cashierUserId", label: "Cashier", type: "user" }, { key: "variance", label: "Cash difference", type: "number" }]),
+  businessEvent("pos.day.closed", "POS day closed", "A store's business day was closed with its Z report.", "pos.day", "dayId",
+    ["storeId", "businessDate", "zReportId", "netSales", "cashVariance"], [{ key: "storeId", label: "Store" }, { key: "netSales", label: "Net sales", type: "number" }, { key: "cashVariance", label: "Cash difference", type: "number" }]),
+];
+
 export const DOMAIN_EVENTS = Object.freeze([
   define("crm.leads.created", "CRM lead created", "A lead was created.", "crm.lead", (event) => ({ leadId: event.entityId, ...leadState(event.payload) }), [
     { key: "status", label: "Lead status" },
@@ -142,6 +177,7 @@ export const DOMAIN_EVENTS = Object.freeze([
   ...MILESTONE_EVENTS.map(([key, label, description]) => milestoneEvent(key, label, description)),
   ...TASK_EVENTS.map(([key, label, description]) => taskEvent(key, label, description)),
   ...TIMESHEET_EVENTS.map(([key, label, description]) => timesheetEvent(key, label, description)),
+  ...BUSINESS_EVENTS,
 ]);
 
 const BY_KEY = new Map(DOMAIN_EVENTS.map((event) => [event.key, event]));

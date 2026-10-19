@@ -14,7 +14,8 @@ import {
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const codeOf = (list) => list.map((entry) => entry.code);
 const labelOf = (list, code) => list.find((entry) => entry.code === code)?.label ?? code;
-const today = async (client) => (await client.query(`SELECT current_date::text AS d`)).rows[0].d;
+// Today in the company's time zone (the tenant transaction knows the company).
+const today = async (client) => (await client.query(`SELECT to_char((now() AT TIME ZONE COALESCE((SELECT timezone FROM public.organizations WHERE id = public.current_organization_id()), 'Asia/Kolkata'))::date, 'YYYY-MM-DD') AS d`)).rows[0].d;
 
 function invalid(message, field) {
   return new TaxError(400, message, "TAX_VALIDATION", field ? { field } : undefined);
@@ -270,7 +271,28 @@ const toRegistration = (row) => ({
   addressLine1: row.address_line1 ?? null, addressLine2: row.address_line2 ?? null, city: row.city ?? null, postalCode: row.postal_code ?? null,
   isDefault: Boolean(row.is_default), isActive: row.status === "active", createdAt: row.created_at, updatedAt: row.updated_at,
   registrationType: row.registration_type ?? "regular", validFrom: dayOf(row.valid_from) ?? null, validUntil: dayOf(row.valid_until) ?? null,
+  compositionCategory: row.composition_category ?? null, compositionRate: row.composition_rate === null || row.composition_rate === undefined ? null : String(Number(row.composition_rate)),
 });
+
+// Composition scheme: manufacturers and traders pay 1% of turnover, restaurants 5%, other service providers 6% (CGST and SGST halves).
+export const COMPOSITION_CATEGORIES = Object.freeze([
+  { code: "manufacturer", label: "Manufacturer", rate: "1" }, { code: "trader", label: "Trader", rate: "1" },
+  { code: "restaurant", label: "Restaurant", rate: "5" }, { code: "service", label: "Service provider", rate: "6" },
+]);
+async function saveComposition(client, context, registrationId, input, registrationType) {
+  if (registrationType !== "composition") {
+    await client.query(`UPDATE tenant.tax_registrations SET composition_category = NULL, composition_rate = NULL WHERE organization_id = $1 AND id = $2`, [context.organizationId, registrationId]);
+    return;
+  }
+  const stored = (await client.query(`SELECT composition_category, composition_rate FROM tenant.tax_registrations WHERE organization_id = $1 AND id = $2`, [context.organizationId, registrationId])).rows[0];
+  const category = COMPOSITION_CATEGORIES.find((entry) => entry.code === (input.compositionCategory ?? stored?.composition_category ?? "trader"));
+  if (!category) throw invalid("Choose what the composition dealer is (manufacturer, trader, restaurant or service provider).", "compositionCategory");
+  const rate = input.compositionRate !== undefined && input.compositionRate !== null && input.compositionRate !== "" ? String(input.compositionRate)
+    : input.compositionCategory === undefined && stored?.composition_rate !== null && stored?.composition_rate !== undefined ? String(Number(stored.composition_rate)) : category.rate;
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(rate) || Number(rate) > 10) throw invalid("Enter the composition rate as a percentage (for example 1).", "compositionRate");
+  await client.query(`UPDATE tenant.tax_registrations SET composition_category = $3, composition_rate = $4 WHERE organization_id = $1 AND id = $2`,
+    [context.organizationId, registrationId, category.code, rate]);
+}
 
 // The GST regimes a registration can be under. Only a regular registration charges GST on a tax invoice at POS; the others are recorded so
 // they are never mistaken for one.
@@ -348,7 +370,8 @@ export async function createTaxRegistration(client, context, input = {}) {
       values.addressLine2, values.city, values.postalCode, makeDefault, context.userId ?? null, values.registrationType, values.validFrom, values.validUntil])).rows[0];
   await record(client, context, "tax_registration", row.id, "created", `Tax registration ${row.name}${row.registration_number ? ` (${row.registration_number})` : ""} added`,
     { code: row.code, registrationNumber: row.registration_number, stateCode: row.state_code, isDefault: makeDefault });
-  return toRegistration(row);
+  await saveComposition(client, context, row.id, input, row.registration_type);
+  return toRegistration((await client.query(`SELECT * FROM tenant.tax_registrations WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id])).rows[0]);
 }
 
 // input: any of the create fields, isDefault?, isActive?
@@ -387,7 +410,8 @@ export async function updateTaxRegistration(client, context, registrationId, inp
   if (Object.keys(changes).length)
     await record(client, context, "tax_registration", row.id, changes.status ? (status === "active" ? "activated" : "deactivated") : "updated",
       `Tax registration ${row.name} changed: ${Object.keys(changes).join(", ")}`, changes);
-  return toRegistration(row);
+  await saveComposition(client, context, row.id, input, row.registration_type);
+  return toRegistration((await client.query(`SELECT * FROM tenant.tax_registrations WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id])).rows[0]);
 }
 
 // ------------------------------------------------------------ defaults
@@ -432,6 +456,7 @@ export async function getTaxOptions(client, context) {
   return {
     taxTypes: TAX_TYPES, treatments: TAX_TREATMENTS, appliesTo: TAX_APPLIES_TO, supplyTypes: SUPPLY_TYPES.map(({ code, label }) => ({ code, label })), states: GST_STATES,
     registrationTypes: REGISTRATION_TYPES,
+    compositionCategories: COMPOSITION_CATEGORIES,
     settings: await getTaxSettings(client, context),
     registrations: await listTaxRegistrations(client, context, { status: "active" }),
     capabilities: Object.fromEntries(Object.entries(TAX_PERMISSIONS).map(([name, permission]) => [name, can(context, permission)])),

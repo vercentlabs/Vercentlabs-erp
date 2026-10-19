@@ -52,6 +52,11 @@ export function useListState<F extends Record<string, string>>(listKey: string, 
     filters: state.filters,
     setFilter: (key: keyof F, value: string) => setState((current) => ({ ...current, filters: { ...current.filters, [key]: value } })),
     setFilters: (update: (current: F) => F) => setState((current) => ({ ...current, filters: update(current.filters) })),
+    // A saved view (Shared Platform plan 5): its view, search and filters at once.
+    apply: (saved: { view?: string; search?: string; filters?: Partial<F> }) => {
+      setState({ search: saved.search ?? "", filters: { ...defaults.filters, ...(saved.filters ?? {}) } as F });
+      replace("view", saved.view ?? defaults.view, defaults.view);
+    },
   };
 }
 

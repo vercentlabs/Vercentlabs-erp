@@ -22,7 +22,20 @@ import { getDomainEvent, projectDomainEvent } from "../events/index.js";
 import { isFeatureFlagEnabled } from "../configuration/index.js";
 import { createNotification } from "../notifications/index.js";
 import { audit } from "../../security/request-security.js";
-import { CONDITION_OPERATORS, WORKFLOW_ACTIONS, WORKFLOW_ENTITY_LINKS, WORKFLOW_LIMITS, WORKFLOW_MODULE_ACTIONS, WORKFLOW_NOTIFICATION_CATEGORY } from "./registry.js";
+import {
+  CONDITION_OPERATORS, WORKFLOW_ACTIONS, WORKFLOW_ACTIVITY_RECORDS, WORKFLOW_ASSIGNABLE, WORKFLOW_ENTITY_LINKS, WORKFLOW_LIMITS, WORKFLOW_MODULE_ACTIONS, WORKFLOW_NOTIFICATION_CATEGORY,
+} from "./registry.js";
+import { TIME_TRIGGER_OFFSET, getTimeTrigger } from "./time-triggers.js";
+
+// A trigger is a registered domain event or a time-based trigger (Shared Platform plan 6).
+const triggerOf = (key) => getDomainEvent(key) ?? getTimeTrigger(key);
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ACTIVITY_KINDS = ["to_do", "call", "meeting", "email"];
+// {{field}} placeholders, filled from the event's own values.
+const fill = (template, data) => String(template ?? "").replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (_match, path) => {
+  const value = readPath(data, path);
+  return value === undefined || value === null ? "" : String(value).slice(0, 200);
+});
 
 export class WorkflowError extends Error {
   constructor(status, message, code = "WORKFLOW_ERROR") {
@@ -47,8 +60,12 @@ function readPath(data, path) {
 async function validateDefinition(client, organizationId, input) {
   const name = String(input?.name ?? "").trim();
   if (!name || name.length > WORKFLOW_LIMITS.maxNameLength) throw invalid("Name the automation (up to 120 characters).");
-  const event = getDomainEvent(input?.trigger);
+  const event = triggerOf(input?.trigger);
   if (!event) throw invalid("Choose a supported trigger event.");
+  const timed = Boolean(getTimeTrigger(event.key));
+  const offsetDays = timed ? Number(input?.offsetDays ?? 0) : null;
+  if (timed && (!Number.isInteger(offsetDays) || offsetDays < TIME_TRIGGER_OFFSET.min || offsetDays > TIME_TRIGGER_OFFSET.max))
+    throw invalid(`Choose how many days from the date (${TIME_TRIGGER_OFFSET.min} to ${TIME_TRIGGER_OFFSET.max}).`);
   const conditionFields = new Map(event.conditionFields.map((field) => [field.key, field]));
 
   const conditions = Array.isArray(input?.conditions) ? input.conditions : [];
@@ -59,6 +76,11 @@ async function validateDefinition(client, organizationId, input) {
     const operator = CONDITION_OPERATORS.find((entry) => entry.key === condition?.operator);
     if (!operator) throw invalid("A condition uses an unsupported comparison.");
     if (operator.key === "changed_includes" && field.type !== "list") throw invalid(`"${field.label}" cannot use "includes".`);
+    if (["greater_than", "less_than"].includes(operator.key)) {
+      if (field.type !== "number") throw invalid(`"${field.label}" is not an amount.`);
+      if (!Number.isFinite(Number(condition.value)) || String(condition.value).trim() === "") throw invalid(`Give "${field.label}" a number.`);
+      return { field: field.key, operator: operator.key, value: String(Number(condition.value)) };
+    }
     if (operator.key === "in") {
       if (!Array.isArray(condition.value) || !condition.value.length || condition.value.length > 50) throw invalid("Give up to 50 values for \"is one of\".");
       return { field: field.key, operator: operator.key, value: condition.value.map((value) => String(value).slice(0, 200)) };
@@ -84,6 +106,30 @@ async function validateDefinition(client, organizationId, input) {
       }
       continue;
     }
+    if (registered.key === "send_email") {
+      const subject = String(action.subject ?? "").trim();
+      const body = String(action.body ?? "").trim();
+      if (!subject || subject.length > 200) throw invalid("Give the email a subject (up to 200 characters).");
+      if (!body || body.length > 4000) throw invalid("Write the email (up to 4,000 characters).");
+      cleanActions.push({ type: "send_email", to: await recipientOf(client, organizationId, action.to, conditionFields, { allowAddress: true }), subject, body });
+      continue;
+    }
+    if (registered.key === "create_activity") {
+      if (!WORKFLOW_ACTIVITY_RECORDS[event.entityType]) throw invalid(`"${registered.label}" is not available for this trigger.`);
+      const summary = String(action.summary ?? "").trim();
+      if (!summary || summary.length > 300) throw invalid("Say what the activity is (up to 300 characters).");
+      const kind = ACTIVITY_KINDS.includes(action.activityType) ? action.activityType : "to_do";
+      const inDays = Number(action.inDays ?? 0);
+      if (!Number.isInteger(inDays) || inDays < 0 || inDays > 365) throw invalid("Choose when the activity is due (0 to 365 days after the event).");
+      cleanActions.push({ type: "create_activity", activityType: kind, summary, inDays, assignee: await recipientOf(client, organizationId, action.assignee, conditionFields) });
+      continue;
+    }
+    if (registered.key === "assign") {
+      if (!WORKFLOW_ASSIGNABLE[event.entityType]) throw invalid(`"${registered.label}" is not available for this trigger.`);
+      const member = await recipientOf(client, organizationId, { type: "user", userId: action.userId }, conditionFields);
+      cleanActions.push({ type: "assign", userId: member.userId });
+      continue;
+    }
     const title = String(action.title ?? "").trim();
     const message = String(action.message ?? "").trim();
     if (!title || title.length > WORKFLOW_LIMITS.maxTitle) throw invalid("Give the notification a title (up to 120 characters).");
@@ -102,7 +148,28 @@ async function validateDefinition(client, organizationId, input) {
       throw invalid("Choose who receives the notification.");
     }
   }
-  return { name, trigger: event.key, definition: { trigger: event.key, conditions: cleanConditions, actions: cleanActions } };
+  return { name, trigger: event.key, definition: { trigger: event.key, ...(timed ? { offsetDays } : {}), conditions: cleanConditions, actions: cleanActions } };
+}
+
+// Who an email or activity is for: a person from the event, a named active member, or (email only) an address.
+async function recipientOf(client, organizationId, recipient, conditionFields, { allowAddress = false } = {}) {
+  if (recipient?.type === "event_field") {
+    const field = conditionFields.get(String(recipient.field));
+    if (!field || field.type !== "user") throw invalid("Choose who in the event it is for.");
+    return { type: "event_field", field: field.key };
+  }
+  if (recipient?.type === "user") {
+    if (!UUID.test(String(recipient.userId || ""))) throw invalid("Choose a member.");
+    const member = await client.query(`SELECT 1 FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active'`, [organizationId, recipient.userId]);
+    if (!member.rows[0]) throw invalid("The member must be active in this organization.");
+    return { type: "user", userId: recipient.userId };
+  }
+  if (allowAddress && recipient?.type === "address") {
+    const address = String(recipient.email ?? "").trim().toLowerCase();
+    if (!EMAIL.test(address) || address.length > 200) throw invalid("Enter a valid email address.");
+    return { type: "address", email: address };
+  }
+  throw invalid("Choose who it is for.");
 }
 
 // ------------------------------------------------------------ administration
@@ -113,7 +180,7 @@ function workflowDto(row) {
     name: row.name,
     status: row.status,
     trigger: row.trigger_event,
-    triggerLabel: getDomainEvent(row.trigger_event)?.label ?? "Unsupported trigger",
+    triggerLabel: triggerOf(row.trigger_event)?.label ?? "Unsupported trigger",
     definition: row.definition,
     version: row.version,
     updatedAt: row.updated_at,
@@ -145,7 +212,7 @@ export async function createWorkflow(client, session, input) {
   const { rows } = await client.query(
     `INSERT INTO workflow_definitions (organization_id, name, entity_type, status, definition, trigger_event, version, created_by, updated_by)
      VALUES ($1,$2,$3,$4,$5::jsonb,$6,1,$7,$7) RETURNING *`,
-    [session.organizationId, validated.name, getDomainEvent(validated.trigger).entityType, status, JSON.stringify(validated.definition), validated.trigger, session.userId],
+    [session.organizationId, validated.name, triggerOf(validated.trigger).entityType, status, JSON.stringify(validated.definition), validated.trigger, session.userId],
   );
   await saveVersion(client, session.organizationId, rows[0].id, 1, validated.definition, session.userId);
   await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "workflow.created", entityType: "workflow", entityId: rows[0].id, afterData: { name: validated.name, trigger: validated.trigger, status } });
@@ -162,7 +229,7 @@ export async function updateWorkflow(client, session, workflowId, input) {
   const version = current.version + 1;
   const { rows } = await client.query(
     `UPDATE workflow_definitions SET name=$2, entity_type=$3, definition=$4::jsonb, trigger_event=$5, version=$6, updated_by=$7, updated_at=now() WHERE id=$1 RETURNING *`,
-    [current.id, validated.name, getDomainEvent(validated.trigger).entityType, JSON.stringify(validated.definition), validated.trigger, version, session.userId],
+    [current.id, validated.name, triggerOf(validated.trigger).entityType, JSON.stringify(validated.definition), validated.trigger, version, session.userId],
   );
   await saveVersion(client, session.organizationId, current.id, version, validated.definition, session.userId);
   await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "workflow.updated", entityType: "workflow", entityId: current.id, metadata: { version } });
@@ -174,7 +241,7 @@ export async function setWorkflowStatus(client, session, workflowId, status) {
   if (!UUID.test(String(workflowId || ""))) throw new WorkflowError(404, "Automation not found.", "WORKFLOW_NOT_FOUND");
   const { rows } = await client.query(`UPDATE workflow_definitions SET status=$3, updated_by=$4, updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`, [session.organizationId, workflowId, status, session.userId]);
   if (!rows[0]) throw new WorkflowError(404, "Automation not found.", "WORKFLOW_NOT_FOUND");
-  if (!getDomainEvent(rows[0].trigger_event) && status === "active") throw new WorkflowError(409, "This automation's trigger is no longer supported. Edit it first.", "WORKFLOW_DEFINITION_INVALID");
+  if (!triggerOf(rows[0].trigger_event) && status === "active") throw new WorkflowError(409, "This automation's trigger is no longer supported. Edit it first.", "WORKFLOW_DEFINITION_INVALID");
   await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: status === "active" ? "workflow.activated" : "workflow.deactivated", entityType: "workflow", entityId: workflowId });
   return workflowDto(rows[0]);
 }
@@ -201,7 +268,7 @@ export async function listWorkflowRuns(client, organizationId, { workflowId = nu
     workflowId: row.workflow_id,
     version: row.workflow_version,
     trigger: row.trigger_key,
-    triggerLabel: getDomainEvent(row.trigger_key)?.label ?? row.trigger_key,
+    triggerLabel: triggerOf(row.trigger_key)?.label ?? row.trigger_key,
     status: row.status,
     matched: row.output_payload?.matched ?? null,
     actionsRun: Array.isArray(row.output_payload?.actions) ? row.output_payload.actions.length : 0,
@@ -256,6 +323,10 @@ function conditionHolds(condition, data) {
       return actual !== undefined && actual !== null && condition.value.includes(String(actual));
     case "changed_includes":
       return Array.isArray(actual) && actual.map(String).includes(condition.value);
+    case "greater_than":
+      return actual !== undefined && actual !== null && actual !== "" && Number(actual) > Number(condition.value);
+    case "less_than":
+      return actual !== undefined && actual !== null && actual !== "" && Number(actual) < Number(condition.value);
     default:
       return false;
   }
@@ -292,6 +363,10 @@ export async function executeWorkflowRun(client, run) {
       results.push(await execute(client, run.organization_id, action, { entity: envelope.entity, data }));
       continue;
     }
+    if (registered.key === "send_email" || registered.key === "create_activity" || registered.key === "assign") {
+      results.push(await runPlatformAction(client, run.organization_id, action, { envelope, data, link }));
+      continue;
+    }
     const userId = action.recipient.type === "user" ? action.recipient.userId : readPath(data, action.recipient.field);
     if (!UUID.test(String(userId || ""))) {
       results.push({ type: "notify", delivered: false, reason: "NO_RECIPIENT" });
@@ -311,6 +386,88 @@ export async function executeWorkflowRun(client, run) {
   }
   await client.query(`UPDATE workflow_runs SET status='succeeded', output_payload=$2::jsonb, finished_at=now(), updated_at=now() WHERE id=$1`, [run.id, JSON.stringify({ matched: true, actions: results })]);
   return { matched: true, actions: results };
+}
+
+// Email, activity and hand-over, for any app's events. A step that cannot apply (nobody to send to, the record gone) is recorded, not thrown.
+async function runPlatformAction(client, organizationId, action, { envelope, data, link }) {
+  const person = (recipient) => (recipient.type === "user" ? recipient.userId : recipient.type === "event_field" ? readPath(data, recipient.field) : null);
+  if (action.type === "send_email") {
+    let email = action.to.type === "address" ? action.to.email : null;
+    if (!email) {
+      const userId = person(action.to);
+      if (UUID.test(String(userId || ""))) email = (await client.query(
+        `SELECT users.email FROM users JOIN organization_memberships member ON member.user_id = users.id AND member.organization_id = $1 AND member.status = 'active' WHERE users.id = $2`,
+        [organizationId, userId])).rows[0]?.email ?? null;
+    }
+    if (!email) return { type: "send_email", sent: false, reason: "NO_RECIPIENT" };
+    const organization = (await client.query(`SELECT name FROM organizations WHERE id = $1`, [organizationId])).rows[0];
+    const { queueMail } = await import("../mail/outbox.js");
+    const queued = await queueMail(client, { type: "notification", email, organizationId, organizationName: organization?.name, subject: fill(action.subject, data).slice(0, 200),
+      title: fill(action.subject, data).slice(0, 200), message: fill(action.body, data).slice(0, 4000), href: link });
+    return { type: "send_email", sent: queued, reason: queued ? null : "MAIL_NOT_CONFIGURED" };
+  }
+  const entityId = envelope.entity?.id;
+  if (action.type === "create_activity") {
+    const recordType = WORKFLOW_ACTIVITY_RECORDS[envelope.entity?.type];
+    const assignee = person(action.assignee);
+    if (!recordType || !entityId) return { type: "create_activity", created: false, reason: "NO_RECORD" };
+    if (!UUID.test(String(assignee || ""))) return { type: "create_activity", created: false, reason: "NO_RECIPIENT" };
+    const active = (await client.query(`SELECT 1 FROM organization_memberships WHERE organization_id = $1 AND user_id = $2 AND status = 'active'`, [organizationId, assignee])).rows[0];
+    if (!active) return { type: "create_activity", created: false, reason: "RECIPIENT_INACTIVE" };
+    const summary = fill(action.summary, data).slice(0, 300);
+    const due = (await client.query(`SELECT to_char((now() AT TIME ZONE COALESCE((SELECT timezone FROM organizations WHERE id = $1), 'Asia/Kolkata'))::date + $2::int, 'YYYY-MM-DD') AS d`,
+      [organizationId, action.inDays])).rows[0].d;
+    await client.query(
+      `INSERT INTO public.record_activities (organization_id, entity_type, entity_id, activity_type, summary, note, due_date, assigned_to, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'Planned by an automation.', $6::date, $7, NULL)`,
+      [organizationId, recordType, String(entityId), action.activityType, summary, due, assignee]);
+    await createNotification(client, { organizationId, userId: assignee, category: "automation", title: `New ${action.activityType.replace("_", "-")}: ${summary}`.slice(0, 200),
+      message: `Due ${due}.`, href: link });
+    return { type: "create_activity", created: true, dueDate: due };
+  }
+  if (action.type === "assign") {
+    const target = WORKFLOW_ASSIGNABLE[envelope.entity?.type];
+    if (!target || !UUID.test(String(entityId || ""))) return { type: "assign", changed: false, reason: "NO_RECORD" };
+    const active = (await client.query(`SELECT 1 FROM organization_memberships WHERE organization_id = $1 AND user_id = $2 AND status = 'active'`, [organizationId, action.userId])).rows[0];
+    if (!active) return { type: "assign", changed: false, reason: "RECIPIENT_INACTIVE" };
+    const updated = await client.query(`UPDATE ${target.table} SET ${target.column} = $3, updated_at = now() WHERE organization_id = $1 AND id = $2 AND ${target.column} IS DISTINCT FROM $3`,
+      [organizationId, entityId, action.userId]);
+    if (updated.rowCount) await createNotification(client, { organizationId, userId: action.userId, category: "automation", title: `You are now the ${target.label}`,
+      message: `An automation handed this record to you.`, href: link });
+    return { type: "assign", changed: Boolean(updated.rowCount) };
+  }
+  return { type: action.type, skipped: true };
+}
+
+// Time-based triggers (worker, daily, in the company's transaction): for each active automation on a time trigger, the records whose
+// date is `offsetDays` before today become one run each, once per record and day.
+export async function queueTimeTriggeredRuns(client, organizationId, day) {
+  if (!(await isFeatureFlagEnabled(client, organizationId, "platform.workflows", "enabled"))) return 0;
+  const today = /^\d{4}-\d{2}-\d{2}$/.test(String(day ?? "")) ? String(day)
+    : (await client.query(`SELECT to_char((now() AT TIME ZONE COALESCE((SELECT timezone FROM organizations WHERE id = $1), 'Asia/Kolkata'))::date, 'YYYY-MM-DD') AS d`, [organizationId])).rows[0].d;
+  const workflows = (await client.query(
+    `SELECT workflow.id, workflow.version, workflow.trigger_event, version.definition FROM workflow_definitions workflow
+       JOIN workflow_definition_versions version ON version.organization_id = workflow.organization_id AND version.workflow_id = workflow.id AND version.version = workflow.version
+      WHERE workflow.organization_id = $1 AND workflow.status = 'active' AND workflow.trigger_event LIKE 'time.%'`, [organizationId])).rows;
+  let queued = 0;
+  for (const workflow of workflows) {
+    const trigger = getTimeTrigger(workflow.trigger_event);
+    if (!trigger) continue;
+    const offset = Number(workflow.definition?.offsetDays ?? 0);
+    const target = (await client.query(`SELECT to_char($1::date - $2::int, 'YYYY-MM-DD') AS d`, [today, offset])).rows[0].d;
+    const records = (await client.query(trigger.sql, [organizationId, target])).rows.slice(0, 500);
+    for (const record of records) {
+      const { entity_id: entityId, ...data } = record;
+      const envelope = { id: null, type: trigger.key, version: 1, module: trigger.moduleKey, occurredAt: new Date().toISOString(), entity: { type: trigger.entityType, id: String(entityId) },
+        data: { ...data, daysFromDate: offset } };
+      const inserted = await client.query(
+        `INSERT INTO workflow_runs (organization_id, workflow_id, workflow_version, event_id, trigger_key, entity_type, entity_id, idempotency_key, status, input_payload, created_by)
+         VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'pending', $8::jsonb, NULL) ON CONFLICT (organization_id, idempotency_key) DO NOTHING`,
+        [organizationId, workflow.id, workflow.version, trigger.key, trigger.entityType, String(entityId), `${workflow.id}:${workflow.version}:${entityId}:${today}`, JSON.stringify(envelope)]);
+      queued += inserted.rowCount ?? 0;
+    }
+  }
+  return queued;
 }
 
 export async function failWorkflowRun(client, runId, error) {

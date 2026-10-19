@@ -111,7 +111,7 @@ export async function previewTaxCalculation(client, context, input = {}) {
   const tax = await loadTaxContext(client, { organizationId: context.organizationId, sellerRegistrationId: input.sellerRegistrationId || null });
   const sellerStateCode = tax.registration?.stateCode ?? null;
   const placeOfSupply = String(input.placeOfSupply || sellerStateCode || "").trim() || null;
-  const date = dayOf(input.date) ?? (await client.query(`SELECT current_date::text AS d`)).rows[0].d;
+  const date = dayOf(input.date) ?? (await client.query(`SELECT to_char((now() AT TIME ZONE COALESCE((SELECT timezone FROM public.organizations WHERE id = public.current_organization_id()), 'Asia/Kolkata'))::date, 'YYYY-MM-DD') AS d`)).rows[0].d;
   const decision = await resolveLineTax(client, tax, { taxCategoryId: input.taxCategoryId, date, sellerStateCode, placeOfSupply, requireCategory: true });
   const computed = computeTax({ base: amount, inclusive: input.priceIncludesTax === true, components: decision.components });
   return {

@@ -70,6 +70,7 @@ export async function runTenantTransaction(client, organizationId, work) {
 
 export { readMigrationStatus, restrictedRoleRequired, RuntimeCheckError, verifyRestrictedRuntimeRole } from "./runtime-checks.js";
 export { EXPECTED_MIGRATIONS } from "./migration-manifest.js";
+export { applyPendingMigrations, MigrationRunError } from "./migrate.js";
 
 // Database TLS policy (web and worker). Off unless DATABASE_SSL=true: in GKE
 // the app talks plaintext to the Cloud SQL Auth Proxy sidecar on loopback and

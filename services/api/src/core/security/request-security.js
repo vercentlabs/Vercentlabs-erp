@@ -234,19 +234,41 @@ export async function audit(client, input) {
   await client.query(statement, values);
 }
 
+// A device as the browser and operating system it reports, without version numbers: a browser update is not a new device.
+export function deviceFingerprint(userAgent) {
+  const normalized = String(userAgent || "unknown").toLowerCase().replace(/[0-9]+([._][0-9]+)*/g, "").replace(/\s+/g, " ").trim();
+  return createHash("sha256").update(normalized).digest("hex").slice(0, 32);
+}
+
+// Records a sign-in attempt. A successful sign-in from a device the person has not signed in from before (and not their very first
+// sign-in) is emailed to them (Shared Platform plan 3, security alerts). The email never blocks the sign-in.
 export async function recordLoginEvent(client, input) {
   if (!input.succeeded) securityLogger.event("auth.login.failed", { reason: input.reason || "unknown" }, "info");
+  const userAgent = input.request.headers.get("user-agent")?.slice(0, 500) || null;
+  const fingerprint = input.succeeded && input.userId ? deviceFingerprint(userAgent) : null;
+  let newDevice = false;
+  if (fingerprint) {
+    const history = (await client.query(
+      `SELECT count(*) FILTER (WHERE TRUE)::int AS signins, count(*) FILTER (WHERE device_fingerprint = $2)::int AS on_device
+         FROM login_events WHERE user_id = $1 AND succeeded AND created_at > now() - interval '180 days'`, [input.userId, fingerprint])).rows[0];
+    newDevice = history.signins > 0 && history.on_device === 0;
+  }
+  const ip = clientIp(input.request, input.env);
   await client.query(
-    `INSERT INTO login_events (id, user_id, email, succeeded, reason, ip_address, user_agent)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [
-      randomUUID(),
-      input.userId || null,
-      input.email,
-      input.succeeded,
-      input.reason || null,
-      clientIp(input.request, input.env),
-      input.request.headers.get("user-agent")?.slice(0, 500) || null,
-    ],
+    `INSERT INTO login_events (id, user_id, email, succeeded, reason, ip_address, user_agent, device_fingerprint, new_device)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [randomUUID(), input.userId || null, input.email, input.succeeded, input.reason || null, ip, userAgent, fingerprint, newDevice],
   );
+  if (newDevice) {
+    try {
+      const { sendSecurityAlert } = await import("../auth/profile.js");
+      await sendSecurityAlert({ email: input.email }, {
+        subject: "New sign-in to your Vercentlabs ERP account",
+        heading: "A new device signed in",
+        message: `Your account was signed in to from a device or browser it has not used before (${String(userAgent || "unknown browser").slice(0, 120)}${ip ? `, from ${ip}` : ""}) at ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST. If this was you, there is nothing to do.`,
+      }, input.env ?? process.env, client);
+    } catch (error) {
+      securityLogger.event("auth.security_alert.failed", { reason: String(error?.message || error).slice(0, 200) }, "warn");
+    }
+  }
 }

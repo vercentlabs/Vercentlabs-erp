@@ -10,6 +10,7 @@ import { billingProvider } from "@/features/billing/provider";
 const schema = z.object({
   planPriceId: z.string().uuid().optional(),
   users: z.number().int().min(1).max(500),
+  billingPeriod: z.enum(["monthly", "yearly"]).default("monthly"),
 });
 
 // transaction "none": the checkout saga commits its intent before calling the

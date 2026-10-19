@@ -39,7 +39,7 @@ const base64url = (buffer) => Buffer.from(buffer).toString("base64url");
 // Provider endpoints. OAUTH_STANDIN_URL points both providers at the local
 // deterministic stand-in (tests/support/oauth-standin.mjs) and is refused in
 // production.
-function providerConfig(provider, env) {
+export function oauthProviderConfig(provider, env = process.env) {
   const prefix = provider === "google" ? "GOOGLE" : "MICROSOFT";
   const clientId = String(env[`${prefix}_OAUTH_CLIENT_ID`] || "").trim();
   const clientSecret = String(env[`${prefix}_OAUTH_CLIENT_SECRET`] || "").trim();
@@ -70,7 +70,7 @@ export function oauthProfilesStatus(env = process.env) {
   return OAUTH_PROFILES.map((profile) => {
     let configured = true;
     try {
-      providerConfig(profile.provider, env);
+      oauthProviderConfig(profile.provider, env);
     } catch {
       configured = false;
     }
@@ -82,7 +82,7 @@ export function oauthProfilesStatus(env = process.env) {
 export async function beginOAuthConnection(client, session, input, env = process.env) {
   const profile = getOAuthProfile(input?.profile);
   if (!profile) throw new OAuthError(400, "Choose a supported connection.", "PLATFORM_OAUTH_PROFILE_UNKNOWN");
-  const config = providerConfig(profile.provider, env);
+  const config = oauthProviderConfig(profile.provider, env);
   const redirectUri = oauthCallbackUri(profile.provider, env);
   const state = randomBytes(32).toString("base64url");
   const verifier = randomBytes(32).toString("base64url");
@@ -138,7 +138,7 @@ export async function consumeOAuthState(client, session, provider, stateValue, e
   };
 }
 
-function decodeIdTokenClaims(idToken) {
+export function decodeOAuthIdTokenClaims(idToken) {
   // The id_token comes straight from the provider's token endpoint over TLS,
   // so its claims are trusted for labelling the account (OIDC Core 3.1.3.7).
   try {
@@ -157,7 +157,7 @@ function validateTokenResponse(payload) {
   return true;
 }
 
-async function tokenRequest(config, parameters) {
+export async function oauthTokenRequest(config, parameters) {
   let response;
   try {
     response = await fetch(config.tokenUrl, {
@@ -185,9 +185,9 @@ export async function exchangeOAuthCode(profileKey, { code, redirectUri, codeVer
   if (!profile) throw new OAuthError(400, "Unsupported connection.", "PLATFORM_OAUTH_PROFILE_UNKNOWN");
   const authorizationCode = String(code || "").trim();
   if (!authorizationCode || authorizationCode.length > 4000) throw new OAuthError(400, "The provider did not return an authorization code.", "PLATFORM_OAUTH_CODE_MISSING");
-  const result = await tokenRequest(providerConfig(profile.provider, env), { grant_type: "authorization_code", code: authorizationCode, redirect_uri: redirectUri, code_verifier: codeVerifier });
+  const result = await oauthTokenRequest(oauthProviderConfig(profile.provider, env), { grant_type: "authorization_code", code: authorizationCode, redirect_uri: redirectUri, code_verifier: codeVerifier });
   if (!result.ok) throw new OAuthError(502, "The provider refused the connection. Start again.", "PLATFORM_OAUTH_EXCHANGE_FAILED");
-  const claims = decodeIdTokenClaims(result.payload.id_token);
+  const claims = decodeOAuthIdTokenClaims(result.payload.id_token);
   return {
     profileKey: profile.key,
     provider: profile.provider,
@@ -294,7 +294,7 @@ export async function getOAuthAccessToken(withClient, { organizationId, connecti
     throw new OAuthError(409, "Reconnect this account.", "PLATFORM_OAUTH_RECONNECT_REQUIRED");
   }
 
-  const result = await tokenRequest(providerConfig(read.provider, env), { grant_type: "refresh_token", refresh_token: credentials.refreshToken });
+  const result = await oauthTokenRequest(oauthProviderConfig(read.provider, env), { grant_type: "refresh_token", refresh_token: credentials.refreshToken });
   if (!result.ok) {
     const reconnect = !result.transient;
     await withClient((client) =>

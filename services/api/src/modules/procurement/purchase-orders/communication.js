@@ -83,6 +83,7 @@ export async function sendPurchaseOrder(client, context, orderId, input = {}, at
   const prepared = await prepareFileUpload({ fileName: attachment.fileName, mimeType: "application/pdf", bytes: attachment.content, maximumBytes: 10 * 1024 * 1024, allowedTypes: ["application/pdf"] }, env);
   const file = await storeFile(client, { organizationId: context.organizationId, entityType: PO_FILE_ENTITY, entityId: order.id, prepared, uploadedBy: context.userId ?? null }, { env });
   const result = await sendMail({
+    meter: { client, organizationId: context.organizationId },
     to, cc: cc.length ? cc : undefined, subject, text: message,
     html: `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">${escapeHtml(message).replace(/\n/g, "<br>")}</body></html>`,
     attachments: [{ filename: attachment.fileName, content: attachment.content, contentType: "application/pdf" }],

@@ -11,6 +11,7 @@
 // what is posted now, so the posted invoices of a line add up to it exactly,
 // and Finance makes it the customer's receivable and enters it in the books
 // (receivable, revenue, output tax). Posting twice posts once.
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
 import { getOpenPeriod } from "../../accounting/core.js";
 import { cancelCustomerInvoiceDraft, postCustomerInvoice, reverseCustomerInvoice } from "../../accounting/receivables.js";
 import { submitSubledgerDocument } from "../../accounting/subledger-approvals.js";
@@ -136,6 +137,8 @@ export async function postSalesInvoice(client, context, invoiceId, input = {}) {
     `INSERT INTO tenant.sales_document_events (organization_id, entity_type, entity_id, event_type, from_status, to_status, metadata, actor_user_id, occurred_at)
      VALUES ($1, 'sales_order', $2, 'sales_order.invoice_posted', $3, $3, $4::jsonb, $5, clock_timestamp())`,
     [context.organizationId, order.id, order.lifecycle_status, JSON.stringify({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number, total: posted.grand_total, remaining }), context.userId ?? null]);
+  await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "sales", eventType: "sales.invoice.posted", entityType: "sales.invoice", entityId: invoice.id,
+    payload: { invoiceNumber: invoice.invoice_number, orderId: order.id, customerId: order.party_id, ownerUserId: order.owner_user_id, total: posted.grand_total } });
   return { invoiceId: invoice.id, invoiceNumber: invoice.invoice_number, status: INVOICE_STATUS.posted, replayed: false };
 }
 

@@ -24,15 +24,17 @@ import { requestJson } from "@/shared/http/request-json";
 
 import { ActionEditor, actionReady, adaptAction, blankAction, type Action, type ActionDefinition } from "./ActionEditor";
 
-type Field = { key: string; label: string; type?: "user" | "list" };
+type Field = { key: string; label: string; type?: "user" | "list" | "number" };
 type Trigger = {
   key: string;
   label: string;
   moduleKey: string;
+  entityType: string;
   conditionFields: Field[];
+  timed: boolean;
 };
 type Operator = {
-  key: "equals" | "not_equals" | "in" | "changed_includes";
+  key: "equals" | "not_equals" | "in" | "changed_includes" | "greater_than" | "less_than";
   label: string;
 };
 type Condition = {
@@ -46,7 +48,7 @@ type Workflow = {
   status: "active" | "inactive";
   trigger: string;
   triggerLabel: string;
-  definition: { conditions: Condition[]; actions: Action[] };
+  definition: { offsetDays?: number; conditions: Condition[]; actions: Action[] };
   version: number;
   updatedAt: string;
   lastRunAt: string | null;
@@ -69,6 +71,9 @@ type Payload = {
   operators: Operator[];
   actions: ActionDefinition[];
   limits: { maxConditions: number; maxActions: number };
+  offsetRange: { min: number; max: number };
+  activityRecords: string[];
+  assignableRecords: string[];
   members: Array<{ id: string; name: string }>;
 };
 
@@ -261,6 +266,7 @@ function WorkflowBuilder({
   const [trigger, setTrigger] = useState(
     workflow?.trigger ?? payload.triggers[0]?.key ?? "",
   );
+  const [offsetDays, setOffsetDays] = useState(String(workflow?.definition.offsetDays ?? 3));
   const [conditions, setConditions] = useState<Condition[]>(
     workflow?.definition.conditions ?? [],
   );
@@ -272,9 +278,12 @@ function WorkflowBuilder({
   const fields = event?.conditionFields ?? [];
   const userFields = fields.filter((field) => field.type === "user");
   // Notifications for any event; a module's own actions only for its events.
-  const availableFor = (moduleKey: string | undefined) =>
-    payload.actions.filter((entry) => !entry.module || entry.module === moduleKey);
-  const available = availableFor(event?.moduleKey);
+  // An activity or a hand-over only where the record has activities or a salesperson/buyer.
+  const availableFor = (picked: Trigger | undefined) =>
+    payload.actions.filter((entry) => (!entry.module || entry.module === picked?.moduleKey)
+      && (entry.key !== "create_activity" || payload.activityRecords.includes(picked?.entityType ?? ""))
+      && (entry.key !== "assign" || payload.assignableRecords.includes(picked?.entityType ?? "")));
+  const available = availableFor(event);
   const memberOptions = payload.members.map((member) => ({
     value: member.id,
     label: member.name,
@@ -291,6 +300,7 @@ function WorkflowBuilder({
           json: {
             name,
             trigger,
+            ...(event?.timed ? { offsetDays: Number(offsetDays) } : {}),
             conditions,
             actions,
             ...(workflow
@@ -311,7 +321,7 @@ function WorkflowBuilder({
   const changeTrigger = (key: string) => {
     setTrigger(key);
     setConditions([]);
-    const next = availableFor(payload.triggers.find((entry) => entry.key === key)?.moduleKey);
+    const next = availableFor(payload.triggers.find((entry) => entry.key === key));
     setActions((current) => current.map((action) => adaptAction(action, next)));
   };
   const updateCondition = (index: number, patch: Partial<Condition>) =>
@@ -345,6 +355,15 @@ function WorkflowBuilder({
             selectedKey={trigger}
             onSelectionChange={(key) => changeTrigger(String(key))}
           />
+          {event?.timed && (
+            <TextField
+              label="Days from the date"
+              type="number"
+              value={offsetDays}
+              onChange={setOffsetDays}
+              description={`For example 3 is three days after the date, -2 two days before (${payload.offsetRange.min} to ${payload.offsetRange.max}). It runs once a day, once per record.`}
+            />
+          )}
         </section>
         <section className="flex flex-col gap-2" aria-label="If">
           <h3 className="text-sm font-semibold text-text">If (optional)</h3>
@@ -358,7 +377,9 @@ function WorkflowBuilder({
             const operators = payload.operators.filter((operator) =>
               operator.key === "changed_includes"
                 ? field?.type === "list"
-                : field?.type !== "list",
+                : operator.key === "greater_than" || operator.key === "less_than"
+                  ? field?.type === "number"
+                  : field?.type !== "list",
             );
             return (
               <div
@@ -524,6 +545,7 @@ function WorkflowBuilder({
             isDisabled={
               !name.trim() ||
               !trigger ||
+              (event?.timed && (offsetDays.trim() === "" || !Number.isInteger(Number(offsetDays)))) ||
               actions.some((action) => !actionReady(action))
             }
             isLoading={save.isPending}

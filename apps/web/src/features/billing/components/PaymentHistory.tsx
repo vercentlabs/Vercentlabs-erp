@@ -20,8 +20,7 @@ import {
 } from "../billing-labels";
 import { BillingPanel } from "./BillingPanel";
 
-// Documents listed here are the payment provider's invoices/receipts. They are
-// not Vercentlabs GST tax invoices.
+// Vercentlabs' GST tax invoices and credit notes (one per charge and refund), and the payment provider's own invoices/receipts.
 export function PaymentHistory({ overview }: { overview: Overview }) {
   const included = overview.seats.includedUsers ?? 1;
   return (
@@ -81,8 +80,8 @@ export function PaymentHistory({ overview }: { overview: Overview }) {
         )}
       </BillingPanel>
       <BillingPanel
-        title="Payment invoices and receipts"
-        description="Issued by our payment provider, Razorpay, for each charge."
+        title="Invoices"
+        description="Vercentlabs' GST tax invoice for every charge, a credit note for every refund, and Razorpay's payment receipts."
         testId="billing-invoices"
       >
         {overview.invoices.length === 0 ? (
@@ -123,7 +122,11 @@ export function PaymentHistory({ overview }: { overview: Overview }) {
                     {invoiceStatusLabel(invoice.status)}
                   </TableCell>
                   <TableCell className="px-2 py-1">
-                    {invoice.invoice_url ? (
+                    {invoice.pdfUrl ? (
+                      <a className="text-brand hover:underline" href={invoice.pdfUrl}>
+                        {`${invoice.document_kind === "credit_note" ? "Credit note" : "Tax invoice"} ${invoice.invoice_number ?? ""}`}
+                      </a>
+                    ) : invoice.invoice_url ? (
                       <a
                         className="text-brand hover:underline"
                         href={invoice.invoice_url}

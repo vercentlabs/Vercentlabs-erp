@@ -20,6 +20,7 @@ import {
 import {
   approveQuotation, rejectQuotationApproval,
 } from "../../modules/sales/index.js";
+import { approvePurchaseOrderLevel, rejectPurchaseOrderApproval } from "../../modules/procurement/purchase-orders/approval.js";
 
 // key -> { approve, reject, href }. Only verified handlers are listed.
 const HANDLERS = Object.freeze({
@@ -47,6 +48,11 @@ const HANDLERS = Object.freeze({
     approve: (client, context, p) => approveQuotation(client, context, p.quotationId, p.quotationVersionId),
     reject: (client, context, p) => rejectQuotationApproval(client, context, p.quotationId, p.note),
     href: (p) => `/sales/quotations/${p.quotationId}`,
+  },
+  "procurement.purchase_order.approve": {
+    approve: (client, context, p) => approvePurchaseOrderLevel(client, context, p),
+    reject: (client, context, p) => rejectPurchaseOrderApproval(client, context, p),
+    href: (p) => `/procurement/purchase-orders/${p.documentId}`,
   },
   "pos.payment.override.approve": {
     approve: (client, context, p) => approvePosPaymentOverride(client, context, p),

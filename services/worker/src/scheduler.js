@@ -14,196 +14,123 @@ import { JOB_TYPE as LEAD_CONNECTORS_POLL_JOB_TYPE } from "./handlers/crm-lead-c
 import { JOB_TYPE as LEAD_RESPONSE_WATCH_JOB_TYPE } from "./handlers/crm-lead-response-watch.js";
 import { JOB_TYPE as CALENDAR_SYNC_JOB_TYPE } from "./handlers/crm-calendar-sync.js";
 import { JOB_TYPE as MAILINGS_SEND_JOB_TYPE } from "./handlers/crm-mailings-send.js";
+import { JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE } from "./handlers/sales-quotation-expiry.js";
+import { JOB_TYPE as EXCHANGE_RATE_FEED_JOB_TYPE } from "./handlers/platform-exchange-rate-feed.js";
+import { exchangeRateFeedConfigured } from "@vercentlabs/api";
+import { JOB_TYPE as WORKFLOW_TIME_TRIGGERS_JOB_TYPE } from "./handlers/platform-workflow-time-triggers.js";
+import { JOB_TYPE as NOTIFICATION_DIGEST_JOB_TYPE } from "./handlers/platform-notification-digest.js";
+import { JOB_TYPE as RECORD_ACTIVITY_REMINDER_JOB_TYPE } from "./handlers/platform-record-activity-reminders.js";
 import { hasCalendarConnections, hasDueMailings, listDueLeadConnectors } from "@vercentlabs/api/crm";
 
 const logger = createLogger("worker-scheduler");
 
-// Scheduled sources: per-tick jobs (follow-up reminders, overdue tasks, low stock, overdue holds) keyed by `bucket`, and once-a-day jobs (reorder
-// reconciliation, project alerts) keyed by the calendar date, `snapshotDay` below. These are one-off, system-level ticks on the same fixed
-// interval.
+// Every scheduled job, with the app it belongs to: a company only gets the jobs of the apps it has switched on, so a POS-only company
+// is never sent CRM, stock or projects work. `every: "tick"` jobs are keyed by `bucket` (one per tick); `every: "day"` jobs by the
+// company's local calendar date, so "once a day" starts at the company's midnight, not UTC's. `when` (optional) skips a company with
+// nothing to do (no campaign due, no calendar connected, no connector due).
+export const SCHEDULED_JOBS = Object.freeze([
+  // F016: reminders need per-tick checking; claimDueReminders() only claims rows whose fire_at has passed, so an idle tick is cheap.
+  { name: "follow-up reminders", module: "crm", every: "tick", jobType: FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, key: "follow-up-reminder-dispatch-tick", maxAttempts: 3 },
+  // Each overdue task's assignee is told once.
+  { name: "overdue tasks", module: "crm", every: "tick", jobType: TASK_OVERDUE_JOB_TYPE, key: "task-overdue-tick", maxAttempts: 3 },
+  // Response times, overdue escalation and the assignment re-run (each notice once, by its stamp).
+  { name: "lead response watch", module: "crm", every: "tick", jobType: LEAD_RESPONSE_WATCH_JOB_TYPE, key: "crm-lead-response-watch", maxAttempts: 3 },
+  { name: "campaign emails", module: "crm", every: "tick", jobType: MAILINGS_SEND_JOB_TYPE, key: "crm-mailings-send", maxAttempts: 2, when: hasDueMailings },
+  { name: "calendar sync", module: "crm", every: "tick", jobType: CALENDAR_SYNC_JOB_TYPE, key: "crm-calendar-sync", maxAttempts: 2, when: hasCalendarConnections },
+  { name: "lead connectors", module: "crm", every: "tick", jobType: LEAD_CONNECTORS_POLL_JOB_TYPE, key: "crm-lead-connectors-poll", maxAttempts: 2,
+    when: async (client, organizationId) => (await listDueLeadConnectors(client, organizationId)).length > 0 },
+  // Low-stock alerts (an idle tick finds nothing pending) and the daily reorder reconciliation.
+  { name: "low-stock alerts", module: "stock", every: "tick", jobType: LOW_STOCK_DISPATCH_JOB_TYPE, key: "low-stock-dispatch-tick", maxAttempts: 3 },
+  { name: "reorder reconciliation", module: "stock", every: "day", jobType: REORDER_RECONCILE_JOB_TYPE, key: "reorder-reconcile-tick", maxAttempts: 3 },
+  // Production holds past the company's limit (each hold is told once).
+  { name: "production hold overdue", module: "manufacturing", every: "tick", jobType: HOLD_OVERDUE_JOB_TYPE, key: "hold-overdue-tick", maxAttempts: 3 },
+  // Project due-date and health alerts (each alert is sent once anyway).
+  { name: "project alerts", module: "projects", every: "day", jobType: PROJECT_ALERTS_JOB_TYPE, key: "project-alerts", maxAttempts: 3 },
+  // Automatic depreciation: the month is decided by the company's policy and Finance's calendar, claimed once per book and month.
+  { name: "depreciation automation", module: "assets", every: "day", jobType: DEPRECIATION_AUTOMATION_JOB_TYPE, key: "depreciation-automation", maxAttempts: 3 },
+  // Due preventive services become work orders once each, then overdue work is notified.
+  { name: "asset maintenance", module: "assets", every: "day", jobType: MAINTENANCE_SCHEDULE_JOB_TYPE, key: "asset-maintenance", maxAttempts: 3 },
+  // Activities on records (calls, meetings, to-dos) that fall due are reminded to their assignee. Every company (module null).
+  { name: "record activity reminders", module: null, every: "day", jobType: RECORD_ACTIVITY_REMINDER_JOB_TYPE, key: "record-activity-reminders", maxAttempts: 3 },
+  // Automations on a date ("3 days after an invoice is due"). Every company; the job does nothing without such an automation.
+  { name: "automation time triggers", module: null, every: "day", jobType: WORKFLOW_TIME_TRIGGERS_JOB_TYPE, key: "workflow-time-triggers", maxAttempts: 3 },
+  // Reference exchange rates, when the operator set a feed (EXCHANGE_RATE_FEED_URL). Every company with a foreign currency.
+  { name: "exchange rate feed", module: null, every: "day", jobType: EXCHANGE_RATE_FEED_JOB_TYPE, key: "exchange-rate-feed", maxAttempts: 3,
+    when: async (client, organizationId) => exchangeRateFeedConfigured()
+      && Boolean((await client.query(`SELECT 1 FROM tenant.currencies currency JOIN public.organizations organization ON organization.id = currency.organization_id
+        WHERE currency.organization_id = $1 AND currency.status = 'active' AND currency.code <> organization.base_currency LIMIT 1`, [organizationId])).rows[0]) },
+  // The daily digest email of unread notifications, for those who asked for it. Every company.
+  { name: "notification digest", module: null, every: "day", jobType: NOTIFICATION_DIGEST_JOB_TYPE, key: "notification-digest", maxAttempts: 3 },
+  // Quotations past their Valid Until date become Expired.
+  { name: "expired quotations", module: "sales", every: "day", jobType: QUOTATION_EXPIRY_JOB_TYPE, key: "sales-quotation-expiry", maxAttempts: 3 },
+]);
+
+// What the company has: its switched-on apps and its time zone (organization_modules is tenant-scoped, so this runs in the company's
+// own transaction).
+async function companyProfile(client, organizationId) {
+  const modules = await client.query(`SELECT module_key FROM public.organization_modules WHERE organization_id = $1 AND status = 'enabled'`, [organizationId]);
+  const organization = await client.query(`SELECT COALESCE(timezone, 'Asia/Kolkata') AS timezone FROM public.organizations WHERE id = $1`, [organizationId]);
+  return { modules: new Set(modules.rows.map((row) => row.module_key)), timeZone: organization.rows[0]?.timezone ?? "Asia/Kolkata" };
+}
+
+// The company's calendar date ("YYYY-MM-DD") at `now`; an unknown zone falls back to India.
+export function companyDay(timeZone, now = new Date()) {
+  const day = (zone) => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  try { return day(timeZone); } catch { return day("Asia/Kolkata"); }
+}
+
+// Duplicate-occurrence prevention across several scheduler instances reuses ordinary job idempotency: `bucket` and the local day are
+// deterministic, so two schedulers enqueueing for the same company and period collide on tenant.background_jobs's
+// UNIQUE(organization_id, idempotency_key) and the loser resolves to the winner's row (queue.js's enqueueJob).
 //
-// Duplicate-occurrence prevention across multiple scheduler instances
-// reuses the SAME mechanism as ordinary job idempotency —
-// no separate advisory-lock system was built. `bucket` is a deterministic
-// function of wall-clock time and the configured tick interval, so two
-// scheduler processes racing to enqueue for the same organization and the
-// same bucket collide on tenant.background_jobs's
-// UNIQUE(organization_id, idempotency_key) constraint; the loser's
-// enqueueJob() call resolves to the winner's already-inserted row instead
-// of creating a duplicate (see queue.js's enqueueJob doc comment).
-export async function runSchedulerTick(pool, config) {
-  const bucket = Math.floor(Date.now() / config.worker.schedulerTickMilliseconds);
-  // A calendar date (UTC): a once-a-day job enqueued on every tick dedupes
-  // against the first one of the day.
-  const snapshotDay = new Date().toISOString().slice(0, 10);
+// One transaction per company per tick (it used to be one per job); each job sits in its own savepoint, so one failing job never
+// stops the others.
+export async function runSchedulerTick(pool, config, { now = new Date() } = {}) {
+  const bucket = Math.floor(now.getTime() / config.worker.schedulerTickMilliseconds);
   const organizationIds = await listActiveOrganizationIds(pool);
   let enqueued = 0;
   let deduped = 0;
+  let skipped = 0;
   for (const organizationId of organizationIds) {
     try {
-      // F016: reminders need frequent (per-tick), not daily, checking —
-      // uses `bucket` like the other high-frequency ticks, not
-      // `snapshotDay`. claimDueReminders() itself only claims rows whose
-      // fire_at has actually passed, so an idle tick is cheap and a no-op.
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE,
-          idempotencyKey: `follow-up-reminder-dispatch-tick:${bucket}`,
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
+      const result = await withTenantClient(pool, organizationId, (client) => scheduleCompany(client, organizationId, { bucket, now }));
+      enqueued += result.enqueued;
+      deduped += result.deduped;
+      skipped += result.skipped;
     } catch (error) {
-      logger.error("follow-up reminder dispatch tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // Reorder Level daily reconciliation (calendar-date key): every rule's status recalculated from its sources.
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: REORDER_RECONCILE_JOB_TYPE,
-          idempotencyKey: `reorder-reconcile-tick:${snapshotDay}`,
-          payload: { date: snapshotDay },
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("reorder reconciliation tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // Low-stock alert notifications: per tick (an idle tick finds nothing pending and is a no-op).
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: LOW_STOCK_DISPATCH_JOB_TYPE,
-          idempotencyKey: `low-stock-dispatch-tick:${bucket}`,
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("low-stock notification tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // Overdue CRM tasks: per tick (each task's assignee is told once).
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: TASK_OVERDUE_JOB_TYPE,
-          idempotencyKey: `task-overdue-tick:${bucket}`,
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("overdue task tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // Production holds past the company's limit: per tick (each hold is told once).
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: HOLD_OVERDUE_JOB_TYPE,
-          idempotencyKey: `hold-overdue-tick:${bucket}`,
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("production hold overdue tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // Project due-date and health alerts: once a day (calendar-date key; each alert is sent once anyway).
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: PROJECT_ALERTS_JOB_TYPE,
-          idempotencyKey: `project-alerts:${snapshotDay}`,
-          payload: { date: snapshotDay },
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("project alerts tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // Automatic depreciation accounting: once a day (calendar-date key). The month it processes is decided by the Company's policy and
-      // Finance's calendar, and claimed once per book and month, so daily ticks never prepare or post twice.
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: DEPRECIATION_AUTOMATION_JOB_TYPE,
-          idempotencyKey: `depreciation-automation:${snapshotDay}`,
-          payload: { date: snapshotDay },
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("depreciation automation tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // Asset maintenance: once a day (calendar-date key) — due preventive services become Work Orders once each, then overdue work is notified.
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: MAINTENANCE_SCHEDULE_JOB_TYPE,
-          idempotencyKey: `asset-maintenance:${snapshotDay}`,
-          payload: { date: snapshotDay },
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("asset maintenance tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // CRM campaign emails: per tick, only for an organization with one due or sending.
-      const queued = await withTenantClient(pool, organizationId, async (client) => {
-        if (!(await hasDueMailings(client, organizationId))) return null;
-        return enqueueJob(client, organizationId, { jobType: MAILINGS_SEND_JOB_TYPE, idempotencyKey: `crm-mailings-send:${bucket}`, maxAttempts: 2 });
-      });
-      if (queued?.deduped) deduped += 1;
-      else if (queued) enqueued += 1;
-    } catch (error) {
-      logger.error("campaign email tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // CRM calendar sync (Google / Outlook): per tick, only for an organization with a connected calendar.
-      const queued = await withTenantClient(pool, organizationId, async (client) => {
-        if (!(await hasCalendarConnections(client, organizationId))) return null;
-        return enqueueJob(client, organizationId, { jobType: CALENDAR_SYNC_JOB_TYPE, idempotencyKey: `crm-calendar-sync:${bucket}`, maxAttempts: 2 });
-      });
-      if (queued?.deduped) deduped += 1;
-      else if (queued) enqueued += 1;
-    } catch (error) {
-      logger.error("calendar sync tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // CRM response times, overdue escalation and the assignment re-run (per tick; each notice once, by its stamp).
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, { jobType: LEAD_RESPONSE_WATCH_JOB_TYPE, idempotencyKey: `crm-lead-response-watch:${bucket}`, maxAttempts: 3 }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("lead response watch tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      // CRM lead connectors (IndiaMART, TradeIndia): per tick, and only for an organization with a connector due to be read.
-      const queued = await withTenantClient(pool, organizationId, async (client) => {
-        if (!(await listDueLeadConnectors(client, organizationId)).length) return null;
-        return enqueueJob(client, organizationId, { jobType: LEAD_CONNECTORS_POLL_JOB_TYPE, idempotencyKey: `crm-lead-connectors-poll:${bucket}`, maxAttempts: 2 });
-      });
-      if (queued?.deduped) deduped += 1;
-      else if (queued) enqueued += 1;
-    } catch (error) {
-      logger.error("lead connectors tick failed for organization", { organizationId, error: String(error?.message || error) });
+      logger.error("scheduler tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
   }
-  logger.info("scheduler tick complete", { organizations: organizationIds.length, enqueued, deduped, bucket });
-  return { organizations: organizationIds.length, enqueued, deduped };
+  logger.info("scheduler tick complete", { organizations: organizationIds.length, enqueued, deduped, skipped, bucket });
+  return { organizations: organizationIds.length, enqueued, deduped, skipped };
+}
+
+export async function scheduleCompany(client, organizationId, { bucket, now = new Date() }) {
+  const profile = await companyProfile(client, organizationId);
+  const day = companyDay(profile.timeZone, now);
+  const counts = { enqueued: 0, deduped: 0, skipped: 0 };
+  for (const job of SCHEDULED_JOBS) {
+    if (job.module && !profile.modules.has(job.module)) { counts.skipped += 1; continue; }
+    await client.query("SAVEPOINT scheduled_job");
+    try {
+      if (job.when && !(await job.when(client, organizationId))) {
+        await client.query("RELEASE SAVEPOINT scheduled_job");
+        continue;
+      }
+      const daily = job.every === "day";
+      const { deduped: wasDeduped } = await enqueueJob(client, organizationId, {
+        jobType: job.jobType,
+        idempotencyKey: `${job.key}:${daily ? day : bucket}`,
+        ...(daily ? { payload: { date: day } } : {}),
+        maxAttempts: job.maxAttempts,
+      });
+      await client.query("RELEASE SAVEPOINT scheduled_job");
+      if (wasDeduped) counts.deduped += 1;
+      else counts.enqueued += 1;
+    } catch (error) {
+      await client.query("ROLLBACK TO SAVEPOINT scheduled_job");
+      logger.error(`${job.name} tick failed for organization`, { organizationId, error: String(error?.message || error) });
+    }
+  }
+  return counts;
 }

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { getSessionContext, nextPath } from "@/core/session";
@@ -17,7 +18,9 @@ export default async function LoginPage() {
         </p>
         <h1 className="text-xl font-semibold text-text">Sign in</h1>
       </div>
-      <LoginForm />
+      <Suspense>
+        <LoginForm />
+      </Suspense>
     </div>
   );
 }

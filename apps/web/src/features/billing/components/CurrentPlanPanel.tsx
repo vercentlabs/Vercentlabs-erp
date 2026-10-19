@@ -46,7 +46,7 @@ export function CurrentPlanPanel({ overview }: { overview: Overview }) {
         </div>
         {!custom && (
           <div>
-            <dt className="text-xs text-text-muted">Monthly amount</dt>
+            <dt className="text-xs text-text-muted">{s.billingPeriod === "yearly" ? "Yearly amount (before GST)" : "Monthly amount (before GST)"}</dt>
             <dd
               className="text-xl font-semibold tabular-nums"
               data-testid="monthly-amount"

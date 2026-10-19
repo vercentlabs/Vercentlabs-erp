@@ -9,3 +9,7 @@ export declare function listExchangeRates(client: Client, context: Context, filt
 export declare function getExchangeRate(client: Client, context: Context, rateId: string): Promise<ExchangeRate>;
 export declare function setExchangeRate(client: Client, context: Context, input: Record<string, unknown>): Promise<ExchangeRate>;
 export declare function setExchangeRateStatus(client: Client, context: Context, rateId: string, status: string): Promise<ExchangeRate>;
+// The daily reference-rate feed (Shared Platform plan 7).
+export function exchangeRateFeedConfigured(env?: Record<string, string | undefined>): boolean;
+export function fetchReferenceRates(options?: { env?: Record<string, string | undefined>; fetchImpl?: typeof fetch; today?: string }): Promise<{ date: string; base: string; rates: Record<string, number> } | null>;
+export function applyReferenceRates(client: { query(text: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }> }, organizationId: string, options?: { env?: Record<string, string | undefined>; fetchImpl?: typeof fetch; today?: string }): Promise<number>;

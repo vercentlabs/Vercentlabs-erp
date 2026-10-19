@@ -102,6 +102,8 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
                 <Download className="size-4" aria-hidden="true" />
                 Download PDF
               </LinkButton>
+              <LinkButton variant="secondary" href={`/api/documents/pos.receipt/${saleId}/pdf?width=80`} download>80 mm</LinkButton>
+              <LinkButton variant="secondary" href={`/api/documents/pos.receipt/${saleId}/pdf?width=58`} download>58 mm</LinkButton>
             </div>
           }
         />

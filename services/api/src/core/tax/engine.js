@@ -107,6 +107,9 @@ export async function resolveLineTax(client, tax, { taxCategoryId, date, sellerS
   // The document's treatment (export, exempt supply …) wins over the product's.
   if (documentTreatment !== "taxable") return none(documentTreatment, identity);
   if (category.treatment !== "taxable" || category.tax_type === "none") return none(category.treatment === "taxable" ? "non_taxable" : category.treatment, identity);
+  // Composition scheme (Shared Platform plan 7): the dealer collects no GST — the supply goes on a bill of supply, its turnover pays the
+  // composition rate each quarter (CMP-08).
+  if (tax.registration?.registrationType === "composition") return none("non_taxable", { ...identity, composition: true });
   if (tax.registration?.registrationType && tax.registration.registrationType !== "regular")
     throw new TaxError(409, `The registration ${tax.registration.name} is ${tax.registration.registrationType}: it does not charge GST on a regular tax invoice.`, "TAX_REGIME_UNSUPPORTED");
 

@@ -9,7 +9,11 @@
 // A reset policy always puts the period in the identifier, so a new period
 // can never re-issue an identifier issued in an earlier one. Counters only
 // move forward: there is no way to lower a next number.
-import { fiscalYearFor } from "@vercentlabs/localization";
+//
+// The period is the company's local date (organizations.timezone, India by
+// default): a document made at 00:30 IST on 1 April belongs to the new
+// financial year although it is still 31 March in UTC.
+import { fiscalYearFor, localDay } from "@vercentlabs/localization";
 
 import { audit } from "../../security/request-security.js";
 import { DOCUMENT_TYPES, getDocumentType, RESET_POLICIES } from "./registry.js";
@@ -49,17 +53,25 @@ async function loadPolicy(client, organizationId, definition) {
   return rows[0] || null;
 }
 
-async function periodFor(client, organizationId, resetPolicy, at) {
+async function organizationCalendar(client, organizationId) {
+  const { rows } = await client.query(`SELECT fiscal_year_start_month, COALESCE(timezone, 'Asia/Kolkata') AS timezone FROM public.organizations WHERE id=$1`, [organizationId]);
+  return { startMonth: Number(rows[0]?.fiscal_year_start_month || 4), timeZone: rows[0]?.timezone || "Asia/Kolkata" };
+}
+
+function periodOf(resetPolicy, at, calendar) {
   if (resetPolicy === "calendar_year") {
-    const year = String(at.getUTCFullYear());
+    const year = localDay(at, calendar.timeZone).slice(0, 4);
     return { key: `cy${year}`, label: year };
   }
   if (resetPolicy === "fiscal_year") {
-    const { rows } = await client.query(`SELECT fiscal_year_start_month FROM public.organizations WHERE id=$1`, [organizationId]);
-    const fiscal = fiscalYearFor(at, Number(rows[0]?.fiscal_year_start_month || 4));
+    const fiscal = fiscalYearFor(at, calendar.startMonth, calendar.timeZone);
     return { key: `fy${fiscal.startYear}`, label: fiscal.label };
   }
   return { key: "global", label: null };
+}
+
+async function periodFor(client, organizationId, resetPolicy, at) {
+  return periodOf(resetPolicy, at, await organizationCalendar(client, organizationId));
 }
 
 export function formatDocumentNumber({ prefix, padding, value, periodLabel = null }) {
@@ -95,9 +107,10 @@ export async function nextDocumentNumber(client, context, { documentType, prefix
         WHERE $6::boolean AND organization_id=$1 AND document_type=$2 AND status='active'
         LIMIT 1
      ), settings AS (
-       SELECT COALESCE((SELECT fiscal_year_start_month FROM public.organizations WHERE id=$1), 4) AS start_month,
-              extract(year FROM $7::timestamptz AT TIME ZONE 'UTC')::int AS y,
-              extract(month FROM $7::timestamptz AT TIME ZONE 'UTC')::int AS m
+       SELECT COALESCE(org.fiscal_year_start_month, 4) AS start_month,
+              extract(year FROM $7::timestamptz AT TIME ZONE COALESCE(org.timezone, 'Asia/Kolkata'))::int AS y,
+              extract(month FROM $7::timestamptz AT TIME ZONE COALESCE(org.timezone, 'Asia/Kolkata'))::int AS m
+         FROM (SELECT 1) one LEFT JOIN public.organizations org ON org.id = $1
      ), effective AS (
        SELECT COALESCE(policy.prefix, $4) AS prefix,
               COALESCE(policy.padding, $5) AS padding,
@@ -149,17 +162,14 @@ export async function getNumberingOverview(client, organizationId, { at = new Da
   const counters = (
     await client.query(`SELECT document_type, period_key, next_value FROM tenant.document_sequences WHERE organization_id=$1`, [organizationId])
   ).rows;
-  const { rows: orgRows } = await client.query(`SELECT fiscal_year_start_month FROM public.organizations WHERE id=$1`, [organizationId]);
-  const startMonth = Number(orgRows[0]?.fiscal_year_start_month || 4);
+  const calendar = await organizationCalendar(client, organizationId);
+  const startMonth = calendar.startMonth;
   const types = [];
   for (const definition of DOCUMENT_TYPES) {
     if (definition.family) continue;
     const policy = policies.find((row) => row.document_type === definition.key) || null;
     const resetPolicy = policy?.reset_policy ?? definition.defaultResetPolicy ?? "never";
-    const period =
-      resetPolicy === "calendar_year" ? { key: `cy${at.getUTCFullYear()}`, label: String(at.getUTCFullYear()) }
-      : resetPolicy === "fiscal_year" ? (() => { const fy = fiscalYearFor(at, startMonth); return { key: `fy${fy.startYear}`, label: fy.label }; })()
-      : { key: "global", label: null };
+    const period = periodOf(resetPolicy, at, calendar);
     const counter = counters.find((row) => row.document_type === definition.key && row.period_key === period.key);
     const prefix = policy?.prefix ?? definition.defaultPrefix;
     const padding = Number(policy?.padding ?? definition.defaultPadding);
@@ -189,6 +199,12 @@ export async function setNumberingPolicy(client, session, input) {
   if (!Number.isInteger(padding) || padding < 1 || padding > 12) throw new DocumentNumberError(400, "Digits must be between 1 and 12.", "DOCUMENT_NUMBER_PADDING_INVALID");
   const resetPolicy = String(input.resetPolicy || "never");
   if (!RESET_POLICIES.includes(resetPolicy)) throw new DocumentNumberError(400, "Unsupported reset policy.", "DOCUMENT_NUMBER_RESET_INVALID");
+  if (definition.gstDocument) {
+    const periodLength = resetPolicy === "fiscal_year" ? "2026-27-".length : resetPolicy === "calendar_year" ? "2026-".length : 0;
+    const longest = prefix.length + periodLength + padding;
+    if (longest > 16)
+      throw new DocumentNumberError(400, `A GST invoice or credit note number can be at most 16 characters; this format makes ${longest} (for example ${formatDocumentNumber({ prefix, padding, value: 1, periodLabel: periodLength ? (resetPolicy === "fiscal_year" ? "2026-27" : "2026") : null })}). Shorten the prefix or use fewer digits.`, "DOCUMENT_NUMBER_TOO_LONG");
+  }
   const expectedVersion = input.expectedVersion === undefined || input.expectedVersion === null ? null : Number(input.expectedVersion);
 
   const current = (

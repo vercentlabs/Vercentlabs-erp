@@ -1,5 +1,6 @@
 // F321, F325-F329: non-conformance records with containment and disposition (rework/scrap/return-to-supplier/use-as-is, the last with a genuine
 // second-person approval). Holding stock is Inventory's Quality Holds (modules/stock/quality-holds.js): one workflow, disposition movements.
+import { notifyRecordOwner } from "../../core/platform/notifications/index.js";
 import { QualityError, need, needAny, nonNegative, oneOf, qx, recordEvent, text, textOrNull, uuid, uuidOrNull } from "./common.js";
 
 const MANAGE = "quality.manage";
@@ -34,6 +35,8 @@ export async function createNonconformance(client, c, input) {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'open',$16,$17,$18) RETURNING *`,
     [c.organizationId, number, uuidOrNull(input.inspectionId, "Inspection"), text(input.sourceType, 60) || "manual", uuidOrNull(input.sourceId, "Source"), uuidOrNull(input.itemId, "Item"), uuidOrNull(input.supplierId, "Supplier"), uuidOrNull(input.batchId, "Batch"), uuidOrNull(input.serialId, "Serial"), severity, text(input.category, 100) || "general", description, String(nonNegative(input.detectedQuantity ?? 0, "Detected quantity")), String(nonNegative(input.affectedQuantity ?? 0, "Affected quantity")), input.estimatedCost === undefined || input.estimatedCost === "" ? null : nonNegative(input.estimatedCost, "Estimated cost"), uuidOrNull(input.ownerUserId, "Owner") ?? c.userId, input.dueDate || null, c.userId]);
   await recordEvent(client, c, "nonconformance", rows[0].id, "quality.nonconformance.created", { severity });
+  await notifyRecordOwner(client, c, { userId: rows[0].owner_user_id, category: "quality_issue", title: `Non-conformance ${number} (${severity}) is yours`,
+    message: description.slice(0, 300), href: "/quality/nonconformances", entityType: "quality_nonconformance", entityId: rows[0].id });
   return rows[0];
 }
 const NC_TRANSITIONS = { review: ["open", "under_review"], contain: ["under_review", "contained"] };

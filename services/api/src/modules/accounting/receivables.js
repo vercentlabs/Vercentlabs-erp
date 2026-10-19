@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { allocateGstDocumentNumber, organizationDay } from "../../core/invoicing/index.js";
 import {
   ACCOUNTING_PERMISSIONS,
   AccountingError,
@@ -187,7 +188,7 @@ export async function createCustomerInvoice(client, context, input, options = {}
   const organization = await loadOrganization(client, context);
   const ledger = await getPrimaryLedger(client, context, input.ledgerId);
   const party = await ensureParty(client, context, input.partyId, ["customer", "both"]);
-  const invoiceDate = isoDate(input.invoiceDate || new Date().toISOString().slice(0, 10), "Invoice date");
+  const invoiceDate = isoDate(input.invoiceDate || await organizationDay(client, context.organizationId), "Invoice date");
   const accountingDate = isoDate(input.accountingDate || invoiceDate, "Accounting date");
   const explicitDueDate = input.dueDate ? isoDate(input.dueDate, "Due date") : null;
   const invoiceCurrency = currency(input.currencyCode || party.currency_code || organization.base_currency);
@@ -219,7 +220,12 @@ export async function createCustomerInvoice(client, context, input, options = {}
     if (invoiceType === "credit_note") await assertCreditWithinSource(client, context, sourceInvoiceId, totals.subtotal - totals.discountTotal, totals.taxTotal);
   }
   const entityType = invoiceType === "credit_note" ? "customer_credit_note" : "customer_invoice";
-  const invoiceNumber = await allocateNumber(client, context.organizationId, entityType);
+  // With a GST registration an invoice, debit note or credit note takes its number from that GSTIN's series for the financial year of
+  // its date (at most 16 characters); opening invoices keep the numbers they were issued with elsewhere, and a company without GST
+  // keeps the organisation series.
+  const gstKind = { invoice: "tax_invoice", debit_note: "debit_note", credit_note: "credit_note" }[invoiceType];
+  const gstNumber = gstKind ? await allocateGstDocumentNumber(client, context, { kind: gstKind, day: invoiceDate }) : null;
+  const invoiceNumber = gstNumber?.number ?? await allocateNumber(client, context.organizationId, entityType);
   const result = await client.query(
     `INSERT INTO tenant.accounting_customer_invoices (
       organization_id,ledger_id,invoice_number,invoice_type,party_id,billing_address_id,

@@ -167,6 +167,7 @@ export function DeliveryDetailScreen({ deliveryId }: { deliveryId: string }) {
               {actions.createInvoice && !invoiceIsPrimary && <Button variant="secondary" onPress={() => setDialog("invoice")}><FileText className="size-4" aria-hidden="true" />Create Invoice</Button>}
               {actions.createReturn && <Button variant="secondary" onPress={() => setDialog("return")}>Create Return</Button>}
               {actions.print && <a className={buttonVariants({ variant: "secondary" })} href={deliveryNotePdfUrl(deliveryId, true)} target="_blank" rel="noreferrer"><Printer className="size-4" aria-hidden="true" />Delivery Note</a>}
+              {actions.print && <a className={buttonVariants({ variant: "secondary" })} href={`/api/documents/sales.delivery_challan/${deliveryId}/pdf?disposition=inline&copies=3`} target="_blank" rel="noreferrer"><Printer className="size-4" aria-hidden="true" />Delivery Challan</a>}
               {actions.backToDraft && <Button variant="ghost" isLoading={backToDraft.isPending} onPress={() => backToDraft.mutate()}>Back to Draft</Button>}
               {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel Delivery</Button>}
             </div>

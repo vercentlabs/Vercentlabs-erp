@@ -3,6 +3,7 @@
 // Procurement → Suppliers: the Supplier Master list, with views, search,
 // filters, import and export. Inactive and blocked suppliers stay listed and
 // say so; the server decides what the person may see and do.
+import { ListStateViews } from "../../shared/ListStateViews";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -130,7 +131,7 @@ export function SupplierListScreen() {
           ),
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView } : undefined}
-        actionBar={{
+        actionBar={{ end: <ListStateViews listKey="suppliers" list={list} />, 
           start: (
             <>
               <SearchField aria-label="Search suppliers" placeholder="Search name, number, legal name, GSTIN, email, phone or city" className="w-full sm:w-96" value={search}

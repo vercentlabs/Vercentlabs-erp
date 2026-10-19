@@ -4,7 +4,9 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Button, TextField, PasswordField } from "@vercentlabs/design-system";
+import { Button, PasswordField, Select, TextField } from "@vercentlabs/design-system";
+
+import { COUNTRY_OPTIONS, CURRENCY_OPTIONS, DEFAULT_CURRENCY_FOR_COUNTRY, DEFAULT_TIMEZONE_FOR_COUNTRY, timeZoneOptions } from "@/shared/locale-options";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -15,6 +17,13 @@ export function RegisterForm() {
   const [countryCode, setCountryCode] = useState("IN");
   const [baseCurrency, setBaseCurrency] = useState("INR");
   const [timezone, setTimezone] = useState("Asia/Kolkata");
+  const [zones] = useState(timeZoneOptions);
+  // Choosing a country suggests its currency and time zone (both can still be changed).
+  const chooseCountry = (code: string) => {
+    setCountryCode(code);
+    if (DEFAULT_CURRENCY_FOR_COUNTRY[code]) setBaseCurrency(DEFAULT_CURRENCY_FOR_COUNTRY[code]);
+    if (DEFAULT_TIMEZONE_FOR_COUNTRY[code]) setTimezone(DEFAULT_TIMEZONE_FOR_COUNTRY[code]);
+  };
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -90,25 +99,27 @@ export function RegisterForm() {
         onChange={setOrganizationName}
       />
       <div className="grid grid-cols-2 gap-3">
-        <TextField
-          label="Country code"
+        <Select
+          label="Country"
           isRequired
-          value={countryCode}
-          onChange={(v) => setCountryCode(v.toUpperCase())}
+          selectedKey={countryCode}
+          onSelectionChange={(key) => chooseCountry(String(key))}
+          options={COUNTRY_OPTIONS}
         />
-        <TextField
-          label="Base currency"
+        <Select
+          label="Currency"
           isRequired
-          value={baseCurrency}
-          onChange={(v) => setBaseCurrency(v.toUpperCase())}
+          selectedKey={baseCurrency}
+          onSelectionChange={(key) => setBaseCurrency(String(key))}
+          options={CURRENCY_OPTIONS}
         />
       </div>
-      <TextField
-        label="Timezone"
+      <Select
+        label="Time zone"
         isRequired
-        value={timezone}
-        onChange={setTimezone}
-        description="IANA timezone name, e.g. Asia/Kolkata."
+        selectedKey={timezone}
+        onSelectionChange={(key) => setTimezone(String(key))}
+        options={zones}
       />
       {error ? (
         <p role="alert" className="text-sm text-danger">

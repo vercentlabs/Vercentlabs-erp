@@ -58,10 +58,26 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
     items: [
       {
         id: "organization-details",
-        label: "Organization",
+        label: "Company",
         route: "/settings/organization",
         status: "AVAILABLE",
-        description: "Name, timezone, and fiscal year start.",
+        description: "Legal details, GSTIN, address, logo, bank details, financial year, and your data.",
+        requiredPermission: "organization.manage",
+      },
+      {
+        id: "bring-your-data",
+        label: "Bring your data",
+        route: "/settings/data-import",
+        status: "AVAILABLE",
+        description: "Move in: masters, opening stock, opening balances and open invoices, as of your cut-over date.",
+        requiredPermission: "organization.manage",
+      },
+      {
+        id: "email",
+        label: "Email",
+        route: "/settings/email",
+        status: "AVAILABLE",
+        description: "Send from your own domain or mail server, and see what was delivered.",
         requiredPermission: "organization.manage",
       },
       {
@@ -203,6 +219,14 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         description:
           "Organisation-wide settings and switches, versioned and schedulable.",
         requiredPermission: "platform.configuration.manage",
+      },
+      {
+        id: "approval-rules",
+        label: "Approval rules",
+        route: "/settings/approval-rules",
+        status: "AVAILABLE",
+        description: "Which documents need approval, from what amount, and by whom (up to two levels).",
+        requiredPermission: "approvals.manage",
       },
       {
         id: "automations",

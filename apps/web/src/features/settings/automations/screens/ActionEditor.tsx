@@ -7,7 +7,7 @@ import { Button, Select, TextArea, TextField } from "@vercentlabs/design-system"
 
 import { requestJson } from "@/shared/http/request-json";
 
-type Field = { key: string; label: string; type?: "user" | "list" };
+type Field = { key: string; label: string; type?: "user" | "list" | "number" };
 type Recipient = { type: "event_field"; field: string } | { type: "user"; userId: string };
 export type ActionDefinition = { key: string; label: string; description: string; module?: string };
 export type Action =
@@ -17,7 +17,16 @@ export type Action =
   | { type: "crm.set_priority"; priority: "low" | "medium" | "high" }
   | { type: "crm.add_tag"; tag: string }
   | { type: "crm.send_email"; templateId: string }
-  | { type: "crm.notify_followers"; title: string; message?: string };
+  | { type: "crm.notify_followers"; title: string; message?: string }
+  | { type: "send_email"; to: Recipient | { type: "address"; email: string }; subject: string; body: string }
+  | { type: "create_activity"; activityType: "to_do" | "call" | "meeting" | "email"; summary: string; inDays: number; assignee: Recipient }
+  | { type: "assign"; userId: string };
+const ACTIVITY_KINDS = [
+  { value: "to_do", label: "To-do" },
+  { value: "call", label: "Call" },
+  { value: "meeting", label: "Meeting" },
+  { value: "email", label: "Email" },
+];
 
 const FOLLOW_UP_TYPES = [
   { value: "call", label: "Call" },
@@ -48,6 +57,12 @@ export function blankAction(type: string): Action {
       return { type, templateId: "" };
     case "crm.notify_followers":
       return { type, title: "", message: "" };
+    case "send_email":
+      return { type, to: { type: "user", userId: "" }, subject: "", body: "" };
+    case "create_activity":
+      return { type, activityType: "call", summary: "", inDays: 1, assignee: { type: "user", userId: "" } };
+    case "assign":
+      return { type, userId: "" };
     default:
       return { type: "notify", recipient: { type: "user", userId: "" }, title: "", message: "" };
   }
@@ -68,6 +83,13 @@ export function actionReady(action: Action) {
       return Boolean(action.templateId);
     case "crm.notify_followers":
       return Boolean(action.title.trim());
+    case "send_email":
+      return Boolean(action.subject.trim()) && Boolean(action.body.trim())
+        && (action.to.type === "event_field" || (action.to.type === "user" ? Boolean(action.to.userId) : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(action.to.email)));
+    case "create_activity":
+      return Boolean(action.summary.trim()) && Number.isInteger(action.inDays) && action.inDays >= 0 && (action.assignee.type === "event_field" || Boolean(action.assignee.userId));
+    case "assign":
+      return Boolean(action.userId);
     default:
       return true;
   }
@@ -79,6 +101,8 @@ export function adaptAction(action: Action, available: ActionDefinition[]): Acti
   if (!available.some((entry) => entry.key === action.type)) return blankAction("notify");
   if (action.type === "notify" && action.recipient.type === "event_field") return { ...action, recipient: { type: "user", userId: "" } };
   if (action.type === "crm.create_follow_up" && action.assignee.type === "event_field") return { ...action, assignee: { type: "record_owner" } };
+  if (action.type === "send_email" && action.to.type === "event_field") return { ...action, to: { type: "user", userId: "" } };
+  if (action.type === "create_activity" && action.assignee.type === "event_field") return { ...action, assignee: { type: "user", userId: "" } };
   return action;
 }
 
@@ -198,6 +222,57 @@ export function ActionEditor({
           <TextField label="Title" value={action.title} onChange={(title) => onChange({ ...action, title })} isRequired maxLength={120} />
           <TextArea label="Message" value={action.message ?? ""} onChange={(message) => onChange({ ...action, message })} maxLength={500} />
         </>
+      )}
+
+      {action.type === "send_email" && (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Select
+              label="To"
+              options={[...userFields.map((field) => ({ value: `field:${field.key}`, label: field.label })), { value: "member", label: "A specific member" }, { value: "address", label: "An email address" }]}
+              selectedKey={action.to.type === "event_field" ? `field:${action.to.field}` : action.to.type}
+              onSelectionChange={(key) => {
+                const value = String(key);
+                onChange({ ...action, to: value.startsWith("field:") ? { type: "event_field", field: value.slice(6) } : value === "address" ? { type: "address", email: "" } : { type: "user", userId: "" } });
+              }}
+            />
+            {action.to.type === "user" && (
+              <Select label="Member" options={members} selectedKey={action.to.userId || null} onSelectionChange={(key) => onChange({ ...action, to: { type: "user", userId: String(key) } })} />
+            )}
+            {action.to.type === "address" && (
+              <TextField label="Email address" type="email" value={action.to.email} onChange={(email) => onChange({ ...action, to: { type: "address", email } })} />
+            )}
+          </div>
+          <TextField label="Subject" value={action.subject} onChange={(subject) => onChange({ ...action, subject })} isRequired maxLength={200}
+            description="Use {{field}} for the event's values, for example {{invoiceNumber}}." />
+          <TextArea label="Message" value={action.body} onChange={(body) => onChange({ ...action, body })} isRequired maxLength={4000} />
+        </>
+      )}
+
+      {action.type === "create_activity" && (
+        <>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Select label="Activity" options={ACTIVITY_KINDS} selectedKey={action.activityType}
+              onSelectionChange={(key) => onChange({ ...action, activityType: String(key) as "to_do" | "call" | "meeting" | "email" })} />
+            <TextField label="Due (days after)" type="number" value={String(action.inDays)}
+              onChange={(value) => onChange({ ...action, inDays: value === "" ? Number.NaN : Number(value) })} />
+            <Select
+              label="For"
+              options={[...userFields.map((field) => ({ value: `field:${field.key}`, label: field.label })), { value: "member", label: "A specific member" }]}
+              selectedKey={action.assignee.type === "event_field" ? `field:${action.assignee.field}` : "member"}
+              onSelectionChange={(key) => onChange({ ...action, assignee: String(key).startsWith("field:") ? { type: "event_field", field: String(key).slice(6) } : { type: "user", userId: "" } })}
+            />
+          </div>
+          {action.assignee.type === "user" && (
+            <Select label="Member" options={members} selectedKey={action.assignee.userId || null} onSelectionChange={(key) => onChange({ ...action, assignee: { type: "user", userId: String(key) } })} />
+          )}
+          <TextField label="What to do" value={action.summary} onChange={(summary) => onChange({ ...action, summary })} isRequired maxLength={300}
+            description="For example: Call {{customerId}} about invoice {{invoiceNumber}}." />
+        </>
+      )}
+
+      {action.type === "assign" && (
+        <Select label="Hand it to" options={members} selectedKey={action.userId || null} onSelectionChange={(key) => onChange({ ...action, userId: String(key) })} />
       )}
 
       {onRemove && (

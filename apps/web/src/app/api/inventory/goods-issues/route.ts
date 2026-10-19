@@ -7,7 +7,7 @@ import { inventoryMutation, inventoryRead } from "@/features/inventory/shared/ro
 // Goods Issues. GET ?status=&warehouseId=&reasonId=&itemId=&issueToType=&projectId=&costCenterId=&from=&to=&search=&limit=&offset=; POST creates a draft (post: true posts it).
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const filters = Object.fromEntries(["status", "warehouseId", "reasonId", "itemId", "issueToType", "projectId", "costCenterId", "from", "to", "search", "limit", "offset"]
+  const filters = Object.fromEntries(["status", "warehouseId", "reasonId", "itemId", "issueToType", "projectId", "costCenterId", "from", "to", "search", "limit", "offset", "sort", "sortDir"]
     .map((key) => [key, url.searchParams.get(key) ?? undefined]));
   return inventoryRead(request, (client, context) => listGoodsIssues(client, context, filters), GOODS_ISSUE_PERMISSIONS.view);
 }

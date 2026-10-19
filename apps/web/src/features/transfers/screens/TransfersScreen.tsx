@@ -3,7 +3,7 @@
 // Internal Transfers: stock moved inside the company — between warehouses (directly, or dispatched into Goods in Transit and received later) or
 // between locations of one warehouse. Not for sales (Sales Delivery), supplier returns (Purchase Return), consumption (Goods Issue) or quality
 // releases, which change disposition.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -15,7 +15,7 @@ import {
 
 import { quantity } from "@/features/items/item-format";
 import { formatDate } from "@/shared/format/human";
-import { ColumnsMenu, useColumnVisibility, useDebouncedValue, usePagedRows, type OptionalColumn } from "@/shared/ui/list";
+import { ColumnsMenu, useColumnVisibility, useDebouncedValue, useServerPage, type OptionalColumn } from "@/shared/ui/list";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -32,7 +32,6 @@ const OPTIONAL: OptionalColumn[] = [
   { id: "reference", label: "Reference", hiddenByDefault: true }, { id: "createdByName", label: "Created by" },
 ];
 const typeLabel = (row: TransferHeader) => (row.type === "location" ? "Between locations" : row.mode === "direct" ? "Warehouse · direct" : "Warehouse · in transit");
-const sortValue = (row: TransferHeader, id: string) => (id === "type" ? typeLabel(row) : (row as Record<string, unknown>)[id]);
 
 export function TransfersScreen({ initialItemId }: { initialItemId?: string }) {
   const workspace = useWorkspaceContext();
@@ -51,23 +50,27 @@ export function TransfersScreen({ initialItemId }: { initialItemId?: string }) {
   const filters = { view: pick(view), search: submitted || undefined, type: pick(type), mode: pick(mode), sourceWarehouseId: pick(sourceWarehouseId),
     destinationWarehouseId: pick(destinationWarehouseId), from: from || undefined, to: to || undefined, itemId: itemId || undefined };
   const options = useQuery({ queryKey: scopedQueryKey(workspace, "transfers", "options"), queryFn: getTransferOptions, staleTime: 60_000 });
-  const list = useQuery({ queryKey: scopedQueryKey(workspace, "transfers", "list", filters), queryFn: () => listTransfers(filters), placeholderData: (previous) => previous });
+  const paged = useServerPage({ initialSorting: [{ id: "transferDate", desc: true }] });
+  // Back to the first page when the filters change (the server pages the filtered list).
+  const filterKey = JSON.stringify(filters);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- resets only when the filters themselves change
+  useEffect(() => paged.resetPage(), [filterKey]);
+  const list = useQuery({ queryKey: scopedQueryKey(workspace, "transfers", "list", filters, paged.params), queryFn: () => listTransfers({ ...filters, ...paged.params }), placeholderData: (previous) => previous });
   const rows = useMemo(() => list.data?.rows ?? [], [list.data]);
-  const paged = usePagedRows(rows, { initialSorting: [{ id: "transferDate", desc: true }], sortValue });
   const columns = useColumnVisibility("inventory.transfers.columns", OPTIONAL);
 
   const gridColumns = useMemo<ColumnDef<TransferHeader, unknown>[]>(() => [
     { id: "number", accessorKey: "number", header: "Transfer", enableHiding: false, cell: ({ row }) => <span className="font-medium text-text">{row.original.number}</span> },
     { id: "transferDate", accessorKey: "transferDate", header: "Date", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{formatDate(row.original.transferDate)}</span> },
-    { id: "type", accessorFn: typeLabel, header: "Type", cell: ({ row }) => <span className="whitespace-nowrap">{typeLabel(row.original)}</span> },
-    { id: "source", accessorKey: "source", header: "From", cell: ({ row }) => row.original.source },
-    { id: "destination", accessorKey: "destination", header: "To", cell: ({ row }) => row.original.destination },
-    { id: "lineCount", accessorKey: "lineCount", header: "Items", cell: ({ row }) => <span className="tabular-nums">{row.original.lineCount}</span> },
-    { id: "inTransit", accessorKey: "inTransit", header: "In transit", cell: ({ row }) => <span className="tabular-nums">{row.original.inTransit ? quantity(row.original.inTransit) : "—"}</span> },
-    { id: "expectedArrivalDate", accessorKey: "expectedArrivalDate", header: "Expected arrival", cell: ({ row }) => (row.original.expectedArrivalDate ? formatDate(row.original.expectedArrivalDate) : "—") },
-    { id: "reference", accessorKey: "reference", header: "Reference", cell: ({ row }) => row.original.reference ?? "" },
+    { id: "type", enableSorting: false, accessorFn: typeLabel, header: "Type", cell: ({ row }) => <span className="whitespace-nowrap">{typeLabel(row.original)}</span> },
+    { id: "source", enableSorting: false, accessorKey: "source", header: "From", cell: ({ row }) => row.original.source },
+    { id: "destination", enableSorting: false, accessorKey: "destination", header: "To", cell: ({ row }) => row.original.destination },
+    { id: "lineCount", enableSorting: false, accessorKey: "lineCount", header: "Items", cell: ({ row }) => <span className="tabular-nums">{row.original.lineCount}</span> },
+    { id: "inTransit", enableSorting: false, accessorKey: "inTransit", header: "In transit", cell: ({ row }) => <span className="tabular-nums">{row.original.inTransit ? quantity(row.original.inTransit) : "—"}</span> },
+    { id: "expectedArrivalDate", enableSorting: false, accessorKey: "expectedArrivalDate", header: "Expected arrival", cell: ({ row }) => (row.original.expectedArrivalDate ? formatDate(row.original.expectedArrivalDate) : "—") },
+    { id: "reference", enableSorting: false, accessorKey: "reference", header: "Reference", cell: ({ row }) => row.original.reference ?? "" },
     { id: "status", accessorKey: "status", header: "Status", enableHiding: false, cell: ({ row }) => <StatusBadge tone={STATUS_TONE[row.original.status]}>{STATUS_LABEL[row.original.status]}</StatusBadge> },
-    { id: "createdByName", accessorKey: "createdByName", header: "Created by", cell: ({ row }) => row.original.createdByName ?? "" },
+    { id: "createdByName", enableSorting: false, accessorKey: "createdByName", header: "Created by", cell: ({ row }) => row.original.createdByName ?? "" },
   ], []);
 
   if (list.isError && errorCode(list.error) === "PERMISSION_DENIED") return <PermissionState title="You don't have access to transfers" description="Ask an administrator for the View transfers permission." />;
@@ -128,7 +131,7 @@ export function TransfersScreen({ initialItemId }: { initialItemId?: string }) {
       <EnterpriseDataGrid<TransferHeader>
         aria-label="Internal transfers"
         columns={gridColumns}
-        data={paged.pageRows}
+        data={rows}
         getRowId={(row) => row.id}
         state={list.isLoading ? "loading" : list.isError ? "error" : rows.length === 0 ? (filtered ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading transfers" rows={8} />}
@@ -136,7 +139,7 @@ export function TransfersScreen({ initialItemId }: { initialItemId?: string }) {
         emptyContent={<EmptyState title="No transfers yet" description="Move stock between warehouses, or between racks and bins of one warehouse."
           action={canCreate ? { label: "New transfer", onPress: () => router.push(`${TRANSFERS_BASE}/new`) } : undefined} />}
         noResultsContent={<NoResultsState title="No transfers match" description="Try a different view, search or filter." />}
-        {...paged.grid}
+        {...paged.grid(list.data?.total ?? 0)}
         columnVisibility={columns.visibility}
         onColumnVisibilityChange={columns.setVisibility}
         onRowClick={(row) => router.push(`${TRANSFERS_BASE}/${row.id}`)}

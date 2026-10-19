@@ -2,13 +2,25 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button, PasswordField } from "@vercentlabs/design-system";
 import { TextField } from "@vercentlabs/design-system";
 
+import { SocialSignInButtons } from "@/shared/ui/SocialSignInButtons";
+
+// What a Google / Microsoft sign-in that came back says (the callback's ?error= code).
+const SOCIAL_ERRORS: Record<string, string> = {
+  AUTH_SOCIAL_NOT_LINKED: "No account is linked to that Google or Microsoft account. Sign in with your password, then connect it in your profile.",
+  AUTH_SOCIAL_CANCELLED: "The sign-in was cancelled.",
+  AUTH_SOCIAL_STATE_INVALID: "That sign-in link expired. Try again.",
+  AUTH_ACCOUNT_INACTIVE: "This account is not active.",
+};
+
 export function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const socialError = params.get("error");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +55,12 @@ export function LoginForm() {
 
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
+      <SocialSignInButtons />
+      {socialError && !error ? (
+        <p role="alert" className="text-sm text-danger">
+          {SOCIAL_ERRORS[socialError] ?? "Signing in with that account did not work. Try again or use your password."}
+        </p>
+      ) : null}
       <TextField
         label="Email"
         type="email"

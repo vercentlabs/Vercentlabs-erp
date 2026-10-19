@@ -24,6 +24,8 @@ export default async function UsersSettingsPage() {
           session,
           CORE_PERMISSIONS.rolesAssign,
         ),
+        isOwner: session.roleSlugs.includes("organization_owner"),
+        isAdmin: session.roleSlugs.includes("system_administrator"),
       }}
     />
   );

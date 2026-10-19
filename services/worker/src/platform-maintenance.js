@@ -7,13 +7,14 @@
 //   POS checkout holds  releases stock reserved by POS checkouts whose lease has passed (never one with a payment under way, within the
 //          outlet's maximum hold), so expired reservations never keep stock from other bills.
 //   live stock events  removes availability-changed events older than two days (they only drive live delivery).
-import { enqueueDueReportSchedules, prunePosInventoryEvents, purgeExpiredFileContent, sweepExpiredPosCheckoutReservations } from "@vercentlabs/api";
+import { closeDueWorkspaces, enqueueDueReportSchedules, prunePosInventoryEvents, purgeExpiredFileContent, sweepExpiredPosCheckoutReservations } from "@vercentlabs/api";
 import { createLogger, redact } from "@vercentlabs/observability";
 
-import { listActiveOrganizationIds, withTenantClient } from "./db.js";
+import { listActiveOrganizationIds, prunePlatformHistory, withTenantClient } from "./db.js";
 import { buildSystemContext } from "./system-context.js";
 
 const logger = createLogger("worker-platform");
+let lastPruneDay = null;
 
 // Per organisation, each in its own organisation-context transaction.
 export async function runPlatformMaintenanceTick(pool, { limit = 100 } = {}) {
@@ -48,9 +49,29 @@ export async function runPlatformMaintenanceTick(pool, { limit = 100 } = {}) {
       logger.error("inventory change event prune failed", { organizationId, error: redact(String(error?.message || error)) });
     }
   }
+  // Workspaces whose closure waiting period ended are closed (organisation directory and sessions: no tenant context).
+  let closed = 0;
+  try {
+    closed = await closeDueWorkspaces(pool);
+    if (closed) logger.event("organization.workspaces_closed", { closed });
+  } catch (error) {
+    logger.error("workspace closure failed", { error: redact(String(error?.message || error)) });
+  }
+  // Finished jobs, events, automation runs, old notifications and mail log entries, once a day (Shared Platform plan 8).
+  let pruned = null;
+  const today = new Date().toISOString().slice(0, 10);
+  if (lastPruneDay !== today) {
+    try {
+      pruned = await prunePlatformHistory(pool);
+      lastPruneDay = today;
+      if (Object.values(pruned).some((count) => count > 0)) logger.event("platform.history_pruned", pruned);
+    } catch (error) {
+      logger.error("history prune failed", { error: redact(String(error?.message || error)) });
+    }
+  }
   if (removed) logger.info("expired artifacts purged", { removed });
   if (holdsReleased) logger.info("expired POS checkout reservations released", { released: holdsReleased });
-  return { files: { removed }, reports, posCheckoutHolds: { released: holdsReleased } };
+  return { files: { removed }, reports, posCheckoutHolds: { released: holdsReleased }, workspacesClosed: closed, pruned };
 }
 
 export function createPlatformMaintenanceLoop(getPool, config) {

@@ -211,7 +211,7 @@ export type SkuCheck = { sku: string; valid: boolean; problem: string | null; av
 export type SkuHistoryEntry = { id: string; oldSku: string; newSku: string; reason: string | null; changedAt: string; changedByName: string | null };
 export type ReclassifyDifference = { field: DefaultField; label: string; current: string | null; suggested: string; source: string; fromName: string | null };
 export type UnitOfMeasure = {
-  id: string; code: string; name: string; symbol: string | null; category: string; dimension: string; decimalPlaces: number; fractionAllowed: boolean; status: string; isActive: boolean;
+  id: string; code: string; name: string; symbol: string | null; uqc: string | null; category: string; dimension: string; decimalPlaces: number; fractionAllowed: boolean; status: string; isActive: boolean;
   itemCount: number; standardFactor: string | null; standardDimension: string | null; version: number;
 };
 export type ItemUnit = {
@@ -354,9 +354,9 @@ export const changeItemSku = (id: string, input: { sku: string; reason?: string;
 export const getSkuHistory = (id: string) => call<{ history: SkuHistoryEntry[] }>(`/${id}/sku`).then((response) => response.history);
 
 export const listUnits = () => call<{ units: UnitOfMeasure[] }>("/units").then((response) => response.units);
-export const createUnit = (input: { code: string; name: string; symbol?: string | null; category: string; decimalPlaces: number }) =>
+export const createUnit = (input: { code: string; name: string; symbol?: string | null; uqc?: string | null; category: string; decimalPlaces: number }) =>
   call<{ unit: UnitOfMeasure }>("/units", { method: "POST", json: input }).then((response) => response.unit);
-export const updateUnit = (id: string, input: { name?: string; symbol?: string | null; category?: string; decimalPlaces?: number; expectedVersion?: number }) =>
+export const updateUnit = (id: string, input: { name?: string; symbol?: string | null; uqc?: string | null; category?: string; decimalPlaces?: number; expectedVersion?: number }) =>
   call<{ unit: UnitOfMeasure }>(`/units/${id}`, { method: "PATCH", json: input }).then((response) => response.unit);
 export const setUnitStatus = (id: string, status: "active" | "inactive") => call<{ unit: UnitOfMeasure }>(`/units/${id}/status`, { method: "POST", json: { status } }).then((response) => response.unit);
 

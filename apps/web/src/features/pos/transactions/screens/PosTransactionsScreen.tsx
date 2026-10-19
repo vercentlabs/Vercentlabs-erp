@@ -1,5 +1,6 @@
 "use client";
 
+import { MyViews } from "@/shared/ui/MyViews";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -297,7 +298,7 @@ export function PosTransactionsScreen() {
         description:
           "Find a sale by receipt number, reference, scanned receipt code, date, amount or customer — then view or reprint its receipt.",
       }}
-      actionBar={{
+      actionBar={{ end: <MyViews listKey="pos.transactions" state={{ search, customer, amount, preset, filters, sorting }} onApply={(saved) => { setSearch(saved.search); setCustomer(saved.customer); setAmount(saved.amount); setPreset(saved.preset); setFilters(saved.filters); setSorting(saved.sorting); setPageIndex(0); }} />, 
         start: (
           <>
             <SearchField

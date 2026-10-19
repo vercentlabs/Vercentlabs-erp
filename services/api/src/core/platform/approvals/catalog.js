@@ -15,6 +15,9 @@ export const APPROVAL_COMMANDS = Object.freeze([
   { key: "accounting.vendor_payment.approve", moduleKey: "accounting", entityType: "accounting_vendor_payment", label: "Supplier payment approval", entityLabel: "Supplier payment", requiredPermission: "accounting.payments.approve", payload: ["documentId", "contentHash"], dedupeKey: field("documentId") },
   { key: "accounting.journal.approve", moduleKey: "accounting", entityType: "accounting_journal_entry", label: "Journal approval", entityLabel: "Journal entry", requiredPermission: "accounting.journal.approve", payload: ["journalEntryId", "contentHash"], dedupeKey: field("journalEntryId") },
   { key: "sales.quotation.approve", moduleKey: "sales", entityType: "sales_quotation", label: "Quotation approval", entityLabel: "Quotation", requiredPermission: "sales.quotation.approve", payload: ["quotationId", "quotationVersionId"], dedupeKey: (p) => `${p.quotationId}:${p.quotationVersionId}` },
+  // Shared Platform plan 6: raised by the approval rules (core/platform/approvals/rules.js), one request per level.
+  { key: "procurement.purchase_order.approve", moduleKey: "procurement", entityType: "procurement_purchase_order", label: "Purchase order approval", entityLabel: "Purchase order",
+    requiredPermission: "procurement.po.approve", payload: ["documentId", "contentKey", "level"], dedupeKey: (p) => `${p.documentId}:${p.contentKey}:${p.level}` },
   { key: "pos.payment.override.approve", moduleKey: "point-of-sale", entityType: "pos_payment", label: "Payment override approval", entityLabel: "POS payment", requiredPermission: "pos.payment.override", payload: ["paymentId"], dedupeKey: field("paymentId") },
 ]);
 

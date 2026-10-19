@@ -3,6 +3,7 @@
 // Purchase returns: the list (views, filters) and a return's detail — its items, Inventory's movements, the supplier's resolution, the
 // financial adjustments, related documents, files and history. Physical return, supplier resolution, financial adjustment and replacement are
 // separate statuses, each derived by the server.
+import { ListStateViews } from "../../shared/ListStateViews";
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -64,7 +65,7 @@ export function PurchaseReturnsScreen() {
     <EnterpriseListPage header={{ title: "Purchase Returns", description: "Goods sent back to suppliers after they were received. Each return is its own document: the receipt it draws on is never changed.",
       primaryAction: options.data?.capabilities.manage ? <LinkButton variant="primary" href="/procurement/purchase-returns/new"><Plus className="size-4" aria-hidden="true" />New Purchase Return</LinkButton> : undefined }}
       savedViews={{ views: (options.data?.views ?? [{ key: "all", label: "All Returns" }]).map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
-      actionBar={{ start: (
+      actionBar={{ end: <ListStateViews listKey="purchase-returns" list={listState} />,  start: (
         <>
           <SearchField aria-label="Search returns" placeholder="Return, supplier, PO, GRN or product" className="w-full sm:w-80" value={search} onChange={setSearch} />
           <Select aria-label="Reason" size="compact" selectedKey={filters.reason} onSelectionChange={set("reason")}

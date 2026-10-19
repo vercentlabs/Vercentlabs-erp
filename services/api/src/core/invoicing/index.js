@@ -80,6 +80,11 @@ async function organizationCalendar(client, organizationId, at = null) {
   return { startMonth: Number(row?.start_month ?? 4), day: row?.day ?? new Date().toISOString().slice(0, 10) };
 }
 
+// Today in the company's time zone ("YYYY-MM-DD"): the default date of a new document.
+export async function organizationDay(client, organizationId) {
+  return (await organizationCalendar(client, organizationId)).day;
+}
+
 // ------------------------------------------------------------------ which document
 
 const STATUTORY_KIND = { tax_invoice: "tax_invoice", invoice_cum_bill_of_supply: "tax_invoice", bill_of_supply: "bill_of_supply", credit_note: "credit_note", debit_note: "debit_note" };
@@ -124,10 +129,12 @@ async function ensureSeries(client, organizationId, registrationId, kind, financ
 
 // The next number of the series. Called inside the issuing transaction: the row lock queues concurrent counters, and a rolled-back sale
 // returns its number, so numbers stay consecutive. A series is created with its default format the first time it is needed.
-export async function allocateInvoiceNumber(client, context, { registrationId, kind, at = null }) {
+// `day` ("YYYY-MM-DD", the document's own date) picks the financial year; without it, today in the company's time zone.
+export async function allocateInvoiceNumber(client, context, { registrationId, kind, at = null, day = null }) {
   if (!registrationId) throw invoiceError(409, "POS_INVOICE_SELLER_REGISTRATION_MISSING");
   if (!DEFAULT_PREFIX[kind]) throw invoiceError(409, "POS_INVOICE_DOCUMENT_TYPE_UNSUPPORTED");
   const calendar = await organizationCalendar(client, context.organizationId, at);
+  if (day && /^\d{4}-\d{2}-\d{2}$/.test(String(day).slice(0, 10))) calendar.day = String(day).slice(0, 10);
   const financialYear = financialYearOf(calendar.day, calendar.startMonth);
   await ensureSeries(client, context.organizationId, registrationId, kind, financialYear, context.userId);
   const series = (await client.query(
@@ -138,6 +145,27 @@ export async function allocateInvoiceNumber(client, context, { registrationId, k
   const number = formatInvoiceNumber(series, series.allocated);
   if (number.length > 16) throw invoiceError(409, "POS_INVOICE_NUMBER_CONFLICT", `The series ${series.prefix} is full for ${financialYear}; set up a new series.`);
   return { seriesId: series.id, number, financialYear, day: calendar.day };
+}
+
+// The company's GST registration that issues its invoices when the document does not name one: the default active regular registration
+// (the only one, for most companies). Null when the company has no regular GST registration — its documents are not GST invoices.
+export async function defaultInvoicingRegistration(client, organizationId) {
+  return (await client.query(
+    `SELECT id, registration_number, state_code, registration_type FROM tenant.tax_registrations
+      WHERE organization_id = $1 AND status = 'active' AND registration_type IN ('regular', 'composition')
+      ORDER BY is_default DESC, (registration_type = 'regular') DESC, created_at ASC LIMIT 1`, [organizationId])).rows[0] ?? null;
+}
+
+// A GST document number for an invoice, credit note or debit note issued outside POS (Accounting): one series per GSTIN and kind,
+// reset every financial year (of the document's date), at most 16 characters — the same series POS uses. Null without a registration.
+export async function allocateGstDocumentNumber(client, context, { kind, day = null, registrationId = null }) {
+  const registration = registrationId
+    ? (await client.query(`SELECT id, registration_type FROM tenant.tax_registrations WHERE organization_id = $1 AND id = $2`, [context.organizationId, registrationId])).rows[0] ?? { id: registrationId }
+    : await defaultInvoicingRegistration(client, context.organizationId);
+  if (!registration) return null;
+  // A composition dealer issues bills of supply, not tax invoices.
+  const issued = registration.registration_type === "composition" && kind === "tax_invoice" ? "bill_of_supply" : kind;
+  return allocateInvoiceNumber(client, context, { registrationId: registration.id, kind: issued, day });
 }
 
 // Would the next number of this series still be a valid number? Checked before payment, so a full series never takes a payment.

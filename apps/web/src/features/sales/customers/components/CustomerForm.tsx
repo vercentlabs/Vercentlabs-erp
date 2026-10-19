@@ -4,6 +4,7 @@
 // used from a quotation), creating one from a CRM account, and editing.
 // Sections: Identity, Commercial, Tax, and on creation the first address and
 // the primary contact. Duplicates are checked while typing and again on save.
+import { GstinLookup } from "@/shared/ui/GstinLookup";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -255,6 +256,10 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
           <>
             <TextField label="GSTIN" isRequired={gstinRequired} value={values.gstin} onChange={(value) => set("gstin")(value.toUpperCase())} placeholder="27ABCDE1234F1Z5"
               description={derivedState ? `State: ${derivedState}` : undefined} isDisabled={editing && !can.editGstin} errorMessage={errors.gstin} />
+            {!(editing && !can.editGstin) && <GstinLookup gstin={values.gstin} onFound={(found) => {
+              if (!values.legalName.trim() && found.legalName) set("legalName")(found.legalName);
+              if (!values.displayName.trim() && (found.displayName || found.legalName)) set("displayName")(found.displayName ?? found.legalName ?? "");
+            }} />}
             {!compact && (
               <Select label="Place of supply" selectedKey={values.placeOfSupply}
                 description={values.placeOfSupply && values.placeOfSupply !== NONE ? "Chosen by hand." : derivedState ? `Not needed: ${derivedState}, from the GSTIN.`

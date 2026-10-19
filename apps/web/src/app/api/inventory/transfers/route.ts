@@ -8,7 +8,7 @@ import { inventoryMutation, inventoryRead } from "@/features/inventory/shared/ro
 // (nothing reserved or moved until it is confirmed).
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const filters = Object.fromEntries(["view", "type", "mode", "sourceWarehouseId", "destinationWarehouseId", "itemId", "from", "to", "search", "limit", "offset"].map((key) => [key, url.searchParams.get(key) ?? undefined]));
+  const filters = Object.fromEntries(["view", "type", "mode", "sourceWarehouseId", "destinationWarehouseId", "itemId", "from", "to", "search", "limit", "offset", "sort", "sortDir"].map((key) => [key, url.searchParams.get(key) ?? undefined]));
   return inventoryRead(request, (client, context) => listInventoryTransfers(client, context, filters), STOCK_TRANSFER_PERMISSIONS.view);
 }
 

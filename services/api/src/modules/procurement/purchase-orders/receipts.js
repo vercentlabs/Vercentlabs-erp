@@ -21,6 +21,8 @@
 // goods are released or returned later; the receipt is never posted again. A
 // posted receipt is corrected only by an authorised reversal while nothing has
 // used it. Posting never creates a supplier bill or a payable.
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
+import { notifyRecordOwner } from "../../../core/platform/notifications/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, decimal, div, formatDecimal, mul, roundMoney, sub } from "../../../core/decimal.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
@@ -701,6 +703,11 @@ export async function postGoodsReceipt(client, context, receiptId) {
   await recordReceiptEvent(client, context, receipt.id, "goods_receipt.posted", `Posted: ${summary}${accrual ? ` · GRNI accrual ${accrual.amount}` : ""}`, { accrual });
   await recordPoEvent(client, context, order.id, "purchase_order.goods_received", `Goods receipt ${receipt.receipt_number} posted: ${summary}`,
     { details: { receiptId: receipt.id, receiptNumber: receipt.receipt_number } });
+  await publishDomainEvent(client, { organizationId, moduleKey: "procurement", eventType: "procurement.goods_receipt.posted", entityType: "procurement.goods_receipt", entityId: receipt.id,
+    payload: { receiptNumber: receipt.receipt_number, purchaseOrderId: order.id, purchaseOrderNumber: order.purchase_order_number, supplierId: order.supplier_id, buyerUserId: order.buyer_user_id } });
+  await notifyRecordOwner(client, context, { userId: order.buyer_user_id ?? order.created_by, category: "procurement_document",
+    title: `Goods received against ${order.purchase_order_number}`, message: `Receipt ${receipt.receipt_number}: ${summary}.`.slice(0, 1000),
+    href: `/procurement/purchase-orders/${order.id}`, entityType: "purchase_order", entityId: order.id });
   return { id: receipt.id, status: "posted", replayed: false };
 }
 

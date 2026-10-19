@@ -13,6 +13,8 @@ import { recoverSeatChange } from "./seats.js";
 import { recoverCancellation } from "./subscriptions.js";
 import { claimWebhookEvents, processClaimedWebhookEvent } from "./webhooks.js";
 import { subscriptionRow } from "./shared.js";
+import { sendRenewalReminders } from "./renewals.js";
+import { issueMissingTaxInvoices } from "./tax-invoices.js";
 
 const RECONCILE_EVERY_HOURS = 24;
 
@@ -76,7 +78,7 @@ async function claimDueReconciliations(client, { limit }) {
 
 // One maintenance pass. `connect` returns a platform client with release().
 export async function runBillingMaintenance({ connect, provider, workerId, batchSize = 20, leaseSeconds = 120, steps = null }) {
-  const summary = { webhooks: {}, checkouts: 0, seatChanges: 0, cancellations: 0, reconciliations: 0 };
+  const summary = { webhooks: {}, checkouts: 0, seatChanges: 0, cancellations: 0, reconciliations: 0, renewalReminders: 0, taxInvoices: 0 };
   const enabled = (step) => !steps || steps.includes(step);
   const client = await connect();
   try {
@@ -112,10 +114,14 @@ export async function runBillingMaintenance({ connect, provider, workerId, batch
         summary.reconciliations += 1;
       }
     }
+    // Renewal reminders, and tax invoices for payments captured before the supplier settings were complete.
+    if (enabled("renewals")) summary.renewalReminders = await sendRenewalReminders(client, { limit: batchSize });
+    if (enabled("tax_invoices")) summary.taxInvoices = await issueMissingTaxInvoices(client, process.env, { limit: batchSize });
   } finally {
     client.release?.();
   }
-  const didWork = Object.keys(summary.webhooks).length || summary.checkouts || summary.seatChanges || summary.cancellations || summary.reconciliations;
+  const didWork = Object.keys(summary.webhooks).length || summary.checkouts || summary.seatChanges || summary.cancellations || summary.reconciliations
+    || summary.renewalReminders || summary.taxInvoices;
   if (didWork) billingLogger.info("billing maintenance pass", { workerId, ...summary });
   return summary;
 }

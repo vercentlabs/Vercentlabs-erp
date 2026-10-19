@@ -49,12 +49,15 @@ function project(row, session, viewer, accessible) {
   const moduleAccessible = Boolean(moduleKey && accessible.has(moduleKey));
   const pending = row.status === "pending";
   const mine = row.requested_by === session.userId;
+  // A rule-routed request (Shared Platform plan 6) is decided by whom it is routed to; others by the command's permission.
+  const routed = Boolean(row.routed_to_viewer);
   const canDecide =
-    pending && !mine && moduleAccessible && Boolean(command) && APPROVAL_COMMAND_REGISTRY.get(row.command_key) !== null && hasSessionPermission(session, command.requiredPermission);
+    pending && !mine && moduleAccessible && Boolean(command) && APPROVAL_COMMAND_REGISTRY.get(row.command_key) !== null
+    && (routed || viewer.oversight || (!row.approver_role_id && hasSessionPermission(session, command.requiredPermission)));
   const hidden = !moduleAccessible && !viewer.oversight;
   return {
     id: row.id,
-    label: command?.label ?? "Approval",
+    label: row.approval_level ? `${command?.label ?? "Approval"} (level ${row.approval_level})` : command?.label ?? "Approval",
     moduleKey,
     moduleLabel: moduleKey ? MODULE_NAME.get(moduleKey) ?? moduleKey : null,
     documentLabel: hidden ? `Approval in ${MODULE_NAME.get(moduleKey) ?? "a module you cannot open"}` : row.title,
@@ -90,9 +93,11 @@ export async function decideApproval(client, session, approvalId, { decision, no
   const request = await lockApprovalRequest(client, session.organizationId, approvalId);
   const viewer = approvalViewer(session);
   // Someone who cannot see a request cannot act on it (and learns nothing about it).
+  const roleRouted = Boolean(request.approver_role_id) && Boolean((await client.query(
+    `SELECT 1 FROM user_role_assignments WHERE organization_id = $1 AND user_id = $2 AND role_id = $3 AND status = 'active'`, [session.organizationId, session.userId, request.approver_role_id])).rows[0]);
   const visible =
-    viewer.oversight || request.requested_by === session.userId || request.assigned_to === session.userId ||
-    (request.assigned_to === null && viewer.decidableCommandKeys.includes(request.command_key));
+    viewer.oversight || request.requested_by === session.userId || request.assigned_to === session.userId || roleRouted ||
+    (request.assigned_to === null && !request.approver_role_id && viewer.decidableCommandKeys.includes(request.command_key));
   if (!visible) throw new ApprovalError(404, "Approval request not found.", "APPROVAL_NOT_FOUND");
   const validated = validateApprovalDecision(request, { decision, note, expectedVersion, actorUserId: session.userId });
 

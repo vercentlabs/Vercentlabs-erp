@@ -8,6 +8,10 @@
 // public.numbering_series and keep their format: their prefix carries its own
 // separator. Newer modules join a module-supplied prefix with "-".
 //
+// `gstDocument: true` marks the GST documents a company issues (invoices, credit notes): their number may be at most 16 characters
+// (rule 46 of the CGST Rules), so a policy that could print a longer one is refused. With a GST registration, Accounting numbers them
+// from the per-GSTIN financial-year series instead (core/invoicing).
+//
 // `configurable: false` marks types whose format a module owns in its own
 // settings (a POS store's receipt prefix, HR's employee-number prefix):
 // Settings > Numbering shows them read-only.
@@ -32,8 +36,8 @@ export const DOCUMENT_TYPES = Object.freeze(
     org("sales_invoice_request", "sales", "Invoice request", "SIR-"),
     // Accounting
     org("journal_entry", "accounting", "Journal entry", "JE-"),
-    org("customer_invoice", "accounting", "Customer invoice", "INV-"),
-    org("customer_credit_note", "accounting", "Customer credit note", "CRN-"),
+    { ...org("customer_invoice", "accounting", "Customer invoice", "INV-"), gstDocument: true },
+    { ...org("customer_credit_note", "accounting", "Customer credit note", "CRN-"), gstDocument: true },
     org("customer_receipt", "accounting", "Customer receipt", "RCT-"),
     std("customer_refund", "accounting", "Customer refund", "RFND", { defaultResetPolicy: "calendar_year" }),
     org("vendor_bill", "accounting", "Vendor bill", "BILL-"),

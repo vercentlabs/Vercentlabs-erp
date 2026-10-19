@@ -86,6 +86,12 @@ export async function storeFile(client, input, { storage, env = process.env } = 
   uuid(organizationId, "Organization");
   if (!prepared?.bytes || !prepared.contentSha256) throw new FileError(500, "The upload was not prepared.", "FILE_NOT_PREPARED");
   const store = storage || (await resolveObjectStorage(env));
+  // The plan's file storage: refused at the limit (enforce mode), the owners told at 80% (core/billing/usage.js). Exports and report
+  // outputs are temporary (they expire) and are not held against the allowance.
+  if (!["export", "report_output"].includes(purpose)) {
+    const { assertStorageAvailable } = await import("../../billing/usage.js");
+    await assertStorageAvailable(client, organizationId, prepared.sizeBytes ?? prepared.bytes.length, env);
+  }
 
   let logicalId = null;
   let version = 1;

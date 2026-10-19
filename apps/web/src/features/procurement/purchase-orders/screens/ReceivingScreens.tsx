@@ -6,6 +6,7 @@
 // finished and posted, held goods released, discrepancies recorded, posted
 // receipts reversed while nothing has used them, and goods returned. A
 // return is its own document; the receipt it corrects is never changed.
+import { ListStateViews } from "../../shared/ListStateViews";
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -83,7 +84,7 @@ export function GoodsReceiptsScreen() {
       primaryAction: issueView ? <LinkButton variant="primary" href="/procurement/receiving-issues/new"><Plus className="size-4" aria-hidden="true" />Report Issue</LinkButton>
         : options.data?.capabilities.receive ? <LinkButton variant="primary" href="/procurement/goods-receipts/new"><Plus className="size-4" aria-hidden="true" />New Goods Receipt</LinkButton> : undefined }}
       savedViews={{ views: RECEIPT_LIST_VIEWS, activeViewId: view, onSelect: setView }}
-      actionBar={{ start: issueView ? (
+      actionBar={{ end: <ListStateViews listKey="goods-receipts" list={list} />,  start: issueView ? (
         <>
           <SearchField aria-label="Search receiving issues" placeholder="Issue, order, GRN, supplier or lot" className="w-full sm:w-80" value={search} onChange={setSearch} />
           <Select aria-label="Custody stage" size="compact" selectedKey={stage} onSelectionChange={(value) => list.setFilter("stage", String(value))}

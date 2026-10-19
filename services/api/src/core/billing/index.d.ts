@@ -33,20 +33,28 @@ export function hasWriteAccess(subscription: Record<string, unknown> | null, now
 export function shouldApplyProviderEvent(currentEventAt: string | Date | null, incomingEventAt: string | Date | null): boolean;
 export function billingStateKey(input: { status: string; pricingModel: string | null; cancelAtCycleEnd?: boolean; checkoutPhase?: string | null; reconciliationRequired?: boolean }): string;
 
+export const BILLING_PERIODS: readonly ["monthly", "yearly"];
+export type BillingPeriod = "monthly" | "yearly";
 export const COMMERCIAL_MODEL: Readonly<{
   currency: "INR";
-  free: { code: "free"; includedUsers: number; pricePaise: number };
-  standard: { code: "standard"; includedUsers: number; perAdditionalUserPaise: number; billingPeriod: "monthly" };
+  free: { code: "free"; includedUsers: number; pricePaise: number; moduleAllowance: number };
+  standard: { code: "standard"; includedUsers: number; perUserMonthlyPaise: number; perUserYearlyPaise: number };
   custom: { code: "enterprise" };
 }>;
+export function gstRatePercent(env?: any): number;
+export function pricesIncludeGst(env?: any): boolean;
+export function chargedPerUserPaise(pricePaise: number | string, env?: any): number;
 export const MAX_SEATED_USERS: number;
-export function calculateSeatCharge(input: { includedUsers: number; perUserPaise: number | string; totalUsers: number }): {
+export function calculateSeatCharge(input: { includedUsers: number | null; perUserPaise: number | string; totalUsers: number; env?: any }): {
   totalUsers: number;
   includedUsers: number;
   billableSeats: number;
+  pricePaise: number;
+  chargedPaise: number;
+  gstPaise: number;
   monthlyPaise: number;
 };
-export function currentPrice(client: Client, planCode: string): Promise<any>;
+export function currentPrice(client: Client, planCode: string, billingPeriod?: string | null): Promise<any>;
 export function salesContact(env?: any): string | null;
 export type PlanCatalogueEntry = {
   priceId: string;
@@ -57,16 +65,57 @@ export type PlanCatalogueEntry = {
   availability: "available" | "coming_soon" | "contact_sales";
   pricingModel: "free" | "per_seat" | "flat" | "custom";
   includedUsers: number | null;
+  moduleAllowance: number | null;
   perUserPricePaise: number | null;
   currency: string;
+  prices: Partial<Record<BillingPeriod, { priceId: string; perUserPaise: number; perUserMonthlyPaise: number; perUserChargedPaise: number }>>;
+  pricesIncludeGst: boolean;
+  gstRatePercent: number;
   current: boolean;
+  currentBillingPeriod: string | null;
   purchasable: boolean;
   contactSales: boolean;
   salesContactUrl: string | null;
 };
 export function listPlanCatalogue(client: Client, organizationId?: string | null, env?: any): Promise<PlanCatalogueEntry[]>;
-export function buildProviderPlanPayload(price: Record<string, unknown>): Record<string, unknown>;
-export function ensureProviderPlan(client: Client, provider: BillingProvider, price: Record<string, unknown>): Promise<string>;
+export function buildProviderPlanPayload(price: Record<string, unknown>, env?: any): Record<string, unknown>;
+export function ensureProviderPlan(client: Client, provider: BillingProvider, price: Record<string, unknown>, env?: any): Promise<string>;
+
+// Free plan app choice (app-choice.js)
+export const APP_SWITCH_INTERVAL_DAYS: number;
+export type AppChoice = {
+  planCode: string; planName: string; allowance: number | null; selected: string[] | null; grandfathered: boolean; needsChoice: boolean;
+  canSwitch: boolean; nextSwitchAt: string | null; lastSwitchAt: string | null; switchIntervalDays: number;
+};
+export function getAppChoice(client: Client, organizationId: string): Promise<AppChoice>;
+export function effectiveModulesFor(input: { moduleAllowance: number | null | undefined; selectedModules: unknown; modulesSnapshot: unknown }): string[];
+export function chooseApps(client: Client, ctx: BillingContext & { roleSlugs?: readonly string[] }, input: { module?: string; modules?: string[] }): Promise<AppChoice & { changed: boolean }>;
+
+// Usage (usage.js)
+export const USAGE_WARNING_PERCENT: number;
+export declare class UsageLimitError extends Error { status: number; code: string; details?: unknown }
+export function storageUsedBytes(client: Client, organizationId: string): Promise<number>;
+export function assertStorageAvailable(client: Client, organizationId: string, additionalBytes: number, env?: any): Promise<{ usedBytes: number; limitBytes: number } | null>;
+export function countOutboundMessages(client: Client, organizationId: string, input?: { quantity?: number; channel?: string; idempotencyKey?: string }, env?: any): Promise<{ replayed: boolean; quantity: number | null }>;
+export type UsageOverview = {
+  storage: { usedBytes: number; limitBytes: number; percent: number };
+  messages: { used: number; limit: number; percent: number };
+  warningPercent: number;
+  enforced: boolean;
+};
+export function getUsageOverview(client: Client, organizationId: string, env?: any): Promise<UsageOverview>;
+
+// Renewals and Vercentlabs' own tax invoices
+export const RENEWAL_NOTICE_DAYS: Readonly<{ yearly: number; monthly: number }>;
+export function sendRenewalReminders(client: Client, options?: { limit?: number; env?: any }): Promise<number>;
+export function indiaFinancialYear(at: string | Date): { label: string; code: string; day: string };
+export function splitGst(chargedPaise: number, ratePercent: number, states: { supplierStateCode: string; customerStateCode: string | null }): { taxable: number; tax: number; cgst: number; sgst: number; igst: number; intraState: boolean };
+export function issueTaxInvoiceForPaymentInTx(client: Client, input: { organizationId: string; providerPaymentId: string }, env?: any): Promise<Record<string, any> | null>;
+export function issueCreditNoteForRefundInTx(client: Client, input: { organizationId: string; providerPaymentId: string; providerRefundId: string; amountPaise: number }, env?: any): Promise<Record<string, any> | null>;
+export function issueMissingTaxInvoices(client: Client, env?: any, options?: { limit?: number }): Promise<number>;
+export function getTaxDocument(client: Client, organizationId: string, id: string): Promise<Record<string, any>>;
+export function taxDocumentModel(row: Record<string, any>): Record<string, unknown>;
+export function renderTaxDocumentPdf(client: Client, organizationId: string, id: string): Promise<{ fileName: string; body: Uint8Array | Buffer }>;
 
 export const SEAT_OVERAGE_GRACE_DAYS: number;
 export type SeatStatus = {
@@ -84,6 +133,7 @@ export type SeatStatus = {
   overCapacity: boolean;
   perUserPricePaise: number | null;
   seatOverageSince: string | null;
+  billingPeriod: string | null;
 };
 export function countBillableUsers(client: Client, organizationId: string, options?: { excludeInvitationId?: string | null }): Promise<{ members: number; pending: number }>;
 export function getSeatStatus(client: Client, organizationId: string, options?: { excludeInvitationId?: string | null }): Promise<SeatStatus>;
@@ -99,7 +149,7 @@ export function finalizeSeatChange(client: Client, changeId: string, remote: unk
 export function recoverSeatChange(client: Client, change: Record<string, unknown>, provider: BillingProvider): Promise<Record<string, unknown>>;
 
 export const LIVE_CHECKOUT_STATUSES: readonly string[];
-export function startSeatCheckout(client: Client, ctx: BillingContext, input: { planPriceId?: string; users: number }, provider: BillingProvider): Promise<Record<string, unknown>>;
+export function startSeatCheckout(client: Client, ctx: BillingContext, input: { planPriceId?: string; users: number; billingPeriod?: BillingPeriod }, provider: BillingProvider, env?: any): Promise<Record<string, unknown>>;
 export function confirmSeatCheckout(
   client: Client,
   ctx: BillingContext,
@@ -172,11 +222,11 @@ export function runBillingMaintenance(input: {
   workerId: string;
   batchSize?: number;
   leaseSeconds?: number;
-  steps?: Array<"webhooks" | "checkouts" | "seats" | "cancellations" | "reconciliation"> | null;
+  steps?: Array<"webhooks" | "checkouts" | "seats" | "cancellations" | "reconciliation" | "renewals" | "tax_invoices"> | null;
 }): Promise<Record<string, any>>;
 
 export const TAX_INVOICE_SETTINGS: readonly string[];
-export function taxInvoiceReadiness(env?: any): { available: false; configured: boolean; missing: string[] };
+export function taxInvoiceReadiness(env?: any): { available: boolean; configured: boolean; missing: string[]; problems: string[] };
 export function getBillingOverview(client: Client, organizationId: string, env?: any): Promise<any>;
 export function saveBillingProfile(client: Client, ctx: BillingContext, input: Record<string, string | undefined>): Promise<Record<string, unknown>>;
 export function getBillingHealth(client: Client, organizationId: string): Promise<any>;

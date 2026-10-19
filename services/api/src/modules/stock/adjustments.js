@@ -1110,7 +1110,7 @@ export async function listInventoryAdjustments(client, c, filters = {}) {
   const limit = Math.min(Math.max(Number(filters.limit) || 100, 1), 500);
   const offset = Math.max(Number(filters.offset) || 0, 0);
   const total = Number((await client.query(`SELECT count(*) FROM tenant.inventory_adjustments adjustment WHERE ${where.join(" AND ")}`, values)).rows[0].count);
-  const rows = (await client.query(`${SELECT} WHERE ${where.join(" AND ")} ORDER BY adjustment.adjustment_date DESC, adjustment.document_number DESC LIMIT ${bind(limit)} OFFSET ${bind(offset)}`,
+  const rows = (await client.query(`${SELECT} WHERE ${where.join(" AND ")} ORDER BY ${listOrder(filters, { number: "adjustment.document_number", adjustmentDate: "adjustment.adjustment_date", status: "adjustment.status" }, "adjustment.adjustment_date DESC, adjustment.document_number DESC")} LIMIT ${bind(limit)} OFFSET ${bind(offset)}`,
     values)).rows;
   return { total, rows: rows.map((row) => toHeader(row, c)), canCreate: can(c, P.create), seesCost: can(c, P.viewCost) };
 }
@@ -1177,4 +1177,13 @@ export async function readAdjustmentFile(client, c, adjustmentId, fileId, option
   if (!file) throw new AdjustmentError(404, "File not found.", "ADJUSTMENT_FILE_NOT_FOUND");
   const content = await readFileContent(client, { organizationId: c.organizationId, entityType: FILE_ENTITY, entityId: row.id, fileId: file.id }, options);
   return { fileName: file.file_name, mimeType: file.mime_type, body: content.body };
+}
+
+// The list's sort (Shared Platform plan 5: lists are paged on the server, so the server sorts): ?sort= one of the allowed columns and
+// ?sortDir=asc|desc, else newest first. The document number breaks ties.
+function listOrder(filters, columns, fallback) {
+  const column = columns[filters.sort];
+  if (!column) return fallback;
+  const direction = filters.sortDir === "asc" ? "ASC" : "DESC";
+  return `${column} ${direction}, ${Object.values(columns)[0]} ${direction}`;
 }

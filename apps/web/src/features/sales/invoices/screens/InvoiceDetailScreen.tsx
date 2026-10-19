@@ -140,6 +140,7 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
               {!actions.edit && (actions.changePaymentTerms || actions.overrideDueDate) && <Button variant="secondary" onPress={() => setDialog("terms")}>Payment Terms / Due Date</Button>}
               {actions.print && <a className={buttonVariants({ variant: "secondary" })} href={invoicePdfUrl(invoiceId, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />{posted ? "View PDF" : "Draft PDF"}</a>}
               {actions.print && posted && <LinkButton variant="secondary" href={invoicePdfUrl(invoiceId)} download>Download</LinkButton>}
+              {actions.print && posted && <a className={buttonVariants({ variant: "secondary" })} href={`${invoicePdfUrl(invoiceId, true)}&copies=3`} target="_blank" rel="noreferrer">Print 3 copies</a>}
               {actions.markSent && <Button variant="secondary" onPress={() => setDialog("markSent")}>Mark as Sent</Button>}
               {actions.recordPayment && <LinkButton variant="secondary" href="/accounting/receipts"><Wallet className="size-4" aria-hidden="true" />Record Payment</LinkButton>}
               {actions.creditNote && <Button variant="secondary" onPress={() => setDialog("credit")}><FileMinus className="size-4" aria-hidden="true" />Create Credit Note</Button>}

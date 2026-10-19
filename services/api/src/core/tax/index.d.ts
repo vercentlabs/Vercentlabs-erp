@@ -56,3 +56,12 @@ export declare function previewTaxCalculation(client: any, context: any, input: 
 export declare const REGISTRATION_TYPES: ReadonlyArray<{ code: string; label: string }>;
 export declare const UTGST_TERRITORIES: ReadonlySet<string>;
 export declare function classifyTax(treatment: string, rate?: bigint, cessRate?: bigint): string;
+// Shared Platform plan 7: TDS rules, lower-deduction certificates, UQC, composition.
+export declare function listTdsCertificates(client: any, context: any, supplierId: string): Promise<Array<{ id: string; supplierId: string; sectionId: string; sectionCode: string | null; certificateNumber: string; rate: string; validFrom: string; validTo: string; amountLimit: string | null }>>;
+export declare function saveTdsCertificate(client: any, context: any, input: Record<string, unknown>): Promise<Record<string, unknown>>;
+export declare function deleteTdsCertificate(client: any, context: any, certificateId: string): Promise<{ deleted: true }>;
+export declare function effectiveWithholdingRate(client: any, organizationId: string, input: { section: Record<string, any> | null; supplier: Record<string, any>; billDate: string; taxable: number | string; excludeBillId?: string | null }): Promise<{ rate: string; reason: string | null }>;
+export declare const GST_UQC: ReadonlyArray<{ code: string; label: string }>;
+export declare function isGstUqc(value: unknown): boolean;
+export declare function uqcForUnitCode(code: string, category?: string | null): string | null;
+export declare function unitUqcMap(client: any, organizationId: string): Promise<Map<string, string>>;

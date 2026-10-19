@@ -5,4 +5,7 @@ export function normalizeCurrency(value?: unknown, fallback?: string): string;
 export function assertTimeZone(value?: unknown): string;
 export function formatMoney(amount: unknown, options?: { locale?: string; currency?: string; maximumFractionDigits?: number }): string;
 export function formatDateTime(value: string | number | Date, options?: { locale?: string; timeZone?: string; dateStyle?: "full" | "long" | "medium" | "short"; timeStyle?: "full" | "long" | "medium" | "short" }): string;
-export function fiscalYearFor(value?: string | number | Date, startMonth?: number): Readonly<{ startYear: number; endYear: number; label: string }>;
+export function localDay(value?: string | number | Date, timeZone?: string): string;
+export function fiscalYearFor(value?: string | number | Date, startMonth?: number, timeZone?: string | null): Readonly<{ startYear: number; endYear: number; label: string }>;
+export function integerInIndianWords(value: number): string;
+export function amountInWords(amount: number | string, currency?: string): string;

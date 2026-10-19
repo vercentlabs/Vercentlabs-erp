@@ -6,7 +6,7 @@
 // generic channel: there is no platform-wide notification email or push
 // transport, and security email (sign-in, password reset, MFA) never goes
 // through notification preferences.
-export const NOTIFICATION_CHANNELS = Object.freeze(["in_app"]);
+export const NOTIFICATION_CHANNELS = Object.freeze(["in_app", "email"]);
 
 export const NOTIFICATION_CATEGORIES = Object.freeze([
   {
@@ -440,6 +440,115 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     displayName: "Timesheet reminders",
     description: "When your week's time is due or late, or a late timesheet on a project you manage needs following up.",
     moduleKey: "projects",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Billing: the company is near (80%) or at a plan allowance — file storage or this month's messages.
+    key: "billing_usage",
+    displayName: "Plan usage",
+    description: "When your company has used 80% of its file storage or of this month's messages.",
+    moduleKey: "platform",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Automations (Shared Platform plan 6) of every app other than CRM (which has its own).
+    key: "automation",
+    displayName: "Automations",
+    description: "Notifications your company's automations send you (an invoice overdue, an order confirmed …).",
+    moduleKey: "platform",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Approvals (Shared Platform plan 5): a request waits for you, or the request you raised was decided. Emailed by default.
+    key: "approval_request",
+    displayName: "Approvals waiting for you",
+    description: "When a document (a quotation, an invoice, a bill, a payment, a journal, a POS override) waits for your approval.",
+    moduleKey: "platform",
+    defaultInAppEnabled: true,
+    defaultEmailEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    key: "approval_decided",
+    displayName: "Your approval requests",
+    description: "When a request you raised is approved or rejected.",
+    moduleKey: "platform",
+    defaultInAppEnabled: true,
+    defaultEmailEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Sales (Shared Platform plan 5): your quotation was accepted or rejected, your order was confirmed, your delivery was dispatched.
+    key: "sales_document",
+    displayName: "Your sales documents",
+    description: "When a quotation you own is accepted or rejected, an order you own is confirmed, or its delivery is dispatched.",
+    moduleKey: "sales",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Procurement: goods arrived against a purchase order you raised.
+    key: "procurement_document",
+    displayName: "Your purchase orders",
+    description: "When goods are received against a purchase order you raised.",
+    moduleKey: "procurement",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Quality: an inspection failed, or a non-conformance was given to you.
+    key: "quality_issue",
+    displayName: "Quality issues",
+    description: "When an inspection fails, or a non-conformance is assigned to you.",
+    moduleKey: "quality",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Point of Sale: a shift closed with a cash difference.
+    key: "pos_cash_difference",
+    displayName: "Cash differences",
+    description: "When a cashier closes a shift and the counted cash differs from what was expected.",
+    moduleKey: "point-of-sale",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // The shared record thread: someone mentioned you, commented on a record you follow, or gave you an activity (and its reminder).
+    key: "record_thread",
+    displayName: "Comments and activities",
+    description: "When you are mentioned, a record you follow gets a comment, or an activity is given to you or falls due.",
+    moduleKey: "platform",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // The full workspace export the person asked for is ready to download.
+    key: "workspace_export",
+    displayName: "Workspace export ready",
+    description: "When the full export of your company's data you asked for is ready to download.",
+    moduleKey: "platform",
+    defaultInAppEnabled: true,
+    userConfigurable: false,
+  },
+  {
+    // Billing: a yearly (or monthly) subscription renews soon.
+    key: "billing_renewal",
+    displayName: "Subscription renewals",
+    description: "Before your subscription renews, with the amount that will be charged.",
+    moduleKey: "platform",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    // Sales: an open quotation passed its Valid Until date (told once, by the daily expiry check).
+    key: "sales_quotation_expired",
+    displayName: "Expired quotations",
+    description: "When a quotation you own passes its Valid Until date without a decision.",
+    moduleKey: "sales",
     defaultInAppEnabled: true,
     userConfigurable: true,
   },

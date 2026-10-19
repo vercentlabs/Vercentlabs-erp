@@ -17,6 +17,7 @@ import { applyCheckoutEntityInTx } from "./checkout.js";
 import { BillingServiceError, redactedErrorText } from "./errors.js";
 import { billingEvent } from "./observability.js";
 import { recordRefundInTx, upsertInvoiceInTx, upsertPaymentInTx } from "./payments.js";
+import { issueCreditNoteForRefundInTx, issueTaxInvoiceForPaymentInTx } from "./tax-invoices.js";
 import { mapProviderSubscriptionStatus, TERMINAL_STATUSES } from "./state.js";
 import { applySubscriptionEntityInTx } from "./subscriptions.js";
 import { epoch, tx } from "./shared.js";
@@ -244,6 +245,10 @@ export async function applyWebhookEventInTx(client, event) {
   let ledger = false;
   if (payload.payment?.entity) {
     await upsertPaymentInTx(client, { organizationId, subscriptionId: localSubscriptionId ?? null, payment: payload.payment.entity });
+    // A captured subscription charge gets Vercentlabs' GST tax invoice (once; nothing until the supplier settings are complete).
+    if (localSubscriptionId && String(payload.payment.entity.status) === "captured") {
+      await issueTaxInvoiceForPaymentInTx(client, { organizationId, providerPaymentId: payload.payment.entity.id });
+    }
     ledger = true;
   }
   if (payload.invoice?.entity) {
@@ -251,6 +256,11 @@ export async function applyWebhookEventInTx(client, event) {
     ledger = true;
   }
   if (payload.refund?.entity && !payload.payment?.entity) ledger = (await recordRefundInTx(client, { organizationId, refund: payload.refund.entity })) || ledger;
+  // A processed refund gets a credit note against the payment's tax invoice.
+  const refund = payload.refund?.entity;
+  if (refund?.payment_id && String(refund.status) === "processed") {
+    await issueCreditNoteForRefundInTx(client, { organizationId, providerPaymentId: refund.payment_id, providerRefundId: refund.id, amountPaise: Number(refund.amount) });
+  }
 
   const entity = payload.subscription?.entity;
   if (!type.startsWith("subscription.") || !entity) return { status: ledger ? "processed" : "ignored", organizationId };

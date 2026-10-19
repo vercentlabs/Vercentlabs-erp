@@ -21,6 +21,7 @@ import {
 } from "../access/index.js";
 import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "../access/index.js";
 import { assertSeatAvailable, withSeatLock } from "../billing/index.js";
+import { queueSecurityMail } from "../platform/mail/outbox.js";
 
 export class AuthLifecycleError extends Error {
   constructor(status, message, code) {
@@ -67,7 +68,7 @@ export async function createEmailVerificationToken(client, userId, env = process
      VALUES ($1, $2, $3, now() + interval '${VERIFICATION_TOKEN_TTL_HOURS} hours')`,
     [randomUUID(), userId, tokenHash(token)],
   );
-  const delivered = await deliverAuthMessage(
+  const delivered = await queueSecurityMail(client,
     { type: "verify-email", email: user.email, url: tokenUrl(env, "/verify-email", token), expiresIn: `${VERIFICATION_TOKEN_TTL_HOURS} hours` },
     env,
   );
@@ -133,7 +134,7 @@ export async function requestPasswordReset(client, email, env = process.env) {
      VALUES ($1, $2, $3, now() + interval '${RESET_TOKEN_TTL_HOURS} hours')`,
     [randomUUID(), user.id, tokenHash(token)],
   );
-  await deliverAuthMessage({ type: "reset-password", email: user.email, url: tokenUrl(env, "/reset-password", token), expiresIn: `${RESET_TOKEN_TTL_HOURS} hours` }, env);
+  await queueSecurityMail(client, { type: "reset-password", email: user.email, url: tokenUrl(env, "/reset-password", token), expiresIn: `${RESET_TOKEN_TTL_HOURS} hours` }, env);
   return { requested: true };
 }
 
@@ -295,8 +296,8 @@ export async function createOrganizationInvitation(
     });
   });
 
-  const delivered = await deliverAuthMessage(
-    { type: "organization-invitation", email, url: pathTokenUrl(env, "/invitations", token), organizationName: organization.name, expiresIn: `${INVITATION_TOKEN_TTL_DAYS} days` },
+  const delivered = await queueSecurityMail(client,
+    { type: "organization-invitation", email, url: pathTokenUrl(env, "/invitations", token), organizationName: organization.name, expiresIn: `${INVITATION_TOKEN_TTL_DAYS} days`, organizationId },
     env,
   );
   return { invitationId, delivered };
@@ -571,8 +572,8 @@ export async function resendOrganizationInvitation(client, { organizationId, inv
       WHERE id = $1`,
     [invitationId, tokenHash(token)],
   );
-  const delivered = await deliverAuthMessage(
-    { type: "organization-invitation", email: invitation.email, url: pathTokenUrl(env, "/invitations", token), organizationName: invitation.organization_name, expiresIn: `${INVITATION_TOKEN_TTL_DAYS} days` },
+  const delivered = await queueSecurityMail(client,
+    { type: "organization-invitation", email: invitation.email, url: pathTokenUrl(env, "/invitations", token), organizationName: invitation.organization_name, expiresIn: `${INVITATION_TOKEN_TTL_DAYS} days`, organizationId },
     env,
   );
   return { delivered };

@@ -13,6 +13,7 @@
 //                  frozen snapshot and hash stored in the day-end report record that payment reconciliation and accounting posting read.
 //   afterwards     late events (a refund that completed, a payment that resolved, a difference that was settled) are linked to the report as
 //                  append-only adjustments; a reprint reproduces the frozen snapshot.
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
 import { createHash } from "node:crypto";
 
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
@@ -712,6 +713,8 @@ export async function finalizeZReport(client, context, dayId, input = {}) {
     `UPDATE tenant.pos_business_days SET status = 'CLOSED', closed_at = $3, closed_by = $4, z_report_id = $5, reporting_cutoff = $6, last_preview_hash = $7 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, day.id, now, context.userId, report.id, built.end, built.previewHash]);
   await persistReadiness(client, context, { ...day, status: "CLOSED" }, built);
+  await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "point-of-sale", eventType: "pos.day.closed", entityType: "pos.day", entityId: day.id,
+    payload: { storeId: store.id, businessDate, zReportId: report.id, netSales: s.sales.netAfterReturns, cashVariance: s.cash.netVariance } });
   await event(client, context, day.id, "pos.day_end.finalized", { zReportId: report.id, number, previewHash: built.previewHash, snapshotHash: report.snapshot_hash,
     approved: readiness.items.filter((item) => item.severity === "APPROVABLE").length, tracked: readiness.tracked });
   // The closed day is the posting point for its sales and returns: they post to the accounts now, each on its own. One that cannot post

@@ -2,7 +2,7 @@
 
 // Stock Adjustments: corrections of recorded stock to what physically exists — a count found less or more than the books, a data or
 // migration error. Not for receipts, deliveries, returns, transfers, consumption or quality moves: each has its own document.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -13,7 +13,7 @@ import {
 
 import { money } from "@/features/items/item-format";
 import { formatDate } from "@/shared/format/human";
-import { ColumnsMenu, filterBarOf, optionLabel, useColumnVisibility, useDebouncedValue, usePagedRows, type OptionalColumn } from "@/shared/ui/list";
+import { ColumnsMenu, filterBarOf, optionLabel, useColumnVisibility, useDebouncedValue, useServerPage, type OptionalColumn } from "@/shared/ui/list";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -26,7 +26,6 @@ const OPTIONAL: OptionalColumn[] = [
   { id: "reason", label: "Reason" }, { id: "lineCount", label: "Items" }, { id: "increaseLines", label: "Up" }, { id: "decreaseLines", label: "Down" },
   { id: "valueNet", label: "Value impact" }, { id: "reference", label: "Reference" }, { id: "postedByName", label: "Posted by" },
 ];
-const sortValue = (row: AdjustmentHeader, id: string) => (id === "reference" ? row.countReference ?? row.reference : (row as Record<string, unknown>)[id]);
 
 export function AdjustmentsScreen({ initialItemId }: { initialItemId?: string }) {
   const workspace = useWorkspaceContext();
@@ -44,23 +43,27 @@ export function AdjustmentsScreen({ initialItemId }: { initialItemId?: string })
   const filters = { status: pick(status), search: submitted || undefined, warehouseId: pick(warehouseId), reasonId: pick(reasonId), direction: pick(direction),
     from: from || undefined, to: to || undefined, itemId: itemId || undefined };
   const options = useQuery({ queryKey: scopedQueryKey(workspace, "adjustments", "options"), queryFn: getAdjustmentOptions, staleTime: 60_000 });
-  const list = useQuery({ queryKey: scopedQueryKey(workspace, "adjustments", "list", filters), queryFn: () => listAdjustments(filters), placeholderData: (previous) => previous });
+  const paged = useServerPage({ initialSorting: [{ id: "adjustmentDate", desc: true }] });
+  // Back to the first page when the filters change (the server pages the filtered list).
+  const filterKey = JSON.stringify(filters);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- resets only when the filters themselves change
+  useEffect(() => paged.resetPage(), [filterKey]);
+  const list = useQuery({ queryKey: scopedQueryKey(workspace, "adjustments", "list", filters, paged.params), queryFn: () => listAdjustments({ ...filters, ...paged.params }), placeholderData: (previous) => previous });
   const rows = useMemo(() => list.data?.rows ?? [], [list.data]);
-  const paged = usePagedRows(rows, { initialSorting: [{ id: "adjustmentDate", desc: true }], sortValue });
   const columns = useColumnVisibility("inventory.adjustments.columns", OPTIONAL);
   const showValue = Boolean(list.data?.seesCost);
 
   const gridColumns = useMemo(() => ([
     { id: "number", accessorKey: "number", header: "Adjustment", enableHiding: false, cell: ({ row }) => <span className="font-medium text-text">{row.original.number}</span> },
     { id: "adjustmentDate", accessorKey: "adjustmentDate", header: "Date", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{formatDate(row.original.adjustmentDate)}</span> },
-    { id: "warehouse", accessorKey: "warehouse", header: "Warehouse", cell: ({ row }) => row.original.warehouse },
-    { id: "reason", accessorKey: "reason", header: "Reason", cell: ({ row }) => row.original.reason },
-    { id: "lineCount", accessorKey: "lineCount", header: "Items", cell: ({ row }) => <span className="tabular-nums">{row.original.lineCount}</span> },
-    { id: "increaseLines", accessorKey: "increaseLines", header: "Up", cell: ({ row }) => <span className="tabular-nums">{row.original.increaseLines || "—"}</span> },
-    { id: "decreaseLines", accessorKey: "decreaseLines", header: "Down", cell: ({ row }) => <span className="tabular-nums">{row.original.decreaseLines || "—"}</span> },
-    { id: "valueNet", accessorKey: "valueNet", header: "Value impact",
+    { id: "warehouse", enableSorting: false, accessorKey: "warehouse", header: "Warehouse", cell: ({ row }) => row.original.warehouse },
+    { id: "reason", enableSorting: false, accessorKey: "reason", header: "Reason", cell: ({ row }) => row.original.reason },
+    { id: "lineCount", enableSorting: false, accessorKey: "lineCount", header: "Items", cell: ({ row }) => <span className="tabular-nums">{row.original.lineCount}</span> },
+    { id: "increaseLines", enableSorting: false, accessorKey: "increaseLines", header: "Up", cell: ({ row }) => <span className="tabular-nums">{row.original.increaseLines || "—"}</span> },
+    { id: "decreaseLines", enableSorting: false, accessorKey: "decreaseLines", header: "Down", cell: ({ row }) => <span className="tabular-nums">{row.original.decreaseLines || "—"}</span> },
+    { id: "valueNet", enableSorting: false, accessorKey: "valueNet", header: "Value impact",
       cell: ({ row }) => <span className="tabular-nums">{row.original.valueNet === undefined ? "—" : money(row.original.valueNet)}</span> },
-    { id: "reference", accessorFn: (row) => row.countReference ?? row.reference, header: "Reference", cell: ({ row }) => row.original.countReference ?? row.original.reference ?? "" },
+    { id: "reference", enableSorting: false, accessorFn: (row) => row.countReference ?? row.reference, header: "Reference", cell: ({ row }) => row.original.countReference ?? row.original.reference ?? "" },
     { id: "status", accessorKey: "status", header: "Status", enableHiding: false, cell: ({ row }) => <StatusBadge tone={STATUS_TONE[row.original.status]}>{STATUS_LABEL[row.original.status]}</StatusBadge> },
     { id: "postedByName", accessorKey: "postedByName", header: "Posted by", cell: ({ row }) => row.original.postedByName ?? "" },
   ] satisfies ColumnDef<AdjustmentHeader, unknown>[]).filter((column) => showValue || column.id !== "valueNet"), [showValue]);
@@ -108,7 +111,7 @@ export function AdjustmentsScreen({ initialItemId }: { initialItemId?: string })
       <EnterpriseDataGrid<AdjustmentHeader>
         aria-label="Stock adjustments"
         columns={gridColumns}
-        data={paged.pageRows}
+        data={rows}
         getRowId={(row) => row.id}
         state={list.isLoading ? "loading" : list.isError ? "error" : rows.length === 0 ? (filtered ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading stock adjustments" rows={8} />}
@@ -116,7 +119,7 @@ export function AdjustmentsScreen({ initialItemId }: { initialItemId?: string })
         emptyContent={<EmptyState title="No stock adjustments yet" description="Correct the books when a count finds more or less than recorded."
           action={canCreate ? { label: "New adjustment", onPress: () => router.push(`${ADJUSTMENTS_BASE}/new`) } : undefined} />}
         noResultsContent={<NoResultsState title="No adjustments match" description="Try a different view, search or filter." />}
-        {...paged.grid}
+        {...paged.grid(list.data?.total ?? 0)}
         columnVisibility={columns.visibility}
         onColumnVisibilityChange={columns.setVisibility}
         onRowClick={(row) => router.push(`${ADJUSTMENTS_BASE}/${row.id}`)}

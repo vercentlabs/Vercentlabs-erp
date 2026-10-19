@@ -37,13 +37,19 @@ function Shell({ title, description, error, onClose, label, isLoading, isDisable
 
 type DialogProps = { detail: PurchaseOrderDetail; options: PurchaseOrderOptions; onClose: () => void; onDone: (message: string) => void };
 
-function useAction(detail: PurchaseOrderDetail, action: string, onDone: (message: string) => void, message: string) {
+function useAction(detail: PurchaseOrderDetail, action: string, onDone: (message: string) => void, message: string | ((result: Record<string, unknown>) => string)) {
   const submit = useSubmitKey();
-  return useMutation({ mutationFn: (input: Record<string, unknown>) => submit.run(() => orderAction(detail.order.id, action, input)), onSuccess: () => onDone(message) });
+  return useMutation({ mutationFn: (input: Record<string, unknown>) => submit.run(() => orderAction(detail.order.id, action, input)),
+    onSuccess: (result) => onDone(typeof message === "function" ? message(result ?? {}) : message) });
 }
 
 export function ConfirmDialog({ detail, onClose, onDone }: DialogProps) {
-  const run = useAction(detail, "confirm", onDone, detail.order.amending ? `Version ${detail.order.versionNumber + 1} confirmed.` : "The purchase order is confirmed.");
+  // Under the company's approval rules a large order waits for its approver(s) first; it stays a draft until then.
+  const run = useAction(detail, "confirm", onDone, (result) => {
+    const pending = result.approvalRequired ? (result.pendingApproval as { level: number; approver: string | null; levels: number } | undefined) : undefined;
+    if (pending) return `Sent for approval${pending.levels > 1 ? ` (level ${pending.level} of ${pending.levels})` : ""}${pending.approver ? ` to ${pending.approver}` : ""}. Confirm it again once it is approved.`;
+    return detail.order.amending ? `Version ${detail.order.versionNumber + 1} confirmed.` : "The purchase order is confirmed.";
+  });
   return (
     <Shell title={detail.order.amending ? `Confirm version ${detail.order.versionNumber + 1}` : "Confirm purchase order"} error={run.error} onClose={onClose} label="Confirm" isLoading={run.isPending}
       onPress={() => run.mutate({ expectedRevision: detail.order.revision })}

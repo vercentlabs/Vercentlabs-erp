@@ -7,6 +7,7 @@
 import { billingEnforcementMode } from "./enforcement.js";
 import { hasWriteAccess } from "./state.js";
 import { SEAT_OVERAGE_GRACE_DAYS } from "./seats.js";
+import { effectiveModulesFor } from "./app-choice.js";
 
 export { billingEnforcementMode };
 
@@ -53,6 +54,8 @@ export async function getBillingSummary(client, organizationId, env = process.en
         subscription.cancel_at_cycle_end,
         subscription.provider_subscription_id,
         subscription.modules_snapshot,
+        subscription.selected_modules,
+        plan.module_allowance,
         subscription.limits_snapshot,
         subscription.paid_seats,
         subscription.included_users_snapshot,
@@ -87,7 +90,8 @@ export async function getBillingSummary(client, organizationId, env = process.en
   );
   const usage = Object.fromEntries(usageRows.rows.map((item) => [item.metric, Number(item.quantity)]));
   const effectiveLimits = limits(row.limits_snapshot);
-  let effectiveModules = Array.isArray(row.modules_snapshot) ? row.modules_snapshot.map(String) : [];
+  // Free gives the app(s) the company chose (app-choice.js); other plans give their snapshot.
+  let effectiveModules = effectiveModulesFor({ moduleAllowance: row.module_allowance, selectedModules: row.selected_modules, modulesSnapshot: row.modules_snapshot });
   for (const override of overrideRows.rows) {
     if (override.entitlement_key === "modules") {
       if (Array.isArray(override.entitlement_value)) {
@@ -121,6 +125,7 @@ export async function getBillingSummary(client, organizationId, env = process.en
     providerSubscriptionId: row.provider_subscription_id,
     limits: effectiveLimits,
     modules: effectiveModules,
+    moduleAllowance: row.module_allowance === null || row.module_allowance === undefined ? null : Number(row.module_allowance),
     usage,
     seats: { includedUsers, paidSeats: Number(row.paid_seats || 0), capacity: includedUsers === null ? null : includedUsers + Number(row.paid_seats || 0) },
     seatOverage: seatLocked ? { since: iso(overageSince), lockedAt: iso(overageLockedAt) } : null,

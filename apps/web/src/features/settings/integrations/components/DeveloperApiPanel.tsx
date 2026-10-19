@@ -54,6 +54,7 @@ type Scope = {
   displayName: string;
   description: string;
   risk: string;
+  endpoints?: string[];
 };
 type Payload = { apps: App[]; keys: Key[]; scopes: Scope[] };
 
@@ -269,6 +270,26 @@ export function DeveloperApiPanel({ canManage }: { canManage: boolean }) {
           );
         })
       )}
+
+      <details className="rounded-[var(--radius-card)] border border-border bg-surface p-4 text-sm">
+        <summary className="cursor-pointer font-medium">API reference</summary>
+        <div className="mt-3 flex flex-col gap-3">
+          <p className="text-text-secondary">
+            Send the key as <code className="font-mono">Authorization: Bearer &lt;key&gt;</code>. Lists take <code className="font-mono">?limit=</code> (up to 200),{" "}
+            <code className="font-mono">?offset=</code> and <code className="font-mono">?search=</code>. Every answer is JSON with <code className="font-mono">ok</code> and{" "}
+            <code className="font-mono">requestId</code>; an error has <code className="font-mono">code</code> and <code className="font-mono">message</code>. Too many calls
+            answer 429 with Retry-After.
+          </p>
+          <ul className="flex flex-col divide-y divide-border">
+            {scopes.map((scope) => (
+              <li key={scope.key} className="flex flex-col gap-0.5 py-2">
+                <span><code className="font-mono">{scope.key}</code> · {scope.displayName}</span>
+                {(scope.endpoints ?? []).map((endpoint) => <code key={endpoint} className="font-mono text-xs text-text-secondary">{endpoint}</code>)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </details>
 
       {creatingApp && (
         <CreateAppDialog

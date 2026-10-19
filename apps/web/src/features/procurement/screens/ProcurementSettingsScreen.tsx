@@ -210,23 +210,30 @@ function ExpenseCategories() {
   );
 }
 
-// TDS / withholding sections of the shared tax set-up: the rate withheld from a supplier's bill (on its taxable value).
+// TDS / withholding sections of the shared tax set-up: the rate withheld from a supplier's bill (on its taxable value), with the law's
+// limits (one bill / the year), the rate for individuals and HUFs, and the rate without a PAN (206AA).
 function WithholdingSections() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const key = scopedQueryKey(workspace, "procurement", "withholding-sections");
   const query = useQuery({ queryKey: key, queryFn: listWithholdingSections });
-  const [draft, setDraft] = useState({ code: "", name: "", rate: "" });
+  const [draft, setDraft] = useState({ code: "", name: "", rate: "", thresholdSingle: "", thresholdAnnual: "", rateIndividual: "", rateNoPan: "" });
   const save = useMutation({ mutationFn: (input: Record<string, unknown>) => saveWithholdingSection(input),
-    onSuccess: () => { setDraft({ code: "", name: "", rate: "" }); void queryClient.invalidateQueries({ queryKey: key }); } });
+    onSuccess: () => { setDraft({ code: "", name: "", rate: "", thresholdSingle: "", thresholdAnnual: "", rateIndividual: "", rateNoPan: "" }); void queryClient.invalidateQueries({ queryKey: key }); } });
   return (
     <Panel title="TDS sections" description="Withheld from supplier bills on their taxable value. A supplier carries its usual section; a bill may use another or none. Managed by whoever manages tax rates.">
       {save.error && <Notice>{errorMessage(save.error)}</Notice>}
       <ul className="flex flex-col divide-y divide-border text-sm">
         {(query.data ?? []).map((section) => (
           <li key={section.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-            <span><span className="font-medium">{section.code}</span> · {section.name} · {Number(section.rate)}%{section.status !== "active" ? " (inactive)" : ""}</span>
-            <Button size="compact" variant="ghost" onPress={() => save.mutate({ id: section.id, code: section.code, name: section.name, rate: section.rate, status: section.status === "active" ? "inactive" : "active" })}>
+            <span>
+              <span className="font-medium">{section.code}</span> · {section.name} · {Number(section.rate)}%{section.status !== "active" ? " (inactive)" : ""}
+              <span className="block text-xs text-text-muted">
+                {[section.thresholdSingle && `from ₹${Number(section.thresholdSingle).toLocaleString("en-IN")} a bill`, section.thresholdAnnual && `or ₹${Number(section.thresholdAnnual).toLocaleString("en-IN")} a year`,
+                  section.rateIndividual && `individuals ${Number(section.rateIndividual)}%`, `no PAN ${section.rateNoPan ? Number(section.rateNoPan) : Math.max(20, Number(section.rate) * 2)}%`].filter(Boolean).join(" · ")}
+              </span>
+            </span>
+            <Button size="compact" variant="ghost" onPress={() => save.mutate({ ...section, status: section.status === "active" ? "inactive" : "active" })}>
               {section.status === "active" ? "Deactivate" : "Activate"}
             </Button>
           </li>
@@ -237,6 +244,10 @@ function WithholdingSections() {
         <TextField label="Section" value={draft.code} onChange={(value) => setDraft((current) => ({ ...current, code: value }))} placeholder="194C" />
         <TextField label="Description" value={draft.name} onChange={(value) => setDraft((current) => ({ ...current, name: value }))} placeholder="Contractors" />
         <TextField label="Rate %" inputMode="decimal" value={draft.rate} onChange={(value) => setDraft((current) => ({ ...current, rate: value }))} />
+        <TextField label="Individuals / HUF %" inputMode="decimal" value={draft.rateIndividual} onChange={(value) => setDraft((current) => ({ ...current, rateIndividual: value }))} description="Optional." />
+        <TextField label="One bill from (₹)" inputMode="decimal" value={draft.thresholdSingle} onChange={(value) => setDraft((current) => ({ ...current, thresholdSingle: value }))} placeholder="30000" />
+        <TextField label="Year from (₹)" inputMode="decimal" value={draft.thresholdAnnual} onChange={(value) => setDraft((current) => ({ ...current, thresholdAnnual: value }))} placeholder="100000" />
+        <TextField label="Without PAN %" inputMode="decimal" value={draft.rateNoPan} onChange={(value) => setDraft((current) => ({ ...current, rateNoPan: value }))} description="Empty: 20% or twice the rate." />
         <div className="flex items-end"><Button variant="secondary" isLoading={save.isPending} isDisabled={!draft.code || !draft.name || !draft.rate} onPress={() => save.mutate(draft)}>Add section</Button></div>
       </div>
     </Panel>

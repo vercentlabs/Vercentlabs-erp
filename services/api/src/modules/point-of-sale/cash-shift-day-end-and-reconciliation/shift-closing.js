@@ -19,6 +19,8 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { decimal, add, sub, asDatabaseDecimal, formatDecimal } from "../../../core/decimal.js";
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
+import { notifyPermissionHolders } from "../../../core/platform/notifications/index.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess, accessiblePosStoreIds } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
@@ -793,7 +795,13 @@ export async function finalizeShiftClosing(client, context, shiftId, input = {})
       counted: decimal(String(count.counted_amount)), countId: count.id, ledgerVersion: count.cash_ledger_version ?? await cashLedgerVersion(client, context.organizationId, shift.id),
       recounts: count.count_sequence - 1, reasonCode, reasonNote: reason, policy: policy.variance, evaluation: verdict, approvalId: approval?.id ?? null, closingId,
       status: verdict.blocked ? "INVESTIGATING" : "OPEN", assignedTo: verdict.blocked ? context.userId : null });
+    await notifyPermissionHolders(client, context, "pos.reconciliation.manage", { category: "pos_cash_difference",
+      title: `Cash ${variance > 0n ? "over" : "short"} by ₹${out(variance < 0n ? -variance : variance)} at ${shift.store_name ?? "a store"}`,
+      message: `Shift ${shift.shift_number ?? ""} (${shift.cashier_name ?? "cashier"}) closed with a difference${reason ? `: ${String(reason).slice(0, 200)}` : "."}`.replace("Shift  (", "Shift ("),
+      href: "/pos/reconciliation", entityType: "pos_shift", entityId: shift.id });
   }
+  await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "point-of-sale", eventType: "pos.shift.closed", entityType: "pos.shift", entityId: shift.id,
+    payload: { shiftNumber: shift.shift_number, storeId: shift.store_id, cashierUserId: shift.cashier_user_id, variance: variance === null ? null : out(variance) } });
   for (const item of pendingRefunds) await exception("DIGITAL_REFUND", item.referenceType, item.referenceId, item.amount, { queue: "REFUND_RECONCILIATION", note: item.label });
   for (const item of forced) await exception(item.type, item.referenceType, item.referenceId, item.amount, { assignedTo: context.userId, note: `Force-closed: ${closeReason}` });
 

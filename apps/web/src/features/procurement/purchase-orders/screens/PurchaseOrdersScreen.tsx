@@ -4,6 +4,7 @@
 // (Draft, Awaiting Receipt, Overdue Receipt, Ready to Close …), searchable by
 // PO number, supplier, supplier reference, quotation, product, goods receipt
 // and bill. Receiving and billing come from the documents, never typed in.
+import { ListStateViews } from "../../shared/ListStateViews";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -120,7 +121,7 @@ export function PurchaseOrdersScreen() {
         primaryAction: canCreate ? <LinkButton href="/procurement/purchase-orders/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New Purchase Order</LinkButton> : undefined,
       }}
       savedViews={{ views: views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
-      actionBar={{
+      actionBar={{ end: <ListStateViews listKey="purchase-orders" list={list} />, 
         start: (
           <>
             <SearchField aria-label="Search purchase orders" placeholder="PO number, supplier, supplier reference, quotation, product, receipt or bill" className="w-full sm:w-96"

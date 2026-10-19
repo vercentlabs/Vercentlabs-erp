@@ -11,7 +11,8 @@
   },
   "scripts": {
     "dev": "node --watch bin/start.mjs",
-    "start": "node bin/start.mjs"
+    "start": "node bin/start.mjs",
+    "migrate": "node bin/migrate.mjs"
   },
   "dependencies": {
     "@vercentlabs/api": "workspace:*",

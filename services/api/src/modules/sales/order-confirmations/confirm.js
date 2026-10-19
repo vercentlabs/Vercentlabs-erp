@@ -13,6 +13,8 @@
 // or a retried request never makes a second revision.
 //
 // A refused attempt is recorded on the order's history with its reasons.
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
+import { notifyRecordOwner } from "../../../core/platform/notifications/index.js";
 import { updateDealFromConfirmedOrder } from "../../crm/quotations/order-sync.js";
 import { accrueSalesCommission } from "../pass1-operations.js";
 import { assertOrderVisible, orderCan, requireOrderPermission } from "../orders/access.js";
@@ -102,6 +104,11 @@ export async function confirmSalesOrder(client, context, orderId, input = {}) {
       await client.query("ROLLBACK TO SAVEPOINT sales_order_deal_value");
     }
   }
+  await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "sales", eventType: "sales.order.confirmed", entityType: "sales.order", entityId: order.id,
+    payload: { orderNumber: order.sales_order_number, customerId: order.party_id, ownerUserId: order.owner_user_id, total: order.grand_total, currencyCode: order.currency_code?.trim() } });
+  await notifyRecordOwner(client, context, { userId: order.owner_user_id ?? order.created_by, category: "sales_document",
+    title: `Sales order ${order.sales_order_number} was confirmed`, message: "It is confirmed; stock is reserved where it was available.",
+    href: `/sales/orders/${order.id}`, entityType: "sales_order", entityId: order.id });
   return {
     orderId: order.id, confirmed: true, status: STATUS.confirmed, changed: true, confirmationId: confirmation.id, confirmationVersion: confirmation.version,
     fulfillmentStatus: progress.fulfillmentStatus, reservation, shortages: check.shortages, warnings: check.warnings, sourceOpportunityId: order.source_opportunity_id ?? null,

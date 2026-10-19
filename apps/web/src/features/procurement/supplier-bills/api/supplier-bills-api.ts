@@ -168,7 +168,9 @@ export const uploadBillFile = (id: string, file: File) => {
 };
 export const removeBillFile = (id: string, fileId: string) => call<{ result: { removed: boolean } }>(`/supplier-bills/${id}/files/${fileId}`, { method: "DELETE", body: "{}" });
 export const billFileUrl = (id: string, fileId: string, inline = false) => `/api/procurement/supplier-bills/${id}/files/${fileId}${inline ? "?disposition=inline" : ""}`;
-export const listWithholdingSections = () => get<{ sections: Array<{ id: string; code: string; name: string; rate: string; status: string }> }>("/withholding-sections").then((result) => result.sections);
+export type WithholdingSection = { id: string; code: string; name: string; rate: string; status: string; thresholdSingle: string | null; thresholdAnnual: string | null;
+  rateIndividual: string | null; rateNoPan: string | null };
+export const listWithholdingSections = () => get<{ sections: WithholdingSection[] }>("/withholding-sections").then((result) => result.sections);
 export const saveWithholdingSection = (input: Record<string, unknown>) => post<{ section: unknown }>("/withholding-sections", input);
 export const getSupplierRegistrations = (supplierId: string) =>
   get<{ registrations: Array<{ id: string; gstin: string; stateCode: string; stateName: string | null; status: string; isPrincipal: boolean }> }>(`/suppliers/${supplierId}/tax-registrations`)

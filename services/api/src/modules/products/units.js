@@ -6,6 +6,7 @@
 import { requireProductPermission } from "./access.js";
 import { PRODUCT_PERMISSIONS, ProductError } from "./constants.js";
 import { SKU_PATTERN, has, requireUuid, text } from "./validation.js";
+import { isGstUqc, uqcForUnitCode } from "../../core/tax/uqc.js";
 
 const MANAGE = [PRODUCT_PERMISSIONS.manageUomMaster, "You do not have permission to manage units of measure."];
 
@@ -19,7 +20,7 @@ const issue = (field, message, code = "UOM_VALIDATION", status = 400) => new Pro
 const USED_BY_ITEMS = `SELECT count(*)::int FROM tenant.items item WHERE item.organization_id = uom.organization_id
   AND (item.uom_id = uom.id OR item.sales_uom_id = uom.id OR item.purchase_uom_id = uom.id)`;
 const toUnit = (row) => ({
-  id: row.id, code: row.code, name: row.name, symbol: row.symbol ?? null, category: row.category, dimension: row.category, decimalPlaces: Number(row.decimal_places),
+  id: row.id, code: row.code, name: row.name, symbol: row.symbol ?? null, uqc: row.uqc ?? null, category: row.category, dimension: row.category, decimalPlaces: Number(row.decimal_places),
   fractionAllowed: Number(row.decimal_places) > 0, status: row.status, isActive: row.status === "active", itemCount: Number(row.item_count ?? 0),
   standardFactor: row.standard_factor === null || row.standard_factor === undefined ? null : String(Number(row.standard_factor)), standardDimension: row.standard_dimension ?? null,
   version: Number(row.version ?? 1), updatedAt: row.updated_at,
@@ -48,6 +49,7 @@ function check(values) {
   if (!CATEGORY_CODES.has(values.category)) throw issue("category", "Choose what the unit measures.");
   if (!Number.isInteger(values.decimalPlaces) || values.decimalPlaces < 0 || values.decimalPlaces > 6) throw issue("decimalPlaces", "Choose 0 to 6 decimal places.");
   if (values.symbol && values.symbol.length > 12) throw issue("symbol", "Use up to 12 characters, such as kg.");
+  if (values.uqc && !isGstUqc(values.uqc)) throw issue("uqc", "Choose the GST unit code (UQC), such as NOS or KGS.");
 }
 
 // input: { code, name, symbol, category (the dimension), decimalPlaces }
@@ -55,12 +57,14 @@ export async function createUnitOfMeasure(client, context, input = {}) {
   requireProductPermission(context, ...MANAGE);
   const values = { code: text(input.code).toUpperCase(), name: text(input.name), symbol: text(input.symbol) || null, category: text(input.category || input.dimension || "quantity").toLowerCase(),
     decimalPlaces: Number(input.decimalPlaces ?? 0) };
+  // The GST unit code: as chosen, else the usual one for the code (NOS for EA, KGS for KG ...).
+  values.uqc = text(input.uqc).toUpperCase() || uqcForUnitCode(values.code, values.category);
   check(values);
   if ((await client.query(`SELECT 1 FROM tenant.units_of_measure WHERE organization_id = $1 AND upper(code) = $2`, [context.organizationId, values.code])).rows[0])
     throw issue("code", `${values.code} already exists.`, "UOM_DUPLICATE", 409);
   const row = (await client.query(
-    `INSERT INTO tenant.units_of_measure (organization_id, code, name, symbol, category, decimal_places, status, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $7) RETURNING *`,
-    [context.organizationId, values.code, values.name, values.symbol, values.category, values.decimalPlaces, context.userId ?? null])).rows[0];
+    `INSERT INTO tenant.units_of_measure (organization_id, code, name, symbol, category, decimal_places, status, created_by, updated_by, uqc) VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $7, $8) RETURNING *`,
+    [context.organizationId, values.code, values.name, values.symbol, values.category, values.decimalPlaces, context.userId ?? null, values.uqc])).rows[0];
   return toUnit(row);
 }
 
@@ -76,6 +80,7 @@ export async function updateUnitOfMeasure(client, context, uomId, input = {}) {
     code: row.code, name: has(input, "name") ? text(input.name) : row.name, symbol: has(input, "symbol") ? text(input.symbol) || null : row.symbol,
     category: has(input, "category") ? text(input.category).toLowerCase() : row.category,
     decimalPlaces: has(input, "decimalPlaces") ? Number(input.decimalPlaces) : Number(row.decimal_places),
+    uqc: has(input, "uqc") ? text(input.uqc).toUpperCase() || null : row.uqc,
   };
   check(values);
   if (values.category !== row.category && Number(row.item_count) > 0) throw issue("category", "Items already use this unit, so what it measures cannot change.", "UOM_CATEGORY_LOCKED", 409);
@@ -89,8 +94,8 @@ export async function updateUnitOfMeasure(client, context, uomId, input = {}) {
     if (used) throw issue("decimalPlaces", `${used.code} already has quantities recorded in ${row.code}, so its decimal places cannot be reduced.`, "UOM_PRECISION_LOCKED", 409);
   }
   const updated = (await client.query(
-    `UPDATE tenant.units_of_measure SET name = $3, category = $4, decimal_places = $5, symbol = $7, version = version + 1, updated_by = $6, updated_at = now() WHERE organization_id = $1 AND id = $2 RETURNING *`,
-    [context.organizationId, row.id, values.name, values.category, values.decimalPlaces, context.userId ?? null, values.symbol])).rows[0];
+    `UPDATE tenant.units_of_measure SET name = $3, category = $4, decimal_places = $5, symbol = $7, uqc = $8, version = version + 1, updated_by = $6, updated_at = now() WHERE organization_id = $1 AND id = $2 RETURNING *`,
+    [context.organizationId, row.id, values.name, values.category, values.decimalPlaces, context.userId ?? null, values.symbol, values.uqc])).rows[0];
   return toUnit({ ...updated, item_count: row.item_count });
 }
 

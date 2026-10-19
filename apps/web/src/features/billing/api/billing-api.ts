@@ -29,6 +29,28 @@ const send = <T>(path: string, body: unknown, method = "POST") =>
     body: JSON.stringify(body),
   }).then(parse<T>);
 
+export type BillingPeriod = "monthly" | "yearly";
+
+export type AppChoice = {
+  planCode: string;
+  planName: string;
+  allowance: number | null;
+  selected: string[] | null;
+  grandfathered: boolean;
+  needsChoice: boolean;
+  canSwitch: boolean;
+  nextSwitchAt: string | null;
+  lastSwitchAt: string | null;
+  switchIntervalDays: number;
+};
+
+export type Usage = {
+  storage: { usedBytes: number; limitBytes: number; percent: number };
+  messages: { used: number; limit: number; percent: number };
+  warningPercent: number;
+  enforced: boolean;
+};
+
 export type Plan = {
   priceId: string;
   code: string;
@@ -38,8 +60,13 @@ export type Plan = {
   availability: "available" | "coming_soon" | "contact_sales";
   pricingModel: "free" | "per_seat" | "flat" | "custom";
   includedUsers: number | null;
+  moduleAllowance: number | null;
   perUserPricePaise: number | null;
+  prices: Partial<Record<BillingPeriod, { priceId: string; perUserPaise: number; perUserMonthlyPaise: number; perUserChargedPaise: number }>>;
+  pricesIncludeGst: boolean;
+  gstRatePercent: number;
   current: boolean;
+  currentBillingPeriod: string | null;
   purchasable: boolean;
   contactSales: boolean;
   salesContactUrl: string | null;
@@ -52,6 +79,7 @@ export type Overview = {
     planName: string;
     pricingModel: string;
     currentPeriodEndsAt: string | null;
+    billingPeriod: string | null;
     cancelAtCycleEnd: boolean;
     cancellationPending: boolean;
     graceEndsAt: string | null;
@@ -94,13 +122,18 @@ export type Overview = {
   } | null;
   invoices: Array<{
     id: string;
-    provider_invoice_id: string;
+    provider_invoice_id: string | null;
     amount_paise: number;
     amount_paid_paise: number;
     status: string;
     invoice_url: string | null;
     issued_at: string | null;
     paid_at: string | null;
+    document_kind: "provider_invoice" | "tax_invoice" | "credit_note";
+    invoice_number: string | null;
+    taxable_paise: number | null;
+    tax_paise: number;
+    pdfUrl: string | null;
   }>;
   payments: Array<{
     id: string;
@@ -123,7 +156,9 @@ export type Overview = {
     reason: string;
     created_at: string;
   }>;
-  taxInvoices: { available: boolean };
+  taxInvoices: { available: boolean; configured: boolean; missing: string[]; problems: string[] };
+  appChoice: AppChoice;
+  usage: Usage;
   checkoutEnabled: boolean;
   enforcementMode: "observe" | "enforce";
 };
@@ -137,6 +172,10 @@ export type Checkout = {
   description: string;
   prefill: { name: string; email: string; contact?: string };
   monthlyPaise: number;
+  billingPeriod: BillingPeriod;
+  pricePaise: number;
+  gstPaise: number;
+  chargedPaise: number;
   paidSeats: number;
   totalUsers: number;
 };
@@ -200,8 +239,10 @@ export const getHealth = () =>
   fetch("/api/billing/health", { credentials: "same-origin" })
     .then(parse<{ health: Health }>)
     .then((r) => r.health);
-export const startCheckout = (planPriceId: string, users: number) =>
-  send<Checkout>("checkout", { planPriceId, users });
+export const startCheckout = (planPriceId: string, users: number, billingPeriod: BillingPeriod = "monthly") =>
+  send<Checkout>("checkout", { planPriceId, users, billingPeriod });
+export const chooseApp = (module: string) =>
+  send<{ appChoice: AppChoice & { changed: boolean } }>("apps", { module });
 export const verifyCheckout = (input: {
   checkoutSessionId: string;
   razorpay_payment_id: string;

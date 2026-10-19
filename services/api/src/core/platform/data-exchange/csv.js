@@ -1,7 +1,8 @@
 // Authoritative server-side CSV parsing for imports (the browser only uploads
 // the file). Built on csv-parse (RFC 4180: quoted fields, "" escapes, newlines
 // inside quotes) with platform limits:
-//   UTF-8 only (a leading BOM is removed), header row required, no empty or
+//   UTF-8 (a leading BOM is removed), UTF-16 with a BOM (Excel's "Unicode text"), or else Windows-1252 (what Excel's plain
+//   "CSV (Comma delimited)" writes on Windows: ₹ is not in it, but é, – and smart quotes are); header row required, no empty or
 //   duplicate headers (case/space-insensitive), consistent column counts,
 //   caps on rows, columns and field length, and on the upload size.
 // Values are returned as plain strings; the importing module owns meaning.
@@ -17,6 +18,18 @@ export class DataExchangeError extends Error {
   }
 }
 
+// The text of an uploaded CSV, or null for a binary file (a NUL byte outside UTF-16).
+export function decodeCsvText(buffer) {
+  if (buffer[0] === 0xff && buffer[1] === 0xfe) return new TextDecoder("utf-16le").decode(buffer.subarray(2));
+  if (buffer[0] === 0xfe && buffer[1] === 0xff) return new TextDecoder("utf-16be").decode(buffer.subarray(2));
+  if (buffer.includes(0)) return null;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    return new TextDecoder("windows-1252").decode(buffer);
+  }
+}
+
 export const CSV_LIMITS = Object.freeze({ maxBytes: 5 * 1024 * 1024, maxRows: 5000, maxColumns: 100, maxFieldLength: 5000 });
 
 export function parseCsvUpload(bytes, limits = {}) {
@@ -24,12 +37,8 @@ export function parseCsvUpload(bytes, limits = {}) {
   const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes ?? []);
   if (buffer.length === 0) throw new DataExchangeError(400, "The file is empty.", "CSV_EMPTY");
   if (buffer.length > maxBytes) throw new DataExchangeError(413, `The file is larger than ${Math.round(maxBytes / (1024 * 1024))} MB.`, "CSV_TOO_LARGE");
-  let text;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
-  } catch {
-    throw new DataExchangeError(400, "Save the file as UTF-8 CSV and upload it again.", "CSV_ENCODING_INVALID");
-  }
+  let text = decodeCsvText(buffer);
+  if (text === null) throw new DataExchangeError(400, "This is not a CSV text file. Save it as CSV from Excel and upload it again.", "CSV_ENCODING_INVALID");
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
 
   let rows;

@@ -67,6 +67,7 @@ export async function emailProformaInvoice(client, context, quotationId, input =
   const message = text(input.message, 10000)
     ?? `Please find attached our proforma invoice ${number} against quotation ${quote.quotation_number}${advancePercent ? `, with the ${advancePercent}% advance requested` : ""}. It is not a tax invoice.`;
   const result = await sendMail({
+    meter: { client, organizationId: context.organizationId },
     to, cc: cc.length ? cc : undefined, subject, text: message,
     html: `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">${escapeHtml(message).replace(/\n/g, "<br>")}</body></html>`,
     attachments: [{ filename: attachment.fileName, content: attachment.content, contentType: "application/pdf" }],

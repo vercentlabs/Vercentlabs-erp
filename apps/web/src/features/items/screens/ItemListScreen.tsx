@@ -2,6 +2,7 @@
 
 // The item list: one catalogue for every module. Inventory opens it as Items (units, tracking and stock read from Inventory); Sales opens
 // it as Products & Services (selling and tax). Stock columns are read-only figures from Inventory, shown to those who may see stock.
+import { UrlViews } from "@/shared/ui/MyViews";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -157,7 +158,7 @@ export function ItemListScreen({ lens = "inventory" }: { lens?: ItemLens }) {
           ),
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView } : undefined}
-        actionBar={{
+        actionBar={{ end: <UrlViews listKey="inventory.items" />, 
           start: (
             <>
               <SearchField aria-label="Search items" placeholder="Search name, SKU, barcode, brand, manufacturer, part number, HSN / SAC or category" className="w-full sm:w-96"

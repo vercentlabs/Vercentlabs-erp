@@ -21,8 +21,12 @@ import { createUnit, errorCode, errorMessage, fieldErrors, getItemOptions, listU
 import { UnitConversionsImport } from "../components/UnitConversionsImport";
 import { ErrorBanner } from "../item-format";
 
-type Draft = { code: string; name: string; symbol: string; category: string; decimalPlaces: string };
-const blank: Draft = { code: "", name: "", symbol: "", category: "quantity", decimalPlaces: "0" };
+type Draft = { code: string; name: string; symbol: string; uqc: string; category: string; decimalPlaces: string };
+const blank: Draft = { code: "", name: "", symbol: "", uqc: "", category: "quantity", decimalPlaces: "0" };
+// GST unit quantity codes (UQC): what GSTR-1, e-invoices and e-way bills call the unit.
+const UQC = ["BAG", "BAL", "BDL", "BKL", "BOU", "BOX", "BTL", "BUN", "CAN", "CBM", "CCM", "CMS", "CTN", "DOZ", "DRM", "GGK", "GMS", "GRS", "GYD", "KGS", "KLR", "KME", "LTR",
+  "MLT", "MTR", "MTS", "NOS", "OTH", "PAC", "PCS", "PRS", "QTL", "ROL", "SET", "SQF", "SQM", "SQY", "TBS", "TGM", "THD", "TON", "TUB", "UGS", "UNT", "YDS"];
+const AUTO = "auto";
 
 export function UnitsScreen() {
   const workspace = useWorkspaceContext();
@@ -43,8 +47,8 @@ export function UnitsScreen() {
   const fail = (failure: unknown) => { setErrors(fieldErrors(failure)); setError(errorMessage(failure)); };
   const save = useMutation({
     mutationFn: () => editing === "new"
-      ? createUnit({ code: draft.code.trim(), name: draft.name.trim(), symbol: draft.symbol.trim() || null, category: draft.category, decimalPlaces: Number(draft.decimalPlaces) })
-      : updateUnit((editing as UnitOfMeasure).id, { name: draft.name.trim(), symbol: draft.symbol.trim() || null, category: draft.category, decimalPlaces: Number(draft.decimalPlaces),
+      ? createUnit({ code: draft.code.trim(), name: draft.name.trim(), symbol: draft.symbol.trim() || null, uqc: draft.uqc || null, category: draft.category, decimalPlaces: Number(draft.decimalPlaces) })
+      : updateUnit((editing as UnitOfMeasure).id, { name: draft.name.trim(), symbol: draft.symbol.trim() || null, uqc: draft.uqc || null, category: draft.category, decimalPlaces: Number(draft.decimalPlaces),
           expectedVersion: (editing as UnitOfMeasure).version }),
     onSuccess: () => { setEditing(null); refresh(); },
     onError: fail,
@@ -63,13 +67,14 @@ export function UnitsScreen() {
   };
   const open = (unit: UnitOfMeasure | "new") => {
     setErrors({}); setError(null);
-    setDraft(unit === "new" ? blank : { code: unit.code, name: unit.name, symbol: unit.symbol ?? "", category: unit.category, decimalPlaces: String(unit.decimalPlaces) });
+    setDraft(unit === "new" ? blank : { code: unit.code, name: unit.name, symbol: unit.symbol ?? "", uqc: unit.uqc ?? "", category: unit.category, decimalPlaces: String(unit.decimalPlaces) });
     setEditing(unit);
   };
   const columns: ColumnDef<UnitOfMeasure, unknown>[] = [
     { id: "code", accessorKey: "code", header: "Code", cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.code}</span> },
     { id: "name", accessorKey: "name", header: "Unit", cell: ({ row }) => <>{row.original.name}{row.original.symbol && <span className="text-text-muted"> ({row.original.symbol})</span>}</> },
     { id: "category", accessorKey: "category", header: "Dimension", cell: ({ row }) => label(row.original.category) },
+    { id: "uqc", accessorKey: "uqc", header: "UQC", cell: ({ row }) => row.original.uqc ?? "—" },
     { id: "decimalPlaces", accessorKey: "decimalPlaces", header: "Precision", cell: ({ row }) => (row.original.decimalPlaces === 0 ? "Whole numbers" : `${row.original.decimalPlaces} decimal place${row.original.decimalPlaces === 1 ? "" : "s"}`) },
     { id: "standard", header: "Standard conversion", enableSorting: false, cell: ({ row }) => (row.original.standardFactor ? standardText(row.original) : "") },
     { id: "itemCount", accessorKey: "itemCount", header: "Items", cell: ({ row }) => <span className="tabular-nums">{row.original.itemCount}</span> },
@@ -130,6 +135,9 @@ export function UnitsScreen() {
               description={editing !== "new" ? "Printed on documents; fixed once created." : undefined} />
             <TextField label="Name" isRequired value={draft.name} onChange={(name) => setDraft({ ...draft, name })} errorMessage={errors.name} />
             <TextField label="Symbol" value={draft.symbol} onChange={(symbol) => setDraft({ ...draft, symbol })} errorMessage={errors.symbol} description="Optional, such as kg." />
+            <Select label="GST unit code (UQC)" selectedKey={draft.uqc || AUTO} onSelectionChange={(value) => setDraft({ ...draft, uqc: String(value) === AUTO ? "" : String(value) })}
+              options={[{ value: AUTO, label: editing === "new" ? "The usual one for the code" : "Not set (reports OTH)" }, ...UQC.map((value) => ({ value, label: value }))]}
+              errorMessage={errors.uqc} description="Printed in the HSN summary and sent on e-invoices and e-way bills." />
             <Select label="Dimension" selectedKey={draft.category} onSelectionChange={(value) => setDraft({ ...draft, category: String(value) })}
               options={categories.map((entry) => ({ value: entry.code, label: entry.label }))} errorMessage={errors.category} />
             <Select label="Decimal places" selectedKey={draft.decimalPlaces} onSelectionChange={(value) => setDraft({ ...draft, decimalPlaces: String(value) })}

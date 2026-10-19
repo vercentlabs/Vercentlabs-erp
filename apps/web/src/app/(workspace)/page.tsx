@@ -1,5 +1,6 @@
 import { MODULE_NAVIGATION } from "@/shell/navigation/module-navigation-registry";
 import { ModuleLauncher } from "@/features/platform/home/ModuleLauncher";
+import { SetupBanner } from "@/features/platform/home/SetupBanner";
 import { resolveWorkspaceContext } from "@/shell/workspace-context/resolveWorkspaceContext";
 
 export const metadata = { title: "Home" };
@@ -20,6 +21,8 @@ export default async function HomePage() {
           <p className="text-sm text-text-secondary">{session.organizationName}</p>
           <h1 className="text-2xl font-semibold text-text sm:text-3xl">{`Welcome, ${firstName}`}</h1>
         </div>
+
+        {session.permissions.includes("organization.manage") && <SetupBanner />}
 
         {modules.length === 0 ? (
           <p className="rounded-[var(--radius-card)] border border-border bg-surface p-4 text-center text-sm text-text-secondary">

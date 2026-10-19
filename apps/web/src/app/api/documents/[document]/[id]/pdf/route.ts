@@ -23,6 +23,10 @@ export async function GET(
   const version = Number(params.get("version")) || null;
   // ?advance= asks for an advance (a percentage of the total) on a proforma invoice.
   const advancePercent = params.get("advance");
+  // ?copies=2|3 prints the statutory copies (Original / Duplicate / Triplicate) of an invoice or credit note.
+  const copies = Number(params.get("copies") ?? 1) || 1;
+  // ?width=58|80 prints a POS receipt for a thermal printer.
+  const width = Number(params.get("width") ?? 0) || undefined;
   if (!renderer) return errorResponse(new HttpError(404, "Unknown document."));
   return workspaceRoute(
     request,
@@ -37,7 +41,7 @@ export async function GET(
         session,
         renderer.key,
         id,
-        { version, advancePercent },
+        { version, advancePercent, copies, width },
       );
       return new Response(new Uint8Array(pdf.body), {
         status: 200,

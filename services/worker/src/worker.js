@@ -3,7 +3,7 @@ import os from "node:os";
 
 import { redact, createLogger } from "@vercentlabs/observability";
 
-import { getPool, closePool, listActiveOrganizationIds, withTenantClient } from "./db.js";
+import { getPool, closePool, listDueOrganizationIds, withTenantClient } from "./db.js";
 import { claimJobs, completeJob, failJob } from "./queue.js";
 import { getJobHandler, validatePayload, HandlerValidationError } from "./registry.js";
 import { internalJobBackoff } from "./backoff.js";
@@ -12,6 +12,7 @@ import { buildSystemContext } from "./system-context.js";
 import { runSchedulerTick } from "./scheduler.js";
 import { createBillingMaintenanceLoop } from "./billing-maintenance.js";
 import { createPlatformMaintenanceLoop } from "./platform-maintenance.js";
+import { processMailQueue } from "@vercentlabs/api";
 
 const logger = createLogger("worker");
 
@@ -119,7 +120,9 @@ export function createWorker(config, { workerId = generateWorkerId(), billingPro
     if (stopRequested) return;
     health.pollStartedAt = Date.now();
     const pool = await getPool();
-    const pending = await listActiveOrganizationIds(pool);
+    // Only companies with work due (Shared Platform plan 8), not every company each poll.
+    const pending = await listDueOrganizationIds(pool);
+    const organizationCount = pending.length;
     let totalJobs = 0;
     let totalEvents = 0;
     const lanes = Array.from({ length: Math.min(config.worker.concurrency, pending.length) }, async () => {
@@ -135,10 +138,17 @@ export function createWorker(config, { workerId = generateWorkerId(), billingPro
       }
     });
     await Promise.all(lanes);
+    // Queued security mail (verify email, password reset, invitations, security notices): sent within one poll, retried with backoff.
+    try {
+      const mail = await processMailQueue(pool, { limit: 25 });
+      if (mail.sent || mail.failed || mail.bounced) logger.info("mail queue processed", mail);
+    } catch (error) {
+      logger.error("mail queue failed", { error: redact(String(error?.message || error)) });
+    }
     health.pollCompletedAt = Date.now();
     health.lastPollError = null;
     if (totalJobs > 0 || totalEvents > 0) {
-      logger.info("poll cycle complete", { organizations: organizationIds.length, jobsClaimed: totalJobs, eventsClaimed: totalEvents });
+      logger.info("poll cycle complete", { organizations: organizationCount, jobsClaimed: totalJobs, eventsClaimed: totalEvents });
     }
   }
 

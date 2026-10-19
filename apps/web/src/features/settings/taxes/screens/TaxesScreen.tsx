@@ -36,7 +36,7 @@ type TaxCategory = {
 type Registration = {
   id: string; code: string; name: string; legalName: string | null; registrationNumber: string | null; stateCode: string | null; stateName: string | null;
   addressLine1: string | null; city: string | null; postalCode: string | null; isDefault: boolean; isActive: boolean;
-  registrationType: string; validFrom: string | null; validUntil: string | null;
+  registrationType: string; validFrom: string | null; validUntil: string | null; compositionCategory?: string | null; compositionRate?: string | null;
 };
 type ValidationIssue = { severity: "error" | "warning"; code: string; message: string };
 type Validation = { checkedAt: string; today: string; ok: boolean; errors: number; warnings: number; issues: ValidationIssue[] };
@@ -46,7 +46,7 @@ type Preview = {
 };
 type Payload = {
   options: {
-    taxTypes: Choice[]; treatments: Choice[]; appliesTo: Choice[]; states: Array<{ code: string; name: string }>; registrationTypes?: Choice[];
+    taxTypes: Choice[]; treatments: Choice[]; appliesTo: Choice[]; states: Array<{ code: string; name: string }>; registrationTypes?: Choice[]; compositionCategories?: Array<Choice & { rate: string }>;
     settings: { countryCode: string | null; taxEnabled: boolean; defaultTaxCategoryId: string | null };
     capabilities: Record<"manageCategories" | "manageRates" | "manageRegistrations" | "viewAudit", boolean>;
   };
@@ -384,8 +384,11 @@ function RegistrationDialog({ options, registration, onClose, onSaved }: { optio
   const [registrationType, setRegistrationType] = useState(registration?.registrationType ?? "regular");
   const [validFrom, setValidFrom] = useState(registration?.validFrom ?? "");
   const [validUntil, setValidUntil] = useState(registration?.validUntil ?? "");
+  const [compositionCategory, setCompositionCategory] = useState(registration?.compositionCategory ?? "trader");
+  const [compositionRate, setCompositionRate] = useState(registration?.compositionRate ?? "");
   const json = { code, name, legalName: legalName || null, registrationNumber: gstin || null, stateCode: stateCode || null, addressLine1: addressLine1 || null, city: city || null, postalCode: postalCode || null,
-    registrationType, validFrom: validFrom || null, validUntil: validUntil || null };
+    registrationType, validFrom: validFrom || null, validUntil: validUntil || null,
+    ...(registrationType === "composition" ? { compositionCategory, compositionRate: compositionRate || null } : {}) };
   const save = useMutation({
     mutationFn: () => registration ? requestJson(`${API}/registrations/${registration.id}`, { method: "PATCH", json }) : requestJson(`${API}/registrations`, { method: "POST", json }),
     onSuccess: onSaved,
@@ -405,12 +408,20 @@ function RegistrationDialog({ options, registration, onClose, onSaved }: { optio
           <TextField label="Address" value={addressLine1} onChange={setAddressLine1} />
           <TextField label="City" value={city} onChange={setCity} />
           <TextField label="PIN code" value={postalCode} onChange={setPostalCode} />
-          <Select label="Registration type" description="Only a regular registration bills GST at POS." options={(options.registrationTypes ?? [{ code: "regular", label: "Regular" }]).map((type) => ({ value: type.code, label: type.label }))}
+          <Select label="Registration type" description="Regular charges GST; composition issues bills of supply without GST." options={(options.registrationTypes ?? [{ code: "regular", label: "Regular" }]).map((type) => ({ value: type.code, label: type.label }))}
             selectedKey={registrationType} onSelectionChange={(value) => setRegistrationType(String(value ?? "regular"))} />
           <div className="grid grid-cols-2 gap-3">
             <TextField label="Valid from" type="date" value={validFrom} onChange={setValidFrom} />
             <TextField label="Valid until" type="date" value={validUntil} onChange={setValidUntil} />
           </div>
+          {registrationType === "composition" && (
+            <>
+              <Select label="Composition dealer" description="Bills of supply, no GST collected; CMP-08 each quarter."
+                options={(options.compositionCategories ?? []).map((entry) => ({ value: entry.code, label: `${entry.label} (${entry.rate}%)` }))}
+                selectedKey={compositionCategory} onSelectionChange={(value) => setCompositionCategory(String(value ?? "trader"))} />
+              <TextField label="Composition rate %" description="Empty: the usual rate for the dealer." inputMode="decimal" value={compositionRate} onChange={setCompositionRate} />
+            </>
+          )}
         </div>
         <Footer onClose={onClose} label={registration ? "Save" : "Add registration"} isLoading={save.isPending} isDisabled={!code.trim() || !name.trim() || !stateCode} onPress={() => save.mutate()} />
       </div>

@@ -10,6 +10,8 @@
 //
 // A dispatched delivery is never cancelled or edited (its quantities are
 // locked by the database too); goods coming back use a sales return.
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
+import { notifyRecordOwner } from "../../../core/platform/notifications/index.js";
 import { StockError } from "../../stock/index.js";
 import { validateWarehouseOperation } from "../../stock/warehouses.js";
 import { changeSalesOrderLineWarehouse } from "../availability/warehouse.js";
@@ -163,6 +165,12 @@ export async function dispatchDelivery(client, context, deliveryId, input = {}) 
       })),
     });
   const refreshed = await refreshSalesOrderProgress(client, context.organizationId, order.id, context.userId ?? null);
+  await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "sales", eventType: "sales.delivery.dispatched", entityType: "sales.delivery", entityId: delivery.id,
+    payload: { deliveryNumber: delivery.request_number, orderId: order.id, orderNumber: order.sales_order_number, customerId: order.party_id, ownerUserId: order.owner_user_id,
+      carrier: shipment.carrier, dispatchDate } });
+  await notifyRecordOwner(client, context, { userId: order.owner_user_id ?? order.created_by, category: "sales_document",
+    title: `Delivery ${delivery.request_number} was dispatched`, message: `Order ${order.sales_order_number}: the goods left on ${dispatchDate}${shipment.carrier ? ` with ${shipment.carrier}` : ""}${shipment.tracking_number ? ` (${shipment.tracking_number})` : ""}.`,
+    href: `/sales/deliveries/${delivery.id}`, entityType: "sales_delivery", entityId: delivery.id });
   return { deliveryId: delivery.id, deliveryNumber: delivery.request_number, status: DELIVERY_STATUS.dispatched, replayed: false, dispatchDate,
     orderStatus: refreshed.lifecycleStatus, fulfillmentStatus: refreshed.fulfillmentStatus };
 }
@@ -188,6 +196,9 @@ export async function markDeliveryDelivered(client, context, deliveryId, input =
     { deliveredAt, receivedBy, note });
   await recordOrderEvent(client, context, delivery.sales_order_id, "sales_order.delivery_received", delivery.order_status, delivery.order_status,
     { deliveryId: delivery.id, deliveryNumber: delivery.request_number, receivedBy, note });
+  const owner = (await client.query(`SELECT party_id, owner_user_id FROM tenant.sales_orders WHERE organization_id = $1 AND id = $2`, [context.organizationId, delivery.sales_order_id])).rows[0];
+  await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "sales", eventType: "sales.delivery.delivered", entityType: "sales.delivery", entityId: delivery.id,
+    payload: { deliveryNumber: delivery.request_number, orderId: delivery.sales_order_id, customerId: owner?.party_id, ownerUserId: owner?.owner_user_id } });
   return { deliveryId: delivery.id, status: DELIVERY_STATUS.delivered, deliveredAt, receivedBy, replayed: false };
 }
 

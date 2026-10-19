@@ -58,6 +58,22 @@ export function usePagedRows<T>(rows: T[], { pageSize = LIST_PAGE_SIZE, initialS
   };
 }
 
+// Server paging (Shared Platform plan 5): the page and sort a list asks its API for (limit, offset, sort, sortDir), and the grid props
+// for the total the API reports. Change the filters, and call resetPage.
+export function useServerPage({ pageSize = LIST_PAGE_SIZE, initialSorting = [] }: { pageSize?: number; initialSorting?: SortingState } = {}) {
+  const [sorting, setSortingState] = useState<SortingState>(initialSorting);
+  const [pageIndex, setPageIndex] = useState(0);
+  const rule = sorting[0];
+  return {
+    params: { limit: String(pageSize), offset: String(pageIndex * pageSize), sort: rule?.id, sortDir: rule ? (rule.desc ? "desc" : "asc") : undefined },
+    grid: (total: number) => ({
+      manualSorting: true, sorting, onSortingChange: (next: SortingState) => { setSortingState(next); setPageIndex(0); },
+      pageIndex, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)), totalRowCount: total, onPageChange: setPageIndex,
+    }),
+    resetPage: () => setPageIndex(0),
+  };
+}
+
 export type OptionalColumn = { id: string; label: string; hiddenByDefault?: boolean };
 
 export function useColumnVisibility(storageKey: string, columns: OptionalColumn[]) {

@@ -2,7 +2,7 @@
 
 // Goods Issues: stock deliberately taken out of inventory for a known internal purpose — consumption, maintenance, samples, project use, scrap
 // and disposal. Not for sales (Sales Delivery), supplier returns (Purchase Return), moves (Transfer) or unexplained differences (Adjustment).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -13,7 +13,7 @@ import {
 
 import { money } from "@/features/items/item-format";
 import { formatDate } from "@/shared/format/human";
-import { ColumnsMenu, filterBarOf, optionLabel, useColumnVisibility, useDebouncedValue, usePagedRows, type OptionalColumn } from "@/shared/ui/list";
+import { ColumnsMenu, filterBarOf, optionLabel, useColumnVisibility, useDebouncedValue, useServerPage, type OptionalColumn } from "@/shared/ui/list";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -48,23 +48,27 @@ export function GoodsIssuesScreen() {
   const filters = { status: pick(status), search: submitted || undefined, warehouseId: pick(warehouseId), reasonId: pick(reasonId), issueToType: pick(issueToType),
     projectId: pick(projectId), costCenterId: pick(costCenterId), from: from || undefined, to: to || undefined };
   const options = useQuery({ queryKey: scopedQueryKey(workspace, "goods-issues", "options"), queryFn: getGoodsIssueOptions, staleTime: 60_000 });
-  const list = useQuery({ queryKey: scopedQueryKey(workspace, "goods-issues", "list", filters), queryFn: () => listGoodsIssues(filters), placeholderData: (previous) => previous });
+  const paged = useServerPage({ initialSorting: [{ id: "issueDate", desc: true }] });
+  // Back to the first page when the filters change (the server pages the filtered list).
+  const filterKey = JSON.stringify(filters);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- resets only when the filters themselves change
+  useEffect(() => paged.resetPage(), [filterKey]);
+  const list = useQuery({ queryKey: scopedQueryKey(workspace, "goods-issues", "list", filters, paged.params), queryFn: () => listGoodsIssues({ ...filters, ...paged.params }), placeholderData: (previous) => previous });
   const rows = useMemo(() => list.data?.rows ?? [], [list.data]);
-  const paged = usePagedRows(rows, { initialSorting: [{ id: "issueDate", desc: true }] });
   const columns = useColumnVisibility("inventory.goods-issues.columns", OPTIONAL);
   const showValue = Boolean(list.data?.seesCost);
 
   const gridColumns = useMemo(() => ([
     { id: "number", accessorKey: "number", header: "Goods issue", enableHiding: false, cell: ({ row }) => <span className="font-medium text-text">{row.original.number}</span> },
     { id: "issueDate", accessorKey: "issueDate", header: "Issue date", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{formatDate(row.original.issueDate)}</span> },
-    { id: "warehouse", accessorKey: "warehouse", header: "Warehouse", cell: ({ row }) => row.original.warehouse },
-    { id: "reason", accessorKey: "reason", header: "Reason", cell: ({ row }) => row.original.reason },
-    { id: "issuedTo", accessorKey: "issuedTo", header: "Issued to", cell: ({ row }) => row.original.issuedTo ?? "" },
-    { id: "lineCount", accessorKey: "lineCount", header: "Items", cell: ({ row }) => <span className="tabular-nums">{row.original.lineCount}</span> },
-    { id: "value", accessorKey: "value", header: "Value", cell: ({ row }) => <span className="tabular-nums">{row.original.value === undefined ? "—" : money(row.original.value)}</span> },
-    { id: "externalReference", accessorKey: "externalReference", header: "Reference", cell: ({ row }) => row.original.externalReference ?? "" },
-    { id: "project", accessorKey: "project", header: "Project", cell: ({ row }) => row.original.project ?? "" },
-    { id: "costCenter", accessorKey: "costCenter", header: "Cost center", cell: ({ row }) => row.original.costCenter ?? "" },
+    { id: "warehouse", enableSorting: false, accessorKey: "warehouse", header: "Warehouse", cell: ({ row }) => row.original.warehouse },
+    { id: "reason", enableSorting: false, accessorKey: "reason", header: "Reason", cell: ({ row }) => row.original.reason },
+    { id: "issuedTo", enableSorting: false, accessorKey: "issuedTo", header: "Issued to", cell: ({ row }) => row.original.issuedTo ?? "" },
+    { id: "lineCount", enableSorting: false, accessorKey: "lineCount", header: "Items", cell: ({ row }) => <span className="tabular-nums">{row.original.lineCount}</span> },
+    { id: "value", enableSorting: false, accessorKey: "value", header: "Value", cell: ({ row }) => <span className="tabular-nums">{row.original.value === undefined ? "—" : money(row.original.value)}</span> },
+    { id: "externalReference", enableSorting: false, accessorKey: "externalReference", header: "Reference", cell: ({ row }) => row.original.externalReference ?? "" },
+    { id: "project", enableSorting: false, accessorKey: "project", header: "Project", cell: ({ row }) => row.original.project ?? "" },
+    { id: "costCenter", enableSorting: false, accessorKey: "costCenter", header: "Cost center", cell: ({ row }) => row.original.costCenter ?? "" },
     { id: "status", accessorKey: "status", header: "Status", enableHiding: false, cell: ({ row }) => <StatusBadge tone={STATUS_TONE[row.original.status]}>{STATUS_LABEL[row.original.status]}</StatusBadge> },
     { id: "issuedByName", accessorKey: "issuedByName", header: "Issued by", cell: ({ row }) => row.original.issuedByName ?? row.original.postedByName ?? "" },
   ] satisfies ColumnDef<GoodsIssueHeader, unknown>[]).filter((column) => showValue || column.id !== "value"), [showValue]);
@@ -117,7 +121,7 @@ export function GoodsIssuesScreen() {
       <EnterpriseDataGrid<GoodsIssueHeader>
         aria-label="Goods issues"
         columns={gridColumns}
-        data={paged.pageRows}
+        data={rows}
         getRowId={(row) => row.id}
         state={list.isLoading ? "loading" : list.isError ? "error" : rows.length === 0 ? (filtered ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading goods issues" rows={8} />}
@@ -125,7 +129,7 @@ export function GoodsIssuesScreen() {
         emptyContent={<EmptyState title="No goods issues yet" description="Record stock used for maintenance, consumption, samples, projects or disposal."
           action={list.data?.canCreate ? { label: "New goods issue", onPress: () => router.push(`${GOODS_ISSUES_BASE}/new`) } : undefined} />}
         noResultsContent={<NoResultsState title="No goods issues match" description="Try a different view, search or filter." />}
-        {...paged.grid}
+        {...paged.grid(list.data?.total ?? 0)}
         columnVisibility={columns.visibility}
         onColumnVisibilityChange={columns.setVisibility}
         onRowClick={(row) => router.push(`${GOODS_ISSUES_BASE}/${row.id}`)}

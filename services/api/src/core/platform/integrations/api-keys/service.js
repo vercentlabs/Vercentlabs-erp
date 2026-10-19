@@ -240,5 +240,5 @@ export function requireApiScope(principal, scope) {
 }
 
 export function listApiScopes() {
-  return API_SCOPES.map(({ key, displayName, description, risk }) => ({ key, displayName, description, risk }));
+  return API_SCOPES.map(({ key, displayName, description, risk, consumedBy }) => ({ key, displayName, description, risk, endpoints: [...consumedBy] }));
 }

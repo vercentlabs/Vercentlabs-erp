@@ -4,6 +4,7 @@
 // de-escalates it, and resolves it by itself. People acknowledge alerts and act on them (a draft purchase order or transfer, through the
 // Replenishment actions); they never resolve them by hand. Notifications go out once per meaningful transition, to users who may see the
 // warehouse. Nothing here moves stock or touches valuation.
+import { publishDomainEvent } from "../../core/platform/events/index.js";
 import { STOCK_ALERT_PERMISSIONS as P, STOCK_REORDER_PERMISSIONS as R } from "@vercentlabs/permissions";
 import { rowsToCsv } from "@vercentlabs/reporting-engine";
 
@@ -283,6 +284,8 @@ export async function dispatchLowStockAlertNotifications(client, c, { limit = 20
       if (await createNotification(client, { organizationId: c.organizationId, userId, category: "inventory_low_stock", title: message.title, message: message.body,
         href: `/inventory/replenishment/alerts/${row.alert_id}`, entityType: "inventory_low_stock_alert", entityId: row.alert_id })) count += 1;
     await client.query(`UPDATE tenant.inventory_low_stock_alert_notifications SET status = 'dispatched', dispatched_at = now(), recipients = $2 WHERE id = $1`, [row.id, count]);
+    await publishDomainEvent(client, { organizationId: c.organizationId, moduleKey: "stock", eventType: "stock.low_stock.raised", entityType: "stock.low_stock_alert", entityId: row.alert_id,
+      payload: { sku: row.sku, warehouseId: row.warehouse_id, condition: row.condition_type, transition: row.event_type } });
     delivered += count;
   }
   return { transitions: pending.length, delivered };

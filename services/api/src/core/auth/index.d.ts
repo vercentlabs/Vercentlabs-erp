@@ -5,3 +5,5 @@ export * from "./password-policy.js";
 export * from "./mailer.js";
 export * from "../platform/integrations/oauth/index.js";
 export * from "../platform/secrets/index.js";
+export * from "./profile.js";
+export * from "./social-sign-in.js";

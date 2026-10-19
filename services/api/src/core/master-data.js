@@ -1,3 +1,4 @@
+import { uqcForUnitCode } from "./tax/uqc.js";
 import { BUSINESS_DATA_RESOURCE_KEYS } from "@vercentlabs/shared-types";
 
 const resourceSet = new Set(BUSINESS_DATA_RESOURCE_KEYS);
@@ -986,9 +987,9 @@ export async function seedBusinessDataFoundation(client, context) {
       `
         INSERT INTO tenant.units_of_measure (
           organization_id, code, name, category, decimal_places,
-          is_base, created_by, updated_by
+          is_base, created_by, updated_by, uqc
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8)
         ON CONFLICT (organization_id, code) DO NOTHING
       `,
       [
@@ -999,6 +1000,7 @@ export async function seedBusinessDataFoundation(client, context) {
         decimalPlaces,
         isBase,
         context.userId,
+        uqcForUnitCode(code, category),
       ],
     );
   }
@@ -1141,8 +1143,20 @@ export async function seedBusinessDataFoundation(client, context) {
 
   // India: one tax category per GST rate, each with its rate. A product
   // points at a category; the rate in force on the document date is charged.
+  // The slabs since 22 Sep 2025 are 0, 5, 18 and 40%; 12% and 28% stay for the
+  // items still on them, 3% is gold and silver, 0.25% rough precious stones.
   if (String(organization.country_code).trim() === "IN") {
-    for (const rate of [0, 5, 12, 18, 28]) {
+    const GST_SEED = [
+      { rate: 0, description: "Goods and services taxed at 0% GST." },
+      { rate: 5, description: "Goods and services taxed at 5% GST." },
+      { rate: 18, description: "Goods and services taxed at 18% GST." },
+      { rate: 40, description: "Demerit goods (luxury, sin goods) taxed at 40% GST from 22 Sep 2025.", from: "2025-09-22" },
+      { rate: 12, description: "Only for items still taxed at 12% after the 22 Sep 2025 rate change (most moved to 5% or 18%)." },
+      { rate: 28, description: "Only for items still taxed at 28% after the 22 Sep 2025 rate change (most moved to 18% or 40%)." },
+      { rate: 3, description: "Gold, silver and jewellery taxed at 3% GST." },
+      { rate: 0.25, description: "Rough precious and semi-precious stones taxed at 0.25% GST." },
+    ];
+    for (const { rate, description, from = "2017-07-01" } of GST_SEED) {
       const category = await client.query(
         `
           INSERT INTO tenant.tax_categories (
@@ -1152,7 +1166,7 @@ export async function seedBusinessDataFoundation(client, context) {
           ON CONFLICT (organization_id, code) DO NOTHING
           RETURNING id
         `,
-        [context.organizationId, `GST-${rate}`, `GST ${rate}%`, `Goods and services taxed at ${rate}% GST.`, context.userId],
+        [context.organizationId, `GST-${rate}`, `GST ${rate}%`, description, context.userId],
       );
       if (!category.rows[0]) continue;
       await client.query(
@@ -1161,11 +1175,11 @@ export async function seedBusinessDataFoundation(client, context) {
             organization_id, tax_category_id, name, code,
             tax_type, rate, effective_from, created_by, updated_by
           )
-          VALUES ($1, $2, $3, $4, 'gst', $5, DATE '2017-07-01', $6, $6)
+          VALUES ($1, $2, $3, $4, 'gst', $5, $7::date, $6, $6)
           ON CONFLICT (organization_id, code, effective_from)
           DO NOTHING
         `,
-        [context.organizationId, category.rows[0].id, `GST ${rate}%`, `GST-${rate}-V1`, rate, context.userId],
+        [context.organizationId, category.rows[0].id, `GST ${rate}%`, `GST-${rate}-V1`, rate, context.userId, from],
       );
     }
   }

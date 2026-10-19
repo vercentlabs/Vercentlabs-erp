@@ -5,6 +5,7 @@
 // a section the person may not change is shown read-only. While a new
 // supplier is typed, possible existing suppliers are shown; a save the
 // server refuses as a duplicate shows its matches and how to go on.
+import { GstinLookup } from "@/shared/ui/GstinLookup";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -185,6 +186,10 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {select("gstRegistrationType", "GST registration type", options.gstRegistrationTypes.map((entry) => ({ value: entry.code, label: entry.label })))}
           {text("gstin", "GSTIN", { isRequired: Boolean(gstType?.needsGstin), description: "The registered state and PAN are read from it." })}
+          <GstinLookup gstin={values.gstin} onFound={(found) => {
+            if (!values.legalName.trim() && found.legalName) set("legalName")(found.legalName);
+            if (!values.supplierName.trim() && (found.displayName || found.legalName)) set("supplierName")(found.displayName ?? found.legalName ?? "");
+          }} />
           {text("pan", "PAN / Tax ID")}
           {select("registeredStateCode", "Registered state", options.states.map((state) => ({ value: state.code, label: `${state.name} (${state.code})` })))}
           {select("withholdingSectionId", "Usual TDS section", [{ value: "", label: "No TDS" }, ...(options.withholdingSections ?? []).map((entry) => ({ value: entry.id, label: `${entry.code} · ${entry.name} (${Number(entry.rate)}%)` }))],

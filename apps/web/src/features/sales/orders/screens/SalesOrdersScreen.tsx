@@ -14,6 +14,7 @@ import {
   type ActiveFilter,
 } from "@vercentlabs/design-system";
 
+import { MyViews } from "@/shared/ui/MyViews";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -190,6 +191,10 @@ export function SalesOrdersScreen() {
             {date("deliveryFrom")}
             {date("deliveryTo")}
           </>
+        ),
+        end: (
+          <MyViews listKey="sales.orders" state={{ view, search: submitted, filters, sorting }}
+            onApply={(saved) => { setViewState(saved.view); setSearch(saved.search); setSubmittedState(saved.search); setFiltersState({ ...NO_FILTERS, ...saved.filters }); setSortingState(saved.sorting); setPageIndex(0); }} />
         ),
       }}
       filterBar={activeFilters.length ? { filters: activeFilters, onRemove: (id) => setFilters({ ...filters, [id]: NO_FILTERS[id as FilterKey] }), onClearAll: () => setFilters(NO_FILTERS) } : undefined}

@@ -43,3 +43,11 @@ export function organizationScopedTables(): string[];
 export function runtimePrivileges(role: "web" | "worker", table: string, entry: TableClassEntry | null): readonly string[];
 
 export declare function runWithOrganizationConnection<T>(client: { query(text: string, values?: unknown[]): Promise<unknown> }, organizationId: string, work: (client: any) => Promise<T>): Promise<T>;
+
+export declare class MigrationRunError extends Error {
+  filename: string | null;
+}
+export declare function applyPendingMigrations(
+  client: { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> },
+  options: { directory: string; expected?: readonly string[]; dryRun?: boolean; log?: (entry: { filename: string; milliseconds: number }) => void },
+): Promise<{ applied: string[]; pending: string[]; skipped: number }>;

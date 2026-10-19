@@ -13,6 +13,11 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   // A large CRM import or export run in the background: the uploaded file (attachment) and the file it produced (export).
   "crm.data_job": { moduleKey: "crm", purposes: ["attachment", "export"] },
   "support.ticket": { moduleKey: "support", purposes: ["attachment", "inbound_mail"] },
+  // The company's logo and its authorised signatory's signature (Settings › Company), printed on documents; one current image each.
+  "platform.company_logo": { moduleKey: null, purposes: ["attachment"] },
+  "platform.company_signature": { moduleKey: null, purposes: ["attachment"] },
+  // A full workspace export (Settings › Company › Your data): the zip of every record and file, kept for 7 days.
+  "platform.workspace_export": { moduleKey: null, purposes: ["export"] },
   // Shared by every module that uses the catalogue; the product module checks access.
   "products.item": { moduleKey: null, purposes: ["attachment"] },
   "sales.quotation": { moduleKey: "sales", purposes: ["attachment"] },

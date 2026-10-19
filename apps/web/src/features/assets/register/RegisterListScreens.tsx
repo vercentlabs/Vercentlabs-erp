@@ -3,6 +3,7 @@
 // Assets — the Overview and the Asset Register directory. The overview counts what needs attention (each count opens the register already
 // filtered); the register lists the assets the person may see — the Company's for the asset team, the ones in their care for an employee —
 // with views, search, filters, sorting and paging on the server, and a scan box that opens an asset from its QR label, code, serial or tag.
+import { UrlViews } from "@/shared/ui/MyViews";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -146,7 +147,7 @@ export function AssetRegisterScreen() {
           </span>
         ) }}
       savedViews={{ views: VIEWS, activeViewId: view, onSelect: (id) => { setView(id); setPage(0); router.replace(`${pathname}?view=${id}`, { scroll: false }); } }}
-      actionBar={{
+      actionBar={{ end: <UrlViews listKey="assets.register" />, 
         start: (
           <>
             <SearchField aria-label="Search assets" placeholder="Code, name, serial, tag, previous code or model" className="w-full sm:w-80" value={search} onChange={(value) => { setSearch(value); setPage(0); }} />

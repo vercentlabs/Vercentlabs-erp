@@ -200,6 +200,7 @@ export async function sendRecordEmail(client, context, entityType, entityId, inp
   const senderName = facts.sender.full_name ? `${facts.sender.full_name}${facts.sender.organization_name ? ` · ${facts.sender.organization_name}` : ""}` : null;
 
   const result = await sendMail({
+    meter: { client, organizationId: context.organizationId },
     to, cc: cc.length ? cc : undefined, subject, text: fullBody,
     html: `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">${escapeHtml(fullBody).replace(/\n/g, "<br>")}</body></html>`,
     replyTo: settings.reply_to_address ?? facts.sender.email ?? undefined, messageId: `<${messageId}>`, inReplyTo: inReplyTo ? `<${inReplyTo}>` : undefined,

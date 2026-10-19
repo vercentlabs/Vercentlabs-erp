@@ -8,6 +8,8 @@
 // tax engine, matches quantities and prices against the order and its receipts, and checks the supplier's invoice number for duplicates.
 // Finance owns everything financial: the draft is Finance's document, posting submits it to Finance's approval policy and Finance posts the
 // payable, the input tax, reverse-charge and withholding, exactly once. A bill never moves stock and never changes the order.
+import { effectiveWithholdingRate } from "../../../core/tax/withholding.js";
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, decimal, div, formatDecimal, mul, roundMoney, sub } from "../../../core/decimal.js";
 import { amountsEquivalent, factorOf, resolveItemUnit } from "../../products/uom.js";
@@ -99,7 +101,7 @@ async function addressSnapshot(client, organizationId, supplierId, addressId) {
 
 async function withholdingSection(client, organizationId, sectionId) {
   if (!sectionId) return null;
-  const row = (await client.query(`SELECT id, code, name, rate, status FROM tenant.withholding_tax_sections WHERE organization_id = $1 AND id = $2`, [organizationId, sectionId])).rows[0];
+  const row = (await client.query(`SELECT * FROM tenant.withholding_tax_sections WHERE organization_id = $1 AND id = $2`, [organizationId, sectionId])).rows[0];
   if (!row || row.status !== "active") fail("Choose an active TDS / withholding section.", "withholdingSectionId", "SUPPLIER_BILL_WITHHOLDING_INVALID", 409);
   return row;
 }
@@ -524,12 +526,23 @@ async function buildBill(client, context, source, input, { order, receiptIds, cu
     : await orderBillLines(client, context, order, input.lines, { excludeBillId: current?.id ?? null, receiptScope: source === "goods_receipt" ? receiptIds : null, strict });
   const sourceLines = ordered ? ordered.lines : await directBillLines(client, context, input.lines);
   if (ordered) header.warnings.push(...ordered.warnings);
-  const calculated = await calculateSupplierBillTotals(client, context, {
+  const calculate = () => calculateSupplierBillTotals(client, context, {
     currencyCode: header.currencyCode, billDate: header.billDate, priceMode: header.priceMode, supplierStateCode: header.supplierStateCode, placeOfSupply: header.placeOfSupply,
     buyingRegistrationId: header.buyer?.id ?? null, supplierRegistrationType: header.supplierSnapshot.registrationType, withholdingRate: header.section?.rate ?? 0,
     documentDiscountType: header.documentDiscountType, documentDiscountValue: header.documentDiscountValue,
     lines: sourceLines.map((line) => ({ ...line, orderLine: line.orderLine })),
   });
+  let calculated = await calculate();
+  // TDS by the section's rules (Shared Platform plan 7): thresholds, individual rate, no PAN (206AA), lower-deduction certificate.
+  if (header.section) {
+    const effective = await effectiveWithholdingRate(client, context.organizationId, { section: header.section, supplier: header.supplier, billDate: header.billDate,
+      taxable: dec(calculated.totals.taxable), excludeBillId: current?.id ?? null });
+    if (Number(effective.rate) !== Number(header.section.rate)) {
+      header.section = { ...header.section, rate: effective.rate };
+      calculated = await calculate();
+    }
+    if (effective.reason) header.warnings.push(effective.reason);
+  }
   // Calculation lines keep their source (allocations, accounts) as input.
   calculated.lines.forEach((line, index) => { line.input = sourceLines[index]; });
   // 2-Way Matching against the order, every time the bill is built (saved, previewed, rechecked, posted).
@@ -925,6 +938,9 @@ async function finishPosting(client, context, bill) {
   if (bill.source_purchase_order_id)
     await recordPoEvent(client, context, bill.source_purchase_order_id, "purchase_order.bill_posted", `Supplier bill ${bill.bill_number} (invoice ${bill.supplier_invoice_reference}) posted to Accounts Payable`,
       { details: { billId: bill.id } });
+  await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "procurement", eventType: "procurement.supplier_bill.posted", entityType: "procurement.supplier_bill", entityId: bill.id,
+    payload: { billNumber: bill.bill_number, supplierInvoiceNumber: bill.supplier_invoice_reference, purchaseOrderId: bill.source_purchase_order_id, supplierId: bill.supplier_id ?? bill.party_id,
+      total: posted.bill.grand_total } });
   return { id: bill.id, status: "posted", journalEntryId: posted.bill.journal_entry_id, replayed: false };
 }
 

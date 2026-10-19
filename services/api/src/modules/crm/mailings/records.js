@@ -253,7 +253,7 @@ export async function runMailings(client, organizationId, { batch = BATCH, env =
     await client.query("UPDATE tenant.crm_mailing_recipients SET token_hash = $2 WHERE id = $1", [recipient.id, hash(token)]);
     const email = renderMailingEmail(recipient.body, person, token, env);
     try {
-      const sent = await sendMail({ to: recipient.email, subject: fill(recipient.subject, person), text: email.text, html: email.html,
+      const sent = await sendMail({ meter: { client, organizationId, idempotencyKey: `mailing:${recipient.id}` }, to: recipient.email, subject: fill(recipient.subject, person), text: email.text, html: email.html,
         headers: { "List-Unsubscribe": `<${email.unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }, env);
       if (!sent.sent) {
         await client.query("UPDATE tenant.crm_mailing_recipients SET status = 'failed', error = 'Email is not set up for this workspace.' WHERE id = $1", [recipient.id]);

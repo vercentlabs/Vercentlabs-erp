@@ -99,6 +99,7 @@ export async function sendMeetingInvitation(client, context, activityId, input =
   const when = start.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: (await client.query("SELECT timezone FROM public.organizations WHERE id = $1", [context.organizationId])).rows[0]?.timezone ?? "Asia/Kolkata" });
   const body = `${existing ? "The meeting has changed." : "You are invited to a meeting."}\n\n${meeting.subject}\nWhen: ${when}${location ? `\nWhere: ${location}` : ""}${text(input.message) ? `\n\n${text(input.message)}` : ""}\n\n${meeting.organizer_name ?? ""}${meeting.organization_name ? `, ${meeting.organization_name}` : ""}`;
   const result = await sendMail({
+    meter: { client, organizationId: context.organizationId },
     to: attendees.map((entry) => entry.email), subject: `${existing ? "Updated: " : "Invitation: "}${meeting.subject}`, text: body,
     html: `<!doctype html><html><body style="font-family:Arial,sans-serif;line-height:1.6">${escapeHtml(body).replace(/\n/g, "<br>")}</body></html>`,
     replyTo: meeting.organizer_email ?? undefined, fromName: meeting.organizer_name ?? undefined,
@@ -126,6 +127,7 @@ export async function cancelMeetingInvitation(client, context, activityId, { mes
   const ics = buildIcs({ method: "CANCEL", uid: existing.uid, sequence: existing.sequence + 1, start, end, summary: meeting.subject, description: text(message), location: existing.location, organizer, attendees: existing.attendees });
   const body = `The meeting "${meeting.subject}" is cancelled.${text(message) ? `\n\n${text(message)}` : ""}`;
   const result = await sendMail({
+    meter: { client, organizationId: context.organizationId },
     to: existing.attendees.map((entry) => entry.email), subject: `Cancelled: ${meeting.subject}`, text: body, html: `<p>${escapeHtml(body).replace(/\n/g, "<br>")}</p>`,
     fromName: meeting.organizer_name ?? undefined, attachments: [{ filename: "cancel.ics", content: Buffer.from(ics, "utf8"), contentType: "text/calendar; method=CANCEL; charset=utf-8" }],
   }, env);

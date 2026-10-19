@@ -12,6 +12,12 @@ import { dispatchLowStockNotificationsHandler, JOB_TYPE as LOW_STOCK_DISPATCH_JO
 import { notifyOverdueTasksHandler, JOB_TYPE as TASK_OVERDUE_JOB_TYPE, payloadSchema as taskOverduePayloadSchema } from "./crm-task-overdue.js";
 import { notifyOverdueProductionHoldsHandler, JOB_TYPE as HOLD_OVERDUE_JOB_TYPE, payloadSchema as holdOverduePayloadSchema } from "./manufacturing-hold-overdue.js";
 import { notifyProjectAlertsHandler, JOB_TYPE as PROJECT_ALERTS_JOB_TYPE, payloadSchema as projectAlertsPayloadSchema } from "./projects-alerts.js";
+import { noteExpiredQuotationsHandler, JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE, payloadSchema as quotationExpiryPayloadSchema } from "./sales-quotation-expiry.js";
+import { buildWorkspaceExportHandler, JOB_TYPE as WORKSPACE_EXPORT_JOB_TYPE, payloadSchema as workspaceExportPayloadSchema } from "./platform-workspace-export.js";
+import { exchangeRateFeedHandler, JOB_TYPE as EXCHANGE_RATE_FEED_JOB_TYPE, payloadSchema as exchangeRateFeedPayloadSchema } from "./platform-exchange-rate-feed.js";
+import { workflowTimeTriggersHandler, JOB_TYPE as WORKFLOW_TIME_TRIGGERS_JOB_TYPE, payloadSchema as workflowTimeTriggersPayloadSchema } from "./platform-workflow-time-triggers.js";
+import { notificationDigestHandler, JOB_TYPE as NOTIFICATION_DIGEST_JOB_TYPE, payloadSchema as notificationDigestPayloadSchema } from "./platform-notification-digest.js";
+import { remindRecordActivitiesHandler, JOB_TYPE as RECORD_ACTIVITY_REMINDER_JOB_TYPE, payloadSchema as recordActivityReminderPayloadSchema } from "./platform-record-activity-reminders.js";
 import { runDepreciationAutomationHandler, JOB_TYPE as DEPRECIATION_AUTOMATION_JOB_TYPE, payloadSchema as depreciationAutomationPayloadSchema } from "./assets-depreciation-automation.js";
 import { runMaintenanceScheduleHandler, JOB_TYPE as MAINTENANCE_SCHEDULE_JOB_TYPE, payloadSchema as maintenanceSchedulePayloadSchema } from "./assets-maintenance.js";
 
@@ -111,6 +117,48 @@ export function registerBuiltinHandlers() {
     handler: notifyProjectAlertsHandler,
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // UNIQUE(organization, project, alert_key) makes each alert once
+    maxAttempts: 3,
+  });
+  registerJobHandler(EXCHANGE_RATE_FEED_JOB_TYPE, {
+    schema: exchangeRateFeedPayloadSchema,
+    handler: exchangeRateFeedHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // one rate per currency and day (upsert)
+    maxAttempts: 3,
+  });
+  registerJobHandler(WORKFLOW_TIME_TRIGGERS_JOB_TYPE, {
+    schema: workflowTimeTriggersPayloadSchema,
+    handler: workflowTimeTriggersHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // one run per automation, record and day (unique idempotency key)
+    maxAttempts: 3,
+  });
+  registerJobHandler(NOTIFICATION_DIGEST_JOB_TYPE, {
+    schema: notificationDigestPayloadSchema,
+    handler: notificationDigestHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // digest_sent_on stamps each person once a day
+    maxAttempts: 3,
+  });
+  registerJobHandler(RECORD_ACTIVITY_REMINDER_JOB_TYPE, {
+    schema: recordActivityReminderPayloadSchema,
+    handler: remindRecordActivitiesHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // reminded_at stamps each activity once a day
+    maxAttempts: 3,
+  });
+  registerJobHandler(WORKSPACE_EXPORT_JOB_TYPE, {
+    schema: workspaceExportPayloadSchema,
+    handler: buildWorkspaceExportHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // each run writes its own export file; nothing else changes
+    maxAttempts: 2,
+  });
+  registerJobHandler(QUOTATION_EXPIRY_JOB_TYPE, {
+    schema: quotationExpiryPayloadSchema,
+    handler: noteExpiredQuotationsHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // the quotation.expired history event marks each quotation once
     maxAttempts: 3,
   });
   registerJobHandler(DEPRECIATION_AUTOMATION_JOB_TYPE, {

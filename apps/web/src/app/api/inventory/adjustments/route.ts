@@ -7,7 +7,7 @@ import { inventoryMutation, inventoryRead } from "@/features/inventory/shared/ro
 // Stock Adjustments. GET ?status=&warehouseId=&reasonId=&itemId=&direction=&from=&to=&postedBy=&search=&limit=&offset=; POST creates a draft (nothing moves).
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const filters = Object.fromEntries(["status", "warehouseId", "reasonId", "itemId", "direction", "from", "to", "postedBy", "search", "limit", "offset"]
+  const filters = Object.fromEntries(["status", "warehouseId", "reasonId", "itemId", "direction", "from", "to", "postedBy", "search", "limit", "offset", "sort", "sortDir"]
     .map((key) => [key, url.searchParams.get(key) ?? undefined]));
   return inventoryRead(request, (client, context) => listInventoryAdjustments(client, context, filters), STOCK_ADJUSTMENT_PERMISSIONS.view);
 }

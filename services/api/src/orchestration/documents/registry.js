@@ -4,7 +4,11 @@
 // - then builds a plain document model for @vercentlabs/document-engine/pdf.
 // A PDF is a presentation of the record, never a new source of truth. There
 // is no arbitrary template, HTML, file path or SQL input.
-import { formatDateTime } from "@vercentlabs/localization";
+import { unitUqcMap } from "../../core/tax/uqc.js";
+import { amountInWords, formatDateTime } from "@vercentlabs/localization";
+import { upiPaymentUri } from "@vercentlabs/document-engine/pdf";
+
+import { getCompanyProfile, readCompanyImage } from "../../core/organization/index.js";
 
 import { getPosSaleReceipt } from "../../modules/point-of-sale/transaction-continuity-and-documents/receipts.js";
 import { getPosSaleTaxes } from "../../modules/point-of-sale/pos-analytics/taxes.js";
@@ -51,6 +55,58 @@ async function companyDetails(client, organizationId) {
     `SELECT organization.name, organization.legal_name, organization.tax_id FROM public.organizations organization WHERE organization.id = $1`, [organizationId]);
   const row = rows[0] ?? {};
   return { name: row.legal_name || row.name || null, legalName: row.legal_name && row.legal_name !== row.name ? row.name : null, taxId: row.tax_id ?? null };
+}
+
+// The company's letterhead and payment details for layout v2 (Shared Platform plan 4): its logo and the lines under its name
+// (address, GSTIN, PAN, CIN, phone, email), the signature for the authorised signatory block, and the default bank account and UPI
+// ID printed on invoices. Read once per document; a missing logo or signature simply leaves that part out.
+export async function companyLetterhead(client, organizationId, options = {}) {
+  const profile = await getCompanyProfile(client, organizationId).catch(() => null);
+  if (!profile) return null;
+  const image = async (kind) => (await readCompanyImage(client, organizationId, kind, options).catch(() => null))?.body ?? null;
+  const address = [profile.address.line1, profile.address.line2, [profile.address.city, profile.address.postalCode].filter(Boolean).join(" "), profile.address.stateName].filter(Boolean).join(", ");
+  const bank = profile.bankAccounts.find((account) => account.isDefault && account.showOnDocuments) ?? profile.bankAccounts.find((account) => account.showOnDocuments) ?? null;
+  return {
+    name: profile.legalName || profile.name,
+    lines: [address || null, [profile.gstin ? `GSTIN ${profile.gstin}` : null, profile.pan ? `PAN ${profile.pan}` : null, profile.cin ? `CIN ${profile.cin}` : null].filter(Boolean).join(" · ") || null,
+      [profile.phone, profile.email, profile.website?.replace(/^https?:\/\//, "")].filter(Boolean).join(" · ") || null].filter(Boolean),
+    logo: profile.hasLogo ? await image("logo") : null,
+    signature: profile.hasSignature ? await image("signature") : null,
+    bankLines: bank ? [`${bank.bankName}${bank.branch ? `, ${bank.branch}` : ""}`, `${bank.accountName} · A/c ${bank.accountNumber}`, `IFSC ${bank.ifsc}`] : [],
+    upiId: profile.upiId,
+  };
+}
+
+// The HSN/SAC-wise tax summary of a GST document: taxable value and each tax per code, with a total row.
+// The HSN/SAC summary GSTR-1 asks for: per code and GST unit (UQC), the quantity, taxable value and each tax. `uqcOf` maps a unit code to
+// its UQC (unitUqcMap); without it a unit reports OTH.
+export function hsnSummaryTable(lines, uqcOf = null) {
+  const types = ["cgst", "sgst", "igst", "cess"].filter((type) => lines.some((line) => (line.taxes ?? []).some((tax) => tax.tax_type === type)));
+  const label = { cgst: "CGST", sgst: "SGST", igst: "IGST", cess: "Cess" };
+  const groups = new Map();
+  for (const line of lines) {
+    const code = line.hsn_sac_code || "—";
+    const uqc = line.uqc ?? (line.uom_snapshot && uqcOf ? uqcOf.get(String(line.uom_snapshot).toUpperCase()) : null) ?? "OTH";
+    const key = `${code}|${uqc}`;
+    const group = groups.get(key) ?? { code, uqc, kind: line.hsn_sac_kind, quantity: 0, taxable: 0, taxes: Object.fromEntries(types.map((type) => [type, 0])) };
+    group.taxable += Number(line.net_amount ?? line.taxable_amount ?? 0);
+    group.quantity += line.credit_type === "amount" ? 0 : Number(line.quantity ?? 0);
+    for (const tax of line.taxes ?? []) if (types.includes(tax.tax_type)) group.taxes[tax.tax_type] += Number(tax.tax_amount ?? 0);
+    groups.set(key, group);
+  }
+  if (!groups.size || !types.length) return null;
+  const rows = [...groups.values()];
+  const width = `${Math.floor(56 / (types.length + 1))}%`;
+  const quantity = (value) => Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 });
+  return {
+    title: "HSN/SAC summary",
+    columns: [{ key: "code", label: "HSN/SAC", width: "20%" }, { key: "uqc", label: "UQC", width: "10%" }, { key: "quantity", label: "Quantity", align: "right", width: "14%" },
+      { key: "taxable", label: "Taxable value", align: "right", width }, ...types.map((type) => ({ key: type, label: label[type], align: "right", width }))],
+    rows: rows.map((row) => ({ code: row.code, uqc: row.uqc, quantity: row.quantity ? quantity(row.quantity) : "—", taxable: amount(row.taxable),
+      ...Object.fromEntries(types.map((type) => [type, amount(row.taxes[type])])) })),
+    totalRow: { code: "Total", uqc: "", quantity: "", taxable: amount(rows.reduce((total, row) => total + row.taxable, 0)),
+      ...Object.fromEntries(types.map((type) => [type, amount(rows.reduce((total, row) => total + row.taxes[type], 0))])) },
+  };
 }
 
 // The payment terms as the customer reads them: what the term says (its description) and anything added for this
@@ -643,10 +699,44 @@ function deliveryNoteModel(data) {
   };
 }
 
+// The GST delivery challan (rule 55 of the CGST Rules; Shared Platform plan 4): goods moved without a tax invoice yet — sent before
+// the invoice, on approval, or for job work. It names the consignor and consignee with their GSTINs, the place of delivery, each item
+// with its quantity and value, and the transport details, in three copies (consignee, transporter, consignor).
+function deliveryChallanModel(data) {
+  const base = deliveryNoteModel({ ...data, showPrices: true });
+  const { delivery, company } = data;
+  const customer = delivery.customer_snapshot || {};
+  const ship = delivery.shipping_address_snapshot || {};
+  const value = data.lines.reduce((total, line) => total + Number(line.quantity) * Number(line.unit_price ?? 0), 0);
+  return {
+    ...base,
+    title: "Delivery Challan",
+    issuedAt: `Challan date: ${day(delivery.dispatch_date) ?? day(new Date()) ?? ""}`,
+    parties: [
+      { label: "Consignor", lines: [company.name, delivery.warehouse_name ? `Dispatched from ${delivery.warehouse_name}` : null, company.taxId ? `GSTIN ${company.taxId}` : null].filter(Boolean) },
+      { label: "Consignee", lines: [customer.legalName ?? customer.displayName ?? customer.display_name ?? customer.name, ...addressLines(ship), customer.gstin ? `GSTIN ${customer.gstin}` : "Unregistered"].filter(Boolean) },
+    ],
+    fields: [
+      { label: "Challan no.", value: delivery.request_number },
+      { label: "Reason for transport", value: delivery.challan_reason ?? "Supply — tax invoice to follow" },
+      { label: "Place of delivery", value: [ship.city, ship.state].filter(Boolean).join(", ") },
+      { label: "Sales order", value: delivery.sales_order_number ?? "" },
+      { label: "Vehicle", value: delivery.vehicle_reference ?? "" },
+      { label: "Transporter", value: delivery.carrier ?? "" },
+      { label: "LR / tracking no.", value: delivery.tracking_number ?? "" },
+      { label: "Packages", value: delivery.package_count != null ? String(delivery.package_count) : "" },
+    ].filter((field) => field.value),
+    totals: [...base.totals, { label: `Value of goods${data.currency ? ` (${data.currency})` : ""}`, value: amount(value), emphasis: true }],
+    notes: base.notes.filter((note) => note.label !== "Received in good condition"),
+    declaration: "Certified that the particulars given above are true and correct. The goods are not being supplied against this challan; a tax invoice will follow where the movement is a supply.",
+    footer: `Delivery challan ${delivery.request_number}`,
+  };
+}
+
 // The (Tax) Invoice, from the invoice's own snapshots: the seller registration,
 // the customer and addresses as invoiced, the place of supply, each line with
 // its HSN/SAC and tax components, and the totals. Internal notes are never printed.
-function salesInvoiceModel(data) {
+function salesInvoiceModel(data, uqcOf = null) {
   const { invoice, lines, taxSummary, company } = data;
   const currency = invoice.currency_code;
   const customer = invoice.sales_customer_snapshot || invoice.customer_snapshot || {};
@@ -682,6 +772,7 @@ function salesInvoiceModel(data) {
       { label: "Place of supply", value: invoice.place_of_supply ? `${invoice.place_of_supply_name ?? ""} (${invoice.place_of_supply})`.trim() : "" },
       { label: "Payment terms", value: invoice.payment_term_snapshot?.name ?? "" },
       { label: "IRN", value: invoice.e_invoice_reference ?? "" },
+      { label: "Tax payable on reverse charge", value: taxed || seller.gstin ? (invoice.reverse_charge ? "Yes" : "No") : "" },
     ].filter((field) => field.value),
     table: {
       columns: [
@@ -720,6 +811,7 @@ function salesInvoiceModel(data) {
       ...(invoice.customer_notes ? [{ label: "Notes", text: invoice.customer_notes }] : []),
       ...(invoice.terms_and_conditions ? [{ label: "Terms and conditions", text: invoice.terms_and_conditions }] : []),
     ],
+    summaryTable: taxed ? hsnSummaryTable(lines, uqcOf) : null,
     footer: `${invoice.invoice_number}${invoice.sales_order_number ? ` · ${invoice.sales_order_number}` : ""}`,
   };
 }
@@ -728,7 +820,7 @@ function salesInvoiceModel(data) {
 // date), the reason, the lines credited with HSN/SAC and their tax components,
 // and the totals, all from the credit note's own snapshots. Never internal
 // notes, never how the credit was applied.
-function creditNoteModel(data) {
+function creditNoteModel(data, uqcOf = null) {
   const { creditNote, lines, taxSummary, company } = data;
   const currency = creditNote.currency_code;
   const customer = creditNote.sales_customer_snapshot || creditNote.customer_snapshot || {};
@@ -797,6 +889,7 @@ function creditNoteModel(data) {
     notes: [
       ...(creditNote.customer_notes ? [{ label: "Notes", text: creditNote.customer_notes }] : []),
     ],
+    summaryTable: hsnSummaryTable(lines, uqcOf),
     footer: `${creditNote.invoice_number} · against invoice ${creditNote.source_invoice_number}`,
   };
 }
@@ -974,6 +1067,7 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     async toModel(client, session, data) {
       return quotationModel(client, session, data);
     },
+    money: (data) => ({ amount: data.quotation.grand_total, currency: data.quotation.currency_code }),
     fileName: (data) => `quotation-${data.quotation.quotation_number}`,
   }),
   Object.freeze({
@@ -988,6 +1082,8 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     async toModel(client, session, data) {
       return proformaModel(client, session, data);
     },
+    money: (data) => ({ amount: data.proforma.advanceAmount || data.quotation.grand_total, currency: data.quotation.currency_code }),
+    collectsPayment: (data) => ({ amount: data.proforma.advanceAmount || data.quotation.grand_total, note: data.proforma.number }),
     fileName: (data) => `proforma-${data.proforma.number}`,
   }),
   Object.freeze({
@@ -1023,6 +1119,20 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     fileName: (data) => `Delivery-Note-${data.delivery.request_number}`,
   }),
   Object.freeze({
+    key: "sales.delivery_challan",
+    moduleKey: "sales",
+    permission: "sales.delivery.print",
+    label: "Delivery challan (GST)",
+    async load(client, session, id) {
+      return getDeliveryNote(client, salesContext(session), id);
+    },
+    async toModel(_client, _session, data) {
+      return deliveryChallanModel(data);
+    },
+    copies: ["Original for consignee", "Duplicate for transporter", "Triplicate for consignor"],
+    fileName: (data) => `Delivery-Challan-${data.delivery.request_number}`,
+  }),
+  Object.freeze({
     key: "sales.invoice",
     moduleKey: "sales",
     permission: "sales.invoice.print",
@@ -1030,9 +1140,12 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     async load(client, session, id) {
       return getSalesInvoiceDocument(client, salesContext(session), id);
     },
-    async toModel(_client, _session, data) {
-      return salesInvoiceModel(data);
+    async toModel(client, session, data) {
+      return salesInvoiceModel(data, await unitUqcMap(client, session.organizationId));
     },
+    money: (data) => ({ amount: data.invoice.grand_total, currency: data.invoice.currency_code }),
+    collectsPayment: (data) => (data.invoice.status === "draft" ? null : { amount: data.invoice.outstanding_amount ?? data.invoice.grand_total, note: data.invoice.invoice_number }),
+    copies: ["Original for recipient", "Duplicate for transporter", "Triplicate for supplier"],
     fileName: (data) => `Invoice-${data.invoice.invoice_number}${data.invoice.status === "draft" ? "-draft" : ""}`,
   }),
   Object.freeze({
@@ -1043,9 +1156,11 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     async load(client, session, id) {
       return getCreditNoteDocument(client, salesContext(session), id);
     },
-    async toModel(_client, _session, data) {
-      return creditNoteModel(data);
+    async toModel(client, session, data) {
+      return creditNoteModel(data, await unitUqcMap(client, session.organizationId));
     },
+    money: (data) => ({ amount: data.creditNote.grand_total, currency: data.creditNote.currency_code }),
+    copies: ["Original for recipient", "Duplicate for supplier"],
     fileName: (data) => `Credit-Note-${data.creditNote.invoice_number}${data.creditNote.status === "draft" ? "-draft" : ""}`,
   }),
   Object.freeze({
@@ -1169,6 +1284,74 @@ export const DOCUMENT_RENDERERS = Object.freeze([
   }),
 ]);
 
+// Layout v2 (Shared Platform plan 4), for every printed document: the company's logo and details in the header and the authorised
+// signatory block; for documents with an amount, the amount in words; for invoices and proformas, the bank details and a UPI QR
+// for the amount due; and, when asked (options.copies), the statutory copies.
+export async function decorateDocument(client, session, renderer, data, model, options = {}) {
+  if (renderer.key === "pos.receipt") return model;
+  const letterhead = await companyLetterhead(client, session.organizationId, options);
+  if (!letterhead) return model;
+  const decorated = { ...model, organizationName: model.organizationName || letterhead.name, company: { logo: letterhead.logo, lines: letterhead.lines } };
+  decorated.signatory = { companyName: model.organizationName || letterhead.name, image: letterhead.signature };
+  const money = renderer.money?.(data);
+  if (money && Number.isFinite(Number(money.amount))) decorated.amountInWords = amountInWords(Number(money.amount), String(money.currency || "INR").trim());
+  const payable = renderer.collectsPayment?.(data);
+  if (payable && (letterhead.bankLines.length || letterhead.upiId)) {
+    const inr = !money?.currency || String(money.currency).trim() === "INR";
+    decorated.payment = {
+      bankLines: letterhead.bankLines,
+      upi: letterhead.upiId && inr && Number(payable.amount) > 0
+        ? { uri: upiPaymentUri({ vpa: letterhead.upiId, payeeName: letterhead.name, amount: Number(payable.amount), note: payable.note }), label: `Scan to pay ${letterhead.upiId} with any UPI app` }
+        : null,
+    };
+  }
+  if (renderer.copies && Number(options.copies) > 1) decorated.copies = renderer.copies.slice(0, Math.min(Number(options.copies), renderer.copies.length));
+  // e-invoice (Shared Platform plan 7): a live IRN prints the IRP's signed QR.
+  if (renderer.key === "sales.invoice" && data?.invoice?.id) {
+    const einvoice = (await client.query(`SELECT irn, ack_number, ack_date, signed_qr FROM tenant.einvoice_documents WHERE organization_id = $1 AND document_id = $2 AND status = 'generated'`,
+      [session.organizationId, data.invoice.id])).rows[0];
+    if (einvoice?.signed_qr) {
+      decorated.einvoiceQr = einvoice.signed_qr;
+      decorated.fields = [...(decorated.fields ?? []).filter((field) => field.label !== "IRN"), { label: "IRN", value: einvoice.irn }, { label: "Ack no.", value: einvoice.ack_number ?? "" }].filter((field) => field.value);
+    }
+  }
+  // Composition scheme (Shared Platform plan 7): the seller collects no GST, so its invoice is a bill of supply and says why.
+  if (renderer.key === "sales.invoice") {
+    const registrationId = data?.invoice?.seller_registration_id ?? null;
+    const regime = (await client.query(
+      `SELECT registration_type FROM tenant.tax_registrations WHERE organization_id = $1 AND status = 'active' AND ($2::uuid IS NULL OR id = $2) ORDER BY is_default DESC LIMIT 1`,
+      [session.organizationId, registrationId])).rows[0];
+    if (regime?.registration_type === "composition") {
+      decorated.title = "Bill of Supply";
+      decorated.declaration = [model.declaration, "Composition taxable person, not eligible to collect tax on supplies."].filter(Boolean).join(" ");
+    }
+  }
+  return decorated;
+}
+
+// The A4 receipt model laid out for a till roll: store and seller on top, then each line (quantity × price, HSN, GST), the totals
+// and payments, and the thank-you line.
+export function toThermalReceipt(model, width) {
+  const store = model.parties?.find((party) => party.label === "Store")?.lines ?? [];
+  const customer = model.parties?.find((party) => party.label === "Customer")?.lines ?? [];
+  const totals = model.totals ?? [];
+  const paid = totals.filter((total) => /^Paid|^Change/.test(total.label));
+  return {
+    width,
+    header: [model.organizationName, ...store].filter(Boolean),
+    title: model.title,
+    meta: [`No. ${model.documentNumber}`, model.issuedAt, ...(model.fields ?? []).map((field) => `${field.label}: ${field.value}`), ...customer.map((line, index) => (index === 0 ? `Customer: ${line}` : line))].filter(Boolean),
+    lines: (model.table?.rows ?? []).map((row) => ({
+      name: String(row.item ?? ""),
+      detail: [`${row.quantity} × ${row.price}`, row.discount ? `less ${row.discount}` : null, row.hsn ? `HSN ${row.hsn}` : null, row.gst ? `GST ${row.gst}` : null].filter(Boolean).join(" · "),
+      amount: String(row.total ?? ""),
+    })),
+    totals: totals.filter((total) => !paid.includes(total)),
+    payments: paid.map((total) => `${total.label}: ${total.value}`),
+    footer: [model.footer, model.status].filter(Boolean),
+  };
+}
+
 export function getDocumentRenderer(key) {
   return DOCUMENT_RENDERERS.find((renderer) => renderer.key === key) ?? null;
 }
@@ -1183,7 +1366,12 @@ export async function renderAuthorizedDocument(client, session, key, id, options
   if (!renderer) throw Object.assign(new Error("Unknown document."), { status: 404, code: "DOCUMENT_RENDERER_UNKNOWN" });
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""))) throw Object.assign(new Error("Document not found."), { status: 404, code: "DOCUMENT_NOT_FOUND" });
   const data = await renderer.load(client, session, id, options);
-  const model = await renderer.toModel(client, session, data);
-  const { renderDocumentPdf, safePdfFileName } = await import("@vercentlabs/document-engine/pdf");
+  const base = await renderer.toModel(client, session, data);
+  const { renderDocumentPdf, renderReceiptPdf, safePdfFileName } = await import("@vercentlabs/document-engine/pdf");
+  // A POS receipt for a thermal printer (?width=58 or 80): the same content on a narrow roll.
+  if (renderer.key === "pos.receipt" && [58, 80].includes(Number(options.width))) {
+    return { fileName: safePdfFileName(`${renderer.fileName(data)}-${Number(options.width)}mm`), body: await renderReceiptPdf(toThermalReceipt(base, Number(options.width))) };
+  }
+  const model = await decorateDocument(client, session, renderer, data, base, options);
   return { fileName: safePdfFileName(renderer.fileName(data)), body: await renderDocumentPdf(model) };
 }

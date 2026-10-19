@@ -14,6 +14,9 @@ export const CONDITION_OPERATORS = Object.freeze([
   Object.freeze({ key: "not_equals", label: "is not" }),
   Object.freeze({ key: "in", label: "is one of" }),
   Object.freeze({ key: "changed_includes", label: "includes" }),
+  // Shared Platform plan 6: amounts and counts (fields of type "number").
+  Object.freeze({ key: "greater_than", label: "is more than" }),
+  Object.freeze({ key: "less_than", label: "is less than" }),
 ]);
 
 export const WORKFLOW_ACTIONS = Object.freeze([
@@ -21,6 +24,22 @@ export const WORKFLOW_ACTIONS = Object.freeze([
     key: "notify",
     label: "Send an in-app notification",
     description: "Notifies a person from the event (for example the lead's new owner) or a named member. Their notification preferences apply.",
+  }),
+  // Shared Platform plan 6: for every app's events.
+  Object.freeze({
+    key: "send_email",
+    label: "Send an email",
+    description: "Emails a person from the event, a named member or an address, with a subject and message (use {{field}} for the event's values, for example {{invoiceNumber}}).",
+  }),
+  Object.freeze({
+    key: "create_activity",
+    label: "Plan an activity on the record",
+    description: "Adds a to-do, call, meeting or email to the record's activities, due some days after the event, for a person from the event or a named member.",
+  }),
+  Object.freeze({
+    key: "assign",
+    label: "Hand the record to someone",
+    description: "Makes a named member the record's salesperson or buyer (quotations, sales orders and purchase orders).",
   }),
   // A module's own actions (CRM plan 4.6): offered only for that module's events, validated and run by the module
   // (modules/crm/automation/actions.js), each through the same operation a person uses.
@@ -39,10 +58,36 @@ export const WORKFLOW_MODULE_ACTIONS = Object.freeze({
 
 // Where a notification for an event of a module goes (a registered category
 // of that module).
-export const WORKFLOW_NOTIFICATION_CATEGORY = Object.freeze({ crm: "crm_workflow" });
+export const WORKFLOW_NOTIFICATION_CATEGORY = Object.freeze({ crm: "crm_workflow", sales: "automation", procurement: "automation", stock: "automation",
+  "point-of-sale": "automation", projects: "automation" });
+
+// Records an automation can plan an activity on (the shared record thread's types), by event entity type.
+export const WORKFLOW_ACTIVITY_RECORDS = Object.freeze({
+  "sales.quotation": "sales.quotation", "sales.order": "sales.order", "sales.invoice": "sales.invoice", "sales.delivery": "sales.delivery",
+  "procurement.purchase_order": "procurement.purchase_order", "procurement.supplier_bill": "procurement.supplier_bill",
+});
+// Records an automation can hand to someone: the table and its responsible-person column.
+export const WORKFLOW_ASSIGNABLE = Object.freeze({
+  "sales.quotation": { table: "tenant.sales_quotations", column: "owner_user_id", label: "salesperson" },
+  "sales.order": { table: "tenant.sales_orders", column: "owner_user_id", label: "salesperson" },
+  "procurement.purchase_order": { table: "tenant.purchase_orders", column: "buyer_user_id", label: "buyer" },
+});
 
 // Record links for notifications, by event entity type (internal paths only).
 export const WORKFLOW_ENTITY_LINKS = Object.freeze({
   "crm.lead": (id) => `/crm/leads/${id}`,
   "crm.opportunity": (id) => `/crm/opportunities/${id}`,
+  "sales.quotation": (id) => `/sales/quotations/${id}`,
+  "sales.order": (id) => `/sales/orders/${id}`,
+  "sales.delivery": (id) => `/sales/deliveries/${id}`,
+  "sales.invoice": (id) => `/sales/invoices/${id}`,
+  "procurement.purchase_order": (id) => `/procurement/purchase-orders/${id}`,
+  "procurement.goods_receipt": () => "/procurement/goods-receipts",
+  "procurement.supplier_bill": (id) => `/procurement/supplier-bills/${id}`,
+  "stock.transfer": (id) => `/inventory/transfers/${id}`,
+  "stock.low_stock_alert": (id) => `/inventory/replenishment/alerts/${id}`,
+  "pos.shift": () => "/pos/shifts",
+  "pos.day": () => "/pos/day-end",
+  "projects.project": (id) => `/projects/${id}`,
+  "projects.task": (id) => `/projects/tasks/${id}`,
 });

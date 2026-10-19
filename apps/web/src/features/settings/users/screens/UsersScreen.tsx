@@ -31,6 +31,7 @@ import {
   setMemberStatus,
   UsersApiError,
 } from "../api/users-api";
+import { MemberSecurityActions } from "../MemberSecurityActions";
 
 const QUERY_KEY = ["settings", "users"];
 const OPTIONS_KEY = ["settings", "access", "options"];
@@ -39,6 +40,8 @@ export type UsersAbilities = {
   canView: boolean;
   canManageUsers: boolean;
   canAssignRoles: boolean;
+  isOwner?: boolean;
+  isAdmin?: boolean;
 };
 
 function errorMessage(error: unknown, fallback: string) {
@@ -237,6 +240,14 @@ export function UsersScreen({
                     >
                       Manage roles
                     </Button>
+                  )}
+                  {!isSelf && (
+                    <MemberSecurityActions
+                      member={member}
+                      isOwner={Boolean(abilities.isOwner)}
+                      isAdmin={Boolean(abilities.isAdmin)}
+                      canManageUsers={abilities.canManageUsers}
+                    />
                   )}
                   {abilities.canManageUsers && !isSelf && (
                     <Button

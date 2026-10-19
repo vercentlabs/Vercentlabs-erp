@@ -42,6 +42,10 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   // The PDF stack (@react-pdf/renderer, pure Node) is loaded at runtime from
   // the document-engine workspace package, never bundled.
+  // The PDF fonts (Noto Sans, Noto Sans Devanagari) are read from disk by the document engine at run time.
+  outputFileTracingIncludes: {
+    "/api/**/*": ["../../packages/document-engine/fonts/**/*"],
+  },
   serverExternalPackages: [
     "@vercentlabs/document-engine",
     "@react-pdf/renderer",

@@ -10,15 +10,16 @@ import {
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 import { useState } from "react";
 
-// In-app notifications only: that is the one channel the platform delivers
-// for every category. Security email (sign-in, password reset, two-step
-// verification) is always sent and is not configured here.
+// In-app and email per notification type, and the daily digest email.
+// Security email (sign-in, password reset, two-step verification) is always
+// sent and is not configured here.
 type Preference = {
   category: string;
   displayName: string;
   description: string;
   moduleKey: string;
   enabled: boolean;
+  emailEnabled: boolean;
 };
 
 const MODULE_NAME = new Map(
@@ -40,12 +41,16 @@ export function NotificationPreferencesScreen() {
   const query = useQuery({
     queryKey: QUERY_KEY,
     queryFn: () =>
-      request<{ preferences: Preference[] }>(
+      request<{ preferences: Preference[]; digest: { enabled: boolean } }>(
         "/api/settings/notification-preferences",
-      ).then((r) => r.preferences),
+      ),
   });
   const save = useMutation({
-    mutationFn: (input: { category: string; enabled: boolean }) =>
+    mutationFn: (
+      input:
+        | { category: string; channel: "in_app" | "email"; enabled: boolean }
+        | { digest: boolean },
+    ) =>
       request("/api/settings/notification-preferences", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -63,7 +68,7 @@ export function NotificationPreferencesScreen() {
       ),
   });
 
-  const preferences = query.data ?? [];
+  const preferences = query.data?.preferences ?? [];
   const groups = new Map<string, Preference[]>();
   for (const preference of preferences)
     groups.set(preference.moduleKey, [
@@ -75,8 +80,22 @@ export function NotificationPreferencesScreen() {
     <div className="flex flex-1 flex-col gap-4">
       <PageHeader
         title="Notification preferences"
-        description="Choose which in-app notifications you receive. Security emails are always sent."
+        description="Choose what you are told about, in the app and by email. Security emails are always sent."
       />
+      {query.data && (
+        <section className="flex max-w-2xl flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+          <Switch
+            isSelected={query.data.digest.enabled}
+            isDisabled={save.isPending}
+            onChange={(digest) => save.mutate({ digest })}
+          >
+            Daily digest email
+          </Switch>
+          <span className="pl-11 text-xs text-text-muted">
+            One email each morning with what you have not read yet.
+          </span>
+        </section>
+      )}
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}
@@ -108,15 +127,26 @@ export function NotificationPreferencesScreen() {
             <ul className="flex flex-col gap-3">
               {items.map((item) => (
                 <li key={item.category} className="flex flex-col gap-0.5">
-                  <Switch
-                    isSelected={item.enabled}
-                    isDisabled={save.isPending}
-                    onChange={(enabled) =>
-                      save.mutate({ category: item.category, enabled })
-                    }
-                  >
-                    {item.displayName}
-                  </Switch>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Switch
+                      isSelected={item.enabled}
+                      isDisabled={save.isPending}
+                      onChange={(enabled) =>
+                        save.mutate({ category: item.category, channel: "in_app", enabled })
+                      }
+                    >
+                      {item.displayName}
+                    </Switch>
+                    <Switch
+                      isSelected={item.emailEnabled}
+                      isDisabled={save.isPending}
+                      onChange={(enabled) =>
+                        save.mutate({ category: item.category, channel: "email", enabled })
+                      }
+                    >
+                      Email
+                    </Switch>
+                  </div>
                   <span className="pl-11 text-xs text-text-muted">
                     {item.description}
                   </span>

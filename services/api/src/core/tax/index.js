@@ -9,6 +9,7 @@ export {
   changeTaxRate, createTaxCategory, createTaxRegistration, getTaxCategory, getTaxOptions, getTaxSettings, listTaxCategories, listTaxCategoryChoices, listTaxHistory, listTaxRegistrations,
   setTaxCategoryStatus, updateTaxCategory, updateTaxRegistration, updateTaxSettings,
 } from "./configuration.js";
-export { listWithholdingSections, saveWithholdingSection } from "./withholding.js";
+export { deleteTdsCertificate, effectiveWithholdingRate, listTdsCertificates, listWithholdingSections, saveTdsCertificate, saveWithholdingSection } from "./withholding.js";
 export { previewTaxCalculation, validateTaxConfiguration } from "./validation.js";
 export { REGISTRATION_TYPES } from "./configuration.js";
+export { GST_UQC, isGstUqc, uqcForUnitCode, unitUqcMap } from "./uqc.js";

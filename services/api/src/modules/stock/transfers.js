@@ -10,6 +10,7 @@
 // Lines are entered in any of the item's units and kept with the conversion; batch-tracked lines carry their batches and serial-tracked lines
 // their serial numbers — the same identities at source, in transit and at the destination. Every leg is a Stock Ledger movement at the cost the
 // stock left with: no profit or loss. Confirm, dispatch and each receipt are idempotent and run under the transfer's lock.
+import { publishDomainEvent } from "../../core/platform/events/index.js";
 import { STOCK_TRANSFER_PERMISSIONS as P } from "@vercentlabs/permissions";
 
 import { add, decimal, formatDecimal, roundMoney, sub } from "../../core/decimal.js";
@@ -511,8 +512,13 @@ export async function completeInventoryTransfer(client, c, transferId) {
   await client.query(`UPDATE tenant.inventory_transfers SET status = 'completed', dispatch_date = $3, receipt_date = $3, dispatched_by = $4, dispatched_at = now(), completed_by = $4,
             completed_at = now(), version = version + 1, updated_at = now() WHERE organization_id = $1 AND id = $2`, [c.organizationId, row.id, day, c.userId ?? null]);
   await event(client, c, row.id, "completed", `Completed: ${lines.length} line${lines.length === 1 ? "" : "s"} moved`, { groupId: posting.id });
+  await transferCompleted(client, c, row);
   return { ...(await getInventoryTransfer(client, c, row.id)), replayed: false };
 }
+
+// The domain event of a transfer that arrived in full (automations and webhooks).
+const transferCompleted = (client, c, row) => publishDomainEvent(client, { organizationId: c.organizationId, moduleKey: "stock", eventType: "stock.transfer.completed", entityType: "stock.transfer",
+  entityId: row.id, payload: { transferNumber: row.document_number, sourceWarehouseId: row.source_warehouse_id, destinationWarehouseId: row.destination_warehouse_id } });
 
 // What is still in transit for a line, per part (its value travels with the transit leg: Inventory Valuation carries it across).
 async function inTransit(client, c, line) {
@@ -625,6 +631,7 @@ export async function receiveInventoryTransfer(client, c, transferId, input = {}
   const total = plan.reduce((sum, step) => add(sum, step.quantity), ZERO);
   await event(client, c, row.id, complete ? "completed" : "partially_received",
     `${complete ? "Received in full" : "Partly received"}: ${dec(total)} arrived${moved.length ? ` (${moved.join(", ")})` : ""}`, { groupId: receipt.id });
+  if (complete) await transferCompleted(client, c, row);
   return { ...(await getInventoryTransfer(client, c, row.id)), replayed: false };
 }
 
@@ -787,7 +794,7 @@ export async function listInventoryTransfers(client, c, filters = {}) {
   const limit = Math.min(Math.max(Number(filters.limit) || 100, 1), 1000);
   const offset = Math.max(Number(filters.offset) || 0, 0);
   const total = Number((await client.query(`SELECT count(*) FROM tenant.inventory_transfers transfer WHERE ${where.join(" AND ")}`, values)).rows[0].count);
-  const rows = (await client.query(`${SELECT} WHERE ${where.join(" AND ")} ORDER BY transfer.transfer_date DESC, transfer.document_number DESC LIMIT ${bind(limit)} OFFSET ${bind(offset)}`, values)).rows;
+  const rows = (await client.query(`${SELECT} WHERE ${where.join(" AND ")} ORDER BY ${listOrder(filters, { number: "transfer.document_number", transferDate: "transfer.transfer_date", status: "transfer.status" }, "transfer.transfer_date DESC, transfer.document_number DESC")} LIMIT ${bind(limit)} OFFSET ${bind(offset)}`, values)).rows;
   return { total, rows: rows.map(toHeader), canCreate: can(c, P.create), canExport: can(c, P.export) };
 }
 
@@ -826,4 +833,13 @@ export async function getTransferAvailability(client, c, { warehouseId, itemId }
   const visible = await visibleWarehouseIds(client, c);
   if (visible && !visible.includes(warehouse)) throw new TransferError(403, "You may not work in this warehouse.", "WAREHOUSE_FORBIDDEN");
   return itemPositions(client, c, { warehouseId: warehouse, itemId: uuid(itemId, "Item") });
+}
+
+// The list's sort (Shared Platform plan 5: lists are paged on the server, so the server sorts): ?sort= one of the allowed columns and
+// ?sortDir=asc|desc, else newest first. The document number breaks ties.
+function listOrder(filters, columns, fallback) {
+  const column = columns[filters.sort];
+  if (!column) return fallback;
+  const direction = filters.sortDir === "asc" ? "ASC" : "DESC";
+  return `${column} ${direction}, ${Object.values(columns)[0]} ${direction}`;
 }

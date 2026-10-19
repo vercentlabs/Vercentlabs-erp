@@ -13,6 +13,7 @@ const posAdministrator = (context) => context.roleSlugs?.some((slug) => ["organi
   || context.permissions?.includes("pos.store.manage") || context.permissions?.includes("pos.settings.manage");
 import { event } from "../shared/audit.js";
 import { escapeHtml, getMailTransport } from "../../../core/platform/mail/index.js";
+import { countOutboundMessages } from "../../../core/billing/usage.js";
 
 export async function getPosSaleReceipt(client, context, saleId) {
   requirePermission(context, "pos.view");
@@ -101,6 +102,7 @@ export async function sendPosDigitalReceipts(client, context, saleId, input = {}
       const mail = getMailTransport();
       if (mail) {
         try {
+          await countOutboundMessages(client, context.organizationId, { channel: "email", idempotencyKey: `pos-receipt:${delivery.id ?? `${saleId}:${delivery.destination}`}` });
           await mail.transporter.sendMail({ from: mail.from, replyTo: mail.replyTo ?? undefined, to: delivery.destination,
             subject: `Receipt ${sale.receipt_number} — ${sale.store_name}`, html: receiptHtml(receipt), text: receiptText(receipt) });
           status = "sent";

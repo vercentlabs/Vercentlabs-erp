@@ -16,6 +16,8 @@ import { BillingNotice } from "../components/BillingPanel";
 import { CurrentPlanPanel } from "../components/CurrentPlanPanel";
 import { PaymentHistory } from "../components/PaymentHistory";
 import { PlansPanel } from "../components/PlansPanel";
+import { AppChoicePanel } from "../components/AppChoicePanel";
+import { UsagePanel } from "../components/UsagePanel";
 
 const QUERY_KEY = ["settings", "billing"];
 
@@ -134,6 +136,8 @@ export function BillingScreen({ abilities }: { abilities: BillingAbilities }) {
         </BillingNotice>
       )}
       <CurrentPlanPanel overview={overview} />
+      <AppChoicePanel overview={overview} canManage={abilities.canManage} onResult={onResult} />
+      <UsagePanel overview={overview} />
       {abilities.canAudit && <BillingHealthPanel />}
       <PlansPanel
         overview={overview}

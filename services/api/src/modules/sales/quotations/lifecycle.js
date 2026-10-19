@@ -8,6 +8,8 @@
 // = Confirmed). Neither acceptance nor rejection changes the opportunity: an
 // accepted quotation makes the deal eligible to be won; the deal is won or
 // lost only by its own action.
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
+import { notifyRecordOwner } from "../../../core/platform/notifications/index.js";
 import { createApprovalRequest, finalizeApprovalRequest } from "../../../core/platform/approvals/index.js";
 import { escapeHtml, sendMail } from "../../../core/platform/mail/index.js";
 import { decimal } from "../money.js";
@@ -203,6 +205,7 @@ export async function emailQuotation(client, context, quotationId, input = {}, a
   const message = text(input.message, 10000)
     ?? `Please find attached our quotation ${quote.quotation_number}${customer ? ` for ${customer}` : ""}, valid until ${dayOf(quote.valid_until) ?? "the date shown"}.`;
   const result = await sendMail({
+    meter: { client, organizationId: context.organizationId },
     to, cc: cc.length ? cc : undefined, subject, text: message,
     html: `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">${escapeHtml(message).replace(/\n/g, "<br>")}</body></html>`,
     attachments: [{ filename: attachment.fileName, content: attachment.content, contentType: "application/pdf" }],
@@ -257,6 +260,11 @@ export async function recordQuotationDecision(client, context, quotationId, inpu
     [context.organizationId, quote.id, decision, reference, notes, context.userId ?? null]);
   await recordQuotationEvent(client, context, quote.id, `quotation.${decision}`, quote.lifecycle_status, decision,
     { recordedByStaff: true, customerName, reference, notes, versionId: quote.current_version_id, versionNumber: quote.version_number });
+  await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "sales", eventType: `sales.quotation.${decision}`, entityType: "sales.quotation", entityId: quote.id,
+    payload: { quotationNumber: quote.quotation_number, customerId: quote.party_id, ownerUserId: quote.owner_user_id, total: quote.grand_total } });
+  await notifyRecordOwner(client, context, { userId: quote.owner_user_id ?? quote.created_by, category: "sales_document",
+    title: `Quotation ${quote.quotation_number} was ${decision}`, message: `${customerName} ${decision} it${notes ? `: ${notes.slice(0, 300)}` : "."}`,
+    href: `/sales/quotations/${quote.id}`, entityType: "sales_quotation", entityId: quote.id });
   return { quotationId: quote.id, decision, changed: true };
 }
 

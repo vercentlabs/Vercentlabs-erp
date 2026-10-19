@@ -70,21 +70,48 @@ export function escapeHtml(value) {
  * Sends one message, optionally with CC recipients and attachments. `{ sent: false, reason: "SMTP_NOT_CONFIGURED" }` is an
  * honest outcome for an environment without mail, never a pretend send.
  */
-export async function sendMail({ to, cc, subject, text, html, replyTo, attachments, messageId, inReplyTo, references, fromName, headers }, env = process.env) {
-  const transport = getMailTransport(env);
-  if (!transport) return { sent: false, reason: "SMTP_NOT_CONFIGURED" };
+// meter: { client, organizationId, idempotencyKey? } — a message a company's app sends to its customers or suppliers counts towards
+// the plan's monthly messages (one per recipient), checked before it leaves (core/billing/usage.js). Sign-in and platform mail
+// passes no meter and is never counted.
+export async function sendMail({ to, cc, subject, text, html, replyTo, attachments, messageId, inReplyTo, references, fromName, headers, meter }, env = process.env) {
+  const metered = Boolean(meter?.client && meter.organizationId);
+  // A company's business mail goes through its own server or verified domain when it has one (core/platform/mail/company-sender.js).
+  const transport = metered
+    ? await (await import("./company-sender.js")).companyMailTransport(meter.client, meter.organizationId, env)
+    : getMailTransport(env);
+  if (!transport) {
+    if (metered) await (await import("./outbox.js")).logMail(meter.client, { organizationId: meter.organizationId, recipients: [to, cc], subject, status: "not_configured", error: "No mail transport is configured." }).catch(() => undefined);
+    return { sent: false, reason: "SMTP_NOT_CONFIGURED" };
+  }
+  if (metered) {
+    const recipients = [to, cc].flat().filter(Boolean).length || 1;
+    const { countOutboundMessages } = await import("../../billing/usage.js");
+    await countOutboundMessages(meter.client, meter.organizationId, { quantity: recipients, channel: "email", idempotencyKey: meter.idempotencyKey ?? "" }, env);
+  }
   // attachments: [{ filename, content (Buffer), contentType }] — a document a feature sends on purpose, such as a quotation PDF.
   // messageId / inReplyTo / references: a feature that threads replies (CRM email) sets its own message id and answers a known one.
   // fromName: the sender's name on the workspace's own address ("Ravi Rep via Acme <no-reply@…>"); the address itself never changes.
   const address = /<([^>]+)>/.exec(transport.from)?.[1] ?? transport.from;
-  const from = fromName ? { name: String(fromName).replace(/["\r\n]/g, "").slice(0, 120), address } : transport.from;
-  const info = await transport.transporter.sendMail({
-    from, replyTo: replyTo ?? transport.replyTo ?? undefined, to, cc, subject, text, html, attachments,
-    ...(messageId ? { messageId } : {}), ...(inReplyTo ? { inReplyTo } : {}), ...(references?.length ? { references } : {}),
-    // headers: extra mail headers a feature needs, such as List-Unsubscribe on a campaign email
-    ...(headers && typeof headers === "object" ? { headers } : {}),
-  });
-  return { sent: true, messageId: info?.messageId ?? messageId ?? null };
+  const name = fromName ?? transport.fromName ?? null;
+  const from = name ? { name: String(name).replace(/["\r\n]/g, "").slice(0, 120), address } : transport.from;
+  try {
+    const info = await transport.transporter.sendMail({
+      from, replyTo: replyTo ?? transport.replyTo ?? undefined, to, cc, subject, text, html, attachments,
+      ...(messageId ? { messageId } : {}), ...(inReplyTo ? { inReplyTo } : {}), ...(references?.length ? { references } : {}),
+      // headers: extra mail headers a feature needs, such as List-Unsubscribe on a campaign email
+      ...(headers && typeof headers === "object" ? { headers } : {}),
+      // A verified company domain signs its mail (DKIM), so receivers accept the company's own From address.
+      ...(transport.dkim ? { dkim: transport.dkim } : {}),
+    });
+    if (metered) await (await import("./outbox.js")).logMail(meter.client, { organizationId: meter.organizationId, recipients: [to, cc], subject, status: "sent", via: transport.via ?? "platform", messageId: info?.messageId ?? null });
+    return { sent: true, messageId: info?.messageId ?? messageId ?? null, via: transport.via ?? "platform" };
+  } catch (error) {
+    if (metered) {
+      const code = Number(error?.responseCode ?? NaN);
+      await (await import("./outbox.js")).logMail(meter.client, { organizationId: meter.organizationId, recipients: [to, cc], subject, status: code >= 500 && code < 600 ? "bounced" : "failed", via: transport.via ?? "platform", error: error?.message ?? error }).catch(() => undefined);
+    }
+    throw error;
+  }
 }
 
 // Plain business transactional template: heading, body, optional action link.
