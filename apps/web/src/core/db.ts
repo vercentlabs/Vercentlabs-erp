@@ -4,6 +4,8 @@ import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { databaseConfig } from "@vercentlabs/config";
 import { createLogger, monitorPool } from "@vercentlabs/observability";
 
+import { mailWaiting, sendWaitingMail } from "@vercentlabs/api";
+
 import { resolveDbSsl } from "./db-ssl.ts";
 import {
   runTenantTransaction,
@@ -43,6 +45,22 @@ function getPool() {
   return pool;
 }
 
+// Emails a request queued (sign-up, password reset, invitations, notices) are sent as soon as its transaction has committed, after
+// the response is on its way; whatever fails is retried by the worker.
+function sendMailAfterCommit() {
+  if (!mailWaiting()) return;
+  setImmediate(() => {
+    void (async () => {
+      const client = await getPool().connect();
+      try {
+        await sendWaitingMail(client);
+      } finally {
+        client.release();
+      }
+    })().catch((error) => createLogger("web-mail").error("sending queued mail failed", { error: String(error?.message ?? error).slice(0, 300) }));
+  });
+}
+
 // Row-level-security-scoped variant — every handler touching tenant data
 // through a request must use this (or workspaceTransaction below), not the
 // bare `transaction()` above, so Postgres RLS policies keyed on
@@ -55,7 +73,9 @@ export async function tenantTransaction<T>(
 ): Promise<T> {
   const client = await getPool().connect();
   try {
-    return await runTenantTransaction(client, organizationId, handler);
+    const result = await runTenantTransaction(client, organizationId, handler);
+    sendMailAfterCommit();
+    return result;
   } finally {
     client.release();
   }
@@ -71,7 +91,9 @@ export async function organizationConnection<T>(
 ): Promise<T> {
   const client = await getPool().connect();
   try {
-    return await runWithOrganizationConnection(client, organizationId, handler);
+    const result = await runWithOrganizationConnection(client, organizationId, handler);
+    sendMailAfterCommit();
+    return result;
   } finally {
     client.release();
   }
@@ -94,6 +116,7 @@ export async function sessionTransaction<T>(
         await setTenantContext(client, session.organizationId);
       const result = await handler(client);
       await client.query("COMMIT");
+      sendMailAfterCommit();
       return result;
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
@@ -127,6 +150,7 @@ export async function ingressTransaction<T>(
     try {
       const result = await handler(client);
       await client.query("COMMIT");
+      sendMailAfterCommit();
       return result;
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
@@ -144,7 +168,10 @@ export async function withIngressClient<T>(
 ): Promise<T> {
   const client = await getPool().connect();
   try {
-    return await handler(client);
+    const result = await handler(client);
+    // No transaction here: what the handler wrote is already committed (sign-up and resend-verification queue their mail this way).
+    sendMailAfterCommit();
+    return result;
   } finally {
     client.release();
   }

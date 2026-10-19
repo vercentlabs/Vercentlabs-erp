@@ -31,3 +31,7 @@ export function setupMailDomain(client: Queryable, session: Session, input: { do
 export function verifyMailDomain(client: Queryable, session: Session, env?: Env, resolveTxt?: (host: string) => Promise<string[][]>): Promise<{ verified: boolean; problems: string[]; settings: MailSettings }>;
 export function saveCompanySmtp(client: Queryable, session: Session, input: Record<string, unknown>, env?: Env, options?: { createTransport?: (options: any) => any }): Promise<{ verified: boolean; error: string | null; settings: MailSettings }>;
 export function companyMailTransport(client: Queryable, organizationId: string, env?: Env): Promise<{ transporter: any; from: string; fromName?: string | null; replyTo: string | null; via: string; dkim?: Record<string, string> } | null>;
+
+// Mail queued by this process and not yet tried; the web sends it right after the transaction commits.
+export function mailWaiting(): boolean;
+export function sendWaitingMail(client: { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> }, options?: Record<string, unknown>): Promise<Record<string, number> | null>;

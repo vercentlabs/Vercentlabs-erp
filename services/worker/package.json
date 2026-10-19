@@ -10,8 +10,8 @@
     }
   },
   "scripts": {
-    "dev": "node --watch bin/start.mjs",
-    "start": "node bin/start.mjs",
+    "dev": "node --env-file-if-exists=../../.env --watch bin/start.mjs",
+    "start": "node --env-file-if-exists=../../.env bin/start.mjs",
     "migrate": "node bin/migrate.mjs"
   },
   "dependencies": {

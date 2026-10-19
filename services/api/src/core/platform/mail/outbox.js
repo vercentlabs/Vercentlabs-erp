@@ -13,6 +13,18 @@ const permanent = (error) => {
   return code >= 500 && code < 600;
 };
 
+// Mail queued by this process and not yet tried. The web server sends it as soon as the request's transaction commits
+// (sendWaitingMail), so sign-up and password mails arrive at once; the worker only retries what failed.
+// One flag for the whole process (a bundler may load this module more than once).
+const FLAG = Symbol.for("vercentlabs.mail.waiting");
+const setWaiting = (value) => { globalThis[FLAG] = value; };
+export const mailWaiting = () => Boolean(globalThis[FLAG]);
+export async function sendWaitingMail(client, options = {}) {
+  if (!mailWaiting()) return null;
+  setWaiting(false);
+  return processMailQueue(client, { limit: 10, ...options });
+}
+
 export async function logMail(client, { organizationId = null, kind = "business", template = null, recipients, subject, status, via = null, messageId = null, error = null }) {
   await client.query(
     `INSERT INTO public.mail_log (organization_id, kind, template, recipients, subject, status, sent_via, attempts, message_id, last_error, sent_at)
@@ -30,6 +42,7 @@ export async function queueSecurityMail(client, input, env = process.env) {
      VALUES ($1, 'security', $2, $3, $4, $5, now(), $6::jsonb, $7)`,
     [input.organizationId ?? null, input.type, [input.email], input.subject ?? input.type, configured ? "queued" : "not_configured",
       configured ? JSON.stringify(await encryptSecret(input, env)) : null, configured ? null : "No mail transport is configured."]);
+  if (configured) setWaiting(true);
   return configured;
 }
 
@@ -42,6 +55,7 @@ export async function queueMail(client, input, env = process.env) {
      VALUES ($1, 'business', $2, $3, $4, $5, now(), $6::jsonb, $7)`,
     [input.organizationId ?? null, input.type, [input.email], String(input.subject ?? input.type).slice(0, 300), configured ? "queued" : "not_configured",
       configured ? JSON.stringify(await encryptSecret(input, env)) : null, configured ? null : "No mail transport is configured."]);
+  if (configured) setWaiting(true);
   return configured;
 }
 
