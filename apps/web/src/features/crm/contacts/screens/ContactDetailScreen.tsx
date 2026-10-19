@@ -217,10 +217,10 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
                 title="Contact details"
                 columns={3}
                 items={[
-                  { label: "Work email", value: contact.email ?? (contact.sensitiveDataRestricted ? "Hidden" : null) },
+                  { label: "Email", value: contact.email ?? (contact.sensitiveDataRestricted ? "Hidden" : null) },
                   { label: "Secondary email", value: contact.secondaryEmail ?? null },
                   { label: "Mobile", value: contact.mobile ? formatPhone(contact.mobile) : null },
-                  { label: "Work phone", value: contact.phone ? formatPhone(contact.phone) : null },
+                  { label: "Phone", value: contact.phone ? formatPhone(contact.phone) : null },
                   { label: "Alternate phone", value: contact.alternatePhone ? formatPhone(contact.alternatePhone) : null },
                   { label: "Preferred method", value: options.preferredContactMethods.find((entry) => entry.code === contact.preferredContactMethod)?.label },
                   { label: "Marketing", value: options.marketingConsent.find((entry) => entry.code === contact.marketingConsent)?.label },

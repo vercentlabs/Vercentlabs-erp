@@ -16,8 +16,8 @@ import { ContactDuplicateWarning } from "./ContactDuplicateWarning";
 import { ContactPicker } from "./ContactPicker";
 
 const FIELD_LABELS: Record<string, string> = {
-  firstName: "First name", middleName: "Middle name", lastName: "Last name", displayName: "Display name", email: "Work email",
-  secondaryEmail: "Secondary email", phone: "Work phone", mobile: "Mobile", alternatePhone: "Alternate phone",
+  firstName: "First name", middleName: "Middle name", lastName: "Last name", displayName: "Display name", email: "Email",
+  secondaryEmail: "Secondary email", phone: "Phone", mobile: "Mobile", alternatePhone: "Alternate phone",
   preferredContactMethod: "Preferred contact method", description: "Description", sourceId: "Source", ownerUserId: "Owner", teamId: "Team",
 };
 

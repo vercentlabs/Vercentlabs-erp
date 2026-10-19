@@ -1,6 +1,6 @@
 "use client";
 
-// New and edit contact: first name, last name, company (when creating, with the primary tick), job title, mobile and work email first;
+// New and edit contact: first name, last name, company (when creating, with the primary tick), job title, mobile and email first;
 // everything else under More details; then — when creating — who owns it. A first name and a way to reach the person are needed. Save
 // and Cancel are at the top and the bottom.
 import { StateField } from "@/features/crm/shared/ui/StateField";
@@ -196,7 +196,7 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
         </>
       }
     >
-      <FormSection title="Contact" description={sensitiveHidden ? undefined : "At least a work email or mobile (or a work phone, under More details)."}>
+      <FormSection title="Contact" description={sensitiveHidden ? undefined : "At least an email or mobile (or a phone, under More details)."}>
         <TextField label="First name" isRequired value={values.firstName} onChange={set("firstName")} errorMessage={fieldErrors.firstName} />
         <TextField label="Last name" value={values.lastName} onChange={set("lastName")} errorMessage={fieldErrors.lastName} />
         {mode === "create" && (
@@ -209,7 +209,7 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
         {!sensitiveHidden && (
           <>
             <TextField label="Mobile" type="tel" value={values.mobile} onChange={set("mobile")} errorMessage={fieldErrors.mobile} />
-            <TextField label="Work email" type="email" value={values.email} onChange={set("email")} errorMessage={fieldErrors.email} />
+            <TextField label="Email" type="email" value={values.email} onChange={set("email")} errorMessage={fieldErrors.email} />
           </>
         )}
       </FormSection>
@@ -229,7 +229,7 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
         {!sensitiveHidden && (
           <>
             <TextField label="Secondary email" type="email" value={values.secondaryEmail} onChange={set("secondaryEmail")} errorMessage={fieldErrors.secondaryEmail} />
-            <TextField label="Work phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />
+            <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />
             <TextField label="Alternate phone" type="tel" value={values.alternatePhone} onChange={set("alternatePhone")} errorMessage={fieldErrors.alternatePhone} />
             <Select label="Preferred contact method" selectedKey={values.preferredContactMethod} onSelectionChange={(key) => set("preferredContactMethod")(String(key ?? NONE))}
               options={[{ value: NONE, label: "Not set" }, ...options.preferredContactMethods.map((entry) => ({ value: entry.code, label: entry.label }))]} />

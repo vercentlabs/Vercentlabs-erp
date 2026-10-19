@@ -127,13 +127,15 @@ checkDynamicSiblings(appRoot);
 // runtime (that needs real request/DB-backed behavioral tests, tracked
 // separately), only that the route calls the shared gate at all. The one
 // deliberately public route (external prospect-facing meeting booking) is
-// excluded by design, not by oversight.
+// excluded by design, not by oversight, as are provider webhooks (hooks/[key]: the key in the address resolves
+// the organization and the provider's signature is checked) and OAuth returns (callback/[provider]: the
+// encrypted state names who started it) — none of them has a signed-in user to check.
 let crmRoutesChecked = 0;
-const PUBLIC_CRM_ROUTE_MARKER = `${path.sep}crm${path.sep}public${path.sep}`;
+const PUBLIC_CRM_ROUTE_MARKERS = [`${path.sep}crm${path.sep}public${path.sep}`, `${path.sep}hooks${path.sep}[key]${path.sep}`, `${path.sep}callback${path.sep}[provider]${path.sep}`];
 walk(appRoot, (file, name) => {
   if (name !== "route.ts") return;
   if (!file.includes(`${path.sep}api${path.sep}crm${path.sep}`)) return;
-  if (file.includes(PUBLIC_CRM_ROUTE_MARKER)) return;
+  if (PUBLIC_CRM_ROUTE_MARKERS.some((marker) => file.includes(marker))) return;
   crmRoutesChecked += 1;
   const source = fs.readFileSync(file, "utf8");
   // The Shared Access composition is equivalent when it names the CRM module:
@@ -222,7 +224,8 @@ function routeExists(dir, segments, topLevel) {
   const [segment, ...rest] = segments;
   const entries = fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory()) : [];
   const dynamic = entries.filter((entry) => entry.name.startsWith("[") && !(topLevel && entry.name === CATCH_ALL));
-  const candidates = segment === "*" ? dynamic : [...entries.filter((entry) => entry.name === segment), ...dynamic];
+  // A computed segment (${...}) can be any folder, a static one included (${kind === "lead" ? "leads" : "opportunities"}).
+  const candidates = segment === "*" ? entries.filter((entry) => !(topLevel && entry.name === CATCH_ALL)) : [...entries.filter((entry) => entry.name === segment), ...dynamic];
   return candidates.some((entry) => routeExists(path.join(dir, entry.name), rest, false));
 }
 
@@ -233,7 +236,12 @@ walk(featuresRoot, (file, name) => {
   const bases = new Map();
   for (const match of source.matchAll(/const\s+(\w+)\s*=\s*["'`](\/api\/crm[^"'`$]*)["'`]/g)) bases.set(match[1], match[2]);
   const urls = new Set();
-  for (const match of source.matchAll(/["'`](\/api\/crm)/g)) urls.add(readPath(source, match.index + 1 + match[1].length, match[1]));
+  // A base constant's own declaration is not a call: its uses below are checked with what follows them.
+  const declarations = new Set([...source.matchAll(/const\s+\w+\s*=\s*["'`](\/api\/crm)/g)].map((match) => match.index + match[0].length - match[1].length - 1));
+  for (const match of source.matchAll(/["'`](\/api\/crm)/g)) {
+    if (declarations.has(match.index)) continue;
+    urls.add(readPath(source, match.index + 1 + match[1].length, match[1]));
+  }
   for (const [constant, base] of bases) {
     for (const match of source.matchAll(new RegExp(`\\$\\{${constant}\\}`, "g"))) urls.add(readPath(source, match.index + match[0].length, base));
   }

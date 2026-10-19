@@ -111,6 +111,33 @@ export const USER_ADMINISTRATOR_PERMISSIONS = Object.freeze([
   "roles.assign",
 ]);
 
+// The Roles & Permissions MVP's functional templates. Kept as lists so migration 0194 grants exactly the same keys.
+export const WAREHOUSE_OPERATOR_PERMISSIONS = Object.freeze([
+  ...businessReader,
+  "stock.view", "stock.receive", "stock.issue", "stock.transfer", "stock.reserve",
+  "stock.transfers.view", "stock.transfers.create", "stock.transfers.dispatch", "stock.transfers.receive",
+  "stock.goods_issue.view", "stock.goods_issue.create",
+  "stock.counts.view", "stock.counts.start", "stock.counts.count", "stock.counts.count_batch", "stock.counts.count_serial", "stock.counts.add_unexpected", "stock.counts.submit",
+  "stock.adjustments.view", "stock.adjustments.create",
+  "stock.reservations.view", "stock.holds.view", "stock.ledger.view", "stock.alerts.view", "stock.alerts.acknowledge", "stock.reorder.view",
+]);
+export const PRODUCTION_SUPERVISOR_PERMISSIONS = Object.freeze([
+  ...businessReader,
+  "manufacturing.view", "manufacturing.mo.view", "manufacturing.mo.start", "manufacturing.mo.record_production",
+  "manufacturing.mo.reserve_material", "manufacturing.mo.issue_material", "manufacturing.mo.return_material", "manufacturing.mo.receive_goods",
+  "manufacturing.material.view", "manufacturing.issue.view", "manufacturing.consumption.view", "manufacturing.consumption.create", "manufacturing.consumption.post",
+  "manufacturing.production.edit_draft", "manufacturing.production.post", "manufacturing.production.export",
+  "manufacturing.fgr.view", "manufacturing.fgr.create", "manufacturing.fgr.edit_draft", "manufacturing.fgr.post",
+  "manufacturing.scrap.view", "manufacturing.scrap.approve", "manufacturing.variance.view", "manufacturing.hold.view", "manufacturing.qi.view",
+]);
+export const ASSET_CUSTODIAN_PERMISSIONS = Object.freeze([
+  ...businessReader,
+  "assets.view", "assets.custody.acknowledge", "assets.custody.dispute", "assets.custody.return",
+  "assets.assignment.view", "assets.assignment.request", "assets.assignment.return",
+  "assets.status.report_missing", "assets.status.condition_update", "assets.location.record_observation",
+  "assets.maintenance.view", "assets.maintenance.request", "assets.movement.view", "assets.transfer.view", "assets.transfer.report_exception",
+]);
+
 const ROLE_DEFINITIONS = [
   {
     name: "Organisation Owner",
@@ -222,7 +249,7 @@ const ROLE_DEFINITIONS = [
     name: "Read-only User",
     slug: "read_only",
     description:
-      "Read-only access to the released business modules and reports within assigned companies and branches.",
+      "Read-only access to the released business modules and their reports. Cannot create, change or delete anything.",
     moduleKey: "platform",
     riskLevel: "standard",
     assignable: true,
@@ -1576,6 +1603,34 @@ const ROLE_DEFINITIONS = [
       "manufacturing.scrap.edit_draft",
       "manufacturing.scrap.submit",
     ]),
+  },
+  // Roles & Permissions MVP templates (migration 0194 adds them to existing companies).
+  {
+    name: "Warehouse Operator",
+    slug: "warehouse_operator",
+    description: "Receives, issues, moves and counts stock in the warehouse. Cannot post adjustments, reverse movements or see stock value.",
+    moduleKey: "stock",
+    riskLevel: "standard",
+    assignable: true,
+    permissions: unique([...WAREHOUSE_OPERATOR_PERMISSIONS]),
+  },
+  {
+    name: "Production Supervisor",
+    slug: "production_supervisor",
+    description: "Runs the shop floor: issues and returns material, records and receives production, and approves scrap reported by operators.",
+    moduleKey: "manufacturing",
+    riskLevel: "standard",
+    assignable: true,
+    permissions: unique([...PRODUCTION_SUPERVISOR_PERMISSIONS]),
+  },
+  {
+    name: "Asset Custodian",
+    slug: "asset_custodian",
+    description: "Looks after the assets in their care: acknowledges, reports, requests maintenance and returns them. No asset values or depreciation.",
+    moduleKey: "assets",
+    riskLevel: "standard",
+    assignable: true,
+    permissions: unique([...ASSET_CUSTODIAN_PERMISSIONS]),
   },
   {
     name: "Project Manager",

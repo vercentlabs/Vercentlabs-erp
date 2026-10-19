@@ -123,12 +123,12 @@ export function validateContact(normalized, existing = {}) {
   const issue = (field, message) => issues.push({ field, message });
   if (!text(candidate.firstName)) issue("firstName", "Enter the first name.");
   if (!text(candidate.email) && !text(candidate.mobile) && !text(candidate.phone))
-    issue("email", "Add a work email, mobile or work phone so the person can be reached.");
+    issue("email", "Add an email, mobile or phone so the person can be reached.");
   for (const [field, [, maximum]] of Object.entries(TEXT_FIELDS))
     if (text(normalized[field]).length > maximum) issue(field, `Must be ${maximum} characters or fewer.`);
   for (const field of ["email", "secondaryEmail"])
     if (normalized[field] && !EMAIL_PATTERN.test(normalized[field])) issue(field, "Enter a valid email address.");
-  if (normalized.email && normalized.secondaryEmail && normalized.email === normalized.secondaryEmail) issue("secondaryEmail", "The secondary email is the same as the work email.");
+  if (normalized.email && normalized.secondaryEmail && normalized.email === normalized.secondaryEmail) issue("secondaryEmail", "The secondary email is the same as the main email.");
   for (const field of ["phone", "mobile", "alternatePhone"])
     if (normalized[field] && !usablePhone(normalized[field])) issue(field, "Enter a phone number with 7 to 15 digits.");
   if (normalized.preferredContactMethod && !METHODS.has(normalized.preferredContactMethod)) issue("preferredContactMethod", "Choose a preferred contact method.");

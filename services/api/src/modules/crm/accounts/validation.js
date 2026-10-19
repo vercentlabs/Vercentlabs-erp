@@ -106,7 +106,8 @@ export function validateAccount(normalized, existing = {}) {
   const candidate = { ...existing, ...normalized };
   const issues = [];
   const issue = (field, message) => issues.push({ field, message });
-  if (!text(candidate.displayName)) issue("displayName", "Enter the company name.");
+  if (!text(candidate.displayName))
+    issue("displayName", (candidate.customerKind ?? candidate.customer_kind) === "individual" ? "Enter the person's name." : "Enter the company name.");
   for (const [field, [, maximum]] of Object.entries(TEXT_FIELDS))
     if (text(normalized[field]).length > maximum) issue(field, `Must be ${maximum} characters or fewer.`);
   if (normalized.email && !EMAIL_PATTERN.test(normalized.email)) issue("email", "Enter a valid email address.");

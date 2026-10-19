@@ -43,7 +43,10 @@ export function AppShell({
     <QueryProvider>
       <WorkspaceContextProvider value={contextValue}>
         <SearchDialogProvider>
-        <div data-app-shell="" className="flex h-dvh w-full bg-canvas">
+        <div data-app-shell="" className="flex h-dvh w-full flex-col bg-canvas">
+          {/* The trial bar spans the whole window, above the rail and the top bar. */}
+          <TrialBanner trial={trial} canManageBilling={canManageBilling} />
+          <div className="flex min-h-0 w-full flex-1">
           <div className="hidden lg:flex">
             <ModuleRail
               organizationName={contextValue.organizationName}
@@ -64,10 +67,10 @@ export function AppShell({
               unreadNotificationCount={unreadNotificationCount}
             />
             <WorkspaceTopBar />
-            <TrialBanner trial={trial} canManageBilling={canManageBilling} />
             <main className="flex min-w-0 flex-1 flex-col px-6 py-6 md:px-8">
               <TrialGate trial={trial} canManageBilling={canManageBilling}>{children}</TrialGate>
             </main>
+          </div>
           </div>
         </div>
         </SearchDialogProvider>

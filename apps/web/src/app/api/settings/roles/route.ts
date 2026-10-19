@@ -23,7 +23,7 @@ const postSchema = z.object({
   description: z.string().trim().max(1000).optional(),
   moduleKey: z.string().trim().min(1).max(50).optional(),
   riskLevel: z.enum(["standard", "sensitive", "privileged"]).optional(),
-  permissionKeys: z.array(z.string().trim().min(1)).max(500).optional(),
+  permissionKeys: z.array(z.string().trim().min(1)).max(3000).optional(),
   acknowledgeWarningConflicts: z.boolean().optional(),
 });
 

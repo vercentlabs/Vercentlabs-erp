@@ -63,6 +63,8 @@ export type RoleInput = {
   riskLevel?: "standard" | "sensitive" | "privileged";
   permissionKeys: string[];
   acknowledgeWarningConflicts?: boolean;
+  /** The version the editor loaded; a save over a newer change is refused. */
+  expectedVersion?: number;
 };
 
 export async function createRole(input: RoleInput): Promise<{ role: RoleRow }> {
@@ -111,4 +113,38 @@ export async function setUserRoles(
     }),
   });
   return parseResponse(response);
+}
+
+export type RoleDetail = {
+  role: RoleRow;
+  people: Array<{ userId: string; name: string; email: string; status: string; isPrimary: boolean; assignedAt: string; assignedBy: string | null; lastSignInAt: string | null }>;
+  history: Array<{ version: number; reason: string; at: string; by: string | null; name: string | null; added: string[]; removed: string[]; permissionCount: number }>;
+};
+export type RoleUsageRow = {
+  id: string; name: string; module_key: string; risk_level: string; is_system: boolean; assignable: boolean;
+  permission_count: number; active_people: number; last_changed_at: string | null;
+};
+export type UserAccessRow = {
+  userId: string; name: string; email: string; status: string; lastSignInAt: string | null; roles: string[];
+  permissionCount: number; privileged: boolean; sensitive: boolean; areas: number;
+};
+export type ArchivedRole = { id: string; name: string; description: string; module_key: string; risk_level: string; updated_at: string };
+
+export async function getRoleDetail(roleId: string): Promise<RoleDetail> {
+  return parseResponse(await fetch(`/api/settings/roles/${roleId}`));
+}
+export async function duplicateRole(roleId: string, input: { name?: string } = {}): Promise<{ role: RoleRow }> {
+  return parseResponse(await fetch(`/api/settings/roles/${roleId}/duplicate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }));
+}
+export async function restoreRole(roleId: string): Promise<{ role: RoleRow }> {
+  return parseResponse(await fetch(`/api/settings/roles/${roleId}/restore`, { method: "POST" }));
+}
+export async function listArchivedRoles(): Promise<{ roles: ArchivedRole[] }> {
+  return parseResponse(await fetch("/api/settings/roles/archived"));
+}
+export async function getRoleUsageReport(): Promise<{ rows: RoleUsageRow[] }> {
+  return parseResponse(await fetch("/api/settings/roles/report"));
+}
+export async function getUserAccessReport(): Promise<{ rows: UserAccessRow[] }> {
+  return parseResponse(await fetch("/api/settings/users/access-report"));
 }

@@ -56,9 +56,12 @@ export function sellerSnapshot(registration) {
 
 // The place of supply worked out from the document: where the goods or
 // services go (shipping), else where they are billed, else the customer's
-// own state. Returns { code, name, basis } or null.
-export function derivePlaceOfSupply({ shippingStateCode, billingStateCode, customerPlaceOfSupply, customerStateCode }) {
-  const candidates = [[shippingStateCode, "shipping address"], [billingStateCode, "billing address"], [customerPlaceOfSupply, "customer"], [customerStateCode, "customer"]];
+// own state. For a domestic sale to a buyer whose address is not on record (a walk-in or online consumer, B2C), the place of supply is
+// the supplier's own location (IGST Act s.10(1)(d) and 12(2)(b)) — pass sellerStateCode for that; Odoo India does the same. Never used
+// for exports or SEZ, whose place of supply is outside the seller's state. Returns { code, name, basis } or null.
+export function derivePlaceOfSupply({ shippingStateCode, billingStateCode, customerPlaceOfSupply, customerStateCode, sellerStateCode = null }) {
+  const candidates = [[shippingStateCode, "shipping address"], [billingStateCode, "billing address"], [customerPlaceOfSupply, "customer"], [customerStateCode, "customer"],
+    [sellerStateCode, "seller (no buyer address)"]];
   for (const [value, basis] of candidates) {
     const code = String(value ?? "").trim();
     if (code) return { code, name: gstStateName(code), basis };

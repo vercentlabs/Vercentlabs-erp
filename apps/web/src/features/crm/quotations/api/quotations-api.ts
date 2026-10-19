@@ -28,7 +28,7 @@ export type QuotationReadiness = {
   };
   account: {
     id: string; code: string; name: string; legalName: string | null; isCustomer: boolean; customerNumber: string | null; gstin: string | null; pan: string | null;
-    website: string | null; phone: string | null; email: string | null; paymentTermId: string | null; currencyCode: string | null; hasBillingAddress: boolean;
+    website: string | null; phone: string | null; email: string | null; paymentTermId: string | null; currencyCode: string | null; hasBillingAddress: boolean; isIndividual: boolean;
   } | null;
   customerMatches: CustomerMatch[];
   capabilities: QuotationCapabilities;

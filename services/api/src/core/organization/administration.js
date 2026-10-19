@@ -128,6 +128,15 @@ export async function setMemberStatus(client, session, targetUserId, status) {
     actorRoleSlugs: session.roleSlugs || [],
     targetUserId,
   });
+  // The owner is never disabled (by anyone, a system administrator included): the company would be left without an owner. Ownership
+  // moves through the transfer flow first.
+  if (status === "disabled") {
+    const owner = (await client.query(
+      `SELECT 1 FROM user_role_assignments assignment JOIN roles role ON role.id = assignment.role_id
+        WHERE assignment.organization_id = $1 AND assignment.user_id = $2 AND assignment.status = 'active' AND role.slug = 'organization_owner' LIMIT 1`,
+      [session.organizationId, targetUserId])).rows[0];
+    if (owner) throw new OrganizationAdministrationError(409, "This person owns the company and cannot be disabled. Transfer ownership first.", "ORG_ADMIN_OWNER_PROTECTED");
+  }
   // A cashier's open POS session must be closed (or closed by a supervisor) first: disabling the user would orphan its cash drawer.
   if (status === "disabled") {
     const open = (await client.query(`SELECT shift_number FROM tenant.pos_shifts WHERE organization_id = $1 AND cashier_user_id = $2 AND status IN ('open', 'closing') LIMIT 1`,

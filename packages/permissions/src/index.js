@@ -16,3 +16,4 @@ export * from "./support.js";
 export * from "./hr-payroll.js";
 export * from "./roles.js";
 export * from "./module-access.js";
+export * from "./record-scopes.js";

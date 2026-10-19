@@ -55,8 +55,17 @@ export async function customerReadiness(client, context, partyId) {
   const missing = [];
   if (account.isCustomer) missing.push("This account is already a customer.");
   if (account.status !== "active") missing.push("Only an active account can become a customer.");
-  if (!addresses.rows[0].billing) missing.push("Add a billing address first.");
+  // A business is invoiced at its billing address; a consumer (B2C) need not give one — like Odoo, and as GST allows: with no address the
+  // place of supply is the seller's own state.
+  if (!addresses.rows[0].billing && !account.isIndividual) missing.push("Add a billing address first.");
   return { account, ready: missing.length === 0, missing };
+}
+
+// The GST treatment a new customer starts with when none is set: registered with a GSTIN, else a consumer (an individual) or an
+// unregistered business — the treatments Odoo India uses for B2B, B2C and unregistered dealers. Sales can change it later.
+function defaultTaxTreatment(gstin, kind) {
+  if (gstin) return "registered_regular";
+  return kind === "individual" ? "consumer" : "unregistered";
 }
 
 // input: { gstin?, pan?, paymentTermId?, creditLimit?, currencyCode? }
@@ -66,14 +75,19 @@ export async function createCustomerFromAccount(client, context, partyId, input 
   if (account.customer_number || ["customer", "both"].includes(account.party_type))
     throw new CrmError(409, "This company is already a customer.", "CRM_ACCOUNT_ALREADY_CUSTOMER");
   if (account.status !== "active") throw new CrmError(409, "Only an active company can become a customer.", "CRM_ACCOUNT_INACTIVE");
-  const billing = await client.query(`SELECT 1 FROM tenant.addresses WHERE organization_id = $1 AND party_id = $2 AND status = 'active' AND is_default_billing`,
-    [context.organizationId, account.id]);
-  if (!billing.rows[0]) throw new CrmError(409, "Add a billing address before creating the customer.", "CRM_ACCOUNT_BILLING_ADDRESS_REQUIRED");
-
   const terms = normalizeCommercialTerms(input);
   // Business or individual: as chosen here, else as the company already is (a person converted from a lead), else business.
   const kind = String(input.customerKind ?? "").toLowerCase();
   if (kind && !["business", "individual"].includes(kind)) throw new CrmError(400, "Choose business or individual.", "CRM_ACCOUNT_VALIDATION");
+  const effectiveKind = kind || account.customer_kind || "business";
+  // A business customer needs its billing address; a consumer does not (see customerReadiness).
+  if (effectiveKind !== "individual") {
+    const billing = await client.query(`SELECT 1 FROM tenant.addresses WHERE organization_id = $1 AND party_id = $2 AND status = 'active' AND is_default_billing`,
+      [context.organizationId, account.id]);
+    if (!billing.rows[0]) throw new CrmError(409, "Add a billing address before creating the customer.", "CRM_ACCOUNT_BILLING_ADDRESS_REQUIRED");
+  }
+  if (effectiveKind === "individual" && terms.gstin)
+    throw new CrmError(400, "An individual customer has no GSTIN. Make the customer a business to record one.", "CRM_ACCOUNT_CUSTOMER_VALIDATION", { issues: [{ field: "gstin", message: "An individual has no GSTIN." }] });
   if (terms.gstin) {
     const taken = await client.query(`SELECT code, display_name FROM tenant.business_parties WHERE organization_id = $1 AND gstin = $2 AND id <> $3`,
       [context.organizationId, terms.gstin, account.id]);
@@ -89,11 +103,13 @@ export async function createCustomerFromAccount(client, context, partyId, input 
     `UPDATE tenant.business_parties
         SET party_type = 'customer', account_type = 'customer', customer_number = $3, customer_since = now(), customer_created_by = $4,
             gstin = COALESCE($5, gstin), pan = COALESCE($6, pan), payment_term_id = COALESCE($7, payment_term_id),
-            gst_state_code = COALESCE($11, gst_state_code), tax_treatment = COALESCE(tax_treatment, CASE WHEN $5::text IS NOT NULL THEN 'registered_regular' END),
+            gst_state_code = COALESCE($11, gst_state_code),
+            tax_treatment = CASE WHEN $5::text IS NOT NULL AND tax_treatment IN ('consumer', 'unregistered') THEN $12 ELSE COALESCE(tax_treatment, $12) END,
             credit_limit = COALESCE($8, credit_limit), currency_code = COALESCE($9, currency_code),
             customer_kind = COALESCE($10, customer_kind, 'business'), updated_by = $4, updated_at = now()
       WHERE organization_id = $1 AND id = $2`,
-    [context.organizationId, account.id, customerNumber, context.userId ?? null, terms.gstin, terms.pan, terms.paymentTermId, terms.creditLimit, terms.currencyCode, kind || null, terms.gstStateCode],
+    [context.organizationId, account.id, customerNumber, context.userId ?? null, terms.gstin, terms.pan, terms.paymentTermId, terms.creditLimit, terms.currencyCode, kind || null, terms.gstStateCode,
+      defaultTaxTreatment(terms.gstin ?? account.gstin, effectiveKind)],
   );
   await recordAccountHistory(client, context, account.id, "customer_created", `Customer ${customerNumber} created`, {
     customerNumber, from: account.account_type, to: "customer",

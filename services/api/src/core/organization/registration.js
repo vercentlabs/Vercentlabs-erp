@@ -80,7 +80,10 @@ export async function bootstrapOrganizationRoles(client, organizationId) {
     const actualRoleId = inserted.rows[0]?.id
       ?? (await client.query(`SELECT id FROM roles WHERE organization_id = $1 AND slug = $2`, [organizationId, template.slug])).rows[0]?.id;
     createdRoleIdBySlug.set(template.slug, actualRoleId);
-    if (template.permissions.length) {
+    if (["organization_owner", "system_administrator"].includes(template.slug)) {
+      // The owner and the system administrator hold the whole catalogue (public.permissions), every key a module added included.
+      await client.query(`INSERT INTO role_permissions (role_id, permission_key) SELECT $1, key FROM permissions ON CONFLICT DO NOTHING`, [actualRoleId]);
+    } else if (template.permissions.length) {
       await client.query(
         `INSERT INTO role_permissions (role_id, permission_key) SELECT $1, unnest($2::text[]) ON CONFLICT DO NOTHING`,
         [actualRoleId, [...template.permissions]],

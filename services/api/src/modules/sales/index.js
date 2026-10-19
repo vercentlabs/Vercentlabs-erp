@@ -119,6 +119,8 @@ async function documentTaxContext(client, context, input, { party, billing, ship
   }
   const derived = derivePlaceOfSupply({
     shippingStateCode: shipping.row?.state_code, billingStateCode: billing.row?.state_code, customerPlaceOfSupply: party.place_of_supply, customerStateCode: party.gst_state_code,
+    // A domestic buyer with no address on record (a consumer): the supplier's own state.
+    sellerStateCode: supplyType === "domestic" ? tax.registration?.stateCode : null,
   });
   const requested = text(input.placeOfSupply, 10);
   let placeOfSupply = derived ? { ...derived, source: "derived", reason: null } : null;

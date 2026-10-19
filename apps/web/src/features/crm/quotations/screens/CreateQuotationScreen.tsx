@@ -107,7 +107,12 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
   const isCustomer = Boolean(account?.isCustomer);
   const linking = !isCustomer && customerChoice !== CREATE;
   const creatingCustomer = !isCustomer && customerChoice === CREATE;
-  const needsAddress = creatingCustomer && !account?.hasBillingAddress;
+  // A person (B2C) needs no billing address or GSTIN: GST treats them as a consumer. They may still give an address for the invoice.
+  const individual = Boolean(account?.isIndividual);
+  const offersAddress = creatingCustomer && !account?.hasBillingAddress;
+  const needsAddress = offersAddress && !individual;
+  const addressComplete = Boolean(address.line1 && address.city && address.state && address.postalCode && address.countryCode);
+  const sendAddress = needsAddress || (offersAddress && addressComplete);
   const priceLists = readiness.priceLists.filter((list) => list.currencyCode === currencyCode);
   const inactiveLines = readiness.lines.filter((line) => !line.active);
 
@@ -116,7 +121,8 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
     !isCustomer && !can.createCustomer && "This company is not a customer yet, and you cannot create or link customers. Ask a manager to create its customer first.",
     creatingCustomer && strongMatch && "This company is already a customer: link it to the existing customer.",
     creatingCustomer && !strongMatch && visibleMatches.length > 0 && !confirmNoMatch && "Confirm that none of the matching customers is this company.",
-    needsAddress && !(address.line1 && address.city && address.state && address.postalCode && address.countryCode) && "Enter the customer's billing address.",
+    needsAddress && !addressComplete && "Enter the customer's billing address.",
+    offersAddress && !needsAddress && address.line1 && !addressComplete && "Complete the billing address, or leave it empty.",
     !validUntil && "Choose the date the quotation is valid until.",
     lines.length === 0 && "Add at least one product or service.",
     ...lines.map((line, index) => (!(Number(line.quantity) > 0) ? `Line ${index + 1}: enter a quantity greater than zero.`
@@ -128,8 +134,8 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
     ...(isCustomer ? {} : linking
       ? { customer: { mode: "link" as const, customerId: customerChoice } }
       : { customer: {
-        mode: "create" as const, gstin: gstin.trim() || undefined, paymentTermId: customerTerms === NONE ? undefined : customerTerms, currencyCode,
-        confirmNoMatch, ...(needsAddress ? { billingAddress: { ...address, line2: address.line2 || undefined, stateCode: address.stateCode || undefined } } : {}),
+        mode: "create" as const, gstin: individual ? undefined : gstin.trim() || undefined, paymentTermId: customerTerms === NONE ? undefined : customerTerms, currencyCode,
+        confirmNoMatch, ...(sendAddress ? { billingAddress: { ...address, line2: address.line2 || undefined, stateCode: address.stateCode || undefined } } : {}),
       } }),
     contactId: contactId === NONE ? undefined : contactId,
     billingAddressId: billingAddressId === NONE || linking ? undefined : billingAddressId,
@@ -190,25 +196,25 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
           {readiness.customerMatches.some((match) => !match.canOpen) && <Banner tone="warning" message="A customer you cannot open matches this company. Ask a manager before creating a new customer." />}
           {creatingCustomer && can.createCustomer && (
             <div className="grid gap-3 sm:grid-cols-2">
-              <TextField label="GSTIN" description="Optional. Used for GST and checked for duplicates." value={gstin} onChange={setGstin} />
+              {!individual && <TextField label="GSTIN" description="Optional. Used for GST and checked for duplicates." value={gstin} onChange={setGstin} />}
               <Select label="Payment terms" selectedKey={customerTerms} onSelectionChange={(key) => setCustomerTerms(String(key))}
                 options={[{ value: NONE, label: "Not set" }, ...readiness.paymentTerms.map((term) => ({ value: term.id, label: term.name }))]} />
               {visibleMatches.length > 0 && !strongMatch && <Checkbox isSelected={confirmNoMatch} onChange={setConfirmNoMatch}>None of the customers above is this company</Checkbox>}
-              {needsAddress && (
+              {offersAddress && (
                 <fieldset className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-                  <legend className="mb-1 text-sm font-medium">Billing address (the company has none yet)</legend>
-                  <TextField label="Address line 1" isRequired value={address.line1} onChange={(line1) => setAddress({ ...address, line1 })} />
+                  <legend className="mb-1 text-sm font-medium">{individual ? "Billing address (optional for a person)" : "Billing address (the company has none yet)"}</legend>
+                  <TextField label="Address line 1" isRequired={needsAddress} value={address.line1} onChange={(line1) => setAddress({ ...address, line1 })} />
                   <TextField label="Address line 2" value={address.line2} onChange={(line2) => setAddress({ ...address, line2 })} />
-                  <TextField label="City" isRequired value={address.city} onChange={(city) => setAddress({ ...address, city })} />
+                  <TextField label="City" isRequired={needsAddress} value={address.city} onChange={(city) => setAddress({ ...address, city })} />
                   {/* In India the state comes from the GST list, with its code beside it; choosing one fills the GST state code. */}
                   {address.countryCode === "IN" ? (
-                    <Select label="State" isRequired selectedKey={address.state || null}
+                    <Select label="State" isRequired={needsAddress} selectedKey={address.state || null}
                       options={GST_STATES.map((state) => ({ value: state.name, label: `${state.name} (${state.code})` }))}
                       onSelectionChange={(key) => setAddress({ ...address, state: String(key ?? ""), stateCode: gstStateByName(String(key ?? ""))?.code ?? "" })} />
                   ) : (
-                    <TextField label="State" isRequired value={address.state} onChange={(state) => setAddress({ ...address, state, stateCode: "" })} />
+                    <TextField label="State" isRequired={needsAddress} value={address.state} onChange={(state) => setAddress({ ...address, state, stateCode: "" })} />
                   )}
-                  <TextField label="Postal code" isRequired value={address.postalCode} onChange={(postalCode) => setAddress({ ...address, postalCode })} />
+                  <TextField label="Postal code" isRequired={needsAddress} value={address.postalCode} onChange={(postalCode) => setAddress({ ...address, postalCode })} />
                   <CountrySelect value={address.countryCode} onChange={(countryCode) => setAddress({ ...address, countryCode, state: "", stateCode: "" })} />
                 </fieldset>
               )}
@@ -224,7 +230,7 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
         {!linking && (
           <>
             <Select label="Billing address" selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key))}
-              options={[{ value: NONE, label: needsAddress ? "The new billing address" : "Customer's default" }, ...addressOptions]} />
+              options={[{ value: NONE, label: sendAddress ? "The new billing address" : "Customer's default" }, ...addressOptions]} />
             <Select label="Shipping address" description="Optional at quotation stage." selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key))}
               options={[{ value: NONE, label: "None" }, ...addressOptions]} />
           </>

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { archiveRole, updateRole } from "@vercentlabs/api";
+import { archiveRole, getRoleDetail, updateRole } from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";
@@ -10,9 +10,26 @@ const putSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   description: z.string().trim().max(1000).optional(),
   riskLevel: z.enum(["standard", "sensitive", "privileged"]).optional(),
-  permissionKeys: z.array(z.string().trim().min(1)).max(500).optional(),
+  permissionKeys: z.array(z.string().trim().min(1)).max(3000).optional(),
   acknowledgeWarningConflicts: z.boolean().optional(),
+  // The version the editor loaded: a save over someone else's newer change is refused.
+  expectedVersion: z.number().int().positive().optional(),
 });
+
+// One role: definition, the people who hold it and its change history (roles.view).
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.rolesView, action: "settings.roles.detail" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      return ok(await getRoleDetail(client, session, id));
+    },
+  );
+}
 
 // Role definitions are organization-global: roles.manage (Owner / System
 // Administrator). Built-in roles stay read-only (enforced in updateRole).

@@ -3,10 +3,10 @@
 // The 30-day Standard trial in the shell: a slim bar on every page while it runs (days left, no payment needed), and — once it has ended —
 // a full-page notice in place of the apps until the company subscribes or moves to Free. Billing stays open so either can be done; the
 // company's data is kept. The server enforces the same rule (the trial's apps and writes stop); this is what the person sees.
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Clock, Lock, Sparkles } from "lucide-react";
+import { Clock, Lock, Sparkles, X } from "lucide-react";
 import { buttonVariants } from "@vercentlabs/design-system";
 
 export type TrialState = { endsAt: string; ended: boolean } | null;
@@ -19,20 +19,58 @@ export function trialDaysLeft(endsAt: string, now = Date.now()) {
   return Math.max(0, Math.ceil((new Date(endsAt).getTime() - now) / DAY));
 }
 
+// Closing the bar is remembered in this browser: until the trial's last 7 days, then (as a warning) for the rest of that day only, so
+// an ending trial is never missed.
+const DISMISS_EVENT = "vl-trial-bar-dismissed";
+const dismissKey = (endsAt: string, soon: boolean) =>
+  soon ? `vl_trial_bar_closed_final_${new Date().toDateString()}` : `vl_trial_bar_closed_${endsAt}`;
+function readDismissed(key: string) {
+  try {
+    return window.localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+function subscribe(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(DISMISS_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(DISMISS_EVENT, onChange);
+  };
+}
+
 export function TrialBanner({ trial, canManageBilling }: { trial: TrialState; canManageBilling: boolean }) {
-  if (!trial || trial.ended) return null;
-  const days = trialDaysLeft(trial.endsAt);
+  const days = trial ? trialDaysLeft(trial.endsAt) : 0;
   const soon = days <= 7;
+  const key = trial ? dismissKey(trial.endsAt, soon) : "";
+  // Hidden while the page is drawn on the server, so a closed bar never flashes before the browser's choice is read.
+  const dismissed = useSyncExternalStore(subscribe, () => !key || readDismissed(key), () => true);
+  if (!trial || trial.ended || dismissed) return null;
+  const close = () => {
+    try {
+      window.localStorage.setItem(key, "1");
+    } catch {
+      // Storage unavailable: the bar simply closes for this page.
+    }
+    window.dispatchEvent(new Event(DISMISS_EVENT));
+  };
   return (
-    <div role="status" className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b px-4 py-2 text-center text-sm ${soon ? "border-warning-emphasis/30 bg-warning-soft text-warning" : "border-brand-border bg-brand-soft text-brand-active"}`}>
-      {soon ? <Clock className="size-4 shrink-0" aria-hidden="true" /> : <Sparkles className="size-4 shrink-0" aria-hidden="true" />}
-      <span>
-        <span className="font-semibold">{days === 0 ? "Your free trial ends today." : `${days} day${days === 1 ? "" : "s"} left in your free trial.`}</span>
-        {` Every app is included until ${formatDay(trial.endsAt)}; no payment is needed until then.`}
-      </span>
-      {canManageBilling && (
-        <Link href={BILLING_PATH} className="font-semibold underline underline-offset-2 hover:no-underline">Choose a plan</Link>
-      )}
+    <div role="status" className={`relative flex min-h-10 shrink-0 items-center justify-center border-b py-2 pl-4 pr-12 text-sm ${soon ? "border-warning-emphasis/30 bg-warning-soft text-warning" : "border-brand-border bg-brand-soft text-brand-active"}`}>
+      <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+        {soon ? <Clock className="size-4 shrink-0" aria-hidden="true" /> : <Sparkles className="size-4 shrink-0" aria-hidden="true" />}
+        <span>
+          <span className="font-semibold">{days === 0 ? "Your free trial ends today." : `${days} day${days === 1 ? "" : "s"} left in your free trial.`}</span>
+          <span className="max-sm:hidden">{` Every app is included until ${formatDay(trial.endsAt)}; no payment is needed until then.`}</span>
+        </span>
+        {canManageBilling && (
+          <Link href={BILLING_PATH} className="font-semibold underline underline-offset-2 hover:no-underline">Choose a plan</Link>
+        )}
+      </p>
+      <button type="button" onClick={close} aria-label="Close the trial message" title="Close"
+        className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full opacity-70 outline-none transition hover:bg-black/5 hover:opacity-100 focus-visible:ring-2 focus-visible:ring-brand">
+        <X className="size-4" aria-hidden="true" />
+      </button>
     </div>
   );
 }

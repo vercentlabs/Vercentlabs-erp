@@ -36,3 +36,9 @@ export declare function listGrantableRolesForActor(client: any, session: any): P
 export type UserAccessState = {
   roles: Array<{ role_id: string; is_primary: boolean; slug: string; name: string }>;
 };
+export declare function duplicateRole(client: any, session: any, roleId: string, input?: { name?: string; description?: string; acknowledgeWarningConflicts?: boolean }): Promise<any>;
+export declare function restoreRole(client: any, session: any, roleId: string): Promise<any>;
+export declare function listArchivedRoles(client: any, session: any): Promise<any[]>;
+export declare function getRoleDetail(client: any, session: any, roleId: string): Promise<{ role: any; people: any[]; history: any[] }>;
+export declare function roleUsageReport(client: any, session: any): Promise<any[]>;
+export declare function userAccessReport(client: any, session: any): Promise<any[]>;

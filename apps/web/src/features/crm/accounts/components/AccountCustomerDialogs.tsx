@@ -40,15 +40,18 @@ export function CreateCustomerDialog({ account, options, isOpen, onOpenChange, o
     },
   });
   const ready = readiness.data?.ready;
+  // A person (B2C) has no GSTIN or PAN on the invoice and needs no billing address; the customer is a consumer for GST.
+  const individual = account.isIndividual;
+  const record = individual ? "person" : "company";
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Create customer"
-      description="Makes this company a customer that Sales can quote and invoice. It keeps its contacts, deals and history, and gets a customer number." size="lg">
+      description={`Makes this ${record} a customer that Sales can quote and invoice. It keeps its contacts, deals and history, and gets a customer number.`} size="lg">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         {readiness.isLoading ? <LoadingState label="Checking the company" rows={2} /> : readiness.data && !ready ? (
           <div role="alert" className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-3 py-2 text-sm">
-            <p className="font-medium">Before this company can become a customer:</p>
+            <p className="font-medium">{`Before this ${record} can become a customer:`}</p>
             <ul className="list-disc pl-5">{readiness.data.missing.map((item) => <li key={item}>{item}</li>)}</ul>
             {onAddBillingAddress && readiness.data.missing.some((item) => /billing address/i.test(item)) && (
               <Button variant="secondary" size="compact" className="self-start" onPress={() => { onOpenChange(false); onAddBillingAddress(); }}>Add billing address</Button>
@@ -56,10 +59,18 @@ export function CreateCustomerDialog({ account, options, isOpen, onOpenChange, o
           </div>
         ) : (
           <>
-            <p className="text-sm text-text-secondary">Commercial terms are optional here and are maintained by Sales afterwards.</p>
+            <p className="text-sm text-text-secondary">
+              {individual
+                ? "An individual customer is a consumer for GST: no GSTIN, and a billing address only if they want one on the invoice. Terms are optional and maintained by Sales afterwards."
+                : "Commercial terms are optional here and are maintained by Sales afterwards."}
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
-              <TextField label="GSTIN" value={values.gstin} onChange={(value) => set("gstin")(value.toUpperCase())} errorMessage={fieldErrors.gstin} placeholder="27ABCDE1234F1Z0" />
-              <TextField label="PAN" description="Filled from the GSTIN when left empty." value={values.pan} onChange={(value) => set("pan")(value.toUpperCase())} errorMessage={fieldErrors.pan} />
+              {!individual && (
+                <>
+                  <TextField label="GSTIN" value={values.gstin} onChange={(value) => set("gstin")(value.toUpperCase())} errorMessage={fieldErrors.gstin} placeholder="27ABCDE1234F1Z0" />
+                  <TextField label="PAN" description="Filled from the GSTIN when left empty." value={values.pan} onChange={(value) => set("pan")(value.toUpperCase())} errorMessage={fieldErrors.pan} />
+                </>
+              )}
               <Select label="Payment terms" selectedKey={values.paymentTermId} onSelectionChange={(key) => set("paymentTermId")(String(key ?? NONE))}
                 options={[{ value: NONE, label: "Not set" }, ...options.paymentTerms.map((term) => ({ value: term.id, label: term.name }))]} />
               <TextField label="Credit limit" inputMode="decimal" value={values.creditLimit} onChange={set("creditLimit")} errorMessage={fieldErrors.creditLimit} />

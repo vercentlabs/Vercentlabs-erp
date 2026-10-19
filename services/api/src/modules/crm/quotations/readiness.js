@@ -37,7 +37,7 @@ export function quotationCapabilities(context) {
 export async function loadAccount(client, context, partyId) {
   const { rows } = await client.query(
     `SELECT id, code, display_name, legal_name, customer_number, party_type, gstin, pan, payment_term_id, currency_code, default_price_list_id,
-            sales_block, sales_block_reason, website, phone, email, status
+            sales_block, sales_block_reason, website, phone, email, status, customer_kind
        FROM tenant.business_parties WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, partyId],
   );
@@ -51,6 +51,8 @@ export const isCustomer = (account) => Boolean(account && (account.customer_numb
 export async function customerMatches(client, context, account) {
   const { matches } = await findDuplicateAccounts(client, context, {
     displayName: account.display_name, legalName: account.legal_name, website: account.website, email: account.email, phone: account.phone, gstin: account.gstin,
+    // A person (B2C): the same name alone is only a possible match — two "Amit Kumar"s are two customers.
+    customerKind: account.customer_kind,
   }, { excludeId: account.id });
   return matches
     .filter((match) => match.canOpen ? match.isCustomer : match.strength === "exact")
@@ -181,7 +183,7 @@ export async function getQuotationReadiness(client, context, opportunityId) {
     account: account ? {
       id: account.id, code: account.code, name: account.display_name, legalName: account.legal_name, isCustomer: customer, customerNumber: account.customer_number,
       gstin: account.gstin, pan: account.pan, website: account.website, phone: account.phone, email: account.email, paymentTermId: account.payment_term_id,
-      currencyCode: account.currency_code?.trim() ?? null, hasBillingAddress: Boolean(billing),
+      currencyCode: account.currency_code?.trim() ?? null, hasBillingAddress: Boolean(billing), isIndividual: account.customer_kind === "individual",
     } : null,
     customerMatches: matches,
     capabilities,

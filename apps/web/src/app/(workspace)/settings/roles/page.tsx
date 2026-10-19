@@ -11,6 +11,7 @@ export default async function RolesSettingsPage() {
     <RolesScreen
       canManage={hasSessionPermission(session, "roles.view")}
       canEdit={hasSessionPermission(session, "roles.manage")}
+      canSeeUsers={hasSessionPermission(session, "users.view")}
     />
   );
 }

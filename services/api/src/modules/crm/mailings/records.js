@@ -65,6 +65,8 @@ async function audienceRows(client, organizationId, audience, filters) {
   return (await client.query(
     `SELECT 'contact' AS entity_type, person.id, lower(btrim(person.email)) AS email, person.first_name, person.last_name, party.display_name AS company,
             CASE WHEN COALESCE(btrim(person.email), '') = '' THEN 'No email address' WHEN person.do_not_email THEN 'Asked not to be emailed'
+                 -- Opting out of marketing withdraws consent, even where an older email consent is still ticked (DPDP: withdrawal is as easy as giving).
+                 WHEN person.marketing_consent = 'opted_out' THEN 'Opted out of marketing'
                  WHEN NOT (person.consent_email OR person.marketing_consent = 'opted_in') THEN 'Has not agreed to email' WHEN ${optedOut("person.email")} THEN 'On the opt-out list' END AS skip_reason
        FROM tenant.contacts person LEFT JOIN tenant.business_parties party ON party.organization_id = person.organization_id AND party.id = person.party_id
       WHERE person.organization_id = $1 AND person.status = 'active' ${where.map((clause) => `AND ${clause}`).join(" ")}

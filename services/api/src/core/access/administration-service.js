@@ -338,9 +338,18 @@ function requireRoleText(value, label, maxLength) {
 // (validateRoleSelection above) -- role DEFINITION deserves the identical
 // privilege-escalation protection, not a weaker one, since defining a
 // role's permission set is itself how privilege would be escalated.
-function validateRolePermissionKeys(permissionKeys, session, acknowledgeWarningConflicts) {
+// The permission catalogue in the database (public.permissions) is the authority: every key a module's migration added is valid,
+// including keys the package's ALL_PERMISSIONS list does not name.
+async function catalogueKeys(client, keys) {
+  if (!keys.length) return new Set();
+  const { rows } = await client.query("SELECT key FROM permissions WHERE key = ANY($1::text[])", [keys]);
+  return new Set(rows.map((row) => row.key));
+}
+
+async function validateRolePermissionKeys(client, permissionKeys, session, acknowledgeWarningConflicts) {
   const uniqueKeys = [...new Set(permissionKeys)];
-  const unknown = uniqueKeys.filter((key) => !VALID_PERMISSION_KEYS.has(key));
+  const catalogue = await catalogueKeys(client, uniqueKeys);
+  const unknown = uniqueKeys.filter((key) => !catalogue.has(key) && !VALID_PERMISSION_KEYS.has(key));
   if (unknown.length) {
     throw new AccessAdministrationError(422, `Unknown permission key(s): ${unknown.join(", ")}.`, "ACCESS_ADMIN_VALIDATION");
   }
@@ -383,7 +392,8 @@ async function loadRoleForOrganization(client, organizationId, roleId) {
 }
 
 export async function listPermissionCatalog(client, session) {
-  requireSessionPermission(session, "roles.manage");
+  // Anyone who can view roles sees what each permission means (the role list already carries the keys).
+  requireSessionPermission(session, "roles.view");
   const rows = await client.query("SELECT key, name, category, description FROM permissions ORDER BY category, name");
   return rows.rows;
 }
@@ -416,7 +426,9 @@ export async function createRole(client, session, input) {
   if (!ROLE_RISK_LEVELS.includes(riskLevel)) {
     throw new AccessAdministrationError(422, `Risk level must be one of: ${ROLE_RISK_LEVELS.join(", ")}.`, "ACCESS_ADMIN_VALIDATION");
   }
-  const { uniqueKeys } = validateRolePermissionKeys(
+  await assertRoleNameFree(client, session.organizationId, name);
+  const { uniqueKeys } = await validateRolePermissionKeys(
+    client,
     Array.isArray(input.permissionKeys) ? input.permissionKeys : [],
     session,
     Boolean(input.acknowledgeWarningConflicts),
@@ -469,11 +481,17 @@ export async function updateRole(client, session, roleId, input) {
   if (role.is_system) {
     throw new AccessAdministrationError(403, "System roles are reserved and cannot be edited.", "ACCESS_ADMIN_SYSTEM_ROLE_PROTECTED");
   }
+  if (role.status !== "active") throw new AccessAdministrationError(409, "Restore this role before editing it.", "ACCESS_ADMIN_ROLE_ARCHIVED");
+  // Two administrators editing the same role: the second save is refused rather than silently replacing the first.
+  if (input.expectedVersion !== undefined && input.expectedVersion !== null && Number(input.expectedVersion) !== Number(role.version)) {
+    throw new AccessAdministrationError(409, "Someone else changed this role while you were editing it. Reload it and make your change again.", "ACCESS_ADMIN_ROLE_STALE");
+  }
 
   const before = await client.query("SELECT permission_key FROM role_permissions WHERE role_id = $1 ORDER BY permission_key", [roleId]);
   const beforeKeys = before.rows.map((row) => row.permission_key);
 
   const name = input.name !== undefined ? requireRoleText(input.name, "Role name", 100) : role.name;
+  if (name.toLowerCase() !== role.name.toLowerCase()) await assertRoleNameFree(client, session.organizationId, name, roleId);
   const description = input.description !== undefined ? String(input.description).trim().slice(0, 1000) : role.description;
   let riskLevel = role.risk_level;
   if (input.riskLevel !== undefined) {
@@ -483,7 +501,7 @@ export async function updateRole(client, session, roleId, input) {
     }
   }
   const permissionKeys = input.permissionKeys !== undefined ? input.permissionKeys : beforeKeys;
-  const { uniqueKeys } = validateRolePermissionKeys(permissionKeys, session, Boolean(input.acknowledgeWarningConflicts));
+  const { uniqueKeys } = await validateRolePermissionKeys(client, permissionKeys, session, Boolean(input.acknowledgeWarningConflicts));
 
   await client.query(
     `UPDATE roles SET name = $2, description = $3, risk_level = $4, version = version + 1, updated_at = now()
@@ -567,9 +585,14 @@ export async function setUserRoles(client, session, { targetUserId, roleIds, pri
   });
 
   const before = await client.query(
-    "SELECT role_id, is_primary FROM user_role_assignments WHERE organization_id = $1 AND user_id = $2 AND status = 'active'",
+    `SELECT assignment.role_id, assignment.is_primary, role.slug FROM user_role_assignments assignment JOIN roles role ON role.id = assignment.role_id
+      WHERE assignment.organization_id = $1 AND assignment.user_id = $2 AND assignment.status = 'active'`,
     [session.organizationId, targetUserId],
   );
+  // The owner keeps ownership until it is transferred: changing their roles here can never leave the company without an owner.
+  if (before.rows.some((row) => row.slug === "organization_owner")) {
+    throw new AccessAdministrationError(409, "This person owns the company. Transfer ownership first; the owner's roles cannot be changed here.", "ACCESS_ADMIN_OWNER_PROTECTED");
+  }
   const beforeRoleIds = new Set(before.rows.map((row) => row.role_id));
   const beforePrimaryRoleId = before.rows.find((row) => row.is_primary)?.role_id ?? null;
   const nextRoleIds = new Set(roles.map((role) => role.id));
@@ -685,4 +708,132 @@ export async function getUserAccessState(client, organizationId, userId) {
     [organizationId, userId],
   );
   return { roles: roles.rows };
+}
+
+// ---------------------------------------------------------------------
+// Roles & Permissions MVP: unique names, duplicate, restore, role detail (people and history) and the two access reports.
+// ---------------------------------------------------------------------
+
+// Active role names are unique in a company whatever their letter case (migration 0194's index is the backstop).
+async function assertRoleNameFree(client, organizationId, name, exceptRoleId = null) {
+  const taken = await client.query(
+    "SELECT name FROM roles WHERE organization_id = $1 AND status = 'active' AND lower(name) = lower($2) AND ($3::uuid IS NULL OR id <> $3) LIMIT 1",
+    [organizationId, name, exceptRoleId],
+  );
+  if (taken.rows[0]) throw new AccessAdministrationError(409, `A role named "${taken.rows[0].name}" already exists. Choose another name.`, "ACCESS_ADMIN_ROLE_NAME_TAKEN");
+}
+
+// A copy of any role (built-in or custom) as a new custom role: the way to change what a built-in role allows. The copy goes through
+// createRole, so the grant ceiling and separation-of-duties checks apply to it like to any new role.
+export async function duplicateRole(client, session, roleId, input = {}) {
+  requireSessionPermission(session, "roles.manage");
+  const source = await loadRoleForOrganization(client, session.organizationId, roleId);
+  const keys = (await client.query("SELECT permission_key FROM role_permissions WHERE role_id = $1 ORDER BY permission_key", [source.id])).rows.map((row) => row.permission_key);
+  let name = String(input.name ?? "").trim();
+  if (!name) {
+    name = `${source.name} (copy)`;
+    for (let copy = 2; (await client.query("SELECT 1 FROM roles WHERE organization_id = $1 AND status = 'active' AND lower(name) = lower($2)", [session.organizationId, name])).rows[0]; copy += 1)
+      name = `${source.name} (copy ${copy})`;
+  }
+  const role = await createRole(client, session, {
+    name, description: input.description ?? source.description, moduleKey: source.module_key, riskLevel: source.risk_level,
+    permissionKeys: keys, acknowledgeWarningConflicts: input.acknowledgeWarningConflicts,
+  });
+  await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "role.duplicated", entityType: "role", entityId: role.id,
+    afterData: { from: { id: source.id, name: source.name }, name } });
+  return role;
+}
+
+// An archived custom role in use again (its name must still be free).
+export async function restoreRole(client, session, roleId) {
+  requireSessionPermission(session, "roles.manage");
+  const role = await loadRoleForOrganization(client, session.organizationId, roleId);
+  if (role.status === "active") return role;
+  await assertRoleNameFree(client, session.organizationId, role.name, role.id);
+  await client.query("UPDATE roles SET status = 'active', version = version + 1, updated_at = now() WHERE organization_id = $1 AND id = $2", [session.organizationId, roleId]);
+  await recordRoleSnapshot(client, { organizationId: session.organizationId, roleId, actorUserId: session.userId, reason: "Role restored" });
+  await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "role.restored", entityType: "role", entityId: roleId,
+    beforeData: { status: role.status }, afterData: { status: "active" } });
+  return loadRoleForOrganization(client, session.organizationId, roleId);
+}
+
+export async function listArchivedRoles(client, session) {
+  requireSessionPermission(session, "roles.view");
+  return (await client.query(
+    "SELECT id, name, description, module_key, risk_level, updated_at FROM roles WHERE organization_id = $1 AND status <> 'active' AND NOT is_system ORDER BY lower(name)",
+    [session.organizationId])).rows;
+}
+
+// One role: what it is, who has it, and every change to it (each saved version against the one before: permissions added and removed).
+export async function getRoleDetail(client, session, roleId) {
+  requireSessionPermission(session, "roles.view");
+  const role = await loadRoleForOrganization(client, session.organizationId, roleId);
+  const permissionKeys = (await client.query("SELECT permission_key FROM role_permissions WHERE role_id = $1 ORDER BY permission_key", [role.id])).rows.map((row) => row.permission_key);
+  const people = (await client.query(
+    `SELECT assignment.user_id, account.full_name, account.email, membership.status AS membership_status, assignment.is_primary, assignment.created_at AS assigned_at,
+            assigner.full_name AS assigned_by_name, account.last_login_at
+       FROM user_role_assignments assignment
+       JOIN users account ON account.id = assignment.user_id
+       LEFT JOIN organization_memberships membership ON membership.organization_id = assignment.organization_id AND membership.user_id = assignment.user_id
+       LEFT JOIN users assigner ON assigner.id = assignment.assigned_by
+      WHERE assignment.organization_id = $1 AND assignment.role_id = $2 AND assignment.status = 'active'
+      ORDER BY lower(account.full_name)`,
+    [session.organizationId, role.id])).rows.map((row) => ({
+    userId: row.user_id, name: row.full_name, email: row.email, status: row.membership_status ?? "unknown", isPrimary: row.is_primary,
+    assignedAt: row.assigned_at, assignedBy: row.assigned_by_name ?? null, lastSignInAt: row.last_login_at ?? null,
+  }));
+  const snapshots = (await client.query(
+    `SELECT snapshot.version, snapshot.snapshot, snapshot.reason, snapshot.created_at, actor.full_name AS actor_name
+       FROM role_version_snapshots snapshot LEFT JOIN users actor ON actor.id = snapshot.created_by
+      WHERE snapshot.organization_id = $1 AND snapshot.role_id = $2 ORDER BY snapshot.version, snapshot.created_at`,
+    [session.organizationId, role.id])).rows;
+  const history = snapshots.map((row, index) => {
+    const keys = new Set(row.snapshot?.permissionKeys ?? []);
+    const previous = index ? new Set(snapshots[index - 1].snapshot?.permissionKeys ?? []) : new Set();
+    return {
+      version: row.version, reason: row.reason, at: row.created_at, by: row.actor_name ?? null, name: row.snapshot?.name ?? null,
+      added: index ? [...keys].filter((key) => !previous.has(key)).sort() : [], removed: index ? [...previous].filter((key) => !keys.has(key)).sort() : [],
+      permissionCount: keys.size,
+    };
+  }).reverse();
+  return { role: { ...role, permission_keys: permissionKeys }, people, history };
+}
+
+// Role usage: every active role, how many active people hold it and when it last changed.
+export async function roleUsageReport(client, session) {
+  requireSessionPermission(session, "roles.view");
+  const { rows } = await client.query(
+    `SELECT r.id, r.name, r.module_key, r.risk_level, r.is_system, r.assignable,
+            (SELECT count(*)::int FROM role_permissions rp WHERE rp.role_id = r.id) AS permission_count,
+            (SELECT count(*)::int FROM user_role_assignments ura JOIN organization_memberships m ON m.organization_id = ura.organization_id AND m.user_id = ura.user_id AND m.status = 'active'
+              WHERE ura.organization_id = r.organization_id AND ura.role_id = r.id AND ura.status = 'active') AS active_people,
+            (SELECT max(created_at) FROM role_version_snapshots s WHERE s.organization_id = r.organization_id AND s.role_id = r.id) AS last_changed_at
+       FROM roles r WHERE r.organization_id = $1 AND r.status = 'active'
+      ORDER BY active_people DESC, lower(r.name)`,
+    [session.organizationId]);
+  return rows;
+}
+
+// User access: every member, their roles, how much they can do, and whether that includes sensitive or privileged access.
+export async function userAccessReport(client, session) {
+  requireSessionPermission(session, "users.view");
+  const { rows } = await client.query(
+    `SELECT member.user_id, account.full_name, account.email, member.status, account.last_login_at,
+            COALESCE(array_agg(DISTINCT role.name) FILTER (WHERE role.id IS NOT NULL), ARRAY[]::text[]) AS roles,
+            COALESCE(array_agg(DISTINCT role.risk_level) FILTER (WHERE role.id IS NOT NULL), ARRAY[]::text[]) AS risks,
+            count(DISTINCT grant_row.permission_key)::int AS permission_count,
+            COALESCE(array_agg(DISTINCT split_part(grant_row.permission_key, '.', 1)) FILTER (WHERE grant_row.permission_key IS NOT NULL), ARRAY[]::text[]) AS areas
+       FROM organization_memberships member
+       JOIN users account ON account.id = member.user_id
+       LEFT JOIN user_role_assignments assignment ON assignment.organization_id = member.organization_id AND assignment.user_id = member.user_id AND assignment.status = 'active'
+       LEFT JOIN roles role ON role.id = assignment.role_id AND role.status = 'active'
+       LEFT JOIN role_permissions grant_row ON grant_row.role_id = role.id
+      WHERE member.organization_id = $1
+      GROUP BY member.user_id, account.full_name, account.email, member.status, account.last_login_at
+      ORDER BY lower(account.full_name)`,
+    [session.organizationId]);
+  return rows.map((row) => ({
+    userId: row.user_id, name: row.full_name, email: row.email, status: row.status, lastSignInAt: row.last_login_at ?? null, roles: row.roles,
+    permissionCount: row.permission_count, privileged: row.risks.includes("privileged"), sensitive: row.risks.includes("sensitive"), areas: row.areas.length,
+  }));
 }
