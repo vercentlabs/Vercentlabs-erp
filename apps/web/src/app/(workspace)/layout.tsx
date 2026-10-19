@@ -10,13 +10,16 @@ export default async function WorkspaceLayout({
 }) {
   const {
     session,
+    access,
     accessibleModules,
     pendingApprovalCount,
     unreadNotificationCount,
   } = await resolveWorkspaceContext();
+  const trialEndsAt = access.subscription?.trialEndsAt ?? null;
 
   return (
     <AppShell
+      trial={trialEndsAt ? { endsAt: trialEndsAt, ended: Boolean(access.subscription?.trialEnded) } : null}
       workspace={{
         organizationId: session.organizationId,
         organizationName: session.organizationName,

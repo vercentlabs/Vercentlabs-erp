@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
@@ -17,6 +18,7 @@ import { CurrentPlanPanel } from "../components/CurrentPlanPanel";
 import { PaymentHistory } from "../components/PaymentHistory";
 import { PlansPanel } from "../components/PlansPanel";
 import { AppChoicePanel } from "../components/AppChoicePanel";
+import { TrialPanel } from "../components/TrialPanel";
 import { UsagePanel } from "../components/UsagePanel";
 
 const QUERY_KEY = ["settings", "billing"];
@@ -47,9 +49,12 @@ export function BillingScreen({ abilities }: { abilities: BillingAbilities }) {
     },
   });
   const [report, setReport] = useState<Report | null>(null);
+  const router = useRouter();
   const onResult = (next: Report) => {
     setReport(next);
     void queryClient.invalidateQueries({ queryKey: ["settings", "billing"] });
+    // The shell's trial bar and paused-apps notice are drawn on the server; a plan change updates them.
+    router.refresh();
   };
   const refresh = useMutation({
     mutationFn: syncNow,
@@ -105,7 +110,7 @@ export function BillingScreen({ abilities }: { abilities: BillingAbilities }) {
     <div className="flex flex-1 flex-col gap-4">
       <PageHeader
         title="Billing and plan"
-        description="Your plan, users and payments."
+        description="Your plan, users, usage and payments."
         primaryAction={
           canRefresh ? (
             <Button
@@ -135,7 +140,11 @@ export function BillingScreen({ abilities }: { abilities: BillingAbilities }) {
           do not pay again; we will contact you.
         </BillingNotice>
       )}
-      <CurrentPlanPanel overview={overview} />
+      {overview.subscription.trial ? (
+        <TrialPanel overview={overview} canManage={abilities.canManage} onResult={onResult} />
+      ) : (
+        <CurrentPlanPanel overview={overview} />
+      )}
       <AppChoicePanel overview={overview} canManage={abilities.canManage} onResult={onResult} />
       <UsagePanel overview={overview} />
       {abilities.canAudit && <BillingHealthPanel />}

@@ -17,6 +17,8 @@ function subscriptionView(summary) {
     status: summary.status ?? null,
     planCode: summary.planCode ?? null,
     writeAccess: Boolean(summary.writeAccess),
+    trialEndsAt: summary.status === "trialing" ? summary.trialEndsAt ?? null : null,
+    trialEnded: Boolean(summary.trialEnded),
     enforcementMode: summary.enforcementMode ?? null,
     seats: summary.seats ?? null,
     seatOverage: summary.seatOverage ?? null,

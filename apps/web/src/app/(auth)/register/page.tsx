@@ -17,7 +17,8 @@ export default async function RegisterPage() {
         </p>
         <h1 className="text-xl font-semibold text-text">Create your account</h1>
         <p className="text-sm text-text-secondary">
-          Set up your organization and start a free trial.
+          Set up your organization and start a 30-day free trial of every
+          app. No payment details needed.
         </p>
       </div>
       <RegisterForm />

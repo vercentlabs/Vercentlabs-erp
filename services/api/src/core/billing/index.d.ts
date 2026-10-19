@@ -31,7 +31,8 @@ export function assertTransition(from: string, to: string, source: string): void
 export function mapProviderSubscriptionStatus(status: unknown): string | null;
 export function hasWriteAccess(subscription: Record<string, unknown> | null, now?: Date): boolean;
 export function shouldApplyProviderEvent(currentEventAt: string | Date | null, incomingEventAt: string | Date | null): boolean;
-export function billingStateKey(input: { status: string; pricingModel: string | null; cancelAtCycleEnd?: boolean; checkoutPhase?: string | null; reconciliationRequired?: boolean }): string;
+export function billingStateKey(input: { status: string; pricingModel: string | null; cancelAtCycleEnd?: boolean; checkoutPhase?: string | null; reconciliationRequired?: boolean; trialEndsAt?: string | Date | null; now?: Date }): string;
+export function trialHasEnded(trialEndsAt: string | Date | null | undefined, now?: Date): boolean;
 
 export const BILLING_PERIODS: readonly ["monthly", "yearly"];
 export type BillingPeriod = "monthly" | "yearly";
@@ -169,6 +170,7 @@ export function liveCheckoutForOrganization(client: Client, organizationId: stri
 
 export function applyPaidPlanInTx(client: Client, input: Record<string, unknown>): Promise<unknown>;
 export function revertToFreeInTx(client: Client, organizationId: string, reason: string, actorUserId?: string | null): Promise<void>;
+export function switchTrialToFree(client: Client, ctx: BillingContext & { roleSlugs?: readonly string[] }): Promise<{ planCode: "free" }>;
 export function applySubscriptionEntityInTx(
   client: Client,
   input: { organizationId: string; entity: Record<string, any>; eventAt: Date | null; source: string },

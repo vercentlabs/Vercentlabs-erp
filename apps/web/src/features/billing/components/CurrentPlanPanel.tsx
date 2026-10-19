@@ -1,10 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
+import { CalendarClock, Gem, IndianRupee, Users } from "lucide-react";
 import { StatusBadge } from "@vercentlabs/design-system";
 
 import type { Overview } from "../api/billing-api";
 import { formatDate, inr, stateLabel } from "../billing-labels";
-import { BillingNotice, BillingPanel } from "./BillingPanel";
+import { BillingNotice } from "./BillingPanel";
 
 export function CurrentPlanPanel({ overview }: { overview: Overview }) {
   const { subscription: s, seats } = overview;
@@ -12,63 +14,41 @@ export function CurrentPlanPanel({ overview }: { overview: Overview }) {
   const paid = s.pricingModel === "per_seat";
   const custom = s.pricingModel === "custom";
   return (
-    <BillingPanel title="Current plan">
-      <div className="flex flex-wrap items-center gap-3">
-        <span
-          className="text-lg font-semibold text-text"
-          data-testid="current-plan-name"
-        >
-          {s.planName}
-        </span>
-        <span data-testid="billing-state">
-          <StatusBadge tone={state.tone}>{state.label}</StatusBadge>
-        </span>
+    <section aria-label="Current plan" className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex size-11 items-center justify-center rounded-full bg-brand-soft text-brand"><Gem className="size-5" aria-hidden="true" /></span>
+          <div className="flex flex-col">
+            <span className="text-xs font-medium uppercase tracking-wide text-text-muted">Current plan</span>
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-lg font-semibold text-text" data-testid="current-plan-name">{s.planName}</span>
+              <span data-testid="billing-state"><StatusBadge tone={state.tone}>{state.label}</StatusBadge></span>
+            </span>
+          </div>
+        </div>
+        {s.planCode === "free" && <a href="#plans" className="text-sm font-semibold text-brand hover:underline">Compare plans →</a>}
       </div>
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div>
-          <dt className="text-xs text-text-muted">Users</dt>
-          <dd
-            className="text-xl font-semibold tabular-nums"
-            data-testid="seat-usage"
-          >
-            {seats.used}
-            {seats.capacity !== null ? ` of ${seats.capacity}` : ""}
-          </dd>
-          {seats.pendingInvitations > 0 && (
-            <dd className="text-xs text-text-muted">{`including ${seats.pendingInvitations} pending invitation${seats.pendingInvitations === 1 ? "" : "s"}`}</dd>
-          )}
-        </div>
-        <div>
-          <dt className="text-xs text-text-muted">Included users</dt>
-          <dd className="text-xl font-semibold tabular-nums">
-            {seats.includedUsers ?? "Unlimited"}
-          </dd>
-        </div>
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <PlanFact tone="brand" icon={<Users className="size-4" aria-hidden="true" />} label="Users">
+          <span className="text-xl font-semibold tabular-nums" data-testid="seat-usage">
+            {seats.used}{seats.capacity !== null ? ` of ${seats.capacity}` : ""}
+          </span>
+          <span className="text-xs text-text-muted">
+            {seats.pendingInvitations > 0
+              ? `including ${seats.pendingInvitations} pending invitation${seats.pendingInvitations === 1 ? "" : "s"}`
+              : seats.includedUsers === null ? "No user limit" : `${seats.includedUsers} included${seats.paidSeats ? ` + ${seats.paidSeats} paid` : ""}`}
+          </span>
+        </PlanFact>
         {!custom && (
-          <div>
-            <dt className="text-xs text-text-muted">{s.billingPeriod === "yearly" ? "Yearly amount (before GST)" : "Monthly amount (before GST)"}</dt>
-            <dd
-              className="text-xl font-semibold tabular-nums"
-              data-testid="monthly-amount"
-            >
-              {inr(s.monthlyPaise)}
-            </dd>
-          </div>
+          <PlanFact tone="success" icon={<IndianRupee className="size-4" aria-hidden="true" />} label={s.billingPeriod === "yearly" ? "Yearly amount" : "Monthly amount"}>
+            <span className="text-xl font-semibold tabular-nums" data-testid="monthly-amount">{inr(s.monthlyPaise)}</span>
+            <span className="text-xs text-text-muted">before GST</span>
+          </PlanFact>
         )}
-        {(paid || custom) && (
-          <div>
-            <dt className="text-xs text-text-muted">
-              {custom
-                ? "Contract ends"
-                : s.cancelAtCycleEnd
-                  ? "Ends on"
-                  : "Next renewal"}
-            </dt>
-            <dd className="text-sm font-medium">
-              {formatDate(s.currentPeriodEndsAt)}
-            </dd>
-          </div>
-        )}
+        <PlanFact tone="info" icon={<CalendarClock className="size-4" aria-hidden="true" />} label={custom ? "Contract ends" : s.cancelAtCycleEnd ? "Ends on" : paid ? "Next renewal" : "Renewal"}>
+          <span className="text-base font-semibold">{paid || custom ? formatDate(s.currentPeriodEndsAt) : "None"}</span>
+          <span className="text-xs text-text-muted">{paid || custom ? (s.billingPeriod === "yearly" ? "Billed yearly" : "Billed monthly") : "Free has no charges"}</span>
+        </PlanFact>
       </dl>
       {state.detail && (
         <BillingNotice tone={state.tone === "danger" ? "danger" : "info"}>
@@ -114,6 +94,20 @@ export function CurrentPlanPanel({ overview }: { overview: Overview }) {
           {`Your last payment did not go through. The payment provider is retrying. Business changes pause after ${formatDate(s.graceEndsAt)} if it still fails; update your payment method with your bank or card issuer.`}
         </BillingNotice>
       )}
-    </BillingPanel>
+    </section>
+  );
+}
+
+const FACT_TONES = { brand: "bg-brand-soft text-brand", success: "bg-success-soft text-success", info: "bg-info-soft text-info" };
+
+function PlanFact({ tone, icon, label, children }: { tone: keyof typeof FACT_TONES; icon: ReactNode; label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-3">
+      <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${FACT_TONES[tone]}`}>{icon}</span>
+      <div className="flex min-w-0 flex-col">
+        <dt className="text-xs text-text-muted">{label}</dt>
+        <dd className="flex flex-col">{children}</dd>
+      </div>
+    </div>
   );
 }

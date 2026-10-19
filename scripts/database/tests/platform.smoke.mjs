@@ -263,6 +263,22 @@ try {
     assert(free.moduleAllowance === 1 && plans.find((plan) => plan.code === "enterprise").contactSales, "Free has one app; Enterprise is contact sales");
   });
 
+  await check("2 a new company starts on a 30-day Standard trial (every app, no user limit, nothing charged); when it ends the apps stop; it can move to Free", async () => {
+    const trial = await billing.getBillingSummary(client, organizationId, {});
+    assert(trial.planCode === "standard" && trial.status === "trialing" && trial.modules.includes("*") && trial.writeAccess && trial.seats.capacity === null, "trialing: " + JSON.stringify(trial));
+    assert(Math.round((new Date(trial.trialEndsAt) - Date.now()) / 86_400_000) === 30, "30 days");
+    await client.query("SAVEPOINT trial_end");
+    await client.query("UPDATE public.organization_subscriptions SET trial_ends_at = now() - interval '1 minute' WHERE organization_id = $1", [organizationId]);
+    const ended = await billing.getBillingSummary(client, organizationId, { BILLING_ENFORCEMENT_MODE: "enforce" });
+    assert(ended.trialEnded && !ended.writeAccess && ended.modules.length === 0, "ended trial stops the apps");
+    await rejects(() => billing.requireBillingWriteAccess(client, organizationId, { BILLING_ENFORCEMENT_MODE: "enforce" }), "ENTITLEMENT_TRIAL_ENDED");
+    await client.query("ROLLBACK TO SAVEPOINT trial_end");
+    await rejects(() => billing.switchTrialToFree(client, ravi), "BILLING_PERMISSION_DENIED");
+    await billing.switchTrialToFree(client, owner);
+    assert((await billing.getBillingSummary(client, organizationId, {})).planCode === "free", "moved to Free");
+    await rejects(() => billing.switchTrialToFree(client, owner), "BILLING_ALREADY_FREE");
+  });
+
   await check("2 Free is 1 user + 1 app: a new company picks its app, switches at most once in 30 days, and only the owner chooses", async () => {
     await client.query("UPDATE public.organization_subscriptions SET selected_modules = NULL, modules_snapshot = '[]'::jsonb WHERE organization_id = $1", [organizationId]);
     await client.query("DELETE FROM public.billing_module_switches WHERE organization_id = $1", [organizationId]);

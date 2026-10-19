@@ -87,6 +87,9 @@ export type AccessSubscription = Readonly<{
   status: string | null;
   planCode: string | null;
   writeAccess: boolean;
+  /** The Standard trial's end (ISO), while the company is on the trial; null otherwise. */
+  trialEndsAt: string | null;
+  trialEnded: boolean;
   enforcementMode: string | null;
   seats: unknown;
   seatOverage: unknown;

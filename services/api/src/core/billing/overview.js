@@ -5,7 +5,7 @@ import { billingEnforcementMode } from "./enforcement.js";
 import { BillingServiceError } from "./errors.js";
 import { liveCheckoutForOrganization } from "./checkout.js";
 import { getSeatStatus, SEAT_OVERAGE_GRACE_DAYS } from "./seats.js";
-import { billingStateKey } from "./state.js";
+import { billingStateKey, trialHasEnded } from "./state.js";
 import { billingAudit, subscriptionRow } from "./shared.js";
 import { queryAuditEvents } from "../platform/audit/index.js";
 import { taxInvoiceReadiness } from "./tax-invoices.js";
@@ -70,9 +70,11 @@ export async function getBillingOverview(client, organizationId, env = process.e
     subscription: {
       state: billingStateKey({
         status: sub.status, pricingModel: sub.pricing_model, cancelAtCycleEnd: sub.cancel_at_cycle_end,
-        checkoutPhase: phase, reconciliationRequired: Boolean(sub.reconciliation_required_at),
+        checkoutPhase: phase, reconciliationRequired: Boolean(sub.reconciliation_required_at), trialEndsAt: sub.trial_ends_at,
       }),
       status: sub.status,
+      // The Standard trial (migration 0193): when it started and ends, while the company is on it.
+      trial: sub.status === "trialing" ? { startedAt: iso(sub.trial_started_at), endsAt: iso(sub.trial_ends_at), ended: trialHasEnded(sub.trial_ends_at) } : null,
       planCode: sub.plan_code,
       planName: sub.plan_name,
       pricingModel: sub.pricing_model,

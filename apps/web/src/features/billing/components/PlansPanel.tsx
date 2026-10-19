@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { Check } from "lucide-react";
 import {
   AlertDialog,
   Button,
@@ -26,6 +27,7 @@ import {
   openRazorpay,
 } from "../razorpay-checkout";
 import { BillingNotice, BillingPanel } from "./BillingPanel";
+import { SwitchToFreeButton } from "./TrialPanel";
 
 type Report = { tone: "success" | "info" | "warning" | "danger"; text: string };
 
@@ -40,60 +42,75 @@ export function PlansPanel({
   canManage: boolean;
   onResult: (report: Report) => void;
 }) {
+  const trialing = Boolean(overview.subscription.trial);
   return (
-    <BillingPanel
-      title="Plan and users"
-      description="Free is 1 user and 1 app. Standard is every app for every user, billed monthly or yearly."
-    >
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        {overview.plans.map((plan) =>
-          plan.pricingModel === "per_seat" ? (
-            <StandardCard
-              key={plan.code}
-              plan={plan}
-              overview={overview}
-              canCheckout={canCheckout}
-              canManage={canManage}
-              onResult={onResult}
-            />
-          ) : (
-            <SimpleCard key={plan.code} plan={plan} />
-          ),
-        )}
-      </div>
-    </BillingPanel>
+    <div id="plans" className="scroll-mt-6">
+      <BillingPanel
+        title="Plans"
+        description={trialing
+          ? "Your trial includes everything in Standard. Subscribe to keep it, or move to Free (1 user, 1 app) at no charge."
+          : "Free is 1 user and 1 app. Standard is every app for every user, billed monthly or yearly."}
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {overview.plans.map((plan) =>
+            plan.pricingModel === "per_seat" ? (
+              <StandardCard
+                key={plan.code}
+                plan={plan}
+                overview={overview}
+                canCheckout={canCheckout}
+                canManage={canManage}
+                onResult={onResult}
+              />
+            ) : (
+              <SimpleCard key={plan.code} plan={plan} overview={overview} canManage={canManage} onResult={onResult} />
+            ),
+          )}
+        </div>
+      </BillingPanel>
+    </div>
   );
 }
 
 function CardShell({
   plan,
+  overview,
   children,
 }: {
   plan: Plan;
+  overview: Overview;
   children: React.ReactNode;
 }) {
+  const trialing = Boolean(overview.subscription.trial);
+  const onTrial = plan.current && trialing;
+  const paidStandard = overview.subscription.hasProviderSubscription;
+  const recommended = plan.pricingModel === "per_seat" && !paidStandard;
   return (
     <article
-      className={`flex flex-col gap-3 rounded-[var(--radius-card)] border p-4 ${plan.current ? "border-brand" : "border-border"} bg-surface`}
+      className={`relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-card)] border bg-surface p-5 pt-6 ${plan.current || recommended ? "border-brand shadow-sm" : "border-border"}`}
       data-testid={`plan-${plan.code}`}
     >
+      <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1 ${plan.pricingModel === "per_seat" ? "bg-brand" : plan.contactSales ? "bg-warning" : "bg-success"}`} />
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-base font-semibold text-text">{plan.name}</h3>
-        {plan.current && <StatusBadge tone="success">Current</StatusBadge>}
+        {onTrial ? <StatusBadge tone="info">On trial</StatusBadge>
+          : plan.current ? <StatusBadge tone="success">Current</StatusBadge>
+          : recommended ? <StatusBadge tone="info">Recommended</StatusBadge> : null}
       </div>
       {children}
-      <ul className="flex flex-col gap-1 text-sm text-text-secondary">
+      <ul className="mt-auto flex flex-col gap-1.5 border-t border-border pt-3 text-sm text-text-secondary">
         {plan.features.map((feature) => (
-          <li key={feature}>• {feature}</li>
+          <li key={feature} className="flex items-start gap-2"><Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />{feature}</li>
         ))}
       </ul>
     </article>
   );
 }
 
-function SimpleCard({ plan }: { plan: Plan }) {
+function SimpleCard({ plan, overview, canManage, onResult }: { plan: Plan; overview: Overview; canManage: boolean; onResult: (report: Report) => void }) {
+  const offerFree = !plan.contactSales && Boolean(overview.subscription.trial) && canManage;
   return (
-    <CardShell plan={plan}>
+    <CardShell plan={plan} overview={overview}>
       {plan.contactSales ? (
         <>
           <p className="text-lg font-semibold text-text">Custom pricing</p>
@@ -123,6 +140,7 @@ function SimpleCard({ plan }: { plan: Plan }) {
             </span>
           </p>
           <p className="text-sm text-text-muted">{plan.description}</p>
+          {offerFree && <div><SwitchToFreeButton overview={overview} onResult={onResult} /></div>}
         </>
       )}
     </CardShell>
@@ -264,8 +282,9 @@ function StandardCard({
     },
   });
 
+  const trial = s.trial;
   return (
-    <CardShell plan={plan}>
+    <CardShell plan={plan} overview={overview}>
       {!paidNow && plan.prices.monthly && plan.prices.yearly && (
         <RadioGroup label="Billing" orientation="horizontal" value={period} onChange={(value) => setPeriod(value as BillingPeriod)}>
           <Radio value="monthly">Monthly</Radio>
@@ -350,8 +369,11 @@ function StandardCard({
               isLoading={checkout.isPending}
               onPress={() => checkout.mutate()}
             >
-              {`Upgrade to ${plan.name}`}
+              {trial ? `Subscribe to ${plan.name}` : `Upgrade to ${plan.name}`}
             </Button>
+          )}
+          {trial && !paidNow && !trial.ended && (
+            <p className="text-xs text-text-muted">{`Nothing is charged during your trial. Subscribing now starts the paid plan today; otherwise subscribe any time before ${formatDate(trial.endsAt)}.`}</p>
           )}
           {busyCheckout && !paidNow && (
             <p className="text-xs text-text-muted">

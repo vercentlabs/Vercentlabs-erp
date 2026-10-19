@@ -87,6 +87,8 @@ export type Overview = {
     monthlyPaise: number;
     legacyTerms: boolean;
     contractReference: string | null;
+    /** The 30-day Standard trial, while the company is on it. */
+    trial: { startedAt: string | null; endsAt: string | null; ended: boolean } | null;
   };
   checkout: {
     phase: "preparing" | "awaiting_payment" | "verifying" | "attention";
@@ -252,6 +254,7 @@ export const verifyCheckout = (input: {
 export const changeSeats = (users: number) =>
   send<SeatResult>("seats", { users });
 export const cancelSubscription = () => send<CancelResult>("cancel", {});
+export const switchToFree = () => send<{ planCode: "free" }>("free", {});
 export const saveProfile = (input: Record<string, string>) =>
   send<{ message: string }>("profile", input, "PATCH");
 export const syncNow = () =>

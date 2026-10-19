@@ -8,6 +8,13 @@ const STATE_LABELS: Record<
   { label: string; tone: Tone; detail?: string }
 > = {
   free_active: { label: "Active", tone: "success" },
+  trialing: { label: "Free trial", tone: "info" },
+  trial_ended: {
+    label: "Trial ended",
+    tone: "danger",
+    detail:
+      "Your apps are paused until you subscribe to Standard or move to the Free plan. Your data is kept.",
+  },
   active: { label: "Active", tone: "success" },
   authenticated: {
     label: "Being activated",

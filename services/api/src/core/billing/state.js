@@ -11,8 +11,10 @@
 //   past_due       provider `pending`: a renewal charge failed, retries running (grace applies)
 //   halted         provider `halted`: retries exhausted; business writes stop
 //   internal       founder preview / internal organisations
+//   trialing       a new company's 30-day Standard trial (migration 0193); no payment. Once trial_ends_at passes, the apps stop
+//                  until the company subscribes to Standard or moves to Free.
 //   cancelled | completed | expired   provider terminal states; applied by reverting to Free
-//   trialing | checkout_pending       legacy values kept for historical rows
+//   checkout_pending                  legacy value kept for historical rows
 //
 // Every change names its source; TRANSITIONS lists what each source may do.
 import { BillingServiceError } from "./errors.js";
@@ -88,6 +90,11 @@ export function hasWriteAccess(subscription, now = new Date()) {
   }
 }
 
+// A trial with no end date, or one whose end has passed, has ended (server time only).
+export function trialHasEnded(trialEndsAt, now = new Date()) {
+  return !trialEndsAt || new Date(trialEndsAt).getTime() < now.getTime();
+}
+
 // Out-of-order protection: never let an older provider event overwrite state
 // derived from a newer one. The watermark (last_provider_event_at) only ever
 // holds PROVIDER event timestamps; our own fetches never move it, so a fetch
@@ -98,9 +105,10 @@ export function shouldApplyProviderEvent(currentEventAt, incomingEventAt) {
 }
 
 // Tenant-facing state key. The UI maps keys to curated text; raw enums never reach users.
-export function billingStateKey({ status, pricingModel, cancelAtCycleEnd, checkoutPhase, reconciliationRequired }) {
+export function billingStateKey({ status, pricingModel, cancelAtCycleEnd, checkoutPhase, reconciliationRequired, trialEndsAt = null, now = new Date() }) {
   if (checkoutPhase === "verifying") return "verification_pending";
   if (status === "internal") return "internal";
+  if (status === "trialing") return trialHasEnded(trialEndsAt, now) ? "trial_ended" : "trialing";
   if (pricingModel === "custom") return "custom_active";
   if (pricingModel === "free" || pricingModel === "flat") return status === "active" ? "free_active" : "inactive";
   if (reconciliationRequired && PAID.includes(status)) return "attention_required";

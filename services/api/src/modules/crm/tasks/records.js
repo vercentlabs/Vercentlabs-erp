@@ -189,9 +189,9 @@ export function buildTaskListWhere(context, filters = {}, values = []) {
      WHERE member.organization_id = task.organization_id AND member.status = 'active' AND team.manager_user_id = ${caller} AND member.user_id <> ${caller})`);
   }
 
-  // "overdue" is a calculated filter: still to do, and past its due time.
+  // "overdue" is a calculated filter: still to do, and past its due time; "active" is anything still to do, in progress included.
   const status = {
-    open: "task.status IN ('planned', 'overdue')", in_progress: "task.status = 'in_progress'", completed: "task.status = 'completed'",
+    active: OPEN, open: "task.status IN ('planned', 'overdue')", in_progress: "task.status = 'in_progress'", completed: "task.status = 'completed'",
     cancelled: "task.status = 'cancelled'", overdue: `${OPEN} AND task.due_at < now()`,
   }[filters.status];
   if (status) where.push(status);

@@ -67,6 +67,22 @@ export async function revertToFreeInTx(client, organizationId, reason, actorUser
   });
 }
 
+// A company on its Standard trial (running or ended) that does not want to pay moves to Free: 1 user and 1 app it then chooses. Owner
+// or administrator only; nothing is charged and no data is removed. Runs in the caller's tenant transaction (no provider call).
+export async function switchTrialToFree(client, ctx) {
+  if (!["organization_owner", "system_administrator"].some((role) => ctx.roleSlugs?.includes(role))) {
+    throw new BillingServiceError(403, "Only the owner or an administrator can change the company's plan.", "BILLING_PERMISSION_DENIED");
+  }
+  const sub = await subscriptionRow(client, ctx.organizationId, { lock: true });
+  if (!sub) throw new BillingServiceError(409, "Billing is not initialised for this organisation.", "BILLING_NOT_INITIALISED");
+  if (sub.plan_code === "free") throw new BillingServiceError(409, "The company is already on the Free plan.", "BILLING_ALREADY_FREE");
+  if (sub.status !== "trialing") {
+    throw new BillingServiceError(409, "Only a trial moves to Free this way. A paid subscription is cancelled at renewal instead.", "BILLING_NOT_TRIALING");
+  }
+  await revertToFreeInTx(client, ctx.organizationId, "trial_switched_to_free", ctx.userId ?? null);
+  return { planCode: "free" };
+}
+
 async function flagReconciliation(client, organizationId, note) {
   await client.query(
     `UPDATE organization_subscriptions SET reconciliation_required_at = COALESCE(reconciliation_required_at, now()), reconciliation_note = $2 WHERE organization_id = $1`,

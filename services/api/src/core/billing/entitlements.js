@@ -5,7 +5,7 @@
 // organization_modules and permissions are separate (Shared Access).
 // Billing routes never call requireBillingWriteAccess: billing fixes billing.
 import { billingEnforcementMode } from "./enforcement.js";
-import { hasWriteAccess } from "./state.js";
+import { hasWriteAccess, trialHasEnded } from "./state.js";
 import { SEAT_OVERAGE_GRACE_DAYS } from "./seats.js";
 import { effectiveModulesFor } from "./app-choice.js";
 
@@ -104,6 +104,9 @@ export async function getBillingSummary(client, organizationId, env = process.en
     if (!Number.isFinite(value) || value < 0) continue;
     effectiveLimits[override.entitlement_key] = value;
   }
+  // A Standard trial that has ended gives no app until the company subscribes or moves to Free; its data is kept.
+  const trialEnded = row.status === "trialing" && trialHasEnded(row.trial_ends_at);
+  if (trialEnded) effectiveModules = [];
 
   // A plan with a user allowance stays writable while the organisation holds more users than it pays for, but only
   // for a grace period; after that the organisation is read-only until it adds seats or removes users.
@@ -120,6 +123,7 @@ export async function getBillingSummary(client, organizationId, env = process.en
     billingPeriod: row.billing_period,
     currentPeriodEndsAt: iso(row.current_period_ends_at),
     trialEndsAt: iso(row.trial_ends_at),
+    trialEnded,
     graceEndsAt: iso(row.grace_ends_at),
     cancelAtCycleEnd: row.cancel_at_cycle_end,
     providerSubscriptionId: row.provider_subscription_id,
@@ -200,6 +204,13 @@ export async function requireBillingWriteAccess(client, organizationId, env = pr
       402,
       "This organisation has more users than its plan covers. Add seats or remove users in Billing. Read and export access remains available.",
       "ENTITLEMENT_SEAT_OVERAGE",
+    );
+  }
+  if (!summary.writeAccess && summary.enforcementMode === "enforce" && summary.trialEnded) {
+    throw new EntitlementError(
+      402,
+      "Your free trial has ended. Subscribe to Standard or move to the Free plan in Billing to continue. Your data is kept.",
+      "ENTITLEMENT_TRIAL_ENDED",
     );
   }
   if (!summary.writeAccess && summary.enforcementMode === "enforce") {

@@ -1,14 +1,18 @@
 "use client";
 
-// CRM To-dos › Follow-ups: the salesperson's action queue — who to contact, how, about which record and why. My follow-ups is the default,
-// with the same figures (overdue, due today, upcoming) and view chips as tasks, the columns in the same order (When · What · About · Contact ·
-// Assigned to · Status), every filter in one Filters button, and Complete, Reschedule and Snooze on a row on hover.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+// CRM To-dos › Follow-ups: the salesperson's action queue — who to contact, how, about which record and why. Laid out like tasks: whose
+// follow-ups (Mine / Team / Everyone) is a switch in the toolbar; when they are due is a row of coloured, counted queues (Overdue · Due today ·
+// Upcoming · All scheduled · Completed). Each scheduled row starts with a round Complete button and a ⋯ menu (Reschedule, Snooze), so they stay
+// in reach however narrow the screen. Columns read When · What · About · Contact · Assigned to · Status; any can be hidden under Columns.
+import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState } from "@tanstack/react-table";
-import { Download, Plus } from "lucide-react";
+import {
+  Building2, CalendarClock, CalendarDays, Check, CircleCheck, Download, ListTodo, Mail, MapPin, MessageCircle, MonitorPlay, Phone, Plus, TriangleAlert,
+  UserRound, Users,
+} from "lucide-react";
 import {
   AlertDialog, Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState,
   SearchField, Select, TextField, buttonVariants, type ActiveFilter,
@@ -17,31 +21,87 @@ import {
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { FiltersPopover } from "@/features/crm/shared/ui/FiltersPopover";
+import { QueueCards, ScopeSwitch, localDate, type QueueCard, type WorkScope } from "@/features/crm/shared/ui/WorkQueues";
 import { WorkRowActions } from "@/features/crm/shared/ui/WorkRowActions";
 import { formatDate } from "@/shared/format/human";
+import { ColumnsMenu, useColumnVisibility, type OptionalColumn } from "@/shared/ui/list";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
   bulkFollowUpAction, errorMessage, followUpExportUrl, getFollowUpOptions, getFollowUpSummary, listFollowUps,
-  type FollowUp, type FollowUpBulkResult, type FollowUpListFilters, type FollowUpOptions, type FollowUpViewKey,
+  type FollowUp, type FollowUpBulkResult, type FollowUpListFilters, type FollowUpOptions,
 } from "../api/follow-ups-api";
 import { ScheduleFollowUpDialog } from "../components/FollowUpDialogs";
-import { ErrorBanner, FollowUpStatusBadge, FollowUpWhen, RELATED_LABELS, STATUS_LABELS, TYPE_LABELS } from "../follow-up-format";
+import { ErrorBanner, FollowUpStatusBadge, FollowUpWhen, RELATED_LABELS, TYPE_LABELS } from "../follow-up-format";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
 const LIVE = { staleTime: 0, refetchOnMount: "always", refetchOnWindowFocus: true, refetchInterval: 60_000, refetchIntervalInBackground: false } as const;
 
-type FilterKey = "status" | "type" | "assigneeId" | "relatedType" | "createdBy" | "completedBy" | "outcome";
-const FILTER_KEYS: FilterKey[] = ["status", "type", "assigneeId", "relatedType", "createdBy", "completedBy", "outcome"];
-const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", type: "Type", assigneeId: "Assigned to", relatedType: "About", createdBy: "Created by", completedBy: "Completed by", outcome: "Outcome" };
+type FilterKey = "type" | "assigneeId" | "relatedType" | "createdBy" | "completedBy" | "outcome";
+const FILTER_KEYS: FilterKey[] = ["type", "assigneeId", "relatedType", "createdBy", "completedBy", "outcome"];
+const FILTER_NAMES: Record<FilterKey, string> = { type: "Type", assigneeId: "Assigned to", relatedType: "About", createdBy: "Created by", completedBy: "Completed by", outcome: "Outcome" };
 type MoreKey = "accountId" | "dueFrom" | "dueTo";
 const NO_MORE: Record<MoreKey, string> = { accountId: "", dueFrom: "", dueTo: "" };
+const NO_FILTERS = Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Record<FilterKey, string>;
 type BulkKind = "reassign" | "reschedule" | "cancel";
-// The views always shown as chips (the same as tasks); the rarely used ones sit under More views.
-const PINNED_VIEWS = ["mine", "due_today", "overdue", "upcoming", "completed", "team"];
+
+type Scope = WorkScope;
+type Queue = "overdue" | "today" | "upcoming" | "open" | "completed" | "cancelled";
+const SCOPE_NOTES: Record<Scope, string> = { mine: "assigned to you", team: "your team's scheduled follow-ups", everyone: "everyone's follow-ups" };
+const QUEUES: Array<Omit<QueueCard<Exclude<Queue, "cancelled">>, "count">> = [
+  { key: "overdue", label: "Overdue", tone: "danger", icon: TriangleAlert },
+  { key: "today", label: "Due today", tone: "warning", icon: CalendarClock },
+  { key: "upcoming", label: "Upcoming", tone: "info", icon: CalendarDays },
+  { key: "open", label: "All scheduled", tone: "brand", icon: ListTodo },
+  { key: "completed", label: "Completed", tone: "success", icon: CircleCheck },
+];
+// How the contact is reached, as a coloured icon in front of the subject.
+const TYPE_STYLE: Record<FollowUp["type"], { icon: ComponentType<{ className?: string }>; className: string }> = {
+  call: { icon: Phone, className: "bg-info-soft text-info" },
+  whatsapp: { icon: MessageCircle, className: "bg-success-soft text-success" },
+  email: { icon: Mail, className: "bg-brand-soft text-brand" },
+  meeting: { icon: Users, className: "bg-warning-soft text-warning" },
+  demo: { icon: MonitorPlay, className: "bg-brand-soft text-brand" },
+  visit: { icon: MapPin, className: "bg-danger-soft text-danger" },
+  other: { icon: CalendarClock, className: "bg-canvas-strong text-text-secondary" },
+};
+
+// The list request behind a scope and a queue. Mine uses the server's own views; Team (scheduled only) and Everyone add a status and dates.
+function queueFilters(scope: Scope, queue: Queue): FollowUpListFilters {
+  if (scope === "mine")
+    return queue === "cancelled" ? { view: "cancelled", assigneeId: "me" }
+      : { view: ({ overdue: "overdue", today: "due_today", upcoming: "upcoming", open: "mine", completed: "completed" } as const)[queue] };
+  const base: FollowUpListFilters = { view: scope === "team" ? "team" : "all" };
+  if (queue === "overdue") return { ...base, status: "overdue" };
+  if (queue === "today") return { ...base, status: "scheduled", dueFrom: localDate(), dueTo: localDate() };
+  if (queue === "upcoming") return { ...base, status: "scheduled", dueFrom: localDate(1) };
+  if (queue === "completed" || queue === "cancelled") return { ...base, status: queue };
+  return { ...base, status: "scheduled" };
+}
+// Older links (?view=… from bookmarks, ?due=… from Home) open the matching scope and queue.
+function fromParams(params: URLSearchParams): { scope: Scope; queue: Queue; createdBy?: string } {
+  const due = params.get("due");
+  if (due === "overdue") return { scope: "mine", queue: "overdue" };
+  if (due === "today") return { scope: "mine", queue: "today" };
+  switch (params.get("view")) {
+    case "overdue": return { scope: "mine", queue: "overdue" };
+    case "due_today": return { scope: "mine", queue: "today" };
+    case "upcoming": return { scope: "mine", queue: "upcoming" };
+    case "completed": return { scope: "mine", queue: "completed" };
+    case "team": return { scope: "team", queue: "open" };
+    case "all": return { scope: "everyone", queue: "open" };
+    case "created_by_me": return { scope: "everyone", queue: "open", createdBy: "me" };
+    case "cancelled": return { scope: "mine", queue: "cancelled" };
+    default: return { scope: "mine", queue: "open" };
+  }
+}
+
+const OPTIONAL_COLUMNS: OptionalColumn[] = [
+  { id: "related", label: "About" }, { id: "who", label: "Contact" }, { id: "assignee", label: "Assigned to" }, { id: "status", label: "Status" },
+];
 
 // tabs: the To-dos tab row, drawn under the page title.
 export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
@@ -49,11 +109,15 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const router = useRouter();
   const params = useSearchParams();
   const queryClient = useQueryClient();
-  const initialView = (params.get("view") as FollowUpViewKey) || (params.get("due") === "overdue" ? "overdue" : params.get("due") === "today" ? "due_today" : "mine");
-  const [view, setViewState] = useState<FollowUpViewKey>(initialView);
+  const [initial] = useState(() => fromParams(new URLSearchParams(params.toString())));
+  const [scope, setScopeState] = useState<Scope>(initial.scope);
+  const [queue, setQueueState] = useState<Queue>(initial.queue);
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [submittedSearch, setSubmittedSearch] = useState(params.get("search") ?? "");
-  const [filters, setFiltersState] = useState(() => Object.fromEntries(FILTER_KEYS.map((key) => [key, params.get(key) ?? ANY])) as Record<FilterKey, string>);
+  const [filters, setFiltersState] = useState<Record<FilterKey, string>>(() => ({
+    ...(Object.fromEntries(FILTER_KEYS.map((key) => [key, params.get(key) ?? ANY])) as Record<FilterKey, string>),
+    ...(initial.createdBy ? { createdBy: initial.createdBy } : {}),
+  }));
   const [more, setMoreState] = useState<Record<MoreKey, string>>({ accountId: params.get("accountId") ?? "", dueFrom: params.get("dueFrom") ?? "", dueTo: params.get("dueTo") ?? "" });
   const [accountName, setAccountName] = useState<string | null>(null);
   const [sorting, setSortingState] = useState<SortingState>([]);
@@ -64,9 +128,17 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const [bulk, setBulk] = useState<BulkKind | null>(null);
   const [bulkResult, setBulkResult] = useState<FollowUpBulkResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const columnChoice = useColumnVisibility("crm.follow-ups.columns", OPTIONAL_COLUMNS);
 
   const restart = () => { setPageIndex(0); setSelection({}); };
-  const setView = (next: FollowUpViewKey) => { setViewState(next); restart(); };
+  const setQueue = (next: Queue) => { setQueueState(next); restart(); };
+  // Team shows scheduled follow-ups only, so its Completed and Cancelled queues fall back to All scheduled.
+  const setScope = (next: Scope) => {
+    setScopeState(next);
+    if (next === "team" && (queue === "completed" || queue === "cancelled")) setQueueState("open");
+    if (next === "mine" && filters.assigneeId !== ANY) setFiltersState({ ...filters, assigneeId: ANY });
+    restart();
+  };
   const setFilters = (next: Record<FilterKey, string>) => { setFiltersState(next); restart(); };
   const setMore = (next: Record<MoreKey, string>) => { setMoreState(next); restart(); };
   useEffect(() => {
@@ -77,21 +149,33 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "follow-up-options"), queryFn: getFollowUpOptions, staleTime: 60_000 });
   const options = optionsQuery.data;
   const can = options?.capabilities;
+  const hasView = (key: string) => Boolean(options?.views.some((entry) => entry.key === key));
+  const scopes: Scope[] = ["mine", ...(hasView("team") ? ["team" as const] : []), ...(hasView("all") ? ["everyone" as const] : [])];
+  const queues = QUEUES.filter((entry) => scope !== "team" || entry.key !== "completed");
   const summaryQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "follow-ups", "summary"), queryFn: getFollowUpSummary, ...LIVE });
-  const listFilters: FollowUpListFilters = useMemo(() => ({
-    view,
+
+  // What the person narrowed to (search, Filters) applies to the list and to every queue's count; the queue sets the view, status and dates.
+  const narrowing = useMemo(() => ({
     search: submittedSearch || undefined,
     ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ANY)),
     ...Object.fromEntries(Object.entries(more).filter(([, value]) => value.trim())),
-    sortBy: sorting[0]?.id,
-    sortDirection: sorting[0]?.desc ? "desc" : "asc",
-  }), [view, submittedSearch, filters, more, sorting]);
+  }) as FollowUpListFilters, [submittedSearch, filters, more]);
+  const filtersFor = (forQueue: Queue): FollowUpListFilters => ({ ...narrowing, ...queueFilters(scope, forQueue) });
+  const listFilters: FollowUpListFilters = { ...filtersFor(queue), sortBy: sorting[0]?.id, sortDirection: sorting[0]?.desc ? "desc" : "asc" };
   const listQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "follow-ups", listFilters, pageIndex),
     queryFn: () => listFollowUps({ ...listFilters, limit: PAGE_SIZE, offset: pageIndex * PAGE_SIZE }),
     placeholderData: keepPreviousData,
     ...LIVE,
   });
+  // One count per queue: the same request as its list, one row long.
+  const countQueries = useQueries({
+    queries: queues.map((entry) => {
+      const countFilters = filtersFor(entry.key);
+      return { queryKey: scopedQueryKey(workspace, "crm", "follow-ups", "count", countFilters), queryFn: () => listFollowUps({ ...countFilters, limit: 1 }), placeholderData: keepPreviousData, ...LIVE };
+    }),
+  });
+  const counts = Object.fromEntries(queues.map((entry, index) => [entry.key, countQueries[index]?.data?.total])) as Partial<Record<Queue, number>>;
   const rows = listQuery.data?.rows ?? [];
   const total = listQuery.data?.total ?? 0;
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
@@ -103,41 +187,52 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   };
 
   const columns = useMemo<ColumnDef<FollowUp, unknown>[]>(() => [
+    {
+      id: "done", header: () => <span className="sr-only">Actions</span>, enableSorting: false, enableHiding: false,
+      // Snooze is for the person the reminder goes to.
+      cell: ({ row }) => row.original.status === "completed"
+        ? <span className="flex size-6 items-center justify-center rounded-full bg-success text-white" title="Completed"><Check className="size-3.5" strokeWidth={3} aria-label="Completed" /></span>
+        : row.original.status === "scheduled" && can?.complete
+          ? <WorkRowActions kind="follow_up" id={row.original.id} layout="check" snooze={row.original.assignedTo === options?.currentUserId} onDone={() => refresh()} onMessage={setNotice} /> : null,
+    },
     { id: "scheduledAt", accessorKey: "scheduledAt", header: "When", cell: ({ row }) => <FollowUpWhen followUp={row.original} /> },
     {
-      id: "subject", accessorKey: "subject", header: "What",
-      cell: ({ row }) => (
-        <span className="flex min-w-48 flex-col">
-          <span className={row.original.status === "completed" ? "text-text-secondary line-through" : "font-medium"}>{(row.original.typeName ?? TYPE_LABELS[row.original.type])} · {row.original.subject}</span>
-          <span className="text-xs text-text-muted">{row.original.number}</span>
-        </span>
-      ),
+      id: "subject", accessorKey: "subject", header: "What", enableHiding: false,
+      cell: ({ row }) => {
+        const style = TYPE_STYLE[row.original.type] ?? TYPE_STYLE.other;
+        const Icon = style.icon;
+        return (
+          <span className="flex min-w-56 items-start gap-2.5">
+            <span className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ${style.className}`} title={row.original.typeName ?? TYPE_LABELS[row.original.type]}>
+              <Icon className="size-3.5" aria-hidden="true" />
+            </span>
+            <span className="flex flex-col">
+              <span className={row.original.status === "scheduled" ? "font-medium text-text" : "text-text-secondary line-through"}>{row.original.subject}</span>
+              <span className="text-xs text-text-muted">{row.original.typeName ?? TYPE_LABELS[row.original.type]} · {row.original.number}</span>
+            </span>
+          </span>
+        );
+      },
     },
     {
       id: "related", header: "About", enableSorting: false,
       cell: ({ row }) => row.original.relatedHref ? (
-        <span onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} role="presentation" className="flex flex-col">
-          <Link className="hover:underline" href={row.original.relatedHref}>{row.original.relatedName}</Link>
-          <span className="text-xs text-text-muted">{RELATED_LABELS[row.original.relatedType ?? ""]}{row.original.accountName && row.original.relatedType !== "party" ? ` · ${row.original.accountName}` : ""}</span>
+        <span onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} role="presentation" className="flex min-w-40 flex-col">
+          <Link className="text-brand hover:underline" href={row.original.relatedHref}>{row.original.relatedName}</Link>
+          <span className="text-xs text-text-muted">{RELATED_LABELS[row.original.relatedType ?? ""]}{row.original.accountName && row.original.relatedType !== "party" && row.original.accountName !== row.original.relatedName ? ` · ${row.original.accountName}` : ""}</span>
         </span>
       ) : "",
     },
     { id: "who", header: "Contact", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.contactName ?? "—"}</span> },
     { id: "assignee", accessorKey: "assignedName", header: "Assigned to", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.assignedName ?? "Unassigned"}</span> },
     { id: "status", accessorKey: "status", header: "Status", enableSorting: false, cell: ({ row }) => <span className="flex flex-col gap-1"><FollowUpStatusBadge status={row.original.status} />{row.original.outcomeLabel && <span className="text-xs text-text-muted">{row.original.outcomeLabel}</span>}</span> },
-    {
-      id: "actions", header: "", enableSorting: false,
-      // Snooze is for the person the reminder goes to.
-      cell: ({ row }) => row.original.status === "scheduled" && can?.complete
-        ? <WorkRowActions kind="follow_up" id={row.original.id} snooze={row.original.assignedTo === options?.currentUserId} onDone={() => refresh()} onMessage={setNotice} /> : null,
-    },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh only invalidates the list
   ], [can?.complete, options?.currentUserId]);
 
   const withAny = (list: Array<{ value: string; label: string }>, label: string) => [{ value: ANY, label }, ...list];
-  const people = (options?.users ?? []).map((user) => ({ value: user.id, label: user.name }));
+  // You are offered as "Me", so you are not listed again by name.
+  const people = (options?.users ?? []).filter((user) => user.id !== options?.currentUserId).map((user) => ({ value: user.id, label: user.name }));
   const labelOf = (key: FilterKey, value: string) => {
-    if (key === "status") return value === "overdue" ? "Overdue" : STATUS_LABELS[value as FollowUp["status"]] ?? value;
     if (key === "type") return TYPE_LABELS[value as FollowUp["type"]] ?? value;
     if (key === "relatedType") return RELATED_LABELS[value] ?? value;
     if (key === "outcome") return options?.outcomes.find((entry) => entry.code === value)?.label ?? value;
@@ -154,9 +249,11 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
     else if (id === "more:accountId") setMore({ ...more, accountId: "" });
     else setFilters({ ...filters, [id]: ANY });
   };
+  const clearFilters = () => { setMore(NO_MORE); setFilters(NO_FILTERS); };
   const draft = (key: MoreKey) => (value: string) => setMore({ ...more, [key]: value });
   const summary = summaryQuery.data;
-  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== "mine";
+  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || scope !== "mine" || queue !== "open";
+  const queueLabel = queue === "cancelled" ? "Cancelled" : QUEUES.find((entry) => entry.key === queue)?.label ?? "";
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.follow_ups.view") && !workspace.permissions.includes("crm.activities.manage"))
     return <PermissionState title="You don't have access to follow-ups" description="Ask an administrator for the View follow-ups permission." />;
@@ -173,7 +270,7 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
         </div>
       )}
       <ErrorBanner message={error ?? (optionsQuery.isError ? "The follow-up filters could not be loaded. Refresh the page." : null)} />
-      {notice && <p role="status" className="text-sm text-text-secondary">{notice}</p>}
+      {notice && <p role="status" className="self-start rounded-[var(--radius-control)] bg-success-soft px-3 py-1.5 text-sm text-success">{notice}</p>}
 
       <EnterpriseListPage
         tabs={tabs}
@@ -183,20 +280,20 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
           primaryAction: can?.create ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />Schedule follow-up</Button> : undefined,
           secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={followUpExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a> : undefined,
         }}
-        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label, count: ({ overdue: summary?.overdue, due_today: summary?.dueToday, upcoming: summary?.upcoming } as Record<string, number | undefined>)[entry.key] })), activeViewId: view, onSelect: (id) => setView(id as FollowUpViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
+          leading: scopes.length > 1 ? <ScopeSwitch label="Whose follow-ups" scopes={scopes} value={scope} onChange={setScope} /> : undefined,
           start: (
             <>
               <SearchField aria-label="Search follow-ups" placeholder="Search subject, contact, company or number" className="w-full sm:w-80" value={search} onChange={setSearch}
                 onSubmit={(value) => { setSubmittedSearch(value.trim()); setPageIndex(0); }} />
               {options && (
-                <FiltersPopover active={activeFilters.length} onClear={() => { setMore(NO_MORE); setFilters(Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Record<FilterKey, string>); }}>
+                <FiltersPopover active={activeFilters.length} onClear={clearFilters}>
                   <Select label="Type" selectedKey={filters.type} onSelectionChange={(key) => setFilters({ ...filters, type: String(key) })}
                     options={withAny(options.types.map((entry) => ({ value: entry.code, label: entry.label })), "Any type")} />
-                  <Select label="Status" selectedKey={filters.status} onSelectionChange={(key) => setFilters({ ...filters, status: String(key) })}
-                    options={withAny([...options.statuses.map((entry) => ({ value: entry.code, label: entry.label })), { value: "overdue", label: "Overdue" }], "Any status")} />
-                  <Select label="Assigned to" selectedKey={filters.assigneeId} onSelectionChange={(key) => setFilters({ ...filters, assigneeId: String(key) })}
-                    options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
+                  {scope !== "mine" && (
+                    <Select label="Assigned to" selectedKey={filters.assigneeId} onSelectionChange={(key) => setFilters({ ...filters, assigneeId: String(key) })}
+                      options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
+                  )}
                   <Select label="About" selectedKey={filters.relatedType} onSelectionChange={(key) => setFilters({ ...filters, relatedType: String(key) })}
                     options={withAny(options.relatedTypes.map((entry) => ({ value: entry.code, label: RELATED_LABELS[entry.code] ?? entry.label })), "Any record")} />
                   <AccountPicker label="Company" description="Follow-ups on the company, its deals and its contacts." value={more.accountId || null}
@@ -211,8 +308,9 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
               )}
             </>
           ),
+          end: <ColumnsMenu columns={columnChoice.columns} visibility={columnChoice.visibility} onChange={columnChoice.setVisibility} />,
         }}
-        filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: () => { setMore(NO_MORE); setFilters(Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Record<FilterKey, string>); } } : undefined}
+        filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: clearFilters } : undefined}
         bulkActionBar={selectedIds.length ? {
           selectedCount: selectedIds.length,
           onClearSelection: () => setSelection({}),
@@ -226,23 +324,40 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
         } : undefined}
       >
         <div className="flex flex-col gap-4">
-          {summary?.teamOverdue ? (
-            <button type="button" onClick={() => { setView("team"); setFilters({ ...filters, status: "overdue" }); }}
-              className="flex items-center gap-2 self-start rounded-[var(--radius-control)] bg-danger-soft px-3 py-1.5 text-sm font-medium text-danger outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand">
-              {`${summary.teamOverdue} of your team's follow-ups ${summary.teamOverdue === 1 ? "is" : "are"} overdue`}<span aria-hidden="true">→</span>
-            </button>
-          ) : null}
+          <QueueCards<Queue> label="Follow-up queues" cards={queues.map((entry) => ({ ...entry, count: counts[entry.key] }))} value={queue} onChange={setQueue} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-text-secondary"><span className="font-medium text-text">{queueLabel}</span> · {SCOPE_NOTES[scope]}</p>
+            <span className="flex flex-wrap items-center gap-3">
+              {summary?.teamOverdue && scope !== "team" ? (
+                <button type="button" onClick={() => { setScope("team"); setQueue("overdue"); }}
+                  className="flex items-center gap-1.5 rounded-full bg-danger-soft px-3 py-1 text-xs font-medium text-danger outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand">
+                  <TriangleAlert className="size-3.5" aria-hidden="true" />
+                  {`${summary.teamOverdue} of your team's follow-ups ${summary.teamOverdue === 1 ? "is" : "are"} overdue`}<span aria-hidden="true">→</span>
+                </button>
+              ) : null}
+              {scope !== "team" && (
+                <button type="button" onClick={() => setQueue(queue === "cancelled" ? "open" : "cancelled")}
+                  className="text-xs font-medium text-text-secondary outline-none hover:text-brand hover:underline focus-visible:ring-2 focus-visible:ring-brand">
+                  {queue === "cancelled" ? "Back to scheduled" : "Show cancelled"}
+                </button>
+              )}
+            </span>
+          </div>
           <EnterpriseDataGrid<FollowUp>
             aria-label="Follow-ups"
             columns={columns}
             data={rows}
             getRowId={(row) => row.id}
+            columnVisibility={columnChoice.visibility}
+            onColumnVisibilityChange={columnChoice.setVisibility}
             state={listQuery.isLoading ? "loading" : listQuery.isError ? "error" : rows.length === 0 ? (hasCriteria ? "no-results" : "empty") : "ready"}
             loadingContent={<LoadingState label="Loading follow-ups" rows={8} onRetry={() => void listQuery.refetch()} />}
             errorContent={<ErrorState title="Could not load follow-ups" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}
             emptyContent={<EmptyState title="Nobody to contact today" description="Schedule a follow-up from a lead, company, contact or deal, or here."
               action={can?.create ? { label: "Schedule follow-up", onPress: () => setCreating(true) } : undefined} />}
-            noResultsContent={<NoResultsState title="No follow-ups here" description="Try a different view, search or filter." />}
+            noResultsContent={queue === "overdue" && !submittedSearch && !activeFilters.length
+              ? <NoResultsState title="Nothing overdue" description="Everyone has been contacted on time. Pick another queue to see what is next." />
+              : <NoResultsState title="No follow-ups here" description="Try another queue, search or filter." />}
             manualSorting
             sorting={sorting}
             onSortingChange={(next) => { setSortingState(next); restart(); }}
@@ -255,13 +370,32 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
             rowSelection={selection}
             onRowSelectionChange={setSelection}
             onRowClick={(row) => router.push(`/crm/follow-ups/${row.id}`)}
-            renderMobileCard={(row) => (
-              <div className="flex flex-col gap-1">
-                <span className="flex flex-wrap items-center gap-2 text-sm"><FollowUpWhen followUp={row} /> · {(row.typeName ?? TYPE_LABELS[row.type])}</span>
-                <span className="font-medium">{row.contactName ?? row.relatedName}</span>
-                <span className="text-xs text-text-secondary">{row.subject}{row.accountName ? ` · ${row.accountName}` : ""}</span>
-              </div>
-            )}
+            // A phone card reads top to bottom: how and when, what to do, with whom and about what, then the actions.
+            renderMobileCard={(row) => {
+              const style = TYPE_STYLE[row.type] ?? TYPE_STYLE.other;
+              const Icon = style.icon;
+              const about = row.relatedName && row.relatedName !== row.contactName ? row.relatedName : row.accountName && row.accountName !== row.contactName ? row.accountName : null;
+              return (
+                <div className="flex min-w-0 flex-col gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${style.className}`}>
+                      <Icon className="size-3.5" aria-hidden="true" />{row.typeName ?? TYPE_LABELS[row.type]}
+                    </span>
+                    <span className="text-xs"><FollowUpWhen followUp={row} /></span>
+                  </div>
+                  <span className={`text-sm ${row.status === "scheduled" ? "font-semibold text-text" : "text-text-secondary line-through"}`}>{row.subject}</span>
+                  <span className="flex flex-col gap-0.5 text-xs text-text-secondary">
+                    {row.contactName && <span className="flex items-center gap-1.5"><UserRound className="size-3.5 shrink-0" aria-hidden="true" />{row.contactName}</span>}
+                    {about && <span className="flex items-center gap-1.5"><Building2 className="size-3.5 shrink-0" aria-hidden="true" />{about}{row.relatedType ? <span className="text-text-muted">· {RELATED_LABELS[row.relatedType]}</span> : null}</span>}
+                  </span>
+                  {row.status === "scheduled" && can?.complete ? (
+                    <div className="border-t border-border pt-2">
+                      <WorkRowActions kind="follow_up" id={row.id} layout="check" labelled snooze={row.assignedTo === options?.currentUserId} onDone={() => refresh()} onMessage={setNotice} />
+                    </div>
+                  ) : row.status !== "scheduled" ? <FollowUpStatusBadge status={row.status} /> : null}
+                </div>
+              );
+            }}
           />
         </div>
       </EnterpriseListPage>

@@ -3,12 +3,13 @@
 // The task actions that need a few words from the user: create or edit,
 // complete (with an optional next follow-up), cancel, reassign. Each is one
 // task operation on the server.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button, Checkbox, Dialog, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { DateInput, DateTimeInput, TimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
+import { localDate } from "@/features/crm/shared/ui/WorkQueues";
 
 import {
   assignTask, cancelTask, completeTask, createTask, errorMessage, updateTask, type Task, type TaskInput, type TaskOptions, type TaskPriority, type TaskRelatedType,
@@ -18,7 +19,8 @@ import { useSubmitKey } from "@/shared/http/submit-once";
 
 const NONE = "none";
 const CUSTOM = "custom";
-const today = () => new Date().toISOString().slice(0, 10);
+// The local date: toISOString() is UTC, which is still yesterday before 5:30 in India.
+const today = () => localDate();
 const FOLLOW_UP_LABELS: Record<string, string> = { call: "Call", email: "Email", meeting: "Meeting", other: "Other" };
 
 function Actions({ onCancel, onConfirm, label, isLoading, isDisabled, danger }: {
@@ -75,34 +77,98 @@ export function TaskFormDialog({ isOpen, onOpenChange, options, related, task, o
     onError: (failure) => setError(errorMessage(failure)),
   });
 
+  const assignees = options.users.filter((user) => canAssign || user.id === options.currentUserId);
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={editing ? `Edit ${task?.number ?? "task"}` : "New task"} size="lg"
       description={related ? `For ${related.name ?? "this record"}. It also appears in CRM Tasks.` : "What needs to be done, by whom and by when."}>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <ErrorBanner message={error} />
-        <TextField label="Task" isRequired value={title} onChange={setTitle} placeholder="For example: Send revised quotation" />
-        <div className="grid gap-4 sm:grid-cols-3">
-          <DateInput label="Due date" isRequired value={dueDate} onChange={setDueDate} />
-          <TimeInput label="Due time" description="Optional." value={dueTime} onChange={setDueTime} />
-          <Select label="Priority" selectedKey={priority} onSelectionChange={(key) => setPriority(String(key) as TaskPriority)} options={PRIORITY_OPTIONS} />
+        <div className="flex flex-col gap-3">
+          <TextField label="Task" isRequired value={title} onChange={setTitle} placeholder="For example: Send revised quotation" />
+          <TextArea label="Details" rows={2} value={description} onChange={setDescription} placeholder="Optional: what to check, links, or what the customer asked for" />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Select label="Reminder" selectedKey={reminder} onSelectionChange={(key) => setReminder(String(key))}
-            options={[{ value: NONE, label: "No reminder" }, ...options.reminderOptions.map((entry) => ({ value: String(entry.minutes), label: entry.label })), { value: CUSTOM, label: "Custom date and time" }]} />
+
+        <FormSection title="When">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <DateInput label="Due date" isRequired value={dueDate} onChange={setDueDate} />
+            <TimeInput label="Due time" description="Optional." value={dueTime} onChange={setDueTime} />
+            <Select label="Reminder" selectedKey={reminder} onSelectionChange={(key) => setReminder(String(key))}
+              options={[{ value: NONE, label: "No reminder" }, ...options.reminderOptions.map((entry) => ({ value: String(entry.minutes), label: entry.label })), { value: CUSTOM, label: "Custom date and time" }]} />
+          </div>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Quick due dates">
+            {quickDates().map((choice) => (
+              <button key={choice.label} type="button" aria-pressed={dueDate === choice.date} onClick={() => setDueDate(choice.date)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand ${dueDate === choice.date ? "border-brand bg-brand-soft text-brand" : "border-border text-text-secondary hover:border-border-strong hover:text-text"}`}>
+                {choice.label}
+              </button>
+            ))}
+          </div>
           {reminder === CUSTOM && <DateTimeInput label="Remind me at" isRequired value={reminderAt} onChange={setReminderAt} />}
-          {!editing && (
-            <Select label="Assigned to" selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key))}
-              options={options.users.filter((user) => canAssign || user.id === options.currentUserId)
-                .map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }))} />
-          )}
-        </div>
-        {!related && <RelatedRecordPicker label="About" value={link} onChange={setLink} />}
-        <TextArea label="Description" value={description} onChange={setDescription} />
+        </FormSection>
+
+        <FormSection title="Priority and owner">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-text" id="task-priority-label">Priority</span>
+              <div role="radiogroup" aria-labelledby="task-priority-label" className="grid grid-cols-3 gap-2">
+                {PRIORITY_OPTIONS.map((entry) => (
+                  <button key={entry.value} type="button" role="radio" aria-checked={priority === entry.value} onClick={() => setPriority(entry.value)}
+                    className={`flex h-10 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand ${priority === entry.value ? PRIORITY_STYLE[entry.value].selected : "border-border text-text-secondary hover:border-border-strong hover:text-text"}`}>
+                    <span className={`size-2 rounded-full ${PRIORITY_STYLE[entry.value].dot}`} aria-hidden="true" />{entry.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {!editing && (assignees.length > 1 ? (
+              <Select label="Assigned to" selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key))}
+                options={assignees.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }))} />
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-text">Assigned to</span>
+                <span className="flex h-10 items-center gap-2 text-sm text-text-secondary">
+                  <span className="flex size-7 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand" aria-hidden="true">
+                    {(assignees[0]?.name ?? "Me").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("")}
+                  </span>
+                  {assignees[0] ? `${assignees[0].name} (me)` : "Me"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </FormSection>
+
+        {!related && (
+          <FormSection title="About">
+            <RelatedRecordPicker label="Related record" value={link} onChange={setLink} />
+          </FormSection>
+        )}
+
         <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label={editing ? "Save" : "Create task"} isLoading={mutation.isPending}
           isDisabled={!title.trim() || !dueDate || (reminder === CUSTOM && !reminderAt)} />
       </div>
     </Dialog>
   );
+}
+
+function FormSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3 border-t border-border pt-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+// Full class names so Tailwind keeps them; the colours match the priority badges in the list.
+const PRIORITY_STYLE: Record<TaskPriority, { dot: string; selected: string }> = {
+  low: { dot: "bg-text-muted", selected: "border-border-strong bg-surface-muted text-text" },
+  medium: { dot: "bg-warning", selected: "border-warning bg-warning-soft text-warning" },
+  high: { dot: "bg-danger", selected: "border-danger bg-danger-soft text-danger" },
+};
+
+// The usual due dates, one click each.
+function quickDates() {
+  const nextMonday = (8 - new Date().getDay()) % 7 || 7;
+  return [{ label: "Today", date: localDate() }, { label: "Tomorrow", date: localDate(1) }, { label: "Next Monday", date: localDate(nextMonday) }, { label: "In a week", date: localDate(7) }];
 }
 
 // Completing can schedule the next contact with the customer: a follow-up on the same record, not another task.

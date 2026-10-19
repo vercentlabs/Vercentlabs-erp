@@ -1,13 +1,14 @@
 "use client";
 
-// CRM To-dos › Tasks: the salesperson's work queue. My tasks is the default, with what is overdue, due today and upcoming counted at the top
-// (in the same order as follow-ups). Columns read When · What · About · Priority · Assigned to · Status; every filter sits in one Filters
-// button; Complete appears on a row on hover.
+// CRM To-dos › Tasks: the salesperson's work queue. Whose tasks (Mine / Team / Everyone) is a switch in the toolbar; when they are due is a
+// row of coloured, counted queues (Overdue · Due today · Upcoming · All open · Completed). Each open row starts with a round Complete button,
+// so it stays in reach however narrow the screen. Columns read When · What · About · Priority · Assigned to · Status · Created by · Created,
+// any of them can be hidden under Columns; every other filter sits in one Filters button.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState } from "@tanstack/react-table";
-import { Download, Plus } from "lucide-react";
+import { CalendarClock, CalendarDays, Check, CircleCheck, Download, ListTodo, Plus, TriangleAlert } from "lucide-react";
 import {
   AlertDialog, Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState,
   SearchField, Select, TextField, buttonVariants, type ActiveFilter,
@@ -16,33 +17,84 @@ import {
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { FiltersPopover } from "@/features/crm/shared/ui/FiltersPopover";
+import { QueueCards, ScopeSwitch, localDate, type QueueCard, type WorkScope } from "@/features/crm/shared/ui/WorkQueues";
 import { WorkRowActions } from "@/features/crm/shared/ui/WorkRowActions";
 import { formatDate } from "@/shared/format/human";
+import { ColumnsMenu, useColumnVisibility, type OptionalColumn } from "@/shared/ui/list";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
   bulkTaskAction, errorMessage, getTaskOptions, getTaskSummary, listTasks, taskExportUrl,
-  type Task, type TaskBulkResult, type TaskListFilters, type TaskOptions, type TaskViewKey,
+  type Task, type TaskBulkResult, type TaskListFilters, type TaskOptions,
 } from "../api/tasks-api";
 import { TaskFormDialog } from "../components/TaskDialogs";
-import { ErrorBanner, PRIORITY_OPTIONS, RELATED_LABELS, STATUS_LABELS, TaskDue, TaskPriorityBadge, TaskStatusBadge } from "../task-format";
+import { ErrorBanner, PRIORITY_OPTIONS, RELATED_LABELS, TaskDue, TaskPriorityBadge, TaskStatusBadge } from "../task-format";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
 const LIVE = { staleTime: 0, refetchOnMount: "always", refetchOnWindowFocus: true, refetchInterval: 60_000, refetchIntervalInBackground: false } as const;
 
-type FilterKey = "status" | "priority" | "assigneeId" | "createdBy" | "relatedType";
-const FILTER_KEYS: FilterKey[] = ["status", "priority", "assigneeId", "createdBy", "relatedType"];
-const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", priority: "Priority", assigneeId: "Assigned to", createdBy: "Created by", relatedType: "About" };
+type FilterKey = "priority" | "assigneeId" | "createdBy" | "relatedType";
+const FILTER_KEYS: FilterKey[] = ["priority", "assigneeId", "createdBy", "relatedType"];
+const FILTER_NAMES: Record<FilterKey, string> = { priority: "Priority", assigneeId: "Assigned to", createdBy: "Created by", relatedType: "About" };
 type MoreKey = "accountId" | "dueFrom" | "dueTo" | "createdFrom" | "createdTo";
 const MORE_KEYS: MoreKey[] = ["accountId", "dueFrom", "dueTo", "createdFrom", "createdTo"];
 const NO_MORE = Object.fromEntries(MORE_KEYS.map((key) => [key, ""])) as Record<MoreKey, string>;
+const NO_FILTERS = Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Record<FilterKey, string>;
 const range = (from: string, to: string) => `${from ? formatDate(from) : "any"} – ${to ? formatDate(to) : "any"}`;
 type BulkKind = "assign" | "priority" | "reschedule" | "complete" | "cancel";
-// The views always shown as chips; the rarely used ones (created by me, all, cancelled) sit under More views.
-const PINNED_VIEWS = ["mine", "due_today", "overdue", "upcoming", "high_priority", "completed", "team"];
+const isOpen = (task: Task) => task.status === "open" || task.status === "in_progress";
+
+type Scope = WorkScope;
+type Queue = "overdue" | "today" | "upcoming" | "open" | "completed" | "cancelled";
+const SCOPE_NOTES: Record<Scope, string> = { mine: "assigned to you", team: "your team's open tasks", everyone: "everyone's tasks" };
+const QUEUES: Array<Omit<QueueCard<Exclude<Queue, "cancelled">>, "count">> = [
+  { key: "overdue", label: "Overdue", tone: "danger", icon: TriangleAlert },
+  { key: "today", label: "Due today", tone: "warning", icon: CalendarClock },
+  { key: "upcoming", label: "Upcoming", tone: "info", icon: CalendarDays },
+  { key: "open", label: "All open", tone: "brand", icon: ListTodo },
+  { key: "completed", label: "Completed", tone: "success", icon: CircleCheck },
+];
+
+// The list request behind a scope and a queue. Mine uses the server's own views; Team (open tasks only) and Everyone add a status and dates.
+function queueFilters(scope: Scope, queue: Queue): TaskListFilters {
+  if (scope === "mine")
+    return queue === "cancelled" ? { view: "cancelled", assigneeId: "me" }
+      : { view: ({ overdue: "overdue", today: "due_today", upcoming: "upcoming", open: "mine", completed: "completed" } as const)[queue] };
+  const today = localDate();
+  const tomorrow = localDate(1);
+  const base: TaskListFilters = { view: scope === "team" ? "team" : "all" };
+  if (queue === "overdue") return { ...base, status: "overdue" };
+  if (queue === "today") return { ...base, status: "active", dueFrom: today, dueTo: today };
+  if (queue === "upcoming") return { ...base, status: "active", dueFrom: tomorrow };
+  if (queue === "completed" || queue === "cancelled") return { ...base, status: queue };
+  return { ...base, status: "active" };
+}
+// Older links (?view=… from bookmarks, ?due=… from Home) open the matching scope and queue.
+function fromParams(params: URLSearchParams): { scope: Scope; queue: Queue; priority?: string; createdBy?: string } {
+  const due = params.get("due");
+  if (due === "overdue") return { scope: "mine", queue: "overdue" };
+  if (due === "today") return { scope: "mine", queue: "today" };
+  switch (params.get("view")) {
+    case "overdue": return { scope: "mine", queue: "overdue" };
+    case "due_today": return { scope: "mine", queue: "today" };
+    case "upcoming": return { scope: "mine", queue: "upcoming" };
+    case "completed": return { scope: "mine", queue: "completed" };
+    case "high_priority": return { scope: "mine", queue: "open", priority: "high" };
+    case "team": return { scope: "team", queue: "open" };
+    case "all": return { scope: "everyone", queue: "open" };
+    case "created_by_me": return { scope: "everyone", queue: "open", createdBy: "me" };
+    case "cancelled": return { scope: "mine", queue: "cancelled" };
+    default: return { scope: "mine", queue: "open" };
+  }
+}
+
+const OPTIONAL_COLUMNS: OptionalColumn[] = [
+  { id: "related", label: "About" }, { id: "priority", label: "Priority" }, { id: "assignee", label: "Assigned to" }, { id: "status", label: "Status" },
+  { id: "createdBy", label: "Created by" }, { id: "createdAt", label: "Created" },
+];
 
 // tabs: the To-dos tab row, drawn under the page title.
 export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
@@ -50,11 +102,15 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const router = useRouter();
   const params = useSearchParams();
   const queryClient = useQueryClient();
-  const initialView = (params.get("view") as TaskViewKey) || (params.get("due") === "overdue" ? "overdue" : params.get("due") === "today" ? "due_today" : "mine");
-  const [view, setViewState] = useState<TaskViewKey>(initialView);
+  const [initial] = useState(() => fromParams(new URLSearchParams(params.toString())));
+  const [scope, setScopeState] = useState<Scope>(initial.scope);
+  const [queue, setQueueState] = useState<Queue>(initial.queue);
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [submittedSearch, setSubmittedSearch] = useState(params.get("search") ?? "");
-  const [filters, setFiltersState] = useState(() => Object.fromEntries(FILTER_KEYS.map((key) => [key, params.get(key) ?? ANY])) as Record<FilterKey, string>);
+  const [filters, setFiltersState] = useState<Record<FilterKey, string>>(() => ({
+    ...(Object.fromEntries(FILTER_KEYS.map((key) => [key, params.get(key) ?? ANY])) as Record<FilterKey, string>),
+    ...(initial.priority ? { priority: initial.priority } : {}), ...(initial.createdBy ? { createdBy: initial.createdBy } : {}),
+  }));
   const [more, setMoreState] = useState(() => Object.fromEntries(MORE_KEYS.map((key) => [key, params.get(key) ?? ""])) as Record<MoreKey, string>);
   const [accountName, setAccountName] = useState<string | null>(null);
   const [sorting, setSortingState] = useState<SortingState>([]);
@@ -65,9 +121,17 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const [bulkResult, setBulkResult] = useState<TaskBulkResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const columnChoice = useColumnVisibility("crm.tasks.columns", OPTIONAL_COLUMNS);
 
   const restart = () => { setPageIndex(0); setSelection({}); };
-  const setView = (next: TaskViewKey) => { setViewState(next); restart(); };
+  const setQueue = (next: Queue) => { setQueueState(next); restart(); };
+  // Team shows open tasks only, so its Completed and Cancelled queues fall back to All open.
+  const setScope = (next: Scope) => {
+    setScopeState(next);
+    if (next === "team" && (queue === "completed" || queue === "cancelled")) setQueueState("open");
+    if (next === "mine" && filters.assigneeId !== ANY) setFiltersState({ ...filters, assigneeId: ANY });
+    restart();
+  };
   const setFilters = (next: Record<FilterKey, string>) => { setFiltersState(next); restart(); };
   const setMore = (next: Record<MoreKey, string>) => { setMoreState(next); restart(); };
   const setSorting = (next: SortingState) => { setSortingState(next); restart(); };
@@ -79,21 +143,33 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "task-options"), queryFn: getTaskOptions, staleTime: 60_000 });
   const options = optionsQuery.data;
   const can = options?.capabilities;
+  const hasView = (key: string) => Boolean(options?.views.some((entry) => entry.key === key));
+  const scopes: Scope[] = ["mine", ...(hasView("team") ? ["team" as const] : []), ...(hasView("all") ? ["everyone" as const] : [])];
+  const queues = QUEUES.filter((entry) => scope !== "team" || entry.key !== "completed");
   const summaryQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "tasks", "summary"), queryFn: getTaskSummary, ...LIVE });
-  const listFilters: TaskListFilters = useMemo(() => ({
-    view,
+
+  // What the person narrowed to (search, Filters) applies to the list and to every queue's count; the queue sets the view, status and dates.
+  const narrowing = useMemo(() => ({
     search: submittedSearch || undefined,
     ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ANY)),
     ...Object.fromEntries(Object.entries(more).filter(([, value]) => value.trim())),
-    sortBy: sorting[0]?.id,
-    sortDirection: sorting[0]?.desc ? "desc" : "asc",
-  }), [view, submittedSearch, filters, more, sorting]);
+  }) as TaskListFilters, [submittedSearch, filters, more]);
+  const filtersFor = (forQueue: Queue): TaskListFilters => ({ ...narrowing, ...queueFilters(scope, forQueue) });
+  const listFilters: TaskListFilters = { ...filtersFor(queue), sortBy: sorting[0]?.id, sortDirection: sorting[0]?.desc ? "desc" : "asc" };
   const listQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "tasks", listFilters, pageIndex),
     queryFn: () => listTasks({ ...listFilters, limit: PAGE_SIZE, offset: pageIndex * PAGE_SIZE }),
     placeholderData: keepPreviousData,
     ...LIVE,
   });
+  // One count per queue: the same request as its list, one row long.
+  const countQueries = useQueries({
+    queries: queues.map((entry) => {
+      const countFilters = filtersFor(entry.key);
+      return { queryKey: scopedQueryKey(workspace, "crm", "tasks", "count", countFilters), queryFn: () => listTasks({ ...countFilters, limit: 1 }), placeholderData: keepPreviousData, ...LIVE };
+    }),
+  });
+  const counts = Object.fromEntries(queues.map((entry, index) => [entry.key, countQueries[index]?.data?.total])) as Partial<Record<Queue, number>>;
   const rows = listQuery.data?.rows ?? [];
   const total = listQuery.data?.total ?? 0;
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
@@ -105,12 +181,18 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   };
 
   const columns = useMemo<ColumnDef<Task, unknown>[]>(() => [
+    {
+      id: "done", header: () => <span className="sr-only">Complete</span>, enableSorting: false, enableHiding: false,
+      cell: ({ row }) => row.original.status === "completed"
+        ? <span className="flex size-6 items-center justify-center rounded-full bg-success text-white" title="Completed"><Check className="size-3.5" strokeWidth={3} aria-label="Completed" /></span>
+        : isOpen(row.original) && can?.complete ? <WorkRowActions kind="task" id={row.original.id} layout="check" onDone={() => refresh()} onMessage={setNotice} /> : null,
+    },
     { id: "dueAt", accessorKey: "dueAt", header: "When", cell: ({ row }) => <TaskDue task={row.original} /> },
     {
       id: "title", accessorKey: "title", header: "What", enableHiding: false,
       cell: ({ row }) => (
         <span className="flex min-w-56 flex-col">
-          <span className={`font-medium ${row.original.status === "completed" ? "text-text-secondary line-through" : "text-text"}`}>{row.original.title}</span>
+          <span className={`font-medium ${isOpen(row.original) ? "text-text" : "text-text-secondary line-through"}`}>{row.original.title}</span>
           <span className="text-xs text-text-muted">{row.original.number}</span>
         </span>
       ),
@@ -129,21 +211,17 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
     { id: "status", accessorKey: "status", header: "Status", enableSorting: false, cell: ({ row }) => <TaskStatusBadge status={row.original.status} /> },
     { id: "createdBy", accessorKey: "createdByName", header: "Created by", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.createdByName ?? ""}</span> },
     { id: "createdAt", accessorKey: "createdAt", header: "Created", cell: ({ row }) => formatDate(row.original.createdAt) },
-    {
-      id: "actions", header: "", enableSorting: false, enableHiding: false,
-      cell: ({ row }) => (row.original.status === "open" || row.original.status === "in_progress") && can?.complete
-        ? <WorkRowActions kind="task" id={row.original.id} onDone={() => refresh()} onMessage={setNotice} /> : null,
-    },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh only invalidates the list
   ], [can?.complete]);
 
   const withAny = (list: Array<{ value: string; label: string }>, label: string) => [{ value: ANY, label }, ...list];
-  const people = (options?.users ?? []).map((user) => ({ value: user.id, label: user.name }));
+  // You are offered as "Me", so you are not listed again by name.
+  const people = (options?.users ?? []).filter((user) => user.id !== options?.currentUserId).map((user) => ({ value: user.id, label: user.name }));
   const labelOf = (key: FilterKey, value: string) => {
-    if (key === "status") return value === "overdue" ? "Overdue" : STATUS_LABELS[value as Task["status"]] ?? value;
     if (key === "priority") return PRIORITY_OPTIONS.find((entry) => entry.value === value)?.label ?? value;
     if (key === "relatedType") return value === "none" ? "Personal" : RELATED_LABELS[value] ?? value;
     if (value === "me") return "Me";
+    if (value === "unassigned") return "Unassigned";
     return people.find((entry) => entry.value === value)?.label ?? "Chosen person";
   };
   const activeFilters: ActiveFilter[] = [
@@ -158,9 +236,11 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
     else if (id.startsWith("more:")) setMore({ ...more, [id.slice(5)]: "" });
     else setFilters({ ...filters, [id]: ANY });
   };
+  const clearFilters = () => { setMore(NO_MORE); setFilters(NO_FILTERS); };
   const draft = (key: MoreKey) => (value: string) => setMore({ ...more, [key]: value });
-  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== "mine";
+  const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || scope !== "mine" || queue !== "open";
   const summary = summaryQuery.data;
+  const queueLabel = queue === "cancelled" ? "Cancelled" : QUEUES.find((entry) => entry.key === queue)?.label ?? "";
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.tasks.view") && !workspace.permissions.includes("crm.activities.manage"))
     return <PermissionState title="You don't have access to tasks" description="Ask an administrator for the View tasks permission." />;
@@ -177,31 +257,31 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
         </div>
       )}
       <ErrorBanner message={error ?? (optionsQuery.isError ? "The task filters could not be loaded. Refresh the page." : null)} />
-      {notice && <p role="status" className="text-sm text-text-secondary">{notice}</p>}
+      {notice && <p role="status" className="self-start rounded-[var(--radius-control)] bg-success-soft px-3 py-1.5 text-sm text-success">{notice}</p>}
 
       <EnterpriseListPage
         tabs={tabs}
         header={{
           title: tabs ? "To-dos" : "Tasks",
-          description: "Your tasks: overdue first, then today, then what is coming up.",
+          description: "Overdue first, then today, then what is coming up.",
           primaryAction: can?.create ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />New task</Button> : undefined,
           secondaryActions: can?.export ? (
             <a className={buttonVariants({ variant: "outline" })} href={taskExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a>
           ) : undefined,
         }}
-        savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label, count: ({ overdue: summary?.overdue, due_today: summary?.dueToday, upcoming: summary?.upcoming, high_priority: summary?.highPriority } as Record<string, number | undefined>)[entry.key] })), activeViewId: view, onSelect: (id) => setView(id as TaskViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
+          leading: scopes.length > 1 ? <ScopeSwitch label="Whose tasks" scopes={scopes} value={scope} onChange={setScope} /> : undefined,
           start: (
             <>
               <SearchField aria-label="Search tasks" placeholder="Search task or number" className="w-full sm:w-72" value={search} onChange={setSearch}
                 onSubmit={(value) => { setSubmittedSearch(value.trim()); setPageIndex(0); }} />
               {options && (
-                <FiltersPopover active={activeFilters.length} onClear={() => { setMore(NO_MORE); setFilters(Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Record<FilterKey, string>); }}>
-                  <Select label="Status" selectedKey={filters.status} onSelectionChange={(key) => setFilters({ ...filters, status: String(key) })}
-                    options={withAny([...options.statuses.map((entry) => ({ value: entry.code, label: entry.label })), { value: "overdue", label: "Overdue" }], "Any status")} />
+                <FiltersPopover active={activeFilters.length} onClear={clearFilters}>
                   <Select label="Priority" selectedKey={filters.priority} onSelectionChange={(key) => setFilters({ ...filters, priority: String(key) })} options={withAny(PRIORITY_OPTIONS, "Any priority")} />
-                  <Select label="Assigned to" selectedKey={filters.assigneeId} onSelectionChange={(key) => setFilters({ ...filters, assigneeId: String(key) })}
-                    options={withAny([{ value: "me", label: "Me" }, ...people], "Anyone")} />
+                  {scope !== "mine" && (
+                    <Select label="Assigned to" selectedKey={filters.assigneeId} onSelectionChange={(key) => setFilters({ ...filters, assigneeId: String(key) })}
+                      options={withAny([{ value: "me", label: "Me" }, { value: "unassigned", label: "Unassigned" }, ...people], "Anyone")} />
+                  )}
                   <Select label="About" selectedKey={filters.relatedType} onSelectionChange={(key) => setFilters({ ...filters, relatedType: String(key) })}
                     options={withAny([...options.relatedTypes.map((entry) => ({ value: entry.code, label: RELATED_LABELS[entry.code] ?? entry.label })), { value: "none", label: "Personal" }], "Any record")} />
                   <Select label="Created by" selectedKey={filters.createdBy} onSelectionChange={(key) => setFilters({ ...filters, createdBy: String(key) })}
@@ -216,8 +296,9 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
               )}
             </>
           ),
+          end: <ColumnsMenu columns={columnChoice.columns} visibility={columnChoice.visibility} onChange={columnChoice.setVisibility} />,
         }}
-        filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: () => { setMore(NO_MORE); setFilters(Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Record<FilterKey, string>); } } : undefined}
+        filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: clearFilters } : undefined}
         bulkActionBar={selectedIds.length ? {
           selectedCount: selectedIds.length,
           onClearSelection: () => setSelection({}),
@@ -233,23 +314,40 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
         } : undefined}
       >
         <div className="flex flex-col gap-4">
-          {summary?.teamOverdue ? (
-            <button type="button" onClick={() => { setView("team"); setFilters({ ...filters, status: "overdue" }); }}
-              className="flex items-center gap-2 self-start rounded-[var(--radius-control)] bg-danger-soft px-3 py-1.5 text-sm font-medium text-danger outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand">
-              {`${summary.teamOverdue} of your team's tasks ${summary.teamOverdue === 1 ? "is" : "are"} overdue`}<span aria-hidden="true">→</span>
-            </button>
-          ) : null}
+          <QueueCards<Queue> label="Task queues" cards={queues.map((entry) => ({ ...entry, count: counts[entry.key] }))} value={queue} onChange={setQueue} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-text-secondary"><span className="font-medium text-text">{queueLabel}</span> · {SCOPE_NOTES[scope]}</p>
+            <span className="flex flex-wrap items-center gap-3">
+              {summary?.teamOverdue && scope !== "team" ? (
+                <button type="button" onClick={() => { setScope("team"); setQueue("overdue"); }}
+                  className="flex items-center gap-1.5 rounded-full bg-danger-soft px-3 py-1 text-xs font-medium text-danger outline-none hover:underline focus-visible:ring-2 focus-visible:ring-brand">
+                  <TriangleAlert className="size-3.5" aria-hidden="true" />
+                  {`${summary.teamOverdue} of your team's tasks ${summary.teamOverdue === 1 ? "is" : "are"} overdue`}<span aria-hidden="true">→</span>
+                </button>
+              ) : null}
+              {scope !== "team" && (
+                <button type="button" onClick={() => setQueue(queue === "cancelled" ? "open" : "cancelled")}
+                  className="text-xs font-medium text-text-secondary outline-none hover:text-brand hover:underline focus-visible:ring-2 focus-visible:ring-brand">
+                  {queue === "cancelled" ? "Back to open tasks" : "Show cancelled"}
+                </button>
+              )}
+            </span>
+          </div>
           <EnterpriseDataGrid<Task>
             aria-label="Tasks"
             columns={columns}
             data={rows}
             getRowId={(row) => row.id}
+            columnVisibility={columnChoice.visibility}
+            onColumnVisibilityChange={columnChoice.setVisibility}
             state={listQuery.isLoading ? "loading" : listQuery.isError ? "error" : rows.length === 0 ? (hasCriteria ? "no-results" : "empty") : "ready"}
             loadingContent={<LoadingState label="Loading tasks" rows={8} onRetry={() => void listQuery.refetch()} />}
             errorContent={<ErrorState title="Could not load tasks" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}
             emptyContent={<EmptyState title="Nothing to do" description="You have no open tasks. Create one, or add one from a lead, company, contact or deal."
               action={can?.create ? { label: "New task", onPress: () => setCreating(true) } : undefined} />}
-            noResultsContent={<NoResultsState title="No tasks here" description="Try a different view, search or filter." />}
+            noResultsContent={queue === "overdue" && !submittedSearch && !activeFilters.length
+              ? <NoResultsState title="Nothing overdue" description="You are on top of things. Pick another queue to see what is next." />
+              : <NoResultsState title="No tasks here" description="Try another queue, search or filter." />}
             manualSorting
             sorting={sorting}
             onSortingChange={setSorting}
@@ -263,10 +361,14 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
             onRowSelectionChange={setSelection}
             onRowClick={(row) => router.push(`/crm/tasks/${row.id}`)}
             renderMobileCard={(row) => (
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">{row.title}</span>
-                <span className="flex flex-wrap items-center gap-2 text-xs"><TaskDue task={row} /><TaskPriorityBadge priority={row.priority} /></span>
-                <span className="text-xs text-text-secondary">{row.relatedName ?? "Personal"} · {row.assignedName ?? "Unassigned"}</span>
+              // Read top to bottom: when and how urgent, what to do, about what and for whom, then the action.
+              <div className="flex min-w-0 flex-col gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><TaskDue task={row} /><TaskPriorityBadge priority={row.priority} /></div>
+                <span className={`text-sm ${isOpen(row) ? "font-semibold text-text" : "text-text-secondary line-through"}`}>{row.title}</span>
+                <span className="text-xs text-text-secondary">{row.relatedName ? `${row.relatedName} · ${RELATED_LABELS[row.relatedType ?? ""] ?? ""}` : "Personal"} · {row.assignedName ?? "Unassigned"}</span>
+                {isOpen(row) && can?.complete ? (
+                  <div className="border-t border-border pt-2"><WorkRowActions kind="task" id={row.id} layout="check" labelled onDone={() => refresh()} onMessage={setNotice} /></div>
+                ) : <TaskStatusBadge status={row.status} />}
               </div>
             )}
           />

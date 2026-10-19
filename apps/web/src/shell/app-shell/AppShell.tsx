@@ -5,6 +5,7 @@ import { SearchDialogProvider } from "@/features/platform/search/SearchDialog";
 import { MobileNav } from "@/shell/primary-sidebar/MobileNav";
 import { ModuleRail } from "@/shell/module-sidebar/ModuleRail";
 import { QueryProvider } from "@/shell/workspace-context/QueryProvider";
+import { TrialBanner, TrialGate, type TrialState } from "./TrialStatus";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
 import {
   WorkspaceContextProvider,
@@ -17,8 +18,10 @@ import {
 // company/branch context switcher, settings and the profile menu). Below 1024px the icon rail and secondary
 // sidebar are both replaced by MobileNav's top bar + full-label drawer —
 // verified at 1440/1024/390px; never squeezed into a phone viewport.
+// trial: the company's 30-day Standard trial while it is on one (a bar while it runs; a full-page notice once it has ended).
 export function AppShell({
   workspace,
+  trial = null,
   children,
 }: {
   workspace: WorkspaceContextValue & {
@@ -26,6 +29,7 @@ export function AppShell({
     pendingApprovalCount: number;
     unreadNotificationCount: number;
   };
+  trial?: TrialState;
   children: ReactNode;
 }) {
   const {
@@ -34,6 +38,7 @@ export function AppShell({
     unreadNotificationCount,
     ...contextValue
   } = workspace;
+  const canManageBilling = contextValue.permissions.includes("billing.manage");
   return (
     <QueryProvider>
       <WorkspaceContextProvider value={contextValue}>
@@ -59,8 +64,9 @@ export function AppShell({
               unreadNotificationCount={unreadNotificationCount}
             />
             <WorkspaceTopBar />
+            <TrialBanner trial={trial} canManageBilling={canManageBilling} />
             <main className="flex min-w-0 flex-1 flex-col px-6 py-6 md:px-8">
-              {children}
+              <TrialGate trial={trial} canManageBilling={canManageBilling}>{children}</TrialGate>
             </main>
           </div>
         </div>
