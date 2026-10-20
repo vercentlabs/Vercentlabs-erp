@@ -8,7 +8,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, LinkButton, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, ErrorState, LinkButton, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -31,6 +31,7 @@ import { holdAsk } from "@/features/manufacturing/holds/components/holdDialog";
 import { OrderCostingPanel } from "@/features/manufacturing/costing/components/OrderCostingPanel";
 import { OrderHoldBanner, OrderHoldHistoryPanel } from "@/features/manufacturing/holds/components/OrderHoldPanel";
 import { OrderQualityPanel } from "@/features/manufacturing/quality/components/OrderQualityPanel";
+import { InProcessOrderPanel } from "@/features/quality/incoming/IncomingScreens";
 import { OrderScrapPanel } from "@/features/manufacturing/scrap/components/OrderScrapPanel";
 import { OrderVariancePanel } from "@/features/manufacturing/variance/components/OrderVariancePanel";
 import { SCRAP_BASE } from "@/features/manufacturing/scrap/api/scrap-api";
@@ -160,7 +161,7 @@ export function MoDetailScreen({ orderId }: { orderId: string }) {
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={MO_BASE}>Manufacturing Orders</Link>,
+        breadcrumbs: <Breadcrumb href={MO_BASE}>Manufacturing Orders</Breadcrumb>,
         title: `${order.number} · ${order.finishedItem.name}`,
         status: <StatusBadge tone={STATUS_TONE[order.status] ?? "neutral"}>{order.statusLabel}</StatusBadge>,
         fields: [
@@ -366,7 +367,7 @@ function ProductionPanel({ order, onAsk, perform }: { order: MoOrder; onAsk: (as
 }
 
 function QualityPanel({ order }: { order: MoOrder }) {
-  return <OrderQualityPanel orderId={order.id} />;
+  return <div className="flex flex-col gap-4"><InProcessOrderPanel orderId={order.id} /><InProcessOrderPanel orderId={order.id} kind="final" /><OrderQualityPanel orderId={order.id} /></div>;
 }
 
 function CostsPanel({ order }: { order: MoOrder }) {

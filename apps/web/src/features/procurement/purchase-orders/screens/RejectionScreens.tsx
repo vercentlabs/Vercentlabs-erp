@@ -155,7 +155,7 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
         secondaryActions: (
           <div className="flex flex-wrap gap-2">
             {canReturn && otherOptions.length > 0 && <Button variant="secondary" onPress={() => setDialog("resolve")}>Record Resolution</Button>}
-            {rejection.inspection && <Link className="inline-flex items-center px-3 text-sm text-brand hover:underline" href={`/quality/inspection/${rejection.inspection.id}`}>Open Quality Inspection</Link>}
+            {rejection.inspection && <Link className="inline-flex items-center px-3 text-sm text-brand hover:underline" href={`/quality/incoming/${rejection.inspection.id}`}>Open Quality Inspection</Link>}
             {actions.edit && <Button variant="ghost" onPress={() => setDialog("edit")}>Edit</Button>}
             {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel as invalid</Button>}
           </div>
@@ -223,7 +223,7 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
                   { label: "Lot", value: rejection.batchNumber ? `${rejection.batchNumber}${rejection.expiryDate ? ` · expires ${calendarDate(rejection.expiryDate)}` : ""}` : "—" },
                   { label: "Serial numbers", value: rejection.serialNumbers.length ? rejection.serialNumbers.join(", ") : "—" },
                   { label: "Quality inspection", value: rejection.inspection
-                    ? <Link className="text-brand hover:underline" href={`/quality/inspection/${rejection.inspection.id}`}>{rejection.inspection.number} ({statusLabel(rejection.inspection.status)}, {quantity(rejection.inspection.rejected)} rejected)</Link> : "—" },
+                    ? <Link className="text-brand hover:underline" href={`/quality/incoming/${rejection.inspection.id}`}>{rejection.inspection.number} ({statusLabel(rejection.inspection.status)}, {quantity(rejection.inspection.rejected)} rejected)</Link> : "—" },
                 ]} />
               </Panel>
               <Panel title="Inventory movements" description="Posted by Inventory: quarantine, return, disposal or acceptance. A refusal at the dock moves nothing.">

@@ -23,12 +23,12 @@ const E = (module, label, effect, once, href = null) => Object.freeze({ module, 
 export const POSTING_EVENTS = Object.freeze({
   customer_invoice: E("Sales", "Sales invoice issued", "Customer receivable · sales revenue · output GST", true, "/sales/invoices/{id}"),
   customer_credit_note: E("Sales", "Credit note issued", "Reverses the revenue, receivable and GST it credits", true, "/sales/credit-notes/{id}"),
-  customer_receipt: E("Sales", "Customer payment received", "Bank or cash up · customer receivable down", true, "/accounting/receipts"),
+  customer_receipt: E("Sales", "Customer payment received", "Bank or cash up · customer receivable down", true, "/accounting/receipts/{id}"),
   customer_refund: E("Sales", "Customer refund paid", "Refund owed to the customer settled · bank or cash down", true, "/accounting/customer-refunds/{id}"),
   vendor_bill: E("Procurement", "Supplier invoice posted", "Supplier payable · purchase, expense or goods received · input GST", true, "/procurement/supplier-bills/{id}"),
   vendor_credit_note: E("Procurement", "Supplier credit note", "Reduces the supplier payable, the purchase and its input GST", true, "/procurement/supplier-bills/{id}"),
   vendor_bill_reverse_charge: E("Procurement", "Reverse-charge GST", "GST the business pays itself on a supplier invoice", true, "/procurement/supplier-bills/{id}"),
-  vendor_payment: E("Procurement", "Supplier payment", "Supplier payable down · bank or cash down", true, "/accounting/payments"),
+  vendor_payment: E("Procurement", "Supplier payment", "Supplier payable down · bank or cash down", true, "/accounting/payments/{id}"),
   vendor_credit_refund: E("Procurement", "Supplier credit refunded", "Money a supplier returned against a credit", false),
   goods_receipt: E("Inventory", "Goods received", "Inventory up · goods received not invoiced (perpetual inventory)", true, "/procurement/goods-receipts/{id}"),
   purchase_return: E("Procurement", "Goods returned to a supplier", "Inventory down · goods received not invoiced released", true, "/procurement/purchase-returns/{id}"),
@@ -62,6 +62,9 @@ export const POSTING_EVENTS = Object.freeze({
   manual_journal: E("Finance", "Manual journal", "The approved debits and credits", false, "/accounting/journals/{journal}"),
   itc_decision: E("Finance", "Input tax credit decided", "Input GST moved from awaiting confirmation to claimable, or to cost", true, "/accounting/input-tax-credit"),
   year_end_close: E("Finance", "Year-end close", "Profit and loss closed to retained earnings", true, "/accounting/close-checklist"),
+  payroll_run: E("Payroll", "Payroll run approved", "Salaries and employer contributions · net pay, TDS, EPF, ESI and PT owed", true),
+  salary_payment: E("Payroll", "Salaries paid", "Salaries payable down · bank or cash down", true),
+  statutory_payment: E("Payroll", "Statutory dues paid", "TDS, EPF, ESI or PT payable down · bank or cash down", true),
   asset_capitalization: E("Assets", "Asset capitalised", "Fixed asset recognised", true),
   asset_disposal: E("Assets", "Asset disposed", "Asset and depreciation removed · gain or loss", true),
   asset_depreciation_run: E("Assets", "Depreciation", "Depreciation expense · accumulated depreciation", true),
@@ -99,7 +102,7 @@ export function explainPostingError(error) {
   const rules = [
     [/ACCOUNTING_MAPPING_MISSING|Account mapping ([a-z_]+) is not configured|Select an? (.+?) account/, () => "Choose the missing account in Accounting › Posting accounts, then retry.", "ACCOUNTING_MAPPING_MISSING"],
     [/No fiscal period covers/, () => "Create the accounting period for this date in Accounting › Fiscal periods, then retry.", "ACCOUNTING_PERIOD_MISSING"],
-    [/Fiscal period .+ is (soft_closed|closed|locked)|period is (closed|not open)|Accounting period is not open/i, () => "The accounting period is closed. Reopen it, or correct the document's date, then retry.", "ACCOUNTING_PERIOD_CLOSED"],
+    [/ACCOUNTING_PERIOD_CLOSED|(Fiscal|Accounting) period .+ is (soft_closed|in closing review|closed|locked)|period is (closed|not open)|Accounting period is not open/i, () => "The accounting period is closed. Reopen it, or correct the document's date, then retry.", "ACCOUNTING_PERIOD_CLOSED"],
     [/cannot receive this posting|is disabled/, () => "An account used by this posting is disabled or is a group heading. Choose another in Accounting › Posting accounts.", "ACCOUNTING_ACCOUNT_UNUSABLE"],
     [/No exchange rate exists/, () => "Add the exchange rate for this date in Accounting, then retry.", "ACCOUNTING_RATE_MISSING"],
     [/not balanced/i, () => "The entry did not balance, so nothing was written. Report this to support.", "ACCOUNTING_UNBALANCED"],
@@ -547,11 +550,17 @@ export async function getAccountLedger(client, context, accountIdValue, filters 
   const from = dayText(filters.from) ?? "1900-01-01";
   const to = dayText(filters.to) ?? "9999-12-31";
   const sign = account.normal_balance === "credit" ? -1 : 1;
+  // Department and cost centre narrow the lines (the General Ledger passes its filter through to the account it opens).
+  const dimensionValues = [];
+  let dimensionWhere = "";
+  if (filters.departmentId) { dimensionValues.push(uuid(filters.departmentId, "Department")); dimensionWhere += ` AND line.department_id = $DIM${dimensionValues.length}`; }
+  if (filters.costCenterId) { dimensionValues.push(uuid(filters.costCenterId, "Cost centre")); dimensionWhere += ` AND line.cost_center_id = $DIM${dimensionValues.length}`; }
+  const dims = (offset) => dimensionWhere.replace(/\$DIM(\d)/g, (_, index) => `$${offset + Number(index)}`);
   const opening = (await client.query(
     `SELECT COALESCE(sum(line.base_debit_amount - line.base_credit_amount), 0) AS amount FROM tenant.accounting_journal_lines line
        JOIN tenant.accounting_journal_entries entry ON entry.id = line.journal_entry_id
-      WHERE line.organization_id = $1 AND line.account_id = $2 AND entry.status IN ('posted', 'reversed') AND entry.accounting_date < $3::date`,
-    [context.organizationId, accountId, from])).rows[0].amount;
+      WHERE line.organization_id = $1 AND line.account_id = $2 AND entry.status IN ('posted', 'reversed') AND entry.accounting_date < $3::date${dims(3)}`,
+    [context.organizationId, accountId, from, ...dimensionValues])).rows[0].amount;
   const rows = (await client.query(
     `SELECT entry.id AS entry_id, entry.entry_number, entry.accounting_date, entry.description AS entry_description, entry.source_type, entry.source_id, entry.source_number, entry.entry_type,
             line.description, line.base_debit_amount, line.base_credit_amount, party.display_name AS party_name,
@@ -559,8 +568,8 @@ export async function getAccountLedger(client, context, accountIdValue, filters 
        FROM tenant.accounting_journal_lines line
        JOIN tenant.accounting_journal_entries entry ON entry.id = line.journal_entry_id
        LEFT JOIN tenant.business_parties party ON party.id = line.party_id
-      WHERE line.organization_id = $1 AND line.account_id = $2 AND entry.status IN ('posted', 'reversed') AND entry.accounting_date BETWEEN $3::date AND $4::date
-      ORDER BY entry.accounting_date, entry.posted_at, entry.entry_number, line.sequence LIMIT 2000`, [context.organizationId, accountId, from, to])).rows;
+      WHERE line.organization_id = $1 AND line.account_id = $2 AND entry.status IN ('posted', 'reversed') AND entry.accounting_date BETWEEN $3::date AND $4::date${dims(4)}
+      ORDER BY entry.accounting_date, entry.posted_at, entry.entry_number, line.sequence LIMIT 2000`, [context.organizationId, accountId, from, to, ...dimensionValues])).rows;
   let running = Number(opening);
   const lines = rows.map((row) => {
     running += Number(row.base_debit_amount) - Number(row.base_credit_amount);
@@ -726,18 +735,3 @@ export async function setPostingAccount(client, context, input = {}) {
   return { key, account: { id: account.id, code: account.code, name: account.name }, changed: true, effectiveFrom: today };
 }
 
-// Reversing from the journal screen is for manual journals. An automatic entry is corrected from its document (a credit note, a reversed
-// bill or receipt …) so the document and the accounts never disagree.
-export async function reverseManualJournalEntry(client, context, idValue, input = {}) {
-  const id = uuid(idValue, "Journal entry");
-  const entry = (await client.query(`SELECT entry_type, source_type, source_number FROM tenant.accounting_journal_entries WHERE organization_id = $1 AND id = $2`, [context.organizationId, id])).rows[0];
-  if (!entry) throw new AccountingError(404, "Journal entry not found.", "ACCOUNTING_JOURNAL_NOT_FOUND");
-  if (entry.source_type && entry.entry_type !== "reversal") {
-    const posting = (await client.query(`SELECT posting_event FROM tenant.accounting_postings WHERE organization_id = $1 AND journal_entry_id = $2 LIMIT 1`, [context.organizationId, id])).rows[0];
-    const event = postingEventOf(posting?.posting_event ?? entry.source_type);
-    throw new AccountingError(409, `This entry was recorded automatically from ${event.label.toLowerCase()} ${entry.source_number ?? ""}. Correct it from that document, so the document and the accounts stay in step.`.replace("  ", " "),
-      "ACCOUNTING_REVERSE_FROM_SOURCE");
-  }
-  const { reverseJournalEntry } = await import("./journals.js");
-  return reverseJournalEntry(client, context, id, input);
-}

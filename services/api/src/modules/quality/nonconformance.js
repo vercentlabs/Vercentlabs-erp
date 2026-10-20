@@ -1,6 +1,7 @@
 // F321, F325-F329: non-conformance records with containment and disposition (rework/scrap/return-to-supplier/use-as-is, the last with a genuine
 // second-person approval). Holding stock is Inventory's Quality Holds (modules/stock/quality-holds.js): one workflow, disposition movements.
 import { notifyRecordOwner } from "../../core/platform/notifications/index.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { QualityError, need, needAny, nonNegative, oneOf, qx, recordEvent, text, textOrNull, uuid, uuidOrNull } from "./common.js";
 
 const MANAGE = "quality.manage";

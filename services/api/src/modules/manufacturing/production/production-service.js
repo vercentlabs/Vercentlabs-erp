@@ -211,6 +211,10 @@ export async function postProductionEntry(client, c, entryId, input = {}) {
       }
     }
   }
+  // Quality's in-process gate (MVP 32): output is not reported as accepted while a blocking in-process check applies, and a run whose first
+  // piece awaits clearance takes no more output.
+  const inProcess = await import("../../quality/inprocess/ip-engine.js");
+  await inProcess.assertProductionProgress(client, c, { order, batch, accepted });
   const postingKey = `pe:${entry.id}:v${entry.row_version}`;
   await client.query(`UPDATE tenant.manufacturing_production_entries SET status = 'REPORTED', posting_key = $3, posted_by = $4, posted_at = clock_timestamp(), produced_at = COALESCE(produced_at, clock_timestamp()),
       material_override_reason = $5 WHERE organization_id = $1 AND id = $2`, [c.organizationId, entry.id, postingKey, c.userId ?? null, override]);
@@ -221,7 +225,10 @@ export async function postProductionEntry(client, c, entryId, input = {}) {
   await entryEvent(client, c, entry.id, "POSTED", warning ?? `${q(reported)} reported`, { postingKey, materialWarning: warning, override });
   await event(client, c, order.id, "PRODUCTION_RECORDED", { summary: `${entry.entry_number} · ${batch.batch_reference}: ${q(reported)} reported · ${q(accepted)} accepted · ${q(D(entry.rejected_quantity))} rejected · ${q(pending)} awaiting inspection`,
     details: { entryId: entry.id, materialWarning: warning } });
-  return { orderId: order.id, entryId: entry.id, entryNumber: entry.entry_number, materialWarning: warning };
+  // The in-process control points of the item decide what this output needs inspected (requirements and their inspections, once per event).
+  const posted = (await client.query(`SELECT * FROM tenant.manufacturing_production_entries WHERE id = $1`, [entry.id])).rows[0];
+  const quality = await inProcess.createProductionObligations(client, c, { order, batch, entry: posted });
+  return { orderId: order.id, entryId: entry.id, entryNumber: entry.entry_number, materialWarning: warning, inProcessInspections: quality.inspectionIds, finalInspections: quality.finalInspectionIds };
 }
 
 // The order's "Record production" (input: { reportedQuantity, acceptedQuantity?, rejectedQuantity?, pendingQuantity?, rejectionReason?, batchReference?,
@@ -311,6 +318,9 @@ export async function correctProductionEntry(client, c, entryId, input = {}) {
   if (kind === "PENDING") {
     const free = sub(figures.pending, figures.held);
     if (amount > free) throw productionError(409, "MFG_PARTIAL_CORRECTION_RESTRICTED", `${entry.entry_number}: only ${q(free)} still awaits inspection${figures.held > ZERO ? " and is not on quality hold" : ""}; inspected output is corrected through quality.`);
+    // Quality's in-process requirements on this output shrink with it (refused below what Quality already decided).
+    const { reconcileProductionCorrection } = await import("../../quality/inprocess/ip-engine.js");
+    await reconcileProductionCorrection(client, c, { entryId: entry.id, quantity: q(amount) });
     await client.query(`UPDATE tenant.manufacturing_production_entries SET pending_remaining = pending_remaining - $3, corrected_pending_quantity = corrected_pending_quantity + $3 WHERE organization_id = $1 AND id = $2`,
       [c.organizationId, entry.id, q(amount)]);
     await client.query(`UPDATE tenant.manufacturing_orders SET reported_quantity = reported_quantity - $3, pending_inspection_quantity = pending_inspection_quantity - $3, version = version + 1 WHERE organization_id = $1 AND id = $2`,

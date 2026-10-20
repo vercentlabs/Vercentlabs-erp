@@ -34,6 +34,8 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "sales.credit_note": { moduleKey: "sales", purposes: ["attachment"] },
   // Files on a customer refund: the bank advice, the customer's request, and the exact vouchers emailed.
   "accounting.customer_refund": { moduleKey: "accounting", purposes: ["attachment"] },
+  // Evidence on an expense: the receipt, the supplier's bill, a boarding pass.
+  "accounting.expense": { moduleKey: "accounting", purposes: ["attachment"] },
   // Files on a supplier: contracts, rate cards, tax and quality certificates, company profile, correspondence.
   "procurement.supplier": { moduleKey: "procurement", purposes: ["attachment"] },
   // Files on a purchase order (quotations, specifications, drawings, contracts) and the exact PDFs emailed to the supplier.
@@ -66,6 +68,8 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "stock.inventory_adjustment": { moduleKey: "stock", purposes: ["attachment"] },
   // An inspection specification's drawings, standards, test procedures and reference photos; the specification decides who may read them.
   "quality.specification": { moduleKey: "quality", purposes: ["attachment"] },
+  // Evidence on a Quality inspection: photos of samples, certificates, laboratory reports.
+  "quality.inspection": { moduleKey: "quality", purposes: ["attachment"] },
   // On a quality hold: inspection notes, photos, certificates, supplier correspondence.
   "stock.inventory_stock_hold": { moduleKey: "stock", purposes: ["attachment"] },
   "platform.export": { moduleKey: null, purposes: ["export"] },

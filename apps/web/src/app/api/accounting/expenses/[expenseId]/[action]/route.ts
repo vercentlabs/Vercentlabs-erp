@@ -5,22 +5,25 @@ import { approveExpense, cancelExpense, payExpense, rejectExpense, reverseExpens
 import { HttpError } from "@/core/http";
 import { accountingMutation } from "@/features/accounting/shared/route-helpers";
 
-// submit · approve (a second person; posts it) · reject · cancel · pay (an expense recorded as payable) · reverse.
-const schema = z.object({ reason: z.string().max(500).optional(), paidFromAccountId: z.string().uuid().optional(), date: z.string().date().optional() });
-const PERMISSION: Record<string, string> = { submit: "accounting.payables.manage", approve: "accounting.payables.approve", reject: "accounting.payables.approve",
-  cancel: "accounting.payables.manage", pay: "accounting.payments.manage", reverse: "accounting.payables.approve" };
+type Params = { params: Promise<{ expenseId: string; action: string }> };
+const schema = z.object({
+  reason: z.string().trim().max(500).optional(), paidFromAccountId: z.string().uuid().optional(), date: z.string().date().optional(),
+  paymentMethod: z.enum(["cash", "upi", "card", "bank_transfer", "cheque", "other"]).optional(),
+});
 
-export async function POST(request: Request, ctx: { params: Promise<{ expenseId: string; action: string }> }) {
-  const { expenseId, action } = await ctx.params;
+// submit · approve (someone else; posts it) · reject (send back, with why) · cancel (with why) · pay (one still owed) · reverse (with why).
+// Each step's rules — permission, who may approve, the evidence — are the domain's.
+export async function POST(request: Request, { params }: Params) {
+  const { expenseId, action } = await params;
   return accountingMutation(request, schema, async (client, context, input) => {
     switch (action) {
       case "submit": return { expense: await submitExpense(client, context, expenseId) };
       case "approve": return { expense: await approveExpense(client, context, expenseId) };
       case "reject": return { expense: await rejectExpense(client, context, expenseId, input) };
-      case "cancel": return { expense: await cancelExpense(client, context, expenseId) };
+      case "cancel": return { expense: await cancelExpense(client, context, expenseId, input) };
       case "pay": return { expense: await payExpense(client, context, expenseId, input) };
       case "reverse": return { expense: await reverseExpense(client, context, expenseId, input) };
-      default: throw new HttpError(404, "Unknown expense action.", "NOT_FOUND");
+      default: throw new HttpError(404, "Unknown expense action.");
     }
-  }, 200, PERMISSION[action] ?? "accounting.view");
+  });
 }

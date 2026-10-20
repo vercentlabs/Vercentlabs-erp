@@ -41,6 +41,8 @@ export async function recordSupplierBillPayment(client, context, billId, input =
     partyId: bill.party_id, paymentDate: readDate(input.paymentDate, "Payment date") ?? undefined, currencyCode: bill.currency_code.trim(), amount: raw, paymentMethod: method,
     bankAccountId: optionalUuid(input.bankAccountId, "Bank account") ?? undefined, externalReference: text(input.reference, 120) ?? undefined,
   }));
+  await client.query("UPDATE tenant.accounting_vendor_payments SET planned_allocations = $3::jsonb WHERE organization_id = $1 AND id = $2",
+    [context.organizationId, payment.id, JSON.stringify([{ billId: bill.id, amount: raw }])]);
   const submitted = await finance(() => submitSubledgerDocument(client, fin(context), "vendor_payment", payment.id));
   if (submitted.status === "pending_approval") return { paymentId: payment.id, paymentNumber: payment.payment_number, status: "awaiting_approval" };
   await finance(() => postVendorPayment(client, fin(context), payment.id));

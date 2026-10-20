@@ -6,7 +6,4 @@ export declare function saveQualitySettings(client: Q, c: C, input: R): Promise<
 export declare function listInspections(client: Q, c: C, filters?: R): Promise<any[]>;
 export declare function getInspection(client: Q, c: C, id: string): Promise<any>;
 export declare function createInspection(client: Q, c: C, input: R, options?: R): Promise<any>;
-export declare function recordInspectionResults(client: Q, c: C, id: string, input: R): Promise<any>;
-export declare function completeInspection(client: Q, c: C, id: string, input?: R): Promise<any>;
-export declare function releaseInspection(client: Q, c: C, id: string, input?: R): Promise<any>;
 export declare function cancelInspection(client: Q, c: C, id: string, reason: string): Promise<any>;

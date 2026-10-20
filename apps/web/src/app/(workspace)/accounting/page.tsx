@@ -1,7 +1,7 @@
-import { AccountingDashboardScreen } from "@/features/accounting/AccountingPage";
+import { FinanceHomeScreen } from "@/features/accounting/home/FinanceHomeScreen";
 
-export const metadata = { title: "Accounting" };
+export const metadata = { title: "Finance" };
 
 export default function AccountingHomePage() {
-  return <AccountingDashboardScreen />;
+  return <FinanceHomeScreen />;
 }

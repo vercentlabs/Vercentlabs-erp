@@ -78,8 +78,9 @@ function firstSheetPath(entries) {
   return entries.has(path) ? path : [...entries.keys()].find((name) => name.startsWith("xl/worksheets/"));
 }
 
-export function parseXlsxUpload(bytes, limits = {}) {
-  const { maxBytes, maxRows, maxColumns, maxFieldLength } = { ...CSV_LIMITS, ...limits };
+// Every non-empty row of the first sheet as an array of cell texts (a bank statement has account details above its headings).
+export function readXlsxRows(bytes, limits = {}) {
+  const { maxBytes, maxRows, maxColumns } = { ...CSV_LIMITS, ...limits };
   const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes ?? []);
   if (buffer.length === 0) throw new DataExchangeError(400, "The file is empty.", "XLSX_EMPTY");
   if (buffer.length > maxBytes) throw new DataExchangeError(413, `The file is larger than ${Math.round(maxBytes / (1024 * 1024))} MB.`, "XLSX_TOO_LARGE");
@@ -113,6 +114,12 @@ export function parseXlsxUpload(bytes, limits = {}) {
     if (cells.some((value) => value)) rows.push(cells);
     if (rows.length > maxRows + 1) throw new DataExchangeError(413, `The sheet has more than ${maxRows} rows. Split it into smaller files.`, "XLSX_TOO_MANY_ROWS");
   }
+  return rows;
+}
+
+export function parseXlsxUpload(bytes, limits = {}) {
+  const { maxFieldLength } = { ...CSV_LIMITS, ...limits };
+  const rows = readXlsxRows(bytes, limits);
   if (!rows.length) throw new DataExchangeError(400, "The sheet has no header row.", "XLSX_EMPTY");
 
   const headers = Array.from(rows[0], (header) => String(header ?? "").trim());

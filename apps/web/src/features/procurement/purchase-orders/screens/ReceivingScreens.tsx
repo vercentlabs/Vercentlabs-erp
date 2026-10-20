@@ -226,7 +226,7 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                         <span key={entry.id} className="flex flex-wrap items-center gap-2 text-xs">
                           <StatusBadge tone={entry.disposition === "damaged" ? "danger" : "warning"}>{entry.disposition === "damaged" ? "Damaged" : "Inspection hold"}</StatusBadge>
                           {quantity(entry.quantity)} held · {quantity(entry.released)} released · {quantity(entry.returned)} returned · {quantity(entry.open)} still held
-                          {entry.inspection && <Link className="text-brand hover:underline" href={`/quality/inspection/${entry.inspection.id}`}>Inspection {entry.inspection.number} ({statusLabel(entry.inspection.status)})</Link>}
+                          {entry.inspection && <Link className="text-brand hover:underline" href={`/quality/incoming/${entry.inspection.id}`}>Inspection {entry.inspection.number} ({statusLabel(entry.inspection.status)})</Link>}
                           {actions.release && Number(entry.open) > 0 && <Button size="compact" variant="ghost" onPress={() => setReleasing(entry)}>Release to stock</Button>}
                         </span>
                       ))}

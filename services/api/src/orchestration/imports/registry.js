@@ -6,7 +6,7 @@
 // An importer: key, moduleKey, label, description, permissions (any one lets the person see it; the app's function still decides),
 // fields [{ key, label, aliases, sample, required }], optional groupBy (rows sharing that value become one record, such as a BOM's
 // lines), and importRow(client, context, values | values[], lookups) → { reference, message }.
-import { createAccountingAccount, getAccountMapping, getPrimaryLedger } from "../../modules/accounting/index.js";
+import { createChartAccount, getAccountMapping, getPrimaryLedger } from "../../modules/accounting/index.js";
 import { createCustomerInvoice } from "../../modules/accounting/receivables.js";
 import { createVendorBill } from "../../modules/accounting/payables.js";
 import { createManufacturingBom } from "../../modules/manufacturing/boms/bom-service.js";
@@ -185,10 +185,9 @@ export const IMPORTERS = Object.freeze([
       if (!accountClass) throw new ImportRowError("Class must be Asset, Liability, Equity, Income or Expense.", "accountClass");
       const isGroup = Boolean(yes(values.isGroup));
       const accountType = isGroup ? "group" : key(values.accountType).replace(/\s+/g, "_") || { asset: "current_asset", liability: "current_liability", equity: "equity", revenue: "revenue", expense: "expense" }[accountClass];
-      const ledger = await getPrimaryLedger(client, context);
-      await createAccountingAccount(client, context, {
-        ledgerId: ledger.id, code: values.code, name: values.name, accountClass, accountType, isGroup, parentId: values.parentCode ? (await find.account(values.parentCode)).id : null,
-        normalBalance: ["liability", "equity", "revenue"].includes(accountClass) ? "credit" : "debit",
+      // The chart's own rules apply (a parent group of the same class, the normal balance, control accounts owned by their sub-ledger).
+      await createChartAccount(client, context, {
+        code: values.code, name: values.name, accountClass, accountType: isGroup ? undefined : accountType, isGroup, parentId: values.parentCode ? (await find.account(values.parentCode)).id : null,
       });
       return { reference: values.code, message: `Created ${values.code} ${values.name}.` };
     },

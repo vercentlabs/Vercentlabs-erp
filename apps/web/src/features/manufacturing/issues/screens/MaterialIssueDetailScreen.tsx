@@ -8,7 +8,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
 
 import { formatDate, formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -101,7 +101,7 @@ export function MaterialIssueDetailScreen({ issueId }: { issueId: string }) {
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={MI_BASE}>Material Issues</Link>,
+        breadcrumbs: <Breadcrumb href={MI_BASE}>Material Issues</Breadcrumb>,
         title: `${issue.number} · ${issue.order.number}`,
         status: <StatusBadge tone={ISSUE_TONE[issue.status] ?? "neutral"}>{issue.statusLabel}</StatusBadge>,
         fields: [

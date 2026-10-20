@@ -13,6 +13,7 @@ import { readView, type Row } from "@/features/quality/shared/client";
 import { quantity } from "@/features/quality/shared/format";
 import { SpecificationsHomePanel } from "@/features/quality/specifications/SpecScreens";
 import { ControlPointsHomePanel } from "@/features/quality/control-points/QcpScreens";
+import { DispatchHomePanel, FinalHomePanel, InProcessHomePanel, IncomingHomePanel } from "@/features/quality/incoming/IncomingScreens";
 
 // F342: the Quality KPI dashboard.
 export function QualityDashboardScreen() {
@@ -36,6 +37,10 @@ export function QualityDashboardScreen() {
         title="Quality"
         description="Specifications, inspections, holds and non-conformances, at a glance."
       />
+      <IncomingHomePanel />
+      <InProcessHomePanel />
+      <FinalHomePanel />
+      <DispatchHomePanel />
       <ControlPointsHomePanel />
       <SpecificationsHomePanel />
       {d && (

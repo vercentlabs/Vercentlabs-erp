@@ -5,7 +5,7 @@ import { qx } from "../common.js";
 import { activateDueQcps, releaseAllowance } from "./qcp-engine.js";
 import { loadPoint, loadQcpVersion, rulesOfVersion } from "./qcp-commands.js";
 import {
-  BINDINGS, EDITABLE, GATES, MATCH_MODES, OBLIGATION, QCP, REQUIREMENTS, SCOPES, STAGES, STATUS, TRIGGERS, compareQcpVersions, has, need, qcpContentHash, qcpError, text, uuid, validateQcpVersion,
+  BINDINGS, CHECKPOINTS, EDITABLE, GATES, MATCH_MODES, OBLIGATION, QCP, REQUIREMENTS, SCOPES, STAGES, STATUS, TRIGGERS, compareQcpVersions, has, need, qcpContentHash, qcpError, text, uuid, validateQcpVersion,
 } from "./qcp-rules.js";
 
 const prepares = (c) => [QCP.create, QCP.editDraft, QCP.submit, QCP.review, QCP.approve, QCP.activate, QCP.revise].some((p) => has(c, p));
@@ -24,6 +24,8 @@ const versionView = (v) => ({
   triggerLabel: TRIGGERS[v.trigger_event]?.label ?? v.trigger_event, triggerEnabled: Boolean(TRIGGERS[v.trigger_event]?.enabled), requirement: v.requirement_type, requirementLabel: REQUIREMENTS[v.requirement_type],
   gate: v.gate_type, gateLabel: GATES[v.gate_type], binding: v.spec_binding, bindingLabel: BINDINGS[v.spec_binding], specificationId: v.specification_id, specVersionId: v.spec_version_id,
   matchMode: v.match_mode, matchModeLabel: MATCH_MODES[v.match_mode], purpose: v.purpose_code, quantityScope: v.quantity_scope, lotContext: v.lot_context, waiverAllowed: v.waiver_allowed,
+  checkpoint: v.checkpoint_type ?? null, checkpointLabel: v.checkpoint_type ? CHECKPOINTS[v.checkpoint_type] : null, checkpointInterval: v.checkpoint_interval === null || v.checkpoint_interval === undefined ? null : Number(v.checkpoint_interval),
+  operationLabel: v.operation_label ?? null,
   effectiveFrom: v.effective_from, effectiveUntil: v.effective_until, revisionReason: v.revision_reason, submittedAt: v.submitted_at, reviewNote: v.review_note, approvedAt: v.approved_at,
   approvalNote: v.approval_note, publishedAt: v.published_at, activatedAt: v.activated_at, supersededAt: v.superseded_at, contentHash: v.content_hash, version: v.row_version,
 });
@@ -290,6 +292,6 @@ export async function listQualityControlPointOptions(client, c) {
   return {
     specifications: specs.map((s) => ({ value: s.id, label: `${s.specification_code} · ${s.name}`, stage: s.inspection_stage })),
     specVersions: versions.map((v) => ({ value: v.id, label: `${v.specification_code} v${v.version_number} (${STATUS[v.status]})` })),
-    triggers: opts(TRIGGERS), requirements: opts(REQUIREMENTS), gates: opts(GATES), bindings: opts(BINDINGS), matchModes: opts(MATCH_MODES), scopes: opts(SCOPES), stages: opts(STAGES),
+    triggers: opts(TRIGGERS), requirements: opts(REQUIREMENTS), gates: opts(GATES), checkpoints: opts(CHECKPOINTS), bindings: opts(BINDINGS), matchModes: opts(MATCH_MODES), scopes: opts(SCOPES), stages: opts(STAGES),
   };
 }

@@ -511,11 +511,17 @@ export async function unlinkDisposalSaleInvoice(client, c, caseId, input = {}) {
 }
 
 // ------------------------------------------------------------------ Finance: carrying value and derecognition
-async function accountsFor(client, a) {
+export async function disposalAccountsFor(client, a) {
   const cat = (await client.query(`SELECT * FROM tenant.asset_categories WHERE id = $1`, [a.category_id])).rows[0] ?? {};
   const basis = (await client.query(`SELECT accumulated_account_id FROM tenant.asset_depreciation_bases WHERE asset_id = $1 AND status = 'APPROVED' ORDER BY approved_at DESC NULLS LAST LIMIT 1`, [a.id]).catch(() => ({ rows: [] }))).rows[0];
-  return { asset: cat.asset_account_id ?? null, accumulated: basis?.accumulated_account_id ?? cat.accumulated_depreciation_account_id ?? null, proceeds: cat.proceeds_account_id ?? null, gainLoss: cat.gain_loss_account_id ?? null,
-    loss: cat.disposal_loss_account_id ?? null };
+  // A category without its own gain / loss accounts uses the company's defaults (Accounting › Posting accounts › Fixed assets).
+  const fallback = async (key) => (await client.query(
+    `SELECT mapping.account_id FROM tenant.accounting_account_mappings mapping
+       JOIN tenant.accounting_ledgers ledger ON ledger.id = mapping.ledger_id AND ledger.ledger_type = 'primary' AND ledger.status = 'active'
+      WHERE mapping.organization_id = $1 AND mapping.mapping_key = $2 AND mapping.status = 'active' AND mapping.party_id IS NULL AND mapping.item_id IS NULL
+        AND mapping.item_group_id IS NULL AND mapping.tax_category_id IS NULL ORDER BY mapping.priority LIMIT 1`, [a.organization_id, key])).rows[0]?.account_id ?? null;
+  return { asset: cat.asset_account_id ?? null, accumulated: basis?.accumulated_account_id ?? cat.accumulated_depreciation_account_id ?? null, proceeds: cat.proceeds_account_id ?? null,
+    gainLoss: cat.gain_loss_account_id ?? await fallback("asset_disposal_gain"), loss: cat.disposal_loss_account_id ?? await fallback("asset_disposal_loss") };
 }
 async function accountsUsable(client, c, ids) {
   const wanted = ids.filter(Boolean);
@@ -563,7 +569,7 @@ export async function financialPictureOf(client, c, k, l) {
   const cost = toPaise(a.capitalized_cost ?? 0); const acc = toPaise(a.accumulated_depreciation ?? 0); const imp = toPaise(a.impairment_accumulated ?? 0);
   const carrying = cost - acc - imp;
   const gain = proceeds - costs - carrying;
-  const accounts = await accountsFor(client, a);
+  const accounts = await disposalAccountsFor(client, a);
   const net = proceeds - costs;
   const resultAccount = gain > 0n ? accounts.gainLoss : gain < 0n ? accounts.loss ?? accounts.gainLoss : "x";
   const needed = [accounts.asset, acc + imp > 0n ? accounts.accumulated : "x", net !== 0n ? accounts.proceeds : "x", resultAccount];

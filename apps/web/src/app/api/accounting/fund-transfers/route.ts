@@ -4,7 +4,7 @@ import { createFundTransfer, listFundTransfers } from "@vercentlabs/api";
 
 import { accountingMutation, accountingRead } from "@/features/accounting/shared/route-helpers";
 
-// Bank and cash transfers.
+// Bank and cash transfers. One arriving on a later day goes through Funds in transit until it is received.
 export async function GET(request: Request) {
   return accountingRead(request, async (client, context) => ({ transfers: await listFundTransfers(client, context) }));
 }
@@ -12,6 +12,7 @@ export async function GET(request: Request) {
 const schema = z.object({
   idempotencyKey: z.string().trim().min(1).max(200).optional(),
   date: z.string().date().optional(),
+  arrivalDate: z.string().date().optional(),
   fromAccountId: z.string().uuid(),
   toAccountId: z.string().uuid(),
   amount: z.union([z.number(), z.string()]),

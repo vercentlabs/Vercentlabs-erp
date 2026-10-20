@@ -7,7 +7,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -92,7 +92,7 @@ export function ProductionEntryDetailScreen({ entryId }: { entryId: string }) {
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={`${MO_BASE}/${entry.order.id}?tab=production`}>{entry.order.number}</Link>,
+        breadcrumbs: <Breadcrumb href={`${MO_BASE}/${entry.order.id}?tab=production`}>{entry.order.number}</Breadcrumb>,
         title: `${entry.number} · ${entry.batch ?? ""}`,
         status: <StatusBadge tone={ENTRY_TONE[entry.status]}>{entry.statusLabel}</StatusBadge>,
         fields: [

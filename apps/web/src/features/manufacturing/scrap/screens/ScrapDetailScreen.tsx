@@ -7,7 +7,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
 
 import { formatDate, formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -106,7 +106,7 @@ export function ScrapDetailScreen({ scrapId }: { scrapId: string }) {
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={SCRAP_BASE}>Scrap</Link>,
+        breadcrumbs: <Breadcrumb href={SCRAP_BASE}>Scrap</Breadcrumb>,
         title: `${scrap.number} · ${scrap.order.number}`,
         status: (
           <span className="flex flex-wrap gap-1"><StatusBadge tone={SCRAP_TONE[scrap.status] ?? "neutral"}>{scrap.statusLabel}</StatusBadge>

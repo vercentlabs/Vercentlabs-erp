@@ -2,10 +2,9 @@
 
 // One inspection checklist: the checks in force, every revision (each inspection keeps the revision it started with), and — for those who manage
 // checklists — a new revision, which supersedes the one in force, and making the checklist active or inactive.
-import Link from "next/link";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { useSubmitKey } from "@/shared/http/submit-once";
@@ -57,7 +56,7 @@ export function QiTemplateScreen({ templateId }: { templateId: string }) {
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={QI_TEMPLATES_BASE}>Inspection Checklists</Link>,
+        breadcrumbs: <Breadcrumb href={QI_TEMPLATES_BASE}>Inspection Checklists</Breadcrumb>,
         title: template.name,
         status: <StatusBadge tone={template.status === "ACTIVE" ? "success" : "neutral"}>{template.status === "ACTIVE" ? "Active" : "Inactive"}</StatusBadge>,
         fields: [{ label: "Number", value: template.number }, { label: "Product", value: template.item ? `${template.item.code} · ${template.item.name}` : "Every product" },

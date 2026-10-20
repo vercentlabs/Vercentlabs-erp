@@ -20,13 +20,15 @@ import { useDebouncedValue, usePagedRows } from "@/shared/ui/list";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
+import { BooksChecks } from "../components/BooksChecks";
+
 import {
   POSTING_STATUS, amount, dismissPosting, errorMessage, errorStatus, getPosting, listPostings, postingHealth, retryAllPostings, retryPosting, scanPostings, type CoverageRow, type Posting,
 } from "../api/automatic-api";
 
 const VIEWS = [{ id: "attention", label: "Needs attention" }, { id: "all", label: "All" }, { id: "POSTED", label: "Posted" }, { id: "REVERSED", label: "Reversed" },
-  { id: "CANCELLED", label: "Dismissed" }, { id: "coverage", label: "Coverage" }];
-const MODULES = ["Sales", "Procurement", "Inventory", "POS", "Expenses", "Finance", "Assets"];
+  { id: "CANCELLED", label: "Dismissed" }, { id: "coverage", label: "Coverage" }, { id: "books", label: "Sub-ledgers vs books" }];
+const MODULES = ["Sales", "Procurement", "Inventory", "Manufacturing", "POS", "Expenses", "Payroll", "Assets", "Finance"];
 const ANY = "any";
 
 export function PostingsScreen() {
@@ -41,8 +43,9 @@ export function PostingsScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "danger" | "info"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const filters = { status: view === "coverage" ? undefined : view, module: module === ANY ? undefined : module, search: submitted || undefined };
-  const list = useQuery({ queryKey: scopedQueryKey(workspace, "accounting", "postings", filters), queryFn: () => listPostings(filters), enabled: view !== "coverage", placeholderData: (previous) => previous });
+  const listing = view !== "coverage" && view !== "books";
+  const filters = { status: listing ? view : undefined, module: module === ANY ? undefined : module, search: submitted || undefined };
+  const list = useQuery({ queryKey: scopedQueryKey(workspace, "accounting", "postings", filters), queryFn: () => listPostings(filters), enabled: listing, placeholderData: (previous) => previous });
   const health = useQuery({ queryKey: scopedQueryKey(workspace, "accounting", "posting-health"), queryFn: postingHealth });
   const rows = useMemo(() => list.data ?? [], [list.data]);
   const coverage = useMemo(() => health.data?.coverage ?? [], [health.data]);
@@ -83,7 +86,7 @@ export function PostingsScreen() {
     <EnterpriseListPage
       header={{
         title: "Automatic Postings",
-        description: "Every financial transaction in Sales, Procurement, Inventory, POS, Expenses and Finance is recorded in the accounts automatically. Anything that could not be recorded waits here with the reason.",
+        description: "Every financial transaction in Sales, Procurement, Inventory, Manufacturing, POS, Expenses, Payroll, Assets and Finance is recorded in the accounts automatically. Anything that could not be recorded waits here with the reason; Sub-ledgers vs books shows whether each module agrees with its accounts.",
         primaryAction: mayPost ? (
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" isLoading={busy} onPress={() => run(async () => { const found = await scanPostings(); return found.found ? `${found.found} document(s) without an accounting entry were found.` : "Nothing is missing."; })}>
@@ -95,7 +98,7 @@ export function PostingsScreen() {
         ) : undefined,
       }}
       savedViews={{ views: VIEWS, activeViewId: view, onSelect: (id) => { setView(id); paged.resetPage(); } }}
-      actionBar={view === "coverage" ? undefined : {
+      actionBar={!listing ? undefined : {
         start: (
           <>
             <SearchField aria-label="Search postings" placeholder="Document or journal number" className="w-full sm:w-72" value={search} onChange={setSearch} />
@@ -117,7 +120,7 @@ export function PostingsScreen() {
         <Notice tone="danger">{h.unbalancedEntries.length ? `${h.unbalancedEntries.length} posted journal(s) do not balance. ` : ""}{h.stuckDrafts ? `${h.stuckDrafts} automatic journal(s) are stuck in draft.` : ""}</Notice>
       )}
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
-      {view === "coverage" ? (
+      {view === "books" ? <BooksChecks /> : view === "coverage" ? (
         <EnterpriseDataGrid<CoverageRow>
           aria-label="Posting coverage" columns={coverageColumns} data={pagedCoverage.pageRows} getRowId={(row) => row.postingEvent}
           state={health.isLoading ? "loading" : health.isError ? "error" : "ready"}

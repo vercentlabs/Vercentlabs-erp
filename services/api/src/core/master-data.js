@@ -1103,9 +1103,10 @@ export async function seedBusinessDataFoundation(client, context) {
   );
   // The database gives the warehouse its MAIN storage location.
 
+  // The current financial year (from the company's start month) and its twelve monthly accounting periods (migration 0196).
   await client.query(
     `
-      WITH period AS (
+      WITH bounds AS (
         SELECT make_date(
           CASE
             WHEN extract(month FROM current_date)::integer >= $2
@@ -1115,22 +1116,32 @@ export async function seedBusinessDataFoundation(client, context) {
           $2,
           1
         ) AS start_date
+      ), year AS (
+        INSERT INTO tenant.accounting_fiscal_years (organization_id, code, name, start_date, end_date, created_by, updated_by)
+        SELECT $1, 'FY' || to_char(start_date, 'YYYY') || '-' || to_char(start_date + interval '1 year', 'YY'),
+               'FY ' || to_char(start_date, 'YYYY') || '-' || to_char(start_date + interval '1 year', 'YY'),
+               start_date, (start_date + interval '1 year - 1 day')::date, $3, $3
+          FROM bounds
+        ON CONFLICT (organization_id, code) DO UPDATE SET updated_at = now()
+        RETURNING id, start_date, end_date
       )
       INSERT INTO tenant.fiscal_periods (
-        organization_id, name, fiscal_year,
-        start_date, end_date, created_by, updated_by
+        organization_id, name, fiscal_year, fiscal_year_id, start_date, end_date,
+        period_number, period_type, created_by, updated_by
       )
       SELECT
         $1,
-        'FY ' || to_char(start_date, 'YYYY')
-          || '-' || to_char(start_date + interval '1 year', 'YY'),
-        to_char(start_date, 'YYYY')
-          || '-' || to_char(start_date + interval '1 year', 'YY'),
-        start_date,
-        (start_date + interval '1 year - 1 day')::date,
+        to_char(month_start, 'Mon YYYY'),
+        to_char(year.start_date, 'YYYY') || '-' || to_char(year.end_date, 'YY'),
+        year.id,
+        month_start::date,
+        (month_start + interval '1 month - 1 day')::date,
+        row_number() OVER (ORDER BY month_start)::int,
+        'standard',
         $3,
         $3
-      FROM period
+      FROM year
+      CROSS JOIN LATERAL generate_series(year.start_date::timestamp, year.end_date::timestamp, interval '1 month') AS month_start
       ON CONFLICT (organization_id, start_date, end_date)
       DO NOTHING
     `,

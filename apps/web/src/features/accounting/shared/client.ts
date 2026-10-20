@@ -64,7 +64,8 @@ export const act = <T = { record: Row }>(
 export type AccountingOptions = Partial<
   Record<OptionKey, Array<{ id: string; code: string; name: string }>>
 >;
-type OptionKey = import("@/features/accounting/shared/FieldInput").OptionSource;
+// The option lists the generic options view returns (used by the customer refund screens).
+type OptionKey = "accounts" | "journals" | "customers" | "suppliers" | "bankAccounts" | "periods" | "postingAccounts";
 
 export function useAccountingOptions() {
   const workspace = useWorkspaceContext();

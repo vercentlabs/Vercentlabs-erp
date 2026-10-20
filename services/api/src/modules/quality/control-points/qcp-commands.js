@@ -7,12 +7,12 @@ import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { qx } from "../common.js";
 import { activateDueQcps, loadObligation, recordQcpEvent, today } from "./qcp-engine.js";
 import {
-  BINDINGS, EDITABLE, GATES, MATCH_MODES, QCP, REQUIREMENTS, SCOPES, STAGES, TRIGGERS, bool, dateOrNull, expectVersion, has, need, oneOf, qcpContentHash, qcpError, text, textOrNull,
+  BINDINGS, CHECKPOINTS, EDITABLE, GATES, MATCH_MODES, QCP, REQUIREMENTS, SCOPES, STAGES, TRIGGERS, bool, dateOrNull, expectVersion, has, need, oneOf, qcpContentHash, qcpError, text, textOrNull,
   tierOf, uuid, uuidOrNull, validateQcpVersion,
 } from "./qcp-rules.js";
 
 const FIELDS = ["inspection_stage", "trigger_event", "requirement_type", "gate_type", "spec_binding", "specification_id", "spec_version_id", "match_mode", "purpose_code", "quantity_scope",
-  "lot_context", "waiver_allowed", "effective_from", "effective_until", "revision_reason"];
+  "lot_context", "waiver_allowed", "effective_from", "effective_until", "revision_reason", "checkpoint_type", "checkpoint_interval", "operation_label"];
 export async function loadPoint(client, c, id, { lock = false } = {}) {
   const row = (await qx(client, `SELECT * FROM tenant.quality_control_points WHERE organization_id = $1 AND id = $2${lock ? " FOR UPDATE" : ""}`, [c.organizationId, uuid(id, "Control point")])).rows[0];
   if (!row) throw qcpError(404, "QUALITY_QCP_NOT_FOUND");
@@ -66,7 +66,16 @@ async function fieldsOf(client, c, input, base = {}) {
     effective_from: dateOrNull(pick("effectiveFrom", "effective_from"), "Effective from") ?? base.effective_from ?? (await today(client)),
     effective_until: dateOrNull(pick("effectiveUntil", "effective_until"), "Effective until"),
     revision_reason: textOrNull(pick("revisionReason", "revision_reason"), 1000),
+    ...checkpointOf(trigger, pick("checkpointType", "checkpoint_type"), pick("checkpointInterval", "checkpoint_interval"), pick("operationLabel", "operation_label")),
   };
+}
+// The in-process checkpoint: only for the production trigger (other triggers store none).
+function checkpointOf(trigger, type, interval, label) {
+  if (trigger !== "PRODUCTION_OPERATION_READY_FOR_QC") return { checkpoint_type: null, checkpoint_interval: null, operation_label: null };
+  const kind = CHECKPOINTS[type] ? type : "OPERATION_COMPLETION";
+  const every = kind === "PERIODIC" && interval !== undefined && interval !== null && interval !== "" ? Number(interval) : null;
+  if (kind === "PERIODIC" && every !== null && !(every > 0)) throw qcpError(400, "QUALITY_QCP_INVALID", "Enter how many units are produced between checks.");
+  return { checkpoint_type: kind, checkpoint_interval: every === null ? null : String(every), operation_label: textOrNull(label, 120) };
 }
 async function ruleRow(client, c, input) {
   const scope = oneOf(input.scope ?? input.scopeKind ?? (input.itemId ? "ITEM" : input.itemGroupId ? "CATEGORY" : "COMPANY_DEFAULT"), SCOPES, "QUALITY_QCP_APPLICABILITY_INVALID", "Applies to");
@@ -268,7 +277,7 @@ export async function copyQualityControlPoint(client, c, pointId, input = {}) {
     name: input.name ?? `${source.name} (copy)`, description: source.description, copiedFromId: source.id, idempotencyKey: input.idempotencyKey,
     triggerEvent: base.trigger_event, stage: base.inspection_stage, requirementType: base.requirement_type, gateType: has(c, QCP.manageGate) ? base.gate_type : "NONE", specBinding: base.spec_binding,
     specificationId: base.specification_id, specVersionId: base.spec_version_id, matchMode: base.match_mode, purposeCode: base.purpose_code, quantityScope: base.quantity_scope,
-    lotContext: base.lot_context, waiverAllowed: base.waiver_allowed,
+    lotContext: base.lot_context, waiverAllowed: base.waiver_allowed, checkpointType: base.checkpoint_type, checkpointInterval: base.checkpoint_interval, operationLabel: base.operation_label,
     rules: input.rules ?? rules.map((r) => ({ scope: r.scope_kind, itemId: r.item_id, itemGroupId: r.item_group_id, supplierId: r.supplier_id, warehouseId: r.warehouse_id })),
   });
 }
@@ -293,6 +302,8 @@ export async function retireQualityControlPoint(client, c, pointId, input = {}) 
 // ------------------------------------------------------------------ waivers (approved deviations)
 async function criticalFailure(client, c, inspectionId) {
   if (!inspectionId) return false;
+  // The inspection's own evaluation (sample-level observations, MVP 31), or a failed critical point of an earlier-style result.
+  if ((await client.query(`SELECT critical_failure FROM tenant.quality_inspections WHERE organization_id = $1 AND id = $2`, [c.organizationId, inspectionId])).rows[0]?.critical_failure) return true;
   return Boolean((await client.query(`SELECT 1 FROM tenant.quality_inspection_results r JOIN tenant.quality_inspection_points p ON p.id = r.inspection_point_id
     WHERE r.organization_id = $1 AND r.inspection_id = $2 AND r.result_status = 'fail' AND p.critical LIMIT 1`, [c.organizationId, inspectionId])).rows[0]);
 }

@@ -7,7 +7,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
 
 import { formatDate, formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -97,7 +97,7 @@ export function MaterialConsumptionDetailScreen({ consumptionId }: { consumption
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={MC_BASE}>Material Consumption</Link>,
+        breadcrumbs: <Breadcrumb href={MC_BASE}>Material Consumption</Breadcrumb>,
         title: `${note.number} · ${note.order.number}`,
         status: <StatusBadge tone={CONSUMPTION_TONE[note.status] ?? "neutral"}>{note.statusLabel}</StatusBadge>,
         fields: [

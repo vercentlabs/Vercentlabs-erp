@@ -6,7 +6,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
 
 import { formatDate, formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -82,7 +82,7 @@ export function HoldDetailScreen({ holdId }: { holdId: string }) {
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={HOLDS_BASE}>Production Holds</Link>,
+        breadcrumbs: <Breadcrumb href={HOLDS_BASE}>Production Holds</Breadcrumb>,
         title: `${hold.number} · ${hold.order.number}`,
         status: <span className="flex flex-wrap gap-1"><StatusBadge tone={STATUS_TONE[hold.status]}>{hold.statusLabel}</StatusBadge><StatusBadge tone={SEVERITY_TONE[hold.severity]}>{hold.severity.toLowerCase()}</StatusBadge>
           {hold.overdue && <StatusBadge tone="danger">Overdue</StatusBadge>}</span>,

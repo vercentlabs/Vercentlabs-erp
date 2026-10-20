@@ -89,8 +89,11 @@ export { qualityContext } from "./modules/quality/common.js";
 export * from "./modules/quality/specifications/index.js";
 export * from "./modules/quality/control-points/index.js";
 export {
-  getQualitySettings, saveQualitySettings, listInspections, getInspection, createInspection as createQualityInspection, recordInspectionResults, completeInspection as completeQualityInspection, releaseInspection as releaseQualityInspection, cancelInspection as cancelQualityInspection,
+  getQualitySettings, saveQualitySettings, listInspections, getInspection, createInspection as createQualityInspection, cancelInspection as cancelQualityInspection,
 } from "./modules/quality/inspections.js";
+export * from "./modules/quality/incoming/index.js";
+export * from "./modules/quality/inprocess/index.js";
+export * from "./modules/quality/dispatch/index.js";
 export {
   listNonconformances, getNonconformance, createNonconformance as createQualityNonconformance, transitionNonconformance, setDisposition, approveUseAsIs, closeNonconformance, cancelNonconformance,
 } from "./modules/quality/nonconformance.js";

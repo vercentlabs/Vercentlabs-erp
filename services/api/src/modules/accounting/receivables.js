@@ -531,6 +531,7 @@ export async function allocateCustomerReceipt(client, context, receiptIdValue, i
   }
   let totalReceiptAmount = 0n;
   let totalInvoiceSettlement = 0n;
+  const seenInRequest = new Set();
   for (const allocation of input.allocations) {
     const invoiceId = uuid(allocation.invoiceId, "Customer invoice");
     const invoiceResult = await client.query(
@@ -567,13 +568,9 @@ export async function allocateCustomerReceipt(client, context, receiptIdValue, i
         throw new AccountingError(409, "The selected invoice installment is unavailable or smaller than the settlement.");
       }
     }
-    const duplicate = await client.query(
-      `SELECT id FROM tenant.accounting_customer_receipt_allocations
-        WHERE organization_id=$1 AND receipt_id=$2 AND customer_invoice_id=$3
-          AND COALESCE(schedule_id,'00000000-0000-0000-0000-000000000000'::uuid)=COALESCE($4::uuid,'00000000-0000-0000-0000-000000000000'::uuid)`,
-      [context.organizationId, receipt.id, invoice.id, scheduleId],
-    );
-    if (duplicate.rows[0]) throw new AccountingError(409, "This receipt has already been allocated to the selected invoice installment.");
+    const requestKey = `${invoice.id}:${scheduleId ?? ""}`;
+    if (seenInRequest.has(requestKey)) throw new AccountingError(409, `${invoice.invoice_number} appears twice in this application; enter it once.`);
+    seenInRequest.add(requestKey);
     const allocationId = randomUUID();
     const adjustment = await createCustomerSettlementAdjustment(client, context, {
       allocationId,

@@ -1,7 +1,7 @@
 "use client";
 
 // Automatic Accounting Posting: the client of /api/accounting/{postings, journal-entries, ledger, posting-accounts, input-tax-credit, expenses,
-// fund-transfers, opening-balances}. Errors arrive as AccountingApiError with the domain's plain-language message.
+// opening-balances}. Errors arrive as AccountingApiError with the domain's plain-language message.
 import { AccountingApiError } from "@/features/accounting/shared/client";
 
 export { AccountingApiError };
@@ -52,33 +52,15 @@ export const retryAllPostings = () => post<{ result: { posted: number; failed: n
 export const scanPostings = () => post<{ result: { found: number } }>(`/postings/scan`).then((r) => r.result);
 export const postingHealth = () => call<{ health: PostingHealth; coverage: CoverageRow[] }>(`/postings/health`);
 
+// Each sub-ledger against the accounts that summarise it.
+export type BooksCheck = {
+  key: string; area: string; label: string; status: "ok" | "difference" | "attention" | "not_applicable" | "info"; ledger?: number; subledger?: number; difference?: number;
+  ledgerLabel?: string; subledgerLabel?: string; note?: string | null; href?: string; count?: number; items?: Array<{ label: string; amount: number; href?: string }>;
+};
+export const moduleBooks = () => call<{ books: { checks: BooksCheck[]; agree: boolean; perpetualInventory: boolean } }>(`/postings/books`).then((r) => r.books);
+
 export type SourceAccounting = { detailed: boolean; postings: Array<Posting & { lines: Array<{ account: string; debit: string; credit: string }>; reversalLines: Array<{ account: string; debit: string; credit: string }> }> };
 export const sourceAccounting = (type: string, id: string) => call<{ accounting: SourceAccounting }>(`/postings/source${qs({ type, id })}`).then((r) => r.accounting);
-
-// ------------------------------------------------------------------ journals and ledger
-export type JournalRow = {
-  id: string; number: string; accountingDate: string; transactionDate: string; type: string; description: string; reference: string | null; status: string; automatic: boolean;
-  documentType: string; documentLabel: string; sourceNumber: string | null; sourceHref: string | null; total: string; currency: string; createdBy: string | null; postedBy: string | null; postedAt: string | null;
-};
-export type JournalDetail = {
-  id: string; number: string; journal: string; period: string; periodStatus: string; entryDate: string; accountingDate: string; documentDate: string | null; type: string; description: string;
-  reference: string | null; status: string; currency: string; functionalCurrency: string; exchangeRate: string; automatic: boolean;
-  source: { type: string; label: string; module: string; number: string | null; href: string | null } | null;
-  createdBy: string | null; createdAt: string; approvedBy: string | null; approvedAt: string | null; postedBy: string | null; postedAt: string | null;
-  reversedBy: { id: string; number: string; reason: string | null } | null; reversalOf: { id: string; number: string } | null;
-  lines: Array<{ sequence: number; accountId: string; account: string; accountClass: string; description: string | null; party: string | null; department: string | null; costCenter: string | null;
-    taxType: string | null; currency: string; debit: string; credit: string }>;
-  totals: { debit: string; credit: string }; posting: Posting | null;
-};
-export type AccountLedger = {
-  account: { id: string; code: string; name: string; accountClass: string; normalBalance: string; status: string }; from: string | null; to: string | null;
-  opening: string; debit: string; credit: string; closing: string;
-  lines: Array<{ journalEntryId: string; journalNumber: string; date: string; description: string | null; party: string | null; document: string; sourceNumber: string | null; sourceHref: string | null;
-    debit: string; credit: string; balance: string }>;
-};
-export const listJournals = (filters: Record<string, string | undefined>) => call<{ journals: JournalRow[] }>(`/journal-entries${qs(filters)}`).then((r) => r.journals);
-export const getJournal = (id: string) => call<{ journal: JournalDetail }>(`/journal-entries/${id}`).then((r) => r.journal);
-export const accountLedger = (accountId: string, filters: Record<string, string | undefined>) => call<{ ledger: AccountLedger }>(`/ledger/${accountId}${qs(filters)}`).then((r) => r.ledger);
 
 // ------------------------------------------------------------------ posting accounts
 export type PostingAccount = {
@@ -100,28 +82,7 @@ export const listItc = (status?: string) => call<{ itc: { rows: ItcRow[]; totals
 export const decideItc = (input: { sourceType: string; sourceId: string; decision: ItcStatus; reason: string; reference?: string }) => post(`/input-tax-credit`, { action: "decide", ...input });
 export const undoItc = (input: { sourceType: string; sourceId: string; reason: string }) => post(`/input-tax-credit`, { action: "undo", ...input });
 
-// ------------------------------------------------------------------ expenses, transfers, opening balances
-export type Expense = {
-  id: string; number: string; date: string; description: string; status: "DRAFT" | "SUBMITTED" | "POSTED" | "REJECTED" | "REVERSED" | "CANCELLED"; expenseAccount: { id: string; label: string };
-  payee: string | null; supplierGstin: string | null; supplierInvoiceReference: string | null; currency: string; amount: string; gstTreatment: "NO_GST" | "GST_CLAIM_ITC" | "GST_NO_ITC";
-  gstSupply: string | null; gstRate: string; taxAmount: string; total: string; settlement: "PAID" | "PAYABLE"; paidFrom: { id: string; label: string } | null; paidAt: string | null;
-  submittedBy: string | null; submittedAt: string | null; approvedBy: string | null; approvedAt: string | null; rejectionReason: string | null; journalEntryId: string | null; journalNumber: string | null;
-  paymentJournalEntryId: string | null; paymentJournalNumber: string | null; reversedAt: string | null; reversalReason: string | null; createdBy: string | null; createdAt: string; canApprove: boolean;
-};
-export const listExpenses = (filters: Record<string, string | undefined>) => call<{ expenses: Expense[] }>(`/expenses${qs(filters)}`).then((r) => r.expenses);
-export const getExpense = (id: string) => call<{ expense: Expense }>(`/expenses/${id}`).then((r) => r.expense);
-export const createExpense = (input: Record<string, unknown>) => post<{ expense: Expense }>(`/expenses`, input).then((r) => r.expense);
-export const expenseAction = (id: string, action: "submit" | "approve" | "reject" | "cancel" | "pay" | "reverse", input: Record<string, unknown> = {}) =>
-  post<{ expense: Expense }>(`/expenses/${id}/${action}`, input).then((r) => r.expense);
-
-export type FundTransfer = {
-  id: string; number: string; date: string; from: { id: string; label: string }; to: { id: string; label: string }; amount: string; currency: string; reference: string | null; description: string | null;
-  status: "POSTED" | "REVERSED"; journalEntryId: string | null; journalNumber: string | null; reversedAt: string | null; reversalReason: string | null; createdBy: string | null; createdAt: string;
-};
-export const listTransfers = () => call<{ transfers: FundTransfer[] }>(`/fund-transfers`).then((r) => r.transfers);
-export const createTransfer = (input: Record<string, unknown>) => post<{ transfer: FundTransfer }>(`/fund-transfers`, input).then((r) => r.transfer);
-export const reverseTransfer = (id: string, reason: string) => post<{ transfer: FundTransfer }>(`/fund-transfers/${id}/reverse`, { reason }).then((r) => r.transfer);
-
+// ------------------------------------------------------------------ opening balances
 export type OpeningBalances = {
   id: string; number: string; asOfDate: string; description: string; status: "DRAFT" | "SUBMITTED" | "POSTED" | "REJECTED" | "REVERSED"; totalDebit: string; totalCredit: string; balancingAmount: string;
   submittedBy: string | null; submittedAt: string | null; approvedBy: string | null; approvedAt: string | null; rejectionReason: string | null; journalEntryId: string | null; journalNumber: string | null;

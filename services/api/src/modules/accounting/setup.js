@@ -1,7 +1,6 @@
 import {
   ACCOUNTING_PERMISSIONS,
   AccountingError,
-  currency,
   event,
   loadOrganization,
   optionalUuid,
@@ -65,6 +64,7 @@ export async function updateAccountingSettings(client, context, input) {
     ["autoPostVendorBills", "auto_post_vendor_bills"],
     ["itcRequiresConfirmation", "itc_requires_confirmation"],
     ["expenseApprovalRequired", "expense_approval_required"],
+    ["manualJournalApproval", "manual_journal_approval"],
     ["hardCloseRequiresAllTasks", "hard_close_requires_all_tasks"],
     ["customerInvoiceApprovalRequired", "customer_invoice_approval_required"],
     ["vendorBillApprovalRequired", "vendor_bill_approval_required"],
@@ -109,20 +109,6 @@ export async function updateAccountingSettings(client, context, input) {
     },
   );
   return updated;
-}
-
-export async function createAccountingAccount(client, context, input) {
-  requirePermission(context, ACCOUNTING_PERMISSIONS.settingsManage);
-  const ledgerId = uuid(input.ledgerId, "Ledger");
-  const ledger = await client.query(`SELECT id FROM tenant.accounting_ledgers WHERE organization_id=$1 AND id=$2 AND status='active'`, [context.organizationId, ledgerId]);
-  if (!ledger.rows[0]) throw new AccountingError(409, "Ledger is unavailable.");
-  const accountClass = String(input.accountClass || "");
-  if (!["asset","liability","equity","revenue","expense","memorandum"].includes(accountClass)) throw new AccountingError(400, "Account class is invalid.");
-  const accountType = String(input.accountType || "");
-  const allowedTypes = ["group","bank","cash","receivable","payable","inventory","fixed_asset","accumulated_depreciation","tax_input","tax_output","revenue","other_income","cogs","expense","other_expense","equity","retained_earnings","current_asset","non_current_asset","current_liability","non_current_liability","suspense","rounding","fx_gain","fx_loss","statistical"];
-  if (!allowedTypes.includes(accountType)) throw new AccountingError(400, "Account type is invalid.");
-  const result = await client.query(`INSERT INTO tenant.accounting_accounts (organization_id,ledger_id,parent_id,code,name,account_class,account_type,normal_balance,is_group,allow_manual_posting,reconciliation_required,currency_code,status,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active',$13,$13) RETURNING *`, [context.organizationId, ledgerId, optionalUuid(input.parentId, "Parent account"), requiredText(input.code, "Account code", 50), requiredText(input.name, "Account name", 200), accountClass, accountType, input.normalBalance === "credit" ? "credit" : "debit", strictBoolean(input.isGroup, "Is group", { defaultValue: false }), strictBoolean(input.allowManualPosting, "Allow manual posting", { defaultValue: true }), strictBoolean(input.reconciliationRequired, "Reconciliation required", { defaultValue: false }), input.currencyCode ? currency(input.currencyCode) : null, context.userId]);
-  return result.rows[0];
 }
 
 export async function upsertAccountMapping(client, context, input) {

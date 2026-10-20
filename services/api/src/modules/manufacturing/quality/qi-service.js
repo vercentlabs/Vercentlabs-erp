@@ -310,6 +310,11 @@ export async function finalizeInspection(client, c, id, input = {}) {
     throw qiError(409, D(entry.quality_hold_quantity ?? 0) > ZERO && add(add(accepted, rejected), held) <= D(entry.pending_remaining) ? "MFG_QI_HOLD_ACTIVE" : "MFG_QI_ALREADY_DISPOSED",
       `${entry.entry_number}: only ${q(free)} still awaits a decision — another inspection decided some of it.`);
   }
+  // Quality's in-process gate (MVP 32): output is accepted only up to what every blocking in-process requirement on the entry cleared.
+  if (accepted > ZERO) {
+    const { assertProductionAcceptance } = await import("../../quality/inprocess/ip-engine.js");
+    await assertProductionAcceptance(client, c, { entryId: entry.id, quantity: q(accepted) });
+  }
   let decisionId = null;
   let holdId = null;
   if (add(accepted, rejected) > ZERO) {
@@ -339,6 +344,77 @@ export async function finalizeInspection(client, c, id, input = {}) {
   await entryEvent(client, c, entry.id, "QUALITY_DECIDED", summary);
   await orderEvent(client, c, order.id, "QUALITY_DECIDED", { summary, details: { inspectionId: inspection.id } });
   return { inspection: await getQualityInspection(client, c, inspection.id) };
+}
+
+// Quality's in-process disposition scraps part of an entry's output awaiting inspection (input: { entryId, quantity, reason, reference, idempotencyKey }).
+// Manufacturing records it as its own quality decision — rejected, scrap — under the order's and the entry's locks, once per key: what still
+// awaits inspection (less what is held) must cover it. Returns the decision.
+export async function recordInProcessScrap(client, c, input = {}) {
+  needQi(c, QI.finalize);
+  const key = text(input.idempotencyKey, 200);
+  if (!key) throw moError(400, "MFG_MO_KEY_REQUIRED");
+  const prior = (await client.query(`SELECT id FROM tenant.manufacturing_quality_decisions WHERE organization_id = $1 AND idempotency_key = $2`, [c.organizationId, key])).rows[0];
+  if (prior) return { decisionId: prior.id, replayed: true };
+  const entry0 = (await client.query(`SELECT manufacturing_order_id FROM tenant.manufacturing_production_entries WHERE organization_id = $1 AND id = $2`, [c.organizationId, uuid(input.entryId, "Production entry")])).rows[0];
+  if (!entry0) throw qiError(400, "MFG_QI_SOURCE_INVALID");
+  const order = await loadQiOrder(client, c, entry0.manufacturing_order_id, { lock: true });
+  const entry = (await client.query(`SELECT * FROM tenant.manufacturing_production_entries WHERE organization_id = $1 AND id = $2 FOR UPDATE`, [c.organizationId, input.entryId])).rows[0];
+  if (entry.status !== "REPORTED") throw qiError(409, "MFG_QI_SOURCE_INVALID", "The production entry is no longer reported.");
+  const quantity = D(String(input.quantity ?? "0"));
+  if (quantity <= ZERO) throw qiError(400, "MFG_QI_QTY_INVALID", "Enter the quantity scrapped.");
+  const free = sub(D(entry.pending_remaining), D(entry.quality_hold_quantity ?? 0));
+  if (quantity > free) throw qiError(409, "MFG_QI_ALREADY_DISPOSED", `${entry.entry_number}: only ${q(free)} still awaits a decision.`);
+  const reason = text(input.reason, 500) || "Scrapped by Quality's in-process disposition";
+  const decisionId = randomUUID();
+  await client.query(
+    `INSERT INTO tenant.manufacturing_quality_decisions (id, organization_id, manufacturing_order_id, production_entry_id, accepted_quantity, rejected_quantity, rejection_reason, disposition,
+       inspection_reference, idempotency_key, decided_by, rejection_disposition, reason_code) VALUES ($1,$2,$3,$4,0,$5,$6,'SCRAP',$7,$8,$9,'SCRAP','IN_PROCESS_FAILURE')`,
+    [decisionId, c.organizationId, order.id, entry.id, q(quantity), reason, text(input.reference, 120) || null, key, c.userId ?? null]);
+  await client.query(`UPDATE tenant.manufacturing_production_entries SET pending_remaining = pending_remaining - $3 WHERE organization_id = $1 AND id = $2`, [c.organizationId, entry.id, q(quantity)]);
+  await client.query(`UPDATE tenant.manufacturing_orders SET rejected_quantity = rejected_quantity + $3, pending_inspection_quantity = pending_inspection_quantity - $3, version = version + 1
+      WHERE organization_id = $1 AND id = $2`, [c.organizationId, order.id, q(quantity)]);
+  const summary = `${text(input.reference, 120) || "In-process disposition"}: ${q(quantity)} scrapped — ${reason}`;
+  await entryEvent(client, c, entry.id, "QUALITY_DECIDED", summary);
+  await orderEvent(client, c, order.id, "QUALITY_DECIDED", { summary, details: { decisionId, inProcess: true } });
+  return { decisionId, replayed: false };
+}
+
+// Quality's final disposition accepts part of an entry's output awaiting inspection (input: { entryId, quantity, reason, reference, idempotencyKey }).
+// Manufacturing records it as its own quality decision — accepted — under the order's and the entry's locks, once per key, through the same
+// checks as a final inspection: what still awaits inspection (less what is held) covers it, Quality's gates allow it, and the person who reported
+// the output doesn't accept it (unless the company allows it). The accepted output is then received through the finished-goods receipt.
+export async function recordQualityAcceptance(client, c, input = {}) {
+  needQi(c, QI.finalize);
+  const key = text(input.idempotencyKey, 200);
+  if (!key) throw moError(400, "MFG_MO_KEY_REQUIRED");
+  const prior = (await client.query(`SELECT id FROM tenant.manufacturing_quality_decisions WHERE organization_id = $1 AND idempotency_key = $2`, [c.organizationId, key])).rows[0];
+  if (prior) return { decisionId: prior.id, replayed: true };
+  const entry0 = (await client.query(`SELECT manufacturing_order_id FROM tenant.manufacturing_production_entries WHERE organization_id = $1 AND id = $2`, [c.organizationId, uuid(input.entryId, "Production entry")])).rows[0];
+  if (!entry0) throw qiError(400, "MFG_QI_SOURCE_INVALID");
+  const order = await loadQiOrder(client, c, entry0.manufacturing_order_id, { lock: true });
+  requireInspectable(order);
+  const entry = (await client.query(`SELECT * FROM tenant.manufacturing_production_entries WHERE organization_id = $1 AND id = $2 FOR UPDATE`, [c.organizationId, input.entryId])).rows[0];
+  if (entry.status !== "REPORTED") throw qiError(409, "MFG_QI_SOURCE_INVALID", "The production entry is no longer reported.");
+  const settings = await qiSettings(client, c);
+  if (entry.posted_by && entry.posted_by === c.userId && !settings.selfApproval) throw qiError(403, "MFG_QI_PERMISSION_DENIED", "Someone other than the person who reported this output decides its quality.");
+  const quantity = D(String(input.quantity ?? "0"));
+  if (quantity <= ZERO) throw qiError(400, "MFG_QI_QTY_INVALID", "Enter the quantity accepted.");
+  const free = sub(D(entry.pending_remaining), D(entry.quality_hold_quantity ?? 0));
+  if (quantity > free) throw qiError(409, "MFG_QI_ALREADY_DISPOSED", `${entry.entry_number}: only ${q(free)} still awaits a decision.`);
+  const { assertProductionAcceptance } = await import("../../quality/inprocess/ip-engine.js");
+  await assertProductionAcceptance(client, c, { entryId: entry.id, quantity: q(quantity) });
+  const decisionId = randomUUID();
+  await client.query(
+    `INSERT INTO tenant.manufacturing_quality_decisions (id, organization_id, manufacturing_order_id, production_entry_id, accepted_quantity, rejected_quantity, inspection_reference,
+       idempotency_key, decided_by) VALUES ($1,$2,$3,$4,$5,0,$6,$7,$8)`,
+    [decisionId, c.organizationId, order.id, entry.id, q(quantity), text(input.reference, 120) || null, key, c.userId ?? null]);
+  await client.query(`UPDATE tenant.manufacturing_production_entries SET pending_remaining = pending_remaining - $3 WHERE organization_id = $1 AND id = $2`, [c.organizationId, entry.id, q(quantity)]);
+  await client.query(`UPDATE tenant.manufacturing_orders SET accepted_quantity = accepted_quantity + $3, pending_inspection_quantity = pending_inspection_quantity - $3, version = version + 1
+      WHERE organization_id = $1 AND id = $2`, [c.organizationId, order.id, q(quantity)]);
+  const summary = `${text(input.reference, 120) || "Final inspection"}: ${q(quantity)} accepted${input.reason ? ` — ${text(input.reason, 300)}` : ""}`;
+  await entryEvent(client, c, entry.id, "QUALITY_DECIDED", summary);
+  await orderEvent(client, c, order.id, "QUALITY_DECIDED", { summary, details: { decisionId, finalInspection: true } });
+  return { decisionId, replayed: false };
 }
 
 // input: { reason, expectedVersion? }

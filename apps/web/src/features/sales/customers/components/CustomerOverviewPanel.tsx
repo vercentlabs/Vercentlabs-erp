@@ -163,7 +163,8 @@ export function CustomerOverviewPanel({ customer, onOpenTab }: { customer: Custo
               {canRefund && overview.finance.unallocatedAdvance + overview.finance.creditNoteCredit > 0.005 && (
                 <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/sales/refunds?create=1&partyId=${customer.id}`}>Refund available credit</Link>
               )}
-              <Link className="text-xs text-brand underline-offset-2 hover:underline" href="/accounting/customer-invoices">Open receivables in Accounting</Link>
+              <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/accounting/customer-invoices?partyId=${customer.id}`}>Open receivables in Accounting</Link>
+              <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/accounting/statements/customer/${customer.id}`}>Statement of account</Link>
             </div>
           </Card>
         </div>

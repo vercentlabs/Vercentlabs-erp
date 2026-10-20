@@ -6,11 +6,13 @@ import { itemProfileAccount } from "./item-profiles.js";
 import { postingAccountLabel } from "./posting-accounts.js";
 
 export class AccountingError extends Error {
-  constructor(status, message, code = "ACCOUNTING_ERROR") {
+  // details: optional, e.g. { field } so a form can point at the field in error.
+  constructor(status, message, code = "ACCOUNTING_ERROR", details = undefined) {
     super(message);
     this.name = "AccountingError";
     this.status = status;
     this.code = code;
+    if (details) this.details = details;
   }
 }
 
@@ -151,7 +153,11 @@ export async function getOpenPeriod(client, context, accountingDateValue) {
   );
   const period = result.rows[0];
   if (!period) throw new AccountingError(409, "No fiscal period covers the accounting date.");
-  if (period.status !== "open") throw new AccountingError(409, `Fiscal period ${period.name} is ${period.status}.`);
+  if (period.status !== "open") {
+    const label = { soft_closed: "in closing review", closed: "closed", locked: "locked" }[period.status] ?? period.status;
+    throw new AccountingError(409, `Accounting period ${period.name} is ${label}, so nothing can be posted to it. Use an open period's date, or ask Finance to reopen it.`,
+      "ACCOUNTING_PERIOD_CLOSED");
+  }
   return period;
 }
 

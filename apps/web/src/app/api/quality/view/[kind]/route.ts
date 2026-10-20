@@ -1,7 +1,5 @@
 import {
   getQualitySettings,
-  listInspections,
-  getInspection,
   listNonconformances,
   getNonconformance,
   getQualityKpiDashboard,
@@ -28,18 +26,6 @@ export async function GET(
           return { options: await listQualityOptions(client, context) };
         case "settings":
           return { settings: await getQualitySettings(client, context) };
-        case "inspections":
-          return {
-            rows: await listInspections(client, context, {
-              status: get("status"),
-              sourceType: get("sourceType"),
-              itemId: get("itemId"),
-            }),
-          };
-        case "inspection":
-          return {
-            inspection: await getInspection(client, context, get("id") ?? ""),
-          };
         case "nonconformances":
           return {
             rows: await listNonconformances(client, context, {

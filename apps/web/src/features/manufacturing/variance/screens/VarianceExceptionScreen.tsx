@@ -6,7 +6,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -92,7 +92,7 @@ function ExceptionView({ exception }: { exception: VarianceException }) {
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={VARIANCE_BASE}>Variance Exceptions</Link>,
+        breadcrumbs: <Breadcrumb href={VARIANCE_BASE}>Variance Exceptions</Breadcrumb>,
         title: `${exception.number} · ${line?.code ?? ""}`,
         status: <span className="flex flex-wrap gap-1"><StatusBadge tone={STATUS_TONE[exception.status] ?? "neutral"}>{exception.statusLabel}</StatusBadge>
           {line && <StatusBadge tone={BAND_TONE[line.band]}>{line.bandLabel}</StatusBadge>}{exception.stale && exception.status !== "RESOLVED" && <StatusBadge tone="danger">Figures changed</StatusBadge>}</span>,

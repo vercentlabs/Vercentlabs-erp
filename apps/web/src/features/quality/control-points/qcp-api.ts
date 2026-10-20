@@ -24,7 +24,7 @@ export type QcpVersion = { id: string; number: number; status: string; statusLab
   requirement: string; requirementLabel: string; gate: string; gateLabel: string; binding: string; bindingLabel: string; specificationId: string | null; specVersionId: string | null;
   matchMode: string; matchModeLabel: string; purpose: string; quantityScope: string; lotContext: string; waiverAllowed: boolean; effectiveFrom: string; effectiveUntil: string | null;
   revisionReason: string | null; submittedAt: string | null; reviewNote: string | null; approvedAt: string | null; approvalNote: string | null; publishedAt: string | null; activatedAt: string | null;
-  supersededAt: string | null; contentHash: string | null; version: number };
+  supersededAt: string | null; contentHash: string | null; version: number; checkpoint: string | null; checkpointLabel: string | null; checkpointInterval: number | null; operationLabel: string | null };
 export type QcpDetail = { id: string; code: string; name: string; description: string; status: string; retiredAt: string | null; retireReason: string | null; carriedOver: boolean; createdAt: string; version: number;
   selected: QcpVersion & { rules: QcpRule[]; issues: Array<{ code: string; message: string }>; valid: boolean; integrity: { intact: boolean } | null;
     comparison: { from: number; changes: Array<{ field: string; before: unknown; after: unknown }>; rulesAdded: string[]; rulesRemoved: string[] } | null;
@@ -41,7 +41,7 @@ export type RequirementDetail = Requirement & { resolution: Record<string, unkno
     requestedAt: string; decidedBy: string | null; decidedAt: string | null; note: string | null }>;
   events: Array<{ id: string; action: string; from: string | null; to: string | null; note: string | null; by: string; at: string }>;
   can: { waive: boolean; decide: boolean; reevaluate: boolean; decideConflict: boolean }; openWaiverId: string | null };
-export type Options = { specifications: Option[]; specVersions: Option[]; triggers: Option[]; requirements: Option[]; gates: Option[]; bindings: Option[]; matchModes: Option[]; scopes: Option[]; stages: Option[] };
+export type Options = { specifications: Option[]; specVersions: Option[]; triggers: Option[]; requirements: Option[]; gates: Option[]; checkpoints?: Option[]; bindings: Option[]; matchModes: Option[]; scopes: Option[]; stages: Option[] };
 export type Trigger = { id: string; source: string | null; sourceHref: string | null; date: string; outcome: string; outcomeLabel: string; forcedHold: boolean; controlPoints: string[]; requirements: number; at: string };
 
 export const QCP_REPORTS: Array<{ id: string; label: string }> = [

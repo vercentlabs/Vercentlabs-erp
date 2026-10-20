@@ -133,6 +133,7 @@ export const DOCUMENT_TYPES = Object.freeze(
     std("manufacturing_engineering_change", "manufacturing", "Engineering change", "ECN"),
     // Quality
     std("quality_inspection", "quality", "Inspection", "QI"),
+    std("quality_disposition", "quality", "Quality disposition", "QD"),
     std("quality_specification", "quality", "Inspection specification", "QSP", { configurable: false }),
     std("quality_control_point", "quality", "Quality control point", "QCP", { configurable: false }),
     std("quality_hold", "quality", "Quality hold", "QH"),

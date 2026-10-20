@@ -7,7 +7,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ accountId: 
   const { accountId } = await ctx.params;
   const url = new URL(request.url);
   const filters: Record<string, string> = {};
-  for (const key of ["from","to"]) {
+  for (const key of ["from", "to", "departmentId", "costCenterId"]) {
     const value = url.searchParams.get(key);
     if (value) filters[key] = value;
   }

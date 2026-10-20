@@ -2,11 +2,6 @@ import { z } from "zod";
 
 import {
   saveQualitySettings,
-  createQualityInspection,
-  recordInspectionResults,
-  completeQualityInspection,
-  releaseQualityInspection,
-  cancelQualityInspection,
   createQualityNonconformance,
   transitionNonconformance,
   setDisposition,
@@ -25,6 +20,7 @@ const idOf = (input: Record<string, unknown>) => {
   return id;
 };
 
+// Quality settings and non-conformance operations (inspections have their own routes under /api/quality/incoming-inspections).
 // One mutation endpoint per Quality operation. Each domain function enforces its OWN permission, state
 // machine and segregation of duties.
 export async function POST(
@@ -39,46 +35,6 @@ export async function POST(
       switch (action) {
         case "settings-save":
           return { record: await saveQualitySettings(client, context, input) };
-        case "inspection-create":
-          return {
-            record: await createQualityInspection(client, context, input),
-          };
-        case "inspection-results":
-          return {
-            record: await recordInspectionResults(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "inspection-complete":
-          return {
-            record: await completeQualityInspection(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "inspection-release":
-          return {
-            record: await releaseQualityInspection(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "inspection-cancel":
-          return {
-            record: await cancelQualityInspection(
-              client,
-              context,
-              idOf(input),
-              String(input.reason ?? ""),
-            ),
-          };
         case "nc-create":
           return {
             record: await createQualityNonconformance(client, context, input),

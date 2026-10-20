@@ -24,6 +24,12 @@ import {
 } from "./core.js";
 import { attachPostingJournal, markPostingPosted, markPostingReversed, openManualPosting, openPosting } from "./posting-service.js";
 
+// Today's calendar date where the server runs (toISOString would give UTC's date, a day behind in India before 05:30).
+export function localToday() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 async function loadJournal(client, context, ledgerId, journalIdValue) {
   const journalId = uuid(journalIdValue, "Journal");
   const result = await client.query(
@@ -344,13 +350,16 @@ export async function submitJournalEntry(client, context, idValue, assignedTo = 
   const total = totals.rows[0];
   if (Number(total.line_count) < 2 || decimal(total.debit) !== decimal(total.credit)) throw new AccountingError(409, "Journal must contain at least two balanced lines.");
   const rules = await client.query(
-    `SELECT journal.approval_required,settings.journal_approval_threshold
+    `SELECT journal.approval_required,settings.journal_approval_threshold,COALESCE(settings.manual_journal_approval,true) AS manual_journal_approval
        FROM tenant.accounting_journals journal
        LEFT JOIN tenant.accounting_settings settings ON settings.organization_id=journal.organization_id
       WHERE journal.organization_id=$1 AND journal.id=$2`,
     [context.organizationId, entry.journal_id],
   );
-  const approvalRequired = Boolean(rules.rows[0]?.approval_required) || decimal(total.debit) >= decimal(rules.rows[0]?.journal_approval_threshold || 0);
+  // A journal marked "approval required" always needs it; otherwise the company's policy decides: manual journals need a second person's
+  // approval (from the threshold amount up, 0 = every one), or none do.
+  const rule = rules.rows[0] ?? {};
+  const approvalRequired = Boolean(rule.approval_required) || (rule.manual_journal_approval !== false && decimal(total.debit) >= decimal(rule.journal_approval_threshold || 0));
   if (!approvalRequired) {
     await client.query(`UPDATE tenant.accounting_journal_entries SET status='approved',submitted_at=now(),submitted_by=$3,approved_at=now(),approved_by=$3,updated_by=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, entry.id, context.userId]);
     await event(client, context, "journal_entry", entry.id, "accounting.journal.auto_approved", entry.status, "approved", {});
@@ -419,7 +428,8 @@ export async function reverseJournalEntry(client, context, idValue, input = {}) 
   if (original.status !== "posted") throw new AccountingError(409, "Only a posted journal can be reversed.");
   if (original.reversed_by_id) return getJournalEntry(client, context, original.reversed_by_id);
   const detail = await getJournalEntry(client, context, original.id);
-  const accountingDate = isoDate(input.accountingDate || new Date().toISOString().slice(0, 10), "Reversal date");
+  const accountingDate = isoDate(input.accountingDate || localToday(), "Reversal date");
+  if (accountingDate < isoDate(original.accounting_date)) throw new AccountingError(400, `A reversal is dated on or after ${original.entry_number} (${isoDate(original.accounting_date)}).`, "ACCOUNTING_REVERSAL_DATE", { field: "accountingDate" });
   const reversal = await createJournalEntry(client, context, {
     ledgerId: original.ledger_id,
     journalId: original.journal_id,
@@ -456,3 +466,6 @@ export async function reverseJournalEntry(client, context, idValue, input = {}) 
   await event(client, context, "journal_entry", original.id, "accounting.journal.reversed", "posted", "reversed", { reversalEntryId: reversal.entry.id });
   return getJournalEntry(client, context, reversal.entry.id);
 }
+
+// For the manual journal commands (journals-gl/): the same line rules and writes as a new journal.
+export { loadJournal as loadAccountingJournal, normalizeLines as normalizeJournalLines, insertJournalLines };

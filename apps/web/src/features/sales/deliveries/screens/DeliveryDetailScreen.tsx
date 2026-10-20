@@ -35,6 +35,7 @@ import { DeliveryInvoiceDialog } from "@/features/sales/invoices/components/Invo
 import { CreateReturnDialog } from "@/features/sales/returns/components/ReturnDialogs";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
+import { DeliveryQualityPanel } from "@/features/quality/incoming/IncomingScreens";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -184,7 +185,7 @@ export function DeliveryDetailScreen({ deliveryId }: { deliveryId: string }) {
             <Tab id="notes">Notes &amp; attachments</Tab>
             <Tab id="history">History</Tab>
           </TabList>
-          <TabPanel id="overview"><div className="flex flex-col gap-4"><Overview detail={detail} /><AccountingRecorded sourceType="sales_delivery" sourceId={deliveryId} noun="delivery" /></div></TabPanel>
+          <TabPanel id="overview"><div className="flex flex-col gap-4"><Overview detail={detail} /><DeliveryQualityPanel deliveryId={deliveryId} /><AccountingRecorded sourceType="sales_delivery" sourceId={deliveryId} noun="delivery" /></div></TabPanel>
           <TabPanel id="items"><Items detail={detail} /></TabPanel>
           <TabPanel id="shipment"><Shipment detail={detail} /></TabPanel>
           <TabPanel id="invoice"><Invoice detail={detail} onInvoice={() => setDialog("invoice")} /></TabPanel>

@@ -9,7 +9,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
 
 import { formatDate, formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -111,7 +111,7 @@ export function FinishedGoodsReceiptDetailScreen({ receiptId }: { receiptId: str
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={FGR_BASE}>Finished-Goods Receipts</Link>,
+        breadcrumbs: <Breadcrumb href={FGR_BASE}>Finished-Goods Receipts</Breadcrumb>,
         title: `${receipt.number} · ${receipt.order.number}`,
         status: (
           <span className="flex flex-wrap gap-1">

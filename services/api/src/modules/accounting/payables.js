@@ -590,6 +590,7 @@ export async function allocateVendorPayment(client, context, paymentIdValue, inp
   }
   let totalPaymentAmount = 0n;
   let totalBillSettlement = 0n;
+  const seenInRequest = new Set();
   for (const allocation of input.allocations) {
     const billId = uuid(allocation.billId, "Vendor bill");
     const billResult = await client.query(
@@ -627,14 +628,9 @@ export async function allocateVendorPayment(client, context, paymentIdValue, inp
         throw new AccountingError(409, "The selected bill installment is unavailable or smaller than the settlement.");
       }
     }
-    const duplicate = await client.query(
-      `SELECT id FROM tenant.accounting_vendor_payment_allocations
-        WHERE organization_id=$1 AND payment_id=$2 AND vendor_bill_id=$3
-          AND NOT EXISTS (SELECT 1 FROM tenant.accounting_vendor_payment_allocation_reversals reversal WHERE reversal.organization_id=$1 AND reversal.allocation_id=accounting_vendor_payment_allocations.id)
-          AND COALESCE(schedule_id,'00000000-0000-0000-0000-000000000000'::uuid)=COALESCE($4::uuid,'00000000-0000-0000-0000-000000000000'::uuid)`,
-      [context.organizationId, payment.id, bill.id, scheduleId],
-    );
-    if (duplicate.rows[0]) throw new AccountingError(409, "This payment has already been allocated to the selected bill installment.");
+    const requestKey = `${bill.id}:${scheduleId ?? ""}`;
+    if (seenInRequest.has(requestKey)) throw new AccountingError(409, `${bill.bill_number} appears twice in this application; enter it once.`);
+    seenInRequest.add(requestKey);
     const allocationId = randomUUID();
     const adjustment = await createVendorSettlementAdjustment(client, context, {
       allocationId,

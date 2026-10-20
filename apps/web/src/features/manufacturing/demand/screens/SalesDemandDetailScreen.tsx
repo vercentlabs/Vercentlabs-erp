@@ -8,7 +8,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, TextField } from "@vercentlabs/design-system";
 
 import { formatDate, formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -73,7 +73,7 @@ export function SalesDemandDetailScreen({ demandId }: { demandId: string }) {
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={DEMAND_BASE}>Sales Demand</Link>,
+        breadcrumbs: <Breadcrumb href={DEMAND_BASE}>Sales Demand</Breadcrumb>,
         title: `${demand.salesOrder.number} · ${demand.item.name}`,
         status: <StatusBadge tone={DEMAND_TONE[demand.status] ?? "neutral"}>{demand.statusLabel}</StatusBadge>,
         fields: [

@@ -4,6 +4,8 @@ const ACCOUNT_SEED = Object.freeze([
   ["1110", "Cash on hand", "asset", "cash", "debit", false, true, true],
   ["1120", "Main bank", "asset", "bank", "debit", false, true, true],
   ["1190", "Bank suspense", "asset", "suspense", "debit", false, true, true],
+  // Money between two of the company's accounts on its way (sent one day, received another).
+  ["1195", "Funds in transit", "asset", "current_asset", "debit", false, false, true],
   ["1200", "Trade receivables", "asset", "receivable", "debit", false, false, true],
   ["1300", "Inventory", "asset", "inventory", "debit", false, false, true],
   ["1310", "Work in progress", "asset", "inventory", "debit", false, false, true],
@@ -25,6 +27,12 @@ const ACCOUNT_SEED = Object.freeze([
   ["2213", "Output IGST", "liability", "tax_output", "credit", false, false, true],
   ["2214", "Output GST cess", "liability", "tax_output", "credit", false, false, true],
   ["2300", "Withholding taxes payable", "liability", "tax_output", "credit", false, false, true],
+  // Payroll liabilities (migration 0196 adds them to existing companies): posted by payroll, settled by payments.
+  ["2310", "Salaries payable", "liability", "current_liability", "credit", false, false, true],
+  ["2320", "TDS payable", "liability", "current_liability", "credit", false, false, true],
+  ["2330", "EPF payable", "liability", "current_liability", "credit", false, false, true],
+  ["2340", "ESI payable", "liability", "current_liability", "credit", false, false, true],
+  ["2350", "Professional tax payable", "liability", "current_liability", "credit", false, false, true],
   ["2400", "Other current liabilities", "liability", "current_liability", "credit", false, true, false],
   ["2410", "Expense claims payable", "liability", "current_liability", "credit", false, false, true],
   ["2500", "Long-term liabilities", "liability", "non_current_liability", "credit", false, true, false],
@@ -39,6 +47,7 @@ const ACCOUNT_SEED = Object.freeze([
   ["4900", "Other income", "revenue", "other_income", "credit", false, true, false],
   ["4950", "Purchase discounts and settlement gains", "revenue", "other_income", "credit", false, false, false],
   ["4960", "Inventory adjustment gain", "revenue", "other_income", "credit", false, true, false],
+  ["4970", "Gain on disposal of assets", "revenue", "other_income", "credit", false, true, false],
   ["5000", "Cost of sales", "expense", "cogs", "debit", false, true, false],
   ["5100", "Manufacturing variances", "expense", "cogs", "debit", false, false, false],
   ["5110", "Manufacturing labor applied", "expense", "cogs", "credit", false, false, false],
@@ -47,10 +56,23 @@ const ACCOUNT_SEED = Object.freeze([
   ["6100", "General expense", "expense", "expense", "debit", false, true, false],
   ["6150", "Ineligible input tax", "expense", "expense", "debit", false, false, false],
   ["6200", "Payroll expense", "expense", "expense", "debit", false, true, false],
+  ["6210", "Salaries and wages", "expense", "expense", "debit", false, true, false],
+  ["6220", "Employer statutory contributions", "expense", "expense", "debit", false, true, false],
   ["6300", "Depreciation expense", "expense", "expense", "debit", false, true, false],
   ["6400", "Bank charges", "expense", "expense", "debit", false, true, false],
   ["6500", "Bad debt and write-off", "expense", "expense", "debit", false, true, false],
   ["6550", "Inventory adjustment loss", "expense", "expense", "debit", false, true, false],
+  ["6570", "Loss on disposal of assets", "expense", "other_expense", "debit", false, true, false],
+  ["6600", "Rent", "expense", "expense", "debit", false, true, false],
+  ["6610", "Utilities", "expense", "expense", "debit", false, true, false],
+  ["6620", "Repairs and maintenance", "expense", "expense", "debit", false, true, false],
+  ["6630", "Marketing and advertising", "expense", "expense", "debit", false, true, false],
+  ["6640", "Travel and conveyance", "expense", "expense", "debit", false, true, false],
+  ["6650", "Office supplies and stationery", "expense", "expense", "debit", false, true, false],
+  ["6660", "Telephone and internet", "expense", "expense", "debit", false, true, false],
+  ["6670", "Professional and legal fees", "expense", "expense", "debit", false, true, false],
+  ["6680", "Staff welfare", "expense", "expense", "debit", false, true, false],
+  ["6690", "Vehicle and fuel", "expense", "expense", "debit", false, true, false],
   ["6900", "Rounding differences", "expense", "rounding", "debit", false, true, false],
   ["7000", "Foreign exchange", "revenue", "group", "credit", true, false, false],
   ["7100", "Realized FX gain", "revenue", "fx_gain", "credit", false, false, false],
@@ -59,8 +81,25 @@ const ACCOUNT_SEED = Object.freeze([
   ["7210", "Unrealized FX loss", "expense", "fx_loss", "debit", false, false, false],
 ]);
 
+// [code, name, description, expense account, usual GST rate (null: varies), receipt required, no receipt needed up to, order]
+export const EXPENSE_CATEGORY_SEED = Object.freeze([
+  ["RENT", "Rent", "Office, shop or warehouse rent", "6600", 18, true, 0, 10],
+  ["UTILITIES", "Electricity and water", "Electricity, water and gas bills", "6610", null, true, 0, 20],
+  ["REPAIRS", "Repairs and maintenance", "Repairs to premises and equipment, AMC", "6620", 18, true, 0, 30],
+  ["MARKETING", "Marketing and advertising", "Ads, printing of marketing material, events", "6630", 18, true, 0, 40],
+  ["TRAVEL", "Travel and conveyance", "Tickets, hotels, cabs and local conveyance", "6640", null, true, 200, 50],
+  ["OFFICE", "Office supplies and stationery", "Stationery, printer supplies, small office items", "6650", 18, true, 0, 60],
+  ["TELECOM", "Telephone and internet", "Mobile, broadband and landline bills", "6660", 18, true, 0, 70],
+  ["PROFESSIONAL", "Professional fees", "CA, legal and consultant fees", "6670", 18, true, 0, 80],
+  ["STAFF_WELFARE", "Staff welfare", "Tea, snacks, team meals and celebrations", "6680", null, true, 500, 90],
+  ["VEHICLE", "Vehicle and fuel", "Fuel, parking, tolls and vehicle upkeep", "6690", null, true, 200, 100],
+  ["BANK_CHARGES", "Bank charges", "Charges and fees the bank deducts", "6400", 18, false, 0, 110],
+  ["GENERAL", "Miscellaneous", "Anything that fits no other category", "6100", null, true, 0, 200],
+]);
+
 const JOURNAL_SEED = Object.freeze([
-  ["GEN", "General journal", "general", null, null, true],
+  // The general journal follows the company's manual-journal approval policy (accounting_settings.manual_journal_approval).
+  ["GEN", "General journal", "general", null, null, false],
   ["SAL", "Sales journal", "sales", "1200", "4100", false],
   ["PUR", "Purchase journal", "purchase", "6100", "2100", false],
   ["BNK", "Bank journal", "bank", "1120", "1190", false],
@@ -75,7 +114,7 @@ const MAPPING_SEED = Object.freeze([
   ["receivable", "1200"], ["payable", "2100"], ["revenue", "4100"],
   ["service_revenue", "4200"], ["expense", "6100"], ["cogs", "5000"],
   ["input_tax", "1400"], ["output_tax", "2200"], ["withholding_tax", "2300"],
-  ["cash", "1110"], ["bank", "1120"], ["bank_suspense", "1190"],
+  ["cash", "1110"], ["bank", "1120"], ["bank_suspense", "1190"], ["funds_in_transit", "1195"],
   ["suspense", "2900"], ["rounding", "6900"], ["writeoff", "6500"],
   ["purchase_discount", "4950"],
   ["retained_earnings", "3200"], ["realized_fx_gain", "7100"],
@@ -90,7 +129,18 @@ const DEFAULT_MAPPING_SEED = Object.freeze([["inventory", "1300"], ["opening_bal
   ["output_cgst", "2211"], ["output_sgst", "2212"], ["output_igst", "2213"], ["output_cess", "2214"], ["input_cgst", "1411"], ["input_sgst", "1412"], ["input_igst", "1413"],
   ["input_cess", "1414"], ["input_tax_pending", "1419"], ["itc_ineligible", "6150"], ["grni", "2160"], ["expense_payable", "2410"],
   // Manufacturing: work in progress, and the variance an order closes at completion.
-  ["wip", "1310"], ["manufacturing_variance", "5100"], ["manufacturing_labor_applied", "5110"], ["manufacturing_overhead_applied", "5120"]]);
+  ["wip", "1310"], ["manufacturing_variance", "5100"], ["manufacturing_labor_applied", "5110"], ["manufacturing_overhead_applied", "5120"],
+  // Payroll and asset disposal (migration 0196).
+  ["salary_payable", "2310"], ["tds_payable", "2320"], ["epf_payable", "2330"], ["esi_payable", "2340"], ["pt_payable", "2350"],
+  ["salary_expense", "6210"], ["employer_contribution_expense", "6220"], ["asset_disposal_gain", "4970"], ["asset_disposal_loss", "6570"]]);
+
+// The accounts a sub-ledger owns (migration 0196): they take postings from their source documents, not from manual journals.
+const PAYROLL_CONTROL_CODES = new Set(["2310", "2320", "2330", "2340", "2350"]);
+const CONTROL_KIND_BY_TYPE = Object.freeze({ receivable: "receivable", payable: "payable", bank: "bank", cash: "cash", inventory: "inventory", tax_input: "tax", tax_output: "tax" });
+export function controlKindOf(code, accountType, isGroup) {
+  if (isGroup) return null;
+  return PAYROLL_CONTROL_CODES.has(code) ? "payroll" : CONTROL_KIND_BY_TYPE[accountType] ?? null;
+}
 
 const PARENT_CODE_BY_PREFIX = Object.freeze([
   ["11", "1100"], ["1", "1000"], ["2", "2000"], ["3", "3000"],
@@ -134,20 +184,23 @@ export async function initializeAccountingOrganization(client, input) {
     const result = await client.query(
       `INSERT INTO tenant.accounting_accounts (
          organization_id,ledger_id,code,name,account_class,account_type,
-         normal_balance,is_group,allow_manual_posting,reconciliation_required,status,created_by,updated_by
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active',$11,$11)
+         normal_balance,is_group,allow_manual_posting,reconciliation_required,control_kind,status,created_by,updated_by
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$12,'active',$11,$11)
        ON CONFLICT (organization_id,ledger_id,code) DO UPDATE SET
          name=EXCLUDED.name,account_class=EXCLUDED.account_class,account_type=EXCLUDED.account_type,
          normal_balance=EXCLUDED.normal_balance,is_group=EXCLUDED.is_group,
          reconciliation_required=EXCLUDED.reconciliation_required,status='active',updated_by=EXCLUDED.updated_by,updated_at=now()
        RETURNING id`,
-      [organizationId, ledgerId, code, name, accountClass, accountType, normalBalance, isGroup, allowManual, reconcile, userId],
+      [organizationId, ledgerId, code, name, accountClass, accountType, normalBalance, isGroup, allowManual, reconcile, userId, controlKindOf(code, accountType, isGroup)],
     );
     accountIds.set(code, result.rows[0].id);
   }
 
-  for (const [code] of ACCOUNT_SEED) {
-    const parent = PARENT_CODE_BY_PREFIX.find(([prefix, parentCode]) => code.startsWith(prefix) && code !== parentCode);
+  // An account sits under the nearest group of its own class (migration 0196's rule): the FX loss accounts (expense) stay top-level
+  // rather than under the Foreign exchange group (revenue).
+  const classOf = new Map(ACCOUNT_SEED.map(([code, , accountClass]) => [code, accountClass]));
+  for (const [code, , accountClass] of ACCOUNT_SEED) {
+    const parent = PARENT_CODE_BY_PREFIX.find(([prefix, parentCode]) => code.startsWith(prefix) && code !== parentCode && classOf.get(parentCode) === accountClass);
     if (!parent) continue;
     await client.query(
       `UPDATE tenant.accounting_accounts SET parent_id=$4,updated_by=$5,updated_at=now()
@@ -192,6 +245,16 @@ export async function initializeAccountingOrganization(client, input) {
        ) SELECT $1,$2,$3,$4,1000,'active',$5,$5
          WHERE NOT EXISTS (SELECT 1 FROM tenant.accounting_account_mappings WHERE organization_id=$1 AND ledger_id=$2 AND mapping_key=$3 AND priority=1000)`,
       [organizationId, ledgerId, mappingKey, accountIds.get(accountCode), userId],
+    );
+  }
+
+  // The starting expense categories (Finance MVP F7; migration 0201 gives existing companies the same set).
+  for (const [code, name, description, accountCode, rate, receipt, threshold, sort] of EXPENSE_CATEGORY_SEED) {
+    if (!accountIds.get(accountCode)) continue;
+    await client.query(
+      `INSERT INTO tenant.expense_categories (organization_id, code, name, description, account_id, default_gst_rate, receipt_required, receipt_threshold,
+         sort_order, created_by, updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) ON CONFLICT (organization_id, code) DO NOTHING`,
+      [organizationId, code, name, description, accountIds.get(accountCode), rate, receipt, threshold, sort, userId],
     );
   }
 

@@ -1,4 +1,4 @@
-import { JournalDetailScreen } from "@/features/accounting/automatic/screens/JournalDetailScreen";
+import { JournalDetailScreen } from "@/features/accounting/journals/screens/JournalDetailScreen";
 
 export const metadata = { title: "Journal entry" };
 

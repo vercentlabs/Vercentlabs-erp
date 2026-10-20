@@ -10,6 +10,10 @@
 //
 // A dispatched delivery is never cancelled or edited (its quantities are
 // locked by the database too); goods coming back use a sales return.
+//
+// Quality (pre-dispatch control points): marking a delivery ready opens the
+// inspections its lines need; dispatch leaves a line only up to what Quality
+// cleared; cancelling ends the undecided ones.
 import { publishDomainEvent } from "../../../core/platform/events/index.js";
 import { notifyRecordOwner } from "../../../core/platform/notifications/index.js";
 import { StockError } from "../../stock/index.js";
@@ -64,7 +68,9 @@ export async function markDeliveryReady(client, context, deliveryId, input = {})
   await client.query(`UPDATE tenant.sales_fulfillment_requests SET delivery_status = 'ready', ready_at = now(), ready_by = $3, version = version + 1 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, delivery.id, context.userId ?? null]);
   await recordDeliveryEvent(client, context, delivery.id, "sales_delivery.ready", DELIVERY_STATUS.draft, DELIVERY_STATUS.ready);
-  return { deliveryId: delivery.id, status: DELIVERY_STATUS.ready, changed: true };
+  const { createDeliveryObligations } = await import("../../quality/dispatch/pd-engine.js");
+  const quality = await createDeliveryObligations(client, context, { deliveryId: delivery.id });
+  return { deliveryId: delivery.id, status: DELIVERY_STATUS.ready, changed: true, qualityInspectionIds: quality.inspectionIds };
 }
 
 // Ready → Draft, to change its lines.
@@ -115,6 +121,9 @@ export async function dispatchDelivery(client, context, deliveryId, input = {}) 
     if (state.stockTracked && line.warehouse_id !== state.warehouseId)
       throw new DeliveryError(409, `${line.item_name_snapshot} now ships from another warehouse. Change the delivery's warehouse first.`, "SALES_DELIVERY_WAREHOUSE_MISMATCH");
   }
+  // A line under a pre-dispatch Quality check leaves only up to what Quality cleared.
+  const { assertDispatchClearance } = await import("../../quality/dispatch/pd-engine.js");
+  await assertDispatchClearance(client, context, { deliveryId: delivery.id });
   // Goods leave only a warehouse that ships, and only by someone allowed to ship from it.
   if (delivery.warehouse_id && lines.some((line) => progress.get(line.sales_order_line_id)?.stockTracked))
     await validateWarehouseOperation(client, context, delivery.warehouse_id, "ship", { label: "Delivery" });
@@ -220,6 +229,8 @@ export async function cancelDelivery(client, context, deliveryId, input = {}) {
     `UPDATE tenant.sales_fulfillment_requests SET delivery_status = 'cancelled', cancelled_at = now(), cancelled_by = $3, cancel_reason_code = $4, cancel_reason = $5, version = version + 1
       WHERE organization_id = $1 AND id = $2`, [context.organizationId, delivery.id, context.userId ?? null, code, label]);
   await recordDeliveryEvent(client, context, delivery.id, "sales_delivery.cancelled", delivery.delivery_status, DELIVERY_STATUS.cancelled, { reasonCode: code, reason: label });
+  const { cancelDeliveryObligations } = await import("../../quality/dispatch/pd-engine.js");
+  await cancelDeliveryObligations(client, context, { deliveryId: delivery.id, reason: label });
   await recordOrderEvent(client, context, delivery.sales_order_id, "sales_order.delivery_cancelled", delivery.order_status, delivery.order_status,
     { deliveryId: delivery.id, deliveryNumber: delivery.request_number, reasonCode: code, reason: label });
   return { deliveryId: delivery.id, status: DELIVERY_STATUS.cancelled, changed: true };

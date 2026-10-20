@@ -52,6 +52,10 @@ function configFields(o: Options, v?: QcpDetail["selected"], gate = true): Field
     { name: "triggerEvent", label: "When to check", kind: "select", initial: v?.trigger ?? "INVENTORY_GOODS_RECEIPT_CONFIRMED", options: o.triggers, description: "Only connected triggers can be published." },
     { name: "requirementType", label: "Requirement", kind: "select", initial: v?.requirement ?? "MANDATORY", options: o.requirements },
     ...(gate ? [{ name: "gateType", label: "Quality gate", kind: "select" as const, initial: v?.gate ?? "NONE", options: o.gates, description: "Hold stock keeps the received quantity unavailable until Quality clears it." }] : []),
+    { name: "checkpointType", label: "Production checks: when (production trigger only)", kind: "select", initial: v?.checkpoint ?? "OPERATION_COMPLETION", options: o.checkpoints ?? [],
+      description: "The first piece of each run, each reported output, or every N units of the order." },
+    { name: "checkpointInterval", label: "Every how many units (periodic checks)", kind: "quantity", initial: v?.checkpointInterval === null || v?.checkpointInterval === undefined ? "" : String(v.checkpointInterval) },
+    { name: "operationLabel", label: "Operation checked (production trigger)", kind: "text", initial: v?.operationLabel ?? "", description: "For example: Drilling (Op 20)" },
     { name: "specBinding", label: "Which standard", kind: "select", initial: v?.binding ?? "FAMILY", options: o.bindings },
     { name: "specificationId", label: "Inspection specification", kind: "select", initial: v?.specificationId ?? "", options: [blank, ...o.specifications] },
     { name: "specVersionId", label: "Exact version (locked binding only)", kind: "select", initial: v?.specVersionId ?? "", options: [blank, ...o.specVersions] },
@@ -63,7 +67,7 @@ function configFields(o: Options, v?: QcpDetail["selected"], gate = true): Field
   ];
 }
 const configBody = (x: Record<string, string | boolean>) => ({ ...x, specificationId: x.specificationId || null, specVersionId: x.specVersionId || null, effectiveFrom: x.effectiveFrom || undefined,
-  effectiveUntil: x.effectiveUntil || null });
+  effectiveUntil: x.effectiveUntil || null, checkpointInterval: x.checkpointInterval || null, operationLabel: x.operationLabel || null });
 function newQcpAsk(o: Options, scope: { items: Array<{ value: string; label: string }>; categories: Array<{ value: string; label: string }> }, gate: boolean, onDone: (id: string) => void): Ask {
   return { title: "New quality control point", confirm: "Create draft", description: "When a check is required, which approved specification it uses, and whether stock waits for Quality. Nothing is enforced until it is approved and published.",
     fields: [{ name: "name", label: "Name", kind: "text", required: true, description: "For example: Incoming Cable Inspection" }, { name: "description", label: "Purpose", kind: "textarea" },
@@ -259,7 +263,7 @@ export function ControlPointDetailScreen({ pointId }: { pointId: string }) {
   if (d.can.manual && scope.data) actions.push(<Button key="manual" variant="primary" onPress={() => setAsk({ title: "Start an inspection", confirm: "Start", fields: [
     { name: "itemId", label: "Product", kind: "select", options: scope.data!.items, required: true }, { name: "warehouseId", label: "Site", kind: "select", options: [blank, ...scope.data!.sites] },
     { name: "quantity", label: "Quantity to inspect", kind: "quantity", initial: "1", required: true }, { name: "reason", label: "Why", kind: "textarea", required: true }],
-    run: async (x, key) => { const r = await qcpAction<{ inspectionId: string }>(pointId, "manual-inspection", { ...x, warehouseId: x.warehouseId || undefined, idempotencyKey: key }); router.replace(`/quality/inspection/${r.inspectionId}`); } })}>Start inspection</Button>);
+    run: async (x, key) => { const r = await qcpAction<{ inspectionId: string }>(pointId, "manual-inspection", { ...x, warehouseId: x.warehouseId || undefined, idempotencyKey: key }); router.replace(`/quality/incoming/${r.inspectionId}`); } })}>Start inspection</Button>);
   if (d.can.retire) actions.push(<Button key="retire" variant="danger" onPress={() => setAsk({ title: "Retire this control point", confirm: "Retire", tone: "danger",
     description: "It stops applying to new transactions. Stock already held under it stays held until its requirements are resolved.", fields: [{ name: "reason", label: "Reason", kind: "textarea", required: true }],
     run: async (x) => { await qcpAction(pointId, "retire", { reason: x.reason }); await refresh(); } })}>Retire</Button>);
@@ -279,7 +283,8 @@ export function ControlPointDetailScreen({ pointId }: { pointId: string }) {
         <TabList aria-label="Control point sections">{TABS.map((t) => <Tab key={t.id} id={t.id}>{t.label}</Tab>)}</TabList>
       </Tabs>
       {tab === "overview" && <Panel title="Control point">
-        <FactList items={[["Code", d.code], ["Purpose", d.description || "—"], ["Stage", v.stageLabel], ["When", v.triggerLabel], ["Requirement", v.requirementLabel], ["Gate", v.gateLabel],
+        <FactList items={[["Code", d.code], ["Purpose", d.description || "—"], ["Stage", v.stageLabel], ["When", v.triggerLabel], ...(v.checkpoint ? [["Production check", `${v.checkpointLabel ?? v.checkpoint}${v.checkpoint === "PERIODIC" && v.checkpointInterval ? ` (every ${v.checkpointInterval} units)` : ""}${v.operationLabel ? ` · ${v.operationLabel}` : ""}`] as [string, string]] : []),
+          ["Requirement", v.requirementLabel], ["Gate", v.gateLabel],
           ["Version", `${v.number} — ${v.statusLabel}`], ["Effective", `${dateLabel(v.effectiveFrom)}${v.effectiveUntil ? ` – ${dateLabel(v.effectiveUntil)}` : " onwards"}`],
           ["Open requirements", `${d.requirements.open} of ${d.requirements.total}`], ...(d.carriedOver ? [["Origin", "Carried over from an inspection requirement rule"] as [string, ReactNode]] : [])]} />
         {v.reviewNote && <Notice tone="warning">{`Reviewer: ${v.reviewNote}`}</Notice>}

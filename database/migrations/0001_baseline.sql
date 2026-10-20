@@ -15475,14 +15475,6 @@ ALTER TABLE ONLY tenant.accounting_customer_invoices
 
 
 --
--- Name: accounting_customer_receipt_allocations accounting_customer_receipt_a_organization_id_receipt_id_cu_key; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.accounting_customer_receipt_allocations
-    ADD CONSTRAINT accounting_customer_receipt_a_organization_id_receipt_id_cu_key UNIQUE (organization_id, receipt_id, customer_invoice_id, schedule_id);
-
-
---
 -- Name: accounting_customer_receipt_allocations accounting_customer_receipt_allocations_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
 --
 
@@ -16232,14 +16224,6 @@ ALTER TABLE ONLY tenant.accounting_vendor_credit_allocations
 
 ALTER TABLE ONLY tenant.accounting_vendor_credit_allocations
     ADD CONSTRAINT accounting_vendor_credit_allocations_pkey PRIMARY KEY (id);
-
-
---
--- Name: accounting_vendor_payment_allocations accounting_vendor_payment_all_organization_id_payment_id_ve_key; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.accounting_vendor_payment_allocations
-    ADD CONSTRAINT accounting_vendor_payment_all_organization_id_payment_id_ve_key UNIQUE (organization_id, payment_id, vendor_bill_id, schedule_id);
 
 
 --
@@ -21398,13 +21382,6 @@ CREATE INDEX accounting_customer_invoices_aging_idx ON tenant.accounting_custome
 
 
 --
--- Name: accounting_customer_receipt_allocation_identity_uidx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE UNIQUE INDEX accounting_customer_receipt_allocation_identity_uidx ON tenant.accounting_customer_receipt_allocations USING btree (organization_id, receipt_id, customer_invoice_id, COALESCE(schedule_id, '00000000-0000-0000-0000-000000000000'::uuid));
-
-
---
 -- Name: accounting_customer_receipts_org_id_uidx; Type: INDEX; Schema: tenant; Owner: -
 --
 
@@ -21570,13 +21547,6 @@ CREATE INDEX accounting_vendor_bills_aging_idx ON tenant.accounting_vendor_bills
 --
 
 CREATE INDEX accounting_vendor_credit_allocations_target_idx ON tenant.accounting_vendor_credit_allocations USING btree (organization_id, vendor_bill_id, allocated_at);
-
-
---
--- Name: accounting_vendor_payment_allocation_identity_uidx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE UNIQUE INDEX accounting_vendor_payment_allocation_identity_uidx ON tenant.accounting_vendor_payment_allocations USING btree (organization_id, payment_id, vendor_bill_id, COALESCE(schedule_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 
 --

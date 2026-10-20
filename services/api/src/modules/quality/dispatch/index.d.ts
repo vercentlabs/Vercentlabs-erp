@@ -1,0 +1,17 @@
+type Q = { query(text: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }> };
+type C = { organizationId: string; userId?: string | null; permissions?: readonly string[]; roleSlugs?: readonly string[] };
+type R = Record<string, any>;
+export declare const QUALITY_DISPATCH_PERMISSIONS: Readonly<Record<string, string>>;
+export declare const DISPATCH_TRIGGER: string;
+export declare const DISPATCH_REPORTS: Readonly<Record<string, string>>;
+export declare function planDeliveryLineQuality(client: Q, c: C, input: R): Promise<R>;
+export declare function createDeliveryObligations(client: Q, c: C, input: { deliveryId: string }): Promise<{ obligationIds: string[]; inspectionIds: string[] }>;
+export declare function assertDispatchClearance(client: Q, c: C, input: { deliveryId: string }): Promise<void>;
+export declare function cancelDeliveryObligations(client: Q, c: C, input: { deliveryId: string; reason?: string | null }): Promise<void>;
+export declare function dispatchAllowance(client: Q, c: C, deliveryId: string, orderLineId: string): Promise<R | null>;
+export declare function requestDispatchInspection(client: Q, c: C, input?: R): Promise<{ id: string; replayed?: boolean }>;
+export declare function getDispatchDashboard(client: Q, c: C): Promise<R>;
+export declare function listDispatchExceptions(client: Q, c: C): Promise<R[]>;
+export declare function getDispatchReport(client: Q, c: C, kind: string, filters?: R): Promise<{ kind: string; title: string; rows: R[] }>;
+export declare function exportDispatchReport(client: Q, c: C, kind?: string, filters?: R): Promise<{ fileName: string; mimeType: string; body: string }>;
+export declare function listDispatchOptions(client: Q, c: C): Promise<R>;

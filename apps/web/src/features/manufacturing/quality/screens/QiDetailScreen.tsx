@@ -7,7 +7,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Checkbox, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, Checkbox, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -120,7 +120,7 @@ function Inspection({ inspection, queryKey }: { inspection: QualityInspection; q
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={QI_BASE}>Production Inspections</Link>,
+        breadcrumbs: <Breadcrumb href={QI_BASE}>Production Inspections</Breadcrumb>,
         title: `${inspection.number} · ${inspection.order.number}`,
         status: <span className="flex flex-wrap gap-1"><StatusBadge tone={QI_TONE[inspection.status]}>{inspection.statusLabel}</StatusBadge>
           {inspection.stage === "IN_PROCESS" && <StatusBadge tone="neutral">In-process check</StatusBadge>}{inspection.criticalFailure && <StatusBadge tone="danger">Critical failure</StatusBadge>}</span>,

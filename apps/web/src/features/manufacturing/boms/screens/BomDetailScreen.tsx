@@ -10,7 +10,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, ErrorState, LinkButton, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
+import { Breadcrumb, Button, Dialog, ErrorState, LinkButton, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -100,7 +100,7 @@ export function BomDetailScreen({ bomId }: { bomId: string }) {
   return (
     <RecordDetailsPage
       header={{
-        breadcrumbs: <Link className="text-sm text-brand underline" href={BOM_BASE}>Bills of Materials</Link>,
+        breadcrumbs: <Breadcrumb href={BOM_BASE}>Bills of Materials</Breadcrumb>,
         title: `${bom.number} · ${bom.finishedItem.name}`,
         status: bom.archivedAt ? <StatusBadge tone="neutral">Archived</StatusBadge> : r ? <StatusBadge tone={STATUS_TONE[r.status]}>{`Rev ${r.revisionNumber} · ${r.statusLabel}`}</StatusBadge> : undefined,
         fields: [

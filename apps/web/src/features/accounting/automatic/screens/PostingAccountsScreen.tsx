@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ComboBox, ErrorState, PageHeader, PermissionState, StatusBadge, Switch } from "@vercentlabs/design-system";
+import { Button, ComboBox, ErrorState, PageHeader, PermissionState, StatusBadge, Switch, TextField } from "@vercentlabs/design-system";
 
 import { act, readView } from "@/features/accounting/shared/client";
 import { formatDate } from "@/shared/format/human";
@@ -22,7 +22,7 @@ const STATE: Record<PostingAccount["state"], { label: string; tone: "success" | 
   ok: { label: "Ready", tone: "success" }, missing: { label: "Not chosen", tone: "danger" }, unusable: { label: "Unusable", tone: "danger" },
   incompatible: { label: "Wrong kind", tone: "warning" }, not_used: { label: "Optional", tone: "neutral" },
 };
-const GROUPS = ["Sales", "GST", "Purchases", "Inventory", "Cash and bank", "Point of sale", "Other"];
+const GROUPS = ["Sales", "GST", "Purchases", "Inventory", "Manufacturing", "Payroll", "Fixed assets", "Cash and bank", "Point of sale", "Other"];
 
 export function PostingAccountsScreen() {
   const workspace = useWorkspaceContext();
@@ -41,7 +41,7 @@ export function PostingAccountsScreen() {
   const problems = query.data.items.filter((item) => item.state === "missing" || item.state === "unusable" || item.state === "incompatible");
   const refresh = () => queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "accounting") });
   const policy = settings.data?.settings.settings ?? null;
-  const savePolicy = async (field: string, value: boolean) => {
+  const savePolicy = async (field: string, value: boolean | number) => {
     setMessage(null);
     try { await act("settings-save", { [field]: value }); await refresh(); setMessage({ tone: "success", text: "Saved." }); } catch (error) { setMessage({ tone: "danger", text: errorMessage(error) }); }
   };
@@ -58,6 +58,15 @@ export function PostingAccountsScreen() {
           <Switch isSelected={policy.expense_approval_required !== false} isDisabled={!mayChange} onChange={(value) => void savePolicy("expenseApprovalRequired", value)}>
             Expenses need approval by a second person before they post
           </Switch>
+          <Switch isSelected={policy.manual_journal_approval !== false} isDisabled={!mayChange} onChange={(value) => void savePolicy("manualJournalApproval", value)}>
+            Manual journals need approval by a second person before they post
+          </Switch>
+          {policy.manual_journal_approval !== false && (
+            <JournalThreshold value={String(Number(policy.journal_approval_threshold ?? 0))} mayChange={mayChange} onSave={(amount) => savePolicy("journalApprovalThreshold", amount)} />
+          )}
+          {policy.manual_journal_approval === false && (
+            <p className="text-xs text-text-muted">Off: a manual journal posts once submitted, unless its journal is marked as needing approval. Choose this when one person keeps the books.</p>
+          )}
         </Panel>
       )}
       {grouped.map(({ group, items }) => (
@@ -69,6 +78,21 @@ export function PostingAccountsScreen() {
         </Panel>
       ))}
       <p className="text-xs text-text-muted">Product-specific sales, purchase, inventory and cost-of-goods-sold accounts are set on an item&apos;s Finance profile; they override these defaults for that item.</p>
+    </div>
+  );
+}
+
+// From which amount a manual journal needs approval (0: every one).
+function JournalThreshold({ value, mayChange, onSave }: { value: string; mayChange: boolean; onSave: (amount: number) => Promise<void> }) {
+  const [amount, setAmount] = useState(value);
+  const [busy, setBusy] = useState(false);
+  const valid = /^\d{1,15}(\.\d{1,2})?$/.test(amount.trim());
+  return (
+    <div className="flex flex-wrap items-end gap-2 pl-12">
+      <TextField label="From amount" size="compact" inputMode="decimal" className="w-56" value={amount} onChange={setAmount} isReadOnly={!mayChange}
+        description="0 means every manual journal." />
+      {mayChange && <Button size="compact" variant="secondary" isLoading={busy} isDisabled={!valid || Number(amount) === Number(value)}
+        onPress={async () => { setBusy(true); try { await onSave(Number(amount)); } finally { setBusy(false); } }}>Save</Button>}
     </div>
   );
 }

@@ -1,22 +1,12 @@
 import {
-  getAccountingDashboard,
   getAccountingOptions,
-  getAccountingReport,
   getAccountingSettings,
-  getBankStatement,
   getCustomerInvoice,
   getJournalEntry,
-  getPeriodCloseBlockers,
   getVendorBill,
-  listBankAccounts,
-  listBankStatements,
   listCustomerInvoices,
-  listFiscalPeriods,
   listJournalEntries,
   listVendorBills,
-  suggestBankMatches,
-  listCloseRuns,
-  getCloseRun,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -81,8 +71,6 @@ export async function GET(
               context,
             ),
           };
-        case "dashboard":
-          return { dashboard: await getAccountingDashboard(client, context) };
         case "accounts":
           return {
             rows: (
@@ -122,56 +110,6 @@ export async function GET(
         case "vendor-bill":
           return {
             bill: await getVendorBill(client, context, get("id") ?? ""),
-          };
-        case "bank-accounts":
-          return { rows: await listBankAccounts(client, context) };
-        case "bank-statements":
-          return {
-            rows: await listBankStatements(client, context, {
-              status: get("status"),
-              bankAccountId: get("bankAccountId"),
-            }),
-          };
-        case "bank-statement":
-          return {
-            statement: await getBankStatement(client, context, get("id") ?? ""),
-          };
-        case "bank-suggestions":
-          return {
-            rows: await suggestBankMatches(
-              client,
-              context,
-              get("lineId") ?? "",
-            ),
-          };
-        case "fiscal-periods":
-          return { rows: await listFiscalPeriods(client, context) };
-        case "period-blockers":
-          return {
-            blockers: await getPeriodCloseBlockers(
-              client,
-              context,
-              get("periodId") ?? "",
-            ),
-          };
-        case "close-runs":
-          return { rows: await listCloseRuns(client, context) };
-        case "close-run":
-          return { run: await getCloseRun(client, context, get("id") ?? "") };
-        case "report":
-          return {
-            report: await getAccountingReport(
-              client,
-              context,
-              get("key") ?? "",
-              {
-                from: get("from"),
-                to: get("to"),
-                asOf: get("asOf"),
-                accountId: get("accountId"),
-                partyId: get("partyId"),
-              },
-            ),
           };
         default:
           throw new HttpError(404, "Unknown Accounting view.");

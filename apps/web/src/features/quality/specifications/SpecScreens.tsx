@@ -18,6 +18,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import { AskDialog, type Ask, type Field } from "@/shared/ui/AskDialog";
+import { IncomingSettingsPanel } from "../incoming/IncomingScreens";
 import {
   REPORTS, SPEC_BASE, STATUS_TONE, archiveFile, createSpec, dateLabel, errorIssues, errorMessage, errorStatus, exportHref, fileHref, getConflicts, getExceptions, getHistory, getOptions, getOverview,
   getPreview, getReport, getSettings, getSpec, getUsage, listFiles, listSpecs, parseBulkChecks, settingsAction, specAction, uploadFile,
@@ -517,6 +518,7 @@ export function QualitySettingsScreen() {
           {saving && <Notice tone="danger">{saving}</Notice>}
         </div>
       </Panel>
+      <IncomingSettingsPanel />
       <Panel title="Quality gate policies" description="Where an inspection is required, and whether stock waits for Quality, is decided by Quality Control Points. A trigger can be used only once its workflow enforces it."
         actions={<Link className="text-sm text-brand hover:underline" href="/quality/control-points">Quality Control Points</Link>}>
         <LinesTable columns={["Trigger", "Stage", "Connected", "Gates it supports"]}>

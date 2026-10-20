@@ -55,12 +55,15 @@ export const STAGES = Object.freeze({ INCOMING: "Incoming goods", IN_PROCESS: "I
 export const TRIGGERS = Object.freeze({
   INVENTORY_GOODS_RECEIPT_CONFIRMED: { stage: "INCOMING", label: "Goods receipt posted", enabled: true, gates: ["NONE", "HOLD_STOCK"] },
   QUALITY_MANUAL_INSPECTION_REQUESTED: { stage: "MANUAL", label: "Inspection requested by Quality", enabled: true, gates: ["NONE"] },
-  PRODUCTION_OPERATION_READY_FOR_QC: { stage: "IN_PROCESS", label: "Production operation ready for QC", enabled: false, gates: ["NONE", "BLOCK_PRODUCTION_PROGRESS"] },
-  PRODUCTION_OUTPUT_READY_FOR_QC: { stage: "FINAL", label: "Production output ready for QC", enabled: false, gates: ["NONE", "HOLD_STOCK"] },
-  SALES_DELIVERY_READY_FOR_DISPATCH: { stage: "PRE_DISPATCH", label: "Delivery ready for dispatch", enabled: false, gates: ["NONE", "BLOCK_DISPATCH"] },
+  PRODUCTION_OPERATION_READY_FOR_QC: { stage: "IN_PROCESS", label: "Production output reported (in-process check)", enabled: true, gates: ["NONE", "BLOCK_PRODUCTION_PROGRESS"] },
+  PRODUCTION_OUTPUT_READY_FOR_QC: { stage: "FINAL", label: "Finished output reported (final inspection)", enabled: true, gates: ["NONE", "HOLD_STOCK"] },
+  SALES_DELIVERY_READY_FOR_DISPATCH: { stage: "PRE_DISPATCH", label: "Delivery ready for dispatch (pre-dispatch check)", enabled: true, gates: ["NONE", "BLOCK_DISPATCH"] },
   CUSTOMER_RETURN_RECEIVED: { stage: "RETURN", label: "Customer return received", enabled: false, gates: ["NONE", "HOLD_STOCK"] },
 });
 export const REQUIREMENTS = Object.freeze({ MANDATORY: "Mandatory inspection", ADVISORY: "Advisory inspection", MANUAL: "Manual inspection rule" });
+// When an in-process control point inspects: the first output of a production run, every reported output, or every N units of the order.
+export const CHECKPOINTS = Object.freeze({ FIRST_PIECE: "First piece of each production run", OPERATION_COMPLETION: "Each reported production output",
+  PERIODIC: "Every N units produced" });
 export const GATES = Object.freeze({ NONE: "No automatic restriction", HOLD_STOCK: "Hold stock until Quality clears it", BLOCK_DISPATCH: "Block dispatch",
   BLOCK_PRODUCTION_PROGRESS: "Block production progress" });
 export const BINDINGS = Object.freeze({ FAMILY: "The specification's version in force on the source date", LOCKED: "One exact approved version",
@@ -112,6 +115,10 @@ export function validateQcpVersion(point, version, rules, { spec = null, lockedV
     if (!trigger.enabled) add("QUALITY_QCP_TRIGGER_UNAVAILABLE", `${trigger.label} is not yet connected to its workflow, so this control point cannot be published.`);
     if (!trigger.gates.includes(version.gate_type)) add("QUALITY_QCP_TRIGGER_UNAVAILABLE", `${GATES[version.gate_type] ?? version.gate_type} is not supported for ${trigger.label.toLowerCase()}.`);
   }
+  if (version.trigger_event === "PRODUCTION_OPERATION_READY_FOR_QC") {
+    if (!CHECKPOINTS[version.checkpoint_type]) add("QUALITY_QCP_INVALID", "Choose when production is checked: the first piece, each reported output, or every N units.");
+    if (version.checkpoint_type === "PERIODIC" && !(Number(version.checkpoint_interval) > 0)) add("QUALITY_QCP_INVALID", "Enter how many units are produced between checks.");
+  }
   if (version.requirement_type !== "MANDATORY" && version.gate_type !== "NONE") add("QUALITY_QCP_INVALID", "Only a mandatory inspection can restrict stock or downstream steps.");
   if (version.requirement_type === "MANUAL" && version.trigger_event !== "QUALITY_MANUAL_INSPECTION_REQUESTED") add("QUALITY_QCP_INVALID", "A manual inspection rule reacts to inspections requested by Quality.");
   if (version.spec_binding === "FAMILY" || version.spec_binding === "LOCKED") {
@@ -138,15 +145,18 @@ export function validateQcpVersion(point, version, rules, { spec = null, lockedV
 }
 const CONTENT = ["inspection_stage", "trigger_event", "requirement_type", "gate_type", "spec_binding", "specification_id", "spec_version_id", "match_mode", "purpose_code", "quantity_scope",
   "lot_context", "waiver_allowed", "effective_from"];
+const EXTRA_CONTENT = ["checkpoint_type", "checkpoint_interval", "operation_label"];
 export function qcpContentHash(version, rules) {
   const norm = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v ?? null);
-  const body = { version: Object.fromEntries(CONTENT.map((k) => [k, norm(version[k])])),
+  // In-process settings (MVP 32) join the fingerprint only when set, so versions approved before them keep their fingerprint.
+  const extra = EXTRA_CONTENT.filter((k) => version[k] !== null && version[k] !== undefined).map((k) => [k, k === "checkpoint_interval" ? String(Number(version[k])) : norm(version[k])]);
+  const body = { version: Object.fromEntries([...CONTENT.map((k) => [k, norm(version[k])]), ...extra]),
     rules: rules.map((r) => [r.scope_kind, r.item_id, r.item_group_id, r.supplier_id, r.warehouse_id].map(norm).join("|")).sort() };
   return createHash("sha256").update(JSON.stringify(body)).digest("hex");
 }
 export function compareQcpVersions(before, after) {
   if (!before) return { changes: [], rulesAdded: [], rulesRemoved: [] };
-  const changes = CONTENT.filter((k) => String(before.version[k] ?? "") !== String(after.version[k] ?? "")).map((k) => ({ field: k, before: before.version[k] ?? null, after: after.version[k] ?? null }));
+  const changes = [...CONTENT, ...EXTRA_CONTENT].filter((k) => String(before.version[k] ?? "") !== String(after.version[k] ?? "")).map((k) => ({ field: k, before: before.version[k] ?? null, after: after.version[k] ?? null }));
   const key = (r) => r.describe ?? [r.scope_kind, r.item_id, r.item_group_id, r.supplier_id, r.warehouse_id].join("|");
   const a = new Set(before.rules.map(key));
   const b = new Set(after.rules.map(key));

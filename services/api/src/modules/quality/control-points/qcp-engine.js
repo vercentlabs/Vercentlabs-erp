@@ -123,7 +123,8 @@ async function openObligationInspection(client, c, ob, { sourceType, sourceId, l
   const inspection = await createInspection(client, { ...c, permissions: [...(c.permissions ?? []), "quality.inspect"] }, {
     planId, inspectionType: (await qx(client, `SELECT inspection_stage FROM tenant.quality_control_point_versions WHERE id = $1`, [ob.qcp_version_id])).rows[0].inspection_stage === "INCOMING" ? "incoming" : "stock_audit",
     sourceType, sourceId, itemId: ob.item_id, supplierId: ob.supplier_id, warehouseId: ob.warehouse_id, batchId, lotQuantity, specResolution: resolution,
-  }, { boundVersionId: ob.spec_version_id, allowPendingSample: true });
+    goodsReceiptLineId: ob.source_type === "goods_receipt" ? ob.source_line_id : null, population: { controlled: String(lotQuantity), requirement: ob.id },
+  }, { boundVersionId: ob.spec_version_id, allowPendingSample: true, obligationId: ob.id, qcpVersionId: ob.qcp_version_id });
   await client.query(`UPDATE tenant.quality_inspection_obligations SET inspection_id = $2, status = 'PENDING', exception_code = NULL, updated_at = clock_timestamp(), row_version = row_version + 1
     WHERE id = $1`, [ob.id, inspection.id]);
   return inspection.id;
@@ -199,7 +200,9 @@ export async function releaseAllowance(client, c, sourceLineId) {
   if (!obligations.length) return null;
   const released = Number((await client.query(`SELECT COALESCE(sum(r.quantity), 0) AS q FROM tenant.inventory_stock_hold_resolutions r JOIN tenant.inventory_stock_holds h ON h.id = r.hold_id
       WHERE h.organization_id = $1 AND h.source_document_type = 'goods_receipt' AND h.source_line_id = $2 AND r.action = 'released'`, [c.organizationId, sourceLineId])).rows[0].q);
-  const allowance = Math.min(...obligations.map((o) => (["SATISFIED", "FAILED", "WAIVED"].includes(o.status) ? Number(o.allowance_quantity) : 0)));
+  // What every blocking requirement has cleared so far: a disposition can accept part of the stock while the rest is still being decided
+  // (reinspection, hold for review); a requirement held by a configuration exception clears nothing.
+  const allowance = Math.min(...obligations.map((o) => (o.status === "EXCEPTION" ? 0 : Number(o.allowance_quantity ?? 0))));
   return { obligations, released, allowance, open: obligations.filter((o) => ["PENDING", "EXCEPTION"].includes(o.status)) };
 }
 export async function assertQualityRelease(client, c, { sourceLineId, quantity }) {
