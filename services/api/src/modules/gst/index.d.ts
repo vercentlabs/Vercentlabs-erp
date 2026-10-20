@@ -19,3 +19,15 @@ export declare function getGstReturn(client: Q, c: C, id: string, options?: { se
 export declare function exportGstr1Section(client: Q, c: C, id: string, section: string): Promise<{ fileName: string; mimeType: string; body: string; note: string }>;
 export declare function outwardGstSummary(client: Q, c: C, input?: R): Promise<R>;
 export declare function inwardGstSummary(client: Q, c: C, input?: R): Promise<R>;
+export declare const GSTR3B_RECONCILIATION_CODES: readonly string[];
+export declare const ITC_REVERSAL_REASONS: Readonly<Record<string, { label: string; reclaimable: boolean | null }>>;
+export declare function prepareGstr3b(client: Q, c: C, input?: R): Promise<R>;
+export declare function exportGstr3b(client: Q, c: C, id: string): Promise<{ fileName: string; mimeType: string; body: string }>;
+export declare function importGstr2b(client: Q, c: C, input?: R): Promise<R>;
+export declare function matchGstr2b(client: Q, c: C, importId: string): Promise<R>;
+export declare function getGstr2bReconciliation(client: Q, c: C, input?: R): Promise<R>;
+export declare function confirmGstr2bMatchedCredit(client: Q, c: C, input?: R): Promise<{ confirmed: number }>;
+export declare function gstDocumentKey(value: unknown): string;
+export declare function reverseInputTaxCredit(client: Q, c: C, input?: R): Promise<R>;
+export declare function reclaimInputTaxCredit(client: Q, c: C, reversalId: string, input?: R): Promise<R>;
+export declare function listItcAdjustments(client: Q, c: C, input?: R): Promise<R>;

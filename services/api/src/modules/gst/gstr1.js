@@ -226,10 +226,11 @@ export async function approveGstReturn(client, c, id) {
     if (setHash(now.documents.filter((d) => !stillOthers.has(d.sourceId)), now.cancelled) !== r.content_hash) {
       throw new GstError(409, "Documents for this month changed after the return was prepared. Prepare it again, then approve.", "GST_RETURN_STALE");
     }
-  } else if (r.return_type === "GSTR3B" && r.summary?.stale) {
-    throw new GstError(409, "Prepare the GSTR-3B again: its inputs changed.", "GST_RETURN_STALE");
+  } else {
+    const { assertGstr3bApprovable } = await import("./gstr3b.js");
+    await assertGstr3bApprovable(client, c, r);
   }
-  const label = r.return_type === "GSTR1" ? "Approved working data — not filed" : r.label;
+  const label = r.return_type === "GSTR1" ? "Approved working data — not filed" : "Approved working paper — not filed";
   return shapeReturn((await client.query(`UPDATE tenant.gst_returns SET status = 'APPROVED', approved_by = $2, approved_at = now(), label = $3, updated_at = now() WHERE id = $1 RETURNING *`,
     [r.id, c.userId ?? null, label])).rows[0]);
 }
@@ -265,8 +266,11 @@ export async function waiveGstException(client, c, exceptionId, input = {}) {
   if (["APPROVED", "FILED"].includes(x.return_status)) throw new GstError(409, "The return is already approved.", "GST_RETURN_LOCKED");
   const note = text(input.note, 500);
   if (!note) throw new GstError(400, "Say why the warning is accepted.", "GST_REASON_REQUIRED");
-  return (await client.query(`UPDATE tenant.gst_exceptions SET status = 'waived', note = $2, decided_by = $3, decided_at = now(), updated_at = now() WHERE id = $1 RETURNING *`,
+  const waived = (await client.query(`UPDATE tenant.gst_exceptions SET status = 'waived', note = $2, decided_by = $3, decided_at = now(), updated_at = now() WHERE id = $1 RETURNING *`,
     [x.id, note, c.userId ?? null])).rows[0];
+  const { refreshGstr3bLabel } = await import("./gstr3b.js");
+  await refreshGstr3bLabel(client, x.return_id);
+  return waived;
 }
 
 export function shapeReturn(r) {

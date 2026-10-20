@@ -18,6 +18,7 @@ export const POSTING_ACCOUNTS = Object.freeze({
   input_tax: M("GST", "Other input tax", ["asset"], "Input tax that is not CGST, SGST, IGST or cess"),
   input_tax_pending: M("GST", "Input GST awaiting confirmation", ["asset"], "Input GST on supplier invoices until the credit is confirmed (GSTR-2B)"),
   itc_ineligible: M("GST", "Ineligible input tax", ["expense", "asset"], "Input GST that cannot be claimed becomes a cost here"),
+  itc_reversed: M("GST", "Input GST reversed (reclaimable)", ["asset"], "Credit reversed until it can be reclaimed (e.g. supplier unpaid after 180 days); ineligible input tax is used until set up", true),
   withholding_tax: M("GST", "TDS payable (suppliers)", ["liability"], "Tax deducted from supplier payments"),
   payable: M("Purchases", "Supplier payables", ["liability"], "What the business owes suppliers"),
   expense: M("Purchases", "Purchases and general expense", ["expense"], "Purchases and expenses without a more specific account"),
