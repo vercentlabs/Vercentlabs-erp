@@ -195,7 +195,7 @@ const dayRange = (from, to) => {
 const minutesOf = (t) => Number(String(t).slice(0, 2)) * 60 + Number(String(t).slice(3, 5));
 const shiftMinutes = (s) => (s ? ((minutesOf(s.end_time) - minutesOf(s.start_time) + 1440) % 1440) - Number(s.break_minutes) : 480);
 
-async function assertDateOpen(client, c, date) {
+export async function assertDateOpen(client, c, date) {
   const r = await qx(client, `SELECT payroll_number, status FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND status IN ('approved','posted','partially_paid','paid','closed') AND period_start <= $2 AND period_end >= $2 LIMIT 1`, [c.organizationId, date]);
   if (r.rows[0]) throw new HrError(409, `${date} is in payroll ${r.rows[0].payroll_number}, which is ${r.rows[0].status}. Attendance for it is locked.`, "HR_PERIOD_LOCKED");
   // a payroll period that has been locked (or closed) freezes attendance even before a run exists
@@ -217,6 +217,8 @@ export async function recomputeDay(client, c, employee, date) {
   const existing = (await qx(client, `SELECT * FROM tenant.hr_attendance WHERE employee_id=$1 AND attendance_date=$2`, [employee.id, date])).rows[0];
   // approved leave and a deliberate manual override are not re-derived from punches
   if (existing && (existing.leave_request_id || (existing.source === "manual" && existing.override_reason))) return existing;
+  // a correction waiting for a decision holds the day at PENDING_CORRECTION
+  const pending = (await qx(client, `SELECT 1 FROM tenant.hr_attendance_regularizations WHERE employee_id=$1 AND attendance_date=$2 AND status='pending'`, [employee.id, date])).rows.length > 0;
   const windowEnd = shift?.overnight ? "($2::date + 2)::timestamp" : "($2::date + 1)::timestamp";
   const punches = (await qx(client, `SELECT punched_at, direction, source FROM tenant.hr_attendance_punches WHERE organization_id=$1 AND employee_id=$3 AND (punched_at AT TIME ZONE $4) >= $2::date::timestamp AND (punched_at AT TIME ZONE $4) < ${windowEnd} ORDER BY punched_at`, [c.organizationId, date, employee.id, tz])).rows;
   // the first 'in' anchors the day; an 'out' before any 'in' belongs to the previous (overnight) day
@@ -240,7 +242,7 @@ export async function recomputeDay(client, c, employee, date) {
   let notes = null;
   if (!usable.length) {
     if (kind === "holiday") { status = "holiday"; notes = name; } else if (kind === "weekly_off") status = "weekly_off";
-    else if (date < today()) { status = "absent"; notes = "No punches recorded"; } else return existing ?? null;
+    else if (date < today() || pending) { status = "absent"; notes = "No punches recorded"; } else return existing ?? null;
   } else {
     const graceMin = Math.max(Number(shift?.grace_minutes ?? 0), Number(cfg.attendance_grace_minutes ?? 0));
     if (shift && kind === "working") {
@@ -253,7 +255,7 @@ export async function recomputeDay(client, c, employee, date) {
       }
     }
     if (!lastOut) {
-      if (date < today()) { status = "absent"; notes = "Missing check-out. Regularize the day."; } else status = "present";
+      if (date < today()) { status = "incomplete"; notes = "Missing check-out. Ask for a correction."; } else status = "present";
     } else if (kind !== "working") {
       status = "present";
       overtime = worked >= Number(cfg.overtime_threshold_minutes) ? worked : 0;
@@ -264,6 +266,7 @@ export async function recomputeDay(client, c, employee, date) {
     else status = "absent";
     if (status === "absent" && lastOut) notes = "Worked too little to count as present";
   }
+  if (pending) { status = "pending_correction"; notes = "A correction is waiting for a decision."; }
   const source = punches.length ? (punches.some((p) => p.source === "regularized") ? "regularized" : "web") : "system";
   const { rows } = await qx(client,
     `INSERT INTO tenant.hr_attendance(organization_id,employee_id,attendance_date,shift_id,check_in_at,check_out_at,worked_minutes,overtime_minutes,late_minutes,early_exit_minutes,status,source,notes,created_by)
@@ -374,7 +377,7 @@ export async function computeAttendanceSummary(client, c, employeeId, from, to, 
   const cfg = await settings(client, c);
   const att = await qx(client, `SELECT a.*, l.leave_type_id, t.paid AS leave_paid, t.code AS leave_code, l.start_half, l.end_half, l.start_date, l.end_date FROM tenant.hr_attendance a LEFT JOIN tenant.hr_leave_requests l ON l.id=a.leave_request_id LEFT JOIN tenant.hr_leave_types t ON t.id=l.leave_type_id WHERE a.employee_id=$1 AND a.attendance_date BETWEEN $2 AND $3`, [employee.id, from, to]);
   const byDate = new Map(att.rows.map((r) => [r.attendance_date, r]));
-  const s = { from, to, calendarDays: 0, payableDays: 0, presentDays: 0, halfDays: 0, paidLeaveDays: 0, unpaidLeaveDays: 0, holidays: 0, weeklyOffs: 0, absentDays: 0, unmarkedDays: 0, notEmployedDays: 0, lateMarks: 0, earlyExits: 0, lateDeductionDays: 0, details: [] };
+  const s = { from, to, calendarDays: 0, payableDays: 0, presentDays: 0, halfDays: 0, paidLeaveDays: 0, unpaidLeaveDays: 0, holidays: 0, weeklyOffs: 0, absentDays: 0, unmarkedDays: 0, unresolvedDays: 0, notEmployedDays: 0, lateMarks: 0, earlyExits: 0, lateDeductionDays: 0, details: [] };
   const last = employee.separation_date ?? employee.last_working_date ?? null;
   for (const date of dayRange(from, to)) {
     s.calendarDays += 1;
@@ -397,6 +400,7 @@ export async function computeAttendanceSummary(client, c, employeeId, from, to, 
       else if (rec.status === "half_day") { s.halfDays += 1; value = 0.5; kind = "half_day"; }
       else if (rec.status === "holiday") { s.holidays += 1; value = 1; kind = "holiday"; }
       else if (rec.status === "weekly_off") { s.weeklyOffs += 1; value = 1; kind = "weekly_off"; }
+      else if (["incomplete", "pending_correction"].includes(rec.status)) { s.unresolvedDays += 1; s.absentDays += 1; kind = rec.status; }
       else { s.absentDays += 1; kind = "absent"; }
     } else if (date < today()) { s.unmarkedDays += 1; s.absentDays += 1; kind = "unmarked"; }
     else { s.payableDays += 1; s.details.push({ date, kind: "future", value: 1 }); continue; }

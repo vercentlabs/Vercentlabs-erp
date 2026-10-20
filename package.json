@@ -63,7 +63,8 @@
     "release:gate": "npx --yes pnpm@11.21.0 format:check && npx --yes pnpm@11.21.0 audit:dependencies && npx --yes pnpm@11.21.0 release:verify",
     "verify:release": "npx --yes pnpm@11.21.0 release:gate",
     "verify:platform": "npx --yes pnpm@11.21.0 typecheck:web && npx --yes pnpm@11.21.0 lint:web && npx --yes pnpm@11.21.0 build:web",
-    "deadcode:check": "npx --yes pnpm@11.21.0 exec knip"
+    "deadcode:check": "npx --yes pnpm@11.21.0 exec knip",
+    "test:hr-exit-attendance": "node scripts/database/tests/hr-exit-attendance.smoke.mjs"
   },
   "engines": {
     "node": ">=24 <25",

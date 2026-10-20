@@ -20,5 +20,5 @@ export const HR_PAYROLL_PERMISSIONS = Object.freeze({
   auditView: "hr_payroll.audit.view",
   // Statutory rules and variable pay (as migration 0209 grants).
   statutoryVerify: "hr_payroll.statutory.verify", inputsManage: "hr_payroll.inputs.manage", inputsApprove: "hr_payroll.inputs.approve", ytdManage: "hr_payroll.ytd.manage",
-  paymentRecord: "hr_payroll.payment.record", statutoryPay: "hr_payroll.statutory.pay",
+  paymentRecord: "hr_payroll.payment.record", statutoryPay: "hr_payroll.statutory.pay", exitSettle: "hr_payroll.exit.settle",
 });

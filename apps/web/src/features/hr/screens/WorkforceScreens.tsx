@@ -24,6 +24,7 @@ import {
 } from "@/features/hr/shared/client";
 import { calendarDate, label, tone } from "@/features/hr/shared/format";
 import { HrAlert, HrPanel, useCan } from "@/features/hr/shared/HrUi";
+import { EmployeeExitPanel } from "@/features/hr/exit/ExitScreens";
 
 type Dashboard = {
   headcount: number;
@@ -362,6 +363,7 @@ export function EmployeeDetailScreen({ id }: { id: string }) {
           </dl>
         </HrPanel>
       )}
+      <EmployeeExitPanel employeeId={id} />
       <HrPanel title="Checklists">
         {(e.tasks as Row[]).length === 0 ? (
           <p className="text-sm text-text-muted">No onboarding tasks.</p>

@@ -1,0 +1,15 @@
+type Q = { query(text: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }> };
+type C = { organizationId: string; userId?: string | null; permissions?: readonly string[]; roleSlugs?: readonly string[] };
+type R = Record<string, any>;
+export declare const SEPARATION_TYPES: Readonly<Record<string, string>>;
+export declare function startSeparation(client: Q, c: C, input?: R): Promise<R>;
+export declare function acceptSeparation(client: Q, c: C, id: string, input?: R): Promise<R>;
+export declare function rejectSeparation(client: Q, c: C, id: string, input?: R): Promise<R>;
+export declare function withdrawSeparation(client: Q, c: C, id: string, input?: R): Promise<R>;
+export declare function completeSeparation(client: Q, c: C, id: string, input?: R): Promise<R>;
+export declare function settleSeparation(client: Q, c: C, id: string, input?: R): Promise<R>;
+export declare function separationSettlementOf(client: Q, c: C, separation: R): Promise<{ finalPayslip: R | null; items: R[]; blockers: string[] }>;
+export declare function setPayrollEligibility(client: Q, c: C, employeeId: string, input?: R): Promise<R>;
+export declare function listSeparations(client: Q, c: C, filters?: R): Promise<R[]>;
+export declare function getSeparation(client: Q, c: C, id: string): Promise<R>;
+export declare function getEmployeeExit(client: Q, c: C, employeeId: string): Promise<R>;

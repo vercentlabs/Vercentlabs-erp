@@ -702,6 +702,7 @@ const ROLE_DEFINITIONS = [
     permissions: unique([
       "hr_payroll.payment.record",
       "hr_payroll.statutory.pay",
+      "hr_payroll.exit.settle",
       "hr_payroll.payroll.post",
       "hr_payroll.inputs.approve",
       // The Chart of Accounts (Finance MVP F1, migration 0196).
@@ -2496,6 +2497,7 @@ const ROLE_DEFINITIONS = [
     permissions: unique([
       "hr_payroll.payment.record",
       "hr_payroll.statutory.pay",
+      "hr_payroll.exit.settle",
       "hr_payroll.statutory.verify",
       "hr_payroll.inputs.manage",
       "hr_payroll.inputs.approve",

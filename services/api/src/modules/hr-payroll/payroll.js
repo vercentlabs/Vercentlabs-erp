@@ -163,6 +163,8 @@ async function computeEmployee(client, c, run, emp, cfg) {
   for (const l of statutory.lines) lines.push(line(l));
   exceptions.push(...statutory.exceptions);
   const unmarked = segs.reduce((n, s) => n + s.sum.unmarkedDays, 0);
+  const unresolved = segs.reduce((n, s) => n + (s.sum.unresolvedDays ?? 0), 0);
+  if (unresolved > 0) exceptions.push({ code: "UNRESOLVED_ATTENDANCE", severity: "error", message: `${unresolved} day(s) have a missing punch or a correction waiting for a decision. Resolve them in Attendance before payroll.` });
   if (unmarked > 0) exceptions.push({ code: "UNMARKED_DAYS", severity: "warning", message: `${unmarked} working day(s) have no attendance and are treated as unpaid.` });
   const pendingLeave = (await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_leave_requests WHERE employee_id=$1 AND status='submitted' AND start_date <= $3 AND end_date >= $2`, [emp.id, from, to])).rows[0].n;
   if (pendingLeave > 0) exceptions.push({ code: "PENDING_LEAVE", severity: "warning", message: `${pendingLeave} leave request(s) in this period are awaiting a decision.` });
@@ -211,7 +213,7 @@ async function eligibleEmployees(client, c, run, employeeIds) {
     params.push(run.id);
     notElsewhere = ` AND NOT EXISTS (SELECT 1 FROM tenant.hr_payslips ps JOIN tenant.hr_payroll_runs pr ON pr.id=ps.payroll_run_id WHERE ps.employee_id=tenant.hr_employees.id AND pr.id <> $${params.length} AND pr.run_type='regular' AND pr.status <> 'cancelled' AND pr.period_start=$2 AND pr.period_end=$3)`;
   }
-  return (await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND status <> 'draft' AND joining_date <= $3 AND (separation_date IS NULL OR separation_date >= $2)${extra}${notElsewhere} ORDER BY employee_number`, params)).rows;
+  return (await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND status <> 'draft' AND payroll_eligible AND joining_date <= $3 AND (separation_date IS NULL OR separation_date >= $2)${extra}${notElsewhere} ORDER BY employee_number`, params)).rows;
 }
 
 export async function startPayrollRun(client, c, input) {

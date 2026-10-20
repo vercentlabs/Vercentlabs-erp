@@ -1173,7 +1173,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "joining",
         label: "Joining",
-        items: [available("Onboarding", "/hr/onboarding")],
+        items: [available("Onboarding", "/hr/onboarding"), { ...available("Exits", "/hr/exits"), aliases: ["resignation", "relieving", "separation", "full and final", "last working day", "offboarding"] }],
       },
       {
         id: "time",
@@ -1182,6 +1182,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Attendance", "/hr/attendance"),
           available("My Attendance", "/hr/my-attendance"),
+          { ...available("Attendance Corrections", "/hr/attendance-corrections"), aliases: ["regularization", "missing punch", "correct attendance"] },
           available("Shifts", "/hr/shifts"),
           available("Shift Assignments", "/hr/shift-assignments"),
           available("Holiday Calendars", "/hr/holiday-calendars"),
