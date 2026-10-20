@@ -125,6 +125,7 @@ export const PRODUCTION_SUPERVISOR_PERMISSIONS = Object.freeze([
   ...businessReader,
   "quality.inprocess.view", "quality.inprocess.create",
   "quality.final.view", "quality.final.create",
+  "quality.nonconformance.view",
   "manufacturing.view", "manufacturing.mo.view", "manufacturing.mo.start", "manufacturing.mo.record_production",
   "manufacturing.mo.reserve_material", "manufacturing.mo.issue_material", "manufacturing.mo.return_material", "manufacturing.mo.receive_goods",
   "manufacturing.material.view", "manufacturing.issue.view", "manufacturing.consumption.view", "manufacturing.consumption.create", "manufacturing.consumption.post",
@@ -189,6 +190,8 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "quality.nonconformance.view",
+      "quality.nonconformance.export",
       "quality.dispatch.view",
       "quality.dispatch.export",
       "quality.dispatch.view_audit",
@@ -474,6 +477,7 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "quality.nonconformance.view",
       "quality.dispatch.view",
       "quality.dispatch.create",
       "quality.dispatch.export",
@@ -1104,6 +1108,7 @@ const ROLE_DEFINITIONS = [
     riskLevel: "privileged",
     assignable: true,
     permissions: unique([
+      "quality.nonconformance.view",
       "quality.incoming.view",
       // Quality Control Points (as migration 0163 grants).
       "quality.qcp.view",
@@ -1267,6 +1272,7 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "quality.nonconformance.view",
       ...procurementReader,
       "parties.manage",
       "procurement.suppliers.create",
@@ -1293,6 +1299,7 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "quality.nonconformance.view",
       "quality.dispatch.view",
       "quality.dispatch.create",
       "quality.final.view",
@@ -1382,6 +1389,7 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "quality.nonconformance.view",
       "quality.final.view",
       "quality.final.create",
       "quality.final.export",
@@ -2149,6 +2157,10 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "quality.nonconformance.view",
+      "quality.nonconformance.verify",
+      "quality.nonconformance.close",
+      "quality.nonconformance.export",
       "quality.dispatch.view",
       "quality.dispatch.create",
       "quality.dispatch.assign",
@@ -2297,6 +2309,10 @@ const ROLE_DEFINITIONS = [
     riskLevel: "standard",
     assignable: true,
     permissions: unique([
+      "quality.nonconformance.view",
+      "quality.nonconformance.manage",
+      "quality.nonconformance.verify",
+      "quality.nonconformance.export",
       "quality.dispatch.view",
       "quality.dispatch.create",
       "quality.dispatch.assign",
@@ -2384,6 +2400,8 @@ const ROLE_DEFINITIONS = [
     riskLevel: "standard",
     assignable: true,
     permissions: unique([
+      "quality.nonconformance.view",
+      "quality.nonconformance.manage",
       "quality.dispatch.view",
       "quality.dispatch.start",
       "quality.dispatch.record_result",

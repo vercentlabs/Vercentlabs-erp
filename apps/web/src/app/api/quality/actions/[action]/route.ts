@@ -1,84 +1,19 @@
 import { z } from "zod";
 
-import {
-  saveQualitySettings,
-  createQualityNonconformance,
-  transitionNonconformance,
-  setDisposition,
-  approveUseAsIs,
-  closeNonconformance,
-  cancelNonconformance,
-} from "@vercentlabs/api";
+import { saveQualitySettings } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
 import { qualityMutation } from "@/features/quality/shared/route-helpers";
 
-const body = z.record(z.string(), z.unknown());
-const idOf = (input: Record<string, unknown>) => {
-  const id = String(input.id ?? "");
-  if (!id) throw new HttpError(400, "A record id is required.");
-  return id;
-};
-
-// Quality settings and non-conformance operations (inspections have their own routes under /api/quality/incoming-inspections).
-// One mutation endpoint per Quality operation. Each domain function enforces its OWN permission, state
-// machine and segregation of duties.
-export async function POST(
-  request: Request,
-  ctx: { params: Promise<{ action: string }> },
-) {
+// Quality settings. Inspections and nonconformances have their own routes (/api/quality/*-inspections, /api/quality/nonconformances).
+export async function POST(request: Request, ctx: { params: Promise<{ action: string }> }) {
   const { action } = await ctx.params;
-  return qualityMutation(
-    request,
-    body,
-    async (client, context, input) => {
-      switch (action) {
-        case "settings-save":
-          return { record: await saveQualitySettings(client, context, input) };
-        case "nc-create":
-          return {
-            record: await createQualityNonconformance(client, context, input),
-          };
-        case "nc-transition":
-          return {
-            record: await transitionNonconformance(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "nc-disposition":
-          return {
-            record: await setDisposition(client, context, idOf(input), input),
-          };
-        case "nc-use-as-is-decide":
-          return {
-            record: await approveUseAsIs(client, context, idOf(input), input),
-          };
-        case "nc-close":
-          return {
-            record: await closeNonconformance(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "nc-cancel":
-          return {
-            record: await cancelNonconformance(
-              client,
-              context,
-              idOf(input),
-              String(input.reason ?? ""),
-            ),
-          };
-        default:
-          throw new HttpError(404, "Unknown Quality action.");
-      }
-    },
-    200,
-    "quality.view",
-  );
+  return qualityMutation(request, z.record(z.string(), z.unknown()), async (client, context, input) => {
+    switch (action) {
+      case "settings-save":
+        return { record: await saveQualitySettings(client, context, input) };
+      default:
+        throw new HttpError(404, "Unknown Quality action.");
+    }
+  }, 200, "quality.view");
 }

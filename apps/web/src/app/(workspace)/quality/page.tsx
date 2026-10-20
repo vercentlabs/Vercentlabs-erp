@@ -1,4 +1,4 @@
-import { QualityDashboardScreen } from "@/features/quality/QualityPage";
+import { QualityDashboardScreen } from "@/features/quality/screens/DashboardScreen";
 
 export const metadata = { title: "Quality" };
 

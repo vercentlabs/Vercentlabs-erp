@@ -6,6 +6,9 @@ export const QUALITY_PERMISSIONS = Object.freeze({
   release: "quality.release",
   hold: "quality.hold",
   nonconformanceManage: "quality.nonconformance.manage",
+  // Nonconformance (as migration 0207 grants).
+  nonconformanceView: "quality.nonconformance.view", nonconformanceVerify: "quality.nonconformance.verify", nonconformanceClose: "quality.nonconformance.close",
+  nonconformanceExport: "quality.nonconformance.export",
   capaManage: "quality.capa.manage",
   samplingManage: "quality.sampling.manage",
   supplierQualityManage: "quality.supplier.manage",

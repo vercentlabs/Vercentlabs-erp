@@ -109,10 +109,10 @@ export async function authorizeDisposition(client, c, inspectionId, input = {}) 
   if (nonconformanceId && !(await client.query(`SELECT 1 FROM tenant.quality_nonconformances WHERE organization_id = $1 AND id = $2`, [c.organizationId, nonconformanceId])).rows[0])
     throw inError(400, "QUALITY_INCOMING_RESULT_INVALID", "That nonconformance was not found.");
   if (!nonconformanceId && input.nonconformance && typeof input.nonconformance === "object") {
-    const { createNonconformance } = await import("../nonconformance.js");
+    const { createNonconformance } = await import("../nonconformance/nc-commands.js");
     const failed = (await client.query(`SELECT id FROM tenant.quality_inspection_observations WHERE inspection_id = $1 AND is_current AND outcome = 'FAIL'`, [row.id])).rows.map((o) => o.id);
     const nc = await createNonconformance(client, c, { inspectionId: row.id, sourceType: row.source_type, sourceId: row.source_id, itemId: row.item_id, supplierId: row.supplier_id, batchId: row.batch_id,
-      severity: input.nonconformance.severity ?? (row.critical_failure ? "critical" : "major"), category: "incoming_inspection",
+      severity: input.nonconformance.severity ?? (row.critical_failure ? "critical" : "major"), category: `${row.inspection_type}_inspection`,
       description: text(input.nonconformance.description, 4000) || `Inspection ${row.inspection_number}: ${reason}`, detectedQuantity: String(reject + reinspect + rework + hold),
       affectedQuantity: String(reject + reinspect + rework + hold || population), ownerUserId: input.nonconformance.ownerUserId });
     nonconformanceId = nc.id;

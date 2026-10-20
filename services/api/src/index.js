@@ -94,9 +94,7 @@ export {
 export * from "./modules/quality/incoming/index.js";
 export * from "./modules/quality/inprocess/index.js";
 export * from "./modules/quality/dispatch/index.js";
-export {
-  listNonconformances, getNonconformance, createNonconformance as createQualityNonconformance, transitionNonconformance, setDisposition, approveUseAsIs, closeNonconformance, cancelNonconformance,
-} from "./modules/quality/nonconformance.js";
+export * from "./modules/quality/nonconformance/index.js";
 export {
   getQualityKpiDashboard, listQualityOptions,
 } from "./modules/quality/dashboard.js";

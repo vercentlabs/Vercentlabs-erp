@@ -711,7 +711,7 @@ function DecisionTab({ d, onDecide }: { d: Detail; onDecide: () => void }) {
               {x.reworkInstruction && <span className="block text-xs text-text-muted">{`Rework: ${x.reworkInstruction}`}</span>}</Cell>
             <Cell><span className="flex flex-col gap-1 text-sm">
               {x.reinspection && <Link className="text-brand hover:underline" href={`${A.base}/${x.reinspection.id}`}>{`${x.rework ? "Reinspection after rework" : "Reinspection"} ${x.reinspection.number}`}</Link>}
-              {x.nonconformance && <Link className="text-brand hover:underline" href="/quality/nonconformances">{`Nonconformance ${x.nonconformance.number}`}</Link>}
+              {x.nonconformance && <Link className="text-brand hover:underline" href={`/quality/nonconformances/${x.nonconformance.id}`}>{`Nonconformance ${x.nonconformance.number}`}</Link>}
               {x.rejection && <span>{`Rejection case ${x.rejection.number}`}</span>}
               {d.production && x.route === "SCRAP" && x.reject > 0 && <span>{x.manufacturingDecision ? "Scrap recorded by Manufacturing" : "Scrap awaits Manufacturing"}</span>}</span></Cell>
             <Cell>{x.decidedBy ?? "—"}</Cell><Cell>{formatDateTime(x.decidedAt)}</Cell></tr>)}
@@ -890,7 +890,7 @@ function NonconformanceTab({ d }: { d: Detail }) {
   return (
     <Panel title="Nonconformances" description="Opened from this inspection's findings (on the disposition), with the failed observations kept on them.">
       <LinesTable columns={["Nonconformance", "Severity", "Status", "Description"]} empty={d.nonconformances.length ? undefined : "None linked."}>
-        {d.nonconformances.map((x) => <tr key={x.id}><Cell><Link className="text-brand hover:underline" href="/quality/nonconformances">{x.number}</Link></Cell><Cell>{x.severity}</Cell>
+        {d.nonconformances.map((x) => <tr key={x.id}><Cell><Link className="text-brand hover:underline" href={`/quality/nonconformances/${x.id}`}>{x.number}</Link></Cell><Cell>{x.severity}</Cell>
           <Cell>{x.status.replace(/_/g, " ")}</Cell><Cell>{x.description}</Cell></tr>)}
       </LinesTable>
     </Panel>

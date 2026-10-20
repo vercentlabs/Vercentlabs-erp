@@ -18,7 +18,7 @@ import { listProjects, listTaskQueue } from "../../modules/projects/index.js";
 import { getAssetRegister } from "../../modules/assets/asset-register/register-read.js";
 import { listPosTransactions } from "../../modules/point-of-sale/index.js";
 import { listInspections } from "../../modules/quality/inspections.js";
-import { listNonconformances } from "../../modules/quality/nonconformance.js";
+import { listNonconformances } from "../../modules/quality/nonconformance/nc-read.js";
 
 const CRM_RECORD_PATHS = Object.freeze({ lead: "/crm/leads", party: "/crm/accounts", contact: "/crm/contacts", opportunity: "/crm/opportunities" });
 const text = (value) => (value === null || value === undefined || value === "" ? null : String(value).slice(0, 160));
@@ -290,12 +290,12 @@ export const SEARCH_PROVIDERS = Object.freeze([
   },
   {
     key: "quality.nonconformances",
-    label: "Non-conformances",
+    label: "Nonconformances",
     moduleKey: "quality",
-    requiredPermission: "quality.view",
+    requiredPermission: "quality.nonconformance.view",
     async execute(client, context, term, limit) {
-      const rows = (await listNonconformances(client, context, {})).filter((row) => matches(term, row.nonconformance_number, row.category, row.description));
-      return rows.slice(0, limit).map((row) => ({ recordId: row.id, title: text(row.nonconformance_number) || "Non-conformance", detail: joined(row.severity, row.status && `· ${row.status}`), href: "/quality/nonconformances" }));
+      const rows = await listNonconformances(client, context, { search: term });
+      return rows.slice(0, limit).map((row) => ({ recordId: row.id, title: text(row.number) || "Nonconformance", detail: joined(row.title, row.statusLabel && `· ${row.statusLabel}`), href: `/quality/nonconformances/${row.id}` }));
     },
   },
 ]);

@@ -50,6 +50,7 @@
     "test:quality-inprocess": "node scripts/database/tests/quality-inprocess.smoke.mjs",
     "test:quality-final": "node scripts/database/tests/quality-final.smoke.mjs",
     "test:quality-dispatch": "node scripts/database/tests/quality-dispatch.smoke.mjs",
+    "test:quality-nonconformance": "node scripts/database/tests/quality-nonconformance.smoke.mjs",
     "verify:fast": "npx --yes pnpm@11.21.0 typecheck:web && npx --yes pnpm@11.21.0 lint:web",
     "verify:routes": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web verify:routes",
     "verify:web": "npx --yes pnpm@11.21.0 verify:fast && npx --yes pnpm@11.21.0 verify:routes && npx --yes pnpm@11.21.0 build:web",

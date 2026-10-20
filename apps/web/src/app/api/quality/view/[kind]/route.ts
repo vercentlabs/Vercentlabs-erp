@@ -1,7 +1,5 @@
 import {
   getQualitySettings,
-  listNonconformances,
-  getNonconformance,
   getQualityKpiDashboard,
   listQualityOptions,
 } from "@vercentlabs/api";
@@ -16,8 +14,6 @@ export async function GET(
   ctx: { params: Promise<{ kind: string }> },
 ) {
   const { kind } = await ctx.params;
-  const q = new URL(request.url).searchParams;
-  const get = (name: string) => q.get(name) || undefined;
   return qualityRead(
     request,
     async (client, context) => {
@@ -26,21 +22,6 @@ export async function GET(
           return { options: await listQualityOptions(client, context) };
         case "settings":
           return { settings: await getQualitySettings(client, context) };
-        case "nonconformances":
-          return {
-            rows: await listNonconformances(client, context, {
-              status: get("status"),
-              severity: get("severity"),
-            }),
-          };
-        case "nonconformance":
-          return {
-            nonconformance: await getNonconformance(
-              client,
-              context,
-              get("id") ?? "",
-            ),
-          };
         case "dashboard":
           return { dashboard: await getQualityKpiDashboard(client, context) };
         default:

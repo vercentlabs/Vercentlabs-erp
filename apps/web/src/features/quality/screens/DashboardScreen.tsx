@@ -14,6 +14,7 @@ import { quantity } from "@/features/quality/shared/format";
 import { SpecificationsHomePanel } from "@/features/quality/specifications/SpecScreens";
 import { ControlPointsHomePanel } from "@/features/quality/control-points/QcpScreens";
 import { DispatchHomePanel, FinalHomePanel, InProcessHomePanel, IncomingHomePanel } from "@/features/quality/incoming/IncomingScreens";
+import { NonconformanceHomePanel } from "@/features/quality/nonconformance/NcScreens";
 
 // F342: the Quality KPI dashboard.
 export function QualityDashboardScreen() {
@@ -41,6 +42,7 @@ export function QualityDashboardScreen() {
       <InProcessHomePanel />
       <FinalHomePanel />
       <DispatchHomePanel />
+      <NonconformanceHomePanel />
       <ControlPointsHomePanel />
       <SpecificationsHomePanel />
       {d && (

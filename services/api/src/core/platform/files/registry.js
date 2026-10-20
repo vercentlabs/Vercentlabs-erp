@@ -70,6 +70,8 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "quality.specification": { moduleKey: "quality", purposes: ["attachment"] },
   // Evidence on a Quality inspection: photos of samples, certificates, laboratory reports.
   "quality.inspection": { moduleKey: "quality", purposes: ["attachment"] },
+  // Evidence on a nonconformance: defect photos, investigation records, proof an action was done.
+  "quality.nonconformance": { moduleKey: "quality", purposes: ["attachment"] },
   // On a quality hold: inspection notes, photos, certificates, supplier correspondence.
   "stock.inventory_stock_hold": { moduleKey: "stock", purposes: ["attachment"] },
   "platform.export": { moduleKey: null, purposes: ["export"] },
