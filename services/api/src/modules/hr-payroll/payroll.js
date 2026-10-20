@@ -7,6 +7,8 @@ import {
   HrError, addDays, dateOrNull, dateRequired, daysBetween, has, needAny, need, ownEmployee, qx, recordEvent, round2, text, textOrNull, today, uuid, uuidOrNull, oneOf, seq,
 } from "./common.js";
 import { compensationDuring } from "./compensation.js";
+import { computeStatutory } from "./statutory/st-engine.js";
+import { inputsForRun } from "./statutory/vp-inputs.js";
 import { computeAttendanceSummary } from "./time.js";
 
 const PREPARE = "hr_payroll.payroll.prepare";
@@ -82,7 +84,7 @@ export async function unlockPayrollPeriod(client, c, id, reason) {
   if (!p) throw new HrError(404, "Payroll period was not found.", "HR_PERIOD_NOT_FOUND");
   if (p.status !== "locked") throw new HrError(409, "Only a locked period can be unlocked.", "HR_PERIOD_STATE");
   if (!text(reason)) throw new HrError(400, "Give a reason for unlocking the period.", "HR_REASON_REQUIRED");
-  const run = await qx(client, `SELECT payroll_number FROM tenant.hr_payroll_runs WHERE period_id=$1 AND status IN ('approved','posted','paid') LIMIT 1`, [p.id]);
+  const run = await qx(client, `SELECT payroll_number FROM tenant.hr_payroll_runs WHERE period_id=$1 AND status IN ('approved','posted','partially_paid','paid','closed') LIMIT 1`, [p.id]);
   if (run.rows[0]) throw new HrError(409, `Payroll ${run.rows[0].payroll_number} is already approved for this period.`, "HR_PERIOD_HAS_RUN");
   const { rows } = await qx(client, `UPDATE tenant.hr_payroll_periods SET status='open', locked_by=NULL, locked_at=NULL WHERE id=$1 RETURNING *`, [p.id]);
   await recordEvent(client, c, "payroll_period", p.id, "hr.period.unlocked", { reason: text(reason, 300) });
@@ -94,12 +96,15 @@ export async function closePayrollPeriod(client, c, id) {
   if (!p) throw new HrError(404, "Payroll period was not found.", "HR_PERIOD_NOT_FOUND");
   if (p.status === "closed") throw new HrError(409, "The period is already closed.", "HR_PERIOD_STATE");
   const run = await qx(client, `SELECT status FROM tenant.hr_payroll_runs WHERE period_id=$1 AND run_type='regular' AND status <> 'cancelled'`, [p.id]);
-  if (!run.rows[0] || !["posted", "paid"].includes(run.rows[0].status)) throw new HrError(409, "A period closes once its payroll has been posted to accounting.", "HR_PERIOD_RUN_OPEN");
+  if (!run.rows[0] || !["posted", "partially_paid", "paid", "closed"].includes(run.rows[0].status)) throw new HrError(409, "A period closes once its payroll has been posted to accounting.", "HR_PERIOD_RUN_OPEN");
   return (await qx(client, `UPDATE tenant.hr_payroll_periods SET status='closed', closed_at=now() WHERE id=$1 RETURNING *`, [p.id])).rows[0];
 }
 
 // ---------------------------------------------------------------- the engine (F424-F427)
-const line = (o) => ({ code: o.code, name: o.name, type: o.type, kind: o.kind ?? null, amount: round2(o.amount), taxable: round2(o.taxable ?? (o.type === "earning" ? o.amount : 0)), employer: round2(o.employer ?? 0), componentId: o.componentId ?? null, statutoryId: o.statutoryId ?? null });
+// A payslip line. pfWage / esiWage (the component counts towards the PF / ESI wage) feed the statutory calculation and are not stored;
+// detail is the statutory rule's working (stored with the line); inputId the variable pay item it pays.
+const line = (o) => ({ code: o.code, name: o.name, type: o.type, kind: o.kind ?? null, amount: round2(o.amount), taxable: round2(o.taxable ?? (o.type === "earning" ? o.amount : 0)), employer: round2(o.employer ?? 0),
+  componentId: o.componentId ?? null, statutoryId: o.statutoryId ?? null, detail: o.detail ?? null, inputId: o.inputId ?? null, pfWage: Boolean(o.pf_wage ?? o.pfWage), esiWage: Boolean(o.esic_wage ?? o.esiWage) });
 
 async function computeEmployee(client, c, run, emp, cfg) {
   const from = String(run.period_start);
@@ -148,10 +153,15 @@ async function computeEmployee(client, c, run, emp, cfg) {
   const lines = [];
   for (const comp of byCode.values()) {
     const amount = round2(comp.amount);
-    if (comp.type === "earning") lines.push(line({ code: comp.code, name: comp.name, type: "earning", kind: comp.kind, amount, taxable: comp.taxable ? amount : 0 }));
+    if (comp.type === "earning") lines.push(line({ code: comp.code, name: comp.name, type: "earning", kind: comp.kind, amount, taxable: comp.taxable ? amount : 0, pf_wage: comp.pf_wage, esic_wage: comp.esic_wage }));
     else if (comp.type === "deduction") lines.push(line({ code: comp.code, name: comp.name, type: "deduction", kind: comp.kind, amount, taxable: 0 }));
     else lines.push(line({ code: comp.code, name: comp.name, type: "employer_contribution", kind: comp.kind, amount: 0, taxable: 0, employer: amount }));
   }
+  // Variable pay approved for the month, then the statutory deductions and contributions (from the verified rule versions).
+  for (const v of await inputsForRun(client, c, emp, run)) lines.push(line(v));
+  const statutory = await computeStatutory(client, c, { emp, run, lines });
+  for (const l of statutory.lines) lines.push(line(l));
+  exceptions.push(...statutory.exceptions);
   const unmarked = segs.reduce((n, s) => n + s.sum.unmarkedDays, 0);
   if (unmarked > 0) exceptions.push({ code: "UNMARKED_DAYS", severity: "warning", message: `${unmarked} working day(s) have no attendance and are treated as unpaid.` });
   const pendingLeave = (await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_leave_requests WHERE employee_id=$1 AND status='submitted' AND start_date <= $3 AND end_date >= $2`, [emp.id, from, to])).rows[0].n;
@@ -177,6 +187,8 @@ async function computeEmployee(client, c, run, emp, cfg) {
     compensation: parts.map((p) => ({ id: p.k.id, from: p.sf, to: p.st, monthlyGross: Number(p.k.monthly_gross), annualCtc: Number(p.k.annual_ctc), structureVersion: p.k.structure_version, payable: p.payable, employed: p.employed })),
     attendance: { payableDays: payable, lopDays: round2(D - payable - segs.reduce((n, s) => n + s.sum.notEmployedDays, 0)), lateDeductionDays: unpaidLate, unmarkedDays: unmarked },
     wages: { taxableGross },
+    statutory: statutory.detail,
+    inputs: lines.filter((l) => l.inputId).map((l) => l.inputId),
   };
   const ordered = lines.map((l, i) => ({ ...l, sequence: i + 1 }));
   const hash = sha({ lines: ordered.map((l) => [l.code, l.type, l.amount, l.taxable, l.employer]), totals: [gross, deductions, employer, net], snapshot });
@@ -247,6 +259,7 @@ export async function runPayrollCalculation(client, c, id, input = {}) {
   // recalculation starts clean: release what the previous calculation reserved
   await qx(client, `DELETE FROM tenant.hr_payslips WHERE payroll_run_id=$1`, [run.id]);
   await qx(client, `DELETE FROM tenant.hr_payroll_exceptions WHERE payroll_run_id=$1`, [run.id]);
+  await qx(client, `UPDATE tenant.hr_payroll_inputs SET payroll_run_id = NULL WHERE payroll_run_id = $1 AND status = 'approved'`, [run.id]);
   const needsExplicitEmployees = run.run_type === "off_cycle";
   const emps = await eligibleEmployees(client, c, run, needsExplicitEmployees ? (Array.isArray(input.employeeIds) ? input.employeeIds.map((x) => uuid(x, "Employee")) : []) : null);
   if (needsExplicitEmployees && !emps.length) throw new HrError(400, "Choose the employees for an off-cycle run.", "HR_RUN_EMPTY");
@@ -263,8 +276,9 @@ export async function runPayrollCalculation(client, c, id, input = {}) {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'calculated',now(),$14::jsonb,$15,$16) RETURNING *`,
       [c.organizationId, run.id, emp.id, `PS-${run.payroll_number}-${emp.employee_number}`, r.days.working, r.days.paid, r.days.leave, r.days.lop, 0, r.gross, r.deductions, r.employer, r.net, JSON.stringify(r.snapshot), r.hash, r.days.lop])).rows[0];
     for (const l of r.lines) {
-      await qx(client, `INSERT INTO tenant.hr_payslip_lines(organization_id,payslip_id,salary_component_id,statutory_component_id,component_code,component_name,component_type,amount,taxable_amount,employer_amount,line_sequence,component_kind) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [c.organizationId, slip.id, l.componentId, l.statutoryId, l.code, l.name, l.type, l.amount, l.taxable, l.employer, l.sequence, l.kind]);
+      await qx(client, `INSERT INTO tenant.hr_payslip_lines(organization_id,payslip_id,salary_component_id,statutory_component_id,component_code,component_name,component_type,amount,taxable_amount,employer_amount,line_sequence,component_kind,rule_detail) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb)`,
+        [c.organizationId, slip.id, l.componentId, l.statutoryId, l.code, l.name, l.type, l.amount, l.taxable, l.employer, l.sequence, l.kind, l.detail ? JSON.stringify(l.detail) : null]);
+      if (l.inputId) await qx(client, `UPDATE tenant.hr_payroll_inputs SET payroll_run_id = $2 WHERE id = $1`, [l.inputId, run.id]);
     }
     hashes.push(`${emp.employee_number}:${r.hash}`);
     gross += r.gross; ded += r.deductions; employer += r.employer; net += r.net; count += 1;
@@ -322,6 +336,7 @@ export async function cancelPayroll(client, c, id, reason) {
   if (run.status === "approved") need(c, APPROVE);
   if (!text(reason)) throw new HrError(400, "Give a reason for cancelling the payroll.", "HR_REASON_REQUIRED");
   await qx(client, `UPDATE tenant.hr_payslips SET status='cancelled', released_at=NULL WHERE payroll_run_id=$1`, [run.id]);
+  await qx(client, `UPDATE tenant.hr_payroll_inputs SET payroll_run_id = NULL WHERE payroll_run_id = $1 AND status = 'approved'`, [run.id]);
   const { rows } = await qx(client, `UPDATE tenant.hr_payroll_runs SET status='cancelled', cancelled_by=$2, cancelled_at=now(), cancel_reason=$3 WHERE id=$1 RETURNING *`, [run.id, c.userId, text(reason, 500)]);
   await recordEvent(client, c, "payroll_run", run.id, "hr.payroll.cancelled", { reason: text(reason, 300) });
   return rows[0];

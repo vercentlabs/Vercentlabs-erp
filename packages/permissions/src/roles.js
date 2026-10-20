@@ -700,6 +700,10 @@ const ROLE_DEFINITIONS = [
     riskLevel: "privileged",
     assignable: true,
     permissions: unique([
+      "hr_payroll.payment.record",
+      "hr_payroll.statutory.pay",
+      "hr_payroll.payroll.post",
+      "hr_payroll.inputs.approve",
       // The Chart of Accounts (Finance MVP F1, migration 0196).
       "accounting.chart.manage",
       // Quality Control Points (as migration 0163 grants).
@@ -910,6 +914,8 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "hr_payroll.payment.record",
+      "hr_payroll.inputs.manage",
       "assets.depreciation.view",
       "assets.depreciation.view_financials",
       "assets.depreciation.assign_policy",
@@ -2488,6 +2494,12 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "hr_payroll.payment.record",
+      "hr_payroll.statutory.pay",
+      "hr_payroll.statutory.verify",
+      "hr_payroll.inputs.manage",
+      "hr_payroll.inputs.approve",
+      "hr_payroll.ytd.manage",
       "assets.assignment.view",
       "assets.custody.view_clearance",
       ...businessReader,

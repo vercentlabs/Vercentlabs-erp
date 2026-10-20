@@ -1,0 +1,16 @@
+type Q = { query(text: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }> };
+type C = { organizationId: string; userId?: string | null; permissions?: readonly string[]; roleSlugs?: readonly string[] };
+type R = Record<string, any>;
+export declare const PAYROLL_ACCOUNTING_PERMISSIONS: Readonly<Record<string, string>>;
+export declare const PAYROLL_REPORTS: Readonly<Record<string, string>>;
+export declare function postPayrollRunToFinance(client: Q, c: C, id: string, input?: R): Promise<R>;
+export declare function unpostPayrollRun(client: Q, c: C, id: string, input?: R): Promise<R>;
+export declare function publishPayslips(client: Q, c: C, id: string): Promise<R>;
+export declare function recordSalaryPayment(client: Q, c: C, id: string, input?: R): Promise<R>;
+export declare function markPaymentException(client: Q, c: C, payslipId: string, input?: R): Promise<R>;
+export declare function statutoryOwed(client: Q, c: C, kind: string, month: string): Promise<{ due: number; paid: number; outstanding: number }>;
+export declare function recordStatutoryPayment(client: Q, c: C, input?: R): Promise<R>;
+export declare function closePayrollRun(client: Q, c: C, id: string): Promise<R>;
+export declare function payrollPostingOf(client: Q, c: C, run: R): Promise<R>;
+export declare function getPayrollReport(client: Q, c: C, kind: string, filters?: R): Promise<{ kind: string; title: string; rows: R[] }>;
+export declare function exportPayrollReport(client: Q, c: C, kind?: string, filters?: R): Promise<{ fileName: string; mimeType: string; body: string }>;

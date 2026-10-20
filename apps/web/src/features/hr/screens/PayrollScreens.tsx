@@ -34,6 +34,7 @@ import {
   tone,
 } from "@/features/hr/shared/format";
 import { HrAlert, HrPanel, useCan } from "@/features/hr/shared/HrUi";
+import { PayrollAccountingPanel } from "@/features/hr/payroll-accounting/PayrollAccounting";
 
 const errorText = (e: unknown) =>
   e instanceof HrApiError ? e.message : "This could not be completed.";
@@ -548,6 +549,7 @@ export function PayrollRunScreen({ id }: { id: string }) {
           { label: "Blocking exceptions", value: String(blocking) },
         ]}
       />
+      <PayrollAccountingPanel runId={id} status={st} />
       <div className="flex flex-wrap gap-2">
         {prepare && ["draft", "calculated"].includes(st) && (
           <Button

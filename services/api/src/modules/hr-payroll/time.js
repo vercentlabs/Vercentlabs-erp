@@ -196,7 +196,7 @@ const minutesOf = (t) => Number(String(t).slice(0, 2)) * 60 + Number(String(t).s
 const shiftMinutes = (s) => (s ? ((minutesOf(s.end_time) - minutesOf(s.start_time) + 1440) % 1440) - Number(s.break_minutes) : 480);
 
 async function assertDateOpen(client, c, date) {
-  const r = await qx(client, `SELECT payroll_number, status FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND status IN ('approved','posted','paid') AND period_start <= $2 AND period_end >= $2 LIMIT 1`, [c.organizationId, date]);
+  const r = await qx(client, `SELECT payroll_number, status FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND status IN ('approved','posted','partially_paid','paid','closed') AND period_start <= $2 AND period_end >= $2 LIMIT 1`, [c.organizationId, date]);
   if (r.rows[0]) throw new HrError(409, `${date} is in payroll ${r.rows[0].payroll_number}, which is ${r.rows[0].status}. Attendance for it is locked.`, "HR_PERIOD_LOCKED");
   // a payroll period that has been locked (or closed) freezes attendance even before a run exists
   const p = await qx(client, `SELECT period_code, status FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND status IN ('locked','closed') AND period_start <= $2 AND period_end >= $2 LIMIT 1`, [c.organizationId, date]);

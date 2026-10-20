@@ -157,6 +157,8 @@ export * from "./core/platform/module-administration.js";
 export { hrContext, HrError } from "./modules/hr-payroll/common.js";
 export * from "./modules/hr-payroll/options.js";
 export * from "./modules/hr-payroll/workforce.js";
+export * from "./modules/hr-payroll/statutory/index.js";
+export * from "./modules/hr-payroll/accounting/index.js";
 export {
   listShifts, saveShift, listShiftAssignments, assignShift, listHolidayCalendars, saveHolidayCalendar, listHolidays, addHoliday, removeHoliday, assignHolidayCalendar, punch, recordAttendance, listAttendance, getMyPunchState, getAttendanceSummary, computeAttendanceSummary, recomputeDay,
 } from "./modules/hr-payroll/time.js";

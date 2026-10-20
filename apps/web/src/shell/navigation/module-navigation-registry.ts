@@ -1219,6 +1219,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F415-F422",
         items: [
           available("Payroll", "/hr/payroll"),
+          { ...available("Variable Pay", "/hr/variable-pay"), aliases: ["bonus", "incentive", "recovery", "arrears", "one-time pay"] },
+          { ...available("Payroll Reports", "/hr/payroll-reports"), aliases: ["payroll register", "salary payment reconciliation", "tds summary", "epf summary", "esi summary", "pt summary", "payroll gl reconciliation", "challan"] },
+          { ...available("Statutory Rules", "/hr/statutory"), aliases: ["epf", "esi", "professional tax", "tds", "statutory configuration", "pf", "pt slabs", "ytd opening"] },
           available("Payroll Runs", "/hr/payroll-runs"),
           available("Payroll Periods", "/hr/payroll-periods"),
           available("Exceptions", "/hr/payroll-exceptions"),
