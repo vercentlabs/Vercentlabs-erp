@@ -197,8 +197,11 @@ export async function assertDispatchClearance(client, c, { deliveryId }) {
     }
     if (quantity > gate.allowance + EPS) {
       const pending = [...new Set(gate.open.map((o) => o.qcp_code))];
+      const cleared = round6(gate.allowance);
       throw inError(409, "QUALITY_DISPATCH_GATE_ACTIVE", pending.length
-        ? `${line.item_name_snapshot} is awaiting Quality's pre-dispatch clearance (${pending.join(", ")}).`
+        ? cleared > EPS
+          ? `Quality cleared ${cleared} of the ${quantity} ${line.item_name_snapshot} on this delivery; the rest awaits its decision (${pending.join(", ")}). To ship now, return it to draft and reduce the line to ${cleared}.`
+          : `${line.item_name_snapshot} is awaiting Quality's pre-dispatch clearance (${pending.join(", ")}).`
         : `Quality cleared ${round6(gate.allowance)} of the ${quantity} ${line.item_name_snapshot} on this delivery. Return it to draft and reduce the line to ${round6(gate.allowance)}; rejected units stay on Quality hold.`,
       { line: line.id, allowance: gate.allowance, quantity, pending });
     }

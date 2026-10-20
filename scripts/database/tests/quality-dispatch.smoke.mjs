@@ -94,6 +94,7 @@ try {
   const qcp = await api("modules/quality/control-points/index.js");
   const qin = await api("modules/quality/incoming/index.js");
   const pd = await api("modules/quality/dispatch/index.js");
+  const holds = await api("modules/stock/quality-holds.js");
 
   // The company: a Maharashtra registration, a warehouse, a price list, net-30 terms, a customer with an address.
   await client.query(`INSERT INTO tenant.tax_registrations (organization_id, code, name, registration_number, state_code, state_name, is_default) VALUES ($1, 'MH', 'Maharashtra', '27AAACV1111A1Z1', '27', 'Maharashtra', true)`, [organizationId]);
@@ -122,8 +123,7 @@ try {
     const so = await sales.createSalesOrder(client, owner, { partyId: lumen.id, defaultWarehouseId: mum, lines: [{ itemId, quantity }] });
     await sales.confirmSalesOrder(client, meera, so.id);
     const made = await sales.createDeliveryFromSalesOrder(client, owner, so.id, { idempotencyKey: `dl-${tag}-${++keyNo}` });
-    const lineId = (await client.query(`SELECT id FROM tenant.sales_order_lines WHERE sales_order_id = $1 AND item_id = $2 LIMIT 1`, [so.id, itemId])).rows[0]?.id
-      ?? (await client.query(`SELECT sales_order_line_id AS id FROM tenant.sales_delivery_lines WHERE delivery_id = $1 LIMIT 1`, [made.deliveryId])).rows[0].id;
+    const lineId = (await client.query(`SELECT sales_order_line_id AS id FROM tenant.sales_delivery_lines WHERE delivery_id = $1 LIMIT 1`, [made.deliveryId])).rows[0].id;
     return { orderId: so.id, deliveryId: made.deliveryId, orderLineId: lineId };
   };
   const dispatch = (deliveryId) => sales.dispatchDelivery(client, wh, deliveryId, {});
@@ -217,7 +217,7 @@ try {
     const hold = (await client.query(`SELECT * FROM tenant.inventory_stock_holds WHERE id = $1`, [made.effects.stockHoldId])).rows[0];
     assert(hold.status === "draft" && hold.source_document_type === "quality_disposition", hold.status);
     assert((await pd.listDispatchExceptions(client, qm)).some((x) => x.kind === "REJECTED_NOT_HELD"), "the unplaced hold is an exception");
-    await stock.placeStockOnHold(client, store, hold.id, {});
+    await holds.placeStockOnHold(client, store, hold.id, {});
     assert(await heldAt(lamp) === 15, String(await heldAt(lamp)));
     assert(!(await pd.listDispatchExceptions(client, qm)).some((x) => x.kind === "REJECTED_NOT_HELD"), "placed: no longer an exception");
     const tooMany = await refused(() => dispatch(done.deliveryId), "QUALITY_DISPATCH_GATE_ACTIVE");
