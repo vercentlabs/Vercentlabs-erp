@@ -64,7 +64,8 @@
     "verify:release": "npx --yes pnpm@11.21.0 release:gate",
     "verify:platform": "npx --yes pnpm@11.21.0 typecheck:web && npx --yes pnpm@11.21.0 lint:web && npx --yes pnpm@11.21.0 build:web",
     "deadcode:check": "npx --yes pnpm@11.21.0 exec knip",
-    "test:hr-exit-attendance": "node scripts/database/tests/hr-exit-attendance.smoke.mjs"
+    "test:hr-exit-attendance": "node scripts/database/tests/hr-exit-attendance.smoke.mjs",
+    "test:gst-returns": "node scripts/database/tests/gst-returns.smoke.mjs"
   },
   "engines": {
     "node": ">=24 <25",

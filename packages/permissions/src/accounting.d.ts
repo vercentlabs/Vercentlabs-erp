@@ -39,3 +39,4 @@ export declare const ACCOUNTING_PERMISSIONS: Readonly<{
   supplierPaymentDetailsManage: "accounting.supplier_payment_details.manage";
   customerCreditView: "accounting.customer_credit.view";
 }>;
+export declare const GST_PERMISSIONS: Readonly<{ view: "gst.view"; prepare: "gst.return.prepare"; approve: "gst.return.approve"; file: "gst.return.file"; itc: "gst.itc.manage" }>;

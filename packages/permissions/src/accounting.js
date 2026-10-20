@@ -41,3 +41,8 @@ export const ACCOUNTING_PERMISSIONS = Object.freeze({
   supplierPaymentDetailsView: "accounting.supplier_payment_details.view",
   supplierPaymentDetailsManage: "accounting.supplier_payment_details.manage",
 });
+
+// GST returns, summaries, reconciliation and input tax credit (as migration 0212 grants).
+export const GST_PERMISSIONS = Object.freeze({
+  view: "gst.view", prepare: "gst.return.prepare", approve: "gst.return.approve", file: "gst.return.file", itc: "gst.itc.manage",
+});

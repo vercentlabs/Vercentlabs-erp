@@ -1,0 +1,21 @@
+type Q = { query(text: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }> };
+type C = { organizationId: string; userId?: string | null; permissions?: readonly string[]; roleSlugs?: readonly string[] };
+type R = Record<string, any>;
+export declare const GST_PERMISSIONS: Readonly<Record<string, string>>;
+export declare const GSTR1_SECTIONS: Readonly<Record<string, string>>;
+export declare const B2CL_LIMIT: number;
+export declare class GstError extends Error { status: number; statusCode: number; code: string; details?: unknown }
+export declare function listGstRegistrations(client: Q, c: C): Promise<R[]>;
+export declare function collectOutwardSupplies(client: Q, c: C, registration: R, from: string, to: string, options?: R): Promise<{ documents: R[]; cancelled: R[]; sellerState: string; utgstState: boolean }>;
+export declare function checkGstDocument(document: R, registration: R, context: R): Array<{ code: string; severity: string; message: string }>;
+export declare function gstr1SectionOf(document: R): string;
+export declare function prepareGstr1(client: Q, c: C, input?: R): Promise<R>;
+export declare function approveGstReturn(client: Q, c: C, id: string): Promise<R>;
+export declare function reopenGstReturn(client: Q, c: C, id: string, input?: R): Promise<R>;
+export declare function fileGstReturn(client: Q, c: C, id: string, input?: R): Promise<R>;
+export declare function waiveGstException(client: Q, c: C, exceptionId: string, input?: R): Promise<R>;
+export declare function listGstReturns(client: Q, c: C, filters?: R): Promise<R[]>;
+export declare function getGstReturn(client: Q, c: C, id: string, options?: { section?: string }): Promise<R>;
+export declare function exportGstr1Section(client: Q, c: C, id: string, section: string): Promise<{ fileName: string; mimeType: string; body: string; note: string }>;
+export declare function outwardGstSummary(client: Q, c: C, input?: R): Promise<R>;
+export declare function inwardGstSummary(client: Q, c: C, input?: R): Promise<R>;

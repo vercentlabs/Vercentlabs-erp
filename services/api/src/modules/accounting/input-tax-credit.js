@@ -17,7 +17,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { createJournalEntry, postJournalEntry, reverseJournalEntry } from "./journals.js";
 
-const GST = ["cgst", "sgst", "igst", "cess"];
+const GST = ["cgst", "sgst", "utgst", "igst", "cess"];
 const SOURCES = Object.freeze({
   vendor_bill: { label: "Supplier invoice", table: "accounting_vendor_bills", number: "bill_number", href: "/procurement/supplier-bills/{id}" },
   vendor_credit_note: { label: "Supplier credit note", table: "accounting_vendor_bills", number: "bill_number", href: "/procurement/supplier-bills/{id}" },
@@ -94,7 +94,7 @@ export async function decideInputTaxCredit(client, context, input = {}) {
   const book = (accountId, amount, label) => totals.set(accountId, { amount: (totals.get(accountId)?.amount ?? 0n) + amount, label });
   for (const row of rows) {
     const amount = decimal(row.tax_amount);
-    const target = decision === "ELIGIBLE" ? await getAccountMapping(client, context, ledger.id, `input_${row.tax_type}`, { date }) : ineligible;
+    const target = decision === "ELIGIBLE" ? await getAccountMapping(client, context, ledger.id, `input_${row.tax_type === "utgst" ? "sgst" : row.tax_type}`, { date }) : ineligible;
     book(target.account_id, amount, decision === "ELIGIBLE" ? `Input ${row.tax_type.toUpperCase()} claimable` : "Input GST not claimable");
     book(pending.account_id, -amount, "Input GST awaiting confirmation");
   }

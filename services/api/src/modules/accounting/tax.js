@@ -6,7 +6,7 @@ import {
 } from "./core.js";
 
 const TAX_TYPES = new Set([
-  "cgst", "sgst", "igst", "cess", "vat", "sales_tax", "tds", "tcs", "withholding", "other",
+  "cgst", "sgst", "utgst", "igst", "cess", "vat", "sales_tax", "tds", "tcs", "withholding", "other",
 ]);
 
 function taxComponents(line, direction) {
@@ -35,7 +35,9 @@ function taxComponents(line, direction) {
   return components;
 }
 
-const GST_COMPONENTS = new Set(["cgst", "sgst", "igst", "cess"]);
+const GST_COMPONENTS = new Set(["cgst", "sgst", "utgst", "igst", "cess"]);
+// UTGST has no accounts of its own: it posts to the SGST ones.
+const ACCOUNT_HEAD = (type) => (type === "utgst" ? "sgst" : type);
 
 // A posting account that is used only once configured (null when it is not).
 export async function optionalMapping(client, context, ledgerId, mappingKey, selectors = {}) {
@@ -64,7 +66,7 @@ export async function taxPostingLines(client, context, ledgerId, line, options) 
     if (blocked) account = line.tax_account_id ? { account_id: line.tax_account_id } : null;
     else if (GST_COMPONENTS.has(component.taxType)) {
       if (options.direction === "input" && options.itcPending) account = await getAccountMapping(client, context, ledgerId, "input_tax_pending", { date: options.date });
-      else account = await optionalMapping(client, context, ledgerId, `${options.direction}_${component.taxType}`, { date: options.date });
+      else account = await optionalMapping(client, context, ledgerId, `${options.direction}_${ACCOUNT_HEAD(component.taxType)}`, { date: options.date });
     }
     account ??= await fallback();
     const amount = asDatabaseDecimal(component.taxAmount);
