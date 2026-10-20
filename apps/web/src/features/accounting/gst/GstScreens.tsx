@@ -274,3 +274,40 @@ export function Gstr2bScreen() {
     </div>
   );
 }
+
+type Obligations = { from: string; to: string; gspConfigured: boolean;
+  einvoiceDue: Array<{ invoiceId: string; number: string; kind: string; date: string; value: number; gstin: string | null; customer: string | null; seller: string }>;
+  ewayDue: Array<{ sourceType: string; sourceId: string; number: string; date: string; value: number }>; expiring: Array<{ sourceType: string; sourceId: string; number: string; ewbNumber: string; validUntil: string }> };
+const MOVEMENT_HREF: Record<string, string> = { sales_delivery: "/sales/deliveries/", stock_transfer: "/inventory/transfers/", purchase_return: "/procurement/purchase-returns/" };
+const MOVEMENT_LABEL: Record<string, string> = { sales_delivery: "Delivery", stock_transfer: "Transfer", purchase_return: "Purchase return" };
+export function GstDocumentsScreen() {
+  const workspace = useWorkspaceContext();
+  const [from, setFrom] = useState(() => new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10));
+  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const q = useQuery({ queryKey: scopedQueryKey(workspace, "accounting", "gst", "obligations", from, to), queryFn: () => call<Obligations>(`?obligations=1&from=${from}&to=${to}`), retry: false });
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHeader title="E-invoices and E-way Bills" description="What the company must still generate: posted invoices of GSTINs under the e-invoice mandate without an IRN, and goods movements worth ₹50,000 or more without a live e-way bill. Open the document to check its data, generate through the GSP or record the reference from the government portal." />
+      <div className="flex flex-wrap items-end gap-2"><TextField label="From" type="date" value={from} onChange={setFrom} /><TextField label="To" type="date" value={to} onChange={setTo} /></div>
+      {q.isLoading ? <LoadingState label="Checking obligations" rows={3} /> : q.isError ? <Notice tone="danger">{errorMessage(q.error)}</Notice> : <>
+        <MetricStrip metrics={[{ label: "Invoices without an IRN", value: String(q.data!.einvoiceDue.length) }, { label: "Movements without an e-way bill", value: String(q.data!.ewayDue.length) },
+          { label: "E-way bills expiring in a day", value: String(q.data!.expiring.length) }, { label: "GSP", value: q.data!.gspConfigured ? "Connected" : "Not connected — use the portals" }]} />
+        <Panel title="Invoices that need an IRN">
+          <LinesTable columns={["Invoice", "Date", "Customer", "Customer GSTIN", "Seller GSTIN", { label: "Value", numeric: true }]} empty={q.data!.einvoiceDue.length ? undefined : "Nothing due."}>
+            {q.data!.einvoiceDue.map((i) => <tr key={i.invoiceId}><Cell><Link className="text-brand hover:underline" href={`/sales/invoices/${i.invoiceId}`}>{`${i.number}${i.kind !== "invoice" ? ` (${i.kind.replace("_", " ")})` : ""}`}</Link></Cell>
+              <Cell>{i.date}</Cell><Cell>{i.customer ?? "—"}</Cell><Cell>{i.gstin ?? "Export / SEZ"}</Cell><Cell>{i.seller}</Cell><Cell numeric>{money(i.value)}</Cell></tr>)}
+          </LinesTable>
+        </Panel>
+        <Panel title="Movements that need an e-way bill">
+          <LinesTable columns={["Document", "Date", { label: "Consignment value", numeric: true }]} empty={q.data!.ewayDue.length ? undefined : "Nothing due."}>
+            {q.data!.ewayDue.map((m) => <tr key={m.sourceId}><Cell><Link className="text-brand hover:underline" href={`${MOVEMENT_HREF[m.sourceType]}${m.sourceId}`}>{`${MOVEMENT_LABEL[m.sourceType]} ${m.number}`}</Link></Cell>
+              <Cell>{m.date}</Cell><Cell numeric>{money(m.value)}</Cell></tr>)}
+          </LinesTable>
+        </Panel>
+        {q.data!.expiring.length > 0 && <Panel title="E-way bills expiring soon" description="Extend them on the portal if the goods are still on the way.">
+          <LinesTable columns={["Document", "E-way bill", "Valid until"]}>{q.data!.expiring.map((e) => <tr key={e.ewbNumber}><Cell><Link className="text-brand hover:underline" href={`${MOVEMENT_HREF[e.sourceType]}${e.sourceId}`}>{e.number}</Link></Cell>
+            <Cell>{e.ewbNumber}</Cell><Cell>{new Date(e.validUntil).toLocaleString("en-IN")}</Cell></tr>)}</LinesTable></Panel>}
+      </>}
+    </div>
+  );
+}

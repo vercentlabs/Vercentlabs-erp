@@ -191,7 +191,7 @@ const TRANSPORT_MODES = Object.freeze({ road: "1", rail: "2", air: "3", ship: "4
 const SOURCE_PERMISSION = Object.freeze({ sales_delivery: "sales.delivery.dispatch", stock_transfer: "stock.transfers.dispatch", purchase_return: "procurement.returns.post" });
 
 // What the movement carries: number, date, the two parties' GSTIN/addresses, the goods with HSN, UQC, value and GST rates.
-async function movementOf(client, organizationId, sourceType, sourceId) {
+export async function movementOf(client, organizationId, sourceType, sourceId) {
   const uqcOf = await unitUqcMap(client, organizationId);
   const uqc = (code) => uqcOf.get(String(code ?? "").toUpperCase()) ?? "OTH";
   const registrationOf = async (registrationId) => sellerRegistration(client, organizationId, registrationId);

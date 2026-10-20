@@ -66,7 +66,8 @@
     "deadcode:check": "npx --yes pnpm@11.21.0 exec knip",
     "test:hr-exit-attendance": "node scripts/database/tests/hr-exit-attendance.smoke.mjs",
     "test:gst-returns": "node scripts/database/tests/gst-returns.smoke.mjs",
-    "test:gst-3b": "node scripts/database/tests/gst-3b.smoke.mjs"
+    "test:gst-3b": "node scripts/database/tests/gst-3b.smoke.mjs",
+    "test:gst-documents": "node scripts/database/tests/gst-documents.smoke.mjs"
   },
   "engines": {
     "node": ">=24 <25",

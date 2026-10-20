@@ -1,5 +1,5 @@
 import {
-  confirmGstr2bMatchedCredit, exportGstr3b, getGstr2bReconciliation, importGstr2b, listItcAdjustments, prepareGstr3b, reclaimInputTaxCredit, reverseInputTaxCredit,
+  confirmGstr2bMatchedCredit, exportGstr3b, listGstDocumentObligations, getGstr2bReconciliation, importGstr2b, listItcAdjustments, prepareGstr3b, reclaimInputTaxCredit, reverseInputTaxCredit,
   approveGstReturn, exportGstr1Section, fileGstReturn, getGstReturn, inwardGstSummary, listGstRegistrations, listGstReturns, outwardGstSummary, prepareGstr1, reopenGstReturn,
   waiveGstException,
 } from "@vercentlabs/api";
@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     if (get("summary") === "outward") return outwardGstSummary(client, context, { registrationId: get("registrationId"), from: get("from"), to: get("to") });
     if (get("summary") === "inward") return inwardGstSummary(client, context, { registrationId: get("registrationId"), from: get("from"), to: get("to") });
     if (get("id")) return getGstReturn(client, context, get("id") as string, { section: get("section") });
+    if (get("obligations")) return listGstDocumentObligations(client, context, { from: get("from"), to: get("to") });
     if (get("twoB")) return { ...(await getGstr2bReconciliation(client, context, { registrationId: get("registrationId"), period: get("period") })),
       adjustments: await listItcAdjustments(client, context, { registrationId: get("registrationId") }) };
     return { registrations: await listGstRegistrations(client, context), returns: await listGstReturns(client, context, { registrationId: get("registrationId") }) };

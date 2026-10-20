@@ -1294,6 +1294,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           { ...available("GST Returns", "/accounting/gst-returns"), aliases: ["gstr-1", "gstr1", "gst return", "b2b", "b2cs", "hsn summary", "tax exceptions", "arn"] },
           { ...available("GSTR-2B and Credit", "/accounting/gst-2b"), aliases: ["gstr-2b", "2b reconciliation", "itc reversal", "rule 37", "reclaim itc", "itc matching"] },
+          { ...available("E-invoices and E-way Bills", "/accounting/gst-documents"), aliases: ["e-invoice", "einvoice", "irn", "e-way bill", "eway bill", "ewb", "irp", "qr code"] },
           { ...available("GST Summary", "/accounting/gst-summary"), aliases: ["outward gst", "inward gst", "output tax", "input tax", "gst report"] },
           { ...available("Input Tax Credit", "/accounting/input-tax-credit"), aliases: ["itc", "gstr-2b", "gst credit"] },
         ],
