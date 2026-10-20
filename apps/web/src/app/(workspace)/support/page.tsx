@@ -1,7 +1,7 @@
-import { SupportDashboardScreen } from "@/features/support/SupportPage";
+import { SupportWorkspaceScreen } from "@/features/support/desk/DeskScreens";
 
 export const metadata = { title: "Support" };
 
 export default function SupportHomePage() {
-  return <SupportDashboardScreen />;
+  return <SupportWorkspaceScreen />;
 }

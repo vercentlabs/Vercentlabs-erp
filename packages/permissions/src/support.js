@@ -14,4 +14,7 @@ export const SUPPORT_PERMISSIONS = Object.freeze({
   reportsView: "support.reports.view",
   settingsManage: "support.settings.manage",
   auditView: "support.audit.view",
+  // The ticket desk (as migration 0208 grants).
+  ticketViewAll: "support.ticket.view_all", ticketReply: "support.ticket.reply", ticketNote: "support.ticket.note", ticketReopen: "support.ticket.reopen",
+  mailboxManage: "support.mailbox.manage",
 });

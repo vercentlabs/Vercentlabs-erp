@@ -20,7 +20,7 @@ export declare const round2: (n: unknown) => number;
 export declare const emailOrNull: (value: unknown, label?: string) => string | null;
 export declare const PRIORITIES: string[];
 export declare const CHANNELS: string[];
-export declare function supportContext(session: Record<string, unknown>): C;
+export declare function supportContext(session: Record<string, unknown>): { organizationId: string; userId: string; permissions: string[]; roleSlugs: string[] };
 export declare function recordEvent(client: unknown, c: C, ticketId: string | null, aggregateType: string, aggregateId: string, eventType: string, payload?: Record<string, unknown>): Promise<void>;
 export declare const canSeeSensitive: (c: C) => boolean;
 export declare function stripPrivate(rows: any, c: C, list?: boolean): any;

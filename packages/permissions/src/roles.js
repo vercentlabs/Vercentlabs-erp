@@ -190,6 +190,10 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "support.view",
+      "support.ticket.view_all",
+      "support.reports.view",
+      "support.audit.view",
       "quality.nonconformance.view",
       "quality.nonconformance.export",
       "quality.dispatch.view",
@@ -477,6 +481,9 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "support.view",
+      "support.ticket.create",
+      "support.ticket.note",
       "quality.nonconformance.view",
       "quality.dispatch.view",
       "quality.dispatch.create",
@@ -649,6 +656,13 @@ const ROLE_DEFINITIONS = [
     riskLevel: "standard",
     assignable: true,
     permissions: unique([
+      "support.view",
+      "support.ticket.create",
+      "support.ticket.reply",
+      "support.ticket.note",
+      "support.ticket.assign",
+      "support.ticket.resolve",
+      "support.communication.manage",
       ...crmReader,
       // Every customer Account, its Contacts and customer Activities — not
       // Leads, prospects or the sales pipeline (crm.records.view_all removed).
@@ -2437,6 +2451,11 @@ const ROLE_DEFINITIONS = [
     riskLevel: "sensitive",
     assignable: true,
     permissions: unique([
+      "support.ticket.view_all",
+      "support.ticket.reply",
+      "support.ticket.note",
+      "support.ticket.reopen",
+      "support.mailbox.manage",
       ...businessReader,
       "crm.view",
       "sales.view",

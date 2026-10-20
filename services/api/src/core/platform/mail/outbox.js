@@ -59,8 +59,28 @@ export async function queueMail(client, input, env = process.env) {
   return configured;
 }
 
+// Queues a support reply (Support MVP 37): one customer email with its own Message-ID and the thread it answers. Returns the mail-log row
+// (its status is what the ticket shows: queued until the worker hands it to the mail server, then sent, failed or bounced).
+export async function queueSupportReply(client, input, env = process.env) {
+  const { isAuthMailerConfigured } = await import("../../auth/mailer.js");
+  const configured = isAuthMailerConfigured(env);
+  const row = (await client.query(
+    `INSERT INTO public.mail_log (organization_id, kind, template, recipients, subject, status, next_attempt_at, encrypted_payload, last_error, message_id)
+     VALUES ($1, 'business', 'support_reply', $2, $3, $4, now(), $5::jsonb, $6, $7) RETURNING id, status`,
+    [input.organizationId, [...(input.to ?? []), ...(input.cc ?? [])].slice(0, 50), String(input.subject ?? "").slice(0, 300), configured ? "queued" : "not_configured",
+      configured ? JSON.stringify(await encryptSecret({ ...input, type: "support_reply" }, env)) : null, configured ? null : "No mail transport is configured.", input.messageId ?? null])).rows[0];
+  if (configured) setWaiting(true);
+  return row;
+}
+
 // Sends one queued message: notifications and digests as a plain business email, everything else through the security mailer.
 export async function deliverQueuedMail(input, env = process.env) {
+  if (input?.type === "support_reply") {
+    const { sendMail } = await import("./transport.js");
+    const sent = await sendMail({ to: input.to, cc: input.cc?.length ? input.cc : undefined, subject: input.subject, text: input.text, replyTo: input.replyTo, fromName: input.fromName,
+      messageId: input.messageId, inReplyTo: input.inReplyTo ?? undefined, references: input.references ?? [] }, env);
+    return sent.sent;
+  }
   if (input?.type === "notification" || input?.type === "digest") {
     const { getMailTransport, renderTransactionalEmail } = await import("./transport.js");
     const transport = getMailTransport(env);

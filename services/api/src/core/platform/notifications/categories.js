@@ -508,6 +508,15 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    // Support: a ticket was assigned to you, or its customer replied or reopened it.
+    key: "support_ticket",
+    displayName: "Support tickets",
+    description: "When a ticket is assigned to you, or its customer replies to it.",
+    moduleKey: "support",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     // Point of Sale: a shift closed with a cash difference.
     key: "pos_cash_difference",
     displayName: "Cash differences",

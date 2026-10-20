@@ -182,6 +182,8 @@ export function normalizeInboundMessage(payload) {
     subject: (text(payload.subject, 500) || "(no subject)").replace(/[\r\n]+/g, " "),
     text: text(payload.text, MAX_TEXT) || "",
     attachments,
+    // An auto-reply, bulk or list mail (Auto-Submitted / Precedence headers): it is kept, but nothing answers it automatically (no mail loops).
+    autoSubmitted: payload.autoSubmitted === true || /^auto-/i.test(String(payload.headers?.["auto-submitted"] ?? "")) || /^(bulk|junk|list)$/i.test(String(payload.headers?.precedence ?? "")),
   };
 }
 

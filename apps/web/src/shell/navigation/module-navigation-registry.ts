@@ -1124,12 +1124,22 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "tickets",
         label: "Tickets",
-        featureRange: "F343-F350",
         items: [
-          available("My Tickets", "/support/my-tickets"),
-          available("All Tickets", "/support/tickets"),
-          available("Unassigned", "/support/unassigned"),
-          available("Categories", "/support/categories"),
+          { ...available("My Tickets", "/support?view=mine"), aliases: ["my cases", "assigned to me"] },
+          { ...available("All Open", "/support?view=open"), aliases: ["tickets", "cases", "helpdesk"] },
+          available("Unassigned", "/support?view=unassigned"),
+          available("Pending Customer", "/support?view=pending_customer"),
+          { ...available("Overdue", "/support?view=response_overdue"), aliases: ["sla breach", "response overdue"] },
+          { ...available("Unmatched Senders", "/support?view=unmatched"), aliases: ["unknown sender", "email to ticket"] },
+          available("Resolved", "/support?view=resolved"),
+        ],
+      },
+      {
+        id: "support-admin",
+        label: "Reports & Settings",
+        items: [
+          { ...available("Support Reports", "/support?view=reports"), requiredPermission: "support.reports.view", aliases: ["agent workload", "first response report", "reopened tickets"] },
+          { ...available("Support Settings", "/support/settings"), aliases: ["support mailbox", "email to ticket", "categories", "sla targets", "blocked senders"] },
         ],
       },
     ],

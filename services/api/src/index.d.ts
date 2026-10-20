@@ -287,12 +287,7 @@ export {
   getQualityKpiDashboard, listQualityOptions,
 } from "./modules/quality/dashboard.js";
 export { supportContext } from "./modules/support/common.js";
-export {
-  getSupportSettings, saveSupportSettings, listCategories as listSupportCategories, saveCategory as saveSupportCategory, createTicket, listTickets, getTicket, updateTicket, assignTicket, transitionTicket, listCommunications, addCommunication, listAttachments, addAttachment, removeAttachment, getAttachmentContent as getSupportAttachmentContent, getTicketHistory,
-} from "./modules/support/tickets.js";
-export {
-  getSupportDeskDashboard, listSupportOptions, listCustomerContacts,
-} from "./modules/support/service.js";
+export * from "./modules/support/desk/index.js";
 // F015-F114 public API declarations.
 // F017 canonical governed-attachment domain.
 
