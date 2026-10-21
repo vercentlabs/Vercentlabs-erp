@@ -6,7 +6,7 @@
 //               canonical notification service (so recipients' notification
 //               preferences apply), plus a module's own actions for that
 //               module's events (CRM: follow-up, owner, priority, tag, email,
-//               followers).
+//               followers, task, stage, WhatsApp template, and a call to one of the company's own webhooks).
 export const WORKFLOW_LIMITS = Object.freeze({ maxConditions: 10, maxActions: 5, maxNameLength: 120, maxTitle: 120, maxMessage: 500, runsPerTick: 50 });
 
 export const CONDITION_OPERATORS = Object.freeze([
@@ -49,6 +49,11 @@ export const WORKFLOW_ACTIONS = Object.freeze([
   Object.freeze({ key: "crm.add_tag", module: "crm", label: "Add a tag", description: "Adds a tag to the lead or deal (the tag is created if it does not exist)." }),
   Object.freeze({ key: "crm.send_email", module: "crm", label: "Send an email from a template", description: "Emails the lead or the deal's contact from an email template, in the owner's name. Unsubscribed and opted-out people are not emailed." }),
   Object.freeze({ key: "crm.notify_followers", module: "crm", label: "Tell the record's followers", description: "Sends an in-app notification to everyone following the lead or deal, its owner included." }),
+  // CRM audit: more of what a salesperson would do by hand.
+  Object.freeze({ key: "crm.create_task", module: "crm", label: "Create a task", description: "Adds a task on the record, due some days after the event, for its owner or a named member." }),
+  Object.freeze({ key: "crm.move_stage", module: "crm", label: "Move to a stage", description: "Moves the lead, or the deal, to a stage (a deal's stage rules still apply; won and lost are marked by people)." }),
+  Object.freeze({ key: "crm.send_whatsapp", module: "crm", label: "Send a WhatsApp template", description: "Sends an approved WhatsApp template to the lead or contact through the connected WhatsApp Business number. Only people who agreed to WhatsApp get it." }),
+  Object.freeze({ key: "crm.call_webhook", module: "crm", label: "Call a webhook", description: "Sends the event to one of your webhooks (Settings › Integrations), signed and retried like every webhook, even if that webhook does not subscribe to this event." }),
 ]);
 
 // Where a module's own actions are implemented (loaded only when a workflow uses one).
@@ -77,6 +82,8 @@ export const WORKFLOW_ASSIGNABLE = Object.freeze({
 export const WORKFLOW_ENTITY_LINKS = Object.freeze({
   "crm.lead": (id) => `/crm/leads/${id}`,
   "crm.opportunity": (id) => `/crm/opportunities/${id}`,
+  "crm.party": (id) => `/crm/accounts/${id}`,
+  "crm.contact": (id) => `/crm/contacts/${id}`,
   "sales.quotation": (id) => `/sales/quotations/${id}`,
   "sales.order": (id) => `/sales/orders/${id}`,
   "sales.delivery": (id) => `/sales/deliveries/${id}`,

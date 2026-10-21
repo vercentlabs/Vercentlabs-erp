@@ -1,6 +1,7 @@
 // What a CRM automation can do beyond a notification (CRM plan 4.6). Settings › Automations offers these for CRM events (a lead
-// created, assigned or moved; a deal moved, won or lost…): plan a follow-up, give the record an owner, set its priority, tag it, email
-// the person from a template, or tell the record's followers. The core workflow engine (core/platform/workflows) loads this file only for
+// created, assigned or moved; a deal moved, won or lost; a company or contact added or changed…): plan a follow-up, give the record an
+// owner, set its priority, tag it, email the person from a template, tell the record's followers — and (CRM audit) create a task, move
+// the record to a stage, send a WhatsApp template, or send the event to one of the company's webhooks. The core workflow engine (core/platform/workflows) loads this file only for
 // a workflow that uses one of them, so the platform knows nothing of CRM.
 //
 // Each action runs inside the workflow run's transaction under a narrow system authority (the organization's creator, with only the CRM
@@ -14,10 +15,17 @@ import { scheduleFollowUp } from "../follow-ups/records.js";
 import { assignLead } from "../leads/assignment.js";
 import { assignOpportunity } from "../opportunities/assignment.js";
 import { setRecordTags, tagsByRecord } from "../tags/records.js";
+import { changeLeadStage } from "../leads/records.js";
+import { changeOpportunityStage } from "../opportunities/stages.js";
+import { createTask } from "../tasks/records.js";
+import { sendWhatsApp } from "../whatsapp/records.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ENTITY = Object.freeze({ "crm.lead": "lead", "crm.opportunity": "opportunity" });
-const TABLE = Object.freeze({ lead: "crm_leads", opportunity: "crm_opportunities" });
+const ENTITY = Object.freeze({ "crm.lead": "lead", "crm.opportunity": "opportunity", "crm.party": "party", "crm.contact": "contact" });
+const TABLE = Object.freeze({ lead: "crm_leads", opportunity: "crm_opportunities", party: "business_parties", contact: "contacts" });
+// The actions that work on companies and contacts too; the rest change what only leads and deals have (an owner rule, a priority, tags,
+// a stage).
+const EVERY_RECORD = new Set(["crm.create_follow_up", "crm.send_email", "crm.notify_followers", "crm.create_task", "crm.send_whatsapp", "crm.call_webhook"]);
 const text = (value) => String(value ?? "").trim();
 const invalid = (message) => new CrmError(400, message, "WORKFLOW_DEFINITION_INVALID");
 
@@ -28,7 +36,8 @@ async function systemAuthority(client, organizationId, actAs = null) {
     organizationId, userId: await integrationActor(client, organizationId, actAs), roleSlugs: [], workflowOrigin: true,
     permissions: ["crm.view", "crm.records.view_all", "crm.leads.view", "crm.leads.view_all", "crm.leads.edit", "crm.leads.assign", "crm.leads.reassign", "crm.leads.view_sensitive",
       "crm.opportunities.view", "crm.opportunities.view_all", "crm.opportunities.edit", "crm.opportunities.assign", "crm.opportunities.reassign",
-      "crm.follow_ups.create", "crm.follow_ups.view_all", "crm.contacts.view", "crm.contacts.view_all", "crm.accounts.view", "crm.accounts.view_all"],
+      "crm.follow_ups.create", "crm.follow_ups.view_all", "crm.contacts.view", "crm.contacts.view_all", "crm.accounts.view", "crm.accounts.view_all",
+      "crm.contacts.edit", "crm.accounts.edit", "crm.leads.change_stage", "crm.opportunities.change_stage", "crm.tasks.create", "crm.tasks.assign", "crm.tasks.view_all"],
   };
 }
 
@@ -38,7 +47,8 @@ async function member(client, organizationId, userId) {
 
 // Checks one action as saved (returns its clean form), or refuses it with a sentence for the person setting it up.
 export async function validateCrmWorkflowAction(client, organizationId, action, { eventEntityType, userFields }) {
-  if (!ENTITY[eventEntityType]) throw invalid("This action works on lead and deal events only.");
+  if (!ENTITY[eventEntityType]) throw invalid("This action works on lead, deal, company and contact events only.");
+  if (!["crm.lead", "crm.opportunity"].includes(eventEntityType) && !EVERY_RECORD.has(action.type)) throw invalid("This action works on lead and deal events only.");
   if (action.type === "crm.create_follow_up") {
     // any active activity type of the organization (CRM plan 5.2), by its code
     const followUpType = text(action.followUpType);
@@ -77,6 +87,38 @@ export async function validateCrmWorkflowAction(client, organizationId, action, 
     if (!title) throw invalid("Give the notice a title.");
     return { type: action.type, title, message: text(action.message).slice(0, 500) };
   }
+  if (action.type === "crm.create_task") {
+    const subject = text(action.subject).slice(0, 200);
+    if (!subject) throw invalid("Say what the task is.");
+    const inDays = Number(action.inDays);
+    if (!Number.isInteger(inDays) || inDays < 0 || inDays > 365) throw invalid("Make the task due 0 to 365 days after the event.");
+    if (!["low", "medium", "high"].includes(action.priority ?? "medium")) throw invalid("Choose a priority.");
+    const assignee = action.assignee?.type === "user" ? { type: "user", userId: text(action.assignee.userId) } : { type: "record_owner" };
+    if (assignee.type === "user" && !(await member(client, organizationId, assignee.userId))) throw invalid("Choose an active member to give the task to.");
+    return { type: action.type, subject, inDays, priority: action.priority ?? "medium", assignee };
+  }
+  if (action.type === "crm.move_stage") {
+    const stageCode = text(action.stageCode);
+    const known = eventEntityType === "crm.lead"
+      ? (await client.query("SELECT 1 FROM tenant.crm_lead_stages WHERE organization_id = $1 AND code = $2 AND is_active", [organizationId, stageCode])).rows[0]
+      : (await client.query("SELECT 1 FROM tenant.crm_pipeline_stages WHERE organization_id = $1 AND code = $2 AND status = 'active' AND NOT is_won AND NOT is_lost", [organizationId, stageCode])).rows[0];
+    if (!stageCode || !known) throw invalid(eventEntityType === "crm.lead" ? "Choose an active lead stage." : "Choose an open deal stage (won and lost are marked by people).");
+    return { type: action.type, stageCode };
+  }
+  if (action.type === "crm.send_whatsapp") {
+    const templateName = text(action.templateName);
+    if (!/^[a-z0-9_]{1,512}$/.test(templateName)) throw invalid("Use the template's name as approved in WhatsApp Manager (lower case and underscores).");
+    const templateLanguage = text(action.templateLanguage) || "en";
+    if (!/^[a-z]{2,3}(_[A-Z]{2})?$/.test(templateLanguage)) throw invalid("Use the template's language code, such as en or hi.");
+    const parameters = (Array.isArray(action.parameters) ? action.parameters : []).slice(0, 10).map((value) => text(value).slice(0, 200));
+    return { type: action.type, templateName, templateLanguage, parameters };
+  }
+  if (action.type === "crm.call_webhook") {
+    const subscription = UUID.test(String(action.subscriptionId ?? ""))
+      ? (await client.query("SELECT id FROM tenant.webhook_subscriptions WHERE organization_id = $1 AND id = $2 AND status = 'active'", [organizationId, action.subscriptionId])).rows[0] : null;
+    if (!subscription) throw invalid("Choose an active webhook (Settings › Integrations › Webhooks).");
+    return { type: action.type, subscriptionId: subscription.id };
+  }
   throw invalid("An action is not supported.");
 }
 
@@ -84,7 +126,7 @@ const readPath = (data, path) => String(path ?? "").split(".").reduce((value, ke
 
 // Runs one action for an event. Returns { type, done, reason? } for the run's evidence; a refusal by the CRM (consent, a full calendar…)
 // is recorded, not thrown, so the other actions still run.
-export async function executeCrmWorkflowAction(client, organizationId, action, { entity, data }) {
+export async function executeCrmWorkflowAction(client, organizationId, action, { entity, data, eventId = null }) {
   const type = ENTITY[entity?.type];
   const id = entity?.id;
   if (!type || !UUID.test(String(id ?? ""))) return { type: action.type, done: false, reason: "NO_RECORD" };
@@ -131,6 +173,40 @@ export async function executeCrmWorkflowAction(client, organizationId, action, {
     } else if (action.type === "crm.notify_followers") {
       const told = await notifyFollowers(client, organizationId, type, id, { title: action.title, message: action.message, category: "crm_workflow" });
       result = { type: action.type, done: told > 0, told };
+    } else if (action.type === "crm.create_task") {
+      const assignedTo = action.assignee.type === "user" ? action.assignee.userId : record.owner_user_id;
+      const due = new Date(Date.now() + action.inDays * 86400000).toISOString().slice(0, 10);
+      const task = await createTask(client, authority, { title: action.subject, priority: action.priority, relatedType: type, relatedId: id, dueDate: due,
+        ...(UUID.test(String(assignedTo ?? "")) ? { assignedTo } : {}), description: "Created by an automation." });
+      result = { type: action.type, done: true, taskId: task.id };
+    } else if (action.type === "crm.move_stage") {
+      if (type === "lead") {
+        const moved = await changeLeadStage(client, authority, id, { stage: action.stageCode, note: "Moved by an automation" });
+        result = { type: action.type, done: Boolean(moved.changed), ...(moved.changed ? {} : { reason: "ALREADY_THERE" }) };
+      } else {
+        const stage = (await client.query("SELECT id FROM tenant.crm_pipeline_stages WHERE organization_id = $1 AND pipeline_id = $2 AND code = $3 AND status = 'active'",
+          [organizationId, record.pipeline_id, action.stageCode])).rows[0];
+        if (!stage) result = { type: action.type, done: false, reason: "STAGE_NOT_IN_PIPELINE" };
+        else {
+          const moved = await changeOpportunityStage(client, authority, id, { stageId: stage.id, note: "Moved by an automation" });
+          result = { type: action.type, done: moved.changed !== false, ...(moved.changed === false ? { reason: "ALREADY_THERE" } : {}) };
+        }
+      }
+    } else if (action.type === "crm.send_whatsapp") {
+      const values = action.parameters.map((value) => value.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => String(readPath(data, key) ?? record[key] ?? "")));
+      const sent = await sendWhatsApp(client, authority, type, id, { templateName: action.templateName, templateLanguage: action.templateLanguage, parameters: values });
+      result = { type: action.type, done: sent.status === "sent" };
+    } else if (action.type === "crm.call_webhook") {
+      if (!UUID.test(String(eventId ?? ""))) result = { type: action.type, done: false, reason: "NO_EVENT" };
+      else {
+        // The platform's own delivery queue: signed, retried and kept safe from internal addresses like any webhook.
+        const queued = await client.query(
+          `INSERT INTO tenant.webhook_deliveries (organization_id, event_id, subscription_id, event_type)
+           SELECT $1, event.id, subscription.id, event.event_type FROM tenant.platform_events event, tenant.webhook_subscriptions subscription
+            WHERE event.organization_id = $1 AND event.id = $2 AND subscription.organization_id = $1 AND subscription.id = $3 AND subscription.status = 'active'
+           ON CONFLICT (event_id, subscription_id) DO NOTHING`, [organizationId, eventId, action.subscriptionId]);
+        result = { type: action.type, done: queued.rowCount > 0, ...(queued.rowCount ? {} : { reason: "ALREADY_QUEUED_OR_INACTIVE" }) };
+      }
     } else {
       result = { type: action.type, done: false, reason: "UNSUPPORTED" };
     }

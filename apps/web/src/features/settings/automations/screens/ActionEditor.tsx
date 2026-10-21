@@ -1,7 +1,8 @@
 "use client";
 
 // One "then" step of an automation: a notification, or (for a module's own events) one of that module's actions — for CRM, plan a
-// follow-up, give the record an owner, set its priority, add a tag, email the person from a template, or tell the record's followers.
+// follow-up, give the record an owner, set its priority, add a tag, email the person from a template, tell the record's followers,
+// create a task, move it to a stage, send a WhatsApp template, or call one of the company's webhooks.
 import { useQuery } from "@tanstack/react-query";
 import { Button, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
@@ -18,6 +19,10 @@ export type Action =
   | { type: "crm.add_tag"; tag: string }
   | { type: "crm.send_email"; templateId: string }
   | { type: "crm.notify_followers"; title: string; message?: string }
+  | { type: "crm.create_task"; subject: string; inDays: number; priority: "low" | "medium" | "high"; assignee: { type: "record_owner" } | { type: "user"; userId: string } }
+  | { type: "crm.move_stage"; stageCode: string }
+  | { type: "crm.send_whatsapp"; templateName: string; templateLanguage: string; parameters: string[] }
+  | { type: "crm.call_webhook"; subscriptionId: string }
   | { type: "send_email"; to: Recipient | { type: "address"; email: string }; subject: string; body: string }
   | { type: "create_activity"; activityType: "to_do" | "call" | "meeting" | "email"; summary: string; inDays: number; assignee: Recipient }
   | { type: "assign"; userId: string };
@@ -57,6 +62,14 @@ export function blankAction(type: string): Action {
       return { type, templateId: "" };
     case "crm.notify_followers":
       return { type, title: "", message: "" };
+    case "crm.create_task":
+      return { type, subject: "", inDays: 1, priority: "medium", assignee: { type: "record_owner" } };
+    case "crm.move_stage":
+      return { type, stageCode: "" };
+    case "crm.send_whatsapp":
+      return { type, templateName: "", templateLanguage: "en", parameters: ["{{first_name}}"] };
+    case "crm.call_webhook":
+      return { type, subscriptionId: "" };
     case "send_email":
       return { type, to: { type: "user", userId: "" }, subject: "", body: "" };
     case "create_activity":
@@ -83,6 +96,14 @@ export function actionReady(action: Action) {
       return Boolean(action.templateId);
     case "crm.notify_followers":
       return Boolean(action.title.trim());
+    case "crm.create_task":
+      return Boolean(action.subject.trim()) && Number.isInteger(action.inDays) && action.inDays >= 0 && (action.assignee.type === "record_owner" || Boolean(action.assignee.userId));
+    case "crm.move_stage":
+      return Boolean(action.stageCode);
+    case "crm.send_whatsapp":
+      return /^[a-z0-9_]+$/.test(action.templateName) && action.parameters.every((value) => value.trim());
+    case "crm.call_webhook":
+      return Boolean(action.subscriptionId);
     case "send_email":
       return Boolean(action.subject.trim()) && Boolean(action.body.trim())
         && (action.to.type === "event_field" || (action.to.type === "user" ? Boolean(action.to.userId) : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(action.to.email)));
@@ -107,9 +128,11 @@ export function adaptAction(action: Action, available: ActionDefinition[]): Acti
 }
 
 export function ActionEditor({
-  action, available, userFields, members, onChange, onRemove,
+  action, available, userFields, members, onChange, onRemove, entityType = null,
 }: {
   action: Action;
+  /** The trigger's record type (crm.lead, crm.opportunity…): which stages "Move to a stage" offers. */
+  entityType?: string | null;
   available: ActionDefinition[];
   userFields: Field[];
   members: Array<{ value: string; label: string }>;
@@ -127,6 +150,20 @@ export function ActionEditor({
     queryKey: ["settings", "automations", "crm-email-templates"],
     queryFn: () => requestJson<{ templates: Array<{ id: string; name: string }> }>("/api/crm/email-templates").then((result) => result.templates),
     enabled: action.type === "crm.send_email",
+  });
+  const stages = useQuery({
+    queryKey: ["settings", "automations", "crm-stages", entityType],
+    queryFn: () => (entityType === "crm.lead"
+      ? requestJson<{ stages: Array<{ code: string; name: string; isActive?: boolean }> }>("/api/crm/leads/stages").then((result) => result.stages.filter((stage) => stage.isActive !== false))
+      : requestJson<{ stages: Array<{ code: string; name: string; isWon?: boolean; isLost?: boolean }> }>("/api/crm/sales-stages").then((result) => result.stages.filter((stage) => !stage.isWon && !stage.isLost)))
+      .then((list) => list.map((stage) => ({ value: stage.code, label: stage.name }))),
+    enabled: action.type === "crm.move_stage",
+  });
+  const webhooks = useQuery({
+    queryKey: ["settings", "automations", "webhooks"],
+    queryFn: () => requestJson<{ subscriptions: Array<{ id: string; name: string; status: string }> }>("/api/settings/integrations/webhooks")
+      .then((result) => result.subscriptions.filter((entry) => entry.status === "active").map((entry) => ({ value: entry.id, label: entry.name }))),
+    enabled: action.type === "crm.call_webhook",
   });
 
   return (
@@ -222,6 +259,59 @@ export function ActionEditor({
           <TextField label="Title" value={action.title} onChange={(title) => onChange({ ...action, title })} isRequired maxLength={120} />
           <TextArea label="Message" value={action.message ?? ""} onChange={(message) => onChange({ ...action, message })} maxLength={500} />
         </>
+      )}
+
+      {action.type === "crm.create_task" && (
+        <>
+          <TextField label="Task" value={action.subject} onChange={(subject) => onChange({ ...action, subject })} isRequired maxLength={200}
+            description="For example: Send the price list." />
+          <div className="grid gap-2 sm:grid-cols-3">
+            <TextField label="Due (days after)" type="number" value={String(action.inDays)}
+              onChange={(value) => onChange({ ...action, inDays: value === "" ? Number.NaN : Number(value) })} />
+            <Select label="Priority" options={PRIORITIES} selectedKey={action.priority}
+              onSelectionChange={(key) => onChange({ ...action, priority: String(key) as "low" | "medium" | "high" })} />
+            <Select label="For" options={[{ value: "record_owner", label: "The record's owner" }, { value: "member", label: "A specific member" }]}
+              selectedKey={action.assignee.type === "record_owner" ? "record_owner" : "member"}
+              onSelectionChange={(key) => onChange({ ...action, assignee: String(key) === "record_owner" ? { type: "record_owner" } : { type: "user", userId: "" } })} />
+          </div>
+          {action.assignee.type === "user" && (
+            <Select label="Member" options={members} selectedKey={action.assignee.userId || null} onSelectionChange={(key) => onChange({ ...action, assignee: { type: "user", userId: String(key) } })} />
+          )}
+        </>
+      )}
+
+      {action.type === "crm.move_stage" && (
+        <Select label="Stage" options={stages.data ?? []} selectedKey={action.stageCode || null} isDisabled={stages.isLoading}
+          onSelectionChange={(key) => onChange({ ...action, stageCode: String(key) })}
+          description={entityType === "crm.opportunity" ? "In the deal's own pipeline; a stage it does not have is skipped." : undefined} />
+      )}
+
+      {action.type === "crm.send_whatsapp" && (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <TextField label="Template name" value={action.templateName} onChange={(templateName) => onChange({ ...action, templateName })} isRequired
+              description="As approved in WhatsApp Manager. Needs WhatsApp Business connected (CRM › Setup › WhatsApp)." />
+            <TextField label="Language code" value={action.templateLanguage} onChange={(templateLanguage) => onChange({ ...action, templateLanguage })} description="en, hi, mr…" />
+          </div>
+          {action.parameters.map((value, index) => (
+            <TextField key={index} label={`Value {{${index + 1}}}`} value={value}
+              onChange={(next) => onChange({ ...action, parameters: action.parameters.map((entry, position) => (position === index ? next : entry)) })}
+              description={index === 0 ? "{{first_name}}, {{company_name}} and the event's values are filled in." : undefined} />
+          ))}
+          <div className="flex gap-2">
+            <Button variant="ghost" size="compact" isDisabled={action.parameters.length >= 10} onPress={() => onChange({ ...action, parameters: [...action.parameters, ""] })}>Add a value</Button>
+            {action.parameters.length > 0 && <Button variant="ghost" size="compact" onPress={() => onChange({ ...action, parameters: action.parameters.slice(0, -1) })}>Remove the last value</Button>}
+          </div>
+        </>
+      )}
+
+      {action.type === "crm.call_webhook" && (
+        webhooks.data && webhooks.data.length === 0 ? (
+          <p className="text-sm text-text-secondary">There are no active webhooks yet. Add one in Settings › Integrations › Webhooks.</p>
+        ) : (
+          <Select label="Webhook" options={webhooks.data ?? []} selectedKey={action.subscriptionId || null} isDisabled={webhooks.isLoading}
+            onSelectionChange={(key) => onChange({ ...action, subscriptionId: String(key) })} />
+        )
       )}
 
       {action.type === "send_email" && (

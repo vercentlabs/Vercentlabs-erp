@@ -360,7 +360,7 @@ export async function executeWorkflowRun(client, run) {
     if (registered.module) {
       if (registered.module !== moduleKey) throw new WorkflowError(409, "An action is not available for this event.", "WORKFLOW_ACTION_UNAVAILABLE");
       const { execute } = await WORKFLOW_MODULE_ACTIONS[registered.module]();
-      results.push(await execute(client, run.organization_id, action, { entity: envelope.entity, data }));
+      results.push(await execute(client, run.organization_id, action, { entity: envelope.entity, data, eventId: run.event_id ?? envelope.id ?? null }));
       continue;
     }
     if (registered.key === "send_email" || registered.key === "create_activity" || registered.key === "assign") {

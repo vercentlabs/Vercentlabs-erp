@@ -24,6 +24,8 @@ import { requestJson } from "@/shared/http/request-json";
 
 import { ActionEditor, actionReady, adaptAction, blankAction, type Action, type ActionDefinition } from "./ActionEditor";
 
+const CRM_EVERY_RECORD = new Set(["crm.create_follow_up", "crm.send_email", "crm.notify_followers", "crm.create_task", "crm.send_whatsapp", "crm.call_webhook"]);
+
 type Field = { key: string; label: string; type?: "user" | "list" | "number" };
 type Trigger = {
   key: string;
@@ -282,7 +284,9 @@ function WorkflowBuilder({
   const availableFor = (picked: Trigger | undefined) =>
     payload.actions.filter((entry) => (!entry.module || entry.module === picked?.moduleKey)
       && (entry.key !== "create_activity" || payload.activityRecords.includes(picked?.entityType ?? ""))
-      && (entry.key !== "assign" || payload.assignableRecords.includes(picked?.entityType ?? "")));
+      && (entry.key !== "assign" || payload.assignableRecords.includes(picked?.entityType ?? ""))
+      // On a company or contact, only the CRM actions that work on every record.
+      && (!entry.module || !["crm.party", "crm.contact"].includes(picked?.entityType ?? "") || CRM_EVERY_RECORD.has(entry.key)));
   const available = availableFor(event);
   const memberOptions = payload.members.map((member) => ({
     value: member.id,
@@ -504,6 +508,7 @@ function WorkflowBuilder({
               key={index}
               action={action}
               available={available}
+              entityType={event?.entityType ?? null}
               userFields={userFields}
               members={memberOptions}
               onChange={(next) => updateAction(index, next)}

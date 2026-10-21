@@ -28,6 +28,10 @@ export type WorkflowAction =
   | { type: "crm.add_tag"; tag: string }
   | { type: "crm.send_email"; templateId: string }
   | { type: "crm.notify_followers"; title: string; message?: string }
+  | { type: "crm.create_task"; subject: string; inDays: number; priority: "low" | "medium" | "high"; assignee: { type: "record_owner" } | { type: "user"; userId: string } }
+  | { type: "crm.move_stage"; stageCode: string }
+  | { type: "crm.send_whatsapp"; templateName: string; templateLanguage: string; parameters: string[] }
+  | { type: "crm.call_webhook"; subscriptionId: string }
   | { type: "send_email"; to: { type: "event_field"; field: string } | { type: "user"; userId: string } | { type: "address"; email: string }; subject: string; body: string }
   | { type: "create_activity"; activityType: "to_do" | "call" | "meeting" | "email"; summary: string; inDays: number; assignee: { type: "event_field"; field: string } | { type: "user"; userId: string } }
   | { type: "assign"; userId: string };

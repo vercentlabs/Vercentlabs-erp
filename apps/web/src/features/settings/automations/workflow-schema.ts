@@ -47,6 +47,11 @@ const action = z.discriminatedUnion("type", [
   z.object({ type: z.literal("crm.add_tag"), tag: z.string().trim().min(1).max(60) }),
   z.object({ type: z.literal("crm.send_email"), templateId: z.string().uuid() }),
   z.object({ type: z.literal("crm.notify_followers"), title: z.string().trim().min(1).max(120), message: z.string().max(500).optional() }),
+  z.object({ type: z.literal("crm.create_task"), subject: z.string().trim().min(1).max(200), inDays: z.number().int().min(0).max(365), priority: z.enum(["low", "medium", "high"]),
+    assignee: z.union([z.object({ type: z.literal("record_owner") }), z.object({ type: z.literal("user"), userId: z.string().uuid() })]) }),
+  z.object({ type: z.literal("crm.move_stage"), stageCode: z.string().trim().min(1).max(60) }),
+  z.object({ type: z.literal("crm.send_whatsapp"), templateName: z.string().trim().min(1).max(512), templateLanguage: z.string().max(10), parameters: z.array(z.string().max(200)).max(10) }),
+  z.object({ type: z.literal("crm.call_webhook"), subscriptionId: z.string().uuid() }),
 ]);
 export const workflowSchema = z.object({
   name: z.string().trim().min(1).max(120),
