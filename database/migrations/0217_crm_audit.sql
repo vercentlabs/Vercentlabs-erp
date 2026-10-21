@@ -231,3 +231,7 @@ ALTER TABLE tenant.crm_settings ADD COLUMN IF NOT EXISTS zoom_credentials jsonb;
 -- 10. Tags on companies and contacts (CRM audit), as on leads and deals.
 ALTER TABLE tenant.crm_record_tags DROP CONSTRAINT IF EXISTS crm_record_tags_entity_type_check;
 ALTER TABLE tenant.crm_record_tags ADD CONSTRAINT crm_record_tags_entity_type_check CHECK (entity_type IN ('lead', 'opportunity', 'party', 'contact'));
+
+-- 11. Saved views on companies, contacts and to-dos (CRM audit), as on leads, deals and the pipeline.
+ALTER TABLE tenant.crm_saved_views DROP CONSTRAINT IF EXISTS crm_saved_views_screen_check;
+ALTER TABLE tenant.crm_saved_views ADD CONSTRAINT crm_saved_views_screen_check CHECK (screen IN ('leads', 'opportunities', 'pipeline', 'accounts', 'contacts', 'todos'));

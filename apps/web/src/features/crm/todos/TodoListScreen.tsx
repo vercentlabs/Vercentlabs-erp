@@ -5,6 +5,7 @@
 // follow-ups are added from their own tabs or from any lead, deal, company or contact.
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { Button, EmptyState, EnterpriseListPage, ErrorState, SearchField, StatusBadge } from "@vercentlabs/design-system";
@@ -16,6 +17,7 @@ import { crmApiClient } from "@/features/crm/shared/http/crm-request";
 import { formatDate, formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { Notice } from "@/shared/ui/Panel";
+import { SavedViews } from "@/features/crm/shared/ui/SavedViews";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
@@ -35,9 +37,11 @@ const listTodos = (params: { view: string; search: string; offset: number }) =>
 export function TodoListScreen({ tabs }: { tabs?: ReactNode }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const [view, setView] = useState("mine");
-  const [search, setSearch] = useState("");
-  const [submitted, setSubmitted] = useState("");
+  // A saved view (or a shared link) opens with its own view and search.
+  const params = useSearchParams();
+  const [view, setView] = useState(params.get("view") ?? "mine");
+  const [search, setSearch] = useState(params.get("search") ?? "");
+  const [submitted, setSubmitted] = useState(params.get("search") ?? "");
   const [offset, setOffset] = useState(0);
   const key = scopedQueryKey(workspace, "crm", "todos", view, submitted, offset);
   const query = useQuery({ queryKey: key, queryFn: () => listTodos({ view, search: submitted, offset }) });
@@ -51,7 +55,8 @@ export function TodoListScreen({ tabs }: { tabs?: ReactNode }) {
   return (
     <EnterpriseListPage
       tabs={tabs}
-      header={{ title: "To-dos", description: "Tasks and follow-ups together, overdue first. Add a task or follow-up from its tab, or from any lead, deal, company or contact." }}
+      header={{ title: "To-dos", description: "Tasks and follow-ups together, overdue first. Add a task or follow-up from its tab, or from any lead, deal, company or contact.",
+        secondaryActions: <SavedViews screen="todos" basePath="/crm/activities" filters={{ view, search: submitted || undefined }} /> }}
       actionBar={{
         start: (
           <span className="flex flex-wrap items-center gap-2">

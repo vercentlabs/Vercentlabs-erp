@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { listTags } from "@/features/crm/shared/marketing-api";
+import { SavedViews } from "@/features/crm/shared/ui/SavedViews";
 import type { ColumnDef, RowSelectionState, SortingState, VisibilityState } from "@tanstack/react-table";
 import { Columns3, Plus } from "lucide-react";
 import {
@@ -275,10 +276,10 @@ export function AccountListScreen() {
           title: "Companies",
           description: "The businesses you sell to and work with — prospects, customers and partners — with their people, deals and history.",
           primaryAction: can?.create ? <LinkButton href="/crm/accounts/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New company</LinkButton> : undefined,
-          secondaryActions: <MoreMenu label="More company actions" items={[
+          secondaryActions: <><SavedViews screen="accounts" basePath="/crm/accounts" filters={listFilters} /><MoreMenu label="More company actions" items={[
             ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=companies") }] : []),
             ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("accounts", accountExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
-          ]} />,
+          ]} /></>,
         }}
         savedViews={options ? {
           views: options.views.map((entry) => ({ id: entry.key, label: entry.label, count: counts[entry.key] })),

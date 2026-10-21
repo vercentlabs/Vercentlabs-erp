@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { listTags } from "@/features/crm/shared/marketing-api";
+import { SavedViews } from "@/features/crm/shared/ui/SavedViews";
 import type { ColumnDef, RowSelectionState, SortingState, VisibilityState } from "@tanstack/react-table";
 import { Columns3, Mail, Phone, Plus } from "lucide-react";
 import {
@@ -257,10 +258,10 @@ export function ContactListScreen() {
           title: "Contacts",
           description: "The people you deal with — at your companies, or on their own until you know their company.",
           primaryAction: can?.create ? <LinkButton href="/crm/contacts/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New contact</LinkButton> : undefined,
-          secondaryActions: <MoreMenu label="More contact actions" items={[
+          secondaryActions: <><SavedViews screen="contacts" basePath="/crm/contacts" filters={listFilters} /><MoreMenu label="More contact actions" items={[
             ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=contacts") }] : []),
             ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("contacts", contactExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
-          ]} />,
+          ]} /></>,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as ContactViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{

@@ -3,13 +3,13 @@
 // default. Views are personal: nobody else sees or changes them.
 import { CrmError } from "../data-management/errors.js";
 
-const SCREENS = Object.freeze(["leads", "opportunities", "pipeline"]);
+const SCREENS = Object.freeze(["leads", "opportunities", "pipeline", "accounts", "contacts", "todos"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const invalid = (field, message) => new CrmError(400, message, "CRM_SAVED_VIEW_VALIDATION", { issues: [{ field, message }] });
 const toView = (row) => ({ id: row.id, screen: row.screen, name: row.name, query: row.query, isDefault: row.is_default, updatedAt: row.updated_at });
 
 function requireScreen(screen) {
-  if (!SCREENS.includes(screen)) throw invalid("screen", "Views are for the lead list, the deal list and the pipeline.");
+  if (!SCREENS.includes(screen)) throw invalid("screen", "Views are for the lead, deal, company, contact and to-do lists and the pipeline.");
 }
 // The list's own filters only: no paging, no ids.
 function cleanQuery(value) {

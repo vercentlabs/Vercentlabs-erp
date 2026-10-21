@@ -14,7 +14,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 class SavedViewError extends CrmApiErrorWithBody {}
 const { request } = crmApiClient(SavedViewError, "body");
-type Screen = "leads" | "opportunities" | "pipeline";
+type Screen = "leads" | "opportunities" | "pipeline" | "accounts" | "contacts" | "todos";
 type SavedView = { id: string; name: string; query: string; isDefault: boolean };
 
 const listViews = (screen: Screen) => request<{ views: SavedView[] }>(`/api/crm/saved-views?screen=${screen}`).then((result) => result.views);
