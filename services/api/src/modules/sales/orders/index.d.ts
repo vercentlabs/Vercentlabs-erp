@@ -36,3 +36,6 @@ export function listSalesOrderFiles(client: QueryClient, context: Context, order
 export function uploadSalesOrderFile(client: QueryClient, context: Context, orderId: string, input: { prepared: any }, options?: Record<string, any>): Promise<any>;
 export function removeSalesOrderFile(client: QueryClient, context: Context, orderId: string, fileId: string): Promise<{ removed: true }>;
 export function readSalesOrderFile(client: QueryClient, context: Context, orderId: string, fileId: string, options?: Record<string, any>): Promise<{ fileName: string; mimeType: string; body: Uint8Array }>;
+
+// Repeat order: a new draft order from a past order or invoice, priced today (Sales audit).
+export function repeatSalesOrder(client: any, context: any, input: { orderId?: string; invoiceId?: string; idempotencyKey?: string }): Promise<any>;

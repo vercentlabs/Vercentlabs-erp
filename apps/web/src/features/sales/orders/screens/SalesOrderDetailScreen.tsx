@@ -47,6 +47,7 @@ import { CreateInvoiceDialog } from "@/features/sales/invoices/components/Invoic
 import { CancelOrderDialog, CancelRemainingDialog, ReopenOrderDialog, failureText } from "../components/OrderDialogs";
 import { NextStep, orderNextStep } from "@/features/sales/shared/NextStep";
 import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
+import { RepeatOrderButton } from "../components/RepeatOrderButton";
 import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge, ReservationStatusBadge } from "../components/OrderStatusBadges";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
@@ -225,6 +226,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
               {order.status === "confirmed" && <CreateProjectFromOrder salesOrderId={orderId} orderNumber={order.sales_order_number} />}
               {actions.deliver && actions.invoice && <Button variant="secondary" onPress={() => setDialog("invoice")}><FileText className="size-4" aria-hidden="true" />Create Invoice</Button>}
               {actions.print && <LinkButton variant="secondary" href={orderPdfUrl(orderId)} download>{order.status === "draft" ? "Draft PDF" : "Download PDF"}</LinkButton>}
+              {order.status !== "draft" && (workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.create")) && <RepeatOrderButton orderId={orderId} />}
               {actions.reopen && <Button variant="ghost" onPress={() => setDialog("reopen")}>Reopen to Draft</Button>}
               {actions.cancelRemaining && <Button variant="ghost" onPress={() => setDialog("cancelRemaining")}>Cancel Remaining</Button>}
               {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel Order</Button>}
