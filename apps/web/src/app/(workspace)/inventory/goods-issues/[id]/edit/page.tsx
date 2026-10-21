@@ -1,8 +1,8 @@
-import { GoodsIssueFormScreen } from "@/features/goods-issues/screens/GoodsIssueFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Edit Goods Issue" };
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <GoodsIssueFormScreen issueId={id} />;
+// Opened as an address of its own, this form opens over its record instead (see @modal/(.)inventory/goods-issues/[id]/edit).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("inventory/goods-issues/[id]/edit", "inventory/goods-issues/[id]", await params, await searchParams);
 }

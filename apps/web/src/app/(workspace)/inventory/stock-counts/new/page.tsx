@@ -1,10 +1,8 @@
-import { StockCountFormScreen } from "@/features/stock-counts/screens/StockCountFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "New Stock Count" };
 
-// Opened from an item or warehouse, it starts as a count of that item or warehouse.
-export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const params = await searchParams;
-  const value = (key: string) => (typeof params[key] === "string" && params[key] ? (params[key] as string) : undefined);
-  return <StockCountFormScreen prefill={{ itemId: value("itemId"), warehouseId: value("warehouseId"), locationId: value("locationId"), batchId: value("batchId"), serialId: value("serialId") }} />;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)inventory/stock-counts/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("inventory/stock-counts/new", "inventory/stock-counts", await params, await searchParams);
 }

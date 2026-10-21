@@ -6,7 +6,7 @@
 // balance; "Balance here" puts the difference on a line. Saving keeps a draft; "Save and submit" sends it on for approval (or straight to
 // Approved when the journal needs none). The server checks everything again: accounts, balance, the period, every reference.
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus, Scale, Trash2 } from "lucide-react";
 import { Breadcrumb, Button, ComboBox, ErrorState, PermissionState, Select, TextArea, TextField } from "@vercentlabs/design-system";

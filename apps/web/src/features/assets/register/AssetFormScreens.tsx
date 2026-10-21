@@ -6,7 +6,8 @@
 // rules (serial, tag, location, custodian) show on the form and are checked on the server. Every save runs once (useSubmitKey); a created asset opens in place of the form.
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, LinkButton, PageHeader, PermissionState, Select, Tab, TabList, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
 

@@ -4,7 +4,7 @@
 // resolve it and its history. A claim changes nothing in Accounts Payable; the supplier's credit, recorded as a vendor credit, does.
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, Pencil, Trash2 } from "lucide-react";
 import {

@@ -4,7 +4,7 @@
 // held), so the inspector chooses the entry and how much the inspection covers — and, for a sample, how many units are actually examined.
 // The product's checklist in force is frozen into the inspection. Saving decides nothing; results and the decision are recorded on its page.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, PageHeader, PermissionState, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

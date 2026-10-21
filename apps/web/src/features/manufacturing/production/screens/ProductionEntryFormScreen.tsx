@@ -4,7 +4,7 @@
 // notes. With inspection required everything waits for a quality decision; otherwise the operator may split it. The BOM, components and
 // stock are never re-entered. "Save draft" counts nowhere; the entry's page posts it.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, PageHeader, PermissionState, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

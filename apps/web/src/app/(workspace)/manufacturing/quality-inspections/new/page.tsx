@@ -1,11 +1,8 @@
-import { Suspense } from "react";
-
-import { QiFormScreen } from "@/features/manufacturing/quality/screens/QiFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Start an inspection" };
 
-// Started from the inspection queue or an order's Quality tab: /manufacturing/quality-inspections/new?orderId=...&entryId=...
-export default async function Page({ searchParams }: { searchParams: Promise<{ orderId?: string; entryId?: string }> }) {
-  const { orderId, entryId } = await searchParams;
-  return <Suspense><QiFormScreen orderId={orderId} entryId={entryId} /></Suspense>;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)manufacturing/quality-inspections/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("manufacturing/quality-inspections/new", "manufacturing/quality-inspections", await params, await searchParams);
 }

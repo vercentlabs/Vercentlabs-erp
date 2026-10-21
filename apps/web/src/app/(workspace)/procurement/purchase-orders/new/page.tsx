@@ -1,9 +1,8 @@
-import { PurchaseOrderFormScreen } from "@/features/procurement/purchase-orders/screens/PurchaseOrderFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "New purchase order" };
 
-// ?supplierId= (Supplier → Create Purchase Order) starts the order for that supplier with its defaults.
-export default async function Page({ searchParams }: { searchParams: Promise<{ supplierId?: string }> }) {
-  const { supplierId } = await searchParams;
-  return <PurchaseOrderFormScreen supplierId={supplierId} />;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)procurement/purchase-orders/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("procurement/purchase-orders/new", "procurement/purchase-orders", await params, await searchParams);
 }

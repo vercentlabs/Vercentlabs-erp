@@ -4,7 +4,7 @@
 // locations); blind counting (on by default), a recount threshold, a reference and instructions. A draft freezes and captures nothing: Preview
 // shows what starting it will cover and freeze, and Start does it.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { Button, Checkbox, ComboBox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";

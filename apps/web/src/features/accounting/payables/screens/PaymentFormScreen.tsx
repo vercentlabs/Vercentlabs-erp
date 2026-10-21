@@ -4,7 +4,8 @@
 // first"), and whatever is not applied becomes an advance to the supplier — never an expense. Where the company requires approval for
 // supplier payments, saving sends it to a second person, with the bills it pays; once approved it is posted. Otherwise it is posted now.
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Breadcrumb, Button, ComboBox, ErrorState, PermissionState, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

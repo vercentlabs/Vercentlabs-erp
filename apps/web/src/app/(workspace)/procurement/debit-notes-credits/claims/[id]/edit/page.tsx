@@ -1,8 +1,8 @@
-import { ClaimFormScreen } from "@/features/procurement/vendor-credits/screens/ClaimScreens";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Edit debit note" };
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <ClaimFormScreen claimId={id} />;
+// Opened as an address of its own, this form opens over its record instead (see @modal/(.)procurement/debit-notes-credits/claims/[id]/edit).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("procurement/debit-notes-credits/claims/[id]/edit", "procurement/debit-notes-credits/claims/[id]", await params, await searchParams);
 }

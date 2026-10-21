@@ -1,10 +1,8 @@
-import { TransferFormScreen } from "@/features/transfers/screens/TransferFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "New Transfer" };
 
-// Opened from a stock, item, batch or serial screen, it starts with that item (and its warehouse, location, batch or serial) chosen.
-export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const params = await searchParams;
-  const value = (key: string) => (typeof params[key] === "string" && params[key] ? (params[key] as string) : undefined);
-  return <TransferFormScreen prefill={{ itemId: value("itemId"), warehouseId: value("warehouseId"), locationId: value("locationId"), batchId: value("batchId"), serialId: value("serialId") }} />;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)inventory/transfers/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("inventory/transfers/new", "inventory/transfers", await params, await searchParams);
 }

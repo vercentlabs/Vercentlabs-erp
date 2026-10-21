@@ -1,11 +1,8 @@
-import { Suspense } from "react";
-
-import { ScrapFormScreen } from "@/features/manufacturing/scrap/screens/ScrapFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Record scrap" };
 
-// Started from a manufacturing order: /manufacturing/scrap/new?orderId=...&type=ISSUED_MATERIAL|REJECTED_OUTPUT
-export default async function Page({ searchParams }: { searchParams: Promise<{ orderId?: string; type?: string }> }) {
-  const { orderId, type } = await searchParams;
-  return <Suspense><ScrapFormScreen orderId={orderId} type={type === "REJECTED_OUTPUT" ? "REJECTED_OUTPUT" : "ISSUED_MATERIAL"} /></Suspense>;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)manufacturing/scrap/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("manufacturing/scrap/new", "manufacturing/scrap", await params, await searchParams);
 }

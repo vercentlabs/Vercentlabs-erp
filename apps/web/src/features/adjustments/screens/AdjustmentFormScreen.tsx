@@ -4,7 +4,7 @@
 // counted (System / Counted / Difference shown side by side; the system stock is captured when saved) or as a difference, in any of the item's
 // units, batch by batch or serial number by serial number. Saving keeps a draft: nothing moves. The detail page previews the impact and posts.
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { Button, Checkbox, ComboBox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";

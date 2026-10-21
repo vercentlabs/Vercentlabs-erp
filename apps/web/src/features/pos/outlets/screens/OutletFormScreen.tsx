@@ -4,7 +4,7 @@
 // and its hours. A new outlet is saved Inactive; the record page activates it once its setup is complete. Fields the person may not change
 // (stock source, tax, accounts) are shown but locked.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, ComboBox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

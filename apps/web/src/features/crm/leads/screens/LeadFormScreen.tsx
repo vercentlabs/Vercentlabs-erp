@@ -6,7 +6,7 @@
 import { campaignChoices } from "@/features/crm/shared/marketing-api";
 import { StateField } from "@/features/crm/shared/ui/StateField";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

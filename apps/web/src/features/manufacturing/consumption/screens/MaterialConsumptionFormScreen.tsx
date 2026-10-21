@@ -5,7 +5,7 @@
 // the BOM's expected usage is then shown beside each line (a suggestion to copy, never posted on its own). Batches and serial units come only
 // from what was issued. "Save draft" changes nothing; the note's page reviews it against the BOM and posts it.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, ErrorState, PageHeader, PermissionState, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

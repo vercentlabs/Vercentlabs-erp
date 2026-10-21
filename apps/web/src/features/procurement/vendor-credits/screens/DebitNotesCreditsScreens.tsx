@@ -5,7 +5,7 @@
 import { ListStateViews } from "../../shared/ListStateViews";
 import { useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { FileMinus, Plus, ReceiptText } from "lucide-react";

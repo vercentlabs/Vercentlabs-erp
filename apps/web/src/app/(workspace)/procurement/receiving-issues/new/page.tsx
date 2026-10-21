@@ -1,9 +1,8 @@
-import { NewReceivingIssueScreen } from "@/features/procurement/purchase-orders/screens/NewReceivingIssueScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Report receiving issue" };
 
-// ?purchaseOrderId= a refusal at the dock against the order; ?goodsReceiptId= a rejection after receipt against the goods receipt.
-export default async function Page({ searchParams }: { searchParams: Promise<{ purchaseOrderId?: string; goodsReceiptId?: string }> }) {
-  const { purchaseOrderId, goodsReceiptId } = await searchParams;
-  return <NewReceivingIssueScreen purchaseOrderId={purchaseOrderId} goodsReceiptId={goodsReceiptId} />;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)procurement/receiving-issues/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("procurement/receiving-issues/new", "procurement/goods-receipts?view=receiving-issues", await params, await searchParams);
 }

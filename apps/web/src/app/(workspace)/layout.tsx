@@ -3,10 +3,13 @@ import type { ReactNode } from "react";
 import { resolveWorkspaceContext } from "@/shell/workspace-context/resolveWorkspaceContext";
 import { AppShell } from "@/shell/app-shell/AppShell";
 
+// modal: the @modal slot — a create / edit form opened over the current page.
 export default async function WorkspaceLayout({
   children,
+  modal,
 }: {
   children: ReactNode;
+  modal: ReactNode;
 }) {
   const {
     session,
@@ -19,6 +22,7 @@ export default async function WorkspaceLayout({
 
   return (
     <AppShell
+      modal={modal}
       trial={trialEndsAt ? { endsAt: trialEndsAt, ended: Boolean(access.subscription?.trialEnded) } : null}
       workspace={{
         organizationId: session.organizationId,

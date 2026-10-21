@@ -1,9 +1,8 @@
-import { GoodsReceiptFormScreen } from "@/features/procurement/purchase-orders/screens/GoodsReceiptFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Create goods receipt" };
 
-// ?purchaseOrderId= the confirmed purchase order the goods are received against.
-export default async function Page({ searchParams }: { searchParams: Promise<{ purchaseOrderId?: string }> }) {
-  const { purchaseOrderId: order } = await searchParams;
-  return <GoodsReceiptFormScreen orderId={order} />;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)procurement/goods-receipts/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("procurement/goods-receipts/new", "procurement/goods-receipts", await params, await searchParams);
 }

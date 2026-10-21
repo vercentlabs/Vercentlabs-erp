@@ -1,11 +1,8 @@
-import { Suspense } from "react";
-
-import { MaterialConsumptionFormScreen } from "@/features/manufacturing/consumption/screens/MaterialConsumptionFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Record material consumption" };
 
-// Started from an order in production: /manufacturing/material-consumptions/new?orderId=...
-export default async function Page({ searchParams }: { searchParams: Promise<{ orderId?: string }> }) {
-  const { orderId } = await searchParams;
-  return <Suspense><MaterialConsumptionFormScreen orderId={orderId} /></Suspense>;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)manufacturing/material-consumptions/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("manufacturing/material-consumptions/new", "manufacturing/material-consumptions", await params, await searchParams);
 }

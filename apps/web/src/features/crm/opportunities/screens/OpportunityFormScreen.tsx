@@ -5,7 +5,7 @@
 // moves; then — when creating — who owns it. Save and Cancel are at the top and the bottom.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

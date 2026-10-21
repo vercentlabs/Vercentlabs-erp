@@ -1,8 +1,8 @@
-import { StockCountFormScreen } from "@/features/stock-counts/screens/StockCountFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Edit Stock Count" };
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <StockCountFormScreen countId={id} />;
+// Opened as an address of its own, this form opens over its record instead (see @modal/(.)inventory/stock-counts/[id]/edit).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("inventory/stock-counts/[id]/edit", "inventory/stock-counts/[id]", await params, await searchParams);
 }

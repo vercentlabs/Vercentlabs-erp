@@ -5,7 +5,7 @@
 // accounting Finance posted, the supplier's documents and history. Posting never applies it: applying and refunds are their own steps.
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, Pencil, Trash2 } from "lucide-react";
 import {

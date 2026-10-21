@@ -3,6 +3,8 @@ import type { ModuleAccess } from "@vercentlabs/api";
 
 import { SearchDialogProvider } from "@/features/platform/search/SearchDialog";
 import { RememberLastApp } from "@/features/platform/start/RememberLastApp";
+import { OpenFormFromAddress } from "@/shell/form-modal/OpenFormFromAddress";
+import { SavedNotice } from "@/shell/form-modal/SavedNotice";
 import { WorkspaceGuideCard } from "@/features/platform/start/WorkspaceGuideCard";
 import { MobileNav } from "@/shell/primary-sidebar/MobileNav";
 import { ModuleRail } from "@/shell/module-sidebar/ModuleRail";
@@ -24,6 +26,7 @@ import {
 export function AppShell({
   workspace,
   trial = null,
+  modal = null,
   children,
 }: {
   workspace: WorkspaceContextValue & {
@@ -32,6 +35,8 @@ export function AppShell({
     unreadNotificationCount: number;
   };
   trial?: TrialState;
+  /** A create / edit form in a modal over the page (the @modal slot). */
+  modal?: ReactNode;
   children: ReactNode;
 }) {
   const {
@@ -73,6 +78,9 @@ export function AppShell({
               <RememberLastApp />
               <Suspense fallback={null}><WorkspaceGuideCard /></Suspense>
               <TrialGate trial={trial} canManageBilling={canManageBilling}>{children}</TrialGate>
+              <Suspense fallback={null}><OpenFormFromAddress /></Suspense>
+              {modal}
+              <SavedNotice />
             </main>
           </div>
           </div>

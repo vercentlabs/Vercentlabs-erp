@@ -1,10 +1,8 @@
-import { Suspense } from "react";
-
-import { ProjectFormScreen } from "@/features/projects/screens/ProjectFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Edit project" };
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <Suspense><ProjectFormScreen projectId={id} /></Suspense>;
+// Opened as an address of its own, this form opens over its record instead (see @modal/(.)projects/[id]/edit).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("projects/[id]/edit", "projects/[id]", await params, await searchParams);
 }

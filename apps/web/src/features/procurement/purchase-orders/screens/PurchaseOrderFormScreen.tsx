@@ -6,7 +6,7 @@
 // totals. A product's purchase cost is offered as a starting price only: the
 // agreed price is what is entered, and a missing price is never zero.
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { Button, Checkbox, ErrorState, IconButton, Select, TextArea, TextField } from "@vercentlabs/design-system";

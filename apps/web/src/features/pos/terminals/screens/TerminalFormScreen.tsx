@@ -3,7 +3,7 @@
 // Create or set up a POS terminal: General, Inventory, Cash & Payments, Documents and Hardware. Everything not overridden here comes from the
 // outlet. A used terminal keeps its outlet and code; posting-critical settings wait for its open session to close (the server says so).
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, CheckboxGroup, ErrorState, RecordFormPage, Select, Switch, TextArea, TextField } from "@vercentlabs/design-system";
 

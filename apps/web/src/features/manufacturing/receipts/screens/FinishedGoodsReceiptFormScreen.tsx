@@ -5,7 +5,7 @@
 // goes and, for tracked goods, its lot or serial numbers; production is never re-entered. A destination other than the order's finished-goods
 // warehouse needs an approval. "Save draft" moves nothing; the receipt's own page checks and posts it.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, ErrorState, PageHeader, PermissionState, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 

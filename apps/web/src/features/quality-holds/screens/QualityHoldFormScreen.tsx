@@ -4,7 +4,7 @@
 // per line the item, the position it is taken from (location and batch), the quantity or the serial numbers, and optionally the quality location
 // it goes to (else the warehouse's own). Saving keeps a draft: no stock moves until the hold is placed.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { Button, Checkbox, ComboBox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";

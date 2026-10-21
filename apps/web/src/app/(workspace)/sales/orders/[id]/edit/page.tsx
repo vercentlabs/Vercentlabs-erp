@@ -1,12 +1,8 @@
-import { SalesOrderFormScreen } from "@/features/sales/orders/screens/SalesOrderFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Edit sales order" };
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  return <SalesOrderFormScreen orderId={id} />;
+// Opened as an address of its own, this form opens over its record instead (see @modal/(.)sales/orders/[id]/edit).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("sales/orders/[id]/edit", "sales/orders/[id]", await params, await searchParams);
 }

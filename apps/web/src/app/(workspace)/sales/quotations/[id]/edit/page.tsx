@@ -1,12 +1,8 @@
-import { SalesQuotationFormScreen } from "@/features/sales/quotations/screens/SalesQuotationFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Edit quotation" };
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  return <SalesQuotationFormScreen quotationId={id} />;
+// Opened as an address of its own, this form opens over its record instead (see @modal/(.)sales/quotations/[id]/edit).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("sales/quotations/[id]/edit", "sales/quotations/[id]", await params, await searchParams);
 }

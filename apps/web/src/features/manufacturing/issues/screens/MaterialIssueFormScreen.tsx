@@ -5,7 +5,7 @@
 // A material can be left out (a partial issue keeps the other lines). Batches are taken earliest expiry first unless one is named; serial
 // units are chosen one by one. "Save draft" moves nothing; the note's own page checks and posts it.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, ErrorState, PageHeader, PermissionState, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 

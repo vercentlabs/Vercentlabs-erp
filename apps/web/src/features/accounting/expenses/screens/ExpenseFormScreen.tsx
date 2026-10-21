@@ -5,7 +5,7 @@
 // their own pocket (they are owed it); or it is still owed to the supplier. The receipt or bill is attached here — or, when there is none,
 // the reason is given. Save keeps a draft; Submit sends it for approval (or posts it, when the company doesn't require approval).
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Paperclip, X } from "lucide-react";
 import { Breadcrumb, Button, Checkbox, ComboBox, ErrorState, PermissionState, Select, TextArea, TextField } from "@vercentlabs/design-system";

@@ -7,7 +7,7 @@
 // server refuses as a duplicate shows its matches and how to go on.
 import { GstinLookup } from "@/shared/ui/GstinLookup";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, PermissionState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

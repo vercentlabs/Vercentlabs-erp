@@ -5,7 +5,7 @@
 // come from the server. One save per click (useSubmitKey); the record opens in place of the form. The customer is chosen from the shared
 // customer master by its record (never typed as a name); past the draft it changes on the project's Customer & Contacts tab.
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ComboBox, ErrorState, PermissionState, RadioGroup, Radio, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

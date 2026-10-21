@@ -5,7 +5,7 @@
 //   Direct bill (no PO)     rent, utilities, internet, subscriptions, fees, repairs: expense or asset lines, never stock
 // Every amount shown is the server's preview (tax engine, TDS, matching, duplicates, due date); nothing is calculated here.
 import { useDeferredValue, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileText, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { Button, Checkbox, ErrorState, PageHeader, Select, TextArea, TextField } from "@vercentlabs/design-system";

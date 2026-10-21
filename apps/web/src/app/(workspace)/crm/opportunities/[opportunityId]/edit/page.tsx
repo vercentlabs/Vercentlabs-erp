@@ -1,10 +1,8 @@
-import { requireWorkspace } from "@/core/session";
-import { OpportunityFormScreen } from "@/features/crm/opportunities/screens/OpportunityFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Edit deal" };
 
-export default async function Page({ params }: { params: Promise<{ opportunityId: string }> }) {
-  await requireWorkspace();
-  const { opportunityId } = await params;
-  return <OpportunityFormScreen opportunityId={opportunityId} />;
+// Opened as an address of its own, this form opens over its record instead (see @modal/(.)crm/opportunities/[opportunityId]/edit).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("crm/opportunities/[opportunityId]/edit", "crm/opportunities/[opportunityId]", await params, await searchParams);
 }

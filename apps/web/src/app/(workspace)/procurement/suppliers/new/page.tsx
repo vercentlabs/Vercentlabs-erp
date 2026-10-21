@@ -1,7 +1,8 @@
-import { SupplierFormScreen } from "@/features/procurement/suppliers/screens/SupplierFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "New supplier" };
 
-export default function Page() {
-  return <SupplierFormScreen />;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)procurement/suppliers/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("procurement/suppliers/new", "procurement/suppliers", await params, await searchParams);
 }

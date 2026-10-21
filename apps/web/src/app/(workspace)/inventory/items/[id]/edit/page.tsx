@@ -1,8 +1,8 @@
-import { ItemFormScreen } from "@/features/items/screens/ItemFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Edit Item" };
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <ItemFormScreen key={id} itemId={id} lens="inventory" />;
+// Opened as an address of its own, this form opens over its record instead (see @modal/(.)inventory/items/[id]/edit).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("inventory/items/[id]/edit", "inventory/items/[id]", await params, await searchParams);
 }

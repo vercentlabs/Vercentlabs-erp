@@ -4,7 +4,7 @@
 // a cash account names the person responsible for the cash. Its ledger account is created under Cash and bank unless an existing free one
 // is chosen.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Breadcrumb, Button, ComboBox, ErrorState, PermissionState, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

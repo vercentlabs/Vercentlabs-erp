@@ -3,7 +3,7 @@
 // A new inspection checklist: its name, the product it is for (or every product), final inspection or in-process check, and its checks. Saving
 // puts revision 1 in force at once; the checklist's page revises it.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ComboBox, PageHeader, Select, TextField } from "@vercentlabs/design-system";
 

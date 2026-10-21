@@ -2,7 +2,7 @@
 
 // New customer (directly, or from a CRM account) and Edit customer.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ComboBox, ErrorState, LinkButton, PageHeader, PermissionState } from "@vercentlabs/design-system";
 

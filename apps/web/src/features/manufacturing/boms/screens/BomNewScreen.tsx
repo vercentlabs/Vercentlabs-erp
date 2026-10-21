@@ -2,7 +2,7 @@
 
 // New BOM: the first draft revision of a product's recipe. Saved as a draft, or saved and submitted for approval in one step.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@vercentlabs/design-system";
 

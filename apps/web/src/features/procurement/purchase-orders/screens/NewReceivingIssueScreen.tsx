@@ -4,7 +4,7 @@
 // goods rejected after they were received (after custody — against the posted goods receipt). The source chosen here only prefills; the
 // server checks what may be refused or rejected.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorState, PageHeader, Select } from "@vercentlabs/design-system";
 

@@ -1,10 +1,8 @@
-import { Suspense } from "react";
-
-import { PaymentFormScreen } from "@/features/accounting/payables/screens/PaymentFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "Pay supplier" };
 
-// Suspense: the form reads the supplier and bill to prefill from the URL ("Pay" on a bill).
-export default function NewPaymentPage() {
-  return <Suspense><PaymentFormScreen /></Suspense>;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)accounting/payments/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("accounting/payments/new", "accounting/payments", await params, await searchParams);
 }

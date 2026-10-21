@@ -5,7 +5,7 @@
 // enters the actual loss, never a stock balance or the recipe. Then why, recoverable or not (recoverable goes to a damaged-stock bin), and
 // whether the loss is normal or abnormal. "Save draft" moves nothing; the note's own page asks for any approval and posts it.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, ErrorState, PageHeader, PermissionState, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

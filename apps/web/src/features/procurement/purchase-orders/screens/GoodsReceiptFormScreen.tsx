@@ -11,7 +11,7 @@
 // server and moves the stock. A line may be received in another of the item's purchase units (30 PCS against an order in BOX of 20): the
 // server converts it exactly into the order's unit and checks what is still owed in base units.
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, Checkbox, ErrorState, PageHeader, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

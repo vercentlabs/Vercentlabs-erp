@@ -3,7 +3,7 @@
 // New Opening Stock: the company (this workspace), one warehouse, the cutoff and accounting dates and the migration reference. The lines are
 // added on the draft that opens next, typed in or imported from a spreadsheet.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, PermissionState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

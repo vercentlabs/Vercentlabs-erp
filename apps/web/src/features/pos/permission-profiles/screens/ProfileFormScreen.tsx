@@ -4,7 +4,7 @@
 // limit (a percentage and / or an amount, or an explicit Unlimited when allowed) and whether a reason is required. Sensitive permissions
 // must state their limit; a missing limit never means unlimited. The server validates everything again.
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

@@ -3,7 +3,7 @@
 // New (or draft) purchase return: the goods of one purchase order's posted receipts that go back to the supplier — from usable stock, goods
 // on hold, or a rejection case — each with its reason. Saving keeps a draft (no stock moves); posting the dispatch happens on the return.
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, Checkbox, ErrorState, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

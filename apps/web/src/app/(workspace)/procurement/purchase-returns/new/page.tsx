@@ -1,9 +1,8 @@
-import { PurchaseReturnFormScreen } from "@/features/procurement/purchase-returns/screens/PurchaseReturnFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "New purchase return" };
 
-// ?purchaseOrderId= a purchase order's received goods; ?goodsReceiptId= one goods receipt's; neither: choose the order.
-export default async function Page({ searchParams }: { searchParams: Promise<{ purchaseOrderId?: string; goodsReceiptId?: string }> }) {
-  const { purchaseOrderId: order, goodsReceiptId: receipt } = await searchParams;
-  return <PurchaseReturnFormScreen orderId={order} receiptId={receipt} />;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)procurement/purchase-returns/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("procurement/purchase-returns/new", "procurement/purchase-returns", await params, await searchParams);
 }

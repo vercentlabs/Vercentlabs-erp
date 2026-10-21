@@ -4,7 +4,7 @@
 // an item from a source location to a destination location, in any of its units, with the batches or serial numbers that move. What is available
 // is shown as you go; a draft reserves and moves nothing. Confirming (warehouse) reserves the source stock; a location transfer completes at once.
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { Button, Checkbox, ComboBox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";

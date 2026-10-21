@@ -4,7 +4,7 @@
 // a default outlet, an optional short display name for receipts and an HR employee. Saved inactive unless activated now; a used cashier
 // keeps its code and user.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, CheckboxGroup, ComboBox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 

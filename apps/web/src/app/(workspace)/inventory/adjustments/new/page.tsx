@@ -1,10 +1,8 @@
-import { AdjustmentFormScreen } from "@/features/adjustments/screens/AdjustmentFormScreen";
+import { formRedirect } from "@/shell/form-modal/form-redirect";
 
 export const metadata = { title: "New Stock Adjustment" };
 
-// Opened from a stock screen ("Adjust stock"), it starts with the item, warehouse and location already chosen.
-export default async function Page({ searchParams }: { searchParams: Promise<{ itemId?: string; warehouseId?: string; locationId?: string }> }) {
-  const { itemId, warehouseId, locationId } = await searchParams;
-  const value = (entry: unknown) => (typeof entry === "string" && entry ? entry : undefined);
-  return <AdjustmentFormScreen prefill={{ itemId: value(itemId), warehouseId: value(warehouseId), locationId: value(locationId) }} />;
+// Opened as an address of its own, this form opens over its list instead (see @modal/(.)inventory/adjustments/new).
+export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  formRedirect("inventory/adjustments/new", "inventory/adjustments", await params, await searchParams);
 }

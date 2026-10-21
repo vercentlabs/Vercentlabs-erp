@@ -4,7 +4,7 @@
 // warehouses for materials, production and finished goods, where the demand comes from, priority, owner and notes. "Calculate" shows the
 // materials the revision needs, what is free in the material warehouse and the estimate — nothing is saved or reserved until "Save draft".
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ComboBox, ErrorState, PageHeader, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 

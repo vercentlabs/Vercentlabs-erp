@@ -7,7 +7,7 @@
 // and each quoted line keeps its quoted price, discount and tax; quantities,
 // warehouses, dates and addresses can still change while it is a draft.
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { AlertDialog, Button, ErrorState, IconButton, NumberField, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
