@@ -14,6 +14,7 @@ import { notifyOverdueTasksHandler, JOB_TYPE as TASK_OVERDUE_JOB_TYPE, payloadSc
 import { notifyOverdueProductionHoldsHandler, JOB_TYPE as HOLD_OVERDUE_JOB_TYPE, payloadSchema as holdOverduePayloadSchema } from "./manufacturing-hold-overdue.js";
 import { notifyProjectAlertsHandler, JOB_TYPE as PROJECT_ALERTS_JOB_TYPE, payloadSchema as projectAlertsPayloadSchema } from "./projects-alerts.js";
 import { noteExpiredQuotationsHandler, JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE, payloadSchema as quotationExpiryPayloadSchema } from "./sales-quotation-expiry.js";
+import { openNextFiscalYearHandler, JOB_TYPE as FISCAL_YEAR_AHEAD_JOB_TYPE, payloadSchema as fiscalYearAheadPayloadSchema } from "./platform-fiscal-year-ahead.js";
 import { buildWorkspaceExportHandler, JOB_TYPE as WORKSPACE_EXPORT_JOB_TYPE, payloadSchema as workspaceExportPayloadSchema } from "./platform-workspace-export.js";
 import { exchangeRateFeedHandler, JOB_TYPE as EXCHANGE_RATE_FEED_JOB_TYPE, payloadSchema as exchangeRateFeedPayloadSchema } from "./platform-exchange-rate-feed.js";
 import { workflowTimeTriggersHandler, JOB_TYPE as WORKFLOW_TIME_TRIGGERS_JOB_TYPE, payloadSchema as workflowTimeTriggersPayloadSchema } from "./platform-workflow-time-triggers.js";
@@ -161,6 +162,13 @@ export function registerBuiltinHandlers() {
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // each run writes its own export file; nothing else changes
     maxAttempts: 2,
+  });
+  registerJobHandler(FISCAL_YEAR_AHEAD_JOB_TYPE, {
+    schema: fiscalYearAheadPayloadSchema,
+    handler: openNextFiscalYearHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // a year already open is not opened again (and overlapping years are refused)
+    maxAttempts: 3,
   });
   registerJobHandler(QUOTATION_EXPIRY_JOB_TYPE, {
     schema: quotationExpiryPayloadSchema,

@@ -52,7 +52,7 @@ export async function createFiscalYear(client, context, input = {}) {
     else {
       const month = (await client.query("SELECT fiscal_year_start_month FROM public.organizations WHERE id = $1", [context.organizationId])).rows[0]?.fiscal_year_start_month ?? 4;
       start = (await client.query(
-        `SELECT make_date(CASE WHEN extract(month FROM current_date)::int >= $1 THEN extract(year FROM current_date)::int ELSE extract(year FROM current_date)::int - 1 END, $1, 1)::text AS start`,
+        `SELECT make_date(CASE WHEN extract(month FROM tenant.company_today())::int >= $1 THEN extract(year FROM tenant.company_today())::int ELSE extract(year FROM tenant.company_today())::int - 1 END, $1, 1)::text AS start`,
         [month])).rows[0].start;
     }
   }
@@ -84,6 +84,32 @@ export async function createFiscalYear(client, context, input = {}) {
       [context.organizationId, year.id, year.code.replace("FY", ""), day(year.end_date), context.userId ?? null]);
   await event(client, context, "fiscal_year", year.id, "accounting.fiscal_year.created", null, "open", { code: year.code });
   return (await listFiscalYears(client, context)).find((entry) => entry.id === year.id);
+}
+
+// The financial year is always open ahead of time (Sales audit B3): every company — whether or not it has the Accounting app — posts its
+// invoices, dispatches and payments to the ledger, which needs an open period for the date. Once a day the worker makes sure a year
+// covers today and the next `aheadDays` days, opening the next one (its twelve monthly periods) before the current one ends; a company
+// that slept through a year gets each missing year in turn. Returns the codes opened. The system acts here, not a person.
+export async function ensureFiscalYearsAhead(client, organizationId, { aheadDays = 60 } = {}) {
+  const system = { organizationId, userId: null, roleSlugs: ["system_worker"], permissions: [ACCOUNTING_PERMISSIONS.view, ACCOUNTING_PERMISSIONS.periodManage] };
+  const opened = [];
+  for (let guard = 0; guard < 5; guard += 1) {
+    const state = (await client.query(
+      `SELECT max(end_date)::text AS last_end, (tenant.company_today() + $2::int)::text AS horizon
+         FROM tenant.accounting_fiscal_years WHERE organization_id = $1`, [organizationId, aheadDays])).rows[0];
+    if (state.last_end && state.last_end >= state.horizon) break;
+    // With no year at all, the one holding today (from the company's start month); else the day after the last one.
+    const year = await createFiscalYear(client, system, {});
+    opened.push(year.code);
+  }
+  return opened;
+}
+
+// Whether a company's open years run out within `aheadDays` (the job's cheap "anything to do?" check).
+export async function fiscalYearsRunningOut(client, organizationId, { aheadDays = 60 } = {}) {
+  return (await client.query(
+    `SELECT COALESCE(max(end_date) < tenant.company_today() + $2::int, true) AS due FROM tenant.accounting_fiscal_years WHERE organization_id = $1`,
+    [organizationId, aheadDays])).rows[0].due;
 }
 
 // Open ↔ Closing review. (Closing and locking go through the close run.)

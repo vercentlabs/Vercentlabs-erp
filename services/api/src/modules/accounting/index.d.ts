@@ -137,6 +137,9 @@ export type FiscalYear = { id: string; code: string; name: string; startDate: st
 export const PERIOD_STATUS: Readonly<Record<string, { key: string; label: string }>>;
 export function listFiscalYears(client: QueryClient, context: AccountingContext): Promise<FiscalYear[]>;
 export function createFiscalYear(client: QueryClient, context: AccountingContext, input?: { startDate?: string; withAdjustmentPeriod?: boolean }): Promise<FiscalYear | undefined>;
+// The next financial year, opened ahead by the worker for every company (Sales audit B3); returns the codes opened.
+export function ensureFiscalYearsAhead(client: QueryClient, organizationId: string, options?: { aheadDays?: number }): Promise<string[]>;
+export function fiscalYearsRunningOut(client: QueryClient, organizationId: string, options?: { aheadDays?: number }): Promise<boolean>;
 export function setPeriodReview(client: QueryClient, context: AccountingContext, periodId: string, input: { review: boolean; note?: string }): Promise<FiscalPeriod>;
 
 // Finance MVP F2 — manual journals and the General Ledger.

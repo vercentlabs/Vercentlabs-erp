@@ -16,8 +16,9 @@ import { JOB_TYPE as CALENDAR_SYNC_JOB_TYPE } from "./handlers/crm-calendar-sync
 import { JOB_TYPE as MAILINGS_SEND_JOB_TYPE } from "./handlers/crm-mailings-send.js";
 import { JOB_TYPE as BROADCASTS_SEND_JOB_TYPE } from "./handlers/crm-whatsapp-broadcasts-send.js";
 import { JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE } from "./handlers/sales-quotation-expiry.js";
+import { JOB_TYPE as FISCAL_YEAR_AHEAD_JOB_TYPE } from "./handlers/platform-fiscal-year-ahead.js";
 import { JOB_TYPE as EXCHANGE_RATE_FEED_JOB_TYPE } from "./handlers/platform-exchange-rate-feed.js";
-import { exchangeRateFeedConfigured } from "@vercentlabs/api";
+import { exchangeRateFeedConfigured, fiscalYearsRunningOut } from "@vercentlabs/api";
 import { JOB_TYPE as WORKFLOW_TIME_TRIGGERS_JOB_TYPE } from "./handlers/platform-workflow-time-triggers.js";
 import { JOB_TYPE as NOTIFICATION_DIGEST_JOB_TYPE } from "./handlers/platform-notification-digest.js";
 import { JOB_TYPE as RECORD_ACTIVITY_REMINDER_JOB_TYPE } from "./handlers/platform-record-activity-reminders.js";
@@ -61,6 +62,10 @@ export const SCHEDULED_JOBS = Object.freeze([
     when: async (client, organizationId) => exchangeRateFeedConfigured()
       && Boolean((await client.query(`SELECT 1 FROM tenant.currencies currency JOIN public.organizations organization ON organization.id = currency.organization_id
         WHERE currency.organization_id = $1 AND currency.status = 'active' AND currency.code <> organization.base_currency LIMIT 1`, [organizationId])).rows[0]) },
+  // The next financial year, opened 60 days before the current one ends. Every company — Sales and Stock post to the ledger without the
+  // Accounting app, and nobody else would open it (Sales audit B3).
+  { name: "next financial year", module: null, every: "day", jobType: FISCAL_YEAR_AHEAD_JOB_TYPE, key: "fiscal-year-ahead", maxAttempts: 3,
+    when: (client, organizationId) => fiscalYearsRunningOut(client, organizationId) },
   // The daily digest email of unread notifications, for those who asked for it. Every company.
   { name: "notification digest", module: null, every: "day", jobType: NOTIFICATION_DIGEST_JOB_TYPE, key: "notification-digest", maxAttempts: 3 },
   // Quotations past their Valid Until date become Expired.
