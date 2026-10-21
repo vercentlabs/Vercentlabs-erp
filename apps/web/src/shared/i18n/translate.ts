@@ -3,10 +3,11 @@
 // language is the signed-in person's own (Profile › Language), the same locale that drives <html lang> and formatting.
 import { HINDI } from "./messages/hi";
 import { HINDI_CRM } from "./messages/hi-crm";
+import { HINDI_SALES } from "./messages/hi-sales";
 
 export type Translate = (text: string, values?: Record<string, string | number>) => string;
 
-const DICTIONARIES: Record<string, Readonly<Record<string, string>>> = { hi: { ...HINDI, ...HINDI_CRM } };
+const DICTIONARIES: Record<string, Readonly<Record<string, string>>> = { hi: { ...HINDI, ...HINDI_CRM, ...HINDI_SALES } };
 
 // "hi-IN" → the Hindi dictionary; English (or any language without one) → none.
 export function dictionaryFor(locale: string | null | undefined): Readonly<Record<string, string>> | null {
