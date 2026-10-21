@@ -72,7 +72,7 @@ function CreditLines({ proposal, values, onChange, allowAmount, exceptNumber }: 
             </span>
             {allowAmount ? (
               <Select aria-label={`How ${line.itemName} is credited`} size="compact" selectedKey={current.type} isDisabled={done}
-                options={[{ value: "quantity", label: "By quantity" }, { value: "amount", label: "By amount" }]}
+                options={[{ value: "quantity", label: "Goods (by quantity)" }, { value: "amount", label: "Rate difference / discount after sale" }]}
                 onSelectionChange={(selected) => onChange({ ...values, [line.invoiceLineId]: { type: selected === "amount" ? "amount" : "quantity", value: 0 } })} />
             ) : <span className="text-xs text-text-muted sm:text-right">By quantity</span>}
             <NumberField aria-label={byAmount ? `Taxable amount to credit on ${line.itemName}` : `Quantity of ${line.itemName} to credit`} value={current.value} minValue={0}

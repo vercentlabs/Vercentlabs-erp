@@ -45,6 +45,7 @@ import { DeliveryStatusBadge } from "@/features/sales/deliveries/components/Deli
 import { CreateInvoiceDialog } from "@/features/sales/invoices/components/InvoiceDialogs";
 
 import { CancelOrderDialog, CancelRemainingDialog, ReopenOrderDialog, failureText } from "../components/OrderDialogs";
+import { NextStep, orderNextStep } from "@/features/sales/shared/NextStep";
 import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge, ReservationStatusBadge } from "../components/OrderStatusBadges";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
@@ -188,12 +189,13 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
               {executing && order.fulfillment !== "not_required" && <FulfillmentStatusBadge status={order.fulfillment} label={order.fulfillmentLabel} />}
               {detail.delivery.overdue && <OverdueDeliveryBadge />}
               {executing && order.status !== "cancelled" && <InvoicingStatusBadge status={order.invoicing} label={order.invoicingLabel} />}
+              <NextStep step={orderNextStep(order, detail.delivery, tracking, currency)} />
             </span>
           ),
           fields: [
             { label: "Customer", value: order.party_id ? <Link className="hover:underline" href={`/sales/customers/${order.party_id}`}>{order.customer_snapshot?.displayName ?? "—"}</Link> : "—" },
             { label: "Order date", value: calendarDate(order.order_date) },
-            { label: "Customer PO", value: order.customer_po_number ?? "—" },
+            { label: "Customer order no. (PO)", value: order.customer_po_number ?? "—" },
             { label: "Requested delivery", value: calendarDate(order.requested_delivery_date) },
             { label: "Order value", value: money(currency, order.grand_total) },
             ...(executing && tracking?.payment.balanceDue !== undefined && tracking.payment.status !== "not_invoiced" ? [{ label: "Balance due", value: money(currency, tracking.payment.balanceDue) }] : []),
@@ -244,7 +246,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           <TabList aria-label="Sales order sections">
             <Tab id="overview">Overview</Tab>
             <Tab id="items">Items ({detail.lines.length})</Tab>
-            {stockOn && <Tab id="fulfillment">Fulfillment</Tab>}
+            {stockOn && <Tab id="fulfillment">Dispatch</Tab>}
             <Tab id="invoices">Invoices ({detail.invoices.length})</Tab>
             <Tab id="confirmation">Confirmation</Tab>
             {executing && <Tab id="returns">Returns &amp; credits</Tab>}
@@ -313,7 +315,7 @@ function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: O
       <Panel title="Order">
         <Facts items={[
           { label: "Order date", value: calendarDate(order.order_date) },
-          { label: "Customer PO", value: [order.customer_po_number, order.customer_po_date && `dated ${calendarDate(order.customer_po_date)}`].filter(Boolean).join(" ") || "—" },
+          { label: "Customer order no. (PO)", value: [order.customer_po_number, order.customer_po_date && `dated ${calendarDate(order.customer_po_date)}`].filter(Boolean).join(" ") || "—" },
           { label: "Customer reference", value: order.customer_reference ?? "—" },
           { label: "Requested delivery", value: calendarDate(order.requested_delivery_date) },
           ...(stockOn ? [{ label: "Default warehouse", value: order.default_warehouse_name ?? "—" }] : []),

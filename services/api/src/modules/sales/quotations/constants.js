@@ -20,8 +20,9 @@ export const STATUS_KEYS = Object.freeze({
   withdrawn: "superseded",
 });
 export const STATUS_LABELS = Object.freeze({
-  draft: "Draft", awaiting_approval: "Awaiting approval", confirmed: "Confirmed", sent: "Sent", accepted: "Accepted", rejected: "Rejected", cancelled: "Cancelled",
-  superseded: "Superseded", expired: "Expired",
+  // "Finalised", not "Confirmed": confirming is what an order does (Sales audit wording).
+  draft: "Draft", awaiting_approval: "Awaiting approval", confirmed: "Finalised", sent: "Sent", accepted: "Accepted", rejected: "Rejected", cancelled: "Cancelled",
+  superseded: "Replaced by revision", expired: "Expired",
 });
 
 // An offer the customer can still answer.
@@ -53,7 +54,7 @@ export const QUOTATION_PERMISSIONS = Object.freeze({
 export const QUOTATION_VIEWS = Object.freeze([
   { key: "all", label: "All Quotations" },
   { key: "draft", label: "Draft" },
-  { key: "confirmed", label: "Confirmed" },
+  { key: "confirmed", label: "Finalised" },
   { key: "sent", label: "Sent" },
   { key: "awaiting", label: "Awaiting Response" },
   { key: "accepted", label: "Accepted" },

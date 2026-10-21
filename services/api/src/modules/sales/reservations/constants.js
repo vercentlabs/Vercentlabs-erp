@@ -34,7 +34,7 @@ export const SYSTEM_RELEASE_REASONS = Object.freeze({
 });
 
 export const RESERVATION_STATUS_LABELS = Object.freeze({
-  not_required: "Not required", not_reserved: "Not reserved", partially_reserved: "Partially reserved", fully_reserved: "Fully reserved",
+  not_required: "Not required", not_reserved: "No stock kept aside", partially_reserved: "Some stock kept aside", fully_reserved: "Stock kept aside",
 });
 export const RECORD_STATUS_LABELS = Object.freeze({ active: "Active", consumed: "Consumed", released: "Released", cancelled: "Cancelled" });
 

@@ -188,7 +188,7 @@ function FulfillmentForm({ settings, warehouses }: Loaded) {
       <Panel title="Invoicing">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="Invoice based on" description="Sales Order: anything ordered can be invoiced. Delivery: goods only once delivered (services as ordered)."
-            options={[{ value: "ordered", label: "Sales Order" }, { value: "fulfilled", label: "Delivery" }]}
+            options={[{ value: "ordered", label: "Bill on order" }, { value: "fulfilled", label: "Bill on dispatch" }]}
             selectedKey={basis} onSelectionChange={(key) => touch(setBasis)(String(key ?? "ordered"))} isDisabled={!canManage} />
         </div>
       </Panel>

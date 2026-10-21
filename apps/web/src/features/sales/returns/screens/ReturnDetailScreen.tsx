@@ -133,7 +133,7 @@ function Overview({ detail }: { detail: ReturnDetail }) {
       <Panel title="Return">
         <Facts items={[
           { label: "Customer", value: salesReturn.customer_snapshot?.displayName ?? "—" },
-          { label: "Customer PO", value: salesReturn.customer_po_number ?? "—" },
+          { label: "Customer order no. (PO)", value: salesReturn.customer_po_number ?? "—" },
           { label: "Sales order", value: salesReturn.sales_order_number },
           { label: "Delivered from", value: salesReturn.delivery_warehouse_name ?? "—" },
           { label: "Returned to", value: salesReturn.warehouse_name ?? "—" },

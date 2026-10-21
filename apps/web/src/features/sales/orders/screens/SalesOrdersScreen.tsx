@@ -33,7 +33,7 @@ const NO_FILTERS: Filters = {
   status: ANY, confirmation: ANY, reservation: ANY, fulfillment: ANY, invoicing: ANY, deliveryOverdue: ANY, readyToInvoice: ANY, balance: ANY, partyId: ANY, ownerUserId: ANY, warehouseId: ANY, source: ANY, dateFrom: "", dateTo: "", deliveryFrom: "", deliveryTo: "",
 };
 const NAMES: Record<FilterKey, string> = {
-  status: "Order status", confirmation: "Confirmation", reservation: "Reservation", fulfillment: "Fulfillment", invoicing: "Invoicing", deliveryOverdue: "Delivery", readyToInvoice: "Invoicing now",
+  status: "Order status", confirmation: "Confirmation", reservation: "Stock kept aside", fulfillment: "Dispatch", invoicing: "Invoicing", deliveryOverdue: "Delivery", readyToInvoice: "Invoicing now",
   balance: "Balance", partyId: "Customer", ownerUserId: "Salesperson", warehouseId: "Warehouse", source: "Source",
   dateFrom: "Ordered from", dateTo: "Ordered to", deliveryFrom: "Delivery from", deliveryTo: "Delivery to",
 };
@@ -41,10 +41,10 @@ const STATUSES = [{ value: "draft", label: "Draft" }, { value: "confirmed", labe
 const FULFILLMENTS = [
   { value: "not_delivered", label: "Not delivered" }, { value: "partially_delivered", label: "Partially delivered" }, { value: "delivered", label: "Delivered" },
 ];
-const CONFIRMATIONS = [{ value: "not_sent", label: "Not sent" }, { value: "sent", label: "Sent" }, { value: "acknowledged", label: "Acknowledged" }];
+const CONFIRMATIONS = [{ value: "not_sent", label: "Not sent" }, { value: "sent", label: "Sent" }, { value: "acknowledged", label: "Customer confirmed receipt" }];
 const INVOICINGS = [{ value: "not_invoiced", label: "Not invoiced" }, { value: "partially_invoiced", label: "Partially invoiced" }, { value: "fully_invoiced", label: "Fully invoiced" }];
 const RESERVATIONS = [
-  { value: "not_reserved", label: "Not reserved" }, { value: "partially_reserved", label: "Partially reserved" }, { value: "fully_reserved", label: "Fully reserved" },
+  { value: "not_reserved", label: "No stock kept aside" }, { value: "partially_reserved", label: "Some stock kept aside" }, { value: "fully_reserved", label: "Stock kept aside" },
   { value: "not_required", label: "Not required" },
 ];
 const SOURCES = [{ value: "quotation", label: "From a quotation" }, { value: "direct", label: "Direct order" }];
@@ -96,7 +96,7 @@ export function SalesOrdersScreen() {
       id: "customer", accessorKey: "customer_name", header: "Customer",
       cell: ({ row }) => <span className="flex min-w-40 flex-col"><span>{row.original.customer_name ?? ""}</span>{row.original.customer_number && <span className="text-xs text-text-muted tabular-nums">{row.original.customer_number}</span>}</span>,
     },
-    { id: "po", header: "Customer PO", enableSorting: false, cell: ({ row }) => row.original.customer_po_number ?? "" },
+    { id: "po", header: "Customer order no. (PO)", enableSorting: false, cell: ({ row }) => row.original.customer_po_number ?? "" },
     { id: "quotation", header: "Quotation", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{row.original.source_quotation_number ?? ""}</span> },
     { id: "owner", header: "Salesperson", enableSorting: false, cell: ({ row }) => row.original.owner_name ?? "" },
     { id: "requestedDelivery", accessorKey: "requested_delivery_date", header: "Requested delivery", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.requested_delivery_date ? calendarDate(row.original.requested_delivery_date) : ""}</span> },
@@ -104,14 +104,14 @@ export function SalesOrdersScreen() {
     { id: "status", accessorKey: "lifecycle_status", header: "Order status", cell: ({ row }) => <OrderStatusBadge status={row.original.status} label={row.original.statusLabel} /> },
     { id: "confirmation", header: "Confirmation", enableSorting: false, cell: ({ row }) => row.original.confirmation === "none" ? "" : <ConfirmationStatusBadge status={row.original.confirmation} label={row.original.confirmationLabel} /> },
     {
-      id: "reservation", header: "Reservation", enableSorting: false,
+      id: "reservation", header: "Stock kept aside", enableSorting: false,
       cell: ({ row }) => row.original.status !== "confirmed" || !row.original.tracking.reservation.applies || row.original.reservation === "not_required" ? "" : (
         <span className="flex flex-col gap-0.5"><ReservationStatusBadge status={row.original.reservation} label={row.original.reservationLabel} />
           <span className="text-xs tabular-nums text-text-muted">{amount(row.original.tracking.reservation.reserved)} / {amount(row.original.tracking.reservation.required)}</span></span>
       ),
     },
     {
-      id: "fulfillment", header: "Fulfillment", enableSorting: false,
+      id: "fulfillment", header: "Dispatch", enableSorting: false,
       cell: ({ row }) => row.original.status === "draft" || !row.original.tracking.fulfillment.applies ? "" : (
         <span className="flex flex-col gap-0.5">
           <span className="flex flex-wrap gap-1"><FulfillmentStatusBadge status={row.original.fulfillment} label={row.original.fulfillmentLabel} />{row.original.delivery_overdue && <OverdueDeliveryBadge />}</span>

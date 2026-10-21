@@ -213,7 +213,7 @@ function Overview({ detail }: { detail: CreditNoteDetail }) {
           { label: "Credit note date", value: calendarDate(creditNote.invoice_date) },
           { label: "Posting date", value: calendarDate(creditNote.accounting_date) },
           { label: "Currency", value: creditNote.currency_code },
-          { label: "Customer PO", value: creditNote.customer_po_number ?? "—" },
+          { label: "Customer order no. (PO)", value: creditNote.customer_po_number ?? "—" },
           { label: "Sent", value: creditNote.sent ? `${dateTime(creditNote.sent_at)}${creditNote.sent_to ? ` to ${creditNote.sent_to}` : ""}` : "Not sent" },
         ]} />
       </Panel>
@@ -249,7 +249,7 @@ function Items({ detail }: { detail: CreditNoteDetail }) {
         </span>
       ),
     },
-    { id: "type", header: "Credited by", cell: ({ row }) => (row.original.credit_type === "amount" ? "Amount" : "Quantity") },
+    { id: "type", header: "Credited by", cell: ({ row }) => (row.original.credit_type === "amount" ? "Rate difference / discount after sale" : "Quantity") },
     { id: "invoiced", header: "Invoiced", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{quantity(row.original.invoiced_quantity)} {row.original.uom_snapshot ?? ""} at {money(currency, row.original.invoiced_unit_price)}</span> },
     { id: "qty", header: "Quantity", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{row.original.credit_type === "amount" ? "—" : `${quantity(row.original.quantity)} ${row.original.uom_snapshot ?? ""}`}</span> },
     { id: "taxable", header: "Taxable", cell: ({ row }) => <span className="tabular-nums">{money(currency, row.original.net_amount)}</span> },
@@ -263,7 +263,7 @@ function Items({ detail }: { detail: CreditNoteDetail }) {
     <div className="pt-4">
       <EnterpriseDataGrid<CreditNoteLine> aria-label="Credit note items" columns={columns} data={detail.lines} getRowId={(row) => row.id} state="ready"
         renderMobileCard={(line) => (
-          <div className="flex flex-col gap-1"><span className="font-medium">{line.item_name_snapshot}</span><span className="text-sm tabular-nums">{line.credit_type === "amount" ? "Amount" : quantity(line.quantity)} · {money(currency, line.line_total)}</span></div>
+          <div className="flex flex-col gap-1"><span className="font-medium">{line.item_name_snapshot}</span><span className="text-sm tabular-nums">{line.credit_type === "amount" ? "Rate difference / discount" : quantity(line.quantity)} · {money(currency, line.line_total)}</span></div>
         )} />
     </div>
   );

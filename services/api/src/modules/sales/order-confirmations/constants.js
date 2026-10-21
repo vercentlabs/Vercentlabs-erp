@@ -28,7 +28,7 @@ export const SENT_CHANNELS = Object.freeze([
 export const CHANNEL_LABELS = Object.freeze({ email: "Email from Vercentlabs", ...Object.fromEntries(SENT_CHANNELS.map((channel) => [channel.code, channel.label])) });
 
 export const CONFIRMATION_STATUS_LABELS = Object.freeze({
-  none: "Not confirmed", not_sent: "Not sent", sent: "Sent", acknowledged: "Acknowledged", superseded: "Superseded",
+  none: "Not confirmed", not_sent: "Not sent", sent: "Sent", acknowledged: "Customer confirmed receipt", superseded: "Replaced by revision",
 });
 
 // The communication state of a confirmation row (or of an order's current one).

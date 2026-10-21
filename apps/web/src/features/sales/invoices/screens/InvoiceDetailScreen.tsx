@@ -31,6 +31,7 @@ import {
   CancelInvoiceDialog, ChangeDueDateDialog, EditInvoiceDialog, MarkSentDialog, PostInvoiceDialog, ReverseInvoiceDialog, SendInvoiceDialog, failureText,
 } from "../components/InvoiceDialogs";
 import { InvoiceStatusBadges } from "../components/InvoiceStatusBadges";
+import { NextStep, invoiceNextStep } from "@/features/sales/shared/NextStep";
 import { RecordPaymentDialog } from "../components/RecordPaymentDialog";
 import { CreateCreditNoteDialog } from "@/features/sales/credit-notes/components/CreditNoteDialogs";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
@@ -120,7 +121,12 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
       <RecordDetailsPage
         header={{
           title: invoice.invoice_number,
-          status: <InvoiceStatusBadges row={invoice} />,
+          status: (
+            <span className="flex flex-wrap items-center gap-1.5">
+              <InvoiceStatusBadges row={invoice} />
+              <NextStep step={invoiceNextStep(invoice)} />
+            </span>
+          ),
           fields: [
             { label: "Customer", value: <Link className="hover:underline" href={`/sales/customers/${invoice.party_id}`}>{invoice.sales_customer_snapshot?.displayName ?? "—"}</Link> },
             { label: "Invoice date", value: calendarDate(invoice.invoice_date) },
@@ -233,7 +239,7 @@ function Overview({ detail }: { detail: InvoiceDetail }) {
                   <span className="text-xs text-text-muted">Set by hand{invoice.due_date_override_reason ? `: ${invoice.due_date_override_reason}` : ""}{invoice.calculated_due_date ? ` · the terms work out ${calendarDate(invoice.calculated_due_date)}` : ""}</span>
                 )}</span> },
           { label: "Currency", value: invoice.currency_code },
-          { label: "Customer PO", value: invoice.customer_po_number ?? "—" },
+          { label: "Customer order no. (PO)", value: invoice.customer_po_number ?? "—" },
           { label: "Invoiced on", value: invoice.quantity_basis === "delivered" ? "Delivered quantities" : "Ordered quantities" },
           { label: "Salesperson", value: invoice.owner_name ?? "—" },
           { label: "Sent", value: invoice.sent ? `${dateTime(invoice.sent_at)}${invoice.sent_to ? ` to ${invoice.sent_to}` : ""}` : "Not sent" },

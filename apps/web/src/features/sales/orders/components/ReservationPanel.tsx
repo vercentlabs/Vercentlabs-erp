@@ -50,7 +50,7 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
   const history = detail.events.filter((event) => HISTORY.has(event.event_type));
   return (
     <>
-      <Panel title="Reservation"
+      <Panel title="Stock kept aside"
         description={order.status === "draft" ? "Stock is reserved once the order is confirmed; a draft never holds stock."
           : "Reserved stock is set aside in the line's warehouse: it is no longer available to other orders but stays on hand until it is delivered."}
         actions={(

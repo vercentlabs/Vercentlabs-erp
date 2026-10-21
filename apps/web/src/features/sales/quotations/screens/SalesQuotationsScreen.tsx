@@ -32,9 +32,9 @@ const NAMES: Record<FilterKey, string> = {
   status: "Status", partyId: "Customer", ownerUserId: "Owner", currencyCode: "Currency", dateFrom: "Dated from", dateTo: "Dated to", validTo: "Valid until by",
 };
 const STATUSES = [
-  { value: "draft", label: "Draft" }, { value: "awaiting_approval", label: "Awaiting approval" }, { value: "confirmed", label: "Confirmed" },
+  { value: "draft", label: "Draft" }, { value: "awaiting_approval", label: "Awaiting approval" }, { value: "confirmed", label: "Finalised" },
   { value: "sent", label: "Sent" }, { value: "accepted", label: "Accepted" }, { value: "rejected", label: "Rejected" }, { value: "expired", label: "Expired" },
-  { value: "cancelled", label: "Cancelled" }, { value: "superseded", label: "Superseded" },
+  { value: "cancelled", label: "Cancelled" }, { value: "superseded", label: "Replaced by revision" },
 ];
 const DEFAULT_VIEWS = [{ key: "all", label: "All Quotations" }];
 

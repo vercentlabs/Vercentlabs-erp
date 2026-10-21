@@ -222,7 +222,7 @@ function Overview({ detail }: { detail: DeliveryDetail }) {
         <Facts items={[
           { label: "Customer", value: delivery.customer_snapshot?.displayName ?? "—" },
           { label: "Customer number", value: delivery.customer_snapshot?.customerNumber ?? delivery.customer_number ?? "—" },
-          { label: "Customer PO", value: delivery.customer_po_number ?? "—" },
+          { label: "Customer order no. (PO)", value: delivery.customer_po_number ?? "—" },
           { label: "Ship to", value: <span className="whitespace-pre-line">{addressText(delivery.shipping_address_snapshot)}</span> },
           { label: "Contact", value: [personName(contact), contact?.phone ?? contact?.mobile, contact?.email].filter(Boolean).join(" · ") || "—" },
           { label: "Salesperson", value: delivery.owner_name ?? "—" },

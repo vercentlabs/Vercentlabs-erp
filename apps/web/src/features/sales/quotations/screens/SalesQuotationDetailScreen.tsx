@@ -27,6 +27,7 @@ import {
 } from "../api/quotations-api";
 import { QuotationLifecycleActions, failureText } from "../components/QuotationLifecycleActions";
 import { QuotationStatusBadge } from "../components/QuotationStatusBadge";
+import { NextStep, quotationNextStep } from "@/features/sales/shared/NextStep";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
 type Snapshot = Record<string, string | null | undefined> | null;
@@ -37,9 +38,9 @@ const personName = (snapshot: Snapshot) => [snapshot?.first_name, snapshot?.last
 
 const EVENT_LABELS: Record<string, string> = {
   "quotation.created": "Created", "quotation.updated": "Draft saved", "quotation.submitted": "Submitted for approval", "quotation.approved": "Approved and confirmed",
-  "quotation.approval_rejected": "Approval rejected, back to draft", "quotation.confirmed": "Confirmed", "quotation.sent": "Sent", "quotation.resent": "Sent again",
+  "quotation.approval_rejected": "Approval rejected, back to draft", "quotation.confirmed": "Finalised", "quotation.sent": "Sent", "quotation.resent": "Sent again",
   "quotation.accepted": "Accepted by the customer", "quotation.rejected": "Rejected by the customer", "quotation.cancelled": "Cancelled",
-  "quotation.revision_created": "Revision created", "quotation.superseded": "Superseded", "quotation.duplicated": "Duplicated from another quotation",
+  "quotation.revision_created": "Revision created", "quotation.superseded": "Replaced by revision", "quotation.duplicated": "Duplicated from another quotation",
   "quotation.order_created": "Sales order created", "quotation.discount_added": "Discount added", "quotation.discount_changed": "Discount changed",
   "quotation.discount_removed": "Discount removed", "quotation.price_overridden": "Price overridden", "quotation.discount_limit_overridden": "Discount above the standard limit", "quotation.note_added": "Note", "quotation.file_added": "File added", "quotation.file_removed": "File removed",
 };
@@ -111,7 +112,12 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
       <RecordDetailsPage
         header={{
           title: quote.quotation_number,
-          status: <QuotationStatusBadge status={quote.status} label={quote.status_label} />,
+          status: (
+            <span className="flex flex-wrap items-center gap-1.5">
+              <QuotationStatusBadge status={quote.status} label={quote.status_label} />
+              <NextStep step={quotationNextStep(quote)} />
+            </span>
+          ),
           fields: [
             { label: "Customer", value: quote.party_id ? <Link className="hover:underline" href={`/sales/customers/${quote.party_id}`}>{quote.customer_snapshot?.displayName ?? "—"}</Link> : "—" },
             { label: "Quotation date", value: calendarDate(quote.quotation_date) },
@@ -126,7 +132,7 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
               : []),
           ],
           primaryAction: actions.confirm ? (
-            <Button variant="primary" isLoading={confirm.isPending} onPress={() => confirm.mutate()}><Check className="size-4" aria-hidden="true" />Confirm</Button>
+            <Button variant="primary" isLoading={confirm.isPending} onPress={() => confirm.mutate()}><Check className="size-4" aria-hidden="true" />Finalise</Button>
           ) : actions.approve ? (
             <Button variant="primary" isLoading={approve.isPending} onPress={() => approve.mutate()}><Check className="size-4" aria-hidden="true" />Approve</Button>
           ) : undefined,
@@ -214,7 +220,7 @@ function Overview({ detail }: { detail: SalesQuotationDetail }) {
       <Panel title="Status history">
         <Facts items={[
           { label: "Created", value: `${dateTime(quote.created_at)}${quote.created_by_name ? ` by ${quote.created_by_name}` : ""}` },
-          { label: "Confirmed", value: quote.confirmed_at ? `${dateTime(quote.confirmed_at)}${quote.confirmed_by_name ? ` by ${quote.confirmed_by_name}` : ""}` : "—" },
+          { label: "Finalised", value: quote.confirmed_at ? `${dateTime(quote.confirmed_at)}${quote.confirmed_by_name ? ` by ${quote.confirmed_by_name}` : ""}` : "—" },
           { label: "Sent", value: quote.sent_at ? `${dateTime(quote.sent_at)}${quote.sent_by_name ? ` by ${quote.sent_by_name}` : ""}${quote.sent_to ? ` to ${quote.sent_to}` : ""}` : "—" },
           { label: "Accepted", value: quote.accepted_at ? `${dateTime(quote.accepted_at)}${quote.decision_reference ? ` · ${quote.decision_reference}` : ""}` : "—" },
           { label: "Rejected", value: quote.rejected_at ? `${dateTime(quote.rejected_at)}${quote.decision_notes ? `: ${quote.decision_notes}` : ""}` : "—" },

@@ -173,7 +173,7 @@ export async function salesOrderTrackingReport(client, organizationId, { canSeeM
       ORDER BY (sales_order.lifecycle_status = 'confirmed') DESC, sales_order.sales_order_number DESC LIMIT 500`, [organizationId, await invoicingBasisSetting(client, organizationId)])).rows;
   return rows.map((row) => {
     const summary = summaryFromRow(row, { canSeeMoney });
-    const attention = [summary.reservation.status === "partially_reserved" ? "Partially reserved" : null, summary.flags.deliveryOverdue ? "Delivery overdue" : null,
+    const attention = [summary.reservation.status === "partially_reserved" ? "Some stock kept aside" : null, summary.flags.deliveryOverdue ? "Delivery overdue" : null,
       summary.flags.readyToInvoice ? "Ready to invoice" : null, canSeeMoney && summary.payment.overdueBalance > 0.005 ? "Invoice overdue" : null,
       summary.flags.readyToClose ? "Ready to close" : null, summary.fulfillment.cancelled > 0 ? "Part cancelled" : null].filter(Boolean).join("; ");
     return {

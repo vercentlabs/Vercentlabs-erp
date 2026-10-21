@@ -20,7 +20,7 @@ const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
 const sum = (lines, pick) => round(lines.reduce((total, line) => total + Number(pick(line) ?? 0), 0));
 const percentOf = (part, whole) => (whole > EPSILON ? Math.max(0, Math.min(100, Math.round((100 * part) / whole))) : 0);
 
-export const RESERVATION_LABELS = Object.freeze({ not_required: "Not required", not_reserved: "Not reserved", partially_reserved: "Partially reserved", fully_reserved: "Fully reserved" });
+export const RESERVATION_LABELS = Object.freeze({ not_required: "Not required", not_reserved: "No stock kept aside", partially_reserved: "Some stock kept aside", fully_reserved: "Stock kept aside" });
 export const FULFILLMENT_LABELS = Object.freeze({
   not_required: "Not required", not_delivered: "Not delivered", partially_delivered: "Partially delivered", delivered: "Delivered",
   // Nothing is left to deliver, but not everything ordered was delivered: the rest was cancelled.
@@ -163,7 +163,7 @@ export function calculateOrderWarnings(order, facts) {
   const confirmed = order.lifecycle_status === STATUS.confirmed;
   if (confirmed && facts.shortageLines > 0) warn("stock_shortage", "Stock shortage", `${facts.shortageLines} line(s) cannot be covered from stock now.`);
   if (confirmed && facts.reservation.status === "partially_reserved")
-    warn("partially_reserved", "Partially reserved", `${facts.reservation.reserved} of ${facts.reservation.required} still to deliver is reserved.`);
+    warn("partially_reserved", "Some stock kept aside", `${facts.reservation.reserved} of ${facts.reservation.required} still to deliver is kept aside.`);
   if (facts.fulfillment.overdue) warn("delivery_overdue", "Delivery overdue", `${facts.fulfillment.remaining} still to deliver; the customer asked for ${order.requested_delivery_day ?? "an earlier date"}.`);
   if (isOrderReadyToInvoice(order, facts.invoicing)) warn("ready_to_invoice", "Ready to invoice", `${facts.invoicing.invoiceableNow} can be invoiced now.`);
   if (facts.payment && facts.payment.overdueBalance > 0.005) warn("invoice_overdue", "Invoice overdue", `${facts.payment.overdueBalance.toFixed(2)} is past its due date.`);
