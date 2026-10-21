@@ -63,6 +63,7 @@ async function storedInput(client, context, order) {
     lines: lines.map((line) => ({
       salesOrderLineId: line.id, itemId: line.item_id, uomId: line.uom_id, warehouseId: line.warehouse_id, quantity: line.quantity,
       description: line.description_snapshot, requestedDeliveryDate: dayOf(line.requested_delivery_date),
+      ...(line.scheme_rule_id ? { schemeRuleId: line.scheme_rule_id } : {}),
       ...(line.manual_price_override && !line.source_quotation_line_id ? { unitPrice: line.unit_price, manualPriceReason: line.manual_price_reason } : {}),
       discountType: line.discount_type, discountValue: line.discount_value,
     })),
@@ -148,7 +149,7 @@ async function orderProblems(client, context, order, preview) {
     [context.organizationId, order.current_version_id, order.party_id])).rows[0];
   if (!facts) return ["The order has no content."];
   const lines = (await client.query(
-    `SELECT line.sequence, line.item_name_snapshot, line.quantity, line.unit_price, line.manual_price_override, line.manual_price_reason, line.warehouse_id, line.tax_amount,
+    `SELECT line.sequence, line.item_name_snapshot, line.quantity, line.unit_price, line.manual_price_override, line.scheme_rule_id, line.manual_price_reason, line.warehouse_id, line.tax_amount,
             line.tax_treatment, line.hsn_sac_snapshot, line.uom_id, line.source_quotation_line_id, item.uom_id AS base_uom_id,
             item.status AS item_status, item.is_sellable, item.item_type, COALESCE(item.track_inventory, false) AS track_inventory, warehouse.status AS warehouse_status,
             -- The line's unit still counts the item: the base, one of its active conversions to the base, or a standard unit of the base's dimension.
@@ -185,7 +186,8 @@ async function orderProblems(client, context, order, preview) {
     const name = `Line ${line.sequence} (${line.item_name_snapshot})`;
     if (!(Number(line.quantity) > 0)) problems.push(`${name}: the quantity must be more than zero.`);
     if (!line.uom_valid) problems.push(`${name}: the unit is not one this product is sold in.`);
-    if (Number(line.unit_price) === 0 && !line.manual_price_override) problems.push(`${name} has no price.`);
+    // A free line of a scheme has no price on purpose.
+    if (Number(line.unit_price) === 0 && !line.manual_price_override && !line.scheme_rule_id) problems.push(`${name} has no price.`);
     if (line.manual_price_override && !line.source_quotation_line_id && !line.manual_price_reason) problems.push(`${name}: give the reason for the manual price.`);
     // A quoted line is executed as agreed even if the product has since been withdrawn.
     if (!line.source_quotation_line_id && (line.item_status !== "active" || !line.is_sellable)) problems.push(`${name} is no longer sold.`);

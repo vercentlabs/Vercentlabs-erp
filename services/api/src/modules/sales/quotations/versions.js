@@ -57,6 +57,9 @@ export async function insertQuotationVersion(client, context, quotationId, input
         line.requestedDeliveryDate, line.manualPriceOverride, line.manualPriceReason, JSON.stringify(line.pricingTrace), JSON.stringify(line.taxTrace),
         context.userId ?? null, line.discountType, line.discountValue, line.grossAmount, line.documentDiscountAmount, line.taxableAmount, ...lineTaxColumns(line)],
     );
+    // A free line of a scheme (Sales audit M3).
+    if (line.schemeRuleId)
+      await client.query("UPDATE tenant.sales_quotation_lines SET scheme_rule_id = $3 WHERE organization_id = $1 AND id = $2", [context.organizationId, inserted.rows[0].id, line.schemeRuleId]);
     for (const tax of line.taxLines)
       await client.query(
         `INSERT INTO tenant.sales_quotation_tax_lines (organization_id, quotation_version_id, quotation_line_id, sequence, tax_type, label, rate, taxable_amount, tax_amount,
@@ -166,6 +169,7 @@ export async function inputFromQuotation(client, context, quote, { carryPrices =
       discountType: line.discount_type,
       discountValue: line.discount_value,
       requestedDeliveryDate: dayOf(line.requested_delivery_date),
+      ...(line.scheme_rule_id ? { schemeRuleId: line.scheme_rule_id } : {}),
       ...(carryPrices
         ? { listUnitPrice: line.list_unit_price, unitPrice: line.unit_price, manualPriceOverride: line.manual_price_override, manualPriceReason: line.manual_price_reason, sourceQuotationLineId: line.id,
             carriedTax: carriedTax(line) }

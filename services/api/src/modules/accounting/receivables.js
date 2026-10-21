@@ -17,6 +17,7 @@ import {
   loadOrganization,
   mul,
   optionalUuid,
+  nonNegativeAmount,
   positiveAmount,
   requirePermission,
   requiredText,
@@ -111,7 +112,8 @@ async function normalizeInvoiceLines(client, context, organization, ledger, invo
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const quantity = positiveAmount(line.quantity || 1, `Line ${index + 1} quantity`);
-    const unitPrice = positiveAmount(line.unitPrice, `Line ${index + 1} unit price`);
+    // A line of free goods (a Sales scheme) has no price; every other line has one.
+    const unitPrice = line.freeOfCharge === true ? nonNegativeAmount(line.unitPrice, `Line ${index + 1} unit price`) : positiveAmount(line.unitPrice, `Line ${index + 1} unit price`);
     const gross = roundMoney(mul(quantity, unitPrice), precision);
     const discount = roundMoney(decimal(line.discountAmount || 0), precision);
     const tax = roundMoney(decimal(line.taxAmount || 0), precision);

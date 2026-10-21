@@ -56,7 +56,8 @@ import { FormSection } from "@/shared/ui/FormSection";
 import { Notice, Panel } from "@/shared/ui/Panel";
 import { ChargeRows, chargeDraftOf, chargesInput, type ChargeDraft } from "@/features/sales/shared/ChargeRows";
 import { mergeSalesOptions, SalesSearchPicker } from "@/features/sales/shared/SalesSearchPicker";
-import type { SalesOptions, SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
+import type { SalesDocumentScheme, SalesOptions, SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
+import { SchemeOffers } from "@/features/sales/shared/SchemeOffers";
 
 type LineDraft = {
   key: number;
@@ -69,13 +70,15 @@ type LineDraft = {
   // "" means the price list price; anything else is a manual price.
   unitPrice: string;
   priceReason: string;
+  // A free line of a scheme: no price, no discount (Sales audit M3).
+  schemeRuleId: string;
 };
 
 let draftKey = 0;
 const nextKey = () => ++draftKey;
 
 const emptyLine = (): LineDraft => ({
-  key: nextKey(), itemId: "", uomId: "", quantity: 1, discountType: "percent", discountValue: 0, description: "", unitPrice: "", priceReason: "",
+  key: nextKey(), itemId: "", uomId: "", quantity: 1, discountType: "percent", discountValue: 0, description: "", unitPrice: "", priceReason: "", schemeRuleId: "",
 });
 
 // Create a quotation (Sales → Quotations → New), or edit a Draft. Each save
@@ -337,6 +340,7 @@ function FormBody({
           description: line.description_snapshot ?? "",
           unitPrice: line.manual_price_override ? String(Number(line.unit_price)) : "",
           priceReason: line.manual_price_reason ?? "",
+          schemeRuleId: line.scheme_rule_id ?? "",
         }))
       : [{ ...emptyLine(), discountType: defaultDiscountType(options.discounts) }],
   );
@@ -444,6 +448,20 @@ function FormBody({
     selectParty(id, next);
   }
 
+  // The rest of what a scheme earns, as a free line of its free product (loaded into the options when the form does not have it yet).
+  async function addFreeLine(scheme: SalesDocumentScheme) {
+    let from = options;
+    if (!from.items.some((item) => item.id === scheme.freeItemId)) {
+      from = mergeSalesOptions(from, (await getSalesOptions(partyId || undefined, [scheme.freeItemId])).options);
+      setOptions(from);
+    }
+    const item = from.items.find((candidate) => candidate.id === scheme.freeItemId);
+    setLines((current) => [...current, {
+      ...emptyLine(), itemId: scheme.freeItemId, uomId: scheme.freeUomId ?? item?.uom_id ?? "", quantity: scheme.earned, schemeRuleId: scheme.ruleId,
+      description: `${item?.name ?? scheme.freeItemName} (free: ${scheme.name})`,
+    }]);
+  }
+
   function selectParty(id: string, from: SalesOptions = options) {
     setPartyId(id);
     const party = from.parties.find((candidate) => candidate.id === id);
@@ -504,11 +522,12 @@ function FormBody({
         itemId: line.itemId,
         uomId: line.uomId || undefined,
         description: line.description.trim() || undefined,
-        ...(line.unitPrice.trim() !== "" && Number.isFinite(Number(line.unitPrice))
+        ...(line.schemeRuleId ? { schemeRuleId: line.schemeRuleId } : {}),
+        ...(!line.schemeRuleId && line.unitPrice.trim() !== "" && Number.isFinite(Number(line.unitPrice))
           ? { unitPrice: Number(line.unitPrice), manualPriceReason: line.priceReason.trim() || undefined }
           : {}),
         quantity: line.quantity,
-        ...(line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
+        ...(!line.schemeRuleId && line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
       })),
       charges: chargesInput(charges),
     };
@@ -643,6 +662,7 @@ function FormBody({
               <DocumentTotals currencyCode={currencyCode} preview={preview} />
             )}
           </Panel>
+          <SchemeOffers schemes={preview?.schemes} onAdd={(scheme) => void addFreeLine(scheme)} />
       </>}
     >
 
@@ -902,7 +922,8 @@ function FormBody({
                         {canOverridePrice ? "Enter a price below, or choose another price list." : "Choose another price list, or ask someone who may set prices."}
                       </p>
                     )}
-                    {line.itemId && canOverridePrice && (
+                    {line.schemeRuleId && <p className="text-xs text-success sm:col-span-6">Free under a scheme: no price and no discount.</p>}
+                    {line.itemId && canOverridePrice && !line.schemeRuleId && (
                       <div className="grid grid-cols-1 gap-2 sm:col-span-6 sm:grid-cols-[12rem_minmax(0,1fr)]">
                         <TextField
                           aria-label={`Unit price ${index + 1}`}

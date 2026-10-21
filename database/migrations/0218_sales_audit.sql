@@ -79,3 +79,17 @@ ON CONFLICT DO NOTHING;
 INSERT INTO public.role_permissions (role_id, permission_key)
 SELECT DISTINCT existing.role_id, 'sales.order.credit_release' FROM public.role_permissions existing WHERE existing.permission_key = 'sales.order.reopen'
 ON CONFLICT DO NOTHING;
+
+-- 4. Schemes and special rates (M3). The pricing engine already applied tenant.sales_pricing_rules (a customer's or a group's discount or
+--    fixed rate, quantity slabs); Sales › Schemes & Rates now creates them. A free-goods scheme (buy 10, get 1 free) gives a zero-priced line
+--    of the free product, tied to the scheme; the engine checks the document earns it.
+ALTER TABLE tenant.sales_pricing_rules DROP CONSTRAINT IF EXISTS sales_pricing_rules_adjustment_type_check;
+ALTER TABLE tenant.sales_pricing_rules ADD CONSTRAINT sales_pricing_rules_adjustment_type_check
+  CHECK (adjustment_type IN ('discount_percent', 'discount_amount', 'fixed_rate', 'free_goods'));
+ALTER TABLE tenant.sales_pricing_rules ADD COLUMN IF NOT EXISTS free_item_id uuid REFERENCES tenant.items(id) ON DELETE RESTRICT;
+ALTER TABLE tenant.sales_pricing_rules ADD COLUMN IF NOT EXISTS free_quantity numeric(24,10);
+ALTER TABLE tenant.sales_pricing_rules DROP CONSTRAINT IF EXISTS sales_pricing_rules_free_goods_check;
+ALTER TABLE tenant.sales_pricing_rules ADD CONSTRAINT sales_pricing_rules_free_goods_check
+  CHECK (adjustment_type <> 'free_goods' OR (free_quantity > 0 AND minimum_quantity > 0 AND (free_item_id IS NOT NULL OR item_id IS NOT NULL)));
+ALTER TABLE tenant.sales_quotation_lines ADD COLUMN IF NOT EXISTS scheme_rule_id uuid REFERENCES tenant.sales_pricing_rules(id) ON DELETE RESTRICT;
+ALTER TABLE tenant.sales_order_lines ADD COLUMN IF NOT EXISTS scheme_rule_id uuid REFERENCES tenant.sales_pricing_rules(id) ON DELETE RESTRICT;

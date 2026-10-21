@@ -21,6 +21,8 @@ const documentLineSchema = z.object({
   manualPriceReason: z.string().trim().max(500).nullish(),
   // Saving a draft order: the line this one replaces, so a quoted line keeps its quoted price.
   salesOrderLineId: uuid.nullish(),
+  // A free line of a scheme (Sales audit M3).
+  schemeRuleId: uuid.nullish(),
 });
 
 const documentChargeSchema = z.object({

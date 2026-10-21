@@ -55,6 +55,8 @@ export type SalesQuotationLine = {
   id: string;
   sequence: number;
   item_id: string;
+  // A free line of a scheme (Sales audit M3).
+  scheme_rule_id?: string | null;
   uom_id: string | null;
   warehouse_id: string | null;
   item_code_snapshot: string;
@@ -388,7 +390,13 @@ export type SalesDocumentInput = {
   }>;
 };
 
+// A free-goods scheme the document earns or claims (Sales audit M3); quantities in base units.
+export type SalesDocumentScheme = {
+  ruleId: string; code: string; name: string; freeItemId: string; freeItemName: string; freeUomId: string | null;
+  buyQuantity: number; freeQuantity: number; bought: number; earned: number; claimed: number;
+};
 export type SalesDocumentPreview = {
+  schemes?: SalesDocumentScheme[];
   // The price list the document is priced from, and why (chosen, the customer's, or the default).
   priceList: { id: string; code: string; name: string; currencyCode: string; taxInclusive: boolean; basis: "chosen" | "customer" | "default" } | null;
   totals: {

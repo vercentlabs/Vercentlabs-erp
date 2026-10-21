@@ -17,6 +17,8 @@ export function projectDocumentPreview(preview: Record<string, unknown>, context
     context.permissions.includes("sales.margin.view");
   const totals = preview.totals as Record<string, unknown>;
   return {
+    // Free-goods schemes the document earns or claims (Sales audit M3): no cost or margin in them.
+    schemes: preview.schemes ?? [],
     priceList: master.priceList
       ? { id: master.priceList.id, code: master.priceList.code, name: master.priceList.name, currencyCode: master.priceList.currencyCode, taxInclusive: master.priceList.taxInclusive, basis: master.priceList.basis }
       : null,

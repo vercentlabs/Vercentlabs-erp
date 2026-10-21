@@ -70,6 +70,8 @@ export type SalesOrderLine = {
   id: string;
   sequence: number;
   item_id: string;
+  // A free line of a scheme (Sales audit M3).
+  scheme_rule_id?: string | null;
   uom_id: string | null;
   warehouse_id: string | null;
   warehouse_name: string | null;

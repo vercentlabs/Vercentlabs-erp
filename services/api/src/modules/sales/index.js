@@ -425,15 +425,26 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     priceEntryId = resolved.entryId;
   }
   const appliedRules = [];
-  const rules = await client.query(
-    `SELECT id,code,adjustment_type,adjustment_value FROM tenant.sales_pricing_rules WHERE organization_id=$1 AND status='active' AND (party_id IS NULL OR party_id=$2) AND (party_type IS NULL OR party_type=$3 OR party_type='both') AND (item_id IS NULL OR item_id=$4) AND (item_group_id IS NULL OR item_group_id=(SELECT group_id FROM tenant.items WHERE id=$4)) AND (price_list_id IS NULL OR price_list_id=$5) AND minimum_quantity<=$6 AND (valid_from IS NULL OR valid_from<=tenant.company_today()) AND (valid_to IS NULL OR valid_to>=tenant.company_today()) ORDER BY priority,id`,
+  // A free line of a scheme (buy 10, get 1 free): no price and no discount; previewSalesDocument checks the document earns it.
+  const schemeRuleId = line.schemeRuleId ? uuid(line.schemeRuleId, `Line ${sequence} scheme`) : null;
+  // Special rates, discounts and quantity slabs (Sales › Schemes & Rates). Rules at different priorities apply one after another; among
+  // the rules of one priority only the best fit applies — the highest quantity slab reached (in the product's base unit), then the most
+  // specific (a customer's own before a group's or everyone's) — so 1% from 10 cases and 2% from 100 give 2% at 120, not 3%. A rule is
+  // valid on the document's date, not today's (Sales audit M3/B6).
+  const rules = schemeRuleId ? { rows: [] } : await client.query(
+    `SELECT DISTINCT ON (priority) id,code,adjustment_type,adjustment_value FROM tenant.sales_pricing_rules
+      WHERE organization_id=$1 AND status='active' AND adjustment_type<>'free_goods' AND (party_id IS NULL OR party_id=$2) AND (party_type IS NULL OR party_type=$3 OR party_type='both')
+        AND (item_id IS NULL OR item_id=$4) AND (item_group_id IS NULL OR item_group_id=(SELECT group_id FROM tenant.items WHERE id=$4)) AND (price_list_id IS NULL OR price_list_id=$5)
+        AND minimum_quantity<=$6 AND (valid_from IS NULL OR valid_from<=$7::date) AND (valid_to IS NULL OR valid_to>=$7::date)
+      ORDER BY priority, minimum_quantity DESC, (party_id IS NOT NULL) DESC, (item_id IS NOT NULL) DESC, (item_group_id IS NOT NULL) DESC, id`,
     [
       context.organizationId,
       master.partyId,
       master.party.party_type,
       itemId,
       master.priceList?.id || null,
-      asDatabaseDecimal(quantity),
+      asDatabaseDecimal(baseQuantity),
+      master.documentDate,
     ],
   );
   let calculatedUnitPrice = listUnitPrice;
@@ -456,7 +467,13 @@ async function calculateLine(client, context, master, line, sequence, input, opt
       value: formatDecimal(value),
     });
   }
-  const manualPriceGiven = !(line.unitPrice == null || line.unitPrice === "");
+  if (schemeRuleId && !carried) {
+    calculatedUnitPrice = decimal(0);
+    priceMissing = false;
+    priceMessage = null;
+    appliedRules.push({ id: schemeRuleId, code: "scheme", type: "free_goods", value: "0" });
+  }
+  const manualPriceGiven = !(schemeRuleId && !carried) && !(line.unitPrice == null || line.unitPrice === "");
   if (priceMissing && !manualPriceGiven && !options.allowMissingPrice)
     throw new SalesError(409, `Line ${sequence}: ${priceMessage} Enter a price, or choose another price list.`, "SALES_PRICE_MISSING");
   const requestedUnitPrice = manualPriceGiven ? decimal(line.unitPrice) : calculatedUnitPrice;
@@ -476,7 +493,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   const gross = mul(quantity, requestedUnitPrice);
   // The entered type and value are kept; the amount is always calculated here.
   const discountType = line.discountType === "amount" ? "amount" : "percent";
-  const discountValue = decimal(line.discountValue || 0);
+  const discountValue = schemeRuleId ? decimal(0) : decimal(line.discountValue || 0);
   if (discountValue < 0n)
     throw new SalesError(400, `Line ${sequence}: the discount cannot be negative.`, "SALES_DISCOUNT_INVALID");
   let discountAmount;
@@ -622,6 +639,8 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     unitPrice: asDatabaseDecimal(requestedUnitPrice),
     discountPercent: asDatabaseDecimal(discountPercent),
     quoted: Boolean(line.quoted),
+    carried,
+    schemeRuleId,
     sourceQuotationLineId: line.sourceQuotationLineId ?? null,
     discountType,
     discountValue: asDatabaseDecimal(discountValue),
@@ -720,6 +739,50 @@ export function documentDiscountColumns(preview) {
     discount.reasonCode, discount.reasonText];
 }
 
+// Free-goods schemes on a document (Sales audit M3). A scheme "buy N, get F free" earns F of its free product (the scheme's own, else the
+// product it is for) for every N bought — in base units, over the paid lines of its product or category. A free line (schemeRuleId) is
+// allowed only up to what the scheme earns, for the scheme's free product; a line carried from the accepted quotation keeps what was
+// agreed. Returns every scheme the document earns or claims, for the form to offer "add the free goods".
+async function documentSchemes(client, context, master, lines) {
+  const rules = (await client.query(
+    `SELECT rule.id, rule.code, rule.name, rule.item_id, rule.item_group_id, rule.minimum_quantity, rule.free_quantity, COALESCE(rule.free_item_id, rule.item_id) AS free_item_id,
+            free.name AS free_item_name, free.uom_id AS free_uom_id
+       FROM tenant.sales_pricing_rules rule JOIN tenant.items free ON free.id = COALESCE(rule.free_item_id, rule.item_id)
+      WHERE rule.organization_id=$1 AND rule.status='active' AND rule.adjustment_type='free_goods'
+        AND (rule.party_id IS NULL OR rule.party_id=$2) AND (rule.party_type IS NULL OR rule.party_type=$3 OR rule.party_type='both')
+        AND (rule.price_list_id IS NULL OR rule.price_list_id=$4) AND (rule.valid_from IS NULL OR rule.valid_from<=$5::date) AND (rule.valid_to IS NULL OR rule.valid_to>=$5::date)
+      ORDER BY rule.priority, rule.code`,
+    [context.organizationId, master.partyId, master.party.party_type, master.priceList?.id || null, master.documentDate])).rows;
+  const claimedRules = new Set(lines.filter((line) => line.schemeRuleId).map((line) => line.schemeRuleId));
+  if (!rules.length && !claimedRules.size) return [];
+  const groups = new Map((await client.query("SELECT id, group_id FROM tenant.items WHERE organization_id=$1 AND id = ANY($2::uuid[])",
+    [context.organizationId, [...new Set(lines.map((line) => line.itemId))]])).rows.map((row) => [row.id, row.group_id]));
+  const result = [];
+  for (const rule of rules) {
+    const bought = lines.filter((line) => !line.schemeRuleId && (!rule.item_id || line.itemId === rule.item_id) && (!rule.item_group_id || groups.get(line.itemId) === rule.item_group_id))
+      .reduce((total, line) => total + Number(line.baseQuantity), 0);
+    const earned = Math.floor((bought + 1e-9) / Number(rule.minimum_quantity)) * Number(rule.free_quantity);
+    const claims = lines.filter((line) => line.schemeRuleId === rule.id);
+    const claimed = claims.reduce((total, line) => total + Number(line.baseQuantity), 0);
+    for (const line of claims.filter((candidate) => !candidate.carried)) {
+      if (line.itemId !== rule.free_item_id)
+        throw new SalesError(409, `Line ${line.sequence}: scheme ${rule.name} gives ${rule.free_item_name} free, not ${line.itemNameSnapshot}.`, "SALES_SCHEME_INVALID");
+      if (claimed > earned + 1e-9)
+        throw new SalesError(409, `Line ${line.sequence}: scheme ${rule.name} earns ${earned} free on this document (${Number(rule.free_quantity)} for every ${Number(rule.minimum_quantity)} bought), not ${claimed}.`, "SALES_SCHEME_INVALID");
+    }
+    claimedRules.delete(rule.id);
+    if (earned > 0 || claimed > 0)
+      result.push({ ruleId: rule.id, code: rule.code, name: rule.name, freeItemId: rule.free_item_id, freeItemName: rule.free_item_name, freeUomId: rule.free_uom_id,
+        buyQuantity: Number(rule.minimum_quantity), freeQuantity: Number(rule.free_quantity), bought, earned, claimed });
+  }
+  // A free line whose scheme does not apply here (ended, another customer's, switched off).
+  for (const ruleId of claimedRules) {
+    const line = lines.find((candidate) => candidate.schemeRuleId === ruleId && !candidate.carried);
+    if (line) throw new SalesError(409, `Line ${line.sequence}: its scheme does not apply to this customer on this date. Remove the free line.`, "SALES_SCHEME_INVALID");
+  }
+  return result;
+}
+
 export const CHARGE_TYPES = Object.freeze(["freight", "handling", "insurance", "packing", "installation", "other"]);
 
 export async function previewSalesDocument(
@@ -753,6 +816,8 @@ export async function previewSalesDocument(
   const shares = allocateDocumentDiscount(documentDiscount.amount, priced.map((line) => line.eligibleNet), master.currency.decimal_places);
   // 3. taxable value and tax, per line
   const lines = priced.map((line, index) => line.finish(shares[index]));
+  // 4. free goods: what each scheme earns on this document, and the free lines claimed against it
+  const schemes = await documentSchemes(client, context, master, lines);
   const headerDiscountPercent = documentDiscount.percent;
   const discountChecks = checkDiscountRules(context, master, input, lines, options);
   let subtotal = decimal(0),
@@ -858,6 +923,8 @@ export async function previewSalesDocument(
     master,
     lines,
     charges,
+    // Free-goods schemes the document earns or claims (Sales audit M3).
+    schemes,
     snapshots,
     totals: {
       subtotal: asDatabaseDecimal(subtotal),
@@ -1201,6 +1268,7 @@ export async function searchSalesOptions(client, context, { kind, q = "", prospe
 // commission accrual. price-lists/: price lists and the one price resolver.
 export * from "./pass1-operations.js";
 export * from "./price-lists/index.js";
+export * from "./pricing-rules/index.js";
 export * from "./after-sales.js";
 export * from "./quotations/index.js";
 export * from "./orders/index.js";

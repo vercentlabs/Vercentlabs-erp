@@ -127,6 +127,8 @@ export async function buildInvoiceLines(client, context, source, chosen, taxOf) 
         sourceSalesOrderLineId: row.id, sourceSalesDeliveryLineId: deliveryLineId ?? null, itemId: row.item_id,
         description: row.description_snapshot || row.item_name_snapshot, hsnSacCode: row.hsn_sac_snapshot, quantity: asDatabaseDecimal(qty), uomId: row.uom_id,
         unitPrice: row.unit_price, discountAmount: asDatabaseDecimal(gross > taxable ? sub(gross, taxable) : decimal(0)), taxAmount: asDatabaseDecimal(computed.taxAmount),
+        // Free goods of a scheme (Sales audit M3) are invoiced at no price.
+        freeOfCharge: Boolean(row.scheme_rule_id),
         taxDetails: taxes.map((component) => ({
           taxType: component.taxType, label: component.label, rate: asDatabaseDecimal(component.rate),
           taxableAmount: asDatabaseDecimal(component.taxableAmount), taxAmount: asDatabaseDecimal(component.taxAmount),

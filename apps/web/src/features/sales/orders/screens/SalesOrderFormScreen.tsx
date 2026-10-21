@@ -20,7 +20,8 @@ import { money, statusLabel } from "@/features/sales/shared/format";
 import {
   BILLING_ADDRESS_TYPES, SHIPPING_ADDRESS_TYPES, contactLabel, defaultAddress, defaultLineDescription, defaultLineUom, usableAddresses,
 } from "@/features/sales/shared/document-defaults";
-import { getSalesOptions, previewSalesDocument, type SalesDocumentInput, type SalesOptions, type SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
+import { getSalesOptions, previewSalesDocument, type SalesDocumentInput, type SalesDocumentScheme, type SalesOptions, type SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
+import { SchemeOffers } from "@/features/sales/shared/SchemeOffers";
 import { mergeSalesOptions, SalesSearchPicker } from "@/features/sales/shared/SalesSearchPicker";
 import { AUTOMATIC_TAX, DocumentTaxPanel, taxDraftOf, taxInput, type DocumentTaxDraft } from "@/features/sales/shared/DocumentTax";
 import {
@@ -52,6 +53,8 @@ type LineDraft = {
   unitPrice: string;
   priceReason: string;
   warehouseId: string;
+  // A free line of a scheme: no price, no discount (Sales audit M3).
+  schemeRuleId: string;
 };
 
 let draftKey = 0;
@@ -127,7 +130,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
   const seedAddresses = options.addresses.filter((address) => address.party_id === seedParty?.id);
   const blank = (): LineDraft => ({
     key: nextKey(), salesOrderLineId: "", quoted: false, itemId: "", uomId: "", quantity: 1, discountType: defaultDiscountType(options.discounts),
-    discountValue: 0, description: "", unitPrice: "", priceReason: "", warehouseId: "",
+    discountValue: 0, description: "", unitPrice: "", priceReason: "", warehouseId: "", schemeRuleId: "",
   });
 
   const [partyId, setPartyId] = useState(order?.party_id ?? seedParty?.id ?? "");
@@ -162,6 +165,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
         quantity: Number(line.quantity), discountType: line.discount_type === "amount" ? "amount" : "percent", discountValue: Number(line.discount_value),
         warehouseId: line.warehouse_id ?? "", description: line.description_snapshot ?? "",
         unitPrice: line.manual_price_override && !line.is_quoted ? String(Number(line.unit_price)) : "", priceReason: line.manual_price_reason ?? "",
+        schemeRuleId: line.scheme_rule_id ?? "",
       }))
     : [blank()]);
   // A saved draft's charges one by one (an older order's: their total, as one charge).
@@ -222,6 +226,19 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
   ];
   const ownerOptions: SelectOption[] = options.users.map((user) => ({ value: user.id, label: user.full_name }));
 
+  // The rest of what a scheme earns, as a free line of its free product (loaded into the options when the form does not have it yet).
+  async function addFreeLine(scheme: SalesDocumentScheme) {
+    let from = options;
+    if (!from.items.some((item) => item.id === scheme.freeItemId)) {
+      from = mergeSalesOptions(from, (await getSalesOptions(partyId || undefined, [scheme.freeItemId])).options);
+      setOptions(from);
+    }
+    const item = from.items.find((candidate) => candidate.id === scheme.freeItemId);
+    setLines((current) => [...current, {
+      ...blank(), itemId: scheme.freeItemId, uomId: scheme.freeUomId ?? item?.uom_id ?? "", quantity: scheme.earned, schemeRuleId: scheme.ruleId,
+      description: `${item?.name ?? scheme.freeItemName} (free: ${scheme.name})`,
+    }]);
+  }
   // A picked customer brings its contacts and addresses (loaded now), then the form defaults from it.
   const [loadingParty, setLoadingParty] = useState(false);
   async function pickParty(id: string, found: SalesSearchResults) {
@@ -296,10 +313,11 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
         itemId: line.itemId,
         uomId: line.uomId || undefined,
         description: line.description.trim() || undefined,
-        ...(!line.quoted && line.unitPrice.trim() !== "" && Number.isFinite(Number(line.unitPrice))
+        ...(line.schemeRuleId ? { schemeRuleId: line.schemeRuleId } : {}),
+        ...(!line.quoted && !line.schemeRuleId && line.unitPrice.trim() !== "" && Number.isFinite(Number(line.unitPrice))
           ? { unitPrice: Number(line.unitPrice), manualPriceReason: line.priceReason.trim() || undefined } : {}),
         quantity: line.quantity,
-        ...(!line.quoted && line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
+        ...(!line.quoted && !line.schemeRuleId && line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
         warehouseId: line.warehouseId || undefined,
       })),
       charges: chargesInput(charges),
@@ -369,6 +387,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
               : !preview ? <p className="text-sm text-text-muted">Choose a customer and add an item to see pricing.</p>
                 : <DocumentTotals currencyCode={currencyCode} preview={preview} />}
           </Panel>
+          <SchemeOffers schemes={preview?.schemes} onAdd={(scheme) => void addFreeLine(scheme)} />
       </>}
     >
 
@@ -454,7 +473,8 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
                         {priced.priceMessage}{" "}{canOverridePrice ? "Enter a price below, or choose another price list." : "Choose another price list, or ask someone who may set prices."}
                       </p>
                     )}
-                    {line.itemId && !line.quoted && canOverridePrice && (
+                    {line.schemeRuleId && <p className="text-xs text-success sm:col-span-7">Free under a scheme: no price and no discount.</p>}
+                    {line.itemId && !line.quoted && !line.schemeRuleId && canOverridePrice && (
                       <div className="grid grid-cols-1 gap-2 sm:col-span-7 sm:grid-cols-[12rem_minmax(0,1fr)]">
                         <TextField aria-label={`Unit price ${index + 1}`} inputMode="decimal" value={line.unitPrice}
                           placeholder={priced && !priced.priceMissing ? `List price ${money(currencyCode, priced.listUnitPrice)}` : "Unit price"}

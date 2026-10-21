@@ -14,6 +14,7 @@ export function listSalesSettingsWarehouses(client: SalesQueryClient, context: S
 export function updateSalesSettings(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<Record<string, any>>;
 
 export * from "./price-lists/index.js";
+export * from "./pricing-rules/index.js";
 
 export * from "./quotations/index.js";
 
