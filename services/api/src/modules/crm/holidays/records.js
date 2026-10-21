@@ -1,6 +1,6 @@
 // Holidays (CRM plan 5.6): the organization's days off. Reminders moved into working hours skip them, and a follow-up planned on one
-// shows the holiday so it can be moved. India's three national holidays can be added for a year in one go; festivals and state
-// holidays, which move each year, are added by date.
+// shows the holiday so it can be moved. India's three national holidays can be added for a year in one go, and the festivals and
+// state days of a state from presets (presets.js); others are added by date.
 import { CrmError } from "../data-management/errors.js";
 
 const MANAGE = "crm.settings.manage";
