@@ -63,7 +63,7 @@ const ROWS: Row[] = [
     permission: "crm.settings.manage", state: async () => ((await getLeadsSwitch()) ? "Leads on" : "Leads off: enquiries become deals") },
   { id: "history-import", step: null, title: "Past notes and activities", purpose: "Moving in: bring old calls, emails, meetings and notes onto your records, and see how to export from other tools.",
     href: "/crm/data/history-import", permission: "crm.import", state: async () => "Import" },
-  { id: "holidays", step: null, title: "Holidays", purpose: "Days off: reminders skip them, and follow-ups planned on one show it.", href: "/crm/settings/holidays",
+  { id: "holidays", step: null, title: "Holidays", purpose: "Days off: reminders skip them, response times and stage limits don't count them, and follow-ups planned on one show it.", href: "/crm/settings/holidays",
     permission: "crm.settings.manage", state: async () => plural((await listHolidays()).length, "holiday") },
   { id: "custom-fields", step: null, title: "Custom fields", purpose: "Your own fields on leads and deals, on the forms and record pages.", href: "/crm/settings/custom-fields",
     permission: "crm.settings.manage", state: async () => plural((await listCustomFields("lead")).length + (await listCustomFields("opportunity")).length, "field") },
@@ -100,7 +100,7 @@ const ROWS: Row[] = [
       const reasons = (await listCloseReasons()).filter((row) => row.active);
       return `${plural(reasons.filter((row) => row.outcome === "won").length, "won reason")}, ${plural(reasons.filter((row) => row.outcome === "lost").length, "lost reason")}`;
     } },
-  { id: "defaults", step: 7, title: "Task and follow-up defaults", purpose: "The priority, type and reminder a new task or follow-up starts with.", href: "/crm/settings/defaults/tasks",
+  { id: "defaults", step: 7, title: "Working week and defaults", purpose: "Your working days and hours, and the priority, type and reminder a new task or follow-up starts with.", href: "/crm/settings/defaults/tasks",
     permission: "crm.settings.manage", state: async () => {
       const { defaults, choices } = await getWorkDefaults();
       const label = (list: Array<{ code: string; label: string }>, code: string) => list.find((entry) => entry.code === code)?.label ?? code;

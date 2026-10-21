@@ -8,10 +8,9 @@
 // moves a row out of 'pending' in the same statement that selects it, and a
 // reminder of an activity that is no longer open is never delivered.
 import { CrmError } from "../data-management/errors.js";
-import { addBusinessMinutes } from "../activities/shared/business-hours.js";
+import { addBusinessMinutes, skipDaysOff } from "../activities/shared/business-hours.js";
+import { workSchedule } from "../workspace/working-week.js";
 
-// Working hours used to time reminder delivery. There is no per-organization override yet.
-const DEFAULT_BUSINESS_HOURS = { timezone: "Asia/Kolkata", weekdays: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
 const CHANNELS = new Set(["in_app", "email"]);
 // Used when a caller gives no offsets (meetings): a day before, an hour before and at the time.
 const DEFAULT_OFFSETS = [1440, 60, 0];
@@ -28,20 +27,20 @@ function normalizeOffsets(offsets) {
   return cleaned;
 }
 
-// options.workingHours: false fires at the exact moment (a reminder someone set
-// for a time); true (default, meetings) moves a reminder outside working hours
-// to the start of the next working period.
+// options.workingHours: true (default, meetings) moves a reminder outside the
+// organization's working hours to the start of the next working period;
+// "days_off" (a follow-up or task reminder someone set for a time) fires at that
+// time unless it falls on a day off — a weekly off, an off Saturday or a holiday
+// (Setup › Holidays) — and then at the start of the next working day; false fires
+// at the exact moment. The schedule is the organization's (working-week.js).
 export async function createRemindersForActivity(client, context, activityId, dueAt, { offsets, channel = "in_app", workingHours = true } = {}) {
-  // The organization's holidays (CRM plan 5.6): a reminder moved into working hours skips them too.
-  const holidays = workingHours ? (await client.query(
-    "SELECT to_char(holiday_date, 'YYYY-MM-DD') AS day FROM tenant.crm_holidays WHERE organization_id = $1 AND holiday_date BETWEEN current_date - 1 AND current_date + 400",
-    [context.organizationId])).rows.map((row) => row.day) : [];
+  const schedule = workingHours ? await workSchedule(client, context.organizationId) : null;
   if (!CHANNELS.has(channel)) throw new CrmError(400, "Reminder channel is invalid.", "CRM_REMINDER_CHANNEL_INVALID");
   const due = new Date(dueAt);
   const created = [];
   for (const offsetMinutes of normalizeOffsets(offsets)) {
     const naive = new Date(due.getTime() - offsetMinutes * 60000);
-    const fireAt = workingHours ? addBusinessMinutes(naive, 1, { ...DEFAULT_BUSINESS_HOURS, holidays }) : naive;
+    const fireAt = workingHours === "days_off" ? skipDaysOff(naive, schedule) : workingHours ? addBusinessMinutes(naive, 1, schedule) : naive;
     const result = await client.query(
       `INSERT INTO tenant.crm_activity_reminders (organization_id, activity_id, offset_minutes, channel, fire_at, created_by)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -72,7 +71,8 @@ export async function replaceActivityReminder(client, context, activityId, dueAt
   await cancelPendingRemindersForActivity(client, context, activityId);
   if (offsetMinutes === null || offsetMinutes === undefined) return null;
   if (new Date(dueAt).getTime() - offsetMinutes * 60000 < Date.now() - 60000) return null;
-  const [reminder] = await createRemindersForActivity(client, context, activityId, dueAt, { offsets: [offsetMinutes], workingHours: false });
+  // Days off skipped (B4: what Setup › Holidays promises), the time of day kept.
+  const [reminder] = await createRemindersForActivity(client, context, activityId, dueAt, { offsets: [offsetMinutes], workingHours: "days_off" });
   return reminder ?? null;
 }
 

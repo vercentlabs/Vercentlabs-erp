@@ -255,6 +255,43 @@ try {
     const exported = await crm.exportAccounts(client, owner(), { search: `Mehta Fabrics ${tag}` });
     assert(exported.csv.includes("GSTIN") && exported.csv.includes(gstin), "export carries the GSTIN");
   });
+
+  await check("M3, B4. The working week is saved per company; reminders skip weekly offs, off Saturdays and holidays; response and stage limits count working time", async () => {
+    const hours = await api("modules/crm/activities/shared/business-hours.js");
+    const saved = await crm.saveWorkDefaults(client, owner(), { workingDays: [1, 2, 3, 4, 5, 6], workStart: "10:00", workEnd: "19:00", saturdaysOff: [2, 4] });
+    assert(saved.saturdaysOff.join() === "2,4" && saved.workStart === "10:00", JSON.stringify(saved));
+    await refused(() => crm.saveWorkDefaults(client, owner(), { workStart: "19:00", workEnd: "10:00" }), "CRM_DEFAULTS_VALIDATION");
+    await crm.addHoliday(client, owner(), { date: "2026-11-09", name: "Diwali (test)" });
+    const schedule = await crm.workSchedule(client, organizationId);
+    assert(schedule.timezone && schedule.saturdaysOff.join() === "2,4" && schedule.holidays.includes("2026-11-09"), JSON.stringify(schedule));
+    const ist = (iso) => new Date(`${iso}+05:30`).toISOString();
+    // 14 Nov 2026 is the 2nd Saturday: a reminder then moves to Monday 16 Nov, 10:00 IST.
+    assert(hours.skipDaysOff(ist("2026-11-14T11:00:00"), schedule).toISOString() === ist("2026-11-16T10:00:00"), "2nd Saturday skipped");
+    // 21 Nov (3rd Saturday) is a working day: the time is kept.
+    assert(hours.skipDaysOff(ist("2026-11-21T20:00:00"), schedule).toISOString() === ist("2026-11-21T20:00:00"), "3rd Saturday kept, 8pm kept");
+    // The holiday (Mon 9 Nov) moves to Tuesday 10:00.
+    assert(hours.skipDaysOff(ist("2026-11-09T15:00:00"), schedule).toISOString() === ist("2026-11-10T10:00:00"), "holiday skipped");
+    // A 4-working-hour response time from Saturday 21 Nov 17:00: 2 hours that day, 2 on Monday → Mon 12:00 (Sunday off).
+    assert(hours.addBusinessMinutes(ist("2026-11-21T17:00:00"), 240, schedule).toISOString() === ist("2026-11-23T12:00:00"), "working hours skip Sunday");
+    // Two working days after Friday 13 Nov: Saturday 14 is off, Sunday off → Mon 16, Tue 17.
+    assert(hours.addWorkingDays(ist("2026-11-13T12:00:00"), 2, schedule).toISOString() === ist("2026-11-17T12:00:00"), "working days skip the off Saturday");
+    // A follow-up reminder that would fire on the holiday is stored for the next working morning.
+    const activity = (await client.query(`INSERT INTO tenant.crm_activities (organization_id, entity_type, activity_type, subject, status, due_at) VALUES ($1, 'general', 'follow_up', 'Call Sharma', 'planned', $2) RETURNING id`,
+      [organizationId, ist("2027-11-09T15:00:00")])).rows[0];
+    await crm.addHoliday(client, owner(), { date: "2027-11-09", name: "Holiday (test)" });
+    const reminder = await crm.replaceActivityReminder(client, owner(), activity.id, ist("2027-11-09T15:00:00"), 0);
+    assert(new Date(reminder.fireAt).toISOString() === ist("2027-11-10T10:00:00"), `reminder moved: ${reminder.fireAt}`);
+    // The response and stage watch runs on the schedule: a lead untouched for 2 wall-clock hours but within working time is not flagged yet.
+    await client.query(`INSERT INTO tenant.crm_lead_assignment_settings (organization_id, first_response_hours) VALUES ($1, 1)
+      ON CONFLICT (organization_id) DO UPDATE SET first_response_hours = 1`, [organizationId]);
+    const waiting = await crm.createLead(client, owner(), { firstName: "Late", lastName: "Enquiry", companyName: "Night Co", email: `late-${tag}@example.in` });
+    const sunday = new Date(Date.now() - 2 * 3600000);
+    await client.query("UPDATE tenant.crm_leads SET created_at = $2, assigned_at = $2, owner_user_id = $3 WHERE id = $1", [waiting.id, sunday, ownerId]);
+    await crm.saveWorkDefaults(client, owner(), { workingDays: [((new Date().getUTCDay() + 3) % 7)] }); // today is a day off
+    const watched = await crm.runLeadResponseWatch(client, organizationId);
+    const flagged = (await client.query("SELECT response_alerted_at FROM tenant.crm_leads WHERE id = $1", [waiting.id])).rows[0].response_alerted_at;
+    assert(watched && !flagged, "not late: no working time has passed");
+  });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);
   await client.end();

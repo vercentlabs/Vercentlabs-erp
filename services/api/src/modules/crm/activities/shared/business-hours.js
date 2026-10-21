@@ -1,18 +1,29 @@
-// Working-hours arithmetic for reminders: adds minutes to an instant counting
-// only time inside the schedule's window, so a reminder that would fire at
-// 2am moves to the start of the next working window.
+// Working-hours arithmetic: adds minutes (or working days) to an instant counting only time inside the organization's working week
+// (workspace/working-week.js), so a reminder that would fire at 2am, on a weekly off, a 2nd or 4th Saturday or a holiday moves to the
+// start of the next working window, and a "within 4 working hours" limit does not run overnight.
+//
+// schedule: { timezone, weekdays [0 Sunday … 6 Saturday], start "HH:MM", end "HH:MM", saturdaysOff [1…5: which Saturdays of the month],
+//             holidays ["YYYY-MM-DD", …] }
 function parseClock(value, fallbackHour) {
   const match = /^(\d{1,2}):(\d{2})$/.exec(String(value ?? "").trim());
   return match ? [Number(match[1]), Number(match[2])] : [fallbackHour, 0];
 }
 
-function addWallMinutes(startValue, minutesValue, schedule = {}) {
+// Whether a wall-clock day (a Date read in UTC fields) is a day off: not a working weekday, an off Saturday, or a holiday.
+function dayOffTest(schedule = {}) {
   const weekdays = new Set(Array.isArray(schedule.weekdays) && schedule.weekdays.length ? schedule.weekdays.map(Number) : [1, 2, 3, 4, 5]);
-  const [startHour, startMinute] = parseClock(schedule.start, 9);
-  const [endHour, endMinute] = parseClock(schedule.end, 18);
+  const saturdaysOff = new Set(Array.isArray(schedule.saturdaysOff) ? schedule.saturdaysOff.map(Number) : []);
   // Holidays (CRM plan 5.6): wall-clock days, as YYYY-MM-DD, with no working hours at all.
   const holidays = new Set(Array.isArray(schedule.holidays) ? schedule.holidays.map(String) : []);
-  const isHoliday = (at) => holidays.size > 0 && holidays.has(at.toISOString().slice(0, 10));
+  return (at) => !weekdays.has(at.getUTCDay())
+    || (at.getUTCDay() === 6 && saturdaysOff.has(Math.ceil(at.getUTCDate() / 7)))
+    || (holidays.size > 0 && holidays.has(at.toISOString().slice(0, 10)));
+}
+
+function addWallMinutes(startValue, minutesValue, schedule = {}) {
+  const [startHour, startMinute] = parseClock(schedule.start, 9);
+  const [endHour, endMinute] = parseClock(schedule.end, 18);
+  const isDayOff = dayOffTest(schedule);
   let remaining = Math.max(0, Math.ceil(Number(minutesValue) || 0));
   let cursor = new Date(startValue);
   const moveToWindow = () => {
@@ -21,7 +32,7 @@ function addWallMinutes(startValue, minutesValue, schedule = {}) {
       start.setUTCHours(startHour, startMinute, 0, 0);
       const end = new Date(cursor);
       end.setUTCHours(endHour, endMinute, 0, 0);
-      if (!weekdays.has(cursor.getUTCDay()) || isHoliday(cursor) || cursor >= end) {
+      if (isDayOff(cursor) || cursor >= end) {
         cursor.setUTCDate(cursor.getUTCDate() + 1);
         cursor.setUTCHours(startHour, startMinute, 0, 0);
         continue;
@@ -60,4 +71,36 @@ export function addBusinessMinutes(startValue, minutesValue, schedule = {}) {
   let back = offset;
   try { back = schedule.timezone ? zoneOffsetMinutes(schedule.timezone, new Date(wall.getTime() - offset * 60000)) : 0; } catch { back = offset; }
   return new Date(wall.getTime() - back * 60000);
+}
+
+// The instant, or — when it falls on a day off (weekly off, an off Saturday, a holiday) — the start of the next working day. A time
+// on a working day is kept as it is (a reminder someone set for 8pm still fires at 8pm).
+export function skipDaysOff(atValue, schedule = {}) {
+  const at = new Date(atValue);
+  let offset = 0;
+  try { offset = schedule.timezone ? zoneOffsetMinutes(schedule.timezone, at) : 0; } catch { offset = 0; }
+  const wall = new Date(at.getTime() + offset * 60000);
+  const isDayOff = dayOffTest(schedule);
+  if (!isDayOff(wall)) return at;
+  const [startHour, startMinute] = parseClock(schedule.start, 9);
+  for (let guard = 0; guard < 400 && isDayOff(wall); guard += 1) wall.setUTCDate(wall.getUTCDate() + 1);
+  wall.setUTCHours(startHour, startMinute, 0, 0);
+  let back = offset;
+  try { back = schedule.timezone ? zoneOffsetMinutes(schedule.timezone, new Date(wall.getTime() - offset * 60000)) : 0; } catch { back = offset; }
+  return new Date(wall.getTime() - back * 60000);
+}
+
+// `days` working days after an instant: the same time of day on the working day that many working days later (days off skipped).
+export function addWorkingDays(startValue, days, schedule = {}) {
+  const start = new Date(startValue);
+  let offset = 0;
+  try { offset = schedule.timezone ? zoneOffsetMinutes(schedule.timezone, start) : 0; } catch { offset = 0; }
+  const wall = new Date(start.getTime() + offset * 60000);
+  const isDayOff = dayOffTest(schedule);
+  let remaining = Math.max(0, Math.trunc(Number(days) || 0));
+  for (let guard = 0; remaining > 0 && guard < 5000; guard += 1) {
+    wall.setUTCDate(wall.getUTCDate() + 1);
+    if (!isDayOff(wall)) remaining -= 1;
+  }
+  return new Date(wall.getTime() - offset * 60000);
 }

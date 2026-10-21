@@ -1,7 +1,8 @@
 // Response times and escalation (CRM plan 3.5), run by the worker for each organization on every tick:
 //
 //   first response   a new lead nobody has answered — no call, email, meeting or message logged by us, no stage moved — within the
-//                    first-response time: its owner is told, once;
+//                    first-response time, counted in the organization's working hours (workspace/working-week.js: an enquiry at 8pm
+//                    on Saturday is not "late" by Monday 10am): its owner is told, once;
 //   escalation       still untouched after the escalation time: the owner's manager is told, once;
 //   overdue work     a task or follow-up still overdue that long past its due time: the assignee's manager is told, once; and every
 //                    overdue follow-up tells its assignee once (tasks already do);
@@ -14,6 +15,8 @@ import { createNotification } from "../../../core/platform/notifications/index.j
 import { applyLeadAssignment } from "./assignment.js";
 import { evaluateLeadAssignment, getLeadAssignmentSettings } from "./assignment-rules.js";
 import { LEAD_PERMISSIONS } from "./constants.js";
+import { addBusinessMinutes } from "../activities/shared/business-hours.js";
+import { workSchedule } from "../workspace/working-week.js";
 
 const BATCH = 200;
 const leadName = (row) => [row.first_name, row.last_name].filter(Boolean).join(" ") || row.company_name || row.code;
@@ -36,30 +39,44 @@ export const MANAGER = (teamExpr, userExpr) => `COALESCE(
       AND team.manager_user_id IS NOT NULL AND team.manager_user_id <> ${userExpr} ORDER BY team.created_at LIMIT 1),
   (SELECT organization.created_by FROM public.organizations organization WHERE organization.id = $1 AND organization.created_by IS DISTINCT FROM ${userExpr}))`;
 
+// The untouched leads (not yet stamped in `stamp`) whose response time has passed in working hours. The wall-clock test in UNTOUCHED
+// is a cheap first cut — working hours never run out sooner than the clock — and each candidate is then timed on the schedule.
+async function overdueInWorkingHours(client, organizationId, hours, stamp, schedule) {
+  const { rows } = await client.query(
+    `SELECT lead.id, COALESCE(lead.assigned_at, lead.created_at) AS since FROM tenant.crm_leads lead
+      WHERE ${UNTOUCHED} AND lead.${stamp} IS NULL ORDER BY lead.created_at LIMIT ${BATCH * 5}`, [organizationId, hours]);
+  const now = Date.now();
+  return rows.filter((row) => addBusinessMinutes(row.since, hours * 60, schedule).getTime() <= now).slice(0, BATCH).map((row) => row.id);
+}
+
 const hoursText = (hours) => (hours % 24 === 0 ? `${hours / 24} ${hours === 24 ? "day" : "days"}` : `${hours} ${hours === 1 ? "hour" : "hours"}`);
 
-async function firstResponseAlerts(client, organizationId, hours) {
+async function firstResponseAlerts(client, organizationId, hours, schedule) {
+  const due = await overdueInWorkingHours(client, organizationId, hours, "response_alerted_at", schedule);
+  if (!due.length) return 0;
   const { rows } = await client.query(
     `UPDATE tenant.crm_leads SET response_alerted_at = now()
-      WHERE id IN (SELECT lead.id FROM tenant.crm_leads lead WHERE ${UNTOUCHED} AND lead.response_alerted_at IS NULL ORDER BY lead.created_at LIMIT ${BATCH} FOR UPDATE SKIP LOCKED)
-      RETURNING id, code, first_name, last_name, company_name, owner_user_id`, [organizationId, hours]);
+      WHERE id IN (SELECT lead.id FROM tenant.crm_leads lead WHERE ${UNTOUCHED} AND lead.response_alerted_at IS NULL AND lead.id = ANY($3::uuid[]) FOR UPDATE SKIP LOCKED)
+      RETURNING id, code, first_name, last_name, company_name, owner_user_id`, [organizationId, hours, due]);
   for (const lead of rows)
     await createNotification(client, {
       organizationId, userId: lead.owner_user_id, category: "crm_lead_response_due", title: `${leadName(lead)} is waiting for you`,
-      message: `${lead.code} has had no call, email or meeting for ${hoursText(hours)}. A quick first contact keeps the lead warm.`,
+      message: `${lead.code} has had no call, email or meeting for ${hoursText(hours)} of working time. A quick first contact keeps the lead warm.`,
       href: `/crm/leads/${lead.id}`, entityType: "crm.lead", entityId: lead.id,
     });
   return rows.length;
 }
 
-async function responseEscalations(client, organizationId, hours) {
+async function responseEscalations(client, organizationId, hours, schedule) {
+  const due = await overdueInWorkingHours(client, organizationId, hours, "response_escalated_at", schedule);
+  if (!due.length) return 0;
   const { rows } = await client.query(
     `WITH claimed AS (
        UPDATE tenant.crm_leads SET response_escalated_at = now()
-        WHERE id IN (SELECT lead.id FROM tenant.crm_leads lead WHERE ${UNTOUCHED} AND lead.response_escalated_at IS NULL ORDER BY lead.created_at LIMIT ${BATCH} FOR UPDATE SKIP LOCKED)
+        WHERE id IN (SELECT lead.id FROM tenant.crm_leads lead WHERE ${UNTOUCHED} AND lead.response_escalated_at IS NULL AND lead.id = ANY($3::uuid[]) FOR UPDATE SKIP LOCKED)
         RETURNING id, code, first_name, last_name, company_name, owner_user_id, team_id)
      SELECT claimed.*, owner.full_name AS owner_name, ${MANAGER("claimed.team_id", "claimed.owner_user_id")} AS manager_id
-       FROM claimed LEFT JOIN users owner ON owner.id = claimed.owner_user_id`, [organizationId, hours]);
+       FROM claimed LEFT JOIN users owner ON owner.id = claimed.owner_user_id`, [organizationId, hours, due]);
   for (const lead of rows) {
     if (!lead.manager_id) continue;
     await createNotification(client, {
@@ -139,13 +156,14 @@ async function rerunUnassigned(client, organizationId, hours) {
 export async function runLeadResponseWatch(client, organizationId) {
   const settings = await getLeadAssignmentSettings(client, { organizationId });
   const result = { alerted: 0, escalated: 0, followUpsOverdue: 0, workEscalated: 0, rerun: null };
-  if (settings.firstResponseHours) result.alerted = await firstResponseAlerts(client, organizationId, settings.firstResponseHours);
-  if (settings.responseEscalationHours) result.escalated = await responseEscalations(client, organizationId, settings.responseEscalationHours);
+  const schedule = await workSchedule(client, organizationId);
+  if (settings.firstResponseHours) result.alerted = await firstResponseAlerts(client, organizationId, settings.firstResponseHours, schedule);
+  if (settings.responseEscalationHours) result.escalated = await responseEscalations(client, organizationId, settings.responseEscalationHours, schedule);
   result.followUpsOverdue = await followUpOverdueNotices(client, organizationId);
   if (settings.overdueEscalationHours) result.workEscalated = await overdueEscalations(client, organizationId, settings.overdueEscalationHours);
   if (settings.rerunUnassignedHours) result.rerun = await rerunUnassigned(client, organizationId, settings.rerunUnassignedHours);
   // Deals over their stage's time limit (CRM plan 5.1) are watched on the same tick.
   const { runOpportunityStageWatch } = await import("../opportunities/stage-watch.js");
-  Object.assign(result, await runOpportunityStageWatch(client, organizationId));
+  Object.assign(result, await runOpportunityStageWatch(client, organizationId, schedule));
   return result;
 }
