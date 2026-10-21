@@ -119,18 +119,15 @@ export function SignupFlow() {
   if (step === "details") {
     return (
       <form className="flex flex-col gap-6" onSubmit={start} noValidate>
-        <Heading title="Set up your workspace" line="Tell us a little about you and your business. It takes about a minute." />
+        <Heading title="Set up your workspace" line="It takes about a minute. No password needed." />
         <div className="flex flex-col gap-4">
           <TextField label="Your name" autoComplete="name" value={form.fullName} onChange={set("fullName")} isInvalid={Boolean(fieldError("fullName"))} errorMessage={fieldError("fullName")} />
           <TextField label="Work email" type="email" autoComplete="email" value={form.email} onChange={set("email")} isInvalid={Boolean(fieldError("email"))} errorMessage={fieldError("email")} />
           <TextField label="Company name" autoComplete="organization" value={form.companyName} onChange={set("companyName")} isInvalid={Boolean(fieldError("companyName"))} errorMessage={fieldError("companyName")} />
-          <TextField label="Website (optional)" inputMode="url" placeholder="sharmatextiles.in" value={form.website} onChange={set("website")} isInvalid={Boolean(fieldError("website"))} errorMessage={fieldError("website")} />
+          <TextField label="Website (optional)" inputMode="url" placeholder="sharmatextiles.in" description="We read it to suggest the right apps." value={form.website} onChange={set("website")} isInvalid={Boolean(fieldError("website"))} errorMessage={fieldError("website")} />
         </div>
         {error && !error.field && <p role="alert" className="text-sm text-danger">{error.message}</p>}
-        <div className="flex flex-col gap-2">
-          <Button type="submit" variant="primary" size="standard" isLoading={busy}>Continue</Button>
-          <p className="text-center text-xs text-text-muted">We&apos;ll read your public website to suggest the right apps for you.</p>
-        </div>
+        <Button type="submit" variant="primary" size="standard" isLoading={busy}>Continue</Button>
         <p className="text-center text-sm text-text-secondary">Already have a workspace? <Link href="/login" className="font-medium text-brand hover:underline">Sign in</Link></p>
       </form>
     );
@@ -158,8 +155,7 @@ export function SignupFlow() {
 function Heading({ title, line }: { title: string; line?: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">Vercentlabs</p>
-      <h1 className="text-xl font-semibold text-text">{title}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-text">{title}</h1>
       {line && <p className="text-sm text-text-secondary">{line}</p>}
     </div>
   );

@@ -25,9 +25,6 @@ export default async function OnboardingPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">
-          Vercentlabs ERP
-        </p>
         <h1 className="text-xl font-semibold text-text">
           You&apos;re not part of an organization yet
         </h1>
