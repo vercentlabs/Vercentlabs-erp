@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, LoaderCircle } from "lucide-react";
+import { Check, LoaderCircle, Plus, Sparkles } from "lucide-react";
 
 import { Button, Checkbox, TextArea, TextField } from "@vercentlabs/design-system";
 
@@ -202,17 +202,21 @@ function Describe({ state, onDone }: { state: SignupState | null; onDone: (state
   );
 }
 
+// One app as a single checkbox: the whole tile toggles it. Picked tiles keep a white surface with a brand outline and a filled icon,
+// so a long list of picked apps stays calm.
 function AppTile({ app, checked, onToggle }: { app: AppCard; checked: boolean; onToggle: () => void }) {
   const Icon = getModuleNavigation(app.key)?.icon;
   return (
-    <label className={`flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border p-3 ${checked ? "border-brand bg-brand-soft" : "border-border bg-surface"}`}>
-      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-surface text-brand">{Icon ? <Icon aria-hidden className="size-4" /> : null}</span>
-      <span className="flex flex-1 flex-col">
-        <span className="text-sm font-medium text-text">{app.name}</span>
-        <span className="text-xs text-text-secondary">{app.reason}</span>
+    <Checkbox isSelected={checked} onChange={onToggle}
+      className={`cursor-pointer items-center gap-3 rounded-[var(--radius-card)] border bg-surface px-3 py-2.5 transition-colors ${checked ? "border-brand" : "border-border hover:border-border-strong"}`}>
+      <span className={`flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] transition-colors ${checked ? "bg-brand text-text-inverse" : "bg-surface-muted text-text-secondary"}`}>
+        {Icon ? <Icon aria-hidden className="size-4" /> : null}
       </span>
-      <Checkbox aria-label={`Use ${app.name}`} isSelected={checked} onChange={onToggle} />
-    </label>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="font-medium text-text">{app.name}</span>
+        <span className="text-xs leading-snug text-text-secondary">{app.reason}</span>
+      </span>
+    </Checkbox>
   );
 }
 
@@ -248,7 +252,7 @@ function Apps({ state, onChange, onSetUp }: { state: SignupState; onChange: (sta
   return (
     <div className="flex flex-col gap-6">
       <Heading title={`Your workspace for ${state.companyName}`} />
-      <section className="flex flex-col gap-2" aria-label="What we understood">
+      <section aria-label="What we understood" className="rounded-[var(--radius-card)] border border-border bg-surface p-3">
         {editing ? (
           <div className="flex flex-col gap-2">
             <TextArea label="What your business does" value={line} onChange={setLine} maxLength={200} isInvalid={Boolean(error)} errorMessage={error ?? undefined} />
@@ -256,28 +260,52 @@ function Apps({ state, onChange, onSetUp }: { state: SignupState; onChange: (sta
               <Button size="compact" variant="ghost" onPress={() => { setEditing(false); setError(null); }}>Cancel</Button></div>
           </div>
         ) : (
-          <p className="text-sm text-text">
-            {!description ? "Tell us what your business does and we'll suggest apps."
-              : !state.apps.suggested.length ? `We couldn't tell which apps fit "${description}". Pick them below, or say a bit more.`
-              : unsure ? `We think: ${description}` : description}{" "}
-            {state.suggestionsLeft > 0 && <button type="button" className="font-medium text-brand hover:underline" onClick={() => setEditing(true)}>Edit</button>}
-          </p>
+          <div className="flex items-start gap-3">
+            <Sparkles aria-hidden className="mt-0.5 size-4 shrink-0 text-brand" />
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <p className="text-xs font-medium text-text-muted">{unsure && state.apps.suggested.length ? "We think" : "What we understood"}</p>
+              <p className="text-sm text-text">
+                {!description ? "Tell us what your business does and we'll suggest apps."
+                  : !state.apps.suggested.length ? `We couldn't tell which apps fit "${description}". Pick them below, or say a bit more.` : description}
+              </p>
+            </div>
+            {state.suggestionsLeft > 0 && <button type="button" className="shrink-0 text-sm font-medium text-brand hover:underline" onClick={() => setEditing(true)}>Edit</button>}
+          </div>
         )}
       </section>
       {busy ? <Working line="Finding the right apps for you…" /> : (
-        <section className="flex flex-col gap-2" aria-label="Suggested apps">
-          {state.apps.suggested.map((app) => <AppTile key={app.key} app={app} checked={picked.includes(app.key)} onToggle={() => toggle(app.key)} />)}
+        <div className="flex flex-col gap-5">
+          {state.apps.suggested.length > 0 && (
+            <section className="flex flex-col gap-2" aria-labelledby="suggested-apps">
+              <div className="flex items-baseline justify-between">
+                <h2 id="suggested-apps" className="text-sm font-semibold text-text">Suggested for you</h2>
+                <span className="text-xs text-text-muted">{`${ordered.length} selected`}</span>
+              </div>
+              {state.apps.suggested.map((app) => <AppTile key={app.key} app={app} checked={picked.includes(app.key)} onToggle={() => toggle(app.key)} />)}
+            </section>
+          )}
           {!showMore ? (
-            <button type="button" className="self-start text-sm font-medium text-brand hover:underline" onClick={() => setShowMore(true)}>{`Add more apps (${state.apps.others.length} more)`}</button>
-          ) : state.apps.others.map((app) => <AppTile key={app.key} app={app} checked={picked.includes(app.key)} onToggle={() => toggle(app.key)} />)}
-        </section>
+            <button type="button" onClick={() => setShowMore(true)}
+              className="flex items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-border-strong px-3 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:border-brand hover:text-brand">
+              <Plus aria-hidden className="size-4" />{`Add more apps (${state.apps.others.length})`}
+            </button>
+          ) : (
+            <section className="flex flex-col gap-2" aria-labelledby="more-apps">
+              <h2 id="more-apps" className="text-sm font-semibold text-text">{state.apps.suggested.length ? "More apps" : "Pick your apps"}</h2>
+              {state.apps.others.map((app) => <AppTile key={app.key} app={app} checked={picked.includes(app.key)} onToggle={() => toggle(app.key)} />)}
+            </section>
+          )}
+        </div>
       )}
-      <div className="flex flex-col gap-2">
+      {/* Stays in view at the bottom while the list scrolls, so the next step is always one click away. */}
+      <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-border bg-canvas px-4 pt-3 pb-4">
         <Button variant="primary" size="standard" isDisabled={!ordered.length || busy || editing}
-          onPress={() => { window.sessionStorage.setItem("vercentlabs-signup-apps", JSON.stringify(ordered.map((app) => ({ key: app.key, name: app.name })))); onSetUp(); }}>Set up workspace</Button>
-        {!ordered.length && <p className="text-center text-xs text-danger">Pick at least one app.</p>}
-        <p className="text-center text-xs text-text-muted">Free for 30 days. No card needed.</p>
-        <p className="text-center text-xs text-text-muted">You can add or remove apps anytime in Settings.</p>
+          onPress={() => { window.sessionStorage.setItem("vercentlabs-signup-apps", JSON.stringify(ordered.map((app) => ({ key: app.key, name: app.name })))); onSetUp(); }}>
+          {ordered.length ? `Set up workspace with ${ordered.length} ${ordered.length === 1 ? "app" : "apps"}` : "Set up workspace"}
+        </Button>
+        <p className={`text-center text-xs ${ordered.length ? "text-text-muted" : "text-danger"}`}>
+          {ordered.length ? "Free for 30 days, no card needed. Change your apps anytime in Settings." : "Pick at least one app."}
+        </p>
       </div>
     </div>
   );
