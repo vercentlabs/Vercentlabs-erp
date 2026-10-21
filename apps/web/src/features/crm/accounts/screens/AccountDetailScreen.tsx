@@ -49,7 +49,7 @@ import { LIVE_ACCOUNT_QUERY } from "../live-query";
 import { useCrmShortcut } from "@/features/crm/shared/shortcuts";
 
 type DialogKind = "assign" | "activity" | "followUp" | "customer" | "linkCustomer" | "merge" | "delete" | AccountStatus | null;
-type MoneyList = "quotations" | "orders" | "returns" | "invoices" | "payments" | "projects" | "tickets";
+type MoneyList = "quotations" | "orders" | "deliveries" | "returns" | "invoices" | "payments" | "posSales" | "projects" | "tickets";
 
 // Old ?tab= values (links from search, Notes & Files, notifications) open the tab — and the Activity chip — that now holds them.
 const TAB_OF: Record<string, { tab: string; chip?: ActivityChip; list?: MoneyList }> = {
@@ -148,8 +148,10 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
   const moneyLists: Array<{ id: MoneyList; label: string; show: boolean }> = [
     { id: "quotations", label: "Quotations", show: modules.sales },
     { id: "orders", label: "Sales orders", show: modules.sales },
+    { id: "deliveries", label: "Deliveries", show: modules.sales },
     { id: "invoices", label: "Invoices", show: modules.finance },
     { id: "payments", label: "Payments", show: modules.finance },
+    { id: "posSales", label: "Counter sales", show: Boolean(modules.pos) },
     { id: "returns", label: "Returns", show: modules.sales },
     { id: "projects", label: "Projects", show: modules.projects },
     { id: "tickets", label: "Support", show: modules.support },

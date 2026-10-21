@@ -36,6 +36,10 @@ export function AccountSummaryCards({ accountId, currency }: { accountId: string
       { label: "Outstanding", value: money(summary.finance.outstanding) },
       { label: "Overdue", value: money(summary.finance.overdue) },
     ] : []),
+    ...(summary.pos ? [
+      { label: `Counter visits · ${money(summary.pos.spend)}`, value: summary.pos.visits },
+      ...(summary.pos.loyaltyPoints !== null ? [{ label: "Loyalty points", value: summary.pos.loyaltyPoints }] : []),
+    ] : []),
     ...(summary.projects ? [{ label: "Active projects", value: summary.projects.active }] : []),
     ...(summary.support ? [{ label: "Open support tickets", value: summary.support.openTickets }] : []),
   ];
@@ -49,6 +53,7 @@ export function AccountSummaryCards({ accountId, currency }: { accountId: string
           summary.crm.lastActivityAt ? `Last activity ${formatDate(summary.crm.lastActivityAt)}` : "No activity yet",
           summary.sales?.lastOrderDate ? `last order ${formatDate(summary.sales.lastOrderDate)}` : null,
           summary.finance?.lastPaymentDate ? `last payment ${formatDate(summary.finance.lastPaymentDate)}` : null,
+          summary.pos?.lastVisit ? `last counter visit ${formatDate(summary.pos.lastVisit)}` : null,
         ].filter(Boolean).join(" · ")}
       </p>
     </div>
@@ -60,6 +65,8 @@ const LIST_COPY: Record<AccountRelatedList, { title: string; empty: string }> = 
   opportunities: { title: "Deals", empty: "No deals yet. Create one to start tracking a deal with this company." },
   quotations: { title: "Quotations", empty: "No quotations for this company." },
   orders: { title: "Sales orders", empty: "No sales orders for this company." },
+  deliveries: { title: "Deliveries", empty: "Nothing has been dispatched to this company yet." },
+  posSales: { title: "Counter sales", empty: "No purchases at the counter by this customer." },
   returns: { title: "Returns", empty: "No returns for this company." },
   invoices: { title: "Invoices", empty: "No invoices for this company." },
   payments: { title: "Payments", empty: "No payments received from this company." },

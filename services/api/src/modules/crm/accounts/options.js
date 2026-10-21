@@ -50,6 +50,6 @@ export async function getAccountOptions(client, context) {
     // The organization's own fields on this record (CRM audit M4), for the form, the record page and list filters.
     customFields: await listCustomFields(client, context, "party"),
     // Which read-only Customer 360 tabs the caller may open.
-    moduleAccess: { sales: tabAllowed(context, "sales"), finance: tabAllowed(context, "finance"), projects: tabAllowed(context, "projects"), support: tabAllowed(context, "support") },
+    moduleAccess: { sales: tabAllowed(context, "sales"), finance: tabAllowed(context, "finance"), pos: tabAllowed(context, "pos"), projects: tabAllowed(context, "projects"), support: tabAllowed(context, "support") },
   };
 }

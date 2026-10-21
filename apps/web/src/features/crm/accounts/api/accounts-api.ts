@@ -14,7 +14,7 @@ const { request, parseResponse } = crmApiClient(AccountApiError, "body");
 export type AccountType = "prospect" | "customer" | "partner" | "other";
 export type AccountStatus = "active" | "inactive" | "archived";
 export type AccountViewKey = "all" | "mine" | "team" | "prospects" | "customers" | "no_recent_activity" | "active" | "inactive" | "recently_created" | "recently_updated" | "archived";
-export type AccountRelatedList = "leads" | "opportunities" | "quotations" | "orders" | "returns" | "invoices" | "payments" | "projects" | "tickets";
+export type AccountRelatedList = "leads" | "opportunities" | "quotations" | "orders" | "deliveries" | "returns" | "invoices" | "payments" | "posSales" | "projects" | "tickets";
 
 
 export type Account = {
@@ -101,7 +101,7 @@ export type AccountOptions = {
   baseCurrency: string;
   currentUserId: string;
   capabilities: AccountCapabilities;
-  moduleAccess: { sales: boolean; finance: boolean; projects: boolean; support: boolean };
+  moduleAccess: { sales: boolean; finance: boolean; pos?: boolean; projects: boolean; support: boolean };
 };
 
 export type AccountListFilters = {
@@ -207,6 +207,8 @@ export type AccountActivity = {
 export type AccountHistoryEntry = { id: string; eventType: string; summary: string; changes: Record<string, unknown>; createdAt: string; actorName: string | null };
 
 export type AccountSummary = {
+  // Point of Sale: counter visits, spend, last visit and loyalty points (when the organization has POS and the person may see it).
+  pos?: { visits: number; spend: number; lastVisit: string | null; loyaltyPoints: number | null };
   access: { sales: boolean; finance: boolean; projects: boolean; support: boolean };
   crm: {
     openOpportunities: number; openPipelineValue: number; wonOpportunities: number; wonValue: number; contacts: number; convertedLeads: number;
