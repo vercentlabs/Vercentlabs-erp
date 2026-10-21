@@ -217,3 +217,20 @@ END $$;
 ALTER TABLE tenant.eway_bills DROP CONSTRAINT IF EXISTS eway_bills_source_type_check;
 ALTER TABLE tenant.eway_bills ADD CONSTRAINT eway_bills_source_type_check
   CHECK (source_type IN ('sales_delivery', 'stock_transfer', 'purchase_return', 'sales_invoice', 'sales_challan'));
+
+-- 13. Simple Sales access (should-have): Billing and Dispatch roles for every company, beside the Sales roles it has, so Sales › Setup ›
+--     Team access gives each person one plain level (Salesperson, Billing, Dispatch, Sales manager).
+INSERT INTO public.roles (id, organization_id, name, slug, description, is_system, status, module_key, template_key, assignable, risk_level, version)
+SELECT gen_random_uuid(), organization.id, template.name, template.slug, template.description, true, 'active', 'sales', template.slug, true, template.risk, 1
+  FROM public.organizations organization
+ CROSS JOIN (VALUES ('sales_billing', 'Sales Billing', 'Raises, posts and sends invoices and credit notes, records customer payments and sees customer balances; does not quote or price.', 'sensitive'),
+                    ('sales_dispatch', 'Sales Dispatch', 'Keeps stock aside for orders, dispatches and delivers goods, makes challans and e-way bills, and receives returns; sees no prices or balances beyond the documents.', 'standard')) AS template(slug, name, description, risk)
+ WHERE EXISTS (SELECT 1 FROM public.roles existing WHERE existing.organization_id = organization.id AND existing.slug = 'sales_manager')
+ON CONFLICT (organization_id, slug) DO NOTHING;
+INSERT INTO public.role_permissions (role_id, permission_key)
+SELECT role.id, permission.key FROM public.roles role
+  JOIN public.permissions permission ON permission.key = ANY (CASE role.slug
+    WHEN 'sales_billing' THEN ARRAY['workspace.view', 'notifications.view', 'profile.manage', 'business_data.view', 'sales.view', 'sales.reports.view', 'sales.customers.view', 'sales.customers.view_all', 'sales.customers.addresses.view', 'sales.customers.contacts.view', 'sales.customers.view_financials', 'sales.order.view', 'sales.order.view_all', 'sales.order.export', 'sales.invoice.view', 'sales.invoice.view_all', 'sales.invoice.request', 'sales.invoice.edit', 'sales.invoice.post', 'sales.invoice.print', 'sales.invoice.send', 'sales.invoice.record_payment', 'sales.invoice.payments.view', 'sales.invoice.change_payment_terms', 'sales.credit_note.view', 'sales.credit_note.view_all', 'sales.credit_note.create', 'sales.credit_note.edit', 'sales.credit_note.post', 'sales.credit_note.print', 'sales.credit_note.send', 'sales.credit_note.amount', 'sales.credit_note.application.view', 'sales.return.view', 'sales.return.view_all', 'sales.return.credit_note', 'sales.price_lists.view']
+    ELSE ARRAY['workspace.view', 'notifications.view', 'profile.manage', 'business_data.view', 'sales.view', 'sales.customers.view', 'sales.customers.view_all', 'sales.customers.addresses.view', 'sales.customers.contacts.view', 'sales.order.view', 'sales.order.view_all', 'sales.availability.view', 'sales.availability.check', 'sales.order.reserve', 'sales.order.reserve_partial', 'sales.order.change_warehouse', 'sales.reservation.view', 'sales.reservation.view_all', 'sales.reservation.release', 'sales.fulfillment.request', 'sales.delivery.view', 'sales.delivery.view_all', 'sales.delivery.edit', 'sales.delivery.dispatch', 'sales.delivery.deliver', 'sales.delivery.cancel', 'sales.delivery.print', 'sales.return.view', 'sales.return.view_all', 'sales.return.create', 'sales.return.edit', 'sales.return.receive', 'sales.return.print', 'sales.return.select_warehouse'] END)
+ WHERE role.slug IN ('sales_billing', 'sales_dispatch')
+ON CONFLICT DO NOTHING;

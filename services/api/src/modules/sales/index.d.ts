@@ -50,3 +50,7 @@ export function listSalesChallans(client: SalesQueryClient, context: SalesContex
 export function getSalesChallan(client: SalesQueryClient, context: SalesContext, challanId: string): Promise<any>;
 export function createSalesChallan(client: SalesQueryClient, context: SalesContext, input: Record<string, any>): Promise<any>;
 export function setSalesChallanStatus(client: SalesQueryClient, context: SalesContext, challanId: string, input: { action: "issue" | "cancel"; reason?: string }): Promise<any>;
+// Simple Sales access levels (Sales audit).
+export const SALES_ACCESS_LEVELS: ReadonlyArray<{ key: string; label: string; slug: string | null; description: string }>;
+export function listSalesAccess(client: SalesQueryClient, session: any): Promise<any>;
+export function setSalesAccessLevel(client: SalesQueryClient, session: any, userId: string, level: string): Promise<any>;

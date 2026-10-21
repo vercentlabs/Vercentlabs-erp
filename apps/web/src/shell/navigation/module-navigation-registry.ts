@@ -338,6 +338,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           },
           // Teams decide team visibility of customers, quotations and orders; set up here too when CRM is off (Sales audit B10).
           { ...available("Commission Rules", "/sales/settings/commissions"), aliases: ["commission", "incentive", "salesperson commission"] },
+          { ...available("Team Access", "/sales/settings/team-access"), aliases: ["access levels", "billing clerk", "dispatch clerk", "salesperson access", "roles"], requiredPermission: "roles.assign" },
           { ...available("Sales Teams", "/settings/teams"), aliases: ["teams", "sales team", "team members", "team manager"], requiredPermission: "sales.settings.manage" },
         ],
       },
