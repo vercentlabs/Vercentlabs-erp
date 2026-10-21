@@ -27,7 +27,8 @@ const text = (value) => String(value ?? "").trim();
 const invalid = (field, message) => new CrmError(400, message, "CRM_CHANNEL_VALIDATION", { issues: [{ field, message }] });
 const digits = (phone) => String(phone ?? "").replace(/\D/g, "");
 // Indian numbers to providers as 0XXXXXXXXXX (Exotel) or 91XXXXXXXXXX (MSG91); others with their country code.
-const indian = (phone) => { const all = digits(phone); return all.length >= 10 && (all.length === 10 || all.startsWith("91")) ? all.slice(-10) : null; };
+// A number written with the trunk 0 (098765 43210) is the same Indian mobile.
+const indian = (phone) => { const all = digits(phone).replace(/^0(?=[0-9]{10}$)/, ""); return all.length >= 10 && (all.length === 10 || all.startsWith("91")) ? all.slice(-10) : null; };
 
 function requireManage(context) {
   if (context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(MANAGE)) return;
@@ -293,31 +294,12 @@ export async function sendSms(client, context, type, id, input = {}, { fetchImpl
     throw new CrmError(409, "A promotional SMS goes only to someone who agreed to SMS. Record their consent first, or use a service template.", "CRM_SMS_NO_CONSENT");
   const body = fillDltTemplate(template.body, Array.isArray(input.values) ? input.values : []);
   const credentials = await credentialsOf(settings, env);
-  const local = indian(person.phone);
-  let request;
-  if (settings.provider === "exotel") {
-    request = {
-      url: `https://${settings.api_host}/v1/Accounts/${encodeURIComponent(settings.account_sid)}/Sms/send.json`,
-      init: { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${credentials.apiKey}:${credentials.apiToken}`).toString("base64")}`, "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ From: settings.sender_id, To: local ? `0${local}` : `+${digits(person.phone)}`, Body: body, DltEntityId: settings.dlt_entity_id,
-          DltTemplateId: template.dlt_template_id, SmsType: template.category === "promotional" ? "promotional" : "transactional",
-          ...(callbackUrl(appUrl, credentials.callbackKey) ? { StatusCallback: callbackUrl(appUrl, credentials.callbackKey) } : {}) }) },
-    };
-  } else {
-    const query = new URLSearchParams({ authkey: credentials.authKey, mobiles: local ? `91${local}` : digits(person.phone), message: body, sender: settings.sender_id,
-      route: template.category === "promotional" ? "1" : "4", country: "91", DLT_TE_ID: template.dlt_template_id, PE_ID: settings.dlt_entity_id, response: "json" });
-    request = { url: `https://api.msg91.com/api/sendhttp.php?${query}`, init: { method: "GET" } };
-  }
+  const request = smsRequest(settings, credentials, template, person.phone, body, appUrl);
   let response;
   // Counts towards the plan's monthly messages; refused at the limit before anything is sent.
   await countOutboundMessages(client, context.organizationId, { channel: "sms" }, env);
   try { response = await fetchImpl(request.url, request.init); } catch (error) { throw new CrmError(502, `The SMS provider could not be reached: ${error?.message ?? error}`, "CRM_SMS_UNREACHABLE"); }
-  const raw = await response.text().catch(() => "");
-  let parsed;
-  try { parsed = raw ? JSON.parse(raw) : {}; } catch { parsed = { message: raw }; }
-  const failed = !response.ok || parsed?.type === "error" || parsed?.RestException;
-  const providerId = settings.provider === "exotel" ? parsed?.SMSMessage?.Sid ?? null : (parsed?.message && parsed.type !== "error" ? String(parsed.message) : null);
-  const error = failed ? String(parsed?.RestException?.Message ?? parsed?.message ?? `status ${response.status}`).slice(0, 500) : null;
+  const { failed, providerId, error } = await smsOutcome(response, settings);
   const owner = person.owner ?? null;
   const activityId = failed ? null : await logActivity(client, context.organizationId, { type, id, activityType: "sms", subject: `SMS to ${person.phone}: ${template.name}`, description: body,
     userId: context.userId, owner, externalId: providerId });
@@ -327,6 +309,56 @@ export async function sendSms(client, context, type, id, input = {}, { fetchImpl
     [context.organizationId, type, id, person.phone, template.id, body, settings.provider, providerId, failed ? "failed" : "sent", error, activityId, context.userId ?? null])).rows[0];
   if (failed) return { messageId: message.id, status: "failed", error: `The SMS was not accepted: ${error}.`, body };
   return { messageId: message.id, status: "sent", body };
+}
+
+// The provider call for one SMS: Exotel or MSG91, with the DLT ids.
+function smsRequest(settings, credentials, template, phone, body, appUrl) {
+  const local = indian(phone);
+  let request;
+  if (settings.provider === "exotel") {
+    request = {
+      url: `https://${settings.api_host}/v1/Accounts/${encodeURIComponent(settings.account_sid)}/Sms/send.json`,
+      init: { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${credentials.apiKey}:${credentials.apiToken}`).toString("base64")}`, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ From: settings.sender_id, To: local ? `0${local}` : `+${digits(phone)}`, Body: body, DltEntityId: settings.dlt_entity_id,
+          DltTemplateId: template.dlt_template_id, SmsType: template.category === "promotional" ? "promotional" : "transactional",
+          ...(callbackUrl(appUrl, credentials.callbackKey) ? { StatusCallback: callbackUrl(appUrl, credentials.callbackKey) } : {}) }) },
+    };
+  } else {
+    const query = new URLSearchParams({ authkey: credentials.authKey, mobiles: local ? `91${local}` : digits(phone), message: body, sender: settings.sender_id,
+      route: template.category === "promotional" ? "1" : "4", country: "91", DLT_TE_ID: template.dlt_template_id, PE_ID: settings.dlt_entity_id, response: "json" });
+    request = { url: `https://api.msg91.com/api/sendhttp.php?${query}`, init: { method: "GET" } };
+  }
+  return request;
+}
+
+// What the provider answered: { failed, providerId, error }.
+async function smsOutcome(response, settings) {
+  const raw = await response.text().catch(() => "");
+  let parsed;
+  try { parsed = raw ? JSON.parse(raw) : {}; } catch { parsed = { message: raw }; }
+  const failed = !response.ok || parsed?.type === "error" || parsed?.RestException;
+  const providerId = settings.provider === "exotel" ? parsed?.SMSMessage?.Sid ?? null : (parsed?.message && parsed.type !== "error" ? String(parsed.message) : null);
+  const error = failed ? String(parsed?.RestException?.Message ?? parsed?.message ?? `status ${response.status}`).slice(0, 500) : null;
+  return { failed: Boolean(failed), providerId, error };
+}
+
+// An SMS to someone on the team (a reminder), from a DLT service template — not logged on any customer record. Returns
+// { sent, error? }; never throws for the provider's answer.
+export async function sendTeamSms(client, organizationId, { phone, templateId, values }, { fetchImpl = fetch, env = process.env } = {}) {
+  const settings = (await client.query("SELECT * FROM tenant.crm_sms_settings WHERE organization_id = $1", [organizationId])).rows[0];
+  if (!settings || settings.provider === "none") return { sent: false, error: "SMS is not connected." };
+  const template = (await client.query("SELECT * FROM tenant.crm_sms_templates WHERE organization_id = $1 AND id = $2 AND status = 'active'", [organizationId, templateId])).rows[0];
+  if (!template) return { sent: false, error: "The reminder SMS template is missing or inactive." };
+  const count = (template.body.match(VAR) ?? []).length;
+  const body = fillDltTemplate(template.body, Array.from({ length: count }, (_, index) => text(values[index]) || "-"));
+  await countOutboundMessages(client, organizationId, { channel: "sms" }, env);
+  try {
+    const request = smsRequest(settings, await credentialsOf(settings, env), template, phone, body, null);
+    const outcome = await smsOutcome(await fetchImpl(request.url, request.init), settings);
+    return outcome.failed ? { sent: false, error: outcome.error } : { sent: true };
+  } catch (error) {
+    return { sent: false, error: String(error?.message ?? error).slice(0, 300) };
+  }
 }
 
 export async function listSmsMessages(client, context, type, id) {

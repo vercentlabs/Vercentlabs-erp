@@ -29,6 +29,7 @@ export {
   claimDueReminders, createRemindersForActivity, cancelPendingRemindersForActivity, markReminderOutcome, resetStuckDispatchingReminders,
   replaceActivityReminder, snoozeActivityReminder,
 } from "./reminders/index.js";
+export { getMyReminderChannels, getReminderTemplates, remindOnOutsideChannels, saveMyReminderChannels, saveReminderTemplates } from "./reminders/outside-channels.js";
 
 
 

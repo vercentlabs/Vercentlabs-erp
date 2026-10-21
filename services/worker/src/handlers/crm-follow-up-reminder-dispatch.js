@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   claimDueReminders,
   markReminderOutcome,
+  remindOnOutsideChannels,
   resetStuckDispatchingReminders,
 } from "@vercentlabs/api/crm";
 import {
@@ -107,6 +108,18 @@ export async function dispatchFollowUpRemindersHandler(_client, _systemContext, 
           await markReminderOutcome(client, context, reminder.id, { status: "sent" });
         });
         sent += 1;
+        // CRM audit M6: also on WhatsApp / SMS when the person chose it. Extra, in its own transaction: a failure there never
+        // re-delivers or fails the reminder; what happened is kept on the reminder.
+        try {
+          await runtime.withTenantClient(runtime.pool, runtime.organizationId, async (client) => {
+            const outside = await remindOnOutsideChannels(client, context.organizationId, activity.assignedTo, reminderText(activity));
+            if (Object.keys(outside).length)
+              await client.query("UPDATE tenant.crm_activity_reminders SET outside_channels = $3::jsonb WHERE organization_id = $1 AND id = $2",
+                [context.organizationId, reminder.id, JSON.stringify(outside)]);
+          });
+        } catch {
+          // best effort
+        }
       } else if (reminder.channel === "email") {
         if (!activity.assignedEmail) {
           await runtime.withTenantClient(runtime.pool, runtime.organizationId, (client) =>

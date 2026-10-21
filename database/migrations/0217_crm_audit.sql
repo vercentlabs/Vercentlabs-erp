@@ -190,3 +190,29 @@ BEGIN
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON tenant.%I TO vercent_app, vercent_worker', name);
   END LOOP;
 END $$;
+
+-- 7. Reminders to the salesperson on WhatsApp and SMS (M6). Each person chooses for themselves (crm_reminder_channels), at the mobile
+--    their calls ring (crm_call_agents). The company names the approved WhatsApp template and the DLT SMS template that carry a
+--    reminder: WhatsApp and TRAI allow a business to send only those.
+CREATE TABLE IF NOT EXISTS tenant.crm_reminder_channels (
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  whatsapp boolean NOT NULL DEFAULT false,
+  sms boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (organization_id, user_id)
+);
+ALTER TABLE tenant.crm_settings ADD COLUMN IF NOT EXISTS reminder_whatsapp_template text CHECK (reminder_whatsapp_template IS NULL OR (char_length(reminder_whatsapp_template) <= 512 AND reminder_whatsapp_template ~ '^[a-z0-9_]+$'));
+ALTER TABLE tenant.crm_settings ADD COLUMN IF NOT EXISTS reminder_whatsapp_language text NOT NULL DEFAULT 'en' CHECK (reminder_whatsapp_language ~ '^[a-z]{2,3}(_[A-Z]{2})?$');
+ALTER TABLE tenant.crm_settings ADD COLUMN IF NOT EXISTS reminder_sms_template_id uuid REFERENCES tenant.crm_sms_templates(id) ON DELETE SET NULL;
+ALTER TABLE tenant.crm_activity_reminders ADD COLUMN IF NOT EXISTS outside_channels jsonb;
+
+DO $$
+BEGIN
+  ALTER TABLE tenant.crm_reminder_channels ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE tenant.crm_reminder_channels FORCE ROW LEVEL SECURITY;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tenant' AND tablename = 'crm_reminder_channels' AND policyname = 'organization_isolation') THEN
+    CREATE POLICY organization_isolation ON tenant.crm_reminder_channels USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
+  END IF;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON tenant.crm_reminder_channels TO vercent_app, vercent_worker;
+END $$;

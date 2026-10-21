@@ -348,3 +348,30 @@ export async function receiveWhatsAppWebhook({ runTenant }, row, { rawBody, head
     return counts;
   });
 }
+
+// ------------------------------------------------------------------ to the team
+
+// A template message to someone on the team (a reminder) through the connected number — not logged on any customer record.
+// Returns { sent, error? }; never throws for WhatsApp's answer.
+export async function sendTeamWhatsApp(client, organizationId, { phone, templateName, templateLanguage = "en", values = [] }, { fetchImpl = fetch, env = process.env } = {}) {
+  const settings = await settingsRow(client, organizationId);
+  if (settings?.mode !== "cloud_api" || !settings.phone_number_id) return { sent: false, error: "WhatsApp Business is not connected." };
+  // A bare Indian mobile (98…, or 098…) gets 91; any other number is taken as written with its country code.
+  const local = waNumber(phone).replace(/^0(?=[6-9][0-9]{9}$)/, "");
+  const to = /^[6-9][0-9]{9}$/.test(local) ? `91${local}` : local;
+  if (to.length < 10) return { sent: false, error: "No mobile number." };
+  const credentials = await decryptSecret(settings.encrypted_credentials, env);
+  const parameters = values.map((value) => ({ type: "text", text: text(value).slice(0, 1000) || "-" }));
+  await countOutboundMessages(client, organizationId, { channel: "whatsapp" }, env);
+  try {
+    const response = await fetchImpl(`${GRAPH}/${encodeURIComponent(settings.phone_number_id)}/messages`, {
+      method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${credentials.accessToken}` },
+      body: JSON.stringify({ messaging_product: "whatsapp", to, type: "template",
+        template: { name: templateName, language: { code: templateLanguage }, ...(parameters.length ? { components: [{ type: "body", parameters }] } : {}) } }),
+    });
+    const result = await response.json().catch(() => ({}));
+    return response.ok ? { sent: true } : { sent: false, error: String(result?.error?.message ?? response.status).slice(0, 300) };
+  } catch (error) {
+    return { sent: false, error: String(error?.message ?? error).slice(0, 300) };
+  }
+}

@@ -10,6 +10,7 @@ export type ChannelSettings = {
 };
 export type SmsTemplate = { id: string; name: string; dltTemplateId: string; category: "transactional" | "service" | "promotional"; body: string; status: "active" | "inactive"; variables: number };
 
+export function sendTeamSms(client: QueryClient, organizationId: string, input: { phone: string; templateId: string; values: string[] }, options?: Runtime): Promise<{ sent: boolean; error?: string }>;
 export function getChannelSettings(client: QueryClient, context: CrmContext, runtime?: Runtime): Promise<ChannelSettings>;
 export function saveChannelSettings(client: QueryClient, context: CrmContext, input: Record<string, any>, runtime?: Runtime): Promise<{ settings: ChannelSettings; callWebhookKey: string | null; smsWebhookKey: string | null }>;
 export function setMyCallPhone(client: QueryClient, context: CrmContext, phone: string | null): Promise<{ phone: string | null }>;

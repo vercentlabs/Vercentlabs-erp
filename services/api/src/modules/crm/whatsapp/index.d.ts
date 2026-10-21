@@ -12,6 +12,7 @@ export type WhatsAppMessage = {
   status: string; error: string | null; sentByName: string | null; createdAt: string;
 };
 
+export function sendTeamWhatsApp(client: QueryClient, organizationId: string, input: { phone: string; templateName: string; templateLanguage?: string; values?: string[] }, options?: Runtime): Promise<{ sent: boolean; error?: string }>;
 export function getWhatsAppSettings(client: QueryClient, context: CrmContext, runtime?: Runtime): Promise<WhatsAppSettings>;
 export function saveWhatsAppSettings(client: QueryClient, context: CrmContext, input: Record<string, unknown>, runtime?: Runtime): Promise<{ settings: WhatsAppSettings; webhookKey: string | null; verifyToken: string | null }>;
 export function prepareWhatsApp(client: QueryClient, context: CrmContext, type: WhatsAppRecordType, id: string): Promise<{

@@ -43,6 +43,8 @@ const ROWS: Row[] = [
     permission: "crm.settings.manage", state: async () => plural((await listOptOuts()).length, "opt-out") },
   { id: "calendar", step: null, title: "My calendar", purpose: "Your Google or Outlook calendar, kept up to date with your CRM meetings.", href: "/crm/settings/calendar",
     permission: "crm.leads.view", state: async () => "Connect your own calendar" },
+  { id: "reminders", step: null, title: "Reminders on your phone", purpose: "Get your follow-up and task reminders on WhatsApp or by SMS as well.", href: "/crm/settings/reminders",
+    permission: "crm.leads.view", state: async () => "Choose for yourself" },
   { id: "calls-sms", step: null, title: "Calls and SMS", purpose: "Click-to-call through Exotel, and SMS from DLT templates through Exotel or MSG91.", href: "/crm/settings/calls-sms",
     permission: "crm.settings.manage", state: async () => {
       const settings = await getChannelSettings();
@@ -118,7 +120,7 @@ const GROUPS: Array<{ title: string; description: string; ids: string[] }> = [
   { title: "Get leads in", description: "Where enquiries come from and how they reach you.", ids: ["lead-sources", "web-forms", "lead-connectors", "email-to-lead", "website-chat"] },
   { title: "Lead process", description: "How an enquiry is checked, scored and given to the right person.", ids: ["lead-stages", "qualification", "assignment", "lead-scoring"] },
   { title: "Deal process", description: "The stages a deal goes through and how it ends.", ids: ["deal-stages", "close-reasons", "activity-types", "recurring-plans"] },
-  { title: "Talk to customers", description: "WhatsApp, calls, SMS, email and your calendar.", ids: ["whatsapp", "calls-sms", "email-templates", "calendar"] },
+  { title: "Talk to customers", description: "WhatsApp, calls, SMS, email and your calendar.", ids: ["whatsapp", "calls-sms", "email-templates", "calendar", "reminders"] },
   { title: "Marketing and privacy", description: "Campaigns, tags, and the consent customers gave.", ids: ["campaigns", "tags", "privacy"] },
   { title: "Advanced", description: "Your own fields on records.", ids: ["custom-fields"] },
 ];
