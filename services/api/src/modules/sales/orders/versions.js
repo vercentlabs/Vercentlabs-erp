@@ -99,12 +99,13 @@ export async function insertOrderVersion(client, context, orderId, input, previe
 }
 
 // The order row, locked for a change, with its current version's number.
-export async function lockOrder(client, context, orderId) {
+// lock: false reads the order without locking it (a read that must not hold up confirm, dispatch or invoicing).
+export async function lockOrder(client, context, orderId, { lock = true } = {}) {
   const { rows } = await client.query(
     `SELECT sales_order.*, version.version_number, version.currency_code, version.grand_total, version.customer_snapshot, version.contact_snapshot, version.customer_po_number
        FROM tenant.sales_orders sales_order
        LEFT JOIN tenant.sales_order_versions version ON version.organization_id = sales_order.organization_id AND version.id = sales_order.current_version_id
-      WHERE sales_order.organization_id = $1 AND sales_order.id = $2 FOR UPDATE OF sales_order`,
+      WHERE sales_order.organization_id = $1 AND sales_order.id = $2${lock ? " FOR UPDATE OF sales_order" : ""}`,
     [context.organizationId, requireUuid(orderId)]);
   if (!rows[0]) throw new OrderError(404, "Sales order not found.", "SALES_ORDER_NOT_FOUND");
   return rows[0];

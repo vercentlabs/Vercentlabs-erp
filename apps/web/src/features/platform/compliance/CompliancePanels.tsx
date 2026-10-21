@@ -86,15 +86,23 @@ type EwayBill = { id: string; ewbNumber: string | null; ewbDate: string | null; 
 export function EwayBillPanel({ sourceType, sourceId }: { sourceType: "sales_delivery" | "stock_transfer" | "purchase_return" | "sales_invoice" | "sales_challan"; sourceId: string }) {
   const queryClient = useQueryClient();
   const key = ["compliance", "eway-bill", sourceType, sourceId];
-  const query = useQuery({ queryKey: key, queryFn: () => call<{ ewayBill: EwayBill | null; configured: boolean }>(`/api/compliance/eway-bills?sourceType=${sourceType}&sourceId=${sourceId}`) });
+  const query = useQuery({ queryKey: key, queryFn: () => call<{ ewayBill: EwayBill | null; configured: boolean; defaults?: { transportMode?: string; vehicleNumber?: string; transporterId?: string; distanceKm?: number } | null }>(`/api/compliance/eway-bills?sourceType=${sourceType}&sourceId=${sourceId}`) });
   const readiness = useQuery({ queryKey: [...key, "readiness"], retry: false,
     queryFn: () => call<{ readiness: { value: number; required: boolean; ready: boolean; problems: Problem[] } }>(`/api/compliance/references?sourceType=${sourceType}&sourceId=${sourceId}`).then((r) => r.readiness) });
   const [portal, setPortal] = useState({ ewbNumber: "", ewbDate: "", validUntil: "" });
   const refresh = () => void queryClient.invalidateQueries({ queryKey: key });
   const [form, setForm] = useState({ distanceKm: "", vehicleNumber: "", transportMode: "road", transporterId: "" });
   const [voluntary, setVoluntary] = useState(false);
+  // Start from what the delivery records for Part B (Line-by-line audit S22).
+  const defaults = query.data?.defaults;
+  const [prefilled, setPrefilled] = useState(false);
+  if (defaults && !prefilled) {
+    setPrefilled(true);
+    setForm((current) => ({ distanceKm: current.distanceKm || (defaults.distanceKm != null ? String(defaults.distanceKm) : ""), vehicleNumber: current.vehicleNumber || (defaults.vehicleNumber ?? ""),
+      transportMode: defaults.transportMode ?? current.transportMode, transporterId: current.transporterId || (defaults.transporterId ?? "") }));
+  }
   const generate = useMutation({
-    mutationFn: () => call("/api/compliance/eway-bills", { method: "POST", body: JSON.stringify({ sourceType, sourceId, distanceKm: Number(form.distanceKm || 0), transportMode: form.transportMode,
+    mutationFn: () => call("/api/compliance/eway-bills", { method: "POST", body: JSON.stringify({ sourceType, sourceId, distanceKm: form.distanceKm === "" ? undefined : Number(form.distanceKm), transportMode: form.transportMode,
       vehicleNumber: form.vehicleNumber || undefined, transporterId: form.transporterId || undefined, voluntary }) }),
     onSuccess: refresh,
     onError: (failure) => { if (/under ₹50,000/.test((failure as Error).message)) setVoluntary(true); },

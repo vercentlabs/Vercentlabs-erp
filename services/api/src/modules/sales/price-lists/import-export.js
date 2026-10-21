@@ -11,7 +11,7 @@
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { requirePriceListPermission } from "./access.js";
-import { PRICE_LIST_PERMISSIONS, PriceListError, text } from "./constants.js";
+import { PRICE_LIST_PERMISSIONS, PriceListError, isCalendarDate, text } from "./constants.js";
 import { addPrice, updatePrice } from "./entries.js";
 import { recordPriceListHistory } from "./history.js";
 import { loadPriceListRow } from "./records.js";
@@ -65,9 +65,10 @@ export async function analyzePriceImport(client, context, priceListId, { bytes, 
 function readDate(value) {
   const raw = text(value);
   if (!raw) return null;
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
   const match = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(raw);
-  if (match) return `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+  const date = /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : match ? `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}` : null;
+  if (date && isCalendarDate(date)) return date;
+  if (date) throw new PriceListError(400, `“${raw}” is not a day on the calendar.`, "SALES_PRICE_IMPORT_ROW");
   throw new PriceListError(400, `“${raw}” is not a date. Use YYYY-MM-DD or DD/MM/YYYY.`, "SALES_PRICE_IMPORT_ROW");
 }
 
@@ -128,7 +129,10 @@ export async function importPrices(client, context, priceListId, { bytes, fileNa
       await client.query("RELEASE SAVEPOINT price_import_row");
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT price_import_row");
-      if (!error?.status || error.status >= 500) throw error;
+      // A value the database refuses (a bad number or date, too long) fails that row only (Line-by-line audit S8).
+      const rowProblem = /^(22|23)/.test(String(error?.code ?? ""));
+      if (!rowProblem && (!error?.status || error.status >= 500)) throw error;
+      if (rowProblem) { results.push({ rowNumber, name, outcome: "failed", message: "A value in this row is not valid." }); continue; }
       results.push({ rowNumber, name, outcome: "failed", message: error.message });
     }
   }

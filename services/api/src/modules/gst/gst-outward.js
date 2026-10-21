@@ -63,9 +63,11 @@ export async function collectOutward(client, c, registration, from, to, { source
       AND i.invoice_date BETWEEN $2 AND $3 AND COALESCE(si.seller_registration_id, $5::uuid) = $4 AND ($6::uuid[] IS NULL OR i.id = ANY($6::uuid[]))
     ORDER BY i.invoice_date, i.invoice_number`, [c.organizationId, from, to, registration.id, fallback, ids])).rows;
   const lineRows = inv.length ? (await client.query(`SELECT l.id, l.customer_invoice_id, l.hsn_sac_code, l.description, l.quantity, l.net_amount, l.tax_amount, l.tax_details,
-      u.code AS uom_code, sl.tax_rate, sl.tax_treatment, sl.hsn_sac_kind, sl.uom_snapshot
+      u.code AS uom_code, sl.tax_rate, sl.tax_treatment, sl.hsn_sac_kind, sl.uom_snapshot, cl.credit_type
     FROM tenant.accounting_customer_invoice_lines l LEFT JOIN tenant.sales_invoice_lines sl ON sl.customer_invoice_line_id = l.id
-    LEFT JOIN tenant.units_of_measure u ON u.id = l.uom_id
+    LEFT JOIN tenant.sales_credit_note_lines cl ON cl.customer_invoice_line_id = l.id
+    LEFT JOIN tenant.accounting_customer_invoice_lines credited ON credited.id = cl.source_invoice_line_id
+    LEFT JOIN tenant.units_of_measure u ON u.id = COALESCE(l.uom_id, credited.uom_id)
     WHERE l.organization_id = $1 AND l.customer_invoice_id = ANY($2::uuid[]) ORDER BY l.customer_invoice_id, l.sequence`, [c.organizationId, inv.map((i) => i.id)])).rows : [];
   const compRows = lineRows.length ? (await client.query(`SELECT customer_invoice_line_id, tax_type, rate, taxable_amount, tax_amount FROM tenant.sales_invoice_line_taxes
     WHERE organization_id = $1 AND customer_invoice_line_id = ANY($2::uuid[])`, [c.organizationId, lineRows.map((l) => l.id)])).rows : [];
@@ -81,7 +83,10 @@ export async function collectOutward(client, c, registration, from, to, { source
       const lineTax = Math.round(paise(l.tax_amount) * fx);
       const unit = String(l.uom_code ?? l.uom_snapshot?.code ?? "").toUpperCase();
       const hsn = String(l.hsn_sac_code ?? "").replace(/\s/g, "") || null;
-      return { hsn, description: l.description, uqc: unit ? uqc.get(unit) ?? "OTH" : "OTH", quantity: Number(l.quantity ?? 0), rate, rateExact: exact,
+      // A credit of value only (a rate difference, a discount after sale) changes no quantity: it counts 0 in the HSN
+      // summary, under the unit of the invoice line it credits (Line-by-line audit S17).
+      const quantity = l.credit_type === "amount" ? 0 : Number(l.quantity ?? 0);
+      return { hsn, description: l.description, uqc: unit ? uqc.get(unit) ?? "OTH" : "OTH", quantity, rate, rateExact: exact,
         classification: classify({ treatment: l.tax_treatment, supplyType: i.supply_type, tax: lineTax, rate: Number(l.tax_rate ?? rate) }), taxable, ...heads, lineTax,
         goods: l.hsn_sac_kind ? l.hsn_sac_kind !== "sac" : !(hsn ?? "").startsWith("99") };
     });

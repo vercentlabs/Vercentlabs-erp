@@ -91,7 +91,8 @@ export async function resolveSalesPrice(client, context, { priceList = null, ite
     if (exact) return result(exact.rate, PRICE_SOURCES.priceList, exact.id);
     if (unit !== item.uom_id) {
       const base = (await client.query(ENTRY_FOR, [context.organizationId, priceList.id, item.id, item.uom_id, date])).rows[0];
-      if (base) return result(Number(base.rate) * factor, PRICE_SOURCES.priceListBaseUnit, base.id);
+      // Rounded to the price precision, so 0.1 × 3 is "0.3", not "0.30000000000000004" (Line-by-line audit S9).
+      if (base) return result(Math.round(Number(base.rate) * factor * 1e6) / 1e6, PRICE_SOURCES.priceListBaseUnit, base.id);
     }
   }
   return {

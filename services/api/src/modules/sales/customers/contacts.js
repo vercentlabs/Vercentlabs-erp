@@ -13,7 +13,7 @@ import { recordAccountHistory } from "../../../core/parties/history.js";
 import { findDuplicateContacts } from "../../crm/contacts/duplicates.js";
 import { createContact } from "../../crm/contacts/records.js";
 import { linkContactToAccount, setPrimaryContact, updateContactRelationship } from "../../crm/contacts/relationships.js";
-import { crmContext, requireCustomerPermission } from "./access.js";
+import { canViewAllCustomers, crmContext, customerCan, customerScopeSql, requireCustomerPermission } from "./access.js";
 import { CUSTOMER_CONTACT_ROLES, CUSTOMER_PERMISSIONS, CustomerError } from "./constants.js";
 import { loadCustomerRow } from "./records.js";
 import { has, isUuid, requireUuid, text } from "./validation.js";
@@ -157,17 +157,24 @@ export async function findExistingContact(client, context, customerId, input = {
   requireCustomerPermission(context, CUSTOMER_PERMISSIONS.manageContacts, NO_PERMISSION);
   const customer = await loadCustomerRow(client, context, customerId);
   const probe = { firstName: input.firstName, lastName: input.lastName, email: input.email, mobile: input.phone, phone: input.phone, accountId: customer.id };
-  const found = await findDuplicateContacts(client, crmContext(context), probe, { limit: 5 });
+  // Matched without rights the caller lacks: a contact they may not see comes back masked
+  // unless it is already a contact of this customer (Line-by-line audit X4).
+  const found = await findDuplicateContacts(client, crmContext(context, { matching: true }), probe, { limit: 5 });
   const matches = found.matches.filter((match) => match.strength === "exact" || match.signals.includes("name_company"));
   if (!matches.length) return { matches: [] };
   const linked = await client.query(
-    `SELECT contact_id, status FROM tenant.crm_contact_account_relationships WHERE organization_id = $1 AND party_id = $2 AND contact_id = ANY ($3::uuid[])`,
+    `SELECT link.contact_id, link.status, contact.display_name, contact.first_name, contact.last_name, contact.designation
+       FROM tenant.crm_contact_account_relationships link
+       JOIN tenant.contacts contact ON contact.organization_id = link.organization_id AND contact.id = link.contact_id
+      WHERE link.organization_id = $1 AND link.party_id = $2 AND link.contact_id = ANY ($3::uuid[])`,
     [context.organizationId, customer.id, matches.map((match) => match.id)],
   );
   const statusOf = new Map(linked.rows.map((row) => [row.contact_id, row.status]));
+  const linkedRow = new Map(linked.rows.map((row) => [row.contact_id, row]));
   return {
     matches: matches.map((match) => ({
-      id: match.id, name: match.name, email: match.email ?? null, phone: match.mobile ?? null, jobTitle: match.jobTitle ?? null, accountName: match.accountName ?? null,
+      id: match.id, name: match.name ?? (linkedRow.has(match.id) ? nameOf(linkedRow.get(match.id)) : "A contact you cannot see"),
+      email: match.email ?? null, phone: match.mobile ?? null, jobTitle: match.jobTitle ?? linkedRow.get(match.id)?.designation ?? null, accountName: match.accountName ?? null,
       reasons: match.reasons.map((reason) => reason.label),
       // "linked": already an active contact of this customer; "inactive": was one, can be restored.
       link: statusOf.get(match.id) === "active" ? "linked" : statusOf.has(match.id) ? "inactive" : "none",
@@ -273,6 +280,11 @@ export const deactivateCustomerContact = (client, context, customerId, contactId
 export async function searchLinkableCustomerContacts(client, context, customerId, search = "") {
   requireCustomerPermission(context, CUSTOMER_PERMISSIONS.manageContacts, NO_PERMISSION);
   const customer = await loadCustomerRow(client, context, customerId);
+  // Only contacts without a company or of customers the caller may see; matching
+  // on email or phone, and the email shown, only for those who may see contact details.
+  const sensitive = canViewAllCustomers(context) || customerCan(context, "crm.contacts.view_sensitive");
+  const values = [context.organizationId, customer.id, like(search), sensitive ? phoneDigits(search) : null];
+  const scope = customerScopeSql(context, values, "other");
   const { rows } = await client.query(
     `SELECT contact.id, contact.display_name, contact.first_name, contact.last_name, contact.email, contact.designation, other.display_name AS account_name
        FROM tenant.contacts contact
@@ -280,10 +292,11 @@ export async function searchLinkableCustomerContacts(client, context, customerId
       WHERE contact.organization_id = $1 AND contact.status = 'active'
         AND NOT EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships link WHERE link.organization_id = contact.organization_id
                          AND link.contact_id = contact.id AND link.party_id = $2 AND link.status = 'active')
-        AND (lower(concat_ws(' ', contact.display_name, contact.first_name, contact.last_name, contact.email, contact.mobile, contact.phone)) LIKE $3
+        AND (lower(concat_ws(' ', contact.display_name, contact.first_name, contact.last_name${sensitive ? ", contact.email" : ""})) LIKE $3
              OR ($4::text IS NOT NULL AND regexp_replace(concat_ws(' ', contact.mobile, contact.phone), '[^0-9]', '', 'g') LIKE '%' || $4 || '%'))
+        ${scope ? `AND (other.id IS NULL OR (TRUE${scope}))` : ""}
       ORDER BY lower(contact.first_name) LIMIT 20`,
-    [context.organizationId, customer.id, like(search), phoneDigits(search)],
+    values,
   );
-  return rows.map((row) => ({ id: row.id, name: nameOf(row), email: row.email, jobTitle: row.designation, accountName: row.account_name }));
+  return rows.map((row) => ({ id: row.id, name: nameOf(row), email: sensitive ? row.email : null, jobTitle: row.designation, accountName: row.account_name }));
 }

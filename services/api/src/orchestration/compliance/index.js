@@ -232,6 +232,9 @@ export async function movementOf(client, organizationId, sourceType, sourceId) {
       to: { gstin: customer.gstin ?? "URP", name: customer.legalName ?? customer.displayName ?? "Customer", line1: ship.line1 ?? ship.addressLine1, city: ship.city, pin: ship.postalCode ?? ship.postal_code, state: ship.stateCode ?? ship.state_code },
       items: lines.map((line) => ({ name: line.item_name_snapshot, hsn: line.hsn_sac_snapshot, quantity: Number(line.quantity), unit: uqc(line.uom_snapshot), taxable: round(line.taxable), rate: Number(line.tax_rate ?? 0) })),
       interState, vehicle: delivery.vehicle_reference,
+      // What the delivery records for Part B (Line-by-line audit S22); the e-way bill starts from it.
+      transport: { transportMode: delivery.transport_mode ?? undefined, vehicleNumber: delivery.vehicle_reference ?? undefined, transporterId: delivery.transporter_id ?? undefined,
+        transporterDocument: delivery.transport_document_number ?? undefined, distanceKm: delivery.distance_km ?? undefined },
     };
   }
   // A posted tax invoice (Sales audit M2): its goods (not services or charges), from the issuing registration's address to the shipping address.
@@ -361,6 +364,12 @@ const ewayView = (row) => row && ({ id: row.id, sourceType: row.source_type, sou
   validUntil: row.valid_until, status: row.status, vehicleNumber: row.vehicle_number, transportMode: row.transport_mode, distanceKm: row.distance_km, error: row.error,
   cancelReason: row.cancel_reason, cancelledAt: row.cancelled_at, partBUpdatedAt: row.part_b_updated_at });
 
+// The transport the movement already records, to start the e-way bill form from.
+export async function ewayTransportDefaults(client, session, sourceType, sourceId) {
+  if (sourceType !== "sales_delivery" || !UUID.test(String(sourceId ?? ""))) return null;
+  try { return (await movementOf(client, session.organizationId, sourceType, sourceId)).transport ?? null; } catch { return null; }
+}
+
 export async function getEwayBill(client, session, sourceType, sourceId) {
   if (!UUID.test(String(sourceId ?? ""))) return null;
   return ewayView((await client.query(`SELECT * FROM tenant.eway_bills WHERE organization_id = $1 AND source_type = $2 AND source_id = $3 ORDER BY created_at DESC LIMIT 1`,
@@ -376,6 +385,8 @@ export async function generateEwayBill(client, session, sourceType, sourceId, in
   const live = (await client.query(`SELECT * FROM tenant.eway_bills WHERE organization_id = $1 AND source_type = $2 AND source_id = $3 AND status = 'generated'`, [session.organizationId, sourceType, sourceId])).rows[0];
   if (live) return { ewayBill: ewayView(live), replayed: true };
   const movement = await movementOf(client, session.organizationId, sourceType, sourceId);
+  // What was not given comes from the movement's own transport details (a delivery's Part B).
+  input = { ...(movement.transport ?? {}), ...Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined && value !== null && value !== "")) };
   if (!movement.seller?.registration_number) throw new ComplianceError(409, "The sending warehouse or company has no GSTIN.", "EWAY_NO_GSTIN");
   const distance = Number(input.distanceKm ?? 0);
   if (!Number.isInteger(distance) || distance < 0 || distance > 4000) throw new ComplianceError(400, "Enter the distance in kilometres (0 to 4,000).", "EWAY_INVALID", { field: "distanceKm" });

@@ -123,6 +123,8 @@ const SETTINGS_DEFAULTS = Object.freeze({
   // Credit control (Sales audit M1): hold orders over the customer's limit; optionally also when an invoice is overdue too long.
   credit_control: "block",
   credit_overdue_days: null,
+  // Whether every salesperson sees the customers that have no salesperson (Line-by-line audit X9).
+  unassigned_customers_visible: false,
 });
 const DISCOUNT_SETTINGS = Object.freeze({
   allowLineDiscounts: "allow_line_discounts", allowDocumentDiscounts: "allow_document_discounts", allowPercentDiscounts: "allow_percent_discounts",
@@ -157,6 +159,7 @@ export async function updateSalesSettings(client, c, input = {}) {
   if (input.quotationApprovalDiscount !== undefined) next.quotation_approval_discount = boundedNumber(input.quotationApprovalDiscount, "Quotation approval discount %", { min: 0, max: 100 });
   if (input.minimumMarginPercent !== undefined) next.minimum_margin_percent = boundedNumber(input.minimumMarginPercent, "Minimum margin %", { min: -100, max: 100 });
   if (input.allowDirectOrders !== undefined) next.allow_direct_orders = Boolean(input.allowDirectOrders);
+  if (input.unassignedCustomersVisible !== undefined) next.unassigned_customers_visible = Boolean(input.unassignedCustomersVisible);
   // Reserve the stock available when an order is confirmed.
   if (input.reserveStockOnConfirm !== undefined) next.reserve_stock_on_confirm = Boolean(input.reserveStockOnConfirm);
   // What must be on an order before it is confirmed.
@@ -199,7 +202,7 @@ export async function updateSalesSettings(client, c, input = {}) {
     if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
     next.invoice_quantity_basis = input.invoiceQuantityBasis;
   }
-  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_warehouse_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent","credit_control","credit_overdue_days"];
+  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_warehouse_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent","credit_control","credit_overdue_days","unassigned_customers_visible"];
   const result = await client.query(
     `INSERT INTO tenant.sales_settings(organization_id,${columns.join(",")},created_by,updated_by)
      VALUES($1,${columns.map((_, index) => `$${index + 3}`).join(",")},$2,$2)

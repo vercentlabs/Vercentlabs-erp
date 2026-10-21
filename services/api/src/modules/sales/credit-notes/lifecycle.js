@@ -49,6 +49,14 @@ export async function postingProblems(client, context, creditNote) {
   if (Number(creditNote.grand_total) <= 0) problem("SALES_CREDIT_NOTE_TOTAL_INVALID", "The credit note total must be more than zero.");
   else if (Math.abs(lineTotal - Number(creditNote.grand_total)) > 0.005) problem("SALES_CREDIT_NOTE_TOTAL_INVALID", "The credit note lines do not add up to its total.");
   if (source && dayOf(creditNote.invoice_date) < dayOf(source.invoice_date)) problem("SALES_CREDIT_NOTE_DATE_INVALID", "The credit note date is before the invoice date.");
+  // GST Section 34: output tax can be reduced only by a credit note issued by 30 November after the end of the
+  // financial year of the supply (Line-by-line audit S17). After it the note can still be posted, with a warning.
+  if (source && Number(creditNote.tax_total ?? 0) > 0) {
+    const [year, month] = dayOf(source.invoice_date).split("-").map(Number);
+    const limit = `${month >= 4 ? year + 1 : year}-11-30`;
+    if (dayOf(creditNote.invoice_date) > limit)
+      warnings.push({ code: "SALES_CREDIT_NOTE_SECTION_34", message: `Invoice ${source.invoice_number} was for financial year ${month >= 4 ? year : year - 1}-${String((month >= 4 ? year + 1 : year) % 100).padStart(2, "0")}: GST can be reduced by a credit note only until ${limit.split("-").reverse().join("-")} (Section 34). Check with your accountant before posting; the GST on this note may not be claimable.` });
+  }
   try {
     await getOpenPeriod(client, context, dayOf(creditNote.accounting_date));
   } catch (error) {

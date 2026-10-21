@@ -290,10 +290,16 @@ export function ShipmentDialog({ detail, onClose, onDone }: { detail: DeliveryDe
   const [expected, setExpected] = useState(day(delivery.expected_delivery_date));
   const [packages, setPackages] = useState<number | null>(delivery.package_count);
   const [packageNotes, setPackageNotes] = useState(delivery.package_notes ?? "");
+  const [transporterId, setTransporterId] = useState(delivery.transporter_id ?? "");
+  const [mode, setMode] = useState(delivery.transport_mode ?? "road");
+  const [distance, setDistance] = useState<number | null>(delivery.distance_km ?? null);
+  const [documentNumber, setDocumentNumber] = useState(delivery.transport_document_number ?? "");
+  const [documentDate, setDocumentDate] = useState(day(delivery.transport_document_date ?? null));
   const save = useMutation({
     mutationFn: () => updateShipmentDetails(delivery.id, {
       expectedVersion: delivery.version, carrier: carrier.trim() || null, trackingNumber: trackingNumber.trim() || null, trackingUrl: trackingUrl.trim() || null,
       vehicleReference: vehicle.trim() || null, expectedDeliveryDate: expected || null, packageCount: packages, packageNotes: packageNotes.trim() || null,
+      transporterId: transporterId.trim().toUpperCase() || null, transportMode: mode, distanceKm: distance, transportDocumentNumber: documentNumber.trim() || null, transportDocumentDate: documentDate || null,
     }),
     onSuccess: onDone,
   });
@@ -309,6 +315,15 @@ export function ShipmentDialog({ detail, onClose, onDone }: { detail: DeliveryDe
         <NumberField label="Packages" value={packages ?? Number.NaN} minValue={0} step={1} onChange={(value) => setPackages(Number.isFinite(value) ? value : null)} />
       </div>
       <TextField label="Package details" value={packageNotes} onChange={setPackageNotes} />
+      <p className="text-sm font-medium">For the e-way bill (Part B)</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <TextField label="Transporter ID (GSTIN or TRANSIN)" value={transporterId} onChange={setTransporterId} />
+        <Select label="Mode" selectedKey={mode} onSelectionChange={(value) => setMode(String(value ?? "road"))}
+          options={[{ value: "road", label: "Road" }, { value: "rail", label: "Rail" }, { value: "air", label: "Air" }, { value: "ship", label: "Ship" }]} />
+        <NumberField label="Distance (km)" value={distance ?? Number.NaN} minValue={0} maxValue={4000} step={1} onChange={(value) => setDistance(Number.isFinite(value) ? value : null)} />
+        <TextField label="LR / RR / airway bill number" value={documentNumber} onChange={setDocumentNumber} />
+        <TextField label="Its date" type="date" value={documentDate} onChange={setDocumentDate} />
+      </div>
     </Shell>
   );
 }

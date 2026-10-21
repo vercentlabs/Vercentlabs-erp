@@ -11,6 +11,7 @@ export function getEInvoice(client: Client, session: Session, invoiceId: string)
 export function generateEInvoice(client: Client, session: Session, invoiceId: string, options?: Options): Promise<{ einvoice: EInvoice; replayed: boolean }>;
 export function cancelEInvoice(client: Client, session: Session, invoiceId: string, input?: { reason?: string; remarks?: string }, options?: Options): Promise<{ einvoice: EInvoice }>;
 export function buildEwayBillPayload(movement: Record<string, any>, input?: Record<string, unknown>): Record<string, any>;
+export function ewayTransportDefaults(client: Client, session: Session, sourceType: string, sourceId: string): Promise<{ transportMode?: string; vehicleNumber?: string; transporterId?: string; transporterDocument?: string; distanceKm?: number } | null>;
 export function getEwayBill(client: Client, session: Session, sourceType: string, sourceId: string): Promise<EwayBill | null>;
 export function generateEwayBill(client: Client, session: Session, sourceType: string, sourceId: string, input?: Record<string, unknown>, options?: Options): Promise<{ ewayBill: EwayBill; replayed: boolean }>;
 export function updateEwayBillVehicle(client: Client, session: Session, ewayBillId: string, input?: Record<string, unknown>, options?: Options): Promise<{ ewayBill: EwayBill }>;

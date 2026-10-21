@@ -83,7 +83,9 @@ async function reservationWarehouses(client, organizationId, lineIds) {
 // listed as needing no physical delivery.
 export async function getDeliveryProposal(client, context, orderId) {
   requireOrderAccess(context);
-  const order = await lockOrder(client, context, orderId);
+  // A read: the order is not locked, so opening New Delivery holds nothing up; creating
+  // the delivery locks and checks again (Line-by-line audit S13).
+  const order = await lockOrder(client, context, orderId, { lock: false });
   await assertOrderVisible(client, context, order.id);
   const lines = await deliverableLines(client, context.organizationId, order);
   const goods = lines.filter((line) => line.deliverable);
@@ -230,6 +232,9 @@ export async function createDeliveryFromSalesOrder(client, context, orderId, inp
 //          shippingAddressId?, addressChangeReason?, contactId?, expectedDeliveryDate?, deliveryInstructions?, internalNotes?, packageCount?, packageNotes? }
 export async function updateDraftDelivery(client, context, deliveryId, input = {}) {
   requireDeliveryPermission(context, DELIVERY_PERMISSIONS.edit, "You do not have permission to prepare deliveries.");
+  // Changing lines locks the order, and the order is always locked before the delivery,
+  // as dispatch and cancel do, so the two cannot deadlock (Line-by-line audit S12).
+  const lockedOrder = Array.isArray(input.lines) ? await lockOrder(client, context, (await loadDelivery(client, context, deliveryId)).sales_order_id) : null;
   const delivery = await loadDelivery(client, context, deliveryId, { lock: true });
   if (!OPEN.includes(delivery.delivery_status))
     throw new DeliveryError(409, "A dispatched or cancelled delivery cannot be changed.", "SALES_DELIVERY_LOCKED");
@@ -243,7 +248,7 @@ export async function updateDraftDelivery(client, context, deliveryId, input = {
 
   if (Array.isArray(input.lines)) {
     if (delivery.delivery_status !== DELIVERY_STATUS.draft) throw new DeliveryError(409, "Return the delivery to Draft to change its lines.", "SALES_DELIVERY_LOCKED");
-    const order = await lockOrder(client, context, delivery.sales_order_id);
+    const order = lockedOrder;
     const lines = await deliverableLines(client, context.organizationId, order, delivery.id);
     const { chosen, warehouseId } = await settleLines(client, context, order, lines, input.lines, delivery.warehouse_id);
     const before = (await client.query(`SELECT sales_order_line_id, quantity, item_name_snapshot FROM tenant.sales_delivery_lines WHERE organization_id = $1 AND delivery_id = $2`,
@@ -266,6 +271,14 @@ export async function updateDraftDelivery(client, context, deliveryId, input = {
     if (!address.is_default_shipping && !["shipping", "plant", "office", "registered"].includes(address.address_type))
       throw new DeliveryError(409, `A ${address.address_type} address cannot be a delivery address.`, "SALES_ADDRESS_PURPOSE_MISMATCH");
     delete address.is_default_shipping;
+    // The order was taxed for its place of supply (CGST+SGST or IGST); an address in another
+    // state would change the tax, so it is changed on the order instead (Line-by-line audit S14).
+    const supply = (await client.query(
+      `SELECT version.place_of_supply, version.place_of_supply_name FROM tenant.sales_orders sales_order
+         JOIN tenant.sales_order_versions version ON version.organization_id = sales_order.organization_id AND version.id = sales_order.current_version_id
+        WHERE sales_order.organization_id = $1 AND sales_order.id = $2`, [context.organizationId, delivery.sales_order_id])).rows[0];
+    if (supply?.place_of_supply && address.state_code && String(address.country_code ?? "IN").toUpperCase() === "IN" && address.state_code !== supply.place_of_supply)
+      throw new DeliveryError(409, `This address is in another state than the order's place of supply (${supply.place_of_supply_name ?? supply.place_of_supply}), which would change the GST. Change the ship-to on the order instead.`, "SALES_DELIVERY_PLACE_OF_SUPPLY");
     if (address.id !== delivery.shipping_address_id) {
       const describe = (snapshot) => [snapshot?.label, snapshot?.line1, snapshot?.city].filter(Boolean).join(", ") || null;
       changes.push({ what: "Ship-to address", from: describe(delivery.shipping_address_snapshot), to: describe(address), reason: text(input.addressChangeReason, 500) });

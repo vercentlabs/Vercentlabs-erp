@@ -124,7 +124,8 @@ export async function computeOrderAvailability(client, context, id) {
       WHERE sales_order.organization_id = $1 AND sales_order.id = $2`, [context.organizationId, id])).rows[0];
   if (!order) throw new OrderError(404, "Sales order not found.", "SALES_ORDER_NOT_FOUND");
   const lines = await orderLines(client, context, order);
-  const positions = await stockPositions(client, context.organizationId, lines.filter((line) => line.stockTracked).map((line) => line.itemId));
+  const tracked = lines.filter((line) => line.stockTracked);
+  const positions = await stockPositions(client, context.organizationId, tracked.map((line) => line.itemId), { warehouseIds: tracked.map((line) => line.fulfillmentWarehouseId) });
   const result = evaluate(lines, positions, { showOtherWarehouses: orderCan(context, AVAILABILITY_PERMISSIONS.otherWarehouses) });
   const summary = summarize(result);
   return {
@@ -191,6 +192,8 @@ export async function checkItemsAvailability(client, context, input = {}) {
     if (factor) return factor;
     throw new OrderError(400, `${item.name} is not sold in that unit.`, "SALES_AVAILABILITY_UNIT_INVALID");
   };
+  // Only warehouses that ship sales are reported; another warehouse id gets no
+  // figures, so this check cannot read any store's stock (Line-by-line audit X8).
   const positions = await stockPositions(client, context.organizationId, requested.filter((line) => items.get(line.itemId)).map((line) => line.itemId));
   const pool = new Map();
   const showOtherWarehouses = orderCan(context, AVAILABILITY_PERMISSIONS.otherWarehouses);

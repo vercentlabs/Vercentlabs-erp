@@ -26,17 +26,20 @@ const stockContext = (context) => ({ organizationId: context.organizationId, use
 // The warehouse's quality location for held returns, made the first time it is needed.
 async function holdLocation(client, context, warehouseId, disposition) {
   const { code, name } = dispositionOf(disposition).location;
-  const existing = (await client.query(`SELECT id, location_type, disposition, allow_allocation, status FROM tenant.warehouse_locations WHERE organization_id = $1 AND warehouse_id = $2 AND code = $3`,
-    [context.organizationId, warehouseId, code])).rows[0];
-  if (existing) {
-    if (existing.disposition === "available" || existing.allow_allocation || existing.status !== "active")
-      throw new ReturnError(409, `The location ${code} of the return warehouse must be an active location that holds held (never allocated) stock.`, "SALES_RETURN_HOLD_LOCATION_INVALID");
-    return existing.id;
-  }
-  return (await client.query(
+  // Created if missing in one statement, so two returns received into the same warehouse at once
+  // do not both try to add it (Line-by-line audit S11).
+  const created = (await client.query(
     `INSERT INTO tenant.warehouse_locations (organization_id, warehouse_id, name, code, location_type, purpose, disposition, allow_allocation, status, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, 'quality', 'quality_hold', $6, false, 'active', $5, $5) RETURNING id`,
-    [context.organizationId, warehouseId, name, code, context.userId ?? null, disposition === "damaged" ? "damaged" : "quality_hold"])).rows[0].id;
+     VALUES ($1, $2, $3, $4, 'quality', 'quality_hold', $6, false, 'active', $5, $5)
+     ON CONFLICT (organization_id, warehouse_id, upper(btrim(code))) DO NOTHING RETURNING id`,
+    [context.organizationId, warehouseId, name, code, context.userId ?? null, disposition === "damaged" ? "damaged" : "quality_hold"])).rows[0];
+  if (created) return created.id;
+  const existing = (await client.query(`SELECT id, location_type, disposition, allow_allocation, status FROM tenant.warehouse_locations
+      WHERE organization_id = $1 AND warehouse_id = $2 AND upper(btrim(code)) = upper(btrim($3))`,
+    [context.organizationId, warehouseId, code])).rows[0];
+  if (existing.disposition === "available" || existing.allow_allocation || existing.status !== "active")
+    throw new ReturnError(409, `The location ${code} of the return warehouse must be an active location that holds held (never allocated) stock.`, "SALES_RETURN_HOLD_LOCATION_INVALID");
+  return existing.id;
 }
 
 // input: { expectedVersion? }. Returns { returnId, returnNumber, status, replayed }.

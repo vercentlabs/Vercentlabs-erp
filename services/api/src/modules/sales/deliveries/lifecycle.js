@@ -251,7 +251,7 @@ export async function updateShipmentDetails(client, context, deliveryId, input =
   for (const [key, [column, read]] of Object.entries(SHIPMENT_FIELDS)) {
     if (!has(key)) continue;
     const value = read(input[key]);
-    const current = column === "expected_delivery_date" ? dayOf(delivery[column]) : delivery[column];
+    const current = ["expected_delivery_date", "transport_document_date"].includes(column) ? dayOf(delivery[column]) : delivery[column];
     if (String(current ?? "") === String(value ?? "")) continue;
     values.push(value);
     sets.push(`${column} = $${values.length}`);

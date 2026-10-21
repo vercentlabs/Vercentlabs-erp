@@ -1152,13 +1152,16 @@ export async function getSalesReport(client, context, key) {
       FROM tenant.accounting_customer_invoices invoice LEFT JOIN tenant.business_parties party ON party.organization_id=invoice.organization_id AND party.id=invoice.party_id
      WHERE ${POSTED_INVOICE} GROUP BY invoice.party_id,2,3 ORDER BY net_sales DESC LIMIT 500`,
     "sales-by-item": `SELECT line.item_id,COALESCE(item.code,'—') AS product_code,COALESCE(item.name,line.description) AS product,invoice.currency_code AS currency,
-        count(DISTINCT invoice.id) FILTER (WHERE invoice.invoice_type='invoice') AS invoices,sum(${SIGN}*line.quantity)::numeric(20,3) AS quantity,
+        count(DISTINCT invoice.id) FILTER (WHERE invoice.invoice_type='invoice') AS invoices,
+        sum(${SIGN}*line.quantity*COALESCE(NULLIF(order_line.conversion_factor,0),1))::numeric(20,3) AS quantity,base_unit.code AS unit,
         sum(${SIGN}*line.net_amount)::numeric(20,6) AS net_sales,sum(${SIGN}*line.line_total)::numeric(20,6) AS total,
         sum(${SIGN}*line.net_amount*COALESCE(invoice.exchange_rate,1))::numeric(20,2) AS base_net_sales
       FROM tenant.accounting_customer_invoices invoice
       JOIN tenant.accounting_customer_invoice_lines line ON line.organization_id=invoice.organization_id AND line.customer_invoice_id=invoice.id
       LEFT JOIN tenant.items item ON item.organization_id=line.organization_id AND item.id=line.item_id
-     WHERE ${POSTED_INVOICE} GROUP BY line.item_id,item.code,item.name,line.description,invoice.currency_code ORDER BY net_sales DESC LIMIT 500`,
+      LEFT JOIN tenant.units_of_measure base_unit ON base_unit.organization_id=item.organization_id AND base_unit.id=item.uom_id
+      LEFT JOIN tenant.sales_order_lines order_line ON order_line.organization_id=line.organization_id AND order_line.id=line.source_sales_order_line_id
+     WHERE ${POSTED_INVOICE} GROUP BY line.item_id,item.code,item.name,line.description,invoice.currency_code,base_unit.code ORDER BY net_sales DESC LIMIT 500`,
     "billing-readiness": `SELECT orders.id AS sales_order_id,orders.sales_order_number,orders.billing_status,orders.updated_at FROM tenant.sales_orders orders
       WHERE orders.organization_id=$1 AND orders.lifecycle_status='confirmed' AND orders.billing_status IN ('ready','partially_invoiced')${orderScope("orders")} ORDER BY orders.updated_at DESC`,
   };

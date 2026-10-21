@@ -13,6 +13,7 @@ const schema = z.object({
   quotationApprovalDiscount: z.number().optional(),
   minimumMarginPercent: z.number().optional(),
   allowDirectOrders: z.boolean().optional(),
+  unassignedCustomersVisible: z.boolean().optional(),
   reserveStockOnConfirm: z.boolean().optional(),
   requireCustomerPo: z.boolean().optional(),
   requireRequestedDeliveryDate: z.boolean().optional(),

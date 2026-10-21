@@ -22,9 +22,10 @@ import { restrictedStockSql } from "../../stock/rules.js";
 const EPSILON = 1e-9;
 const round = (value) => Math.round(Number(value) * 1e6) / 1e6;
 
-// Stock positions for the given products in every warehouse of the organization.
+// Stock positions for the given products in the warehouses that ship sales,
+// plus any warehouse named in `warehouseIds` (an order line's own warehouse).
 // Returns Map("itemId|warehouseId" → position), positions for ineligible warehouses included (flagged).
-export async function stockPositions(client, organizationId, itemIds) {
+export async function stockPositions(client, organizationId, itemIds, { warehouseIds = [] } = {}) {
   const ids = [...new Set(itemIds.filter(Boolean))];
   if (!ids.length) return new Map();
   const balances = await client.query(
@@ -41,8 +42,9 @@ export async function stockPositions(client, organizationId, itemIds) {
        LEFT JOIN tenant.warehouse_locations location ON location.organization_id = balance.organization_id AND location.id = balance.warehouse_location_id
        LEFT JOIN tenant.stock_batches batch ON batch.organization_id = balance.organization_id AND batch.id = balance.batch_id
       WHERE warehouse.organization_id = $1
+        AND ((warehouse.status = 'active' AND warehouse.shipping_enabled AND warehouse.sales_fulfillment) OR warehouse.id = ANY ($3::uuid[]))
       GROUP BY warehouse.id, demand.item_id
-      ORDER BY warehouse.name`, [organizationId, ids]);
+      ORDER BY warehouse.name`, [organizationId, ids, [...new Set(warehouseIds.filter(Boolean))]]);
   // Quality-held and quarantined stock is on hand in its quality locations (Quality Holds): part of the unusable stock, never available.
   const positions = new Map();
   for (const row of balances.rows) {

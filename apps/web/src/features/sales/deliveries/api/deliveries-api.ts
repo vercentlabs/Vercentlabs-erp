@@ -112,6 +112,7 @@ export type DeliveryDetail = {
     tracking_number: string | null;
     tracking_url: string | null;
     vehicle_reference: string | null;
+    transporter_id?: string | null; transport_mode?: string | null; distance_km?: number | null; transport_document_number?: string | null; transport_document_date?: string | null;
     package_count: number | null;
     package_notes: string | null;
     delivery_instructions: string | null;
@@ -163,6 +164,7 @@ export type DeliveryFile = { id: string; fileName: string; mimeType: string; siz
 type QuantityLine = { salesOrderLineId: string; quantity: number };
 export type ShipmentInput = {
   carrier?: string | null; trackingNumber?: string | null; trackingUrl?: string | null; vehicleReference?: string | null; expectedDeliveryDate?: string | null;
+  transporterId?: string | null; transportMode?: string | null; distanceKm?: number | null; transportDocumentNumber?: string | null; transportDocumentDate?: string | null;
   packageCount?: number | null; packageNotes?: string | null;
 };
 

@@ -14,7 +14,7 @@
 import { findDuplicateAccounts } from "../../crm/accounts/duplicates.js";
 import { lockDuplicateKeys, recordDuplicateOverride } from "../../crm/duplicates/policy.js";
 import { normalizeCompanyName, normalizeDomain, normalizeGstin } from "../../../core/parties/normalize.js";
-import { crmContext, customerCan, requireCustomerPermission } from "./access.js";
+import { crmContext, customerCan, customerScopeSql, requireCustomerPermission } from "./access.js";
 import { CUSTOMER_PERMISSIONS, CustomerError } from "./constants.js";
 import { isUuid, text } from "./validation.js";
 
@@ -35,27 +35,30 @@ export const canOverrideCustomerDuplicate = (context) =>
 // Returns { matches, hasBlockingMatch }.
 export async function findDuplicateCustomers(client, context, input = {}, { excludeId = null, limit = 10 } = {}) {
   requireCustomerPermission(context, CUSTOMER_PERMISSIONS.view, "You do not have permission to view customers.");
-  const found = await findDuplicateAccounts(client, crmContext(context), input, { excludeId, limit });
+  const found = await findDuplicateAccounts(client, crmContext(context, { matching: true }), input, { excludeId, limit });
   const byId = new Map(found.matches.map((match) => [match.id, { ...match, signals: [...match.signals] }]));
 
   // The same phone or email on its own is worth a warning too.
   const phone = text(input.phone);
   const email = text(input.email).toLowerCase();
   if (phone || email) {
+    const values = [context.organizationId, phone, email, isUuid(excludeId) ? excludeId : null];
+    const visible = customerScopeSql(context, values, "party");
     const { rows } = await client.query(
       `SELECT party.id, party.code, party.display_name, party.legal_name, party.website, party.status, party.customer_number, party.party_type,
-              (tenant.crm_normalize_phone(party.phone) = tenant.crm_normalize_phone($2)) AS same_phone, (lower(party.email) = $3) AS same_email
+              (tenant.crm_normalize_phone(party.phone) = tenant.crm_normalize_phone($2)) AS same_phone, (lower(party.email) = $3) AS same_email,
+              (true${visible}) AS can_open
          FROM tenant.business_parties party
         WHERE party.organization_id = $1 AND party.party_type <> 'supplier' AND ($4::uuid IS NULL OR party.id <> $4)
           AND (($2 <> '' AND tenant.crm_normalize_phone(party.phone) = tenant.crm_normalize_phone($2)) OR ($3 <> '' AND lower(party.email) = $3))
         LIMIT 10`,
-      [context.organizationId, phone, email, isUuid(excludeId) ? excludeId : null],
+      values,
     );
     for (const row of rows) {
-      const match = byId.get(row.id) ?? {
+      const match = byId.get(row.id) ?? (row.can_open ? {
         kind: "account", id: row.id, signals: [], canOpen: true, code: row.code, name: row.display_name, legalName: row.legal_name, website: row.website,
         status: row.status, isCustomer: Boolean(row.customer_number) || ["customer", "both"].includes(row.party_type), customerNumber: row.customer_number,
-      };
+      } : { kind: "account", id: row.id, signals: [], canOpen: false, isCustomer: Boolean(row.customer_number) || ["customer", "both"].includes(row.party_type) });
       if (row.same_phone) match.signals.push("phone");
       if (row.same_email) match.signals.push("email");
       byId.set(row.id, match);
@@ -73,7 +76,7 @@ export async function findDuplicateCustomers(client, context, input = {}, { excl
       id: match.id,
       customerNumber: match.customerNumber ?? null,
       accountNumber: match.code ?? null,
-      name: match.name ?? null,
+      name: match.canOpen === false ? "A customer you cannot see" : match.name ?? null,
       legalName: match.legalName ?? null,
       city: match.city ?? null,
       status: match.status ?? null,

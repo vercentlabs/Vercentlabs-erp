@@ -73,13 +73,13 @@ export async function getCustomerOverview(client, context, customerId) {
   if (can.finance) {
     const open = `invoice_type <> 'credit_note' AND status IN ${OPEN_INVOICE}`;
     const finance = await one(
-      `SELECT COALESCE(sum(outstanding_amount) FILTER (WHERE ${open}), 0) AS outstanding,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND due_date < tenant.company_today()), 0) AS overdue,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND due_date >= tenant.company_today()), 0) AS not_due,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND tenant.company_today() - due_date BETWEEN 1 AND 30), 0) AS days_1_30,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND tenant.company_today() - due_date BETWEEN 31 AND 60), 0) AS days_31_60,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND tenant.company_today() - due_date BETWEEN 61 AND 90), 0) AS days_61_90,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND tenant.company_today() - due_date > 90), 0) AS days_over_90,
+      `SELECT COALESCE(sum(outstanding_amount * COALESCE(exchange_rate, 1)) FILTER (WHERE ${open}), 0) AS outstanding,
+              COALESCE(sum(outstanding_amount * COALESCE(exchange_rate, 1)) FILTER (WHERE ${open} AND due_date < tenant.company_today()), 0) AS overdue,
+              COALESCE(sum(outstanding_amount * COALESCE(exchange_rate, 1)) FILTER (WHERE ${open} AND due_date >= tenant.company_today()), 0) AS not_due,
+              COALESCE(sum(outstanding_amount * COALESCE(exchange_rate, 1)) FILTER (WHERE ${open} AND tenant.company_today() - due_date BETWEEN 1 AND 30), 0) AS days_1_30,
+              COALESCE(sum(outstanding_amount * COALESCE(exchange_rate, 1)) FILTER (WHERE ${open} AND tenant.company_today() - due_date BETWEEN 31 AND 60), 0) AS days_31_60,
+              COALESCE(sum(outstanding_amount * COALESCE(exchange_rate, 1)) FILTER (WHERE ${open} AND tenant.company_today() - due_date BETWEEN 61 AND 90), 0) AS days_61_90,
+              COALESCE(sum(outstanding_amount * COALESCE(exchange_rate, 1)) FILTER (WHERE ${open} AND tenant.company_today() - due_date > 90), 0) AS days_over_90,
               count(*) FILTER (WHERE ${open})::int AS open_invoices
          FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND party_id = $2`);
     const receipts = await one(
@@ -88,11 +88,12 @@ export async function getCustomerOverview(client, context, customerId) {
                 WHERE organization_id = $1 AND party_id = $2 AND status NOT IN ${DEAD_RECEIPT} ORDER BY receipt_date DESC, created_at DESC LIMIT 1) AS last_payment
          FROM tenant.accounting_customer_receipts WHERE organization_id = $1 AND party_id = $2 AND status NOT IN ${DEAD_RECEIPT}`);
     const credit = await one(
-      `SELECT (SELECT COALESCE(sum(outstanding_amount), 0) FROM tenant.accounting_customer_invoices
+      `SELECT (SELECT COALESCE(sum(outstanding_amount * COALESCE(exchange_rate, 1)), 0) FROM tenant.accounting_customer_invoices
                 WHERE organization_id = $1 AND party_id = $2 AND invoice_type = 'credit_note' AND status IN ('posted', 'partially_paid')) AS amount,
               (SELECT COALESCE(sum(amount), 0) FROM tenant.accounting_customer_refunds WHERE organization_id = $1 AND party_id = $2 AND status = 'posted') AS refunded`);
     overview.finance = {
-      currencyCode: customer.currency_code?.trim() ?? null,
+      // In the company's currency: invoices in another currency are converted at their own rate (Line-by-line audit S20).
+      currencyCode: (await one(`SELECT base_currency FROM public.organizations WHERE id = $1 AND $2::uuid IS NOT NULL`)).base_currency?.trim() ?? customer.currency_code?.trim() ?? null,
       outstanding: num(finance.outstanding),
       overdue: num(finance.overdue),
       unallocatedAdvance: num(receipts.unallocated),

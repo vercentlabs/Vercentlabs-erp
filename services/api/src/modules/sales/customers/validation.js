@@ -3,6 +3,7 @@
 // required only for an Indian customer whose registration type carries a
 // GSTIN.
 import { CUSTOMER_KINDS, CustomerError, GST_REGISTRATION_TYPES, GST_STATES } from "./constants.js";
+import { validateGstin } from "../../../core/invoicing/index.js";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -110,6 +111,8 @@ export function validateCustomer(normalized, existing = {}) {
   const registration = candidate.gstRegistrationType ? REGISTRATIONS.get(candidate.gstRegistrationType) : null;
   if (candidate.gstRegistrationType && !registration) issue("gstRegistrationType", "Choose a GST registration type.");
   if (candidate.gstin && !GSTIN.test(candidate.gstin)) issue("gstin", "Enter a valid 15-character GSTIN.");
+  // The check digit too, for a GSTIN being entered now, so a typing mistake is caught here rather than at the IRP (Line-by-line audit S18).
+  else if (normalized.gstin && !validateGstin(normalized.gstin).valid) issue("gstin", "This GSTIN's check digit does not match. Check for a typing mistake.");
   if (candidate.pan && !PAN.test(candidate.pan)) issue("pan", "Enter a valid 10-character PAN.");
   if (candidate.gstin && candidate.pan && GSTIN.test(candidate.gstin) && candidate.gstin.slice(2, 12) !== candidate.pan) issue("pan", "The PAN does not match the GSTIN.");
   for (const field of ["gstStateCode", "placeOfSupply"])

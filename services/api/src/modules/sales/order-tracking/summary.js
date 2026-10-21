@@ -24,7 +24,8 @@ const invoiceableLineSql = (basis) => `GREATEST(0, (CASE WHEN ${basis} = 'fulfil
         THEN LEAST(GREATEST(progress.fulfilled_quantity - progress.returned_quantity, 0), line.quantity - progress.cancelled_quantity)
         ELSE line.quantity - progress.cancelled_quantity END) - progress.invoiced_quantity)`;
 
-// Per order: the quantities of its lines. alias: the sales_orders alias; basis: the bound invoicing basis.
+// Per order: the quantities of its lines, in base units so boxes and pieces of a product add up (Line-by-line audit S21);
+// goods_unit is that base unit when every goods line shares it. alias: the sales_orders alias; basis: the bound invoicing basis.
 export const quantitiesJoin = (alias, basis) => `
   LEFT JOIN LATERAL (
     SELECT count(*) FILTER (WHERE item.item_type <> 'service') AS goods_lines,
@@ -32,21 +33,23 @@ export const quantitiesJoin = (alias, basis) => `
            count(*) FILTER (WHERE stock.tracked AND stock.remaining > 0.000001) AS open_lines,
            count(*) FILTER (WHERE stock.tracked AND stock.remaining > 0.000001 AND progress.reserved_quantity + 0.000001 >= stock.remaining) AS full_lines,
            count(*) FILTER (WHERE stock.tracked AND stock.remaining > 0.000001 AND progress.reserved_quantity > 0.000001) AS reserved_lines,
-           COALESCE(sum(stock.remaining) FILTER (WHERE stock.tracked), 0) AS reserve_required,
-           COALESCE(sum(LEAST(progress.reserved_quantity, stock.remaining)) FILTER (WHERE stock.tracked), 0) AS reserve_held,
-           COALESCE(sum(line.quantity) FILTER (WHERE item.item_type <> 'service'), 0) AS goods_ordered,
-           COALESCE(sum(progress.fulfilled_quantity) FILTER (WHERE item.item_type <> 'service'), 0) AS goods_delivered,
-           COALESCE(sum(progress.cancelled_quantity) FILTER (WHERE item.item_type <> 'service'), 0) AS goods_cancelled,
-           COALESCE(sum(stock.remaining) FILTER (WHERE item.item_type <> 'service'), 0) AS goods_remaining,
-           COALESCE(sum(progress.returned_quantity) FILTER (WHERE item.item_type <> 'service'), 0) AS goods_returned,
-           COALESCE(sum(line.quantity), 0) AS quantity_ordered,
-           COALESCE(sum(progress.cancelled_quantity), 0) AS quantity_cancelled,
-           COALESCE(sum(progress.invoiced_quantity), 0) AS quantity_invoiced,
+           COALESCE(sum(stock.remaining * COALESCE(NULLIF(line.conversion_factor, 0), 1)) FILTER (WHERE stock.tracked), 0) AS reserve_required,
+           COALESCE(sum(LEAST(progress.reserved_quantity, stock.remaining) * COALESCE(NULLIF(line.conversion_factor, 0), 1)) FILTER (WHERE stock.tracked), 0) AS reserve_held,
+           COALESCE(sum(line.quantity * COALESCE(NULLIF(line.conversion_factor, 0), 1)) FILTER (WHERE item.item_type <> 'service'), 0) AS goods_ordered,
+           COALESCE(sum(progress.fulfilled_quantity * COALESCE(NULLIF(line.conversion_factor, 0), 1)) FILTER (WHERE item.item_type <> 'service'), 0) AS goods_delivered,
+           COALESCE(sum(progress.cancelled_quantity * COALESCE(NULLIF(line.conversion_factor, 0), 1)) FILTER (WHERE item.item_type <> 'service'), 0) AS goods_cancelled,
+           COALESCE(sum(stock.remaining * COALESCE(NULLIF(line.conversion_factor, 0), 1)) FILTER (WHERE item.item_type <> 'service'), 0) AS goods_remaining,
+           COALESCE(sum(progress.returned_quantity * COALESCE(NULLIF(line.conversion_factor, 0), 1)) FILTER (WHERE item.item_type <> 'service'), 0) AS goods_returned,
+           CASE WHEN count(DISTINCT item.uom_id) FILTER (WHERE item.item_type <> 'service') = 1 THEN max(base_unit.code) FILTER (WHERE item.item_type <> 'service') END AS goods_unit,
+           COALESCE(sum(line.quantity * COALESCE(NULLIF(line.conversion_factor, 0), 1)), 0) AS quantity_ordered,
+           COALESCE(sum(progress.cancelled_quantity * COALESCE(NULLIF(line.conversion_factor, 0), 1)), 0) AS quantity_cancelled,
+           COALESCE(sum(progress.invoiced_quantity * COALESCE(NULLIF(line.conversion_factor, 0), 1)), 0) AS quantity_invoiced,
            count(*) FILTER (WHERE line.quantity - progress.cancelled_quantity - progress.invoiced_quantity > 0.000001) AS uninvoiced_lines,
-           COALESCE(sum(${invoiceableLineSql(basis)}), 0) AS invoiceable_now,
+           COALESCE(sum(${invoiceableLineSql(basis)} * COALESCE(NULLIF(line.conversion_factor, 0), 1)), 0) AS invoiceable_now,
            COALESCE(sum(line.line_total * GREATEST(line.quantity - progress.cancelled_quantity - progress.invoiced_quantity, 0) / NULLIF(line.quantity, 0)), 0) AS uninvoiced_value
       FROM tenant.sales_order_lines line
       JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+      LEFT JOIN tenant.units_of_measure base_unit ON base_unit.organization_id = item.organization_id AND base_unit.id = item.uom_id
       JOIN tenant.sales_order_line_progress progress ON progress.organization_id = line.organization_id AND progress.sales_order_line_id = line.id
       CROSS JOIN LATERAL (SELECT GREATEST(line.quantity - progress.cancelled_quantity - progress.fulfilled_quantity, 0) AS remaining,
                                  (COALESCE(item.track_inventory, false) AND item.item_type <> 'service') AS tracked) stock
@@ -89,7 +92,7 @@ export const needsAttentionSql = (alias) => {
 };
 
 export const TRACKING_COLUMNS = `quantities.goods_lines, quantities.stock_lines, quantities.open_lines, quantities.full_lines, quantities.reserved_lines, quantities.reserve_required,
-  quantities.reserve_held, quantities.goods_ordered, quantities.goods_delivered, quantities.goods_cancelled, quantities.goods_remaining, quantities.goods_returned, quantities.quantity_ordered,
+  quantities.reserve_held, quantities.goods_ordered, quantities.goods_delivered, quantities.goods_cancelled, quantities.goods_remaining, quantities.goods_returned, quantities.goods_unit, quantities.quantity_ordered,
   quantities.quantity_cancelled, quantities.quantity_invoiced, quantities.uninvoiced_lines, quantities.invoiceable_now, finance.invoiced AS finance_invoiced, finance.credits AS finance_credits,
   finance.balance_due AS finance_balance_due, finance.overdue_balance AS finance_overdue_balance, finance.paid AS finance_paid, finance.customer_credit AS finance_customer_credit`;
 
@@ -119,7 +122,7 @@ export function summaryFromRow(row, { canSeeMoney = true } = {}) {
   return {
     reservation: { status: reservation, label: RESERVATION_LABELS[reservation], applies: Number(row.stock_lines) > 0, required: confirmed ? num(row.reserve_required) : 0, reserved: confirmed ? num(row.reserve_held) : 0,
       percent: confirmed ? percentOf(num(row.reserve_held), num(row.reserve_required)) : 0 },
-    fulfillment: { status: fulfillment, label: FULFILLMENT_LABELS[fulfillment], applies: Number(row.goods_lines) > 0, ordered: goodsOrdered, delivered, cancelled, remaining, returned: num(row.goods_returned),
+    fulfillment: { status: fulfillment, label: FULFILLMENT_LABELS[fulfillment], applies: Number(row.goods_lines) > 0, ordered: goodsOrdered, delivered, cancelled, remaining, returned: num(row.goods_returned), unit: row.goods_unit ?? null,
       netWithCustomer: num(delivered - num(row.goods_returned)), percent: percentOf(delivered, goodsOrdered), overdue: deliveryOverdue },
     invoicing: { status: invoicing, label: INVOICE_LABELS[invoicing], ordered, cancelled: num(row.quantity_cancelled), invoiced, remaining: num(Math.max(0, open - invoiced)), invoiceableNow, percent: percentOf(invoiced, open) },
     payment: canSeeMoney ? payment : { status: payment.status, label: PAYMENT_LABELS[payment.status] },

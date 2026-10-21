@@ -56,7 +56,7 @@ const EVENT_LABELS: Record<string, string> = {
 };
 const FIELD_LABELS: Record<string, string> = {
   expectedDeliveryDate: "Expected delivery", deliveryInstructions: "Delivery instructions", internalNotes: "Internal notes", packageCount: "Packages", packageNotes: "Package details",
-  carrier: "Carrier", trackingNumber: "Tracking number", trackingUrl: "Tracking link", vehicleReference: "Vehicle",
+  carrier: "Carrier", trackingNumber: "Tracking number", trackingUrl: "Tracking link", vehicleReference: "Vehicle", transporterId: "Transporter ID", transportMode: "Transport mode", distanceKm: "Distance (km)", transportDocumentNumber: "Transport document", transportDocumentDate: "Transport document date",
 };
 function eventDetail(event: SalesDocumentEvent) {
   const m = (event.metadata ?? {}) as Record<string, unknown>;
@@ -303,6 +303,8 @@ function Shipment({ detail }: { detail: DeliveryDetail }) {
               : delivery.tracking_number ?? "—",
           },
           { label: "Vehicle", value: delivery.vehicle_reference ?? "—" },
+          { label: "Transporter ID", value: delivery.transporter_id ?? "—" },
+          { label: "Transport", value: [delivery.transport_mode ? delivery.transport_mode[0].toUpperCase() + delivery.transport_mode.slice(1) : null, delivery.distance_km != null ? `${delivery.distance_km} km` : null, delivery.transport_document_number ? `document ${delivery.transport_document_number}${delivery.transport_document_date ? ` of ${calendarDate(delivery.transport_document_date)}` : ""}` : null].filter(Boolean).join(" · ") || "—" },
           { label: "Dispatch date", value: delivery.dispatch_date ? calendarDate(delivery.dispatch_date) : "—" },
           { label: "Expected delivery", value: delivery.expected_delivery_date ? calendarDate(delivery.expected_delivery_date) : "—" },
           { label: "Packages", value: [delivery.package_count != null ? String(delivery.package_count) : null, delivery.package_notes].filter(Boolean).join(" · ") || "—" },

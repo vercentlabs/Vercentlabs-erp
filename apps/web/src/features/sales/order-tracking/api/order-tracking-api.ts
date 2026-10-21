@@ -28,6 +28,8 @@ export type OrderTracking = {
   fulfillment: {
     status: FulfillmentStatus; label: string; applies: boolean; ordered: number; delivered: number; cancelled: number; remaining: number; returned: number; netWithCustomer: number;
     percent: number; overdue: boolean;
+    /** The base unit the quantities are in; null when the products have different units (then only the percent is meaningful). */
+    unit?: string | null;
   };
   invoicing: {
     status: InvoiceStatus; label: string; basis: "ordered" | "delivered"; ordered: number; cancelled: number; invoiced: number; remaining: number; invoiceableNow: number; pendingDelivery: number;

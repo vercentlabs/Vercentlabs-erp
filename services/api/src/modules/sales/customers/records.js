@@ -22,8 +22,8 @@ const num = (value) => (value === null || value === undefined ? null : Number(va
 // Receivable figures come from Accounting and are never stored on the customer.
 const FINANCE_JOIN = `
     LEFT JOIN LATERAL (
-      SELECT COALESCE(sum(invoice.outstanding_amount) FILTER (WHERE invoice.invoice_type <> 'credit_note' AND invoice.status IN ${OPEN_INVOICE}), 0) AS outstanding,
-             COALESCE(sum(invoice.outstanding_amount) FILTER (WHERE invoice.invoice_type <> 'credit_note' AND invoice.status IN ${OPEN_INVOICE} AND invoice.due_date < tenant.company_today()), 0) AS overdue
+      SELECT COALESCE(sum(invoice.outstanding_amount * COALESCE(invoice.exchange_rate, 1)) FILTER (WHERE invoice.invoice_type <> 'credit_note' AND invoice.status IN ${OPEN_INVOICE}), 0) AS outstanding,
+             COALESCE(sum(invoice.outstanding_amount * COALESCE(invoice.exchange_rate, 1)) FILTER (WHERE invoice.invoice_type <> 'credit_note' AND invoice.status IN ${OPEN_INVOICE} AND invoice.due_date < tenant.company_today()), 0) AS overdue
         FROM tenant.accounting_customer_invoices invoice
        WHERE invoice.organization_id = customer.organization_id AND invoice.party_id = customer.id) finance ON true`;
 
@@ -259,15 +259,19 @@ export async function assertCustomerReferences(client, context, normalized) {
     throw new CustomerError(400, "Choose an active user as the salesperson.", "SALES_CUSTOMER_VALIDATION", { issues: [{ field: "ownerUserId", message: "Choose an active user as the salesperson." }] });
 }
 
-export async function assertGstinFree(client, context, gstin, exceptId = null) {
-  if (!gstin) return;
+// Refuses a GSTIN another party has. A supplier with it is returned instead (allowSupplier): one party
+// both buys and sells, and becomes a customer too (Line-by-line audit S19).
+export async function assertGstinFree(client, context, gstin, exceptId = null, { allowSupplier = false } = {}) {
+  if (!gstin) return null;
   const { rows } = await client.query(
-    `SELECT id, code, customer_number, display_name FROM tenant.business_parties WHERE organization_id = $1 AND upper(gstin) = $2 AND ($3::uuid IS NULL OR id <> $3)`,
+    `SELECT id, code, customer_number, display_name, party_type FROM tenant.business_parties WHERE organization_id = $1 AND upper(gstin) = $2 AND ($3::uuid IS NULL OR id <> $3)`,
     [context.organizationId, gstin, exceptId],
   );
-  if (rows[0])
-    throw new CustomerError(409, `This GSTIN already belongs to ${rows[0].display_name} (${rows[0].customer_number ?? rows[0].code}).`, "SALES_CUSTOMER_GSTIN_TAKEN",
-      { issues: [{ field: "gstin", message: "This GSTIN already belongs to another customer." }], matchedRecordId: rows[0].id });
+  if (!rows[0]) return null;
+  const supplier = rows[0].party_type === "supplier" && !rows[0].customer_number;
+  if (supplier && allowSupplier) return rows[0];
+  throw new CustomerError(409, `This GSTIN already belongs to ${supplier ? "supplier " : ""}${rows[0].display_name} (${rows[0].customer_number ?? rows[0].code}).`, "SALES_CUSTOMER_GSTIN_TAKEN",
+    { issues: [{ field: "gstin", message: supplier ? "This GSTIN belongs to one of your suppliers. Add it as a new customer to make that supplier a customer too." : "This GSTIN already belongs to another customer." }], matchedRecordId: rows[0].id });
 }
 
 const duplicateProbe = (customer, city = null) => ({
@@ -306,7 +310,8 @@ export async function createCustomer(client, context, input = {}) {
   if (!["active", "inactive"].includes(status))
     throw new CustomerError(400, "A new customer is Active or Inactive.", "SALES_CUSTOMER_VALIDATION", { issues: [{ field: "status", message: "Choose Active or Inactive." }] });
   await assertCustomerReferences(client, context, normalized);
-  await assertGstinFree(client, context, normalized.gstin);
+  const supplier = await assertGstinFree(client, context, normalized.gstin, null, { allowSupplier: true });
+  if (supplier) return makeSupplierACustomer(client, context, supplier, normalized, status);
   const duplicates = await assertNoBlockingCustomerDuplicate(client, context, duplicateProbe(normalized, input.billingAddress?.city), {
     allowDuplicate: input.allowDuplicate === true, reason: input.duplicateReason,
   });
@@ -335,6 +340,27 @@ export async function createCustomer(client, context, input = {}) {
 
 // The creator sees the customer they just saved even if it was assigned to
 // someone outside their visibility.
+// The supplier with the GSTIN becomes a customer as well: it keeps its name, addresses and
+// supplier details; the customer's own terms fill only what the party does not have yet.
+async function makeSupplierACustomer(client, context, supplier, normalized, status) {
+  const customerNumber = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: CUSTOMER_NUMBER_DOCUMENT_TYPE });
+  const values = [context.organizationId, supplier.id, customerNumber, context.userId ?? null, normalized.ownerUserId ?? null, status];
+  const fills = [];
+  for (const [field, column] of Object.entries(CUSTOMER_COLUMNS))
+    if (normalized[field] !== null && normalized[field] !== undefined && !["display_name", "legal_name", "gstin", "pan", "owner_user_id"].includes(column)) {
+      values.push(normalized[field]);
+      fills.push(`${column} = COALESCE(${column}, $${values.length})`);
+    }
+  await client.query(
+    `UPDATE tenant.business_parties SET party_type = 'both', customer_number = $3, customer_since = now(), customer_created_by = $4, owner_user_id = COALESCE(owner_user_id, $5),
+            assigned_at = CASE WHEN owner_user_id IS NULL AND $5::uuid IS NOT NULL THEN now() ELSE assigned_at END, status = CASE WHEN status = 'active' THEN $6 ELSE status END,
+            updated_by = $4, updated_at = now()${fills.length ? `, ${fills.join(", ")}` : ""}
+      WHERE organization_id = $1 AND id = $2`, values);
+  await recordAccountHistory(client, context, supplier.id, "customer_created", `Supplier ${supplier.display_name} is now also customer ${customerNumber}`, { customerNumber, origin: "supplier" });
+  await queueOutboxEvent(client, context, "crm.accounts.customer_created", "account", supplier.id, { accountId: supplier.id, customerNumber });
+  return { ...(await getCustomerUnscoped(client, context, supplier.id)), madeFromSupplier: true };
+}
+
 export async function getCustomerUnscoped(client, context, partyId) {
   const finance = canViewCustomerFinancials(context);
   const { rows } = await client.query(`${customerSelect({ finance })} WHERE customer.organization_id = $1 AND customer.id = $2`, [context.organizationId, partyId]);

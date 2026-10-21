@@ -18,6 +18,10 @@ export const EPSILON = 1e-6;
 const round = (value) => Math.round(Number(value ?? 0) * 1e6) / 1e6;
 const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
 const sum = (lines, pick) => round(lines.reduce((total, line) => total + Number(pick(line) ?? 0), 0));
+// The same in base units, so boxes and pieces of a product add up (Line-by-line audit S21).
+const sumBase = (lines, pick) => sum(lines, (line) => Number(pick(line) ?? 0) * (line.conversionFactor || 1));
+// The base unit the totals are in, when every line shares it.
+const baseUnitOf = (lines) => (lines.length && lines.every((line) => line.baseUomId && line.baseUomId === lines[0].baseUomId) ? lines[0].baseUnit ?? null : null);
 const percentOf = (part, whole) => (whole > EPSILON ? Math.max(0, Math.min(100, Math.round((100 * part) / whole))) : 0);
 
 export const RESERVATION_LABELS = Object.freeze({ not_required: "Not required", not_reserved: "No stock kept aside", partially_reserved: "Some stock kept aside", fully_reserved: "Stock kept aside" });
@@ -69,15 +73,15 @@ export function fulfillmentStatusOf({ deliverable, lifecycle, delivered, cancell
 }
 export function deriveFulfillmentStatus(order, lines) {
   const goods = lines.filter((line) => line.deliverable);
-  const ordered = sum(goods, (line) => line.ordered);
-  const delivered = sum(goods, (line) => line.delivered);
-  const cancelled = sum(goods, (line) => line.cancelled);
-  const remaining = sum(goods, (line) => line.remainingToDeliver);
-  const returned = sum(goods, (line) => line.returned);
+  const ordered = sumBase(goods, (line) => line.ordered);
+  const delivered = sumBase(goods, (line) => line.delivered);
+  const cancelled = sumBase(goods, (line) => line.cancelled);
+  const remaining = sumBase(goods, (line) => line.remainingToDeliver);
+  const returned = sumBase(goods, (line) => line.returned);
   const status = fulfillmentStatusOf({ deliverable: goods.length > 0, lifecycle: order.lifecycle_status, delivered, cancelled, remaining });
   const overdue = order.lifecycle_status === STATUS.confirmed && remaining > EPSILON && Boolean(order.requested_delivery_overdue);
   return {
-    status, label: FULFILLMENT_LABELS[status], applies: goods.length > 0, ordered, delivered, cancelled, remaining,
+    status, label: FULFILLMENT_LABELS[status], applies: goods.length > 0, ordered, delivered, cancelled, remaining, unit: baseUnitOf(goods),
     returned, netWithCustomer: round(delivered - returned),
     // Of what was ordered. 6 of 10 delivered with 4 cancelled is complete, and still 6 of 10.
     percent: percentOf(delivered, ordered), overdue,
@@ -90,12 +94,12 @@ export function invoiceStatusOf({ open, invoiced }) {
   return invoiced + EPSILON >= open ? "fully_invoiced" : "partially_invoiced";
 }
 export function deriveInvoiceStatus(order, lines, positions, basis) {
-  const ordered = sum(lines, (line) => line.ordered);
-  const cancelled = sum(lines, (line) => line.cancelled);
-  const invoiced = sum(lines, (line) => line.invoiced);
-  const remaining = sum(lines, (line) => line.remainingToInvoice);
+  const ordered = sumBase(lines, (line) => line.ordered);
+  const cancelled = sumBase(lines, (line) => line.cancelled);
+  const invoiced = sumBase(lines, (line) => line.invoiced);
+  const remaining = sumBase(lines, (line) => line.remainingToInvoice);
   const position = (line) => positions.get(line.lineId) ?? { invoiceableNow: 0, pendingDelivery: 0 };
-  const invoiceableNow = order.lifecycle_status === STATUS.confirmed ? sum(lines, (line) => position(line).invoiceableNow) : 0;
+  const invoiceableNow = order.lifecycle_status === STATUS.confirmed ? sumBase(lines, (line) => position(line).invoiceableNow) : 0;
   const share = (line, quantity) => (line.ordered > EPSILON ? (line.lineTotal * quantity) / line.ordered : 0);
   // An order whose every line was cancelled has nothing to invoice.
   const complete = lines.every((line) => line.remainingToInvoice <= EPSILON);
@@ -103,7 +107,7 @@ export function deriveInvoiceStatus(order, lines, positions, basis) {
   return {
     status, label: INVOICE_LABELS[status], basis, ordered, cancelled, invoiced, remaining, invoiceableNow,
     // Delivery-based: what waits for delivery before it can be invoiced.
-    pendingDelivery: sum(lines, (line) => position(line).pendingDelivery),
+    pendingDelivery: sumBase(lines, (line) => position(line).pendingDelivery), unit: baseUnitOf(lines),
     percent: percentOf(invoiced, ordered - cancelled),
     remainingValue: money(lines.reduce((total, line) => total + share(line, line.remainingToInvoice), 0)),
     invoiceableNowValue: money(lines.reduce((total, line) => total + share(line, order.lifecycle_status === STATUS.confirmed ? position(line).invoiceableNow : 0), 0)),

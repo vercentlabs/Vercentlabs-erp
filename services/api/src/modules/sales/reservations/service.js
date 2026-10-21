@@ -62,10 +62,6 @@ async function reserveLine(client, context, order, line, wanted, defaultWarehous
   const warehouse = (await client.query(`SELECT id, name, status, shipping_enabled AND sales_fulfillment AS shipping_enabled FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [context.organizationId, warehouseId])).rows[0];
   if (!warehouse || warehouse.status !== "active" || !warehouse.shipping_enabled)
     return { ...outcome, warehouseId, problem: `${warehouse?.name ?? "The warehouse"} is inactive or does not ship.` };
-  // The order's default warehouse becomes the line's fulfillment warehouse once stock is held there.
-  if (!line.warehouseId)
-    await client.query(`UPDATE tenant.sales_order_line_progress SET fulfillment_warehouse_id = $3, updated_at = now() WHERE organization_id = $1 AND sales_order_line_id = $2`,
-      [context.organizationId, line.lineId, warehouseId]);
   let result;
   try {
     result = await reserveAvailableStock(client, orderStockContext(context), {
@@ -77,6 +73,11 @@ async function reserveLine(client, context, order, line, wanted, defaultWarehous
     return { ...outcome, warehouseId, warehouseName: warehouse.name, problem: error.message };
   }
   const reserved = round(result.reserved / line.conversionFactor);
+  // The order's default warehouse becomes the line's fulfillment warehouse only once stock is held there;
+  // a reservation that held nothing leaves the line free to ship from anywhere (Line-by-line audit S15).
+  if (!line.warehouseId && reserved > EPSILON)
+    await client.query(`UPDATE tenant.sales_order_line_progress SET fulfillment_warehouse_id = $3, updated_at = now() WHERE organization_id = $1 AND sales_order_line_id = $2`,
+      [context.organizationId, line.lineId, warehouseId]);
   return {
     ...outcome, warehouseId, warehouseName: warehouse.name, reserved, shortage: round(Math.max(0, wanted - reserved)),
     reservations: result.reservations.map((reservation) => reservation.reservation_number),

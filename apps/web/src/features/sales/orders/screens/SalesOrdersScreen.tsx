@@ -115,7 +115,9 @@ export function SalesOrdersScreen() {
       cell: ({ row }) => row.original.status === "draft" || !row.original.tracking.fulfillment.applies ? "" : (
         <span className="flex flex-col gap-0.5">
           <span className="flex flex-wrap gap-1"><FulfillmentStatusBadge status={row.original.fulfillment} label={row.original.fulfillmentLabel} />{row.original.delivery_overdue && <OverdueDeliveryBadge />}</span>
-          {row.original.status !== "cancelled" && <span className="text-xs tabular-nums text-text-muted">{amount(row.original.tracking.fulfillment.delivered)} / {amount(row.original.tracking.fulfillment.ordered)}
+          {row.original.status !== "cancelled" && <span className="text-xs tabular-nums text-text-muted">{row.original.tracking.fulfillment.unit
+            ? `${amount(row.original.tracking.fulfillment.delivered)} / ${amount(row.original.tracking.fulfillment.ordered)} ${row.original.tracking.fulfillment.unit}`
+            : `${row.original.tracking.fulfillment.percent}% delivered`}
             {row.original.tracking.fulfillment.cancelled > 0 ? ` · ${amount(row.original.tracking.fulfillment.cancelled)} cancelled` : ""}</span>}
         </span>
       ),

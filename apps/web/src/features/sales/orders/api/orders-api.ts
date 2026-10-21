@@ -47,7 +47,7 @@ export type SalesOrderRow = DisplayStatuses & {
   // The order's progress in each dimension, as the order page shows it (the order tracking service).
   tracking: {
     reservation: { status: ReservationKey; label: string; applies: boolean; required: number; reserved: number; percent: number };
-    fulfillment: { status: FulfillmentKey; label: string; applies: boolean; ordered: number; delivered: number; cancelled: number; remaining: number; returned: number; percent: number; overdue: boolean };
+    fulfillment: { status: FulfillmentKey; label: string; applies: boolean; ordered: number; delivered: number; cancelled: number; remaining: number; returned: number; percent: number; overdue: boolean; unit?: string | null };
     invoicing: { status: InvoicingKey; label: string; ordered: number; cancelled: number; invoiced: number; remaining: number; invoiceableNow: number; percent: number };
     payment: { status: string; label: string; balanceDue?: number; overdueBalance?: number; paid?: number; netBilled?: number };
     flags: { deliveryOverdue: boolean; readyToInvoice: boolean; readyToClose: boolean; needsAttention: boolean };

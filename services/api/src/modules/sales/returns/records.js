@@ -359,8 +359,12 @@ export async function listSalesReturns(client, context, filters = {}) {
     default: break;
   }
   if (Object.values(RETURN_STATUS).includes(filters.status)) where += ` AND sales_return.status = ${bind(filters.status)}`;
-  if (filters.credited === "yes") where += ` AND EXISTS (SELECT 1 FROM tenant.sales_return_credits credit WHERE credit.sales_return_id = sales_return.id)`;
-  if (filters.credited === "no") where += ` AND NOT EXISTS (SELECT 1 FROM tenant.sales_return_credits credit WHERE credit.sales_return_id = sales_return.id)`;
+  // Credited: a credit note that still stands (not cancelled or reversed) and nothing more due (Line-by-line audit S10).
+  const credited = `EXISTS (SELECT 1 FROM tenant.sales_return_credits credit
+      JOIN tenant.accounting_customer_invoices credit_note ON credit_note.id = credit.credit_note_id AND credit_note.status NOT IN ('cancelled', 'reversed')
+     WHERE credit.sales_return_id = sales_return.id)`;
+  if (filters.credited === "yes") where += ` AND ${credited} AND NOT (sales_return.status = 'received' AND ${CREDIT_DUE_SQL})`;
+  if (filters.credited === "no") where += ` AND (NOT ${credited} OR (sales_return.status = 'received' AND ${CREDIT_DUE_SQL}))`;
   if (RETURN_REASONS.some((reason) => reason.code === filters.reasonCode)) where += ` AND sales_return.reason_code = ${bind(filters.reasonCode)}`;
   const search = text(filters.search, 200);
   if (search) {
@@ -405,7 +409,8 @@ export async function listSalesReturns(client, context, filters = {}) {
                     AND invoice.status IN ('posted', 'partially_paid', 'paid', 'overdue', 'disputed')
               WHERE line.sales_return_id = sales_return.id) AS invoice_numbers,
             (SELECT string_agg(DISTINCT credit_note.invoice_number, ', ') FROM tenant.sales_return_credits credit
-               JOIN tenant.accounting_customer_invoices credit_note ON credit_note.id = credit.credit_note_id WHERE credit.sales_return_id = sales_return.id) AS credit_note_numbers,
+               JOIN tenant.accounting_customer_invoices credit_note ON credit_note.id = credit.credit_note_id AND credit_note.status NOT IN ('cancelled', 'reversed')
+              WHERE credit.sales_return_id = sales_return.id) AS credit_note_numbers,
             sales_return.status = 'received' AND ${CREDIT_DUE_SQL} AS awaiting_credit
        ${from}${where}
       ORDER BY ${sort} ${direction} NULLS LAST, sales_return.return_number DESC
@@ -414,8 +419,8 @@ export async function listSalesReturns(client, context, filters = {}) {
   return {
     rows: rows.map((row) => ({
       ...row, statusLabel: RETURN_STATUS_LABELS[row.status], reasonLabel: reasonLabel(row.reason_code),
-      creditStatus: row.credit_note_numbers ? "credited" : row.awaiting_credit ? "awaiting" : "not_required",
-      creditStatusLabel: row.credit_note_numbers ? "Credit note created" : row.awaiting_credit ? "Awaiting credit note" : "—",
+      creditStatus: row.awaiting_credit ? "awaiting" : row.credit_note_numbers ? "credited" : "not_required",
+      creditStatusLabel: row.awaiting_credit ? (row.credit_note_numbers ? "Partly credited · awaiting credit note" : "Awaiting credit note") : row.credit_note_numbers ? "Credit note created" : "—",
     })),
     total: count, limit, offset, views: RETURN_VIEWS, reasons: RETURN_REASONS,
     capabilities: Object.fromEntries(Object.entries(RETURN_PERMISSIONS).map(([name, permission]) => [name, returnCan(context, permission)])),

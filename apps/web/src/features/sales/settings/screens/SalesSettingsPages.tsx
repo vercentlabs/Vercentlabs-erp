@@ -25,6 +25,7 @@ type Settings = {
   require_customer_po: boolean;
   credit_control?: "off" | "warn" | "block";
   credit_overdue_days?: number | null;
+  unassigned_customers_visible?: boolean;
   require_requested_delivery_date: boolean;
   check_availability_on_confirm: boolean;
   show_prices_on_delivery_note: boolean;
@@ -119,6 +120,7 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
   const [requireDelivery, setRequireDelivery] = useState(Boolean(settings.require_requested_delivery_date));
   const [creditControl, setCreditControl] = useState<string>(settings.credit_control ?? "block");
   const [overdueDays, setOverdueDays] = useState<number>(settings.credit_overdue_days ?? NaN);
+  const [unassigned, setUnassigned] = useState(Boolean(settings.unassigned_customers_visible));
   const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
   return (
     <div className="flex flex-col gap-4">
@@ -141,6 +143,9 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
         <Switch isSelected={requirePo} onChange={touch(setRequirePo)} isDisabled={!canManage}>Require the customer&apos;s PO number before an order is confirmed</Switch>
         <Switch isSelected={requireDelivery} onChange={touch(setRequireDelivery)} isDisabled={!canManage}>Require a requested delivery date before an order is confirmed</Switch>
       </Panel>
+      <Panel title="Customers" description="A salesperson who sees only their own customers sees those they are the salesperson of or added.">
+        <Switch isSelected={unassigned} onChange={touch(setUnassigned)} isDisabled={!canManage}>Every salesperson also sees customers with no salesperson</Switch>
+      </Panel>
       <Panel title="Credit control" description="Each customer's credit limit is set on the customer, in the company's currency. Used credit is what the customer owes, less advances, plus confirmed orders not yet invoiced.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="An order over the customer's credit limit" selectedKey={creditControl} onSelectionChange={(key) => touch(setCreditControl)(String(key ?? "block"))} isDisabled={!canManage}
@@ -158,6 +163,7 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
           defaultQuoteValidityDays: validity, quotationApprovalAmount: quoteAmount, quotationApprovalDiscount: quoteDiscount, minimumMarginPercent: margin,
           defaultQuotationTerms: quotationTerms, allowDirectOrders: direct, requireCustomerPo: requirePo, requireRequestedDeliveryDate: requireDelivery,
           creditControl: creditControl as "off" | "warn" | "block", creditOverdueDays: Number.isFinite(overdueDays) ? overdueDays : null,
+          unassignedCustomersVisible: unassigned,
         })} />
     </div>
   );

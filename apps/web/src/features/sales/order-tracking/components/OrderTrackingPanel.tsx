@@ -60,7 +60,7 @@ export function OrderTrackingSummary({ tracking, onChanged }: { tracking: OrderT
       </Card>
     ) : null,
     tracking.applies.fulfillment && executing ? (
-      <Card key="fulfillment" title="Dispatch" status={fulfillment.label} tone={fulfillment.overdue ? "danger" : TONES[fulfillment.status]} headline={`${quantity(fulfillment.delivered)} / ${quantity(fulfillment.ordered)} delivered`} percent={fulfillment.percent}>
+      <Card key="fulfillment" title="Dispatch" status={fulfillment.label} tone={fulfillment.overdue ? "danger" : TONES[fulfillment.status]} headline={fulfillment.unit ? `${quantity(fulfillment.delivered)} / ${quantity(fulfillment.ordered)} ${fulfillment.unit} delivered` : `${fulfillment.percent}% delivered`} percent={fulfillment.percent}>
         {fulfillment.cancelled > 0 && <span>Cancelled {quantity(fulfillment.cancelled)} / {quantity(fulfillment.ordered)}</span>}
         {fulfillment.remaining > 0 && <span>{quantity(fulfillment.remaining)} still to deliver{fulfillment.overdue ? ` · overdue since ${calendarDate(order.requestedDeliveryDate)}` : ""}</span>}
         {fulfillment.returned > 0 && <span>Returned {quantity(fulfillment.returned)} · net with the customer {quantity(fulfillment.netWithCustomer)}</span>}
