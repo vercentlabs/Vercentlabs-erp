@@ -1,18 +1,6 @@
-import { Suspense } from "react";
+import { redirect } from "next/navigation";
 
-import { ORDER_STATUS_REPORTS, SalesReportScreen } from "@/features/sales/reports/screens/SalesReportScreen";
-
-export const metadata = { title: "Order Status" };
-
-// Sales › Inquiries › Order Status: where every confirmed or closed order stands — reservation, fulfillment, invoicing and payment.
+// Order Status is now Pending Orders › All open orders (Sales audit: one place for "where is my order").
 export default function Page() {
-  return (
-    <Suspense>
-      <SalesReportScreen
-        title="Order Status"
-        description="Each order with reservation, fulfillment, invoicing and payment on their own, and what needs attention. Select an order to open it."
-        reports={ORDER_STATUS_REPORTS}
-      />
-    </Suspense>
-  );
+  redirect("/sales/pending-orders?report=order-status");
 }

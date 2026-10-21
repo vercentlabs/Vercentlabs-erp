@@ -229,61 +229,63 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         flat: true,
         items: [{ ...available("Overview", "/sales"), aliases: ["sales home", "sales dashboard"] }],
       },
+      // Sections in the words of the work, in its order: sell, deliver, bill and collect; then customers and prices, reports and setup
+      // (Sales audit: plain names like CRM's, not SAP's).
       {
-        id: "master-data",
-        label: "Master Data",
-        icon: Database,
-        collapsible: true,
-        featureRange: "F031-F034",
-        items: [
-          { ...available("Customers", "/sales/customers"), aliases: ["customer master", "addresses", "contacts", "customer 360", "import customers"] },
-          { ...available("Products & Services", "/sales/products"), aliases: ["catalog", "items", "services", "sku", "hsn", "sac"] },
-          { ...available("Price Lists", "/sales/price-lists"), aliases: ["prices", "default price list"] },
-          { ...available("Schemes & Rates", "/sales/pricing-rules"), aliases: ["schemes", "special rates", "party rates", "quantity slabs", "free goods", "buy 10 get 1", "pricing rules"] },
-        ],
-      },
-      {
-        id: "operations",
-        label: "Operations",
+        id: "sell",
+        label: "Sell",
         icon: ArrowLeftRight,
         collapsible: true,
         featureRange: "F035-F058",
         items: [
-          { ...available("Quotations", "/sales/quotations"), aliases: ["quotes", "estimates", "revisions"] },
+          { ...available("Quotations", "/sales/quotations"), aliases: ["quotes", "estimates", "revisions", "proforma"] },
           {
             ...available("Sales Orders", "/sales/orders"),
-            aliases: ["orders", "order tracking", "order confirmation", "availability", "stock reservation", "partial delivery", "partial invoicing", "customer po"],
+            aliases: ["orders", "order tracking", "order acceptance", "availability", "stock kept aside", "partial delivery", "partial invoicing", "customer order no", "customer po"],
           },
-          { ...available("Deliveries", "/sales/deliveries"), requiredApp: "stock", aliases: ["shipment", "delivery note", "dispatch", "tracking number", "carrier", "proof of delivery"] },
-          { ...available("Sales Invoices", "/sales/invoices"), aliases: ["invoices", "billing", "balance due", "overdue invoices"] },
-          // What customers owe and since when, with each customer's ledger (Sales audit M7).
-          { ...available("Outstanding", "/sales/outstanding"), aliases: ["receivables", "ageing", "aging", "customer ledger", "party ledger", "dues", "collections"], requiredPermission: "sales.customers.view_financials" },
-          { ...available("Sales Returns", "/sales/returns"), requiredApp: "stock", aliases: ["returns", "return note", "rma"] },
-          { ...available("Credit Notes", "/sales/credit-notes"), aliases: ["credits", "price adjustment"] },
-          // The customer refunds Finance owns, the same records as Finance → Customer Refunds.
-          { ...available("Refunds", "/sales/refunds"), aliases: ["customer refunds", "refund credit"], requiredPermission: "accounting.refund.view" },
-        ],
-      },
-      {
-        id: "planning",
-        label: "Planning & Control",
-        icon: Gauge,
-        collapsible: true,
-        items: [
+          // One place for "where is my order": every open order, what is left to dispatch (by order and by product), what is ready to bill.
           {
-            ...available("Order Fulfillment", "/sales/fulfillment"),
-            aliases: ["remaining by order", "remaining by product", "delivery performance", "billing readiness", "backorders"],
+            ...available("Pending Orders", "/sales/pending-orders"),
+            aliases: ["where is my order", "order status", "order fulfillment", "remaining by order", "remaining by product", "backorders", "billing readiness", "dispatch performance"],
             requiredPermission: "sales.reports.view",
           },
         ],
       },
       {
-        id: "inquiries",
-        label: "Inquiries",
-        icon: Search,
+        id: "deliver",
+        label: "Deliver",
+        icon: Truck,
         collapsible: true,
         items: [
-          { ...available("Order Status", "/sales/order-status"), aliases: ["where is my order", "order inquiry"], requiredPermission: "sales.reports.view" },
+          { ...available("Deliveries", "/sales/deliveries"), requiredApp: "stock", aliases: ["shipment", "delivery note", "delivery challan", "dispatch", "tracking number", "carrier", "proof of delivery", "lr number"] },
+          { ...available("Sales Returns", "/sales/returns"), requiredApp: "stock", aliases: ["returns", "return note", "rma", "goods returned"] },
+        ],
+      },
+      {
+        id: "bill-collect",
+        label: "Bill & collect",
+        icon: Landmark,
+        collapsible: true,
+        items: [
+          { ...available("Sales Invoices", "/sales/invoices"), aliases: ["invoices", "billing", "tax invoice", "balance due", "overdue invoices", "e-invoice", "irn", "e-way bill"] },
+          { ...available("Credit Notes", "/sales/credit-notes"), aliases: ["credits", "rate difference", "discount after sale", "price adjustment"] },
+          // The customer refunds Finance owns, the same records as Finance → Customer Refunds.
+          { ...available("Refunds", "/sales/refunds"), aliases: ["customer refunds", "refund credit"], requiredPermission: "accounting.refund.view" },
+          // What customers owe and since when, with each customer's ledger (Sales audit M7).
+          { ...available("Outstanding", "/sales/outstanding"), aliases: ["receivables", "ageing", "aging", "customer ledger", "party ledger", "dues", "collections"], requiredPermission: "sales.customers.view_financials" },
+        ],
+      },
+      {
+        id: "customers-prices",
+        label: "Customers & prices",
+        icon: Users,
+        collapsible: true,
+        featureRange: "F031-F034",
+        items: [
+          { ...available("Customers", "/sales/customers"), aliases: ["customer master", "parties", "addresses", "contacts", "customer 360", "import customers"] },
+          { ...available("Products & Services", "/sales/products"), aliases: ["catalog", "items", "services", "sku", "hsn", "sac"] },
+          { ...available("Price Lists", "/sales/price-lists"), aliases: ["prices", "rate list", "default price list"] },
+          { ...available("Schemes & Rates", "/sales/pricing-rules"), aliases: ["schemes", "special rates", "party rates", "quantity slabs", "free goods", "buy 10 get 1", "pricing rules"] },
         ],
       },
       {
@@ -296,16 +298,13 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Sales by Period", "/sales/reports?report=sales-by-period"), aliases: ["sales reports", "monthly sales", "revenue"], requiredPermission: "sales.reports.view" },
           { ...available("Sales by Customer", "/sales/reports?report=sales-by-customer"), aliases: ["top customers"], requiredPermission: "sales.reports.view" },
           { ...available("Sales by Item", "/sales/reports?report=sales-by-item"), aliases: ["top products", "product sales"], requiredPermission: "sales.reports.view" },
-          {
-            ...available("Sales Order Status", "/sales/reports?report=order-status"),
-            aliases: ["pending approvals", "expiring quotations"],
-            requiredPermission: "sales.reports.view",
-          },
+          { ...available("Waiting for Approval", "/sales/reports?report=pending-approvals"), aliases: ["pending approvals", "approvals"], requiredPermission: "sales.reports.view" },
+          { ...available("Expiring Quotations", "/sales/reports?report=expiring-quotations"), aliases: ["quotations about to lapse"], requiredPermission: "sales.reports.view" },
         ],
       },
       {
         id: "configuration",
-        label: "Configuration",
+        label: "Setup",
         icon: Settings,
         collapsible: true,
         items: [

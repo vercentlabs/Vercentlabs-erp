@@ -248,6 +248,17 @@ export const SALES_REPORTS: ReportSpec[] = [
   },
 ];
 
+// Sales › Sell › Pending Orders (Sales audit): the one place for "where is my order" — every open order, what is left to dispatch by order
+// and by product, what is ready to bill, and how dispatches kept to the customer's date — in plain words.
+const PENDING_LABELS: Record<string, string> = {
+  "order-status": "All open orders", fulfillment: "To dispatch", "remaining-by-product": "To dispatch, by product", "billing-readiness": "To bill",
+  "delivery-performance": "Dispatched on time?",
+};
+export const PENDING_ORDER_REPORTS: ReportSpec[] = ["order-status", "fulfillment", "remaining-by-product", "billing-readiness", "delivery-performance"]
+  .map((key) => SALES_REPORTS.find((report) => report.key === key))
+  .filter((report): report is ReportSpec => Boolean(report))
+  .map((report) => ({ ...report, label: PENDING_LABELS[report.key] ?? report.label }));
+// The older pages (Order Fulfillment, Order Status) open Pending Orders on their tab.
 // Sales › Planning & Control › Order Fulfillment: what is left to deliver and invoice.
 export const FULFILLMENT_REPORTS: ReportSpec[] = SALES_REPORTS.filter((report) => ["fulfillment", "remaining-by-product", "billing-readiness", "delivery-performance"].includes(report.key));
 // Sales › Inquiries › Order Status.
