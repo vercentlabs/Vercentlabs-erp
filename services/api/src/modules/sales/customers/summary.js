@@ -10,6 +10,8 @@ import { canViewCustomerFinancials, customerCan, requireCustomerPermission } fro
 import { CUSTOMER_PERMISSIONS, CustomerError } from "./constants.js";
 import { loadCustomerRow } from "./records.js";
 import { getCustomerProjects } from "../../projects/project-customer.js";
+import { canInApp, loadApps } from "../../../core/access/apps.js";
+import { openDealsForCustomer } from "../bridges/crm.js";
 
 const OPEN_QUOTATION = "('draft', 'pending_approval', 'approved', 'sent', 'viewed')";
 const OPEN_ORDER = "('confirmed')";
@@ -18,20 +20,23 @@ const DEAD_RECEIPT = "('draft', 'cancelled', 'reversed')";
 const PENDING_DELIVERY = "('pending', 'processing', 'failed')";
 const num = (value) => Number(value ?? 0);
 
+// What the customer page may show: Sales' own parts by permission; another app's part only while that app is on and the person has its
+// permission there (CRM audit B16 — a Sales-only company never sees a CRM block, and the owner passes only for apps the company has).
 function access(context) {
   return {
     sales: customerCan(context, "sales.view"),
     finance: canViewCustomerFinancials(context),
-    crm: customerCan(context, "crm.opportunities.view"),
-    projects: customerCan(context, "projects.view"),
-    support: customerCan(context, "support.view"),
-    notes: customerCan(context, "crm.notes.view"),
+    crm: canInApp(context, "crm", "crm.opportunities.view"),
+    projects: canInApp(context, "projects", "projects.view"),
+    support: canInApp(context, "support", "support.view"),
+    notes: canInApp(context, "crm", "crm.notes.view"),
   };
 }
 
 export async function getCustomerOverview(client, context, customerId) {
   requireCustomerPermission(context, CUSTOMER_PERMISSIONS.view, "You do not have permission to view customers.");
   const customer = await loadCustomerRow(client, context, customerId);
+  await loadApps(client, context);
   const can = access(context);
   const values = [context.organizationId, customer.id];
   const one = async (sql) => (await client.query(sql, values)).rows[0];
@@ -45,12 +50,8 @@ export async function getCustomerOverview(client, context, customerId) {
     openOpportunities: [],
   };
   if (can.crm) {
-    const { rows } = await client.query(
-      `SELECT opportunity.id, opportunity.code, opportunity.name, opportunity.amount, opportunity.currency_code, opportunity.expected_close_date, stage.name AS stage_name
-         FROM tenant.crm_opportunities opportunity
-         LEFT JOIN tenant.crm_pipeline_stages stage ON stage.organization_id = opportunity.organization_id AND stage.id = opportunity.stage_id
-        WHERE opportunity.organization_id = $1 AND opportunity.party_id = $2 AND opportunity.status = 'open'
-        ORDER BY opportunity.expected_close_date NULLS LAST LIMIT 10`, values);
+    // Only the deals this person may see (their own, their team's, or all), through CRM's bridge.
+    const rows = (await openDealsForCustomer(client, context, customer.id)) ?? [];
     overview.crm.openOpportunities = rows.map((row) => ({
       id: row.id, code: row.code, name: row.name, amount: row.amount === null ? null : num(row.amount), currencyCode: row.currency_code?.trim() ?? null,
       expectedCloseDate: row.expected_close_date, stageName: row.stage_name, href: `/crm/opportunities/${row.id}`,

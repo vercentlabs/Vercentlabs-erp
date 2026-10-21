@@ -303,6 +303,21 @@ export async function readOpportunityRow(client, context, opportunityId, options
   return loadOpportunityRow(client, context, opportunityId, options);
 }
 
+// A company's open deals the caller may see (the deal's own Own / Team / All rule) — for another app's customer page, through its CRM
+// bridge (sales/bridges/crm.js). Empty without the deal view permission.
+export async function listVisibleOpenDeals(client, context, partyId, { limit = 10 } = {}) {
+  if (!opportunityCan(context, OPPORTUNITY_PERMISSIONS.view)) return [];
+  const values = [context.organizationId, partyId];
+  const scope = opportunityScopeSql(context, values, "opportunity");
+  const { rows } = await client.query(
+    `SELECT opportunity.id, opportunity.code, opportunity.name, opportunity.amount, opportunity.currency_code, opportunity.expected_close_date, stage.name AS stage_name
+       FROM tenant.crm_opportunities opportunity
+       LEFT JOIN tenant.crm_pipeline_stages stage ON stage.organization_id = opportunity.organization_id AND stage.id = opportunity.stage_id
+      WHERE opportunity.organization_id = $1 AND opportunity.party_id = $2 AND opportunity.status = 'open' AND opportunity.archived_at IS NULL${scope}
+      ORDER BY opportunity.expected_close_date NULLS LAST LIMIT ${Math.min(Math.max(Number(limit) || 10, 1), 50)}`, values);
+  return rows;
+}
+
 export async function getOpportunity(client, context, opportunityId) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view deals.");
   await loadApps(client, context);

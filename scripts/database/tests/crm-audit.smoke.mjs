@@ -330,6 +330,29 @@ try {
     await refused(() => crm.upgradeDealQuoteToSales(client, ctx(), proforma.quote.id), "CRM_QUOTE_LINE_ITEM_REQUIRED");
     await onlyApps(["crm"]);
   });
+
+  await check("B16. Sales' customer page shows a rep only the deals they may see, and no CRM block at all in a Sales-only company; Related hides groups of apps that are off", async () => {
+    await onlyApps(["crm", "sales"]);
+    const customers = await api("modules/sales/customers/index.js");
+    const related = await api("modules/related/index.js");
+    const customer = await customers.createCustomer(client, owner(), { displayName: `B16 Retail ${tag}`, customerKind: "business", countryCode: "IN", currencyCode: "INR",
+      billingAddress: { line1: "1 MG Road", city: "Pune", state: "Maharashtra", stateCode: "27", postalCode: "411001", countryCode: "IN" } });
+    const rep = await addTeammate("Neha Rep", "crm_salesperson");
+    const ownersDeal = await crm.createOpportunity(client, owner(), { name: "Owner's deal", accountId: customer.id });
+    const repsDeal = await crm.createOpportunity(client, owner(), { name: "Rep's deal", accountId: customer.id, ownerUserId: rep.userId });
+    const repContext = rep.context(["sales.view", "sales.customers.view", "sales.customers.view_all", "crm.view", "crm.opportunities.view"]);
+    const seen = (await customers.getCustomerOverview(client, repContext, customer.id)).crm.openOpportunities.map((deal) => deal.id);
+    assert(seen.includes(repsDeal.id) && !seen.includes(ownersDeal.id), JSON.stringify(seen));
+    const withSales = await related.getRelatedDocuments(client, owner(), "opportunity", ownersDeal.id);
+    assert(withSales.groups.some((group) => group.key === "quotations"), "Sales groups while Sales is on");
+    await onlyApps(["crm"]);
+    const withoutSales = await related.getRelatedDocuments(client, owner(), "opportunity", ownersDeal.id);
+    assert(!withoutSales.groups.some((group) => group.key === "quotations"), "no Sales groups while Sales is off");
+    await onlyApps(["sales"]);
+    const salesOnly = await customers.getCustomerOverview(client, owner(), customer.id);
+    assert(salesOnly.access.crm === false && salesOnly.crm.openOpportunities.length === 0, JSON.stringify(salesOnly.access));
+    await onlyApps(["crm"]);
+  });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);
   await client.end();
