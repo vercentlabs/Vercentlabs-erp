@@ -16,6 +16,8 @@ type SettingsNavItem = {
   description: string;
   /** Checked only when status is AVAILABLE. */
   requiredPermission?: string;
+  /** Any one of these is enough (checked instead of requiredPermission when set). */
+  requiredAnyPermission?: readonly string[];
 };
 
 export type SettingsNavSection = {
@@ -154,8 +156,9 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         label: "Teams",
         route: "/settings/teams",
         status: "AVAILABLE",
-        description: "Teams for lead assignment and team record visibility.",
-        requiredPermission: "crm.teams.manage",
+        description: "Teams for lead assignment and for team visibility of customers, quotations and orders.",
+        // A Sales-only company sets up teams too (Sales audit B10).
+        requiredAnyPermission: ["crm.teams.manage", "sales.settings.manage"],
       },
       {
         id: "invitations",

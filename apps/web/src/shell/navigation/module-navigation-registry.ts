@@ -334,6 +334,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             ...available("Payment Terms", "/sales/settings/payment-terms"),
             aliases: ["credit terms", "net 30", "due date"],
           },
+          // Teams decide team visibility of customers, quotations and orders; set up here too when CRM is off (Sales audit B10).
+          { ...available("Sales Teams", "/settings/teams"), aliases: ["teams", "sales team", "team members", "team manager"], requiredPermission: "sales.settings.manage" },
         ],
       },
     ],

@@ -1,27 +1,23 @@
 import { archiveSalesTeam, getSalesTeam, updateSalesTeam } from "@vercentlabs/api/crm";
-import { requireSessionPermission } from "@vercentlabs/api";
-import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok } from "@/core/http";
-import { workspaceRoute } from "@/core/workspace-route";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { teamsRoute } from "@/features/settings/teams/server/teams-route";
 import { readBody } from "@/features/crm/leads/server/lead-http";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(request: Request, context: RouteContext) {
   const { id } = await context.params;
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session, snapshot }) => ok({ record: await getSalesTeam(client, crmContext(session, snapshot), id) }));
+  return teamsRoute(request, {}, async ({ client, context }) => ok({ record: await getSalesTeam(client, context, id) }));
 }
 
 // Body: { input, expectedUpdatedAt } — the version the editor loaded.
 export async function PATCH(request: Request, context: RouteContext) {
   const { id } = await context.params;
-  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session, snapshot }) => {
-    requireSessionPermission(session, CRM_PERMISSIONS.teamsManage);
+  return teamsRoute(request, { manage: true }, async ({ client, context }) => {
     const body = await readBody(request);
     const input = (body.input && typeof body.input === "object" ? body.input : {}) as Record<string, unknown>;
-    return ok({ record: await updateSalesTeam(client, crmContext(session, snapshot), id, input, { expectedUpdatedAt: String(body.expectedUpdatedAt ?? "") }) });
+    return ok({ record: await updateSalesTeam(client, context, id, input, { expectedUpdatedAt: String(body.expectedUpdatedAt ?? "") }) });
   });
 }
 
@@ -29,8 +25,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(request: Request, context: RouteContext) {
   const { id } = await context.params;
   const expectedUpdatedAt = new URL(request.url).searchParams.get("expectedUpdatedAt") ?? "";
-  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session, snapshot }) => {
-    requireSessionPermission(session, CRM_PERMISSIONS.teamsManage);
-    return ok({ record: await archiveSalesTeam(client, crmContext(session, snapshot), id, { expectedUpdatedAt }) });
+  return teamsRoute(request, { manage: true }, async ({ client, context }) => {
+    return ok({ record: await archiveSalesTeam(client, context, id, { expectedUpdatedAt }) });
   });
 }

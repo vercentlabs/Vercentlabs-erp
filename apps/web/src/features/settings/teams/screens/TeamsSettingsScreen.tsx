@@ -13,6 +13,8 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
+import { useApp } from "@/shell/workspace-context/useApp";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 
@@ -26,14 +28,22 @@ const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
 export function TeamsSettingsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(CRM_PERMISSIONS.teamsManage);
+  // CRM's "manage teams", or Sales' "manage settings" for a company with Sales and no CRM (Sales audit B10).
+  const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(CRM_PERMISSIONS.teamsManage)
+    || workspace.permissions.includes("sales.settings.manage");
+  const crmOn = useApp("crm");
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<SalesTeam | null>(null);
   const [membersTeam, setMembersTeam] = useState<SalesTeam | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const teamsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "sales-teams"), queryFn: listSalesTeams, enabled: canManage });
-  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "options"), queryFn: getCrmOptions, enabled: canManage });
+  // The people (and pipelines) come from CRM; without CRM, the people come from Sales.
+  const optionsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, crmOn ? "crm" : "sales", "team-options"),
+    queryFn: async () => (crmOn ? getCrmOptions() : getSalesOptions().then((r) => ({ options: { users: r.options.users.map((user) => ({ id: user.id, fullName: user.full_name })), pipelines: [] } }) as unknown as Awaited<ReturnType<typeof getCrmOptions>>)),
+    enabled: canManage,
+  });
   const teams = useMemo(() => teamsQuery.data?.rows ?? [], [teamsQuery.data]);
   const teamNameById = useMemo(() => new Map(teams.map((team) => [team.id, team.name])), [teams]);
   const people = useMemo(() => optionsQuery.data?.options?.members ?? optionsQuery.data?.options?.users ?? [], [optionsQuery.data]);

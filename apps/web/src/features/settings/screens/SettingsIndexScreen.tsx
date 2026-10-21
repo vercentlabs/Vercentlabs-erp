@@ -33,8 +33,9 @@ export async function SettingsIndexScreen() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {section.items.map((item) => {
               const permitted =
-                !item.requiredPermission ||
-                hasSessionPermission(session, item.requiredPermission);
+                (item.requiredAnyPermission
+                  ? item.requiredAnyPermission.some((permission) => hasSessionPermission(session, permission))
+                  : !item.requiredPermission || hasSessionPermission(session, item.requiredPermission));
               if (item.status === "AVAILABLE" && permitted) {
                 return (
                   <Link
