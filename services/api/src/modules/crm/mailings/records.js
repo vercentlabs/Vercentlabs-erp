@@ -210,12 +210,28 @@ const fill = (template, person) => String(template).replace(PLACEHOLDER, (_, key
   return { first_name: person.first_name ?? "", last_name: person.last_name ?? "", name, company: person.company ?? "" }[key] ?? "";
 });
 
+const LINK = /https?:\/\/[^\s<>"]+/g;
+// The web addresses a recipient's email links to (the body as filled for them) — the only places its click link may lead.
+const linksIn = (filled) => new Set((escapeHtml(filled).match(LINK) ?? []).map((url) => {
+  try {
+    return new URL(url.replace(/&amp;/g, "&")).toString();
+  } catch {
+    return null;
+  }
+}).filter(Boolean));
+// The merge fields of the person an email goes to.
+const personFor = async (client, organizationId, recipient) => (await client.query(recipient.entity_type === "lead"
+  ? "SELECT first_name, last_name, company_name AS company FROM tenant.crm_leads WHERE organization_id = $1 AND id = $2"
+  : `SELECT person.first_name, person.last_name, party.display_name AS company FROM tenant.contacts person
+       LEFT JOIN tenant.business_parties party ON party.organization_id = person.organization_id AND party.id = person.party_id WHERE person.organization_id = $1 AND person.id = $2`,
+[organizationId, recipient.entity_id])).rows[0] ?? {};
+
 // The email as sent: plain text, and HTML with tracked links, an unsubscribe line and the open pixel.
 export function renderMailingEmail(body, person, token, env = process.env) {
   const base = appUrl(env);
   const filled = fill(body, person);
   const unsubscribe = `${base}/api/crm/public/mail/u/${token}`;
-  const html = escapeHtml(filled).replace(/https?:\/\/[^\s<>"]+/g, (url) => {
+  const html = escapeHtml(filled).replace(LINK, (url) => {
     const target = url.replace(/&amp;/g, "&");
     return `<a href="${base}/api/crm/public/mail/c/${token}?u=${encodeURIComponent(target)}">${url}</a>`;
   }).replace(/\n/g, "<br>");
@@ -245,11 +261,7 @@ export async function runMailings(client, organizationId, { batch = BATCH, env =
       result.skipped += 1;
       continue;
     }
-    const person = (await client.query(recipient.entity_type === "lead"
-      ? "SELECT first_name, last_name, company_name AS company FROM tenant.crm_leads WHERE organization_id = $1 AND id = $2"
-      : `SELECT person.first_name, person.last_name, party.display_name AS company FROM tenant.contacts person
-           LEFT JOIN tenant.business_parties party ON party.organization_id = person.organization_id AND party.id = person.party_id WHERE person.organization_id = $1 AND person.id = $2`,
-    [organizationId, recipient.entity_id])).rows[0] ?? {};
+    const person = await personFor(client, organizationId, recipient);
     // A fresh token for this email (only its hash is kept).
     const token = randomBytes(24).toString("hex");
     await client.query("UPDATE tenant.crm_mailing_recipients SET token_hash = $2 WHERE id = $1", [recipient.id, hash(token)]);
@@ -310,6 +322,8 @@ export async function recordMailingOpen(client, token) {
 }
 
 // Counts the click and returns where to go (http and https only; anything else goes nowhere).
+// A click: { target } only for a real recipient's link to an address that is in the email they were sent — never an open redirect
+// (any other token or address gives { target: null }, a 404).
 export async function recordMailingClick(client, token, url) {
   let target = null;
   try {
@@ -318,8 +332,11 @@ export async function recordMailingClick(client, token, url) {
   } catch {
     target = null;
   }
+  if (!target) return { target: null };
   const recipient = await recipientOf(client, token);
-  if (recipient && target)
-    await client.query("UPDATE tenant.crm_mailing_recipients SET clicked_at = COALESCE(clicked_at, now()), opened_at = COALESCE(opened_at, now()) WHERE id = $1", [recipient.id]);
+  if (!recipient) return { target: null };
+  const mailing = (await client.query("SELECT body FROM tenant.crm_mailings WHERE organization_id = $1 AND id = $2", [recipient.organization_id, recipient.mailing_id])).rows[0];
+  if (!mailing || !linksIn(fill(mailing.body, await personFor(client, recipient.organization_id, recipient))).has(target)) return { target: null };
+  await client.query("UPDATE tenant.crm_mailing_recipients SET clicked_at = COALESCE(clicked_at, now()), opened_at = COALESCE(opened_at, now()) WHERE id = $1", [recipient.id]);
   return { target };
 }

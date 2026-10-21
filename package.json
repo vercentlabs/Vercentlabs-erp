@@ -70,7 +70,8 @@
     "test:gst-3b": "node scripts/database/tests/gst-3b.smoke.mjs",
     "test:gst-documents": "node scripts/database/tests/gst-documents.smoke.mjs",
     "test:signup-flow": "node scripts/database/tests/signup-flow.smoke.mjs",
-    "test:app-alone": "node scripts/database/tests/app-alone.smoke.mjs"
+    "test:app-alone": "node scripts/database/tests/app-alone.smoke.mjs",
+    "test:crm-audit": "node scripts/database/tests/crm-audit.smoke.mjs"
   },
   "engines": {
     "node": ">=24 <25",
