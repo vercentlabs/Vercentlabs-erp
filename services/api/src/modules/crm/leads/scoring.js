@@ -132,6 +132,19 @@ export async function rescoreLead(client, organizationId, leadId) {
   return result;
 }
 
+// Scores the given leads with one read of the rules, settings and history (an import scores its new leads once at the end, not each
+// row against a year of history — CRM audit). Returns how many.
+export async function rescoreLeads(client, organizationId, leadIds) {
+  const ids = [...new Set((leadIds ?? []).filter(Boolean))];
+  if (!ids.length) return 0;
+  const rules = await readRules(client, organizationId);
+  const settings = await readSettings(client, organizationId);
+  const history = await readHistory(client, organizationId);
+  const leads = (await client.query("SELECT * FROM tenant.crm_leads WHERE organization_id = $1 AND id = ANY($2::uuid[])", [organizationId, ids])).rows;
+  for (const lead of leads) await writeScore(client, organizationId, lead.id, scoreLead(lead, { rules, settings, history }));
+  return leads.length;
+}
+
 // Scores every open lead again (after the rules or settings change). Returns how many.
 export async function rescoreOpenLeads(client, organizationId, { limit = 5000 } = {}) {
   // one connection: one query at a time

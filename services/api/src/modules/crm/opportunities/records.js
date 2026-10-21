@@ -457,10 +457,16 @@ export async function listOpportunities(client, context, filters = {}) {
   const sortDirection = String(filters.sortDirection).toLowerCase() === "asc" ? "ASC" : "DESC";
   const values = [];
   const where = buildOpportunityListWhere(context, filters, values);
+  // Totals over the deals alone (with the company and contact the filters read), not the full row with its per-deal sub-queries
+  // (CRM audit: thousands of deals counted through every lateral join).
   const totals = await client.query(
     `SELECT count(*)::int AS total, ${sumReporting("counted")} AS value, ${sumWeightedReporting("counted")} AS weighted,
             ${unconvertedCount("counted")} AS unconverted_count, ${unconvertedCurrencies("counted")} AS unconverted_currencies
-       FROM (${OPPORTUNITY_SELECT} ${where}) counted`,
+       FROM (SELECT opportunity.amount, opportunity.probability, opportunity.currency_code, ${dealRate("opportunity")} AS reporting_rate
+               FROM tenant.crm_opportunities opportunity
+               LEFT JOIN tenant.business_parties account ON account.organization_id = opportunity.organization_id AND account.id = opportunity.party_id
+               LEFT JOIN tenant.contacts contact ON contact.organization_id = opportunity.organization_id AND contact.id = opportunity.contact_id
+             ${where}) counted`,
     values,
   );
   const { rows } = await client.query(

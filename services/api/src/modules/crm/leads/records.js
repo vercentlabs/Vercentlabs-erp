@@ -434,6 +434,8 @@ async function initialLeadAssignment(client, context, input, normalized, { origi
 //   onDuplicateCheck  receives what the duplicate check found (imports count possible duplicates)
 export async function createLead(client, context, input = {}, {
   allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", routing = "auto", assignmentReason = null, notify = true,
+  // false: the caller scores the lead itself (an import scores all its new leads once, rescoreLeads).
+  score = true,
 } = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.create, "You do not have permission to create leads.");
   const normalized = normalizeLeadInput(input);
@@ -467,7 +469,7 @@ export async function createLead(client, context, input = {}, {
       method: assignment.method, rule: assignment.rule, reason: assignmentReason, notify,
     });
   await applyCustomFields(client, context, "lead", lead.id, input.customFields, { requireAll: origin !== "import" });
-  await rescoreLead(client, context.organizationId, lead.id);
+  if (score) await rescoreLead(client, context.organizationId, lead.id);
   await queueOutboxEvent(client, context, "crm.leads.created", "leads", lead.id, { status: lead.status, sourceId: lead.source_id, ownerUserId: assignment.ownerUserId ?? null });
   // With leads switched off (CRM plan 5.7), an enquiry that arrived on its own becomes a deal straight away.
   if (origin === "integration") await convertArrivingLead(client, context.organizationId, lead.id);

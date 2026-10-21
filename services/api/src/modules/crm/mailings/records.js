@@ -97,15 +97,13 @@ function toMailing(row) {
       opened: Number(row.opened ?? 0), clicked: Number(row.clicked ?? 0), unsubscribed: Number(row.unsubscribed ?? 0) },
   };
 }
-const MAILING_SELECT = `SELECT mailing.*, member.full_name AS created_by_name,
-    (SELECT count(*) FROM tenant.crm_mailing_recipients r WHERE r.mailing_id = mailing.id) AS recipients,
-    (SELECT count(*) FROM tenant.crm_mailing_recipients r WHERE r.mailing_id = mailing.id AND r.status = 'sent') AS sent,
-    (SELECT count(*) FROM tenant.crm_mailing_recipients r WHERE r.mailing_id = mailing.id AND r.status = 'skipped') AS skipped,
-    (SELECT count(*) FROM tenant.crm_mailing_recipients r WHERE r.mailing_id = mailing.id AND r.status = 'failed') AS failed,
-    (SELECT count(*) FROM tenant.crm_mailing_recipients r WHERE r.mailing_id = mailing.id AND r.opened_at IS NOT NULL) AS opened,
-    (SELECT count(*) FROM tenant.crm_mailing_recipients r WHERE r.mailing_id = mailing.id AND r.clicked_at IS NOT NULL) AS clicked,
-    (SELECT count(*) FROM tenant.crm_mailing_recipients r WHERE r.mailing_id = mailing.id AND r.unsubscribed_at IS NOT NULL) AS unsubscribed
-  FROM tenant.crm_mailings mailing LEFT JOIN users member ON member.id = mailing.created_by`;
+// The counts in one pass over each campaign's recipients (CRM audit: not seven sub-queries per row).
+const MAILING_SELECT = `SELECT mailing.*, member.full_name AS created_by_name, counts.*
+  FROM tenant.crm_mailings mailing LEFT JOIN users member ON member.id = mailing.created_by
+  LEFT JOIN LATERAL (SELECT count(*) AS recipients, count(*) FILTER (WHERE r.status = 'sent') AS sent, count(*) FILTER (WHERE r.status = 'skipped') AS skipped,
+                            count(*) FILTER (WHERE r.status = 'failed') AS failed, count(r.opened_at) AS opened, count(r.clicked_at) AS clicked,
+                            count(r.unsubscribed_at) AS unsubscribed
+                       FROM tenant.crm_mailing_recipients r WHERE r.organization_id = mailing.organization_id AND r.mailing_id = mailing.id) counts ON true`;
 
 export async function listMailings(client, context) {
   requireManage(context);
@@ -176,13 +174,20 @@ export async function scheduleMailing(client, context, mailingId, { scheduledAt 
   if (rows.length > MAX_RECIPIENTS) throw new CrmError(409, `A campaign email goes to at most ${MAX_RECIPIENTS.toLocaleString("en-IN")} people. Narrow the audience.`, "CRM_MAILING_TOO_MANY");
   const seen = new Set();
   let eligible = 0;
-  for (const person of rows) {
+  const recipients = rows.map((person) => {
     const reason = person.skip_reason ?? (seen.has(person.email) ? "Same address as another person" : null);
     if (!reason) { seen.add(person.email); eligible += 1; }
+    return [person.entity_type, person.id, person.email || "-", reason ? "skipped" : "queued", reason, hash(randomBytes(24).toString("hex"))];
+  });
+  // A thousand recipients per statement (CRM audit: up to 20,000 one by one timed the request out).
+  for (let start = 0; start < recipients.length; start += 1000) {
+    const batch = recipients.slice(start, start + 1000);
     await client.query(
       `INSERT INTO tenant.crm_mailing_recipients (organization_id, mailing_id, entity_type, entity_id, email, status, skip_reason, token_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (mailing_id, entity_type, entity_id) DO NOTHING`,
-      [context.organizationId, row.id, person.entity_type, person.id, person.email || "-", reason ? "skipped" : "queued", reason, hash(randomBytes(24).toString("hex"))]);
+       SELECT $1, $2, person.entity_type, person.entity_id, person.email, person.status, person.skip_reason, person.token_hash
+         FROM unnest($3::text[], $4::uuid[], $5::text[], $6::text[], $7::text[], $8::text[]) AS person(entity_type, entity_id, email, status, skip_reason, token_hash)
+       ON CONFLICT (mailing_id, entity_type, entity_id) DO NOTHING`,
+      [context.organizationId, row.id, ...[0, 1, 2, 3, 4, 5].map((column) => batch.map((entry) => entry[column]))]);
   }
   if (!eligible) throw new CrmError(409, "Nobody in this audience may be emailed: check consent and the opt-out list.", "CRM_MAILING_NO_RECIPIENTS");
   await client.query("UPDATE tenant.crm_mailings SET status = 'scheduled', scheduled_at = COALESCE($3, now()), updated_by = $4, updated_at = now() WHERE organization_id = $1 AND id = $2",

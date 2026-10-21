@@ -7,6 +7,7 @@
 // lead typed in by hand. A row that fails is reported with its reason and
 // never stops the rest of the file.
 import { withMigrationAliases } from "../data-management/migration-presets.js";
+import { rescoreLeads } from "./scoring.js";
 import { customExportColumns, customImportFields, suggestCustomMapping, takeCustomColumn } from "../data-management/custom-import.js";
 import { countryCodeOf } from "../data-management/import-values.js";
 import { withConsentSource } from "../data-management/consent.js";
@@ -207,7 +208,7 @@ async function importLeadsUnrecorded(client, context, {
 
       const created = await createLead(client, context, lead, {
         allowDuplicate: !skipDuplicates, duplicateReason: "Imported with Create anyway", origin: "import",
-        onDuplicateCheck: (found) => { possibleDuplicate = found.matches.length > 0; }, routing, assignmentReason, notify: false,
+        onDuplicateCheck: (found) => { possibleDuplicate = found.matches.length > 0; }, routing, assignmentReason, notify: false, score: false,
       });
       if (created.ownerUserId) assignedTo.set(created.ownerUserId, (assignedTo.get(created.ownerUserId) ?? 0) + 1);
       await client.query("RELEASE SAVEPOINT lead_import_row");
@@ -230,6 +231,8 @@ async function importLeadsUnrecorded(client, context, {
     }
   }
 
+  // The new leads scored together, with one read of the scoring history.
+  await rescoreLeads(client, context.organizationId, results.filter((entry) => entry.ok).map((entry) => entry.leadId));
   const failed = results.filter((entry) => !entry.ok);
   for (const [userId, count] of assignedTo) {
     if (userId === context.userId) continue;
