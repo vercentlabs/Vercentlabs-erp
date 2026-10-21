@@ -178,6 +178,31 @@ try {
     await crm.mergeContacts(client, owner(), { keepId: keepPerson.id, duplicateId: dupPerson.id, reason: "Same person" });
     assert(allMoved(await historyOn("contact", dupPerson.id), await historyOn("contact", keepPerson.id)), "contact history moved");
   });
+
+  await check("B7, B9. The chat inbox shows a rep only the chats of leads they can see, without the visitor's email or mobile; contact search matches emails only for whoever may see them", async () => {
+    const rep = await addTeammate("Sunil Rep", "crm_salesperson");
+    const channel = await crm.createChatChannel(client, owner(), { name: "Inbox chat" });
+    const mine = await crm.startChat(client, channel.publicKey, { name: "Rep Visitor", email: `rv-${tag}@example.in`, message: "Hello" });
+    const theirs = await crm.startChat(client, channel.publicKey, { name: "Other Visitor", email: `ov-${tag}@example.in`, message: "Hi" });
+    await client.query("SELECT set_config('app.current_organization_id', $1, true)", [organizationId]);
+    const leadOf = async (sessionId) => (await client.query("SELECT lead_id FROM tenant.crm_chat_sessions WHERE id = $1", [sessionId])).rows[0].lead_id;
+    await client.query("UPDATE tenant.crm_leads SET owner_user_id = $2 WHERE id = $1", [await leadOf(mine.sessionId), rep.userId]);
+    await client.query("UPDATE tenant.crm_leads SET owner_user_id = $2 WHERE id = $1", [await leadOf(theirs.sessionId), ownerId]);
+    await client.query("UPDATE tenant.crm_chat_sessions SET assigned_to = NULL WHERE id = ANY($1::uuid[])", [[mine.sessionId, theirs.sessionId]]);
+    const narrow = rep.context(["crm.view", "crm.leads.view"]);
+    const seen = (await crm.listChatSessions(client, narrow, { status: "all" })).map((session) => session.id);
+    assert(seen.includes(mine.sessionId) && !seen.includes(theirs.sessionId), JSON.stringify(seen));
+    const detail = await crm.getChatSession(client, narrow, mine.sessionId);
+    assert(detail.visitorEmail === null && detail.visitorMobile === null, "details hidden without view_sensitive");
+    await refused(() => crm.getChatSession(client, narrow, theirs.sessionId), "CRM_CHAT_NOT_FOUND");
+    assert((await crm.getChatSession(client, owner(), mine.sessionId)).visitorEmail, "owner sees the email");
+
+    const shop = await crm.createAccount(client, owner(), { displayName: `Linkable ${tag}` });
+    await crm.createContact(client, owner(), { firstName: "Hidden", lastName: "Mail", email: `secret-${tag}@example.in` });
+    const contactsOnly = { ...owner(), roleSlugs: [], permissions: ["crm.view", "crm.accounts.view", "crm.contacts.view", "crm.records.view_all", "crm.contacts.view_all", "crm.accounts.view_all"] };
+    assert((await crm.searchLinkableContacts(client, contactsOnly, shop.id, `secret-${tag}`)).length === 0, "no email match without view_sensitive");
+    assert((await crm.searchLinkableContacts(client, owner(), shop.id, `secret-${tag}`)).length === 1, "email match with it");
+  });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);
   await client.end();

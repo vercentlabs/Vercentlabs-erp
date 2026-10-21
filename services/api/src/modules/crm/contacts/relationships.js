@@ -266,6 +266,8 @@ export async function updateAccountContactRole(client, context, partyId, contact
 // already active at this company.
 export async function searchLinkableContacts(client, context, partyId, search = "") {
   const account = await visibleAccount(client, context, partyId);
+  // Matching on email only for whoever may see contacts' details (like every other contact search).
+  const email = canViewSensitiveContactContent(context) ? " || ' ' || COALESCE(contact.email, '')" : "";
   const values = [context.organizationId, account.id, `%${text(search).toLowerCase().replace(/[\\%_]/g, "\\$&")}%`];
   const { rows } = await client.query(
     `SELECT contact.id, contact.display_name, contact.first_name, contact.last_name, contact.designation, other.display_name AS account_name
@@ -274,7 +276,7 @@ export async function searchLinkableContacts(client, context, partyId, search = 
       WHERE contact.organization_id = $1 AND contact.status = 'active'
         AND NOT EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships r WHERE r.organization_id = contact.organization_id
                          AND r.contact_id = contact.id AND r.party_id = $2 AND r.status = 'active')
-        AND lower(COALESCE(contact.display_name, '') || ' ' || contact.first_name || ' ' || COALESCE(contact.last_name, '') || ' ' || COALESCE(contact.email, '')) LIKE $3
+        AND lower(COALESCE(contact.display_name, '') || ' ' || contact.first_name || ' ' || COALESCE(contact.last_name, '')${email}) LIKE $3
         ${contactScopeValues(context, values, "contact")}
       ORDER BY lower(contact.first_name) LIMIT 20`,
     values,

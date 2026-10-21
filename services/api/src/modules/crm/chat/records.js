@@ -7,7 +7,7 @@ import { setTenantContext } from "@vercentlabs/database";
 
 import { createNotification } from "../../../core/platform/notifications/index.js";
 import { CrmError } from "../data-management/errors.js";
-import { requireLeadPermission } from "../leads/access.js";
+import { canViewSensitiveLeadContent, leadScopeSql, requireLeadPermission } from "../leads/access.js";
 import { LEAD_PERMISSIONS } from "../leads/constants.js";
 
 const MANAGE = "crm.settings.manage";
@@ -195,8 +195,10 @@ export async function readVisitorChat(client, publicKey, token, { after = null }
 
 // ------------------------------------------------------------------ the inbox (staff)
 
-const toSession = (row) => ({
-  id: row.id, channelName: row.channel_name, visitorName: row.visitor_name, visitorEmail: row.visitor_email, visitorMobile: row.visitor_mobile, pageUrl: row.page_url,
+// The visitor's email and mobile show only to whoever may see leads' contact details.
+const toSession = (row, context) => ({
+  id: row.id, channelName: row.channel_name, visitorName: row.visitor_name, pageUrl: row.page_url,
+  visitorEmail: canViewSensitiveLeadContent(context) ? row.visitor_email : null, visitorMobile: canViewSensitiveLeadContent(context) ? row.visitor_mobile : null,
   leadId: row.lead_id, leadCode: row.lead_code ?? null, leadStatus: row.lead_status ?? null, opportunityId: row.converted_opportunity_id ?? null,
   assignedTo: row.assigned_to, assignedName: row.assigned_name ?? null, status: row.status, unread: row.unread_by_team, lastMessageAt: row.last_message_at,
   lastMessage: row.last_message ?? null, createdAt: row.created_at,
@@ -208,22 +210,34 @@ const SESSION_SELECT = `SELECT session.*, channel.name AS channel_name, lead.cod
   LEFT JOIN tenant.crm_leads lead ON lead.organization_id = session.organization_id AND lead.id = session.lead_id
   LEFT JOIN users member ON member.id = session.assigned_to`;
 
+// Which chats a person sees: those of the leads they can see (Own / Team / All, as the lead list), and any chat assigned to them.
+function chatScope(context, values) {
+  const leadScope = leadScopeSql(context, values, "lead");
+  if (!leadScope) return "";
+  values.push(context.userId ?? null);
+  return ` AND (session.assigned_to = $${values.length} OR (lead.id IS NOT NULL${leadScope}))`;
+}
+
 export async function listChatSessions(client, context, { status = "open" } = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.view, "You do not have permission to see website chats.");
-  return (await client.query(`${SESSION_SELECT} WHERE session.organization_id = $1 AND ($2 = 'all' OR session.status = $2) ORDER BY session.last_message_at DESC LIMIT 200`,
-    [context.organizationId, ["open", "closed"].includes(status) ? status : "all"])).rows.map(toSession);
+  const values = [context.organizationId, ["open", "closed"].includes(status) ? status : "all"];
+  const scope = chatScope(context, values);
+  return (await client.query(`${SESSION_SELECT} WHERE session.organization_id = $1 AND ($2 = 'all' OR session.status = $2)${scope} ORDER BY session.last_message_at DESC LIMIT 200`,
+    values)).rows.map((row) => toSession(row, context));
 }
 
 // A conversation, its messages read by the team.
 export async function getChatSession(client, context, sessionId) {
   requireLeadPermission(context, LEAD_PERMISSIONS.view, "You do not have permission to see website chats.");
-  const row = UUID.test(String(sessionId ?? "")) ? (await client.query(`${SESSION_SELECT} WHERE session.organization_id = $1 AND session.id = $2`, [context.organizationId, sessionId])).rows[0] : null;
+  const values = [context.organizationId, sessionId];
+  const scope = UUID.test(String(sessionId ?? "")) ? chatScope(context, values) : "";
+  const row = UUID.test(String(sessionId ?? "")) ? (await client.query(`${SESSION_SELECT} WHERE session.organization_id = $1 AND session.id = $2${scope}`, values)).rows[0] : null;
   if (!row) throw new CrmError(404, "Chat not found.", "CRM_CHAT_NOT_FOUND");
   await client.query("UPDATE tenant.crm_chat_sessions SET unread_by_team = 0 WHERE id = $1", [row.id]);
   const messages = (await client.query(
     `SELECT message.*, author.full_name AS author_name FROM tenant.crm_chat_messages message LEFT JOIN users author ON author.id = message.author_user_id
       WHERE message.organization_id = $1 AND message.session_id = $2 ORDER BY message.created_at`, [context.organizationId, row.id])).rows;
-  return { ...toSession({ ...row, unread_by_team: 0 }), messages: messages.map(toMessage) };
+  return { ...toSession({ ...row, unread_by_team: 0 }, context), messages: messages.map(toMessage) };
 }
 
 export async function replyToChat(client, context, sessionId, body) {
