@@ -12,8 +12,7 @@ import {
   MenuSeparator,
   IconButton,
 } from "@vercentlabs/design-system";
-import { HelpCircle, ListChecks, LogOut, User } from "lucide-react";
-import { reopenGuide } from "@/features/platform/start/WorkspaceGuideCard";
+import { HelpCircle, LogOut, User } from "lucide-react";
 
 export function ProfileMenu({
   fullName,
@@ -110,17 +109,13 @@ export function ProfileMenu({
       {/* id (not React's `key`) is what react-aria-components' collection
           system passes back to onAction — `key` is React's own list-
           reconciliation prop and is never readable by the component. */}
-      <Menu onAction={(id) => { if (id === "sign-out") void handleSignOut(); if (id === "get-started") void reopenGuide(window.location.pathname); }}>
+      <Menu onAction={(id) => { if (id === "sign-out") void handleSignOut(); }}>
         <MenuItem id="profile" href="/settings/profile" textValue="Profile">
           <User aria-hidden="true" className="size-4" />
           <span className="flex flex-col">
             <span className="text-sm font-medium">{fullName}</span>
             <span className="text-xs text-text-muted">{email}</span>
           </span>
-        </MenuItem>
-        <MenuItem id="get-started" textValue="Get started">
-          <ListChecks aria-hidden="true" className="size-4" />
-          <span className="flex-1">Get started</span>
         </MenuItem>
         {showHelp ? (
           <MenuItem id="help" isDisabled textValue="Help">

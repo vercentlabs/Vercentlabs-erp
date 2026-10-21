@@ -209,32 +209,17 @@ try {
   });
 
   const owner = () => ({ organizationId, userId: ownerId, sessionId: null, email, roleSlugs: ["organization_owner"], permissions: [] });
-  await check("S9. Get started card for the owner on Manufacturing: 3 tasks, ticking themselves; closed, it's gone until reopened; the first app is where they land", async () => {
+  await check("S9. The GST question: needed for a new company; 'Yes' with the GSTIN saves the company registration and its state", async () => {
     await client.query("SELECT set_config('app.current_organization_id', $1, true)", [organizationId]);
-    const guide = await start.getWorkspaceGuide(client, owner(), "manufacturing", ["manufacturing", "sales"]);
-    assert(guide.kind === "get_started" && guide.tasks.length === 3 && guide.done === 0 && guide.title === "Get started with Manufacturing", JSON.stringify(guide));
-    await start.dismissWorkspaceGuide(client, owner(), { guide: "get_started", moduleKey: "manufacturing" });
-    assert(await start.getWorkspaceGuide(client, owner(), "manufacturing") === null, "closed");
-    await start.reopenWorkspaceGuide(client, owner(), "manufacturing");
-    assert((await start.getWorkspaceGuide(client, owner(), "manufacturing"))?.kind === "get_started", "reopened");
-    assert(await start.startingModule(client, owner(), ["sales", "manufacturing"]) === "manufacturing", "first app");
-    await start.rememberLastModule(client, owner(), "sales");
-    assert(await start.startingModule(client, owner(), ["sales", "manufacturing"]) === "sales", "last used");
-  });
-
-  await check("S10. The GST question: needed for a new company; 'Yes' with the GSTIN saves the company registration and its state; Accounting's GST task is then done", async () => {
     const before = await start.getGstDetailsStatus(client, owner());
     assert(before.needed && before.canEdit, JSON.stringify(before));
     await refused(() => start.saveGstDetails(client, { ...owner(), roleSlugs: [], permissions: [] }, { registered: true, gstin: "x" }), "GST_DETAILS_DENIED");
     const own = gstin("24", "AAPCS1234K");
     const after = await start.saveGstDetails(client, owner(), { registered: true, gstin: own });
     assert(!after.needed && after.gstin === own && after.stateCode === "24", JSON.stringify(after));
-    await client.query(`UPDATE public.organization_modules SET status = 'enabled' WHERE organization_id = $1 AND module_key = 'accounting'`, [organizationId]);
-    const acc = await start.getWorkspaceGuide(client, owner(), "accounting");
-    assert(acc.tasks.find((t) => t.action === "gst").done, "GST task done");
   });
 
-  await check("S11. A teammate joins from the invite with just a name (no password), and sees a Welcome card instead of Get started", async () => {
+  await check("S10. A teammate joins from the invite with just a name (no password)", async () => {
     const roleId = (await client.query(`SELECT id FROM public.roles WHERE organization_id = $1 AND slug = 'sales_representative'`, [organizationId])).rows[0].id;
     const mate = `mate-${tag}@example.test`;
     const invite = await lifecycle.createOrganizationInvitation(client, { organizationId, invitedByUserId: ownerId, email: mate, roleIds: [roleId], primaryRoleId: roleId, note: "Welcome aboard",
@@ -248,8 +233,6 @@ try {
     await client.query("SELECT set_config('app.current_organization_id', $1, true)", [organizationId]);
     const user = (await client.query(`SELECT password_hash, email_verified_at FROM public.users WHERE id = $1`, [accepted.userId])).rows[0];
     assert(user.password_hash === null && user.email_verified_at, "no password, the link proved the email");
-    const guide = await start.getWorkspaceGuide(client, { organizationId, userId: accepted.userId, email: mate, roleSlugs: ["sales_representative"], permissions: ["sales.view"] }, "sales", ["sales"]);
-    assert(guide.kind === "welcome" && /Ravi gave you access to Sales/.test(guide.line), JSON.stringify(guide));
   });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);

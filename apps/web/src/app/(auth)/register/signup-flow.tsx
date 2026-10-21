@@ -1,7 +1,7 @@
 "use client";
 
 // New workspace setup (MVP 44): Screen 1 (4 details) → Screen 2 (the 6-digit code) → Screen 3 (what the business does — only when the
-// website told us nothing) → Screen 4 (what we understood and the suggested apps) → Screen 5 (setting up, then the first app).
+// website told us nothing) → Screen 4 (what we understood and the suggested apps) → Screen 5 (setting up, then the home page).
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

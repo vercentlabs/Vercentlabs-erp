@@ -5,15 +5,12 @@
 --   3. signup_requests: a signup in progress (name, work email, company, website) with what was read from the website and the suggested
 --      apps; unfinished ones are deleted after 24 hours, and the website text is dropped once the workspace exists;
 --   4. organizations.business_profile: what was understood about the business (one line, what it sells, how, the apps suggested, when);
---   5. users.last_module_key: the app someone used last (sign-in returns them there);
---   6. sessions.reauthenticated_at: a person without a password confirmed who they are with an email code (valid 10 minutes);
+--   5. sessions.reauthenticated_at: a person without a password confirmed who they are with an email code (valid 10 minutes);
 --      sessions.remember: "stay signed in" — the session lasts its 30 days instead of ending when idle;
---   7. organization_invitations.personal_note: the owner's short note in the invitation email;
---   8. workspace_guides: the Get started card (per person and app) and a teammate's welcome card, and when each was closed.
+--   6. organization_invitations.personal_note: the owner's short note in the invitation email.
 -- Re-runnable.
 
 ALTER TABLE public.users ALTER COLUMN password_hash DROP NOT NULL;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_module_key text;
 ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS reauthenticated_at timestamptz;
 ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS remember boolean NOT NULL DEFAULT false;
 ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS business_profile jsonb;
@@ -60,24 +57,5 @@ CREATE INDEX IF NOT EXISTS signup_requests_expiry_idx ON public.signup_requests 
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_codes TO vercent_app, vercent_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.signup_requests TO vercent_app, vercent_worker;
-
-CREATE TABLE IF NOT EXISTS public.workspace_guides (
-  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  user_id uuid NOT NULL,
-  guide text NOT NULL CHECK (guide IN ('get_started', 'welcome')),
-  module_key text NOT NULL DEFAULT '',
-  dismissed_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-  PRIMARY KEY (organization_id, user_id, guide, module_key)
-);
-ALTER TABLE public.workspace_guides ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.workspace_guides FORCE ROW LEVEL SECURITY;
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'workspace_guides' AND policyname = 'organization_isolation') THEN
-    CREATE POLICY organization_isolation ON public.workspace_guides USING (organization_id = public.current_organization_id()) WITH CHECK (organization_id = public.current_organization_id());
-  END IF;
-END $$;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.workspace_guides TO vercent_app, vercent_worker;
 
 INSERT INTO public.schema_migrations (filename, checksum) VALUES ('0215_code_sign_in_signup.sql', 'code-sign-in-signup') ON CONFLICT DO NOTHING;

@@ -2,10 +2,9 @@ import { Suspense, type ReactNode } from "react";
 import type { ModuleAccess } from "@vercentlabs/api";
 
 import { SearchDialogProvider } from "@/features/platform/search/SearchDialog";
-import { RememberLastApp } from "@/features/platform/start/RememberLastApp";
 import { OpenFormFromAddress } from "@/shell/form-modal/OpenFormFromAddress";
 import { SavedNotice } from "@/shell/form-modal/SavedNotice";
-import { WorkspaceGuideCard } from "@/features/platform/start/WorkspaceGuideCard";
+import { WelcomeBackNotice } from "@/features/platform/start/WelcomeBackNotice";
 import { MobileNav } from "@/shell/primary-sidebar/MobileNav";
 import { ModuleRail } from "@/shell/module-sidebar/ModuleRail";
 import { QueryProvider } from "@/shell/workspace-context/QueryProvider";
@@ -75,8 +74,7 @@ export function AppShell({
             />
             <WorkspaceTopBar />
             <main className="flex min-w-0 flex-1 flex-col px-6 py-6 md:px-8">
-              <RememberLastApp />
-              <Suspense fallback={null}><WorkspaceGuideCard /></Suspense>
+              <Suspense fallback={null}><WelcomeBackNotice /></Suspense>
               <TrialGate trial={trial} canManageBilling={canManageBilling}>{children}</TrialGate>
               <Suspense fallback={null}><OpenFormFromAddress /></Suspense>
               {modal}
