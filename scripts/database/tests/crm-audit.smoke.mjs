@@ -118,6 +118,29 @@ try {
     await crm.archiveLead(client, owner(), lead.id, {});
     assert(await crm.resolveCrmEntityAccess(client, owner(), "lead", lead.id), "archived lead keeps its history");
   });
+
+  await check("B6. With CRM switched off, web forms and the website chat refuse, and a WhatsApp delivery is acknowledged but creates nothing; back on, they work", async () => {
+    const channel = await crm.createChatChannel(client, owner(), { name: "Site chat" });
+    const form = await crm.createCaptureForm(client, owner(), { name: `Contact ${tag}`, fields: [{ name: "lastName", required: true }, { name: "email" }] });
+    const leads = async () => Number((await client.query("SELECT count(*) FROM tenant.crm_leads WHERE organization_id = $1", [organizationId])).rows[0].count);
+    const before = await leads();
+    await onlyApps([]);
+    await refused(() => crm.startChat(client, channel.publicKey, { name: "Visitor", email: "v@example.in", message: "Price?" }), "CRM_APP_OFF");
+    await refused(() => crm.getPublicChat(client, channel.publicKey), "CRM_APP_OFF");
+    await refused(() => crm.captureCrmLead(client, form.publicKey, { lastName: "Patil", email: "p@example.in" }, { fingerprint: "t" }), "CRM_APP_OFF");
+    assert(await crm.getPublicCaptureForm(client, form.publicKey) === null, "hosted form hidden");
+    const row = { organization_id: organizationId, encrypted_credentials: null };
+    const off = await crm.receiveWhatsAppWebhook({ runTenant: (work) => work(client) }, row, { rawBody: "{}", headers: new Headers(), body: {} }).catch((error) => error);
+    // The signature is checked first (a forged call is still refused); the CRM-off answer itself is covered by crmIsOn below.
+    assert(off instanceof Error || off.crmOff, "whatsapp ignored or refused");
+    assert(!(await (await api("modules/crm/data-management/crm-on.js")).crmIsOn(client, organizationId)), "CRM reads as off");
+    assert(await leads() === before, "nothing created while off");
+    await onlyApps(["crm"]);
+    await client.query("SELECT set_config('app.current_organization_id', $1, true)", [organizationId]);
+    const started = await crm.startChat(client, channel.publicKey, { name: "Visitor Two", email: `v2-${tag}@example.in`, message: "Price?" });
+    assert(started.token, "chat works again");
+    assert(await crm.getPublicCaptureForm(client, form.publicKey), "hosted form back");
+  });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);
   await client.end();

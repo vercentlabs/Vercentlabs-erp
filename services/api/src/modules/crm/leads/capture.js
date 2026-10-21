@@ -9,6 +9,7 @@
 // CRM it is never lost: the enquiry is logged on the matching lead (or the
 // contact it became) and its owner is told.
 import { withConsentSource } from "../data-management/consent.js";
+import { requireCrmOn } from "../data-management/crm-on.js";
 import { mediumFromUtm } from "@vercentlabs/shared-types";
 
 import { createNotification } from "../../../core/platform/notifications/index.js";
@@ -39,6 +40,7 @@ export async function captureCrmLead(client, formKey, input = {}, requestContext
   const form = (await client.query(`SELECT * FROM tenant.crm_public_capture_form($1)`, [formKey])).rows[0];
   if (!form) throw new CrmError(404, "Lead-capture form not found.");
   await client.query("SELECT set_config('app.current_organization_id', $1, true)", [form.organization_id]);
+  await requireCrmOn(client, form.organization_id, "Lead-capture form not found.");
 
   const origin = String(requestContext.origin || "");
   if (form.allowed_origins?.length && !form.allowed_origins.includes(origin) && !(requestContext.selfOrigin && origin === requestContext.selfOrigin))

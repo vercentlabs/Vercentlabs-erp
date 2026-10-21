@@ -7,6 +7,7 @@
 //                           organization's DLT entity id, and the template's {#var#} values. Promotional templates go only to people who
 //                           agreed to SMS. Nobody who refused calls or SMS — on the record or on the opt-out list — is reached.
 import { createHash, randomBytes } from "node:crypto";
+import { crmIsOn } from "../data-management/crm-on.js";
 
 import { setTenantContext } from "@vercentlabs/database";
 
@@ -194,6 +195,7 @@ const EXOTEL_STATUS = Object.freeze({ completed: "completed", busy: "busy", "no-
 
 // Exotel's status callback (form fields): CallSid, Status, CustomField (our call id), ConversationDuration, StartTime, EndTime, RecordingUrl.
 export async function receiveCallStatus(client, organizationId, fields) {
+  if (!(await crmIsOn(client, organizationId))) return { matched: false, crmOff: true };
   const callId = text(fields.CustomField);
   const sid = text(fields.CallSid);
   const call = (await client.query(
@@ -337,6 +339,7 @@ export async function listSmsMessages(client, context, type, id) {
 
 // Delivery reports: Exotel (SmsSid, Status) or MSG91 (requestId / status).
 export async function receiveSmsStatus(client, organizationId, fields) {
+  if (!(await crmIsOn(client, organizationId))) return { matched: false, crmOff: true };
   const id = text(fields.SmsSid ?? fields.requestId ?? fields.request_id);
   // Exotel: Status "delivered" / "failed"…; MSG91: a numeric status (1 delivered, 2 failed, 16 rejected) with a description.
   const raw = [fields.Status, fields.status, fields.desc].map(text).filter(Boolean).join(" ").toLowerCase();

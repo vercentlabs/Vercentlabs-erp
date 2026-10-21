@@ -2,6 +2,7 @@
 // the conversation joins that person's open lead, or opens a new lead (source Website chat — converted at once when leads are switched
 // off), and is answered from CRM's chat inbox. The visitor's browser holds a random token for its conversation; only its hash is kept.
 import { createHash, randomBytes } from "node:crypto";
+import { requireCrmOn } from "../data-management/crm-on.js";
 import { setTenantContext } from "@vercentlabs/database";
 
 import { createNotification } from "../../../core/platform/notifications/index.js";
@@ -81,6 +82,7 @@ async function channelOf(client, publicKey, origin = null, selfOrigin = null) {
   const found = (await client.query("SELECT * FROM tenant.crm_resolve_chat_channel($1)", [publicKey])).rows[0];
   if (!found) throw new CrmError(404, "Chat not found.", "CRM_CHAT_NOT_FOUND");
   await setTenantContext(client, found.organization_id);
+  await requireCrmOn(client, found.organization_id, "Chat not found.");
   const channel = (await client.query("SELECT channel.*, organization.name AS organization_name FROM tenant.crm_chat_channels channel JOIN public.organizations organization ON organization.id = channel.organization_id WHERE channel.id = $1",
     [found.channel_id])).rows[0];
   if (origin && channel.allowed_origins?.length && !channel.allowed_origins.includes(origin) && origin !== selfOrigin)

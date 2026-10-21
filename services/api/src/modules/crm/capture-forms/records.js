@@ -6,7 +6,9 @@
 // leads get, the websites allowed to post it, the thank-you message or page, and an optional consent notice. The notice is versioned:
 // changing its wording keeps the old version and makes a new one current, and each lead records the version its person saw.
 import { FORM_LANGUAGES, formLabel } from "./languages.js";
+import { setTenantContext } from "@vercentlabs/database";
 import { CrmError } from "../data-management/errors.js";
+import { crmIsOn } from "../data-management/crm-on.js";
 import { assertUsableCampaign } from "../campaigns/records.js";
 import { assertActiveLeadSource } from "../leads/sources.js";
 
@@ -244,6 +246,11 @@ export async function getPublicCaptureForm(queryable, formKey) {
   if (!/^[0-9a-f]{24,64}$/i.test(String(formKey ?? ""))) return null;
   const row = (await queryable.query("SELECT * FROM tenant.crm_public_capture_definition($1)", [formKey])).rows[0];
   if (!row) return null;
+  // CRM switched off: the form is not shown at all (run inside a transaction, so the organization context holds for the check).
+  const organizationId = (await queryable.query("SELECT organization_id FROM tenant.crm_public_capture_form($1)", [formKey])).rows[0]?.organization_id;
+  if (!organizationId) return null;
+  await setTenantContext(queryable, organizationId);
+  if (!(await crmIsOn(queryable, organizationId))) return null;
   const required = new Set(row.required_fields ?? []);
   const listed = Array.isArray(row.form_schema?.fields) ? row.form_schema.fields : [];
   const language = row.form_schema?.language ?? "en";

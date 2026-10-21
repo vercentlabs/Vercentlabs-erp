@@ -9,6 +9,7 @@
 // WhatsApp's own rules are kept: someone who refused WhatsApp (or asked not to be contacted) is never messaged; outside 24 hours from
 // the customer's last message only an approved template may be sent, and only to someone who agreed to WhatsApp messages.
 import { notifyFollowers } from "../followers/records.js";
+import { crmIsOn } from "../data-management/crm-on.js";
 import { withConsentSource } from "../data-management/consent.js";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
@@ -295,6 +296,8 @@ export async function receiveWhatsAppWebhook({ runTenant }, row, { rawBody, head
   const values = (body?.entry ?? []).flatMap((entry) => (entry.changes ?? []).filter((change) => change.field === "messages").map((change) => change.value ?? {}));
   return runTenant(async (client) => {
     const organizationId = row.organization_id;
+    // CRM switched off: Meta's delivery is acknowledged (no retries) and nothing is recorded or created.
+    if (!(await crmIsOn(client, organizationId))) return { received: 0, duplicate: 0, statuses: 0, newLeads: 0, crmOff: true };
     const actor = (await client.query("SELECT created_by FROM public.organizations WHERE id = $1", [organizationId])).rows[0]?.created_by ?? null;
     const authority = { organizationId, userId: actor, roleSlugs: [], permissions: [LEAD_PERMISSIONS.create, LEAD_PERMISSIONS.assign, LEAD_PERMISSIONS.viewAll, LEAD_PERMISSIONS.viewSensitive, "crm.records.view_all"] };
     const counts = { received: 0, duplicate: 0, statuses: 0, newLeads: 0 };

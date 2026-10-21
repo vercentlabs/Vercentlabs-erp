@@ -6,6 +6,7 @@
 // lead id: a lead read twice, or re-sent, is never a second lead. A person the CRM already has is not a second lead either: the
 // enquiry is logged on their lead or contact and its owner is told (as for a repeat website enquiry).
 import { withConsentSource } from "../data-management/consent.js";
+import { crmIsOn } from "../data-management/crm-on.js";
 import { createHash, randomBytes } from "node:crypto";
 
 import { setTenantContext } from "@vercentlabs/database";
@@ -350,6 +351,9 @@ export async function receiveLeadConnectorWebhook({ runTenant }, row, { rawBody,
   if (row.status !== "active") throw new CrmError(409, "This connector is paused.", "CRM_CONNECTOR_PAUSED");
   const credentials = await credentialsOf(row, env);
   provider.verifyPush?.(credentials, rawBody, headers);
+  // CRM switched off: the provider's push is acknowledged (so it does not retry or disable the webhook) and nothing is created.
+  if (!(await runTenant((client) => crmIsOn(client, row.organization_id))))
+    return { received: 0, created: 0, logged: 0, failed: 0, ignored: 0, duplicate: 0, crmOff: true };
   let items;
   try {
     items = await provider.fromPush(body, { fetchImpl, credentials });
