@@ -11,7 +11,7 @@ import { updatedSummary } from "../data-management/field-labels.js";
 import { phoneSearchDigits } from "../duplicates/normalize.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { assertCrmOwnerAssignable } from "../data-management/crm-access-scope.js";
-import { CrmError } from "../data-management/errors.js";
+import { CrmError, deleteUnlessReferenced } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { accountCan, accountCapabilities, accountScopeSql, projectAccountForContext, requireAccountPermission } from "./access.js";
@@ -432,6 +432,10 @@ const REFERENCES = Object.freeze([
   ["POS sales", "SELECT 1 FROM tenant.pos_sales WHERE organization_id = $1 AND customer_id = $2"],
   ["projects", "SELECT 1 FROM tenant.projects WHERE organization_id = $1 AND customer_id = $2 AND deleted_at IS NULL"],
   ["support tickets", "SELECT 1 FROM tenant.support_tickets WHERE organization_id = $1 AND customer_id = $2"],
+  ["emails", "SELECT 1 FROM tenant.crm_email_messages WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2"],
+  ["WhatsApp messages", "SELECT 1 FROM tenant.crm_whatsapp_messages WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2"],
+  ["calls", "SELECT 1 FROM tenant.crm_calls WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2"],
+  ["SMS messages", "SELECT 1 FROM tenant.crm_sms_messages WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2"],
 ]);
 
 export async function accountReferences(client, context, partyId) {
@@ -453,7 +457,9 @@ export async function deleteUnusedAccount(client, context, partyId) {
   const references = await accountReferences(client, context, row.id);
   if (references.length)
     throw new CrmError(409, `This company has ${references.join(", ")}. Archive it instead of deleting it.`, "CRM_ACCOUNT_IN_USE", { references });
-  await client.query(`DELETE FROM tenant.business_parties WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id]);
+  // Anything else that still points at it (another app's records) is caught as "in use", not a raw error.
+  await deleteUnlessReferenced(client, `DELETE FROM tenant.business_parties WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id],
+    "This company is used in other records (sales, purchases, POS or accounts). Archive it instead of deleting it.", "CRM_ACCOUNT_IN_USE");
   await queueOutboxEvent(client, context, "crm.accounts.archived", "account", row.id, { accountId: row.id, deleted: true });
   return { deleted: true };
 }

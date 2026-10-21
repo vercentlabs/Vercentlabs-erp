@@ -9,7 +9,7 @@ import { accountScopeSql } from "../accounts/access.js";
 import { recordAccountHistory } from "../accounts/history.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { assertCrmOwnerAssignable } from "../data-management/crm-access-scope.js";
-import { CrmError } from "../data-management/errors.js";
+import { CrmError, deleteUnlessReferenced } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { contactCan, contactCapabilities, contactScopeValues, projectContactForContext, requireContactPermission } from "./access.js";
@@ -469,6 +469,10 @@ const REFERENCES = Object.freeze([
   ["quotations", "SELECT 1 FROM tenant.sales_quotations WHERE organization_id = $1 AND contact_id = $2"],
   ["sales orders", "SELECT 1 FROM tenant.sales_orders WHERE organization_id = $1 AND contact_id = $2"],
   ["support tickets", "SELECT 1 FROM tenant.support_tickets WHERE organization_id = $1 AND contact_id = $2"],
+  ["emails", "SELECT 1 FROM tenant.crm_email_messages WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2"],
+  ["WhatsApp messages", "SELECT 1 FROM tenant.crm_whatsapp_messages WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2"],
+  ["calls", "SELECT 1 FROM tenant.crm_calls WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2"],
+  ["SMS messages", "SELECT 1 FROM tenant.crm_sms_messages WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2"],
 ]);
 
 export async function contactReferences(client, context, contactId) {
@@ -489,7 +493,8 @@ export async function deleteUnusedContact(client, context, contactId) {
   if (references.length)
     throw new CrmError(409, `This contact has ${references.join(", ")}. Archive it instead of deleting it.`, "CRM_CONTACT_IN_USE", { references });
   await client.query(`DELETE FROM tenant.crm_notes WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2`, [context.organizationId, row.id]);
-  await client.query(`DELETE FROM tenant.contacts WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id]);
+  await deleteUnlessReferenced(client, `DELETE FROM tenant.contacts WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id],
+    "This contact is used in other records. Archive it instead of deleting it.", "CRM_CONTACT_IN_USE");
   await queueOutboxEvent(client, context, "crm.contacts.archived", "contact", row.id, { contactId: row.id, deleted: true });
   return { deleted: true };
 }

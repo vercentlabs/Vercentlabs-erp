@@ -203,6 +203,25 @@ try {
     assert((await crm.searchLinkableContacts(client, contactsOnly, shop.id, `secret-${tag}`)).length === 0, "no email match without view_sensitive");
     assert((await crm.searchLinkableContacts(client, owner(), shop.id, `secret-${tag}`)).length === 1, "email match with it");
   });
+
+  await check("B11. Deleting a company or contact that is still used anywhere gives a friendly 'in use' answer, never a database error", async () => {
+    const used = await crm.createAccount(client, owner(), { displayName: `Used Elsewhere ${tag}` });
+    // A table outside the reference list that still points at the company (a foreign key).
+    const lead = await crm.createLead(client, owner(), { firstName: "Conv", lastName: "Lead", companyName: "Conv Co", email: `conv-${tag}@example.in` });
+    await client.query("INSERT INTO tenant.crm_lead_conversions (organization_id, lead_id, party_id) VALUES ($1, $2, $3)", [organizationId, lead.id, used.id]);
+    const error = await refused(() => crm.deleteUnusedAccount(client, owner(), used.id), "CRM_ACCOUNT_IN_USE");
+    assert(error.status === 409 && /Archive it/.test(error.message), error.message);
+    // Its messages count as use too (they have no foreign key, and would be orphaned).
+    const talked = await crm.createAccount(client, owner(), { displayName: `Talked To ${tag}` });
+    await client.query(`INSERT INTO tenant.crm_whatsapp_messages (organization_id, entity_type, entity_id, direction, channel, phone, status) VALUES ($1, 'party', $2, 'inbound', 'cloud_api', '+919800000002', 'received')`, [organizationId, talked.id]);
+    const messages = await refused(() => crm.deleteUnusedAccount(client, owner(), talked.id), "CRM_ACCOUNT_IN_USE");
+    assert(/WhatsApp messages/.test(messages.message), messages.message);
+    const person = await crm.createContact(client, owner(), { firstName: "Mailed", lastName: "Person", email: `mailed-${tag}@example.in` });
+    await client.query(`INSERT INTO tenant.crm_email_messages (organization_id, entity_type, entity_id, direction, message_id, subject, status) VALUES ($1, 'contact', $2, 'inbound', $3, 'Hi', 'received')`, [organizationId, person.id, `<p-${tag}@x>`]);
+    assert(/emails/.test((await refused(() => crm.deleteUnusedContact(client, owner(), person.id), "CRM_CONTACT_IN_USE")).message), "contact email blocks delete");
+    const unused = await crm.createAccount(client, owner(), { displayName: `Mistake ${tag}` });
+    assert((await crm.deleteUnusedAccount(client, owner(), unused.id)).deleted, "an unused company still deletes");
+  });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);
   await client.end();
