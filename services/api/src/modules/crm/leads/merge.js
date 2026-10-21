@@ -1,11 +1,12 @@
 // Merging a duplicate lead into the lead that should be kept. Everything
-// recorded against the duplicate (activities, notes and files)
-// moves to the kept lead. The user chooses, field by field, which value
+// recorded against the duplicate (activities, notes, files, emails, WhatsApp,
+// calls, SMS, tags and followers) moves to the kept lead. The user chooses, field by field, which value
 // survives; blank fields on the kept lead are filled from the duplicate. The
 // duplicate is disqualified as "Duplicate" and archived — never deleted — and
 // it remembers the lead it became, so its page points to the kept lead. Its
 // own assignment, stage and qualification history stay with it, readable.
 import { CrmError } from "../data-management/errors.js";
+import { moveRecordedHistory } from "../data-management/merge-history.js";
 import { requireLeadPermission } from "./access.js";
 import { LEAD_PERMISSIONS } from "./constants.js";
 import { recordLeadHistory } from "./history.js";
@@ -39,10 +40,7 @@ export async function mergeLeads(client, context, duplicateLeadId, keepLeadId, {
 
   const organizationId = context.organizationId;
   const move = [organizationId, duplicate.id, keep.id];
-  await client.query(`UPDATE tenant.crm_activities SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2`, move);
-  await client.query(`UPDATE tenant.crm_notes SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2`, move);
-  await client.query(`UPDATE public.attachments SET entity_id = $3::text WHERE organization_id = $1 AND entity_type = 'crm.lead' AND entity_id = $2::text`, move);
-  await client.query(`UPDATE tenant.crm_attachment_details SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2`, move);
+  await moveRecordedHistory(client, context, "lead", duplicate.id, keep.id);
 
   const filled = FILLABLE_COLUMNS.filter((column) => !blank(duplicate[column]) && String(duplicate[column]) !== String(keep[column] ?? "")
     && (choices?.[FIELD_OF_COLUMN[column]] === "duplicate" || (choices?.[FIELD_OF_COLUMN[column]] !== "keep" && blank(keep[column]))));

@@ -12,6 +12,7 @@
 // Masters is a finance decision, not a CRM one).
 import { applyProjectCustomerMerge } from "../../projects/project-customer.js";
 import { CrmError } from "../data-management/errors.js";
+import { moveRecordedHistory } from "../data-management/merge-history.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { requireAccountPermission } from "./access.js";
 import { ACCOUNT_PERMISSIONS } from "./constants.js";
@@ -153,10 +154,7 @@ export async function mergeAccounts(client, context, input = {}, { linkingCustom
   await client.query(`UPDATE tenant.crm_lead_conversions SET party_id = $3 WHERE organization_id = $1 AND party_id = $2`, move);
   await client.query(`UPDATE tenant.business_parties SET parent_party_id = $3 WHERE organization_id = $1 AND parent_party_id = $2 AND id <> $3`, move);
   await client.query(`UPDATE tenant.addresses SET party_id = $3, is_default_billing = false, is_default_shipping = false, is_primary = false WHERE organization_id = $1 AND party_id = $2`, move);
-  await client.query(`UPDATE tenant.crm_activities SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2`, move);
-  await client.query(`UPDATE tenant.crm_notes SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2`, move);
-  await client.query(`UPDATE public.attachments SET entity_id = $3::text WHERE organization_id = $1 AND entity_type = 'crm.party' AND entity_id = $2::text`, move);
-  await client.query(`UPDATE tenant.crm_attachment_details SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2`, move);
+  await moveRecordedHistory(client, context, "party", duplicate.id, keep.id);
   // Old links to the duplicate (and to anything already merged into it) now resolve to the kept account.
   await client.query(`UPDATE tenant.crm_entity_merge_aliases SET survivor_entity_id = $3 WHERE organization_id = $1 AND entity_type = 'account' AND survivor_entity_id = $2`, move);
   await client.query(

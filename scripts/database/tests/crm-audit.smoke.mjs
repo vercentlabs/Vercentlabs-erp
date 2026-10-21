@@ -141,6 +141,43 @@ try {
     assert(started.token, "chat works again");
     assert(await crm.getPublicCaptureForm(client, form.publicKey), "hosted form back");
   });
+
+  // Gives a record a WhatsApp chat, an email, a call, an SMS and a follower — the history a merge must carry over.
+  const giveHistory = async (type, id) => {
+    await client.query(`INSERT INTO tenant.crm_whatsapp_messages (organization_id, entity_type, entity_id, direction, channel, phone, status) VALUES ($1, $2, $3, 'inbound', 'cloud_api', '+919800000001', 'received')`, [organizationId, type, id]);
+    await client.query(`INSERT INTO tenant.crm_email_messages (organization_id, entity_type, entity_id, direction, message_id, subject, status) VALUES ($1, $2, $3, 'inbound', $4, 'Re: price', 'received')`, [organizationId, type, id, `<${id}@example.in>`]);
+    await client.query(`INSERT INTO tenant.crm_calls (organization_id, entity_type, entity_id, provider, customer_phone, status) VALUES ($1, $2, $3, 'exotel', '+919800000001', 'completed')`, [organizationId, type, id]);
+    await client.query(`INSERT INTO tenant.crm_sms_messages (organization_id, entity_type, entity_id, phone, body, provider, status) VALUES ($1, $2, $3, '+919800000001', 'Hi', 'exotel', 'sent')`, [organizationId, type, id]);
+    await client.query(`INSERT INTO tenant.crm_followers (organization_id, entity_type, entity_id, user_id, reason) VALUES ($1, $2, $3, $4, 'followed')`, [organizationId, type, id, ownerId]);
+  };
+  const historyOn = async (type, id) => {
+    const counts = {};
+    for (const table of ["crm_whatsapp_messages", "crm_email_messages", "crm_calls", "crm_sms_messages", "crm_followers"])
+      counts[table] = Number((await client.query(`SELECT count(*) FROM tenant.${table} WHERE organization_id = $1 AND entity_type = $2 AND entity_id = $3`, [organizationId, type, id])).rows[0].count);
+    return counts;
+  };
+  const allMoved = (from, to) => Object.values(from).every((n) => n === 0) && Object.values(to).every((n) => n >= 1);
+
+  await check("B3. Merging leads, companies and contacts moves WhatsApp, email, calls, SMS and followers to the record kept", async () => {
+    const keepLead = await crm.createLead(client, owner(), { firstName: "Kiran", lastName: "Shah", companyName: "Shah Agencies", email: `kiran-${tag}@example.in` });
+    const dupLead = await crm.createLead(client, owner(), { firstName: "Kiran", lastName: "Shah", companyName: "Shah Agencies", mobile: "+919812345678" }, { allowDuplicate: true }).catch(async () =>
+      crm.createLead(client, owner(), { firstName: "K", lastName: "Shah Two", companyName: "Shah Two", mobile: "+919812345679" }));
+    await giveHistory("lead", dupLead.id);
+    await crm.mergeLeads(client, owner(), dupLead.id, keepLead.id);
+    assert(allMoved(await historyOn("lead", dupLead.id), await historyOn("lead", keepLead.id)), "lead history moved");
+
+    const keepCo = await crm.createAccount(client, owner(), { displayName: `Kaveri Mills ${tag}` });
+    const dupCo = await crm.createAccount(client, owner(), { displayName: `Kaveri Mills Pvt ${tag}x` }, { allowDuplicate: true, duplicateReason: "test" });
+    await giveHistory("party", dupCo.id);
+    await crm.mergeAccounts(client, owner(), { keepId: keepCo.id, duplicateId: dupCo.id, reason: "Same company" });
+    assert(allMoved(await historyOn("party", dupCo.id), await historyOn("party", keepCo.id)), "company history moved");
+
+    const keepPerson = await crm.createContact(client, owner(), { firstName: "Meera", lastName: "Iyer", accountId: keepCo.id, email: `meera-${tag}@example.in` });
+    const dupPerson = await crm.createContact(client, owner(), { firstName: "Meera", lastName: "Iyer B", accountId: keepCo.id, mobile: "+919811111111" }, { allowDuplicate: true, duplicateReason: "test" });
+    await giveHistory("contact", dupPerson.id);
+    await crm.mergeContacts(client, owner(), { keepId: keepPerson.id, duplicateId: dupPerson.id, reason: "Same person" });
+    assert(allMoved(await historyOn("contact", dupPerson.id), await historyOn("contact", keepPerson.id)), "contact history moved");
+  });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);
   await client.end();

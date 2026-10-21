@@ -8,6 +8,7 @@
 import { recordAccountHistory } from "../accounts/history.js";
 import { applyProjectContactMerge } from "../../projects/project-customer.js";
 import { CrmError } from "../data-management/errors.js";
+import { moveRecordedHistory } from "../data-management/merge-history.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { requireContactPermission } from "./access.js";
 import { CONTACT_PERMISSIONS } from "./constants.js";
@@ -153,10 +154,7 @@ export async function mergeContacts(client, context, input = {}) {
   await client.query(`UPDATE tenant.crm_opportunity_contact_roles SET contact_id = $3 WHERE organization_id = $1 AND contact_id = $2`, move);
   for (const [table, column] of SIMPLE_MOVES)
     await client.query(`UPDATE tenant.${table} SET ${column} = $3 WHERE organization_id = $1 AND ${column} = $2`, move);
-  await client.query(`UPDATE tenant.crm_activities SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2`, move);
-  await client.query(`UPDATE tenant.crm_notes SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2`, move);
-  await client.query(`UPDATE public.attachments SET entity_id = $3::text WHERE organization_id = $1 AND entity_type = 'crm.contact' AND entity_id = $2::text`, move);
-  await client.query(`UPDATE tenant.crm_attachment_details SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2`, move);
+  await moveRecordedHistory(client, context, "contact", duplicate.id, keep.id);
   // Old links to the duplicate (and to anything already merged into it) now open the kept contact.
   await client.query(`UPDATE tenant.crm_entity_merge_aliases SET survivor_entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND survivor_entity_id = $2`, move);
   await client.query(

@@ -4,6 +4,7 @@
 // duplicate). The duplicate is then closed as lost with the reason "Duplicate deal", pointing at the kept deal: never deleted, its own
 // stage, assignment and close history stay readable. A duplicate that already became a sales order cannot be merged away.
 import { CrmError } from "../data-management/errors.js";
+import { moveRecordedHistory } from "../data-management/merge-history.js";
 import { requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_PERMISSIONS } from "./constants.js";
 import { recordOpportunityHistory } from "./history.js";
@@ -49,23 +50,13 @@ export async function mergeOpportunities(client, context, input = {}) {
 
   // What was recorded against the duplicate moves.
   const move = [organizationId, duplicate.id, keep.id];
-  for (const table of ["crm_activities", "crm_notes", "crm_attachment_details", "crm_email_messages", "crm_whatsapp_messages", "crm_calls", "crm_sms_messages"])
-    await client.query(`UPDATE tenant.${table} SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'opportunity' AND entity_id = $2`, move);
-  await client.query(`UPDATE public.attachments SET entity_id = $3::text WHERE organization_id = $1 AND entity_type = 'crm.opportunity' AND entity_id = $2::text`, move);
+  await moveRecordedHistory(client, context, "opportunity", duplicate.id, keep.id);
   await client.query("UPDATE tenant.crm_opportunity_items SET opportunity_id = $3 WHERE organization_id = $1 AND opportunity_id = $2", move);
   await client.query("UPDATE tenant.sales_quotations SET source_opportunity_id = $3 WHERE organization_id = $1 AND source_opportunity_id = $2", move);
   await client.query(
     `INSERT INTO tenant.crm_opportunity_contact_roles (organization_id, opportunity_id, contact_id, role, is_primary, status, created_by, updated_by)
      SELECT organization_id, $3, contact_id, role, false, status, $4, $4 FROM tenant.crm_opportunity_contact_roles WHERE organization_id = $1 AND opportunity_id = $2 AND status = 'active'
      ON CONFLICT (organization_id, opportunity_id, contact_id) DO NOTHING`, [...move, context.userId ?? null]);
-  await client.query(
-    `INSERT INTO tenant.crm_record_tags (organization_id, entity_type, entity_id, tag_id, created_by)
-     SELECT organization_id, entity_type, $3, tag_id, $4 FROM tenant.crm_record_tags WHERE organization_id = $1 AND entity_type = 'opportunity' AND entity_id = $2
-     ON CONFLICT DO NOTHING`, [...move, context.userId ?? null]);
-  await client.query(
-    `INSERT INTO tenant.crm_followers (organization_id, entity_type, entity_id, user_id, reason)
-     SELECT organization_id, entity_type, $3, user_id, reason FROM tenant.crm_followers WHERE organization_id = $1 AND entity_type = 'opportunity' AND entity_id = $2
-     ON CONFLICT DO NOTHING`, move);
 
   // The fields: the duplicate's value where chosen, or where the kept deal has none.
   const choices = input.choices ?? {};
