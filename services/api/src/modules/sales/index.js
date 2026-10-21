@@ -278,23 +278,23 @@ async function loadDocumentContext(client, context, input, options = {}) {
   if (!currency || currency.status !== "active")
     throw new SalesError(409, "The selected currency is not active.");
   const baseCurrencyCode = String(organization.base_currency).trim();
+  // The document date decides which prices, rules and exchange rate apply: the document's own date, else today (Sales audit B6).
+  const documentDate = date(input.quotationDate, "Quotation date") ?? date(input.orderDate, "Order date") ?? (await companyToday(client));
   let exchangeRate = decimal(input.exchangeRate || 1);
   if (currencyCode === baseCurrencyCode) exchangeRate = decimal(1);
   else if (exchangeRate <= 0n || input.exchangeRate == null) {
     const rate = await client.query(
-      `SELECT rate FROM tenant.exchange_rates WHERE organization_id=$1 AND from_currency_code=$2 AND to_currency_code=$3 AND rate_date<=tenant.company_today() AND status='active' ORDER BY rate_date DESC LIMIT 1`,
-      [context.organizationId, currencyCode, baseCurrencyCode],
+      `SELECT rate FROM tenant.exchange_rates WHERE organization_id=$1 AND from_currency_code=$2 AND to_currency_code=$3 AND rate_date<=$4::date AND status='active' ORDER BY rate_date DESC LIMIT 1`,
+      [context.organizationId, currencyCode, baseCurrencyCode, documentDate],
     );
     if (!rate.rows[0])
       throw new SalesError(
         409,
-        `An exchange rate from ${currencyCode} to ${baseCurrencyCode} is required.`,
+        `An exchange rate from ${currencyCode} to ${baseCurrencyCode} on or before ${documentDate} is required.`,
       );
     exchangeRate = decimal(rate.rows[0].rate);
   }
 
-  // The document date decides which prices apply: an order's date, else today.
-  const documentDate = date(input.quotationDate, "Quotation date") ?? date(input.orderDate, "Order date") ?? (await companyToday(client));
   let priceList;
   try {
     priceList = await resolveSalesPriceList(client, context, { priceListId: input.priceListId || null, partyId, currencyCode, documentDate });
