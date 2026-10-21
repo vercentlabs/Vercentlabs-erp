@@ -56,8 +56,9 @@ export type GlobalNavEntry = {
   /** Only an actionable count may be a badge source — never a decorative volume count. */
   badgeSource?: "pendingApprovals" | "unreadNotifications";
   /** "topbar" = desktop renders this in WorkspaceTopBar instead of the primary
-   * sidebar. The mobile drawer and breadcrumbs still list every entry. */
-  placement?: "topbar";
+   * sidebar; the mobile drawer still lists it. "hidden" = no menu shows it (the
+   * page is reached from elsewhere); breadcrumbs and search still know it. */
+  placement?: "topbar" | "hidden";
 };
 
 export const GLOBAL_NAV_TOP: readonly GlobalNavEntry[] = [
@@ -92,6 +93,7 @@ export const GLOBAL_NAV_BOTTOM: readonly GlobalNavEntry[] = [
     availability: "implemented",
     keywords: ["notifications", "alerts"],
     badgeSource: "unreadNotifications",
+    placement: "topbar",
   },
   {
     key: "reports",
@@ -101,6 +103,7 @@ export const GLOBAL_NAV_BOTTOM: readonly GlobalNavEntry[] = [
     requiredPermission: null,
     availability: "implemented",
     keywords: ["reports", "csv", "download data"],
+    placement: "hidden",
   },
   {
     key: "jobs",
@@ -110,6 +113,7 @@ export const GLOBAL_NAV_BOTTOM: readonly GlobalNavEntry[] = [
     requiredPermission: null,
     availability: "implemented",
     keywords: ["jobs", "background jobs", "imports"],
+    placement: "hidden",
   },
 ];
 

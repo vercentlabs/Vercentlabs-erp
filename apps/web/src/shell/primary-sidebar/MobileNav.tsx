@@ -247,8 +247,9 @@ export function MobileNav({
 
             {GLOBAL_NAV_BOTTOM.filter(
               (entry) =>
-                !entry.requiredPermission ||
-                permissions.includes(entry.requiredPermission),
+                entry.placement !== "hidden" &&
+                (!entry.requiredPermission ||
+                  permissions.includes(entry.requiredPermission)),
             ).map((entry) => (
               <DrawerRow
                 key={entry.key}

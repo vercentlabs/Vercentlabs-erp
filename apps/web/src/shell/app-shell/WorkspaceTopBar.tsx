@@ -9,6 +9,7 @@ import { Search } from "lucide-react";
 import { CrmCreateMenu } from "@/features/crm/shared/CrmCreateMenu";
 import { CrmShortcuts } from "@/features/crm/shared/shortcuts";
 import { SalesCreateMenu } from "@/features/sales/shared/SalesCreateMenu";
+import { NotificationsPanel } from "@/features/platform/notifications/NotificationsPanel";
 import { useSearchDialog } from "@/features/platform/search/SearchDialog";
 import { ModuleCreateMenu } from "@/shell/app-shell/ModuleCreateMenu";
 import { Breadcrumbs } from "@/shell/navigation/Breadcrumbs";
@@ -21,7 +22,8 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 // Settings is the registry entry flagged `placement: "topbar"` —
 // the primary sidebar filters those same entries out, so each renders in
-// exactly one place on desktop.
+// exactly one place on desktop. Notifications (also "topbar") is the bell
+// panel, NotificationsPanel.tsx.
 const TOPBAR_ENTRIES = [...GLOBAL_NAV_TOP, ...UTILITY_NAV].filter(
   (entry) => entry.placement === "topbar",
 );
@@ -104,13 +106,13 @@ function TopBarIconLink({
 
 // Persistent strip above every workspace page (desktop and mobile) —
 // breadcrumbs on the left; on the right, the CRM or Sales Create menu (on those modules' pages), search, the company/branch
-// context switcher, Settings and the profile menu. One
+// context switcher, Settings, Notifications and the profile menu. One
 // place for all of it rather than each page building its own header.
 //
 // Search/Settings/Profile are desktop-only here (`hidden lg:flex`): below
 // 1024px MobileNav's own top bar carries Search, Settings and the account
 // menu (profile, help, sign out).
-export function WorkspaceTopBar() {
+export function WorkspaceTopBar({ unreadNotificationCount = 0 }: { unreadNotificationCount?: number }) {
   const pathname = usePathname();
   const { fullName, email, organizationName } = useWorkspaceContext();
   const { openSearch } = useSearchDialog();
@@ -176,6 +178,7 @@ export function WorkspaceTopBar() {
               active={isActive(pathname, SETTINGS_ENTRY.href)}
             />
           ) : null}
+          <NotificationsPanel unreadCount={unreadNotificationCount} />
           <ProfileMenu fullName={fullName} email={email} />
         </div>
       </div>

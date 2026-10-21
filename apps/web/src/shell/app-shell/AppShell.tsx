@@ -72,7 +72,7 @@ export function AppShell({
               pendingApprovalCount={pendingApprovalCount}
               unreadNotificationCount={unreadNotificationCount}
             />
-            <WorkspaceTopBar />
+            <WorkspaceTopBar unreadNotificationCount={unreadNotificationCount} />
             <main className="flex min-w-0 flex-1 flex-col px-6 py-6 md:px-8">
               <Suspense fallback={null}><WelcomeBackNotice /></Suspense>
               <TrialGate trial={trial} canManageBilling={canManageBilling}>{children}</TrialGate>

@@ -112,8 +112,9 @@ export function PrimarySidebar({
 
         {GLOBAL_NAV_BOTTOM.filter(
           (entry) =>
-            !entry.requiredPermission ||
-            permissions.includes(entry.requiredPermission),
+            !entry.placement &&
+            (!entry.requiredPermission ||
+            permissions.includes(entry.requiredPermission)),
         ).map((entry) => (
           <PrimaryNavItem
             key={entry.key}

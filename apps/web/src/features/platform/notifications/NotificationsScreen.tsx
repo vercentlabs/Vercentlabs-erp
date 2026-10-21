@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CheckCheck } from "lucide-react";
 import {
   Button,
@@ -53,9 +54,12 @@ async function send(url: string, fallback: string) {
   }
 }
 
-export function NotificationsScreen() {
+// The list, its tab and the read actions — shared by this page and the top bar's bell panel (NotificationsPanel.tsx). Reading
+// something also refreshes the server-rendered shell, so the bell's unread badge follows.
+export function useNotifications() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [tab, setTab] = useState<TabKey>("all");
   const baseKey = scopedQueryKey(workspace, "notifications");
   const query = useQuery({
@@ -68,7 +72,10 @@ export function NotificationsScreen() {
       return payload as { notifications: Notification[]; unreadCount: number };
     },
   });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: baseKey });
+  const refresh = () => {
+    router.refresh();
+    return queryClient.invalidateQueries({ queryKey: baseKey });
+  };
   const markRead = useMutation({
     mutationFn: (id: string) =>
       send(
@@ -88,7 +95,11 @@ export function NotificationsScreen() {
   const failure =
     (markRead.error as Error | null)?.message ||
     (markAllRead.error as Error | null)?.message;
+  return { tab, setTab, query, notifications, unreadCount, markRead, markAllRead, failure };
+}
 
+export function NotificationsScreen() {
+  const { tab, setTab, query, notifications, unreadCount, markRead, markAllRead, failure } = useNotifications();
   return (
     <div className="flex flex-1 flex-col gap-4">
       <PageHeader
@@ -138,6 +149,18 @@ export function NotificationsScreen() {
           ))}
         </TabList>
       </Tabs>
+      <NotificationItems tab={tab} query={query} notifications={notifications} markRead={markRead} />
+    </div>
+  );
+}
+
+// Loading / error / empty / the list. onOpen runs when a notification's link is followed (the panel closes itself).
+export function NotificationItems({ tab, query, notifications, markRead, onOpen, compact = false }: Pick<ReturnType<typeof useNotifications>, "tab" | "query" | "notifications" | "markRead"> & {
+  onOpen?: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <>
       {query.isLoading ? (
         <p className="text-sm text-text-secondary">Loading notifications…</p>
       ) : query.isError ? (
@@ -146,6 +169,10 @@ export function NotificationsScreen() {
           description="Something went wrong."
           action={{ label: "Retry", onPress: () => query.refetch() }}
         />
+      ) : notifications.length === 0 && compact ? (
+        <p className="py-8 text-center text-sm text-text-secondary">
+          {tab === "unread" ? "No unread notifications." : "You're all caught up."}
+        </p>
       ) : notifications.length === 0 ? (
         <EmptyState
           title={
@@ -155,7 +182,7 @@ export function NotificationsScreen() {
         />
       ) : (
         <ul
-          className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface"
+          className={compact ? "flex flex-col divide-y divide-border" : "flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface"}
           aria-label="Notifications"
         >
           {notifications.map((notification) => {
@@ -177,7 +204,7 @@ export function NotificationsScreen() {
               <li
                 key={notification.id}
                 className={[
-                  "flex items-start gap-3 px-4 py-3",
+                  compact ? "flex items-start gap-3 px-2 py-2.5" : "flex items-start gap-3 px-4 py-3",
                   unread ? "bg-brand-soft/40" : "",
                 ].join(" ")}
               >
@@ -192,7 +219,10 @@ export function NotificationsScreen() {
                   <Link
                     href={notification.href}
                     className="flex min-w-0 flex-1"
-                    onClick={() => unread && markRead.mutate(notification.id)}
+                    onClick={() => {
+                      if (unread) markRead.mutate(notification.id);
+                      onOpen?.();
+                    }}
                   >
                     {content}
                   </Link>
@@ -214,6 +244,6 @@ export function NotificationsScreen() {
           })}
         </ul>
       )}
-    </div>
+    </>
   );
 }
