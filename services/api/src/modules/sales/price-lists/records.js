@@ -7,7 +7,8 @@ import { PRICE_LIST_PERMISSIONS, PriceListError, has, optionalDate, requireUuid,
 import { recordPriceListHistory } from "./history.js";
 
 const CODE = /^[A-Z0-9][A-Z0-9._-]{1,39}$/;
-const FIELD_LABELS = Object.freeze({ code: "Code", name: "Name", description: "Description", currencyCode: "Currency", taxInclusive: "Tax mode", validFrom: "Valid from", validTo: "Valid until" });
+const FIELD_LABELS = Object.freeze({ code: "Code", name: "Name", description: "Description", currencyCode: "Currency", taxInclusive: "Tax mode", validFrom: "Valid from", validTo: "Valid until",
+  appliesToChannel: "For channel", appliesToStateCode: "For state" });
 
 export const PRICE_LIST_SELECT = `
   SELECT list.*, list.valid_from::text AS valid_from_text, list.valid_to::text AS valid_to_text,
@@ -31,6 +32,9 @@ export function toPriceList(row) {
     currencyCode: row.currency_code?.trim() ?? null,
     taxInclusive: row.tax_inclusive,
     taxModeLabel: row.tax_inclusive ? "Tax inclusive" : "Tax exclusive",
+    // A list for one channel and/or state: customers there without a list of their own are priced from it.
+    appliesToChannel: row.applies_to_channel ?? null,
+    appliesToStateCode: row.applies_to_state_code ?? null,
     validFrom,
     validTo,
     isCurrent: (!validFrom || validFrom <= date) && (!validTo || validTo >= date),
@@ -99,6 +103,8 @@ function normalize(input) {
   if (has(input, "taxInclusive")) out.taxInclusive = input.taxInclusive === true || input.taxInclusive === "true";
   if (has(input, "validFrom")) out.validFrom = optionalDate(input.validFrom, "validFrom", "Valid from");
   if (has(input, "validTo")) out.validTo = optionalDate(input.validTo, "validTo", "Valid until");
+  if (has(input, "appliesToChannel")) out.appliesToChannel = text(input.appliesToChannel).toLowerCase() || null;
+  if (has(input, "appliesToStateCode")) out.appliesToStateCode = text(input.appliesToStateCode) || null;
   return out;
 }
 
@@ -111,6 +117,8 @@ async function validate(client, context, candidate, normalized) {
   if (text(candidate.description).length > 2000) issue("description", "Must be 2000 characters or fewer.");
   if (!/^[A-Z]{3}$/.test(candidate.currencyCode ?? "")) issue("currencyCode", "Choose the currency.");
   if (candidate.validFrom && candidate.validTo && candidate.validFrom > candidate.validTo) issue("validTo", "Valid until must be on or after valid from.");
+  if (candidate.appliesToChannel && !["general_trade", "modern_trade", "horeca", "institutional", "ecommerce", "distributor", "export", "other"].includes(candidate.appliesToChannel)) issue("appliesToChannel", "Choose a sales channel.");
+  if (candidate.appliesToStateCode && !/^[0-9]{2}$/.test(candidate.appliesToStateCode)) issue("appliesToStateCode", "Choose a state.");
   if (issues.length) throw new PriceListError(400, issues[0].message, "SALES_PRICE_LIST_VALIDATION", { issues });
   if (has(normalized, "currencyCode")) {
     const currency = (await client.query(`SELECT 1 FROM tenant.currencies WHERE organization_id = $1 AND code = $2 AND status = 'active'`, [context.organizationId, candidate.currencyCode])).rows[0];
@@ -151,10 +159,11 @@ export async function createPriceList(client, context, input = {}, { historySumm
   }
   await validate(client, context, normalized, { ...normalized, code: true, currencyCode: true });
   const { rows } = await client.query(
-    `INSERT INTO tenant.price_lists (organization_id, code, name, description, price_list_type, currency_code, tax_inclusive, valid_from, valid_to, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, 'sales', $5, $6, $7, $8, $9, $9) RETURNING id`,
+    `INSERT INTO tenant.price_lists (organization_id, code, name, description, price_list_type, currency_code, tax_inclusive, valid_from, valid_to, created_by, updated_by,
+        applies_to_channel, applies_to_state_code)
+     VALUES ($1, $2, $3, $4, 'sales', $5, $6, $7, $8, $9, $9, $10, $11) RETURNING id`,
     [context.organizationId, normalized.code, normalized.name, normalized.description ?? null, normalized.currencyCode, normalized.taxInclusive, normalized.validFrom ?? null,
-      normalized.validTo ?? null, context.userId ?? null],
+      normalized.validTo ?? null, context.userId ?? null, normalized.appliesToChannel ?? null, normalized.appliesToStateCode ?? null],
   );
   const id = rows[0].id;
   await recordPriceListHistory(client, context, id, "created", historySummary ?? `Price list ${normalized.code} created`, {
@@ -190,7 +199,8 @@ export async function updatePriceList(client, context, priceListId, input = {}) 
   }
   // Switching between tax-inclusive and tax-exclusive changes every new price.
   if (changed.includes("taxInclusive")) requirePriceListPermission(context, PRICE_LIST_PERMISSIONS.changeTaxMode, "You do not have permission to change the tax mode of a price list.");
-  const columns = { code: "code", name: "name", description: "description", currencyCode: "currency_code", taxInclusive: "tax_inclusive", validFrom: "valid_from", validTo: "valid_to" };
+  const columns = { code: "code", name: "name", description: "description", currencyCode: "currency_code", taxInclusive: "tax_inclusive", validFrom: "valid_from", validTo: "valid_to",
+    appliesToChannel: "applies_to_channel", appliesToStateCode: "applies_to_state_code" };
   const values = [context.organizationId, row.id, context.userId ?? null];
   const sets = ["updated_by = $3", "updated_at = now()"];
   for (const field of changed) { values.push(normalized[field]); sets.push(`${columns[field]} = $${values.length}`); }

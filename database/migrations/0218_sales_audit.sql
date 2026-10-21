@@ -131,3 +131,25 @@ ALTER TABLE tenant.sales_settings ALTER COLUMN quotation_approval_discount SET D
 -- 10. Salesperson targets on invoiced value (should-have): the monthly targets CRM keeps, with a measure for what was billed (company currency).
 ALTER TABLE tenant.crm_sales_targets DROP CONSTRAINT IF EXISTS crm_sales_targets_metric_check;
 ALTER TABLE tenant.crm_sales_targets ADD CONSTRAINT crm_sales_targets_metric_check CHECK (metric IN ('won_value', 'won_count', 'new_leads', 'activities', 'invoiced_value'));
+
+-- 11. MRP and price lists by channel and region (should-have). Indian FMCG invoices print the MRP; a product keeps its MRP (per base unit,
+--     tax included) and every quotation, order and invoice line carries it for its unit, so the retailer's margin can be shown. A customer
+--     belongs to a sales channel (general trade, modern trade, HoReCa…); a price list can be for a channel and/or a state, and a customer
+--     without a list of its own is priced from the list for its channel and state before the company default.
+ALTER TABLE tenant.items ADD COLUMN IF NOT EXISTS mrp numeric(18,4);
+ALTER TABLE tenant.items DROP CONSTRAINT IF EXISTS items_mrp_check;
+ALTER TABLE tenant.items ADD CONSTRAINT items_mrp_check CHECK (mrp IS NULL OR mrp > 0);
+ALTER TABLE tenant.sales_quotation_lines ADD COLUMN IF NOT EXISTS mrp numeric(18,4);
+ALTER TABLE tenant.sales_order_lines ADD COLUMN IF NOT EXISTS mrp numeric(18,4);
+ALTER TABLE tenant.sales_invoice_lines ADD COLUMN IF NOT EXISTS mrp numeric(18,4);
+ALTER TABLE tenant.business_parties ADD COLUMN IF NOT EXISTS sales_channel text;
+ALTER TABLE tenant.business_parties DROP CONSTRAINT IF EXISTS business_parties_sales_channel_check;
+ALTER TABLE tenant.business_parties ADD CONSTRAINT business_parties_sales_channel_check
+  CHECK (sales_channel IS NULL OR sales_channel IN ('general_trade', 'modern_trade', 'horeca', 'institutional', 'ecommerce', 'distributor', 'export', 'other'));
+ALTER TABLE tenant.price_lists ADD COLUMN IF NOT EXISTS applies_to_channel text;
+ALTER TABLE tenant.price_lists DROP CONSTRAINT IF EXISTS price_lists_applies_to_channel_check;
+ALTER TABLE tenant.price_lists ADD CONSTRAINT price_lists_applies_to_channel_check
+  CHECK (applies_to_channel IS NULL OR applies_to_channel IN ('general_trade', 'modern_trade', 'horeca', 'institutional', 'ecommerce', 'distributor', 'export', 'other'));
+ALTER TABLE tenant.price_lists ADD COLUMN IF NOT EXISTS applies_to_state_code text;
+ALTER TABLE tenant.price_lists DROP CONSTRAINT IF EXISTS price_lists_applies_to_state_code_check;
+ALTER TABLE tenant.price_lists ADD CONSTRAINT price_lists_applies_to_state_code_check CHECK (applies_to_state_code IS NULL OR applies_to_state_code ~ '^[0-9]{2}$');

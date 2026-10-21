@@ -43,6 +43,8 @@ export const PRODUCT_COLUMNS = Object.freeze({
   inventoryProfileId: "inventory_profile_id",
   accountingProfileId: "accounting_profile_id",
   standardCost: "standard_cost",
+  // Maximum retail price per base unit, tax included (printed on Indian FMCG invoices).
+  mrp: "mrp",
   netWeight: "net_weight",
   grossWeight: "gross_weight",
   weightUomId: "weight_uom_id",
@@ -58,7 +60,7 @@ export const PRODUCT_FIELD_LABELS = Object.freeze({
   categoryId: "Category", brand: "Brand", manufacturerName: "Manufacturer", manufacturerPartNumber: "Manufacturer part number", baseUomId: "Base unit",
   salesUomId: "Sales unit", purchaseUomId: "Purchase unit", isSellable: "Sellable", isPurchasable: "Purchasable", hsnSacCode: "HSN / SAC", taxCategoryId: "Tax category",
   trackingType: "Tracking mode", requiresExpiryDate: "Expiry tracking", shelfLifeDays: "Shelf life", valuationMethod: "Valuation method",
-  standardCost: "Standard cost", inventoryProfileId: "Inventory profile", accountingProfileId: "Accounting profile", netWeight: "Net weight", grossWeight: "Gross weight", weightUomId: "Weight unit", length: "Length", width: "Width", height: "Height",
+  standardCost: "Standard cost", mrp: "MRP", inventoryProfileId: "Inventory profile", accountingProfileId: "Accounting profile", netWeight: "Net weight", grossWeight: "Gross weight", weightUomId: "Weight unit", length: "Length", width: "Width", height: "Height",
   dimensionUomId: "Dimension unit", variantAttributes: "Variant attributes", salesUomFactor: "Sales unit conversion", purchaseUomFactor: "Purchase unit conversion",
   imageAttachmentId: "Image", barcode: "Barcode",
 });
@@ -141,7 +143,7 @@ export function normalizeProductInput(input = {}) {
     if (has(input, field)) normalized[field] = text(input[field]) || null;
   for (const field of ["isSellable", "isPurchasable", "requiresExpiryDate"]) if (has(input, field)) normalized[field] = bool(input[field]);
   for (const field of ["trackingType", "valuationMethod"]) if (has(input, field)) normalized[field] = text(input[field]).toLowerCase() || null;
-  for (const field of ["standardCost", "salesUomFactor", "purchaseUomFactor", "netWeight", "grossWeight", "length", "width", "height"]) if (has(input, field)) normalized[field] = decimalInput(input[field]);
+  for (const field of ["standardCost", "salesUomFactor", "purchaseUomFactor", "netWeight", "grossWeight", "length", "width", "height", "mrp"]) if (has(input, field)) normalized[field] = decimalInput(input[field]);
   if (has(input, "shelfLifeDays")) normalized.shelfLifeDays = input.shelfLifeDays === null || text(input.shelfLifeDays) === "" ? null : Number(text(input.shelfLifeDays));
   if (has(input, "variantAttributes")) normalized.variantAttributes = attributes(input.variantAttributes);
   return normalized;
@@ -184,6 +186,7 @@ export function validateProduct(normalized, candidate) {
   if (normalized.shelfLifeDays !== null && normalized.shelfLifeDays !== undefined && (!Number.isInteger(normalized.shelfLifeDays) || normalized.shelfLifeDays < 1 || normalized.shelfLifeDays > 36500))
     issue("shelfLifeDays", "Enter the shelf life in whole days, from 1 to 36500.");
   if (candidate.shelfLifeDays && !candidate.requiresExpiryDate) issue("shelfLifeDays", "Turn on expiry tracking to give a shelf life.");
+  if (candidate.mrp !== null && candidate.mrp !== undefined && !(Number(candidate.mrp) > 0)) issue("mrp", "Enter the MRP (more than 0), or leave it empty.");
   for (const field of ["netWeight", "grossWeight", "length", "width", "height"]) {
     const value = normalized[field];
     if (value !== null && value !== undefined && (!Number.isFinite(value) || value < 0 || value > MAX_MEASURE)) issue(field, "Enter a measurement of zero or more.");

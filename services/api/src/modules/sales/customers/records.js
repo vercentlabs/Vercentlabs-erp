@@ -88,6 +88,7 @@ export function toCustomer(row, { finance = false } = {}) {
     paymentTermName: row.payment_term_name ?? null,
     // In base currency; 0 is no limit.
     creditLimit: Number(row.credit_limit ?? 0),
+    salesChannel: row.sales_channel ?? null,
     gstRegistrationType: row.tax_treatment,
     gstRegistrationLabel: row.tax_treatment ? gstRegistrationLabel(row.tax_treatment) : null,
     gstin: row.gstin,

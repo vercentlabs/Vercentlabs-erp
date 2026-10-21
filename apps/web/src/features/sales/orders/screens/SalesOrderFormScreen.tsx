@@ -22,6 +22,7 @@ import {
 } from "@/features/sales/shared/document-defaults";
 import { getSalesOptions, previewSalesDocument, type SalesDocumentInput, type SalesDocumentScheme, type SalesOptions, type SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
 import { SchemeOffers } from "@/features/sales/shared/SchemeOffers";
+import { mrpNote } from "@/features/sales/shared/mrp";
 import { mergeSalesOptions, SalesSearchPicker } from "@/features/sales/shared/SalesSearchPicker";
 import { AUTOMATIC_TAX, DocumentTaxPanel, taxDraftOf, taxInput, type DocumentTaxDraft } from "@/features/sales/shared/DocumentTax";
 import {
@@ -487,7 +488,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
                     )}
                     {priced && (
                       <p className="text-xs text-text-muted sm:col-span-7">
-                        {money(currencyCode, priced.unitPrice)} each
+                        {money(currencyCode, priced.unitPrice)} each{mrpNote(priced, currencyCode)}
                         {Number(priced.discountAmount) > 0 ? ` · discount ${priced.discountType === "percent" ? `${Number(priced.discountValue)}% = ` : ""}${money(currencyCode, priced.discountAmount)}` : ""}
                         {Number(priced.documentDiscountAmount) > 0 ? ` · additional discount ${money(currencyCode, priced.documentDiscountAmount)}` : ""}
                         {" · tax "}{money(currencyCode, priced.taxAmount)} · line total <span className="font-medium text-text">{money(currencyCode, priced.lineTotal)}</span>

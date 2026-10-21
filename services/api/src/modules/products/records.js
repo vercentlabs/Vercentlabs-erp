@@ -151,6 +151,7 @@ export function toProduct(row, { cost = false, stock = false } = {}) {
     gstRate: num(row.gst_rate),
     cessRate: num(row.cess_rate),
     netWeight: num(row.net_weight),
+    mrp: num(row.mrp),
     grossWeight: num(row.gross_weight),
     weightUomId: row.weight_uom_id ?? null,
     weightUom: row.weight_uom_code ?? null,

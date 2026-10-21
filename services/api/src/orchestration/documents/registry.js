@@ -827,6 +827,8 @@ function salesInvoiceModel(data, uqcOf = null) {
   const discount = lines.reduce((total, line) => total + Number(line.discount_amount), 0);
   const taxable = lines.reduce((total, line) => total + Number(line.net_amount), 0);
   const label = { cgst: "CGST", sgst: "SGST", igst: "IGST", cess: "Cess" };
+  // Indian FMCG invoices print the MRP of each unit (Sales audit, should-have).
+  const withMrp = lines.some((line) => Number(line.mrp) > 0);
   return {
     title: taxed || seller.gstin ? "Tax Invoice" : "Invoice",
     documentNumber: invoice.invoice_number,
@@ -854,8 +856,9 @@ function salesInvoiceModel(data, uqcOf = null) {
     ].filter((field) => field.value),
     table: {
       columns: [
-        { key: "item", label: "Item", width: types.length > 2 ? "24%" : "30%" },
+        { key: "item", label: "Item", width: types.length > 2 ? (withMrp ? "18%" : "24%") : (withMrp ? "23%" : "30%") },
         { key: "quantity", label: "Qty", align: "right", width: "9%" },
+        ...(withMrp ? [{ key: "mrp", label: "MRP", align: "right", width: "8%" }] : []),
         { key: "price", label: `Rate (${currency})`, align: "right", width: "11%" },
         { key: "discount", label: "Discount", align: "right", width: "9%" },
         { key: "taxable", label: "Taxable", align: "right", width: "12%" },
@@ -866,6 +869,7 @@ function salesInvoiceModel(data, uqcOf = null) {
         item: [line.item_name_snapshot, line.description_snapshot && line.description_snapshot !== line.item_name_snapshot ? line.description_snapshot : null,
           line.hsn_sac_code ? `${line.hsn_sac_kind === "sac" ? "SAC" : "HSN"} ${line.hsn_sac_code}` : null].filter(Boolean).join(" · "),
         quantity: `${Number(line.quantity)} ${line.uom_snapshot ?? ""}`.trim(),
+        ...(withMrp ? { mrp: Number(line.mrp) > 0 ? amount(line.mrp) : "" } : {}),
         price: amount(line.unit_price),
         discount: Number(line.discount_amount) ? amount(line.discount_amount) : "",
         taxable: amount(line.net_amount),

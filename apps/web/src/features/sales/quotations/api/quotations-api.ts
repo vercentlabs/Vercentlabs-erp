@@ -432,6 +432,8 @@ export type SalesDocumentPreview = {
     quantity: string;
     unitPrice: string;
     listUnitPrice: string;
+    // The product's MRP for the line's unit (tax included), when it has one.
+    mrp?: string | null;
     manualPriceOverride: boolean;
     priceMissing: boolean;
     priceMessage: string | null;

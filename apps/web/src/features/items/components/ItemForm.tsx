@@ -26,7 +26,7 @@ import { ErrorBanner, NONE, orNull, withNone } from "../item-format";
 type Values = {
   type: ItemType; code: string; name: string; categoryId: string; description: string; salesDescription: string; purchaseDescription: string; brand: string;
   manufacturerName: string; manufacturerPartNumber: string; baseUomId: string; salesUomId: string; salesUomFactor: number; purchaseUomId: string; purchaseUomFactor: number;
-  isSellable: boolean; isPurchasable: boolean; hsnSacCode: string; taxCategoryId: string; trackingType: string;
+  isSellable: boolean; isPurchasable: boolean; hsnSacCode: string; taxCategoryId: string; trackingType: string; mrp: number;
   requiresExpiryDate: boolean; shelfLifeDays: number; valuationMethod: string; netWeight: number; grossWeight: number; weightUomId: string; length: number; width: number;
   height: number; dimensionUomId: string; barcode: string; alternateBarcodes: string; isVariantTemplate: boolean; inventoryProfileId: string; accountingProfileId: string;
 };
@@ -45,7 +45,7 @@ function initial(item: Item | undefined, stockOn: boolean): Values {
     salesUomId: item && item.salesUomId !== item.baseUomId ? item.salesUomId : NONE, salesUomFactor: item?.salesUomFactor ?? 1,
     purchaseUomId: item && item.purchaseUomId !== item.baseUomId ? item.purchaseUomId : NONE, purchaseUomFactor: item?.purchaseUomFactor ?? 1,
     isSellable: item?.isSellable ?? true, isPurchasable: item?.isPurchasable ?? true, hsnSacCode: item?.hsnSacCode ?? "", taxCategoryId: item?.taxCategoryId ?? NONE,
-    trackingType: item?.trackingType ?? "none",
+    trackingType: item?.trackingType ?? "none", mrp: number(item?.mrp),
     requiresExpiryDate: item?.requiresExpiryDate ?? false, shelfLifeDays: number(item?.shelfLifeDays), valuationMethod: item?.valuationMethod ?? "moving_average",
     netWeight: number(item?.netWeight), grossWeight: number(item?.grossWeight), weightUomId: item?.weightUomId ?? NONE, length: number(item?.length), width: number(item?.width),
     height: number(item?.height), dimensionUomId: item?.dimensionUomId ?? NONE, barcode: "", alternateBarcodes: "", isVariantTemplate: item?.isVariantTemplate ?? false,
@@ -62,7 +62,7 @@ function toInput(values: Values): ItemInput {
     brand: values.brand.trim() || null, manufacturerName: values.manufacturerName.trim() || null, manufacturerPartNumber: values.manufacturerPartNumber.trim() || null,
     baseUomId: values.baseUomId, salesUomId: orNull(values.salesUomId), salesUomFactor: orNull(values.salesUomId) ? values.salesUomFactor : null,
     purchaseUomId: orNull(values.purchaseUomId), purchaseUomFactor: orNull(values.purchaseUomId) ? values.purchaseUomFactor : null,
-    hsnSacCode: values.hsnSacCode.trim() || null, taxCategoryId: orNull(values.taxCategoryId), accountingProfileId: orNull(values.accountingProfileId),
+    hsnSacCode: values.hsnSacCode.trim() || null, taxCategoryId: orNull(values.taxCategoryId), mrp: numberOrNull(values.mrp), accountingProfileId: orNull(values.accountingProfileId),
   };
   if (!service) input.inventoryProfileId = orNull(values.inventoryProfileId);
   if (!values.isVariantTemplate) Object.assign(input, { isSellable: values.isSellable, isPurchasable: values.isPurchasable });
@@ -325,6 +325,10 @@ export function ItemForm({ options, item, onSaved, onCancel }: { options: ItemOp
           description={hint("hsnSacCode", service ? "6 digits starting 99, such as 998313." : "4, 6 or 8 digits, such as 8413.")} errorMessage={errors.hsnSacCode} />
         <Select label="Tax profile" selectedKey={values.taxCategoryId} isDisabled={!may.tax} onSelectionChange={(key) => set("taxCategoryId")(String(key))} options={taxChoices}
           errorMessage={errors.taxCategoryId} description={hint("taxCategoryId")} />
+        {!service && (
+          <NumberField label="MRP (per base unit, tax included)" value={values.mrp} onChange={set("mrp")} minValue={0} step={0.01} errorMessage={errors.mrp}
+            description="Printed on invoices with the retailer's margin. Empty if the product has no MRP." />
+        )}
       </FormSection>
 
       {!template && (

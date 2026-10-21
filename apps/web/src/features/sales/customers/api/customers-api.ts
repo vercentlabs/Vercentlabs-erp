@@ -36,6 +36,8 @@ export type Customer = {
   paymentTermName: string | null;
   // In the company's base currency; 0 is no limit.
   creditLimit?: number;
+  // The channel the customer buys through (picks the channel's price list).
+  salesChannel?: string | null;
   gstRegistrationType: string | null;
   gstRegistrationLabel: string | null;
   gstin: string | null;
@@ -124,6 +126,7 @@ export type CustomerInput = {
   displayName?: string; legalName?: string | null; customerKind?: string; status?: string; email?: string | null; phone?: string | null; website?: string | null;
   countryCode?: string; currencyCode?: string; priceListId?: string | null; paymentTermId?: string | null; gstRegistrationType?: string | null; gstin?: string | null;
   creditLimit?: number;
+  salesChannel?: string | null;
   placeOfSupply?: string | null; ownerUserId?: string | null; notes?: string | null;
   billingAddress?: AddressInput | null; shippingAddress?: AddressInput | null;
   primaryContact?: { firstName: string; lastName?: string; email?: string; phone?: string; jobTitle?: string } | null;

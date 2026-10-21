@@ -107,10 +107,11 @@ async function writeSalesLines(client, context, invoiceId, lineIds, built) {
     const lineId = lineIds[index];
     await client.query(
       `INSERT INTO tenant.sales_invoice_lines (customer_invoice_line_id, organization_id, customer_invoice_id, item_code_snapshot, item_name_snapshot, description_snapshot, hsn_sac_kind,
-          uom_snapshot, list_unit_price, gross_amount, line_discount_amount, document_discount_amount, tax_category_id, tax_rate, tax_treatment, order_charge_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          uom_snapshot, list_unit_price, gross_amount, line_discount_amount, document_discount_amount, tax_category_id, tax_rate, tax_treatment, order_charge_id, mrp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [lineId, context.organizationId, invoiceId, sales.item_code_snapshot, sales.item_name_snapshot, sales.description_snapshot, sales.hsn_sac_kind, sales.uom_snapshot,
-        sales.list_unit_price, sales.gross_amount, sales.line_discount_amount, sales.document_discount_amount, sales.tax_category_id, sales.tax_rate, sales.tax_treatment, orderChargeId]);
+        sales.list_unit_price, sales.gross_amount, sales.line_discount_amount, sales.document_discount_amount, sales.tax_category_id, sales.tax_rate, sales.tax_treatment, orderChargeId,
+        sales.mrp ?? null]);
     for (const component of taxes)
       await client.query(
         `INSERT INTO tenant.sales_invoice_line_taxes (organization_id, customer_invoice_id, customer_invoice_line_id, sequence, tax_type, label, rate, taxable_amount, tax_amount)
@@ -251,7 +252,7 @@ export async function invoiceLines(client, organizationId, invoiceId) {
   const lines = (await client.query(
     `SELECT line.id, line.sequence, line.source_sales_order_line_id, line.source_sales_delivery_line_id, line.item_id, line.description, line.hsn_sac_code, line.quantity, line.uom_id,
             line.unit_price, line.discount_amount, line.net_amount, line.tax_amount, line.line_total, snapshot.item_code_snapshot, snapshot.item_name_snapshot,
-            snapshot.description_snapshot, snapshot.hsn_sac_kind, snapshot.uom_snapshot, snapshot.list_unit_price, snapshot.gross_amount, snapshot.line_discount_amount,
+            snapshot.description_snapshot, snapshot.hsn_sac_kind, snapshot.uom_snapshot, snapshot.list_unit_price, snapshot.mrp, snapshot.gross_amount, snapshot.line_discount_amount,
             snapshot.document_discount_amount, snapshot.tax_category_id, snapshot.tax_rate, snapshot.tax_treatment, snapshot.order_charge_id,
             delivery.request_number AS delivery_number, delivery.id AS delivery_id
        FROM tenant.accounting_customer_invoice_lines line

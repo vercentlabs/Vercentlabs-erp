@@ -368,7 +368,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   const carried = Boolean(options.carryQuotedPrices || line.quoted);
   const itemId = uuid(line.itemId, `Line ${sequence} item`);
   const itemResult = await client.query(
-    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.tax_category_id,item.item_type,item.is_variant_template,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
+    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.tax_category_id,item.item_type,item.is_variant_template,item.mrp,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
@@ -640,6 +640,8 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     conversionFactor: asDatabaseDecimal(conversionFactor),
     listUnitPrice: asDatabaseDecimal(listUnitPrice),
     unitPrice: asDatabaseDecimal(requestedUnitPrice),
+    // The product's MRP for the line's unit (tax included), printed with the retailer's margin.
+    mrp: item.mrp == null ? null : asDatabaseDecimal(mul(decimal(item.mrp), conversionFactor)),
     discountPercent: asDatabaseDecimal(discountPercent),
     quoted: Boolean(line.quoted),
     carried,

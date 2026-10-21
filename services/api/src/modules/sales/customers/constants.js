@@ -100,6 +100,12 @@ export const CUSTOMER_VIEWS = Object.freeze([
 export { GST_STATES, gstStateCode, gstStateName } from "../../../core/tax/constants.js";
 
 // The customers of the organization: parties Sales transacts with.
+// The channels a customer buys through, for channel price lists (should-have).
+export const SALES_CHANNELS = Object.freeze([
+  { code: "general_trade", label: "General trade (kirana, wholesale)" }, { code: "modern_trade", label: "Modern trade (supermarkets, chains)" },
+  { code: "horeca", label: "HoReCa (hotels, restaurants, caterers)" }, { code: "institutional", label: "Institutional" }, { code: "ecommerce", label: "E-commerce" },
+  { code: "distributor", label: "Distributor / stockist" }, { code: "export", label: "Export" }, { code: "other", label: "Other" },
+]);
 export const CUSTOMER_PARTY_SQL = (alias) => `(${alias}.customer_number IS NOT NULL OR ${alias}.party_type IN ('customer', 'both'))`;
 
 const label = (list) => { const map = new Map(list.map((entry) => [entry.code, entry.label])); return (code) => map.get(code) ?? code ?? null; };

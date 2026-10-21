@@ -6,10 +6,11 @@ import { SalesApiError, post, request } from "@/features/sales/shared/http";
 export type PriceListCapabilities = Record<"view" | "create" | "edit" | "managePrices" | "activate" | "setDefault" | "changeTaxMode" | "import" | "export" | "overridePrice", boolean>;
 export type PriceList = {
   id: string; code: string; name: string; description: string | null; currencyCode: string; taxInclusive: boolean; taxModeLabel: string; validFrom: string | null; validTo: string | null;
-  isCurrent: boolean; isDefault: boolean; status: "active" | "inactive"; isActive: boolean; entryCount: number; productCount: number; customerCount: number;
+  isCurrent: boolean; isDefault: boolean; status: "active" | "inactive"; appliesToChannel?: string | null; appliesToStateCode?: string | null; isActive: boolean; entryCount: number; productCount: number; customerCount: number;
   createdByName: string | null; createdAt: string; updatedByName: string | null; updatedAt: string; capabilities?: PriceListCapabilities;
 };
-export type PriceListInput = Partial<{ code: string; name: string; description: string | null; currencyCode: string; taxInclusive: boolean; validFrom: string | null; validTo: string | null }>;
+export type PriceListInput = Partial<{ code: string; name: string; description: string | null; currencyCode: string; taxInclusive: boolean; validFrom: string | null; validTo: string | null;
+  appliesToChannel: string | null; appliesToStateCode: string | null }>;
 export type PriceEntry = {
   id: string; productId: string; productCode: string; productName: string; sku: string | null; isService: boolean; productActive: boolean; categoryName: string | null;
   uomId: string; uomCode: string; uomName: string; isBaseUnit: boolean; unitPrice: number; validFrom: string | null; validTo: string | null;

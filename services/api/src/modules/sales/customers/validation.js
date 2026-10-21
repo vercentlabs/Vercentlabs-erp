@@ -46,6 +46,7 @@ export const CUSTOMER_COLUMNS = Object.freeze({
   placeOfSupply: "place_of_supply",
   ownerUserId: "owner_user_id",
   creditLimit: "credit_limit",
+  salesChannel: "sales_channel",
 });
 
 export const CUSTOMER_FIELD_LABELS = Object.freeze({
@@ -53,6 +54,7 @@ export const CUSTOMER_FIELD_LABELS = Object.freeze({
   countryCode: "Country", currencyCode: "Currency", priceListId: "Price list", paymentTermId: "Payment terms", gstRegistrationType: "GST registration type",
   gstin: "GSTIN", pan: "PAN", gstStateCode: "GST state", placeOfSupply: "Place of supply", ownerUserId: "Salesperson",
   creditLimit: "Credit limit",
+  salesChannel: "Sales channel",
 });
 
 function normalizeWebsite(value) {
@@ -72,6 +74,8 @@ export function normalizeCustomerInput(input = {}) {
   for (const field of ["priceListId", "paymentTermId", "ownerUserId", "gstStateCode", "placeOfSupply"]) if (has(input, field)) normalized[field] = text(input[field]) || null;
   // The credit limit, in the company's base currency; 0 (or empty) is no limit.
   if (has(input, "creditLimit")) normalized.creditLimit = input.creditLimit === null || input.creditLimit === "" ? 0 : Number(input.creditLimit);
+  // The channel the customer buys through (general trade, modern trade, HoReCa…): it picks the channel's price list.
+  if (has(input, "salesChannel")) normalized.salesChannel = text(input.salesChannel).toLowerCase() || null;
   // The GSTIN carries the state and the PAN.
   if (normalized.gstin && GSTIN.test(normalized.gstin)) {
     normalized.gstStateCode = normalized.gstin.slice(0, 2);
@@ -98,6 +102,7 @@ export function validateCustomer(normalized, existing = {}) {
   }
   if (has(normalized, "creditLimit") && normalized.creditLimit !== null && (!Number.isFinite(normalized.creditLimit) || normalized.creditLimit < 0 || normalized.creditLimit > 1e13))
     issue("creditLimit", "Enter a credit limit of 0 or more (0 or empty is no limit).");
+  if (normalized.salesChannel && !["general_trade", "modern_trade", "horeca", "institutional", "ecommerce", "distributor", "export", "other"].includes(normalized.salesChannel)) issue("salesChannel", "Choose a sales channel.");
   if (normalized.website && !/^https?:\/\/[^\s/.]+\.[^\s]+$/i.test(normalized.website)) issue("website", "Enter a valid website, such as acme.example.");
   for (const [field, label] of [["priceListId", "a price list"], ["paymentTermId", "payment terms"], ["ownerUserId", "a salesperson"]])
     if (normalized[field] && !isUuid(normalized[field])) issue(field, `Choose ${label}.`);

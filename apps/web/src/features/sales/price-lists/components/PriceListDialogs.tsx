@@ -8,11 +8,14 @@ import { Button, Checkbox, ComboBox, Dialog, NumberField, Select, TextArea, Text
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { listItems } from "@/features/items/api/items-api";
+import { GST_STATES } from "@/features/crm/shared/gst-states";
+import { SALES_CHANNELS } from "@/features/sales/shared/sales-channels";
 
 import {
   addPrice, copyPriceList, createPriceList, errorMessage, fieldErrors, updatePrice, updatePriceList, type PriceEntry, type PriceList, type PriceListCapabilities,
 } from "../api/price-lists-api";
 
+const ANYONE = "any";
 const Banner = ({ message }: { message: string | null }) =>
   message ? <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">{message}</p> : null;
 
@@ -29,6 +32,8 @@ export function PriceListFormDialog({ mode, priceList, currencies, capabilities,
     taxInclusive: priceList?.taxInclusive ?? false,
     validFrom: priceList?.validFrom ?? "",
     validTo: priceList?.validTo ?? "",
+    appliesToChannel: priceList?.appliesToChannel ?? ANYONE,
+    appliesToStateCode: priceList?.appliesToStateCode ?? ANYONE,
     isDefault: false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -36,7 +41,8 @@ export function PriceListFormDialog({ mode, priceList, currencies, capabilities,
   const set = <K extends keyof typeof values>(key: K) => (value: (typeof values)[K]) => { setValues((current) => ({ ...current, [key]: value })); setErrors((current) => ({ ...current, [key]: "" })); };
   const save = useMutation({
     mutationFn: () => {
-      const input = { code: values.code.trim(), name: values.name.trim(), description: values.description.trim() || null, validFrom: values.validFrom || null, validTo: values.validTo || null };
+      const input = { code: values.code.trim(), name: values.name.trim(), description: values.description.trim() || null, validFrom: values.validFrom || null, validTo: values.validTo || null,
+        appliesToChannel: values.appliesToChannel === ANYONE ? null : values.appliesToChannel, appliesToStateCode: values.appliesToStateCode === ANYONE ? null : values.appliesToStateCode };
       if (mode === "copy") return copyPriceList(priceList!.id, input);
       if (mode === "edit") {
         const changed: Record<string, unknown> = {};
@@ -67,6 +73,11 @@ export function PriceListFormDialog({ mode, priceList, currencies, capabilities,
             options={[{ value: "exclusive", label: "Tax exclusive (tax added on top)" }, { value: "inclusive", label: "Tax inclusive (tax inside the price)" }]} />
           <TextField label="Valid from" type="date" value={values.validFrom} onChange={set("validFrom")} errorMessage={errors.validFrom} />
           <TextField label="Valid until" type="date" value={values.validTo} onChange={set("validTo")} errorMessage={errors.validTo} />
+          <Select label="For channel" selectedKey={values.appliesToChannel} onSelectionChange={(key) => set("appliesToChannel")(String(key))}
+            options={[{ value: ANYONE, label: "Any channel" }, ...SALES_CHANNELS.map((channel) => ({ value: channel.value, label: channel.label }))]}
+            description="Customers in this channel (and state) without a list of their own are priced from it." errorMessage={errors.appliesToChannel} />
+          <Select label="For state" selectedKey={values.appliesToStateCode} onSelectionChange={(key) => set("appliesToStateCode")(String(key))}
+            options={[{ value: ANYONE, label: "Any state" }, ...GST_STATES.map((state) => ({ value: state.code, label: `${state.name} (${state.code})` }))]} errorMessage={errors.appliesToStateCode} />
           <TextArea className="sm:col-span-2" label="Description" rows={2} value={values.description} onChange={set("description")} />
         </div>
         {mode === "new" && capabilities.setDefault && (

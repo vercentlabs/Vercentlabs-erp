@@ -58,6 +58,7 @@ import { ChargeRows, chargeDraftOf, chargesInput, type ChargeDraft } from "@/fea
 import { mergeSalesOptions, SalesSearchPicker } from "@/features/sales/shared/SalesSearchPicker";
 import type { SalesDocumentScheme, SalesOptions, SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
 import { SchemeOffers } from "@/features/sales/shared/SchemeOffers";
+import { mrpNote } from "@/features/sales/shared/mrp";
 
 type LineDraft = {
   key: number;
@@ -945,7 +946,7 @@ function FormBody({
                     {priced && (
                       <p className="text-xs text-text-muted sm:col-span-6">
                         {priced.manualPriceOverride ? `List ${money(currencyCode, priced.listUnitPrice)} · overridden to ` : ""}
-                        {money(currencyCode, priced.unitPrice)} each
+                        {money(currencyCode, priced.unitPrice)} each{mrpNote(priced, currencyCode)}
                         {Number(priced.discountAmount) > 0
                           ? ` · gross ${money(currencyCode, priced.grossAmount)} · discount ${priced.discountType === "percent" ? `${Number(priced.discountValue)}% = ` : ""}${money(currencyCode, priced.discountAmount)}`
                           : ""}

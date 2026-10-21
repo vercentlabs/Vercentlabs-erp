@@ -65,6 +65,7 @@ export function projectDocumentPreview(preview: Record<string, unknown>, context
         quantity: line.quantity,
         unitPrice: line.unitPrice,
         listUnitPrice: line.listUnitPrice,
+        mrp: line.mrp ?? null,
         manualPriceOverride: line.manualPriceOverride,
         priceMissing: line.priceMissing,
         priceMessage: line.priceMessage,

@@ -58,8 +58,9 @@ export async function insertQuotationVersion(client, context, quotationId, input
         context.userId ?? null, line.discountType, line.discountValue, line.grossAmount, line.documentDiscountAmount, line.taxableAmount, ...lineTaxColumns(line)],
     );
     // A free line of a scheme (Sales audit M3).
-    if (line.schemeRuleId)
-      await client.query("UPDATE tenant.sales_quotation_lines SET scheme_rule_id = $3 WHERE organization_id = $1 AND id = $2", [context.organizationId, inserted.rows[0].id, line.schemeRuleId]);
+    if (line.schemeRuleId || line.mrp)
+      await client.query("UPDATE tenant.sales_quotation_lines SET scheme_rule_id = $3, mrp = $4 WHERE organization_id = $1 AND id = $2",
+        [context.organizationId, inserted.rows[0].id, line.schemeRuleId ?? null, line.mrp ?? null]);
     for (const tax of line.taxLines)
       await client.query(
         `INSERT INTO tenant.sales_quotation_tax_lines (organization_id, quotation_version_id, quotation_line_id, sequence, tax_type, label, rate, taxable_amount, tax_amount,

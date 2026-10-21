@@ -87,6 +87,8 @@ export type Item = {
   imageAttachmentId: string | null;
   version: number;
   standardCost?: number;
+  // Maximum retail price per base unit, tax included.
+  mrp?: number | null;
   onHand?: number;
   available?: number;
   reserved?: number;
@@ -102,7 +104,7 @@ export type Item = {
 export type ItemInput = Partial<{
   type: ItemType; code: string; name: string; categoryId: string | null; description: string | null; salesDescription: string | null; purchaseDescription: string | null;
   brand: string | null; manufacturerName: string | null; manufacturerPartNumber: string | null; baseUomId: string; salesUomId: string | null; salesUomFactor: number | null;
-  purchaseUomId: string | null; purchaseUomFactor: number | null; isSellable: boolean; isPurchasable: boolean; hsnSacCode: string | null; taxCategoryId: string | null;
+  purchaseUomId: string | null; purchaseUomFactor: number | null; isSellable: boolean; isPurchasable: boolean; hsnSacCode: string | null; taxCategoryId: string | null; mrp: number | null;
   standardCost: number | null; inventoryProfileId: string | null; accountingProfileId: string | null; trackingType: string; requiresExpiryDate: boolean; shelfLifeDays: number | null; valuationMethod: string;
   netWeight: number | null; grossWeight: number | null; weightUomId: string | null; length: number | null; width: number | null; height: number | null; dimensionUomId: string | null;
   barcode: string | null; alternateBarcodes: string[]; isVariantTemplate: boolean; variantAttributes: Record<string, string>; status: Lifecycle; expectedVersion: number;

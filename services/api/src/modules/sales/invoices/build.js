@@ -138,7 +138,7 @@ export async function buildInvoiceLines(client, context, source, chosen, taxOf) 
         item_code_snapshot: row.item_code_snapshot, item_name_snapshot: row.item_name_snapshot, description_snapshot: row.description_snapshot, hsn_sac_kind: row.hsn_sac_kind,
         uom_snapshot: row.uom_snapshot, list_unit_price: row.list_unit_price, gross_amount: asDatabaseDecimal(gross), line_discount_amount: asDatabaseDecimal(lineDiscount),
         document_discount_amount: asDatabaseDecimal(documentDiscount < 0n ? decimal(0) : documentDiscount), tax_category_id: row.tax_category_id, tax_rate: row.tax_rate,
-        tax_treatment: row.tax_treatment,
+        tax_treatment: row.tax_treatment, mrp: row.mrp ?? null,
       },
       taxes,
     });

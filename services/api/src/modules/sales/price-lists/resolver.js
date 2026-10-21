@@ -3,6 +3,8 @@
 //
 //   Customer -> the customer's price list (when it is active, valid on the
 //   document date and in the document's currency)
+//            -> otherwise the list for the customer's sales channel and/or state
+//               (both matching first, then the channel, then the state)
 //            -> otherwise the default price list for the currency
 //   Product + unit -> the price valid on the document date
 //            -> otherwise the price for the base unit, scaled by the
@@ -37,6 +39,17 @@ export async function resolveSalesPriceList(client, context, { priceListId = nul
       `SELECT ${LIST_COLUMNS} FROM tenant.price_lists WHERE organization_id = $1 AND id = (SELECT default_price_list_id FROM tenant.business_parties WHERE organization_id = $1 AND id = $2) AND ${usable}`,
       [context.organizationId, partyId, currency, date]);
     if (rows[0]) return { ...toList(rows[0]), basis: "customer" };
+    // The customer's channel and state (GT vs MT, a region's list).
+    const channel = await client.query(
+      `SELECT ${LIST_COLUMNS.split(", ").map((column) => `list.${column}`).join(", ")} FROM tenant.price_lists list
+         JOIN tenant.business_parties party ON party.organization_id = list.organization_id AND party.id = $2
+        WHERE list.organization_id = $1 AND ${usable.replace(/(price_list_type|status|currency_code|valid_from|valid_to)/g, "list.$1")}
+          AND (list.applies_to_channel IS NOT NULL OR list.applies_to_state_code IS NOT NULL)
+          AND (list.applies_to_channel IS NULL OR list.applies_to_channel = party.sales_channel)
+          AND (list.applies_to_state_code IS NULL OR list.applies_to_state_code = COALESCE(party.gst_state_code, party.place_of_supply))
+        ORDER BY (list.applies_to_channel IS NOT NULL AND list.applies_to_state_code IS NOT NULL) DESC, (list.applies_to_channel IS NOT NULL) DESC, list.code LIMIT 1`,
+      [context.organizationId, partyId, currency, date]);
+    if (channel.rows[0]) return { ...toList(channel.rows[0]), basis: "channel" };
   }
   const { rows } = await client.query(
     `SELECT ${LIST_COLUMNS} FROM tenant.price_lists
