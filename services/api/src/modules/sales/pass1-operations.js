@@ -26,8 +26,9 @@ async function organizationUser(client, c, userId, label = "Salesperson") {
 async function order(client, c, id, { lock = false } = {}) {
   const values = [c.organizationId, uuid(id, "Sales order")];
   const result = await client.query(
-    `SELECT record.*,version.currency_code,version.grand_total,version.margin_amount,version.subtotal
+    `SELECT record.*,version.currency_code,version.grand_total,version.margin_amount,version.subtotal,version.exchange_rate,organization.base_currency
        FROM tenant.sales_orders record
+       JOIN public.organizations organization ON organization.id=record.organization_id
        JOIN tenant.sales_order_versions version ON version.organization_id=record.organization_id AND version.id=record.current_version_id
       WHERE record.organization_id=$1 AND record.id=$2 LIMIT 1${lock ? " FOR UPDATE OF record" : ""}`,
     values,
@@ -36,8 +37,25 @@ async function order(client, c, id, { lock = false } = {}) {
   return result.rows[0];
 }
 
+// Accrues (or recalculates) the commission of a confirmed order, by hand: whoever manages Sales settings.
 export async function accrueSalesCommission(client, c, input = {}) {
   need(c, "sales.settings.manage");
+  return accrueCommission(client, c, input);
+}
+
+// The commission of an order the person has just confirmed (Sales audit B12): confirming authorises it — no settings permission is
+// borrowed — and having no rule is the usual case (null, nothing accrued).
+export async function accrueCommissionOnConfirmation(client, c, salesOrderId) {
+  const target = await order(client, c, salesOrderId);
+  if (!target.owner_user_id) return null;
+  const applies = (await client.query(
+    `SELECT 1 FROM tenant.sales_commission_rules WHERE organization_id=$1 AND status='active' AND (owner_user_id IS NULL OR owner_user_id=$2)
+        AND (valid_from IS NULL OR valid_from<=$3::date) AND (valid_to IS NULL OR valid_to>=$3::date) LIMIT 1`, [c.organizationId, target.owner_user_id, target.order_date])).rows[0];
+  if (!applies) return null;
+  return accrueCommission(client, c, { salesOrderId });
+}
+
+async function accrueCommission(client, c, input) {
   const target = await order(client, c, input.salesOrderId);
   if (!["confirmed", "closed"].includes(target.lifecycle_status))
     throw new SalesError(409, "Commission accrues only on confirmed orders.", "SALES_COMMISSION_ORDER_NOT_CONFIRMED");
@@ -50,19 +68,26 @@ export async function accrueSalesCommission(client, c, input = {}) {
     throw new SalesError(409, "Select a salesperson before accruing commission.", "SALES_COMMISSION_OWNER_REQUIRED");
   const found = input.ruleId
     ? await client.query(`SELECT * FROM tenant.sales_commission_rules WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId,uuid(input.ruleId,"Commission rule")])
-    : await client.query(`SELECT * FROM tenant.sales_commission_rules WHERE organization_id=$1 AND status='active' AND (owner_user_id IS NULL OR owner_user_id=$2) AND (valid_from IS NULL OR valid_from<=tenant.company_today()) AND (valid_to IS NULL OR valid_to>=tenant.company_today()) ORDER BY owner_user_id NULLS LAST,created_at DESC LIMIT 1`, [c.organizationId,ownerUserId]);
+    : await client.query(`SELECT * FROM tenant.sales_commission_rules WHERE organization_id=$1 AND status='active' AND (owner_user_id IS NULL OR owner_user_id=$2) AND (valid_from IS NULL OR valid_from<=$3::date) AND (valid_to IS NULL OR valid_to>=$3::date) ORDER BY owner_user_id NULLS LAST,created_at DESC LIMIT 1`, [c.organizationId,ownerUserId,target.order_date]);
   const rule = found.rows[0]; if (!rule) throw new SalesError(409, "No active commission rule applies to this order.", "SALES_COMMISSION_RULE_REQUIRED");
-  const basisAmount = rule.basis === "gross_margin" ? Number(target.margin_amount) : Number(target.subtotal);
-  const commission = Math.round((basisAmount * Number(rule.rate_percent) / 100) * 1e6) / 1e6;
+  // In the company's currency (Sales audit B12): a USD order's commission is counted in rupees at the order's rate, so commissions add up.
+  const rate = Number(target.exchange_rate ?? 1) || 1;
+  const orderAmount = rule.basis === "gross_margin" ? Number(target.margin_amount) : Number(target.subtotal);
+  const basisAmount = Math.round(orderAmount * rate * 100) / 100;
+  const commission = Math.round((basisAmount * Number(rule.rate_percent) / 100) * 100) / 100;
+  const currency = String(target.base_currency ?? "INR").trim();
+  const orderCurrency = String(target.currency_code ?? currency).trim();
   const explanation = {
     orderNumber: target.sales_order_number,
+    currencyCode: currency,
+    ...(orderCurrency !== currency ? { orderCurrencyCode: orderCurrency, orderAmount, exchangeRate: rate } : {}),
     rule: rule.name,
     basis: rule.basis,
     basisLabel: rule.basis === "gross_margin" ? "order margin" : "order net sales (before tax)",
     basisAmount,
     ratePercent: Number(rule.rate_percent),
     commission,
-    formula: `${basisAmount} × ${Number(rule.rate_percent)}% = ${commission}`,
+    formula: `${orderCurrency !== currency ? `${orderCurrency} ${orderAmount} × ${rate} = ` : ""}${currency} ${basisAmount} × ${Number(rule.rate_percent)}% = ${currency} ${commission}`,
   };
   const result = await client.query(`INSERT INTO tenant.sales_commission_entries(organization_id,sales_order_id,rule_id,owner_user_id,basis_amount,rate_percent,commission_amount,explanation,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$9::jsonb,$8,$8) ON CONFLICT(organization_id,sales_order_id,owner_user_id,rule_id) DO UPDATE SET basis_amount=EXCLUDED.basis_amount,rate_percent=EXCLUDED.rate_percent,commission_amount=EXCLUDED.commission_amount,explanation=EXCLUDED.explanation,updated_by=EXCLUDED.updated_by,updated_at=now() WHERE tenant.sales_commission_entries.status='accrued' RETURNING *`, [c.organizationId,target.id,rule.id,ownerUserId,basisAmount,rule.rate_percent,commission,c.userId,JSON.stringify(explanation)]);
   if (!result.rows[0]) throw new SalesError(409, "This commission is already approved, paid or reversed and can't be recalculated.", "SALES_COMMISSION_LOCKED");

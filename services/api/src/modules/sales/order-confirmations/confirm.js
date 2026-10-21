@@ -16,7 +16,7 @@
 import { publishDomainEvent } from "../../../core/platform/events/index.js";
 import { notifyRecordOwner } from "../../../core/platform/notifications/index.js";
 import { updateDealFromConfirmedOrder } from "../../crm/quotations/order-sync.js";
-import { accrueSalesCommission } from "../pass1-operations.js";
+import { accrueCommissionOnConfirmation } from "../pass1-operations.js";
 import { assertOrderVisible, orderCan, requireOrderPermission } from "../orders/access.js";
 import { FULFILLMENT, INVOICING, OrderError, STATUS, text } from "../orders/constants.js";
 import { refreshSalesOrderProgress } from "../orders/progress.js";
@@ -98,7 +98,7 @@ export async function confirmSalesOrder(client, context, orderId, input = {}) {
   // Commission accrues when a rule applies; having none is the usual case and never blocks an order.
   await client.query("SAVEPOINT sales_order_commission");
   try {
-    await accrueSalesCommission(client, { organizationId: context.organizationId, userId: context.userId ?? null, permissions: ["sales.settings.manage"], roleSlugs: [] }, { salesOrderId: order.id });
+    await accrueCommissionOnConfirmation(client, context, order.id);
     await client.query("RELEASE SAVEPOINT sales_order_commission");
   } catch {
     await client.query("ROLLBACK TO SAVEPOINT sales_order_commission");
