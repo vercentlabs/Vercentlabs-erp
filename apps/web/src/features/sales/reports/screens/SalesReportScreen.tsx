@@ -263,3 +263,6 @@ export const PENDING_ORDER_REPORTS: ReportSpec[] = ["order-status", "fulfillment
 export const FULFILLMENT_REPORTS: ReportSpec[] = SALES_REPORTS.filter((report) => ["fulfillment", "remaining-by-product", "billing-readiness", "delivery-performance"].includes(report.key));
 // Sales › Inquiries › Order Status.
 export const ORDER_STATUS_REPORTS: ReportSpec[] = SALES_REPORTS.filter((report) => report.key === "order-status");
+// Sales › Reports: the sales figures and the quotations waiting on someone (where orders stand is in Pending Orders). Built here, in the
+// client module: a server page can pass these lists on but not compute with them.
+export const SALES_FIGURE_REPORTS: ReportSpec[] = SALES_REPORTS.filter((report) => !PENDING_ORDER_REPORTS.some((pending) => pending.key === report.key));
