@@ -2,6 +2,8 @@
 // name and one way to reach the person (an email, phone or mobile) are
 // required; the company is optional, because you sometimes meet a person
 // before you know their organization.
+import { findIndianState, isValidPin } from "@vercentlabs/shared-types";
+
 import { CrmError } from "../data-management/errors.js";
 import { CONTACT_ROLES, MARKETING_CONSENT, PREFERRED_CONTACT_METHODS } from "./constants.js";
 
@@ -22,6 +24,8 @@ const TEXT_FIELDS = Object.freeze({
   phone: ["phone", 30],
   mobile: ["mobile", 30],
   alternatePhone: ["alternate_phone", 30],
+  // WhatsApp on another number than the mobile (CRM audit).
+  whatsappNumber: ["whatsapp_number", 30],
   description: ["description", 10000],
   addressLine1: ["address_line1", 240],
   addressLine2: ["address_line2", 240],
@@ -129,8 +133,21 @@ export function validateContact(normalized, existing = {}) {
   for (const field of ["email", "secondaryEmail"])
     if (normalized[field] && !EMAIL_PATTERN.test(normalized[field])) issue(field, "Enter a valid email address.");
   if (normalized.email && normalized.secondaryEmail && normalized.email === normalized.secondaryEmail) issue("secondaryEmail", "The secondary email is the same as the main email.");
-  for (const field of ["phone", "mobile", "alternatePhone"])
+  for (const field of ["phone", "mobile", "alternatePhone", "whatsappNumber"])
     if (normalized[field] && !usablePhone(normalized[field])) issue(field, "Enter a phone number with 7 to 15 digits.");
+  // An Indian address: the state is one of the states (stored by its name) and the PIN code six digits, as on leads and companies.
+  if (candidate.countryCode === "IN") {
+    if (text(normalized.state)) {
+      const state = findIndianState({ name: normalized.state });
+      if (!state) issue("state", "Choose the state from the list.");
+      else normalized.state = state.name;
+    }
+    if (text(normalized.postalCode)) {
+      const pin = text(normalized.postalCode).replace(/\s+/g, "");
+      if (!isValidPin(pin)) issue("postalCode", "Enter the 6-digit PIN code.");
+      else normalized.postalCode = pin;
+    }
+  }
   if (normalized.preferredContactMethod && !METHODS.has(normalized.preferredContactMethod)) issue("preferredContactMethod", "Choose a preferred contact method.");
   if (normalized.role && !ROLES.has(normalized.role)) issue("role", "Choose a contact role.");
   if (normalized.marketingConsent && !CONSENT.has(normalized.marketingConsent)) issue("marketingConsent", "Choose a marketing preference.");

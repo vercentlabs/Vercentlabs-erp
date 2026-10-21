@@ -235,3 +235,6 @@ ALTER TABLE tenant.crm_record_tags ADD CONSTRAINT crm_record_tags_entity_type_ch
 -- 11. Saved views on companies, contacts and to-dos (CRM audit), as on leads, deals and the pipeline.
 ALTER TABLE tenant.crm_saved_views DROP CONSTRAINT IF EXISTS crm_saved_views_screen_check;
 ALTER TABLE tenant.crm_saved_views ADD CONSTRAINT crm_saved_views_screen_check CHECK (screen IN ('leads', 'opportunities', 'pipeline', 'accounts', 'contacts', 'todos'));
+
+-- 12. A contact's WhatsApp number when it is not their mobile (CRM audit: common in India); WhatsApp goes there first.
+ALTER TABLE tenant.contacts ADD COLUMN IF NOT EXISTS whatsapp_number text CHECK (whatsapp_number IS NULL OR char_length(whatsapp_number) <= 30);

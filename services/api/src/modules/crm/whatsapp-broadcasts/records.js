@@ -75,8 +75,8 @@ async function audienceRows(client, organizationId, audience, filters) {
         ORDER BY lead.created_at LIMIT ${MAX_RECIPIENTS + 1}`, values)).rows;
   }
   return (await client.query(
-    `SELECT 'contact' AS entity_type, person.id, COALESCE(NULLIF(btrim(person.mobile), ''), NULLIF(btrim(person.phone), '')) AS phone, person.first_name, person.last_name, party.display_name AS company,
-            CASE WHEN COALESCE(btrim(person.mobile), btrim(person.phone), '') = '' THEN 'No mobile number' WHEN person.do_not_whatsapp THEN 'Does not accept WhatsApp'
+    `SELECT 'contact' AS entity_type, person.id, COALESCE(NULLIF(btrim(person.whatsapp_number), ''), NULLIF(btrim(person.mobile), ''), NULLIF(btrim(person.phone), '')) AS phone, person.first_name, person.last_name, party.display_name AS company,
+            CASE WHEN COALESCE(btrim(person.whatsapp_number), btrim(person.mobile), btrim(person.phone), '') = '' THEN 'No mobile number' WHEN person.do_not_whatsapp THEN 'Does not accept WhatsApp'
                  WHEN person.marketing_consent = 'opted_out' THEN 'Opted out of marketing'
                  WHEN NOT person.consent_whatsapp THEN 'Has not agreed to WhatsApp' END AS skip_reason
        FROM tenant.contacts person LEFT JOIN tenant.business_parties party ON party.organization_id = person.organization_id AND party.id = person.party_id

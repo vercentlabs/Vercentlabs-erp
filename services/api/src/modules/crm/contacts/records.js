@@ -74,6 +74,7 @@ export function toContact(row) {
     phone: row.phone,
     mobile: row.mobile,
     alternatePhone: row.alternate_phone,
+    whatsappNumber: row.whatsapp_number ?? null,
     preferredContactMethod: row.preferred_contact_method,
     doNotEmail: row.do_not_email,
     doNotCall: row.do_not_call,
@@ -291,7 +292,7 @@ export async function createContact(client, context, input = {}, {
   requireContactPermission(context, CONTACT_PERMISSIONS.create, "You do not have permission to create contacts.");
   const { ownerUserId: requestedOwner, teamId, accountId, duplicateReason: inputReason, customFields, ...fields } = input;
   const normalized = normalizeContactInput(fields);
-  await normalizePhones(client, context, normalized, ["phone", "mobile", "alternatePhone"], normalized.countryCode, "CRM_CONTACT_VALIDATION");
+  await normalizePhones(client, context, normalized, ["phone", "mobile", "alternatePhone", "whatsappNumber"], normalized.countryCode, "CRM_CONTACT_VALIDATION");
   assertValidContact(normalized);
   await assertActiveSource(client, context, normalized.sourceId);
   const account = accountId ? await loadLinkableAccount(client, context, accountId) : null;
@@ -358,7 +359,7 @@ export async function updateContact(client, context, contactId, input = {}, { al
   const before = toContact(row);
   const { customFields, ...fields } = input;
   const normalized = normalizeContactInput(fields);
-  await normalizePhones(client, context, normalized, ["phone", "mobile", "alternatePhone"], normalized.countryCode ?? before.countryCode, "CRM_CONTACT_VALIDATION");
+  await normalizePhones(client, context, normalized, ["phone", "mobile", "alternatePhone", "whatsappNumber"], normalized.countryCode ?? before.countryCode, "CRM_CONTACT_VALIDATION");
   // Contact details hidden from the caller cannot be changed by them.
   if (!contactCan(context, CONTACT_PERMISSIONS.viewSensitive))
     for (const field of ["email", "secondaryEmail", "phone", "mobile", "alternatePhone"])

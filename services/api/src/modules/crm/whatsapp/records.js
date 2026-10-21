@@ -108,18 +108,18 @@ export async function recordPerson(client, organizationId, type, id) {
     return row && { phone: row.mobile ?? row.phone, name: [row.first_name, row.last_name].filter(Boolean).join(" ") || row.company_name, consented: row.consent_whatsapp, target: { leadId: id }, owner: row.owner_user_id };
   }
   if (type === "contact") {
-    const row = (await client.query("SELECT mobile, phone, first_name, last_name, consent_whatsapp, owner_user_id FROM tenant.contacts WHERE organization_id = $1 AND id = $2", [organizationId, id])).rows[0];
-    return row && { phone: row.mobile ?? row.phone, name: [row.first_name, row.last_name].filter(Boolean).join(" "), consented: row.consent_whatsapp, target: { contactId: id }, owner: row.owner_user_id };
+    const row = (await client.query("SELECT whatsapp_number, mobile, phone, first_name, last_name, consent_whatsapp, owner_user_id FROM tenant.contacts WHERE organization_id = $1 AND id = $2", [organizationId, id])).rows[0];
+    return row && { phone: row.whatsapp_number ?? row.mobile ?? row.phone, name: [row.first_name, row.last_name].filter(Boolean).join(" "), consented: row.consent_whatsapp, target: { contactId: id }, owner: row.owner_user_id };
   }
   if (type === "opportunity") {
     const row = (await client.query(
-      `SELECT contact.id AS contact_id, contact.mobile, contact.first_name, contact.last_name, contact.consent_whatsapp, deal.owner_user_id
+      `SELECT contact.id AS contact_id, COALESCE(contact.whatsapp_number, contact.mobile) AS mobile, contact.first_name, contact.last_name, contact.consent_whatsapp, deal.owner_user_id
          FROM tenant.crm_opportunities deal LEFT JOIN tenant.contacts contact ON contact.organization_id = deal.organization_id AND contact.id = deal.contact_id
         WHERE deal.organization_id = $1 AND deal.id = $2`, [organizationId, id])).rows[0];
     return row && { phone: row.mobile, name: [row.first_name, row.last_name].filter(Boolean).join(" "), consented: row.consent_whatsapp, target: { contactId: row.contact_id }, owner: row.owner_user_id };
   }
   const row = (await client.query(
-    `SELECT party.phone, party.owner_user_id, contact.id AS contact_id, contact.mobile, contact.first_name, contact.last_name, contact.consent_whatsapp
+    `SELECT party.phone, party.owner_user_id, contact.id AS contact_id, COALESCE(contact.whatsapp_number, contact.mobile) AS mobile, contact.first_name, contact.last_name, contact.consent_whatsapp
        FROM tenant.business_parties party
        LEFT JOIN LATERAL (SELECT * FROM tenant.contacts contact WHERE contact.organization_id = party.organization_id AND contact.party_id = party.id AND contact.status = 'active'
                             ORDER BY contact.is_primary DESC NULLS LAST, contact.created_at LIMIT 1) contact ON true
@@ -271,7 +271,9 @@ async function recordForNumber(client, organizationId, phone, profileName, autho
     [organizationId, digits])).rows[0];
   if (lead) return { type: "lead", id: lead.id, created: false };
   const contact = (await client.query(
-    "SELECT id FROM tenant.contacts WHERE organization_id = $1 AND normalized_mobile = $2 AND status = 'active' ORDER BY created_at DESC LIMIT 1", [organizationId, digits])).rows[0];
+    `SELECT id FROM tenant.contacts WHERE organization_id = $1 AND status = 'active'
+        AND (normalized_mobile = $2 OR (whatsapp_number IS NOT NULL AND right(regexp_replace(whatsapp_number, '\\D', '', 'g'), length($2)) = $2))
+      ORDER BY (normalized_mobile = $2) DESC, created_at DESC LIMIT 1`, [organizationId, digits])).rows[0];
   if (contact) return { type: "contact", id: contact.id, created: false };
   const source = (await client.query("SELECT id FROM tenant.crm_lead_sources WHERE organization_id = $1 AND code = 'whatsapp' AND status = 'active'", [organizationId])).rows[0];
   const names = String(profileName ?? "").trim().split(/\s+/).filter(Boolean);

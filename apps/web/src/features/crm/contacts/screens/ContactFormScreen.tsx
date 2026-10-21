@@ -34,7 +34,7 @@ const UNASSIGNED = "__unassigned__";
 
 type FormValues = {
   firstName: string; middleName: string; lastName: string; displayName: string; jobTitle: string; department: string; role: string; isDecisionMaker: boolean;
-  email: string; secondaryEmail: string; phone: string; mobile: string; alternatePhone: string; preferredContactMethod: string;
+  email: string; secondaryEmail: string; phone: string; mobile: string; alternatePhone: string; whatsappNumber: string; preferredContactMethod: string;
   doNotEmail: boolean; doNotCall: boolean; doNotSms: boolean; doNotWhatsapp: boolean; consentEmail: boolean; consentSms: boolean; consentWhatsapp: boolean; marketingConsent: string;
   useAccountAddress: boolean; addressLine1: string; addressLine2: string; city: string; state: string; postalCode: string; countryCode: string;
   sourceId: string; description: string; accountId: string | null; makePrimary: boolean; ownerUserId: string; teamId: string;
@@ -42,7 +42,7 @@ type FormValues = {
 
 const EMPTY: FormValues = {
   firstName: "", middleName: "", lastName: "", displayName: "", jobTitle: "", department: "", role: NONE, isDecisionMaker: false,
-  email: "", secondaryEmail: "", phone: "", mobile: "", alternatePhone: "", preferredContactMethod: NONE,
+  email: "", secondaryEmail: "", phone: "", mobile: "", alternatePhone: "", whatsappNumber: "", preferredContactMethod: NONE,
   doNotEmail: false, doNotCall: false, doNotSms: false, doNotWhatsapp: false, consentEmail: false, consentSms: false, consentWhatsapp: false, marketingConsent: "unknown",
   useAccountAddress: true, addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", countryCode: "",
   sourceId: NONE, description: "", accountId: null, makePrimary: false, ownerUserId: AUTO, teamId: NONE,
@@ -53,7 +53,7 @@ function valuesFromContact(contact: Contact): FormValues {
     ...EMPTY,
     firstName: contact.firstName, middleName: contact.middleName ?? "", lastName: contact.lastName ?? "", displayName: contact.displayName,
     jobTitle: contact.jobTitle ?? "", department: contact.department ?? "", role: contact.role ?? NONE, isDecisionMaker: contact.isDecisionMaker,
-    email: contact.email ?? "", secondaryEmail: contact.secondaryEmail ?? "", phone: contact.phone ?? "", mobile: contact.mobile ?? "",
+    email: contact.email ?? "", secondaryEmail: contact.secondaryEmail ?? "", phone: contact.phone ?? "", mobile: contact.mobile ?? "", whatsappNumber: contact.whatsappNumber ?? "",
     alternatePhone: contact.alternatePhone ?? "", preferredContactMethod: contact.preferredContactMethod ?? NONE,
     doNotEmail: contact.doNotEmail, doNotCall: contact.doNotCall, doNotSms: contact.doNotSms, doNotWhatsapp: contact.doNotWhatsapp,
     consentEmail: contact.consentEmail, consentSms: contact.consentSms, consentWhatsapp: contact.consentWhatsapp, marketingConsent: contact.marketingConsent,
@@ -63,7 +63,7 @@ function valuesFromContact(contact: Contact): FormValues {
   };
 }
 
-const COMMUNICATION_FIELDS = ["email", "secondaryEmail", "phone", "mobile", "alternatePhone"] as const;
+const COMMUNICATION_FIELDS = ["email", "secondaryEmail", "phone", "mobile", "alternatePhone", "whatsappNumber"] as const;
 
 // Company, owner and team are set here only when creating; afterwards they
 // change from the contact page so each change is recorded.
@@ -242,6 +242,8 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
             <TextField label="Secondary email" type="email" value={values.secondaryEmail} onChange={set("secondaryEmail")} errorMessage={fieldErrors.secondaryEmail} />
             <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />
             <TextField label="Alternate phone" type="tel" value={values.alternatePhone} onChange={set("alternatePhone")} errorMessage={fieldErrors.alternatePhone} />
+            <TextField label="WhatsApp number" type="tel" value={values.whatsappNumber} onChange={set("whatsappNumber")} errorMessage={fieldErrors.whatsappNumber}
+              description="Only if it is not the mobile. WhatsApp goes here." />
             <Select label="Preferred contact method" selectedKey={values.preferredContactMethod} onSelectionChange={(key) => set("preferredContactMethod")(String(key ?? NONE))}
               options={[{ value: NONE, label: "Not set" }, ...options.preferredContactMethods.map((entry) => ({ value: entry.code, label: entry.label }))]} />
           </>
@@ -271,8 +273,8 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
             <TextField label="Address line 1" className="sm:col-span-2" value={values.addressLine1} onChange={set("addressLine1")} />
             <TextField label="Address line 2" className="sm:col-span-2" value={values.addressLine2} onChange={set("addressLine2")} />
             <TextField label="City" value={values.city} onChange={set("city")} />
-            <StateField countryCode={values.countryCode} value={values.state} onChange={set("state")} />
-            <TextField label="Postal code" value={values.postalCode} onChange={set("postalCode")} />
+            <StateField countryCode={values.countryCode} value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
+            <TextField label="PIN code" inputMode="numeric" value={values.postalCode} onChange={set("postalCode")} errorMessage={fieldErrors.postalCode} />
             <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
           </>
         )}

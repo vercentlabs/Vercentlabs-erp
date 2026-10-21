@@ -42,6 +42,7 @@ export type Contact = {
   phone?: string | null;
   mobile?: string | null;
   alternatePhone?: string | null;
+  whatsappNumber?: string | null;
   preferredContactMethod: string | null;
   doNotEmail: boolean;
   doNotCall: boolean;
