@@ -274,6 +274,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           // The customer refunds Finance owns, the same records as Finance → Customer Refunds.
           { ...available("Refunds", "/sales/refunds"), aliases: ["customer refunds", "refund credit"], requiredPermission: "accounting.refund.view" },
           // What customers owe and since when, with each customer's ledger (Sales audit M7).
+          // GST from Sales (Sales audit M8): a company that bills with Sales alone files GSTR-1 and tracks its IRNs and e-way bills here.
+          { ...available("GST Returns", "/sales/gst-returns"), aliases: ["gstr-1", "gstr1", "gst return", "b2b", "b2cs", "hsn summary"], requiredPermission: "gst.view" },
+          { ...available("E-invoices & E-way Bills", "/sales/gst-documents"), aliases: ["e-invoice", "irn", "e-way bill", "eway bill", "ewb"], requiredPermission: "gst.view" },
           { ...available("Outstanding", "/sales/outstanding"), aliases: ["receivables", "ageing", "aging", "customer ledger", "party ledger", "dues", "collections"], requiredPermission: "sales.customers.view_financials" },
         ],
       },

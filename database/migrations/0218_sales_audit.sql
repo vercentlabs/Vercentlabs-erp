@@ -234,3 +234,16 @@ SELECT role.id, permission.key FROM public.roles role
     ELSE ARRAY['workspace.view', 'notifications.view', 'profile.manage', 'business_data.view', 'sales.view', 'sales.customers.view', 'sales.customers.view_all', 'sales.customers.addresses.view', 'sales.customers.contacts.view', 'sales.order.view', 'sales.order.view_all', 'sales.availability.view', 'sales.availability.check', 'sales.order.reserve', 'sales.order.reserve_partial', 'sales.order.change_warehouse', 'sales.reservation.view', 'sales.reservation.view_all', 'sales.reservation.release', 'sales.fulfillment.request', 'sales.delivery.view', 'sales.delivery.view_all', 'sales.delivery.edit', 'sales.delivery.dispatch', 'sales.delivery.deliver', 'sales.delivery.cancel', 'sales.delivery.print', 'sales.return.view', 'sales.return.view_all', 'sales.return.create', 'sales.return.edit', 'sales.return.receive', 'sales.return.print', 'sales.return.select_warehouse'] END)
  WHERE role.slug IN ('sales_billing', 'sales_dispatch')
 ON CONFLICT DO NOTHING;
+
+-- 14. GSTR-1 for a Sales-only company (M8): the GST returns open with the Sales app too; whoever manages Sales settings prepares, approves
+--     and files them, whoever posts invoices prepares them.
+INSERT INTO public.role_permissions (role_id, permission_key)
+SELECT DISTINCT existing.role_id, permission.key FROM public.role_permissions existing
+  JOIN public.permissions permission ON permission.key = ANY (ARRAY['gst.view', 'gst.return.prepare', 'gst.return.approve', 'gst.return.file'])
+ WHERE existing.permission_key = 'sales.settings.manage'
+ON CONFLICT DO NOTHING;
+INSERT INTO public.role_permissions (role_id, permission_key)
+SELECT DISTINCT existing.role_id, permission.key FROM public.role_permissions existing
+  JOIN public.permissions permission ON permission.key = ANY (ARRAY['gst.view', 'gst.return.prepare'])
+ WHERE existing.permission_key = 'sales.invoice.post'
+ON CONFLICT DO NOTHING;

@@ -6,9 +6,7 @@ import {
 import { z } from "zod";
 
 import { HttpError } from "@/core/http";
-import { workspaceRoute } from "@/core/workspace-route";
-import { accountingContext } from "@/features/accounting/shared/accounting-context";
-import { accountingMutation, accountingRead } from "@/features/accounting/shared/route-helpers";
+import { gstRoute, readBody } from "@/features/accounting/gst/gst-route";
 
 // Finance › Tax & GST. GET: the registrations and returns (?registrationId); ?id (&section) one return; ?id&export=section its CSV working
 // data (export=3b: the GSTR-3B working paper); ?twoB=1&period: GSTR-2B against the books and the ITC adjustments; ?summary=outward|inward
@@ -17,13 +15,12 @@ export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
   const get = (name: string) => q.get(name) || undefined;
   if (get("export") && get("id")) {
-    return workspaceRoute(request, { module: "accounting", permission: "gst.view" }, async ({ client, session }) => {
-      const context = accountingContext(session);
+    return gstRoute(request, "gst.view", async (client, context) => {
       const file = get("export") === "3b" ? await exportGstr3b(client, context, get("id") as string) : await exportGstr1Section(client, context, get("id") as string, get("export") as string);
       return new Response(file.body, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${file.fileName}"`, "Cache-Control": "private, no-store" } });
     });
   }
-  return accountingRead(request, async (client, context) => {
+  return gstRoute(request, "gst.view", async (client, context) => {
     if (get("summary") === "outward") return outwardGstSummary(client, context, { registrationId: get("registrationId"), from: get("from"), to: get("to") });
     if (get("summary") === "inward") return inwardGstSummary(client, context, { registrationId: get("registrationId"), from: get("from"), to: get("to") });
     if (get("id")) return getGstReturn(client, context, get("id") as string, { section: get("section") });
@@ -31,10 +28,11 @@ export async function GET(request: Request) {
     if (get("twoB")) return { ...(await getGstr2bReconciliation(client, context, { registrationId: get("registrationId"), period: get("period") })),
       adjustments: await listItcAdjustments(client, context, { registrationId: get("registrationId") }) };
     return { registrations: await listGstRegistrations(client, context), returns: await listGstReturns(client, context, { registrationId: get("registrationId") }) };
-  }, "gst.view");
+  });
 }
 export async function POST(request: Request) {
-  return accountingMutation(request, z.record(z.string(), z.unknown()), async (client, context, input) => {
+  return gstRoute(request, "gst.view", async (client, context) => {
+    const input = z.record(z.string(), z.unknown()).parse(await readBody(request));
     const id = String(input.id ?? "");
     switch (input.action) {
       case "prepare": return prepareGstr1(client, context, input);
@@ -49,5 +47,5 @@ export async function POST(request: Request) {
       case "waive": return waiveGstException(client, context, String(input.exceptionId ?? ""), input);
       default: throw new HttpError(400, "Unknown action.");
     }
-  }, 200, "gst.view");
+  }, { write: true });
 }

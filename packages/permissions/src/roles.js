@@ -2830,6 +2830,9 @@ function withPriceListPermissions(role) {
       // Shared pricing (Sales audit): whoever runs a POS sets the prices it sells at, with or without Sales.
       ...(has("pos.settings.manage") ? ["sales.price_lists.view", ...priceListMaintainer] : []),
       ...(has("pos.operate") ? ["sales.price_lists.view"] : []),
+      // GST returns for a Sales-only company (Sales audit M8): whoever manages Sales settings files GSTR-1; whoever posts invoices prepares it.
+      ...(has("sales.settings.manage") ? ["gst.view", "gst.return.prepare", "gst.return.approve", "gst.return.file"] : []),
+      ...(has("sales.invoice.post") ? ["gst.view", "gst.return.prepare"] : []),
       ...(has("sales.price.override") ? ["sales.price_lists.export"] : []),
     ]),
   };
