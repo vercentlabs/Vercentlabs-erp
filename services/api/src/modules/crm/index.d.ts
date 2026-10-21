@@ -80,6 +80,8 @@ export function snoozeActivityReminder(client: QueryClient, context: any, activi
 export function claimDueReminders(client: QueryClient, context: any, options?: { limit?: number }): Promise<any[]>;
 export function markReminderOutcome(client: QueryClient, context: any, reminderId: string, options: { status: "sent" | "failed"; failureReason?: string | null }): Promise<void>;
 export function resetStuckDispatchingReminders(client: QueryClient, context: any, options?: { olderThanMinutes?: number }): Promise<number>;
+// The first-run checklist on Setup (workspace/checklist.js).
+export function getCrmSetupChecklist(client: QueryClient, context: any): Promise<{ items: Array<{ id: string; title: string; hint: string; href: string; done: boolean }>; complete: boolean }>;
 // Industry starter packs (workspace/starter-packs.js).
 export type CrmStarterPack = { key: string; name: string; description: string; pipeline: string; stages: string[]; sources: string[];
   fields: Array<{ entityType: string; label: string }>; lostReasons: string[] };

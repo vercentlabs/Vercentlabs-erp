@@ -139,6 +139,7 @@ export function CrmSetupScreen() {
   return (
     <div className="flex flex-1 flex-col gap-4">
       <PageHeader title="Setup" description="Every CRM setting, grouped by what it is for. Each row shows what is set now." />
+      {(owner || workspace.permissions.includes("crm.settings.manage")) && <StartHere />}
       {GROUPS.map((group, index) => {
         const placed = new Set(GROUPS.flatMap((entry) => entry.ids));
         const inGroup = rows.filter((row) => group.ids.includes(row.id) || (index === GROUPS.length - 1 && !placed.has(row.id)))
@@ -177,5 +178,44 @@ function SetupRow({ row }: { row: Row }) {
         <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-text-muted group-hover:text-text" />
       </Link>
     </li>
+  );
+}
+
+type ChecklistItem = { id: string; title: string; hint: string; href: string; done: boolean };
+
+// Start here (CRM audit): only the essentials, ticked by what the company has done; gone once they all are.
+function StartHere() {
+  const workspace = useWorkspaceContext();
+  const checklist = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "setup-checklist"),
+    queryFn: async () => {
+      const response = await fetch("/api/crm/setup-checklist");
+      if (!response.ok) throw new Error("The checklist could not be loaded.");
+      return (await response.json()) as { items: ChecklistItem[]; complete: boolean };
+    },
+    staleTime: 30_000,
+  });
+  if (!checklist.data || checklist.data.complete) return null;
+  const done = checklist.data.items.filter((item) => item.done).length;
+  return (
+    <section aria-labelledby="setup-start" className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-brand/30 bg-brand-soft/40 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="setup-start" className="text-base font-semibold text-text">Start here</h2>
+        <span className="text-sm text-text-secondary">{`${done} of ${checklist.data.items.length} done`}</span>
+      </div>
+      <ol className="flex flex-col gap-1">
+        {checklist.data.items.map((item) => (
+          <li key={item.id}>
+            <Link href={item.href} className="flex items-start gap-3 rounded-[var(--radius-control)] p-2 hover:bg-surface focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none">
+              <span aria-hidden="true" className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-xs ${item.done ? "border-success bg-success text-text-inverse" : "border-border-strong bg-surface"}`}>{item.done ? "✓" : ""}</span>
+              <span className="flex flex-col">
+                <span className={`text-sm font-medium ${item.done ? "text-text-secondary line-through" : "text-text"}`}>{item.title}<span className="sr-only">{item.done ? " (done)" : ""}</span></span>
+                <span className="text-xs text-text-muted">{item.hint}</span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

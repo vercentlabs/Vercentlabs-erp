@@ -30,6 +30,7 @@ export {
   replaceActivityReminder, snoozeActivityReminder,
 } from "./reminders/index.js";
 export { applyStarterPack, listStarterPacks } from "./workspace/starter-packs.js";
+export { getCrmSetupChecklist } from "./workspace/checklist.js";
 export { getMyReminderChannels, getReminderTemplates, remindOnOutsideChannels, saveMyReminderChannels, saveReminderTemplates } from "./reminders/outside-channels.js";
 
 
