@@ -2741,6 +2741,9 @@ function withPriceListPermissions(role) {
       ...role.permissions,
       ...(has("sales.view") ? ["sales.price_lists.view"] : []),
       ...(has("sales.settings.manage") ? priceListMaintainer : []),
+      // Shared pricing (Sales audit): whoever runs a POS sets the prices it sells at, with or without Sales.
+      ...(has("pos.settings.manage") ? ["sales.price_lists.view", ...priceListMaintainer] : []),
+      ...(has("pos.operate") ? ["sales.price_lists.view"] : []),
       ...(has("sales.price.override") ? ["sales.price_lists.export"] : []),
     ]),
   };

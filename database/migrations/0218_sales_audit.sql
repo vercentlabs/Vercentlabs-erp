@@ -107,3 +107,15 @@ INSERT INTO public.role_permissions (role_id, permission_key)
 SELECT DISTINCT existing.role_id, 'sales.invoice.record_payment' FROM public.role_permissions existing
  WHERE existing.permission_key IN ('sales.invoice.post', 'accounting.receipts.manage')
 ON CONFLICT DO NOTHING;
+
+-- 7. Shared pricing: price lists serve Sales and Point of Sale, so a POS-only company sets its own selling prices. Whoever manages POS settings
+--    maintains price lists; whoever operates a POS sees them.
+INSERT INTO public.role_permissions (role_id, permission_key)
+SELECT DISTINCT existing.role_id, permission.key FROM public.role_permissions existing
+  JOIN public.permissions permission ON permission.key = ANY (ARRAY['sales.price_lists.view', 'sales.price_lists.create', 'sales.price_lists.edit', 'sales.price_lists.manage_prices',
+    'sales.price_lists.activate', 'sales.price_lists.set_default', 'sales.price_lists.change_tax_mode', 'sales.price_lists.import', 'sales.price_lists.export'])
+ WHERE existing.permission_key = 'pos.settings.manage'
+ON CONFLICT DO NOTHING;
+INSERT INTO public.role_permissions (role_id, permission_key)
+SELECT DISTINCT existing.role_id, 'sales.price_lists.view' FROM public.role_permissions existing WHERE existing.permission_key = 'pos.operate'
+ON CONFLICT DO NOTHING;

@@ -1,7 +1,7 @@
 import "server-only";
 
 // Request helpers for the routes under /api/sales/price-lists. workspaceRoute
-// checks the Sales module and the permission and opens the tenant
+// checks the permission and opens the tenant
 // transaction; the route calls one price list operation, which owns every rule.
 import { HttpError, ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
@@ -14,18 +14,29 @@ type Client = {
 };
 type Context = ReturnType<typeof salesContext>;
 type Body = Record<string, unknown>;
+type Snapshot = { modules: ReadonlyArray<{ moduleId: string; released: boolean; enabled: boolean; reason?: string }> } | null;
+
+// Price lists are shared pricing (Sales audit): Sales prices documents from them and Point of Sale its counter, so either app opens them —
+// a company with POS alone sets its selling prices here too.
+const PRICING_APPS = ["sales", "point-of-sale"];
+function requirePricingApp(snapshot: Snapshot) {
+  const has = (snapshot?.modules ?? []).some((entry) => PRICING_APPS.includes(entry.moduleId) && entry.released && entry.enabled && entry.reason !== "not_entitled");
+  if (!has) throw new HttpError(403, "Price lists need the Sales or Point of Sale app.");
+}
 
 export type PriceListRouteParams = { params: Promise<{ id: string }> };
 
 export function priceListRead(request: Request, permission: string, run: (client: Client, context: Context) => Promise<unknown>) {
-  return workspaceRoute(request, { module: "sales", permission }, async ({ client, session }) => {
+  return workspaceRoute(request, { snapshot: true, permission }, async ({ client, session, snapshot }) => {
+    requirePricingApp(snapshot as Snapshot);
     const result = await run(client as Client, salesContext(session));
     return result instanceof Response ? result : ok(toWire(result) as Record<string, unknown>);
   });
 }
 
 export function priceListWrite(request: Request, permission: string, run: (client: Client, context: Context, body: Body) => Promise<unknown>, status = 200) {
-  return workspaceRoute(request, { module: "sales", permission, billingWrite: true }, async ({ client, session }) => {
+  return workspaceRoute(request, { snapshot: true, permission, billingWrite: true }, async ({ client, session, snapshot }) => {
+    requirePricingApp(snapshot as Snapshot);
     const body = await readJson(request).catch(() => ({}));
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new HttpError(400, "Invalid request.");
     return ok(toWire(await run(client as Client, salesContext(session), body as Body)) as Record<string, unknown>, status);
@@ -33,8 +44,10 @@ export function priceListWrite(request: Request, permission: string, run: (clien
 }
 
 export function priceListUpload(request: Request, permission: string, run: (client: Client, context: Context) => Promise<unknown>) {
-  return workspaceRoute(request, { module: "sales", permission, billingWrite: true }, async ({ client, session }) =>
-    ok(toWire(await run(client as Client, salesContext(session))) as Record<string, unknown>));
+  return workspaceRoute(request, { snapshot: true, permission, billingWrite: true }, async ({ client, session, snapshot }) => {
+    requirePricingApp(snapshot as Snapshot);
+    return ok(toWire(await run(client as Client, salesContext(session))) as Record<string, unknown>);
+  });
 }
 
 export async function readSpreadsheet(request: Request) {

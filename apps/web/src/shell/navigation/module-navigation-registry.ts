@@ -919,6 +919,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Stores & Outlets", "/pos/outlets"), aliases: ["stores", "outlets", "shops", "showroom", "kiosk", "retail locations"], requiredPermission: "pos.outlets.view" },
           { ...available("POS Terminals", "/pos/terminals"), aliases: ["terminals", "counters", "tills"], requiredPermission: "pos.terminals.view" },
           { ...available("Cashiers", "/pos/cashiers"), aliases: ["cashier access", "cashier profiles", "operators", "store access"], requiredPermission: "pos.cashiers.view" },
+          // The selling prices the counter uses: the same price lists as Sales, kept here when the company has POS alone (Sales audit).
+          { ...available("Price Lists", "/pos/price-lists"), aliases: ["prices", "mrp", "selling price", "rate list"], requiredPermission: "sales.price_lists.view" },
         ],
       },
       {
