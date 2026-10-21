@@ -15,6 +15,8 @@ export function updateSalesSettings(client: SalesQueryClient, context: SalesCont
 
 export * from "./price-lists/index.js";
 export * from "./pricing-rules/index.js";
+// Sending a Sales document on WhatsApp (Sales audit M6).
+export function sendDocumentOnWhatsApp(client: SalesQueryClient, context: SalesContext, input: { kind: "quotation" | "proforma" | "order" | "invoice" | "credit_note"; id: string; phone?: string; body?: string; idempotencyKey?: string }): Promise<{ phone: string; body: string; link: string }>;
 
 export * from "./quotations/index.js";
 

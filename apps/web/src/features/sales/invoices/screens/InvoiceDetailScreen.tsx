@@ -32,6 +32,7 @@ import {
 } from "../components/InvoiceDialogs";
 import { InvoiceStatusBadges } from "../components/InvoiceStatusBadges";
 import { NextStep, invoiceNextStep } from "@/features/sales/shared/NextStep";
+import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
 import { RecordPaymentDialog } from "../components/RecordPaymentDialog";
 import { CreateCreditNoteDialog } from "@/features/sales/credit-notes/components/CreditNoteDialogs";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
@@ -149,6 +150,7 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
               {actions.print && posted && <LinkButton variant="secondary" href={invoicePdfUrl(invoiceId)} download>Download</LinkButton>}
               {actions.print && posted && <a className={buttonVariants({ variant: "secondary" })} href={`${invoicePdfUrl(invoiceId, true)}&copies=3`} target="_blank" rel="noreferrer">Print 3 copies</a>}
               {actions.markSent && <Button variant="secondary" onPress={() => setDialog("markSent")}>Mark as Sent</Button>}
+              {actions.markSent && <WhatsAppSendButton kind="invoice" id={invoiceId} pdfUrl={invoicePdfUrl(invoiceId)} onSent={refresh} />}
               {actions.recordPayment && <Button variant="secondary" onPress={() => setDialog("payment")}><Wallet className="size-4" aria-hidden="true" />Record Payment</Button>}
               {actions.creditNote && <Button variant="secondary" onPress={() => setDialog("credit")}><FileMinus className="size-4" aria-hidden="true" />Create Credit Note</Button>}
               {actions.changeDueDate && <Button variant="ghost" onPress={() => setDialog("dueDate")}>Change Due Date</Button>}

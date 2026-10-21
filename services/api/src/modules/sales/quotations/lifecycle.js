@@ -184,7 +184,9 @@ const contactName = (quote) => [quote.contact_snapshot?.first_name, quote.contac
 export async function markQuotationSent(client, context, quotationId, input = {}) {
   requireQuotationPermission(context, QUOTATION_PERMISSIONS.send, "You do not have permission to send quotations.");
   const quote = await lockVisible(client, context, quotationId);
-  await markSent(client, context, quote, { channel: "manual", recipient: text(input.recipient, 320) ?? contactName(quote), note: text(input.note, 1000) });
+  // Sent outside Vercentlabs by hand, or on WhatsApp (Sales audit M6).
+  const channel = input.channel === "whatsapp" ? "whatsapp" : "manual";
+  await markSent(client, context, quote, { channel, recipient: text(input.recipient, 320) ?? contactName(quote), note: text(input.note, 1000) });
   return { quotationId: quote.id, status: "sent" };
 }
 

@@ -32,6 +32,7 @@ import {
 import { CreditNoteStatusBadges } from "../components/CreditNoteStatusBadges";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
+import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -133,6 +134,7 @@ export function CreditNoteDetailScreen({ creditNoteId }: { creditNoteId: string 
               {actions.print && <a className={buttonVariants({ variant: "secondary" })} href={creditNotePdfUrl(creditNoteId, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />{posted ? "View PDF" : "Draft PDF"}</a>}
               {actions.print && posted && <LinkButton variant="secondary" href={creditNotePdfUrl(creditNoteId)} download>Download</LinkButton>}
               {actions.markSent && <Button variant="secondary" onPress={() => setDialog("markSent")}>Mark as Sent</Button>}
+              {actions.markSent && <WhatsAppSendButton kind="credit_note" id={creditNoteId} onSent={refresh} />}
               {actions.applyCredit && <LinkButton variant="secondary" href={`/accounting/customer-invoices?view=credit_notes&partyId=${creditNote.party_id}`}><Wallet className="size-4" aria-hidden="true" />Apply Credit</LinkButton>}
               {actions.refund && (
                 <LinkButton variant="secondary" href={`/sales/refunds?sourceType=credit_note&sourceId=${creditNote.id}&partyId=${creditNote.party_id}`}>

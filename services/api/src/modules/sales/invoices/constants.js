@@ -79,7 +79,7 @@ export const INVOICE_VIEWS = Object.freeze([
 ]);
 
 export const SENT_CHANNELS = Object.freeze([
-  { code: "email", label: "Email (outside Vercentlabs)" }, { code: "courier", label: "Courier / by hand" }, { code: "portal", label: "Customer portal" }, { code: "other", label: "Other" },
+  { code: "email", label: "Email (outside Vercentlabs)" }, { code: "whatsapp", label: "WhatsApp" }, { code: "courier", label: "Courier / by hand" }, { code: "portal", label: "Customer portal" }, { code: "other", label: "Other" },
 ]);
 
 export class InvoiceError extends OrderError {

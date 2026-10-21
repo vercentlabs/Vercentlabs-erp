@@ -46,6 +46,7 @@ import { CreateInvoiceDialog } from "@/features/sales/invoices/components/Invoic
 
 import { CancelOrderDialog, CancelRemainingDialog, ReopenOrderDialog, failureText } from "../components/OrderDialogs";
 import { NextStep, orderNextStep } from "@/features/sales/shared/NextStep";
+import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
 import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge, ReservationStatusBadge } from "../components/OrderStatusBadges";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
@@ -216,6 +217,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
               {actions.edit && <LinkButton variant="secondary" href={`/sales/orders/${orderId}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
               {actions.viewConfirmation && <a className={buttonVariants({ variant: "secondary" })} href={orderPdfUrl(orderId, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />View Confirmation</a>}
               {actions.sendConfirmation && <Button variant="secondary" onPress={() => setDialog("email")}><Send className="size-4" aria-hidden="true" />Send Confirmation</Button>}
+              {actions.markConfirmationSent && <WhatsAppSendButton kind="order" id={orderId} onSent={refresh} />}
               {stockOn && order.status !== "cancelled" && order.status !== "closed" && detail.capabilities.checkAvailability && detail.lines.some((line) => line.is_stock_tracked) && (
                 <Button variant="secondary" onPress={() => { setCheckAvailability(true); setTab("fulfillment"); }}>Check Availability</Button>
               )}

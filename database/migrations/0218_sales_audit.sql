@@ -119,3 +119,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO public.role_permissions (role_id, permission_key)
 SELECT DISTINCT existing.role_id, 'sales.price_lists.view' FROM public.role_permissions existing WHERE existing.permission_key = 'pos.operate'
 ON CONFLICT DO NOTHING;
+
+-- 8. Documents sent on WhatsApp (M6): a quotation records WhatsApp as how it was sent.
+ALTER TABLE tenant.sales_quotations DROP CONSTRAINT IF EXISTS sales_quotations_sent_channel_check;
+ALTER TABLE tenant.sales_quotations ADD CONSTRAINT sales_quotations_sent_channel_check CHECK (sent_channel IS NULL OR sent_channel IN ('email', 'manual', 'link', 'whatsapp'));

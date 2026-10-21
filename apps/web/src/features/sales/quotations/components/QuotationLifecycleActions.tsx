@@ -16,6 +16,7 @@ import {
   cancelSalesQuotation, createOrderFromQuotation, emailSalesProforma, emailSalesQuotation, markSalesQuotationSent, proformaPdfUrl, recordSalesQuotationDecision,
   reviseSalesQuotation,
 } from "../api/quotations-api";
+import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
 
 export type LifecycleQuotation = {
   id: string; number: string;
@@ -55,9 +56,11 @@ export function QuotationLifecycleActions({ quotation, can, onChanged, size = "s
           <>
             <Button variant="secondary" size={size} onPress={() => setDialog("email")}>Email</Button>
             <Button variant="secondary" size={size} onPress={() => setDialog("markSent")}>Mark as sent</Button>
+            <WhatsAppSendButton kind="quotation" id={quotation.id} size={size} pdfUrl={`/api/documents/sales.quotation/${quotation.id}/pdf`} onSent={onChanged} />
           </>
         )}
         {proforma && <Button variant="secondary" size={size} onPress={() => setDialog("proforma")}>Proforma invoice</Button>}
+        {proforma && can("sales.quotation.send") && <WhatsAppSendButton kind="proforma" id={quotation.id} size={size} pdfUrl={proformaPdfUrl(quotation.id, null)} />}
         {open && !quotation.isExpired && can("sales.quotation.accept_on_behalf") && <Button variant="secondary" size={size} onPress={() => setDialog("accept")}>Record acceptance</Button>}
         {open && can("sales.quotation.reject") && <Button variant="secondary" size={size} onPress={() => setDialog("reject")}>Record rejection</Button>}
         {open && can("sales.quotation.revise") && <Button variant="secondary" size={size} onPress={() => setDialog("revise")}>Create revision</Button>}
