@@ -13,6 +13,8 @@
 //
 // All checks run before the first write, so a refused conversion changes nothing.
 import { withConsentSource } from "../data-management/consent.js";
+import { updateAccountTaxIdentity } from "../accounts/tax-identity.js";
+import { parseGstin } from "@vercentlabs/shared-types";
 import { fieldLabel } from "../data-management/field-labels.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
@@ -101,7 +103,7 @@ function readOpportunityInput(lead, input, accountName) {
 
 // input:
 //   idempotencyKey   a retried request with the same key returns the first result
-//   account          { mode: "existing", id } | { mode: "new", name, legalName?, website?, gstin? (matched on, never stored), industry?, ownerUserId?, acknowledgeMatches? }
+//   account          { mode: "existing", id } | { mode: "new", name, legalName?, website?, gstin? (matched on, and kept on the new company), industry?, ownerUserId?, acknowledgeMatches? }
 //   contact          { mode: "existing", id, updates?: { email|mobile|phone|jobTitle: "lead" } }
 //                    | { mode: "new", firstName, lastName?, email?, mobile?, phone?, jobTitle?, ownerUserId?, acknowledgeMatches? }
 //   opportunity      { name?, ownerUserId?, teamId?, stageId?, pipelineId?, amount?, currencyCode?, expectedCloseDate, productInterest?, description?, priority?, acknowledgeMatches? }
@@ -229,9 +231,11 @@ async function convertLeadUnrecorded(client, context, leadId, input = {}) {
       displayName: name,
       legalName: text(accountInput.legalName) || null,
       website: (accountInput.website === undefined ? text(lead.website) : text(accountInput.website)) || null,
-      gstin: text(accountInput.gstin).toUpperCase() || null,
+      gstin: text(accountInput.gstin).replace(/\s+/g, "").toUpperCase() || null,
       industry: (accountInput.industry === undefined ? text(lead.industry) : text(accountInput.industry)) || null,
     };
+    // A GSTIN typed here is checked before anything is created: the new company keeps it (CRM audit B5).
+    if (newAccount.gstin && !parseGstin(newAccount.gstin).valid) throw invalid(parseGstin(newAccount.gstin).error || "Enter a valid 15-character GSTIN.", "account.gstin");
     const matches = await accountMatches(client, context, { ...newAccount, email: lead.email, phone: lead.mobile || lead.phone, city: lead.city });
     newAccount.allowDuplicate = duplicateGate("account", matches, accountInput.acknowledgeMatches === true);
     newAccount.ownerUserId = await ownerFor(accountInput.ownerUserId, "account");
@@ -287,7 +291,6 @@ async function convertLeadUnrecorded(client, context, leadId, input = {}) {
 
   let partyId = existingAccount?.id;
   if (newAccount) {
-    // GSTIN is only matched on: tax identity is kept by the Customer Master in Sales.
     const account = await createAccount(client, operations, {
       displayName: newAccount.displayName, legalName: newAccount.legalName, website: newAccount.website, industry: newAccount.industry,
       ...(activeSource ? { sourceId: lead.source_id, sourceDetail: lead.source_detail } : {}),
@@ -297,6 +300,9 @@ async function convertLeadUnrecorded(client, context, leadId, input = {}) {
     }, { allowDuplicate: newAccount.allowDuplicate, duplicateReason, origin: "lead_conversion",
       historySummary: newAccount.customerKind === "individual" ? `Individual customer created from lead ${lead.code}` : `Company created from lead ${lead.code}` });
     partyId = account.id;
+    // The GSTIN typed at conversion stays on the new company (a new company is a prospect: CRM keeps its tax identity until it becomes
+    // a Sales customer). With the treatment and state it implies.
+    if (newAccount.gstin) await updateAccountTaxIdentity(client, operations, account.id, { gstin: newAccount.gstin });
   }
 
   let contactId = existingContact?.id;

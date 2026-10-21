@@ -4,6 +4,7 @@
 // reach the person, say) stays a lead, reachable from the deal list's "Unconverted enquiries" link. Leads typed in or imported are kept
 // as leads. Switching back on changes nothing already converted.
 import { CrmError } from "../data-management/errors.js";
+import { integrationActor } from "../data-management/system-actor.js";
 
 export async function leadsEnabled(client, organizationId) {
   const row = (await client.query("SELECT leads_enabled FROM tenant.crm_settings WHERE organization_id = $1", [organizationId])).rows[0];
@@ -21,11 +22,10 @@ export async function setLeadsEnabled(client, context, enabled) {
 }
 
 // What converting an arriving enquiry may do: create the company, contact and deal, use matching ones, and convert without the
-// qualification a person would record. Recorded as the organization's creator (or the lead's owner).
+// qualification a person would record. Recorded as the lead's owner while an active member, else an active owner.
 async function conversionAuthority(client, organizationId, actAs) {
-  const creator = (await client.query("SELECT created_by FROM public.organizations WHERE id = $1", [organizationId])).rows[0]?.created_by ?? null;
   return {
-    organizationId, userId: actAs ?? creator, roleSlugs: [],
+    organizationId, userId: await integrationActor(client, organizationId, actAs), roleSlugs: [],
     permissions: ["crm.view", "crm.records.view_all", "crm.leads.view", "crm.leads.view_all", "crm.leads.view_sensitive", "crm.leads.edit", "crm.leads.convert",
       "crm.leads.override_qualification", "crm.leads.convert_use_existing", "crm.leads.convert_create_account", "crm.leads.convert_create_contact",
       "crm.leads.convert_change_owner", "crm.accounts.view", "crm.accounts.view_all", "crm.accounts.create", "crm.contacts.view", "crm.contacts.view_all",

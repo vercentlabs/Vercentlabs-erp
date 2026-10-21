@@ -6,6 +6,7 @@
 // Each action runs inside the workflow run's transaction under a narrow system authority (the organization's creator, with only the CRM
 // permissions the action needs), through the same CRM operations a person uses — so consent, visibility and validation still apply.
 import { resolveActivityType } from "../activity-types/records.js";
+import { integrationActor } from "../data-management/system-actor.js";
 import { CrmError } from "../data-management/errors.js";
 import { sendRecordEmail } from "../email/outbound.js";
 import { notifyFollowers } from "../followers/records.js";
@@ -20,11 +21,11 @@ const TABLE = Object.freeze({ lead: "crm_leads", opportunity: "crm_opportunities
 const text = (value) => String(value ?? "").trim();
 const invalid = (message) => new CrmError(400, message, "WORKFLOW_DEFINITION_INVALID");
 
-// The authority an action runs with: the organization's creator, holding only CRM permissions, seeing every CRM record.
+// The authority an action runs with: the given member while still active, else an active owner (data-management/system-actor.js),
+// holding only CRM permissions, seeing every CRM record.
 async function systemAuthority(client, organizationId, actAs = null) {
-  const creator = (await client.query("SELECT created_by FROM public.organizations WHERE id = $1", [organizationId])).rows[0]?.created_by ?? null;
   return {
-    organizationId, userId: actAs ?? creator, roleSlugs: [], workflowOrigin: true,
+    organizationId, userId: await integrationActor(client, organizationId, actAs), roleSlugs: [], workflowOrigin: true,
     permissions: ["crm.view", "crm.records.view_all", "crm.leads.view", "crm.leads.view_all", "crm.leads.edit", "crm.leads.assign", "crm.leads.reassign", "crm.leads.view_sensitive",
       "crm.opportunities.view", "crm.opportunities.view_all", "crm.opportunities.edit", "crm.opportunities.assign", "crm.opportunities.reassign",
       "crm.follow_ups.create", "crm.follow_ups.view_all", "crm.contacts.view", "crm.contacts.view_all", "crm.accounts.view", "crm.accounts.view_all"],

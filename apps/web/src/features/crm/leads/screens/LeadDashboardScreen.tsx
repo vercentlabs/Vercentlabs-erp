@@ -340,6 +340,11 @@ export function LeadsByStatusReport() {
                 </tfoot>
               )}
             </table>
+            {Boolean(report.totals.unconvertedLeads) && (
+              <p className="px-3 py-2 text-xs text-text-muted">
+                {report.totals.unconvertedLeads} {report.totals.unconvertedLeads === 1 ? "lead is" : "leads are"} in a currency with no exchange rate and left out of the estimated value. Add the rate in Accounting › Exchange rates.
+              </p>
+            )}
           </div>
         )}
     </section>

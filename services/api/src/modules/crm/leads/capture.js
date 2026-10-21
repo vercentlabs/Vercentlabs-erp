@@ -9,6 +9,7 @@
 // CRM it is never lost: the enquiry is logged on the matching lead (or the
 // contact it became) and its owner is told.
 import { withConsentSource } from "../data-management/consent.js";
+import { integrationActor } from "../data-management/system-actor.js";
 import { requireCrmOn } from "../data-management/crm-on.js";
 import { mediumFromUtm } from "@vercentlabs/shared-types";
 
@@ -63,9 +64,9 @@ export async function captureCrmLead(client, formKey, input = {}, requestContext
     if (!String(input[field] ?? "").trim()) throw new CrmError(400, `Enter your ${FIELD_LABELS[field] ?? "details"}.`);
 
   // A capture runs as the organization itself: it may create a lead and
-  // nothing else. The acting user recorded on the lead is the organization's
-  // creator, since a public visitor has no user.
-  const actor = (await client.query(`SELECT created_by FROM public.organizations WHERE id = $1`, [form.organization_id])).rows[0]?.created_by ?? null;
+  // nothing else. The acting user recorded on the lead is the form's owner while
+  // an active member, else an active owner (a public visitor has no user).
+  const actor = await integrationActor(client, form.organization_id, form.owner_user_id ?? null);
   const context = {
     organizationId: form.organization_id,
     userId: actor,

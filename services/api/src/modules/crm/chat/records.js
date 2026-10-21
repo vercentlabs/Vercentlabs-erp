@@ -1,7 +1,9 @@
 // Website chat (CRM plan 5.8): a chat box on the organization's website. The visitor gives a name and an email or mobile and writes;
 // the conversation joins that person's open lead, or opens a new lead (source Website chat — converted at once when leads are switched
 // off), and is answered from CRM's chat inbox. The visitor's browser holds a random token for its conversation; only its hash is kept.
+import { normalizePhone } from "../../../core/parties/normalize.js";
 import { createHash, randomBytes } from "node:crypto";
+import { integrationActor } from "../data-management/system-actor.js";
 import { requireCrmOn } from "../data-management/crm-on.js";
 import { setTenantContext } from "@vercentlabs/database";
 
@@ -110,7 +112,7 @@ async function leadFor(client, channel, visitor) {
         AND (($2::text IS NOT NULL AND lower(email) = $2) OR ($3::text IS NOT NULL AND normalized_mobile = $3)) ORDER BY created_at DESC LIMIT 1`,
     [channel.organization_id, visitor.email, visitor.mobileDigits])).rows[0];
   if (existing) return existing;
-  const actor = (await client.query("SELECT created_by FROM public.organizations WHERE id = $1", [channel.organization_id])).rows[0]?.created_by ?? null;
+  const actor = await integrationActor(client, channel.organization_id, channel.owner_user_id ?? null);
   const authority = { organizationId: channel.organization_id, userId: actor, roleSlugs: [],
     permissions: [LEAD_PERMISSIONS.create, LEAD_PERMISSIONS.assign, LEAD_PERMISSIONS.viewAll, LEAD_PERMISSIONS.viewSensitive, "crm.records.view_all"] };
   const source = (await client.query("SELECT id FROM tenant.crm_lead_sources WHERE organization_id = $1 AND status = 'active' AND code IN ('website_chat', 'website', 'web') ORDER BY (code = 'website_chat') DESC LIMIT 1",
@@ -147,8 +149,9 @@ export async function startChat(client, publicKey, input = {}, { origin = null, 
   if (!email && !mobile) throw invalid("Enter your email or mobile, so we can reply if you leave.", "email");
   if (email && !EMAIL.test(email)) throw invalid("Enter a valid email.", "email");
   if (!message) throw invalid("Write your message.", "message");
-  const mobileDigits = mobile ? mobile.replace(/\D/g, "").slice(-10) : null;
-  const lead = await leadFor(client, channel, { name, email, mobile, mobileDigits: mobileDigits ? `+91${mobileDigits}` : null, message });
+  // Compared the way leads store their mobile (CRM audit B8): an Indian number on its last ten digits, a number written with another
+  // country code (+44, +971) on all its digits — never forced to +91.
+  const lead = await leadFor(client, channel, { name, email, mobile, mobileDigits: mobile ? normalizePhone(mobile) : null, message });
   // A lead converted at once (leads switched off) still holds the chat; its deal is one click away.
   const token = randomBytes(24).toString("hex");
   const session = (await client.query(

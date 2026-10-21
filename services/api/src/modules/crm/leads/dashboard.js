@@ -2,11 +2,12 @@
 // the leads the caller can see, using the same scope as the lead list, so a
 // figure and the list behind it always agree.
 import { leadScopeSql, requireLeadPermission } from "./access.js";
+import { reportingRate } from "../data-management/reporting-currency.js";
 import { LEAD_DISQUALIFICATION_REASONS, LEAD_PERMISSIONS, LEAD_QUALIFICATION_STATUSES, LEAD_RATINGS, LEAD_STALE_DAYS, LEAD_STATUSES } from "./constants.js";
 import { ensureDefaultLeadStages } from "./stages.js";
 import { QUALIFICATION_STATUS_SQL } from "./records.js";
 import { isUuid } from "./validation.js";
-import { orgDayStart, orgPeriod } from "../data-management/org-date.js";
+import { orgDayStart, orgPeriod, orgToday } from "../data-management/org-date.js";
 
 const PENDING_FOLLOW_UP = `SELECT min(activity.due_at) AS due_at FROM tenant.crm_activities activity
    WHERE activity.organization_id = lead.organization_id AND activity.entity_type = 'lead' AND activity.entity_id = lead.id
@@ -189,8 +190,11 @@ export async function getLeadsByStatusReport(client, context, input = {}) {
             count(*) FILTER (WHERE lead.status = 'qualified')::int AS qualified,
             count(*) FILTER (WHERE lead.status = 'disqualified')::int AS disqualified,
             count(*) FILTER (WHERE lead.status = 'converted')::int AS converted,
-            COALESCE(sum(lead.estimated_value), 0)::float8 AS estimated_value
+            -- in the base currency (CRM audit B12): each lead converted at today's rate; one with no rate is left out and counted
+            COALESCE(sum(lead.estimated_value * fx.rate), 0)::float8 AS estimated_value,
+            count(*) FILTER (WHERE lead.estimated_value IS NOT NULL AND fx.rate IS NULL)::int AS unconverted
        FROM tenant.crm_leads lead
+       LEFT JOIN LATERAL (SELECT ${reportingRate("lead.organization_id", "lead.currency_code", orgToday("lead.organization_id"))} AS rate) fx ON true
        LEFT JOIN tenant.crm_lead_sources source ON source.organization_id = lead.organization_id AND source.id = lead.source_id
        LEFT JOIN public.users owner ON owner.id = lead.owner_user_id
        LEFT JOIN tenant.crm_sales_teams team ON team.organization_id = lead.organization_id AND team.id = lead.team_id
@@ -212,6 +216,7 @@ export async function getLeadsByStatusReport(client, context, input = {}) {
     converted: row.converted,
     conversionRate: row.total ? Math.round((row.converted / row.total) * 1000) / 10 : 0,
     estimatedValue: row.estimated_value,
+    unconvertedLeads: row.unconverted,
   }));
   return {
     groupBy,
@@ -220,6 +225,7 @@ export async function getLeadsByStatusReport(client, context, input = {}) {
     totals: reportRows.reduce((sum, row) => ({
       total: sum.total + row.total, open: sum.open + row.open, qualified: sum.qualified + row.qualified,
       disqualified: sum.disqualified + row.disqualified, converted: sum.converted + row.converted, estimatedValue: sum.estimatedValue + row.estimatedValue,
-    }), { total: 0, open: 0, qualified: 0, disqualified: 0, converted: 0, estimatedValue: 0 }),
+      unconvertedLeads: sum.unconvertedLeads + row.unconvertedLeads,
+    }), { total: 0, open: 0, qualified: 0, disqualified: 0, converted: 0, estimatedValue: 0, unconvertedLeads: 0 }),
   };
 }

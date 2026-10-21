@@ -9,9 +9,10 @@
 //   re-run           every so often, unassigned open leads go through the assignment rules again (capacity and pauses respected).
 //
 // "Our response" excludes what the customer did (an inbound email, a repeat enquiry: crm_activities.is_inbound). The manager is the
-// manager of the lead's team, else of a team the person belongs to, else the organization's creator. Each notice is stamped in the same
+// manager of the lead's team, else of a team the person belongs to, else the organization's creator while active, else an active owner. Each notice is stamped in the same
 // statement that claims its row (FOR UPDATE SKIP LOCKED), so a re-run or an overlapping tick never notifies twice.
 import { createNotification } from "../../../core/platform/notifications/index.js";
+import { fallbackManagerSql, integrationActor } from "../data-management/system-actor.js";
 import { applyLeadAssignment } from "./assignment.js";
 import { evaluateLeadAssignment, getLeadAssignmentSettings } from "./assignment-rules.js";
 import { LEAD_PERMISSIONS } from "./constants.js";
@@ -37,7 +38,7 @@ export const MANAGER = (teamExpr, userExpr) => `COALESCE(
   (SELECT team.manager_user_id FROM tenant.crm_sales_team_members member JOIN tenant.crm_sales_teams team ON team.organization_id = member.organization_id AND team.id = member.team_id
     WHERE member.organization_id = $1 AND member.user_id = ${userExpr} AND member.status = 'active' AND team.status = 'active'
       AND team.manager_user_id IS NOT NULL AND team.manager_user_id <> ${userExpr} ORDER BY team.created_at LIMIT 1),
-  (SELECT organization.created_by FROM public.organizations organization WHERE organization.id = $1 AND organization.created_by IS DISTINCT FROM ${userExpr}))`;
+  ${fallbackManagerSql(userExpr)})`;
 
 // The untouched leads (not yet stamped in `stamp`) whose response time has passed in working hours. The wall-clock test in UNTOUCHED
 // is a cheap first cut — working hours never run out sooner than the clock — and each candidate is then timed on the schedule.
@@ -132,7 +133,7 @@ async function rerunUnassigned(client, organizationId, hours) {
     `UPDATE tenant.crm_lead_assignment_settings SET last_rerun_at = now()
       WHERE organization_id = $1 AND (last_rerun_at IS NULL OR last_rerun_at <= now() - make_interval(hours => $2)) RETURNING organization_id`, [organizationId, hours])).rows[0];
   if (!due) return { routed: 0, checked: 0 };
-  const actor = (await client.query("SELECT created_by FROM public.organizations WHERE id = $1", [organizationId])).rows[0]?.created_by ?? null;
+  const actor = await integrationActor(client, organizationId);
   const context = {
     organizationId, userId: actor, roleSlugs: [],
     permissions: [LEAD_PERMISSIONS.view, LEAD_PERMISSIONS.viewAll, LEAD_PERMISSIONS.assign, LEAD_PERMISSIONS.reassign, "crm.records.view_all"],

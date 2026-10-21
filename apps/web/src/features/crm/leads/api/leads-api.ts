@@ -274,7 +274,8 @@ export type LeadDashboard = {
   workload: Array<{ userId: string | null; name: string; openLeads: number; overdueFollowUps: number; noActivity: number }>;
 };
 
-export type LeadReportRow = { group: string; total: number; open: number; qualified: number; disqualified: number; converted: number; conversionRate: number; estimatedValue: number };
+// estimatedValue is in the base currency; unconvertedLeads are leads in a currency with no exchange rate, left out of it.
+export type LeadReportRow = { group: string; total: number; open: number; qualified: number; disqualified: number; converted: number; conversionRate: number; estimatedValue: number; unconvertedLeads?: number };
 export type LeadReport = { groupBy: string; groupLabel: string; rows: LeadReportRow[]; totals: Omit<LeadReportRow, "group" | "conversionRate"> };
 
 export type LeadRuleCondition = { field: string; operator: string; value?: string };

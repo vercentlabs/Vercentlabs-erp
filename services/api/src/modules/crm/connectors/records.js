@@ -6,6 +6,7 @@
 // lead id: a lead read twice, or re-sent, is never a second lead. A person the CRM already has is not a second lead either: the
 // enquiry is logged on their lead or contact and its owner is told (as for a repeat website enquiry).
 import { withConsentSource } from "../data-management/consent.js";
+import { integrationActor } from "../data-management/system-actor.js";
 import { crmIsOn } from "../data-management/crm-on.js";
 import { createHash, randomBytes } from "node:crypto";
 
@@ -207,11 +208,11 @@ export async function listLeadConnectorEvents(client, context, connectorId, { li
 // ------------------------------------------------------------------ bringing leads in
 
 // What the connector may do when a lead arrives: create a lead (with its assignment) and see records to log a repeat enquiry on. Recorded
-// as the member who set the connector up.
-function connectorAuthority(row) {
+// as the member who set the connector up while still active, else an active owner (data-management/system-actor.js).
+async function connectorAuthority(client, row) {
   return {
     organizationId: row.organization_id,
-    userId: row.created_by,
+    userId: await integrationActor(client, row.organization_id, row.created_by),
     roleSlugs: [],
     permissions: [LEAD_PERMISSIONS.create, LEAD_PERMISSIONS.assign, LEAD_PERMISSIONS.viewAll, LEAD_PERMISSIONS.viewSensitive, "crm.records.view_all"],
   };
@@ -219,7 +220,7 @@ function connectorAuthority(row) {
 
 // One provider lead, once. Returns { status, leadId?, recordType?, recordId? }.
 export async function ingestProviderLead(client, row, item) {
-  const authority = connectorAuthority(row);
+  const authority = await connectorAuthority(client, row);
   const provider = LEAD_PROVIDERS[row.provider];
   const seen = (await client.query("SELECT status, lead_id, record_type, record_id FROM tenant.crm_lead_connector_events WHERE organization_id = $1 AND connector_id = $2 AND external_id = $3",
     [row.organization_id, row.id, item.externalId])).rows[0];
