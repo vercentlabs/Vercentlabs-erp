@@ -28,7 +28,7 @@ import { evaluateConfirmation } from "./validation.js";
 
 const EPSILON = 1e-6;
 
-// input: { expectedVersionNumber?, quotationVarianceReason? }
+// input: { expectedVersionNumber?, quotationVarianceReason?, creditReleaseReason? }
 // Returns { confirmed: false, problems } when the order is not ready.
 export async function confirmSalesOrder(client, context, orderId, input = {}) {
   requireOrderPermission(context, CONFIRMATION_PERMISSIONS.confirm, "You do not have permission to confirm sales orders.");
@@ -53,6 +53,13 @@ export async function confirmSalesOrder(client, context, orderId, input = {}) {
       problems.push(`This order differs from the accepted quotation ${check.quotation.quotationNumber}. Confirming it needs the permission to confirm orders that differ from the quotation.`);
     else if (!varianceReason) problems.push(`Say why this order differs from the accepted quotation ${check.quotation.quotationNumber}.`);
   }
+  // An order held for credit is confirmed only by someone who can release it, saying why (Sales audit M1).
+  const creditReason = text(input.creditReleaseReason, 1000) ?? "";
+  if (check.credit?.held) {
+    if (!orderCan(context, CONFIRMATION_PERMISSIONS.creditRelease))
+      problems.push(`Held for credit: ${check.credit.reasons.join(" ")} Someone who can release credit (a Sales manager) must confirm it, or take a payment first.`);
+    else if (creditReason.length < 5) problems.push(`Held for credit: ${check.credit.reasons.join(" ")} Say why it is released (at least 5 characters).`);
+  }
   if (problems.length) {
     await recordOrderEvent(client, context, order.id, "sales_order.confirmation_refused", STATUS.draft, STATUS.draft, { problems });
     return { orderId: order.id, confirmed: false, status: STATUS.draft, changed: false, problems, warnings: check.warnings };
@@ -71,6 +78,9 @@ export async function confirmSalesOrder(client, context, orderId, input = {}) {
     [context.organizationId, order.current_version_id, context.userId ?? null]);
   await recordOrderEvent(client, context, order.id, reconfirmation ? "sales_order.reconfirmed" : "sales_order.confirmed", STATUS.draft, STATUS.confirmed,
     { versionId: order.current_version_id, versionNumber: order.version_number, confirmationVersion: Number(order.confirmation_version ?? 0) + 1 });
+  if (check.credit?.held)
+    await recordOrderEvent(client, context, order.id, "sales_order.credit_released", STATUS.confirmed, STATUS.confirmed,
+      { reason: creditReason, reasons: check.credit.reasons, exposure: check.credit.exposureWithOrder, creditLimit: check.credit.creditLimit, overdueDays: check.credit.overdueDays });
   // The snapshot is part of confirming: if it cannot be written, nothing is confirmed.
   const confirmation = await createOrderConfirmation(client, context, { ...order, lifecycle_status: STATUS.confirmed },
     { variance: check.quotation?.differs ? check.quotation : null, varianceReason: check.quotation?.differs ? varianceReason : null });

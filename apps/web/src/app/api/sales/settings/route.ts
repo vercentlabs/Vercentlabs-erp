@@ -19,6 +19,9 @@ const schema = z.object({
   checkAvailabilityOnConfirm: z.boolean().optional(),
   showPricesOnDeliveryNote: z.boolean().optional(),
   invoiceQuantityBasis: z.enum(["ordered", "fulfilled"]).optional(),
+  // Credit control (Sales audit M1): hold, warn or off; and the overdue days that also hold an order (null: not checked).
+  creditControl: z.enum(["off", "warn", "block"]).optional(),
+  creditOverdueDays: z.number().int().min(0).max(3650).nullable().optional(),
   defaultWarehouseId: z.string().uuid().nullable().optional(),
   defaultQuotationTerms: z.string().max(20000).nullish(),
   // Pricing & Discounts (needs sales.discount.manage_settings). A null limit or threshold switches it off.

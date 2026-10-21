@@ -6,7 +6,7 @@ import { SalesApiError, post, request } from "@/features/sales/shared/http";
 export type CustomerStatus = "active" | "inactive" | "blocked";
 export type CustomerCapabilities = Record<
   | "view" | "viewTeam" | "viewAll" | "create" | "edit" | "inactivate" | "reactivate" | "block" | "unblock" | "delete" | "import" | "export"
-  | "manageAddresses" | "manageContacts" | "linkAccount" | "editGstin" | "changeCurrency" | "changePaymentTerms" | "changePriceList" | "viewFinancials"
+  | "manageAddresses" | "manageContacts" | "linkAccount" | "editGstin" | "changeCurrency" | "changePaymentTerms" | "changeCreditLimit" | "changePriceList" | "viewFinancials"
   | "viewAddresses" | "inactivateAddress" | "setDefaultBilling" | "setDefaultShipping" | "editAddressGstin" | "viewContacts" | "inactivateContact" | "setPrimaryContact", boolean>;
 
 export type Customer = {
@@ -34,6 +34,8 @@ export type Customer = {
   priceListName: string | null;
   paymentTermId: string | null;
   paymentTermName: string | null;
+  // In the company's base currency; 0 is no limit.
+  creditLimit?: number;
   gstRegistrationType: string | null;
   gstRegistrationLabel: string | null;
   gstin: string | null;
@@ -121,6 +123,7 @@ export type ContactInput = {
 export type CustomerInput = {
   displayName?: string; legalName?: string | null; customerKind?: string; status?: string; email?: string | null; phone?: string | null; website?: string | null;
   countryCode?: string; currencyCode?: string; priceListId?: string | null; paymentTermId?: string | null; gstRegistrationType?: string | null; gstin?: string | null;
+  creditLimit?: number;
   placeOfSupply?: string | null; ownerUserId?: string | null; notes?: string | null;
   billingAddress?: AddressInput | null; shippingAddress?: AddressInput | null;
   primaryContact?: { firstName: string; lastName?: string; email?: string; phone?: string; jobTitle?: string } | null;
@@ -173,6 +176,12 @@ export type CustomerOverview = {
     currencyCode: string | null; outstanding: number; overdue: number; unallocatedAdvance: number; creditNoteCredit: number; refunded: number; openInvoices: number; lastPaymentDate: string | null;
     lastPaymentAmount: number | null; lastPaymentNumber: string | null; aging: Array<{ key: string; label: string; amount: number }>;
   };
+  // The credit limit and what is used of it, as order confirmation counts it (base currency).
+  credit?: CreditExposure;
+};
+export type CreditExposure = {
+  creditLimit: number | null; arOutstanding: number; unappliedAdvances: number; openOrderValue: number; netExposure: number; orderValue: number; exposureWithOrder: number;
+  availableCredit: number | null; overLimit: boolean; overdueDays: number; overdueLimitDays: number | null; overdueTooLong: boolean; control: "off" | "warn" | "block"; currencyCode: string;
 };
 
 export type RelatedRow = {

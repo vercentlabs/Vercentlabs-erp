@@ -23,7 +23,7 @@ import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Values = {
   displayName: string; legalName: string; customerKind: string; status: string; email: string; phone: string; website: string; countryCode: string; currencyCode: string;
-  priceListId: string; paymentTermId: string; gstRegistrationType: string; gstin: string; placeOfSupply: string; ownerUserId: string; notes: string;
+  priceListId: string; paymentTermId: string; creditLimit: string; gstRegistrationType: string; gstin: string; placeOfSupply: string; ownerUserId: string; notes: string;
 };
 type AddressValues = { label: string; line1: string; line2: string; city: string; district: string; state: string; postalCode: string; countryCode: string };
 type ContactValues = { firstName: string; lastName: string; email: string; phone: string; jobTitle: string };
@@ -46,6 +46,7 @@ function initialValues(options: CustomerOptions, source?: Partial<CustomerInput>
     currencyCode: from.currencyCode ?? options.defaults.currencyCode ?? "",
     priceListId: from.priceListId ?? NONE,
     paymentTermId: from.paymentTermId ?? NONE,
+    creditLimit: Number((source as Customer | null)?.creditLimit ?? 0) > 0 ? String((source as Customer).creditLimit) : "",
     gstRegistrationType: from.gstRegistrationType ?? NONE,
     gstin: from.gstin ?? "",
     placeOfSupply: from.placeOfSupply ?? NONE,
@@ -58,7 +59,7 @@ function toInput(values: Values): CustomerInput {
   return {
     displayName: values.displayName.trim(), legalName: values.legalName.trim() || null, customerKind: values.customerKind, email: values.email.trim() || null,
     phone: values.phone.trim() || null, website: values.website.trim() || null, countryCode: values.countryCode, currencyCode: values.currencyCode,
-    priceListId: orNull(values.priceListId), paymentTermId: orNull(values.paymentTermId), gstRegistrationType: orNull(values.gstRegistrationType),
+    priceListId: orNull(values.priceListId), paymentTermId: orNull(values.paymentTermId), creditLimit: values.creditLimit.trim() ? Number(values.creditLimit.replace(/,/g, "")) : 0, gstRegistrationType: orNull(values.gstRegistrationType),
     gstin: values.gstin.trim().toUpperCase() || null, placeOfSupply: orNull(values.placeOfSupply), ownerUserId: orNull(values.ownerUserId), notes: values.notes.trim() || null,
   };
 }
@@ -243,6 +244,9 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
           <>
             <Select label="Payment terms" selectedKey={values.paymentTermId} onSelectionChange={(key) => set("paymentTermId")(String(key))}
               options={withNone(options.paymentTerms.map((term) => ({ value: term.id, label: term.name })))} isDisabled={editing && !can.changePaymentTerms} errorMessage={errors.paymentTermId} />
+            <TextField label="Credit limit" inputMode="decimal" value={values.creditLimit} onChange={set("creditLimit")}
+              description={`In ${options.defaults.currencyCode ?? "the company's currency"}. An order that takes the customer over it is held at confirmation. Empty is no limit.`}
+              isDisabled={!can.changeCreditLimit} errorMessage={errors.creditLimit} />
             <Select label="Price list" selectedKey={values.priceListId} onSelectionChange={(key) => set("priceListId")(String(key))}
               options={withNone(options.priceLists.map((list) => ({ value: list.id, label: list.name })), "Standard prices")} isDisabled={editing && !can.changePriceList} errorMessage={errors.priceListId} />
           </>

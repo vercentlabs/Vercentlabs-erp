@@ -12,6 +12,7 @@ import { loadCustomerRow } from "./records.js";
 import { getCustomerProjects } from "../../projects/project-customer.js";
 import { canInApp, loadApps } from "../../../core/access/apps.js";
 import { openDealsForCustomer } from "../bridges/crm.js";
+import { getSalesCustomerCreditExposure } from "../after-sales.js";
 
 const OPEN_QUOTATION = "('draft', 'pending_approval', 'approved', 'sent', 'viewed')";
 const OPEN_ORDER = "('confirmed')";
@@ -110,6 +111,8 @@ export async function getCustomerOverview(client, context, customerId) {
         { key: "over_90", label: "Over 90 days", amount: num(finance.days_over_90) },
       ],
     };
+    // The credit limit and what is used of it, as order confirmation counts it (Sales audit M1), in base currency.
+    overview.credit = await getSalesCustomerCreditExposure(client, { ...context, permissions: [...(context.permissions ?? []), "sales.view"] }, customer.id);
   }
   return overview;
 }

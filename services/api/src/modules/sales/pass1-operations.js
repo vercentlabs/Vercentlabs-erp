@@ -94,6 +94,9 @@ const SETTINGS_DEFAULTS = Object.freeze({
   discount_reason_above_percent: null,
   discount_limit_percent: null,
   discount_limit_elevated_percent: null,
+  // Credit control (Sales audit M1): hold orders over the customer's limit; optionally also when an invoice is overdue too long.
+  credit_control: "block",
+  credit_overdue_days: null,
 });
 const DISCOUNT_SETTINGS = Object.freeze({
   allowLineDiscounts: "allow_line_discounts", allowDocumentDiscounts: "allow_document_discounts", allowPercentDiscounts: "allow_percent_discounts",
@@ -159,11 +162,18 @@ export async function updateSalesSettings(client, c, input = {}) {
       throw new SalesError(400, "Choose an active warehouse.", "SALES_SETTINGS_INVALID");
     next.default_warehouse_id = warehouseId;
   }
+  // Credit control: block (hold the order until someone releases it), warn, or off; and the overdue days that also hold an order.
+  if (input.creditControl !== undefined) {
+    if (!["off", "warn", "block"].includes(input.creditControl)) throw new SalesError(400, "Choose how the credit limit is checked.", "SALES_SETTINGS_INVALID");
+    next.credit_control = input.creditControl;
+  }
+  if (input.creditOverdueDays !== undefined)
+    next.credit_overdue_days = input.creditOverdueDays === null || input.creditOverdueDays === "" ? null : Math.trunc(boundedNumber(input.creditOverdueDays, "Overdue days", { min: 0, max: 3650 }));
   if (input.invoiceQuantityBasis !== undefined) {
     if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
     next.invoice_quantity_basis = input.invoiceQuantityBasis;
   }
-  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_warehouse_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent"];
+  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_warehouse_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent","credit_control","credit_overdue_days"];
   const result = await client.query(
     `INSERT INTO tenant.sales_settings(organization_id,${columns.join(",")},created_by,updated_by)
      VALUES($1,${columns.map((_, index) => `$${index + 3}`).join(",")},$2,$2)

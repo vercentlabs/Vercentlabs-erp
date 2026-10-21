@@ -20,7 +20,7 @@ export type ConfirmationCheck = {
 };
 
 export function validateSalesOrderForConfirmation(client: QueryClient, context: Context, orderId: string): Promise<ConfirmationCheck>;
-export function confirmSalesOrder(client: QueryClient, context: Context, orderId: string, input?: { expectedVersionNumber?: number; quotationVarianceReason?: string }): Promise<{
+export function confirmSalesOrder(client: QueryClient, context: Context, orderId: string, input?: { expectedVersionNumber?: number; quotationVarianceReason?: string; creditReleaseReason?: string }): Promise<{
   orderId: string; confirmed: boolean; status: string; changed: boolean; problems?: string[]; warnings?: string[]; confirmationId?: string | null; confirmationVersion?: number | null;
   fulfillmentStatus?: string; reservation?: any[]; shortages?: any[]; sourceOpportunityId?: string | null;
 }>;

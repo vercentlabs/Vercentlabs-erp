@@ -28,6 +28,7 @@ export const CUSTOMER_PERMISSIONS = Object.freeze({
   editGstin: "sales.customers.edit_gstin",
   changeCurrency: "sales.customers.change_currency",
   changePaymentTerms: "sales.customers.change_payment_terms",
+  changeCreditLimit: "sales.customers.change_credit_limit",
   changePriceList: "sales.customers.change_price_list",
   viewFinancials: "sales.customers.view_financials",
   viewAddresses: "sales.customers.addresses.view",

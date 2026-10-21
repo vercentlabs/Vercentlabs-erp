@@ -1,5 +1,6 @@
 "use client";
 
+import type { CreditExposure } from "@/features/sales/customers/api/customers-api";
 import { del, post, request, SalesApiError } from "@/features/sales/shared/http";
 import type { SalesDocumentEvent, SalesDocumentInput, SalesDocumentPreview } from "@/features/sales/quotations/api/quotations-api";
 
@@ -190,6 +191,8 @@ export type ConfirmationCheck = {
   availabilityCheckedAt: string | null;
   reservesOnConfirm: boolean;
   nextConfirmationVersion: number;
+  // The customer's credit with this order (Sales audit M1): held = over the limit or overdue too long, with Sales settings on "block".
+  credit?: CreditExposure & { held: boolean; reasons: string[]; canRelease: boolean };
 };
 export type ConfirmResult = {
   orderId: string; confirmed: boolean; status: string; changed: boolean; problems?: string[]; warnings?: string[]; confirmationVersion?: number | null;
@@ -394,7 +397,7 @@ export const previewSalesOrder = (id: string, input: SalesOrderDocumentInput) =>
 
 // Confirming: checked first (nothing changes), then confirmed against the version reviewed.
 export const getConfirmationCheck = (id: string) => request<{ check: ConfirmationCheck }>(`/orders/${id}/confirmation/check`);
-export const confirmSalesOrder = (id: string, input: { expectedVersionNumber: number; quotationVarianceReason?: string }) =>
+export const confirmSalesOrder = (id: string, input: { expectedVersionNumber: number; quotationVarianceReason?: string; creditReleaseReason?: string }) =>
   post<{ result: ConfirmResult }>(`/orders/${id}/confirm`, input);
 export const reopenSalesOrder = (id: string, reason: string) => post<{ result: { status: string } }>(`/orders/${id}/reopen`, { reason });
 export const cancelSalesOrder = (id: string, input: { reasonCode?: string; reason?: string }) => post<{ result: { status: string } }>(`/orders/${id}/cancel`, input);

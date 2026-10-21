@@ -2557,6 +2557,7 @@ const customerManager = [
   ...customerWorker, "sales.customers.view_team", "sales.customers.inactivate", "sales.customers.reactivate", "sales.customers.block", "sales.customers.unblock",
   "sales.customers.delete", "sales.customers.import", "sales.customers.export", "sales.customers.edit_gstin", "sales.customers.change_currency",
   "sales.customers.change_payment_terms", "sales.customers.change_price_list", "sales.customers.view_financials", "sales.customers.addresses.edit_gstin",
+  "sales.customers.change_credit_limit",
 ];
 // Products follow the same idea, by the rules of the migration that added
 // them: whoever uses Sales, Procurement, Inventory or business data sees the
@@ -2818,7 +2819,7 @@ function withOrderPermissions(role) {
       ...(has("sales.order.approve") || has("sales.settings.manage") ? ["sales.order.view_team"] : []),
       // Order confirmations: sent and acknowledged by whoever creates or confirms orders.
       ...(has("sales.order.create") || has("sales.order.confirm") ? ["sales.order.confirmation.send", "sales.order.confirmation.mark_sent", "sales.order.confirmation.acknowledge"] : []),
-      ...(has("sales.order.cancel") ? ["sales.order.confirm_quote_variance"] : []),
+      ...(has("sales.order.cancel") ? ["sales.order.confirm_quote_variance", "sales.order.credit_release"] : []),
       // Stock availability: seen by everyone who opens orders; the warehouse is changed by whoever reserves.
       ...(has("sales.view") ? ["sales.availability.view", "sales.availability.check", "sales.availability.other_warehouses"] : []),
       ...(has("sales.order.confirm") || has("sales.fulfillment.request") ? ["sales.order.change_warehouse"] : []),

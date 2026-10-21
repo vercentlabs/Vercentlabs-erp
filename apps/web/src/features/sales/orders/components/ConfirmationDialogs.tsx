@@ -46,14 +46,18 @@ export function ConfirmOrderDialog({ orderId, number, versionNumber, onClose, on
     staleTime: 0, gcTime: 0,
   });
   const [reason, setReason] = useState("");
+  const [creditReason, setCreditReason] = useState("");
   const [refused, setRefused] = useState<string[] | null>(null);
   const confirm = useMutation({
-    mutationFn: () => confirmSalesOrder(orderId, { expectedVersionNumber: versionNumber, quotationVarianceReason: reason.trim() || undefined }),
+    mutationFn: () => confirmSalesOrder(orderId, { expectedVersionNumber: versionNumber, quotationVarianceReason: reason.trim() || undefined, creditReleaseReason: creditReason.trim() || undefined }),
     onSuccess: ({ result }) => (result.confirmed ? onDone(result) : setRefused(result.problems ?? [])),
   });
   const data = check.data;
   const quotation = data?.quotation;
   const varianceBlocked = Boolean(quotation?.differs) && (data?.varianceNeedsPermission || !reason.trim());
+  const credit = data?.credit;
+  // Held for credit: only someone who can release credit confirms it, saying why.
+  const creditBlocked = Boolean(credit?.held) && (!credit?.canRelease || creditReason.trim().length < 5);
   const problems = refused ?? data?.problems ?? [];
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Confirm ${number}`} size="lg"
@@ -95,6 +99,26 @@ export function ConfirmOrderDialog({ orderId, number, versionNumber, onClose, on
                 ) : <p className="text-sm text-success">Matches the accepted quotation.</p>}
               </Section>
             )}
+            {credit && credit.control !== "off" && (credit.creditLimit !== null || credit.reasons.length > 0) && (
+              <Section title="Customer credit">
+                {credit.creditLimit !== null && (
+                  <p className="text-sm">
+                    Limit {money(credit.currencyCode, credit.creditLimit)} · used {money(credit.currencyCode, credit.netExposure)} · with this order {money(credit.currencyCode, credit.exposureWithOrder)}
+                  </p>
+                )}
+                {credit.reasons.length > 0 ? (
+                  <>
+                    <Notice tone={credit.held ? "danger" : "warning"}>
+                      {credit.held ? "Held for credit." : "Over the credit terms (Sales settings only warn)."}
+                      <ul className="mt-1 list-disc pl-5">{credit.reasons.map((text) => <li key={text}>{text}</li>)}</ul>
+                    </Notice>
+                    {credit.held && (credit.canRelease
+                      ? <TextArea label="Why the order is released" description="Kept on the order's history." isRequired value={creditReason} onChange={setCreditReason} />
+                      : <p className="text-sm text-danger">A manager who can release credit must confirm this order, or take a payment from the customer first.</p>)}
+                  </>
+                ) : <p className="text-sm text-success">Within the customer&apos;s credit.</p>}
+              </Section>
+            )}
             {data.availabilitySummary && (
               <p className="text-sm">Stock: <span className="font-medium">{data.availabilitySummary}</span>{data.availabilityCheckedAt ? <span className="text-text-muted"> · checked {dateTime(data.availabilityCheckedAt)}</span> : null}</p>
             )}
@@ -113,7 +137,7 @@ export function ConfirmOrderDialog({ orderId, number, versionNumber, onClose, on
             </p>
           </>
         )}
-        <Footer onClose={onClose} label="Confirm Order" isLoading={confirm.isPending} isDisabled={!data?.ready || varianceBlocked} onPress={() => { setRefused(null); confirm.mutate(); }} />
+        <Footer onClose={onClose} label="Confirm Order" isLoading={confirm.isPending} isDisabled={!data?.ready || varianceBlocked || creditBlocked} onPress={() => { setRefused(null); confirm.mutate(); }} />
       </div>
     </Dialog>
   );

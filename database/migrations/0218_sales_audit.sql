@@ -56,3 +56,26 @@ LANGUAGE sql STABLE SET search_path = pg_catalog, public, tenant AS $$
   SELECT (now() AT TIME ZONE COALESCE((SELECT organization.timezone FROM public.organizations organization WHERE organization.id = tenant.current_organization_id()), 'Asia/Kolkata'))::date
 $$;
 GRANT EXECUTE ON FUNCTION tenant.company_today() TO vercent_app, vercent_worker;
+
+-- 3. Credit control (M1/B5/B13). A customer's credit limit (business_parties.credit_limit, in the company's base currency) is checked when
+--    an order is confirmed: what the customer owes, less advances and credit, plus confirmed orders not yet invoiced, plus this order.
+--    Over the limit — or with an invoice overdue more than the set number of days — the order is held (block), only warned about (warn),
+--    or not checked (off). Someone allowed to release credit confirms it anyway, with a reason that stays on the order's history.
+ALTER TABLE tenant.sales_settings ADD COLUMN IF NOT EXISTS credit_control text NOT NULL DEFAULT 'block';
+ALTER TABLE tenant.sales_settings DROP CONSTRAINT IF EXISTS sales_settings_credit_control_check;
+ALTER TABLE tenant.sales_settings ADD CONSTRAINT sales_settings_credit_control_check CHECK (credit_control IN ('off', 'warn', 'block'));
+ALTER TABLE tenant.sales_settings ADD COLUMN IF NOT EXISTS credit_overdue_days integer;
+ALTER TABLE tenant.sales_settings DROP CONSTRAINT IF EXISTS sales_settings_credit_overdue_days_check;
+ALTER TABLE tenant.sales_settings ADD CONSTRAINT sales_settings_credit_overdue_days_check CHECK (credit_overdue_days IS NULL OR credit_overdue_days BETWEEN 0 AND 3650);
+
+INSERT INTO public.permissions (key, name, category, description) VALUES
+  ('sales.customers.change_credit_limit', 'Change customer credit limit', 'Sales', 'Set or change a customer''s credit limit.'),
+  ('sales.order.credit_release', 'Release orders held for credit', 'Sales', 'Confirm an order over the customer''s credit limit, or with invoices overdue, giving a reason.')
+ON CONFLICT (key) DO NOTHING;
+-- Whoever changes a customer's payment terms sets its credit limit; whoever reopens confirmed orders (a Sales manager) releases credit.
+INSERT INTO public.role_permissions (role_id, permission_key)
+SELECT DISTINCT existing.role_id, 'sales.customers.change_credit_limit' FROM public.role_permissions existing WHERE existing.permission_key = 'sales.customers.change_payment_terms'
+ON CONFLICT DO NOTHING;
+INSERT INTO public.role_permissions (role_id, permission_key)
+SELECT DISTINCT existing.role_id, 'sales.order.credit_release' FROM public.role_permissions existing WHERE existing.permission_key = 'sales.order.reopen'
+ON CONFLICT DO NOTHING;

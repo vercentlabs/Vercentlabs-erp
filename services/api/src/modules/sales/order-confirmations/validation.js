@@ -27,6 +27,7 @@ import { lockOrder } from "../orders/versions.js";
 import { CONFIRMATION_PERMISSIONS } from "./constants.js";
 import { stockOn } from "../../../core/products/tracking.js";
 import { orderChargesInput } from "../invoices/charges.js";
+import { creditHoldReasons, getSalesCustomerCreditExposure } from "../after-sales.js";
 
 const EPSILON = 0.005;
 const differs = (a, b) => Math.abs(Number(a ?? 0) - Number(b ?? 0)) > EPSILON;
@@ -222,9 +223,17 @@ export async function evaluateConfirmation(client, context, order) {
       .map((line) => ({ itemName: line.itemName, unit: line.unit, required: line.remaining, available: line.available, shortage: line.shortage, problem: line.problem }));
     if (shortages.length) warnings.push(`Stock is short on ${shortages.length} line(s). The order can still be confirmed; what is available is reserved and the rest later.`);
   }
+  // Credit (Sales audit M1): the customer's exposure with this order, in base currency, against its limit and the overdue rule. Held
+  // (block) — confirmed only by someone who can release credit, with a reason; or a warning (warn); or not checked (off).
+  const credit = await getSalesCustomerCreditExposure(client, { ...context, permissions: [...(context.permissions ?? []), "sales.view"] }, order.party_id,
+    { orderValue: Number(version?.grand_total ?? 0) * Number(version?.exchange_rate ?? 1) });
+  const creditReasons = creditHoldReasons(credit, order.sales_order_number);
+  const creditHeld = credit.control === "block" && creditReasons.length > 0;
+  if (credit.control === "warn") warnings.push(...creditReasons);
   return {
     orderId: order.id, orderNumber: order.sales_order_number, status: order.lifecycle_status, versionNumber: Number(order.version_number),
-    ready: problems.length === 0, problems: [...new Set(problems)], warnings,
+    ready: problems.length === 0 && (!creditHeld || orderCan(context, CONFIRMATION_PERMISSIONS.creditRelease)), problems: [...new Set(problems)], warnings,
+    credit: { ...credit, held: creditHeld, reasons: creditReasons, canRelease: orderCan(context, CONFIRMATION_PERMISSIONS.creditRelease) },
     totals: { saved: version?.grand_total ?? null, recalculated: preview?.totals.grandTotal ?? null, currencyCode: String(version?.currency_code ?? "").trim() },
     quotation, varianceNeedsPermission: Boolean(quotation?.differs) && !orderCan(context, CONFIRMATION_PERMISSIONS.quoteVariance),
     shortages, availabilitySummary: availability?.summaryLabel ?? null, availabilityCheckedAt: availability?.checkedAt ?? null, reservesOnConfirm: keepsStock && settings?.reserve_stock_on_confirm !== false, nextConfirmationVersion: Number(order.confirmation_version ?? 0) + 1,

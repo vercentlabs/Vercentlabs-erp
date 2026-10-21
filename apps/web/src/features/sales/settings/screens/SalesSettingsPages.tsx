@@ -23,6 +23,8 @@ type Settings = {
   allow_direct_orders: boolean;
   reserve_stock_on_confirm: boolean;
   require_customer_po: boolean;
+  credit_control?: "off" | "warn" | "block";
+  credit_overdue_days?: number | null;
   require_requested_delivery_date: boolean;
   check_availability_on_confirm: boolean;
   show_prices_on_delivery_note: boolean;
@@ -115,6 +117,8 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
   const [direct, setDirect] = useState(settings.allow_direct_orders);
   const [requirePo, setRequirePo] = useState(Boolean(settings.require_customer_po));
   const [requireDelivery, setRequireDelivery] = useState(Boolean(settings.require_requested_delivery_date));
+  const [creditControl, setCreditControl] = useState<string>(settings.credit_control ?? "block");
+  const [overdueDays, setOverdueDays] = useState<number>(settings.credit_overdue_days ?? NaN);
   const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
   return (
     <div className="flex flex-col gap-4">
@@ -137,10 +141,23 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
         <Switch isSelected={requirePo} onChange={touch(setRequirePo)} isDisabled={!canManage}>Require the customer&apos;s PO number before an order is confirmed</Switch>
         <Switch isSelected={requireDelivery} onChange={touch(setRequireDelivery)} isDisabled={!canManage}>Require a requested delivery date before an order is confirmed</Switch>
       </Panel>
+      <Panel title="Credit control" description="Each customer's credit limit is set on the customer, in the company's currency. Used credit is what the customer owes, less advances, plus confirmed orders not yet invoiced.">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Select label="An order over the customer's credit limit" selectedKey={creditControl} onSelectionChange={(key) => touch(setCreditControl)(String(key ?? "block"))} isDisabled={!canManage}
+            options={[
+              { value: "block", label: "Is held until a manager releases it" },
+              { value: "warn", label: "Is confirmed with a warning" },
+              { value: "off", label: "Is not checked" },
+            ]} />
+          <NumberField label="Also hold orders when an invoice is overdue more than (days)" description="Leave empty to not check overdue invoices." value={overdueDays}
+            onChange={touch(setOverdueDays)} minValue={0} maxValue={3650} step={1} isDisabled={!canManage || creditControl === "off"} />
+        </div>
+      </Panel>
       <SaveBar canManage={canManage} save={save} saved={saved} readOnlyText="You can view these rules. Changing them needs the Sales settings permission."
         onSave={() => save.mutate({
           defaultQuoteValidityDays: validity, quotationApprovalAmount: quoteAmount, quotationApprovalDiscount: quoteDiscount, minimumMarginPercent: margin,
           defaultQuotationTerms: quotationTerms, allowDirectOrders: direct, requireCustomerPo: requirePo, requireRequestedDeliveryDate: requireDelivery,
+          creditControl: creditControl as "off" | "warn" | "block", creditOverdueDays: Number.isFinite(overdueDays) ? overdueDays : null,
         })} />
     </div>
   );

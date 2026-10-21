@@ -11,6 +11,7 @@ import { salesMutation } from "@/features/sales/shared/route-helpers";
 const schema = z.object({
   expectedVersionNumber: z.number().int().positive(),
   quotationVarianceReason: z.string().max(1000).optional(),
+  creditReleaseReason: z.string().max(1000).optional(),
 });
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {

@@ -131,6 +131,24 @@ export function CustomerOverviewPanel({ customer, onOpenTab }: { customer: Custo
         </Card>
       )}
 
+      {overview?.credit && (
+        <Card title="Credit">
+          {/* The same figures order confirmation checks (Sales audit M1), in the company's currency. */}
+          <div className="grid grid-cols-3 gap-4">
+            <Figure label="Credit limit" value={overview.credit.creditLimit ? formatMoney(overview.credit.currencyCode, overview.credit.creditLimit) : "No limit"} />
+            <Figure label="Used" value={formatMoney(overview.credit.currencyCode, overview.credit.netExposure)} />
+            <Figure label="Available" value={overview.credit.availableCredit === null ? "—" : formatMoney(overview.credit.currencyCode, overview.credit.availableCredit)}
+              tone={overview.credit.availableCredit !== null && overview.credit.availableCredit < 0 ? "danger" : undefined} />
+          </div>
+          <p className="text-xs text-text-muted">
+            Used is what the customer owes ({formatMoney(overview.credit.currencyCode, Math.max(0, overview.credit.arOutstanding - overview.credit.unappliedAdvances))} after advances and credit notes)
+            plus confirmed orders not yet invoiced ({formatMoney(overview.credit.currencyCode, overview.credit.openOrderValue)}).
+            {overview.credit.control === "off" ? " Sales settings do not check credit." : overview.credit.control === "warn" ? " Orders over the limit are confirmed with a warning." : " Orders over the limit are held until a manager releases them."}
+            {overview.credit.overdueLimitDays !== null && ` Orders are also held while an invoice is overdue more than ${overview.credit.overdueLimitDays} days${overview.credit.overdueDays > 0 ? ` (oldest overdue: ${overview.credit.overdueDays} days)` : ""}.`}
+          </p>
+        </Card>
+      )}
+
       {overview?.finance && (
         <div className="lg:col-span-2">
           <Card title="Financial summary">

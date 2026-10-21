@@ -86,6 +86,8 @@ export function toCustomer(row, { finance = false } = {}) {
     priceListName: row.price_list_name ?? null,
     paymentTermId: row.payment_term_id,
     paymentTermName: row.payment_term_name ?? null,
+    // In base currency; 0 is no limit.
+    creditLimit: Number(row.credit_limit ?? 0),
     gstRegistrationType: row.tax_treatment,
     gstRegistrationLabel: row.tax_treatment ? gstRegistrationLabel(row.tax_treatment) : null,
     gstin: row.gstin,
@@ -298,6 +300,7 @@ export async function createCustomer(client, context, input = {}) {
   const normalized = normalizeCustomerInput({ customerKind: "business", ...input });
   if (!has(input, "ownerUserId")) normalized.ownerUserId = context.userId ?? null;
   assertValidCustomer(normalized);
+  if (normalized.creditLimit) requireCustomerPermission(context, CUSTOMER_PERMISSIONS.changeCreditLimit, "You do not have permission to set the credit limit.");
   const status = text(input.status) || "active";
   if (!["active", "inactive"].includes(status))
     throw new CustomerError(400, "A new customer is Active or Inactive.", "SALES_CUSTOMER_VALIDATION", { issues: [{ field: "status", message: "Choose Active or Inactive." }] });
@@ -346,6 +349,7 @@ const SENSITIVE = Object.freeze({
   placeOfSupply: [CUSTOMER_PERMISSIONS.editGstin, "You do not have permission to change GST details."],
   currencyCode: [CUSTOMER_PERMISSIONS.changeCurrency, "You do not have permission to change the customer's currency."],
   paymentTermId: [CUSTOMER_PERMISSIONS.changePaymentTerms, "You do not have permission to change payment terms."],
+  creditLimit: [CUSTOMER_PERMISSIONS.changeCreditLimit, "You do not have permission to change the credit limit."],
   priceListId: [CUSTOMER_PERMISSIONS.changePriceList, "You do not have permission to change the price list."],
 });
 const NAMED = Object.freeze({ priceListId: "priceListName", paymentTermId: "paymentTermName", ownerUserId: "ownerName", gstRegistrationType: "gstRegistrationLabel", customerKind: "customerKindLabel" });

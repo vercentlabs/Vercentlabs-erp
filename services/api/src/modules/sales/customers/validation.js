@@ -45,12 +45,14 @@ export const CUSTOMER_COLUMNS = Object.freeze({
   gstStateCode: "gst_state_code",
   placeOfSupply: "place_of_supply",
   ownerUserId: "owner_user_id",
+  creditLimit: "credit_limit",
 });
 
 export const CUSTOMER_FIELD_LABELS = Object.freeze({
   displayName: "Customer name", legalName: "Legal name", email: "Email", phone: "Phone", website: "Website", notes: "Notes", customerKind: "Customer type",
   countryCode: "Country", currencyCode: "Currency", priceListId: "Price list", paymentTermId: "Payment terms", gstRegistrationType: "GST registration type",
   gstin: "GSTIN", pan: "PAN", gstStateCode: "GST state", placeOfSupply: "Place of supply", ownerUserId: "Salesperson",
+  creditLimit: "Credit limit",
 });
 
 function normalizeWebsite(value) {
@@ -68,6 +70,8 @@ export function normalizeCustomerInput(input = {}) {
   for (const field of ["customerKind", "gstRegistrationType"]) if (has(input, field)) normalized[field] = text(input[field]).toLowerCase() || null;
   for (const field of ["countryCode", "currencyCode", "gstin", "pan"]) if (has(input, field)) normalized[field] = text(input[field]).toUpperCase() || null;
   for (const field of ["priceListId", "paymentTermId", "ownerUserId", "gstStateCode", "placeOfSupply"]) if (has(input, field)) normalized[field] = text(input[field]) || null;
+  // The credit limit, in the company's base currency; 0 (or empty) is no limit.
+  if (has(input, "creditLimit")) normalized.creditLimit = input.creditLimit === null || input.creditLimit === "" ? 0 : Number(input.creditLimit);
   // The GSTIN carries the state and the PAN.
   if (normalized.gstin && GSTIN.test(normalized.gstin)) {
     normalized.gstStateCode = normalized.gstin.slice(0, 2);
@@ -92,6 +96,8 @@ export function validateCustomer(normalized, existing = {}) {
     const digits = normalized.phone.replace(/\D/g, "");
     if (digits.length < 7 || digits.length > 15) issue("phone", "Enter a phone number with 7 to 15 digits.");
   }
+  if (has(normalized, "creditLimit") && normalized.creditLimit !== null && (!Number.isFinite(normalized.creditLimit) || normalized.creditLimit < 0 || normalized.creditLimit > 1e13))
+    issue("creditLimit", "Enter a credit limit of 0 or more (0 or empty is no limit).");
   if (normalized.website && !/^https?:\/\/[^\s/.]+\.[^\s]+$/i.test(normalized.website)) issue("website", "Enter a valid website, such as acme.example.");
   for (const [field, label] of [["priceListId", "a price list"], ["paymentTermId", "payment terms"], ["ownerUserId", "a salesperson"]])
     if (normalized[field] && !isUuid(normalized[field])) issue(field, `Choose ${label}.`);

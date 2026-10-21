@@ -27,43 +27,70 @@ async function orderEvent(client, c, orderId, eventType, metadata) {
   );
 }
 
-// ---- F053 one credit exposure for the screen and for confirmation -------------
-// Unpaid invoices (net of unapplied receipts) plus the not-yet-invoiced part of
-// open orders — the same figures confirmation checks, so the Credit tab can no
-// longer say "available" while confirming is blocked.
-export async function getSalesCustomerCreditExposure(client, c, partyId) {
+// ---- Credit control (Sales audit M1/B5/B13): one exposure for the customer page and for confirmation ----------------------------------
+// What the customer owes on invoices, less unapplied receipts and credit notes, plus the not-yet-invoiced part of confirmed orders — every
+// figure in the company's base currency, like the limit (an invoice in USD counts at its own rate). The same figures confirmation checks,
+// so the customer page never says "available" while confirming is held. `orderValue` (base currency) is an order about to be confirmed.
+export async function getSalesCustomerCreditExposure(client, c, partyId, { orderValue = 0 } = {}) {
   need(c, "sales.view");
   const id = uuid(partyId, "Customer");
   const { rows } = await client.query(
-    `SELECT party.credit_limit, party.currency_code,
-        COALESCE((SELECT sum(outstanding_amount) FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND party_id=$2 AND status NOT IN ('draft','void','paid','cancelled','reversed')),0) AS ar_outstanding,
-        COALESCE((SELECT sum(unapplied_amount) FROM tenant.accounting_customer_receipts WHERE organization_id=$1 AND party_id=$2 AND status IN ('posted','partially_applied')),0) AS unapplied_receipts,
+    `SELECT party.credit_limit, organization.base_currency,
+        COALESCE((SELECT sum(outstanding_amount*COALESCE(exchange_rate,1)) FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND party_id=$2 AND invoice_type<>'credit_note' AND status NOT IN ('draft','void','paid','cancelled','reversed')),0) AS ar_outstanding,
+        COALESCE((SELECT sum(unapplied_amount*COALESCE(exchange_rate,1)) FROM tenant.accounting_customer_receipts WHERE organization_id=$1 AND party_id=$2 AND status IN ('posted','partially_applied')),0)
+          + COALESCE((SELECT sum(outstanding_amount*COALESCE(exchange_rate,1)) FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND party_id=$2 AND invoice_type='credit_note' AND status IN ('posted','partially_paid')),0) AS unapplied_receipts,
+        (SELECT tenant.company_today() - min(due_date) FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND party_id=$2 AND invoice_type<>'credit_note'
+            AND status NOT IN ('draft','void','paid','cancelled','reversed') AND outstanding_amount > 0 AND due_date < tenant.company_today()) AS overdue_days,
         COALESCE((SELECT sum(line.line_total*version.exchange_rate*greatest(line.quantity-progress.invoiced_quantity-progress.cancelled_quantity,0)/NULLIF(line.quantity,0))
                     FROM tenant.sales_orders orders
                     JOIN tenant.sales_order_versions version ON version.id=orders.current_version_id
                     JOIN tenant.sales_order_lines line ON line.sales_order_version_id=version.id
                     JOIN tenant.sales_order_line_progress progress ON progress.sales_order_line_id=line.id
                    WHERE orders.organization_id=$1 AND orders.party_id=$2 AND orders.lifecycle_status = 'confirmed' AND orders.billing_status<>'fully_invoiced'),0) AS open_orders
-       FROM tenant.business_parties party WHERE party.organization_id=$1 AND party.id=$2`,
+       FROM tenant.business_parties party JOIN public.organizations organization ON organization.id=party.organization_id
+      WHERE party.organization_id=$1 AND party.id=$2`,
     [c.organizationId, id],
   );
   const row = rows[0];
   if (!row) throw new SalesError(404, "Customer not found.");
+  const settings = (await client.query("SELECT credit_control, credit_overdue_days FROM tenant.sales_settings WHERE organization_id=$1", [c.organizationId])).rows[0];
   const creditLimit = Number(row.credit_limit || 0);
   const arOutstanding = round(row.ar_outstanding);
   const unappliedAdvances = round(row.unapplied_receipts);
   const openOrderValue = round(row.open_orders);
   const netExposure = round(Math.max(0, arOutstanding - unappliedAdvances) + openOrderValue);
+  const thisOrder = round(orderValue);
+  const withOrder = round(netExposure + thisOrder);
+  const overdueDays = row.overdue_days == null ? 0 : Number(row.overdue_days);
+  const overdueLimit = settings?.credit_overdue_days == null ? null : Number(settings.credit_overdue_days);
   return {
-    creditLimit,
+    creditLimit: creditLimit > 0 ? creditLimit : null,
     arOutstanding,
     unappliedAdvances,
     openOrderValue,
     netExposure,
+    orderValue: thisOrder,
+    exposureWithOrder: withOrder,
     availableCredit: creditLimit > 0 ? round(creditLimit - netExposure) : null,
-    overLimit: creditLimit > 0 && netExposure > creditLimit,
-    currencyCode: row.currency_code ?? null,
+    overLimit: creditLimit > 0 && withOrder > creditLimit + 0.005,
+    overdueDays,
+    overdueLimitDays: overdueLimit,
+    overdueTooLong: overdueLimit != null && overdueDays > overdueLimit,
+    control: settings?.credit_control ?? "block",
+    currencyCode: String(row.base_currency ?? "INR").trim(),
   };
+}
+
+// Why an order would be held for credit (empty when it is fine), in the words the confirm dialog shows.
+export function creditHoldReasons(credit, orderNumber) {
+  const reasons = [];
+  if (!credit || credit.control === "off") return reasons;
+  const amount = (value) => `${credit.currencyCode} ${Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (credit.overLimit)
+    reasons.push(`${orderNumber} takes the customer to ${amount(credit.exposureWithOrder)} against a credit limit of ${amount(credit.creditLimit)} (owed ${amount(Math.max(0, credit.arOutstanding - credit.unappliedAdvances))}, open orders ${amount(credit.openOrderValue)}, this order ${amount(credit.orderValue)}).`);
+  if (credit.overdueTooLong)
+    reasons.push(`The customer has an invoice overdue by ${credit.overdueDays} days; Sales settings hold orders past ${credit.overdueLimitDays} days.`);
+  return reasons;
 }
 
 // ---- F057 commissions --------------------------------------------------------------

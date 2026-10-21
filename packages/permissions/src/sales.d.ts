@@ -24,6 +24,7 @@ export declare const SALES_PERMISSIONS: Readonly<{
   orderConfirmationMarkSent: "sales.order.confirmation.mark_sent";
   orderConfirmationAcknowledge: "sales.order.confirmation.acknowledge";
   orderConfirmQuoteVariance: "sales.order.confirm_quote_variance";
+  orderCreditRelease: "sales.order.credit_release";
   availabilityView: "sales.availability.view";
   availabilityCheck: "sales.availability.check";
   availabilityOtherWarehouses: "sales.availability.other_warehouses";
@@ -109,6 +110,7 @@ export declare const SALES_PERMISSIONS: Readonly<{
   customersEditGstin: "sales.customers.edit_gstin";
   customersChangeCurrency: "sales.customers.change_currency";
   customersChangePaymentTerms: "sales.customers.change_payment_terms";
+  customersChangeCreditLimit: "sales.customers.change_credit_limit";
   paymentTermsView: "payment_terms.view";
   paymentTermsManage: "payment_terms.manage";
   paymentTermsSetDefault: "payment_terms.set_default";

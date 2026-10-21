@@ -14,6 +14,8 @@ export const CONFIRMATION_PERMISSIONS = Object.freeze({
   markSent: "sales.order.confirmation.mark_sent",
   acknowledge: "sales.order.confirmation.acknowledge",
   quoteVariance: "sales.order.confirm_quote_variance",
+  // Confirm an order held for credit (over the limit, or invoices overdue too long), with a reason.
+  creditRelease: "sales.order.credit_release",
 });
 
 // How a confirmation went out when it was not emailed from Vercentlabs.
