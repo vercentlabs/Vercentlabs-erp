@@ -34,7 +34,9 @@ export function SalesSearchPicker(props: {
   const known = props.customersOnly ? { ...props.known, parties: props.known.parties.filter((party) => party.party_type !== "prospect") } : props.known;
   const workspace = useWorkspaceContext();
   const [text, setText] = useState("");
-  const labelOf = (record: Party | Item) => "display_name" in record ? `${record.display_name} (${record.code})` : `${record.name} (${record.code})`;
+  const labelOf = (record: Party | Item) => "display_name" in record
+    ? `${record.display_name} (${record.code})${record.party_type === "prospect" ? " · prospect" : ""}`
+    : `${record.name} (${record.code})`;
   const chosen: Party | Item | undefined = kind === "customers" ? known.parties.find((party) => party.id === value) : known.items.find((item) => item.id === value);
   // The box shows the chosen record's name once picked; that is not a search.
   const typed = chosen && text.trim() === labelOf(chosen) ? "" : text.trim();

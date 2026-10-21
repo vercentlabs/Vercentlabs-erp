@@ -49,7 +49,7 @@ async function confirmationProblems(client, context, quote, today) {
   const facts = rows[0];
   const problems = [];
   if (!facts) return ["The quotation has no content."];
-  if (facts.party_status !== "active" || !["customer", "both"].includes(facts.party_type)) problems.push("The customer is not an active customer.");
+  if (facts.party_status !== "active" || !["customer", "both", "prospect"].includes(facts.party_type)) problems.push("The customer is not an active customer or prospect.");
   if (facts.sales_block === "all") problems.push(`The customer is blocked for new quotations: ${facts.sales_block_reason}`);
   if (!facts.lines) problems.push("Add at least one line.");
   if (facts.unpriced) problems.push(`${facts.unpriced} line(s) have no price. Enter a price or choose another price list.`);

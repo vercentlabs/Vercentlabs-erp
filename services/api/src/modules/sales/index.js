@@ -170,8 +170,9 @@ async function loadDocumentContext(client, context, input, options = {}) {
       409,
       "The selected customer or prospect is not active.",
     );
-  // A formal quotation or order is for a Customer Master, not a prospect.
-  if (!["customer", "both"].includes(party.party_type))
+  // An order is for a Customer Master. A quotation may also go to a prospect: Indian sellers quote first and open the customer account
+  // after the order — the prospect becomes a customer when its accepted quotation becomes an order (Sales audit M5).
+  if (!["customer", "both"].includes(party.party_type) && !(party.party_type === "prospect" && !options.order))
     throw new SalesError(
       409,
       options.order
