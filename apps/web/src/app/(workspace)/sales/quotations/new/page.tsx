@@ -1,8 +1,7 @@
-import { formRedirect } from "@/shell/form-modal/form-redirect";
+import FormPage, { metadata as formMetadata } from "./form-page";
 
-export const metadata = { title: "New quotation" };
+export const metadata = formMetadata;
 
-// Opened as an address of its own, this form opens over its list instead (see @modal/(.)sales/quotations/new).
-export default async function Page({ params, searchParams }: { params: Promise<Record<string, string | string[] | undefined>>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  formRedirect("sales/quotations/new", "sales/quotations", await params, await searchParams);
-}
+// Opened from inside the app, this form opens in a modal over the page it was opened from (see @modal/(.)sales/quotations/new); opened as an
+// address of its own (a bookmark, a link, a reload) it is a full page (Line-by-line audit).
+export default FormPage;

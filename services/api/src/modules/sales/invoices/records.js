@@ -592,8 +592,8 @@ async function otherDrafts(client, context, invoice, lines) {
 const SORTS = Object.freeze({
   number: "invoice.invoice_number", date: "invoice.invoice_date", due: "invoice.due_date", customer: "customer_name", total: "invoice.grand_total", created: "invoice.created_at",
 });
-const POSTED_SQL = `invoice.status IN ('${FINANCE_POSTED.join("','")}')`;
-const PAID_SQL = `(COALESCE((SELECT sum(allocated_amount) FROM tenant.accounting_customer_receipt_allocations WHERE customer_invoice_id = invoice.id), 0)
+export const POSTED_SQL = `invoice.status IN ('${FINANCE_POSTED.join("','")}')`;
+export const PAID_SQL = `(COALESCE((SELECT sum(allocated_amount) FROM tenant.accounting_customer_receipt_allocations WHERE customer_invoice_id = invoice.id), 0)
   + COALESCE((SELECT sum(allocated_amount) FROM tenant.accounting_customer_credit_allocations WHERE customer_invoice_id = invoice.id), 0))`;
 
 // filters: view, search, status, paymentStatus, partyId, salesOrderId, ownerUserId, paymentTermId, currencyCode, dateFrom, dateTo, dueFrom, dueTo, overdue, sort, direction, limit, offset

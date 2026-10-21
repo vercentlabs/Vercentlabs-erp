@@ -270,6 +270,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         collapsible: true,
         items: [
           { ...available("Sales Invoices", "/sales/invoices"), aliases: ["invoices", "billing", "tax invoice", "balance due", "overdue invoices", "e-invoice", "irn", "e-way bill"] },
+          { ...available("Payments Received", "/sales/payments"), aliases: ["receipts", "payments", "collections", "money received"], requiredPermission: "sales.invoice.payments.view" },
           { ...available("Credit Notes", "/sales/credit-notes"), aliases: ["credits", "rate difference", "discount after sale", "price adjustment"] },
           // The customer refunds Finance owns, the same records as Finance → Customer Refunds.
           { ...available("Refunds", "/sales/refunds"), aliases: ["customer refunds", "refund credit"], requiredPermission: "accounting.refund.view" },
@@ -332,18 +333,28 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             description: "Invoice based on order or delivery, availability and reservation on confirmation, default warehouse, delivery note.",
             aliases: ["invoice based on", "invoicing basis", "auto reserve", "default warehouse", "delivery note prices"],
           },
+          // Every setting page is a card of the one Sales Setup hub (Line-by-line audit), found there and by search.
           {
             ...available("Discounts", "/sales/settings/discounts"),
+            parent: "sales-setup",
+            group: "commercial",
+            description: "Line and document discounts, the limits each person may give, and when a reason is needed.",
             aliases: ["discount controls", "discount limits", "maximum discount"],
           },
           {
             ...available("Payment Terms", "/sales/settings/payment-terms"),
+            parent: "sales-setup",
+            group: "commercial",
+            description: "Credit days and due dates customers are given.",
             aliases: ["credit terms", "net 30", "due date"],
           },
           // Teams decide team visibility of customers, quotations and orders; set up here too when CRM is off (Sales audit B10).
-          { ...available("Commission Rules", "/sales/settings/commissions"), aliases: ["commission", "incentive", "salesperson commission"] },
-          { ...available("Team Access", "/sales/settings/team-access"), aliases: ["access levels", "billing clerk", "dispatch clerk", "salesperson access", "roles"], requiredPermission: "roles.assign" },
-          { ...available("Sales Teams", "/settings/teams"), aliases: ["teams", "sales team", "team members", "team manager"], requiredPermission: "sales.settings.manage" },
+          { ...available("Commission Rules", "/sales/settings/commissions"), parent: "sales-setup", group: "team", description: "What salespeople earn on what they sell.",
+            aliases: ["commission", "incentive", "salesperson commission"] },
+          { ...available("Team Access", "/sales/settings/team-access"), parent: "sales-setup", group: "team", description: "Salesperson, billing and dispatch access for each member.",
+            aliases: ["access levels", "billing clerk", "dispatch clerk", "salesperson access", "roles"], requiredPermission: "roles.assign" },
+          { ...available("Sales Teams", "/settings/teams"), parent: "sales-setup", group: "team", description: "Teams and their managers, who see their team's customers and orders.",
+            aliases: ["teams", "sales team", "team members", "team manager"], requiredPermission: "sales.settings.manage" },
         ],
       },
     ],
@@ -361,6 +372,13 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Fulfillment",
         description: "How orders are reserved, delivered and invoiced.",
         icon: Truck,
+      },
+      {
+        id: "team",
+        workspace: "sales-setup",
+        label: "Team",
+        description: "Who sells, what they may do, and what they earn.",
+        icon: Users,
       },
     ],
   },

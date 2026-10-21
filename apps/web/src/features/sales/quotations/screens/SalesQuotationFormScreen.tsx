@@ -667,7 +667,7 @@ function FormBody({
       </>}
     >
 
-          <FormSection columns={1} title="Customer & terms">
+          <FormSection columns={1} title="Customer">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <SalesSearchPicker
                 kind="customers"
@@ -697,24 +697,6 @@ function FormBody({
                 onSelectionChange={(key) => setContactId(String(key ?? ""))}
                 isDisabled={!partyId}
               />
-              <Select
-                label="Billing address"
-                options={billingAddressOptions}
-                selectedKey={billingAddressId}
-                onSelectionChange={(key) =>
-                  setBillingAddressId(String(key ?? ""))
-                }
-                isDisabled={!partyId}
-              />
-              <Select
-                label="Shipping address"
-                options={shippingAddressOptions}
-                selectedKey={shippingAddressId}
-                onSelectionChange={(key) =>
-                  setShippingAddressId(String(key ?? ""))
-                }
-                isDisabled={!partyId}
-              />
               <TextField
                 label="Quotation date"
                 type="date"
@@ -731,87 +713,8 @@ function FormBody({
                 value={validUntil}
                 onChange={setValidUntil}
               />
-              <Select
-                label="Currency"
-                options={currencyOptions}
-                selectedKey={currencyCode}
-                onSelectionChange={(key) => {
-                  setCurrencyCode(String(key ?? baseCurrency));
-                  setPriceListId("");
-                }}
-              />
-              <Select
-                label="Price list"
-                options={priceListOptions}
-                selectedKey={priceListId}
-                description={
-                  preview?.priceList
-                    ? `Pricing from ${preview.priceList.name}${preview.priceList.basis === "customer" ? " (the customer's list)" : preview.priceList.basis === "default" ? " (the default list)" : ""}, ${preview.priceList.taxInclusive ? "tax inclusive" : "tax exclusive"}.`
-                    : partyId ? "No price list for this currency: products use their default price." : undefined
-                }
-                onSelectionChange={(key) => {
-                  const next = String(key ?? "");
-                  if (next === priceListId) return;
-                  if (validLines.length) setPendingPriceList(next);
-                  else setPriceListId(next);
-                }}
-              />
-              <Select
-                label="Payment terms"
-                options={paymentTermOptions}
-                selectedKey={paymentTermId}
-                description={options.paymentTerms.find((term) => term.id === paymentTermId)?.description ?? "When payment is due. The due date itself is set on each invoice."}
-                onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))}
-              />
-              <TextField
-                label="Additional payment terms"
-                description="Optional, for this quotation only. Printed with the payment terms."
-                value={paymentTermsNote}
-                onChange={setPaymentTermsNote}
-              />
-              <Select
-                label="Owner"
-                options={ownerOptions}
-                selectedKey={ownerUserId || null}
-                onSelectionChange={(key) => setOwnerUserId(String(key ?? ""))}
-              />
-              <TextField
-                label="Customer reference"
-                description="The customer's enquiry or RFQ number."
-                value={customerReference}
-                onChange={setCustomerReference}
-              />
-              {existing?.quotation.source_opportunity_name && (
-                <TextField
-                  label="Opportunity"
-                  value={`${existing.quotation.source_opportunity_code ?? ""} ${existing.quotation.source_opportunity_name}`.trim()}
-                  isReadOnly
-                />
-              )}
             </div>
           </FormSection>
-
-          <FormSection columns={1} title="Delivery">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <TextField
-                label="Shipping method"
-                value={shippingMethod}
-                onChange={setShippingMethod}
-              />
-              <TextField
-                label="Delivery terms"
-                value={deliveryTerms}
-                onChange={setDeliveryTerms}
-              />
-              <TextField
-                label="Incoterm"
-                value={incoterm}
-                onChange={setIncoterm}
-              />
-            </div>
-          </FormSection>
-
-          <DocumentTaxPanel tax={options.tax} value={documentTax} onChange={setDocumentTax} preview={preview} />
 
           <FormSection columns={1}
             title="Items"
@@ -996,6 +899,117 @@ function FormBody({
             preview={preview}
             hasAnyDiscount={documentDiscount.value > 0 || lines.some((line) => line.discountValue > 0)}
           />
+
+          {/* Everything but the customer, dates and items, out of the way until wanted (Line-by-line audit): an order-taker needs the
+              customer, then the items, fast. Open when editing. */}
+          <details className="group rounded-[var(--radius-card)] border border-border bg-surface" open={editing || undefined}>
+            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-text">
+              More details <span className="font-normal text-text-secondary">— addresses, currency and price list, payment terms, salesperson, reference, delivery and tax</span>
+            </summary>
+            <div className="flex flex-col gap-4 border-t border-border p-4">
+              <FormSection columns={1} title="Addresses & terms">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Select
+                label="Billing address"
+                options={billingAddressOptions}
+                selectedKey={billingAddressId}
+                onSelectionChange={(key) =>
+                  setBillingAddressId(String(key ?? ""))
+                }
+                isDisabled={!partyId}
+              />
+              <Select
+                label="Shipping address"
+                options={shippingAddressOptions}
+                selectedKey={shippingAddressId}
+                onSelectionChange={(key) =>
+                  setShippingAddressId(String(key ?? ""))
+                }
+                isDisabled={!partyId}
+              />
+              <Select
+                label="Currency"
+                options={currencyOptions}
+                selectedKey={currencyCode}
+                onSelectionChange={(key) => {
+                  setCurrencyCode(String(key ?? baseCurrency));
+                  setPriceListId("");
+                }}
+              />
+              <Select
+                label="Price list"
+                options={priceListOptions}
+                selectedKey={priceListId}
+                description={
+                  preview?.priceList
+                    ? `Pricing from ${preview.priceList.name}${preview.priceList.basis === "customer" ? " (the customer's list)" : preview.priceList.basis === "default" ? " (the default list)" : ""}, ${preview.priceList.taxInclusive ? "tax inclusive" : "tax exclusive"}.`
+                    : partyId ? "No price list for this currency: products use their default price." : undefined
+                }
+                onSelectionChange={(key) => {
+                  const next = String(key ?? "");
+                  if (next === priceListId) return;
+                  if (validLines.length) setPendingPriceList(next);
+                  else setPriceListId(next);
+                }}
+              />
+              <Select
+                label="Payment terms"
+                options={paymentTermOptions}
+                selectedKey={paymentTermId}
+                description={options.paymentTerms.find((term) => term.id === paymentTermId)?.description ?? "When payment is due. The due date itself is set on each invoice."}
+                onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))}
+              />
+              <TextField
+                label="Additional payment terms"
+                description="Optional, for this quotation only. Printed with the payment terms."
+                value={paymentTermsNote}
+                onChange={setPaymentTermsNote}
+              />
+              <Select
+                label="Owner"
+                options={ownerOptions}
+                selectedKey={ownerUserId || null}
+                onSelectionChange={(key) => setOwnerUserId(String(key ?? ""))}
+              />
+              <TextField
+                label="Customer reference"
+                description="The customer's enquiry or RFQ number."
+                value={customerReference}
+                onChange={setCustomerReference}
+              />
+              {existing?.quotation.source_opportunity_name && (
+                <TextField
+                  label="Opportunity"
+                  value={`${existing.quotation.source_opportunity_code ?? ""} ${existing.quotation.source_opportunity_name}`.trim()}
+                  isReadOnly
+                />
+              )}
+                </div>
+              </FormSection>
+          <FormSection columns={1} title="Delivery">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <TextField
+                label="Shipping method"
+                value={shippingMethod}
+                onChange={setShippingMethod}
+              />
+              <TextField
+                label="Delivery terms"
+                value={deliveryTerms}
+                onChange={setDeliveryTerms}
+              />
+              <TextField
+                label="Incoterm"
+                value={incoterm}
+                onChange={setIncoterm}
+              />
+            </div>
+          </FormSection>
+
+          <DocumentTaxPanel tax={options.tax} value={documentTax} onChange={setDocumentTax} preview={preview} />
+
+            </div>
+          </details>
 
           <FormSection columns={1} title="Notes & terms">
             <TextArea

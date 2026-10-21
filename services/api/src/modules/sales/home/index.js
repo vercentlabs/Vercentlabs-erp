@@ -9,7 +9,7 @@ import { countSalesOrderViews } from "../orders/records.js";
 import { listQuotations } from "../quotations/records.js";
 import { quotationScopeSql } from "../quotations/access.js";
 import { QUOTATION_PERMISSIONS } from "../quotations/constants.js";
-import { salesInvoiceBalance } from "../invoices/records.js";
+import { PAID_SQL, POSTED_SQL, salesInvoiceBalance } from "../invoices/records.js";
 import { invoiceScopeSql } from "../invoices/access.js";
 import { INVOICE_PERMISSIONS } from "../invoices/constants.js";
 import { DELIVERY_PERMISSIONS } from "../deliveries/constants.js";
@@ -41,7 +41,35 @@ export async function getSalesHome(client, context) {
     quotationsAwaitingResponse: access.quotations ? (await listQuotations(client, context, { view: "awaiting", limit: 1 })).total : null,
     orders: access.orders ? await countSalesOrderViews(client, context, HOME_ORDER_VIEWS) : null,
     invoiceBalance: balances ? { ...(await salesInvoiceBalance(client, context)), currencyCode: organization?.currency ?? null } : null,
+    money: balances ? { ...(await salesHomeMoney(client, context)), currencyCode: organization?.currency ?? null } : null,
     activity: await recentSalesActivity(client, context, access),
+  };
+}
+
+// The figures an owner looks for first (Line-by-line audit): invoiced today and this month (net of discounts, before tax), what falls
+// due today, and the customers owing the most overdue — in the company's currency, from the invoices the person may see.
+async function salesHomeMoney(client, context) {
+  const values = [context.organizationId];
+  const scope = invoiceScopeSql(context, values, "sales_order");
+  const from = `FROM tenant.sales_invoices sales_invoice
+       JOIN tenant.accounting_customer_invoices invoice ON invoice.organization_id = sales_invoice.organization_id AND invoice.id = sales_invoice.customer_invoice_id
+       JOIN tenant.sales_orders sales_order ON sales_order.organization_id = sales_invoice.organization_id AND sales_order.id = sales_invoice.sales_order_id
+       CROSS JOIN LATERAL (SELECT invoice.grand_total - ${PAID_SQL} AS balance) due
+      WHERE sales_invoice.organization_id = $1 AND ${POSTED_SQL}${scope}`;
+  const figures = (await client.query(
+    `SELECT COALESCE(sum((invoice.subtotal - invoice.discount_total) * COALESCE(invoice.exchange_rate, 1)) FILTER (WHERE invoice.invoice_date = tenant.company_today()), 0) AS today,
+            COALESCE(sum((invoice.subtotal - invoice.discount_total) * COALESCE(invoice.exchange_rate, 1)) FILTER (WHERE invoice.invoice_date >= date_trunc('month', tenant.company_today())::date), 0) AS month,
+            COALESCE(sum(due.balance * COALESCE(invoice.exchange_rate, 1)) FILTER (WHERE due.balance > 0.005 AND invoice.due_date = tenant.company_today()), 0) AS due_today,
+            count(*) FILTER (WHERE due.balance > 0.005 AND invoice.due_date = tenant.company_today())::int AS due_today_count
+       ${from}`, values)).rows[0];
+  const overdue = (await client.query(
+    `SELECT invoice.party_id, COALESCE(sales_invoice.customer_snapshot->>'displayName', invoice.customer_snapshot->>'displayName') AS name,
+            sum(due.balance * COALESCE(invoice.exchange_rate, 1)) AS amount, min(invoice.due_date)::text AS oldest_due
+       ${from} AND due.balance > 0.005 AND invoice.due_date < tenant.company_today()
+      GROUP BY invoice.party_id, 2 ORDER BY amount DESC LIMIT 5`, values)).rows;
+  return {
+    invoicedToday: Number(figures.today), invoicedThisMonth: Number(figures.month), dueToday: Number(figures.due_today), dueTodayCount: figures.due_today_count,
+    topOverdue: overdue.map((row) => ({ customerId: row.party_id, name: row.name, amount: Number(row.amount), oldestDue: row.oldest_due })),
   };
 }
 

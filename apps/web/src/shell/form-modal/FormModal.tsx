@@ -28,7 +28,8 @@ export function useFormRouter(): ReturnType<typeof useRouter> {
   } : router), [router, host]);
 }
 
-export function FormModal({ title, children }: { title: string; children: ReactNode }) {
+// openAfterSave: after a save, the record just made opens (a quotation to send, an order to confirm) instead of the page underneath.
+export function FormModal({ title, children, openAfterSave = false }: { title: string; children: ReactNode; openAfterSave?: boolean }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const closing = useRef(false);
@@ -36,13 +37,14 @@ export function FormModal({ title, children }: { title: string; children: ReactN
     if (closing.current) return;
     closing.current = true;
     router.back();
-    // the page underneath shows what was saved
+    // the page underneath shows what was saved, or the record saved opens
     setTimeout(() => {
-      router.refresh();
       void queryClient.invalidateQueries();
+      if (savedHref && openAfterSave) { router.push(savedHref); return; }
+      router.refresh();
       if (savedHref) window.dispatchEvent(new CustomEvent(FORM_SAVED_EVENT, { detail: { href: savedHref } }));
     }, 60);
-  }, [router, queryClient]);
+  }, [router, queryClient, openAfterSave]);
   const host = useMemo<Host>(() => ({
     leave: (href) => {
       if (href && isFormUrl(href)) { router.replace(href); return; }

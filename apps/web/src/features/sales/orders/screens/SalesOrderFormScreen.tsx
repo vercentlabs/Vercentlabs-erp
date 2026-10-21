@@ -397,8 +397,6 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
               <SalesSearchPicker kind="customers" customersOnly label="Customer" isRequired known={options} value={partyId || null} onPick={(id, found) => void pickParty(id, found)}
                 placeholder={loadingParty ? "Loading the customer…" : "Search customers by name, code, GSTIN or phone"} isDisabled={fromQuotation} description={fromQuotation ? "An order made from a quotation keeps the quotation's customer." : undefined} />
               <Select label="Contact" options={contactOptions} selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key ?? ""))} isDisabled={!partyId} />
-              <Select label="Billing address" options={addressOptionsFor(BILLING_ADDRESS_TYPES)} selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key ?? ""))} isDisabled={!partyId} />
-              <Select label="Shipping address" options={addressOptionsFor(SHIPPING_ADDRESS_TYPES)} selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key ?? ""))} isDisabled={!partyId} />
             </div>
           </FormSection>
 
@@ -407,35 +405,8 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
               <TextField label="Order date" type="date" isRequired value={orderDate} onChange={setOrderDate} />
               <TextField label="Requested delivery date" type="date" value={deliveryDate} onChange={setDeliveryDate} />
               <TextField label="Customer PO number" description="Warned when another order of this customer has the same PO." value={poNumber} onChange={setPoNumber} />
-              <TextField label="Customer PO date" type="date" value={poDate} onChange={setPoDate} />
-              <TextField label="Customer reference" value={customerReference} onChange={setCustomerReference} />
-              <Select label="Salesperson" options={ownerOptions} selectedKey={ownerUserId || null} onSelectionChange={(key) => setOwnerUserId(String(key ?? ""))} />
-              {stockOn && <Select label="Default warehouse" description="Used for goods lines without their own warehouse."
-                options={[{ value: "", label: "None" }, ...warehouseOptions]} selectedKey={defaultWarehouseId} onSelectionChange={(key) => setDefaultWarehouseId(String(key ?? ""))} />}
             </div>
           </FormSection>
-
-          <FormSection columns={1} title="Commercial terms" description={fromQuotation ? "Kept from the quotation." : undefined}>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Select label="Currency" options={currencyOptions} selectedKey={currencyCode} isDisabled={fromQuotation}
-                onSelectionChange={(key) => { setCurrencyCode(String(key ?? baseCurrency)); setPriceListId(""); }} />
-              <Select label="Price list" options={priceListOptions} selectedKey={priceListId} isDisabled={fromQuotation}
-                description={preview?.priceList
-                  ? `Pricing from ${preview.priceList.name}${preview.priceList.basis === "customer" ? " (the customer's list)" : preview.priceList.basis === "default" ? " (the default list)" : ""}, ${preview.priceList.taxInclusive ? "tax inclusive" : "tax exclusive"}.`
-                  : partyId ? "No price list for this currency: products use their default price." : undefined}
-                onSelectionChange={(key) => {
-                  const next = String(key ?? "");
-                  if (next === priceListId) return;
-                  if (validLines.length) setPendingPriceList(next);
-                  else setPriceListId(next);
-                }} />
-              <Select label="Payment terms" options={paymentTermOptions} selectedKey={paymentTermId} onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))}
-                description={options.paymentTerms.find((term) => term.id === paymentTermId)?.description ?? "When payment is due. Each invoice of the order gets its own due date."} />
-              <TextField label="Additional payment terms" description="Optional, for this order only. Printed with the payment terms." value={paymentTermsNote} onChange={setPaymentTermsNote} />
-            </div>
-          </FormSection>
-
-          <DocumentTaxPanel tax={options.tax} value={documentTax} onChange={setDocumentTax} preview={preview} />
 
           <FormSection columns={1} title="Items" actions={<Button variant="secondary" size="compact" onPress={() => setLines((current) => [...current, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add item</Button>}>
             <div className="flex flex-col gap-3">
@@ -514,6 +485,48 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
             <DocumentDiscountPanel discounts={options.discounts} currencyCode={currencyCode} value={documentDiscount} onChange={setDocumentDiscount} preview={preview}
               hasAnyDiscount={documentDiscount.value > 0 || lines.some((line) => line.discountValue > 0)} />
           )}
+
+          {/* Everything but the customer, dates, PO and items, out of the way until wanted (Line-by-line audit). Open when editing. */}
+          <details className="group rounded-[var(--radius-card)] border border-border bg-surface" open={Boolean(orderId) || undefined}>
+            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-text">
+              More details <span className="font-normal text-text-secondary">— addresses, PO date, reference, salesperson, warehouse, currency and price list, payment terms and tax</span>
+            </summary>
+            <div className="flex flex-col gap-4 border-t border-border p-4">
+              <FormSection columns={1} title="Addresses & order details">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Select label="Billing address" options={addressOptionsFor(BILLING_ADDRESS_TYPES)} selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key ?? ""))} isDisabled={!partyId} />
+              <Select label="Shipping address" options={addressOptionsFor(SHIPPING_ADDRESS_TYPES)} selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key ?? ""))} isDisabled={!partyId} />
+              <TextField label="Customer PO date" type="date" value={poDate} onChange={setPoDate} />
+              <TextField label="Customer reference" value={customerReference} onChange={setCustomerReference} />
+              <Select label="Salesperson" options={ownerOptions} selectedKey={ownerUserId || null} onSelectionChange={(key) => setOwnerUserId(String(key ?? ""))} />
+              {stockOn && <Select label="Default warehouse" description="Used for goods lines without their own warehouse."
+                options={[{ value: "", label: "None" }, ...warehouseOptions]} selectedKey={defaultWarehouseId} onSelectionChange={(key) => setDefaultWarehouseId(String(key ?? ""))} />}
+                </div>
+              </FormSection>
+          <FormSection columns={1} title="Commercial terms" description={fromQuotation ? "Kept from the quotation." : undefined}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Select label="Currency" options={currencyOptions} selectedKey={currencyCode} isDisabled={fromQuotation}
+                onSelectionChange={(key) => { setCurrencyCode(String(key ?? baseCurrency)); setPriceListId(""); }} />
+              <Select label="Price list" options={priceListOptions} selectedKey={priceListId} isDisabled={fromQuotation}
+                description={preview?.priceList
+                  ? `Pricing from ${preview.priceList.name}${preview.priceList.basis === "customer" ? " (the customer's list)" : preview.priceList.basis === "default" ? " (the default list)" : ""}, ${preview.priceList.taxInclusive ? "tax inclusive" : "tax exclusive"}.`
+                  : partyId ? "No price list for this currency: products use their default price." : undefined}
+                onSelectionChange={(key) => {
+                  const next = String(key ?? "");
+                  if (next === priceListId) return;
+                  if (validLines.length) setPendingPriceList(next);
+                  else setPriceListId(next);
+                }} />
+              <Select label="Payment terms" options={paymentTermOptions} selectedKey={paymentTermId} onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))}
+                description={options.paymentTerms.find((term) => term.id === paymentTermId)?.description ?? "When payment is due. Each invoice of the order gets its own due date."} />
+              <TextField label="Additional payment terms" description="Optional, for this order only. Printed with the payment terms." value={paymentTermsNote} onChange={setPaymentTermsNote} />
+            </div>
+          </FormSection>
+
+          <DocumentTaxPanel tax={options.tax} value={documentTax} onChange={setDocumentTax} preview={preview} />
+
+            </div>
+          </details>
 
           <FormSection columns={1} title="Notes & terms">
             <TextArea label="Notes for the customer" description="Printed on the order confirmation." value={customerNotes} onChange={setCustomerNotes} />

@@ -38,8 +38,8 @@ const SHARED: Array<{ id: string; label: string; description: string; icon: NavI
         description: "Create or update customers from a CSV file." },
       { id: "import-products", label: "Import Products & Services", route: "/sales/products/import", status: "AVAILABLE", requiredPermission: "products.import", shared: true,
         description: "Create or update catalog items from a CSV file." },
-      { id: "price-lists", label: "Import Prices", route: "/sales/price-lists", status: "AVAILABLE", requiredPermission: "sales.price_lists.import", shared: true,
-        description: "Open a price list to import or export its prices." },
+      { id: "price-lists", label: "Price Lists: Import & Export", route: "/sales/price-lists", status: "AVAILABLE", requiredPermission: "sales.price_lists.import", shared: true,
+        description: "Choose a price list, then Import or Export its prices (a large file runs in the background)." },
     ],
   },
 ];

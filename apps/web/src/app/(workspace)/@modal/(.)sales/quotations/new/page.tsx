@@ -9,5 +9,5 @@ export const metadata = formMetadata;
 // sales/quotations/new, opened from inside the app: the same form, in a modal over the page it was opened from.
 export default function InterceptedForm(props: Props) {
   const Form = FormPage as unknown as ComponentType<Props>;
-  return <FormModal title="New quotation"><Form {...props} /></FormModal>;
+  return <FormModal title="New quotation" openAfterSave><Form {...props} /></FormModal>;
 }

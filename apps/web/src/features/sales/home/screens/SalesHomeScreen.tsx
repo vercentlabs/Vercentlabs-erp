@@ -1,24 +1,28 @@
 "use client";
 
-// The Sales Overview, in CRM's shape: what needs doing now and what happened last. Four headline figures, the order work in progress and what
-// needs attention side by side, the order pipeline by stage, and recent activity. Each figure is the count of a list view and opens that view,
+// The Sales Overview, in CRM's shape: the money first (invoiced today and this month, collections due today, outstanding), what needs
+// action and the customers owing the most overdue side by side, the order pipeline by stage (each count shown once), and recent activity
+// (Line-by-line audit). Each figure is the count of a list view and opens that view,
 // so the home never keeps a second copy of the records. Figures the person may not see are left out.
 import { useQuery } from "@tanstack/react-query";
 import { ErrorState, PermissionState } from "@vercentlabs/design-system";
 
-import { dateTime, money } from "@/features/sales/shared/format";
+import { calendarDate, dateTime, money } from "@/features/sales/shared/format";
 import { request, SalesApiError } from "@/features/sales/shared/http";
 import { SalesCreateMenu } from "@/features/sales/shared/SalesCreateMenu";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { ActivityList, CountList, OverviewCards, OverviewHeader, OverviewPanel, TileGrid } from "@/shared/ui/overview";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useApp } from "@/shell/workspace-context/useApp";
 
 type Activity = { id: string; at: string; kind: "quotation" | "order" | "delivery" | "invoice" | "return" | "credit_note"; documentId: string; number: string; verb: string; actor: string | null };
 type SalesHome = {
   quotationsAwaitingResponse: number | null;
   orders: Record<string, number> | null;
   invoiceBalance: { invoices: number; outstanding: number; overdue: number; currencyCode: string | null } | null;
+  money: { invoicedToday: number; invoicedThisMonth: number; dueToday: number; dueTodayCount: number; currencyCode: string | null;
+    topOverdue: Array<{ customerId: string; name: string | null; amount: number; oldestDue: string }> } | null;
   activity: Activity[];
 };
 
@@ -48,6 +52,7 @@ export function SalesHomeScreen() {
     queryKey: scopedQueryKey(workspace, "sales", "home"),
     queryFn: () => request<{ home: SalesHome }>("/home").then((r) => r.home),
   });
+  const stockOnEarly = useApp("stock");
   if (query.isError && query.error instanceof SalesApiError && query.error.status === 403)
     return <PermissionState title="You don't have access to Sales" description="Ask an administrator to grant sales.view." />;
   const home = query.data;
@@ -55,6 +60,10 @@ export function SalesHomeScreen() {
   const order = (view: string) => (orders ? orders[view] ?? 0 : null);
   const balance = home?.invoiceBalance ?? null;
   const currency = balance?.currencyCode ?? "";
+  const cash = home?.money ?? null;
+  // Reservation figures only with Stock.
+  const stockOn = stockOnEarly;
+  const stages = STAGES.filter((stage) => stockOn || stage.view !== "awaiting_reservation");
 
   return (
     <div className="flex flex-1 flex-col gap-6">
@@ -63,36 +72,40 @@ export function SalesHomeScreen() {
         : query.isError || !home ? <ErrorState title="Could not load the Sales overview" description="Refresh to try again." action={{ label: "Try again", onPress: () => void query.refetch() }} />
         : (
           <>
-            <OverviewCards label="Overview" cards={[
+            <OverviewCards label="Overview" cards={cash ? [
+              { label: "Invoiced today", value: money(cash.currencyCode, cash.invoicedToday), href: "/sales/invoices?view=posted" },
+              { label: "Invoiced this month", value: money(cash.currencyCode, cash.invoicedThisMonth), href: "/sales/reports?report=sales-by-period" },
+              { label: `Collections due today${cash.dueTodayCount ? ` (${cash.dueTodayCount})` : ""}`, value: money(cash.currencyCode, cash.dueToday), href: "/sales/invoices?view=due_today" },
+              { label: "Outstanding", value: balance ? money(currency, balance.outstanding) : null, href: "/sales/outstanding" },
+            ] : [
               { label: "Quotations awaiting response", value: home.quotationsAwaitingResponse, href: "/sales/quotations?view=awaiting" },
               { label: "Confirmed orders", value: order("confirmed"), href: "/sales/orders?view=confirmed" },
-              { label: "Ready to invoice", value: order("ready_to_invoice"), href: "/sales/orders?view=ready_to_invoice" },
-              { label: "Outstanding invoices", value: balance ? money(currency, balance.outstanding) : null, href: "/sales/invoices?view=balance_due" },
             ]} />
 
             <div className="grid gap-6 lg:grid-cols-2">
-              <OverviewPanel title="Order work">
-                <CountList empty="You cannot see sales orders." rows={[
-                  { label: "Awaiting reservation", value: order("awaiting_reservation"), href: "/sales/orders?view=awaiting_reservation" },
-                  { label: "Awaiting delivery", value: order("awaiting_delivery"), href: "/sales/orders?view=awaiting_delivery" },
-                  { label: "Partially delivered", value: order("partially_delivered"), href: "/sales/orders?view=partially_delivered" },
-                  { label: "Partially invoiced", value: order("partially_invoiced"), href: "/sales/orders?view=partially_invoiced" },
-                ]} />
-              </OverviewPanel>
-
-              <OverviewPanel title="Needs attention">
+              <OverviewPanel title="Needs action">
                 <CountList rows={[
+                  ...(cash ? [{ label: "Quotations awaiting the customer's answer", value: home.quotationsAwaitingResponse, href: "/sales/quotations?view=awaiting" }] : []),
                   { label: "Orders needing attention (short stock, late or ready to bill)", value: order("needs_attention"), href: "/sales/orders?view=needs_attention", tone: "warning" },
                   { label: "Overdue deliveries", value: order("overdue_delivery"), href: "/sales/orders?view=overdue_delivery", tone: "danger" },
-                  { label: "Partially reserved (stock short)", value: order("partially_reserved"), href: "/sales/orders?view=partially_reserved", tone: "warning" },
+                  ...(stockOn ? [{ label: "Partially reserved (stock short)", value: order("partially_reserved"), href: "/sales/orders?view=partially_reserved", tone: "warning" as const }] : []),
                   { label: "Overdue invoice balance", value: balance ? money(currency, balance.overdue) : null, href: "/sales/invoices?view=overdue", tone: balance && balance.overdue > 0.005 ? "danger" : undefined },
                 ]} />
               </OverviewPanel>
+
+              {cash && (
+                <OverviewPanel title="Top overdue customers">
+                  <CountList empty="No customer is overdue." rows={cash.topOverdue.map((entry) => ({
+                    label: `${entry.name ?? "Customer"} · since ${calendarDate(entry.oldestDue)}`, value: money(cash.currencyCode, entry.amount), href: `/sales/customers/${entry.customerId}?tab=ledger`, tone: "danger" as const,
+                  }))} />
+                </OverviewPanel>
+              )}
             </div>
 
+            {/* Each order count once, in the order an order moves (the order work list and the pipeline repeated each other). */}
             {orders && (
               <OverviewPanel title="Order pipeline">
-                <TileGrid tiles={STAGES.map((stage) => ({ key: stage.view, label: stage.label, value: String(order(stage.view) ?? 0), caption: stage.caption, href: `/sales/orders?view=${stage.view}` }))} />
+                <TileGrid tiles={stages.map((stage) => ({ key: stage.view, label: stage.label, value: String(order(stage.view) ?? 0), caption: stage.caption, href: `/sales/orders?view=${stage.view}` }))} />
               </OverviewPanel>
             )}
 

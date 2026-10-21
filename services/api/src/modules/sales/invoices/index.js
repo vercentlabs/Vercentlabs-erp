@@ -8,5 +8,5 @@ export {
 export { cancelDraftInvoice, postSalesInvoice, reverseSalesInvoice, validateInvoiceForPosting } from "./lifecycle.js";
 export { INVOICE_FILE_ENTITY as SALES_INVOICE_FILE_ENTITY, markSalesInvoiceSent, sendSalesInvoice } from "./communication.js";
 export { getSalesInvoiceDocument } from "./document.js";
-export { listPaymentAccounts, recordInvoicePayment } from "./payments.js";
+export { listPaymentAccounts, listSalesPayments, recordInvoicePayment } from "./payments.js";
 export { listInvoiceFiles, prepareInvoiceFileUpload, readInvoiceFile, removeInvoiceFile, uploadInvoiceFile } from "./files.js";

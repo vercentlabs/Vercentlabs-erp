@@ -3,7 +3,7 @@
 // so the invoice is Paid or Partly paid and the order's balance clears. With the Accounting app the same receipt appears there.
 import { allocateCustomerReceipt, createCustomerReceipt, postCustomerReceipt } from "../../accounting/receivables.js";
 import { companyToday } from "../today.js";
-import { invoiceCan } from "./access.js";
+import { invoiceCan, invoiceScopeSql } from "./access.js";
 import { INVOICE_PERMISSIONS, InvoiceError } from "./constants.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -72,4 +72,41 @@ export async function recordInvoicePayment(client, context, invoiceId, input = {
   }
   const after = (await client.query("SELECT outstanding_amount, status FROM tenant.accounting_customer_invoices WHERE id = $1", [invoice.id])).rows[0];
   return { receiptId: receipt.id, receiptNumber: receipt.receipt_number, amount, tds, outstanding: Number(after.outstanding_amount), status: after.status };
+}
+
+// Payments received (Line-by-line audit: the most common document after an invoice had no list in Sales). Each receipt with the invoices
+// it paid. A person who sees only some orders sees the payments applied to those orders' invoices; advances not yet applied need the
+// view-all permission. filters: { search, from, to, limit, offset }
+export async function listSalesPayments(client, context, filters = {}) {
+  if (!invoiceCan(context, INVOICE_PERMISSIONS.paymentsView)) throw new InvoiceError(403, "You do not have permission to see payments.", "PERMISSION_DENIED");
+  const values = [context.organizationId];
+  const bind = (value) => { values.push(value); return `$${values.length}`; };
+  let where = "receipt.organization_id = $1 AND receipt.status <> 'draft'";
+  const scope = invoiceScopeSql(context, values, "scoped_order");
+  if (scope) where += ` AND EXISTS (SELECT 1 FROM tenant.accounting_customer_receipt_allocations allocation
+      JOIN tenant.sales_invoices scoped_invoice ON scoped_invoice.organization_id = allocation.organization_id AND scoped_invoice.customer_invoice_id = allocation.customer_invoice_id
+      JOIN tenant.sales_orders scoped_order ON scoped_order.organization_id = scoped_invoice.organization_id AND scoped_order.id = scoped_invoice.sales_order_id
+     WHERE allocation.organization_id = receipt.organization_id AND allocation.receipt_id = receipt.id${scope})`;
+  const search = text(filters.search, 100).toLowerCase();
+  if (search) where += ` AND lower(concat_ws(' ', receipt.receipt_number, receipt.external_reference, party.display_name)) LIKE ${bind(`%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`)}`;
+  const day = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(String(value ?? "")) ? String(value) : null);
+  if (day(filters.from)) where += ` AND receipt.receipt_date >= ${bind(day(filters.from))}::date`;
+  if (day(filters.to)) where += ` AND receipt.receipt_date <= ${bind(day(filters.to))}::date`;
+  const limit = Math.min(Math.max(Number(filters.limit) || 25, 1), 100);
+  const offset = Math.max(Number(filters.offset) || 0, 0);
+  const { rows } = await client.query(
+    `SELECT count(*) OVER () AS total_count, receipt.id, receipt.receipt_number, receipt.receipt_date::text AS receipt_date, receipt.amount, btrim(receipt.currency_code) AS currency_code,
+            receipt.payment_method, receipt.external_reference, receipt.status, receipt.unapplied_amount, receipt.party_id, party.display_name AS customer_name,
+            (SELECT json_agg(json_build_object('id', invoice.id, 'number', invoice.invoice_number, 'amount', allocation.allocated_amount) ORDER BY invoice.invoice_number)
+               FROM tenant.accounting_customer_receipt_allocations allocation
+               JOIN tenant.accounting_customer_invoices invoice ON invoice.id = allocation.customer_invoice_id
+              WHERE allocation.organization_id = receipt.organization_id AND allocation.receipt_id = receipt.id) AS invoices
+       FROM tenant.accounting_customer_receipts receipt
+       LEFT JOIN tenant.business_parties party ON party.organization_id = receipt.organization_id AND party.id = receipt.party_id
+      WHERE ${where}
+      ORDER BY receipt.receipt_date DESC, receipt.receipt_number DESC LIMIT ${limit} OFFSET ${offset}`, values);
+  return {
+    rows: rows.map(({ total_count: _total, ...row }) => ({ ...row, amount: Number(row.amount), unapplied_amount: Number(row.unapplied_amount), methodLabel: METHODS[row.payment_method] ?? row.payment_method ?? null, invoices: row.invoices ?? [] })),
+    total: Number(rows[0]?.total_count ?? 0), limit, offset,
+  };
 }
