@@ -80,6 +80,12 @@ export function snoozeActivityReminder(client: QueryClient, context: any, activi
 export function claimDueReminders(client: QueryClient, context: any, options?: { limit?: number }): Promise<any[]>;
 export function markReminderOutcome(client: QueryClient, context: any, reminderId: string, options: { status: "sent" | "failed"; failureReason?: string | null }): Promise<void>;
 export function resetStuckDispatchingReminders(client: QueryClient, context: any, options?: { olderThanMinutes?: number }): Promise<number>;
+// Industry starter packs (workspace/starter-packs.js).
+export type CrmStarterPack = { key: string; name: string; description: string; pipeline: string; stages: string[]; sources: string[];
+  fields: Array<{ entityType: string; label: string }>; lostReasons: string[] };
+export function listStarterPacks(): CrmStarterPack[];
+export function applyStarterPack(client: QueryClient, context: any, key: string): Promise<{ pack: string; pipeline: { id: string; name: string; created: boolean; madeDefault: boolean };
+  sources: string[]; fields: string[]; lostReasons: string[] }>;
 // Reminders on WhatsApp and SMS (reminders/outside-channels.js, CRM audit M6).
 export type CrmMyReminderChannels = { whatsapp: boolean; sms: boolean; mobile: string | null; whatsappReady: boolean; smsReady: boolean };
 export type CrmReminderTemplates = { whatsappTemplate: string | null; whatsappLanguage: string; smsTemplateId: string | null };

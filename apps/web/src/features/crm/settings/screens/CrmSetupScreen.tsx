@@ -33,6 +33,8 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 const listWords = (words: string[]) => (words.length <= 1 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`);
 
 const ROWS: Row[] = [
+  { id: "starter-packs", step: null, title: "Industry starter packs", purpose: "Stages, lead sources, fields and lost reasons for your kind of business, in one click.", href: "/crm/settings/starter-packs",
+    permission: "crm.settings.manage", state: async () => "FMCG, real estate, education and more" },
   { id: "lead-stages", step: 1, title: "Lead stages", purpose: "The steps a lead moves through before it is qualified, converted or disqualified.", href: "/crm/settings/leads/stages",
     permission: "crm.settings.manage", state: async () => plural((await listLeadStages()).filter((row) => row.isActive).length, "stage") },
   { id: "lead-sources", step: 2, title: "Lead sources", purpose: "Where leads come from, for routing and attribution.", href: "/crm/settings/leads/sources",
@@ -116,7 +118,7 @@ const ROWS: Row[] = [
 
 // The groups, in the order a new company works through them; a row in no group shows under Advanced.
 const GROUPS: Array<{ title: string; description: string; ids: string[] }> = [
-  { title: "Get started", description: "Who uses CRM, your working week, and whether you work with leads at all.", ids: ["team-access", "teams", "leads-switch", "defaults", "holidays", "history-import"] },
+  { title: "Get started", description: "Who uses CRM, your working week, and whether you work with leads at all.", ids: ["starter-packs", "team-access", "teams", "leads-switch", "defaults", "holidays", "history-import"] },
   { title: "Get leads in", description: "Where enquiries come from and how they reach you.", ids: ["lead-sources", "web-forms", "lead-connectors", "email-to-lead", "website-chat"] },
   { title: "Lead process", description: "How an enquiry is checked, scored and given to the right person.", ids: ["lead-stages", "qualification", "assignment", "lead-scoring"] },
   { title: "Deal process", description: "The stages a deal goes through and how it ends.", ids: ["deal-stages", "close-reasons", "activity-types", "recurring-plans"] },

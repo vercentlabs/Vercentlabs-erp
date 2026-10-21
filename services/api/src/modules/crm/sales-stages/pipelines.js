@@ -103,7 +103,11 @@ export async function createPipeline(client, context, input = {}) {
     [context.organizationId, name, code, text(input.description).slice(0, 500) || null, team?.id ?? null, context.userId ?? null])).rows[0];
 
   let stages = DEFAULT_SALES_STAGES.map((stage) => ({ ...stage, entryRules: null, timeLimitDays: null }));
-  if (input.copyStagesFrom) {
+  // An industry starter pack (workspace/starter-packs.js) gives its own open stages; won and lost are the standard ones.
+  if (Array.isArray(input.stages) && input.stages.length) {
+    stages = [...input.stages.map((stage) => ({ ...stage, isWon: false, isLost: false, entryRules: null, timeLimitDays: null })),
+      ...DEFAULT_SALES_STAGES.filter((stage) => stage.isWon || stage.isLost).map((stage) => ({ ...stage, entryRules: null, timeLimitDays: null }))];
+  } else if (input.copyStagesFrom) {
     const source = await resolvePipeline(client, context, input.copyStagesFrom);
     const copied = (await client.query(
       `SELECT stage.*, sla.maximum_days FROM tenant.crm_pipeline_stages stage
