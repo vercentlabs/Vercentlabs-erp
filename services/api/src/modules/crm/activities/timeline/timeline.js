@@ -41,6 +41,7 @@ import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";
 import { recordScope } from "../../data-management/record-policy.js";
 import { resources } from "../../data-management/resource-registry.js";
 import { CrmError } from "../../data-management/errors.js";
+import { contactScopeValues } from "../../contacts/access.js";
 
 // Re-exported for existing importers; the implementation lives in the
 // record kernel next to the other CRM access rules.
@@ -183,14 +184,52 @@ function buildBranch(kind, entityType, entityId, context, values) {
   return null;
 }
 
-function buildUnionParts(context, entityType, entityId, wantedKinds, values) {
+function buildUnionParts(context, entityType, entityId, wantedKinds, values, { rollUp = false } = {}) {
   const unionParts = [];
   for (const kind of SOURCE_KINDS) {
     if (!wantedKinds.has(kind)) continue;
     const branch = buildBranch(kind, entityType, entityId, context, values);
     if (branch) unionParts.push(branch);
   }
+  if (rollUp && entityType === "party") unionParts.push(...companyRollUpParts(context, entityId, wantedKinds, values));
   return unionParts;
+}
+
+// A company's timeline also shows what happened on its deals and contacts (CRM audit), so a manager need not open each one: their
+// activities and notes, each named after the deal or person it was on. A deal or contact counts only when the caller may see it, and
+// every activity and note keeps its own rule (an activity's assignee scope, a private note) as on the record itself.
+function companyRollUpParts(context, partyId, wantedKinds, values) {
+  const parts = [];
+  const related = (alias) => {
+    const dealParty = add(values, partyId);
+    const dealScope = recordScope(resources.opportunities, context, values, "deal");
+    const personParty = add(values, partyId);
+    const personScope = contactScopeValues(context, values, "person");
+    return {
+      joins: `LEFT JOIN tenant.crm_opportunities deal ON ${alias}.entity_type='opportunity' AND deal.organization_id=${alias}.organization_id AND deal.id=${alias}.entity_id
+        LEFT JOIN tenant.contacts person ON ${alias}.entity_type='contact' AND person.organization_id=${alias}.organization_id AND person.id=${alias}.entity_id`,
+      where: `((${alias}.entity_type='opportunity' AND deal.party_id=${dealParty} AND deal.archived_at IS NULL${dealScope})
+        OR (${alias}.entity_type='contact' AND person.status='active'${personScope}
+          AND (person.party_id=${personParty} OR EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships link
+            WHERE link.organization_id=person.organization_id AND link.contact_id=person.id AND link.party_id=${personParty}))))`,
+      via: `COALESCE('deal ' || deal.name, person.display_name)`,
+    };
+  };
+  if (wantedKinds.has("activity")) {
+    const on = related("activity");
+    parts.push(`SELECT activity.id,'activity'::text AS kind,activity.activity_type AS subtype,activity.subject || ' · ' || ${on.via} AS title,
+         COALESCE(activity.completed_at,activity.due_at,activity.created_at) AS occurred_at,activity.status,activity.assigned_to AS actor_user_id,activity.created_by
+       FROM tenant.crm_activities activity ${on.joins}
+       WHERE activity.organization_id=$1 AND ${on.where}${recordScope(resources.activities, context, values, "activity")}`);
+  }
+  if (wantedKinds.has("note")) {
+    const on = related("note");
+    parts.push(`SELECT note.id,'note'::text AS kind,CASE WHEN note.visibility='private' THEN 'private' END AS subtype,
+         LEFT(COALESCE(NULLIF(note.title, ''), note.body_text, note.body),140) || ' · ' || ${on.via} AS title,note.created_at AS occurred_at,NULL::text AS status,NULL::uuid AS actor_user_id,note.created_by
+       FROM tenant.crm_notes note ${on.joins}
+       WHERE note.organization_id=$1 AND ${on.where} AND ${visibilityPredicate("note", context, values).replace(/\b(visibility|created_by)\b/g, "note.$1")}`);
+  }
+  return parts;
 }
 
 // Full-row (SELECT *, every column) query for exactly ONE source kind —
@@ -221,7 +260,8 @@ function buildSourceQuery(kind, entityType, entityId, context, values) {
   return null;
 }
 
-export async function getCrmTimelinePage(client, context, entityType, entityId, { cursor, limit = 30, kinds } = {}) {
+// options.rollUp (a company, by default): its deals' and contacts' activities and notes too.
+export async function getCrmTimelinePage(client, context, entityType, entityId, { cursor, limit = 30, kinds, rollUp = entityType === "party" } = {}) {
   await loadApps(client, context);
   const allowed = await resolveCrmEntityAccess(client, context, entityType, entityId);
   if (!allowed) return { rows: [], hasMore: false, nextCursor: null };
@@ -241,7 +281,7 @@ export async function getCrmTimelinePage(client, context, entityType, entityId, 
   }
 
   const values = [context.organizationId];
-  const unionParts = buildUnionParts(context, entityType, entityId, wantedKinds, values);
+  const unionParts = buildUnionParts(context, entityType, entityId, wantedKinds, values, { rollUp });
   if (!unionParts.length) return { rows: [], hasMore: false, nextCursor: null };
 
   let cursorClause = "";
