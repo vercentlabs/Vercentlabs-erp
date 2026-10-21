@@ -17,3 +17,8 @@ export function lookupCompanyByGstin(client: QueryClient, context: CrmContext, g
 export function verifyAccountGstin(client: QueryClient, context: CrmContext, partyId: string, options?: Lookup): Promise<{
   gstin: string; valid: boolean; configured: boolean; check: GstinCheck | null; warnings: Array<{ code: string; message: string }>;
 }>;
+// A company's own GST lookup provider (CRM audit).
+export type CrmGstLookupSettings = { own: boolean; url: string | null; keyHeader: string; keySet: boolean; platform: boolean };
+export function gstLookupConfiguredFor(client: QueryClient, organizationId: string, env?: Record<string, string | undefined>): Promise<boolean>;
+export function getGstLookupSettings(client: QueryClient, context: CrmContext, runtime?: { env?: Record<string, string | undefined> }): Promise<CrmGstLookupSettings>;
+export function saveGstLookupSettings(client: QueryClient, context: CrmContext, input: Record<string, unknown>, runtime?: { env?: Record<string, string | undefined> }): Promise<CrmGstLookupSettings>;

@@ -1,4 +1,4 @@
-import { getAccount, gstLookupConfigured, latestGstinCheck, verifyAccountGstin } from "@vercentlabs/api/crm";
+import { getAccount, gstLookupConfiguredFor, latestGstinCheck, verifyAccountGstin } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
@@ -12,7 +12,7 @@ export async function GET(request: Request, { params }: Params) {
   return workspaceRoute(request, { module: "crm" }, async ({ client, session, snapshot }) => {
     const context = crmContext(session, snapshot);
     const account = await getAccount(client, context, id);
-    return ok({ check: account.gstin ? await latestGstinCheck(client, context.organizationId, account.gstin) : null, configured: gstLookupConfigured() });
+    return ok({ check: account.gstin ? await latestGstinCheck(client, context.organizationId, account.gstin) : null, configured: await gstLookupConfiguredFor(client, context.organizationId) });
   });
 }
 

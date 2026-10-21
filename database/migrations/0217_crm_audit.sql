@@ -244,3 +244,6 @@ ALTER TABLE tenant.contacts ADD COLUMN IF NOT EXISTS whatsapp_number text CHECK 
 ALTER TABLE tenant.crm_lead_connectors DROP CONSTRAINT IF EXISTS crm_lead_connectors_provider_check;
 ALTER TABLE tenant.crm_lead_connectors ADD CONSTRAINT crm_lead_connectors_provider_check CHECK (provider IN ('indiamart', 'justdial', 'tradeindia', 'meta', 'google',
   'acres99', 'magicbricks', 'housing', 'sulekha', 'shiksha', 'collegedunia', 'exportersindia', 'missed_call'));
+
+-- 14. A company's own GST lookup provider (CRM audit): its GSP or verification account, kept encrypted, used ahead of the platform's.
+ALTER TABLE tenant.crm_settings ADD COLUMN IF NOT EXISTS gst_lookup jsonb;

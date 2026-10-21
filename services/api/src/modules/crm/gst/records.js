@@ -6,9 +6,14 @@
 // (lgnm, tradeNam, sts, rgdt, cxdt, ctb, pradr.addr…) or their plain names (legalName, tradeName, status…):
 //   GST_LOOKUP_URL      the address, with {gstin} where the GSTIN goes   (e.g. https://gst.example.com/v1/taxpayers/{gstin})
 //   GST_LOOKUP_API_KEY  sent as the header GST_LOOKUP_KEY_HEADER (default "x-api-key")
-// Without it, CRM still checks the GSTIN's format and check character and says the register could not be asked. Answers are kept
+// A company can set its own provider instead (its GSP account, CRM audit): Setup › GST register lookup, kept encrypted; its address
+// must be public (the webhook rules), and it is asked without following redirects.
+// Without one, CRM still checks the GSTIN's format and check character and says the register could not be asked. Answers are kept
 // (crm_gstin_checks); a GSTIN checked in the last 7 days is answered from there unless a fresh check is asked for.
 import { findIndianState, parseGstin } from "@vercentlabs/shared-types";
+
+import { decryptSecret, encryptSecret } from "../../../core/platform/secrets/index.js";
+import { resolveSafeAddress, validateWebhookUrl } from "../../../core/platform/integrations/webhooks/ssrf.js";
 
 import { CrmError } from "../data-management/errors.js";
 import { recordAccountHistory } from "../accounts/history.js";
@@ -65,6 +70,57 @@ function toCheck(row) {
 
 export const gstLookupConfigured = (env = process.env) => Boolean(env.GST_LOOKUP_URL);
 
+const MANAGE = "crm.settings.manage";
+const HEADER = /^[A-Za-z][A-Za-z0-9-]{0,60}$/;
+
+async function ownProvider(client, organizationId, env) {
+  const row = (await client.query("SELECT gst_lookup FROM tenant.crm_settings WHERE organization_id = $1", [organizationId])).rows[0];
+  return row?.gst_lookup ? await decryptSecret(row.gst_lookup, env) : null;
+}
+
+// Who answers this organization's GSTIN checks: its own provider, else the platform's, else nobody. { url, headers, own } or null.
+async function lookupProvider(client, organizationId, env) {
+  const own = await ownProvider(client, organizationId, env);
+  if (own?.url) return { url: own.url, headers: own.apiKey ? { [own.keyHeader || "x-api-key"]: own.apiKey } : {}, own: true };
+  if (env.GST_LOOKUP_URL) return { url: env.GST_LOOKUP_URL, headers: env.GST_LOOKUP_API_KEY ? { [env.GST_LOOKUP_KEY_HEADER || "x-api-key"]: env.GST_LOOKUP_API_KEY } : {}, own: false };
+  return null;
+}
+
+// Whether GSTIN checks reach a register for this organization.
+export async function gstLookupConfiguredFor(client, organizationId, env = process.env) {
+  return Boolean(await lookupProvider(client, organizationId, env));
+}
+
+// The company's own provider, as Setup shows it (never the key).
+export async function getGstLookupSettings(client, context, { env = process.env } = {}) {
+  const own = await ownProvider(client, context.organizationId, env);
+  return { own: Boolean(own?.url), url: own?.url ?? null, keyHeader: own?.keyHeader ?? "x-api-key", keySet: Boolean(own?.apiKey), platform: gstLookupConfigured(env) };
+}
+
+// input: { url, apiKey?, keyHeader? } (the key is kept when left out), or { clear: true } to go back to the platform's.
+export async function saveGstLookupSettings(client, context, input = {}, { env = process.env } = {}) {
+  if (!(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(MANAGE))) throw new CrmError(403, "You do not have permission to set up the GST lookup.", "PERMISSION_DENIED");
+  let stored = null;
+  if (input.clear !== true) {
+    const kept = (await ownProvider(client, context.organizationId, env)) ?? {};
+    const url = String(input.url ?? kept.url ?? "").trim();
+    const issue = (field, message) => new CrmError(400, message, "CRM_GST_LOOKUP_VALIDATION", { issues: [{ field, message }] });
+    if (!url.includes("{gstin}")) throw issue("url", "Put {gstin} where the GSTIN goes in the address.");
+    let parsed;
+    try { parsed = validateWebhookUrl(url.replace("{gstin}", "27AAAAA0000A1Z5")); } catch { parsed = null; }
+    if (!parsed || parsed.protocol !== "https:") throw issue("url", "Use your provider's public https address.");
+    const keyHeader = String(input.keyHeader ?? kept.keyHeader ?? "x-api-key").trim() || "x-api-key";
+    if (!HEADER.test(keyHeader)) throw issue("keyHeader", "Use the header name your provider asks for, such as x-api-key.");
+    const apiKey = String(input.apiKey ?? "").trim() || kept.apiKey || null;
+    stored = JSON.stringify(await encryptSecret({ url: url.slice(0, 500), keyHeader, apiKey: apiKey ? apiKey.slice(0, 500) : null }, env));
+  }
+  await client.query(
+    `INSERT INTO tenant.crm_settings (organization_id, gst_lookup, created_by, updated_by) VALUES ($1, $2::jsonb, $3, $3)
+     ON CONFLICT (organization_id) DO UPDATE SET gst_lookup = EXCLUDED.gst_lookup, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [context.organizationId, stored, context.userId ?? null]);
+  return getGstLookupSettings(client, context, { env });
+}
+
 // The latest answer about a GSTIN this organization has, or null.
 export async function latestGstinCheck(client, organizationId, gstin) {
   const row = (await client.query("SELECT *, to_char(registered_on, 'YYYY-MM-DD') AS registered_text, to_char(cancelled_on, 'YYYY-MM-DD') AS cancelled_text FROM tenant.crm_gstin_checks WHERE organization_id = $1 AND gstin = $2 ORDER BY checked_at DESC LIMIT 1", [organizationId, gstin])).rows[0];
@@ -75,20 +131,22 @@ export async function latestGstinCheck(client, organizationId, gstin) {
 // Returns { gstin, valid, formatError?, configured, check? } — check is the register's answer (kept), or null when it could not be asked.
 export async function verifyGstin(client, context, value, { refresh = false, fetchImpl = fetch, env = process.env } = {}) {
   const parsed = parseGstin(value);
-  if (!parsed.valid) return { gstin: parsed.gstin, valid: false, formatError: parsed.error ?? "Enter a GSTIN.", configured: gstLookupConfigured(env), check: null };
+  if (!parsed.valid) return { gstin: parsed.gstin, valid: false, formatError: parsed.error ?? "Enter a GSTIN.", configured: await gstLookupConfiguredFor(client, context.organizationId, env), check: null };
   const gstin = parsed.gstin;
+  const provider = await lookupProvider(client, context.organizationId, env);
   if (!refresh) {
     const recent = (await client.query(
       "SELECT *, to_char(registered_on, 'YYYY-MM-DD') AS registered_text, to_char(cancelled_on, 'YYYY-MM-DD') AS cancelled_text FROM tenant.crm_gstin_checks WHERE organization_id = $1 AND gstin = $2 AND checked_at > now() - make_interval(days => $3) ORDER BY checked_at DESC LIMIT 1",
       [context.organizationId, gstin, FRESH_DAYS])).rows[0];
     if (recent) return { gstin, valid: true, configured: true, check: toCheck(recent), cached: true };
   }
-  if (!gstLookupConfigured(env)) return { gstin, valid: true, configured: false, check: null };
+  if (!provider) return { gstin, valid: true, configured: false, check: null };
   let response;
   try {
-    response = await fetchImpl(env.GST_LOOKUP_URL.replace("{gstin}", encodeURIComponent(gstin)), {
-      headers: { accept: "application/json", ...(env.GST_LOOKUP_API_KEY ? { [env.GST_LOOKUP_KEY_HEADER || "x-api-key"]: env.GST_LOOKUP_API_KEY } : {}) },
-    });
+    const url = provider.url.replace("{gstin}", encodeURIComponent(gstin));
+    // A company's own address is asked only when it resolves to a public address, and never follows a redirect.
+    if (provider.own) await resolveSafeAddress(new URL(url).hostname);
+    response = await fetchImpl(url, { headers: { accept: "application/json", ...provider.headers }, ...(provider.own ? { redirect: "error" } : {}) });
   } catch {
     throw new CrmError(502, "The GST register could not be reached. Try again in a moment.", "CRM_GSTIN_LOOKUP_UNAVAILABLE");
   }
@@ -105,7 +163,7 @@ export async function verifyGstin(client, context, value, { refresh = false, fet
     `INSERT INTO tenant.crm_gstin_checks (organization_id, gstin, status, legal_name, trade_name, registered_on, cancelled_on, taxpayer_type, address, provider, checked_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11) RETURNING *, to_char(registered_on, 'YYYY-MM-DD') AS registered_text, to_char(cancelled_on, 'YYYY-MM-DD') AS cancelled_text`,
     [context.organizationId, gstin, answer.status, answer.legalName ?? null, answer.tradeName ?? null, answer.registeredOn ?? null, answer.cancelledOn ?? null,
-      answer.taxpayerType ?? null, JSON.stringify(answer.address ?? {}), new URL(env.GST_LOOKUP_URL).hostname, context.userId ?? null])).rows[0];
+      answer.taxpayerType ?? null, JSON.stringify(answer.address ?? {}), new URL(provider.url.replace("{gstin}", gstin)).hostname, context.userId ?? null])).rows[0];
   return { gstin, valid: true, configured: true, check: toCheck(row) };
 }
 
