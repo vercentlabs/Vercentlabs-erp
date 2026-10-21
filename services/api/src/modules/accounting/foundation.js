@@ -15,6 +15,8 @@ const ACCOUNT_SEED = Object.freeze([
   ["1413", "Input IGST", "asset", "tax_input", "debit", false, false, true],
   ["1414", "Input GST cess", "asset", "tax_input", "debit", false, false, true],
   ["1419", "Input GST awaiting ITC confirmation", "asset", "tax_input", "debit", false, false, true],
+  // TDS customers deduct from what they pay (194Q, 194J, 194C…): claimed against the company's income tax, from Form 26AS.
+  ["1420", "TDS receivable (deducted by customers)", "asset", "current_asset", "debit", false, false, true],
   ["1500", "Fixed assets", "asset", "fixed_asset", "debit", false, false, true],
   ["1590", "Accumulated depreciation", "asset", "accumulated_depreciation", "credit", false, false, true],
   ["1900", "Other current assets", "asset", "current_asset", "debit", false, true, false],
@@ -131,7 +133,7 @@ const DEFAULT_MAPPING_SEED = Object.freeze([["inventory", "1300"], ["opening_bal
   // Manufacturing: work in progress, and the variance an order closes at completion.
   ["wip", "1310"], ["manufacturing_variance", "5100"], ["manufacturing_labor_applied", "5110"], ["manufacturing_overhead_applied", "5120"],
   // Payroll and asset disposal (migration 0196).
-  ["salary_payable", "2310"], ["tds_payable", "2320"], ["epf_payable", "2330"], ["esi_payable", "2340"], ["pt_payable", "2350"],
+  ["tds_receivable", "1420"], ["salary_payable", "2310"], ["tds_payable", "2320"], ["epf_payable", "2330"], ["esi_payable", "2340"], ["pt_payable", "2350"],
   ["salary_expense", "6210"], ["employer_contribution_expense", "6220"], ["asset_disposal_gain", "4970"], ["asset_disposal_loss", "6570"]]);
 
 // The accounts a sub-ledger owns (migration 0196): they take postings from their source documents, not from manual journals.

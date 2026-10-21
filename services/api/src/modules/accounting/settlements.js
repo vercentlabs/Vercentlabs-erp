@@ -66,13 +66,21 @@ export async function createCustomerSettlementAdjustment(client, context, input)
   });
   const lines = [];
   const adjustment = decimal(base.baseAdjustmentAmount);
-  if (adjustment > 0n) {
+  // TDS the customer deducted (rupee invoices only, so its base amount is itself): TDS receivable, not a write-off.
+  const withheld = decimal(input.withholdingAmount || 0);
+  if (withheld > 0n) {
+    const tds = await getAccountMapping(client, context, input.ledgerId, "tds_receivable", { date: input.accountingDate });
+    lines.push({ accountId: tds.account_id, description: `TDS deducted by the customer ${input.reference}`, debit: asDatabaseDecimal(withheld), credit: 0 });
+    lines.push({ accountId: receivable.account_id, partyId: input.partyId, description: `Receivable settled by TDS ${input.reference}`, debit: 0, credit: asDatabaseDecimal(withheld) });
+  }
+  const writtenOff = adjustment - withheld;
+  if (writtenOff > 0n) {
     const writeoff = await getAccountMapping(client, context, input.ledgerId, "writeoff", {
       partyId: input.partyId,
       date: input.accountingDate,
     });
-    lines.push({ accountId: writeoff.account_id, description: `Settlement adjustment ${input.reference}`, debit: asDatabaseDecimal(adjustment), credit: 0 });
-    lines.push({ accountId: receivable.account_id, partyId: input.partyId, description: `Receivable settlement ${input.reference}`, debit: 0, credit: asDatabaseDecimal(adjustment) });
+    lines.push({ accountId: writeoff.account_id, description: `Settlement adjustment ${input.reference}`, debit: asDatabaseDecimal(writtenOff), credit: 0 });
+    lines.push({ accountId: receivable.account_id, partyId: input.partyId, description: `Receivable settlement ${input.reference}`, debit: 0, credit: asDatabaseDecimal(writtenOff) });
   }
   const fxDifference = decimal(base.baseDocumentAmount) - decimal(base.baseSourceAmount);
   if (fxDifference > 0n) {

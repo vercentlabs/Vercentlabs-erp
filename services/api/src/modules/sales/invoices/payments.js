@@ -34,7 +34,8 @@ export async function listPaymentAccounts(client, context) {
   };
 }
 
-// input: { amount, receiptDate?, paymentMethod?, reference?, bankAccountId? (else the company's bank account) }
+// input: { amount, receiptDate?, paymentMethod?, reference?, bankAccountId? (else the company's bank account),
+//          tdsAmount?, tdsSection? — TDS the customer deducted (194Q, 194J…): it settles that part of the invoice against TDS receivable }
 export async function recordInvoicePayment(client, context, invoiceId, input = {}) {
   requirePaymentPermission(context);
   if (!UUID.test(String(invoiceId ?? ""))) throw new InvoiceError(404, "Invoice not found.", "SALES_INVOICE_NOT_FOUND");
@@ -47,7 +48,9 @@ export async function recordInvoicePayment(client, context, invoiceId, input = {
   const amount = Math.round(Number(input.amount) * 100) / 100;
   const outstanding = Number(invoice.outstanding_amount);
   if (!(amount > 0)) throw new InvoiceError(400, "Enter the amount received.", "SALES_PAYMENT_INVALID", { field: "amount" });
-  if (amount > outstanding + 0.005)
+  const tds = Math.round(Number(input.tdsAmount ?? 0) * 100) / 100;
+  if (!Number.isFinite(tds) || tds < 0) throw new InvoiceError(400, "Enter the TDS deducted (0 or more).", "SALES_PAYMENT_INVALID", { field: "tdsAmount" });
+  if (amount + tds > outstanding + 0.005)
     throw new InvoiceError(409, `The invoice has ${outstanding.toFixed(2)} left to pay. Record more than that in Accounting as an advance.`, "SALES_PAYMENT_TOO_MUCH", { field: "amount" });
   const today = await companyToday(client);
   const receiptDate = input.receiptDate ? String(input.receiptDate).slice(0, 10) : today;
@@ -61,11 +64,12 @@ export async function recordInvoicePayment(client, context, invoiceId, input = {
       externalReference: text(input.reference) || null, bankAccountId: input.bankAccountId || null,
     });
     receipt = await postCustomerReceipt(client, finance, receipt.id);
-    await allocateCustomerReceipt(client, finance, receipt.id, { allocations: [{ invoiceId: invoice.id, amount }] });
+    await allocateCustomerReceipt(client, finance, receipt.id, { allocations: [{ invoiceId: invoice.id, receiptAmount: amount, invoiceAmount: amount,
+      ...(tds > 0 ? { withholdingAmount: tds, withholdingSection: String(input.tdsSection ?? "").trim().slice(0, 20) || null } : {}) }] });
   } catch (error) {
     if (error?.name !== "AccountingError") throw error;
     throw new InvoiceError(error.status ?? 409, `The payment could not be recorded: ${error.message}`, error.code ?? "SALES_PAYMENT_REFUSED");
   }
   const after = (await client.query("SELECT outstanding_amount, status FROM tenant.accounting_customer_invoices WHERE id = $1", [invoice.id])).rows[0];
-  return { receiptId: receipt.id, receiptNumber: receipt.receipt_number, amount, outstanding: Number(after.outstanding_amount), status: after.status };
+  return { receiptId: receipt.id, receiptNumber: receipt.receipt_number, amount, tds, outstanding: Number(after.outstanding_amount), status: after.status };
 }

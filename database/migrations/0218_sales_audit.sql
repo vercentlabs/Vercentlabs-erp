@@ -247,3 +247,30 @@ SELECT DISTINCT existing.role_id, permission.key FROM public.role_permissions ex
   JOIN public.permissions permission ON permission.key = ANY (ARRAY['gst.view', 'gst.return.prepare'])
  WHERE existing.permission_key = 'sales.invoice.post'
 ON CONFLICT DO NOTHING;
+
+-- 15. TDS deducted by customers (should-have): a customer paying an invoice less TDS (194Q, 194J, 194C…) settles that part against a new
+--     "TDS receivable" account (1420), claimed later from Form 26AS; the application records how much was withheld and under which section.
+--     (TCS on sale of goods under section 206C(1H) was withdrawn from 1 April 2025, so nothing is collected on sales.)
+ALTER TABLE tenant.accounting_customer_receipt_allocations ADD COLUMN IF NOT EXISTS withholding_amount numeric(24,6) NOT NULL DEFAULT 0;
+ALTER TABLE tenant.accounting_customer_receipt_allocations ADD COLUMN IF NOT EXISTS withholding_section text;
+DO $$
+DECLARE
+  ledger record;
+  parent_id uuid;
+  account_id uuid;
+BEGIN
+  FOR ledger IN SELECT accounting_ledger.id, accounting_ledger.organization_id FROM tenant.accounting_ledgers accounting_ledger WHERE accounting_ledger.status = 'active' LOOP
+    SELECT id INTO parent_id FROM tenant.accounting_accounts WHERE organization_id = ledger.organization_id AND ledger_id = ledger.id AND code = '1000' AND is_group;
+    INSERT INTO tenant.accounting_accounts (organization_id, ledger_id, parent_id, code, name, account_class, account_type, normal_balance, is_group,
+                                            allow_manual_posting, reconciliation_required, status)
+    VALUES (ledger.organization_id, ledger.id, parent_id, '1420', 'TDS receivable (deducted by customers)', 'asset', 'current_asset', 'debit', false, false, true, 'active')
+    ON CONFLICT (organization_id, ledger_id, code) DO NOTHING;
+    SELECT id INTO account_id FROM tenant.accounting_accounts
+     WHERE organization_id = ledger.organization_id AND ledger_id = ledger.id AND code = '1420' AND account_class = 'asset' AND NOT is_group AND status = 'active';
+    IF account_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM tenant.accounting_account_mappings
+        WHERE organization_id = ledger.organization_id AND ledger_id = ledger.id AND mapping_key = 'tds_receivable') THEN
+      INSERT INTO tenant.accounting_account_mappings (organization_id, ledger_id, mapping_key, account_id, priority, status)
+      VALUES (ledger.organization_id, ledger.id, 'tds_receivable', account_id, 1000, 'active');
+    END IF;
+  END LOOP;
+END $$;

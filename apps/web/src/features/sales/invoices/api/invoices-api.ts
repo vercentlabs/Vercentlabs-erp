@@ -210,7 +210,7 @@ export const updateDraftInvoice = (id: string, input: {
 // Recording a customer's payment from Sales (Sales audit B7).
 export const listPaymentAccounts = () =>
   request<{ accounts: Array<{ id: string; code: string; name: string; type: string; currencyCode: string | null }>; methods: Array<{ code: string; label: string }> }>("/invoices/payment-accounts");
-export const recordInvoicePayment = (id: string, input: { amount: number; receiptDate?: string; paymentMethod?: string; reference?: string; bankAccountId?: string | null }) =>
+export const recordInvoicePayment = (id: string, input: { amount: number; receiptDate?: string; paymentMethod?: string; reference?: string; bankAccountId?: string | null; tdsAmount?: number; tdsSection?: string }) =>
   post<{ result: { receiptId: string; receiptNumber: string; amount: number; outstanding: number; status: string } }>(`/invoices/${id}/payments`, input);
 export const validateInvoice = (id: string) => request<{ check: PostingCheck }>(`/invoices/${id}/validate`);
 export const postInvoice = (id: string, expectedVersion?: number) => post<{ result: { invoiceNumber: string; status: InvoiceStatusKey; awaitingApproval?: boolean; replayed: boolean } }>(`/invoices/${id}/post`, { expectedVersion });

@@ -12,6 +12,9 @@ const schema = z.object({
   paymentMethod: z.enum(["cash", "upi", "bank_transfer", "cheque", "card", "other"]).optional(),
   reference: z.string().max(200).optional(),
   bankAccountId: z.string().uuid().nullish(),
+  // TDS the customer deducted, and under which section.
+  tdsAmount: z.number().min(0).optional(),
+  tdsSection: z.string().max(20).optional(),
 });
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {

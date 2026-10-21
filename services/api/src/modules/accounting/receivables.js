@@ -550,7 +550,12 @@ export async function allocateCustomerReceipt(client, context, receiptIdValue, i
     const discountTaken = roundMoney(decimal(allocation.discountTaken || 0), await getCurrencyPrecision(client, context, invoice.currency_code));
     const writeoffAmount = roundMoney(decimal(allocation.writeoffAmount || 0), await getCurrencyPrecision(client, context, invoice.currency_code));
     if (discountTaken < 0n || writeoffAmount < 0n) throw new AccountingError(400, "Discount and write-off amounts cannot be negative.");
-    const invoiceSettlement = invoiceAmount + discountTaken + writeoffAmount;
+    // TDS the customer deducted (194Q, 194J…): settles that part of the invoice against TDS receivable. Indian tax on rupee invoices.
+    const withholdingAmount = roundMoney(decimal(allocation.withholdingAmount || 0), await getCurrencyPrecision(client, context, invoice.currency_code));
+    if (withholdingAmount < 0n) throw new AccountingError(400, "TDS cannot be negative.");
+    if (withholdingAmount > 0n && String(invoice.currency_code).trim() !== String(invoice.functional_currency_code ?? invoice.currency_code).trim())
+      throw new AccountingError(409, "TDS is recorded on invoices in the company's currency.");
+    const invoiceSettlement = invoiceAmount + discountTaken + writeoffAmount + withholdingAmount;
     if (invoiceSettlement > decimal(invoice.outstanding_amount)) {
       throw new AccountingError(409, `Allocation exceeds ${invoice.invoice_number} outstanding amount.`);
     }
@@ -584,19 +589,20 @@ export async function allocateCustomerReceipt(client, context, receiptIdValue, i
       sourceExchangeRate: receipt.exchange_rate,
       documentAmount: invoiceAmount,
       documentExchangeRate: invoice.exchange_rate,
-      adjustmentAmount: discountTaken + writeoffAmount,
+      adjustmentAmount: discountTaken + writeoffAmount + withholdingAmount,
+      withholdingAmount,
     });
     await client.query(
       `INSERT INTO tenant.accounting_customer_receipt_allocations (
         id,organization_id,receipt_id,customer_invoice_id,schedule_id,allocated_amount,
         receipt_amount,invoice_amount,base_receipt_amount,base_invoice_amount,
-        realized_gain_loss,discount_taken,writeoff_amount,adjustment_journal_entry_id,created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+        realized_gain_loss,discount_taken,writeoff_amount,adjustment_journal_entry_id,created_by,withholding_amount,withholding_section
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
       [allocationId, context.organizationId, receipt.id, invoice.id, scheduleId,
         asDatabaseDecimal(invoiceSettlement), asDatabaseDecimal(receiptAmount), asDatabaseDecimal(invoiceAmount),
         asDatabaseDecimal(adjustment.baseSourceAmount), asDatabaseDecimal(adjustment.baseDocumentAmount),
         adjustment.realizedGainLoss, asDatabaseDecimal(discountTaken), asDatabaseDecimal(writeoffAmount),
-        adjustment.journalEntryId, context.userId],
+        adjustment.journalEntryId, context.userId, asDatabaseDecimal(withholdingAmount), withholdingAmount > 0n ? String(allocation.withholdingSection ?? "").trim().slice(0, 20) || null : null],
     );
     await reduceInvoiceSchedules(client, context, invoice.id, invoiceSettlement, scheduleId);
     const remaining = decimal(invoice.outstanding_amount) - invoiceSettlement;
@@ -612,6 +618,7 @@ export async function allocateCustomerReceipt(client, context, receiptIdValue, i
       invoiceAmount: asDatabaseDecimal(invoiceAmount),
       discountTaken: asDatabaseDecimal(discountTaken),
       writeoffAmount: asDatabaseDecimal(writeoffAmount),
+      ...(withholdingAmount > 0n ? { tdsAmount: asDatabaseDecimal(withholdingAmount), tdsSection: allocation.withholdingSection ?? null } : {}),
       realizedGainLoss: adjustment.realizedGainLoss,
       adjustmentJournalEntryId: adjustment.journalEntryId,
     });

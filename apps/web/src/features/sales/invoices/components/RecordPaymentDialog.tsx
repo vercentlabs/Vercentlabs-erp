@@ -25,9 +25,14 @@ export function RecordPaymentDialog({ invoiceId, invoiceNumber, currencyCode, ba
   const [method, setMethod] = useState("upi");
   const [reference, setReference] = useState("");
   const [account, setAccount] = useState(DEFAULT_ACCOUNT);
+  // TDS the customer deducted from what they paid (194Q, 194J…): it settles that part of the invoice.
+  const [tds, setTds] = useState(0);
+  const [section, setSection] = useState("194Q");
+  const tdsValue = Number.isFinite(tds) ? tds : 0;
   const save = useMutation({
     mutationFn: () => recordInvoicePayment(invoiceId, {
       amount, receiptDate: date, paymentMethod: method, reference: reference.trim() || undefined, bankAccountId: account === DEFAULT_ACCOUNT ? null : account,
+      ...(tdsValue > 0 ? { tdsAmount: tdsValue, tdsSection: section } : {}),
     }),
     onSuccess: ({ result }) => onDone(result.outstanding > 0.005
       ? `Payment ${result.receiptNumber} recorded. ${money(currencyCode, result.outstanding)} is still due.`
@@ -50,10 +55,14 @@ export function RecordPaymentDialog({ invoiceId, invoiceNumber, currencyCode, ba
           <Select label="Into" selectedKey={account} onSelectionChange={(key) => setAccount(String(key))}
             options={[{ value: DEFAULT_ACCOUNT, label: "The company's bank account" }, ...(accounts.data?.accounts ?? []).map((entry) => ({ value: entry.id, label: entry.name }))]} />
           <TextField className="sm:col-span-2" label="Reference" description="UTR, cheque number or UPI reference." value={reference} onChange={setReference} />
+          <NumberField label="TDS deducted by the customer" description="If they paid less because they deducted TDS. Claimed later from Form 26AS." value={tds}
+            onChange={(value) => { setTds(value); if (Number.isFinite(value)) setAmount(Math.max(0, Math.round((balance - value) * 100) / 100)); }} minValue={0} maxValue={balance} step={0.01} />
+          <Select label="TDS section" selectedKey={section} onSelectionChange={(key) => setSection(String(key))} isDisabled={!(tdsValue > 0)}
+            options={["194Q", "194J", "194C", "194H", "194I", "194O", "Other"].map((code) => ({ value: code, label: code }))} />
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" isLoading={save.isPending} isDisabled={!(amount > 0) || amount > balance + 0.005} onPress={() => save.mutate()}>Record payment</Button>
+          <Button variant="primary" isLoading={save.isPending} isDisabled={!(amount > 0) || amount + tdsValue > balance + 0.005} onPress={() => save.mutate()}>Record payment</Button>
         </div>
       </div>
     </Dialog>
