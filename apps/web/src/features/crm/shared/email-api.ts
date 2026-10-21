@@ -11,10 +11,12 @@ export type EmailEntity = "leads" | "opportunities" | "accounts" | "contacts";
 export type EmailDraft = {
   to: string; subject: string; body: string; signature: string | null; reference: string | null; replyTo: string | null; refused: string | null; canSend: boolean;
   templates: Array<{ id: string; name: string }>;
+  // files kept on the record that can go with the email
+  files?: Array<{ id: string; fileName: string; sizeBytes: number }>;
 };
 export type RecordEmail = {
   id: string; direction: "inbound" | "outbound"; status: string; subject: string; body: string | null; from: string | null; fromName: string | null;
-  to: string[]; cc: string[]; sentByName: string | null; createdAt: string; threaded: boolean;
+  to: string[]; cc: string[]; sentByName: string | null; createdAt: string; threaded: boolean; attachments?: string[];
 };
 export type EmailTemplate = { id: string; name: string; appliesTo: "any" | "lead" | "opportunity" | "party" | "contact"; subject: string; body: string; status: "active" | "inactive"; useCount: number; updatedAt: string; updatedByName: string | null;
   // the template in other languages (CRM plan 5.6), used for people who speak them
@@ -23,7 +25,7 @@ export type EmailSettings = { replyToAddress: string | null; signature: string |
 
 export const prepareEmail = (entity: EmailEntity, id: string, templateId?: string | null) =>
   request<{ draft: EmailDraft }>(`/api/crm/email/${entity}/${id}${templateId ? `?templateId=${templateId}` : ""}`).then((result) => result.draft);
-export const sendEmail = (entity: EmailEntity, id: string, input: { to: string; cc?: string; subject: string; body: string; templateId?: string | null; replyToEmailId?: string | null }) =>
+export const sendEmail = (entity: EmailEntity, id: string, input: { to: string; cc?: string; subject: string; body: string; templateId?: string | null; replyToEmailId?: string | null; attachmentIds?: string[] }) =>
   request<{ email: { emailId: string; status: string } }>(`/api/crm/email/${entity}/${id}`, { method: "POST", json: input }).then((result) => result.email);
 export const listEmails = (entity: EmailEntity, id: string) => request<{ emails: RecordEmail[] }>(`/api/crm/email/${entity}/${id}/messages`).then((result) => result.emails);
 

@@ -216,3 +216,6 @@ BEGIN
   END IF;
   GRANT SELECT, INSERT, UPDATE, DELETE ON tenant.crm_reminder_channels TO vercent_app, vercent_worker;
 END $$;
+
+-- 8. Files sent with a record email (CRM audit: brochure, price list, catalogue): the names, as the email went out.
+ALTER TABLE tenant.crm_email_messages ADD COLUMN IF NOT EXISTS attachment_names text[] NOT NULL DEFAULT ARRAY[]::text[];

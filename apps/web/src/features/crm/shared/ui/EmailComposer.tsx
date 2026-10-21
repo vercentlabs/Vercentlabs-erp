@@ -5,8 +5,8 @@
 // composer says so instead.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CornerUpLeft, Mail } from "lucide-react";
-import { Button, Dialog, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { CornerUpLeft, Mail, Paperclip } from "lucide-react";
+import { Button, Checkbox, Dialog, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { Notice } from "@/shared/ui/Panel";
@@ -38,6 +38,7 @@ function EmailDialog({ entity, recordId, onClose, onSent }: { entity: EmailEntit
   const [cc, setCc] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [attached, setAttached] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const draft = draftQuery.data;
   const fill = useMutation({
@@ -46,7 +47,7 @@ function EmailDialog({ entity, recordId, onClose, onSent }: { entity: EmailEntit
     onError: (failure) => setError(errorMessage(failure)),
   });
   const send = useMutation({
-    mutationFn: () => sendEmail(entity, recordId, { to: to ?? draft?.to ?? "", cc, subject, body, templateId: templateId || null, replyToEmailId: replyTo?.id ?? null }),
+    mutationFn: () => sendEmail(entity, recordId, { to: to ?? draft?.to ?? "", cc, subject, body, templateId: templateId || null, replyToEmailId: replyTo?.id ?? null, attachmentIds: attached }),
     onSuccess: () => {
       for (const key of ["record-emails", "timeline"]) void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", key) });
       onSent();
@@ -81,6 +82,18 @@ function EmailDialog({ entity, recordId, onClose, onSent }: { entity: EmailEntit
             )}
             <TextField label="Subject" value={subject} onChange={setSubject} description={draft.reference ? `${draft.reference} is added, so a reply comes back to this record.` : undefined} />
             <TextArea label="Message" value={body} onChange={setBody} rows={10} />
+            {(draft.files?.length ?? 0) > 0 && (
+              <fieldset className="flex flex-col gap-1.5">
+                <legend className="text-sm font-medium">Attach files from this record</legend>
+                {draft.files!.map((file) => (
+                  <Checkbox key={file.id} isSelected={attached.includes(file.id)} isDisabled={!attached.includes(file.id) && attached.length >= 5}
+                    onChange={(on) => setAttached((current) => (on ? [...current, file.id] : current.filter((id) => id !== file.id)))}>
+                    {`${file.fileName} (${Math.max(1, Math.round(file.sizeBytes / 1024))} KB)`}
+                  </Checkbox>
+                ))}
+                <p className="text-xs text-text-muted">Up to 5 files, 10 MB together. Add a brochure or price list under Files on the record.</p>
+              </fieldset>
+            )}
             {draft.signature && <p className="whitespace-pre-wrap text-xs text-text-muted">Signature added: {draft.signature}</p>}
             {!draft.replyTo && <p className="text-xs text-text-muted">Replies go to your own address. Set the CRM reply address in Setup › Email templates to have them land on this record.</p>}
             <div className="flex justify-end gap-2">
@@ -104,6 +117,9 @@ function EmailDialog({ entity, recordId, onClose, onSent }: { entity: EmailEntit
                     {" · "}{formatDateTime(email.createdAt)}
                   </span>
                   {email.body && <p className="line-clamp-3 whitespace-pre-wrap text-text-secondary">{email.body}</p>}
+                  {(email.attachments?.length ?? 0) > 0 && (
+                    <span className="flex items-center gap-1 text-xs text-text-muted"><Paperclip className="size-3" aria-hidden="true" />{email.attachments!.join(", ")}</span>
+                  )}
                 </li>
               ))}
             </ul>

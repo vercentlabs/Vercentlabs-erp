@@ -7,6 +7,7 @@
 import { escapeHtml, sendMail } from "../../../core/platform/mail/index.js";
 import { randomUUID } from "node:crypto";
 
+import { downloadAttachment, listAttachments } from "../attachments/records.js";
 import { assertMayContact } from "../data-management/contact-preferences.js";
 import { CrmError } from "../data-management/errors.js";
 import { recordVisible } from "../notes/access.js";
@@ -17,6 +18,9 @@ const TABLE = Object.freeze({ lead: "crm_leads", opportunity: "crm_opportunities
 const EMAIL = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
 const text = (value) => String(value ?? "").trim();
 const invalid = (field, message) => new CrmError(400, message, "CRM_EMAIL_VALIDATION", { issues: [{ field, message }] });
+// Files from the record that may go with an email (CRM audit): a few, and small enough for every mailbox.
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const money = (amount, currency) => (amount === null || amount === undefined ? "" : `${currency ?? ""} ${Number(amount).toLocaleString("en-IN")}`.trim());
 
 function canEdit(context, type) {
@@ -142,6 +146,8 @@ export async function prepareRecordEmail(client, context, entityType, entityId, 
   return {
     to: facts.to ?? "", subject, body, signature: settings.signature ?? null, reference: facts.code ? `[${facts.code}]` : null,
     replyTo: settings.reply_to_address ?? null, refused, canSend: canEdit(context, entityType), templates, templateLanguage,
+    // Files kept on the record that can go with the email.
+    files: await recordFiles(client, context, entityType, entityId),
   };
 }
 
@@ -159,8 +165,19 @@ async function assertRecipientsAccept(client, context, recipients) {
   if (rows[0]) throw new CrmError(409, `${rows[0].name ?? rows[0].email} does not accept email. Change their contact preferences only if they have agreed to it.`, "CRM_DO_NOT_CONTACT", { channel: "email" });
 }
 
-// Sends an email from a record. input: { to, cc?, subject, body, templateId?, replyToEmailId? } — replyToEmailId answers an email kept on
-// the record (it threads). Returns { emailId, status, messageId }.
+// The record's own files the sender may attach (none when they may not see files).
+async function recordFiles(client, context, entityType, entityId) {
+  try {
+    return (await listAttachments(client, context, entityType, entityId)).map((file) => ({ id: file.id, fileName: file.fileName, sizeBytes: file.sizeBytes }));
+  } catch (error) {
+    if (error instanceof CrmError) return [];
+    throw error;
+  }
+}
+
+// Sends an email from a record. input: { to, cc?, subject, body, templateId?, replyToEmailId?, attachmentIds? } — replyToEmailId answers
+// an email kept on the record (it threads); attachmentIds are files kept on this record (a brochure, a price list), up to 5 and 10 MB
+// together. Returns { emailId, status, messageId }.
 export async function sendRecordEmail(client, context, entityType, entityId, input = {}, env = process.env) {
   if (!EMAIL_RECORD_TYPES.includes(entityType)) throw invalid("entityType", "Email goes from a lead, deal, company or contact.");
   if (!canEdit(context, entityType)) throw new CrmError(403, "You do not have permission to work on this record.", "PERMISSION_DENIED");
@@ -192,6 +209,21 @@ export async function sendRecordEmail(client, context, entityType, entityId, inp
       [context.organizationId, input.replyToEmailId, entityType, entityId])).rows[0];
     if (original) { inReplyTo = original.message_id; references = [...(original.reference_ids ?? []), original.message_id].slice(-20); }
   }
+  const chosen = [...new Set((Array.isArray(input.attachmentIds) ? input.attachmentIds : []).map(String))];
+  if (chosen.length > MAX_ATTACHMENTS) throw invalid("attachmentIds", `Attach at most ${MAX_ATTACHMENTS} files.`);
+  const attachments = [];
+  if (chosen.length) {
+    const files = await recordFiles(client, context, entityType, entityId);
+    let total = 0;
+    for (const id of chosen) {
+      const file = files.find((entry) => entry.id === id);
+      if (!file) throw invalid("attachmentIds", "Attach files kept on this record.");
+      total += file.sizeBytes;
+      if (total > MAX_ATTACHMENT_BYTES) throw invalid("attachmentIds", "The files together must be 10 MB or less.");
+      const content = await downloadAttachment(client, context, id, {}, { env });
+      attachments.push({ filename: content.fileName, content: content.body, contentType: content.mimeType });
+    }
+  }
   const settings = await emailSettings(client, context.organizationId);
   const reference = facts.code ? `[${facts.code}]` : "";
   const subject = reference && !subjectTyped.includes(reference) ? `${subjectTyped} ${reference}` : subjectTyped;
@@ -204,7 +236,7 @@ export async function sendRecordEmail(client, context, entityType, entityId, inp
     to, cc: cc.length ? cc : undefined, subject, text: fullBody,
     html: `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">${escapeHtml(fullBody).replace(/\n/g, "<br>")}</body></html>`,
     replyTo: settings.reply_to_address ?? facts.sender.email ?? undefined, messageId: `<${messageId}>`, inReplyTo: inReplyTo ? `<${inReplyTo}>` : undefined,
-    references: references.map((id) => `<${id}>`), fromName: senderName,
+    references: references.map((id) => `<${id}>`), fromName: senderName, attachments: attachments.length ? attachments : undefined,
   }, env);
   if (!result.sent) throw new CrmError(409, "Email is not set up for this workspace. Ask an administrator to configure outgoing mail.", "CRM_EMAIL_UNAVAILABLE");
 
@@ -216,10 +248,10 @@ export async function sendRecordEmail(client, context, entityType, entityId, inp
     [context.organizationId, entityType, entityId, `Email to ${to.join(", ")}: ${subject}`.slice(0, 300), fullBody.slice(0, 20000), context.userId ?? owner?.owner_user_id ?? null, messageId])).rows[0];
   const email = (await client.query(
     `INSERT INTO tenant.crm_email_messages (organization_id, entity_type, entity_id, direction, status, message_id, in_reply_to, reference_ids, from_address, from_name,
-                                            to_addresses, cc_addresses, subject, body_text, activity_id, sent_by, template_id)
-     VALUES ($1, $2, $3, 'outbound', 'sent', $4, $5, $6::text[], $7, $8, $9::text[], $10::text[], $11, $12, $13, $14, $15) RETURNING id`,
+                                            to_addresses, cc_addresses, subject, body_text, activity_id, sent_by, template_id, attachment_names)
+     VALUES ($1, $2, $3, 'outbound', 'sent', $4, $5, $6::text[], $7, $8, $9::text[], $10::text[], $11, $12, $13, $14, $15, $16::text[]) RETURNING id`,
     [context.organizationId, entityType, entityId, messageId, inReplyTo, references, facts.sender.email ?? null, senderName, to, cc, subject, fullBody,
-      activity.id, context.userId ?? null, templateId])).rows[0];
+      activity.id, context.userId ?? null, templateId, attachments.map((file) => file.filename)])).rows[0];
   if (templateId) await client.query("UPDATE tenant.crm_email_templates SET use_count = use_count + 1 WHERE organization_id = $1 AND id = $2", [context.organizationId, templateId]);
   await client.query(`UPDATE tenant.${TABLE[entityType]} SET last_activity_at = now() WHERE organization_id = $1 AND id = $2`, [context.organizationId, entityId]);
   return { emailId: email.id, status: "sent", messageId };
@@ -235,6 +267,7 @@ export async function listRecordEmails(client, context, entityType, entityId, { 
   return rows.map((row) => ({
     id: row.id, direction: row.direction, status: row.status, subject: row.subject, body: row.body_text, from: row.from_address, fromName: row.from_name,
     to: row.to_addresses, cc: row.cc_addresses, sentByName: row.sent_by_name ?? null, createdAt: row.created_at, threaded: Boolean(row.in_reply_to),
+    attachments: row.attachment_names ?? [],
   }));
 }
 
