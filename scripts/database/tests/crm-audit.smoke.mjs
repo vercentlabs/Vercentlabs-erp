@@ -70,6 +70,23 @@ try {
   const owner = () => ({ organizationId, userId: ownerId, roleSlugs: ownerGrants.role_slugs, permissions: ownerGrants.permissions });
 
   const crm = await api("modules/crm/index.js");
+  const lifecycle = await api("core/auth/lifecycle.js");
+  const { tokenHash } = await api("core/auth/session.js");
+  // A teammate who joins through an invitation, with the given role; returns { userId, context(permissions?) }.
+  const addTeammate = async (name, roleSlug) => {
+    const roleId = (await client.query(`SELECT id FROM public.roles WHERE organization_id = $1 AND slug = $2`, [organizationId, roleSlug])).rows[0]?.id;
+    assert(roleId, `role ${roleSlug} exists`);
+    const email = `${name.toLowerCase().replace(/\s+/g, ".")}-${tag}@example.test`;
+    const invite = await lifecycle.createOrganizationInvitation(client, { organizationId, invitedByUserId: ownerId, email, roleIds: [roleId], primaryRoleId: roleId,
+      inviter: { roleSlugs: ["organization_owner"], permissions: [] } }, { APP_URL: "http://localhost:3001" });
+    const secret = `invite-${name}-${tag}`;
+    await client.query(`UPDATE public.organization_invitations SET token_hash = $2 WHERE id = $1`, [invite.invitationId, tokenHash(secret)]);
+    const accepted = await lifecycle.acceptOrganizationInvitation(client, secret, { fullName: name });
+    await client.query("SELECT set_config('app.current_organization_id', $1, true)", [organizationId]);
+    const grants = await grantsOf(accepted.userId);
+    return { userId: accepted.userId, context: (permissions = grants.permissions) => ({ organizationId, userId: accepted.userId, roleSlugs: grants.role_slugs, permissions }) };
+  };
+  const company = await crm.createAccount(client, owner(), { displayName: `Sharma Traders ${tag}` });
 
   await check("B1. A campaign click link redirects only to an address that is in that recipient's email; any other address or token is refused", async () => {
     const mailing = await crm.createMailing(client, owner(), { name: "Diwali offer", audience: "leads", subject: "Offer", body: "Hi {{first_name}}, see https://shop.example.in/offer?a=1&b=2 today." });
@@ -84,6 +101,22 @@ try {
     assert((await crm.recordMailingClick(client, "b".repeat(48), "https://shop.example.in/offer?a=1&b=2")).target === null, "unknown token refused");
     await client.query("SELECT set_config('app.current_organization_id', $1, true)", [organizationId]);
     assert((await crm.recordMailingClick(client, token, "javascript:alert(1)")).target === null, "non-web address refused");
+  });
+
+  await check("B2. A deal's history shows to whoever sees the deal (team grant, no lead-sensitive permission); archived leads and deals keep theirs", async () => {
+    const rep = await addTeammate("Ravi Rep", "crm_salesperson");
+    const team = await crm.createSalesTeam(client, owner(), { code: `T${tag}`.slice(0, 10), name: "North" });
+    await crm.addSalesTeamMember(client, owner(), { teamId: team.id, userId: rep.userId, memberRole: "seller" });
+    const deal = await crm.createOpportunity(client, owner(), { name: "Bulk order", accountId: company.id, teamId: team.id });
+    // Only deal viewing — no crm.leads.view_sensitive, no view-all.
+    const narrow = rep.context(["crm.view", "crm.opportunities.view"]);
+    assert(await crm.resolveCrmEntityAccess(client, narrow, "opportunity", deal.id), "team deal's history visible");
+    assert(!await crm.resolveCrmEntityAccess(client, rep.context([]), "opportunity", deal.id), "no deal permission, no history");
+    await client.query(`UPDATE tenant.crm_opportunities SET archived_at = now() WHERE id = $1`, [deal.id]);
+    assert(await crm.resolveCrmEntityAccess(client, owner(), "opportunity", deal.id), "archived deal keeps its history");
+    const lead = await crm.createLead(client, owner(), { firstName: "Asha", lastName: "Rao", companyName: "Rao Foods", email: `asha-${tag}@example.in` });
+    await crm.archiveLead(client, owner(), lead.id, {});
+    assert(await crm.resolveCrmEntityAccess(client, owner(), "lead", lead.id), "archived lead keeps its history");
   });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);

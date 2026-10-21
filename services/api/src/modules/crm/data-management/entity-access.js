@@ -3,20 +3,20 @@
 // same owner rule and entity-type-specific
 // sensitive-content permission each record type's own detail view enforces.
 
-import { crmOwnerScopeSql } from "./crm-access-scope.js";
 import { CrmError } from "./errors.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../leads/access.js";
 import { accountCan, accountScopeSql } from "../accounts/access.js";
 import { ACCOUNT_PERMISSIONS } from "../accounts/constants.js";
 import { contactCan, contactScopeSql } from "../contacts/access.js";
 import { CONTACT_PERMISSIONS } from "../contacts/constants.js";
+import { opportunityCan, opportunityScopeSql } from "../opportunities/access.js";
+import { OPPORTUNITY_PERMISSIONS } from "../opportunities/constants.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact"]);
 
 // Resolves whether the caller may see this record's related content at
-// all — the same owner scope + entity-type-specific sensitive
-// permission every existing detail-data function already enforces, not a
+// all — the same scope + permission the record's own detail page enforces, not a
 // re-derived equivalent. Returns null (no crash, no partial leak) for "no
 // access," which callers must treat as an empty timeline, never an error
 // that could distinguish "record doesn't exist" from "record exists but
@@ -32,22 +32,21 @@ export async function resolveCrmEntityAccess(client, context, entityType, entity
     if (!canViewSensitiveLeadContent(context)) return false;
     const values = [context.organizationId, entityId];
     const scope = leadScopeSql(context, values, "lead");
+    // Archived leads included: the lead page opens them (getLead), so their history must show too.
     const result = await client.query(
-      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.archived_at IS NULL${scope} LIMIT 1`,
+      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2${scope} LIMIT 1`,
       values,
     );
     return Boolean(result.rows[0]);
   }
   if (entityType === "opportunity") {
-    if (!canViewSensitiveLeadContent(context)) return false; // established reuse — see opportunity-detail-data.ts
-    // F028 — owner scope, matching recordScope() for opportunity lists: a
-    // caller without view-all reaches only their own or unowned deals, so a
-    // deal id they cannot list cannot be read or written through here.
+    // Exactly the deal page's rule (getOpportunity): the deal view permission and the deal's own Own / Team / All scope — a deal
+    // seen through its team shows its history, and an archived deal (archived_at) still opens with it.
+    if (!opportunityCan(context, OPPORTUNITY_PERMISSIONS.view)) return false;
     const opportunityValues = [context.organizationId, entityId];
     const result = await client.query(
       `SELECT opportunity.id FROM tenant.crm_opportunities opportunity
-        WHERE opportunity.organization_id=$1 AND opportunity.id=$2 AND opportunity.status <> 'archived'
-         ${crmOwnerScopeSql(context, (value) => { opportunityValues.push(value); return `$${opportunityValues.length}`; }, "opportunity.owner_user_id", "opportunity.organization_id", { resource: "opportunities", alias: "opportunity" })} LIMIT 1`,
+        WHERE opportunity.organization_id=$1 AND opportunity.id=$2${opportunityScopeSql(context, opportunityValues, "opportunity")} LIMIT 1`,
       opportunityValues,
     );
     return Boolean(result.rows[0]);
