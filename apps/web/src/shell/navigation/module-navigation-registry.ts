@@ -13,6 +13,8 @@
 // corresponds to.
 import {
   ArrowLeftRight,
+  Inbox,
+  Megaphone,
   BarChart3,
   Database,
   Gauge,
@@ -81,7 +83,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         collapsible: true,
         items: [
           { ...available("Home", "/crm"), aliases: ["crm home", "overview", "dashboard", "agenda", "what to do next"], requiredPermission: "crm.view" },
-          { ...available("To-dos", "/crm/activities"), aliases: ["to-do", "todos", "activities", "tasks", "follow-ups", "reminders"], requiredAnyPermission: ["crm.tasks.view", "crm.follow_ups.view", "crm.notes.view", "crm.attachments.view"] },
+          // Tasks and follow-ups in one list first (CRM audit); each kind keeps its own tab.
+          { ...available("To-dos", "/crm/activities"), aliases: ["to-do", "todos", "activities", "tasks", "follow-ups", "reminders", "what to do next"], requiredAnyPermission: ["crm.tasks.view", "crm.follow_ups.view", "crm.notes.view", "crm.attachments.view"] },
           { ...available("Tasks", "/crm/activities?tab=tasks"), parent: "to-dos", requiredPermission: "crm.tasks.view" },
           { ...available("Follow-ups", "/crm/activities?tab=follow-ups"), parent: "to-dos", requiredPermission: "crm.follow_ups.view" },
           { ...available("Notes", "/crm/activities?tab=notes"), parent: "to-dos", aliases: ["notes & files"], requiredPermission: "crm.notes.view" },
@@ -96,10 +99,21 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           { ...available("Leads", "/crm/leads"), aliases: ["prospects", "enquiries", "lead conversion", "qualification"], requiredPermission: "crm.leads.view" },
           { ...available("Deals", "/crm/opportunities"), aliases: ["deal", "opportunities", "opportunity", "won", "lost", "win rate"], requiredPermission: "crm.opportunities.view" },
-          { ...available("Pipeline", "/crm/pipeline"), aliases: ["board", "kanban", "deals by stage"], requiredPermission: "crm.opportunities.view" },
-          { ...available("Website chat", "/crm/chat"), aliases: ["live chat", "chat inbox", "visitors"], requiredPermission: "crm.leads.view" },
-          { ...available("Campaign emails", "/crm/mailings"), aliases: ["newsletter", "mass email", "email marketing", "bulk email"], requiredPermission: "crm.settings.manage" },
+          { ...available("Pipeline", "/crm/pipeline"), aliases: ["board", "kanban", "deals by stage", "deals board"], requiredPermission: "crm.opportunities.view" },
+          // Quotations and proformas from deals (CRM quotes without Sales; with Sales, the page links to Sales quotations).
+          { ...available("Quotations", "/crm/quotes"), aliases: ["quotes", "quotation", "proforma", "proforma invoice", "estimate"], requiredPermission: "crm.opportunities.view" },
           { ...available("Deal calendar", "/crm/opportunities/calendar"), aliases: ["close dates", "calendar"], requiredPermission: "crm.opportunities.view" },
+        ],
+      },
+      {
+        // What customers sent: chats, WhatsApp and emails in one place (CRM audit), and the chat inbox to answer chats.
+        id: "inbox",
+        label: "Inbox",
+        icon: Inbox,
+        collapsible: true,
+        items: [
+          { ...available("Inbox", "/crm/inbox"), aliases: ["messages", "replies", "whatsapp replies", "incoming email", "customer messages"], requiredPermission: "crm.leads.view" },
+          { ...available("Website chat", "/crm/chat"), aliases: ["live chat", "chat inbox", "visitors"], requiredPermission: "crm.leads.view" },
         ],
       },
       {
@@ -110,6 +124,18 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           { ...available("Companies", "/crm/accounts"), aliases: ["company", "accounts", "account", "customers", "account 360", "customer 360"], requiredPermission: "crm.accounts.view" },
           { ...available("Contacts", "/crm/contacts"), aliases: ["people", "contact persons"], requiredPermission: "crm.contacts.view" },
+        ],
+      },
+      {
+        // Reaching many customers at once: campaign emails, campaigns (with their ROI) and tags.
+        id: "marketing",
+        label: "Marketing",
+        icon: Megaphone,
+        collapsible: true,
+        items: [
+          { ...available("Campaign emails", "/crm/mailings"), aliases: ["newsletter", "mass email", "email marketing", "bulk email", "festival greetings"], requiredPermission: "crm.settings.manage" },
+          { ...available("Campaigns", "/crm/settings/campaigns"), aliases: ["campaign roi", "utm", "marketing campaigns"], requiredPermission: "crm.settings.manage" },
+          { ...available("Tags", "/crm/settings/tags"), aliases: ["labels", "segments"], requiredPermission: "crm.settings.manage" },
         ],
       },
       {
@@ -136,9 +162,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             requiredPermission: "crm.duplicates.review",
           },
           {
-            ...available("Import data", "/crm/data/import-export"),
-            description: "Bring leads, companies and contacts in from a file.",
-            aliases: ["import", "imports & exports", "csv", "upload leads"],
+            ...available("Import and export", "/crm/data/import-export"),
+            description: "Bring leads, companies and contacts in from a file, or take them out to one.",
+            aliases: ["import", "export", "imports & exports", "csv", "excel", "upload leads", "download data", "import data"],
             requiredAnyPermission: ["crm.import", "crm.accounts.import", "crm.contacts.import"],
           },
         ],
@@ -161,8 +187,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Calls and SMS", "/crm/settings/calls-sms"), parent: "setup", aliases: ["exotel", "msg91", "dlt", "telephony", "click to call"], requiredPermission: "crm.settings.manage" },
           { ...available("WhatsApp", "/crm/settings/whatsapp"), parent: "setup", aliases: ["whatsapp business", "cloud api"], requiredPermission: "crm.settings.manage" },
           { ...available("Email templates", "/crm/settings/email-templates"), parent: "setup", aliases: ["email", "signature", "reply address"], requiredPermission: "crm.settings.manage" },
-          { ...available("Campaigns", "/crm/settings/campaigns"), parent: "setup", aliases: ["utm", "marketing", "medium"], requiredPermission: "crm.settings.manage" },
-          { ...available("Tags", "/crm/settings/tags"), parent: "setup", aliases: ["labels"], requiredPermission: "crm.settings.manage" },
           { ...available("Activity types and plans", "/crm/settings/activity-types"), parent: "setup", aliases: ["follow-up types", "activity plans", "cadence"], requiredPermission: "crm.settings.manage" },
           { ...available("Website chat setup", "/crm/settings/website-chat"), parent: "setup", aliases: ["chat widget", "embed chat"], requiredPermission: "crm.settings.manage" },
           { ...available("Team access", "/crm/settings/team-access"), parent: "setup", aliases: ["roles", "permissions", "salesperson", "sales manager"], requiredPermission: "roles.assign" },

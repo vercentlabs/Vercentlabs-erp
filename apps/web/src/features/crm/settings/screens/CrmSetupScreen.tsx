@@ -1,8 +1,9 @@
 "use client";
 
-// CRM Setup: every CRM setting on one page, in the order a new company sets them up. Each row opens its existing page and says, in a few
-// words, what is set now, so an administrator sees the whole configuration without opening each page. Only the rows the person may open are
-// listed; each page keeps enforcing its own permission.
+// CRM Setup: every CRM setting on one page, grouped by what it is for (CRM audit: Get started · Get leads in · Lead process · Deal
+// process · Talk to customers · Marketing · Advanced). Each row opens its existing page and says, in a few words, what is set now, so an
+// administrator sees the whole configuration without opening each page. Only the rows the person may open are listed; each page keeps
+// enforcing its own permission.
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
@@ -111,6 +112,17 @@ const ROWS: Row[] = [
     state: async () => "Opens Settings", external: true },
 ];
 
+// The groups, in the order a new company works through them; a row in no group shows under Advanced.
+const GROUPS: Array<{ title: string; description: string; ids: string[] }> = [
+  { title: "Get started", description: "Who uses CRM, your working week, and whether you work with leads at all.", ids: ["team-access", "teams", "leads-switch", "defaults", "holidays", "history-import"] },
+  { title: "Get leads in", description: "Where enquiries come from and how they reach you.", ids: ["lead-sources", "web-forms", "lead-connectors", "email-to-lead", "website-chat"] },
+  { title: "Lead process", description: "How an enquiry is checked, scored and given to the right person.", ids: ["lead-stages", "qualification", "assignment", "lead-scoring"] },
+  { title: "Deal process", description: "The stages a deal goes through and how it ends.", ids: ["deal-stages", "close-reasons", "activity-types", "recurring-plans"] },
+  { title: "Talk to customers", description: "WhatsApp, calls, SMS, email and your calendar.", ids: ["whatsapp", "calls-sms", "email-templates", "calendar"] },
+  { title: "Marketing and privacy", description: "Campaigns, tags, and the consent customers gave.", ids: ["campaigns", "tags", "privacy"] },
+  { title: "Advanced", description: "Your own fields on records.", ids: ["custom-fields"] },
+];
+
 export function CrmSetupScreen() {
   const workspace = useWorkspaceContext();
   const owner = workspace.roleSlugs.includes("organization_owner");
@@ -118,10 +130,24 @@ export function CrmSetupScreen() {
   if (!rows.length) return <PermissionState title="You do not have access to CRM Setup" description="Ask a CRM administrator for access." />;
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <PageHeader title="Setup" description="Every CRM setting, in the order a company usually sets them up. Each row shows what is set now." />
-      <ol className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
-        {rows.map((row) => <SetupRow key={row.id} row={row} />)}
-      </ol>
+      <PageHeader title="Setup" description="Every CRM setting, grouped by what it is for. Each row shows what is set now." />
+      {GROUPS.map((group, index) => {
+        const placed = new Set(GROUPS.flatMap((entry) => entry.ids));
+        const inGroup = rows.filter((row) => group.ids.includes(row.id) || (index === GROUPS.length - 1 && !placed.has(row.id)))
+          .sort((a, b) => (group.ids.indexOf(a.id) + 1 || 99) - (group.ids.indexOf(b.id) + 1 || 99));
+        if (!inGroup.length) return null;
+        return (
+          <section key={group.title} aria-labelledby={`setup-${index}`} className="flex flex-col gap-2">
+            <div>
+              <h2 id={`setup-${index}`} className="text-base font-semibold text-text">{group.title}</h2>
+              <p className="text-sm text-text-secondary">{group.description}</p>
+            </div>
+            <ol className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
+              {inGroup.map((row) => <SetupRow key={row.id} row={row} />)}
+            </ol>
+          </section>
+        );
+      })}
     </div>
   );
 }

@@ -217,3 +217,11 @@ export * from "./workspace/index.js";
 export * from "./accounts/index.js";
 export * from "./contacts/index.js";
 export * from "./duplicates/index.js";
+
+// To-dos: tasks and follow-ups in one list (CRM audit navigation).
+export function listTodos(client: QueryClient, context: CrmContext, filters?: { view?: string; type?: string; search?: string; limit?: number; offset?: number }): Promise<{ total: number; limit: number; offset: number; views: ReadonlyArray<{ key: string; label: string }>; capabilities: Record<string, boolean>; todos: Array<Record<string, any>> }>;
+export const TODO_VIEWS: ReadonlyArray<{ key: string; label: string }>;
+
+// The CRM Inbox and the list of every CRM quote (CRM audit navigation).
+export function listInbox(client: QueryClient, context: CrmContext, filters?: { channel?: string; days?: number; limit?: number }): Promise<{ channel: string; items: Array<Record<string, any>> }>;
+export function listAllDealQuotes(client: QueryClient, context: CrmContext, filters?: { status?: string; limit?: number; offset?: number }): Promise<{ total: number; limit: number; offset: number; salesOn: boolean; quotes: Array<Record<string, any>> }>;

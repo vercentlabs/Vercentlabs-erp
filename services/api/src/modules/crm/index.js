@@ -83,3 +83,10 @@ export {
   bulkSetAccountStatus, bulkSetContactStatus, bulkUpdateFollowUps, bulkUpdateTasks, exportAccounts, exportContacts, exportFollowUps, exportLeads, exportOpportunities, exportTasks,
   mergeAccounts, mergeContacts, mergeLeads, mergeOpportunities,
 } from "./data-management/audited.js";
+
+// To-dos: tasks and follow-ups in one list (CRM audit navigation).
+export { listTodos, TODO_VIEWS } from "./todos/records.js";
+
+// The CRM Inbox: chats, WhatsApp and emails from customers in one list (CRM audit navigation).
+export { listInbox } from "./inbox/records.js";
+export { listAllDealQuotes } from "./quotes/list.js";
