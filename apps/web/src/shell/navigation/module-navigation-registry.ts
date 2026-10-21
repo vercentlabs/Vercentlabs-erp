@@ -258,6 +258,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         collapsible: true,
         items: [
           { ...available("Deliveries", "/sales/deliveries"), requiredApp: "stock", aliases: ["shipment", "delivery note", "delivery challan", "dispatch", "tracking number", "carrier", "proof of delivery", "lr number"] },
+          // Without Stock there are no deliveries: a challan is the dispatch document (Sales audit).
+          { ...available("Delivery Challans", "/sales/challans"), withoutApp: "stock", aliases: ["challan", "delivery challan", "dispatch", "job work", "sale on approval", "branch transfer"] },
           { ...available("Sales Returns", "/sales/returns"), requiredApp: "stock", aliases: ["returns", "return note", "rma", "goods returned"] },
         ],
       },

@@ -57,6 +57,7 @@ export function isItemPermitted(
   viewer: NavViewer,
 ): boolean {
   if (item.requiredApp && viewer.apps && !viewer.apps.includes(item.requiredApp)) return false;
+  if (item.withoutApp && viewer.apps?.includes(item.withoutApp)) return false;
   if (viewer.isOwner) return true;
   if (item.requiredAnyPermission?.length)
     return item.requiredAnyPermission.some((permission) =>

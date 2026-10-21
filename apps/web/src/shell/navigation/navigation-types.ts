@@ -32,6 +32,8 @@ export type SecondaryNavItem = {
   requiredAnyPermission?: string[];
   /** Another app this destination needs (Sales' Deliveries need Stock): hidden while that app is off. */
   requiredApp?: string;
+  /** Shown only while this app is off (a stand-in the app replaces, e.g. delivery challans without Stock). */
+  withoutApp?: string;
   aliases?: string[];
   /** Id of the workspace item (same module) this route belongs to. Set = not a sidebar item. */
   parent?: string;

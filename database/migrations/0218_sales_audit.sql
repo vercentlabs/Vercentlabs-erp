@@ -153,3 +153,67 @@ ALTER TABLE tenant.price_lists ADD CONSTRAINT price_lists_applies_to_channel_che
 ALTER TABLE tenant.price_lists ADD COLUMN IF NOT EXISTS applies_to_state_code text;
 ALTER TABLE tenant.price_lists DROP CONSTRAINT IF EXISTS price_lists_applies_to_state_code_check;
 ALTER TABLE tenant.price_lists ADD CONSTRAINT price_lists_applies_to_state_code_check CHECK (applies_to_state_code IS NULL OR applies_to_state_code ~ '^[0-9]{2}$');
+
+-- 12. Delivery challans without Stock (should-have): a dispatch document for a company that does not run inventory — goods sent ahead of
+--     the invoice, on approval, for job work, to a branch or an exhibition. It moves no stock and posts nothing; it can carry an e-way bill.
+CREATE TABLE IF NOT EXISTS tenant.sales_challans (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  challan_number text NOT NULL,
+  challan_date date NOT NULL,
+  purpose text NOT NULL CHECK (purpose IN ('sale_dispatch', 'supply_on_approval', 'job_work', 'branch_transfer', 'exhibition', 'other')),
+  party_id uuid REFERENCES tenant.business_parties(id) ON DELETE RESTRICT,
+  sales_order_id uuid REFERENCES tenant.sales_orders(id) ON DELETE SET NULL,
+  customer_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ship_to_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+  seller_registration_id uuid,
+  vehicle_number text,
+  transporter_name text,
+  lr_number text,
+  notes text,
+  total_value numeric(24,6) NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'issued', 'cancelled')),
+  issued_at timestamptz,
+  issued_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  cancelled_at timestamptz,
+  cancel_reason text,
+  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (organization_id, challan_number)
+);
+CREATE TABLE IF NOT EXISTS tenant.sales_challan_lines (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  challan_id uuid NOT NULL REFERENCES tenant.sales_challans(id) ON DELETE CASCADE,
+  sequence integer NOT NULL CHECK (sequence > 0),
+  item_id uuid REFERENCES tenant.items(id) ON DELETE RESTRICT,
+  sales_order_line_id uuid REFERENCES tenant.sales_order_lines(id) ON DELETE SET NULL,
+  description text NOT NULL,
+  hsn_sac_code text,
+  quantity numeric(24,10) NOT NULL CHECK (quantity > 0),
+  uom_snapshot text,
+  unit_value numeric(24,6) NOT NULL DEFAULT 0 CHECK (unit_value >= 0),
+  tax_rate numeric(10,4) NOT NULL DEFAULT 0,
+  value numeric(24,6) NOT NULL DEFAULT 0,
+  UNIQUE (challan_id, sequence)
+);
+CREATE INDEX IF NOT EXISTS sales_challans_list_idx ON tenant.sales_challans (organization_id, challan_date DESC);
+CREATE INDEX IF NOT EXISTS sales_challan_lines_challan_idx ON tenant.sales_challan_lines (organization_id, challan_id);
+DO $$
+DECLARE
+  name text;
+BEGIN
+  FOREACH name IN ARRAY ARRAY['sales_challans', 'sales_challan_lines'] LOOP
+    EXECUTE format('ALTER TABLE tenant.%I ENABLE ROW LEVEL SECURITY', name);
+    EXECUTE format('ALTER TABLE tenant.%I FORCE ROW LEVEL SECURITY', name);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tenant' AND tablename = name AND policyname = 'organization_isolation') THEN
+      EXECUTE format('CREATE POLICY organization_isolation ON tenant.%I USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id())', name);
+    END IF;
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON tenant.%I TO vercent_app, vercent_worker', name);
+  END LOOP;
+END $$;
+ALTER TABLE tenant.eway_bills DROP CONSTRAINT IF EXISTS eway_bills_source_type_check;
+ALTER TABLE tenant.eway_bills ADD CONSTRAINT eway_bills_source_type_check
+  CHECK (source_type IN ('sales_delivery', 'stock_transfer', 'purchase_return', 'sales_invoice', 'sales_challan'));

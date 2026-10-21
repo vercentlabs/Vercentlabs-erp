@@ -36,6 +36,8 @@ export const DOCUMENT_TYPES = Object.freeze(
     std("sales_order", "sales", "Sales order", "SO", { defaultResetPolicy: "calendar_year" }),
     std("sales_fulfillment_request", "sales", "Delivery", "DEL", { defaultResetPolicy: "calendar_year" }),
     std("sales_return", "sales", "Sales return", "SRN", { defaultResetPolicy: "calendar_year" }),
+    // A dispatch document without the Stock app (Sales audit).
+    std("sales_challan", "sales", "Delivery challan", "DC", { defaultResetPolicy: "calendar_year" }),
     org("sales_invoice_request", "sales", "Invoice request", "SIR-"),
     // Accounting
     org("journal_entry", "accounting", "Journal entry", "JE-"),

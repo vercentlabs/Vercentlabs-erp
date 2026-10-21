@@ -204,7 +204,7 @@ export async function cancelEInvoice(client, session, invoiceId, { reason = "dat
 // ------------------------------------------------------------------ e-way bills
 const TRANSPORT_MODES = Object.freeze({ road: "1", rail: "2", air: "3", ship: "4" });
 const SOURCE_PERMISSION = Object.freeze({ sales_delivery: "sales.delivery.dispatch", stock_transfer: "stock.transfers.dispatch", purchase_return: "procurement.returns.post",
-  sales_invoice: "sales.invoice.post" });
+  sales_invoice: "sales.invoice.post", sales_challan: "sales.delivery.dispatch" });
 
 // What the movement carries: number, date, the two parties' GSTIN/addresses, the goods with HSN, UQC, value and GST rates.
 export async function movementOf(client, organizationId, sourceType, sourceId) {
@@ -263,6 +263,28 @@ export async function movementOf(client, organizationId, sourceType, sourceId) {
         pin: ship.postalCode ?? ship.postal_code, state: shipState },
       items: lines.map((line) => ({ name: line.description, hsn: line.hsn_sac_code, quantity: Number(line.quantity), unit: uqc(line.uom_snapshot), taxable: round(line.net_amount), rate: Number(line.tax_rate ?? 0) })),
       interState: shipState && seller?.state_code && shipState !== seller.state_code, vehicle: null,
+    };
+  }
+  // A delivery challan without Stock (Sales audit): its goods at their value, by why they move.
+  if (sourceType === "sales_challan") {
+    const challan = (await client.query("SELECT * FROM tenant.sales_challans WHERE organization_id = $1 AND id = $2", [organizationId, sourceId])).rows[0];
+    if (!challan) throw new ComplianceError(404, "Challan not found.", "EWAY_SOURCE_NOT_FOUND");
+    if (challan.status !== "issued") throw new ComplianceError(409, "Issue the challan first: an e-way bill is made from an issued challan.", "EWAY_SOURCE_NOT_POSTED");
+    const lines = (await client.query("SELECT * FROM tenant.sales_challan_lines WHERE organization_id = $1 AND challan_id = $2 ORDER BY sequence", [organizationId, sourceId])).rows;
+    const seller = await registrationOf(challan.seller_registration_id);
+    const customer = challan.customer_snapshot ?? {};
+    const ship = challan.ship_to_snapshot ?? {};
+    const shipState = ship.stateCode ?? ship.state_code ?? seller?.state_code;
+    const sub = { sale_dispatch: ["1", ""], supply_on_approval: ["8", "Supply on approval"], job_work: ["4", ""], branch_transfer: ["5", ""], exhibition: ["12", ""], other: ["8", "Others"] }[challan.purpose] ?? ["8", "Others"];
+    const own = challan.purpose === "branch_transfer";
+    return {
+      number: challan.challan_number, date: challan.challan_date, seller, supplyType: "O", subSupplyType: sub[0], subSupplyDesc: sub[1], docType: "CHL",
+      from: { line1: seller?.address_line1, city: seller?.city, pin: seller?.postal_code, state: seller?.state_code },
+      to: { gstin: own ? seller?.registration_number : customer.gstin ?? "URP", name: own ? seller?.legal_name ?? seller?.name : customer.legalName ?? customer.displayName ?? "Consignee",
+        line1: ship.line1, city: ship.city, pin: ship.postalCode ?? ship.postal_code, state: shipState },
+      items: lines.map((line) => ({ name: line.description, hsn: line.hsn_sac_code, quantity: Number(line.quantity), unit: uqc(line.uom_snapshot), taxable: round(line.value),
+        rate: own || challan.purpose === "job_work" ? 0 : Number(line.tax_rate ?? 0) })),
+      interState: shipState && seller?.state_code && shipState !== seller.state_code, vehicle: challan.vehicle_number,
     };
   }
   if (sourceType === "stock_transfer") {
@@ -328,7 +350,9 @@ export function buildEwayBillPayload(movement, { transportMode = "road", vehicle
     toStateCode: Number(movement.to.state ?? 0), actToStateCode: Number(movement.to.state ?? 0),
     totalValue: taxable, cgstValue: movement.interState ? 0 : round(tax / 2), sgstValue: movement.interState ? 0 : round(tax / 2), igstValue: movement.interState ? tax : 0, cessValue: 0,
     totInvValue: round(taxable + tax), transMode: TRANSPORT_MODES[transportMode] ?? "1", transDistance: String(Math.max(0, Math.trunc(Number(distanceKm) || 0))),
-    transporterId: transporterId ?? "", transDocNo: transporterDocument ?? "", vehicleNo: vehicleNumber ? String(vehicleNumber).toUpperCase().replace(/[\s-]/g, "") : "", vehicleType: vehicleNumber ? "R" : "",
+    // The vehicle entered now, else the one already on the document (a delivery's or a challan's).
+    transporterId: transporterId ?? "", transDocNo: transporterDocument ?? "",
+    vehicleNo: (vehicleNumber || movement.vehicle) ? String(vehicleNumber || movement.vehicle).toUpperCase().replace(/[\s-]/g, "") : "", vehicleType: (vehicleNumber || movement.vehicle) ? "R" : "",
     itemList: items.map(({ tax: _tax, ...item }) => item),
   };
 }

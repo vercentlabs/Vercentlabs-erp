@@ -13,7 +13,7 @@ const IRN = /^[0-9a-f]{64}$/i;
 const EWB = /^\d{12}$/;
 const PIN = /^[1-9]\d{5}$/;
 const EWAY_PERMISSION = Object.freeze({ sales_delivery: "sales.delivery.dispatch", stock_transfer: "stock.transfers.dispatch", purchase_return: "procurement.returns.post",
-  sales_invoice: "sales.invoice.post" });
+  sales_invoice: "sales.invoice.post", sales_challan: "sales.delivery.dispatch" });
 const sessionNeed = (c, permission, message) => { if (!hasSessionPermission(c, permission)) throw new GstError(403, message, "GST_FORBIDDEN"); };
 
 async function invoiceOf(client, c, invoiceId) {

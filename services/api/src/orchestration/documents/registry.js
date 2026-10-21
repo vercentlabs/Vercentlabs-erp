@@ -20,6 +20,7 @@ import { getPurchaseReturn } from "../../modules/procurement/purchase-returns/in
 import { getSupplierDebitClaim, getVendorCredit } from "../../modules/procurement/vendor-credits/index.js";
 import { getDealQuote, loadSharedDealQuote, resolveSharedDealQuote } from "../../modules/crm/quotes/index.js";
 import { findIndianState } from "@vercentlabs/shared-types";
+import { getSalesChallan } from "../../modules/sales/challans.js";
 
 const amount = (value, locale = "en-IN") => new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
 const date = (value, timeZone) => (value ? formatDateTime(value, { timeZone: timeZone || "UTC" }) : null);
@@ -811,6 +812,46 @@ function deliveryChallanModel(data) {
   };
 }
 
+// A delivery challan without Stock (Sales audit): consignor, consignee, why the goods move, the goods with HSN and value, the vehicle.
+function salesChallanModel(data) {
+  const { challan, company } = data;
+  const customer = challan.customer ?? {};
+  const ship = challan.shipTo ?? {};
+  const own = challan.purpose === "branch_transfer";
+  return {
+    title: "Delivery Challan",
+    documentNumber: challan.challanNumber,
+    issuedAt: `Challan date: ${challan.challanDate ?? ""}`,
+    organizationName: company.name,
+    status: challan.status === "draft" ? "Status: Draft - not issued" : challan.status === "cancelled" ? `Status: Cancelled${challan.cancelReason ? `: ${challan.cancelReason}` : ""}` : null,
+    parties: [
+      { label: "Consignor", lines: [company.name, company.taxId ? `GSTIN ${company.taxId}` : null].filter(Boolean) },
+      { label: "Consignee", lines: own ? [company.name, ...addressLines(ship), "Own branch"].filter(Boolean)
+        : [customer.legalName ?? customer.displayName, ...addressLines(ship), customer.gstin ? `GSTIN ${customer.gstin}` : "Unregistered"].filter(Boolean) },
+    ],
+    fields: [
+      { label: "Challan no.", value: challan.challanNumber },
+      { label: "Reason for transport", value: challan.purposeLabel },
+      { label: "Sales order", value: challan.salesOrderNumber ?? "" },
+      { label: "Place of delivery", value: [ship.city, ship.state].filter(Boolean).join(", ") },
+      { label: "Vehicle", value: challan.vehicleNumber ?? "" },
+      { label: "Transporter", value: challan.transporterName ?? "" },
+      { label: "LR no.", value: challan.lrNumber ?? "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Goods", width: "46%" }, { key: "hsn", label: "HSN", width: "12%" }, { key: "quantity", label: "Qty", align: "right", width: "14%" },
+        { key: "rate", label: "Value / unit", align: "right", width: "14%" }, { key: "value", label: "Value", align: "right", width: "14%" },
+      ],
+      rows: challan.lines.map((line) => ({ item: line.description, hsn: line.hsnSacCode ?? "", quantity: `${line.quantity} ${line.unit ?? ""}`.trim(), rate: amount(line.unitValue), value: amount(line.value) })),
+    },
+    totals: [{ label: "Value of goods", value: amount(challan.totalValue), emphasis: true }],
+    notes: challan.notes ? [{ label: "Notes", text: challan.notes }] : [],
+    declaration: "Certified that the particulars given above are true and correct. The goods are not being supplied against this challan unless a tax invoice follows.",
+    footer: `Delivery challan ${challan.challanNumber}`,
+  };
+}
+
 // The (Tax) Invoice, from the invoice's own snapshots: the seller registration,
 // the customer and addresses as invoiced, the place of supply, each line with
 // its HSN/SAC and tax components, and the totals. Internal notes are never printed.
@@ -1228,6 +1269,22 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     },
     copies: ["Original for consignee", "Duplicate for transporter", "Triplicate for consignor"],
     fileName: (data) => `Delivery-Challan-${data.delivery.request_number}`,
+  }),
+  Object.freeze({
+    key: "sales.challan",
+    moduleKey: "sales",
+    permission: "sales.order.view",
+    label: "Delivery challan",
+    async load(client, session, id) {
+      const challan = await getSalesChallan(client, salesContext(session), id);
+      const company = (await client.query("SELECT name, legal_name, tax_id FROM public.organizations WHERE id = $1", [session.organizationId])).rows[0] ?? {};
+      return { challan, company: { name: company.legal_name || company.name || null, taxId: company.tax_id ?? null } };
+    },
+    async toModel(_client, _session, data) {
+      return salesChallanModel(data);
+    },
+    copies: ["Original for consignee", "Duplicate for transporter", "Triplicate for consignor"],
+    fileName: (data) => `Delivery-Challan-${data.challan.challanNumber}`,
   }),
   Object.freeze({
     key: "sales.invoice",

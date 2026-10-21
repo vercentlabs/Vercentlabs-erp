@@ -44,3 +44,9 @@ export function saveCommissionRule(client: SalesQueryClient, context: SalesConte
 export function setCommissionRuleStatus(client: SalesQueryClient, context: SalesContext, ruleId: string, active: boolean): Promise<any>;
 export function setInvoicedTarget(client: SalesQueryClient, context: SalesContext, input: { userId: string; month: string; target: number }): Promise<any>;
 export function getSalesPerformance(client: SalesQueryClient, context: SalesContext, filters?: { month?: string }): Promise<any>;
+// Delivery challans without Stock (Sales audit).
+export const CHALLAN_PURPOSES: ReadonlyArray<{ code: string; label: string }>;
+export function listSalesChallans(client: SalesQueryClient, context: SalesContext, filters?: { status?: string; search?: string }): Promise<any>;
+export function getSalesChallan(client: SalesQueryClient, context: SalesContext, challanId: string): Promise<any>;
+export function createSalesChallan(client: SalesQueryClient, context: SalesContext, input: Record<string, any>): Promise<any>;
+export function setSalesChallanStatus(client: SalesQueryClient, context: SalesContext, challanId: string, input: { action: "issue" | "cancel"; reason?: string }): Promise<any>;

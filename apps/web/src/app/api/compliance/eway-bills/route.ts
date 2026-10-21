@@ -6,7 +6,7 @@ import { ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
 
 // e-way bills for sales invoices, deliveries, transfers and purchase returns: GET ?sourceType=&sourceId= (the latest), POST to generate.
-const SOURCES = ["sales_delivery", "stock_transfer", "purchase_return", "sales_invoice"] as const;
+const SOURCES = ["sales_delivery", "stock_transfer", "purchase_return", "sales_invoice", "sales_challan"] as const;
 export async function GET(request: Request) {
   return workspaceRoute(request, { action: "compliance.eway_bill.view" }, async ({ client, session }) => {
     const url = new URL(request.url);

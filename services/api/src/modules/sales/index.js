@@ -1317,6 +1317,7 @@ export * from "./pass1-operations.js";
 export * from "./price-lists/index.js";
 export * from "./pricing-rules/index.js";
 export { sendDocumentOnWhatsApp } from "./whatsapp.js";
+export { CHALLAN_PURPOSES, createSalesChallan, getSalesChallan, listSalesChallans, setSalesChallanStatus } from "./challans.js";
 export { getSalesPerformance, listCommissionRules, saveCommissionRule, setCommissionRuleStatus, setInvoicedTarget } from "./performance.js";
 export * from "./after-sales.js";
 export * from "./quotations/index.js";
