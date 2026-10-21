@@ -300,6 +300,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Sales by Item", "/sales/reports?report=sales-by-item"), aliases: ["top products", "product sales"], requiredPermission: "sales.reports.view" },
           { ...available("Waiting for Approval", "/sales/reports?report=pending-approvals"), aliases: ["pending approvals", "approvals"], requiredPermission: "sales.reports.view" },
           { ...available("Expiring Quotations", "/sales/reports?report=expiring-quotations"), aliases: ["quotations about to lapse"], requiredPermission: "sales.reports.view" },
+          { ...available("Salesperson Performance", "/sales/performance"), aliases: ["targets", "achievement", "salesperson report", "margin report", "commission report"] },
         ],
       },
       {
@@ -334,6 +335,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             aliases: ["credit terms", "net 30", "due date"],
           },
           // Teams decide team visibility of customers, quotations and orders; set up here too when CRM is off (Sales audit B10).
+          { ...available("Commission Rules", "/sales/settings/commissions"), aliases: ["commission", "incentive", "salesperson commission"] },
           { ...available("Sales Teams", "/settings/teams"), aliases: ["teams", "sales team", "team members", "team manager"], requiredPermission: "sales.settings.manage" },
         ],
       },

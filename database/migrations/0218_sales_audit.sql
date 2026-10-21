@@ -127,3 +127,7 @@ ALTER TABLE tenant.sales_quotations ADD CONSTRAINT sales_quotations_sent_channel
 -- 9. A new company starts with no discount approval for quotations (it was 10%: approvals on day one surprised new companies). Companies
 --    that already have Sales settings keep theirs.
 ALTER TABLE tenant.sales_settings ALTER COLUMN quotation_approval_discount SET DEFAULT 0;
+
+-- 10. Salesperson targets on invoiced value (should-have): the monthly targets CRM keeps, with a measure for what was billed (company currency).
+ALTER TABLE tenant.crm_sales_targets DROP CONSTRAINT IF EXISTS crm_sales_targets_metric_check;
+ALTER TABLE tenant.crm_sales_targets ADD CONSTRAINT crm_sales_targets_metric_check CHECK (metric IN ('won_value', 'won_count', 'new_leads', 'activities', 'invoiced_value'));

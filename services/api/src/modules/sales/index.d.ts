@@ -38,3 +38,9 @@ export * from "./order-tracking/index.js";
 export * from "./home/index.js";
 export const DISCOUNT_PERMISSIONS: Readonly<Record<"applyLine" | "applyDocument" | "aboveLimit" | "overrideLimit" | "manageSettings", string>>;
 export const DISCOUNT_REASONS: ReadonlyArray<{ code: string; label: string }>;
+// Commission rules, invoiced-value targets and salesperson performance (Sales audit).
+export function listCommissionRules(client: SalesQueryClient, context: SalesContext): Promise<any>;
+export function saveCommissionRule(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, ruleId?: string | null): Promise<any>;
+export function setCommissionRuleStatus(client: SalesQueryClient, context: SalesContext, ruleId: string, active: boolean): Promise<any>;
+export function setInvoicedTarget(client: SalesQueryClient, context: SalesContext, input: { userId: string; month: string; target: number }): Promise<any>;
+export function getSalesPerformance(client: SalesQueryClient, context: SalesContext, filters?: { month?: string }): Promise<any>;
