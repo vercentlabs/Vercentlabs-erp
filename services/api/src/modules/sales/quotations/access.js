@@ -24,7 +24,7 @@ const MY_TEAMS = (me) => `(SELECT team.id FROM tenant.crm_sales_teams team
    WHERE team.organization_id = $1 AND team.status = 'active'
      AND (team.manager_user_id = ${me} OR EXISTS (SELECT 1 FROM tenant.crm_sales_team_members member
            WHERE member.organization_id = team.organization_id AND member.team_id = team.id AND member.user_id = ${me} AND member.status = 'active'
-             AND member.effective_from <= current_date AND (member.effective_to IS NULL OR member.effective_to >= current_date))))`;
+             AND member.effective_from <= tenant.company_today() AND (member.effective_to IS NULL OR member.effective_to >= tenant.company_today()))))`;
 const TEAM_OWNERS = (me) => `(SELECT member.user_id FROM tenant.crm_sales_team_members member
    WHERE member.organization_id = $1 AND member.status = 'active' AND member.team_id IN ${MY_TEAMS(me)})`;
 

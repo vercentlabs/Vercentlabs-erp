@@ -50,7 +50,7 @@ export async function accrueSalesCommission(client, c, input = {}) {
     throw new SalesError(409, "Select a salesperson before accruing commission.", "SALES_COMMISSION_OWNER_REQUIRED");
   const found = input.ruleId
     ? await client.query(`SELECT * FROM tenant.sales_commission_rules WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId,uuid(input.ruleId,"Commission rule")])
-    : await client.query(`SELECT * FROM tenant.sales_commission_rules WHERE organization_id=$1 AND status='active' AND (owner_user_id IS NULL OR owner_user_id=$2) AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY owner_user_id NULLS LAST,created_at DESC LIMIT 1`, [c.organizationId,ownerUserId]);
+    : await client.query(`SELECT * FROM tenant.sales_commission_rules WHERE organization_id=$1 AND status='active' AND (owner_user_id IS NULL OR owner_user_id=$2) AND (valid_from IS NULL OR valid_from<=tenant.company_today()) AND (valid_to IS NULL OR valid_to>=tenant.company_today()) ORDER BY owner_user_id NULLS LAST,created_at DESC LIMIT 1`, [c.organizationId,ownerUserId]);
   const rule = found.rows[0]; if (!rule) throw new SalesError(409, "No active commission rule applies to this order.", "SALES_COMMISSION_RULE_REQUIRED");
   const basisAmount = rule.basis === "gross_margin" ? Number(target.margin_amount) : Number(target.subtotal);
   const commission = Math.round((basisAmount * Number(rule.rate_percent) / 100) * 1e6) / 1e6;

@@ -19,8 +19,8 @@ import {
   applicationStatusOf, creditNoteStatusLabel, creditNoteStatusOf, reasonLabel,
 } from "./constants.js";
 import { stockOn } from "../../../core/products/tracking.js";
+import { companyToday } from "../today.js";
 
-const today = () => new Date().toISOString().slice(0, 10);
 const money = (value) => Math.round(Number(value) * 100) / 100;
 
 // The posted sales invoice a credit note is made against, with its Sales record; locked when asked.
@@ -84,7 +84,7 @@ function readReason(input, { fromReturn, keepsStock = true }) {
   return { code, note };
 }
 
-function readCreditDate(input, invoice, fallback = today()) {
+function readCreditDate(input, invoice, fallback) {
   const creditDate = readDate(input.creditDate, "Credit note date") ?? fallback;
   if (creditDate < dayOf(invoice.invoice_date))
     throw new CreditNoteError(400, `The credit note date cannot be before the invoice date (${dayOf(invoice.invoice_date)}).`, "SALES_CREDIT_NOTE_DATE_INVALID", { field: "creditDate" });
@@ -111,7 +111,7 @@ export async function createCreditNote(client, context, invoiceId, input = {}, o
   if (!FINANCE_POSTED.includes(invoice.status))
     throw new CreditNoteError(409, invoice.status === "reversed" ? "A reversed invoice cannot be credited." : "Only a posted invoice can be credited.", "SALES_INVOICE_NOT_POSTED");
   const reason = readReason(input, { fromReturn: Boolean(options.salesReturn), keepsStock: await stockOn(client, context) });
-  const creditDate = readCreditDate(input, invoice);
+  const creditDate = readCreditDate(input, invoice, await companyToday(client));
   const lines = await creditableLines(client, context.organizationId, invoice.id);
   const chosen = settleCreditLines(lines, (input.lines ?? []).map((entry) => ({ ...entry, invoiceLineId: requireUuid(entry.invoiceLineId, "Invoice line"), salesReturnLineId: options.salesReturn ? entry.salesReturnLineId ?? null : null })));
   if (chosen.some((entry) => entry.type === CREDIT_TYPES.amount)) {

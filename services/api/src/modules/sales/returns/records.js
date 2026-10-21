@@ -16,10 +16,10 @@ import { creditPosition } from "./credit.js";
 import {
   DISPOSITIONS, RETURN_PERMISSIONS, RETURN_REASONS, RETURN_STATUS, RETURN_STATUS_LABELS, RETURN_VIEWS, ReturnError, dispositionOf, reasonLabel,
 } from "./constants.js";
+import { companyToday } from "../today.js";
 
 const EPSILON = 1e-6;
 const round = (value) => Math.round(Number(value) * 1e6) / 1e6;
-const today = () => new Date().toISOString().slice(0, 10);
 
 // Each line of a delivery with what can still come back: delivered less received returns, and what drafts name.
 export async function returnableLines(client, organizationId, deliveryId, exceptReturnId = null) {
@@ -153,8 +153,9 @@ export async function createReturnFromDelivery(client, context, deliveryId, inpu
   const lines = await returnableLines(client, context.organizationId, delivery.id);
   const chosen = settle(lines, input.lines, defaultDisposition);
   const warehouse = await readWarehouse(client, context, input.warehouseId, delivery.warehouse_id);
-  const returnDate = readDate(input.returnDate, "Return date") ?? today();
-  if (returnDate > today()) throw new ReturnError(400, "The return date cannot be in the future.", "SALES_RETURN_VALIDATION", { field: "returnDate" });
+  const now = await companyToday(client);
+  const returnDate = readDate(input.returnDate, "Return date") ?? now;
+  if (returnDate > now) throw new ReturnError(400, "The return date cannot be in the future.", "SALES_RETURN_VALIDATION", { field: "returnDate" });
   const number = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: "sales_return" });
   const created = (await client.query(
     `INSERT INTO tenant.sales_returns (organization_id, return_number, sales_order_id, delivery_id, party_id, customer_snapshot, customer_po_number, return_date, warehouse_id,
@@ -215,8 +216,9 @@ export async function updateDraftReturn(client, context, returnId, input = {}) {
     if (warehouse.id !== salesReturn.warehouse_id) { set("warehouse_id", warehouse.id); changes.push({ what: "Warehouse", to: warehouse.name }); }
   }
   if (has("returnDate")) {
-    const day = readDate(input.returnDate, "Return date") ?? today();
-    if (day > today()) throw new ReturnError(400, "The return date cannot be in the future.", "SALES_RETURN_VALIDATION", { field: "returnDate" });
+    const now = await companyToday(client);
+    const day = readDate(input.returnDate, "Return date") ?? now;
+    if (day > now) throw new ReturnError(400, "The return date cannot be in the future.", "SALES_RETURN_VALIDATION", { field: "returnDate" });
     if (day !== dayOf(salesReturn.return_date)) { set("return_date", day); changes.push({ what: "Return date", from: dayOf(salesReturn.return_date), to: day }); }
   }
   for (const [key, column, label] of [["customerNotes", "customer_notes", "Customer notes"], ["internalNotes", "internal_notes", "Internal notes"]]) {

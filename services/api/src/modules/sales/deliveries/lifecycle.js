@@ -29,6 +29,7 @@ import { recordDeliveryEvent } from "./records.js";
 import { SHIPMENT_FIELDS, readPackageCount, readTrackingUrl } from "./shipment.js";
 import { carryNegativeStock } from "../../stock/negative-stock-control.js";
 import { postCostOfGoodsJournal } from "../../stock/valuation-engine.js";
+import { companyToday } from "../today.js";
 
 const EPSILON = 1e-6;
 const round = (value) => Math.round(Number(value) * 1e6) / 1e6;
@@ -44,10 +45,9 @@ function checkVersion(delivery, input) {
     throw new DeliveryError(409, "Someone else changed this delivery. Reload it and try again.", "SALES_DELIVERY_VERSION_CONFLICT");
 }
 
-function readPastDate(value, label, { notBefore } = {}) {
+function readPastDate(value, label, { notBefore, today } = {}) {
   const day = readDate(value, label);
   if (!day) return null;
-  const today = new Date().toISOString().slice(0, 10);
   if (day > today) throw new DeliveryError(400, `${label} cannot be in the future.`, "SALES_DELIVERY_VALIDATION", { field: label });
   if (notBefore && day < notBefore) throw new DeliveryError(400, `${label} cannot be before ${notBefore}.`, "SALES_DELIVERY_VALIDATION", { field: label });
   return day;
@@ -99,7 +99,8 @@ export async function dispatchDelivery(client, context, deliveryId, input = {}) 
   checkVersion(delivery, input);
   if (order.lifecycle_status !== STATUS.confirmed)
     throw new DeliveryError(409, "Only a confirmed order's delivery can be dispatched.", "SALES_ORDER_NOT_CONFIRMED");
-  const dispatchDate = readPastDate(input.dispatchDate, "Dispatch date", { notBefore: dayOf(order.confirmed_at) }) ?? new Date().toISOString().slice(0, 10);
+  const today = await companyToday(client);
+  const dispatchDate = readPastDate(input.dispatchDate, "Dispatch date", { notBefore: dayOf(order.confirmed_at), today }) ?? today;
   const shipment = {
     carrier: text(input.carrier, 120) ?? delivery.carrier, tracking_number: text(input.trackingNumber, 120) ?? delivery.tracking_number,
     vehicle_reference: text(input.vehicleReference, 120) ?? delivery.vehicle_reference,
@@ -192,12 +193,12 @@ export async function markDeliveryDelivered(client, context, deliveryId, input =
     return { deliveryId: delivery.id, status: DELIVERY_STATUS.delivered, deliveredAt: delivery.delivered_at, replayed: true };
   if (delivery.delivery_status !== DELIVERY_STATUS.dispatched)
     throw new DeliveryError(409, delivery.delivery_status === DELIVERY_STATUS.cancelled ? "A cancelled delivery cannot be delivered." : "Dispatch the delivery first.", "SALES_DELIVERY_NOT_DISPATCHED");
-  const day = readPastDate(input.deliveredAt, "Delivered date", { notBefore: dayOf(delivery.dispatch_date) });
+  const day = readPastDate(input.deliveredAt, "Delivered date", { notBefore: dayOf(delivery.dispatch_date), today: await companyToday(client) });
   const receivedBy = text(input.receivedBy, 160);
   const note = text(input.note, 1000);
   const deliveredAt = (await client.query(
     `UPDATE tenant.sales_fulfillment_requests
-        SET delivery_status = 'delivered', delivered_at = CASE WHEN $3::date IS NULL OR $3::date = current_date THEN now() ELSE $3::date + time '12:00' END,
+        SET delivery_status = 'delivered', delivered_at = CASE WHEN $3::date IS NULL OR $3::date = tenant.company_today() THEN now() ELSE $3::date + time '12:00' END,
             delivered_by = $4, received_by = $5, delivery_note = $6, version = version + 1
       WHERE organization_id = $1 AND id = $2 RETURNING delivered_at`,
     [context.organizationId, delivery.id, day, context.userId ?? null, receivedBy, note])).rows[0].delivered_at;

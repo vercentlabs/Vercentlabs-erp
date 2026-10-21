@@ -32,7 +32,7 @@ async function loadOrder(client, context, orderId) {
     `SELECT sales_order.id, sales_order.sales_order_number, sales_order.lifecycle_status, sales_order.party_id, sales_order.owner_user_id, sales_order.current_version_id,
             sales_order.order_date, sales_order.requested_delivery_date, sales_order.created_at, sales_order.confirmed_at, sales_order.closed_at, sales_order.cancelled_at,
             sales_order.cancel_reason_code, sales_order.cancel_reason, sales_order.closed_manually, sales_order.close_reason, sales_order.source_quotation_id,
-            (sales_order.requested_delivery_date < current_date) AS requested_delivery_overdue, quotation.quotation_number AS source_quotation_number,
+            (sales_order.requested_delivery_date < tenant.company_today()) AS requested_delivery_overdue, quotation.quotation_number AS source_quotation_number,
             version.grand_total, btrim(version.currency_code) AS currency_code, version.customer_snapshot->>'displayName' AS customer_name, version.customer_po_number,
             owner.full_name AS owner_name
        FROM tenant.sales_orders sales_order
@@ -58,7 +58,7 @@ async function relatedDocuments(client, context, order, { canSeeMoney }) {
       WHERE delivery.organization_id = $1 AND delivery.sales_order_id = $2 AND delivery.delivery_status <> 'cancelled' ORDER BY delivery.requested_at`);
   const invoices = await rows(
     `SELECT invoice.id, invoice.invoice_number AS number, invoice.status, invoice.invoice_date, invoice.due_date, invoice.grand_total, invoice.outstanding_amount, invoice.posted_at,
-            (invoice.status IN ('posted', 'partially_paid', 'overdue', 'disputed') AND invoice.outstanding_amount > 0 AND invoice.due_date < current_date) AS overdue,
+            (invoice.status IN ('posted', 'partially_paid', 'overdue', 'disputed') AND invoice.outstanding_amount > 0 AND invoice.due_date < tenant.company_today()) AS overdue,
             sales_invoice.reversed_at, sales_invoice.reversal_reason
        FROM tenant.accounting_customer_invoices invoice
        LEFT JOIN tenant.sales_invoices sales_invoice ON sales_invoice.customer_invoice_id = invoice.id

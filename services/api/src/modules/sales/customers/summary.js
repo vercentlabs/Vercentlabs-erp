@@ -73,12 +73,12 @@ export async function getCustomerOverview(client, context, customerId) {
     const open = `invoice_type <> 'credit_note' AND status IN ${OPEN_INVOICE}`;
     const finance = await one(
       `SELECT COALESCE(sum(outstanding_amount) FILTER (WHERE ${open}), 0) AS outstanding,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND due_date < current_date), 0) AS overdue,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND due_date >= current_date), 0) AS not_due,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND current_date - due_date BETWEEN 1 AND 30), 0) AS days_1_30,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND current_date - due_date BETWEEN 31 AND 60), 0) AS days_31_60,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND current_date - due_date BETWEEN 61 AND 90), 0) AS days_61_90,
-              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND current_date - due_date > 90), 0) AS days_over_90,
+              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND due_date < tenant.company_today()), 0) AS overdue,
+              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND due_date >= tenant.company_today()), 0) AS not_due,
+              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND tenant.company_today() - due_date BETWEEN 1 AND 30), 0) AS days_1_30,
+              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND tenant.company_today() - due_date BETWEEN 31 AND 60), 0) AS days_31_60,
+              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND tenant.company_today() - due_date BETWEEN 61 AND 90), 0) AS days_61_90,
+              COALESCE(sum(outstanding_amount) FILTER (WHERE ${open} AND tenant.company_today() - due_date > 90), 0) AS days_over_90,
               count(*) FILTER (WHERE ${open})::int AS open_invoices
          FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND party_id = $2`);
     const receipts = await one(
@@ -131,7 +131,7 @@ const RELATED = Object.freeze({
     // Each order with where it stands, from the order tracking service: the same summary the order list and the order page show.
     tracking: true,
     sql: `SELECT sales_order.id, sales_order.sales_order_number AS code, sales_order.lifecycle_status AS status, sales_order.lifecycle_status,
-                 (sales_order.requested_delivery_date < current_date) AS requested_delivery_overdue, ${TRACKING_COLUMNS},
+                 (sales_order.requested_delivery_date < tenant.company_today()) AS requested_delivery_overdue, ${TRACKING_COLUMNS},
                  version.grand_total AS amount,
                  version.currency_code, sales_order.order_date AS date
             FROM tenant.sales_orders sales_order

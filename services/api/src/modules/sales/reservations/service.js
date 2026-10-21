@@ -292,7 +292,7 @@ export async function getSalesOrderReservations(client, context, orderId) {
               COALESCE(NULLIF(line.conversion_factor, 0), 1) AS factor, reservation.quantity, reservation.active_quantity, reservation.consumed_quantity, reservation.released_quantity,
               warehouse.name AS warehouse_name, location.code AS location_code, batch.batch_number, reservation.created_at AS reserved_at, reserver.full_name AS reserved_by_name,
               reservation.released_at, releaser.full_name AS released_by_name, reservation.release_reason, reservation.release_reason_code,
-              (current_date - reservation.created_at::date) AS days_held
+              (tenant.company_today() - reservation.created_at::date) AS days_held
          FROM tenant.stock_reservations reservation
          JOIN tenant.sales_order_lines line ON line.organization_id = reservation.organization_id AND line.id = reservation.sales_order_line_id
          JOIN tenant.warehouses warehouse ON warehouse.organization_id = reservation.organization_id AND warehouse.id = reservation.warehouse_id

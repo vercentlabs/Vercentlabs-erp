@@ -23,7 +23,7 @@ const num = (value) => (value === null || value === undefined ? null : Number(va
 const FINANCE_JOIN = `
     LEFT JOIN LATERAL (
       SELECT COALESCE(sum(invoice.outstanding_amount) FILTER (WHERE invoice.invoice_type <> 'credit_note' AND invoice.status IN ${OPEN_INVOICE}), 0) AS outstanding,
-             COALESCE(sum(invoice.outstanding_amount) FILTER (WHERE invoice.invoice_type <> 'credit_note' AND invoice.status IN ${OPEN_INVOICE} AND invoice.due_date < current_date), 0) AS overdue
+             COALESCE(sum(invoice.outstanding_amount) FILTER (WHERE invoice.invoice_type <> 'credit_note' AND invoice.status IN ${OPEN_INVOICE} AND invoice.due_date < tenant.company_today()), 0) AS overdue
         FROM tenant.accounting_customer_invoices invoice
        WHERE invoice.organization_id = customer.organization_id AND invoice.party_id = customer.id) finance ON true`;
 

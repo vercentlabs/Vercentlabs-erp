@@ -157,7 +157,7 @@ export async function exportPrices(client, context, priceListId, { state = "acti
        LEFT JOIN tenant.units_of_measure uom ON uom.organization_id = entry.organization_id AND uom.id = entry.uom_id
       WHERE entry.organization_id = $1 AND entry.price_list_id = $2
         AND ($3 = 'all' OR entry.status = 'active')
-        AND ($3 <> 'current' OR ((entry.valid_from IS NULL OR entry.valid_from <= current_date) AND (entry.valid_to IS NULL OR entry.valid_to >= current_date)))
+        AND ($3 <> 'current' OR ((entry.valid_from IS NULL OR entry.valid_from <= tenant.company_today()) AND (entry.valid_to IS NULL OR entry.valid_to >= tenant.company_today())))
       ORDER BY item.code, uom.code, entry.valid_from NULLS FIRST`,
     [context.organizationId, list.id, ["active", "current", "all"].includes(state) ? state : "active"]);
   const header = [...PRICE_IMPORT_FIELDS.map((field) => field.label), ...(state === "all" ? ["Status"] : [])];

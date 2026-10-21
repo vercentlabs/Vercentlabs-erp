@@ -444,8 +444,8 @@ export async function listDeliveries(client, context, filters = {}) {
     case "delivered": where += status("delivered"); break;
     case "cancelled": where += status("cancelled"); break;
     case "mine": where += ` AND delivery.requested_by = ${bind(context.userId ?? null)}`; break;
-    case "due_today": where += status("draft", "ready", "dispatched") + " AND delivery.expected_delivery_date = current_date"; break;
-    case "overdue": where += status("draft", "ready", "dispatched") + " AND delivery.expected_delivery_date < current_date"; break;
+    case "due_today": where += status("draft", "ready", "dispatched") + " AND delivery.expected_delivery_date = tenant.company_today()"; break;
+    case "overdue": where += status("draft", "ready", "dispatched") + " AND delivery.expected_delivery_date < tenant.company_today()"; break;
     default: break;
   }
   if (Object.values(DELIVERY_STATUS).includes(filters.status)) where += ` AND delivery.delivery_status = ${bind(filters.status)}`;

@@ -47,4 +47,5 @@ export function optionalDate(value, field, label) {
     throw new PriceListError(400, `${label} must be a date.`, "SALES_PRICE_LIST_VALIDATION", { issues: [{ field, message: `Enter ${label.toLowerCase()} as a date.` }] });
   return date;
 }
-export const today = () => new Date().toISOString().slice(0, 10);
+// The date in India (a display state, no database at hand); documents use the company's day (../today.js).
+export const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());

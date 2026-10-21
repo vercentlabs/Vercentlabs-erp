@@ -20,6 +20,7 @@ import { PriceListError } from "./price-lists/constants.js";
 import { salesOrderTrackingReport } from "./order-tracking/summary.js";
 import { resolveSalesPrice, resolveSalesPriceList } from "./price-lists/resolver.js";
 import { allocateDocumentDiscount, checkDiscountRules, discountOptions, readDocumentDiscount } from "./discounts.js";
+import { companyToday } from "./today.js";
 
 export class SalesError extends Error {
   constructor(status, message, code = "SALES_ERROR") {
@@ -281,7 +282,7 @@ async function loadDocumentContext(client, context, input, options = {}) {
   if (currencyCode === baseCurrencyCode) exchangeRate = decimal(1);
   else if (exchangeRate <= 0n || input.exchangeRate == null) {
     const rate = await client.query(
-      `SELECT rate FROM tenant.exchange_rates WHERE organization_id=$1 AND from_currency_code=$2 AND to_currency_code=$3 AND rate_date<=current_date AND status='active' ORDER BY rate_date DESC LIMIT 1`,
+      `SELECT rate FROM tenant.exchange_rates WHERE organization_id=$1 AND from_currency_code=$2 AND to_currency_code=$3 AND rate_date<=tenant.company_today() AND status='active' ORDER BY rate_date DESC LIMIT 1`,
       [context.organizationId, currencyCode, baseCurrencyCode],
     );
     if (!rate.rows[0])
@@ -293,7 +294,7 @@ async function loadDocumentContext(client, context, input, options = {}) {
   }
 
   // The document date decides which prices apply: an order's date, else today.
-  const documentDate = date(input.quotationDate, "Quotation date") ?? date(input.orderDate, "Order date") ?? new Date().toISOString().slice(0, 10);
+  const documentDate = date(input.quotationDate, "Quotation date") ?? date(input.orderDate, "Order date") ?? (await companyToday(client));
   let priceList;
   try {
     priceList = await resolveSalesPriceList(client, context, { priceListId: input.priceListId || null, partyId, currencyCode, documentDate });
@@ -425,7 +426,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   }
   const appliedRules = [];
   const rules = await client.query(
-    `SELECT id,code,adjustment_type,adjustment_value FROM tenant.sales_pricing_rules WHERE organization_id=$1 AND status='active' AND (party_id IS NULL OR party_id=$2) AND (party_type IS NULL OR party_type=$3 OR party_type='both') AND (item_id IS NULL OR item_id=$4) AND (item_group_id IS NULL OR item_group_id=(SELECT group_id FROM tenant.items WHERE id=$4)) AND (price_list_id IS NULL OR price_list_id=$5) AND minimum_quantity<=$6 AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY priority,id`,
+    `SELECT id,code,adjustment_type,adjustment_value FROM tenant.sales_pricing_rules WHERE organization_id=$1 AND status='active' AND (party_id IS NULL OR party_id=$2) AND (party_type IS NULL OR party_type=$3 OR party_type='both') AND (item_id IS NULL OR item_id=$4) AND (item_group_id IS NULL OR item_group_id=(SELECT group_id FROM tenant.items WHERE id=$4)) AND (price_list_id IS NULL OR price_list_id=$5) AND minimum_quantity<=$6 AND (valid_from IS NULL OR valid_from<=tenant.company_today()) AND (valid_to IS NULL OR valid_to>=tenant.company_today()) ORDER BY priority,id`,
     [
       context.organizationId,
       master.partyId,
@@ -898,7 +899,7 @@ export async function resolveApprover(client, context, assignedTo) {
   const delegation = (
     await client.query(
       `SELECT delegate_user_id FROM tenant.sales_approval_delegations
-        WHERE organization_id=$1 AND delegator_user_id=$2 AND status='active' AND starts_on<=current_date AND ends_on>=current_date
+        WHERE organization_id=$1 AND delegator_user_id=$2 AND status='active' AND starts_on<=tenant.company_today() AND ends_on>=tenant.company_today()
         ORDER BY created_at DESC LIMIT 1`,
       [context.organizationId, assignedTo],
     )
@@ -964,14 +965,14 @@ export async function getSalesReport(client, context, key) {
   const POSTED_INVOICE = `invoice.organization_id=$1 AND invoice.status IN ('posted','partially_paid','paid','overdue','disputed') AND invoice.invoice_type IN ('invoice','credit_note')`;
   const SIGN = `CASE WHEN invoice.invoice_type='credit_note' THEN -1 ELSE 1 END`;
   const queries = {
-    "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('approved','sent') AND quotation.valid_until>=current_date AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,
+    "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('approved','sent') AND quotation.valid_until>=tenant.company_today() AND quotation.valid_until<=tenant.company_today()+30 ORDER BY quotation.valid_until`,
     "pending-approvals": `SELECT id,quotation_number,lifecycle_status,approval_status,updated_at FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending' ORDER BY updated_at`,
     // Open demand per order, from the deliveries and cancellations themselves: what is left to deliver and whether it is late.
     fulfillment: `SELECT orders.id AS sales_order_id,orders.sales_order_number,version.customer_snapshot->>'displayName' AS customer,orders.requested_delivery_date,
         sum(line.quantity) AS ordered,sum(delivered.quantity) AS delivered,sum(progress.cancelled_quantity) AS cancelled,
         sum(GREATEST(line.quantity-progress.cancelled_quantity-delivered.quantity,0)) AS remaining,
         CASE WHEN sum(delivered.quantity)=0 THEN 'Not delivered' ELSE 'Partially delivered' END AS fulfillment,
-        CASE WHEN orders.requested_delivery_date<current_date THEN 'Overdue' ELSE '' END AS overdue
+        CASE WHEN orders.requested_delivery_date<tenant.company_today() THEN 'Overdue' ELSE '' END AS overdue
       FROM tenant.sales_orders orders
       JOIN tenant.sales_order_versions version ON version.id=orders.current_version_id
       JOIN tenant.sales_order_lines line ON line.sales_order_version_id=version.id
@@ -1107,7 +1108,7 @@ export async function getSalesOptions(
       [context.organizationId],
     ),
     client.query(
-      `SELECT id,code,name,currency_code,tax_inclusive,is_default FROM tenant.price_lists WHERE organization_id=$1 AND price_list_type='sales' AND status='active' AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY is_default DESC,name`,
+      `SELECT id,code,name,currency_code,tax_inclusive,is_default FROM tenant.price_lists WHERE organization_id=$1 AND price_list_type='sales' AND status='active' AND (valid_from IS NULL OR valid_from<=tenant.company_today()) AND (valid_to IS NULL OR valid_to>=tenant.company_today()) ORDER BY is_default DESC,name`,
       [context.organizationId],
     ),
     listSalesTermOptions(client, context.organizationId).then((rows) => ({ rows })),

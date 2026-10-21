@@ -30,12 +30,13 @@ import {
 } from "../order-tracking/summary.js";
 import { insertOrderVersion, lockOrder, readDate, recordOrderEvent } from "./versions.js";
 import { stockOn } from "../../../core/products/tracking.js";
+import { companyToday } from "../today.js";
 
 // One connection runs one query at a time.
 const inOrder = async (queries) => { const results = []; for (const query of queries) results.push(await query()); return results; };
 
 export async function databaseToday(client) {
-  return (await client.query(`SELECT current_date::text AS today`)).rows[0].today;
+  return companyToday(client);
 }
 
 // Errors from the pricing core keep their status and code.
@@ -117,7 +118,7 @@ export async function insertOrder(client, context, document, preview, source = {
   const order = (await client.query(
     `INSERT INTO tenant.sales_orders (organization_id, sales_order_number, source_quotation_id, source_quotation_version_id, source_opportunity_id, party_id, contact_id, owner_user_id,
         order_date, requested_delivery_date, billing_status, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::date, current_date), $10, 'not_billable', $11, $11) RETURNING *`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::date, tenant.company_today()), $10, 'not_billable', $11, $11) RETURNING *`,
     [context.organizationId, number, source.quotationId ?? null, source.quotationVersionId ?? null, document.opportunityId || source.opportunityId || null, preview.master.partyId,
       preview.master.contact?.id ?? null, preview.master.ownerUserId, document.orderDate ?? null, document.requestedDeliveryDate ?? null, context.userId ?? null])).rows[0];
   const version = await insertOrderVersion(client, context, order.id, document, preview);
@@ -330,7 +331,7 @@ export async function getSalesOrder(client, context, orderId) {
             price_list.name AS price_list_name, price_list.tax_inclusive AS price_list_tax_inclusive, warehouse.name AS default_warehouse_name,
             owner.full_name AS owner_name, creator.full_name AS created_by_name, confirmer.full_name AS confirmed_by_name, canceller.full_name AS cancelled_by_name,
             party.customer_number, party.status AS customer_status, party.sales_block, party.sales_block_reason,
-            (sales_order.requested_delivery_date < current_date) AS requested_delivery_overdue
+            (sales_order.requested_delivery_date < tenant.company_today()) AS requested_delivery_overdue
        FROM tenant.sales_orders sales_order
        JOIN tenant.sales_order_versions version ON version.organization_id = sales_order.organization_id AND version.id = sales_order.current_version_id
        LEFT JOIN tenant.sales_quotations quotation ON quotation.organization_id = sales_order.organization_id AND quotation.id = sales_order.source_quotation_id
@@ -631,7 +632,7 @@ export async function listSalesOrders(client, context, filters = {}) {
               version.version_number, version.currency_code, version.grand_total, version.customer_po_number, version.margin_percent,
               version.customer_snapshot->>'displayName' AS customer_name, party.customer_number, quotation.quotation_number AS source_quotation_number, owner.full_name AS owner_name,
               confirmation.id AS confirmation_id, confirmation.version AS confirmation_revision, confirmation.sent_at AS confirmation_last_sent_at,
-              confirmation.acknowledged_at AS confirmation_acknowledged_at, (sales_order.requested_delivery_date < current_date) AS requested_delivery_overdue,
+              confirmation.acknowledged_at AS confirmation_acknowledged_at, (sales_order.requested_delivery_date < tenant.company_today()) AS requested_delivery_overdue,
               sales_order.closed_manually, ${TRACKING_COLUMNS}
          ${from}${where}
         ORDER BY ${sort} ${direction} NULLS LAST, sales_order.sales_order_number DESC

@@ -21,6 +21,7 @@ import {
 } from "./constants.js";
 import { stockOn } from "../../../core/products/tracking.js";
 import { chargeInvoiceLines, chargesToBill } from "./charges.js";
+import { companyToday } from "../today.js";
 
 // Other modules that keep records billed on an invoice (Projects' time billing) hear of each invoice event in the same transaction, so the
 // invoice and their records never disagree; a listener may refuse the change by throwing.
@@ -74,7 +75,6 @@ export async function getInvoiceProposal(client, context, orderId) {
   };
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
 
 // Checks the requested quantities against what each line can take.
 function settle(lines, requested, { basis, delivery }) {
@@ -153,7 +153,7 @@ export async function createInvoiceFromSalesOrder(client, context, orderId, inpu
   const chosen = settled.map((entry) => ({ ...entry, deliveryLineId: delivery?.lines.get(entry.line.lineId)?.deliveryLineId }));
   const source = await orderSource(client, context.organizationId, order.current_version_id);
   const version = source.version;
-  const invoiceDate = readDate(input.invoiceDate, "Invoice date") ?? today();
+  const invoiceDate = readDate(input.invoiceDate, "Invoice date") ?? await companyToday(client);
   const taxOf = await taxEngineFor(client, context, { ...version, invoice_date: invoiceDate });
   const built = [...await buildInvoiceLines(client, context, source, chosen, taxOf), ...chargeInvoiceLines(pendingCharges)];
   const postingDate = readDate(input.postingDate, "Posting date");
@@ -601,7 +601,7 @@ export async function listSalesInvoices(client, context, filters = {}) {
   const values = [context.organizationId];
   const bind = (value) => { values.push(value); return `$${values.length}`; };
   let where = invoiceScopeSql(context, values, "sales_order");
-  const overdueSql = `(${POSTED_SQL} AND invoice.due_date < current_date AND invoice.grand_total - ${PAID_SQL} > 0.005)`;
+  const overdueSql = `(${POSTED_SQL} AND invoice.due_date < tenant.company_today() AND invoice.grand_total - ${PAID_SQL} > 0.005)`;
   const view = (key) => {
     switch (key) {
       case "draft": return ` AND invoice.status IN ('draft','pending_approval','approved')`;
@@ -612,8 +612,8 @@ export async function listSalesInvoices(client, context, filters = {}) {
       case "paid": return ` AND ${POSTED_SQL} AND ${PAID_SQL} >= invoice.grand_total - 0.005`;
       case "overdue": return ` AND ${overdueSql}`;
       // Derived from each invoice's due date: still owing, and falling due today / within the next seven days.
-      case "due_today": return ` AND ${POSTED_SQL} AND invoice.due_date = current_date AND invoice.grand_total - ${PAID_SQL} > 0.005`;
-      case "due_this_week": return ` AND ${POSTED_SQL} AND invoice.due_date BETWEEN current_date AND current_date + 6 AND invoice.grand_total - ${PAID_SQL} > 0.005`;
+      case "due_today": return ` AND ${POSTED_SQL} AND invoice.due_date = tenant.company_today() AND invoice.grand_total - ${PAID_SQL} > 0.005`;
+      case "due_this_week": return ` AND ${POSTED_SQL} AND invoice.due_date BETWEEN tenant.company_today() AND tenant.company_today() + 6 AND invoice.grand_total - ${PAID_SQL} > 0.005`;
       case "reversed": return ` AND invoice.status IN ('reversed','cancelled')`;
       case "mine": return ` AND (sales_invoice.owner_user_id = ${bind(context.userId ?? null)} OR sales_invoice.created_by = ${bind(context.userId ?? null)})`;
       default: return "";
@@ -658,7 +658,7 @@ export async function listSalesInvoices(client, context, filters = {}) {
   const rows = (await client.query(
     `SELECT invoice.id, invoice.invoice_number, invoice.status AS finance_status, invoice.invoice_date, invoice.due_date, invoice.grand_total, btrim(invoice.currency_code) AS currency_code,
             invoice.party_id, sales_invoice.customer_snapshot->>'displayName' AS customer_name, party.customer_number, sales_invoice.sales_order_id, sales_order.sales_order_number,
-            owner.full_name AS owner_name, sales_invoice.sent_at, invoice.payment_term_snapshot->>'name' AS payment_term_name, ${PAID_SQL} AS paid, (invoice.due_date < current_date) AS past_due,
+            owner.full_name AS owner_name, sales_invoice.sent_at, invoice.payment_term_snapshot->>'name' AS payment_term_name, ${PAID_SQL} AS paid, (invoice.due_date < tenant.company_today()) AS past_due,
             (SELECT COALESCE(sum(credit.grand_total), 0) FROM tenant.accounting_customer_invoices credit
               WHERE credit.source_invoice_id = invoice.id AND credit.invoice_type = 'credit_note' AND credit.status IN ('${FINANCE_POSTED.join("','")}')) AS credited_total
        ${from}${where}
@@ -720,7 +720,7 @@ export async function salesInvoiceBalance(client, context) {
   const row = (await client.query(
     `SELECT count(*) FILTER (WHERE due.balance > 0.005)::int AS invoices,
             COALESCE(sum(due.balance * invoice.exchange_rate) FILTER (WHERE due.balance > 0.005), 0) AS outstanding,
-            COALESCE(sum(due.balance * invoice.exchange_rate) FILTER (WHERE due.balance > 0.005 AND invoice.due_date < current_date), 0) AS overdue
+            COALESCE(sum(due.balance * invoice.exchange_rate) FILTER (WHERE due.balance > 0.005 AND invoice.due_date < tenant.company_today()), 0) AS overdue
        FROM tenant.sales_invoices sales_invoice
        JOIN tenant.accounting_customer_invoices invoice ON invoice.organization_id = sales_invoice.organization_id AND invoice.id = sales_invoice.customer_invoice_id
        JOIN tenant.sales_orders sales_order ON sales_order.organization_id = sales_invoice.organization_id AND sales_order.id = sales_invoice.sales_order_id

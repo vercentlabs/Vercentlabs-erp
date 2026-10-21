@@ -59,7 +59,7 @@ export const financeJoin = (alias) => `
     SELECT COALESCE(sum(invoice.grand_total) FILTER (WHERE invoice.invoice_type = 'invoice'), 0) AS invoiced,
            COALESCE(sum(invoice.grand_total) FILTER (WHERE invoice.invoice_type = 'credit_note'), 0) AS credits,
            COALESCE(sum(invoice.outstanding_amount) FILTER (WHERE invoice.invoice_type = 'invoice'), 0) AS balance_due,
-           COALESCE(sum(invoice.outstanding_amount) FILTER (WHERE invoice.invoice_type = 'invoice' AND invoice.due_date < current_date), 0) AS overdue_balance,
+           COALESCE(sum(invoice.outstanding_amount) FILTER (WHERE invoice.invoice_type = 'invoice' AND invoice.due_date < tenant.company_today()), 0) AS overdue_balance,
            COALESCE(sum((SELECT sum(allocation.allocated_amount) FROM tenant.accounting_customer_receipt_allocations allocation
                           WHERE allocation.organization_id = invoice.organization_id AND allocation.customer_invoice_id = invoice.id)) FILTER (WHERE invoice.invoice_type = 'invoice'), 0) AS paid,
            COALESCE(sum(invoice.outstanding_amount) FILTER (WHERE invoice.invoice_type = 'credit_note' AND invoice.status IN ('posted', 'partially_paid')), 0) AS customer_credit,
@@ -76,7 +76,7 @@ export const trackingConditions = (alias) => ({
   partiallyReserved: `(${CONFIRMED(alias)} AND quantities.open_lines > 0 AND quantities.reserved_lines > 0 AND quantities.full_lines < quantities.open_lines)`,
   fullyReserved: `(${CONFIRMED(alias)} AND quantities.open_lines > 0 AND quantities.full_lines >= quantities.open_lines)`,
   reservationNotRequired: `(NOT ${CONFIRMED(alias)} OR quantities.open_lines = 0)`,
-  deliveryOverdue: `(${CONFIRMED(alias)} AND quantities.goods_remaining > 0.000001 AND ${alias}.requested_delivery_date < current_date)`,
+  deliveryOverdue: `(${CONFIRMED(alias)} AND quantities.goods_remaining > 0.000001 AND ${alias}.requested_delivery_date < tenant.company_today())`,
   readyToInvoice: `(${CONFIRMED(alias)} AND quantities.invoiceable_now > 0.000001)`,
   readyToClose: `(${CONFIRMED(alias)} AND quantities.goods_remaining <= 0.000001 AND quantities.uninvoiced_lines = 0)`,
   hasBalance: `(finance.balance_due > 0.005)`,
@@ -167,7 +167,7 @@ export function summaryLine(summary, { canSeeMoney = true } = {}) {
 export async function salesOrderTrackingReport(client, organizationId, { canSeeMoney = true } = {}) {
   const rows = (await client.query(
     `SELECT sales_order.id AS sales_order_id, sales_order.sales_order_number, version.customer_snapshot->>'displayName' AS customer, sales_order.lifecycle_status,
-            sales_order.requested_delivery_date, (sales_order.requested_delivery_date < current_date) AS requested_delivery_overdue, ${TRACKING_COLUMNS}
+            sales_order.requested_delivery_date, (sales_order.requested_delivery_date < tenant.company_today()) AS requested_delivery_overdue, ${TRACKING_COLUMNS}
        ${ORDERS_FROM("$2")}
       WHERE sales_order.organization_id = $1 AND sales_order.lifecycle_status IN ('confirmed', 'closed')
       ORDER BY (sales_order.lifecycle_status = 'confirmed') DESC, sales_order.sales_order_number DESC LIMIT 500`, [organizationId, await invoicingBasisSetting(client, organizationId)])).rows;

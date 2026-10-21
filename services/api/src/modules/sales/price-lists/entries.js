@@ -66,9 +66,9 @@ export async function listPriceListEntries(client, context, priceListId, filters
   const state = text(filters.state) || "active";
   if (state === "inactive") where.push("entry.status = 'inactive'");
   else if (state !== "all") where.push("entry.status = 'active'");
-  if (state === "current") where.push("(entry.valid_from IS NULL OR entry.valid_from <= current_date) AND (entry.valid_to IS NULL OR entry.valid_to >= current_date)");
-  if (state === "future") where.push("entry.valid_from > current_date");
-  if (state === "expired") where.push("entry.valid_to < current_date");
+  if (state === "current") where.push("(entry.valid_from IS NULL OR entry.valid_from <= tenant.company_today()) AND (entry.valid_to IS NULL OR entry.valid_to >= tenant.company_today())");
+  if (state === "future") where.push("entry.valid_from > tenant.company_today()");
+  if (state === "expired") where.push("entry.valid_to < tenant.company_today()");
   const limit = Math.min(Math.max(Number(filters.limit) || 100, 1), 500);
   const offset = Math.max(Number(filters.offset) || 0, 0);
   const { rows } = await client.query(
@@ -181,7 +181,7 @@ export async function updatePrice(client, context, priceListId, entryId, input =
 
 // Ends a price on a date (by default yesterday, so today it no longer applies).
 export async function expirePrice(client, context, priceListId, entryId, input = {}) {
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const yesterday = new Date(Date.parse(`${today()}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
   const endsOn = optionalDate(input.validTo, "validTo", "End date") ?? yesterday;
   const current = toEntry(await loadEntry(client, context, requireUuid(priceListId, "Price list"), entryId));
   if (current.validFrom && endsOn < current.validFrom) throw issue("validTo", "A price cannot end before it starts. Remove it instead.");

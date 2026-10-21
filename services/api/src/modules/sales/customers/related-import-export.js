@@ -214,7 +214,7 @@ export async function exportCustomerRelated(client, context, kind, filters = {})
     LEFT JOIN LATERAL (SELECT a.city, a.state, a.country_code FROM tenant.addresses a WHERE a.organization_id = customer.organization_id AND a.party_id = customer.id AND a.status = 'active'
                         ORDER BY a.is_default_billing DESC, a.created_at LIMIT 1) billing ON true
     ${finance ? `LEFT JOIN LATERAL (SELECT COALESCE(sum(i.outstanding_amount) FILTER (WHERE i.invoice_type <> 'credit_note' AND i.status IN ('posted', 'partially_paid', 'overdue', 'disputed')), 0) AS outstanding,
-                               COALESCE(sum(i.outstanding_amount) FILTER (WHERE i.invoice_type <> 'credit_note' AND i.status IN ('posted', 'partially_paid', 'overdue', 'disputed') AND i.due_date < current_date), 0) AS overdue
+                               COALESCE(sum(i.outstanding_amount) FILTER (WHERE i.invoice_type <> 'credit_note' AND i.status IN ('posted', 'partially_paid', 'overdue', 'disputed') AND i.due_date < tenant.company_today()), 0) AS overdue
                           FROM tenant.accounting_customer_invoices i WHERE i.organization_id = customer.organization_id AND i.party_id = customer.id) finance ON true` : ""}`;
   const customers = `SELECT customer.id, COALESCE(customer.customer_number, customer.code) AS number, customer.display_name ${from} ${sql}`;
   const bool = (value) => (value ? "Yes" : "No");

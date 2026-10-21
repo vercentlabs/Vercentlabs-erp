@@ -262,7 +262,7 @@ export async function copyPriceList(client, context, priceListId, input = {}) {
   const { rowCount } = await client.query(
     `INSERT INTO tenant.price_list_items (organization_id, price_list_id, item_id, uom_id, minimum_quantity, rate, valid_from, valid_to, status, created_by, updated_by)
      SELECT organization_id, $3, item_id, uom_id, 1, rate, valid_from, valid_to, 'active', $4, $4
-       FROM tenant.price_list_items WHERE organization_id = $1 AND price_list_id = $2 AND status = 'active' AND (valid_to IS NULL OR valid_to >= current_date)`,
+       FROM tenant.price_list_items WHERE organization_id = $1 AND price_list_id = $2 AND status = 'active' AND (valid_to IS NULL OR valid_to >= tenant.company_today())`,
     [context.organizationId, source.id, copy.id, context.userId ?? null],
   );
   await recordPriceListHistory(client, context, copy.id, "copied", `${rowCount} prices copied from ${source.name}`, { changes: { sourceId: source.id, prices: rowCount } });

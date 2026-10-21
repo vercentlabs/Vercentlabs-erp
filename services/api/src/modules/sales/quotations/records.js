@@ -15,13 +15,14 @@ import {
 } from "./constants.js";
 import { discountChanges } from "../discounts.js";
 import { discountSnapshot, inputFromQuotation, insertQuotationVersion, lockQuotation, recordQuotationEvent } from "./versions.js";
+import { companyToday } from "../today.js";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 // One connection runs one query at a time.
 const inOrder = async (queries) => { const results = []; for (const query of queries) results.push(await query()); return results; };
 
 export async function databaseToday(client) {
-  return (await client.query(`SELECT current_date::text AS today`)).rows[0].today;
+  return companyToday(client);
 }
 function addDays(day, days) {
   const value = new Date(`${day}T00:00:00Z`);

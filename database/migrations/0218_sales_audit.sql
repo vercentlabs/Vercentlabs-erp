@@ -48,3 +48,11 @@ BEGIN
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON tenant.%I TO vercent_app, vercent_worker', name);
   END LOOP;
 END $$;
+
+-- 2. The company's day (B2): today in the organization's time zone, for every document date default and check (current_date is the server's,
+--    UTC: between 00:00 and 05:30 IST it is still yesterday).
+CREATE OR REPLACE FUNCTION tenant.company_today() RETURNS date
+LANGUAGE sql STABLE SET search_path = pg_catalog, public, tenant AS $$
+  SELECT (now() AT TIME ZONE COALESCE((SELECT organization.timezone FROM public.organizations organization WHERE organization.id = tenant.current_organization_id()), 'Asia/Kolkata'))::date
+$$;
+GRANT EXECUTE ON FUNCTION tenant.company_today() TO vercent_app, vercent_worker;
