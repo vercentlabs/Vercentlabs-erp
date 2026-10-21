@@ -67,6 +67,7 @@ export * from "./gst/index.js";
 export * from "./holidays/index.js";
 export * from "./access-levels/index.js";
 export * from "./mailings/index.js";
+export * from "./whatsapp-broadcasts/index.js";
 export * from "./chat/index.js";
 // The leads switch, past-history import and moving in from other tools (CRM plan 5.7).
 export { convertArrivingLead, leadsEnabled, setLeadsEnabled } from "./leads/switch.js";

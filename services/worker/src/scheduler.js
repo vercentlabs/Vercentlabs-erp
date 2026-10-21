@@ -14,13 +14,14 @@ import { JOB_TYPE as LEAD_CONNECTORS_POLL_JOB_TYPE } from "./handlers/crm-lead-c
 import { JOB_TYPE as LEAD_RESPONSE_WATCH_JOB_TYPE } from "./handlers/crm-lead-response-watch.js";
 import { JOB_TYPE as CALENDAR_SYNC_JOB_TYPE } from "./handlers/crm-calendar-sync.js";
 import { JOB_TYPE as MAILINGS_SEND_JOB_TYPE } from "./handlers/crm-mailings-send.js";
+import { JOB_TYPE as BROADCASTS_SEND_JOB_TYPE } from "./handlers/crm-whatsapp-broadcasts-send.js";
 import { JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE } from "./handlers/sales-quotation-expiry.js";
 import { JOB_TYPE as EXCHANGE_RATE_FEED_JOB_TYPE } from "./handlers/platform-exchange-rate-feed.js";
 import { exchangeRateFeedConfigured } from "@vercentlabs/api";
 import { JOB_TYPE as WORKFLOW_TIME_TRIGGERS_JOB_TYPE } from "./handlers/platform-workflow-time-triggers.js";
 import { JOB_TYPE as NOTIFICATION_DIGEST_JOB_TYPE } from "./handlers/platform-notification-digest.js";
 import { JOB_TYPE as RECORD_ACTIVITY_REMINDER_JOB_TYPE } from "./handlers/platform-record-activity-reminders.js";
-import { hasCalendarConnections, hasDueMailings, listDueLeadConnectors } from "@vercentlabs/api/crm";
+import { hasCalendarConnections, hasDueBroadcasts, hasDueMailings, listDueLeadConnectors } from "@vercentlabs/api/crm";
 
 const logger = createLogger("worker-scheduler");
 
@@ -36,6 +37,7 @@ export const SCHEDULED_JOBS = Object.freeze([
   // Response times, overdue escalation and the assignment re-run (each notice once, by its stamp).
   { name: "lead response watch", module: "crm", every: "tick", jobType: LEAD_RESPONSE_WATCH_JOB_TYPE, key: "crm-lead-response-watch", maxAttempts: 3 },
   { name: "campaign emails", module: "crm", every: "tick", jobType: MAILINGS_SEND_JOB_TYPE, key: "crm-mailings-send", maxAttempts: 2, when: hasDueMailings },
+  { name: "WhatsApp broadcasts", module: "crm", every: "tick", jobType: BROADCASTS_SEND_JOB_TYPE, key: "crm-whatsapp-broadcasts-send", maxAttempts: 2, when: hasDueBroadcasts },
   { name: "calendar sync", module: "crm", every: "tick", jobType: CALENDAR_SYNC_JOB_TYPE, key: "crm-calendar-sync", maxAttempts: 2, when: hasCalendarConnections },
   { name: "lead connectors", module: "crm", every: "tick", jobType: LEAD_CONNECTORS_POLL_JOB_TYPE, key: "crm-lead-connectors-poll", maxAttempts: 2,
     when: async (client, organizationId) => (await listDueLeadConnectors(client, organizationId)).length > 0 },

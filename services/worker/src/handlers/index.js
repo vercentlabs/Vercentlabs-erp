@@ -3,6 +3,7 @@ import { internalJobBackoff } from "../backoff.js";
 import { dispatchFollowUpRemindersHandler, JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, payloadSchema as followUpReminderDispatchPayloadSchema } from "./crm-follow-up-reminder-dispatch.js";
 import { calendarSyncHandler, JOB_TYPE as CALENDAR_SYNC_JOB_TYPE, payloadSchema as calendarSyncPayloadSchema } from "./crm-calendar-sync.js";
 import { mailingsSendHandler, JOB_TYPE as MAILINGS_SEND_JOB_TYPE, payloadSchema as mailingsSendPayloadSchema } from "./crm-mailings-send.js";
+import { whatsAppBroadcastsSendHandler, JOB_TYPE as BROADCASTS_SEND_JOB_TYPE, payloadSchema as broadcastsSendPayloadSchema } from "./crm-whatsapp-broadcasts-send.js";
 import { leadResponseWatchHandler, JOB_TYPE as LEAD_RESPONSE_WATCH_JOB_TYPE, payloadSchema as leadResponseWatchPayloadSchema } from "./crm-lead-response-watch.js";
 import { pollLeadConnectorsHandler, JOB_TYPE as LEAD_CONNECTORS_POLL_JOB_TYPE, payloadSchema as leadConnectorsPollPayloadSchema } from "./crm-lead-connectors-poll.js";
 import { crmDataJobHandler, JOB_TYPE as CRM_DATA_JOB_TYPE, payloadSchema as crmDataJobPayloadSchema } from "./crm-data-job.js";
@@ -59,6 +60,13 @@ export function registerBuiltinHandlers() {
     handler: mailingsSendHandler,
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // each recipient is claimed and marked in one transaction; a sent one is never queued again
+    maxAttempts: 2,
+  });
+  registerJobHandler(BROADCASTS_SEND_JOB_TYPE, {
+    schema: broadcastsSendPayloadSchema,
+    handler: whatsAppBroadcastsSendHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // as campaign emails: claimed and marked in one transaction
     maxAttempts: 2,
   });
   registerJobHandler(CALENDAR_SYNC_JOB_TYPE, {

@@ -127,13 +127,14 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         ],
       },
       {
-        // Reaching many customers at once: campaign emails, campaigns (with their ROI) and tags.
+        // Reaching many customers at once: campaign emails, WhatsApp broadcasts, campaigns (with their ROI) and tags.
         id: "marketing",
         label: "Marketing",
         icon: Megaphone,
         collapsible: true,
         items: [
           { ...available("Campaign emails", "/crm/mailings"), aliases: ["newsletter", "mass email", "email marketing", "bulk email", "festival greetings"], requiredPermission: "crm.settings.manage" },
+          { ...available("WhatsApp broadcasts", "/crm/whatsapp-broadcasts"), aliases: ["whatsapp campaign", "bulk whatsapp", "whatsapp marketing", "broadcast", "festival offers"], requiredPermission: "crm.settings.manage" },
           { ...available("Campaigns", "/crm/settings/campaigns"), aliases: ["campaign roi", "utm", "marketing campaigns"], requiredPermission: "crm.settings.manage" },
           { ...available("Tags", "/crm/settings/tags"), aliases: ["labels", "segments"], requiredPermission: "crm.settings.manage" },
         ],

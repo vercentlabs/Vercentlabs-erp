@@ -135,3 +135,58 @@ INSERT INTO public.schema_migrations (filename, checksum) VALUES ('0217_crm_audi
 -- 5. PIN code and district on leads (M8): Indian sales teams split territory by PIN and district.
 ALTER TABLE tenant.crm_leads ADD COLUMN IF NOT EXISTS postal_code text CHECK (postal_code IS NULL OR char_length(postal_code) <= 12);
 ALTER TABLE tenant.crm_leads ADD COLUMN IF NOT EXISTS district text CHECK (district IS NULL OR char_length(district) <= 80);
+
+-- 6. WhatsApp broadcasts (M2): one approved template to many leads or contacts through the connected WhatsApp Business number.
+--    Only people who agreed to WhatsApp, have a mobile, did not refuse it and are not on the opt-out list receive it; one message per
+--    number. The worker sends in batches; each message sent is a crm_whatsapp_messages row, so the delivery and read receipts that
+--    come back to the webhook give the broadcast's figures. A reply of STOP puts the number on the opt-out list.
+CREATE TABLE IF NOT EXISTS tenant.crm_whatsapp_broadcasts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  name text NOT NULL CHECK (btrim(name) <> '' AND char_length(name) <= 120),
+  audience text NOT NULL CHECK (audience IN ('leads', 'contacts')),
+  audience_filters jsonb NOT NULL DEFAULT '{}'::jsonb,
+  template_name text NOT NULL CHECK (char_length(template_name) <= 512 AND template_name ~ '^[a-z0-9_]+$'),
+  template_language text NOT NULL DEFAULT 'en' CHECK (template_language ~ '^[a-z]{2,3}(_[A-Z]{2})?$'),
+  parameters jsonb NOT NULL DEFAULT '[]'::jsonb,
+  campaign_id uuid REFERENCES tenant.crm_campaigns(id) ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'sending', 'sent', 'cancelled')),
+  scheduled_at timestamptz,
+  started_at timestamptz,
+  finished_at timestamptz,
+  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  updated_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS crm_whatsapp_broadcasts_due_idx ON tenant.crm_whatsapp_broadcasts (organization_id, status, scheduled_at) WHERE status IN ('scheduled', 'sending');
+
+CREATE TABLE IF NOT EXISTS tenant.crm_whatsapp_broadcast_recipients (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  broadcast_id uuid NOT NULL REFERENCES tenant.crm_whatsapp_broadcasts(id) ON DELETE CASCADE,
+  entity_type text NOT NULL CHECK (entity_type IN ('lead', 'contact')),
+  entity_id uuid NOT NULL,
+  phone text NOT NULL,
+  status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'sent', 'failed', 'skipped')),
+  skip_reason text,
+  message_id uuid REFERENCES tenant.crm_whatsapp_messages(id) ON DELETE SET NULL,
+  sent_at timestamptz,
+  error text,
+  UNIQUE (broadcast_id, entity_type, entity_id)
+);
+CREATE INDEX IF NOT EXISTS crm_whatsapp_broadcast_recipients_queue_idx ON tenant.crm_whatsapp_broadcast_recipients (organization_id, broadcast_id, status);
+
+DO $$
+DECLARE
+  name text;
+BEGIN
+  FOREACH name IN ARRAY ARRAY['crm_whatsapp_broadcasts', 'crm_whatsapp_broadcast_recipients'] LOOP
+    EXECUTE format('ALTER TABLE tenant.%I ENABLE ROW LEVEL SECURITY', name);
+    EXECUTE format('ALTER TABLE tenant.%I FORCE ROW LEVEL SECURITY', name);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tenant' AND tablename = name AND policyname = 'organization_isolation') THEN
+      EXECUTE format('CREATE POLICY organization_isolation ON tenant.%I USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id())', name);
+    END IF;
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON tenant.%I TO vercent_app, vercent_worker', name);
+  END LOOP;
+END $$;

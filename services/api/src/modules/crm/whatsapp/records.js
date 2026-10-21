@@ -18,7 +18,7 @@ import { setTenantContext } from "@vercentlabs/database";
 
 import { createNotification } from "../../../core/platform/notifications/index.js";
 import { decryptSecret, encryptSecret } from "../../../core/platform/secrets/index.js";
-import { optOutOf } from "../data-management/consent.js";
+import { consentPhone, optOutOf } from "../data-management/consent.js";
 import { assertMayContact } from "../data-management/contact-preferences.js";
 import { CrmError } from "../data-management/errors.js";
 import { normalizePhone } from "../duplicates/normalize.js";
@@ -32,6 +32,7 @@ const EDIT = Object.freeze({ lead: "crm.leads.edit", opportunity: "crm.opportuni
 const TABLE = Object.freeze({ lead: "crm_leads", opportunity: "crm_opportunities", party: "business_parties", contact: "contacts" });
 const HREF = Object.freeze({ lead: "/crm/leads/", opportunity: "/crm/opportunities/", party: "/crm/accounts/", contact: "/crm/contacts/" });
 const WINDOW_HOURS = 24;
+const STOP_WORDS = new Set(["stop", "unsubscribe", "stop all", "band", "band karo", "बंद", "बंद करो", "रोको"]);
 const GRAPH = "https://graph.facebook.com/v21.0";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const text = (value) => String(value ?? "").trim();
@@ -162,7 +163,8 @@ async function assertNumberNotOptedOut(client, organizationId, phone) {
   if (await optOutOf(client, organizationId, { phone }, "whatsapp")) throw new CrmError(409, "This number is on the opt-out list for WhatsApp.", "CRM_DO_NOT_CONTACT", { channel: "whatsapp" });
 }
 
-async function logMessage(client, organizationId, { type, id, direction, channel, phone, body, templateName = null, templateLanguage = null, waMessageId = null, status, userId = null, owner = null }) {
+// Logs a message on the record (an activity and a crm_whatsapp_messages row); returns the message's id. Broadcasts log theirs here too.
+export async function logWhatsAppMessage(client, organizationId, { type, id, direction, channel, phone, body, templateName = null, templateLanguage = null, waMessageId = null, status, userId = null, owner = null }) {
   const activity = (await client.query(
     `INSERT INTO tenant.crm_activities (organization_id, entity_type, entity_id, activity_type, subject, description, status, assigned_to, start_at, completed_at, external_id, is_inbound, created_by, updated_by)
      VALUES ($1, $2, $3, 'whatsapp', $4, $5, 'completed', $6, now(), now(), $7, $8, $9, $9) RETURNING id`,
@@ -185,7 +187,7 @@ export async function logClickToChat(client, context, type, id, input = {}) {
   await assertNumberNotOptedOut(client, context.organizationId, phone);
   const body = text(input.body).slice(0, 4096);
   if (!body) throw invalid("body", "Write the message.");
-  const messageId = await logMessage(client, context.organizationId, { type, id, direction: "outbound", channel: "click_to_chat", phone, body, status: "logged", userId: context.userId, owner: person.owner });
+  const messageId = await logWhatsAppMessage(client, context.organizationId, { type, id, direction: "outbound", channel: "click_to_chat", phone, body, status: "logged", userId: context.userId, owner: person.owner });
   return { messageId, link: `https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(body)}` };
 }
 
@@ -228,7 +230,7 @@ export async function sendWhatsApp(client, context, type, id, input = {}, { fetc
   if (!response.ok) throw new CrmError(502, `WhatsApp refused the message: ${result?.error?.message ?? response.status}.`, "CRM_WHATSAPP_REFUSED");
   const waMessageId = result?.messages?.[0]?.id ?? null;
   const shown = templateName ? [`Template ${templateName}`, ...(Array.isArray(input.parameters) ? input.parameters : [])].join(" · ") : body;
-  const messageId = await logMessage(client, context.organizationId, { type, id, direction: "outbound", channel: "cloud_api", phone, body: shown, templateName,
+  const messageId = await logWhatsAppMessage(client, context.organizationId, { type, id, direction: "outbound", channel: "cloud_api", phone, body: shown, templateName,
     templateLanguage: templateName ? text(input.templateLanguage) || "en" : null, waMessageId, status: "sent", userId: context.userId, owner: person.owner });
   return { messageId, waMessageId, status: "sent" };
 }
@@ -311,8 +313,16 @@ export async function receiveWhatsAppWebhook({ runTenant }, row, { rawBody, head
           : message.type === "interactive" ? (message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title) : `[${message.type}]`;
         const record = await recordForNumber(client, organizationId, phone, names.get(message.from), authority);
         const owner = (await client.query(`SELECT owner_user_id FROM tenant.${TABLE[record.type]} WHERE organization_id = $1 AND id = $2`, [organizationId, record.id])).rows[0]?.owner_user_id ?? null;
-        await logMessage(client, organizationId, { type: record.type, id: record.id, direction: "inbound", channel: "cloud_api", phone, body: content, waMessageId: message.id, status: "received", owner });
+        await logWhatsAppMessage(client, organizationId, { type: record.type, id: record.id, direction: "inbound", channel: "cloud_api", phone, body: content, waMessageId: message.id, status: "received", owner });
         counts.received += 1;
+        // A reply of STOP (or its Hindi) puts the number on the opt-out list for WhatsApp: no broadcast or template reaches it again.
+        if (STOP_WORDS.has(String(content ?? "").trim().toLowerCase().replace(/[.!]+$/, ""))) {
+          await client.query(
+            `INSERT INTO tenant.crm_opt_outs (organization_id, kind, value, channels, source, reason) VALUES ($1, 'phone', $2, ARRAY['whatsapp']::text[], 'whatsapp_stop', 'Replied STOP on WhatsApp')
+             ON CONFLICT (organization_id, kind, value) DO UPDATE SET channels = (SELECT array_agg(DISTINCT entry) FROM unnest(tenant.crm_opt_outs.channels || EXCLUDED.channels) AS entry)`,
+            [organizationId, consentPhone(phone)]);
+          counts.optedOut = (counts.optedOut ?? 0) + 1;
+        }
         if (record.created) counts.newLeads += 1;
         await notifyFollowers(client, organizationId, record.type, record.id, { title: `WhatsApp from ${names.get(message.from) ?? phone}`, message: String(content ?? "").slice(0, 200), exceptUserId: owner });
         if (owner)
