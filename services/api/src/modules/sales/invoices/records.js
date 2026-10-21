@@ -20,6 +20,7 @@ import {
   creditStatusOf, invoiceStatusLabel, invoiceStatusOf, paymentStatusOf,
 } from "./constants.js";
 import { stockOn } from "../../../core/products/tracking.js";
+import { chargeInvoiceLines, chargesToBill } from "./charges.js";
 
 // Other modules that keep records billed on an invoice (Projects' time billing) hear of each invoice event in the same transaction, so the
 // invoice and their records never disagree; a listener may refuse the change by throwing.
@@ -102,14 +103,14 @@ function settle(lines, requested, { basis, delivery }) {
 
 async function writeSalesLines(client, context, invoiceId, lineIds, built) {
   for (let index = 0; index < built.length; index += 1) {
-    const { sales, taxes } = built[index];
+    const { sales, taxes, orderChargeId = null } = built[index];
     const lineId = lineIds[index];
     await client.query(
       `INSERT INTO tenant.sales_invoice_lines (customer_invoice_line_id, organization_id, customer_invoice_id, item_code_snapshot, item_name_snapshot, description_snapshot, hsn_sac_kind,
-          uom_snapshot, list_unit_price, gross_amount, line_discount_amount, document_discount_amount, tax_category_id, tax_rate, tax_treatment)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+          uom_snapshot, list_unit_price, gross_amount, line_discount_amount, document_discount_amount, tax_category_id, tax_rate, tax_treatment, order_charge_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [lineId, context.organizationId, invoiceId, sales.item_code_snapshot, sales.item_name_snapshot, sales.description_snapshot, sales.hsn_sac_kind, sales.uom_snapshot,
-        sales.list_unit_price, sales.gross_amount, sales.line_discount_amount, sales.document_discount_amount, sales.tax_category_id, sales.tax_rate, sales.tax_treatment]);
+        sales.list_unit_price, sales.gross_amount, sales.line_discount_amount, sales.document_discount_amount, sales.tax_category_id, sales.tax_rate, sales.tax_treatment, orderChargeId]);
     for (const component of taxes)
       await client.query(
         `INSERT INTO tenant.sales_invoice_line_taxes (organization_id, customer_invoice_id, customer_invoice_line_id, sequence, tax_type, label, rate, taxable_amount, tax_amount)
@@ -140,12 +141,21 @@ export async function createInvoiceFromSalesOrder(client, context, orderId, inpu
   if (order.lifecycle_status !== STATUS.confirmed) throw new InvoiceError(409, "Only a confirmed order can be invoiced.", "SALES_ORDER_NOT_CONFIRMED");
   const basis = delivery ? QUANTITY_BASIS.delivered : await companyBasis(client, context);
   const lines = await invoiceableLines(client, context.organizationId, order, basis);
-  const chosen = settle(lines, input.lines, { basis, delivery }).map((entry) => ({ ...entry, deliveryLineId: delivery?.lines.get(entry.line.lineId)?.deliveryLineId }));
+  const pendingCharges = await chargesToBill(client, context.organizationId, order.current_version_id);
+  let settled;
+  try {
+    settled = settle(lines, input.lines, { basis, delivery });
+  } catch (error) {
+    // Everything is billed but a charge: the invoice bills the charge.
+    if (!(error?.code === "SALES_ORDER_NOTHING_TO_INVOICE" && pendingCharges.length && !input.lines?.length)) throw error;
+    settled = [];
+  }
+  const chosen = settled.map((entry) => ({ ...entry, deliveryLineId: delivery?.lines.get(entry.line.lineId)?.deliveryLineId }));
   const source = await orderSource(client, context.organizationId, order.current_version_id);
   const version = source.version;
   const invoiceDate = readDate(input.invoiceDate, "Invoice date") ?? today();
   const taxOf = await taxEngineFor(client, context, { ...version, invoice_date: invoiceDate });
-  const built = await buildInvoiceLines(client, context, source, chosen, taxOf);
+  const built = [...await buildInvoiceLines(client, context, source, chosen, taxOf), ...chargeInvoiceLines(pendingCharges)];
   const postingDate = readDate(input.postingDate, "Posting date");
   if (postingDate && postingDate !== invoiceDate) requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostingDate, "You do not have permission to change the posting date.");
   // The invoice inherits the order's agreed payment terms as they were agreed, never today's customer terms or master. Its due date
@@ -173,7 +183,8 @@ export async function createInvoiceFromSalesOrder(client, context, orderId, inpu
       JSON.stringify(version.seller_snapshot ?? {}), version.place_of_supply_name ?? null, version.supply_nature ?? null, version.customer_po_number ?? null,
       order.owner_user_id ?? null, text(input.customerNotes, 4000) ?? version.customer_notes ?? null, text(input.internalNotes, 4000), context.userId ?? null, calculatedDueDate]);
   await writeSalesLines(client, context, created.id, created.lineIds, built);
-  const summary = chosen.map(({ line, quantity }) => ({ item: line.itemName, quantity, unit: line.unit }));
+  const summary = [...chosen.map(({ line, quantity }) => ({ item: line.itemName, quantity, unit: line.unit })),
+    ...pendingCharges.map((charge) => ({ item: charge.label, quantity: 1, unit: null }))];
   await recordInvoiceEvent(client, context, created.id, "sales_invoice.created", null, INVOICE_STATUS.draft,
     { invoiceNumber: created.invoiceNumber, orderNumber: order.sales_order_number, deliveryNumber: delivery?.number, basis, lines: summary });
   await recordOrderEvent(client, context, order.id, "sales_order.invoice_created", order.lifecycle_status,
@@ -241,7 +252,8 @@ export async function invoiceLines(client, organizationId, invoiceId) {
     `SELECT line.id, line.sequence, line.source_sales_order_line_id, line.source_sales_delivery_line_id, line.item_id, line.description, line.hsn_sac_code, line.quantity, line.uom_id,
             line.unit_price, line.discount_amount, line.net_amount, line.tax_amount, line.line_total, snapshot.item_code_snapshot, snapshot.item_name_snapshot,
             snapshot.description_snapshot, snapshot.hsn_sac_kind, snapshot.uom_snapshot, snapshot.list_unit_price, snapshot.gross_amount, snapshot.line_discount_amount,
-            snapshot.document_discount_amount, snapshot.tax_category_id, snapshot.tax_rate, snapshot.tax_treatment, delivery.request_number AS delivery_number, delivery.id AS delivery_id
+            snapshot.document_discount_amount, snapshot.tax_category_id, snapshot.tax_rate, snapshot.tax_treatment, snapshot.order_charge_id,
+            delivery.request_number AS delivery_number, delivery.id AS delivery_id
        FROM tenant.accounting_customer_invoice_lines line
        LEFT JOIN tenant.sales_invoice_lines snapshot ON snapshot.customer_invoice_line_id = line.id
        LEFT JOIN tenant.sales_delivery_lines delivery_line ON delivery_line.id = line.source_sales_delivery_line_id
@@ -262,7 +274,11 @@ export async function rewriteDraft(client, context, invoice, order, { requested 
   const current = await invoiceLines(client, context.organizationId, invoice.id);
   const source = await orderSource(client, context.organizationId, invoice.sales_order_version_id ?? order.current_version_id);
   const deliveryByLine = new Map(current.filter((line) => line.source_sales_delivery_line_id).map((line) => [line.source_sales_order_line_id, line.source_sales_delivery_line_id]));
-  const asked = requested ?? current.map((line) => ({ salesOrderLineId: line.source_sales_order_line_id, quantity: Number(line.quantity) }));
+  const itemLines = current.filter((line) => !line.order_charge_id);
+  const asked = requested ?? itemLines.map((line) => ({ salesOrderLineId: line.source_sales_order_line_id, quantity: Number(line.quantity) }));
+  const billedCharges = current.filter((line) => line.order_charge_id).map((line) => line.order_charge_id);
+  const keptCharges = billedCharges.length
+    ? (await client.query("SELECT * FROM tenant.sales_order_charges WHERE organization_id = $1 AND id = ANY($2::uuid[]) ORDER BY sequence", [context.organizationId, billedCharges])).rows : [];
   const lines = await invoiceableLines(client, context.organizationId, { ...order, current_version_id: invoice.sales_order_version_id ?? order.current_version_id },
     invoice.quantity_basis, { exceptInvoiceId: invoice.id });
   // From a delivery, a line never bills more than posted invoices have left of that delivery line.
@@ -274,7 +290,8 @@ export async function rewriteDraft(client, context, invoice, order, { requested 
     for (const id of deliveryIds) for (const line of await deliveryInvoiceableLines(client, context.organizationId, id, invoice.id)) available.set(line.id, line.available);
     delivery = { id: deliveryIds[0], number: "", lines: new Map([...deliveryByLine].map(([orderLine, deliveryLine]) => [orderLine, { deliveryLineId: deliveryLine, available: available.get(deliveryLine) ?? 0 }])) };
   }
-  const chosen = settle(lines, asked.filter((entry) => Number(entry.quantity) !== 0), { basis: invoice.quantity_basis, delivery })
+  const wanted = asked.filter((entry) => Number(entry.quantity) !== 0);
+  const chosen = (!wanted.length && keptCharges.length ? [] : settle(lines, wanted, { basis: invoice.quantity_basis, delivery }))
     .map((entry) => ({ ...entry, deliveryLineId: deliveryByLine.get(entry.line.lineId) }));
   const dated = { ...invoice, invoice_date: invoiceDate };
   const engine = await taxEngineFor(client, context, dated);
@@ -284,7 +301,7 @@ export async function rewriteDraft(client, context, invoice, order, { requested 
     for (const difference of await taxDifferences(client, context, dated, current, source.lines))
       changes.push({ what: `${difference.item}: tax`, from: difference.invoiced, to: difference.expected });
   const taxOf = async (row) => (!recalculateTax && stored.has(row.id) ? stored.get(row.id) : engine(row));
-  const built = await buildInvoiceLines(client, context, source, chosen, taxOf);
+  const built = [...await buildInvoiceLines(client, context, source, chosen, taxOf), ...chargeInvoiceLines(keptCharges)];
   if (requested)
     for (const { line, quantity } of chosen) {
       const was = current.find((row) => row.source_sales_order_line_id === line.lineId);

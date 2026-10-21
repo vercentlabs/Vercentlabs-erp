@@ -719,6 +719,8 @@ export function documentDiscountColumns(preview) {
     discount.reasonCode, discount.reasonText];
 }
 
+export const CHARGE_TYPES = Object.freeze(["freight", "handling", "insurance", "packing", "installation", "other"]);
+
 export async function previewSalesDocument(
   client,
   context,
@@ -768,6 +770,19 @@ export async function previewSalesDocument(
     costTotal = add(costTotal, line.costAmount);
     maximumDiscount = max(maximumDiscount, line.discountPercent);
   }
+  // Header/document-level discount (F039): shared across the lines pro rata
+  // before tax in calculateLine, so tax is charged on the discounted value.
+  // Folded into discountTotal/maximumDiscount so it stays visible in
+  // reporting and is still caught by the discount-threshold approval gate.
+  const headerDiscountAmount = lines.reduce(
+    (total, line) => add(total, line.documentDiscountAmount),
+    decimal(0),
+  );
+  // Charges (freight, packing, installation…). Under GST a charge made by the supplier goes with the goods: a taxable charge is taxed at the
+  // components of the document's main line (its largest taxable value), and that tax is part of the document's tax (Sales audit B1). A
+  // percentage charge is a percentage of the value after the document discount.
+  const principal = lines.filter((line) => line.taxLines.length).reduce((best, line) => (!best || decimal(line.taxableAmount) > decimal(best.taxableAmount) ? line : best), null);
+  const chargeBase = sub(subtotal, headerDiscountAmount);
   const charges = [];
   let chargeTotal = decimal(0);
   for (let i = 0; i < (input.charges || []).length; i++) {
@@ -777,29 +792,35 @@ export async function previewSalesDocument(
       throw new SalesError(400, "Charge values cannot be negative.");
     const amount = roundMoney(
       charge.calculationType === "percentage"
-        ? percent(subtotal, value)
+        ? percent(chargeBase, value)
         : value,
       master.currency.decimal_places,
     );
+    const taxable = charge.taxable !== false;
+    const calculated = taxable && principal && amount > 0n
+      ? computeTax({ base: amount, inclusive: false, components: principal.taxLines.map((tax) => ({ type: tax.taxType, label: tax.label, rate: decimal(tax.rate) })),
+        decimalPlaces: master.currency.decimal_places })
+      : null;
+    const chargeTaxLines = (calculated?.components ?? []).map((component, index) => ({
+      sequence: index + 1, taxType: component.type, label: component.label, rate: asDatabaseDecimal(component.rate),
+      taxableAmount: asDatabaseDecimal(component.taxableAmount), taxAmount: asDatabaseDecimal(component.taxAmount),
+    }));
     chargeTotal = add(chargeTotal, amount);
+    if (calculated) taxTotal = add(taxTotal, calculated.taxAmount);
     charges.push({
       sequence: i + 1,
-      chargeType: charge.chargeType || "other",
+      chargeType: CHARGE_TYPES.includes(charge.chargeType) ? charge.chargeType : "other",
       label: text(charge.label, 120) || "Charge",
-      calculationType: charge.calculationType,
+      calculationType: charge.calculationType === "percentage" ? "percentage" : "fixed",
       value: asDatabaseDecimal(value),
       amount: asDatabaseDecimal(amount),
-      taxable: charge.taxable !== false,
+      taxable,
+      taxAmount: asDatabaseDecimal(calculated?.taxAmount ?? decimal(0)),
+      taxRate: asDatabaseDecimal(calculated?.totalRate ?? decimal(0)),
+      hsnSacCode: principal?.hsnSacSnapshot ?? null,
+      taxLines: chargeTaxLines,
     });
   }
-  // Header/document-level discount (F039): shared across the lines pro rata
-  // before tax in calculateLine, so tax is charged on the discounted value.
-  // Folded into discountTotal/maximumDiscount so it stays visible in
-  // reporting and is still caught by the discount-threshold approval gate.
-  const headerDiscountAmount = lines.reduce(
-    (total, line) => add(total, line.documentDiscountAmount),
-    decimal(0),
-  );
   const lineDiscountTotal = discountTotal;
   discountTotal = add(discountTotal, headerDiscountAmount);
   maximumDiscount = max(maximumDiscount, headerDiscountPercent);
@@ -858,7 +879,8 @@ export async function previewSalesDocument(
       taxableTotal: asDatabaseDecimal(taxableTotal),
     },
     discount: discountChecks,
-    tax: documentTax(master, lines),
+    // The charges' tax is part of the document's tax summary.
+    tax: documentTax(master, [...lines, ...charges.map((charge) => ({ taxLines: charge.taxLines }))]),
     pricingTrace: lines.map((line) => ({
       sequence: line.sequence,
       ...line.pricingTrace,

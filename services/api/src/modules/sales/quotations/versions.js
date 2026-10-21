@@ -67,9 +67,11 @@ export async function insertQuotationVersion(client, context, quotationId, input
   }
   for (const charge of preview.charges)
     await client.query(
-      `INSERT INTO tenant.sales_quotation_charges (organization_id, quotation_version_id, sequence, charge_type, label, calculation_type, value, amount, taxable, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [context.organizationId, version.id, charge.sequence, charge.chargeType, charge.label, charge.calculationType, charge.value, charge.amount, charge.taxable, context.userId ?? null]);
+      `INSERT INTO tenant.sales_quotation_charges (organization_id, quotation_version_id, sequence, charge_type, label, calculation_type, value, amount, taxable, created_by,
+          tax_amount, tax_rate, hsn_sac_code, tax_lines)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb)`,
+      [context.organizationId, version.id, charge.sequence, charge.chargeType, charge.label, charge.calculationType, charge.value, charge.amount, charge.taxable, context.userId ?? null,
+        charge.taxAmount ?? 0, charge.taxRate ?? 0, charge.hsnSacCode ?? null, JSON.stringify(charge.taxLines ?? [])]);
   return version;
 }
 

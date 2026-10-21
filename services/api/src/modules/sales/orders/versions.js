@@ -87,6 +87,13 @@ export async function insertOrderVersion(client, context, orderId, input, previe
     await client.query(`INSERT INTO tenant.sales_order_line_progress (organization_id, sales_order_line_id, confirmed_quantity, updated_by) VALUES ($1, $2, 0, $3)`,
       [context.organizationId, inserted.id, context.userId ?? null]);
   }
+  // Each charge, with the GST it was priced with (Sales audit B1): its invoice bills it.
+  for (const charge of preview.charges ?? [])
+    await insert(client, "tenant.sales_order_charges", {
+      organization_id: context.organizationId, sales_order_version_id: version.id, sequence: charge.sequence, charge_type: charge.chargeType, label: charge.label,
+      calculation_type: charge.calculationType, value: charge.value, amount: charge.amount, taxable: charge.taxable, tax_amount: charge.taxAmount ?? 0, tax_rate: charge.taxRate ?? 0,
+      hsn_sac_code: charge.hsnSacCode ?? null, tax_lines: json(charge.taxLines ?? []), created_by: context.userId ?? null,
+    }, "id");
   await client.query(`UPDATE tenant.sales_orders SET current_version_id = $3 WHERE organization_id = $1 AND id = $2`, [context.organizationId, orderId, version.id]);
   return version;
 }

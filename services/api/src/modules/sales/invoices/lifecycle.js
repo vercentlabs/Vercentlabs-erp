@@ -21,6 +21,7 @@ import { lockOrder } from "../orders/versions.js";
 import { loadInvoice, requireInvoicePermission } from "./access.js";
 import { EPSILON, invoiceableLines, orderSource, taxDifferences } from "./build.js";
 import { FINANCE_POSTED, INVOICE_PERMISSIONS, INVOICE_STATUS, InvoiceError } from "./constants.js";
+import { chargeBilledElsewhere } from "./charges.js";
 import { deliveryInvoiceableLines, financeContext, invoiceLines, recordInvoiceEvent, rewriteDraft } from "./records.js";
 
 function financeError(error, fallback) {
@@ -47,6 +48,12 @@ async function postingProblems(client, context, invoice, order) {
   const deliveryAvailable = new Map();
   for (const id of deliveryIds) for (const line of await deliveryInvoiceableLines(client, context.organizationId, id, invoice.id)) deliveryAvailable.set(line.id, line.available);
   for (const line of lines) {
+    // A charge line: billed once, by one invoice.
+    if (line.order_charge_id) {
+      if (await chargeBilledElsewhere(client, context.organizationId, line.order_charge_id, invoice.id))
+        problem("SALES_INVOICE_CHARGE_BILLED", `${line.item_name_snapshot} is already billed on another invoice of this order.`);
+      continue;
+    }
     const state = eligible.get(line.source_sales_order_line_id);
     const quantity = Number(line.quantity);
     if (!state) { problem("SALES_INVOICE_ORDER_CHANGED", `${line.item_name_snapshot} is no longer on the order.`); continue; }

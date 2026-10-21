@@ -358,6 +358,8 @@ export async function getSalesOrder(client, context, orderId) {
     ? (await client.query(`SELECT invoice_quantity_basis FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0]?.invoice_quantity_basis : "ordered");
   const drafts = await draftQuantities(client, context.organizationId, id);
   const invoicingByLine = new Map(progress.map((line) => [line.lineId, invoicingOfLine(line, basis)]));
+  const charges = (await client.query("SELECT * FROM tenant.sales_order_charges WHERE organization_id = $1 AND sales_order_version_id = $2 ORDER BY sequence",
+    [context.organizationId, order.current_version_id])).rows;
   const [lines, taxLines, deliveries, deliveryLines, invoices, versions, events] = await inOrder([
     () => client.query(
       // The warehouse shown is where the line ships from now (changed after confirmation, else as ordered), with what is available there now in the
@@ -429,6 +431,8 @@ export async function getSalesOrder(client, context, orderId) {
   };
   const detail = {
     order: { ...order, ...statuses },
+    // Each charge with its GST (Sales audit B1).
+    charges,
     lines: lines.rows.map((line) => {
       const state = byLine.get(line.id);
       return {

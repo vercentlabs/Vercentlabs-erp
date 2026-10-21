@@ -54,6 +54,7 @@ import { useSubmitKey } from "@/shared/http/submit-once";
 import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
 import { FormSection } from "@/shared/ui/FormSection";
 import { Notice, Panel } from "@/shared/ui/Panel";
+import { ChargeRows, chargeDraftOf, chargesInput, type ChargeDraft } from "@/features/sales/shared/ChargeRows";
 
 type LineDraft = {
   key: number;
@@ -66,12 +67,6 @@ type LineDraft = {
   // "" means the price list price; anything else is a manual price.
   unitPrice: string;
   priceReason: string;
-};
-type ChargeDraft = {
-  key: number;
-  label: string;
-  calculationType: "fixed" | "percentage";
-  value: number;
 };
 
 let draftKey = 0;
@@ -330,12 +325,7 @@ function FormBody({
       : [{ ...emptyLine(), discountType: defaultDiscountType(options.discounts) }],
   );
   const [charges, setCharges] = useState<ChargeDraft[]>(() =>
-    (existing?.charges ?? []).map((charge) => ({
-      key: nextKey(),
-      label: charge.label,
-      calculationType: charge.calculation_type as "fixed" | "percentage",
-      value: Number(charge.value),
-    })),
+    (existing?.charges ?? []).map((charge) => chargeDraftOf(charge, nextKey())),
   );
   const [error, setError] = useState<string | null>(null);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
@@ -489,13 +479,7 @@ function FormBody({
         quantity: line.quantity,
         ...(line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
       })),
-      charges: charges
-        .filter((charge) => charge.value > 0)
-        .map((charge) => ({
-          label: charge.label || "Charge",
-          calculationType: charge.calculationType,
-          value: charge.value,
-        })),
+      charges: chargesInput(charges),
     };
   }, [
     partyId,
@@ -939,12 +923,7 @@ function FormBody({
                 onPress={() =>
                   setCharges((current) => [
                     ...current,
-                    {
-                      key: nextKey(),
-                      label: "",
-                      calculationType: "fixed",
-                      value: 0,
-                    },
+                    { key: nextKey(), chargeType: "freight", label: "", calculationType: "fixed", value: 0, taxable: true },
                   ])
                 }
               >
@@ -953,72 +932,7 @@ function FormBody({
               </Button>
             }
           >
-            {charges.map((charge) => (
-              <div
-                key={charge.key}
-                className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
-              >
-                <TextField
-                  aria-label="Charge label"
-                  label="Label"
-                  value={charge.label}
-                  onChange={(value) =>
-                    setCharges((current) =>
-                      current.map((c) =>
-                        c.key === charge.key ? { ...c, label: value } : c,
-                      ),
-                    )
-                  }
-                />
-                <Select
-                  aria-label="Charge type"
-                  label="Type"
-                  options={[
-                    { value: "fixed", label: "Fixed amount" },
-                    { value: "percentage", label: "% of subtotal" },
-                  ]}
-                  selectedKey={charge.calculationType}
-                  onSelectionChange={(key) =>
-                    setCharges((current) =>
-                      current.map((c) =>
-                        c.key === charge.key
-                          ? {
-                              ...c,
-                              calculationType:
-                                key === "percentage" ? "percentage" : "fixed",
-                            }
-                          : c,
-                      ),
-                    )
-                  }
-                />
-                <NumberField
-                  aria-label="Charge value"
-                  label="Value"
-                  value={charge.value}
-                  onChange={(value) =>
-                    setCharges((current) =>
-                      current.map((c) =>
-                        c.key === charge.key ? { ...c, value } : c,
-                      ),
-                    )
-                  }
-                  minValue={0}
-                  step={0.01}
-                />
-                <IconButton
-                  aria-label="Remove charge"
-                  variant="ghost"
-                  onPress={() =>
-                    setCharges((current) =>
-                      current.filter((c) => c.key !== charge.key),
-                    )
-                  }
-                >
-                  <Trash2 className="size-4" aria-hidden="true" />
-                </IconButton>
-              </div>
-            ))}
+            <ChargeRows charges={charges} onChange={setCharges} />
           </FormSection>
 
           <DocumentDiscountPanel

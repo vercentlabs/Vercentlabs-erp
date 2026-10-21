@@ -200,6 +200,8 @@ export type DuplicatePurchaseOrder = { id: string; number: string; status: strin
 type Snapshot = Record<string, string | null | undefined>;
 
 export type SalesOrderDetail = {
+  // each charge with its GST (Sales audit B1)
+  charges?: Array<{ id: string; charge_type: string; label: string; calculation_type: string; value: string; amount: string; taxable: boolean; tax_amount: string }>;
   order: DisplayStatuses & {
     id: string;
     sales_order_number: string;

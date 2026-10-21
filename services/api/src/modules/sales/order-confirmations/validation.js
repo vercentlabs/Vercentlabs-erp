@@ -26,6 +26,7 @@ import { computeOrderAvailability } from "../availability/service.js";
 import { lockOrder } from "../orders/versions.js";
 import { CONFIRMATION_PERMISSIONS } from "./constants.js";
 import { stockOn } from "../../../core/products/tracking.js";
+import { orderChargesInput } from "../invoices/charges.js";
 
 const EPSILON = 0.005;
 const differs = (a, b) => Math.abs(Number(a ?? 0) - Number(b ?? 0)) > EPSILON;
@@ -56,8 +57,8 @@ async function storedInput(client, context, order) {
     discountReasonCode: version.discount_reason_code, discountReasonText: version.discount_reason_text, sellerRegistrationId: version.seller_registration_id,
     ...(version.place_of_supply_source === "override" ? { placeOfSupply: version.place_of_supply, placeOfSupplyReason: version.place_of_supply_reason } : {}),
     ...(version.tax_override_reason ? { supplyType: version.supply_type, taxOverrideReason: version.tax_override_reason } : {}),
-    // An order keeps only the total of its charges.
-    charges: Number(version.charge_total) ? [{ label: "Charges", calculationType: "fixed", value: version.charge_total }] : [],
+    // The order's charges one by one (an older order: their total).
+    charges: await orderChargesInput(client, context.organizationId, version),
     lines: lines.map((line) => ({
       salesOrderLineId: line.id, itemId: line.item_id, uomId: line.uom_id, warehouseId: line.warehouse_id, quantity: line.quantity,
       description: line.description_snapshot, requestedDeliveryDate: dayOf(line.requested_delivery_date),

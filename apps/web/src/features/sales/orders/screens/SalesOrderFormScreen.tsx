@@ -33,6 +33,7 @@ import { useSubmitKey } from "@/shared/http/submit-once";
 import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
 import { FormSection } from "@/shared/ui/FormSection";
 import { Notice, Panel } from "@/shared/ui/Panel";
+import { ChargeRows, chargeDraftOf, chargesInput, type ChargeDraft } from "@/features/sales/shared/ChargeRows";
 
 type LineDraft = {
   key: number;
@@ -51,7 +52,6 @@ type LineDraft = {
   priceReason: string;
   warehouseId: string;
 };
-type ChargeDraft = { key: number; label: string; calculationType: "fixed" | "percentage"; value: number };
 
 let draftKey = 0;
 const nextKey = () => ++draftKey;
@@ -151,9 +151,9 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
         unitPrice: line.manual_price_override && !line.is_quoted ? String(Number(line.unit_price)) : "", priceReason: line.manual_price_reason ?? "",
       }))
     : [blank()]);
-  // Orders keep only the charge total, so a saved draft's charges come back as one line.
-  const [charges, setCharges] = useState<ChargeDraft[]>(() => order && Number(order.charge_total) > 0
-    ? [{ key: nextKey(), label: "Charges", calculationType: "fixed", value: Number(order.charge_total) }] : []);
+  // A saved draft's charges one by one (an older order's: their total, as one charge).
+  const [charges, setCharges] = useState<ChargeDraft[]>(() => existing?.charges?.length ? existing.charges.map((charge) => chargeDraftOf(charge, nextKey()))
+    : order && Number(order.charge_total) > 0 ? [{ key: nextKey(), chargeType: "other", label: "Charges", calculationType: "fixed", value: Number(order.charge_total), taxable: true }] : []);
   const [error, setError] = useState<string | null>(null);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
@@ -273,7 +273,7 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
         ...(!line.quoted && line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
         warehouseId: line.warehouseId || undefined,
       })),
-      charges: charges.filter((charge) => charge.value > 0).map((charge) => ({ label: charge.label || "Charge", calculationType: charge.calculationType, value: charge.value })),
+      charges: chargesInput(charges),
     };
   }, [partyId, contactId, ownerUserId, billingAddressId, shippingAddressId, currencyCode, priceListId, paymentTermId, paymentTermsNote, orderDate, deliveryDate, poNumber, poDate, customerReference,
     defaultWarehouseId, documentDiscount, customerNotes, internalNotes, documentTax, terms, order?.version_number, validLines, charges]);
@@ -451,18 +451,9 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
           </FormSection>
 
           <FormSection columns={1} title="Charges" description="Freight, packing or handling, added to the order total."
-            actions={<Button variant="secondary" size="compact" onPress={() => setCharges((current) => [...current, { key: nextKey(), label: "", calculationType: "fixed", value: 0 }])}><Plus className="size-3.5" aria-hidden="true" />Add charge</Button>}>
+            actions={<Button variant="secondary" size="compact" onPress={() => setCharges((current) => [...current, { key: nextKey(), chargeType: "freight", label: "", calculationType: "fixed", value: 0, taxable: true }])}><Plus className="size-3.5" aria-hidden="true" />Add charge</Button>}>
             {charges.length === 0 && <p className="text-sm text-text-muted">No charges.</p>}
-            {charges.map((charge) => (
-              <div key={charge.key} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-                <TextField label="Label" value={charge.label} onChange={(value) => setCharges((current) => current.map((c) => (c.key === charge.key ? { ...c, label: value } : c)))} />
-                <Select label="Type" options={[{ value: "fixed", label: "Fixed amount" }, { value: "percentage", label: "% of subtotal" }]} selectedKey={charge.calculationType}
-                  onSelectionChange={(key) => setCharges((current) => current.map((c) => (c.key === charge.key ? { ...c, calculationType: key === "percentage" ? "percentage" : "fixed" } : c)))} />
-                <NumberField label="Value" value={charge.value} minValue={0} step={0.01}
-                  onChange={(value) => setCharges((current) => current.map((c) => (c.key === charge.key ? { ...c, value } : c)))} />
-                <IconButton aria-label="Remove charge" variant="ghost" onPress={() => setCharges((current) => current.filter((c) => c.key !== charge.key))}><Trash2 className="size-4" aria-hidden="true" /></IconButton>
-              </div>
-            ))}
+            <ChargeRows charges={charges} onChange={setCharges} />
           </FormSection>
 
           {fromQuotation ? (
