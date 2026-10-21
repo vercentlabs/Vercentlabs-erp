@@ -11,6 +11,7 @@ import { STATUS } from "../orders/constants.js";
 import {
   FULFILLMENT_LABELS, INVOICE_LABELS, PAYMENT_LABELS, RESERVATION_LABELS, calculateOrderPaymentSummary, fulfillmentStatusOf, invoiceStatusOf, reservationStatusOfCounts,
 } from "./derive.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 const POSTED = `('posted', 'partially_paid', 'paid', 'overdue', 'disputed')`;
 const num = (value) => Math.round(Number(value ?? 0) * 1e6) / 1e6;
@@ -132,7 +133,9 @@ export function summaryFromRow(row, { canSeeMoney = true } = {}) {
 }
 
 // The invoicing basis as the Sales setting stores it ('fulfilled' = delivery-based).
+// Without the Stock app goods are invoiced as ordered.
 export async function invoicingBasisSetting(client, organizationId) {
+  if (!(await stockOn(client, { organizationId }))) return "ordered";
   return (await client.query(`SELECT invoice_quantity_basis FROM tenant.sales_settings WHERE organization_id = $1`, [organizationId])).rows[0]?.invoice_quantity_basis ?? "ordered";
 }
 

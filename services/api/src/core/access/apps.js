@@ -5,8 +5,8 @@
 //
 // The web passes the apps on the context (context.apps, from the request's access snapshot). Code without one (scripts, the worker)
 // loads them once per context from the database; until loaded, a synchronous check fails closed.
-import { evaluateModuleAccess, getEnabledModuleKeys } from "../../../core/access/module-entitlements.js";
-import { getBillingSummary } from "../../../core/billing/index.js";
+import { evaluateModuleAccess, getEnabledModuleKeys } from "./module-entitlements.js";
+import { getBillingSummary } from "../billing/index.js";
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 const loaded = new WeakMap();
@@ -50,4 +50,9 @@ export const canInApp = (context, app, permission) => hasApp(context, app) && (i
 export async function mayInApp(client, context, app, permission) {
   await loadApps(client, context);
   return canInApp(context, app, permission);
+}
+
+// Whether the organization has the app, loading the apps first when the context has none: what a bridge checks before it runs.
+export async function appOn(client, context, app) {
+  return (await loadApps(client, context)).has(app);
 }

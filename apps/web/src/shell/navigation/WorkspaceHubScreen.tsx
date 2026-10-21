@@ -26,7 +26,7 @@ export function WorkspaceHubScreen({ moduleKey, workspace, title, description, s
   }, [section]);
 
   if (!navigation) return null;
-  const viewer: NavViewer = { permissions: context.permissions, isOwner: context.roleSlugs.includes("organization_owner") };
+  const viewer: NavViewer = { permissions: context.permissions, isOwner: context.roleSlugs.includes("organization_owner"), apps: context.accessibleModuleKeys };
   const destinations = workspaceChildren(navigation, workspace, viewer);
   const declared = (navigation.groups ?? []).filter((group) => group.workspace === workspace);
   const groups = declared.length

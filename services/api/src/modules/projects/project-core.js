@@ -210,7 +210,7 @@ export async function projectSettings(client, c) {
     // Tasks: whoever submitted may also approve; a new task needs review by default; the due-soon reminder's lead time.
     taskSelfReviewAllowed: Boolean(row.task_self_review_allowed), taskReviewDefault: Boolean(row.task_review_default), taskReminderDays: Number(row.task_reminder_days ?? 1) };
 }
-const STANDARD_TYPES = [["IMPLEMENTATION", "Customer implementation", 10], ["SOFTWARE", "Software development", 20], ["DESIGN", "Design", 30], ["CONSTRUCTION", "Construction or installation", 40],
+const STANDARD_TYPES = [["CLIENT", "Client project", 5], ["IMPLEMENTATION", "Customer implementation", 10], ["SOFTWARE", "Software development", 20], ["DESIGN", "Design", 30], ["CONSTRUCTION", "Construction or installation", 40],
   ["MARKETING", "Marketing campaign", 50], ["CONSULTING", "Consulting engagement", 60], ["SERVICE_DELIVERY", "Service delivery", 70], ["INTERNAL", "Internal initiative", 80], ["OTHER", "Other", 90]];
 // A company created after the migration gets the standard types the first time it uses Projects.
 export async function ensureProjectTypes(client, c) {
@@ -219,6 +219,14 @@ export async function ensureProjectTypes(client, c) {
     await client.query(`INSERT INTO tenant.project_types (organization_id, code, name, sort_order) VALUES ($1,$2,$3,$4) ON CONFLICT (organization_id, code) DO NOTHING`,
       [c.organizationId, code, name, order]);
   }
+}
+// The type a project gets when none is chosen, so it can be activated without a trip to Settings: Internal initiative for an internal
+// project, otherwise a client project.
+export async function defaultProjectTypeId(client, c, classification) {
+  await ensureProjectTypes(client, c);
+  const preferred = classification === "INTERNAL" ? ["INTERNAL", "OTHER"] : ["CLIENT", "SERVICE_DELIVERY", "IMPLEMENTATION", "OTHER"];
+  return (await client.query(`SELECT id FROM tenant.project_types WHERE organization_id = $1 AND status = 'ACTIVE' AND code = ANY($2::text[])
+      ORDER BY array_position($2::text[], code) LIMIT 1`, [c.organizationId, preferred])).rows[0]?.id ?? null;
 }
 export const nextProjectCode = (client, c) => nextDocumentNumber(client, { organizationId: c.organizationId }, { documentType: "project" });
 

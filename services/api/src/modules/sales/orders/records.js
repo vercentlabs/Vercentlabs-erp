@@ -29,6 +29,7 @@ import {
   TRACKING_COLUMNS, financeJoin, invoicingBasisSetting, needsAttentionSql, quantitiesJoin, summaryFromRow, trackingConditions,
 } from "../order-tracking/summary.js";
 import { insertOrderVersion, lockOrder, readDate, recordOrderEvent } from "./versions.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 // One connection runs one query at a time.
 const inOrder = async (queries) => { const results = []; for (const query of queries) results.push(await query()); return results; };
@@ -50,7 +51,7 @@ export async function priced(client, context, input, options) {
 // What a new order starts with when the form leaves it out: today's date, the
 // customer's currency, salesperson, default contact and addresses, and the
 // warehouse from Sales Settings. A line without a warehouse takes the order's
-// default warehouse.
+// default warehouse; without the Stock app there is none.
 async function withDefaults(client, context, input, today) {
   const partyId = requireUuid(input.partyId, "Customer");
   const { rows } = await client.query(
@@ -70,7 +71,9 @@ async function withDefaults(client, context, input, today) {
       WHERE organization.id = $1`,
     [context.organizationId, partyId]);
   const defaults = rows[0] ?? {};
-  const defaultWarehouseId = input.defaultWarehouseId === undefined ? defaults.default_warehouse_id ?? null
+  // Without the Stock app there are no warehouses on an order.
+  const keepsStock = await stockOn(client, context);
+  const defaultWarehouseId = !keepsStock ? null : input.defaultWarehouseId === undefined ? defaults.default_warehouse_id ?? null
     : input.defaultWarehouseId ? requireUuid(input.defaultWarehouseId, "Warehouse") : null;
   return {
     ...input,
@@ -83,7 +86,7 @@ async function withDefaults(client, context, input, today) {
     contactId: input.contactId !== undefined ? input.contactId || null : defaults.contact_id ?? null,
     billingAddressId: input.billingAddressId || defaults.billing_id || null,
     shippingAddressId: input.shippingAddressId || defaults.shipping_id || input.billingAddressId || defaults.billing_id || null,
-    lines: Array.isArray(input.lines) ? input.lines.map((line) => ({ ...line, warehouseId: line.warehouseId || defaultWarehouseId || null })) : input.lines,
+    lines: Array.isArray(input.lines) ? input.lines.map((line) => ({ ...line, warehouseId: keepsStock ? line.warehouseId || defaultWarehouseId || null : null })) : input.lines,
   };
 }
 
@@ -351,7 +354,8 @@ export async function getSalesOrder(client, context, orderId) {
   const progress = await loadOrderLineProgress(client, context.organizationId, order.current_version_id);
   const byLine = new Map(progress.map((line) => [line.lineId, line]));
   // Invoicing per line on the company's basis: invoiceable now, pending delivery, and what drafts bill (not yet invoiced).
-  const basis = basisOfSetting((await client.query(`SELECT invoice_quantity_basis FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0]?.invoice_quantity_basis);
+  const basis = basisOfSetting((await stockOn(client, context))
+    ? (await client.query(`SELECT invoice_quantity_basis FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0]?.invoice_quantity_basis : "ordered");
   const drafts = await draftQuantities(client, context.organizationId, id);
   const invoicingByLine = new Map(progress.map((line) => [line.lineId, invoicingOfLine(line, basis)]));
   const [lines, taxLines, deliveries, deliveryLines, invoices, versions, events] = await inOrder([
@@ -661,9 +665,11 @@ export async function getSalesOrderDefaults(client, context, input = {}) {
        FROM tenant.sales_settings settings
        LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = settings.organization_id AND warehouse.id = settings.default_warehouse_id AND warehouse.status = 'active'
       WHERE settings.organization_id = $1`, [context.organizationId])).rows[0] ?? {};
+  // Without the Stock app an order has no warehouse and reserves nothing.
+  const keepsStock = await stockOn(client, context);
   const base = {
-    orderDate: today, directOrdersAllowed: settings.allow_direct_orders !== false, reservesOnConfirm: settings.reserve_stock_on_confirm !== false,
-    defaultWarehouseId: settings.default_warehouse_id ?? null,
+    orderDate: today, directOrdersAllowed: settings.allow_direct_orders !== false, reservesOnConfirm: keepsStock && settings.reserve_stock_on_confirm !== false,
+    defaultWarehouseId: keepsStock ? settings.default_warehouse_id ?? null : null, keepsStock,
   };
   if (!isUuid(input.partyId)) return base;
   const document = await withDefaults(client, context, { partyId: input.partyId, lines: [] }, today);

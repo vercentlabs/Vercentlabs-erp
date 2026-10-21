@@ -18,6 +18,7 @@ import {
   APPLICATION_LABELS, CREDIT_NOTE_PERMISSIONS, CREDIT_NOTE_STATUS, CREDIT_NOTE_VIEWS, CREDIT_REASONS, CREDIT_TYPES, CreditNoteError, FINANCE_POSTED, SENT_CHANNELS,
   applicationStatusOf, creditNoteStatusLabel, creditNoteStatusOf, reasonLabel,
 } from "./constants.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const money = (value) => Math.round(Number(value) * 100) / 100;
@@ -70,11 +71,13 @@ export async function creditedTotals(client, organizationId, invoiceId) {
   return { posted: Number(row.posted), drafts: Number(row.drafts) };
 }
 
-function readReason(input, { fromReturn }) {
+// With Stock on, returned goods come back through a received return, and its credit note is made from it; without Stock there are no
+// returns to receive, so returned goods are credited on the credit note alone.
+function readReason(input, { fromReturn, keepsStock = true }) {
   const code = text(input.reasonCode, 40) ?? (fromReturn ? "sales_return" : null);
   if (!code || !CREDIT_REASONS.some((reason) => reason.code === code))
     throw new CreditNoteError(400, "Choose the reason for the credit note.", "SALES_CREDIT_NOTE_REASON_REQUIRED", { field: "reasonCode" });
-  if (code === "sales_return" && !fromReturn)
+  if (code === "sales_return" && !fromReturn && keepsStock)
     throw new CreditNoteError(400, "A credit note for returned goods is made from the received return.", "SALES_CREDIT_NOTE_REASON_INVALID", { field: "reasonCode" });
   const note = text(input.reasonNote, 1000);
   if (code === "other" && !note) throw new CreditNoteError(400, "Explain the reason for the credit note.", "SALES_CREDIT_NOTE_REASON_REQUIRED", { field: "reasonNote" });
@@ -107,7 +110,7 @@ export async function createCreditNote(client, context, invoiceId, input = {}, o
   }
   if (!FINANCE_POSTED.includes(invoice.status))
     throw new CreditNoteError(409, invoice.status === "reversed" ? "A reversed invoice cannot be credited." : "Only a posted invoice can be credited.", "SALES_INVOICE_NOT_POSTED");
-  const reason = readReason(input, { fromReturn: Boolean(options.salesReturn) });
+  const reason = readReason(input, { fromReturn: Boolean(options.salesReturn), keepsStock: await stockOn(client, context) });
   const creditDate = readCreditDate(input, invoice);
   const lines = await creditableLines(client, context.organizationId, invoice.id);
   const chosen = settleCreditLines(lines, (input.lines ?? []).map((entry) => ({ ...entry, invoiceLineId: requireUuid(entry.invoiceLineId, "Invoice line"), salesReturnLineId: options.salesReturn ? entry.salesReturnLineId ?? null : null })));
@@ -226,7 +229,7 @@ export async function updateDraftCreditNote(client, context, creditNoteId, input
   const set = (column, value) => { values.push(value); sets.push(`${column} = $${values.length}`); };
   if (has("reasonCode") || has("reasonNote")) {
     const reason = readReason({ reasonCode: has("reasonCode") ? input.reasonCode : creditNote.reason_code, reasonNote: has("reasonNote") ? input.reasonNote : creditNote.reason_note },
-      { fromReturn: Boolean(creditNote.sales_return_id) });
+      { fromReturn: Boolean(creditNote.sales_return_id), keepsStock: await stockOn(client, context) });
     if (creditNote.sales_return_id && reason.code !== "sales_return") throw new CreditNoteError(400, "A credit note made from a return is for the return.", "SALES_CREDIT_NOTE_REASON_INVALID");
     if (reason.code !== creditNote.reason_code) { set("reason_code", reason.code); changes.push({ what: "Reason", from: reasonLabel(creditNote.reason_code), to: reasonLabel(reason.code) }); }
     if ((reason.note ?? "") !== (creditNote.reason_note ?? "")) { set("reason_note", reason.note); changes.push({ what: "Reason details", from: creditNote.reason_note ?? null, to: reason.note }); }

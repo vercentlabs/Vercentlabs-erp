@@ -8,7 +8,7 @@
 // stuck with details it cannot edit.
 import { GST_TREATMENTS, isValidPan, parseGstin } from "@vercentlabs/shared-types";
 
-import { hasApp, loadApps } from "../data-management/apps.js";
+import { hasApp, loadApps } from "../../../core/access/apps.js";
 import { CrmError } from "../data-management/errors.js";
 import { accountCan, requireAccountPermission } from "./access.js";
 import { ACCOUNT_PERMISSIONS } from "./constants.js";

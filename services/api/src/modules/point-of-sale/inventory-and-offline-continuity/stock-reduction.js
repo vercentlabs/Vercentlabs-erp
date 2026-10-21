@@ -15,6 +15,7 @@ import { consumeStockReservation, postStockMovement, releaseStockReservation, re
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 export const POS_STOCK_MESSAGES = Object.freeze({
   POS_STOCK_WAREHOUSE_NOT_CONFIGURED: "This store's stock location is not configured.",
@@ -76,8 +77,10 @@ async function policyOf(client, context) {
   return { allowNegative: Boolean(row?.allow_negative_stock), leaseMinutes: Number(row?.checkout_lock_minutes ?? 15), maxHoldMinutes: Number(row?.stock_reservation_max_hold_minutes ?? 30) };
 }
 
-// The bill's lines that move physical stock (services and items not kept in inventory never do), with their item and base unit.
+// The bill's lines that move physical stock (services and items not kept in inventory never do; without the Stock app nothing does), with
+// their item and base unit.
 async function stockLines(client, context, cartId) {
+  if (!(await stockOn(client, context))) return [];
   return (await client.query(
     `SELECT line.id, line.line_number, line.item_id, line.description, line.quantity, COALESCE(line.base_quantity, line.quantity) AS base_quantity, line.warehouse_id,
             line.warehouse_location_id, line.batch_id, line.serial_id, item.tracking_type, item.code AS sku, base.code AS base_uom, sale_uom.code AS uom,

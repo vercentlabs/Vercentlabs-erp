@@ -49,7 +49,7 @@ export async function calculateSupplierBillTotals(client, context, document) {
   const places = await currencyPlaces(client, organizationId, document.currencyCode);
   let tax;
   try {
-    tax = await loadTaxContext(client, { organizationId, sellerRegistrationId: document.buyingRegistrationId ?? null });
+    tax = await loadTaxContext(client, { organizationId, sellerRegistrationId: document.buyingRegistrationId ?? null , purchase: true });
   } catch (error) {
     if (error instanceof TaxError) throw new SupplierBillError(error.status, error.message, error.code);
     throw error;

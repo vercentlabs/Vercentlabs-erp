@@ -42,6 +42,7 @@ export function ReceivableInvoicesScreen() {
   const rows = useMemo(() => list.data ?? [], [list.data]);
   const paged = usePagedRows(rows);
   const mayReceive = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("accounting.receipts.manage");
+  const mayInvoice = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("accounting.receivables.manage");
   const total = rows.filter((row) => row.type !== "credit_note").reduce((sum, row) => sum + row.baseOutstanding, 0);
 
   const columns: ColumnDef<ReceivableInvoice, unknown>[] = [
@@ -73,9 +74,12 @@ export function ReceivableInvoicesScreen() {
     <EnterpriseListPage
       header={{
         title: "Customer Invoices",
-        description: "What customers owe. Invoices and credit notes are raised in Sales; payments are recorded and applied here.",
+        description: "What customers owe: invoices raised here or in Sales, and the payments recorded and applied against them.",
         primaryAction: mayReceive ? <LinkButton href={`/accounting/receipts/new${partyId ? `?partyId=${partyId}` : ""}`} variant="primary"><Plus className="size-4" aria-hidden="true" />Record payment</LinkButton> : undefined,
-        secondaryActions: <LinkButton href="/accounting/receivables-aging" variant="secondary">Aging</LinkButton>,
+        secondaryActions: <>
+          {mayInvoice && <LinkButton href="/accounting/customer-invoices/new" variant="secondary"><Plus className="size-4" aria-hidden="true" />New invoice</LinkButton>}
+          <LinkButton href="/accounting/receivables-aging" variant="secondary">Aging</LinkButton>
+        </>,
       }}
       savedViews={{ views: VIEWS, activeViewId: view, onSelect: (id) => { setView(id); paged.resetPage(); } }}
       actionBar={{ start: <SearchField aria-label="Search invoices" placeholder="Invoice or customer" className="w-full sm:w-72" value={search} onChange={setSearch} /> }}
@@ -91,7 +95,7 @@ export function ReceivableInvoicesScreen() {
           state={list.isLoading ? "loading" : list.isError ? "error" : rows.length === 0 ? (submitted ? "no-results" : "empty") : "ready"}
           loadingContent={<LoadingState label="Loading customer invoices" rows={8} />}
           errorContent={<ErrorState title="Could not load customer invoices" description={errorMessage(list.error)} action={{ label: "Try again", onPress: () => void list.refetch() }} />}
-          emptyContent={<EmptyState title={view === "overdue" ? "Nothing is overdue" : view === "open" ? "Nothing is owed" : "No invoices here"} description="Invoices appear here once they are issued in Sales." />}
+          emptyContent={<EmptyState title={view === "overdue" ? "Nothing is overdue" : view === "open" ? "Nothing is owed" : "No invoices here"} description="Invoices appear here once they are raised, here or in Sales." />}
           noResultsContent={<NoResultsState title="Nothing matches" description="Try another view or search." />}
           {...paged.grid}
           onRowClick={(row) => { if (row.href) router.push(row.href); }}

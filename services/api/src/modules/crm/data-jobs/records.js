@@ -13,7 +13,7 @@ import { createNotification } from "../../../core/platform/notifications/index.j
 import { resolveMemberExecutionContext } from "../../../core/platform/reporting/execution-context.js";
 import { analyzeAccountImport, exportAccounts, importAccounts } from "../accounts/import-export.js";
 import { analyzeContactImport, exportContacts, importContacts } from "../contacts/import-export.js";
-import { appsFromSnapshot } from "../data-management/apps.js";
+import { appsFromSnapshot } from "../../../core/access/apps.js";
 import { CrmError } from "../data-management/errors.js";
 import { analyzeLeadImport, exportLeads, importLeads } from "../leads/import-export.js";
 import { exportOpportunities } from "../opportunities/dashboard.js";

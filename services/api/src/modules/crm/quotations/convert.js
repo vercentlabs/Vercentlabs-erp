@@ -14,7 +14,7 @@
 //
 // The opportunity stays open: a quotation never wins a deal. A Proposal stage
 // move is only suggested, never made here.
-import { canInApp, hasApp, loadApps } from "../data-management/apps.js";
+import { canInApp, hasApp, loadApps } from "../../../core/access/apps.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { addAccountAddress } from "../accounts/addresses.js";
 import { createCustomerFromAccount, linkCustomer } from "../accounts/customer.js";

@@ -13,6 +13,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { AlertDialog, Button, ErrorState, IconButton, NumberField, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useApp } from "@/shell/workspace-context/useApp";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { money, statusLabel } from "@/features/sales/shared/format";
@@ -103,6 +104,8 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
   onDone: (id: string) => void; onCancel: () => void;
 }) {
   const workspace = useWorkspaceContext();
+  // Warehouses are asked for only when the business keeps stock.
+  const stockOn = useApp("stock");
   const order = existing?.order;
   // An order made from a quotation keeps the agreed customer and commercial terms.
   const fromQuotation = Boolean(order?.source_quotation_id);
@@ -358,8 +361,8 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
               <TextField label="Customer PO date" type="date" value={poDate} onChange={setPoDate} />
               <TextField label="Customer reference" value={customerReference} onChange={setCustomerReference} />
               <Select label="Salesperson" options={ownerOptions} selectedKey={ownerUserId || null} onSelectionChange={(key) => setOwnerUserId(String(key ?? ""))} />
-              <Select label="Default warehouse" description="Used for goods lines without their own warehouse."
-                options={[{ value: "", label: "None" }, ...warehouseOptions]} selectedKey={defaultWarehouseId} onSelectionChange={(key) => setDefaultWarehouseId(String(key ?? ""))} />
+              {stockOn && <Select label="Default warehouse" description="Used for goods lines without their own warehouse."
+                options={[{ value: "", label: "None" }, ...warehouseOptions]} selectedKey={defaultWarehouseId} onSelectionChange={(key) => setDefaultWarehouseId(String(key ?? ""))} />}
             </div>
           </FormSection>
 
@@ -406,8 +409,8 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
                       <Select aria-label={`Discount type ${index + 1}`} options={discountTypeOptions(options.discounts, currencyCode)} selectedKey={line.discountType}
                         onSelectionChange={(key) => updateLine(line.key, { discountType: key === "amount" ? "amount" : "percent", discountValue: 0 })} isDisabled={line.quoted || !canDiscountLines} />
                     </div>
-                    <Select aria-label={`Warehouse ${index + 1}`} label={index === 0 ? "Warehouse" : undefined} options={lineWarehouseOptions} selectedKey={line.warehouseId}
-                      onSelectionChange={(key) => updateLine(line.key, { warehouseId: String(key ?? "") })} isDisabled={service} />
+                    {stockOn ? <Select aria-label={`Warehouse ${index + 1}`} label={index === 0 ? "Warehouse" : undefined} options={lineWarehouseOptions} selectedKey={line.warehouseId}
+                      onSelectionChange={(key) => updateLine(line.key, { warehouseId: String(key ?? "") })} isDisabled={service} /> : <span aria-hidden="true" />}
                     <IconButton aria-label={`Remove item ${index + 1}`} variant="ghost" isDisabled={lines.length === 1}
                       onPress={() => setLines((current) => current.filter((candidate) => candidate.key !== line.key))}>
                       <Trash2 className="size-4" aria-hidden="true" />

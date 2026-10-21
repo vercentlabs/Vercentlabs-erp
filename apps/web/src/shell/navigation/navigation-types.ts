@@ -30,6 +30,8 @@ export type SecondaryNavItem = {
   requiredPermission?: string;
   /** Visible when the person holds ANY of these (instead of one requiredPermission) — e.g. a hub whose destinations are guarded by different permissions. */
   requiredAnyPermission?: string[];
+  /** Another app this destination needs (Sales' Deliveries need Stock): hidden while that app is off. */
+  requiredApp?: string;
   aliases?: string[];
   /** Id of the workspace item (same module) this route belongs to. Set = not a sidebar item. */
   parent?: string;

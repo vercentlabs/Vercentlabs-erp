@@ -13,6 +13,7 @@ import { FormSection } from "@/shared/ui/FormSection";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useApp } from "@/shell/workspace-context/useApp";
 
 import {
   OUTLETS_BASE, createOutlet, errorMessage, fieldErrors, getOutlet, getOutletOptions, updateOutlet, type BusinessHours, type OutletDetail, type OutletOptions,
@@ -64,6 +65,8 @@ export function OutletFormScreen({ outletId }: { outletId?: string }) {
 function Form({ options, outlet }: { options: OutletOptions; outlet: OutletDetail | null }) {
   const router = useRouter();
   const workspace = useWorkspaceContext();
+  // Without Stock an outlet sells without stock: no warehouse or locations.
+  const stockOn = useApp("stock");
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft>(() => draftOf(outlet, options));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -91,7 +94,7 @@ function Form({ options, outlet }: { options: OutletOptions; outlet: OutletDetai
         timezone: draft.timezone.trim() || null, priceListId: orNull(draft.priceListId), businessHours, notes: draft.notes,
         allowWalkInSales: draft.allowWalkInSales, allowOptionalBuyerName: draft.allowOptionalBuyerName, allowReceiptContactCapture: draft.allowReceiptContactCapture,
       };
-      if (editable.inventory) Object.assign(input, { warehouseId: draft.warehouseId, sellingLocationId: orNull(draft.sellingLocationId), returnsLocationId: orNull(draft.returnsLocationId) });
+      if (editable.inventory && stockOn) Object.assign(input, { warehouseId: draft.warehouseId, sellingLocationId: orNull(draft.sellingLocationId), returnsLocationId: orNull(draft.returnsLocationId) });
       if (editable.tax) Object.assign(input, { taxRegistrationId: orNull(draft.taxRegistrationId), receiptMessage: draft.receiptMessage });
       if (editable.cash) input.cashAccountId = orNull(draft.cashAccountId);
       if (!outlet || codeChanged) input.code = draft.code.trim();
@@ -157,7 +160,7 @@ function Form({ options, outlet }: { options: OutletOptions; outlet: OutletDetai
           description="Sets the outlet's business day, such as Asia/Kolkata." />
       </FormSection>
 
-      <FormSection title="Stock" description="The warehouse whose stock this outlet sells. Quantities stay in Inventory; several outlets may share one warehouse.">
+      {stockOn && <FormSection title="Stock" description="The warehouse whose stock this outlet sells. Quantities stay in Inventory; several outlets may share one warehouse.">
         <Select label="Selling warehouse" isRequired selectedKey={draft.warehouseId} isDisabled={!editable.inventory} errorMessage={errors.warehouseId}
           onSelectionChange={(key) => setDraft((current) => ({ ...current, warehouseId: String(key), sellingLocationId: NONE, returnsLocationId: NONE }))}
           options={options.warehouses.map((entry) => ({ value: entry.id, label: entry.label }))}
@@ -167,7 +170,7 @@ function Form({ options, outlet }: { options: OutletOptions; outlet: OutletDetai
         <Select label="Returns location" selectedKey={draft.returnsLocationId} isDisabled={!editable.inventory} errorMessage={errors.returnsLocationId}
           onSelectionChange={(key) => set("returnsLocationId")(String(key))} options={withNone(locations, "Warehouse default")}
           description="Where returned goods are received; a quality-hold location keeps them out of Available." />
-      </FormSection>
+      </FormSection>}
 
       <FormSection title="Tax and receipt" description="The company GST registration the outlet sells under; its GSTIN and legal name come from that registration.">
         <Select label="GST registration" selectedKey={draft.taxRegistrationId} isDisabled={!editable.tax} errorMessage={errors.taxRegistrationId}

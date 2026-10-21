@@ -42,5 +42,6 @@ export { ACCESS_EVIDENCE_EVENTS, accessLogFields, logAccessDenial, recordAccessA
 // the field-visibility primitives used by module projections.
 export * from "./control-runtime.js";
 export * from "./module-entitlements.js";
+export { appOn, appsFromSnapshot, canInApp, hasApp, loadApps, mayInApp } from "./apps.js";
 export * from "./administration-service.js";
 export { hasAnyOwnField, omitFields, omitFieldsFromRows } from "./field-visibility.js";

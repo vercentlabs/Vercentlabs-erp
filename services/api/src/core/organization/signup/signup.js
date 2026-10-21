@@ -6,6 +6,7 @@
 // Creating the workspace is one transaction (registerOrganization, then the apps not picked are switched off, what we understood is
 // saved): either the whole workspace exists or nothing does. An email that already has a workspace never gets a second one: after its
 // code, the person is signed in to the workspace they have.
+import { withRequiredApps } from "../../platform/app-manifests.js";
 import { createOpaqueToken, tokenHash } from "../../auth/session.js";
 import { checkEmailCode, codeError, issueEmailCode, pruneEmailCodes } from "../../auth/email-code.js";
 import { audit } from "../../security/request-security.js";
@@ -154,9 +155,10 @@ export async function completeSignup(client, token, input = {}, { request = null
     fullName: row.full_name, email: row.email, organizationName: row.company_name, countryCode: "IN", baseCurrency: "INR", timezone: row.timezone || "Asia/Kolkata", emailVerified: true,
   });
   const { organizationId, userId } = registered;
-  // Every app starts switched on (the ensure_organization_modules trigger); the ones not picked are switched off, as Settings › Modules does.
+  // Every app starts switched on (the ensure_organization_modules trigger); the ones not picked, and not needed by one picked (Manufacturing
+  // keeps Stock), are switched off, as Settings › Modules does.
   const off = (await client.query(`UPDATE public.organization_modules SET status = 'disabled', updated_at = now() WHERE organization_id = $1 AND NOT (module_key = ANY($2::text[])) AND status = 'enabled'
-      RETURNING module_key`, [organizationId, apps])).rows.map((r) => r.module_key);
+      RETURNING module_key`, [organizationId, withRequiredApps(apps)])).rows.map((r) => r.module_key);
   for (const moduleKey of off) {
     await audit(client, { organizationId, actorUserId: userId, eventType: "module.disabled", entityType: "organization_module", entityId: null, metadata: { moduleKey, source: "signup" },
       beforeData: { moduleKey, enabled: true }, afterData: { moduleKey, enabled: false }, request, env });

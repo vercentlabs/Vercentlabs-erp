@@ -3,7 +3,7 @@
 // account's own visibility; Sales, Finance, Projects and Support data is
 // shown only to callers who can open that module, and is never editable
 // from here.
-import { canInApp, loadApps } from "../data-management/apps.js";
+import { canInApp, loadApps } from "../../../core/access/apps.js";
 import { dealRate } from "../data-management/reporting-currency.js";
 import { CrmError } from "../data-management/errors.js";
 import { getAccount } from "./records.js";

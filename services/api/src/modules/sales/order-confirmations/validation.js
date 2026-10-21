@@ -17,13 +17,15 @@
 //
 // An order made from a quotation is compared with the accepted quotation; a
 // difference needs its own permission and a reason. Stock is reported (what
-// is short), but a shortage never stops a confirmation.
+// is short), but a shortage never stops a confirmation. Without the Stock app
+// there is no warehouse, stock check or reservation.
 import { orderCan, assertOrderVisible, requireOrderAccess } from "../orders/access.js";
 import { OrderError, dayOf } from "../orders/constants.js";
 import { databaseToday, draftDocument, priced } from "../orders/records.js";
 import { computeOrderAvailability } from "../availability/service.js";
 import { lockOrder } from "../orders/versions.js";
 import { CONFIRMATION_PERMISSIONS } from "./constants.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 const EPSILON = 0.005;
 const differs = (a, b) => Math.abs(Number(a ?? 0) - Number(b ?? 0)) > EPSILON;
@@ -175,6 +177,8 @@ async function orderProblems(client, context, order, preview) {
   if (facts.require_requested_delivery_date && !order.requested_delivery_date) problems.push("Enter the requested delivery date: Sales settings require it before an order is confirmed.");
   if (Number(facts.grand_total) < 0) problems.push("The order total cannot be negative.");
   const taxEnabled = Boolean(preview?.tax?.enabled);
+  // A warehouse is asked for only when the business keeps stock (the Stock app is on).
+  const keepsStock = await stockOn(client, context);
   for (const line of lines) {
     const name = `Line ${line.sequence} (${line.item_name_snapshot})`;
     if (!(Number(line.quantity) > 0)) problems.push(`${name}: the quantity must be more than zero.`);
@@ -183,7 +187,7 @@ async function orderProblems(client, context, order, preview) {
     if (line.manual_price_override && !line.source_quotation_line_id && !line.manual_price_reason) problems.push(`${name}: give the reason for the manual price.`);
     // A quoted line is executed as agreed even if the product has since been withdrawn.
     if (!line.source_quotation_line_id && (line.item_status !== "active" || !line.is_sellable)) problems.push(`${name} is no longer sold.`);
-    if (line.track_inventory && line.item_type !== "service") {
+    if (keepsStock && line.track_inventory && line.item_type !== "service") {
       if (!line.warehouse_id) problems.push(`${name}: choose the warehouse it ships from.`);
       else if (line.warehouse_status !== "active") problems.push(`${name}: its warehouse is inactive.`);
     }
@@ -206,10 +210,12 @@ export async function evaluateConfirmation(client, context, order) {
   if (quotation && !quotation.stillAccepted) problems.push(`Quotation ${quotation.quotationNumber} is no longer the accepted quotation of this order.`);
   if (quotation?.differs) warnings.push(`This order differs from the accepted quotation ${quotation.quotationNumber}.`);
   const settings = (await client.query(`SELECT reserve_stock_on_confirm, check_availability_on_confirm FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0];
-  // Stock is checked when Sales settings say so; a shortage never stops a confirmation.
+  // Stock is checked when the Stock app is on and Sales settings say so; a shortage never stops a confirmation. Without Stock there is no
+  // check, no "Stock is short" and no reservation: goods are invoiced as ordered.
+  const keepsStock = await stockOn(client, context);
   let shortages = [];
   let availability = null;
-  if (settings?.check_availability_on_confirm !== false) {
+  if (keepsStock && settings?.check_availability_on_confirm !== false) {
     availability = await computeOrderAvailability(client, context, order.id);
     shortages = availability.lines.filter((line) => Number(line.shortage) > 0 || line.problem)
       .map((line) => ({ itemName: line.itemName, unit: line.unit, required: line.remaining, available: line.available, shortage: line.shortage, problem: line.problem }));
@@ -220,7 +226,7 @@ export async function evaluateConfirmation(client, context, order) {
     ready: problems.length === 0, problems: [...new Set(problems)], warnings,
     totals: { saved: version?.grand_total ?? null, recalculated: preview?.totals.grandTotal ?? null, currencyCode: String(version?.currency_code ?? "").trim() },
     quotation, varianceNeedsPermission: Boolean(quotation?.differs) && !orderCan(context, CONFIRMATION_PERMISSIONS.quoteVariance),
-    shortages, availabilitySummary: availability?.summaryLabel ?? null, availabilityCheckedAt: availability?.checkedAt ?? null, reservesOnConfirm: settings?.reserve_stock_on_confirm !== false, nextConfirmationVersion: Number(order.confirmation_version ?? 0) + 1,
+    shortages, availabilitySummary: availability?.summaryLabel ?? null, availabilityCheckedAt: availability?.checkedAt ?? null, reservesOnConfirm: keepsStock && settings?.reserve_stock_on_confirm !== false, nextConfirmationVersion: Number(order.confirmation_version ?? 0) + 1,
   };
 }
 

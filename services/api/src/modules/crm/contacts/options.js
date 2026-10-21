@@ -1,6 +1,6 @@
 // Everything the contact screens need to render their pickers, in one read.
 import { activityTypeChoices } from "../activity-types/records.js";
-import { loadApps } from "../data-management/apps.js";
+import { loadApps } from "../../../core/access/apps.js";
 import { contactTabAllowed } from "./summary.js";
 import { listLeadAssignmentOptions } from "../leads/assignment.js";
 import { listLeadSources } from "../leads/sources.js";

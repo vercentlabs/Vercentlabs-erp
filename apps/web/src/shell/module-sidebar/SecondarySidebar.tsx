@@ -25,11 +25,11 @@ import { useSecondarySidebarState } from "./SecondarySidebarState";
 // inside the region that wires up regionHandlers (see ModuleRail.tsx).
 export function SecondarySidebar() {
   const pathname = usePathname();
-  const { permissions, roleSlugs } = useWorkspaceContext();
+  const { permissions, roleSlugs, accessibleModuleKeys } = useWorkspaceContext();
   const { activeModule, pinned, togglePinned, open } =
     useSecondarySidebarState();
   if (!activeModule) return null;
-  const viewer = { permissions, isOwner: roleSlugs.includes("organization_owner") };
+  const viewer = { permissions, isOwner: roleSlugs.includes("organization_owner"), apps: accessibleModuleKeys };
 
   return (
     <nav
@@ -96,7 +96,7 @@ export function SecondarySidebar() {
   );
 }
 
-type Viewer = { permissions: readonly string[]; isOwner: boolean };
+type Viewer = { permissions: readonly string[]; isOwner: boolean; apps?: readonly string[] };
 
 const STORAGE_EVENT = "vercent-sidebar-storage";
 function subscribeStorage(onChange: () => void) {

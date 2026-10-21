@@ -17,6 +17,8 @@ export type NavViewer = {
   isOwner?: boolean;
   /** Routes an organization's own setting leaves out of the sidebar (CRM's Leads, when it works without leads). */
   hiddenRoutes?: readonly string[];
+  /** The apps that are on (accessibleModuleKeys); a destination that needs another app is hidden while it is off. */
+  apps?: readonly string[];
 };
 
 // A route may carry a query (a tab or view of one page, e.g. /inventory/replenishment?tab=alerts): it matches on its path; the query only
@@ -54,6 +56,7 @@ export function isItemPermitted(
   item: SecondaryNavItem,
   viewer: NavViewer,
 ): boolean {
+  if (item.requiredApp && viewer.apps && !viewer.apps.includes(item.requiredApp)) return false;
   if (viewer.isOwner) return true;
   if (item.requiredAnyPermission?.length)
     return item.requiredAnyPermission.some((permission) =>

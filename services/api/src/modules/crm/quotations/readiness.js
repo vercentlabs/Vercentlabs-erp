@@ -3,7 +3,7 @@
 // the account's contacts and addresses, the opportunity's product lines and
 // the Sales defaults (price list, payment terms, validity, currency).
 // Nothing is written.
-import { canInApp, hasApp, loadApps } from "../data-management/apps.js";
+import { canInApp, hasApp, loadApps } from "../../../core/access/apps.js";
 import { resolveSalesPriceList } from "../../sales/price-lists/resolver.js";
 import { findDuplicateAccounts } from "../accounts/duplicates.js";
 import { requireOpportunityPermission } from "../opportunities/access.js";

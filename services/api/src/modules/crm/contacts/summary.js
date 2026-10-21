@@ -1,7 +1,7 @@
 // The contact's summary and its read-only related lists. Opportunities,
 // quotations, orders and tickets are read from their own modules — never
 // copied into CRM — and shown only to callers who can open those modules.
-import { canInApp, loadApps } from "../data-management/apps.js";
+import { canInApp, loadApps } from "../../../core/access/apps.js";
 import { CrmError } from "../data-management/errors.js";
 import { getContact } from "./records.js";
 

@@ -2,7 +2,7 @@
 // with its current revision, status (Expired is derived from the validity
 // date), amount, validity, how it was sent and any sales order it became.
 // One can be marked as the primary quotation of the deal.
-import { canInApp, loadApps } from "../data-management/apps.js";
+import { canInApp, loadApps } from "../../../core/access/apps.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireOpportunityPermission } from "../opportunities/access.js";
 import { OPPORTUNITY_PERMISSIONS } from "../opportunities/constants.js";

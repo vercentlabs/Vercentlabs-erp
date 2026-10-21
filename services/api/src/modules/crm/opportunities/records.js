@@ -8,7 +8,7 @@ import { crmMediumLabel, isCrmMedium } from "@vercentlabs/shared-types";
 
 import { assertUsableCampaign } from "../campaigns/records.js";
 import { tagsByRecord } from "../tags/lookup.js";
-import { loadApps } from "../data-management/apps.js";
+import { loadApps } from "../../../core/access/apps.js";
 import { currencyDisclosure, dealRate, reportingCurrencyOf, sumReporting, sumWeightedReporting, unconvertedCount, unconvertedCurrencies } from "../data-management/reporting-currency.js";
 import { updatedSummary } from "../data-management/field-labels.js";
 import { phoneSearchDigits } from "../duplicates/normalize.js";

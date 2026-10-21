@@ -19,5 +19,5 @@ export declare function setOrganizationModuleEnabled(
   session: any,
   moduleKey: string,
   enabled: boolean,
-  options?: { request?: Request; env?: any },
-): Promise<{ module: ModuleAdministrationEntry | undefined; changed: boolean }>;
+  options?: { request?: Request; env?: any; confirmOpenWork?: boolean },
+): Promise<{ module: ModuleAdministrationEntry | undefined; changed: boolean; alsoEnabled: string[] }>;

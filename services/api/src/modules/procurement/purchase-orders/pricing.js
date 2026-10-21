@@ -15,6 +15,7 @@ import { TaxError, computeTax, loadTaxContext, resolveLineTax } from "../../../c
 import { normalizeQuantityToBase } from "../../products/uom.js";
 import { poCan } from "./access.js";
 import { PO_PERMISSIONS, PurchaseOrderError, fail, optionalUuid, readDate, text } from "./constants.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 export const dec = (value) => formatDecimal(value);
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -73,7 +74,7 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
   if (!lines.length && !allowMissingPrice) fail("Add at least one line.", "lines", "PURCHASE_ORDER_NO_LINES");
   let tax;
   try {
-    tax = await loadTaxContext(client, { organizationId, sellerRegistrationId: document.buyingRegistrationId ?? null });
+    tax = await loadTaxContext(client, { organizationId, sellerRegistrationId: document.buyingRegistrationId ?? null , purchase: true });
   } catch (error) {
     if (error instanceof TaxError) throw new PurchaseOrderError(error.status, error.message, error.code);
     throw error;
@@ -82,6 +83,8 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
   const inclusive = document.priceMode === "inclusive";
   const warnings = [];
   const priced = [];
+  // Without the Stock app nothing bought is kept in stock: products are non-stock lines with no receiving warehouse.
+  const keepsStock = await stockOn(client, context);
   for (let index = 0; index < lines.length; index += 1) {
     const input = lines[index] ?? {};
     const label = `Line ${index + 1}`;
@@ -99,7 +102,7 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
       if (!item) fail(`${label}: the product was not found.`, "productId", "PURCHASE_ORDER_PRODUCT_INVALID", 409);
       if (item.status !== "active" && !input.carried) fail(`${label}: ${item.name} is inactive.`, "productId", "PURCHASE_ORDER_PRODUCT_INACTIVE", 409);
       if (item.is_purchasable === false && !input.carried) fail(`${label}: ${item.name} is not set up to be purchased.`, "productId", "PURCHASE_ORDER_PRODUCT_NOT_PURCHASABLE", 409);
-      productType = productTypeOf(item);
+      productType = keepsStock || item.item_type === "service" ? productTypeOf(item) : "non_stock";
       uomId = uomId ?? item.purchase_uom_id ?? item.uom_id;
       taxCategoryId = input.carriedTaxCategoryId !== undefined ? input.carriedTaxCategoryId : item.tax_category_id;
       description = description ?? item.purchase_description ?? item.name;
@@ -155,7 +158,7 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
     priced.push({
       input, item, productType, productId, uom, factor, quantity, unitPrice, zeroPriceReason, discount, gross, lineDiscount, net: sub(gross, lineDiscount), description,
       taxCategoryId: taxCategoryId ?? null, expenseAccountId, label,
-      warehouseId: productType === "service" ? null : optionalUuid(input.warehouseId ?? input.receivingWarehouseId ?? document.defaultWarehouseId, "Warehouse"),
+      warehouseId: productType === "service" || !keepsStock ? null : optionalUuid(input.warehouseId ?? input.receivingWarehouseId ?? document.defaultWarehouseId, "Warehouse"),
       expectedDeliveryDate: readDate(input.expectedDeliveryDate, `${label} expected date`),
       sourceQuotationLineId: optionalUuid(input.sourceQuotationLineId, "Quotation line"),
       priceSource: input.priceSource === "quotation" ? "quotation" : input.priceSource === "product_cost" ? "product_cost" : "manual",

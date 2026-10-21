@@ -154,6 +154,7 @@ function SearchBody({ onNavigate }: { onNavigate: () => void }) {
     const viewer = {
       permissions: workspace.permissions,
       isOwner: workspace.roleSlugs.includes("organization_owner"),
+      apps: workspace.accessibleModuleKeys,
     };
     for (const area of MODULE_NAVIGATION) {
       if (!workspace.accessibleModuleKeys.includes(area.moduleKey)) continue;

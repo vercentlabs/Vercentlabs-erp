@@ -21,6 +21,7 @@ import {
 
 import { useCreateRequest } from "@/features/sales/shared/use-create-request";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useApp } from "@/shell/workspace-context/useApp";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
@@ -95,6 +96,9 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
+  // Without Stock there is nothing to reserve or deliver; without Manufacturing, nothing to make.
+  const stockOn = useApp("stock");
+  const manufacturingOn = useApp("manufacturing");
   const key = scopedQueryKey(workspace, "sales", "order", orderId);
   const query = useQuery({ queryKey: key, queryFn: () => getSalesOrder(orderId).then((r) => r.order) });
   // Where the order stands: one service for every dimension, read beside the order itself.
@@ -132,7 +136,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   // From Sales → + Create: open the delivery or invoice dialog when this order allows it.
   useCreateRequest(Boolean(query.data), (kind) => {
     const actions = query.data?.actions;
-    if (kind === "delivery") { if (actions?.deliver) setDialog("delivery"); else setNotice("Nothing on this order can be delivered now."); }
+    if (kind === "delivery") { if (actions?.deliver && stockOn) setDialog("delivery"); else setNotice("Nothing on this order can be delivered now."); }
     if (kind === "invoice") { if (actions?.invoice) setDialog("invoice"); else setNotice("Nothing on this order can be invoiced now."); }
   });
 
@@ -145,7 +149,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
 
   const detail = query.data;
   const order = detail.order;
-  const actions = detail.actions;
+  const actions = stockOn ? detail.actions : { ...detail.actions, deliver: false, reserve: false };
   const currency = order.currency_code;
   const executing = order.status !== "draft";
   const tracking = trackingQuery.data;
@@ -210,7 +214,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
               {actions.edit && <LinkButton variant="secondary" href={`/sales/orders/${orderId}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
               {actions.viewConfirmation && <a className={buttonVariants({ variant: "secondary" })} href={orderPdfUrl(orderId, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />View Confirmation</a>}
               {actions.sendConfirmation && <Button variant="secondary" onPress={() => setDialog("email")}><Send className="size-4" aria-hidden="true" />Send Confirmation</Button>}
-              {order.status !== "cancelled" && order.status !== "closed" && detail.capabilities.checkAvailability && detail.lines.some((line) => line.is_stock_tracked) && (
+              {stockOn && order.status !== "cancelled" && order.status !== "closed" && detail.capabilities.checkAvailability && detail.lines.some((line) => line.is_stock_tracked) && (
                 <Button variant="secondary" onPress={() => { setCheckAvailability(true); setTab("fulfillment"); }}>Check Availability</Button>
               )}
               {actions.reserve && <Button variant="secondary" isLoading={reserve.isPending} onPress={() => reserve.mutate()}>Reserve Stock</Button>}
@@ -240,26 +244,26 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           <TabList aria-label="Sales order sections">
             <Tab id="overview">Overview</Tab>
             <Tab id="items">Items ({detail.lines.length})</Tab>
-            <Tab id="fulfillment">Fulfillment</Tab>
+            {stockOn && <Tab id="fulfillment">Fulfillment</Tab>}
             <Tab id="invoices">Invoices ({detail.invoices.length})</Tab>
             <Tab id="confirmation">Confirmation</Tab>
             {executing && <Tab id="returns">Returns &amp; credits</Tab>}
-            {executing && <Tab id="manufacturing">Manufacturing</Tab>}
+            {executing && manufacturingOn && <Tab id="manufacturing">Manufacturing</Tab>}
             <Tab id="related">Related documents</Tab>
             <Tab id="notes">Notes &amp; attachments</Tab>
             <Tab id="history">History</Tab>
           </TabList>
                     <TabPanel id="overview"><Overview detail={detail} tracking={executing ? tracking : undefined} /></TabPanel>
           <TabPanel id="items"><Items detail={detail} /></TabPanel>
-          <TabPanel id="fulfillment">
+          {stockOn && <TabPanel id="fulfillment">
             <Fulfillment detail={detail} orderId={orderId} autoCheck={checkAvailability} reserving={reserve.isPending} onReserve={() => reserve.mutate()}
               onDeliver={() => setDialog("delivery")} onChanged={(message?: string) => (message ? done(message) : refresh())} />
-          </TabPanel>
+          </TabPanel>}
           <TabPanel id="invoices"><Invoices detail={detail} onInvoice={() => setDialog("invoice")} /></TabPanel>
           <TabPanel id="confirmation">
             <Confirmation detail={detail} onSend={() => setDialog("email")} onMarkSent={() => setDialog("markSent")} onAcknowledge={() => setDialog("acknowledge")} />
           </TabPanel>
-          {executing && <TabPanel id="manufacturing"><SalesManufacturingPanel orderId={orderId} /></TabPanel>}
+          {executing && manufacturingOn && <TabPanel id="manufacturing"><SalesManufacturingPanel orderId={orderId} /></TabPanel>}
           {executing && <TabPanel id="returns">{tracking ? <OrderReturnsCredits tracking={tracking} /> : <div className="pt-4">{trackingMissing}</div>}</TabPanel>}
           <TabPanel id="related"><Related detail={detail} tracking={tracking} /></TabPanel>
           <TabPanel id="notes"><Notes detail={detail} orderId={orderId} canEdit={Boolean(detail.capabilities.create)} onChanged={refresh} /></TabPanel>
@@ -292,6 +296,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
 
 function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: OrderTracking }) {
   const order = detail.order;
+  const stockOn = useApp("stock");
   return (
     <div className="flex flex-col gap-4 pt-4">
       {tracking && <OrderProgress tracking={tracking} />}
@@ -311,7 +316,7 @@ function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: O
           { label: "Customer PO", value: [order.customer_po_number, order.customer_po_date && `dated ${calendarDate(order.customer_po_date)}`].filter(Boolean).join(" ") || "—" },
           { label: "Customer reference", value: order.customer_reference ?? "—" },
           { label: "Requested delivery", value: calendarDate(order.requested_delivery_date) },
-          { label: "Default warehouse", value: order.default_warehouse_name ?? "—" },
+          ...(stockOn ? [{ label: "Default warehouse", value: order.default_warehouse_name ?? "—" }] : []),
           { label: "Salesperson", value: order.owner_name ?? "—" },
         ]} />
       </Panel>
@@ -348,6 +353,7 @@ function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: O
 
 function Items({ detail }: { detail: SalesOrderDetail }) {
   const order = detail.order;
+  const stockOn = useApp("stock");
   const currency = order.currency_code;
   const columns: ColumnDef<SalesOrderLine, unknown>[] = [
     { id: "seq", header: "#", cell: ({ row }) => row.original.sequence },
@@ -362,7 +368,7 @@ function Items({ detail }: { detail: SalesOrderDetail }) {
       ),
     },
     { id: "qty", header: "Quantity", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{withUnit(row.original.quantity, row.original.uom_snapshot)}</span> },
-    { id: "warehouse", header: "Warehouse", cell: ({ row }) => row.original.is_service ? "" : row.original.warehouse_name ?? "—" },
+    ...(stockOn ? [{ id: "warehouse", header: "Warehouse", cell: ({ row }) => row.original.is_service ? "" : row.original.warehouse_name ?? "—" } as ColumnDef<SalesOrderLine, unknown>] : []),
     {
       id: "price", header: "Unit price",
       cell: ({ row }) => (

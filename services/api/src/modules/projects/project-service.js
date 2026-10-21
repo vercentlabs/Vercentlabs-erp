@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 
 import { archiveFile, listFiles, prepareFileUpload, readFileContent, storeFile } from "../../core/platform/files/index.js";
 import {
-  PROJECT, ROLES, STATUS_LABEL, accessOf, activeMemberIds, beforeMemberLeaves, eligibleUsers, ensureProjectTypes, has, isoDay, label, loadProject, need,
+  PROJECT, ROLES, STATUS_LABEL, accessOf, activeMemberIds, beforeMemberLeaves, defaultProjectTypeId, eligibleUsers, ensureProjectTypes, has, isoDay, label, loadProject, need,
   nextProjectCode, notifyProject, projectError, projectEvent, projectSettings, publishProjectEvent, requireAccess, statusEvent, text, uuid, versionCheck, visibleProject,
 } from "./project-core.js";
 import { activationProblems } from "./status/status-read.js";
@@ -136,6 +136,7 @@ export async function createProjectDraft(client, c, input = {}, { source = "MANU
     if (raced) return { projectId: raced.id, projectCode: raced.project_code, replayed: true };
   }
   const fields = await fieldsOf(client, c, { classification: "INTERNAL", priority: "NORMAL", ...input });
+  if (!fields.project_type_id) fields.project_type_id = await defaultProjectTypeId(client, c, fields.classification ?? "INTERNAL");
   if (fields.manager_user_id === undefined && c.userId && (await eligibleUsers(client, c, [c.userId])).has(c.userId)) fields.manager_user_id = c.userId;
   const memberInput = Array.isArray(input.members) ? input.members : [];
   const memberIds = memberInput.map((row) => uuid(row.userId, "Member"));

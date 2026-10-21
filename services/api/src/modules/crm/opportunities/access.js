@@ -5,7 +5,7 @@
 //   Team — opportunities owned by members of a sales team the caller manages,
 //          and opportunities assigned to a team the caller belongs to or manages;
 //   Own  — opportunities the caller owns, plus unowned ones.
-import { canInApp } from "../data-management/apps.js";
+import { canInApp } from "../../../core/access/apps.js";
 import { crmOwnerScopeSql } from "../data-management/crm-access-scope.js";
 import { CrmError } from "../data-management/errors.js";
 import { OPPORTUNITY_PERMISSIONS } from "./constants.js";

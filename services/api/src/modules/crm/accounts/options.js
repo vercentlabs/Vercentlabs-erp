@@ -3,7 +3,7 @@
 // industries, payment terms and currencies, and what the caller may do.
 import { activityTypeChoices } from "../activity-types/records.js";
 import { GST_TREATMENTS } from "@vercentlabs/shared-types";
-import { loadApps } from "../data-management/apps.js";
+import { loadApps } from "../../../core/access/apps.js";
 import { tabAllowed } from "./summary.js";
 import { listLeadAssignmentOptions } from "../leads/assignment.js";
 import { listLeadSources } from "../leads/sources.js";

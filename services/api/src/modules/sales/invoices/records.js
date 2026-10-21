@@ -19,6 +19,7 @@ import {
   CREDIT_STATUS_LABELS, FINANCE_POSTED, INVOICE_PERMISSIONS, INVOICE_STATUS, INVOICE_VIEWS, InvoiceError, PAYMENT_STATUS_LABELS, QUANTITY_BASIS, SENT_CHANNELS, basisOfSetting,
   creditStatusOf, invoiceStatusLabel, invoiceStatusOf, paymentStatusOf,
 } from "./constants.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 // Other modules that keep records billed on an invoice (Projects' time billing) hear of each invoice event in the same transaction, so the
 // invoice and their records never disagree; a listener may refuse the change by throwing.
@@ -51,7 +52,8 @@ function financeError(error, fallback) {
 
 async function companyBasis(client, context) {
   const setting = (await client.query(`SELECT invoice_quantity_basis FROM tenant.sales_settings WHERE organization_id = $1`, [context.organizationId])).rows[0]?.invoice_quantity_basis;
-  return basisOfSetting(setting);
+  // Without the Stock app nothing is delivered through Sales: goods are invoiced as ordered.
+  return basisOfSetting((await stockOn(client, context)) ? setting : "ordered");
 }
 
 // What a new invoice of the order would bill, on the company's invoicing basis.

@@ -33,3 +33,4 @@ export * from "./expenses/index.js";
 export * from "./statements/index.js";
 export * from "./period-close/index.js";
 export * from "./home/index.js";
+export * from "./direct-documents.js";

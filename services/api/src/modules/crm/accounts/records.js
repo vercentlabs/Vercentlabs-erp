@@ -4,7 +4,7 @@
 // customer.js.
 import { normalizePhones } from "../data-management/phones.js";
 import { GST_TREATMENTS } from "@vercentlabs/shared-types";
-import { loadApps } from "../data-management/apps.js";
+import { loadApps } from "../../../core/access/apps.js";
 import { taxIdentityEditable } from "./tax-identity.js";
 import { dealRate } from "../data-management/reporting-currency.js";
 import { updatedSummary } from "../data-management/field-labels.js";

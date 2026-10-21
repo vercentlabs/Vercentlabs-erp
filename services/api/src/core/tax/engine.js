@@ -17,9 +17,12 @@ import { TaxError, dayOf, gstStateName, isUuid, treatmentOfSupply } from "./cons
 // The organization's tax set-up for a document: whether tax applies at all,
 // and the company registration (GSTIN, state) that issues the document.
 // sellerRegistrationId: the chosen registration, else the default one.
-export async function loadTaxContext(client, { organizationId, sellerRegistrationId = null }) {
+// purchase: true for a purchase document. A business that is not GST registered charges no GST on its sales (tax_enabled off) but still
+// pays the GST its suppliers charge (purchase_tax_enabled, on unless turned off) and cannot claim it back (claimsInputTax).
+export async function loadTaxContext(client, { organizationId, sellerRegistrationId = null, purchase = false }) {
   const settings = (await client.query(
-    `SELECT organization.country_code, COALESCE(settings.tax_enabled, true) AS tax_enabled, settings.default_tax_category_id
+    `SELECT organization.country_code, COALESCE(settings.tax_enabled, true) AS tax_enabled, COALESCE(settings.purchase_tax_enabled, true) AS purchase_tax_enabled,
+            settings.default_tax_category_id
        FROM public.organizations organization
        LEFT JOIN tenant.tax_settings settings ON settings.organization_id = organization.id
       WHERE organization.id = $1`, [organizationId])).rows[0] ?? {};
@@ -35,7 +38,8 @@ export async function loadTaxContext(client, { organizationId, sellerRegistratio
   }
   return {
     organizationId,
-    enabled: settings.tax_enabled !== false,
+    enabled: purchase ? settings.purchase_tax_enabled !== false : settings.tax_enabled !== false,
+    claimsInputTax: settings.tax_enabled !== false,
     countryCode: String(settings.country_code ?? "").trim() || null,
     defaultTaxCategoryId: settings.default_tax_category_id ?? null,
     registration: registration && sellerSnapshot(registration),

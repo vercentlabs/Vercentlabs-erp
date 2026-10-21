@@ -15,6 +15,7 @@ import { restrictedStockSql } from "../../stock/rules.js";
 import { registeredPaymentProviderKeys } from "../tender-and-payment-execution/adapter.js";
 import { listOutletCashiers } from "../cashiers/index.js";
 import { GST_STATES } from "../../../core/tax/index.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 export class PosOutletError extends Error {
   constructor(status, message, code = "POS_OUTLET_ERROR", details = undefined) {
@@ -247,8 +248,10 @@ async function checkCode(client, c, code, exceptId = null) {
   if (clash) throw issue("code", `${code} is already the code of ${clash.name}.`, "POS_OUTLET_DUPLICATE", 409);
 }
 
-// The selling warehouse: the company's own, active, a place that can ship (not transit).
+// The selling warehouse: the company's own, active, a place that can ship (not transit). Without the Stock app an outlet sells without
+// stock and needs none.
 async function checkWarehouse(client, c, warehouseId) {
+  if (!warehouseId && !(await stockOn(client, c))) return null;
   const id = uuid(warehouseId, "Selling warehouse");
   const warehouse = (await client.query(`SELECT id, status, warehouse_type, code FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [c.organizationId, id])).rows[0];
   if (!warehouse) throw issue("warehouseId", "Choose a warehouse of the company.", "POS_OUTLET_WAREHOUSE_INVALID");
@@ -446,7 +449,7 @@ async function setupIssues(client, c, row) {
   for (const [column, labelText] of [["address_line1", "address line"], ["city", "city"], ["state", "state"], ["postal_code", "postal code"], ["country_code", "country"]])
     if (!row[column]) add("ADDRESS", column, `Enter the ${labelText}.`);
   if (!row.timezone) add("TIMEZONE", "timezone", "Choose the outlet's time zone.");
-  if (row.warehouse_status !== "active") add("WAREHOUSE", "warehouseId", `The selling warehouse ${row.warehouse_code ?? ""} is inactive. Choose an active warehouse.`.replace("  ", " "));
+  if ((row.warehouse_id || await stockOn(client, c)) && row.warehouse_status !== "active") add("WAREHOUSE", "warehouseId", `The selling warehouse ${row.warehouse_code ?? ""} is inactive. Choose an active warehouse.`.replace("  ", " "));
   const registrations = n((await client.query(`SELECT count(*)::int AS count FROM tenant.tax_registrations WHERE organization_id = $1 AND status = 'active'`, [c.organizationId])).rows[0].count);
   if (!row.tax_registration_id && registrations > 0) add("TAX", "taxRegistrationId", "Choose the GST registration the outlet sells under.");
   if (row.tax_registration_id && row.registration_status !== "active") add("TAX", "taxRegistrationId", "The GST registration is inactive. Choose an active one.");

@@ -15,7 +15,7 @@ import { decimal, formatDecimal } from "../../core/decimal.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 import { parseCsvUpload } from "../../core/platform/data-exchange/csv.js";
 import { buildXlsxWorkbook, isXlsxFileName, parseXlsxUpload } from "../../core/platform/data-exchange/xlsx.js";
-import { createPurchaseOrder } from "../procurement/purchase-orders/index.js";
+import { draftPurchaseOrder, purchaseOn } from "./bridges/purchase.js";
 import { visibleWarehouseIds } from "./balances.js";
 import { StockError } from "./errors.js";
 import { restrictedStockSql } from "./rules.js";
@@ -243,17 +243,18 @@ export async function getReorderRules(client, c, filters = {}) {
   return {
     rows: rows.map(toRule), total: Number(rows[0]?.total ?? 0),
     counts: { required: Number(counts.required), covered: Number(counts.covered), outOfStock: Number(counts.out_of_stock), rules: Number(counts.rules) },
-    capabilities: capabilities(c),
+    capabilities: capabilities(c, await purchaseOn(client, c)),
   };
 }
 export const getReorderRequirements = (client, c, filters = {}) => getReorderRules(client, c, { ...filters, view: "required" });
 export const getReorderCoveredByIncoming = (client, c, filters = {}) => getReorderRules(client, c, { ...filters, view: "covered" });
 export const getItemsBelowReorder = (client, c, filters = {}) => getReorderRules(client, c, { ...filters, view: "below" });
 
-const capabilities = (c) => ({
+// purchasing: whether Purchase is on (a draft purchase order is opened only then).
+const capabilities = (c, purchasing) => ({
   create: can(c, P.create), edit: can(c, P.edit), disable: can(c, P.disable), import: can(c, P.import), export: can(c, P.export), dismiss: can(c, P.dismiss),
   viewDemand: can(c, P.viewDemand), viewIncoming: can(c, P.viewIncoming), viewOtherStock: can(c, P.viewOtherStock),
-  purchaseDraft: can(c, P.createPurchaseDraft), transferDraft: can(c, P.createTransferDraft), viewRequirements: can(c, P.viewRequirements),
+  purchaseDraft: purchasing && can(c, P.createPurchaseDraft), transferDraft: can(c, P.createTransferDraft), viewRequirements: can(c, P.viewRequirements),
 });
 
 // One rule, recalculated now from the sources, with what explains it: the demand and incoming documents, other warehouses' available stock,
@@ -274,7 +275,7 @@ export async function getReorderRule(client, c, ruleId) {
     incoming: can(c, P.viewIncoming) ? await getReorderIncomingBreakdown(client, c, rule.item_id, rule.warehouse_id) : null,
     otherWarehouses: can(c, P.viewOtherStock) ? await getOtherWarehouseAvailability(client, c, rule.item_id, rule.warehouse_id) : null,
     supplier: can(c, P.createPurchaseDraft) ? await preferredSupplier(client, c, rule.item_id) : null,
-    history, capabilities: capabilities(c),
+    history, capabilities: capabilities(c, await purchaseOn(client, c)),
   };
 }
 
@@ -479,11 +480,12 @@ export async function createPurchaseDraftFromReorder(client, c, ruleId, input = 
   const samePrice = preferred && preferred.supplierId === supplierId && (!preferred.priceUomId || preferred.priceUomId === uomId);
   const unitPrice = input.unitPrice !== undefined && input.unitPrice !== null && input.unitPrice !== "" ? String(input.unitPrice) : samePrice ? preferred.unitPrice : null;
   if (unitPrice === null) fail("Enter the purchase price: Procurement has no price for this supplier and unit.", "REORDER_PRICE_REQUIRED");
-  const order = await createPurchaseOrder(client, c, {
+  const order = await draftPurchaseOrder(client, c, {
     supplierId, defaultWarehouseId: rule.warehouse_id, idempotencyKey: `reorder:${key}`,
     internalNotes: `Replenishment for ${row.sku} at ${row.warehouse}: projected ${row.projectedPosition}, target ${row.targetLevel} ${row.baseUom ?? ""}`.trim(),
     lines: [{ productId: rule.item_id, quantity: String(quantity), uomId, unitPrice, warehouseId: rule.warehouse_id }],
   });
+  if (!order) fail("Purchase is turned off, so no purchase order can be opened. Buy it however you like, or turn Purchase on.", "REORDER_PURCHASE_OFF", 409);
   await markActioned(client, c, rule.id, "purchase_order", { id: order.id, number: order.purchaseOrderNumber, baseQuantity: base, quantity: `${quantity}${uomId === item.uom_id ? ` ${item.base_uom ?? ""}` : ""}`.trim() });
   const response = { purchaseOrderId: order.id, purchaseOrderNumber: order.purchaseOrderNumber, quantity, uomId, baseQuantity: base, href: `/procurement/purchase-orders/${order.id}`,
     warnings: order.warnings ?? [], replayed: false };
@@ -680,5 +682,5 @@ export async function getReorderOptions(client, c) {
   const list = (await client.query(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND system_role IS NULL AND status = 'active'
       AND ($2::uuid[] IS NULL OR id = ANY($2::uuid[])) ORDER BY is_default DESC, code`, [c.organizationId, visible])).rows;
   const categories = (await client.query(`SELECT id, name FROM tenant.item_groups WHERE organization_id = $1 ORDER BY name LIMIT 500`, [c.organizationId])).rows;
-  return { warehouses: list, categories, statuses: REORDER_STATUSES, importColumns: IMPORT_COLUMNS, capabilities: capabilities(c) };
+  return { warehouses: list, categories, statuses: REORDER_STATUSES, importColumns: IMPORT_COLUMNS, capabilities: capabilities(c, await purchaseOn(client, c)) };
 }

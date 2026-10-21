@@ -5,7 +5,7 @@
 // address deactivates it, because documents may already print it.
 import { findIndianState, isValidPin, parseGstin } from "@vercentlabs/shared-types";
 
-import { loadApps } from "../data-management/apps.js";
+import { loadApps } from "../../../core/access/apps.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireAccountPermission } from "./access.js";
 import { ACCOUNT_PERMISSIONS, ADDRESS_TYPES } from "./constants.js";

@@ -15,6 +15,7 @@ import { CANCEL_REASONS, PO_PERMISSIONS, PurchaseOrderError, STATUS, dayOf, fail
 import { databaseToday, resolveOrderDocument, validateForConfirmation } from "./document.js";
 import { recordPoEvent, updateOrderHeader } from "./persist.js";
 import { calculateClosureEligibility, loadLineProgress } from "./progress.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 const dec = (value) => formatDecimal(value);
 
@@ -74,7 +75,7 @@ export async function confirmPurchaseOrder(client, context, orderId, input = {})
   checkRevision(order, input.expectedRevision);
   // Re-validated against today's masters: a supplier blocked since the draft was made stops it here.
   const { header, priced } = await resolveOrderDocument(client, context, {}, { order, today: await databaseToday(client) });
-  validateForConfirmation(header, priced);
+  validateForConfirmation(header, priced, { keepsStock: await stockOn(client, context) });
   await updateOrderHeader(client, context, order.id, header, priced);
   // The company's approval rules (Shared Platform plan 6): a PO of this total waits for its approver(s); the draft is kept as it is.
   const stored = (await client.query(`SELECT supplier_id, grand_total, currency_code FROM tenant.purchase_orders WHERE organization_id = $1 AND id = $2`, [context.organizationId, order.id])).rows[0];
@@ -86,14 +87,15 @@ export async function confirmPurchaseOrder(client, context, orderId, input = {})
     return { id: order.id, versionNumber: order.version_number, status: STATUS.draft, replayed: false, approvalRequired: true, pendingApproval: approval.pending };
   }
   const version = Number(order.version_number) + 1;
+  // Without the Stock app nothing is received into stock: the bill is matched to the order (2-way).
   await client.query(`UPDATE tenant.purchase_order_confirmations SET superseded_at = now() WHERE organization_id = $1 AND purchase_order_id = $2 AND superseded_at IS NULL`,
     [context.organizationId, order.id]);
   await client.query(
     `UPDATE tenant.purchase_orders SET status = 'confirmed', version_number = $3, confirmed_by = $4, confirmed_at = now(), communication_status = 'not_sent',
             acknowledged_at = NULL, acknowledged_by = NULL, acknowledgement_reference = NULL, updated_by = $4, updated_at = now(),
-            matching_policy = COALESCE(matching_policy, (SELECT CASE WHEN settings.billing_basis = 'order' THEN 'two_way' WHEN settings.bill_held_goods THEN 'three_way_received'
+            matching_policy = COALESCE(matching_policy, CASE WHEN NOT $5 THEN 'two_way' END, (SELECT CASE WHEN settings.billing_basis = 'order' THEN 'two_way' WHEN settings.bill_held_goods THEN 'three_way_received'
                                                                    ELSE 'three_way_accepted' END FROM tenant.procurement_settings settings WHERE settings.organization_id = $1), 'three_way_accepted')
-      WHERE organization_id = $1 AND id = $2`, [context.organizationId, order.id, version, context.userId ?? null]);
+      WHERE organization_id = $1 AND id = $2`, [context.organizationId, order.id, version, context.userId ?? null, await stockOn(client, context)]);
   const snapshot = await confirmationSnapshot(client, context.organizationId, order.id);
   const hash = createHash("sha256").update(stable({ order: { ...snapshot.order, confirmed_at: null, status: null }, lines: snapshot.lines, taxes: snapshot.taxes })).digest("hex");
   await client.query(

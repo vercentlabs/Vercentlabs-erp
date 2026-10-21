@@ -43,6 +43,7 @@ import { convertBetweenUnits, factorOf, resolveItemUnit } from "../../products/u
 import { carryNegativeStock } from "../../stock/negative-stock-control.js";
 import { getExchangeRate } from "../../accounting/index.js";
 import { registerHeldStock } from "../../stock/quality-holds.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -117,6 +118,7 @@ const serialsOf = (value) => (Array.isArray(value) ? value : String(value ?? "")
 async function readReceiptLines(client, context, order, inputLines, warehouseId, receiptDate) {
   const organizationId = context.organizationId;
   const lines = await orderLinesById(client, organizationId, order.id);
+  const keepsStock = await stockOn(client, context);
   const progress = new Map((await loadLineProgress(client, organizationId, order.id)).map((line) => [line.lineId, line]));
   const requested = Array.isArray(inputLines) && inputLines.length ? inputLines
     : [...progress.values()].filter((line) => line.receiptRequired && line.remainingToReceive > 0n)
@@ -189,7 +191,8 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
     if (presented !== null && presented !== add(received, refused))
       fail(`${label}: of the ${formatDecimal(presented)} presented, ${formatDecimal(received)} taken in and ${formatDecimal(refused)} refused do not add up. Record a shortage as a discrepancy.`,
         "presentedQuantity", "GOODS_RECEIPT_PRESENTED_MISMATCH");
-    if (received > 0n && !warehouseId) fail("Choose the receiving warehouse.", "warehouseId", "GOODS_RECEIPT_WAREHOUSE_REQUIRED");
+    // Goods are received into a warehouse; without the Stock app they are simply marked received.
+    if (received > 0n && !warehouseId && keepsStock && line.product_type !== "service") fail("Choose the receiving warehouse.", "warehouseId", "GOODS_RECEIPT_WAREHOUSE_REQUIRED");
     // No location chosen: the warehouse's default receiving location, else MAIN. MAIN is the ledger's "no location".
     let locationId = optionalUuid(entry.warehouseLocationId, "Location") ?? (warehouseId ? await defaultLocationOf(client, organizationId, warehouseId, "receiving") : null);
     if (locationId) {
@@ -443,7 +446,9 @@ export async function validateGoodsReceiptForPosting(client, context, receiptId,
   if (supplier?.status === "blocked") issues.push(`The supplier is blocked (${supplier.blocked_reason}); goods cannot be received from it.`);
   const lines = (await client.query(`SELECT * FROM tenant.goods_receipt_lines WHERE organization_id = $1 AND goods_receipt_id = $2 ORDER BY line_number`, [organizationId, receipt.id])).rows;
   if (!lines.length) issues.push("The receipt has no lines.");
-  if (lines.some((line) => line.product_type !== "service" && decimal(line.accepted_quantity) + decimal(line.held_quantity) > 0n)) {
+  // Without the Stock app goods are marked received with no warehouse; a stock line received earlier still needs one.
+  const keepsStock = await stockOn(client, context);
+  if (lines.some((line) => (keepsStock ? line.product_type !== "service" : line.product_type === "stock") && decimal(line.accepted_quantity) + decimal(line.held_quantity) > 0n)) {
     if (!receipt.warehouse_id) issues.push("Choose the receiving warehouse.");
     else {
       const warehouse = (await client.query(`SELECT status FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [organizationId, receipt.warehouse_id])).rows[0];

@@ -25,6 +25,7 @@ import { ROLE_TEMPLATES } from "@vercentlabs/permissions";
 
 import { hashPassword } from "../auth/session.js";
 import { seedBusinessDataFoundation } from "../master-data.js";
+import { seedStarterData } from "./starter-data.js";
 import { initializeAccountingOrganization } from "../../modules/accounting/foundation.js";
 import { passwordPolicyIssues } from "../auth/password-policy.js";
 
@@ -179,6 +180,8 @@ export async function registerOrganization(client, input) {
   await initializeAccountingOrganization(client, { organizationId, userId });
   // POS starter permission profiles (Standard Cashier, Senior Cashier, POS Supervisor, POS Manager) as Drafts, sensitive grants off.
   await client.query("SELECT tenant.seed_pos_permission_profiles($1)", [organizationId]);
+  // A product category, the default payment term, project types and asset categories, so each app's first record needs no setup.
+  await seedStarterData(client, { organizationId, userId });
 
   return { userId, organizationId, email, fullName };
 }

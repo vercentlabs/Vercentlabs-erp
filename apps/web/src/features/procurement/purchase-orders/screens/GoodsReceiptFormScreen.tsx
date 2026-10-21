@@ -19,6 +19,7 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useApp } from "@/shell/workspace-context/useApp";
 import { quantity } from "@/features/procurement/shared/format";
 import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
 
@@ -95,6 +96,8 @@ function OrderPicker({ onPick }: { onPick: (id: string) => void }) {
 
 function ReceiptForm({ receivable, options, existing }: { receivable: Receivable; options: PurchaseOrderOptions; existing: GoodsReceiptDetail | null }) {
   const router = useRouter();
+  // Without Stock the goods are only marked received: no warehouse.
+  const stockOn = useApp("stock");
   const goods = receivable.lines.filter((line) => line.receiptRequired);
   const saved = existing?.receipt;
   const [header, setHeader] = useState({
@@ -177,8 +180,8 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
           { label: "Ships from", value: receivable.order.shipFrom ? [receivable.order.shipFrom.label, receivable.order.shipFrom.city].filter(Boolean).join(" · ") : "—" },
         ]} />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Select label="Receiving warehouse" selectedKey={header.warehouseId || null} onSelectionChange={(value) => setField("warehouseId")(String(value))}
-            description="One warehouse per receipt." options={options.warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))} />
+          {stockOn && <Select label="Receiving warehouse" selectedKey={header.warehouseId || null} onSelectionChange={(value) => setField("warehouseId")(String(value))}
+            description="One warehouse per receipt." options={options.warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))} />}
           <TextField label="Receipt date" type="date" value={header.receiptDate} onChange={setField("receiptDate")} description="The receipt's accounting date (today if empty)." />
           <TextField label="Goods arrived at" type="datetime-local" value={header.arrivedAt} onChange={setField("arrivedAt")} description="When the goods physically arrived. The posting time is recorded separately." />
           <Select label="Received by" selectedKey={header.receivedBy || "me"} onSelectionChange={(value) => setField("receivedBy")(value === "me" ? "" : String(value))}

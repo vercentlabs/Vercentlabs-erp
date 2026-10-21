@@ -4,6 +4,7 @@ export class ModulesApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly code?: string,
   ) {
     super(message);
   }
@@ -15,6 +16,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
     throw new ModulesApiError(
       payload.message || "The request could not be completed.",
       response.status,
+      payload.details?.code ?? payload.code,
     );
   }
   return payload;
@@ -39,13 +41,14 @@ export async function listModules(): Promise<{ modules: ModuleRow[] }> {
 export async function setModuleEnabled(
   key: string,
   enabled: boolean,
-): Promise<{ module: ModuleRow; changed: boolean }> {
+  confirmOpenWork = false,
+): Promise<{ module: ModuleRow; changed: boolean; alsoEnabled: string[] }> {
   const response = await fetch(
     `/api/settings/modules/${encodeURIComponent(key)}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled }),
+      body: JSON.stringify({ enabled, confirmOpenWork }),
     },
   );
   return parseResponse(response);

@@ -12,6 +12,7 @@
 // prices are never fields of the item: stock comes from Inventory, prices
 // from price lists and purchase orders.
 import { USABLE_ROW } from "../stock/index.js";
+import { defaultProductType } from "../../core/products/tracking.js";
 import { canViewProductCost, canViewProductStock, productCan, productCapabilities, requireProductPermission } from "./access.js";
 import {
   LIFECYCLE, LIFECYCLE_LABELS, PRODUCT_PERMISSIONS, PRODUCT_TYPE_SQL, PRODUCT_VIEWS, ProductError, productTypeLabel, productTypeOf, trackingLabel,
@@ -486,7 +487,7 @@ export async function createProduct(client, context, input = {}, { origin = "man
   if (!Object.values(LIFECYCLE).includes(status)) throw issueError("status", "Choose Draft, Active or Inactive.");
   const defaults = await categoryDefaults(client, context, text(input.categoryId));
   const normalized = normalizeProductInput({
-    type: "stock", isSellable: true, isPurchasable: true,
+    type: has(input, "type") ? undefined : await defaultProductType(client, context), isSellable: true, isPurchasable: true,
     ...Object.fromEntries(Object.entries(defaults).filter(([field, value]) => value && !has(input, field))),
     ...input,
   });

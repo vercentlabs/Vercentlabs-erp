@@ -6,7 +6,7 @@ import type { WorkspaceSessionContext } from "@/core/session";
 // expect (@vercentlabs/shared-types' CrmContext), from the already-
 // resolved workspace session.
 // `snapshot` (the request's access snapshot, which workspaceRoute resolves for module routes) tells CRM which other apps the
-// organization has: CRM reaches into Sales, Accounting, Projects or Support only when that app is on (data-management/apps.js).
+// organization has: CRM reaches into Sales, Accounting, Projects or Support only when that app is on (core/access/apps.js).
 export function crmContext(session: WorkspaceSessionContext, snapshot?: { modules: ReadonlyArray<{ moduleId: string; released: boolean; enabled: boolean; reason?: string }> } | null) {
   return {
     organizationId: session.organizationId,

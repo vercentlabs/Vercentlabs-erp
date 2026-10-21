@@ -34,7 +34,7 @@
 //    not OFFSET — the duplicate/skip risk under concurrent inserts (an OFFSET page shifts when a new row is inserted
 //    ahead of it) cannot happen here: a cursor value that already has a
 //    stable position never moves.
-import { canInApp, loadApps } from "../../data-management/apps.js";
+import { canInApp, loadApps } from "../../../../core/access/apps.js";
 import { taskScopeSql } from "../../tasks/access.js";
 import { canOverridePrivateCrmContent } from "../../data-management/crm-access-scope.js";
 import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";

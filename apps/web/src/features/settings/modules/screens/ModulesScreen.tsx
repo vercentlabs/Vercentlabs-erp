@@ -48,17 +48,27 @@ export function ModulesScreen({ canManage }: { canManage: boolean }) {
   });
   const [target, setTarget] = useState<ModuleRow | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  // The app's open work, listed by the server when it is being turned off: the owner confirms, or keeps it on.
+  const [openWork, setOpenWork] = useState<string | null>(null);
 
+  const close = () => { setTarget(null); setOpenWork(null); };
   const mutation = useMutation({
     mutationFn: (module: ModuleRow) =>
-      setModuleEnabled(module.key, !module.enabled),
-    onSuccess: () => {
+      setModuleEnabled(module.key, !module.enabled, Boolean(openWork)),
+    onSuccess: (result) => {
       setError(null);
-      setTarget(null);
+      const also = result.alsoEnabled.map((key) => query.data?.modules.find((entry) => entry.key === key)?.name ?? key);
+      setNotice(also.length ? `${also.join(" and ")} ${also.length === 1 ? "was" : "were"} turned on too: ${target?.name} needs ${also.length === 1 ? "it" : "them"}.` : null);
+      close();
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
     onError: (failure: unknown) => {
-      setTarget(null);
+      if (failure instanceof ModulesApiError && failure.code === "MODULE_OPEN_WORK") {
+        setOpenWork(failure.message);
+        return;
+      }
+      close();
       setError(
         failure instanceof ModulesApiError
           ? failure.message
@@ -93,6 +103,11 @@ export function ModulesScreen({ canManage }: { canManage: boolean }) {
           className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
         >
           {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p role="status" className="rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm text-text">
+          {notice}
         </p>
       ) : null}
 
@@ -164,18 +179,20 @@ export function ModulesScreen({ canManage }: { canManage: boolean }) {
 
       <AlertDialog
         isOpen={Boolean(target)}
-        onOpenChange={(open) => !open && setTarget(null)}
+        onOpenChange={(open) => !open && close()}
         title={
           target?.enabled
             ? `Disable ${target?.name}?`
             : `Enable ${target?.name}?`
         }
         description={
-          target?.enabled
+          openWork
+            ? `${openWork} Turn it off anyway?`
+            : target?.enabled
             ? `${target?.name} will disappear for everyone in your organization and its pages and APIs will stop working. Role assignments and data are kept, and turning it back on restores access.`
             : `${target?.name} becomes available to people whose roles allow it${target && !target.planIncluded ? ", once your plan includes it" : ""}. This does not change your plan or billing.`
         }
-        confirmLabel={target?.enabled ? "Disable module" : "Enable module"}
+        confirmLabel={openWork ? "Turn off anyway" : target?.enabled ? "Disable module" : "Enable module"}
         isConfirming={mutation.isPending}
         onConfirm={() => target && mutation.mutate(target)}
       />

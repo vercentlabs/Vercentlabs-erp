@@ -67,7 +67,8 @@ export async function getGstDetailsStatus(client, session) {
   return { needed: taxEnabled ? !registration : !organization?.state_code, taxEnabled, gstin: registration?.registration_number ?? null,
     stateCode: registration?.state_code ?? organization?.state_code ?? null, canEdit: hasSessionPermission(session, "organization.manage") };
 }
-// input: registered (true: gstin — the state comes from it; false: stateCode only, and documents are made without GST).
+// input: registered (true: gstin — the state comes from it; false: stateCode only, and sales are made without GST; purchases still carry the GST
+// suppliers charge, which an unregistered business can't claim back).
 export async function saveGstDetails(client, session, input = {}) {
   if (!hasSessionPermission(session, "organization.manage")) throw new WorkspaceStartError(403, "Ask the owner or an administrator to add the GST details.", "GST_DETAILS_DENIED");
   const registered = input.registered === true || input.registered === "true";
@@ -80,7 +81,8 @@ export async function saveGstDetails(client, session, input = {}) {
     const stateCode = String(input.stateCode ?? "").trim();
     if (!/^\d{2}$/.test(stateCode)) throw new WorkspaceStartError(422, "Pick your state.", "GST_DETAILS_INVALID", { field: "stateCode" });
     await updateCompanyProfile(client, session, { address: { stateCode } });
-    await client.query(`INSERT INTO tenant.tax_settings (organization_id, tax_enabled) VALUES ($1, false) ON CONFLICT (organization_id) DO UPDATE SET tax_enabled = false`, [session.organizationId]);
+    await client.query(`INSERT INTO tenant.tax_settings (organization_id, tax_enabled, purchase_tax_enabled) VALUES ($1, false, true)
+      ON CONFLICT (organization_id) DO UPDATE SET tax_enabled = false, purchase_tax_enabled = true`, [session.organizationId]);
   }
   return getGstDetailsStatus(client, session);
 }

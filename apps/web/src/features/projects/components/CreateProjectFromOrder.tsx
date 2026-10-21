@@ -8,18 +8,20 @@ import { Button, Checkbox, Dialog } from "@vercentlabs/design-system";
 
 import { Notice } from "@/shared/ui/Panel";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useApp } from "@/shell/workspace-context/useApp";
 
 import { PROJECTS_BASE, createFromSalesOrder, errorMessage, newKey } from "../api/projects-api";
 
 export function CreateProjectFromOrder({ salesOrderId, orderNumber }: { salesOrderId: string; orderNumber: string }) {
   const workspace = useWorkspaceContext();
+  const projectsOn = useApp("projects");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [additional, setAdditional] = useState(false);
   const [key] = useState(newKey);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const may = workspace.accessibleModuleKeys.includes("projects")
+  const may = projectsOn
     && (workspace.roleSlugs.some((slug) => ["organization_owner", "system_administrator"].includes(slug)) || workspace.permissions.includes("projects.create"));
   if (!may) return null;
   return (

@@ -30,6 +30,7 @@ import { calculateSupplierBillTotals, currencyPlaces, totalsView } from "./calcu
 import { BILL_PERMISSIONS, POSTED_STATUSES, SupplierBillError, dayOf, fail, has, optionalUuid, readDate, requireUuid, text } from "./constants.js";
 import { billedOnLines, receiptLineEligibility } from "./sources.js";
 import { APPROVABLE_CODES, RECEIPT_CODES, evaluateTwoWayMatch, linesFromCalculated, linesFromStored, persistMatchEvaluation } from "./matching.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -131,7 +132,7 @@ async function resolveHeader(client, context, input, { order = null, current = n
   const { registration, choices } = await supplierRegistrationFor(client, organizationId, supplierId, chosenRegistration);
   const address = (sameSupplier ? order?.billing_address_snapshot : null) ?? await addressSnapshot(client, organizationId, supplierId, optionalUuid(input.supplierAddressId, "Address"));
   let tax;
-  try { tax = await loadTaxContext(client, { organizationId, sellerRegistrationId: optionalUuid(keep("buyingRegistrationId", "buying_registration_id") ?? order?.buying_registration_id, "Company registration") }); }
+  try { tax = await loadTaxContext(client, { organizationId, sellerRegistrationId: optionalUuid(keep("buyingRegistrationId", "buying_registration_id") ?? order?.buying_registration_id, "Company registration"), purchase: true }); }
   catch (error) { throw new SupplierBillError(error.status ?? 409, error.message, error.code); }
   const buyer = tax.registration;
   const placeOfSupply = text(keep("placeOfSupply", "place_of_supply"), 10) ?? order?.ship_to_snapshot?.stateCode ?? buyer?.stateCode ?? null;
@@ -380,6 +381,7 @@ export async function validateDirectBillAccount(client, context, accountId, labe
 async function directBillLines(client, context, requested) {
   if (!Array.isArray(requested) || !requested.length) fail("Add at least one line.", "lines", "SUPPLIER_BILL_NO_LINES");
   const lines = [];
+  const keepsStock = await stockOn(client, context);
   for (const [index, entry] of requested.entries()) {
     const label = `Line ${index + 1}`;
     const productId = optionalUuid(entry.productId, "Product");
@@ -388,8 +390,9 @@ async function directBillLines(client, context, requested) {
       item = (await client.query(`SELECT id, code, name, item_type, track_inventory, uom_id, purchase_uom_id, hsn_sac_code, tax_category_id, status FROM tenant.items WHERE organization_id = $1 AND id = $2`,
         [context.organizationId, productId])).rows[0];
       if (!item) fail(`${label}: the product was not found.`, "productId", "SUPPLIER_BILL_PRODUCT_INVALID", 404);
-      // Stock is bought through a purchase order and received on a goods receipt: an expense bill never adds stock.
-      if (item.item_type !== "service" && item.track_inventory)
+      // Stock is bought through a purchase order and received on a goods receipt: an expense bill never adds stock. Without the Stock app
+      // nothing is kept in stock, so a product is billed like any other purchase.
+      if (keepsStock && item.item_type !== "service" && item.track_inventory)
         fail(`${label}: ${item.name} is a stock item. Buy it on a purchase order and receive it, so Inventory records it.`, "productId", "SUPPLIER_BILL_STOCK_WITHOUT_ORDER", 409);
     }
     // An expense category names the cost in plain words and carries its account, tax category and HSN/SAC.
@@ -430,8 +433,11 @@ async function directBillLines(client, context, requested) {
 async function financeDocument(client, context, header, source, calculated, { order, receiptIds, matchingStatus, overrideReason }) {
   const ledger = await finance(() => getPrimaryLedger(client, { ...context, permissions: [...(context.permissions ?? []), BILL_PERMISSIONS.financeView] }));
   const lines = [];
+  // A business that is not GST registered pays its suppliers' GST but cannot claim it: the tax is part of the cost.
+  const claimsInputTax = (await loadTaxContext(client, { organizationId: context.organizationId, purchase: true })).claimsInputTax;
   for (const line of calculated.lines) {
     const source = line.input;
+    const eligibility = claimsInputTax ? source.inputTaxEligibility : "blocked";
     let accountId = source.expenseAccountId ?? undefined;
     let varianceAccountId; let varianceAmount = 0n;
     // Goods whose receipt booked them against GRNI clear GRNI at the accrued value; a price difference goes to purchase price variance.
@@ -454,8 +460,8 @@ async function financeDocument(client, context, header, source, calculated, { or
       purchaseOrderLineId: line.order?.id, goodsReceiptLineId: source.allocations.length === 1 ? source.allocations[0].goodsReceiptLineId : undefined,
       orderedUnitPrice: line.order ? dec(line.order.unit_price) : undefined,
       taxDetails: line.reverseCharge ? [] : line.components.map((component) => ({ taxType: component.type, taxableAmount: dec(component.taxableAmount), taxAmount: dec(component.taxAmount),
-        recoverableAmount: source.inputTaxEligibility === "blocked" ? "0" : dec(component.taxAmount) })),
-      inputTaxEligibility: source.inputTaxEligibility, expenseCategoryId: source.expenseCategoryId ?? undefined, costCenterId: source.costCenterId ?? undefined,
+        recoverableAmount: eligibility === "blocked" ? "0" : dec(component.taxAmount) })),
+      inputTaxEligibility: eligibility, expenseCategoryId: source.expenseCategoryId ?? undefined, costCenterId: source.costCenterId ?? undefined,
       departmentId: source.departmentId ?? undefined,
       taxComponents: line.components.map((component) => ({ taxType: component.type, label: component.label, rate: dec(component.rate), taxableAmount: dec(component.taxableAmount),
         taxAmount: dec(component.taxAmount), classification: component.classification })),

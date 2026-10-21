@@ -305,3 +305,8 @@ export function reopenPeriod(client: QueryClient, context: AccountingContext, pe
 export function acknowledgeCloseCheck(client: QueryClient, context: AccountingContext, periodId: string, input: { checkKey: string; reason: string }): Promise<AccountingRecord>;
 export function withdrawCloseAcknowledgement(client: QueryClient, context: AccountingContext, periodId: string, input: { checkKey: string }): Promise<AccountingRecord>;
 export function closeFinancialYear(client: QueryClient, context: AccountingContext, yearId: string, input?: { note?: string }): Promise<AccountingRecord>;
+
+// Accounting's own New invoice and New bill (direct-documents.js).
+export declare const GST_RATES: readonly number[];
+export function createAccountingInvoice(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<{ id: string; status: "draft" | "pending_approval" | "posted" }>;
+export function createAccountingBill(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<{ id: string; status: "draft" | "pending_approval" | "posted" }>;

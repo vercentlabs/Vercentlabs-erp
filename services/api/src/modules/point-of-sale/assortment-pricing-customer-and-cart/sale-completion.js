@@ -40,6 +40,7 @@ import { isTerminalPaymentMethodEnabled, resolveTerminalStockSource } from "../t
 import { randomUUID } from "node:crypto";
 import { POS_STOCK_MESSAGES, consumePosLineStock, ensurePosCheckoutStockAllocation, resolvePosStockRecovery } from "../inventory-and-offline-continuity/stock-reduction.js";
 import { assertShiftCashSession } from "../cash-shift-day-end-and-reconciliation/shift-opening.js";
+import { stockOn } from "../../../core/products/tracking.js";
 
 // Sale-line stock issue routes through Stock's own postStockMovement
 // (services/api/src/modules/stock/index.js) rather than a local fork, so
@@ -141,9 +142,10 @@ async function resolvePointOfSaleUnitPrice(client, context, shift, policy, line,
   return applyCustomerPricingRules(client, context, shift, customerId, line.itemId, itemGroupId, decimal(line.quantity), listUnitPrice);
 }
 
-// Items sold without stock: services, and items not kept in inventory.
+// Items sold without stock: services, and items not kept in inventory (every item when the Stock app is off).
 async function nonStockItemIds(client, context, itemIds) {
   if (!itemIds.length) return new Set();
+  if (!(await stockOn(client, context))) return new Set(itemIds);
   return new Set((await client.query(`SELECT id FROM tenant.items WHERE organization_id=$1 AND id = ANY($2::uuid[]) AND (item_type = 'service' OR track_inventory = false)`,
     [context.organizationId, [...new Set(itemIds)]])).rows.map((row) => row.id));
 }
@@ -302,6 +304,7 @@ export async function completePointOfSale(client, context, input) {
     [context.organizationId, itemIds],
   );
   const itemById = new Map(itemRows.rows.map((row) => [row.id, row]));
+  const keepsStock = await stockOn(client, context);
 
   for (const [index, line] of input.lines.entries()) {
     const quantity = Number(line.quantity);
@@ -318,8 +321,9 @@ export async function completePointOfSale(client, context, input) {
 
     // Stock comes from the outlet's warehouse, at the terminal's selling location (else the outlet's): never a warehouse the caller names.
     if (line.warehouseId && line.warehouseId !== shift.warehouse_id) throw posError(409, "Stock is sold from this outlet's selling warehouse only.", "INVALID_SELLING_LOCATION");
-    const { warehouseId, locationId: warehouseLocationId } = await resolveTerminalStockSource(client, context.organizationId, shift.terminal_id, line.warehouseLocationId || null);
-    const available = item.item_type === "service" || item.track_inventory === false ? Infinity : await stockAvailable(client, context, line.itemId, warehouseId, warehouseLocationId);
+    const { warehouseId, locationId: warehouseLocationId } = keepsStock
+      ? await resolveTerminalStockSource(client, context.organizationId, shift.terminal_id, line.warehouseLocationId || null) : { warehouseId: null, locationId: null };
+    const available = !keepsStock || item.item_type === "service" || item.track_inventory === false ? Infinity : await stockAvailable(client, context, line.itemId, warehouseId, warehouseLocationId);
     if (!policy.allow_negative_stock && available < quantity) {
       const error = posError(409, "Insufficient stock for POS sale.", "INSUFFICIENT_STOCK");
       error.itemId = line.itemId;

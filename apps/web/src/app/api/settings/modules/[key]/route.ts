@@ -6,7 +6,7 @@ import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 import { ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
 
-const putSchema = z.object({ enabled: z.boolean() });
+const putSchema = z.object({ enabled: z.boolean(), confirmOpenWork: z.boolean().optional() });
 
 // Organization-wide enablement (modules.manage). Idempotent; audited with
 // before/after; never deletes role assignments or business data.
@@ -28,6 +28,7 @@ export async function PUT(
         await setOrganizationModuleEnabled(client, session, key, body.enabled, {
           request,
           env: process.env,
+          confirmOpenWork: body.confirmOpenWork === true,
         }),
       );
     },

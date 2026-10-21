@@ -14,6 +14,7 @@ import { Badge, Button, Checkbox, ComboBox, NumberField, Radio, RadioGroup, Sele
 import { FormSection } from "@/shared/ui/FormSection";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useApp } from "@/shell/workspace-context/useApp";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
 
@@ -35,9 +36,10 @@ const DEFAULT_FIELDS: Array<[DefaultField, string]> = [["valuationMethod", "movi
 const number = (value: number | null | undefined) => (value === null || value === undefined ? Number.NaN : value);
 const numberOrNull = (value: number) => (Number.isFinite(value) ? value : null);
 
-function initial(item?: Item): Values {
+// A new item is kept in stock only when the Stock app is on; without it, items are not stock-tracked.
+function initial(item: Item | undefined, stockOn: boolean): Values {
   return {
-    type: item?.type ?? "stock", code: item?.code ?? "", name: item?.name ?? "", categoryId: item?.categoryId ?? NONE, description: item?.description ?? "",
+    type: item?.type ?? (stockOn ? "stock" : "non_stock"), code: item?.code ?? "", name: item?.name ?? "", categoryId: item?.categoryId ?? NONE, description: item?.description ?? "",
     salesDescription: item?.salesDescription ?? "", purchaseDescription: item?.purchaseDescription ?? "", brand: item?.brand ?? "", manufacturerName: item?.manufacturerName ?? "",
     manufacturerPartNumber: item?.manufacturerPartNumber ?? "", baseUomId: item?.baseUomId ?? "",
     salesUomId: item && item.salesUomId !== item.baseUomId ? item.salesUomId : NONE, salesUomFactor: item?.salesUomFactor ?? 1,
@@ -79,9 +81,10 @@ function toInput(values: Values): ItemInput {
 
 export function ItemForm({ options, item, onSaved, onCancel }: { options: ItemOptions; item?: Item; onSaved: (item: Item) => void; onCancel: () => void }) {
   const workspace = useWorkspaceContext();
+  const stockOn = useApp("stock");
   const editing = Boolean(item);
   const can = options.capabilities;
-  const [values, setValues] = useState<Values>(() => initial(item));
+  const [values, setValues] = useState<Values>(() => initial(item, stockOn));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   // Category defaults still as inherited (field -> where from); a field changed by hand is the user's own from then on.
@@ -181,7 +184,7 @@ export function ItemForm({ options, item, onSaved, onCancel }: { options: ItemOp
         for (const field of ["inventoryProfileId", "accountingProfileId"] as const) if (!ownFields.has(field) || !input[field]) delete input[field];
         return createItem({ ...input, isVariantTemplate: template || undefined, barcode: barcodes[0] ?? null, alternateBarcodes: barcodes.slice(1), status: status ?? "active" });
       }
-      const before = toInput(initial(item));
+      const before = toInput(initial(item, stockOn));
       const changed = Object.fromEntries(Object.entries(input).filter(([key, value]) => JSON.stringify(value ?? null) !== JSON.stringify((before as Record<string, unknown>)[key] ?? null)));
       return updateItem(item.id, { ...changed, expectedVersion: item.version });
     }),
@@ -237,7 +240,7 @@ export function ItemForm({ options, item, onSaved, onCancel }: { options: ItemOp
           )}
         </div>
         <Select label="Item type" isRequired selectedKey={values.type} isDisabled={!may.inventory} onSelectionChange={(key) => set("type")(String(key) as ItemType)}
-          options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} errorMessage={errors.type}
+          options={options.types.filter((entry) => stockOn || entry.code !== "stock" || item?.type === "stock").map((entry) => ({ value: entry.code, label: entry.label }))} errorMessage={errors.type}
           description={service ? "No inventory: no warehouse stock, batches or serials." : stock ? "Quantity tracked in warehouses, valued in Inventory." : "Bought or sold physically, but stock is not tracked."} />
         <ComboBox label="Category" isRequired={stock} selectedKey={values.categoryId} onSelectionChange={(key) => key !== null && chooseCategory(String(key))}
           options={categoryChoices} errorMessage={errors.categoryId ?? categoryError ?? undefined} isDisabled={editing} placeholder="Search categories"

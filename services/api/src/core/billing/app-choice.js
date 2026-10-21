@@ -7,6 +7,8 @@
 // choice to make until they pick one.
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
+import { countedApps, withRequiredApps } from "../platform/app-manifests.js";
+
 import { BillingServiceError } from "./errors.js";
 import { billingAudit, subscriptionRow } from "./shared.js";
 
@@ -54,7 +56,8 @@ export function effectiveModulesFor({ moduleAllowance, selectedModules, modulesS
   const snapshot = moduleList(modulesSnapshot);
   if (moduleAllowance === null || moduleAllowance === undefined) return snapshot;
   if (selectedModules === null || selectedModules === undefined) return snapshot;
-  return moduleList(selectedModules).slice(0, Number(moduleAllowance));
+  // An app the chosen one needs comes with it (Manufacturing brings Stock) and is not counted.
+  return withRequiredApps(countedApps(moduleList(selectedModules)).slice(0, Number(moduleAllowance)));
 }
 
 // Picks (or switches) the company's app(s). Only an owner or administrator may; the first pick is free, later switches wait
@@ -64,15 +67,17 @@ export async function chooseApps(client, ctx, input = {}) {
   if (!OWNER_ROLES.some((role) => ctx.roleSlugs?.includes(role))) {
     throw new BillingServiceError(403, "Only the owner or an administrator can choose the company's app.", "BILLING_PERMISSION_DENIED");
   }
-  const modules = [...new Set((Array.isArray(input.modules) ? input.modules : [input.module]).filter(Boolean).map(String))];
-  if (!modules.length) throw new BillingServiceError(422, "Choose an app.", "BILLING_APP_REQUIRED");
-  const unknown = modules.filter((key) => !RELEASED.has(key));
+  const picked = [...new Set((Array.isArray(input.modules) ? input.modules : [input.module]).filter(Boolean).map(String))];
+  if (!picked.length) throw new BillingServiceError(422, "Choose an app.", "BILLING_APP_REQUIRED");
+  const unknown = picked.filter((key) => !RELEASED.has(key));
   if (unknown.length) throw new BillingServiceError(422, `${unknown.join(", ")} is not an app you can choose.`, "BILLING_APP_UNKNOWN");
   {
     const sub = await subscriptionRow(client, ctx.organizationId, { lock: true });
     if (!sub) throw new BillingServiceError(409, "Billing is not initialised for this organisation.", "BILLING_NOT_INITIALISED");
     const choice = await getAppChoice(client, ctx.organizationId);
     if (choice.allowance === null) throw new BillingServiceError(409, `The ${choice.planName} plan includes every app; there is nothing to choose.`, "BILLING_APPS_INCLUDED");
+    // The apps a chosen app needs come with it and don't count against the allowance (Manufacturing with Stock is one app).
+    const modules = countedApps(picked);
     if (modules.length > choice.allowance) {
       throw new BillingServiceError(422, `The ${choice.planName} plan includes ${choice.allowance} app${choice.allowance === 1 ? "" : "s"}. Upgrade to Standard for every app.`, "BILLING_APP_ALLOWANCE");
     }
@@ -86,7 +91,7 @@ export async function chooseApps(client, ctx, input = {}) {
     await client.query(`INSERT INTO billing_module_switches (organization_id, from_modules, to_modules, switched_by) VALUES ($1, $2::jsonb, $3::jsonb, $4)`,
       [ctx.organizationId, JSON.stringify(before), JSON.stringify(modules), ctx.userId ?? null]);
     // The chosen app is switched on (organization_modules is tenant-scoped; the caller's transaction is the company's).
-    for (const key of modules) {
+    for (const key of withRequiredApps(modules)) {
       const name = ERP_MODULE_CATALOG.find((module) => module.key === key)?.name ?? key;
       await client.query(
         `INSERT INTO organization_modules (organization_id, module_key, name, status, enabled_at) VALUES ($1, $2, $3, 'enabled', now())

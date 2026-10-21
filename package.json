@@ -53,7 +53,8 @@
     "test:quality-nonconformance": "node scripts/database/tests/quality-nonconformance.smoke.mjs",
     "test:support-desk": "node scripts/database/tests/support-desk.smoke.mjs",
     "test:payroll-statutory": "node scripts/database/tests/payroll-statutory.smoke.mjs",
-    "verify:fast": "npx --yes pnpm@11.21.0 typecheck:web && npx --yes pnpm@11.21.0 lint:web",
+    "verify:fast": "npx --yes pnpm@11.21.0 typecheck:web && npx --yes pnpm@11.21.0 lint:web && node scripts/architecture/check-app-imports.mjs",
+    "check:app-imports": "node scripts/architecture/check-app-imports.mjs",
     "verify:routes": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web verify:routes",
     "verify:web": "npx --yes pnpm@11.21.0 verify:fast && npx --yes pnpm@11.21.0 verify:routes && npx --yes pnpm@11.21.0 build:web",
     "verify:mobile": "npx --yes pnpm@11.21.0 typecheck:mobile && npx --yes pnpm@11.21.0 lint:mobile",
@@ -68,7 +69,8 @@
     "test:gst-returns": "node scripts/database/tests/gst-returns.smoke.mjs",
     "test:gst-3b": "node scripts/database/tests/gst-3b.smoke.mjs",
     "test:gst-documents": "node scripts/database/tests/gst-documents.smoke.mjs",
-    "test:signup-flow": "node scripts/database/tests/signup-flow.smoke.mjs"
+    "test:signup-flow": "node scripts/database/tests/signup-flow.smoke.mjs",
+    "test:app-alone": "node scripts/database/tests/app-alone.smoke.mjs"
   },
   "engines": {
     "node": ">=24 <25",

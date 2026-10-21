@@ -15,6 +15,7 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useApp } from "@/shell/workspace-context/useApp";
 import { money } from "@/features/procurement/shared/format";
 import { getSupplier } from "@/features/procurement/suppliers/api/suppliers-api";
 import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
@@ -87,6 +88,8 @@ export function PurchaseOrderFormScreen({ orderId, supplierId }: { orderId?: str
 
 function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOptions; detail: PurchaseOrderDetail | null; supplierId?: string }) {
   const workspace = useWorkspaceContext();
+  // Without Stock nothing is received into a warehouse: goods are marked received on the order.
+  const stockOn = useApp("stock");
   const router = useRouter();
   const [header, setHeader] = useState<Header>(() => headerFrom(detail, supplierId, options));
   const [lines, setLines] = useState<Line[]>(() => linesFrom(detail, options.settings.defaultWarehouseId ?? ""));
@@ -213,8 +216,8 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Select label="Company registration" selectedKey={header.buyingRegistrationId} onSelectionChange={(value) => set("buyingRegistrationId")(String(value))}
             options={[{ value: DEFAULT, label: "Default registration" }, ...options.registrations.map((entry) => ({ value: entry.id, label: `${entry.name}${entry.gstin ? ` · ${entry.gstin}` : ""}` }))]} />
-          <Select label="Receiving warehouse" selectedKey={header.defaultWarehouseId} onSelectionChange={(value) => set("defaultWarehouseId")(String(value))}
-            options={[{ value: NONE, label: "None (services only)" }, ...warehouseOptions]} />
+          {stockOn && <Select label="Receiving warehouse" selectedKey={header.defaultWarehouseId} onSelectionChange={(value) => set("defaultWarehouseId")(String(value))}
+            options={[{ value: NONE, label: "None (services only)" }, ...warehouseOptions]} />}
           <TextField label="Ship to (address)" value={header.shipToLine1} onChange={set("shipToLine1")} description="Leave empty to deliver to the receiving warehouse’s address (else the company address)." />
           <TextField label="Ship to (city)" value={header.shipToCity} onChange={set("shipToCity")} />
           <TextField label="Ship to (state code)" value={header.shipToStateCode} onChange={set("shipToStateCode")} description="Decides intra- or inter-state GST." />
@@ -261,7 +264,7 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
                   <Select label="Discount" selectedKey={line.discountType} onSelectionChange={(value) => setLine(line.key, { discountType: String(value) })}
                     options={[{ value: NONE, label: "None" }, { value: "percent", label: "Percent" }, { value: "amount", label: "Amount" }]} />
                   {line.discountType !== NONE && <TextField label="Discount value" inputMode="decimal" value={line.discountValue} onChange={(value) => setLine(line.key, { discountValue: value })} />}
-                  {stocked && <Select label="Warehouse" selectedKey={line.warehouseId || null} onSelectionChange={(value) => setLine(line.key, { warehouseId: String(value) })} options={warehouseOptions} />}
+                  {stocked && stockOn && <Select label="Warehouse" selectedKey={line.warehouseId || null} onSelectionChange={(value) => setLine(line.key, { warehouseId: String(value) })} options={warehouseOptions} />}
                   <TextField label="Expected date" type="date" value={line.expectedDeliveryDate} onChange={(value) => setLine(line.key, { expectedDeliveryDate: value })} />
                   {line.unitPrice !== "" && Number(line.unitPrice) === 0 && <TextField label="Why no charge" value={line.zeroPriceReason} onChange={(value) => setLine(line.key, { zeroPriceReason: value })} />}
                   {line.descriptive && (

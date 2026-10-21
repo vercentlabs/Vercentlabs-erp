@@ -216,4 +216,5 @@ export declare function recordAccessAssignmentEvent(
 
 export * from "./control-runtime.js";
 export * from "./module-entitlements.js";
+export { appOn, appsFromSnapshot, canInApp, hasApp, loadApps, mayInApp } from "./apps.js";
 export * from "./administration-service.js";

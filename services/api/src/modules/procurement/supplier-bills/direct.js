@@ -108,7 +108,7 @@ export async function validateDirectBillAccounts(client, context, lines = []) {
 export async function validateDirectBillTaxTreatment(client, context, { lines = [], supplierStateCode = null, placeOfSupply = null, billDate = null, buyingRegistrationId = null } = {}) {
   requireBillAccess(context);
   let tax;
-  try { tax = await loadTaxContext(client, { organizationId: context.organizationId, sellerRegistrationId: optionalUuid(buyingRegistrationId, "Company registration") }); }
+  try { tax = await loadTaxContext(client, { organizationId: context.organizationId, sellerRegistrationId: optionalUuid(buyingRegistrationId, "Company registration") , purchase: true }); }
   catch (error) { return { valid: false, issues: [error.message] }; }
   const issues = [];
   for (const [index, line] of lines.entries()) {

@@ -35,6 +35,7 @@ export function PayableBillsScreen() {
   const rows = useMemo(() => list.data ?? [], [list.data]);
   const paged = usePagedRows(rows);
   const mayPay = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("accounting.payments.manage");
+  const mayBill = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("accounting.payables.manage");
   const total = rows.filter((row) => row.type !== "credit_note").reduce((sum, row) => sum + row.baseOutstanding, 0);
 
   const columns: ColumnDef<PayableBill, unknown>[] = [
@@ -64,9 +65,12 @@ export function PayableBillsScreen() {
     <EnterpriseListPage
       header={{
         title: "Supplier Bills",
-        description: "What you owe suppliers. Bills and supplier credits are recorded in Procurement; payments are prepared, approved and applied here.",
+        description: "What you owe suppliers: bills recorded here or in Procurement, and the payments prepared, approved and applied against them.",
         primaryAction: mayPay ? <LinkButton href={`/accounting/payments/new${partyId ? `?partyId=${partyId}` : ""}`} variant="primary"><Plus className="size-4" aria-hidden="true" />Pay supplier</LinkButton> : undefined,
-        secondaryActions: <LinkButton href="/accounting/payables-aging" variant="secondary">Aging</LinkButton>,
+        secondaryActions: <>
+          {mayBill && <LinkButton href="/accounting/supplier-invoices/new" variant="secondary"><Plus className="size-4" aria-hidden="true" />New bill</LinkButton>}
+          <LinkButton href="/accounting/payables-aging" variant="secondary">Aging</LinkButton>
+        </>,
       }}
       savedViews={{ views: VIEWS, activeViewId: view, onSelect: (id) => { setView(id); paged.resetPage(); } }}
       actionBar={{ start: <SearchField aria-label="Search bills" placeholder="Bill, supplier invoice or supplier" className="w-full sm:w-72" value={search} onChange={setSearch} /> }}
@@ -82,7 +86,7 @@ export function PayableBillsScreen() {
           loadingContent={<LoadingState label="Loading supplier bills" rows={8} />}
           errorContent={<ErrorState title="Could not load supplier bills" description={errorMessage(list.error)} action={{ label: "Try again", onPress: () => void list.refetch() }} />}
           emptyContent={<EmptyState title={view === "overdue" ? "Nothing is overdue" : view === "due_soon" ? "Nothing falls due this week" : view === "open" ? "Nothing to pay" : "No bills here"}
-            description="Bills appear here once they are posted in Procurement." />}
+            description="Bills appear here once they are posted, here or in Procurement." />}
           noResultsContent={<NoResultsState title="Nothing matches" description="Try another view or search." />}
           {...paged.grid}
           onRowClick={(row) => router.push(row.href)}

@@ -131,7 +131,8 @@ try {
     assert(done.firstApp === "manufacturing" && done.apps.length === 2, JSON.stringify(done));
     await client.query("SELECT set_config('app.current_organization_id', $1, true)", [organizationId]);
     const modules = (await client.query(`SELECT module_key FROM public.organization_modules WHERE organization_id = $1 AND status = 'enabled' ORDER BY module_key`, [organizationId])).rows.map((r) => r.module_key);
-    assert(modules.join() === "manufacturing,sales", modules.join());
+    // Manufacturing keeps the Stock it needs on (its app manifest).
+    assert(modules.join() === "manufacturing,sales,stock", modules.join());
     const user = (await client.query(`SELECT password_hash, email_verified_at FROM public.users WHERE id = $1`, [ownerId])).rows[0];
     assert(user.password_hash === null && user.email_verified_at, "no password, verified");
     const org = (await client.query(`SELECT country_code, base_currency, timezone, business_profile FROM public.organizations WHERE id = $1`, [organizationId])).rows[0];
@@ -142,7 +143,7 @@ try {
     assert(row.status === "completed" && row.website_text === null, "completed");
     await refused(() => signup.completeSignup(client, token, { apps: ["sales"] }, { env: NO_AI }), "SIGNUP_STATE");
     const off = (await client.query(`SELECT count(*)::int AS n FROM public.audit_events WHERE organization_id = $1 AND event_type = 'module.disabled'`, [organizationId])).rows[0].n;
-    assert(off === 10, String(off));
+    assert(off === 9, String(off)); // 12 apps less the 2 picked and the Stock Manufacturing needs
   });
 
   await check("S5. The same email again: a code is still sent, and after it the person goes to the workspace they have — never a second one", async () => {

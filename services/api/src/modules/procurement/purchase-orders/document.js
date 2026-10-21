@@ -148,7 +148,7 @@ export async function resolveOrderDocument(client, context, input, { order = nul
 
   // The buying company: its registration, bill-to and ship-to.
   const buyingRegistrationId = has(input, "buyingRegistrationId") ? optionalUuid(input.buyingRegistrationId, "Company registration") : order?.buying_registration_id ?? null;
-  const tax = await translated(() => loadTaxContext(client, { organizationId, sellerRegistrationId: buyingRegistrationId }));
+  const tax = await translated(() => loadTaxContext(client, { organizationId, sellerRegistrationId: buyingRegistrationId , purchase: true }));
   const organization = (await client.query(`SELECT name, legal_name, tax_id, country_code FROM public.organizations WHERE id = $1`, [organizationId])).rows[0];
   const buyerRegistration = tax.registration;
   const billTo = billToOf(buyerRegistration, organization);
@@ -193,7 +193,8 @@ export async function resolveOrderDocument(client, context, input, { order = nul
 }
 
 // What must hold before an order is committed (confirmPurchaseOrder), beyond what every save checks.
-export function validateForConfirmation(header, priced) {
+// keepsStock: without the Stock app goods come to the business itself, so no delivery address is asked for.
+export function validateForConfirmation(header, priced, { keepsStock = true } = {}) {
   const issues = [];
   if (!priced.lines.length) issues.push({ field: "lines", message: "Add at least one line." });
   for (const line of priced.lines) {
@@ -201,7 +202,7 @@ export function validateForConfirmation(header, priced) {
     if (line.productType === "stock" && !line.warehouseId) issues.push({ field: `lines.${line.lineNumber}.warehouseId`, message: `Line ${line.lineNumber}: choose the receiving warehouse.` });
   }
   const physical = priced.lines.some((line) => line.productType !== "service");
-  if (physical && !(header.shipTo?.line1 || header.defaultWarehouseId || header.billTo?.line1))
+  if (keepsStock && physical && !(header.shipTo?.line1 || header.defaultWarehouseId || header.billTo?.line1))
     issues.push({ field: "shipTo", message: "Enter where the goods are to be delivered." });
   if (header.settings.requireExpectedDate && !header.expectedDeliveryDate) issues.push({ field: "expectedDeliveryDate", message: "Enter the expected delivery date." });
   if (priced.taxContext.enabled && priced.lines.some((line) => line.components.length) && !header.buyerRegistration)
