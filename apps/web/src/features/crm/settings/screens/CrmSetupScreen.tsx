@@ -70,7 +70,7 @@ const ROWS: Row[] = [
     permission: "crm.settings.manage", state: async () => plural((await listCustomFields("lead")).length + (await listCustomFields("opportunity")).length, "field") },
   { id: "lead-scoring", step: null, title: "Lead scoring", purpose: "Points from your rules, blended with how similar leads converted: a 0–100 score on every lead.",
     href: "/crm/settings/leads/scoring", permission: "crm.settings.manage", state: async () => plural((await getLeadScoring()).rules.filter((rule) => rule.isActive).length, "rule") },
-  { id: "recurring-plans", step: null, title: "Recurring plans", purpose: "Monthly, quarterly, yearly or your own periods for deals whose revenue repeats.",
+  { id: "recurring-plans", step: null, title: "Repeat orders / AMC", purpose: "Monthly, quarterly, yearly or your own periods for deals whose revenue repeats.",
     href: "/crm/settings/opportunities/recurring-plans", permission: "crm.settings.manage", state: async () => plural((await listRecurringPlans()).length, "plan") },
   { id: "tags", step: null, title: "Tags", purpose: "Labels on leads and deals: rename, recolour or delete them.", href: "/crm/settings/tags",
     permission: "crm.settings.manage", state: async () => plural((await listTags()).length, "tag") },

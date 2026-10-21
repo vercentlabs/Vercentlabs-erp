@@ -57,7 +57,7 @@ export function ForecastReport() {
       </div>
       {report && <UnconvertedNotice currency={report.currency} />}
       {query.isLoading ? <LoadingState label="Loading the forecast" rows={4} /> : report && (
-        <Table head={["Month", "Deals", "Committed", "Best case", "Pipeline", "Weighted", "Won"]}
+        <Table head={["Month", "Deals", "Sure", "Likely", "Possible", "Expected", "Won"]}
           foot={report.overdue.deals > 0 ? (
             <tr><Cell first>Past their close date{report.overdue.undated ? ` or undated (${report.overdue.undated})` : ""}</Cell><Cell>{report.overdue.deals}</Cell><Cell>—</Cell><Cell>—</Cell>
               <Cell>{money(report.overdue.value)}</Cell><Cell>{money(report.overdue.weighted)}</Cell><Cell>—</Cell></tr>

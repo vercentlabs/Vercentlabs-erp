@@ -87,9 +87,9 @@ export async function assignAccount(client, context, partyId, input = {}) {
   if (!ownerChanging && !teamChanging) return { changed: false };
   const moving = (ownerChanging && account.owner_user_id) || (teamChanging && account.team_id);
   requireAccountPermission(context, moving ? ACCOUNT_PERMISSIONS.reassign : ACCOUNT_PERMISSIONS.assign,
-    moving ? "You do not have permission to reassign accounts." : "You do not have permission to assign accounts.");
+    moving ? "You do not have permission to reassign companies." : "You do not have permission to assign companies.");
   if (ownerChanging && target.ownerUserId)
-    await assertCrmOwnerAssignable(client, context, target.ownerUserId, "You can only assign accounts to yourself or to members of a team you manage.");
+    await assertCrmOwnerAssignable(client, context, target.ownerUserId, "You can only assign companies to yourself or to members of a team you manage.");
   await applyAccountAssignment(client, context, account, target, { reason: String(input.reason ?? "").trim() || "manual" });
   return { changed: true };
 }

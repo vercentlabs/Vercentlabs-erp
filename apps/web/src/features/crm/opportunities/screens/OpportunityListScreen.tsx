@@ -51,7 +51,7 @@ const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boo
   { id: "lastActivityAt", label: "Last activity" },
   { id: "status", label: "Status", hiddenByDefault: true },
   { id: "probability", label: "Probability", hiddenByDefault: true },
-  { id: "weightedValue", label: "Weighted value", hiddenByDefault: true },
+  { id: "weightedValue", label: "Expected value", hiddenByDefault: true },
   { id: "priority", label: "Priority", hiddenByDefault: true },
   { id: "nextStep", label: "Next step", hiddenByDefault: true },
   { id: "nextFollowUpAt", label: "Next follow-up", hiddenByDefault: true },
@@ -77,7 +77,7 @@ function storedVisibility(): VisibilityState {
 type FilterKey = "status" | "stageId" | "ownerId" | "teamId" | "sourceId" | "priority" | "campaignId" | "medium" | "tagId";
 type Filters = Record<FilterKey, string>;
 const FILTER_KEYS: FilterKey[] = ["status", "stageId", "ownerId", "teamId", "sourceId", "priority", "campaignId", "medium", "tagId"];
-const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stageId: "Stage", ownerId: "Owner", teamId: "Team", sourceId: "Source", priority: "Priority", campaignId: "Campaign", medium: "Medium", tagId: "Tag" };
+const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stageId: "Stage", ownerId: "Owner", teamId: "Team", sourceId: "Source", priority: "Priority", campaignId: "Campaign", medium: "Came through", tagId: "Tag" };
 
 // Who the deal is with, what is sold, and the ranges.
 type MoreKey = "accountId" | "contactId" | "product" | "expectedCloseFrom" | "expectedCloseTo" | "closedFrom" | "closedTo" | "valueMin" | "valueMax" | "createdFrom" | "createdTo";
@@ -215,7 +215,7 @@ export function OpportunityListScreen() {
       { id: "lastActivityAt", accessorKey: "lastActivityAt", header: "Last activity", cell: ({ row }) => formatDate(row.original.lastActivityAt) },
       { id: "status", accessorKey: "status", header: "Status", cell: ({ row }) => <OpportunityStatusBadge status={row.original.status} /> },
       { id: "probability", accessorKey: "probability", header: "Probability", cell: ({ row }) => <span className="tabular-nums">{row.original.probability}%</span> },
-      { id: "weightedValue", accessorKey: "weightedValue", header: "Weighted value", cell: ({ row }) => money(row.original, row.original.weightedValue) },
+      { id: "weightedValue", accessorKey: "weightedValue", header: "Expected value", cell: ({ row }) => money(row.original, row.original.weightedValue) },
       { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <PriorityBadge priority={row.original.priority} /> },
       { id: "nextStep", accessorKey: "nextStep", header: "Next step", enableSorting: false, cell: ({ row }) => <span className="block max-w-56 truncate">{row.original.nextStep ?? ""}</span> },
       { id: "nextFollowUpAt", accessorKey: "nextFollowUpAt", header: "Next follow-up", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.nextFollowUpAt ? formatDateTime(row.original.nextFollowUpAt) : ""}</span> },
@@ -327,7 +327,7 @@ export function OpportunityListScreen() {
                   <Select label="Priority" size="compact" selectedKey={filters.priority} onSelectionChange={(key) => setFilters({ ...filters, priority: String(key) })} options={withAny(PRIORITY_OPTIONS, "Any priority")} />
                   <Select label="Campaign" size="compact" selectedKey={filters.campaignId} onSelectionChange={(key) => setFilters({ ...filters, campaignId: String(key) })}
                     options={withAny((options.campaigns ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any campaign")} />
-                  <Select label="Medium" size="compact" selectedKey={filters.medium} onSelectionChange={(key) => setFilters({ ...filters, medium: String(key) })}
+                  <Select label="Came through" size="compact" selectedKey={filters.medium} onSelectionChange={(key) => setFilters({ ...filters, medium: String(key) })}
                     options={withAny((options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label })), "Any medium")} />
                   <Select label="Tag" size="compact" selectedKey={filters.tagId} onSelectionChange={(key) => setFilters({ ...filters, tagId: String(key) })}
                     options={withAny((options.tags ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any tag")} />

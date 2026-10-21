@@ -6,10 +6,10 @@ import { LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_NEED_STATUSES, LEAD
 
 // The four criteria an organization can require before a lead is qualified.
 export const QUALIFICATION_CRITERIA = Object.freeze([
-  { key: "need", label: "Need", checklist: "Need understood" },
+  { key: "need", label: "Requirement", checklist: "Requirement understood" },
   { key: "budget", label: "Budget", checklist: "Budget confirmed or likely" },
-  { key: "authority", label: "Who decides", checklist: "Who decides identified (the buyer, a manager, a parent)" },
-  { key: "timeline", label: "Purchase timeframe", checklist: "Purchase timeframe captured" },
+  { key: "authority", label: "Decides?", checklist: "Who decides is known (the buyer, a manager, a parent)" },
+  { key: "timeline", label: "When to buy", checklist: "When they will buy is known" },
 ]);
 
 // A new organization asks only for the need; it may add budget, who decides and timeframe in Setup (existing organizations kept theirs).

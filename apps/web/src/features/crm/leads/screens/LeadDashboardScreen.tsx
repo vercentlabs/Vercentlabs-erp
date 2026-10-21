@@ -27,7 +27,7 @@ const GROUP_OPTIONS = [
   { value: "stage", label: "Stage" },
   { value: "rating", label: "Rating" },
   { value: "qualification", label: "Qualification" },
-  { value: "disqualificationReason", label: "Disqualification reason" },
+  { value: "disqualificationReason", label: "Why not interested" },
   { value: "owner", label: "Owner" },
   { value: "team", label: "Team" },
   { value: "source", label: "Source" },
@@ -78,7 +78,7 @@ export function LeadDashboardScreen() {
                 <Figure href="/crm/leads?view=unassigned" label="Unassigned leads" value={dashboard.totals.unassigned} />
                 <Figure href="/crm/leads?view=new" label="New leads" value={dashboard.totals.new} />
                 <Figure href="/crm/leads?view=no_activity" label="Assigned, no activity yet" value={dashboard.totals.noActivity} />
-                <Figure href="/crm/leads?stale=yes" label={`Stale (no activity ${dashboard.totals.staleDays}+ days)`} value={dashboard.totals.stale} />
+                <Figure href="/crm/leads?stale=yes" label={`No activity for ${dashboard.totals.staleDays}+ days`} value={dashboard.totals.stale} />
                 <Figure label="Assigned today" value={dashboard.totals.assignedToday} />
               </div>
             </section>
@@ -133,7 +133,7 @@ export function LeadDashboardScreen() {
                   <Figure allTime href="/crm/leads?qualificationStatus=not_started" label="Awaiting qualification" value={dashboard.totals.awaitingQualification} />
                   <Figure allTime href="/crm/leads?qualificationStatus=in_progress" label="In qualification" value={dashboard.totals.inQualification} />
                   <Figure allTime href="/crm/leads?qualificationStatus=qualified" label="Qualified (incl. converted)" value={dashboard.totals.qualifiedTotal} />
-                  <Figure allTime href="/crm/leads?view=disqualified" label="Disqualified" value={dashboard.totals.disqualified} />
+                  <Figure allTime href="/crm/leads?view=disqualified" label="Not interested" value={dashboard.totals.disqualified} />
                   <Figure allTime label="Qualification rate" value={`${dashboard.totals.qualificationRate}%`} />
                   <Figure allTime label="Average days to qualify" value={dashboard.totals.averageDaysToQualify === null ? "–" : dashboard.totals.averageDaysToQualify} />
                 </div>
@@ -255,7 +255,7 @@ export function LeadsByStatusReport() {
   const report = reportQuery.data;
   const any = (label: string, list: Array<{ value: string; label: string }>) => [{ value: ANY, label }, ...list];
   const exportCsv = report && report.rows.length > 0 ? () => downloadCsv("leads-by-status.csv",
-    [report.groupLabel, "Leads", "Open", "Qualified", "Disqualified", "Converted", "Conversion %", "Estimated value"],
+    [report.groupLabel, "Leads", "Open", "Qualified", "Not interested", "Converted", "Conversion %", "Estimated value"],
     report.rows.map((row) => [row.group, row.total, row.open, row.qualified, row.disqualified, row.converted, row.conversionRate, row.estimatedValue])) : undefined;
 
   return (
@@ -293,7 +293,7 @@ export function LeadsByStatusReport() {
           <DateInput label="Assigned to" value={assignedTo} onChange={setAssignedTo} />
           <Select label="Qualification" selectedKey={qualificationStatus} onSelectionChange={(key) => setQualificationStatus(String(key))}
             options={any("Any qualification", (options?.qualificationStatuses ?? []).map((entry) => ({ value: entry.code, label: entry.label })))} />
-          <Select label="Disqualification reason" selectedKey={disqualificationReason} onSelectionChange={(key) => setDisqualificationReason(String(key))}
+          <Select label="Why not interested" selectedKey={disqualificationReason} onSelectionChange={(key) => setDisqualificationReason(String(key))}
             options={any("Any reason", (options?.disqualificationReasons ?? []).map((entry) => ({ value: entry.code, label: entry.label })))} />
           <DateInput label="Qualified from" value={qualifiedFrom} onChange={setQualifiedFrom} />
           <DateInput label="Qualified to" value={qualifiedTo} onChange={setQualifiedTo} />
@@ -309,7 +309,7 @@ export function LeadsByStatusReport() {
               <thead className="bg-surface-muted text-left text-text-secondary">
                 <tr>
                   <th className="px-3 py-2 font-medium">{report.groupLabel}</th>
-                  {["Leads", "Open", "Qualified", "Disqualified", "Converted", "Conversion", "Estimated value"].map((heading) => (
+                  {["Leads", "Open", "Qualified", "Not interested", "Converted", "Conversion", "Estimated value"].map((heading) => (
                     <th key={heading} className="px-3 py-2 text-right font-medium">{heading}</th>
                   ))}
                 </tr>

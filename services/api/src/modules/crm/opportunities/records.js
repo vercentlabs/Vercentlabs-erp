@@ -496,7 +496,7 @@ const TEXT_FIELDS = Object.freeze({
 
 const GOVERNED = Object.freeze({
   status: "An opportunity is closed with Mark won or Mark lost, and reopened with Reopen.",
-  stageId: "Use Change stage to move an opportunity between stages.",
+  stageId: "Use Change stage to move a deal between stages.",
   probability: "Use Set probability to override the stage's probability.",
   ownerUserId: "Use Assign to change the owner or team.",
   teamId: "Use Assign to change the owner or team.",
@@ -681,7 +681,7 @@ export async function createOpportunity(client, context, input = {}, { origin = 
     ownerUserId = input.ownerUserId || null;
     if (ownerUserId && ownerUserId !== context.userId) {
       requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.assign, "You do not have permission to assign deals.");
-      await assertCrmOwnerAssignable(client, context, ownerUserId, "You can only assign opportunities to yourself or to members of a team you manage.", { resource: "opportunities" });
+      await assertCrmOwnerAssignable(client, context, ownerUserId, "You can only assign deals to yourself or to members of a team you manage.", { resource: "opportunities" });
     }
   }
   if (ownerUserId) await assertEligibleLeadAssignee(client, context, ownerUserId);

@@ -29,7 +29,7 @@ export const OPPORTUNITY_IMPORT_FIELDS = withMigrationAliases("opportunities", [
   { key: "contactEmail", label: "Contact Email", aliases: ["contact", "email", "contact e-mail", "primary contact email"], sample: "rahul@mehtafabrics.example" },
   { key: "amount", label: "Value", aliases: ["amount", "deal value", "estimated value", "expected revenue", "value inr"], sample: "450000" },
   { key: "currencyCode", label: "Currency", aliases: ["currency code"], sample: "INR" },
-  { key: "stage", label: "Stage", aliases: ["deal stage", "sales stage", "pipeline stage"], sample: "Proposal" },
+  { key: "stage", label: "Stage", aliases: ["deal stage", "sales stage", "pipeline stage"], sample: "Quotation sent" },
   { key: "expectedCloseDate", label: "Expected Close Date", aliases: ["close date", "closing date", "expected close", "deadline"], sample: "2026-12-15" },
   { key: "priority", label: "Priority", aliases: [], sample: "Medium" },
   { key: "source", label: "Source", aliases: ["lead source", "deal source"], sample: "Referral" },

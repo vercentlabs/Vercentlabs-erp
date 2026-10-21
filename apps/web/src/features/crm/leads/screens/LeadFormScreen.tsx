@@ -240,7 +240,7 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
             if (medium && !values.medium) set("medium")(medium);
           }}
           options={[{ value: NONE, label: "None" }, ...campaignChoices(options.campaigns ?? [], lead?.campaignId ?? null, lead?.campaignName ?? null)]} />
-        <Select label="Medium" description="How they reached you." selectedKey={values.medium} onSelectionChange={(key) => set("medium")(String(key ?? NONE))} errorMessage={fieldErrors.medium}
+        <Select label="Came through" description="How they reached you: Google, Facebook, WhatsApp…" selectedKey={values.medium} onSelectionChange={(key) => set("medium")(String(key ?? NONE))} errorMessage={fieldErrors.medium}
           options={[{ value: NONE, label: "Not set" }, ...(options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label }))]} />
         <TextField label="Source detail" description="The event, or the person who referred them." value={values.sourceDetail} onChange={set("sourceDetail")} />
         <TextField label="Estimated value" inputMode="decimal" value={values.estimatedValue} onChange={set("estimatedValue")} errorMessage={fieldErrors.estimatedValue} />

@@ -112,4 +112,19 @@ CREATE INDEX IF NOT EXISTS contacts_custom_data_idx ON tenant.contacts USING gin
 ALTER TABLE tenant.crm_custom_fields DROP CONSTRAINT IF EXISTS crm_custom_fields_entity_type_check;
 ALTER TABLE tenant.crm_custom_fields ADD CONSTRAINT crm_custom_fields_entity_type_check CHECK (entity_type IN ('lead', 'opportunity', 'party', 'contact'));
 
+-- 4. Plain words (CRM audit jargon table): the standard deal stages an organization has not renamed read as an Indian SMB says them
+--    (the codes stay, so rules and reports hold), and every organization that already has lead sources gains the marketplaces and ad
+--    networks Indian buyers enquire through (a connector set up later reuses its source).
+UPDATE tenant.crm_pipeline_stages stage SET name = renamed.name
+  FROM (VALUES ('DISCOVERY', 'Discovery', 'Enquiry'), ('NEEDS_ANALYSIS', 'Needs Analysis', 'Requirement understood'), ('PROPOSAL', 'Proposal', 'Quotation sent'),
+               ('CLOSING', 'Closing', 'Order expected')) AS renamed(code, old_name, name)
+ WHERE upper(stage.code) = renamed.code AND stage.name = renamed.old_name;
+
+INSERT INTO tenant.crm_lead_sources (organization_id, code, name, channel, is_system, sort_order)
+SELECT organization.organization_id, source.code, source.name, source.channel, true, source.sort_order
+  FROM (SELECT DISTINCT organization_id FROM tenant.crm_lead_sources) organization
+ CROSS JOIN (VALUES ('indiamart', 'IndiaMART', 'other', 125), ('justdial', 'JustDial', 'other', 126), ('tradeindia', 'TradeIndia', 'other', 127),
+                    ('meta_lead_ads', 'Facebook / Instagram ads', 'social', 128), ('google_ads', 'Google Ads', 'advertising', 129)) AS source(code, name, channel, sort_order)
+ON CONFLICT (organization_id, code) DO NOTHING;
+
 INSERT INTO public.schema_migrations (filename, checksum) VALUES ('0217_crm_audit.sql', 'crm-audit') ON CONFLICT DO NOTHING;

@@ -130,7 +130,7 @@ const DEAL_DIMENSIONS = Object.freeze({
   team: { label: "Team", key: "COALESCE(f.team_id::text, '-')", name: "COALESCE(f.team_name, 'No team')" },
   source: { label: "Source", key: "COALESCE(f.source_id::text, '-')", name: "COALESCE(f.source_name, 'No source')" },
   campaign: { label: "Campaign", key: "COALESCE(f.campaign_id::text, '-')", name: "COALESCE(f.campaign_name, 'No campaign')" },
-  medium: { label: "Medium", key: "COALESCE(f.medium, '-')", name: "COALESCE(f.medium, 'Not set')" },
+  medium: { label: "Came through", key: "COALESCE(f.medium, '-')", name: "COALESCE(f.medium, 'Not set')" },
   priority: { label: "Priority", key: "COALESCE(f.priority, '-')", name: "initcap(COALESCE(f.priority, 'none'))" },
   forecast: { label: "Forecast category", key: "f.forecast_category", name: "replace(initcap(f.forecast_category), '_', ' ')" },
   closeMonth: { label: "Expected close month", key: "COALESCE(to_char(f.expected_close_date, 'YYYY-MM'), '-')", name: "COALESCE(to_char(f.expected_close_date, 'Mon YYYY'), 'No date')", order: "min(f.expected_close_date)" },
@@ -139,7 +139,7 @@ const DEAL_DIMENSIONS = Object.freeze({
 const DEAL_MEASURES = Object.freeze({
   count: { label: "Deals", sql: "count(*)::float8" },
   value: { label: "Value", sql: "COALESCE(sum(f.amount_reporting), 0)::float8", money: true },
-  weighted: { label: "Weighted value", sql: "COALESCE(sum(f.weighted_reporting) FILTER (WHERE f.status = 'open'), 0)::float8", money: true },
+  weighted: { label: "Expected value (value × chance)", sql: "COALESCE(sum(f.weighted_reporting) FILTER (WHERE f.status = 'open'), 0)::float8", money: true },
   wonValue: { label: "Won value", sql: "COALESCE(sum(f.won_reporting) FILTER (WHERE f.status = 'won'), 0)::float8", money: true },
 });
 const LEAD_DIMENSIONS = Object.freeze({
@@ -149,7 +149,7 @@ const LEAD_DIMENSIONS = Object.freeze({
   team: { label: "Team", key: "COALESCE(lead.team_id::text, '-')", name: "COALESCE(team.name, 'No team')" },
   source: { label: "Source", key: "COALESCE(lead.source_id::text, '-')", name: "COALESCE(source.name, 'No source')" },
   campaign: { label: "Campaign", key: "COALESCE(lead.campaign_id::text, '-')", name: "COALESCE(campaign.name, 'No campaign')" },
-  medium: { label: "Medium", key: "COALESCE(lead.medium, '-')", name: "COALESCE(lead.medium, 'Not set')" },
+  medium: { label: "Came through", key: "COALESCE(lead.medium, '-')", name: "COALESCE(lead.medium, 'Not set')" },
   rating: { label: "Rating", key: "COALESCE(lead.rating, '-')", name: "initcap(COALESCE(lead.rating, 'none'))" },
   state: { label: "State", key: "COALESCE(lead.state, '-')", name: "COALESCE(lead.state, 'No state')" },
   createdMonth: { label: "Created month", key: "to_char(lead.created_at, 'YYYY-MM')", name: "to_char(lead.created_at, 'Mon YYYY')", order: "min(lead.created_at)" },

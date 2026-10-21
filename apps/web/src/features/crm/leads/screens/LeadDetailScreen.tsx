@@ -143,7 +143,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
       confirm: { title: "Return this lead to the unassigned queue?", description: `${lead.ownerName ?? "Its owner"} stops owning it; it waits in the unassigned queue until someone is assigned.`, confirmLabel: "Return to queue" },
       onAction: () => action.mutate(() => unassignLead(lead.id, { expectedUpdatedAt: lead.updatedAt })) },
     { id: "convertOverride", group: "Status", label: "Convert without full qualification", show: working && lead.status === "open" && can.convert && can.overrideQualification, onAction: () => router.push(`/crm/leads/${lead.id}/convert`) },
-    { id: "disqualify", group: "Status", label: "Disqualify", show: working && can.disqualify && lead.status !== "disqualified", onAction: () => setDialog("disqualify") },
+    { id: "disqualify", group: "Status", label: "Not interested", show: working && can.disqualify && lead.status !== "disqualified", onAction: () => setDialog("disqualify") },
     { id: "reopen", group: "Status", label: "Reopen lead", show: working && can.reopen && lead.status === "qualified", onAction: askReopen },
     { id: "archive", label: "Archive lead", danger: true, show: working && can.delete, onAction: () => setDialog("archive") },
   ].filter((entry) => entry.show);
@@ -257,7 +257,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                   { label: "Lead source", value: lead.sourceName },
                   { label: "Source detail", value: lead.sourceDetail },
                   { label: "Campaign", value: lead.campaignName },
-                  { label: "Medium", value: lead.mediumLabel },
+                  { label: "Came through", value: lead.mediumLabel },
                   { label: "Tags", wide: true, value: <TagEditor entity="lead" recordId={lead.id} tags={lead.tags ?? []} available={options.tags ?? []} canEdit={canEdit} onChanged={refresh} /> },
                   { label: "Estimated value", value: lead.estimatedValue ? formatMoney(currency, lead.estimatedValue) : null },
                   { label: "Purchase timeframe", value: options.purchaseTimeframes.find((entry) => entry.code === lead.purchaseTimeframe)?.label },

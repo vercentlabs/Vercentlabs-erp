@@ -7,7 +7,7 @@ import type { Lead, LeadStatus } from "./api/leads-api";
 export const STATUS_LABELS: Record<LeadStatus, string> = {
   open: "Open",
   qualified: "Qualified",
-  disqualified: "Disqualified",
+  disqualified: "Not interested",
   converted: "Converted",
 };
 
@@ -49,7 +49,7 @@ export const days = (count: number) => `${count} ${count === 1 ? "day" : "days"}
 // Stale is calculated (an open lead with no activity for a while), never a status.
 export function StaleBadge({ lead }: { lead: Pick<Lead, "isStale" | "daysSinceActivity"> }) {
   if (!lead.isStale) return null;
-  return <Badge tone="warning">Stale · no activity for {days(lead.daysSinceActivity)}</Badge>;
+  return <Badge tone="warning">No activity for {days(lead.daysSinceActivity)}</Badge>;
 }
 
 export function RatingBadge({ rating }: { rating: Lead["rating"] }) {

@@ -20,7 +20,7 @@ const SMOOTHING = 5;
 export const SCORING_FIELDS = Object.freeze([
   { key: "sourceId", label: "Source", column: "source_id", operators: ["equals"] },
   { key: "campaignId", label: "Campaign", column: "campaign_id", operators: ["equals"] },
-  { key: "medium", label: "Medium", column: "medium", operators: ["equals"] },
+  { key: "medium", label: "Came through", column: "medium", operators: ["equals"] },
   { key: "state", label: "State", column: "state", operators: ["equals"] },
   { key: "city", label: "City", column: "city", operators: ["equals"] },
   { key: "countryCode", label: "Country", column: "country_code", operators: ["equals"] },

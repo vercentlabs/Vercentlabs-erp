@@ -10,18 +10,19 @@
 // or reordered with the stages.
 export const DEFAULT_SALES_STAGES = Object.freeze([
   {
-    code: "DISCOVERY", name: "Discovery", probability: 10, forecastCategory: "pipeline",
-    description: "The deal has been created and you are understanding the customer's situation.",
+    // Stage names an Indian SMB uses (CRM audit); the codes stay, so rules and reports hold.
+    code: "DISCOVERY", name: "Enquiry", probability: 10, forecastCategory: "pipeline",
+    description: "A customer has enquired and you are understanding what they need.",
     guidance: "Understand the business problem\nIdentify the stakeholders\nUnderstand the high-level scope\nEstablish whether the deal is real",
   },
   {
-    code: "NEEDS_ANALYSIS", name: "Needs Analysis", probability: 25, forecastCategory: "pipeline",
-    description: "You are working out the detailed requirements.",
+    code: "NEEDS_ANALYSIS", name: "Requirement understood", probability: 25, forecastCategory: "pipeline",
+    description: "You know what they need: items, quantities, delivery and who decides.",
     guidance: "Confirm what is needed: modules, users, locations, processes\nUnderstand implementation and technical requirements\nUnderstand the decision process and commercial constraints",
   },
   {
-    code: "PROPOSAL", name: "Proposal", probability: 50, forecastCategory: "best_case",
-    description: "Use when a formal solution and pricing proposal has been prepared or presented to the customer.",
+    code: "PROPOSAL", name: "Quotation sent", probability: 50, forecastCategory: "best_case",
+    description: "The quotation (or proforma) has been sent to the customer.",
     guidance: "Define the scope and the solution\nCreate the quotation\nShare the pricing\nPresent the proposal or demo",
   },
   {
@@ -30,8 +31,8 @@ export const DEFAULT_SALES_STAGES = Object.freeze([
     guidance: "Confirm the final scope\nResolve pricing and discounts\nAgree payment terms\nAgree the implementation schedule",
   },
   {
-    code: "CLOSING", name: "Closing", probability: 90, forecastCategory: "committed",
-    description: "The deal is near its final decision. It stays open until the outcome is confirmed.",
+    code: "CLOSING", name: "Order expected", probability: 90, forecastCategory: "committed",
+    description: "The customer is about to place the order. The deal stays open until the order or the answer comes.",
     guidance: "Get the final approval or purchase order\nGet the final quotation accepted\nGet the contract signed\nThen mark the deal won or lost",
   },
   { code: "WON", name: "Closed Won", probability: 100, forecastCategory: "closed", isWon: true },

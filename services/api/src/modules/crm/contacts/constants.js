@@ -10,7 +10,7 @@ export const CONTACT_STATUSES = Object.freeze([
 export const CONTACT_ROLES = Object.freeze([
   { code: "decision_maker", label: "Decision maker" },
   { code: "influencer", label: "Influencer" },
-  { code: "champion", label: "Champion" },
+  { code: "champion", label: "Our supporter" },
   { code: "procurement", label: "Procurement" },
   { code: "finance", label: "Finance" },
   { code: "technical", label: "Technical" },

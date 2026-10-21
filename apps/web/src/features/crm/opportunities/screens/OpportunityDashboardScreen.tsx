@@ -94,7 +94,7 @@ export function OpportunityDashboardScreen() {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 <Figure href="/crm/opportunities?view=open" label="Open deals" value={dashboard.totals.open} />
                 <Figure href="/crm/opportunities?view=open" label="Open value" value={money(dashboard.totals.openValue)} />
-                <Figure href="/crm/opportunities?view=open" label="Weighted value" value={money(dashboard.totals.weightedValue)} />
+                <Figure href="/crm/opportunities?view=open" label="Expected value" value={money(dashboard.totals.weightedValue)} />
                 <Figure href="/crm/opportunities?view=closing_this_month" label="Closing this month" value={dashboard.totals.closingThisMonth} />
                 <Figure href="/crm/opportunities?view=overdue" label="Overdue (past close date)" value={dashboard.totals.overdue} />
                 <Figure href="/crm/opportunities?view=stale" label={`Stale (no activity ${dashboard.totals.staleDays}+ days)`} value={dashboard.totals.stale} />
@@ -106,11 +106,11 @@ export function OpportunityDashboardScreen() {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <Figure href={forecastHref} label="Deals closing" value={dashboard.forecast.deals} />
                 <Figure label="Commit" value={money(dashboard.forecast.commit)} />
-                <Figure label="Best case (incl. commit)" value={money(dashboard.forecast.bestCase)} />
+                <Figure label="Likely (incl. sure)" value={money(dashboard.forecast.bestCase)} />
                 <Figure href={forecastHref} label="Pipeline (not omitted)" value={money(dashboard.forecast.pipeline)} />
                 <Figure label="Weighted" value={money(dashboard.forecast.weighted)} />
               </div>
-              <p className="text-xs text-text-muted">Each stage sets its forecast category; Best case includes Commit, Pipeline includes both.</p>
+              <p className="text-xs text-text-muted">Each stage says how likely its deals are: Sure, Likely or Possible. Likely includes Sure; Possible includes both.</p>
             </section>
 
             <section className="flex flex-col gap-3">
@@ -175,7 +175,7 @@ export function OpportunitiesByStageReport() {
   const choose = (key: keyof typeof choices) => (selected: unknown) => setChoices((current) => ({ ...current, [key]: String(selected) }));
   const type = (key: keyof typeof text) => (value: string) => setText((current) => ({ ...current, [key]: value }));
   const exportCsv = report && report.rows.length > 0 ? () => downloadCsv("deals-by-stage.csv",
-    [report.groupLabel, "Deals", "Open", "Won", "Lost", "Win rate %", "Value", "Weighted value"],
+    [report.groupLabel, "Deals", "Open", "Won", "Lost", "Win rate %", "Value", "Expected value"],
     report.rows.map((row) => [row.group, row.total, row.open, row.won, row.lost, row.winRate ?? "", row.value, row.weightedValue])) : undefined;
 
   return (
@@ -221,7 +221,7 @@ export function OpportunitiesByStageReport() {
               <thead className="bg-surface-muted text-left text-text-secondary">
                 <tr>
                   <th className="px-3 py-2 font-medium">{report.groupLabel}</th>
-                  {["Deals", "Open", "Won", "Lost", "Win rate", "Value", "Weighted value"].map((heading) => <th key={heading} className="px-3 py-2 text-right font-medium">{heading}</th>)}
+                  {["Deals", "Open", "Won", "Lost", "Win rate", "Value", "Expected value"].map((heading) => <th key={heading} className="px-3 py-2 text-right font-medium">{heading}</th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

@@ -289,7 +289,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
                   : opportunity.recurringPlanName ?? null },
                 { label: "Source", value: opportunity.sourceName },
                 { label: "Campaign", value: opportunity.campaignName },
-                { label: "Medium", value: opportunity.mediumLabel },
+                { label: "Came through", value: opportunity.mediumLabel },
                 { label: "Tags", wide: true, value: <TagEditor entity="opportunity" recordId={opportunity.id} tags={opportunity.tags ?? []} available={options.tags ?? []}
                   canEdit={Boolean(can.edit) && !opportunity.archivedAt} onChanged={refresh} /> },
                 { label: "Created from lead", value: opportunity.leadId ? <Link className="hover:underline" href={`/crm/leads/${opportunity.leadId}`}>{opportunity.leadCode ?? "Open lead"}</Link> : null },

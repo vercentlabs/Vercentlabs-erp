@@ -16,10 +16,10 @@ export const OPPORTUNITY_PRIORITIES = Object.freeze([
 // What a stakeholder is to the deal.
 export const OPPORTUNITY_CONTACT_ROLES = Object.freeze([
   { code: "decision_maker", label: "Decision maker" },
-  { code: "economic_buyer", label: "Economic buyer" },
-  { code: "champion", label: "Champion" },
+  { code: "economic_buyer", label: "Approves the budget" },
+  { code: "champion", label: "Our supporter" },
   { code: "influencer", label: "Influencer" },
-  { code: "technical", label: "Technical evaluator" },
+  { code: "technical", label: "Technical person" },
   { code: "user", label: "User" },
   { code: "procurement", label: "Procurement" },
   { code: "legal", label: "Legal" },

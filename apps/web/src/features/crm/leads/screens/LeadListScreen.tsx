@@ -280,7 +280,7 @@ export function LeadListScreen() {
     if (key === "scoreMin") return `${value} or more`;
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
-  const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stage: "Stage", ownerId: "Owner", sourceId: "Source", priority: "Priority", rating: "Rating", teamId: "Team", qualificationStatus: "Qualification", campaignId: "Campaign", medium: "Medium", tagId: "Tag", scoreMin: "Score" };
+  const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stage: "Stage", ownerId: "Owner", sourceId: "Source", priority: "Priority", rating: "Rating", teamId: "Team", qualificationStatus: "Qualification", campaignId: "Campaign", medium: "Came through", tagId: "Tag", scoreMin: "Score" };
   const activeFilters: ActiveFilter[] = [
     ...(Object.keys(filters) as FilterKey[])
       .filter((key) => filters[key] !== ANY)
@@ -376,7 +376,7 @@ export function LeadListScreen() {
                           options={filterOptions([{ value: "70", label: "70 or more" }, { value: "40", label: "40 or more" }, { value: "1", label: "Scored" }], "Any score")} />
                         <Select label="Campaign" size="compact" selectedKey={filters.campaignId} onSelectionChange={(key) => setFilters({ ...filters, campaignId: String(key) })}
                           options={filterOptions((options.campaigns ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any campaign")} />
-                        <Select label="Medium" size="compact" selectedKey={filters.medium} onSelectionChange={(key) => setFilters({ ...filters, medium: String(key) })}
+                        <Select label="Came through" size="compact" selectedKey={filters.medium} onSelectionChange={(key) => setFilters({ ...filters, medium: String(key) })}
                           options={filterOptions((options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label })), "Any medium")} />
                         <Select label="Tag" size="compact" selectedKey={filters.tagId} onSelectionChange={(key) => setFilters({ ...filters, tagId: String(key) })}
                           options={filterOptions((options.tags ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any tag")} />

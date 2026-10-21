@@ -255,7 +255,7 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
         <FormSection title="More about this deal" description="Recurring revenue, and your organization's own fields.">
           {recurringPlans.length > 0 && (
             <>
-              <Select label="Recurring plan" description="For revenue that repeats: an AMC, a subscription, a rental." selectedKey={recurringPlanId || "none"}
+              <Select label="Repeat order / AMC" description="For revenue that repeats: an AMC, a subscription, a rental." selectedKey={recurringPlanId || "none"}
                 onSelectionChange={(key) => setRecurringPlanId(String(key) === "none" ? "" : String(key))}
                 options={[{ value: "none", label: "Not recurring" }, ...recurringPlans.map((plan) => ({ value: plan.id, label: plan.name }))]} />
               {recurringPlanId && (
@@ -290,7 +290,7 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
             if (medium && !values.medium) set("medium")(medium);
           }}
           options={[{ value: NONE, label: "None" }, ...campaignChoices(options.campaigns ?? [], opportunity?.campaignId ?? null, opportunity?.campaignName ?? null)]} />
-        <Select label="Medium" selectedKey={values.medium} onSelectionChange={(key) => set("medium")(String(key ?? NONE))} errorMessage={fieldErrors.medium}
+        <Select label="Came through" selectedKey={values.medium} onSelectionChange={(key) => set("medium")(String(key ?? NONE))} errorMessage={fieldErrors.medium}
           options={[{ value: NONE, label: "Not set" }, ...(options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label }))]} />
         <TextArea label="Product / service interest" className="sm:col-span-2" value={values.productInterest} onChange={set("productInterest")}
           description="In words. Products with quantities and prices are added on the deal." />

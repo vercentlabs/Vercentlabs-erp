@@ -8,7 +8,7 @@ export const DEFAULT_LEAD_STAGES = Object.freeze([
   { code: "new", label: "New" },
   { code: "attempting_contact", label: "Attempting contact" },
   { code: "contacted", label: "Contacted" },
-  { code: "nurturing", label: "Nurturing" },
+  { code: "nurturing", label: "Keep in touch" },
   { code: "qualification", label: "Qualification" },
 ]);
 
@@ -19,7 +19,7 @@ export const LEAD_STALE_DAYS = 7;
 export const LEAD_STATUSES = Object.freeze([
   { code: "open", label: "Open" },
   { code: "qualified", label: "Qualified" },
-  { code: "disqualified", label: "Disqualified" },
+  { code: "disqualified", label: "Not interested" },
   { code: "converted", label: "Converted" },
 ]);
 
@@ -31,7 +31,7 @@ export const LEAD_QUALIFICATION_STATUSES = Object.freeze([
   { code: "not_started", label: "Not qualified yet" },
   { code: "in_progress", label: "In qualification" },
   { code: "qualified", label: "Qualified" },
-  { code: "disqualified", label: "Disqualified" },
+  { code: "disqualified", label: "Not interested" },
 ]);
 
 export const LEAD_NEED_STATUSES = Object.freeze([
@@ -94,6 +94,12 @@ export const DEFAULT_LEAD_SOURCES = Object.freeze([
   // How people buy in person or on chat (shops, clinics, coaching institutes).
   { code: "walk_in", name: "Walk-in", channel: "walk_in" },
   { code: "whatsapp", name: "WhatsApp", channel: "whatsapp" },
+  // Where Indian buyers enquire (CRM audit): there from the start, not only once a connector is set up (a connector reuses its source).
+  { code: "indiamart", name: "IndiaMART", channel: "other" },
+  { code: "justdial", name: "JustDial", channel: "other" },
+  { code: "tradeindia", name: "TradeIndia", channel: "other" },
+  { code: "meta_lead_ads", name: "Facebook / Instagram ads", channel: "social" },
+  { code: "google_ads", name: "Google Ads", channel: "advertising" },
   { code: "other", name: "Other", channel: "other" },
 ]);
 

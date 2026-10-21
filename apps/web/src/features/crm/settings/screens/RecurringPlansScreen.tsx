@@ -35,7 +35,7 @@ export function RecurringPlansScreen() {
   return (
     <div className="flex flex-col gap-6">
       <SetupBackLink />
-      <PageHeader title="Recurring plans" description="For deals whose revenue repeats — AMCs, subscriptions, rentals. A deal names its plan and the amount per period; the pipeline shows it as monthly revenue."
+      <PageHeader title="Repeat orders / AMC" description="For deals whose revenue repeats — AMCs, subscriptions, rentals. A deal names its plan and the amount per period; the pipeline shows it as monthly revenue."
         primaryAction={<Button variant="primary" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New plan</Button>} />
       {error && <Notice>{error}</Notice>}
       <ul className="flex max-w-2xl flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">

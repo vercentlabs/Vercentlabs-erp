@@ -59,9 +59,9 @@ const GOVERNED_FIELDS = Object.freeze({
   status: "Use Deactivate, Reactivate or Archive to change the status.",
   ownerUserId: "Use Assign to change the owner.",
   teamId: "Use Assign to change the team.",
-  accountId: "Use Change company to link the contact to an account.",
-  partyId: "Use Change company to link the contact to an account.",
-  isPrimary: "Use Make primary contact on the account.",
+  accountId: "Use Change company to link the contact to a company.",
+  partyId: "Use Change company to link the contact to a company.",
+  isPrimary: "Use Make primary contact on the company.",
   contactNumber: "The contact number is generated automatically.",
 });
 

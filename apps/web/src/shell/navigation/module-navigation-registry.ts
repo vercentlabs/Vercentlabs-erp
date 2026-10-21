@@ -99,7 +99,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           { ...available("Leads", "/crm/leads"), aliases: ["prospects", "enquiries", "lead conversion", "qualification"], requiredPermission: "crm.leads.view" },
           { ...available("Deals", "/crm/opportunities"), aliases: ["deal", "opportunities", "opportunity", "won", "lost", "win rate"], requiredPermission: "crm.opportunities.view" },
-          { ...available("Pipeline", "/crm/pipeline"), aliases: ["board", "kanban", "deals by stage", "deals board"], requiredPermission: "crm.opportunities.view" },
+          { ...available("Deals board", "/crm/pipeline"), aliases: ["pipeline", "board", "kanban", "deals by stage"], requiredPermission: "crm.opportunities.view" },
           // Quotations and proformas from deals (CRM quotes without Sales; with Sales, the page links to Sales quotations).
           { ...available("Quotations", "/crm/quotes"), aliases: ["quotes", "quotation", "proforma", "proforma invoice", "estimate"], requiredPermission: "crm.opportunities.view" },
           { ...available("Deal calendar", "/crm/opportunities/calendar"), aliases: ["close dates", "calendar"], requiredPermission: "crm.opportunities.view" },
@@ -195,7 +195,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Holidays", "/crm/settings/holidays"), parent: "setup", aliases: ["days off", "working days"], requiredPermission: "crm.settings.manage" },
           { ...available("Custom fields", "/crm/settings/custom-fields"), parent: "setup", aliases: ["properties", "extra fields"], requiredPermission: "crm.settings.manage" },
           { ...available("Lead scoring", "/crm/settings/leads/scoring"), parent: "setup", aliases: ["score", "lead rating rules"], requiredPermission: "crm.settings.manage" },
-          { ...available("Recurring plans", "/crm/settings/opportunities/recurring-plans"), parent: "setup", aliases: ["mrr", "subscriptions", "amc"], requiredPermission: "crm.settings.manage" },
+          { ...available("Repeat orders / AMC", "/crm/settings/opportunities/recurring-plans"), parent: "setup", aliases: ["recurring plans", "mrr", "subscriptions", "amc", "annual maintenance contract"], requiredPermission: "crm.settings.manage" },
           { ...available("Lead connectors", "/crm/settings/leads/connectors"), parent: "setup", aliases: ["indiamart", "justdial", "tradeindia", "facebook lead ads", "meta", "google ads", "integrations"], requiredPermission: "crm.capture.manage" },
           { ...available("Web forms", "/crm/settings/leads/web-forms"), parent: "setup", aliases: ["capture forms", "website form", "web to lead", "embed"], requiredPermission: "crm.capture.manage" },
           { ...available("Qualification", "/crm/settings/leads/qualification"), parent: "setup", aliases: ["qualification criteria", "bant"], requiredPermission: "crm.settings.manage" },

@@ -179,7 +179,7 @@ export function QualificationPanel({ lead, options, onChanged, onQualify, onDisq
       )}
       {lead.status === "disqualified" && (
         <p className="rounded-[var(--radius-control)] border border-danger-emphasis/20 bg-danger-soft px-3 py-2 text-sm text-danger">
-          Disqualified on {formatDateTime(lead.disqualifiedAt)}{lead.disqualifiedByName ? ` by ${lead.disqualifiedByName}` : ""} — {labelOf(options.disqualificationReasons, lead.disqualificationReason)}
+          Closed as not interested on {formatDateTime(lead.disqualifiedAt)}{lead.disqualifiedByName ? ` by ${lead.disqualifiedByName}` : ""} — {labelOf(options.disqualificationReasons, lead.disqualificationReason)}
           {lead.disqualificationNotes ? `. ${lead.disqualificationNotes}` : ""} Reopen the lead to qualify it again.
         </p>
       )}
@@ -235,7 +235,7 @@ export function QualificationPanel({ lead, options, onChanged, onQualify, onDisq
           <Button variant="secondary" onPress={() => save.mutate(undefined)} isLoading={save.isPending}>{editable ? "Save answers" : "Save rating"}</Button>
           {/* Saves what is on screen first, so the decision is made on these answers. */}
           {lead.status === "open" && can.qualify && <Button variant="primary" onPress={() => save.mutate(onQualify)} isDisabled={save.isPending}>Qualify lead</Button>}
-          {(lead.status === "open" || lead.status === "qualified") && can.disqualify && <Button variant="danger" onPress={onDisqualify}>Disqualify lead</Button>}
+          {(lead.status === "open" || lead.status === "qualified") && can.disqualify && <Button variant="danger" onPress={onDisqualify}>Not interested</Button>}
           {saved && <span role="status" className="text-sm text-text-secondary">Saved</span>}
         </div>
       )}

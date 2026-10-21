@@ -96,7 +96,7 @@ export function DisqualifyLeadsDialog({ isOpen, onOpenChange, leadIds, options, 
   const openFollowUps = followUps || (reason === "timing_not_suitable" ? "keep" : "cancel");
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`Disqualify ${plural(leadIds.length)}`} description="The lead is kept with its history and can be reopened later.">
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`Close ${plural(leadIds.length)} as not interested`} description="The lead is kept with its history and can be reopened later.">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <Select
@@ -113,7 +113,7 @@ export function DisqualifyLeadsDialog({ isOpen, onOpenChange, leadIds, options, 
         <DialogActions
           danger
           onCancel={() => onOpenChange(false)}
-          confirmLabel="Disqualify"
+          confirmLabel="Close as not interested"
           isLoading={mutation.isPending}
           isDisabled={!reason || (notesRequired && !notes.trim())}
           onConfirm={() => mutation.mutate({ action: "disqualify", reason, notes, openFollowUps })}

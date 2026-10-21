@@ -307,7 +307,7 @@ export async function createAccount(client, context, input = {}, { allowDuplicat
     ownerUserId = input.ownerUserId || null;
     if (ownerUserId && ownerUserId !== context.userId) {
       requireAccountPermission(context, ACCOUNT_PERMISSIONS.assign, "You do not have permission to assign companies.");
-      await assertCrmOwnerAssignable(client, context, ownerUserId, "You can only assign accounts to yourself or to members of a team you manage.");
+      await assertCrmOwnerAssignable(client, context, ownerUserId, "You can only assign companies to yourself or to members of a team you manage.");
     }
   }
 
