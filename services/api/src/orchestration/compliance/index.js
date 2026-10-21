@@ -16,6 +16,8 @@ import { isProductionRuntime } from "@vercentlabs/config";
 import { hasSessionPermission } from "../../core/access/index.js";
 import { unitUqcMap } from "../../core/tax/uqc.js";
 import { getSalesInvoice } from "../../modules/sales/invoices/records.js";
+import { loadCreditNote } from "../../modules/sales/credit-notes/access.js";
+import { creditNoteLines } from "../../modules/sales/credit-notes/build.js";
 
 export class ComplianceError extends Error {
   constructor(status, message, code = "GST_COMPLIANCE_ERROR", details) {
@@ -90,10 +92,19 @@ async function sellerRegistration(client, organizationId, registrationId) {
     [organizationId, registrationId ?? null])).rows[0] ?? null;
 }
 
-// The INV-01 JSON for a posted sales invoice (from its snapshots).
+// What kind of document an e-invoice is for: a sales invoice, or a credit note (Sales audit B9).
+async function documentKind(client, organizationId, documentId) {
+  if (!UUID.test(String(documentId ?? ""))) return null;
+  return (await client.query("SELECT invoice_type FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND id = $2", [organizationId, documentId])).rows[0]?.invoice_type ?? null;
+}
+
+// The INV-01 JSON for a posted sales invoice or credit note (from its snapshots). A credit note is type CRN and names the invoice it
+// credits (Sales audit B9).
 export async function buildEInvoicePayload(client, session, invoiceId) {
-  const detail = await getSalesInvoice(client, session, invoiceId);
-  const { invoice, lines } = detail;
+  const creditNote = (await documentKind(client, session.organizationId, invoiceId)) === "credit_note";
+  const { invoice, lines } = creditNote
+    ? { invoice: await loadCreditNote(client, session, invoiceId), lines: await creditNoteLines(client, session.organizationId, invoiceId) }
+    : await getSalesInvoice(client, session, invoiceId);
   const seller = await sellerRegistration(client, session.organizationId, invoice.seller_registration_id);
   if (!seller?.registration_number) throw new ComplianceError(409, "The invoice has no seller GSTIN.", "EINVOICE_NOT_APPLICABLE");
   const customer = invoice.sales_customer_snapshot || invoice.customer_snapshot || {};
@@ -117,7 +128,8 @@ export async function buildEInvoicePayload(client, session, invoiceId) {
     payload: {
       Version: "1.1",
       TranDtls: { TaxSch: "GST", SupTyp: exportSupply ? (invoice.supply_type === "sez" ? "SEZWP" : "EXPWP") : "B2B", RegRev: invoice.reverse_charge ? "Y" : "N" },
-      DocDtls: { Typ: "INV", No: invoice.invoice_number, Dt: indianDate(invoice.invoice_date) },
+      DocDtls: { Typ: creditNote ? "CRN" : "INV", No: invoice.invoice_number, Dt: indianDate(invoice.invoice_date) },
+      ...(creditNote ? { RefDtls: { PrecDocDtls: [{ InvNo: invoice.source_invoice_number, InvDt: indianDate(invoice.source_invoice_date) }] } } : {}),
       SellerDtls: { Gstin: seller.registration_number, LglNm: seller.legal_name || seller.name, Addr1: seller.address_line1 ?? seller.name, Loc: seller.city ?? seller.name, Pin: pin(seller.postal_code), Stcd: seller.state_code },
       BuyerDtls: { Gstin: customer.gstin ?? "URP", LglNm: customer.legalName ?? customer.displayName ?? customer.display_name ?? "Customer", Pos: invoice.place_of_supply ?? billing.stateCode ?? seller.state_code,
         Addr1: billing.line1 ?? billing.addressLine1 ?? billing.address_line1 ?? "-", Loc: billing.city ?? "-", Pin: pin(billing.postalCode ?? billing.postal_code), Stcd: billing.stateCode ?? billing.state_code ?? invoice.place_of_supply },
@@ -126,6 +138,7 @@ export async function buildEInvoicePayload(client, session, invoiceId) {
         TotInvVal: round(invoice.grand_total) },
     },
     invoice,
+    documentType: creditNote ? "credit_note" : "invoice",
   };
 }
 
@@ -143,8 +156,10 @@ export async function generateEInvoice(client, session, invoiceId, options = {})
   need(session, "sales.invoice.post", "You do not have permission to issue e-invoices.");
   const existing = (await client.query(`SELECT * FROM tenant.einvoice_documents WHERE organization_id = $1 AND document_id = $2 AND status = 'generated'`, [session.organizationId, invoiceId])).rows[0];
   if (existing) return { einvoice: einvoiceView(existing), replayed: true };
-  const { seller, payload, invoice } = await buildEInvoicePayload(client, session, invoiceId);
-  if (invoice.status !== "posted") throw new ComplianceError(409, "Post the invoice before its e-invoice is generated.", "EINVOICE_NOT_POSTED");
+  const { seller, payload, invoice, documentType } = await buildEInvoicePayload(client, session, invoiceId);
+  // Posted, and still standing (paid or partly paid included).
+  if (!invoice.posted_at || ["draft", "cancelled", "reversed", "void"].includes(invoice.status))
+    throw new ComplianceError(409, `Post the ${documentType === "credit_note" ? "credit note" : "invoice"} before its e-invoice is generated.`, "EINVOICE_NOT_POSTED");
   if (seller.registration_type === "composition") throw new ComplianceError(409, "A composition dealer issues bills of supply, which have no IRN.", "EINVOICE_NOT_APPLICABLE");
   if (payload.TranDtls.SupTyp === "B2B" && payload.BuyerDtls.Gstin === "URP") throw new ComplianceError(409, "The customer has no GSTIN: a B2C invoice needs no IRN.", "EINVOICE_NOT_APPLICABLE");
   let answer;
@@ -154,17 +169,17 @@ export async function generateEInvoice(client, session, invoiceId, options = {})
     if (error.code === "GSP_REFUSED" || error.code === "GSP_UNREACHABLE") {
       await client.query(
         `INSERT INTO tenant.einvoice_documents (organization_id, document_type, document_id, document_number, seller_gstin, status, error, payload, created_by)
-         VALUES ($1, 'invoice', $2, $3, $4, 'failed', $5, $6::jsonb, $7)`,
-        [session.organizationId, invoiceId, invoice.invoice_number, seller.registration_number, error.message.slice(0, 500), JSON.stringify(payload), session.userId ?? null]);
+         VALUES ($1, $8, $2, $3, $4, 'failed', $5, $6::jsonb, $7)`,
+        [session.organizationId, invoiceId, invoice.invoice_number, seller.registration_number, error.message.slice(0, 500), JSON.stringify(payload), session.userId ?? null, documentType]);
       await client.query(`UPDATE tenant.accounting_customer_invoices SET e_invoice_status = 'failed' WHERE organization_id = $1 AND id = $2`, [session.organizationId, invoiceId]);
     }
     throw error;
   }
   const row = (await client.query(
     `INSERT INTO tenant.einvoice_documents (organization_id, document_type, document_id, document_number, seller_gstin, irn, ack_number, ack_date, signed_qr, signed_invoice, status, payload, created_by)
-     VALUES ($1, 'invoice', $2, $3, $4, $5, $6, $7, $8, $9, 'generated', $10::jsonb, $11) RETURNING *`,
+     VALUES ($1, $12, $2, $3, $4, $5, $6, $7, $8, $9, 'generated', $10::jsonb, $11) RETURNING *`,
     [session.organizationId, invoiceId, invoice.invoice_number, seller.registration_number, answer.irn, answer.ackNo ?? null, answer.ackDate ?? new Date(), answer.signedQrCode ?? null,
-      answer.signedInvoice ?? null, JSON.stringify(payload), session.userId ?? null])).rows[0];
+      answer.signedInvoice ?? null, JSON.stringify(payload), session.userId ?? null, documentType])).rows[0];
   await client.query(`UPDATE tenant.accounting_customer_invoices SET e_invoice_status = 'generated', e_invoice_reference = $3 WHERE organization_id = $1 AND id = $2`,
     [session.organizationId, invoiceId, answer.irn]);
   return { einvoice: einvoiceView(row), replayed: false };

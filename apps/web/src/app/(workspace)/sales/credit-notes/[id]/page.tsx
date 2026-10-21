@@ -1,3 +1,4 @@
+import { EInvoicePanel } from "@/features/platform/compliance/CompliancePanels";
 import { CreditNoteDetailScreen } from "@/features/sales/credit-notes/screens/CreditNoteDetailScreen";
 
 export const metadata = { title: "Credit note" };
@@ -8,5 +9,11 @@ export default async function Page({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <CreditNoteDetailScreen creditNoteId={id} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <CreditNoteDetailScreen creditNoteId={id} />
+      {/* A credit note to a registered customer gets its own IRN (type CRN) under the e-invoice mandate (Sales audit B9). */}
+      <EInvoicePanel invoiceId={id} />
+    </div>
+  );
 }
