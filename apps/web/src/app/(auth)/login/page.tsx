@@ -13,7 +13,7 @@ export default async function LoginPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">Vercentlabs</p>
+        <p className="text-xs font-semibold tracking-wide text-text-muted uppercase md:hidden">Vercentlabs</p>
         <h1 className="text-xl font-semibold text-text">Sign in to your workspace</h1>
       </div>
       <Suspense>

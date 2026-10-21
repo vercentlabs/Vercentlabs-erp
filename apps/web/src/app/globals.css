@@ -150,6 +150,47 @@ body {
   }
 }
 
+/* The auth screens' brand half ((auth)/layout.tsx): a faint dot grid fading out towards the bottom, and two soft glows drifting
+   very slowly behind the text. Transform-only animation; reduced motion stops it (below). */
+.auth-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgb(255 255 255 / 7%) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: linear-gradient(to bottom, black, transparent 75%);
+}
+.auth-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.22;
+  pointer-events: none;
+  will-change: transform;
+}
+.auth-glow-a {
+  width: 30rem;
+  height: 30rem;
+  left: -8rem;
+  top: -6rem;
+  background: var(--color-brand);
+  animation: auth-drift-a 40s ease-in-out infinite alternate;
+}
+.auth-glow-b {
+  width: 26rem;
+  height: 26rem;
+  right: -10rem;
+  bottom: -8rem;
+  background: #6B8CFF;
+  animation: auth-drift-b 52s ease-in-out infinite alternate;
+}
+@keyframes auth-drift-a {
+  to { transform: translate(6rem, 5rem) scale(1.08); }
+}
+@keyframes auth-drift-b {
+  to { transform: translate(-5rem, -6rem) scale(1.05); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -158,7 +158,7 @@ export function SignupFlow() {
 function Heading({ title, line }: { title: string; line?: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">Vercentlabs</p>
+      <p className="text-xs font-semibold tracking-wide text-text-muted uppercase md:hidden">Vercentlabs</p>
       <h1 className="text-xl font-semibold text-text">{title}</h1>
       {line && <p className="text-sm text-text-secondary">{line}</p>}
     </div>
