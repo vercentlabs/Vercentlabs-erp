@@ -18,7 +18,8 @@ const OPEN_QUOTATION = "('draft', 'pending_approval', 'approved', 'sent', 'viewe
 const OPEN_ORDER = "('confirmed')";
 const OPEN_INVOICE = "('posted', 'partially_paid', 'overdue', 'disputed')";
 const DEAD_RECEIPT = "('draft', 'cancelled', 'reversed')";
-const PENDING_DELIVERY = "('pending', 'processing', 'failed')";
+// Open deliveries (the status trigger writes pending, completed or cancelled; Line-by-line audit, Low).
+const PENDING_DELIVERY = "('pending')";
 const num = (value) => Number(value ?? 0);
 
 // What the customer page may show: Sales' own parts by permission; another app's part only while that app is on and the person has its

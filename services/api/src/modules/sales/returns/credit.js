@@ -102,16 +102,19 @@ export async function createCreditNoteFromReturn(client, context, returnId, inpu
         WHERE invoiced.organization_id = $1 AND invoiced.source_sales_order_line_id = $2
         ORDER BY same_delivery DESC, invoice.invoice_date, invoice.created_at, invoice.invoice_number`, [context.organizationId, source.sales_order_line_id, source.delivery_line_id])).rows;
     let left = quantity;
+    const drafts = new Set();
     for (const candidate of candidates) {
       if (left <= EPSILON) break;
       const invoiceLine = (await creditableLines(client, context.organizationId, candidate.id)).find((entry) => entry.source_sales_order_line_id === source.sales_order_line_id);
       const already = (allocations.get(candidate.id) ?? []).filter((entry) => entry.invoiceLineId === invoiceLine?.id).reduce((total, entry) => total + entry.quantity, 0);
       const take = round(Math.min(left, Math.max(0, (invoiceLine?.quantityLeft ?? 0) - (invoiceLine?.draftQuantity ?? 0) - already)));
+      if ((invoiceLine?.draftQuantity ?? 0) > EPSILON) for (const draft of invoiceLine.draftCreditNotes ?? []) drafts.add(draft);
       if (take <= EPSILON) continue;
       allocations.set(candidate.id, [...(allocations.get(candidate.id) ?? []), { invoiceLineId: invoiceLine.id, quantity: take, returnLineId: source.id }]);
       left = round(left - take);
     }
-    if (left > EPSILON) throw new ReturnError(409, `${line.item}: the invoices that billed it have only ${round(quantity - left)} left to credit.`, "SALES_RETURN_CREDIT_EXCEEDS");
+    // A draft credit note already crediting these invoice lines holds that quantity: it is named, so it can be posted or cancelled (Line-by-line audit, Low).
+    if (left > EPSILON) throw new ReturnError(409, `${line.item}: the invoices that billed it have only ${round(quantity - left)} left to credit.${drafts.size ? ` Draft credit note ${[...drafts].join(", ")} already credits it: post or cancel that draft first.` : ""}`, "SALES_RETURN_CREDIT_EXCEEDS", { draftCreditNotes: [...drafts] });
   }
   const reason = text(input.reason, 800) ?? reasonLabel(salesReturn.reason_code);
   // The credit-notes module checks the invoice side; the permission to credit from a return authorises it.

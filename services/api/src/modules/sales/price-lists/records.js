@@ -234,7 +234,13 @@ async function setStatus(client, context, priceListId, status, reason) {
   requirePriceListPermission(context, PRICE_LIST_PERMISSIONS.activate, "You do not have permission to activate or deactivate price lists.");
   const row = await loadPriceListRow(client, context, priceListId, { lock: true });
   if (row.status === status) throw new PriceListError(409, `This price list is already ${status}.`, "SALES_PRICE_LIST_STATUS_UNCHANGED");
-  // Deactivating the default leaves the currency without one until another is chosen.
+  // The default is not deactivated while another list could take its place: every new line in that currency would
+  // show "price missing" (Line-by-line audit, Low). Choose the new default first.
+  if (status === "inactive" && row.is_default) {
+    const other = (await client.query(`SELECT name FROM tenant.price_lists WHERE organization_id = $1 AND currency_code = $2 AND id <> $3 AND status = 'active' ORDER BY lower(name) LIMIT 1`,
+      [context.organizationId, row.currency_code, row.id])).rows[0];
+    if (other) throw new PriceListError(409, `This is the default ${row.currency_code.trim()} price list. Make another one the default (such as ${other.name}) before deactivating it.`, "SALES_PRICE_LIST_DEFAULT_IN_USE");
+  }
   await client.query(`UPDATE tenant.price_lists SET status = $3, is_default = CASE WHEN $3 = 'inactive' THEN false ELSE is_default END, updated_by = $4, updated_at = now()
                        WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id, status, context.userId ?? null]);
   const note = text(reason).slice(0, 300);

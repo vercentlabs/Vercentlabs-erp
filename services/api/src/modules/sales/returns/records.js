@@ -131,6 +131,13 @@ function draftWarnings(chosen) {
   }));
 }
 
+// Goods cannot come back before they left (Line-by-line audit, Low).
+function assertAfterDispatch(returnDate, dispatchDate) {
+  const left = dispatchDate ? dayOf(dispatchDate) : null;
+  if (left && returnDate < left)
+    throw new ReturnError(400, `The return date cannot be before the goods were dispatched (${left.split("-").reverse().join("-")}).`, "SALES_RETURN_VALIDATION", { field: "returnDate" });
+}
+
 // A new Draft return of a dispatched delivery; no stock moves until it is received.
 // input: { idempotencyKey, lines: [{ deliveryLineId, quantity, disposition?, reasonCode? }], reasonCode, reasonNote?, disposition (default for the lines),
 //          warehouseId? (default: the delivery's), returnDate?, customerNotes?, internalNotes? }
@@ -156,6 +163,7 @@ export async function createReturnFromDelivery(client, context, deliveryId, inpu
   const now = await companyToday(client);
   const returnDate = readDate(input.returnDate, "Return date") ?? now;
   if (returnDate > now) throw new ReturnError(400, "The return date cannot be in the future.", "SALES_RETURN_VALIDATION", { field: "returnDate" });
+  assertAfterDispatch(returnDate, delivery.dispatch_date);
   const number = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: "sales_return" });
   const created = (await client.query(
     `INSERT INTO tenant.sales_returns (organization_id, return_number, sales_order_id, delivery_id, party_id, customer_snapshot, customer_po_number, return_date, warehouse_id,
@@ -219,6 +227,8 @@ export async function updateDraftReturn(client, context, returnId, input = {}) {
     const now = await companyToday(client);
     const day = readDate(input.returnDate, "Return date") ?? now;
     if (day > now) throw new ReturnError(400, "The return date cannot be in the future.", "SALES_RETURN_VALIDATION", { field: "returnDate" });
+    const dispatched = (await client.query("SELECT dispatch_date FROM tenant.sales_fulfillment_requests WHERE organization_id = $1 AND id = $2", [context.organizationId, salesReturn.delivery_id])).rows[0]?.dispatch_date;
+    assertAfterDispatch(day, dispatched);
     if (day !== dayOf(salesReturn.return_date)) { set("return_date", day); changes.push({ what: "Return date", from: dayOf(salesReturn.return_date), to: day }); }
   }
   for (const [key, column, label] of [["customerNotes", "customer_notes", "Customer notes"], ["internalNotes", "internal_notes", "Internal notes"]]) {
@@ -328,21 +338,10 @@ export async function getSalesReturn(client, context, returnId) {
 }
 
 const SORTS = Object.freeze({ number: "sales_return.return_number", date: "sales_return.return_date", customer: "customer_name", created: "sales_return.created_at" });
-// A received return still owing a credit note: its lines' share of what was invoiced but returned (the latest
-// received returns of the order line first, as creditPosition allocates it) is more than what was credited for them.
-export const CREDIT_DUE_SQL = `EXISTS (SELECT 1 FROM (
-     SELECT line.id, line.sales_return_id,
-            GREATEST(0, LEAST(line.quantity, due.quantity - (sum(line.quantity) OVER (PARTITION BY line.sales_order_line_id ORDER BY received.received_at DESC, line.id) - line.quantity))) AS invoiced
-       FROM tenant.sales_return_lines line
-       JOIN tenant.sales_returns received ON received.id = line.sales_return_id AND received.status = 'received'
-       JOIN (SELECT progress.sales_order_line_id,
-                    LEAST(progress.returned_quantity, GREATEST(0, progress.invoiced_quantity - (progress.fulfilled_quantity - progress.returned_quantity))) AS quantity
-               FROM tenant.sales_order_line_progress progress) due ON due.sales_order_line_id = line.sales_order_line_id
-      WHERE received.sales_order_id = sales_return.sales_order_id) allocation
-    WHERE allocation.sales_return_id = sales_return.id
-      AND allocation.invoiced > COALESCE((SELECT sum(credit.quantity) FROM tenant.sales_return_credits credit
-                                           JOIN tenant.accounting_customer_invoices credit_note ON credit_note.id = credit.credit_note_id AND credit_note.status NOT IN ('cancelled', 'reversed')
-                                          WHERE credit.sales_return_line_id = allocation.id), 0) + 0.000001)`;
+// A received return still owing a credit note: kept on the return by the database (migration 0219, Line-by-line audit P6) — its
+// lines' share of what was invoiced but returned (the latest received returns of the order line first) is more than what credit notes
+// that still stand credited for them.
+export const CREDIT_DUE_SQL = "sales_return.credit_due";
 
 // filters: view, search, status, partyId, warehouseId, reasonCode, productId, salesOrderId, deliveryId, invoiceId, credited ('yes'|'no'), dateFrom, dateTo, sort, direction, limit, offset
 export async function listSalesReturns(client, context, filters = {}) {

@@ -27,7 +27,7 @@ import { StockError, consumeStockReservation, releaseStockReservation, reserveAv
 import { reconcileReservedProjection } from "../../stock/balances.js";
 import { assertOrderVisible, orderCan, orderScopeSql, requireOrderAccess, requireOrderPermission } from "../orders/access.js";
 import { OrderError, STATUS, requireUuid, text } from "../orders/constants.js";
-import { loadOrderLineProgress, refreshSalesOrderProgress } from "../orders/progress.js";
+import { loadOrderLineProgress, loadOrderLineProgressFor, refreshSalesOrderProgress } from "../orders/progress.js";
 import { lockOrder, recordOrderEvent } from "../orders/versions.js";
 import {
   RECORD_STATUS_LABELS, RELEASE_REASONS, RESERVATION_PERMISSIONS, RESERVATION_REFERENCE, RESERVATION_STATUS_LABELS, STALE_AFTER_DAYS, SYSTEM_RELEASE_REASONS,
@@ -335,8 +335,10 @@ export async function reconcileSalesReservations(client, context, { repair = fal
         AND EXISTS (SELECT 1 FROM tenant.stock_reservations reservation WHERE reservation.organization_id = sales_order.organization_id AND reservation.sales_order_id = sales_order.id
                      AND reservation.status = 'active')`, values);
   const excess = [];
+  // Every order's lines in one query, not one per order (Line-by-line audit P8).
+  const progress = await loadOrderLineProgressFor(client, context.organizationId, rows.map((order) => order.current_version_id));
   for (const order of rows) {
-    const lines = await loadOrderLineProgress(client, context.organizationId, order.current_version_id);
+    const lines = progress.get(order.current_version_id) ?? [];
     const holding = order.lifecycle_status === STATUS.confirmed;
     for (const line of lines) {
       const allowed = holding ? line.remainingToDeliver : 0;

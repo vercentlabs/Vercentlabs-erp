@@ -24,7 +24,8 @@ export async function changeSalesOrderLineWarehouse(client, context, orderId, in
   const warehouseId = requireUuid(input.warehouseId, "Warehouse");
   const line = (await client.query(
     `SELECT line.id, line.item_name_snapshot, COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id) AS warehouse_id, old.name AS old_name, item.item_type,
-            COALESCE(item.track_inventory, false) AS track_inventory
+            COALESCE(item.track_inventory, false) AS track_inventory,
+            (SELECT unit.code FROM tenant.units_of_measure unit WHERE unit.organization_id = item.organization_id AND unit.id = item.uom_id) AS base_unit
        FROM tenant.sales_order_lines line
        JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
        JOIN tenant.sales_order_line_progress progress ON progress.organization_id = line.organization_id AND progress.sales_order_line_id = line.id
@@ -53,7 +54,7 @@ export async function changeSalesOrderLineWarehouse(client, context, orderId, in
           WHERE balance.organization_id = $1 AND balance.warehouse_id = $2 AND balance.item_id = (SELECT item_id FROM tenant.sales_order_lines WHERE organization_id = $1 AND id = $3)`,
         [context.organizationId, warehouse.id, lineId])).rows[0].free);
       if (free + 1e-9 < held)
-        throw new OrderError(409, `${warehouse.name} has only ${free} available; ${held} are reserved in ${line.old_name ?? "the current warehouse"} and stay there. Nothing was changed.`,
+        throw new OrderError(409, `${warehouse.name} has only ${free} ${line.base_unit ?? ""} available; ${held} ${line.base_unit ?? ""} are reserved in ${line.old_name ?? "the current warehouse"} and stay there. Nothing was changed.`.replace(/ {2,}/g, " "),
           "SALES_WAREHOUSE_INSUFFICIENT", { reserved: held, available: free });
     }
   }

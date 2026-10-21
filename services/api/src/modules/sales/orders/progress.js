@@ -17,7 +17,7 @@ import { FULFILLMENT, INVOICING, STATUS } from "./constants.js";
 // tracked is delivered but never reserved. Stock is tracked only while the
 // Stock app is on, whatever the product's own setting (Sales audit B8).
 const LINES_SQL = `
-  SELECT line.id, line.sequence, line.item_id, COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id) AS warehouse_id, line.quantity, line.conversion_factor, line.line_total, line.item_name_snapshot, line.uom_snapshot, item.uom_id AS base_uom_id,
+  SELECT line.id, line.sales_order_version_id, line.sequence, line.item_id, COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id) AS warehouse_id, line.quantity, line.conversion_factor, line.line_total, line.item_name_snapshot, line.uom_snapshot, item.uom_id AS base_uom_id,
          (SELECT unit.code FROM tenant.units_of_measure unit WHERE unit.organization_id = item.organization_id AND unit.id = item.uom_id) AS base_unit,
          item.item_type <> 'service' AS deliverable, COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AND EXISTS (SELECT 1 FROM public.organization_modules stock_app WHERE stock_app.organization_id = line.organization_id AND stock_app.module_key = 'stock' AND stock_app.status = 'enabled') AS stock_tracked,
          progress.cancelled_quantity,
@@ -46,22 +46,34 @@ const EPSILON = 1e-6;
 // The line quantities of an order version, as they stand now.
 export async function loadOrderLineProgress(client, organizationId, versionId) {
   const { rows } = await client.query(LINES_SQL, [organizationId, versionId]);
-  return rows.map((row) => {
-    const ordered = number(row.quantity);
-    const cancelled = number(row.cancelled_quantity);
-    const delivered = number(row.delivered);
-    const invoiced = number(row.invoiced);
-    const open = Math.max(0, ordered - cancelled);
-    return {
-      lineId: row.id, sequence: row.sequence, itemId: row.item_id, itemName: row.item_name_snapshot, unit: row.uom_snapshot, warehouseId: row.warehouse_id,
-      conversionFactor: number(row.conversion_factor) || 1, baseUomId: row.base_uom_id, baseUnit: row.base_unit ?? null, deliverable: Boolean(row.deliverable), stockTracked: Boolean(row.stock_tracked),
-      ordered, cancelled, reserved: number(row.reserved), delivered, invoiced, returned: number(row.returned_quantity),
-      // What can still be delivered and invoiced; never negative.
-      remainingToDeliver: row.deliverable ? Math.max(0, open - delivered) : 0,
-      remainingToInvoice: Math.max(0, open - invoiced),
-      lineTotal: number(row.line_total),
-    };
-  });
+  return rows.map(toProgressLine);
+}
+
+// The same for many order versions in one query (Line-by-line audit P8): Map(versionId → lines).
+export async function loadOrderLineProgressFor(client, organizationId, versionIds) {
+  const ids = [...new Set(versionIds.filter(Boolean))];
+  const byVersion = new Map(ids.map((id) => [id, []]));
+  if (!ids.length) return byVersion;
+  const { rows } = await client.query(LINES_SQL.replace("line.sales_order_version_id = $2", "line.sales_order_version_id = ANY ($2::uuid[])"), [organizationId, ids]);
+  for (const row of rows) byVersion.get(row.sales_order_version_id)?.push(toProgressLine(row));
+  return byVersion;
+}
+
+function toProgressLine(row) {
+  const ordered = number(row.quantity);
+  const cancelled = number(row.cancelled_quantity);
+  const delivered = number(row.delivered);
+  const invoiced = number(row.invoiced);
+  const open = Math.max(0, ordered - cancelled);
+  return {
+    lineId: row.id, sequence: row.sequence, itemId: row.item_id, itemName: row.item_name_snapshot, unit: row.uom_snapshot, warehouseId: row.warehouse_id,
+    conversionFactor: number(row.conversion_factor) || 1, baseUomId: row.base_uom_id, baseUnit: row.base_unit ?? null, deliverable: Boolean(row.deliverable), stockTracked: Boolean(row.stock_tracked),
+    ordered, cancelled, reserved: number(row.reserved), delivered, invoiced, returned: number(row.returned_quantity),
+    // What can still be delivered and invoiced; never negative.
+    remainingToDeliver: row.deliverable ? Math.max(0, open - delivered) : 0,
+    remainingToInvoice: Math.max(0, open - invoiced),
+    lineTotal: number(row.line_total),
+  };
 }
 
 // Not delivered, partially delivered or delivered, from the physical lines alone: a line is
