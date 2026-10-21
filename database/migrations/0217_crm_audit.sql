@@ -20,6 +20,9 @@ BEGIN
   END IF;
 END $$;
 
+--    And when a lead with no activity is flagged (where its stage sets no time of its own): 7 days unless the organization says otherwise.
+ALTER TABLE tenant.crm_settings ADD COLUMN IF NOT EXISTS lead_stale_days smallint NOT NULL DEFAULT 7 CHECK (lead_stale_days BETWEEN 1 AND 365);
+
 -- 2. CRM quotes (M1): a quotation or proforma sent straight from a deal when the organization has no Sales app — items, GST (CGST+SGST
 --    within the state, IGST across states), a PDF, email or a WhatsApp link to the customer's own page. Switching Sales on later turns a
 --    quote into a Sales quotation (sales_quotation_id); the quote stays as history.

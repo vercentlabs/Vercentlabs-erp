@@ -3,6 +3,7 @@
 // from the lead), open deals already on the account, the lead's open work and
 // the suggested values for the new opportunity. Nothing is written.
 import { ensureDefaultSalesPipeline } from "../sales-stages/defaults.js";
+import { dayIn, organizationTimeZone } from "../data-management/csv.js";
 import { getLeadQualificationSettings } from "../leads/qualification.js";
 import { readLeadRow } from "../leads/records.js";
 import { isUuid } from "../leads/validation.js";
@@ -19,12 +20,11 @@ export function defaultOpportunityName(accountName, productInterest) {
   return `${text(accountName) || "New company"} — ${text(productInterest).slice(0, 80) || "New deal"}`.slice(0, 200);
 }
 
-// The purchase timeframe, as a suggested close date.
-function suggestedCloseDate(timeframe) {
+// The purchase timeframe, as a suggested close date — counted from the organization's own today (its time zone), not UTC's.
+function suggestedCloseDate(timeframe, timeZone = "UTC") {
   const days = TIMEFRAME_DAYS[timeframe];
   if (!days) return null;
-  const date = new Date(Date.now() + days * 86400000);
-  return date.toISOString().slice(0, 10);
+  return dayIn(timeZone, new Date(Date.now() + days * 86400000));
 }
 
 export function leadSummary(lead, requirements) {
@@ -163,7 +163,7 @@ export async function previewLeadConversion(client, context, leadId, options = {
         stageId: stages.rows[0]?.id ?? null,
         amount: summary.estimatedValue,
         currencyCode: summary.currencyCode,
-        expectedCloseDate: suggestedCloseDate(lead.purchase_timeframe),
+        expectedCloseDate: suggestedCloseDate(lead.purchase_timeframe, await organizationTimeZone(client, context)),
         productInterest: lead.product_interest ?? "",
         description: lead.description ?? "",
         priority: lead.priority ?? "medium",

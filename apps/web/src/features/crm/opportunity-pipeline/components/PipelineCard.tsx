@@ -67,7 +67,9 @@ export function PipelineCard({ card, baseCurrency, can, canDrag, isDragging, mov
         <span title={card.ownerName ?? "Unassigned"} className="flex size-6 items-center justify-center rounded-full bg-surface-muted text-[0.65rem] font-semibold text-text-secondary">{initials(card.ownerName)}</span>
         <span className="flex flex-wrap items-center justify-end gap-1">
           {!open && <OpportunityStatusBadge status={card.status} />}
-          {card.isStale && <Badge tone="warning">Stale</Badge>}
+          {/* A chance set by hand stays when the deal moves stage (CRM audit): say so on the card. */}
+          {open && card.probabilityOverridden && <Badge tone="info">{`${card.probability}% set by hand`}</Badge>}
+          {card.isStale && <Badge tone="warning">No activity</Badge>}
           {card.stageOverdue && <Badge tone="danger">{card.stageTimeLimitDays ? `Over its ${card.stageTimeLimitDays}-day limit` : "Over its time limit"}</Badge>}
           {card.hasAcceptedQuotation && open && <Badge tone="success">Quote accepted</Badge>}
           {open && <span>{days(card.stageAgeDays)} in stage</span>}

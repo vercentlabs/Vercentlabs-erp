@@ -263,7 +263,7 @@ export type LeadQualificationView = {
 
 export type LeadDashboard = {
   period: { from: string; to: string };
-  totals: Record<"open" | "new" | "unassigned" | "assignedToday" | "noActivity" | "createdInPeriod" | "followUpsDueToday" | "overdueFollowUps" | "qualified" | "disqualified" | "converted" | "awaitingQualification" | "inQualification" | "qualifiedTotal" | "qualificationRate" | "conversionRate" | "stale" | "staleDays", number> & { averageDaysToQualify: number | null };
+  totals: Record<"open" | "new" | "unassigned" | "assignedToday" | "noActivity" | "createdInPeriod" | "followUpsDueToday" | "overdueFollowUps" | "qualified" | "disqualified" | "converted" | "awaitingQualification" | "inQualification" | "qualifiedTotal" | "conversionRate" | "stale" | "staleDays", number> & { averageDaysToQualify: number | null; qualificationRate: number | null };
   qualifiedByOwner: Array<{ label: string; total: number }>;
   qualifiedBySource: Array<{ label: string; total: number }>;
   byStatus: Array<{ key: string; label: string; total: number }>;

@@ -13,7 +13,7 @@ import { getLeadAssignmentSettings } from "./assignment-rules.js";
 import {
   LEAD_ACTIVITY_TYPES, LEAD_ASSIGNMENT_METHODS, LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_DISQUALIFICATION_REASONS, LEAD_NEED_STATUSES,
   LEAD_QUALIFICATION_STATUSES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, LEAD_RULE_FIELDS, LEAD_RULE_OPERATORS,
-  LEAD_STALE_DAYS, LEAD_STATUSES,
+  LEAD_STALE_DAYS, LEAD_STATUSES, leadStaleDaysSql,
 } from "./constants.js";
 import { QUALIFICATION_CRITERIA } from "./qualification-criteria.js";
 import { getLeadQualificationSettings } from "./qualification.js";
@@ -33,7 +33,7 @@ export async function getLeadOptions(client, context) {
     views: LEAD_VIEWS,
     stages: await listLeadStages(client, context),
     qualificationStage: QUALIFICATION_STAGE,
-    staleDays: LEAD_STALE_DAYS,
+    staleDays: (await client.query(`SELECT ${leadStaleDaysSql("$1")} AS days`, [context.organizationId])).rows[0]?.days ?? LEAD_STALE_DAYS,
     statuses: LEAD_STATUSES,
     purchaseTimeframes: LEAD_PURCHASE_TIMEFRAMES,
     disqualificationReasons: LEAD_DISQUALIFICATION_REASONS,

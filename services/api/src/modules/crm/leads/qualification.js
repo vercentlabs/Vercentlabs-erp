@@ -74,7 +74,7 @@ const money = (value) => (value === null || value === undefined || value === "" 
 // history shows it. `on: "lead"` fields stay on the lead record, where the
 // form, the list and conversion already read them.
 const FIELDS = Object.freeze({
-  needStatus: { on: "qualification", column: "need_status", label: "Need", normalize: choice(LEAD_NEED_STATUSES, "Need identified"), show: labelFrom(LEAD_NEED_STATUSES) },
+  needStatus: { on: "qualification", column: "need_status", label: "Requirement", normalize: choice(LEAD_NEED_STATUSES, "Need identified"), show: labelFrom(LEAD_NEED_STATUSES) },
   businessNeed: { on: "qualification", column: "need_description", label: "Business need", normalize: longText, show: plain },
   budgetStatus: { on: "qualification", column: "budget_status", label: "Budget", normalize: choice(LEAD_BUDGET_STATUSES, "Budget"), show: labelFrom(LEAD_BUDGET_STATUSES) },
   budgetMin: { on: "qualification", column: "budget_min", label: "Budget from", normalize: amount("a budget"), show: money },
@@ -221,15 +221,19 @@ export async function updateQualification(client, context, leadId, input = {}) {
 export const saveLeadQualification = updateQualification;
 
 // The rating follows the qualification answers (Cold -> Warm -> Hot) until a person sets it; from then on theirs stands.
+// The rating follows the qualification answers only while nobody chose it: it may change when it is empty or still the one the system
+// last set. A rating a person gave — on the form, at creation, in an import or a bulk change, by any path — is kept (CRM audit).
 async function followSuggestedRating(client, context, leadId) {
-  const manual = (await client.query(`SELECT 1 FROM tenant.crm_lead_history WHERE organization_id = $1 AND lead_id = $2 AND event_type = 'updated' AND changes ? 'rating' LIMIT 1`,
-    [context.organizationId, leadId])).rows[0];
-  if (manual) return;
   const lead = await lockLead(client, context, leadId);
+  const lastSuggested = (await client.query(
+    `SELECT changes -> 'rating' ->> 'to' AS rating FROM tenant.crm_lead_history WHERE organization_id = $1 AND lead_id = $2 AND event_type = 'qualification_updated'
+        AND changes ->> 'source' = 'suggested' ORDER BY created_at DESC LIMIT 1`, [context.organizationId, leadId])).rows[0]?.rating ?? null;
+  if (lead.rating && lead.rating !== lastSuggested) return;
   const { suggestedRating } = evaluateLeadQualification(lead, await getLeadQualificationSettings(client, context));
   if (!suggestedRating || suggestedRating === lead.rating) return;
   await client.query(`UPDATE tenant.crm_leads SET rating = $3, updated_by = $4 WHERE organization_id = $1 AND id = $2`, [context.organizationId, lead.id, suggestedRating, context.userId ?? null]);
-  await recordLeadHistory(client, context, lead.id, "qualification_updated", `Rating: ${lead.rating ?? "none"} → ${suggestedRating} (from the qualification answers)`, {});
+  await recordLeadHistory(client, context, lead.id, "qualification_updated", `Rating: ${lead.rating ?? "none"} → ${suggestedRating} (from the qualification answers)`,
+    { source: "suggested", rating: { from: lead.rating ?? null, to: suggestedRating } });
 }
 
 // ------------------------------------------------------------------ decisions

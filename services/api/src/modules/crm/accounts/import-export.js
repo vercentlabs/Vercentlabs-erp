@@ -11,6 +11,7 @@
 // carries — go through the same tax-identity rules as the company form. A row
 // that fails is reported with its reason and never stops the rest of the file.
 import { withMigrationAliases } from "../data-management/migration-presets.js";
+import { dayIn, organizationTimeZone } from "../data-management/csv.js";
 import { customExportColumns, customImportFields, suggestCustomMapping, takeCustomColumn } from "../data-management/custom-import.js";
 import { countryCodeOf, gstTreatmentOf } from "../data-management/import-values.js";
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
@@ -294,7 +295,7 @@ export async function exportAccounts(client, context, filters = {}, { limit = EX
   const accounts = rows.map(toAccount);
   const columns = [...EXPORT_COLUMNS, ...(await customExportColumns(client, context, "party"))];
   return {
-    fileName: `accounts-${new Date().toISOString().slice(0, 10)}.csv`,
+    fileName: `accounts-${dayIn(await organizationTimeZone(client, context))}.csv`,
     rowCount: accounts.length,
     csv: toCsv([columns.map(([label]) => label), ...accounts.map((account) => columns.map(([, read]) => read(account)))]),
   };

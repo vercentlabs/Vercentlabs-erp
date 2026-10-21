@@ -22,7 +22,7 @@ import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { canViewSensitiveLeadContent, leadCan, leadCapabilities, leadScopeSql, projectLeadForContext, requireLeadPermission } from "./access.js";
 import { applyLeadAssignment } from "./assignment.js";
 import { evaluateLeadAssignment, fallbackLeadAssignment, getLeadAssignmentSettings } from "./assignment-rules.js";
-import { LEAD_NUMBER_DOCUMENT_TYPE, LEAD_PERMISSIONS, LEAD_STALE_DAYS } from "./constants.js";
+import { LEAD_NUMBER_DOCUMENT_TYPE, LEAD_PERMISSIONS, LEAD_STALE_DAYS, leadStaleDaysSql } from "./constants.js";
 import { recordDuplicateOverride } from "../duplicates/policy.js";
 import { assertNoBlockingLeadDuplicate } from "./duplicates.js";
 import { leadQualificationScore, leadQualificationStatus, suggestedLeadRating } from "./qualification-criteria.js";
@@ -51,6 +51,7 @@ export const LEAD_SELECT = `
          qualification.authority_status AS q_authority_status, qualification.authority_detail AS q_authority_detail,
          qualification.notes AS q_notes, qualification.started_at AS q_started_at, qualification.override_reason AS q_override_reason, overrider.full_name AS q_overridden_by_name,
          stage_def.name AS stage_name, stage_def.sequence AS stage_sequence, stage_def.stale_after_days AS stage_stale_days,
+         ${leadStaleDaysSql("lead.organization_id")} AS org_stale_days,
          floor(EXTRACT(epoch FROM now() - lead.stage_changed_at) / 86400)::int AS stage_age_days,
          floor(EXTRACT(epoch FROM now() - COALESCE(lead.last_activity_at, lead.created_at)) / 86400)::int AS days_since_activity,
          converter.full_name AS converted_by_name, converted_account.display_name AS converted_account_name,
@@ -152,8 +153,8 @@ export function toLead(row) {
     stageAgeDays: row.stage_age_days ?? 0,
     daysSinceActivity: row.days_since_activity ?? 0,
     // stale after the stage's own number of days without activity (CRM plan 5.5), else the standard
-    isStale: row.status === "open" && !row.archived_at && (row.days_since_activity ?? 0) >= (row.stage_stale_days ?? LEAD_STALE_DAYS),
-    staleAfterDays: row.stage_stale_days ?? LEAD_STALE_DAYS,
+    isStale: row.status === "open" && !row.archived_at && (row.days_since_activity ?? 0) >= (row.stage_stale_days ?? row.org_stale_days ?? LEAD_STALE_DAYS),
+    staleAfterDays: row.stage_stale_days ?? row.org_stale_days ?? LEAD_STALE_DAYS,
     languageCode: row.language_code ?? null,
     status: row.status,
     // qualification: the answers, and what they add up to
@@ -335,7 +336,7 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   if (Number.isInteger(olderThanDays) && olderThanDays > 0 && olderThanDays <= 3650) where.push(`lead.created_at < now() - make_interval(days => ${bind(olderThanDays)}::int)`);
   if (filters.stale === "yes" || filters.stale === true)
     where.push(`lead.status = 'open' AND COALESCE(lead.last_activity_at, lead.created_at) < now() - make_interval(days => COALESCE(
-      (SELECT stale_stage.stale_after_days FROM tenant.crm_lead_stages stale_stage WHERE stale_stage.organization_id = lead.organization_id AND stale_stage.code = lead.stage), ${LEAD_STALE_DAYS}))`);
+      (SELECT stale_stage.stale_after_days FROM tenant.crm_lead_stages stale_stage WHERE stale_stage.organization_id = lead.organization_id AND stale_stage.code = lead.stage), ${leadStaleDaysSql("lead.organization_id")}))`);
   if (filters.stageEnteredFrom) where.push(`lead.stage_changed_at >= ${bind(dayFilter(filters.stageEnteredFrom))}::date`);
   if (filters.stageEnteredTo) where.push(`lead.stage_changed_at < ${bind(dayFilter(filters.stageEnteredTo))}::date + interval '1 day'`);
   if (filters.assignedFrom) where.push(`lead.assigned_at >= ${bind(dayFilter(filters.assignedFrom))}::date`);

@@ -15,6 +15,9 @@ export const DEFAULT_LEAD_STAGES = Object.freeze([
 // An open lead with no activity for this many days is shown as stale, and a
 // lead this long in one stage as stuck. Both are calculated, never stored.
 export const LEAD_STALE_DAYS = 7;
+// SQL: the organization's own "no activity for N days" (crm_settings.lead_stale_days), else LEAD_STALE_DAYS.
+export const leadStaleDaysSql = (organization) =>
+  `COALESCE((SELECT stale_settings.lead_stale_days FROM tenant.crm_settings stale_settings WHERE stale_settings.organization_id = ${organization}), ${LEAD_STALE_DAYS})`;
 
 export const LEAD_STATUSES = Object.freeze([
   { code: "open", label: "Open" },

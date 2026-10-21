@@ -134,7 +134,7 @@ export function LeadDashboardScreen() {
                   <Figure allTime href="/crm/leads?qualificationStatus=in_progress" label="In qualification" value={dashboard.totals.inQualification} />
                   <Figure allTime href="/crm/leads?qualificationStatus=qualified" label="Qualified (incl. converted)" value={dashboard.totals.qualifiedTotal} />
                   <Figure allTime href="/crm/leads?view=disqualified" label="Not interested" value={dashboard.totals.disqualified} />
-                  <Figure allTime label="Qualification rate" value={`${dashboard.totals.qualificationRate}%`} />
+                  <Figure allTime label="Qualification rate" value={dashboard.totals.qualificationRate === null ? "—" : `${dashboard.totals.qualificationRate}%`} />
                   <Figure allTime label="Average days to qualify" value={dashboard.totals.averageDaysToQualify === null ? "–" : dashboard.totals.averageDaysToQualify} />
                 </div>
               </section>

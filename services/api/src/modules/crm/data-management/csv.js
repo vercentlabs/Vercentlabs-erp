@@ -26,6 +26,7 @@ export function csvCellWriter(timeZone = "UTC") {
 }
 
 // The organization's today, for an export's file name.
-export function dayIn(timeZone = "UTC") {
-  try { return new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date()); } catch { return new Date().toISOString().slice(0, 10); }
+// The calendar day (YYYY-MM-DD) of a moment (now by default) in the time zone.
+export function dayIn(timeZone = "UTC", at = new Date()) {
+  try { return new Intl.DateTimeFormat("en-CA", { timeZone }).format(at); } catch { return at.toISOString().slice(0, 10); }
 }

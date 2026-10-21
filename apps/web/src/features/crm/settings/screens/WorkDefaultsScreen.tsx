@@ -5,7 +5,7 @@
 // when creating one.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Checkbox, PageHeader, PermissionState, Select } from "@vercentlabs/design-system";
+import { Button, Checkbox, PageHeader, PermissionState, Select, TextField } from "@vercentlabs/design-system";
 
 import { CrmApiErrorWithBody } from "@/features/crm/shared/http/crm-api-error";
 import { crmApiClient } from "@/features/crm/shared/http/crm-request";
@@ -19,7 +19,7 @@ const { request } = crmApiClient(WorkDefaultsApiError, "body");
 
 export type WorkDefaults = {
   taskPriority: string; taskReminderMinutes: number | null; followUpType: string; followUpReminderMinutes: number | null;
-  workingDays: number[]; workStart: string; workEnd: string; saturdaysOff: number[];
+  workingDays: number[]; workStart: string; workEnd: string; saturdaysOff: number[]; leadStaleDays: number;
 };
 export type WorkDefaultChoices = {
   taskPriorities: Array<{ code: string; label: string }>; taskReminderOptions: Array<{ minutes: number; label: string }>;
@@ -69,9 +69,10 @@ function WorkingWeekForm({ defaults, choices }: { defaults: WorkDefaults; choice
   const [end, setEnd] = useState(defaults.workEnd);
   const ruleOf = (off: number[]) => choices.saturdayRules.find((rule) => rule.saturdaysOff.join() === [...off].sort().join())?.code ?? "none";
   const [saturdays, setSaturdays] = useState(ruleOf(defaults.saturdaysOff));
+  const [staleDays, setStaleDays] = useState(String(defaults.leadStaleDays ?? 7));
   const toggle = (day: number) => setDays((current) => (current.includes(day) ? current.filter((entry) => entry !== day) : [...current, day]));
   const save = useMutation({
-    mutationFn: () => saveWorkDefaults({ workingDays: days, workStart: start, workEnd: end,
+    mutationFn: () => saveWorkDefaults({ workingDays: days, workStart: start, workEnd: end, leadStaleDays: Number(staleDays) || 7,
       saturdaysOff: days.includes(6) ? (choices.saturdayRules.find((rule) => rule.code === saturdays)?.saturdaysOff ?? []) : [] }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "work-defaults") }),
   });
@@ -95,6 +96,8 @@ function WorkingWeekForm({ defaults, choices }: { defaults: WorkDefaults; choice
         <Select label="Day starts" selectedKey={start} onSelectionChange={(key) => setStart(String(key))} options={times} />
         <Select label="Day ends" selectedKey={end} onSelectionChange={(key) => setEnd(String(key))} options={times} />
       </div>
+      <TextField label="Flag a lead with no activity after" inputMode="numeric" value={staleDays} onChange={setStaleDays}
+        description="Days. A lead stage can set its own time instead (Setup › Lead stages)." />
       {days.includes(6) && (
         <Select label="Saturdays" selectedKey={saturdays} onSelectionChange={(key) => setSaturdays(String(key))}
           options={choices.saturdayRules.map((rule) => ({ value: rule.code, label: rule.label }))} />

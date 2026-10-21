@@ -3,7 +3,7 @@
 // figure and the list behind it always agree.
 import { leadScopeSql, requireLeadPermission } from "./access.js";
 import { reportingRate } from "../data-management/reporting-currency.js";
-import { LEAD_DISQUALIFICATION_REASONS, LEAD_PERMISSIONS, LEAD_QUALIFICATION_STATUSES, LEAD_RATINGS, LEAD_STALE_DAYS, LEAD_STATUSES } from "./constants.js";
+import { LEAD_DISQUALIFICATION_REASONS, LEAD_PERMISSIONS, LEAD_QUALIFICATION_STATUSES, LEAD_RATINGS, LEAD_STALE_DAYS, LEAD_STATUSES, leadStaleDaysSql } from "./constants.js";
 import { ensureDefaultLeadStages } from "./stages.js";
 import { QUALIFICATION_STATUS_SQL } from "./records.js";
 import { isUuid } from "./validation.js";
@@ -33,7 +33,7 @@ export async function getLeadDashboard(client, context, input = {}) {
             count(*) FILTER (WHERE follow_up.due_at < now())::int AS overdue_follow_ups,
             count(*) FILTER (WHERE lead.status = 'qualified')::int AS qualified,
             count(*)::int AS total,
-            count(*) FILTER (WHERE lead.status = 'open' AND COALESCE(lead.last_activity_at, lead.created_at) < now() - interval '${LEAD_STALE_DAYS} days')::int AS stale,
+            count(*) FILTER (WHERE lead.status = 'open' AND COALESCE(lead.last_activity_at, lead.created_at) < now() - make_interval(days => ${leadStaleDaysSql("lead.organization_id")}))::int AS stale,
             count(*) FILTER (WHERE ${QUALIFICATION_STATUS_SQL.not_started})::int AS awaiting_qualification,
             count(*) FILTER (WHERE ${QUALIFICATION_STATUS_SQL.in_progress})::int AS in_qualification,
             count(*) FILTER (WHERE lead.status IN ('qualified', 'converted'))::int AS qualified_total,
@@ -61,7 +61,7 @@ export async function getLeadDashboard(client, context, input = {}) {
     `SELECT stage.code, stage.name,
             count(lead.id)::int AS total,
             count(lead.id) FILTER (WHERE lead.owner_user_id = $${values.length + 1}::uuid)::int AS mine,
-            count(lead.id) FILTER (WHERE lead.stage_changed_at < now() - interval '${LEAD_STALE_DAYS} days')::int AS stuck,
+            count(lead.id) FILTER (WHERE lead.stage_changed_at < now() - make_interval(days => ${leadStaleDaysSql("lead.organization_id")}))::int AS stuck,
             round((avg(EXTRACT(epoch FROM now() - lead.stage_changed_at)) / 86400)::numeric, 1)::float8 AS average_age_days
        FROM tenant.crm_lead_stages stage
        LEFT JOIN tenant.crm_leads lead ON lead.organization_id = stage.organization_id AND lead.stage = stage.code
@@ -117,13 +117,14 @@ export async function getLeadDashboard(client, context, input = {}) {
       inQualification: totals.in_qualification,
       qualifiedTotal: totals.qualified_total,
       // qualified ÷ (qualified + disqualified), as a percentage
-      qualificationRate: decided ? Math.round((totals.qualified_total / decided) * 1000) / 10 : 0,
+      // null when nothing is decided yet (shown as "—", as for deals), never a misleading 0%.
+      qualificationRate: decided ? Math.round((totals.qualified_total / decided) * 1000) / 10 : null,
       averageDaysToQualify: totals.avg_days_to_qualify ?? null,
       converted: totals.converted,
       // converted ÷ every lead, as a percentage
       conversionRate: totals.total ? Math.round((totals.converted / totals.total) * 1000) / 10 : 0,
       stale: totals.stale,
-      staleDays: LEAD_STALE_DAYS,
+      staleDays: (await client.query(`SELECT ${leadStaleDaysSql("$1")} AS days`, [context.organizationId])).rows[0]?.days ?? LEAD_STALE_DAYS,
     },
     byStatus: LEAD_STATUSES.map((status) => ({ key: status.code, label: status.label, total: count(byStatus, status.code) })),
     byStage: byStage.map((row) => ({ key: row.code, label: row.name, total: row.total, mine: row.mine, stuck: row.stuck, averageAgeDays: row.average_age_days ?? null })),

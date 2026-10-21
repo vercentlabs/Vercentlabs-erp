@@ -14,13 +14,13 @@ const STANDARD = Object.freeze({ taskPriority: "medium", taskReminderMinutes: nu
 
 export async function getWorkDefaults(client, context) {
   const { rows } = await client.query(
-    `SELECT default_task_priority, default_task_reminder_minutes, default_follow_up_type, default_follow_up_reminder_minutes
+    `SELECT default_task_priority, default_task_reminder_minutes, default_follow_up_type, default_follow_up_reminder_minutes, lead_stale_days
        FROM tenant.crm_settings WHERE organization_id = $1`,
     [context.organizationId],
   );
   const row = rows[0];
   const week = await getWorkingWeek(client, context.organizationId);
-  if (!row) return { ...STANDARD, ...week };
+  if (!row) return { ...STANDARD, ...week, leadStaleDays: 7 };
   return {
     ...week,
     taskPriority: row.default_task_priority,
@@ -28,6 +28,8 @@ export async function getWorkDefaults(client, context) {
     // a type that was since removed falls back to the standard one
     followUpType: FOLLOW_UP_TYPES.some((type) => type.code === row.default_follow_up_type) ? row.default_follow_up_type : STANDARD.followUpType,
     followUpReminderMinutes: row.default_follow_up_reminder_minutes,
+    // When a lead with no activity is flagged (where its stage sets no time of its own).
+    leadStaleDays: row.lead_stale_days ?? 7,
   };
 }
 
@@ -89,20 +91,26 @@ export async function saveWorkDefaults(client, context, input = {}) {
   if (!CLOCK.test(next.workStart)) throw invalid("Enter the start time as HH:MM, such as 10:00.", "workStart");
   if (!CLOCK.test(next.workEnd)) throw invalid("Enter the end time as HH:MM, such as 19:00.", "workEnd");
   if (next.workStart >= next.workEnd) throw invalid("The day must end after it starts.", "workEnd");
+  if (has(input, "leadStaleDays")) {
+    const days = Math.trunc(Number(input.leadStaleDays));
+    if (!Number.isFinite(days) || days < 1 || days > 365) throw invalid("Enter between 1 and 365 days.", "leadStaleDays");
+    next.leadStaleDays = days;
+  }
   if (has(input, "saturdaysOff")) {
     const saturdays = [...new Set((Array.isArray(input.saturdaysOff) ? input.saturdaysOff : []).map(Number))].filter((n) => Number.isInteger(n) && n >= 1 && n <= 5).sort();
     next.saturdaysOff = saturdays;
   }
   await client.query(
     `INSERT INTO tenant.crm_settings (organization_id, default_task_priority, default_task_reminder_minutes, default_follow_up_type, default_follow_up_reminder_minutes,
-                                     working_days, work_start, work_end, saturdays_off, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6::smallint[], $7, $8, $9::smallint[], $10, $10)
+                                     working_days, work_start, work_end, saturdays_off, lead_stale_days, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6::smallint[], $7, $8, $9::smallint[], $11, $10, $10)
      ON CONFLICT (organization_id) DO UPDATE SET default_task_priority = EXCLUDED.default_task_priority, default_task_reminder_minutes = EXCLUDED.default_task_reminder_minutes,
        default_follow_up_type = EXCLUDED.default_follow_up_type, default_follow_up_reminder_minutes = EXCLUDED.default_follow_up_reminder_minutes,
        working_days = EXCLUDED.working_days, work_start = EXCLUDED.work_start, work_end = EXCLUDED.work_end, saturdays_off = EXCLUDED.saturdays_off,
+       lead_stale_days = EXCLUDED.lead_stale_days,
        updated_by = EXCLUDED.updated_by, updated_at = now()`,
     [context.organizationId, next.taskPriority, next.taskReminderMinutes, next.followUpType, next.followUpReminderMinutes,
-      next.workingDays, next.workStart, next.workEnd, next.saturdaysOff, context.userId ?? null],
+      next.workingDays, next.workStart, next.workEnd, next.saturdaysOff, context.userId ?? null, next.leadStaleDays ?? 7],
   );
   return next;
 }

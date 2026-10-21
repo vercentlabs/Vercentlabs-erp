@@ -8,6 +8,7 @@
 // normalized name ("ABC Pvt Ltd" finds "ABC Private Limited"); a company that
 // is not found is reported and the person is imported without one.
 import { withMigrationAliases } from "../data-management/migration-presets.js";
+import { dayIn, organizationTimeZone } from "../data-management/csv.js";
 import { customExportColumns, customImportFields, suggestCustomMapping, takeCustomColumn } from "../data-management/custom-import.js";
 import { withConsentSource } from "../data-management/consent.js";
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
@@ -105,11 +106,13 @@ function rowToInput(record, mapping) {
     const value = String(record[header] ?? "").trim();
     if (value) input[fieldKey] = value;
   }
-  // "Name" alone is split into first and last name.
+  // "Name" alone is split as the lead import splits it: everything before the last space is the first name ("Suresh Kumar Patil":
+  // Suresh Kumar, Patil), so the same person imported as a lead and as a contact reads the same.
   if (input.fullName && !input.firstName && !input.lastName) {
-    const parts = input.fullName.split(/\s+/);
-    input.firstName = parts.shift();
-    if (parts.length) input.lastName = parts.join(" ");
+    const name = input.fullName.replace(/\s+/g, " ").trim();
+    const cut = name.lastIndexOf(" ");
+    input.firstName = cut > 0 ? name.slice(0, cut) : name;
+    if (cut > 0) input.lastName = name.slice(cut + 1);
   }
   delete input.fullName;
   if (input.role) input.role = ROLE_BY_LABEL.get(input.role.toLowerCase()) ?? input.role.toLowerCase();
@@ -264,7 +267,7 @@ export async function exportContacts(client, context, filters = {}, { limit = EX
   const contacts = rows.map(toContact);
   const columns = [...EXPORT_COLUMNS, ...(await customExportColumns(client, context, "contact"))];
   return {
-    fileName: `contacts-${new Date().toISOString().slice(0, 10)}.csv`,
+    fileName: `contacts-${dayIn(await organizationTimeZone(client, context))}.csv`,
     rowCount: contacts.length,
     csv: toCsv([columns.map(([label]) => label), ...contacts.map((contact) => columns.map(([, read]) => read(contact)))]),
   };
