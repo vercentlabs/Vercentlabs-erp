@@ -21,6 +21,8 @@ export const SIGNUP_APPS = Object.freeze({
 });
 const KEYS = Object.keys(SIGNUP_APPS);
 export const SUGGESTER_MODEL = "claude-haiku-5-5";
+// Used instead of Claude when only OPENAI_API_KEY is set (Claude wins when both are). Called over plain fetch, no extra package.
+export const OPENAI_SUGGESTER_MODEL = "gpt-4.1-mini";
 const AI_TIMEOUT_MS = 5000;
 
 const SCHEMA = {
@@ -78,6 +80,8 @@ export function checkSuggestion(answer) {
 
 // The stand-in without an API key: a plain keyword match over the text.
 const RULES = [
+  // First, so "packaged food" or "snacks" is a consumer-goods brand, not a restaurant.
+  [/\b(fmcg|cpg|consumer goods|consumer products|packaged|snacks|beverages?|cosmetics|personal care|toiletries|detergents?)\b/i, [["sales", "Send GST invoices to your distributors and retailers."], ["stock", "Know what is in each godown and what moved."], ["procurement", "Order raw and packing materials from suppliers."], ["accounting", "Track what distributors owe you."]]],
   [/\b(restaurant|cafe|café|bakery|food|menu|dhaba|sweets|canteen|hotel)\b/i, [["point-of-sale", "Bill customers at the counter, from your menu."], ["stock", "Know how much of each ingredient you have."], ["accounting", "Keep your daily sales and GST in order."]]],
   [/\b(shop|store|retail|boutique|showroom|mart|supermarket|pharmacy|chemist|salon)\b/i, [["point-of-sale", "Bill walk-in customers quickly."], ["stock", "See what is selling and what to reorder."], ["accounting", "Keep sales and GST in order."]]],
   [/\b(manufactur\w*|factory|plant|fabricat\w*|weav\w*|textile|fabric|garment|machin\w*|mill|production)\b/i, [["manufacturing", "Plan production from your materials."], ["stock", "Track raw materials and finished goods."], ["sales", "Send quotations and GST invoices to your buyers."], ["procurement", "Order materials from your suppliers."]]],
@@ -102,6 +106,8 @@ export function keywordSuggestion(companyName, text) {
 export async function suggestApps({ companyName, text, source }, { env = process.env, signal, client = null } = {}) {
   const content = String(text ?? "").trim();
   if (!content) return null;
+  const userMessage = `Company name: ${oneLine(companyName, 200)}\n\n<business_text source="${source}">\n${content.slice(0, 24_000)}\n</business_text>`;
+  if (!env.ANTHROPIC_API_KEY && !client && env.OPENAI_API_KEY) return openAiSuggestion(userMessage, source, { env, signal });
   if (!env.ANTHROPIC_API_KEY && !client) {
     const fallback = keywordSuggestion(companyName, content);
     return fallback && { ...fallback, source, model: "keywords" };
@@ -113,13 +119,38 @@ export async function suggestApps({ companyName, text, source }, { env = process
       max_tokens: 1024,
       system: INSTRUCTION,
       output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-      messages: [{ role: "user", content: `Company name: ${oneLine(companyName, 200)}\n\n<business_text source="${source}">\n${content.slice(0, 24_000)}\n</business_text>` }],
+      messages: [{ role: "user", content: userMessage }],
     }, { timeout: AI_TIMEOUT_MS, signal });
     if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") return null;
     const textBlock = response.content.find((block) => block.type === "text");
     if (!textBlock) return null;
     const checked = checkSuggestion(JSON.parse(textBlock.text));
     return checked && { ...checked, source, model: SUGGESTER_MODEL };
+  } catch {
+    return null;
+  }
+}
+
+// The same instruction and answer format through OpenAI's Chat Completions (strict JSON schema). Never throws, like suggestApps.
+async function openAiSuggestion(userMessage, source, { env, signal }) {
+  const timeout = AbortSignal.timeout(AI_TIMEOUT_MS);
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.OPENAI_API_KEY}` },
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      body: JSON.stringify({
+        model: OPENAI_SUGGESTER_MODEL,
+        max_tokens: 1024,
+        response_format: { type: "json_schema", json_schema: { name: "suggestion", strict: true, schema: SCHEMA } },
+        messages: [{ role: "system", content: INSTRUCTION }, { role: "user", content: userMessage }],
+      }),
+    });
+    if (!response.ok) return null;
+    const choice = (await response.json()).choices?.[0];
+    if (!choice || choice.finish_reason !== "stop" || choice.message?.refusal || !choice.message?.content) return null;
+    const checked = checkSuggestion(JSON.parse(choice.message.content));
+    return checked && { ...checked, source, model: OPENAI_SUGGESTER_MODEL };
   } catch {
     return null;
   }

@@ -257,7 +257,9 @@ function Apps({ state, onChange, onSetUp }: { state: SignupState; onChange: (sta
           </div>
         ) : (
           <p className="text-sm text-text">
-            {description ? (unsure ? `We think: ${description}` : description) : "Tell us what your business does and we'll suggest apps."}{" "}
+            {!description ? "Tell us what your business does and we'll suggest apps."
+              : !state.apps.suggested.length ? `We couldn't tell which apps fit "${description}". Pick them below, or say a bit more.`
+              : unsure ? `We think: ${description}` : description}{" "}
             {state.suggestionsLeft > 0 && <button type="button" className="font-medium text-brand hover:underline" onClick={() => setEditing(true)}>Edit</button>}
           </p>
         )}
