@@ -8,7 +8,8 @@ export class ConnectorApiError extends CrmApiErrorWithBody {}
 const { request } = crmApiClient(ConnectorApiError, "body");
 const BASE = "/api/crm/connectors";
 
-export type LeadProviderKey = "indiamart" | "justdial" | "tradeindia" | "meta" | "google";
+export type LeadProviderKey = "indiamart" | "justdial" | "tradeindia" | "meta" | "google" | "acres99" | "magicbricks" | "housing" | "sulekha" | "shiksha"
+  | "collegedunia" | "exportersindia" | "missed_call";
 export type LeadProvider = { key: LeadProviderKey; label: string; pull: boolean; push: boolean; credentials: Array<{ key: string; label: string; help: string | null; generated: boolean }> };
 export type LeadConnector = {
   id: string; provider: LeadProviderKey; providerLabel: string; name: string; status: "active" | "paused"; pull: boolean; push: boolean;

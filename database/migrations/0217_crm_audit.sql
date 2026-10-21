@@ -238,3 +238,9 @@ ALTER TABLE tenant.crm_saved_views ADD CONSTRAINT crm_saved_views_screen_check C
 
 -- 12. A contact's WhatsApp number when it is not their mobile (CRM audit: common in India); WhatsApp goes there first.
 ALTER TABLE tenant.contacts ADD COLUMN IF NOT EXISTS whatsapp_number text CHECK (whatsapp_number IS NULL OR char_length(whatsapp_number) <= 30);
+
+-- 13. More lead sources (CRM audit): property, education and B2B portals pushing leads to a connector's webhook, and missed calls
+--     from cloud telephony (Exotel, Knowlarity, MyOperator) opening a lead.
+ALTER TABLE tenant.crm_lead_connectors DROP CONSTRAINT IF EXISTS crm_lead_connectors_provider_check;
+ALTER TABLE tenant.crm_lead_connectors ADD CONSTRAINT crm_lead_connectors_provider_check CHECK (provider IN ('indiamart', 'justdial', 'tradeindia', 'meta', 'google',
+  'acres99', 'magicbricks', 'housing', 'sulekha', 'shiksha', 'collegedunia', 'exportersindia', 'missed_call'));

@@ -7,6 +7,9 @@
 //   Meta        push: the Lead Ads "leadgen" webhook (verified by the app secret's signature, and by a verify token when Meta subscribes);
 //               the lead itself is then read from the Graph API with the page access token.
 //   Google      push: the Google Ads lead-form webhook, verified by the connector's key sent as google_key.
+//   Portals     push (CRM audit): 99acres, MagicBricks, Housing.com, Sulekha, Shiksha, CollegeDunia and ExportersIndia — each portal's
+//               lead push (JSON or form fields) to the connector's webhook; their fields are read by the names portals use.
+//   Missed call push (CRM audit): a missed call to an Exotel, Knowlarity or MyOperator number opens a lead with the caller's number.
 //
 // Each adapter turns one provider lead into { externalId, enquiryAt, input } — input is what createLead takes. Network calls go through
 // an injectable fetch, so the adapters are tested without the providers.
@@ -200,6 +203,66 @@ const equal = (a, b) => {
   return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
 };
 
+// ------------------------------------------------------------------ portals and missed calls (CRM audit)
+// The first field present among names portals use for the same thing (case and separators ignored).
+function pick(raw, names) {
+  const flat = new Map(Object.entries(raw ?? {}).map(([key, value]) => [key.toLowerCase().replace(/[^a-z0-9]/g, ""), value]));
+  for (const name of names) {
+    const value = flat.get(name.replace(/[^a-z0-9]/g, ""));
+    if (value !== undefined && value !== null && String(value).trim() !== "") return typeof value === "object" ? JSON.stringify(value) : String(value);
+  }
+  return undefined;
+}
+// A portal's lead: the payload itself, or its first lead when it sends a list ({ leads: [...] }, { data: [...] }, [...]).
+const portalRows = (body) => (Array.isArray(body) ? body : Array.isArray(body?.leads) ? body.leads : Array.isArray(body?.data) ? body.data : body?.lead ? [body.lead] : [body]);
+
+function portalLead(raw, label) {
+  const mobile = phone(pick(raw, ["mobile", "mobile_no", "mobileno", "phone", "phone_no", "contact_number", "contact_no", "contactno", "customer_mobile", "lead_mobile", "number"]));
+  const mail = email(pick(raw, ["email", "email_id", "emailid", "customer_email", "lead_email"]));
+  const externalId = text(pick(raw, ["lead_id", "leadid", "enquiry_id", "enquiryid", "inquiry_id", "query_id", "queryid", "id", "response_id"]), 100)
+    ?? (mobile || mail ? createHmac("sha256", "portal").update([label, mobile, mail, pick(raw, ["date", "created_at", "createdon", "enquiry_date"])].join("|")).digest("hex").slice(0, 40) : null);
+  if (!externalId || (!mobile && !mail)) return null;
+  const interest = text(pick(raw, ["project", "project_name", "property", "property_name", "course", "course_name", "product", "product_name", "category", "service", "requirement"]), 200);
+  const message = text(pick(raw, ["message", "comments", "comment", "query", "remarks", "description", "enquiry"]), 2000);
+  const budget = text(pick(raw, ["budget", "price_range", "budget_range"]), 80);
+  return {
+    externalId,
+    enquiryAt: istTime(pick(raw, ["date", "created_at", "createdon", "enquiry_date", "lead_date", "time"])),
+    input: compact({
+      ...splitName(pick(raw, ["name", "full_name", "fullname", "lead_name", "customer_name", "contact_name", "student_name", "first_name"])),
+      email: mail, mobile,
+      city: text(pick(raw, ["city", "location", "locality", "city_name"]), 120),
+      state: text(pick(raw, ["state", "state_name"]), 120),
+      postalCode: indianPin(pick(raw, ["pincode", "pin_code", "pin", "zip", "postal_code"])),
+      countryCode: "IN",
+      productInterest: interest,
+      description: text([message, budget && `Budget: ${budget}`].filter(Boolean).join(" · "), 4000),
+      sourceDetail: text(`${label}${interest ? ` · ${interest}` : ""}`, 200),
+    }),
+  };
+}
+const portal = (label, sourceCode, sourceName = label) => ({
+  label, sourceCode, sourceName, pull: false, push: true, credentials: [],
+  fromPush(body) {
+    return portalRows(body).slice(0, 50).map((raw) => portalLead(raw, label)).filter(Boolean);
+  },
+});
+
+// A missed call (Exotel, Knowlarity, MyOperator…): the caller's number opens a lead; the call's id keeps a retry from making two.
+function missedCallLead(raw) {
+  const caller = phone(pick(raw, ["caller", "caller_number", "callernumber", "callfrom", "call_from", "from", "customer_number", "customernumber", "msisdn", "caller_id"]));
+  if (!caller) return null;
+  const callId = text(pick(raw, ["callsid", "call_sid", "call_id", "callid", "uuid", "unique_id", "_ai"]), 100);
+  const at = istTime(pick(raw, ["starttime", "start_time", "call_time", "date_time", "datetime", "time"]));
+  const dialled = text(pick(raw, ["callto", "call_to", "to", "dialled_number", "did", "virtual_number"]), 40);
+  return {
+    externalId: callId ?? createHmac("sha256", "missed-call").update(`${caller}|${at ?? ""}`).digest("hex").slice(0, 40),
+    enquiryAt: at,
+    input: compact({ firstName: "Missed call", lastName: caller.replace(/\D/g, "").slice(-10), mobile: caller, countryCode: "IN",
+      description: text(`Missed call from ${caller}${dialled ? ` to ${dialled}` : ""}.`, 500), sourceDetail: text(`Missed call${dialled ? ` · ${dialled}` : ""}`, 200) }),
+  };
+}
+
 // ------------------------------------------------------------------ the providers
 export const LEAD_PROVIDERS = Object.freeze({
   indiamart: {
@@ -263,6 +326,20 @@ export const LEAD_PROVIDERS = Object.freeze({
       return leads;
     },
   },
+  // Property, education and B2B portals (CRM audit): each pushes its leads to the connector's webhook.
+  acres99: portal("99acres", "99acres"),
+  magicbricks: portal("MagicBricks", "magicbricks"),
+  housing: portal("Housing.com", "housing_com"),
+  sulekha: portal("Sulekha", "sulekha"),
+  shiksha: portal("Shiksha", "shiksha"),
+  collegedunia: portal("CollegeDunia", "collegedunia"),
+  exportersindia: portal("ExportersIndia", "exportersindia"),
+  missed_call: {
+    label: "Missed calls (Exotel, Knowlarity, MyOperator)", sourceCode: "missed_call", sourceName: "Missed call", pull: false, push: true, credentials: [],
+    fromPush(body) {
+      return portalRows(body).slice(0, 50).map(missedCallLead).filter(Boolean);
+    },
+  },
   google: {
     label: "Google Ads lead forms", sourceCode: "google_ads", sourceName: "Google Ads", pull: false, push: true,
     credentials: [{ key: "googleKey", label: "Key", help: "Paste this into the lead form's webhook \"Key\" in Google Ads.", generated: true }],
@@ -279,6 +356,6 @@ export const LEAD_PROVIDERS = Object.freeze({
 
 export const providerOf = (key) => {
   const provider = LEAD_PROVIDERS[key];
-  if (!provider) throw new CrmError(400, "Choose IndiaMART, JustDial, TradeIndia, Meta or Google.", "CRM_CONNECTOR_PROVIDER");
+  if (!provider) throw new CrmError(400, "Choose a lead provider from the list.", "CRM_CONNECTOR_PROVIDER");
   return provider;
 };

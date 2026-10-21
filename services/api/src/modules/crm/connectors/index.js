@@ -1,4 +1,5 @@
-// Lead connectors (CRM plan 3.3): IndiaMART, JustDial, TradeIndia, Meta and Google lead forms (providers.js, records.js).
+// Lead connectors (CRM plan 3.3): IndiaMART, JustDial, TradeIndia, Meta and Google lead forms, property / education / B2B portals and
+// missed calls (CRM audit) — providers.js, records.js.
 export { LEAD_PROVIDERS } from "./providers.js";
 export {
   CONNECTOR_PERMISSION, createLeadConnector, getLeadConnector, ingestProviderLead, listDueLeadConnectors, listLeadConnectorEvents, listLeadConnectors,
