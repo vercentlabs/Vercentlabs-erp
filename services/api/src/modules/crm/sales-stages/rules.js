@@ -11,7 +11,8 @@ export const STAGE_RULES = Object.freeze({
   closeDate: { label: "Expected close date", missing: (row) => !row.expected_close_date, require: "Set the expected close date before moving this deal to", warn: "The deal has no expected close date." },
   amount: { label: "Estimated value", missing: (row) => !(Number(row.amount) > 0), require: "Enter the deal's estimated value before moving it to", warn: "The deal has no estimated value yet." },
   products: { label: "Products on the deal", missing: (row) => Number(row.product_count ?? 0) === 0, require: "Add the products being sold before moving this deal to", warn: "The deal has no products yet." },
-  quotation: { label: "A quotation", missing: (row) => Number(row.quotation_count ?? 0) === 0, require: "Create a quotation before moving this deal to", warn: "No quotation exists for this deal yet." },
+  // A Sales quotation, or — for an organization without Sales — a CRM quote (crm/quotes).
+  quotation: { label: "A quotation", missing: (row) => Number(row.quotation_count ?? 0) + Number(row.crm_quote_count ?? 0) === 0, require: "Create a quotation before moving this deal to", warn: "No quotation exists for this deal yet." },
   nextActivity: { label: "A next activity", missing: (row) => !row.next_activity_subject, require: "Schedule the next activity before moving this deal to", warn: "No next activity is scheduled." },
 });
 export const STAGE_RULE_LEVELS = Object.freeze(["require", "warn"]);

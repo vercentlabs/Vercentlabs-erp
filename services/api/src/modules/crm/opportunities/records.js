@@ -75,6 +75,9 @@ export const OPPORTUNITY_SELECT = `
              AND open_follow_up.entity_type = 'opportunity' AND open_follow_up.entity_id = opportunity.id AND open_follow_up.status IN ('planned', 'in_progress', 'overdue'))::int AS open_follow_up_count,
          quotation.id AS latest_quotation_id, quotation.quotation_number AS latest_quotation_number, quotation.lifecycle_status AS latest_quotation_status,
          quotation.grand_total AS latest_quotation_total, quotation.currency_code AS latest_quotation_currency, COALESCE(quotation.total_count, 0) AS quotation_count,
+         -- CRM quotes made while the organization has no Sales app (crm/quotes); one turned into a Sales quotation counts there instead
+         (SELECT count(*) FROM tenant.crm_quotes crm_quote WHERE crm_quote.organization_id = opportunity.organization_id AND crm_quote.opportunity_id = opportunity.id
+             AND crm_quote.status <> 'upgraded')::int AS crm_quote_count,
          floor(EXTRACT(epoch FROM now() - opportunity.stage_entered_at) / 86400)::int AS stage_age_days,
          -- the stage's time limit (CRM plan 5.1), and whether this open deal has been in the stage longer
          stage_limit.maximum_days AS stage_time_limit_days,
@@ -264,6 +267,7 @@ export function toOpportunity(row) {
     latestOrder: row.latest_order_id ? { id: row.latest_order_id, number: row.latest_order_number, status: row.latest_order_status,
       customerPoNumber: row.latest_order_po_number ?? null, customerPoDate: row.latest_order_po_date ?? null } : null,
     quotationCount: Number(row.quotation_count ?? 0),
+    crmQuoteCount: Number(row.crm_quote_count ?? 0),
     openTaskCount: Number(row.open_task_count ?? 0),
     openFollowUpCount: Number(row.open_follow_up_count ?? 0),
     archivedAt: row.archived_at ?? (["archived", "abandoned"].includes(row.status) ? row.updated_at : null),

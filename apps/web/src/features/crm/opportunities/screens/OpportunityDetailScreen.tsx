@@ -42,6 +42,7 @@ import {
   LogActivityDialog, OpportunityContactsPanel, OpportunityHistoryPanel, OpportunityProductsPanel, OpportunityWorkPanel,
 } from "../components/OpportunityPanels";
 import { OpportunityQuotationsPanel } from "@/features/crm/quotations/components/OpportunityQuotationsPanel";
+import { CrmQuotesPanel } from "@/features/crm/quotes/CrmQuotesPanel";
 import { createQuotationHref } from "@/features/crm/quotations/screens/CreateQuotationScreen";
 import { useStageChange } from "@/features/crm/sales-stages/components/StageChange";
 import { RelatedTasksPanel } from "@/features/crm/tasks/components/RelatedTasksPanel";
@@ -125,15 +126,18 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
   const nextStage = currentStage ? options.stages[options.stages.indexOf(currentStage) + 1] : undefined;
   const inLastStage = Boolean(currentStage) && !nextStage;
   // What the stage suggests, limited to what this person may do.
-  // Create quotation shows to everyone who may quote from a deal; without Sales' own permission it is disabled, with the reason.
-  const quoteBlocked = can.createQuotation && !can.quoteInSales ? "Creating a quotation also needs the Sales permission to create quotations." : null;
+  // Create quotation shows to everyone who may quote from a deal. Without the Sales app it makes a CRM quote (the Quotes tab); with
+  // Sales but without Sales' own permission it is disabled, with that reason.
+  const quoteBlocked = can.createQuotation && can.salesInstalled && !can.quoteInSales ? "Creating a quotation also needs the Sales permission to create quotations." : null;
+  const quoteCount = opportunity.quotationCount + (opportunity.crmQuoteCount ?? 0);
   const stageActions: Record<OpportunityStageAction, { label: string; show: boolean; run: () => void; blocked?: string | null }> = {
     log_activity: { label: "Log activity", show: can.edit, run: () => setDialog("activity") },
     schedule_follow_up: { label: "Schedule follow-up", show: can.edit, run: () => setDialog("followUp") },
     edit_details: { label: "Add requirements", show: can.edit, run: () => router.push(`/crm/opportunities/${opportunity.id}/edit`) },
     add_products: { label: "Add products", show: can.edit, run: () => setTab("products") },
-    create_quotation: { label: opportunity.quotationCount ? "Create revised quotation" : "Create quotation", show: can.createQuotation, blocked: quoteBlocked, run: () => router.push(createQuotationHref(opportunity.id)) },
-    view_quotations: { label: "View quotations", show: opportunity.quotationCount > 0, run: () => setTab("quotes") },
+    create_quotation: { label: quoteCount ? "Create revised quotation" : "Create quotation", show: can.createQuotation, blocked: quoteBlocked,
+      run: () => (can.salesInstalled ? router.push(createQuotationHref(opportunity.id)) : setTab("quotes")) },
+    view_quotations: { label: "View quotations", show: quoteCount > 0, run: () => setTab("quotes") },
     mark_won: { label: "Mark won", show: can.markWon, run: () => setDialog("won") },
     mark_lost: { label: "Mark lost", show: can.markLost, run: () => setDialog("lost") },
   };
@@ -253,7 +257,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
             <Tab id="overview">Overview</Tab>
             <Tab id="people">People</Tab>
             <Tab id="products">Products{opportunity.productCount ? ` (${opportunity.productCount})` : ""}</Tab>
-            <Tab id="quotes">Quotes{opportunity.quotationCount ? ` (${opportunity.quotationCount})` : ""}</Tab>
+            <Tab id="quotes">Quotes{quoteCount ? ` (${quoteCount})` : ""}</Tab>
             <Tab id="activity">Activity</Tab>
             <Tab id="files">Files &amp; related</Tab>
           </TabList>
@@ -319,9 +323,13 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
           <TabPanel id="people"><OpportunityContactsPanel opportunity={opportunity} options={options} canEdit={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="products"><OpportunityProductsPanel key={opportunity.updatedAt} opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
           <TabPanel id="quotes">
+            {/* Without the Sales app the deal makes its own quotes; with Sales, quotations are made there and older CRM quotes stay listed. */}
+            {!can.salesInstalled ? <CrmQuotesPanel opportunityId={opportunity.id} open={open} hasCompany={Boolean(opportunity.accountId)} /> : <>
             <OpportunityQuotationsPanel opportunity={{ id: opportunity.id, status: opportunity.status, archivedAt: opportunity.archivedAt, estimatedValue: opportunity.amount, currencyCode: opportunity.currencyCode }}
               canCreate={can.createQuotation} createBlocked={quoteBlocked} canEdit={can.edit && !archived} onChanged={refresh}
               onMarkWon={can.markWon ? (quotationId) => { setWinningQuotationId(quotationId); setDialog("won"); } : undefined} />
+            <CrmQuotesPanel opportunityId={opportunity.id} open={open} hasCompany={Boolean(opportunity.accountId)} hideWhenEmpty />
+            </>}
           </TabPanel>
           <TabPanel id="activity">
             <RecordActivityFeed entityType="opportunity" entityId={opportunity.id} initial={initialChip} canAdd={can.edit && !archived}

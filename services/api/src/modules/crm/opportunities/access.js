@@ -5,7 +5,7 @@
 //   Team — opportunities owned by members of a sales team the caller manages,
 //          and opportunities assigned to a team the caller belongs to or manages;
 //   Own  — opportunities the caller owns, plus unowned ones.
-import { canInApp } from "../../../core/access/apps.js";
+import { canInApp, hasApp } from "../../../core/access/apps.js";
 import { crmOwnerScopeSql } from "../data-management/crm-access-scope.js";
 import { CrmError } from "../data-management/errors.js";
 import { OPPORTUNITY_PERMISSIONS } from "./constants.js";
@@ -56,10 +56,13 @@ export function opportunityScopeSql(context, values, alias = "opportunity") {
 
 // What the caller may do with opportunities, for the UI to hide what would be refused.
 // quoteInSales: creating a quotation also needs Sales' own permission, so the button shows only when the quote would be accepted.
+// quoteInCrm: without the Sales app, the deal makes its own quotation or proforma (crm/quotes, CRM audit M1).
+// salesInstalled: whether the organization has Sales at all — "no Sales app" and "no Sales permission" are different answers.
 export function opportunityCapabilities(context) {
   const capabilities = Object.fromEntries(Object.entries(OPPORTUNITY_PERMISSIONS).map(([name, permission]) => [name, opportunityCan(context, permission)]));
   // …and only while the organization has Sales: the owner passes Sales checks only when Sales is on.
   const salesCan = canInApp(context, "sales", "sales.quotation.create");
   // seesSales: links into Sales documents (the deal's quotations and orders) show only to whoever may open them.
-  return { ...capabilities, quoteInSales: Boolean(capabilities.createQuotation) && salesCan, seesSales: canInApp(context, "sales", "sales.view") };
+  return { ...capabilities, quoteInSales: Boolean(capabilities.createQuotation) && salesCan, seesSales: canInApp(context, "sales", "sales.view"),
+    quoteInCrm: Boolean(capabilities.createQuotation) && !hasApp(context, "sales"), salesInstalled: hasApp(context, "sales") };
 }

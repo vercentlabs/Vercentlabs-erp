@@ -18,6 +18,8 @@ import { getGoodsReceipt, getPurchaseOrderDocument } from "../../modules/procure
 import { getSupplierBill } from "../../modules/procurement/supplier-bills/index.js";
 import { getPurchaseReturn } from "../../modules/procurement/purchase-returns/index.js";
 import { getSupplierDebitClaim, getVendorCredit } from "../../modules/procurement/vendor-credits/index.js";
+import { getDealQuote, loadSharedDealQuote, resolveSharedDealQuote } from "../../modules/crm/quotes/index.js";
+import { findIndianState } from "@vercentlabs/shared-types";
 
 const amount = (value, locale = "en-IN") => new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
 const date = (value, timeZone) => (value ? formatDateTime(value, { timeZone: timeZone || "UTC" }) : null);
@@ -186,6 +188,82 @@ async function proformaModel(client, session, data) {
     ],
     footer: `${number} · against ${quote.quotation_number}`,
   };
+}
+
+// A CRM quote (CRM audit M1: an organization without Sales quotes from the deal): the quotation or proforma as stored, its lines with
+// HSN/SAC and GST, the tax as CGST + SGST or IGST by place of supply, and an HSN summary.
+async function crmQuoteModel(client, organizationId, data) {
+  const { quote, lines } = data;
+  const company = await companyDetails(client, organizationId);
+  const currency = quote.currencyCode;
+  const proforma = quote.kind === "proforma";
+  const intra = !quote.placeOfSupply || quote.placeOfSupply === quote.sellerStateCode;
+  const sum = (key) => lines.reduce((total, line) => total + Number(line[key] ?? 0), 0);
+  const stateName = (code) => (code ? `${findIndianState({ code })?.name ?? ""} (${code})`.trim() : "");
+  const hsnLines = lines.map((line) => ({ hsn_sac_code: line.hsnSac, net_amount: line.taxable, quantity: line.quantity,
+    taxes: [...(intra ? [{ tax_type: "cgst", tax_amount: line.cgst }, { tax_type: "sgst", tax_amount: line.sgst }] : [{ tax_type: "igst", tax_amount: line.igst }])] }));
+  return {
+    title: proforma ? "Proforma invoice" : "Quotation",
+    documentNumber: quote.number,
+    issuedAt: `Date: ${day(quote.quoteDate) ?? ""}`,
+    organizationName: company.name,
+    status: proforma ? "Not a tax invoice" : { draft: "Draft", declined: "Declined" }[quote.status] ? `Status: ${{ draft: "Draft", declined: "Declined" }[quote.status]}` : null,
+    parties: [
+      { label: "From", lines: [company.name, company.legalName, company.taxId ? `GSTIN ${company.taxId}` : null, stateName(quote.sellerStateCode) || null].filter(Boolean) },
+      { label: "Customer", lines: [quote.companyName, quote.customerGstin ? `GSTIN ${quote.customerGstin}` : null].filter(Boolean) },
+      { label: "Attention", lines: [quote.contactName, quote.contactEmail].filter(Boolean) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: proforma ? "Proforma date" : "Quotation date", value: day(quote.quoteDate) ?? "" },
+      { label: "Valid until", value: day(quote.validUntil) ?? "" },
+      { label: "Place of supply", value: stateName(quote.placeOfSupply) },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Item", width: "34%" },
+        { key: "quantity", label: "Qty", align: "right", width: "9%" },
+        { key: "price", label: `Price (${currency})`, align: "right", width: "13%" },
+        { key: "discount", label: "Discount", align: "right", width: "9%" },
+        { key: "taxable", label: "Taxable", align: "right", width: "13%" },
+        { key: "tax", label: "GST", align: "right", width: "9%" },
+        { key: "total", label: "Amount", align: "right", width: "13%" },
+      ],
+      rows: lines.map((line) => ({
+        item: [line.description, line.hsnSac ? `HSN/SAC ${line.hsnSac}` : null].filter(Boolean).join(" · "),
+        quantity: String(Number(line.quantity)),
+        price: amount(line.unitPrice),
+        discount: Number(line.discountPercent) ? `${Number(line.discountPercent)}%` : "",
+        taxable: amount(line.taxable),
+        tax: `${Number(line.gstRate)}%`,
+        total: amount(line.lineTotal),
+      })),
+    },
+    totals: [
+      { label: "Subtotal", value: amount(Number(quote.subtotal) + Number(quote.discountTotal)) },
+      ...(Number(quote.discountTotal) ? [{ label: "Discounts", value: `-${amount(quote.discountTotal)}` }, { label: "Taxable value", value: amount(quote.subtotal) }] : []),
+      ...(intra ? [{ label: "CGST", value: amount(sum("cgst")) }, { label: "SGST", value: amount(sum("sgst")) }] : [{ label: "IGST", value: amount(sum("igst")) }]),
+      { label: `Total (${currency})`, value: amount(quote.grandTotal), emphasis: true },
+    ],
+    summaryTable: hsnSummaryTable(hsnLines),
+    notes: [
+      ...(proforma ? [{ label: "About this document", text: "This is a proforma invoice, not a tax invoice: it cannot be used to claim input tax credit. The tax invoice is issued when the goods or services are supplied." }] : []),
+      ...(quote.notes ? [{ label: "Notes", text: quote.notes }] : []),
+      ...(quote.terms ? [{ label: "Terms and conditions", text: quote.terms }] : []),
+    ],
+    footer: quote.number,
+  };
+}
+
+// The customer's PDF of a shared CRM quote (no sign-in): the share token is the credential; nothing when CRM is off.
+export async function renderSharedCrmQuote(client, token) {
+  const shared = await resolveSharedDealQuote(client, token);
+  if (!shared) return null;
+  const renderer = getDocumentRenderer("crm.quote");
+  const session = { organizationId: shared.organizationId, userId: null, roleSlugs: [], permissions: [] };
+  const data = await loadSharedDealQuote(client, shared.organizationId, shared.quoteId);
+  const model = await decorateDocument(client, session, renderer, data, await crmQuoteModel(client, shared.organizationId, data));
+  const { renderDocumentPdf, safePdfFileName } = await import("@vercentlabs/document-engine/pdf");
+  return { fileName: safePdfFileName(renderer.fileName(data)), body: await renderDocumentPdf(model), quote: data.quote, lines: data.lines };
 }
 
 // The seller as printed: the registration stored on the document, else the organization.
@@ -1085,6 +1163,21 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     money: (data) => ({ amount: data.proforma.advanceAmount || data.quotation.grand_total, currency: data.quotation.currency_code }),
     collectsPayment: (data) => ({ amount: data.proforma.advanceAmount || data.quotation.grand_total, note: data.proforma.number }),
     fileName: (data) => `proforma-${data.proforma.number}`,
+  }),
+  Object.freeze({
+    key: "crm.quote",
+    moduleKey: "crm",
+    permission: "crm.opportunities.view",
+    label: "CRM quotation",
+    async load(client, session, id) {
+      return getDealQuote(client, salesContext(session), id);
+    },
+    async toModel(client, session, data) {
+      return crmQuoteModel(client, session.organizationId, data);
+    },
+    money: (data) => ({ amount: data.quote.grandTotal, currency: data.quote.currencyCode }),
+    collectsPayment: (data) => (data.quote.kind === "proforma" ? { amount: data.quote.grandTotal, note: data.quote.number } : null),
+    fileName: (data) => `${data.quote.kind === "proforma" ? "proforma" : "quotation"}-${data.quote.number}`,
   }),
   Object.freeze({
     key: "sales.order",

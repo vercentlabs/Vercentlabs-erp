@@ -115,6 +115,8 @@ export type Opportunity = {
   latestQuotationCurrency: string | null;
   latestOrder: { id: string; number: string; status: string; customerPoNumber: string | null; customerPoDate: string | null } | null;
   quotationCount: number;
+  // CRM quotes made without the Sales app (crm/quotes).
+  crmQuoteCount?: number;
   openTaskCount: number;
   openFollowUpCount: number;
   archivedAt: string | null;
@@ -125,7 +127,7 @@ export type Opportunity = {
 };
 
 export type OpportunityCapabilities = Record<
-  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "quoteInSales" | "seesSales" | "markWon" | "markLost" | "reopen" | "delete" | "export" | "import"
+  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "quoteInSales" | "quoteInCrm" | "salesInstalled" | "seesSales" | "markWon" | "markLost" | "reopen" | "delete" | "export" | "import"
   | "changeProbability" | "bulkUpdate" | "manageStages",
   boolean
 >;

@@ -4,3 +4,4 @@ export type DocumentRenderer = Readonly<{ key: string; moduleKey: string; permis
 export const DOCUMENT_RENDERERS: readonly DocumentRenderer[];
 export function getDocumentRenderer(key: string): DocumentRenderer | null;
 export function renderAuthorizedDocument(client: Client, session: Session, key: string, id: string, options?: { version?: number | null; advancePercent?: number | string | null; copies?: number | null; width?: number | null }): Promise<{ fileName: string; body: Buffer }>;
+export function renderSharedCrmQuote(client: Client, token: string): Promise<{ fileName: string; body: Buffer; quote: Record<string, any>; lines: Array<Record<string, any>> } | null>;

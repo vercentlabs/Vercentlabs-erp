@@ -27,6 +27,9 @@ export const DOCUMENT_TYPES = Object.freeze(
     org("crm_follow_up", "crm", "Follow-up", "FUP-"),
     org("business_party", "crm", "Account", "ACC-"),
     org("crm_contact", "crm", "Contact", "CON-"),
+    // A quotation or proforma sent from a deal when the organization has no Sales app (CRM audit M1).
+    std("crm_quote", "crm", "CRM quotation", "QUO", { defaultResetPolicy: "calendar_year" }),
+    std("crm_proforma", "crm", "CRM proforma", "PI", { defaultResetPolicy: "calendar_year" }),
     org("customer", "sales", "Customer", "CUS-", 6),
     // Sales
     std("quotation", "sales", "Sales quotation", "QT", { defaultResetPolicy: "calendar_year" }),

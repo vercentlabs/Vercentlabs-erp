@@ -292,6 +292,44 @@ try {
     const flagged = (await client.query("SELECT response_alerted_at FROM tenant.crm_leads WHERE id = $1", [waiting.id])).rows[0].response_alerted_at;
     assert(watched && !flagged, "not late: no working time has passed");
   });
+
+  await check("M1, B15. A CRM-only company quotes from the deal: GST split by place of supply, PDF, a stable share link; the stage rule counts it; with Sales, quotes go to Sales", async () => {
+    await onlyApps(["crm"]);
+    const ctx = () => ({ ...owner() });
+    const buyer = await crm.createAccount(client, owner(), { displayName: `Quote Buyer ${tag}` });
+    const deal = await crm.createOpportunity(client, owner(), { name: "Office chairs", accountId: buyer.id, amount: 10000 });
+    const caps = (await crm.getOpportunity(client, ctx(), deal.id)).capabilities ?? crm.opportunityCapabilities(ctx());
+    assert(caps.quoteInCrm === true || caps.quoteInCrm === undefined, "CRM quote offered without Sales");
+    const created = await crm.createDealQuote(client, ctx(), deal.id, {});
+    assert(/^QUO-/.test(created.quote.number) && created.lines.length === 1, JSON.stringify(created.quote));
+    // No states known: same state, CGST + SGST on ₹10,000 at 18%.
+    assert(Number(created.lines[0].cgst) === 900 && Number(created.lines[0].sgst) === 900 && Number(created.quote.grandTotal) === 11800, JSON.stringify(created.lines[0]));
+    await client.query("UPDATE tenant.crm_quotes SET seller_state_code = '27' WHERE id = $1", [created.quote.id]);
+    const edited = await crm.updateDealQuote(client, ctx(), created.quote.id, { placeOfSupply: "29", lines: [{ description: "Chair", hsnSac: "9401", quantity: 2, unitPrice: 5000, discountPercent: 10, gstRate: 18 }] });
+    // Karnataka buyer, Maharashtra seller: IGST 18% on ₹9,000.
+    assert(Number(edited.lines[0].igst) === 1620 && Number(edited.quote.grandTotal) === 10620 && Number(edited.quote.discountTotal) === 1000, JSON.stringify(edited.quote));
+    const row = (await client.query("SELECT crm_quote_count, quotation_count FROM (SELECT (SELECT count(*) FROM tenant.crm_quotes WHERE opportunity_id = $1 AND status <> 'upgraded')::int AS crm_quote_count, 0 AS quotation_count) x", [deal.id])).rows[0];
+    const rules = await api("modules/crm/sales-stages/rules.js");
+    assert(!rules.STAGE_RULES.quotation.missing(row), "the Proposal rule sees the CRM quote");
+    const accepted = await crm.setDealQuoteStatus(client, ctx(), created.quote.id, "accepted");
+    assert(accepted.quote.status === "accepted", "accepted");
+    await refused(() => crm.updateDealQuote(client, ctx(), created.quote.id, { notes: "x" }), "CRM_QUOTE_LOCKED");
+    const docs = await api("orchestration/documents/registry.js");
+    const pdf = await docs.renderAuthorizedDocument(client, ctx(), "crm.quote", created.quote.id);
+    assert(pdf.body.length > 1000 && /quotation-QUO-/.test(pdf.fileName), pdf.fileName);
+    const link = await crm.dealQuoteShareLink(client, ctx(), created.quote.id, { ...env, APP_URL: "http://localhost:3001" });
+    const again = await crm.dealQuoteShareLink(client, ctx(), created.quote.id, { ...env, APP_URL: "http://localhost:3001" });
+    assert(link.url === again.url && /\/q\/[0-9a-f]{48}$/.test(link.url), "same link every time");
+    const shared = await docs.renderSharedCrmQuote(client, link.url.split("/q/")[1]);
+    assert(shared && shared.body.length > 1000 && shared.quote.number === created.quote.number, "customer's PDF");
+    await client.query("SELECT set_config('app.current_organization_id', $1, true)", [organizationId]);
+    const proforma = await crm.createDealQuote(client, ctx(), deal.id, { kind: "proforma" });
+    assert(/^PI-/.test(proforma.quote.number), proforma.quote.number);
+    await onlyApps(["crm", "sales"]);
+    await refused(() => crm.createDealQuote(client, ctx(), deal.id, {}), "CRM_QUOTE_USE_SALES");
+    await refused(() => crm.upgradeDealQuoteToSales(client, ctx(), proforma.quote.id), "CRM_QUOTE_LINE_ITEM_REQUIRED");
+    await onlyApps(["crm"]);
+  });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);
   await client.end();
