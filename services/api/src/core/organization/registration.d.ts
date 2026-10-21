@@ -9,10 +9,11 @@ export declare function registerOrganization(
   input: {
     fullName: string;
     email: string;
-    password: string;
+    password?: string | null;
     organizationName: string;
-    countryCode: string;
-    baseCurrency: string;
-    timezone: string;
+    countryCode?: string;
+    baseCurrency?: string;
+    timezone?: string;
+    emailVerified?: boolean;
   },
 ): Promise<{ userId: string; organizationId: string; email: string; fullName: string }>;

@@ -38,6 +38,7 @@ export declare function createOrganizationInvitation(
     primaryRoleId?: string;
     inviter: { roleSlugs: string[]; permissions: string[] };
     acknowledgeWarningConflicts?: boolean;
+    note?: string;
   },
   env?: any,
 ): Promise<{ invitationId: string; delivered: boolean }>;
@@ -89,5 +90,5 @@ export declare function findUserForSignIn(
 ): Promise<{ id: string; email: string; password_hash: string | null; status: string } | null>;
 export declare function startUserSession(
   client: { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> },
-  input: { userId: string; ipAddress: string | null; userAgent: string | null; request?: Request; env?: Record<string, string | undefined> },
+  input: { userId: string; ipAddress: string | null; userAgent: string | null; request?: Request; remember?: boolean; env?: Record<string, string | undefined> },
 ): Promise<{ sessionId: string; token: string; expiresAt: Date }>;

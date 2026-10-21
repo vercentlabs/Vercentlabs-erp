@@ -61,9 +61,10 @@ function boundedInteger(value, fallback, minimum, maximum) {
     : fallback;
 }
 
-function sessionDurations(env) {
+// remember: "stay signed in" (email-code sign-in and signup) — the session lasts its full 30 days instead of ending when idle.
+function sessionDurations(env, { remember = false } = {}) {
   const absoluteDays = boundedInteger(env.SESSION_ABSOLUTE_DAYS, 30, 1, 365);
-  const idleMinutes = boundedInteger(env.SESSION_IDLE_MINUTES, 480, 15, 43_200);
+  const idleMinutes = remember ? absoluteDays * 1440 : boundedInteger(env.SESSION_IDLE_MINUTES, 480, 15, 43_200);
   const expiresAt = new Date(Date.now() + absoluteDays * 86_400_000);
   const idleExpiresAt = new Date(
     Math.min(expiresAt.getTime(), Date.now() + idleMinutes * 60_000),
@@ -98,10 +99,10 @@ function deviceName(userAgent) {
 
 export async function createSession(
   client,
-  { userId, ipAddress, userAgent, organizationId = null, env = process.env },
+  { userId, ipAddress, userAgent, organizationId = null, remember = false, env = process.env },
 ) {
   const token = createOpaqueToken();
-  const { expiresAt, idleExpiresAt } = sessionDurations(env);
+  const { expiresAt, idleExpiresAt } = sessionDurations(env, { remember });
   const trimmedUserAgent = userAgent ? userAgent.slice(0, 500) : null;
   const sessionId = randomUUID();
 
@@ -109,8 +110,8 @@ export async function createSession(
     `INSERT INTO sessions (
       id, user_id, token_hash, expires_at, idle_expires_at,
       ip_address, user_agent, device_name, last_seen_at,
-      active_organization_id
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), $9)`,
+      active_organization_id, remember
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), $9, $10)`,
     [
       sessionId,
       userId,
@@ -121,6 +122,7 @@ export async function createSession(
       trimmedUserAgent,
       deviceName(trimmedUserAgent),
       organizationId,
+      remember,
     ],
   );
 
@@ -351,6 +353,7 @@ async function resolveSessionContextInTransaction(client, token, sessionType, en
         idle_expires_at = CASE
           WHEN session_type = 'mobile'
             THEN LEAST(refresh_expires_at, now() + ($2 * interval '1 minute'))
+          WHEN remember THEN expires_at
           ELSE LEAST(expires_at, now() + ($2 * interval '1 minute'))
         END,
         active_organization_id = $3

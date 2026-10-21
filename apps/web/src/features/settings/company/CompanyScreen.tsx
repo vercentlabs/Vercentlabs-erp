@@ -3,10 +3,10 @@
 // Settings › Company (Shared Platform plan 3): the company profile, logo and signature, bank details, financial year, the setup
 // progress, and "Your data" — the full export and closing the workspace.
 import { useState } from "react";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, ErrorState, PageHeader, PasswordField, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, ErrorState, PageHeader, TextField } from "@vercentlabs/design-system";
 
+import { IdentityField } from "@/shared/ui/IdentityField";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { Notice, Panel } from "@/shared/ui/Panel";
 
@@ -23,16 +23,9 @@ export function CompanyScreen({ canManage, isOwner }: { canManage: boolean; isOw
   if (query.isLoading) return <LoadingState label="Loading the company" rows={6} />;
   if (query.isError || !query.data) return <ErrorState title="Could not load the company" description="Refresh to try again." action={{ label: "Try again", onPress: () => void query.refetch() }} />;
   const data = query.data;
-  const setupOpen = !data.setup.completedAt;
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Company" description="Your company's details, as printed on documents, and your data." />
-      {setupOpen && canManage && (
-        <Notice tone="info">
-          {`Setup is ${data.setup.steps.filter((step) => step.done).length} of ${data.setup.steps.length} steps done. `}
-          <Link className="font-medium underline" href="/setup">Continue setup</Link>
-        </Notice>
-      )}
       <LegalDetailsForm profile={data.profile} canManage={canManage} onSaved={refresh} />
       <CompanyImages profile={data.profile} canManage={canManage} onChanged={refresh} />
       <BankAccountsForm profile={data.profile} canManage={canManage} onChanged={refresh} />
@@ -85,10 +78,10 @@ function YourData({ data, isOwner, onChanged }: { data: CompanyOverview; isOwner
       )}
       <Dialog isOpen={closing} onOpenChange={(open) => !open && setClosing(false)} title="Close the workspace?">
         <div className="flex flex-col gap-3">
-          <p className="text-sm">{`It closes in ${data.closure.waitingDays} days. Type the company's name and your password to confirm.`}</p>
+          <p className="text-sm">{`It closes in ${data.closure.waitingDays} days. Type the company's name and confirm it's you.`}</p>
           {close.error && <Notice>{close.error instanceof Error ? close.error.message : "It could not be closed."}</Notice>}
           <TextField label={`Company name (${data.profile.name})`} value={confirmName} onChange={setConfirmName} />
-          <PasswordField label="Your password" value={password} onChange={setPassword} />
+          <IdentityField value={password} onChange={setPassword} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onPress={() => setClosing(false)}>Cancel</Button>
             <Button variant="danger" isLoading={close.isPending} isDisabled={confirmName !== data.profile.name || !password} onPress={() => close.mutate()}>Close in {data.closure.waitingDays} days</Button>

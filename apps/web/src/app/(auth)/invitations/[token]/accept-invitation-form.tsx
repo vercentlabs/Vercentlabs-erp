@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Button, TextField, PasswordField } from "@vercentlabs/design-system";
+import { Button, TextField } from "@vercentlabs/design-system";
 
 export function AcceptInvitationForm({
   token,
@@ -17,12 +17,10 @@ export function AcceptInvitationForm({
 }) {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const requiresPassword = !hasExistingAccount;
+  const isNewAccount = !hasExistingAccount; // a new account: only the name is asked
 
   async function submitAcceptance(body: Record<string, unknown>) {
     setError(null);
@@ -44,7 +42,7 @@ export function AcceptInvitationForm({
         setError(payload.message || "This invitation could not be accepted.");
         return;
       }
-      router.push("/");
+      router.push("/start");
       router.refresh();
     } catch {
       setError("Something went wrong. Check your connection and try again.");
@@ -55,17 +53,13 @@ export function AcceptInvitationForm({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (requiresPassword) {
+    if (isNewAccount) {
       if (!fullName.trim()) {
         setError("Enter your name.");
         return;
       }
-      if (password !== confirmPassword) {
-        setError("Passwords do not match.");
-        return;
-      }
     }
-    await submitAcceptance(requiresPassword ? { fullName, password } : {});
+    await submitAcceptance(isNewAccount ? { fullName } : {});
   }
 
   // An invitation link is proof someone can read this mailbox — it is not
@@ -129,45 +123,17 @@ export function AcceptInvitationForm({
     );
   }
 
+  // A new account: the link already proves the email is theirs, so only a name is asked (no code, no password).
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
-      <TextField
-        label="Full name"
-        autoComplete="name"
-        isRequired
-        value={fullName}
-        onChange={setFullName}
-      />
-      <PasswordField
-        label="Password"
-                autoComplete="new-password"
-        isRequired
-        value={password}
-        onChange={setPassword}
-      />
-      <PasswordField
-        label="Confirm password"
-                autoComplete="new-password"
-        isRequired
-        value={confirmPassword}
-        onChange={setConfirmPassword}
-      />
-      <p className="text-xs text-text-muted">
-        At least 12 characters, including a letter and a number.
-      </p>
+      <TextField label="Your name" autoComplete="name" isRequired value={fullName} onChange={setFullName} />
       {error ? (
         <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       ) : null}
-      <Button
-        type="submit"
-        variant="primary"
-        size="standard"
-        isLoading={submitting}
-        className="mt-2"
-      >
-        Accept invitation
+      <Button type="submit" variant="primary" size="standard" isLoading={submitting} className="mt-2">
+        Continue
       </Button>
     </form>
   );

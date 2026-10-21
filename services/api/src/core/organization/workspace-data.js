@@ -9,7 +9,8 @@
 import { buildZip } from "../platform/data-exchange/zip.js";
 import { readFileContent, storeFile } from "../platform/files/index.js";
 import { createNotification } from "../platform/notifications/index.js";
-import { verifyPassword, createOpaqueToken } from "../auth/session.js";
+import { createOpaqueToken } from "../auth/session.js";
+import { CONFIRM_WITH_CODE, identityConfirmed } from "../auth/code-sign-in.js";
 import { sendSecurityAlert } from "../auth/profile.js";
 import { audit } from "../security/request-security.js";
 import { organizationScopedTables } from "@vercentlabs/database";
@@ -148,7 +149,8 @@ export async function requestWorkspaceClosure(client, session, { password, confi
   if (organization.closure_scheduled_for) return getWorkspaceClosure(client, session.organizationId);
   if (String(confirmName ?? "").trim() !== organization.name) throw new WorkspaceDataError(422, `Type the company's name (${organization.name}) to confirm.`, "WORKSPACE_CLOSE_CONFIRM");
   const me = (await client.query(`SELECT email, full_name, password_hash FROM users WHERE id = $1`, [session.userId])).rows[0];
-  if (!(await verifyPassword(String(password ?? ""), me.password_hash))) throw new WorkspaceDataError(403, "The password is not right.", "WORKSPACE_CLOSE_PASSWORD");
+  const confirmed = await identityConfirmed(client, { userId: session.userId, sessionId: session.sessionId, password });
+  if (!confirmed.ok) throw confirmed.needsCode ? new WorkspaceDataError(403, CONFIRM_WITH_CODE, "AUTH_REAUTH_REQUIRED") : new WorkspaceDataError(403, "The password is not right.", "WORKSPACE_CLOSE_PASSWORD");
   const paid = (await client.query(
     `SELECT 1 FROM public.organization_subscriptions WHERE organization_id = $1 AND provider_subscription_id IS NOT NULL AND status IN ('active', 'authenticated', 'past_due') AND NOT cancel_at_cycle_end`,
     [session.organizationId])).rows[0];

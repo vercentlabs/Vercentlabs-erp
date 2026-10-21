@@ -1,6 +1,6 @@
 "use client";
 
-// Browser client for Settings › Company, the setup wizard and the person's own profile (Shared Platform plan 3).
+// Browser client for Settings › Company and the person's own profile (Shared Platform plan 3).
 export class CompanyApiError extends Error {
   constructor(message: string, public readonly status: number, public readonly code?: string, public readonly field?: string) {
     super(message);
@@ -27,11 +27,9 @@ export type CompanyProfile = {
   timezone: string; baseCurrency: string; fiscalYearStartMonth: number; hasLogo: boolean; hasSignature: boolean;
   bankAccounts: BankAccount[]; onboardingCompletedAt: string | null; closureScheduledFor: string | null;
 };
-export type SetupStep = { key: string; label: string; done: boolean; optional?: boolean; missing: string[] };
-export type SetupProgress = { steps: SetupStep[]; completedAt: string | null; readyToFinish: boolean; nextStep: string | null; profile: CompanyProfile };
 export type Closure = { requestedAt: string | null; closesOn: string | null; closedAt: string | null; waitingDays: number };
 export type ExportFile = { id: string; fileName: string; sizeBytes: number; createdAt: string; expiresAt: string | null };
-export type CompanyOverview = { profile: CompanyProfile; setup: SetupProgress; closure: Closure; exports: ExportFile[] };
+export type CompanyOverview = { profile: CompanyProfile; closure: Closure; exports: ExportFile[] };
 
 export const getCompany = () => fetch("/api/settings/company", { credentials: "same-origin" }).then(parse<CompanyOverview>);
 export const saveCompany = (input: Record<string, unknown>) => send<{ profile: CompanyProfile }>("/api/settings/company", input, "PUT");
@@ -43,9 +41,6 @@ export const uploadCompanyImage = (kind: "logo" | "signature", file: File) => {
   return fetch(`/api/settings/company/images/${kind}`, { method: "POST", credentials: "same-origin", body: form }).then(parse<{ fileId: string }>);
 };
 export const removeCompanyImage = (kind: "logo" | "signature") => send<{ removed: boolean }>(`/api/settings/company/images/${kind}`, undefined, "DELETE");
-export const getSetup = () => fetch("/api/settings/company/setup", { credentials: "same-origin" }).then(parse<{ setup: SetupProgress }>);
-export const markSetupStep = (step: string) => send<{ setup: SetupProgress }>("/api/settings/company/setup", { action: "mark", step });
-export const completeSetup = () => send<{ setup: SetupProgress }>("/api/settings/company/setup", { action: "complete" });
 export const requestExport = () => send<{ jobId: string; alreadyRunning: boolean }>("/api/settings/company/export", {});
 export const requestClosure = (input: { password: string; confirmName: string }) => send<{ closure: Closure }>("/api/settings/company/closure", input);
 export const cancelClosure = () => send<{ closure: Closure }>("/api/settings/company/closure", undefined, "DELETE");
@@ -55,7 +50,7 @@ export const signOutMember = (userId: string) => send<{ sessionsSignedOut: numbe
 
 export type OwnProfile = {
   fullName: string; email: string; phone: string | null; locale: string; timezone: string; timezoneIsCompany: boolean; dateFormat: string; numberFormat: string;
-  passwordChangedAt: string | null; mfaEnrolled: boolean; pendingEmail: { email: string; expiresAt: string } | null;
+  passwordChangedAt: string | null; mfaEnrolled: boolean; hasPassword: boolean; pendingEmail: { email: string; expiresAt: string } | null;
   options: { dateFormats: string[]; numberFormats: string[]; languages: Array<{ code: string; name: string }> };
 };
 export const getOwnProfile = () => fetch("/api/settings/profile", { credentials: "same-origin" }).then(parse<{ profile: OwnProfile }>);

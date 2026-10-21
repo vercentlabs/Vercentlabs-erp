@@ -27,6 +27,7 @@
   },
   "scripts": {},
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@google-cloud/kms": "^5.7.0",
     "@vercentlabs/config": "workspace:*",
     "@vercentlabs/database": "workspace:*",

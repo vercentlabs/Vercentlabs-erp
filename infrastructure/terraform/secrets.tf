@@ -20,6 +20,7 @@ locals {
     "google-oauth-client-secret"          = ["web", "worker"]
     "microsoft-oauth-client-secret"       = ["web", "worker"]
     "attachment-scan-token"               = ["web", "worker"]
+    "anthropic-api-key"                   = ["web"]
     "crm-capture-proxy-secret"            = ["web", "landing"]
     "crm-inbound-email-secret"            = ["web"]
     "crm-provider-webhook-secret"         = ["web"]

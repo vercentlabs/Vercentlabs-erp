@@ -7,7 +7,7 @@
 // Each is audited and the member is emailed.
 import { requireSessionPermission } from "../access/index.js";
 import { sendSecurityAlert } from "../auth/profile.js";
-import { verifyPassword } from "../auth/session.js";
+import { CONFIRM_WITH_CODE, identityConfirmed } from "../auth/code-sign-in.js";
 import { audit } from "../security/request-security.js";
 
 export class MemberSecurityError extends Error {
@@ -69,7 +69,8 @@ export async function transferOwnership(client, session, { targetUserId, passwor
   if (!isOwner(session)) throw new MemberSecurityError(403, "Only the owner can hand over ownership.", "MEMBER_SECURITY_DENIED");
   if (!targetUserId || targetUserId === session.userId) throw new MemberSecurityError(422, "Choose the member who becomes the owner.", "OWNERSHIP_TARGET_REQUIRED");
   const me = (await client.query(`SELECT email, full_name, password_hash FROM users WHERE id = $1`, [session.userId])).rows[0];
-  if (!(await verifyPassword(String(password ?? ""), me?.password_hash))) throw new MemberSecurityError(403, "The password is not right.", "OWNERSHIP_PASSWORD_WRONG");
+  const confirmed = await identityConfirmed(client, { userId: session.userId, sessionId: session.sessionId, password });
+  if (!confirmed.ok) throw confirmed.needsCode ? new MemberSecurityError(403, CONFIRM_WITH_CODE, "AUTH_REAUTH_REQUIRED") : new MemberSecurityError(403, "The password is not right.", "OWNERSHIP_PASSWORD_WRONG");
   const target = await activeMember(client, session.organizationId, targetUserId);
   const roles = (await client.query(`SELECT id, slug FROM roles WHERE organization_id = $1 AND slug IN ('organization_owner', 'system_administrator') AND status = 'active'`, [session.organizationId])).rows;
   const ownerRole = roles.find((role) => role.slug === "organization_owner");

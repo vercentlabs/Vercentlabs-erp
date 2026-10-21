@@ -2,6 +2,7 @@
 // changing their password (with the current one, never one of the last five), changing their email (confirmed from the new
 // address), and the security emails sent after any of these and after a sign-in from a new device.
 import { createOpaqueToken, hashPassword, tokenHash, verifyPassword } from "./session.js";
+import { CONFIRM_WITH_CODE, identityConfirmed } from "./code-sign-in.js";
 import { passwordPolicyIssues } from "./password-policy.js";
 import { deliverAuthMessage } from "./mailer.js";
 import { queueSecurityMail } from "../platform/mail/outbox.js";
@@ -50,7 +51,7 @@ export async function getOwnProfile(client, session) {
     fullName: user.full_name, email: user.email, phone: user.phone,
     locale: preference?.locale ?? "en-IN", timezone: preference?.timezone ?? organization?.timezone ?? "Asia/Kolkata",
     timezoneIsCompany: !preference?.timezone, dateFormat: preference?.date_format ?? "DD/MM/YYYY", numberFormat: preference?.number_format ?? "indian",
-    passwordChangedAt: user.password_changed_at, mfaEnrolled: Boolean(user.mfa_enrolled_at),
+    passwordChangedAt: user.password_changed_at, mfaEnrolled: Boolean(user.mfa_enrolled_at), hasPassword: Boolean(user.password_hash),
     pendingEmail: pending ? { email: pending.new_email, expiresAt: pending.expires_at } : null,
     options: { dateFormats: DATE_FORMATS, numberFormats: NUMBER_FORMATS, languages: LANGUAGES },
   };
@@ -100,10 +101,13 @@ export async function updateOwnProfile(client, session, input = {}) {
 
 // Change the password while signed in: the current password first; the new one passes the policy and is none of the last five.
 // Every other session is signed out; this one stays.
+// Someone without a password (signed up with an email code) sets their first one: no current password, a code to their email instead.
 export async function changeOwnPassword(client, session, { currentPassword, newPassword } = {}, env = process.env) {
   const user = await userRow(client, session.userId);
-  if (!(await verifyPassword(String(currentPassword ?? ""), user.password_hash))) {
-    throw new ProfileError(403, "The current password is not right.", "PROFILE_PASSWORD_WRONG", { field: "currentPassword" });
+  const confirmed = await identityConfirmed(client, { userId: session.userId, sessionId: session.sessionId, password: currentPassword });
+  if (!confirmed.ok) {
+    throw confirmed.needsCode ? new ProfileError(403, CONFIRM_WITH_CODE, "AUTH_REAUTH_REQUIRED")
+      : new ProfileError(403, "The current password is not right.", "PROFILE_PASSWORD_WRONG", { field: "currentPassword" });
   }
   const issues = passwordPolicyIssues(String(newPassword ?? ""), { email: user.email });
   if (issues.length) throw new ProfileError(422, issues[0], "PROFILE_PASSWORD_POLICY", { field: "newPassword", issues });
@@ -113,7 +117,7 @@ export async function changeOwnPassword(client, session, { currentPassword, newP
       throw new ProfileError(422, `Choose a password you have not used before (the last ${PASSWORD_HISTORY} are not allowed).`, "PROFILE_PASSWORD_REUSED", { field: "newPassword" });
     }
   }
-  await client.query(`INSERT INTO password_history (user_id, password_hash) VALUES ($1, $2)`, [session.userId, user.password_hash]);
+  if (user.password_hash) await client.query(`INSERT INTO password_history (user_id, password_hash) VALUES ($1, $2)`, [session.userId, user.password_hash]);
   await client.query(`DELETE FROM password_history WHERE user_id = $1 AND id NOT IN (SELECT id FROM password_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2)`, [session.userId, PASSWORD_HISTORY]);
   await client.query(`UPDATE users SET password_hash = $2, password_changed_at = now(), updated_at = now() WHERE id = $1`, [session.userId, await hashPassword(String(newPassword))]);
   const revoked = await client.query(
@@ -127,7 +131,8 @@ export async function changeOwnPassword(client, session, { currentPassword, newP
 // Start changing the email: the password confirms it is the person; a link goes to the NEW address and works for 24 hours.
 export async function requestEmailChange(client, session, { newEmail, password } = {}, env = process.env) {
   const user = await userRow(client, session.userId);
-  if (!(await verifyPassword(String(password ?? ""), user.password_hash))) throw new ProfileError(403, "The password is not right.", "PROFILE_PASSWORD_WRONG", { field: "password" });
+  const confirmed = await identityConfirmed(client, { userId: session.userId, sessionId: session.sessionId, password });
+  if (!confirmed.ok) throw confirmed.needsCode ? new ProfileError(403, CONFIRM_WITH_CODE, "AUTH_REAUTH_REQUIRED") : new ProfileError(403, "The password is not right.", "PROFILE_PASSWORD_WRONG", { field: "password" });
   const email = String(newEmail ?? "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 320) throw new ProfileError(422, "Enter a valid email address.", "PROFILE_INVALID", { field: "newEmail" });
   if (email === user.email.toLowerCase()) throw new ProfileError(422, "That is already your email address.", "PROFILE_INVALID", { field: "newEmail" });

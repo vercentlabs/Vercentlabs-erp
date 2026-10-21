@@ -1,3 +1,4 @@
+import { GstDetailsGate } from "@/features/platform/start/GstDetailsDialog";
 import { SalesQuotationFormScreen } from "@/features/sales/quotations/screens/SalesQuotationFormScreen";
 
 export const metadata = { title: "New quotation" };
@@ -13,9 +14,9 @@ export default async function Page({
   const { customer, contact } =
     await searchParams;
   return (
-    <SalesQuotationFormScreen
-      initialPartyId={customer}
-      initialContactId={contact}
-    />
+    <>
+      <GstDetailsGate />
+      <SalesQuotationFormScreen initialPartyId={customer} initialContactId={contact} />
+    </>
   );
 }

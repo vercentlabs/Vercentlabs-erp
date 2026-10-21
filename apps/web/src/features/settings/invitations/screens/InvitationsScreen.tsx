@@ -47,6 +47,7 @@ const EMPTY_FORM = {
   email: "",
   roleIds: [] as string[],
   primaryRoleId: "",
+  note: "",
 };
 
 export function InvitationsScreen({ canManage }: { canManage: boolean }) {
@@ -267,6 +268,12 @@ export function InvitationsScreen({ canManage }: { canManage: boolean }) {
             />
           </div>
           <EffectiveAccessSummary roles={selectedRoles} />
+          <TextField
+            label="A short note for the email (optional)"
+            value={form.note}
+            maxLength={300}
+            onChange={(note) => setForm((current) => ({ ...current, note }))}
+          />
           {seatsFull ? (
             <p className="text-sm text-warning">
               All users on your plan are in use. Add users in Settings &gt;

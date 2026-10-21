@@ -396,18 +396,13 @@ try {
     assert((await org.updateCompanyProfile(client, ownerSession, { upiId: "assign@okhdfcbank" })).upiId === "assign@okhdfcbank", "UPI saved");
   });
 
-  await check("3 setup wizard: the steps follow the data; finishing needs the legal details and (on Free) the app, and records onboarding", async () => {
-    await client.query("UPDATE public.organizations SET onboarding_completed_at = NULL WHERE id = $1", [organizationId]);
+  await check("3 the Free plan's one app: a company on Free picks it (signup pre-fills it with the first app; the old setup wizard is gone)", async () => {
     await client.query("UPDATE public.organization_subscriptions SET selected_modules = NULL, modules_snapshot = '[]'::jsonb, limits_snapshot = '{}'::jsonb, plan_price_id = (SELECT price.id FROM public.billing_plan_prices price JOIN public.billing_plans plan ON plan.id = price.plan_id WHERE plan.code = 'free' AND price.active LIMIT 1), provider_subscription_id = NULL WHERE organization_id = $1", [organizationId]);
     await client.query("DELETE FROM public.billing_module_switches WHERE organization_id = $1", [organizationId]);
-    let setup = await org.getSetupProgress(client, organizationId);
-    assert(setup.steps.find((step) => step.key === "legal").done && !setup.steps.find((step) => step.key === "app").done && !setup.readyToFinish, "legal done, app not: " + JSON.stringify(setup.steps));
-    await rejects(() => org.completeSetup(client, ownerSession), "SETUP_INCOMPLETE");
+    assert((await billing.getAppChoice(client, organizationId)).needsChoice, "Free with no app yet");
     await billing.chooseApps(client, owner, { module: "sales" });
-    setup = await org.markSetupStep(client, ownerSession, "data");
-    assert(setup.readyToFinish && setup.steps.find((step) => step.key === "data").done, "ready");
-    setup = await org.completeSetup(client, ownerSession);
-    assert(setup.completedAt, "onboarding recorded");
+    const choice = await billing.getAppChoice(client, organizationId);
+    assert(!choice.needsChoice && choice.selected?.[0] === "sales", JSON.stringify(choice));
   });
 
   await check("3 your profile: name, phone and formats; the password changes only with the current one, never to a recent one, and signs out other sessions", async () => {

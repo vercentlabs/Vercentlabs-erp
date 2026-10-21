@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, PageHeader, PasswordField, Select, TextField } from "@vercentlabs/design-system";
 
 import { timeZoneOptions } from "@/shared/locale-options";
+import { IdentityField } from "@/shared/ui/IdentityField";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { Notice, Panel } from "@/shared/ui/Panel";
 
@@ -56,19 +57,21 @@ function ProfileForms({ profile }: { profile: OwnProfile }) {
         </div>
         <div className="flex justify-end"><Button variant="primary" isLoading={save.isPending} onPress={() => save.mutate()}>Save</Button></div>
       </Panel>
-      <Panel title="Password" description={`Changing it signs you out everywhere else. You cannot reuse your last five passwords.${profile.passwordChangedAt ? ` Last changed ${new Date(profile.passwordChangedAt).toLocaleDateString("en-IN")}.` : ""}`}>
+      <Panel title={profile.hasPassword ? "Password" : "Set a password"} description={profile.hasPassword
+        ? `Changing it signs you out everywhere else. You cannot reuse your last five passwords.${profile.passwordChangedAt ? ` Last changed ${new Date(profile.passwordChangedAt).toLocaleDateString("en-IN")}.` : ""}`
+        : "You sign in with a code from your email. A password is optional — the mobile app needs one."}>
         {change.error && !fieldOf(change.error) && <Notice>{message(change.error)}</Notice>}
         {change.isSuccess && <Notice tone="success">{`Password changed${change.data.otherSessionsSignedOut ? `; ${change.data.otherSessionsSignedOut} other session${change.data.otherSessionsSignedOut === 1 ? "" : "s"} signed out` : ""}.`}</Notice>}
         <div className="grid gap-3 sm:grid-cols-3">
-          <PasswordField label="Current password" value={password.currentPassword} onChange={(value) => setPassword((current) => ({ ...current, currentPassword: value }))}
-            errorMessage={fieldOf(change.error) === "currentPassword" ? message(change.error) : undefined} isInvalid={fieldOf(change.error) === "currentPassword"} />
+          <IdentityField label="Current password" value={password.currentPassword} onChange={(value) => setPassword((current) => ({ ...current, currentPassword: value }))}
+            errorMessage={fieldOf(change.error) === "currentPassword" ? message(change.error) : undefined} />
           <PasswordField label="New password" value={password.newPassword} onChange={(value) => setPassword((current) => ({ ...current, newPassword: value }))}
             errorMessage={fieldOf(change.error) === "newPassword" ? message(change.error) : undefined} isInvalid={fieldOf(change.error) === "newPassword"} />
           <PasswordField label="New password again" value={password.repeat} onChange={(value) => setPassword((current) => ({ ...current, repeat: value }))}
             errorMessage={password.repeat && password.repeat !== password.newPassword ? "The two new passwords are different." : undefined} isInvalid={Boolean(password.repeat && password.repeat !== password.newPassword)} />
         </div>
         <div className="flex justify-end">
-          <Button variant="primary" isLoading={change.isPending} isDisabled={!password.currentPassword || !password.newPassword || password.newPassword !== password.repeat} onPress={() => change.mutate()}>Change password</Button>
+          <Button variant="primary" isLoading={change.isPending} isDisabled={!password.currentPassword || !password.newPassword || password.newPassword !== password.repeat} onPress={() => change.mutate()}>{profile.hasPassword ? "Change password" : "Set password"}</Button>
         </div>
       </Panel>
       <Panel title="Email" description="You sign in with this address. A new one works once you confirm it from that inbox.">
@@ -78,8 +81,8 @@ function ProfileForms({ profile }: { profile: OwnProfile }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <TextField label="New email" type="email" value={email.newEmail} onChange={(value) => setEmail((current) => ({ ...current, newEmail: value }))}
             errorMessage={fieldOf(move.error) === "newEmail" ? message(move.error) : undefined} isInvalid={fieldOf(move.error) === "newEmail"} />
-          <PasswordField label="Your password" value={email.password} onChange={(value) => setEmail((current) => ({ ...current, password: value }))}
-            errorMessage={fieldOf(move.error) === "password" ? message(move.error) : undefined} isInvalid={fieldOf(move.error) === "password"} />
+          <IdentityField value={email.password} onChange={(value) => setEmail((current) => ({ ...current, password: value }))}
+            errorMessage={fieldOf(move.error) === "password" ? message(move.error) : undefined} />
         </div>
         <div className="flex justify-end"><Button variant="secondary" isLoading={move.isPending} isDisabled={!email.newEmail || !email.password} onPress={() => move.mutate()}>Send confirmation</Button></div>
       </Panel>

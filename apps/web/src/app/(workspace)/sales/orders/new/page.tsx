@@ -1,3 +1,4 @@
+import { GstDetailsGate } from "@/features/platform/start/GstDetailsDialog";
 import { SalesOrderFormScreen } from "@/features/sales/orders/screens/SalesOrderFormScreen";
 
 export const metadata = { title: "New sales order" };
@@ -8,5 +9,5 @@ export default async function Page({
   searchParams: Promise<{ customer?: string }>;
 }) {
   const { customer } = await searchParams;
-  return <SalesOrderFormScreen initialPartyId={customer} />;
+  return <><GstDetailsGate /><SalesOrderFormScreen initialPartyId={customer} /></>;
 }

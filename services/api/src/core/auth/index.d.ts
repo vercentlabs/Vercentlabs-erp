@@ -6,4 +6,6 @@ export * from "./mailer.js";
 export * from "../platform/integrations/oauth/index.js";
 export * from "../platform/secrets/index.js";
 export * from "./profile.js";
+export * from "./email-code.js";
+export * from "./code-sign-in.js";
 export * from "./social-sign-in.js";

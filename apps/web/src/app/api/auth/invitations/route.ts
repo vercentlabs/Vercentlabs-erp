@@ -16,6 +16,7 @@ const schema = z
     roleIds: z.array(z.string().uuid()).min(1).max(50),
     primaryRoleId: z.string().uuid(),
     acknowledgeWarningConflicts: z.boolean().optional(),
+    note: z.string().max(300).optional(),
   })
   .refine((body) => body.roleIds.includes(body.primaryRoleId), {
     message: "The primary role must be one of the selected roles.",
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
         roleIds: body.roleIds,
         primaryRoleId: body.primaryRoleId,
         acknowledgeWarningConflicts: body.acknowledgeWarningConflicts,
+        note: body.note,
         inviter: {
           roleSlugs: session.roleSlugs,
           permissions: session.permissions,

@@ -4,7 +4,9 @@
 // owner — hand over ownership. The server re-checks every permission.
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, PasswordField, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, TextField } from "@vercentlabs/design-system";
+
+import { IdentityField } from "@/shared/ui/IdentityField";
 
 import { resetMemberMfa, signOutMember, transferOwnership } from "@/features/settings/company/company-api";
 import { Notice } from "@/shared/ui/Panel";
@@ -49,7 +51,7 @@ export function MemberSecurityActions({ member, isOwner, isAdmin, canManageUsers
           {action === "owner" && (
             <>
               <p>They can then manage billing, users and the company&apos;s data, and close the workspace. You become a system administrator. There is one owner at a time.</p>
-              <PasswordField label="Your password" value={password} onChange={setPassword} />
+              <IdentityField value={password} onChange={setPassword} />
             </>
           )}
           <div className="flex justify-end gap-2">

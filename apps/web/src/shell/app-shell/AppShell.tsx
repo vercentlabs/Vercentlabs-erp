@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import type { ModuleAccess } from "@vercentlabs/api";
 
 import { SearchDialogProvider } from "@/features/platform/search/SearchDialog";
+import { RememberLastApp } from "@/features/platform/start/RememberLastApp";
+import { WorkspaceGuideCard } from "@/features/platform/start/WorkspaceGuideCard";
 import { MobileNav } from "@/shell/primary-sidebar/MobileNav";
 import { ModuleRail } from "@/shell/module-sidebar/ModuleRail";
 import { QueryProvider } from "@/shell/workspace-context/QueryProvider";
@@ -68,6 +70,8 @@ export function AppShell({
             />
             <WorkspaceTopBar />
             <main className="flex min-w-0 flex-1 flex-col px-6 py-6 md:px-8">
+              <RememberLastApp />
+              <Suspense fallback={null}><WorkspaceGuideCard /></Suspense>
               <TrialGate trial={trial} canManageBilling={canManageBilling}>{children}</TrialGate>
             </main>
           </div>

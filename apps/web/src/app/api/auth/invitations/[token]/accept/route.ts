@@ -81,6 +81,7 @@ export async function POST(
         userId: accepted.userId,
         ipAddress: clientIp(request, process.env),
         userAgent: request.headers.get("user-agent"),
+        remember: true,
         env: process.env,
       });
       await setSessionOrganization(

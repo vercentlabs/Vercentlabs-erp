@@ -39,6 +39,24 @@ const emailContent = {
     actionLabel: "",
     notYou: "If this wasn't you, reset your password now from the sign-in page and contact your workspace owner.",
   },
+  // The 6-digit code (signup, sign-in, confirming it's you). Subject, heading and text are built from the code (see createEmail).
+  "sign-in-code": {
+    subject: "Your Vercentlabs code",
+    preheader: "Your 6-digit code.",
+    heading: "Your Vercentlabs code",
+    introduction: "",
+    actionLabel: "",
+    notYou: "If you didn't ask for this, you can ignore this email.",
+  },
+  // Sign-in was asked for an email with no workspace: never "not found", an invitation to set one up instead.
+  "sign-in-no-account": {
+    subject: "Set up your Vercentlabs workspace",
+    preheader: "This email has no workspace yet.",
+    heading: "This email has no workspace yet",
+    introduction: "Someone asked to sign in to Vercentlabs with this email address, but it has no workspace yet. You can set one up in about a minute.",
+    actionLabel: "Set up your workspace",
+    notYou: "If you didn't ask for this, you can ignore this email.",
+  },
   "organization-invitation": {
     subject: "You're invited to join a workspace on Vercentlabs ERP",
     preheader: "Accept the invitation to join your team's workspace.",
@@ -59,11 +77,20 @@ const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial
 function createEmail(input) {
   const template = emailContent[input.type];
   // A security alert carries its own subject, heading and text; it has no link.
+  const verb = { signup: "set up your workspace", sign_in: "sign in", reauth: "confirm it's you" }[input.purpose] ?? "sign in";
   const content = input.type === "security-alert"
     ? { ...template, subject: input.subject ?? template.subject, heading: input.heading ?? template.heading, introduction: input.message ?? "" }
-    : template;
+    : input.type === "sign-in-code"
+      ? { ...template, subject: `${input.code} is your Vercentlabs code`,
+        introduction: `Hi ${input.firstName || "there"}, your code to ${verb} is ${input.code}. It works for ${input.expiresIn ?? "10 minutes"}.` }
+      : input.type === "organization-invitation" && input.inviterName
+        ? { ...template, subject: `${input.inviterName} invited you to ${input.organizationName}`, heading: `Join ${input.organizationName}`,
+          introduction: `${input.inviterFullName ?? input.inviterName} has invited you to join ${input.organizationName} on Vercentlabs.${input.apps?.length ? ` You'll have access to ${input.apps.join(" and ")}.` : ""}${input.note ? ` "${input.note}"` : ""}`,
+          actionLabel: "Join workspace" }
+        : template;
   const organization = input.organizationName ? escapeHtml(input.organizationName) : null;
   const expiry = input.expiresIn ? `This link works for ${input.expiresIn} and can be used once.` : "This link can be used once.";
+  const code = input.type === "sign-in-code" && input.code ? escapeHtml(input.code) : null;
   const support = WORKSPACE_EMAILS.support;
   const text = [
     content.heading,
@@ -111,7 +138,8 @@ function createEmail(input) {
             <tr>
               <td class="card" style="background:${C.card};border:1px solid ${C.line};border-radius:16px;padding:36px 36px 32px">
                 <h1 class="heading" style="margin:0 0 12px;color:${C.ink};font-size:24px;line-height:1.3;font-weight:700">${escapeHtml(content.heading)}</h1>
-                <p style="margin:0 0 ${organization ? "16" : "28"}px;color:${C.body};font-size:15px;line-height:1.65">${escapeHtml(content.introduction)}</p>
+                <p style="margin:0 0 ${organization || code ? "16" : "28"}px;color:${C.body};font-size:15px;line-height:1.65">${escapeHtml(content.introduction)}</p>
+                ${code ? `<p style="margin:0 0 28px;padding:14px 16px;background:${C.brandSoft};border-radius:10px;color:${C.ink};font-size:30px;font-weight:700;letter-spacing:8px;text-align:center;font-family:Menlo,Consolas,monospace">${code}</p>` : ""}
                 ${organization ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 28px"><tr>
                   <td style="background:${C.brandSoft};border-radius:10px;padding:12px 16px;color:${C.ink};font-size:14px">Workspace <strong style="display:block;margin-top:2px;font-size:16px">${organization}</strong></td>
                 </tr></table>` : ""}

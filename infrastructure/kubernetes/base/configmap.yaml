@@ -43,6 +43,8 @@ data:
   ATTACHMENT_SCAN_MODE: required
   ATTACHMENT_SCAN_URL: ${ATTACHMENT_SCAN_URL}
   ATTACHMENT_SCAN_TOKEN_FILE: /var/run/secrets/vercentlabs/ATTACHMENT_SCAN_TOKEN
+  # Signup: the Claude API reads a new business's website to suggest its apps (Haiku; without it a keyword match stands in).
+  ANTHROPIC_API_KEY_FILE: /var/run/secrets/vercentlabs/ANTHROPIC_API_KEY
   # Integration secrets: envelope encryption with Cloud KMS.
   SECRETS_ENCRYPTION_PROVIDER: gcp-kms
   SECRETS_KMS_KEY_NAME: ${SECRETS_KMS_KEY_NAME}

@@ -185,5 +185,5 @@ export function nextPath(session: SessionContext) {
   )
     return "/mfa-verify";
   if (!session.organizationId) return "/onboarding";
-  return "/";
+  return "/start";
 }

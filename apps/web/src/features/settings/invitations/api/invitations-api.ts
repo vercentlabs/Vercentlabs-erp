@@ -54,6 +54,7 @@ export type InvitationInput = {
   email: string;
   roleIds: string[];
   primaryRoleId: string;
+  note?: string;
 };
 
 export async function createInvitation(

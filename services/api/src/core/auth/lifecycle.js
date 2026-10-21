@@ -218,7 +218,7 @@ async function writeInvitationRoles(client, { organizationId, invitationId, role
 // accepted and treated as [roleId] with itself as primary.
 export async function createOrganizationInvitation(
   client,
-  { organizationId, invitedByUserId, email, roleId, roleIds, primaryRoleId, inviter, acknowledgeWarningConflicts },
+  { organizationId, invitedByUserId, email, roleId, roleIds, primaryRoleId, inviter, acknowledgeWarningConflicts, note },
   env = process.env,
 ) {
   // `inviter` is required, never optional — the grant ceiling, SoD and
@@ -294,13 +294,27 @@ export async function createOrganizationInvitation(
       roleIds: selectedRoleIds,
       primaryRoleId: selectedPrimaryRoleId,
     });
+    await client.query(`UPDATE organization_invitations SET personal_note = $2 WHERE id = $1`, [invitationId, String(note ?? "").trim().slice(0, 300) || null]);
   });
 
   const delivered = await queueSecurityMail(client,
-    { type: "organization-invitation", email, url: pathTokenUrl(env, "/invitations", token), organizationName: organization.name, expiresIn: `${INVITATION_TOKEN_TTL_DAYS} days`, organizationId },
+    { type: "organization-invitation", email, url: pathTokenUrl(env, "/invitations", token), organizationName: organization.name, expiresIn: `${INVITATION_TOKEN_TTL_DAYS} days`, organizationId,
+      ...(await invitationMailDetails(client, invitationId, invitedByUserId)) },
     env,
   );
   return { invitationId, delivered };
+}
+
+// Who invited, the apps the invitation's roles open, and the personal note — for "Ravi invited you to Sharma Textiles".
+async function invitationMailDetails(client, invitationId, inviterId) {
+  const inviter = (await client.query(`SELECT full_name FROM users WHERE id = $1`, [inviterId])).rows[0];
+  const apps = (await client.query(
+    `SELECT DISTINCT module.name FROM organization_invitation_roles invitation_role JOIN roles role ON role.id = invitation_role.role_id
+       JOIN organization_modules module ON module.organization_id = role.organization_id AND module.module_key = role.module_key
+      WHERE invitation_role.invitation_id = $1 ORDER BY module.name`, [invitationId])).rows.map((row) => row.name);
+  const note = (await client.query(`SELECT personal_note FROM organization_invitations WHERE id = $1`, [invitationId])).rows[0]?.personal_note ?? null;
+  const fullName = inviter?.full_name ?? null;
+  return { inviterName: fullName ? fullName.split(/\s+/)[0] : null, inviterFullName: fullName, apps, note };
 }
 
 // Invitation links are opened before any organisation context exists: the
@@ -335,8 +349,8 @@ async function readInvitationByToken(client, token) {
     await client.query(
       `SELECT invitation.id, invitation.organization_id, invitation.email, invitation.expires_at,
               invitation.accepted_at, invitation.revoked_at, organization.name AS organization_name,
-              primary_role.name AS role_name,
-              (existing_user.password_hash IS NOT NULL) AS has_existing_account
+              primary_role.name AS role_name, inviter.full_name AS inviter_name,
+              (existing_user.id IS NOT NULL) AS has_existing_account, existing_user.full_name AS existing_name
          FROM organization_invitations AS invitation
          JOIN organizations AS organization ON organization.id = invitation.organization_id
          LEFT JOIN LATERAL (
@@ -345,6 +359,7 @@ async function readInvitationByToken(client, token) {
             WHERE invitation_role.invitation_id = invitation.id AND invitation_role.is_primary
          ) AS primary_role ON true
          LEFT JOIN users AS existing_user ON lower(existing_user.email) = lower(invitation.email)
+         LEFT JOIN users AS inviter ON inviter.id = invitation.invited_by
         WHERE invitation.token_hash = $1`,
       [hash],
     )
@@ -353,7 +368,7 @@ async function readInvitationByToken(client, token) {
   if (row.revoked_at) throw new AuthLifecycleError(410, "This invitation has been revoked.", "AUTH_INVITATION_REVOKED");
   if (row.accepted_at) throw new AuthLifecycleError(409, "This invitation has already been accepted.", "AUTH_INVITATION_ACCEPTED");
   if (new Date(row.expires_at).getTime() < Date.now()) {
-    throw new AuthLifecycleError(410, "This invitation has expired. Ask the organization owner to resend it.", "AUTH_INVITATION_EXPIRED");
+    throw new AuthLifecycleError(410, `This invite has expired. Ask ${row.inviter_name ? row.inviter_name.split(/\s+/)[0] : "the person who invited you"} to send a new one.`, "AUTH_INVITATION_EXPIRED");
   }
   return row;
 }
@@ -368,8 +383,9 @@ async function readInvitationByToken(client, token) {
 // brand-new account. For an EXISTING account the caller must already be
 // authenticated as that exact account (`authenticatedUserId`, resolved
 // server-side from their own session, never client-supplied); an existing
-// user's password is never written here under any input.
-export async function acceptOrganizationInvitation(client, token, { fullName, password }, authenticatedUserId = null) {
+// user's password is never written here under any input. A new account needs only a name: the invitation link proves the email, and
+// a password is optional (set later in the profile).
+export async function acceptOrganizationInvitation(client, token, { fullName, password } = {}, authenticatedUserId = null) {
   const hash = tokenHash(token);
   await enterInvitationOrganization(client, hash);
   const invitation = (
@@ -405,10 +421,9 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
     }
     mintNewSession = false;
   } else {
-    if (!password) throw new AuthLifecycleError(422, "A password is required to create this account.", "AUTH_PASSWORD_REQUIRED");
-    if (!fullName?.trim()) throw new AuthLifecycleError(422, "A name is required to create this account.", "AUTH_NAME_REQUIRED");
+    if (!fullName?.trim()) throw new AuthLifecycleError(422, "Enter your name.", "AUTH_NAME_REQUIRED");
     userId = randomUUID();
-    const passwordHash = await hashPassword(password);
+    const passwordHash = password ? await hashPassword(password) : null;
     await client.query(
       `INSERT INTO users (id, email, full_name, password_hash, email_verified_at)
        VALUES ($1, $2, $3, $4, now())`,
@@ -431,7 +446,7 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
         409,
         otherMembership.organization_id === invitation.organization_id
           ? "You are already a member of this organization."
-          : "This account already belongs to an organization. An account can belong to only one organization.",
+          : `This email already belongs to another workspace. Ask ${(await client.query(`SELECT full_name FROM users WHERE id = $1`, [invitation.invited_by])).rows[0]?.full_name?.split(/\s+/)[0] ?? "the person who invited you"} to invite a different email.`,
         "AUTH_ALREADY_IN_ORGANIZATION",
       );
     }
@@ -573,7 +588,8 @@ export async function resendOrganizationInvitation(client, { organizationId, inv
     [invitationId, tokenHash(token)],
   );
   const delivered = await queueSecurityMail(client,
-    { type: "organization-invitation", email: invitation.email, url: pathTokenUrl(env, "/invitations", token), organizationName: invitation.organization_name, expiresIn: `${INVITATION_TOKEN_TTL_DAYS} days`, organizationId },
+    { type: "organization-invitation", email: invitation.email, url: pathTokenUrl(env, "/invitations", token), organizationName: invitation.organization_name, expiresIn: `${INVITATION_TOKEN_TTL_DAYS} days`, organizationId,
+      ...(await invitationMailDetails(client, invitationId, actor?.userId ?? invitation.invited_by)) },
     env,
   );
   return { delivered };
@@ -594,8 +610,8 @@ export async function findUserForSignIn(client, email) {
  * then becomes the transaction's organisation context for the audit event.
  * Session resolution re-picks and corrects the organisation on first use.
  */
-export async function startUserSession(client, { userId, ipAddress, userAgent, request, env = process.env }) {
-  const created = await createSession(client, { userId, ipAddress, userAgent, env });
+export async function startUserSession(client, { userId, ipAddress, userAgent, request, remember = false, env = process.env }) {
+  const created = await createSession(client, { userId, ipAddress, userAgent, remember, env });
   const membership = (
     await client.query(`SELECT organization_id FROM organization_memberships WHERE user_id = $1 AND status = 'active' ORDER BY created_at ASC LIMIT 1`, [userId])
   ).rows[0];

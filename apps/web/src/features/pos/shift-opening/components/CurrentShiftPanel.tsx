@@ -9,6 +9,7 @@ import { openCashDrawer, pauseShift, resumeShift, type ShiftView } from "@/featu
 import { PosApiError } from "@/features/pos/shared/http";
 import { dateTime, money } from "@/features/pos/shared/format";
 import { PosAlert, PosFacts } from "@/features/pos/shared/PosUi";
+import { IdentityField } from "@/shared/ui/IdentityField";
 
 const STATUS_LABEL: Record<string, string> = { OPEN: "Open", OPENING: "Opening", SUSPENDED: "Suspended", CLOSING: "Closing", CLOSED: "Closed", RECOVERY_REQUIRED: "Needs review", FORCE_CLOSED: "Force-closed" };
 
@@ -79,8 +80,8 @@ function ShiftPauseControls({ shift, onChange }: { shift: ShiftView; onChange: (
       )}
       {shift.status === "SUSPENDED" && (
         <>
-          <p className="text-sm">Shift paused{shift.suspension?.reason ? ` — ${shift.suspension.reason}` : ""}. Enter your password to carry on selling.</p>
-          <TextField label="Your password" type="password" value={password} onChange={setPassword} className="sm:max-w-xs" />
+          <p className="text-sm">Shift paused{shift.suspension?.reason ? ` — ${shift.suspension.reason}` : ""}. Confirm it&apos;s you to carry on selling.</p>
+          <div className="sm:max-w-xs"><IdentityField value={password} onChange={setPassword} /></div>
           <div><Button size="compact" variant="primary" isLoading={busy} isDisabled={!password} onPress={() => run(() => resumeShift(shift.shiftId, password))}>Resume shift</Button></div>
         </>
       )}

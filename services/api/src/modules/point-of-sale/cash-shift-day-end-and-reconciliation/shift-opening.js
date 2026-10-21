@@ -16,7 +16,7 @@ import { createHash } from "node:crypto";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { decimal, add, sub, asDatabaseDecimal, formatDecimal } from "../../../core/decimal.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
-import { verifyPasswordOrDummy } from "../../../core/auth/session.js";
+import { CONFIRM_WITH_CODE, identityConfirmed } from "../../../core/auth/code-sign-in.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess, accessiblePosStoreIds } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
@@ -708,14 +708,15 @@ export async function suspendPosShift(client, context, shiftId, input = {}) {
   return shiftView(client, context, shiftId);
 }
 
-// Resume a paused shift: only its own cashier, by entering their password again (whoever stands at the counter must be them).
+// Resume a paused shift: only its own cashier, by entering their password again (whoever stands at the counter must be them) — or, for a
+// cashier without a password, the code emailed to them.
 export async function resumePosShift(client, context, shiftId, input = {}) {
   requirePermission(context, "pos.view");
   const shift = await lockShift(client, context, shiftId);
   if (shift.cashier_user_id !== context.userId) throw shiftError(403, "POS_SHIFT_PERMISSION_DENIED", "Only the shift's own cashier can resume it.");
   if (shift.lifecycle_status !== "SUSPENDED") throw shiftError(409, "POS_SHIFT_NOT_OPERATIONAL", "This shift is not paused.");
-  const stored = (await client.query(`SELECT password_hash FROM public.users WHERE id = $1`, [context.userId])).rows[0]?.password_hash ?? null;
-  if (!(await verifyPasswordOrDummy(String(input.password ?? ""), stored))) throw shiftError(401, "POS_SHIFT_REAUTH_FAILED", "That password is not right. Sign in again to resume your shift.");
+  const confirmed = await identityConfirmed(client, { userId: context.userId, sessionId: context.sessionId ?? null, password: input.password });
+  if (!confirmed.ok) throw confirmed.needsCode ? shiftError(401, "AUTH_REAUTH_REQUIRED", CONFIRM_WITH_CODE) : shiftError(401, "POS_SHIFT_REAUTH_FAILED", "That password is not right. Sign in again to resume your shift.");
   await client.query(`UPDATE tenant.pos_shifts SET lifecycle_status = 'OPEN', resumed_at = now() WHERE organization_id = $1 AND id = $2`, [context.organizationId, shiftId]);
   await event(client, context, "shift", shiftId, "pos.shift.resumed", { by: context.userId });
   return shiftView(client, context, shiftId);

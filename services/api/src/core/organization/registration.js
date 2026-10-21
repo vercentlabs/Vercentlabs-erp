@@ -95,25 +95,28 @@ export async function bootstrapOrganizationRoles(client, organizationId) {
 
 // Full self-serve flow: validate, create the user and organization
 // together, bootstrap the role catalog, make the caller the
-// organization_owner. Does NOT mark the email verified and does NOT send
-// the verification email itself (the caller, at the route layer, does
-// that the same way every other auth flow does -- createEmailVerificationToken)
-// and does NOT create a session (also a route-layer concern, matching
-// acceptOrganizationInvitation's existing split of responsibility).
+// organization_owner. The signup flow (core/organization/signup) calls it
+// after the email code, with no password and emailVerified: true. It does
+// NOT create a session (a route-layer concern, matching
+// acceptOrganizationInvitation's split of responsibility).
 export async function registerOrganization(client, input) {
   const fullName = requiredText(input.fullName, "Your name", 200);
   const email = requiredText(input.email, "Email", 320).toLowerCase();
   if (!EMAIL_PATTERN.test(email)) throw new OrganizationRegistrationError(422, "Enter a valid email address.", "ORG_REGISTRATION_VALIDATION");
-  const password = String(input.password ?? "");
-  const passwordIssues = passwordPolicyIssues(password, { email });
-  if (passwordIssues.length) throw new OrganizationRegistrationError(422, passwordIssues[0], "ORG_REGISTRATION_PASSWORD_POLICY", { issues: passwordIssues });
+  // A password is optional: someone who signs up with an email code has none until they set one.
+  const password = input.password === undefined || input.password === null || input.password === "" ? null : String(input.password);
+  if (password !== null) {
+    const passwordIssues = passwordPolicyIssues(password, { email });
+    if (passwordIssues.length) throw new OrganizationRegistrationError(422, passwordIssues[0], "ORG_REGISTRATION_PASSWORD_POLICY", { issues: passwordIssues });
+  }
 
   const organizationName = requiredText(input.organizationName, "Organization name", 200);
-  const countryCode = requiredText(input.countryCode, "Country code", 2).toUpperCase();
+  // India, INR and the browser's time zone unless given (all changeable in Settings › Company).
+  const countryCode = requiredText(input.countryCode ?? "IN", "Country code", 2).toUpperCase();
   if (countryCode.length !== 2) throw new OrganizationRegistrationError(422, "Country code must be a 2-letter ISO code.", "ORG_REGISTRATION_VALIDATION");
-  const baseCurrency = requiredText(input.baseCurrency, "Base currency", 3).toUpperCase();
+  const baseCurrency = requiredText(input.baseCurrency ?? "INR", "Base currency", 3).toUpperCase();
   if (baseCurrency.length !== 3) throw new OrganizationRegistrationError(422, "Base currency must be a 3-letter ISO code.", "ORG_REGISTRATION_VALIDATION");
-  const timezone = requiredText(input.timezone, "Timezone", 100);
+  const timezone = requiredText(input.timezone ?? "Asia/Kolkata", "Timezone", 100);
 
   const existing = await client.query(`SELECT id FROM users WHERE lower(email) = $1`, [email]);
   if (existing.rows[0]) {
@@ -121,10 +124,11 @@ export async function registerOrganization(client, input) {
   }
 
   const userId = randomUUID();
-  const passwordHash = await hashPassword(password);
+  const passwordHash = password === null ? null : await hashPassword(password);
+  // input.emailVerified: the email was just proved with a code (signup), so no separate verification step follows.
   await client.query(
-    `INSERT INTO users (id, email, full_name, password_hash, status) VALUES ($1, $2, $3, $4, 'active')`,
-    [userId, email, fullName, passwordHash],
+    `INSERT INTO users (id, email, full_name, password_hash, status, email_verified_at) VALUES ($1, $2, $3, $4, 'active', CASE WHEN $5 THEN now() END)`,
+    [userId, email, fullName, passwordHash, input.emailVerified === true],
   );
 
   const organizationId = randomUUID();
