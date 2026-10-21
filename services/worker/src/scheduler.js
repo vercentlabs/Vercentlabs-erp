@@ -17,6 +17,7 @@ import { JOB_TYPE as MAILINGS_SEND_JOB_TYPE } from "./handlers/crm-mailings-send
 import { JOB_TYPE as BROADCASTS_SEND_JOB_TYPE } from "./handlers/crm-whatsapp-broadcasts-send.js";
 import { JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE } from "./handlers/sales-quotation-expiry.js";
 import { JOB_TYPE as FISCAL_YEAR_AHEAD_JOB_TYPE } from "./handlers/platform-fiscal-year-ahead.js";
+import { JOB_TYPE as LEAD_SCORING_HISTORY_JOB_TYPE } from "./handlers/crm-lead-scoring-history.js";
 import { JOB_TYPE as EXCHANGE_RATE_FEED_JOB_TYPE } from "./handlers/platform-exchange-rate-feed.js";
 import { exchangeRateFeedConfigured, fiscalYearsRunningOut } from "@vercentlabs/api";
 import { JOB_TYPE as WORKFLOW_TIME_TRIGGERS_JOB_TYPE } from "./handlers/platform-workflow-time-triggers.js";
@@ -68,6 +69,8 @@ export const SCHEDULED_JOBS = Object.freeze([
     when: (client, organizationId) => fiscalYearsRunningOut(client, organizationId) },
   // The daily digest email of unread notifications, for those who asked for it. Every company.
   { name: "notification digest", module: null, every: "day", jobType: NOTIFICATION_DIGEST_JOB_TYPE, key: "notification-digest", maxAttempts: 3 },
+  // Lead scoring learns again from the last year's closed leads (Line-by-line audit P11).
+  { name: "lead scoring history", module: "crm", every: "day", jobType: LEAD_SCORING_HISTORY_JOB_TYPE, key: "crm-lead-scoring-history", maxAttempts: 3 },
   // Quotations past their Valid Until date become Expired.
   { name: "expired quotations", module: "sales", every: "day", jobType: QUOTATION_EXPIRY_JOB_TYPE, key: "sales-quotation-expiry", maxAttempts: 3 },
 ]);

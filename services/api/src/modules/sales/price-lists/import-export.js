@@ -34,7 +34,7 @@ function csvCell(value) {
   return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
 }
 const toCsv = (rows) => `﻿${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
-const parseUpload = (bytes, fileName) => (isXlsxFileName(fileName) ? parseXlsxUpload(bytes, { maxRows: ROW_LIMIT }) : parseCsvUpload(bytes, { maxRows: ROW_LIMIT }));
+const parseUpload = (bytes, fileName, maxRows = ROW_LIMIT) => (isXlsxFileName(fileName) ? parseXlsxUpload(bytes, { maxRows }) : parseCsvUpload(bytes, { maxRows }));
 
 export function buildPriceImportTemplate() {
   return toCsv([PRICE_IMPORT_FIELDS.map((field) => field.label), PRICE_IMPORT_FIELDS.map((field) => field.sample)]);
@@ -51,10 +51,10 @@ function suggestMapping(headers) {
   return mapping;
 }
 
-export async function analyzePriceImport(client, context, priceListId, { bytes, fileName }) {
+export async function analyzePriceImport(client, context, priceListId, { bytes, fileName, maxRows }) {
   requirePriceListPermission(context, PRICE_LIST_PERMISSIONS.import, "You do not have permission to import prices.");
   await loadPriceListRow(client, context, priceListId);
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   return {
     fileName, headers: parsed.headers, rowCount: parsed.rowCount ?? parsed.records.length, sampleRows: parsed.records.slice(0, 5),
     suggestedMapping: suggestMapping(parsed.headers), fields: PRICE_IMPORT_FIELDS.map(({ key, label }) => ({ key, label })),
@@ -72,11 +72,11 @@ function readDate(value) {
   throw new PriceListError(400, `“${raw}” is not a date. Use YYYY-MM-DD or DD/MM/YYYY.`, "SALES_PRICE_IMPORT_ROW");
 }
 
-export async function importPrices(client, context, priceListId, { bytes, fileName, mapping = {}, dryRun = false }) {
+export async function importPrices(client, context, priceListId, { bytes, fileName, mapping = {}, dryRun = false, maxRows }) {
   requirePriceListPermission(context, PRICE_LIST_PERMISSIONS.import, "You do not have permission to import prices.");
   requirePriceListPermission(context, PRICE_LIST_PERMISSIONS.managePrices, "You do not have permission to change prices.");
   const list = await loadPriceListRow(client, context, priceListId);
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   const unknown = Object.keys(mapping).filter((header) => !parsed.headers.includes(header));
   if (unknown.length) throw new PriceListError(400, `The file has no column named "${unknown[0]}".`, "SALES_PRICE_IMPORT_MAPPING");
   for (const required of ["productCode", "unitPrice"])

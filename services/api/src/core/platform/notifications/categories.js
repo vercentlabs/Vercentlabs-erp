@@ -252,6 +252,14 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    key: "sales_data_job_finished",
+    displayName: "Import finished",
+    description: "When a Sales import (customers, addresses, contacts or prices) you started in the background finishes.",
+    moduleKey: "sales",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     key: "crm_data_job_finished",
     displayName: "Import or export finished",
     description: "When a CRM import or export you started in the background finishes.",

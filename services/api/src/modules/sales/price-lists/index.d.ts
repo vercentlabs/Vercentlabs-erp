@@ -42,7 +42,7 @@ export function resolveSalesPrice(client: Client, context: Context, input: { pri
 }>;
 export function unitFactor(client: Client, context: Context, itemId: string, uomId: string, baseUomId: string): Promise<number | null>;
 
-export function analyzePriceImport(client: Client, context: Context, priceListId: string, input: { bytes: Uint8Array | Buffer; fileName: string }): Promise<any>;
+export function analyzePriceImport(client: Client, context: Context, priceListId: string, input: { bytes: Uint8Array | Buffer; fileName: string; maxRows?: number }): Promise<any>;
 export function importPrices(client: Client, context: Context, priceListId: string, input: { bytes: Uint8Array | Buffer; fileName: string; mapping?: Record<string, string>; dryRun?: boolean }): Promise<any>;
 export function buildPriceImportTemplate(): string;
 export function buildPriceImportErrorFile(results: any[]): string;

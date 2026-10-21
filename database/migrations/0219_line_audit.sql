@@ -125,3 +125,52 @@ CREATE TRIGGER accounting_customer_invoices_credit_due AFTER UPDATE OF status ON
   EXECUTE FUNCTION tenant.sales_returns_credit_due_on_credit_note();
 
 SELECT tenant.sales_returns_refresh_credit_due(ARRAY(SELECT DISTINCT sales_order_id FROM tenant.sales_returns WHERE status = 'received'));
+
+-- 5. Lead scoring learns from the last year's closed leads once a day (P11, C13), not on every lead saved: the learned conversion
+--    rates are kept here and read by each scoring.
+CREATE TABLE IF NOT EXISTS tenant.crm_lead_scoring_history (
+  organization_id uuid PRIMARY KEY REFERENCES public.organizations(id) ON DELETE CASCADE,
+  history jsonb NOT NULL,
+  computed_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE tenant.crm_lead_scoring_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant.crm_lead_scoring_history FORCE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tenant' AND tablename = 'crm_lead_scoring_history' AND policyname = 'organization_isolation') THEN
+    CREATE POLICY organization_isolation ON tenant.crm_lead_scoring_history USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
+  END IF;
+END
+$$;
+GRANT SELECT, INSERT, UPDATE, DELETE ON tenant.crm_lead_scoring_history TO vercent_app, vercent_worker;
+
+-- 6. Sales imports too large to run while the person waits run in the background (P5): each run, its uploaded file and the file of rows
+--    it could not take. The run uses the requester's permissions as they are when it runs.
+CREATE TABLE IF NOT EXISTS tenant.sales_data_jobs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  entity text NOT NULL CHECK (entity IN ('customers', 'customer_addresses', 'customer_contacts', 'prices')),
+  status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'running', 'succeeded', 'failed')),
+  file_name text,
+  options jsonb NOT NULL DEFAULT '{}'::jsonb,
+  input_file_id uuid REFERENCES public.attachments(id),
+  output_file_id uuid REFERENCES public.attachments(id),
+  result jsonb NOT NULL DEFAULT '{}'::jsonb,
+  error_message text,
+  job_id uuid,
+  requested_by uuid NOT NULL REFERENCES public.users(id),
+  requested_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  started_at timestamptz,
+  completed_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS sales_data_jobs_requester_idx ON tenant.sales_data_jobs (organization_id, requested_by, requested_at DESC);
+ALTER TABLE tenant.sales_data_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant.sales_data_jobs FORCE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tenant' AND tablename = 'sales_data_jobs' AND policyname = 'organization_isolation') THEN
+    CREATE POLICY organization_isolation ON tenant.sales_data_jobs USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
+  END IF;
+END
+$$;
+GRANT SELECT, INSERT, UPDATE ON tenant.sales_data_jobs TO vercent_app, vercent_worker;

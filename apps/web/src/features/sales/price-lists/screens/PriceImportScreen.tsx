@@ -12,6 +12,8 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
+import { BackgroundImports, backgroundJobsKey, startBackgroundImport } from "../../shared/BackgroundImports";
+import { Notice } from "@/shared/ui/Panel";
 import { analyzePriceImport, errorMessage, getPriceList, importPrices, priceExportUrl, priceImportTemplateUrl, type ImportAnalysis, type ImportResult, type ImportRow } from "../api/price-lists-api";
 
 const SKIP = "skip-column";
@@ -39,12 +41,19 @@ export function PriceImportScreen({ priceListId }: { priceListId: string }) {
     onSuccess: (data) => { setOutcome(data); setError(null); if (!data.result.dryRun) void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "price-lists") }); },
     onError: (failure) => setError(errorMessage(failure)),
   });
+  // A file with more rows than an import takes on screen goes to the background (Line-by-line audit P5).
+  const background = useMutation({
+    mutationFn: () => startBackgroundImport({ entity: "prices", file: file!, mapping, options: { priceListId } }),
+    onSuccess: () => { setError(null); void queryClient.invalidateQueries({ queryKey: backgroundJobsKey(workspace, ["prices"]) }); },
+    onError: (failure) => setError(errorMessage(failure)),
+  });
   if (listQuery.isLoading) return <LoadingState label="Loading" rows={4} />;
   const list = listQuery.data;
   if (!list?.capabilities?.import || !list.capabilities.managePrices) return <PermissionState title="You cannot import prices" description="Ask an administrator for the Import prices permission." />;
   const mapped = new Set(Object.values(mapping));
   const ready = mapped.has("productCode") && mapped.has("unitPrice");
   const result = outcome?.result;
+  const large = Boolean(analysis && analysis.onScreenLimit && analysis.rowCount > analysis.onScreenLimit);
   const downloadErrors = () => {
     if (!outcome?.errorFile) return;
     const url = URL.createObjectURL(new Blob([outcome.errorFile], { type: "text/csv;charset=utf-8" }));
@@ -62,7 +71,7 @@ export function PriceImportScreen({ priceListId }: { priceListId: string }) {
       <section className={card} aria-label="File">
         <h2 className="text-base font-semibold">1. Choose the file</h2>
         <div className="flex flex-wrap items-center gap-3">
-          <input type="file" accept=".csv,.xlsx" aria-label="Price file" className="text-sm" onChange={(event) => { const chosen = event.target.files?.[0] ?? null; setFile(chosen); setAnalysis(null); setOutcome(null); if (chosen) analyze.mutate(chosen); }} />
+          <input type="file" accept=".csv,.xlsx" aria-label="Price file" className="text-sm" onChange={(event) => { const chosen = event.target.files?.[0] ?? null; setFile(chosen); setAnalysis(null); setOutcome(null); background.reset(); if (chosen) analyze.mutate(chosen); }} />
           <a className={buttonVariants({ variant: "outline", size: "compact" })} href={priceImportTemplateUrl} download><Download className="size-4" aria-hidden="true" />Template</a>
           {list.capabilities.export && <a className={buttonVariants({ variant: "outline", size: "compact" })} href={priceExportUrl(list.id)} download><Download className="size-4" aria-hidden="true" />Current prices</a>}
         </div>
@@ -81,12 +90,21 @@ export function PriceImportScreen({ priceListId }: { priceListId: string }) {
             ))}
           </div>
           {!ready && <p role="alert" className="text-sm text-danger">Choose which columns hold the Product Code and the Unit Price.</p>}
+          {large && <Notice tone="info">This file has {analysis!.rowCount.toLocaleString("en-IN")} rows, more than {analysis!.onScreenLimit!.toLocaleString("en-IN")} at once: it is imported in the background. You are told when it finishes; the rows that could not be imported can be downloaded below.</Notice>}
+          {background.isSuccess && <Notice tone="success">The import has started in the background.</Notice>}
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="secondary" isDisabled={!ready || run.isPending} isLoading={run.isPending && run.variables === true} onPress={() => run.mutate(true)}>Check the file</Button>
-            <Button variant="primary" isDisabled={!ready || run.isPending} isLoading={run.isPending && run.variables === false} onPress={() => run.mutate(false)}>Import prices</Button>
+            {large ? (
+              <Button variant="primary" isDisabled={!ready || background.isPending || background.isSuccess} isLoading={background.isPending} onPress={() => background.mutate()}>Import prices in the background</Button>
+            ) : (
+              <>
+                <Button variant="secondary" isDisabled={!ready || run.isPending} isLoading={run.isPending && run.variables === true} onPress={() => run.mutate(true)}>Check the file</Button>
+                <Button variant="primary" isDisabled={!ready || run.isPending} isLoading={run.isPending && run.variables === false} onPress={() => run.mutate(false)}>Import prices</Button>
+              </>
+            )}
           </div>
         </section>
       )}
+      <BackgroundImports entities={["prices"]} />
       {result && (
         <section className={card} aria-label="Result">
           <h2 className="text-base font-semibold">{result.dryRun ? "3. Check result (nothing was saved)" : "3. Import result"}</h2>

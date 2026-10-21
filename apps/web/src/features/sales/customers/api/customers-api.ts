@@ -204,6 +204,8 @@ export type AccountPrefill = {
 export type ImportAnalysis = {
   fileName: string; headers: string[]; rowCount: number; sampleRows: Array<Record<string, string>>; suggestedMapping: Record<string, string>;
   fields: Array<{ key: string; label: string }>;
+  // More rows than this are imported in the background.
+  onScreenLimit?: number;
 };
 export type ImportKind = "customers" | "addresses" | "contacts";
 export type ImportRow = { rowNumber: number; name: string | null; outcome: "created" | "updated" | "linked" | "skipped" | "review" | "failed"; message: string; customerId?: string | null; customerNumber?: string };

@@ -18,7 +18,7 @@ export type PriceEntry = {
 };
 export type PriceInput = { productId?: string; uomId?: string | null; unitPrice?: number; validFrom?: string | null; validTo?: string | null };
 export type HistoryEntry = { id: string; eventType: string; summary: string; changes: Record<string, unknown>; itemCode: string | null; createdAt: string; actorName: string | null };
-export type ImportAnalysis = { fileName: string; headers: string[]; rowCount: number; sampleRows: Array<Record<string, string>>; suggestedMapping: Record<string, string>; fields: Array<{ key: string; label: string }> };
+export type ImportAnalysis = { fileName: string; headers: string[]; rowCount: number; sampleRows: Array<Record<string, string>>; suggestedMapping: Record<string, string>; fields: Array<{ key: string; label: string }>; onScreenLimit?: number };
 export type ImportRow = { rowNumber: number; name: string | null; outcome: "added" | "updated" | "unchanged" | "failed"; message: string };
 export type ImportResult = { dryRun: boolean; total: number; added: number; updated: number; unchanged: number; failed: number; results: ImportRow[] };
 

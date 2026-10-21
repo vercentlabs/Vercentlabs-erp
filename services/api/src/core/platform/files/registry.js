@@ -12,6 +12,8 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "crm.contact_photo": { moduleKey: "crm", purposes: ["attachment"] },
   // A large CRM import or export run in the background: the uploaded file (attachment) and the file it produced (export).
   "crm.data_job": { moduleKey: "crm", purposes: ["attachment", "export"] },
+  // A large Sales import run in the background: the uploaded file and the rows it could not take (Line-by-line audit P5).
+  "sales.data_job": { moduleKey: "sales", purposes: ["attachment", "export"] },
   "support.ticket": { moduleKey: "support", purposes: ["attachment", "inbound_mail"] },
   // The company's logo and its authorised signatory's signature (Settings › Company), printed on documents; one current image each.
   "platform.company_logo": { moduleKey: null, purposes: ["attachment"] },

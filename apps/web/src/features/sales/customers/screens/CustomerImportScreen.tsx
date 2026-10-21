@@ -18,6 +18,8 @@ import {
   analyzeCustomerImport, customerImportTemplateUrl, errorMessage, getCustomerOptions, importCustomers, type ImportAnalysis, type ImportKind, type ImportResult, type ImportRow,
 } from "../api/customers-api";
 import { ErrorBanner } from "../customer-format";
+import { BackgroundImports, backgroundJobsKey, startBackgroundImport, type SalesDataJobEntity } from "../../shared/BackgroundImports";
+import { Notice } from "@/shared/ui/Panel";
 
 const SKIP = "skip-column";
 const card = "flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:p-6";
@@ -31,6 +33,7 @@ const KINDS: Record<ImportKind, { noun: string; required: string; requiredKeys: 
   addresses: { noun: "addresses", required: "Customer Number and Address Line 1", requiredKeys: ["customerNumber", "line1"], hint: "Each row adds an address to the customer named by its customer number. An address the customer already has is skipped." },
   contacts: { noun: "contacts", required: "Customer Number and First Name", requiredKeys: ["customerNumber", "firstName"], hint: "Each row adds a person to the customer named by its customer number. A row whose email or mobile matches an existing contact links that contact." },
 };
+const JOB_ENTITY: Record<ImportKind, SalesDataJobEntity> = { customers: "customers", addresses: "customer_addresses", contacts: "customer_contacts" };
 const OUTCOME: Record<ImportRow["outcome"], { label: string; tone: "success" | "info" | "neutral" | "warning" | "danger" }> = {
   created: { label: "Created", tone: "success" }, updated: { label: "Updated", tone: "info" }, linked: { label: "Linked existing", tone: "info" }, skipped: { label: "Skipped", tone: "neutral" },
   review: { label: "Needs review", tone: "warning" }, failed: { label: "Error", tone: "danger" },
@@ -65,6 +68,14 @@ export function CustomerImportScreen() {
     onError: (failure) => setError(errorMessage(failure)),
   });
 
+  // A file with more rows than an import takes on screen goes to the background (Line-by-line audit P5).
+  const background = useMutation({
+    mutationFn: () => startBackgroundImport({ entity: JOB_ENTITY[kind], file: file!, mapping,
+      options: kind === "customers" ? { duplicateMode, defaults: { countryCode: optionsQuery.data?.defaults.countryCode, currencyCode: optionsQuery.data?.defaults.currencyCode ?? undefined } } : {} }),
+    onSuccess: () => { setError(null); void queryClient.invalidateQueries({ queryKey: backgroundJobsKey(workspace, Object.values(JOB_ENTITY)) }); },
+    onError: (failure) => setError(errorMessage(failure)),
+  });
+
   if (optionsQuery.isLoading) return <LoadingState label="Loading" rows={4} />;
   const can = optionsQuery.data?.capabilities;
   const shape = KINDS[kind];
@@ -74,12 +85,14 @@ export function CustomerImportScreen() {
     setFile(chosen);
     setAnalysis(null);
     setOutcome(null);
+    background.reset();
     if (chosen) analyze.mutate(chosen);
   };
   const mapped = new Set(Object.values(mapping));
   const hasName = shape.requiredKeys.every((key) => mapped.has(key));
   const changeKind = (next: ImportKind) => { setKind(next); setFile(null); setAnalysis(null); setOutcome(null); setError(null); };
   const result = outcome?.result;
+  const large = Boolean(analysis && analysis.onScreenLimit && analysis.rowCount > analysis.onScreenLimit);
   const downloadErrors = () => {
     if (!outcome?.errorFile) return;
     const url = URL.createObjectURL(new Blob([outcome.errorFile], { type: "text/csv;charset=utf-8" }));
@@ -111,7 +124,7 @@ export function CustomerImportScreen() {
           <a className={buttonVariants({ variant: "outline", size: "compact" })} href={customerImportTemplateUrl(kind)} download><Download className="size-4" aria-hidden="true" />Download template</a>
         </div>
         <p className="text-xs text-text-muted">
-          Up to 2,000 rows and 5 MB. {shape.required} {shape.requiredKeys.length > 1 ? "are" : "is"} required.
+          Up to 2,000 rows at once; a larger file (up to 20,000 rows, 5 MB) is imported in the background. {shape.required} {shape.requiredKeys.length > 1 ? "are" : "is"} required.
           {kind === "customers" ? ` Rows without a country or currency use ${optionsQuery.data?.defaults.countryCode} and ${optionsQuery.data?.defaults.currencyCode}.` : ""}
         </p>
         {analyze.isPending && <LoadingState label="Reading the file" rows={2} />}
@@ -136,12 +149,22 @@ export function CustomerImportScreen() {
           {!hasName && <p role="alert" className="text-sm text-danger">Choose which {shape.requiredKeys.length > 1 ? "columns hold" : "column holds"} the {shape.required}.</p>}
           {kind === "customers" && <Select className="sm:max-w-lg" label="When a row matches an existing customer" selectedKey={duplicateMode} onSelectionChange={(key) => { setDuplicateMode(String(key)); setOutcome(null); }}
             options={MODES.filter((mode) => mode.value !== "update" || can.edit)} description="A match is the same GSTIN, legal name or website." />}
+          {large && <Notice tone="info">This file has {analysis!.rowCount.toLocaleString("en-IN")} rows, more than {analysis!.onScreenLimit!.toLocaleString("en-IN")} at once: it is imported in the background. You can keep working; you are told when it finishes, and the rows that could not be imported can be downloaded below.</Notice>}
+          {background.isSuccess && <Notice tone="success">The import has started in the background.</Notice>}
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="secondary" isDisabled={!hasName || run.isPending} isLoading={run.isPending && run.variables === true} onPress={() => run.mutate(true)}>Check the file</Button>
-            <Button variant="primary" isDisabled={!hasName || run.isPending} isLoading={run.isPending && run.variables === false} onPress={() => run.mutate(false)}>Import {shape.noun}</Button>
+            {large ? (
+              <Button variant="primary" isDisabled={!hasName || background.isPending || background.isSuccess} isLoading={background.isPending} onPress={() => background.mutate()}>Import {shape.noun} in the background</Button>
+            ) : (
+              <>
+                <Button variant="secondary" isDisabled={!hasName || run.isPending} isLoading={run.isPending && run.variables === true} onPress={() => run.mutate(true)}>Check the file</Button>
+                <Button variant="primary" isDisabled={!hasName || run.isPending} isLoading={run.isPending && run.variables === false} onPress={() => run.mutate(false)}>Import {shape.noun}</Button>
+              </>
+            )}
           </div>
         </section>
       )}
+
+      <BackgroundImports entities={Object.values(JOB_ENTITY)} />
 
       {result && (
         <section className={card} aria-label="Result">

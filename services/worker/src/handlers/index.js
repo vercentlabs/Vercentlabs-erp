@@ -7,6 +7,7 @@ import { whatsAppBroadcastsSendHandler, JOB_TYPE as BROADCASTS_SEND_JOB_TYPE, pa
 import { leadResponseWatchHandler, JOB_TYPE as LEAD_RESPONSE_WATCH_JOB_TYPE, payloadSchema as leadResponseWatchPayloadSchema } from "./crm-lead-response-watch.js";
 import { pollLeadConnectorsHandler, JOB_TYPE as LEAD_CONNECTORS_POLL_JOB_TYPE, payloadSchema as leadConnectorsPollPayloadSchema } from "./crm-lead-connectors-poll.js";
 import { crmDataJobHandler, JOB_TYPE as CRM_DATA_JOB_TYPE, payloadSchema as crmDataJobPayloadSchema } from "./crm-data-job.js";
+import { salesDataJobHandler, JOB_TYPE as SALES_DATA_JOB_TYPE, payloadSchema as salesDataJobPayloadSchema } from "./sales-data-job.js";
 import { reportRunHandler, JOB_TYPE as REPORT_RUN_JOB_TYPE, payloadSchema as reportRunPayloadSchema } from "./platform-report-run.js";
 import { reconcileReorderHandler, JOB_TYPE as REORDER_RECONCILE_JOB_TYPE, payloadSchema as reorderReconcilePayloadSchema } from "./stock-reorder-reconcile.js";
 import { dispatchLowStockNotificationsHandler, JOB_TYPE as LOW_STOCK_DISPATCH_JOB_TYPE, payloadSchema as lowStockDispatchPayloadSchema } from "./stock-low-stock-dispatch.js";
@@ -15,6 +16,7 @@ import { notifyOverdueProductionHoldsHandler, JOB_TYPE as HOLD_OVERDUE_JOB_TYPE,
 import { notifyProjectAlertsHandler, JOB_TYPE as PROJECT_ALERTS_JOB_TYPE, payloadSchema as projectAlertsPayloadSchema } from "./projects-alerts.js";
 import { noteExpiredQuotationsHandler, JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE, payloadSchema as quotationExpiryPayloadSchema } from "./sales-quotation-expiry.js";
 import { openNextFiscalYearHandler, JOB_TYPE as FISCAL_YEAR_AHEAD_JOB_TYPE, payloadSchema as fiscalYearAheadPayloadSchema } from "./platform-fiscal-year-ahead.js";
+import { leadScoringHistoryHandler, JOB_TYPE as LEAD_SCORING_HISTORY_JOB_TYPE, payloadSchema as leadScoringHistoryPayloadSchema } from "./crm-lead-scoring-history.js";
 import { buildWorkspaceExportHandler, JOB_TYPE as WORKSPACE_EXPORT_JOB_TYPE, payloadSchema as workspaceExportPayloadSchema } from "./platform-workspace-export.js";
 import { exchangeRateFeedHandler, JOB_TYPE as EXCHANGE_RATE_FEED_JOB_TYPE, payloadSchema as exchangeRateFeedPayloadSchema } from "./platform-exchange-rate-feed.js";
 import { workflowTimeTriggersHandler, JOB_TYPE as WORKFLOW_TIME_TRIGGERS_JOB_TYPE, payloadSchema as workflowTimeTriggersPayloadSchema } from "./platform-workflow-time-triggers.js";
@@ -42,6 +44,15 @@ export function registerBuiltinHandlers() {
     backoff: internalJobBackoff,
     // A completed run is skipped on replay (executeReportRun checks status),
     // and its output is written in the same transaction as the status.
+    idempotency: "NATURALLY_IDEMPOTENT",
+    maxAttempts: 2,
+    transactionMode: "managed",
+  });
+  registerJobHandler(SALES_DATA_JOB_TYPE, {
+    schema: salesDataJobPayloadSchema,
+    handler: salesDataJobHandler,
+    backoff: internalJobBackoff,
+    // A finished or failed run is skipped on replay (executeSalesDataJob checks status); the rows, result and file go in one transaction.
     idempotency: "NATURALLY_IDEMPOTENT",
     maxAttempts: 2,
     transactionMode: "managed",
@@ -162,6 +173,13 @@ export function registerBuiltinHandlers() {
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // each run writes its own export file; nothing else changes
     maxAttempts: 2,
+  });
+  registerJobHandler(LEAD_SCORING_HISTORY_JOB_TYPE, {
+    schema: leadScoringHistoryPayloadSchema,
+    handler: leadScoringHistoryHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // learning again overwrites the day's figures
+    maxAttempts: 3,
   });
   registerJobHandler(FISCAL_YEAR_AHEAD_JOB_TYPE, {
     schema: fiscalYearAheadPayloadSchema,

@@ -1388,6 +1388,7 @@ export { SALES_ACCESS_LEVELS, listSalesAccess, setSalesAccessLevel } from "./acc
 export { getRateContract, listRateContracts, saveRateContract, setRateContractStatus } from "./rate-contracts.js";
 export { acceptSharedQuotation, loadSharedDocument, renderSharedDocumentPdf, revokeDocumentLink, shareDocumentLink } from "./portal.js";
 export { getSalesPerformance, listCommissionRules, saveCommissionRule, setCommissionRuleStatus, setInvoicedTarget } from "./performance.js";
+export { BACKGROUND_IMPORT_ROW_LIMIT, SALES_DATA_JOB_TYPE, executeSalesDataJob, failSalesDataJob, getSalesDataJob, listSalesDataJobs, readSalesDataJobOutput, requestSalesImportJob } from "./data-jobs.js";
 export * from "./after-sales.js";
 export * from "./quotations/index.js";
 export * from "./orders/index.js";

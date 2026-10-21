@@ -74,8 +74,8 @@ export function buildCustomerImportTemplate() {
   return toCsv([CUSTOMER_IMPORT_FIELDS.map((field) => field.label), CUSTOMER_IMPORT_FIELDS.map((field) => field.sample)]);
 }
 
-export function parseUpload(bytes, fileName) {
-  return isXlsxFileName(fileName) ? parseXlsxUpload(bytes, { maxRows: IMPORT_ROW_LIMIT }) : parseCsvUpload(bytes, { maxRows: IMPORT_ROW_LIMIT });
+export function parseUpload(bytes, fileName, maxRows = IMPORT_ROW_LIMIT) {
+  return isXlsxFileName(fileName) ? parseXlsxUpload(bytes, { maxRows }) : parseCsvUpload(bytes, { maxRows });
 }
 
 function suggestMapping(headers) {
@@ -90,9 +90,9 @@ function suggestMapping(headers) {
 }
 
 // Step 1: read the file and propose a column mapping.
-export async function analyzeCustomerImport(_client, context, { bytes, fileName }) {
+export async function analyzeCustomerImport(_client, context, { bytes, fileName, maxRows }) {
   requireCustomerPermission(context, CUSTOMER_PERMISSIONS.import, "You do not have permission to import customers.");
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   return {
     fileName,
     headers: parsed.headers,
@@ -151,12 +151,12 @@ const describeMatch = (match) => `${match.name ?? "a customer"}${match.customerN
 // Step 2: validate (dryRun) or import the file.
 // options: mapping { header: fieldKey }, duplicateMode (skip | update |
 //          review), dryRun, defaults { countryCode, currencyCode }.
-export async function importCustomers(client, context, { bytes, fileName, mapping = {}, duplicateMode = "skip", dryRun = false, defaults = {} }) {
+export async function importCustomers(client, context, { bytes, fileName, mapping = {}, duplicateMode = "skip", dryRun = false, defaults = {}, maxRows }) {
   requireCustomerPermission(context, CUSTOMER_PERMISSIONS.import, "You do not have permission to import customers.");
   requireCustomerPermission(context, CUSTOMER_PERMISSIONS.create, "You do not have permission to create customers.");
   if (!DUPLICATE_MODES.includes(duplicateMode)) throw new CustomerError(400, "Choose how duplicates are handled.", "SALES_CUSTOMER_IMPORT_MAPPING");
   if (duplicateMode === "update") requireCustomerPermission(context, CUSTOMER_PERMISSIONS.edit, "You do not have permission to update customers.");
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   const unknown = Object.keys(mapping).filter((header) => !parsed.headers.includes(header));
   if (unknown.length) throw new CustomerError(400, `The file has no column named "${unknown[0]}".`, "SALES_CUSTOMER_IMPORT_MAPPING");
   if (!Object.values(mapping).includes("displayName")) throw new CustomerError(400, "Map the Customer Name column.", "SALES_CUSTOMER_IMPORT_MAPPING");

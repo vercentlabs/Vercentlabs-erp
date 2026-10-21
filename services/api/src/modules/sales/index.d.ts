@@ -65,3 +65,14 @@ export function revokeDocumentLink(client: SalesQueryClient, context: SalesConte
 export function loadSharedDocument(client: SalesQueryClient, token: string): Promise<any>;
 export function acceptSharedQuotation(client: SalesQueryClient, token: string, input: { name: string; note?: string }): Promise<{ accepted: boolean } | null>;
 export function renderSharedDocumentPdf(client: SalesQueryClient, token: string): Promise<{ fileName: string; body: Uint8Array } | null>;
+// Sales imports that run in the background (Line-by-line audit P5).
+export type SalesDataJob = { id: string; entity: "customers" | "customer_addresses" | "customer_contacts" | "prices"; entityLabel: string; status: "queued" | "running" | "succeeded" | "failed";
+  fileName: string | null; result: Record<string, any>; error: string | null; hasOutput: boolean; requestedByName: string | null; requestedAt: string; startedAt: string | null; completedAt: string | null };
+export const BACKGROUND_IMPORT_ROW_LIMIT: number;
+export const SALES_DATA_JOB_TYPE: string;
+export function requestSalesImportJob(client: SalesQueryClient, context: SalesContext, input: { entity: string; bytes: Uint8Array; fileName: string; mapping?: Record<string, string>; options?: Record<string, unknown> }, options?: { env?: Record<string, string | undefined>; storage?: unknown }): Promise<SalesDataJob>;
+export function listSalesDataJobs(client: SalesQueryClient, context: SalesContext, input?: { entities?: string[]; limit?: number }): Promise<SalesDataJob[]>;
+export function getSalesDataJob(client: SalesQueryClient, context: SalesContext, jobId: string): Promise<SalesDataJob>;
+export function readSalesDataJobOutput(client: SalesQueryClient, context: SalesContext, jobId: string, options?: { storage?: unknown }): Promise<{ body: Uint8Array; fileName?: string; mimeType?: string; [key: string]: unknown }>;
+export function executeSalesDataJob(client: SalesQueryClient, organizationId: string, payload: { salesDataJobId: string }, options?: { env?: Record<string, string | undefined>; storage?: unknown }): Promise<Record<string, unknown>>;
+export function failSalesDataJob(client: SalesQueryClient, organizationId: string, salesDataJobId: string, error: unknown): Promise<void>;

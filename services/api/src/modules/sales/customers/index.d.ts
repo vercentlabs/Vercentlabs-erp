@@ -63,10 +63,10 @@ export function getCustomerOverview(client: Client, context: Context, customerId
 export function listCustomerRelated(client: Client, context: Context, customerId: string, list: string): Promise<any[]>;
 export function listCustomerHistory(client: Client, context: Context, customerId: string): Promise<any[]>;
 
-export function analyzeCustomerImport(client: Client, context: Context, input: { bytes: Uint8Array | Buffer; fileName: string }): Promise<any>;
+export function analyzeCustomerImport(client: Client, context: Context, input: { bytes: Uint8Array | Buffer; fileName: string; maxRows?: number }): Promise<any>;
 export function importCustomers(client: Client, context: Context, input: { bytes: Uint8Array | Buffer; fileName: string; mapping?: Record<string, string>; duplicateMode?: string; dryRun?: boolean; defaults?: Input }): Promise<any>;
 export function buildCustomerImportTemplate(): string;
-export function analyzeCustomerRelatedImport(client: Client, context: Context, kind: string, input: { bytes: Uint8Array | Buffer; fileName: string }): Promise<any>;
+export function analyzeCustomerRelatedImport(client: Client, context: Context, kind: string, input: { bytes: Uint8Array | Buffer; fileName: string; maxRows?: number }): Promise<any>;
 export function importCustomerRelated(client: Client, context: Context, kind: string, input: { bytes: Uint8Array | Buffer; fileName: string; mapping?: Record<string, string>; dryRun?: boolean }): Promise<any>;
 export function buildCustomerRelatedImportTemplate(kind: string): string;
 export function exportCustomerRelated(client: Client, context: Context, kind: string, filters?: Input): Promise<{ fileName: string; csv: string; count: number }>;

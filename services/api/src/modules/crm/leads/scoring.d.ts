@@ -10,6 +10,7 @@ export type LeadScoring = {
 export const SCORING_FIELDS: ReadonlyArray<{ key: string; label: string; column: string; operators: string[] }>;
 export function rescoreLead(client: QueryClient, organizationId: string, leadId: string): Promise<{ score: number | null; details: Record<string, unknown> } | null>;
 export function rescoreOpenLeads(client: QueryClient, organizationId: string, options?: { limit?: number }): Promise<number>;
+export function refreshLeadScoringHistory(client: QueryClient, organizationId: string): Promise<{ leads: number }>;
 export function getLeadScoring(client: QueryClient, context: CrmContext): Promise<LeadScoring>;
 export function createLeadScoringRule(client: QueryClient, context: CrmContext, input: Record<string, unknown>): Promise<{ rule: LeadScoringRule; rescored: number }>;
 export function updateLeadScoringRule(client: QueryClient, context: CrmContext, ruleId: string, input: Record<string, unknown>): Promise<{ rule: LeadScoringRule; rescored: number }>;

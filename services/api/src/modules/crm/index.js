@@ -76,7 +76,7 @@ export * from "./chat/index.js";
 export { convertArrivingLead, leadsEnabled, setLeadsEnabled } from "./leads/switch.js";
 export { HISTORY_IMPORT_COLUMNS, analyzeHistoryImport, buildHistoryImportTemplate, importRecordHistory } from "./data-management/history-import.js";
 export { MIGRATION_SOURCES } from "./data-management/migration-presets.js";
-export { SCORING_FIELDS, createLeadScoringRule, deleteLeadScoringRule, getLeadScoring, rescoreLead, rescoreOpenLeads, saveLeadScoringSettings, updateLeadScoringRule } from "./leads/scoring.js";
+export { SCORING_FIELDS, createLeadScoringRule, deleteLeadScoringRule, getLeadScoring, refreshLeadScoringHistory, rescoreLead, rescoreOpenLeads, saveLeadScoringSettings, updateLeadScoringRule } from "./leads/scoring.js";
 export { CONSENT_LOCK_DAYS, addOptOut, assertConsentRequestAllowed, findPersonalData, listConsentHistory, listOptOuts, optOutOf, removeOptOut, withConsentSource } from "./data-management/consent.js";
 export * from "./accounts/index.js";
 export * from "./contacts/index.js";

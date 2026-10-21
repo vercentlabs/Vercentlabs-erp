@@ -84,6 +84,31 @@ async function readHistory(client, organizationId) {
 
 const DIMENSION_LABEL = { source: "source", campaign: "campaign", medium: "medium", state: "state" };
 
+// The learned history is kept a day (Line-by-line audit P11, C13): a lead saved reads it instead of scanning a year of leads; the nightly
+// job (refreshLeadScoringHistory) learns it again. Stored as { total, rate, by: { dimension: [[value, { converted, total }]] } }.
+const HISTORY_FRESH_HOURS = 26;
+const packHistory = (history) => ({ total: history.total, rate: history.rate, by: Object.fromEntries(Object.entries(history.by).map(([key, map]) => [key, [...map.entries()]])) });
+const unpackHistory = (stored) => ({ total: stored.total, rate: stored.rate, by: Object.fromEntries(Object.entries(stored.by).map(([key, entries]) => [key, new Map(entries)])) });
+
+export async function refreshLeadScoringHistory(client, organizationId) {
+  const history = await readHistory(client, organizationId);
+  await client.query(
+    `INSERT INTO tenant.crm_lead_scoring_history (organization_id, history, computed_at) VALUES ($1, $2::jsonb, now())
+     ON CONFLICT (organization_id) DO UPDATE SET history = EXCLUDED.history, computed_at = EXCLUDED.computed_at`, [organizationId, JSON.stringify(packHistory(history))]);
+  return { leads: history.total };
+}
+
+async function learnedHistory(client, organizationId) {
+  const stored = (await client.query(
+    `SELECT history FROM tenant.crm_lead_scoring_history WHERE organization_id = $1 AND computed_at > now() - make_interval(hours => $2)`, [organizationId, HISTORY_FRESH_HOURS])).rows[0];
+  if (stored) return unpackHistory(stored.history);
+  const history = await readHistory(client, organizationId);
+  await client.query(
+    `INSERT INTO tenant.crm_lead_scoring_history (organization_id, history, computed_at) VALUES ($1, $2::jsonb, now())
+     ON CONFLICT (organization_id) DO UPDATE SET history = EXCLUDED.history, computed_at = EXCLUDED.computed_at`, [organizationId, JSON.stringify(packHistory(history))]);
+  return history;
+}
+
 // Scores one lead row. Returns { score, details } (score null when there is nothing to score by).
 export function scoreLead(lead, { rules, settings, history }) {
   const matched = rules.filter((rule) => matches(rule, lead)).map((rule) => ({ label: rule.label || describeRule(rule), points: rule.points }));
@@ -124,7 +149,7 @@ export async function rescoreLead(client, organizationId, leadId) {
   // one connection: one query at a time
   const rules = await readRules(client, organizationId);
   const settings = await readSettings(client, organizationId);
-  const history = await readHistory(client, organizationId);
+  const history = await learnedHistory(client, organizationId);
   const lead = (await client.query("SELECT * FROM tenant.crm_leads WHERE organization_id = $1 AND id = $2", [organizationId, leadId])).rows[0];
   if (!lead) return null;
   const result = scoreLead(lead, { rules, settings, history });
@@ -139,7 +164,7 @@ export async function rescoreLeads(client, organizationId, leadIds) {
   if (!ids.length) return 0;
   const rules = await readRules(client, organizationId);
   const settings = await readSettings(client, organizationId);
-  const history = await readHistory(client, organizationId);
+  const history = await learnedHistory(client, organizationId);
   const leads = (await client.query("SELECT * FROM tenant.crm_leads WHERE organization_id = $1 AND id = ANY($2::uuid[])", [organizationId, ids])).rows;
   for (const lead of leads) await writeScore(client, organizationId, lead.id, scoreLead(lead, { rules, settings, history }));
   return leads.length;
@@ -166,7 +191,7 @@ function toRule(row) {
 export async function getLeadScoring(client, context) {
   requireManage(context);
   const { rows } = await client.query("SELECT * FROM tenant.crm_lead_scoring_rules WHERE organization_id = $1 ORDER BY created_at", [context.organizationId]);
-  const history = await readHistory(client, context.organizationId);
+  const history = await learnedHistory(client, context.organizationId);
   const custom = (await client.query("SELECT key, label, field_type FROM tenant.crm_custom_fields WHERE organization_id = $1 AND entity_type = 'lead' AND status = 'active' ORDER BY sequence",
     [context.organizationId])).rows;
   return {

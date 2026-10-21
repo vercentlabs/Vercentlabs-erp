@@ -82,10 +82,10 @@ function suggestMapping(fields, headers) {
 }
 
 // Step 1: read the file and propose a column mapping.
-export async function analyzeCustomerRelatedImport(_client, context, kind, { bytes, fileName }) {
+export async function analyzeCustomerRelatedImport(_client, context, kind, { bytes, fileName, maxRows }) {
   requireCustomerPermission(context, CUSTOMER_PERMISSIONS.import, "You do not have permission to import customer data.");
   const fields = FIELDS[kindOf(kind)];
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   return {
     kind, fileName, headers: parsed.headers, rowCount: parsed.rowCount ?? parsed.records.length, sampleRows: parsed.records.slice(0, 5),
     suggestedMapping: suggestMapping(fields, parsed.headers), fields: fields.map(({ key, label }) => ({ key, label })),
@@ -156,13 +156,13 @@ async function importContactRow(client, context, values, customer) {
 
 // Step 2: validate (dryRun) or import the file.
 // input: bytes, fileName, mapping { header: fieldKey }, dryRun.
-export async function importCustomerRelated(client, context, kind, { bytes, fileName, mapping = {}, dryRun = false }) {
+export async function importCustomerRelated(client, context, kind, { bytes, fileName, mapping = {}, dryRun = false, maxRows }) {
   requireCustomerPermission(context, CUSTOMER_PERMISSIONS.import, "You do not have permission to import customer data.");
   const addresses = kindOf(kind) === "addresses";
   requireCustomerPermission(context, addresses ? CUSTOMER_PERMISSIONS.manageAddresses : CUSTOMER_PERMISSIONS.manageContacts,
     `You do not have permission to manage customer ${kind}.`);
   const fields = new Map(FIELDS[kind].map((field) => [field.key, field]));
-  const parsed = parseUpload(bytes, fileName);
+  const parsed = parseUpload(bytes, fileName, maxRows);
   const unknown = Object.keys(mapping).filter((header) => !parsed.headers.includes(header));
   if (unknown.length) throw new CustomerError(400, `The file has no column named "${unknown[0]}".`, "SALES_CUSTOMER_IMPORT_MAPPING");
   for (const required of REQUIRED[kind])

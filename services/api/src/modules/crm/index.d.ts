@@ -190,7 +190,7 @@ export function analyzeHistoryImport(input: { bytes: Uint8Array; fileName: strin
 export function importRecordHistory(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; mapping?: Record<string, string> }):
   Promise<{ created: number; notes: number; skipped: number; failed: number; errors: Array<{ row: number; message: string }> }>;
 export const MIGRATION_SOURCES: ReadonlyArray<{ key: string; label: string; howTo: string }>;
-export { SCORING_FIELDS, createLeadScoringRule, deleteLeadScoringRule, getLeadScoring, rescoreLead, rescoreOpenLeads, saveLeadScoringSettings, updateLeadScoringRule } from "./leads/scoring.js";
+export { SCORING_FIELDS, createLeadScoringRule, deleteLeadScoringRule, getLeadScoring, refreshLeadScoringHistory, rescoreLead, rescoreOpenLeads, saveLeadScoringSettings, updateLeadScoringRule } from "./leads/scoring.js";
 // The consent ledger, opt-out list and personal-data lookup (CRM plan 4.3).
 export const CONSENT_LOCK_DAYS: number;
 export type ConsentEvent = { id: string; channel: string; action: "opt_in" | "opt_out" | "consent_withdrawn" | "opt_out_lifted"; source: string; evidence: string | null; recordedAt: string; recordedByName: string | null };
