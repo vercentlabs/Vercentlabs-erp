@@ -8,6 +8,7 @@ import { markCreditNoteSent } from "./credit-notes/communication.js";
 import { markOrderConfirmationSent } from "./order-confirmations/communication.js";
 import { markQuotationSent } from "./quotations/lifecycle.js";
 import { SalesError } from "./index.js";
+import { shareDocumentLink } from "./portal.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KINDS = Object.freeze(["quotation", "proforma", "order", "invoice", "credit_note"]);
@@ -77,7 +78,18 @@ export async function sendDocumentOnWhatsApp(client, context, input = {}) {
   if (await optOutOf(client, context.organizationId, { phone }, "whatsapp"))
     throw new SalesError(409, "This number is on the opt-out list for WhatsApp.", "SALES_WHATSAPP_OPTED_OUT");
   const company = (await client.query("SELECT COALESCE(legal_name, name) AS name FROM public.organizations WHERE id = $1", [context.organizationId])).rows[0]?.name ?? "";
-  const body = String(input.body ?? "").trim().slice(0, 4000) || messageOf(kind, doc, company);
+  let body = String(input.body ?? "").trim().slice(0, 4000) || messageOf(kind, doc, company);
+  // The customer's link (accept the quotation, pay the invoice online), when the person may share it and the message was not written by hand.
+  if (!input.body && ["quotation", "invoice"].includes(kind)) {
+    await client.query("SAVEPOINT whatsapp_link");
+    try {
+      const { url } = await shareDocumentLink(client, context, kind, input.id);
+      if (url.startsWith("http")) body = body.replace("\n\nRegards,", `\n\n${kind === "quotation" ? "View and accept it online" : "View and pay it online"}: ${url}\n\nRegards,`);
+      await client.query("RELEASE SAVEPOINT whatsapp_link");
+    } catch {
+      await client.query("ROLLBACK TO SAVEPOINT whatsapp_link");
+    }
+  }
   const recipient = `WhatsApp +${phone}`;
   const key = input.idempotencyKey ? String(input.idempotencyKey).slice(0, 180) : undefined;
   if (kind === "quotation") await markQuotationSent(client, context, input.id, { channel: "whatsapp", recipient });

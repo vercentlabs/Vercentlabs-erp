@@ -17,6 +17,7 @@ import {
   reviseSalesQuotation,
 } from "../api/quotations-api";
 import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
+import { ShareLinkButton } from "@/features/sales/shared/ShareLinkButton";
 
 export type LifecycleQuotation = {
   id: string; number: string;
@@ -57,6 +58,7 @@ export function QuotationLifecycleActions({ quotation, can, onChanged, size = "s
             <Button variant="secondary" size={size} onPress={() => setDialog("email")}>Email</Button>
             <Button variant="secondary" size={size} onPress={() => setDialog("markSent")}>Mark as sent</Button>
             <WhatsAppSendButton kind="quotation" id={quotation.id} size={size} pdfUrl={`/api/documents/sales.quotation/${quotation.id}/pdf`} onSent={onChanged} />
+            <ShareLinkButton kind="quotation" id={quotation.id} size={size} />
           </>
         )}
         {proforma && <Button variant="secondary" size={size} onPress={() => setDialog("proforma")}>Proforma invoice</Button>}

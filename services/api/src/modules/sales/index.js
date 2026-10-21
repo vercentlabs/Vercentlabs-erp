@@ -1341,6 +1341,7 @@ export { sendDocumentOnWhatsApp } from "./whatsapp.js";
 export { CHALLAN_PURPOSES, createSalesChallan, getSalesChallan, listSalesChallans, setSalesChallanStatus } from "./challans.js";
 export { SALES_ACCESS_LEVELS, listSalesAccess, setSalesAccessLevel } from "./access-levels.js";
 export { getRateContract, listRateContracts, saveRateContract, setRateContractStatus } from "./rate-contracts.js";
+export { acceptSharedQuotation, loadSharedDocument, renderSharedDocumentPdf, revokeDocumentLink, shareDocumentLink } from "./portal.js";
 export { getSalesPerformance, listCommissionRules, saveCommissionRule, setCommissionRuleStatus, setInvoicedTarget } from "./performance.js";
 export * from "./after-sales.js";
 export * from "./quotations/index.js";

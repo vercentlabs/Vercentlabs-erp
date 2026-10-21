@@ -33,6 +33,7 @@ import {
 import { InvoiceStatusBadges } from "../components/InvoiceStatusBadges";
 import { NextStep, invoiceNextStep } from "@/features/sales/shared/NextStep";
 import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
+import { ShareLinkButton } from "@/features/sales/shared/ShareLinkButton";
 import { RepeatOrderButton } from "@/features/sales/orders/components/RepeatOrderButton";
 import { RecordPaymentDialog } from "../components/RecordPaymentDialog";
 import { CreateCreditNoteDialog } from "@/features/sales/credit-notes/components/CreditNoteDialogs";
@@ -152,6 +153,7 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
               {actions.print && posted && <a className={buttonVariants({ variant: "secondary" })} href={`${invoicePdfUrl(invoiceId, true)}&copies=3`} target="_blank" rel="noreferrer">Print 3 copies</a>}
               {actions.markSent && <Button variant="secondary" onPress={() => setDialog("markSent")}>Mark as Sent</Button>}
               {posted && invoice.sales_order_id && (workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.create")) && <RepeatOrderButton invoiceId={invoiceId} />}
+              {actions.markSent && <ShareLinkButton kind="invoice" id={invoiceId} />}
               {actions.markSent && <WhatsAppSendButton kind="invoice" id={invoiceId} pdfUrl={invoicePdfUrl(invoiceId)} onSent={refresh} />}
               {actions.recordPayment && <Button variant="secondary" onPress={() => setDialog("payment")}><Wallet className="size-4" aria-hidden="true" />Record Payment</Button>}
               {actions.creditNote && <Button variant="secondary" onPress={() => setDialog("credit")}><FileMinus className="size-4" aria-hidden="true" />Create Credit Note</Button>}

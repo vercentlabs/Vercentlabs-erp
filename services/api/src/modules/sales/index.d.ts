@@ -59,3 +59,9 @@ export function listRateContracts(client: SalesQueryClient, context: SalesContex
 export function getRateContract(client: SalesQueryClient, context: SalesContext, contractId: string): Promise<any>;
 export function saveRateContract(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, contractId?: string | null): Promise<any>;
 export function setRateContractStatus(client: SalesQueryClient, context: SalesContext, contractId: string, action: "activate" | "close" | "cancel"): Promise<any>;
+// The customer's link to a quotation or invoice (Sales audit).
+export function shareDocumentLink(client: SalesQueryClient, context: SalesContext, kind: "quotation" | "invoice", documentId: string, env?: Record<string, string | undefined>): Promise<{ url: string; documentNumber: string }>;
+export function revokeDocumentLink(client: SalesQueryClient, context: SalesContext, kind: "quotation" | "invoice", documentId: string): Promise<{ revoked: boolean }>;
+export function loadSharedDocument(client: SalesQueryClient, token: string): Promise<any>;
+export function acceptSharedQuotation(client: SalesQueryClient, token: string, input: { name: string; note?: string }): Promise<{ accepted: boolean } | null>;
+export function renderSharedDocumentPdf(client: SalesQueryClient, token: string): Promise<{ fileName: string; body: Uint8Array } | null>;

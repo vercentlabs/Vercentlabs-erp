@@ -324,3 +324,41 @@ BEGIN
 END $$;
 ALTER TABLE tenant.sales_order_lines ADD COLUMN IF NOT EXISTS rate_contract_line_id uuid REFERENCES tenant.sales_rate_contract_lines(id) ON DELETE SET NULL;
 ALTER TABLE tenant.sales_quotation_lines ADD COLUMN IF NOT EXISTS rate_contract_line_id uuid REFERENCES tenant.sales_rate_contract_lines(id) ON DELETE SET NULL;
+
+-- 17. The customer's link (should-have: customer portal): a quotation or invoice shared as a link the customer opens without signing in —
+--     to read it, download the PDF, accept the quotation (named, timed, from their side) or pay the invoice by UPI. The token is the only
+--     credential: kept hashed for lookup and encrypted so the same link is given every time; a link can be revoked.
+CREATE TABLE IF NOT EXISTS tenant.sales_document_links (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  document_type text NOT NULL CHECK (document_type IN ('quotation', 'invoice')),
+  document_id uuid NOT NULL,
+  token_hash text NOT NULL UNIQUE,
+  token_encrypted jsonb NOT NULL,
+  view_count integer NOT NULL DEFAULT 0,
+  last_viewed_at timestamptz,
+  revoked_at timestamptz,
+  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS sales_document_links_live_uidx ON tenant.sales_document_links (organization_id, document_type, document_id) WHERE revoked_at IS NULL;
+ALTER TABLE tenant.sales_document_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant.sales_document_links FORCE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tenant' AND tablename = 'sales_document_links' AND policyname = 'organization_isolation') THEN
+    CREATE POLICY organization_isolation ON tenant.sales_document_links USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
+  END IF;
+END $$;
+GRANT SELECT, INSERT, UPDATE, DELETE ON tenant.sales_document_links TO vercent_app, vercent_worker;
+CREATE OR REPLACE FUNCTION tenant.sales_resolve_document_link(token_hash_in text)
+RETURNS TABLE(organization_id uuid, document_type text, document_id uuid)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO 'tenant', 'public', 'pg_temp'
+AS $$
+  SELECT link.organization_id, link.document_type, link.document_id FROM tenant.sales_document_links link WHERE link.token_hash = token_hash_in AND link.revoked_at IS NULL LIMIT 1
+$$;
+REVOKE ALL ON FUNCTION tenant.sales_resolve_document_link(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION tenant.sales_resolve_document_link(text) TO vercent_app, vercent_worker;
+ALTER TABLE tenant.sales_quotations DROP CONSTRAINT IF EXISTS sales_quotations_sent_channel_check;
+ALTER TABLE tenant.sales_quotations ADD CONSTRAINT sales_quotations_sent_channel_check CHECK (sent_channel IS NULL OR sent_channel IN ('email', 'manual', 'link', 'whatsapp'));
