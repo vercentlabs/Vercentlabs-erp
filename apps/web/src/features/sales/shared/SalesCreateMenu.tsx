@@ -19,6 +19,8 @@ import { request } from "@/features/sales/shared/http";
 type Source = { id: string; number: string; detail: string };
 type Picker = {
   key: string; label: string; permission: string; title: string; description: string;
+  // Shown only while that app is on (Line-by-line audit: a company without Stock delivers by challan, not delivery).
+  app?: string;
   // The list endpoint (under /api/sales) that returns the eligible sources, and how a row reads.
   path: string; read: (row: Record<string, unknown>) => Source; open: (id: string) => string;
 };
@@ -31,7 +33,7 @@ const STARTS = [
 const text = (value: unknown) => (value === null || value === undefined ? "" : String(value));
 const PICKERS: Picker[] = [
   {
-    key: "delivery", label: "Delivery", permission: "sales.fulfillment.request", title: "New delivery", description: "Choose the confirmed sales order with goods still to deliver.",
+    key: "delivery", label: "Delivery", permission: "sales.fulfillment.request", app: "stock", title: "New delivery", description: "Choose the confirmed sales order with goods still to deliver.",
     path: "/orders?deliverable=true&sort=date&direction=desc", open: (id) => `/sales/orders/${id}?create=delivery`,
     read: (row) => ({ id: text(row.id), number: text(row.sales_order_number), detail: [row.customer_name, row.customer_po_number && `PO ${text(row.customer_po_number)}`].filter(Boolean).join(" · ") }),
   },
@@ -41,9 +43,15 @@ const PICKERS: Picker[] = [
     read: (row) => ({ id: text(row.id), number: text(row.sales_order_number), detail: [row.customer_name, row.customer_po_number && `PO ${text(row.customer_po_number)}`].filter(Boolean).join(" · ") }),
   },
   {
-    key: "return", label: "Sales Return", permission: "sales.return.create", title: "New sales return", description: "Choose the dispatched or delivered delivery the goods came back from.",
+    key: "return", label: "Sales Return", permission: "sales.return.create", app: "stock", title: "New sales return", description: "Choose the dispatched or delivered delivery the goods came back from.",
     path: "/deliveries?shipped=true&sort=dispatch&direction=desc", open: (id) => `/sales/deliveries/${id}?create=return`,
     read: (row) => ({ id: text(row.id), number: text(row.delivery_number), detail: [row.customer_name, row.sales_order_number].filter(Boolean).join(" · ") }),
+  },
+  {
+    // The most common document after an invoice: the customer paid (Line-by-line audit).
+    key: "payment", label: "Payment Received", permission: "sales.invoice.record_payment", title: "Payment received", description: "Choose the posted invoice the customer paid.",
+    path: "/invoices?view=balance_due&sort=date&direction=desc", open: (id) => `/sales/invoices/${id}?create=payment`,
+    read: (row) => ({ id: text(row.id), number: text(row.invoice_number), detail: [row.customer_name, row.balance_due != null && `due ${text(row.balance_due)}`].filter(Boolean).join(" · ") }),
   },
   {
     key: "credit", label: "Credit Note", permission: "sales.credit_note.create", title: "New credit note", description: "Choose the posted invoice to credit. For returned goods, start from the sales return.",
@@ -58,7 +66,8 @@ export function SalesCreateMenu({ size = "standard" }: { size?: "compact" | "sta
   const [picking, setPicking] = useState<Picker | null>(null);
   const holds = (permission: string) => workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(permission);
   const starts = STARTS.filter((entry) => holds(entry.permission));
-  const pickers = PICKERS.filter((entry) => holds(entry.permission));
+  const apps = workspace.accessibleModuleKeys;
+  const pickers = PICKERS.filter((entry) => holds(entry.permission) && (!entry.app || apps.includes(entry.app)));
   const refunds = holds("accounting.refund.create");
   if (!starts.length && !pickers.length && !refunds) return null;
   return (

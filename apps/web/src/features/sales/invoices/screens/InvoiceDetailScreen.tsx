@@ -39,6 +39,8 @@ import { RecordPaymentDialog } from "../components/RecordPaymentDialog";
 import { CreateCreditNoteDialog } from "@/features/sales/credit-notes/components/CreditNoteDialogs";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
+import { useTabParam } from "@/features/sales/shared/useTabParam";
+import { MoreActions } from "@/shared/ui/record";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -78,7 +80,7 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
   const router = useRouter();
   const key = scopedQueryKey(workspace, "sales", "invoice", invoiceId);
   const query = useQuery({ queryKey: key, queryFn: () => getInvoice(invoiceId).then((r) => r.invoice) });
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useTabParam("overview");
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const refresh = () => {
@@ -90,6 +92,7 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
 
   // From Sales → + Create: open the credit note dialog when this invoice allows it.
   useCreateRequest(Boolean(query.data), (kind) => {
+    if (kind === "payment") { if (query.data?.actions.recordPayment) setDialog("payment"); else setNotice("A payment cannot be recorded on this invoice: it must be posted, with a balance to pay."); return; }
     if (kind !== "credit") return;
     if (query.data?.actions.creditNote) setDialog("credit"); else setNotice("A credit note cannot be created from this invoice: it must be posted, with something left to credit.");
   });
@@ -144,22 +147,28 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
           ) : actions.send ? (
             <Button variant="primary" onPress={() => setDialog("send")}><Send className="size-4" aria-hidden="true" />Send Invoice</Button>
           ) : undefined,
+          // The everyday actions as buttons, e-invoice and e-way bill in the header (their panels are below), the rest under "More"
+          // (Line-by-line audit, navigation).
           secondaryActions: (
             <div className="flex flex-wrap items-center gap-2">
               {actions.edit && <Button variant="secondary" onPress={() => setDialog("edit")}><Pencil className="size-4" aria-hidden="true" />Edit</Button>}
-              {!actions.edit && (actions.changePaymentTerms || actions.overrideDueDate) && <Button variant="secondary" onPress={() => setDialog("terms")}>Payment Terms / Due Date</Button>}
-              {actions.print && <a className={buttonVariants({ variant: "secondary" })} href={invoicePdfUrl(invoiceId, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />{posted ? "View PDF" : "Draft PDF"}</a>}
-              {actions.print && posted && <LinkButton variant="secondary" href={invoicePdfUrl(invoiceId)} download>Download</LinkButton>}
-              {actions.print && posted && <a className={buttonVariants({ variant: "secondary" })} href={`${invoicePdfUrl(invoiceId, true)}&copies=3`} target="_blank" rel="noreferrer">Print 3 copies</a>}
-              {actions.markSent && <Button variant="secondary" onPress={() => setDialog("markSent")}>Mark as Sent</Button>}
-              {posted && invoice.sales_order_id && (workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.create")) && <RepeatOrderButton invoiceId={invoiceId} />}
-              {actions.markSent && <ShareLinkButton kind="invoice" id={invoiceId} />}
-              {actions.markSent && <WhatsAppSendButton kind="invoice" id={invoiceId} pdfUrl={invoicePdfUrl(invoiceId)} onSent={refresh} />}
               {actions.recordPayment && <Button variant="secondary" onPress={() => setDialog("payment")}><Wallet className="size-4" aria-hidden="true" />Record Payment</Button>}
-              {actions.creditNote && <Button variant="secondary" onPress={() => setDialog("credit")}><FileMinus className="size-4" aria-hidden="true" />Create Credit Note</Button>}
-              {actions.changeDueDate && <Button variant="ghost" onPress={() => setDialog("dueDate")}>Change Due Date</Button>}
-              {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel Draft</Button>}
-              {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Reverse</Button>}
+              {actions.print && <a className={buttonVariants({ variant: "secondary" })} href={invoicePdfUrl(invoiceId, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />{posted ? "PDF" : "Draft PDF"}</a>}
+              {actions.markSent && <WhatsAppSendButton kind="invoice" id={invoiceId} pdfUrl={invoicePdfUrl(invoiceId)} onSent={refresh} />}
+              {actions.markSent && <ShareLinkButton kind="invoice" id={invoiceId} />}
+              {posted && <a className={buttonVariants({ variant: "secondary" })} href="#e-invoice">E-invoice (IRN)</a>}
+              {posted && <a className={buttonVariants({ variant: "secondary" })} href="#e-way-bill">E-way bill</a>}
+              {posted && invoice.sales_order_id && (workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.create")) && <RepeatOrderButton invoiceId={invoiceId} />}
+              <MoreActions actions={[
+                { id: "credit", label: "Create credit note", show: actions.creditNote, run: () => setDialog("credit") },
+                { id: "download", label: "Download PDF", show: actions.print && posted, run: () => { window.location.href = invoicePdfUrl(invoiceId); } },
+                { id: "copies", label: "Print 3 copies", show: actions.print && posted, run: () => window.open(`${invoicePdfUrl(invoiceId, true)}&copies=3`, "_blank", "noopener") },
+                { id: "markSent", label: "Mark as sent", show: actions.markSent, run: () => setDialog("markSent") },
+                { id: "terms", label: "Payment terms / due date", show: !actions.edit && (actions.changePaymentTerms || actions.overrideDueDate), run: () => setDialog("terms") },
+                { id: "dueDate", label: "Change due date", show: actions.changeDueDate, run: () => setDialog("dueDate") },
+                { id: "cancel", label: "Cancel draft", show: actions.cancel, run: () => setDialog("cancel") },
+                { id: "reverse", label: "Reverse", show: actions.reverse, run: () => setDialog("reverse") },
+              ]} />
             </div>
           ),
         }}
@@ -181,8 +190,8 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
             <Tab id="taxes">Taxes</Tab>
             {actions.viewPayments && <Tab id="payments">Payments</Tab>}
             <Tab id="credits">Credits</Tab>
-            <Tab id="related">Related documents</Tab>
-            <Tab id="notes">Notes &amp; attachments</Tab>
+            <Tab id="related">Related</Tab>
+            <Tab id="notes">Notes &amp; files</Tab>
             {actions.viewAccounting && <Tab id="accounting">Accounting</Tab>}
             <Tab id="history">History</Tab>
           </TabList>

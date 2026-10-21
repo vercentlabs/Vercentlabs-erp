@@ -27,6 +27,8 @@ import { CustomerStatusDialog, LinkAccountDialog, type StatusAction } from "../c
 import { CustomerOverviewPanel } from "../components/CustomerOverviewPanel";
 import { CustomerLedgerPanel } from "../components/CustomerLedgerPanel";
 import { CustomerHistoryPanel, CustomerRelatedPanel, type RelatedList } from "../components/CustomerRelatedPanels";
+import { useTabParam } from "@/features/sales/shared/useTabParam";
+import { RecordThreadPanel } from "@/features/platform/record-thread/RecordThreadPanel";
 
 const RELATED_TABS: Array<{ id: RelatedList; label: string; needs: "sales" | "finance" | "projects" | "support" }> = [
   { id: "quotations", label: "Quotations", needs: "sales" },
@@ -43,8 +45,7 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const requestedTab = useSearchParams().get("tab");
-  const [tab, setTab] = useState(requestedTab ?? "overview");
+  const [tab, setTab] = useTabParam("overview");
   const [dialog, setDialog] = useState<StatusAction | "link" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +71,12 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
   const options = optionsQuery.data;
   const can = options.capabilities;
   const has = (permission: string) => workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(permission);
-  const access = { sales: has("sales.view"), finance: can.viewFinancials, projects: has("projects.view"), support: has("support.view"), notes: has("crm.notes.view"), files: has("crm.attachments.view") };
+  const access = { sales: has("sales.view"), finance: can.viewFinancials, projects: has("projects.view"), support: has("support.view"), notes: has("crm.notes.view") && workspace.accessibleModuleKeys.includes("crm"), files: has("crm.attachments.view") && workspace.accessibleModuleKeys.includes("crm") };
+  // Without CRM, notes and to-dos on the customer are kept in Sales (Line-by-line audit).
+  const salesNotes = access.sales && !(access.notes || access.files);
+  // Deliveries only with Stock (a Sales-only company delivers by challan); projects and support only while those apps are on.
+  const appOn = (key: string) => workspace.accessibleModuleKeys.includes(key);
+  const relatedTabs = RELATED_TABS.filter((entry) => access[entry.needs] && (entry.id !== "deliveries" || appOn("stock")) && (entry.needs !== "projects" || appOn("projects")) && (entry.needs !== "support" || appOn("support")));
   const active = customer.status === "active";
   const refresh = () => {
     setDialog(null);
@@ -115,7 +121,8 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
           secondaryActions: (
             <>
               {access.sales && has("sales.order.create") && active && <LinkButton href={`/sales/orders/new?customer=${customer.id}`} variant="secondary">New Sales Order</LinkButton>}
-              {access.sales && has("sales.invoice.request") && active && <LinkButton href="/sales/invoices" variant="secondary">New Invoice</LinkButton>}
+              {/* An invoice starts from an order: this customer's orders ready to invoice (Line-by-line audit). */}
+              {access.sales && has("sales.invoice.request") && active && <LinkButton href={`/sales/orders?view=ready_to_invoice&f.partyId=${customer.id}`} variant="secondary">New Invoice</LinkButton>}
               {menu.length > 0 && (
                 <MenuTrigger>
                   <Button variant="outline" aria-label="More actions"><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
@@ -149,15 +156,15 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
             <Tab id="overview">Overview</Tab>
             {can.viewAddresses && <Tab id="addresses">Addresses</Tab>}
             {can.viewContacts && <Tab id="contacts">Contacts</Tab>}
-            {RELATED_TABS.filter((entry) => access[entry.needs]).map((entry) => <Tab key={entry.id} id={entry.id}>{entry.label}</Tab>)}
+            {relatedTabs.map((entry) => <Tab key={entry.id} id={entry.id}>{entry.label}</Tab>)}
             {access.finance && <Tab id="ledger">Ledger</Tab>}
-            {(access.notes || access.files) && <Tab id="notes">Notes &amp; Attachments</Tab>}
+            {(access.notes || access.files || salesNotes) && <Tab id="notes">Notes &amp; files</Tab>}
             <Tab id="history">History</Tab>
           </TabList>
           <TabPanel id="overview"><CustomerOverviewPanel customer={customer} onOpenTab={setTab} /></TabPanel>
           {can.viewAddresses && <TabPanel id="addresses"><CustomerAddressesPanel customer={customer} options={options} /></TabPanel>}
           {can.viewContacts && <TabPanel id="contacts"><CustomerContactsPanel customer={customer} options={options} /></TabPanel>}
-          {RELATED_TABS.filter((entry) => access[entry.needs]).map((entry) => (
+          {relatedTabs.map((entry) => (
             <TabPanel key={entry.id} id={entry.id}><CustomerRelatedPanel customerId={customer.id} list={entry.id} /></TabPanel>
           ))}
           {access.finance && <TabPanel id="ledger"><CustomerLedgerPanel customerId={customer.id} /></TabPanel>}
@@ -169,6 +176,7 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
               </div>
             </TabPanel>
           )}
+          {salesNotes && <TabPanel id="notes"><div className="pt-3"><RecordThreadPanel type="sales.customer" id={customer.id} /></div></TabPanel>}
           <TabPanel id="history"><CustomerHistoryPanel customerId={customer.id} /></TabPanel>
         </Tabs>
       </RecordDetailsPage>

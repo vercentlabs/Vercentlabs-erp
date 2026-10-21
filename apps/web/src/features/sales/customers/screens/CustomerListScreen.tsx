@@ -19,6 +19,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 import { customerExportUrl, customerRelatedExportUrl, errorCode, getCustomerOptions, listCustomers, type Customer, type CustomerListFilters } from "../api/customers-api";
 import { CustomerStatusBadge, ErrorBanner, cityState } from "../customer-format";
+import { readListState, useListUrlState } from "@/features/sales/shared/listUrlState";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -36,19 +37,24 @@ const FILTER_NAMES: Record<FilterKey, string> = {
 const CREATED = [{ value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }, { value: "365", label: "Last 12 months" }];
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 
+// What the list shows with nothing in the address.
+const LIST_DEFAULTS = { sort: [{ id: "createdAt", desc: true }] as SortingState, filters: NO_FILTERS };
+
 export function CustomerListScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const params = useSearchParams();
 
-  const [view, setViewState] = useState(params.get("view") || "all");
-  const [search, setSearch] = useState(params.get("search") ?? "");
-  const [submittedSearch, setSubmittedSearchState] = useState(params.get("search") ?? "");
-  const [filters, setFiltersState] = useState<Filters>(NO_FILTERS);
-  const [sorting, setSortingState] = useState<SortingState>([{ id: "createdAt", desc: true }]);
-  const [pageIndex, setPageIndex] = useState(0);
+  const initial = readListState(params, LIST_DEFAULTS);
+  const [view, setViewState] = useState(initial.view);
+  const [search, setSearch] = useState(initial.search);
+  const [submittedSearch, setSubmittedSearchState] = useState(initial.search);
+  const [filters, setFiltersState] = useState<Filters>(initial.filters);
+  const [sorting, setSortingState] = useState<SortingState>(initial.sorting);
+  const [pageIndex, setPageIndex] = useState(initial.pageIndex);
 
   const setView = (next: string) => { setViewState(next); setPageIndex(0); };
+  useListUrlState({ view, search: submittedSearch, filters: filters, sorting, pageIndex }, LIST_DEFAULTS, setView);
   const setFilters = (next: Filters) => { setFiltersState(next); setPageIndex(0); };
   const setSorting = (next: SortingState) => { setSortingState(next); setPageIndex(0); };
   const setSubmittedSearch = (next: string) => {

@@ -24,6 +24,7 @@ import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api"
 
 import { listInvoices, type InvoiceFilters, type InvoiceRow } from "../api/invoices-api";
 import { InvoiceStatusBadges } from "../components/InvoiceStatusBadges";
+import { readListState, useListUrlState } from "@/features/sales/shared/listUrlState";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -38,17 +39,22 @@ const STATUSES = [{ value: "draft", label: "Draft" }, { value: "posted", label: 
 const PAYMENTS = [{ value: "unpaid", label: "Unpaid" }, { value: "partially_paid", label: "Partially paid" }, { value: "paid", label: "Paid" }];
 const DEFAULT_VIEWS = [{ key: "all", label: "All Invoices" }];
 
+// What the list shows with nothing in the address.
+const LIST_DEFAULTS = { sort: [{ id: "created", desc: true }] as SortingState, filters: NO_FILTERS };
+
 export function InvoicesScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const params = useSearchParams();
-  const [view, setViewState] = useState(params.get("view") || "all");
-  const [search, setSearch] = useState("");
-  const [submitted, setSubmittedState] = useState("");
-  const [filters, setFiltersState] = useState<Filters>(NO_FILTERS);
-  const [sorting, setSortingState] = useState<SortingState>([{ id: "created", desc: true }]);
-  const [pageIndex, setPageIndex] = useState(0);
+  const initial = readListState(params, LIST_DEFAULTS);
+  const [view, setViewState] = useState(initial.view);
+  const [search, setSearch] = useState(initial.search);
+  const [submitted, setSubmittedState] = useState(initial.search);
+  const [filters, setFiltersState] = useState<Filters>(initial.filters);
+  const [sorting, setSortingState] = useState<SortingState>(initial.sorting);
+  const [pageIndex, setPageIndex] = useState(initial.pageIndex);
   const setView = (next: string) => { setViewState(next); setPageIndex(0); };
+  useListUrlState({ view, search: submitted, filters: filters, sorting, pageIndex }, LIST_DEFAULTS, setView);
   const setFilters = (next: Filters) => { setFiltersState(next); setPageIndex(0); };
   const setSorting = (next: SortingState) => { setSortingState(next); setPageIndex(0); };
   const setSubmitted = (next: string) => { if (next !== submitted) { setSubmittedState(next); setPageIndex(0); } };

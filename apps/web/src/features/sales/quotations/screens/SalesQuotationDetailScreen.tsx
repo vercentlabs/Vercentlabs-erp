@@ -29,6 +29,7 @@ import { QuotationLifecycleActions, failureText } from "../components/QuotationL
 import { QuotationStatusBadge } from "../components/QuotationStatusBadge";
 import { NextStep, quotationNextStep } from "@/features/sales/shared/NextStep";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { useTabParam } from "@/features/sales/shared/useTabParam";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -63,7 +64,7 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
   const router = useRouter();
   const key = scopedQueryKey(workspace, "sales", "quotation", quotationId);
   const query = useQuery({ queryKey: key, queryFn: () => getSalesQuotation(quotationId).then((r) => r.quotation) });
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useTabParam("overview");
   const [error, setError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
   const can = (permission: string) => workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(permission);
@@ -162,11 +163,11 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
         <Tabs selectedKey={tab} onSelectionChange={(selected) => setTab(String(selected))}>
           <TabList aria-label="Quotation sections">
             <Tab id="overview">Overview</Tab>
-            <Tab id="lines">Lines ({detail.lines.length})</Tab>
+            <Tab id="lines">Items ({detail.lines.length})</Tab>
             <Tab id="notes">Notes &amp; terms</Tab>
-            <Tab id="related">Revisions &amp; related</Tab>
+            <Tab id="related">Related</Tab>
             <Tab id="files">Files</Tab>
-            <Tab id="timeline">Timeline</Tab>
+            <Tab id="timeline">History</Tab>
           </TabList>
           <TabPanel id="overview"><Overview detail={detail} /></TabPanel>
           <TabPanel id="lines"><Lines detail={detail} /></TabPanel>

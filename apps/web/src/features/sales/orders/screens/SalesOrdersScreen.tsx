@@ -8,9 +8,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import { Download, Plus } from "lucide-react";
+import { Download, Plus, SlidersHorizontal } from "lucide-react";
 import {
-  EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, SearchField, Select, TextField, buttonVariants,
+  Button, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, SearchField, Select, TextField, buttonVariants,
   type ActiveFilter,
 } from "@vercentlabs/design-system";
 
@@ -24,6 +24,10 @@ import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api"
 
 import { listSalesOrders, salesOrderExportUrl, type OrderFilters, type SalesOrderRow } from "../api/orders-api";
 import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge, ReservationStatusBadge } from "../components/OrderStatusBadges";
+import { readListState, useListUrlState } from "@/features/sales/shared/listUrlState";
+import { useApp } from "@/shell/workspace-context/useApp";
+import { SalesSearchPicker, mergeSalesOptions } from "@/features/sales/shared/SalesSearchPicker";
+import type { SalesOptions } from "@/features/sales/quotations/api/quotations-api";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -51,17 +55,22 @@ const SOURCES = [{ value: "quotation", label: "From a quotation" }, { value: "di
 const DEFAULT_VIEWS = [{ key: "all", label: "All Orders" }];
 const amount = (value: number) => Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 
+// What the list shows with nothing in the address.
+const LIST_DEFAULTS = { sort: [{ id: "date", desc: true }] as SortingState, filters: NO_FILTERS };
+
 export function SalesOrdersScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const params = useSearchParams();
-  const [view, setViewState] = useState(params.get("view") || "all");
-  const [search, setSearch] = useState("");
-  const [submitted, setSubmittedState] = useState("");
-  const [filters, setFiltersState] = useState<Filters>(NO_FILTERS);
-  const [sorting, setSortingState] = useState<SortingState>([{ id: "date", desc: true }]);
-  const [pageIndex, setPageIndex] = useState(0);
+  const initial = readListState(params, LIST_DEFAULTS);
+  const [view, setViewState] = useState(initial.view);
+  const [search, setSearch] = useState(initial.search);
+  const [submitted, setSubmittedState] = useState(initial.search);
+  const [filters, setFiltersState] = useState<Filters>(initial.filters);
+  const [sorting, setSortingState] = useState<SortingState>(initial.sorting);
+  const [pageIndex, setPageIndex] = useState(initial.pageIndex);
   const setView = (next: string) => { setViewState(next); setPageIndex(0); };
+  useListUrlState({ view, search: submitted, filters: filters, sorting, pageIndex }, LIST_DEFAULTS, setView);
   const setFilters = (next: Filters) => { setFiltersState(next); setPageIndex(0); };
   const setSorting = (next: SortingState) => { setSortingState(next); setPageIndex(0); };
   const setSubmitted = (next: string) => { if (next !== submitted) { setSubmittedState(next); setPageIndex(0); } };
@@ -71,6 +80,9 @@ export function SalesOrdersScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the typed text changes
   }, [search]);
 
+  const stockOn = useApp("stock");
+  const [moreFilters, setMoreFilters] = useState(false);
+  const [pickedCustomers, setPickedCustomers] = useState<SalesOptions | null>(null);
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "options"), queryFn: () => getSalesOptions().then((r) => r.options), staleTime: 60_000 });
   const options = optionsQuery.data;
   const listFilters: OrderFilters = useMemo(() => ({
@@ -157,8 +169,10 @@ export function SalesOrdersScreen() {
     <TextField key={key} aria-label={NAMES[key]} type="date" size="compact" value={filters[key]} onChange={(value) => setFilters({ ...filters, [key]: value })}
       className="w-40" placeholder={NAMES[key]} />
   );
+  const customerName = (id: string) => (pickedCustomers?.parties ?? []).concat(options?.parties ?? []).find((party) => party.id === id)?.display_name;
   const activeFilters: ActiveFilter[] = (Object.keys(filters) as FilterKey[]).filter((key) => filters[key] && filters[key] !== ANY)
-    .map((key) => ({ id: key, label: `${NAMES[key]}: ${choices[key]?.find((entry) => entry.value === filters[key])?.label ?? filters[key]}` }));
+    .map((key) => ({ id: key, label: `${NAMES[key]}: ${key === "partyId" ? customerName(filters[key]) ?? "chosen customer" : choices[key]?.find((entry) => entry.value === filters[key])?.label ?? filters[key]}` }));
+  const hiddenActive = activeFilters.filter((entry) => !["status", "partyId", "fulfillment", "invoicing"].includes(entry.id)).length;
   const hasCriteria = Boolean(submitted) || activeFilters.length > 0 || view !== "all";
   const views = listQuery.data?.views ?? DEFAULT_VIEWS;
 
@@ -177,21 +191,35 @@ export function SalesOrdersScreen() {
             <SearchField aria-label="Search sales orders" placeholder="Search order, customer, customer PO, quotation, delivery, invoice, product or salesperson" className="w-full sm:w-96"
               value={search} onChange={setSearch} onSubmit={(value) => setSubmitted(value.trim())} />
             {select("status", "Any order status")}
-            {select("confirmation", "Any confirmation")}
-            {select("reservation", "Any reservation")}
-            {select("fulfillment", "Any fulfillment")}
+            {options && (
+              <div className="w-56">
+                <SalesSearchPicker kind="customers" aria-label="Customer" customersOnly value={filters.partyId === ANY ? null : filters.partyId} placeholder="Any customer"
+                  known={pickedCustomers ? mergeSalesOptions(options, pickedCustomers) : options}
+                  onPick={(id, found) => { setPickedCustomers((current) => mergeSalesOptions(current ?? options, found)); setFilters({ ...filters, partyId: id || ANY }); }} />
+              </div>
+            )}
+            {select("fulfillment", "Any dispatch")}
             {select("invoicing", "Any invoicing")}
-            {select("deliveryOverdue", "Any delivery date")}
-            {select("readyToInvoice", "Invoiceable or not")}
-            {select("balance", "Any balance")}
-            {select("partyId", "Any customer")}
-            {select("ownerUserId", "Any salesperson")}
-            {select("warehouseId", "Any warehouse")}
-            {select("source", "Any source")}
-            {date("dateFrom")}
-            {date("dateTo")}
-            {date("deliveryFrom")}
-            {date("deliveryTo")}
+            {/* The rest behind one button, so the bar is not a wall of dropdowns (Line-by-line audit); stock filters only with Stock. */}
+            <Button variant="outline" size="compact" onPress={() => setMoreFilters(!moreFilters)}>
+              <SlidersHorizontal className="size-4" aria-hidden="true" />Filters{hiddenActive ? ` (${hiddenActive})` : ""}
+            </Button>
+            {moreFilters && (
+              <>
+                {select("confirmation", "Any confirmation")}
+                {stockOn && select("reservation", "Any reservation")}
+                {select("deliveryOverdue", "Any delivery date")}
+                {select("readyToInvoice", "Invoiceable or not")}
+                {select("balance", "Any balance")}
+                {select("ownerUserId", "Any salesperson")}
+                {stockOn && select("warehouseId", "Any warehouse")}
+                {select("source", "Any source")}
+                {date("dateFrom")}
+                {date("dateTo")}
+                {date("deliveryFrom")}
+                {date("deliveryTo")}
+              </>
+            )}
           </>
         ),
         end: (

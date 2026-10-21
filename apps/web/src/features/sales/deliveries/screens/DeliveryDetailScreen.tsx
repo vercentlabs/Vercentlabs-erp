@@ -36,6 +36,8 @@ import { CreateReturnDialog } from "@/features/sales/returns/components/ReturnDi
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 import { DeliveryQualityPanel } from "@/features/quality/incoming/IncomingScreens";
+import { useTabParam } from "@/features/sales/shared/useTabParam";
+import { MoreActions } from "@/shared/ui/record";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -88,7 +90,7 @@ export function DeliveryDetailScreen({ deliveryId }: { deliveryId: string }) {
   const router = useRouter();
   const key = scopedQueryKey(workspace, "sales", "delivery", deliveryId);
   const query = useQuery({ queryKey: key, queryFn: () => getDelivery(deliveryId).then((r) => r.delivery) });
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useTabParam("overview");
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -160,17 +162,21 @@ export function DeliveryDetailScreen({ deliveryId }: { deliveryId: string }) {
           primaryAction: primary,
           secondaryActions: (
             <div className="flex flex-wrap items-center gap-2">
+              {/* The everyday actions as buttons, the e-way bill in the header (its panel is below), the rest under "More" (Line-by-line audit). */}
               {actions.edit && <Button variant="secondary" onPress={() => setDialog("edit")}><Pencil className="size-4" aria-hidden="true" />Edit</Button>}
               {actions.markReady && actions.dispatch && <Button variant="secondary" onPress={() => setDialog("dispatch")}><Truck className="size-4" aria-hidden="true" />Dispatch</Button>}
-              {actions.changeAddress && <Button variant="secondary" onPress={() => setDialog("address")}><MapPin className="size-4" aria-hidden="true" />Change Address</Button>}
-              {actions.changeWarehouse && <Button variant="secondary" onPress={() => setDialog("warehouse")}>Change Warehouse</Button>}
               {actions.editShipment && <Button variant="secondary" onPress={() => setDialog("shipment")}>Shipment Details</Button>}
-              {actions.createInvoice && !invoiceIsPrimary && <Button variant="secondary" onPress={() => setDialog("invoice")}><FileText className="size-4" aria-hidden="true" />Create Invoice</Button>}
-              {actions.createReturn && <Button variant="secondary" onPress={() => setDialog("return")}>Create Return</Button>}
               {actions.print && <a className={buttonVariants({ variant: "secondary" })} href={deliveryNotePdfUrl(deliveryId, true)} target="_blank" rel="noreferrer"><Printer className="size-4" aria-hidden="true" />Delivery Note</a>}
-              {actions.print && <a className={buttonVariants({ variant: "secondary" })} href={`/api/documents/sales.delivery_challan/${deliveryId}/pdf?disposition=inline&copies=3`} target="_blank" rel="noreferrer"><Printer className="size-4" aria-hidden="true" />Delivery Challan</a>}
-              {actions.backToDraft && <Button variant="ghost" isLoading={backToDraft.isPending} onPress={() => backToDraft.mutate()}>Back to Draft</Button>}
-              {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel Delivery</Button>}
+              <a className={buttonVariants({ variant: "secondary" })} href="#e-way-bill">E-way bill</a>
+              <MoreActions actions={[
+                { id: "invoice", label: "Create invoice", show: actions.createInvoice && !invoiceIsPrimary, run: () => setDialog("invoice") },
+                { id: "return", label: "Create return", show: actions.createReturn, run: () => setDialog("return") },
+                { id: "challan", label: "Delivery challan (3 copies)", show: actions.print, run: () => window.open(`/api/documents/sales.delivery_challan/${deliveryId}/pdf?disposition=inline&copies=3`, "_blank", "noopener") },
+                { id: "address", label: "Change address", show: actions.changeAddress, run: () => setDialog("address") },
+                { id: "warehouse", label: "Change warehouse", show: actions.changeWarehouse, run: () => setDialog("warehouse") },
+                { id: "draft", label: "Back to draft", show: actions.backToDraft, run: () => backToDraft.mutate() },
+                { id: "cancel", label: "Cancel delivery", show: actions.cancel, run: () => setDialog("cancel") },
+              ]} />
             </div>
           ),
         }}
@@ -182,7 +188,7 @@ export function DeliveryDetailScreen({ deliveryId }: { deliveryId: string }) {
             <Tab id="shipment">Shipment</Tab>
             <Tab id="invoice">Invoice</Tab>
             <Tab id="related">Related</Tab>
-            <Tab id="notes">Notes &amp; attachments</Tab>
+            <Tab id="notes">Notes &amp; files</Tab>
             <Tab id="history">History</Tab>
           </TabList>
           <TabPanel id="overview"><div className="flex flex-col gap-4"><Overview detail={detail} /><DeliveryQualityPanel deliveryId={deliveryId} /><AccountingRecorded sourceType="sales_delivery" sourceId={deliveryId} noun="delivery" /></div></TabPanel>

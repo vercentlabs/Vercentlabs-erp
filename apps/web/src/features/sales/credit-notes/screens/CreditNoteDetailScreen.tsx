@@ -33,6 +33,7 @@ import { CreditNoteStatusBadges } from "../components/CreditNoteStatusBadges";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
+import { useTabParam } from "@/features/sales/shared/useTabParam";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -72,7 +73,7 @@ export function CreditNoteDetailScreen({ creditNoteId }: { creditNoteId: string 
   const queryClient = useQueryClient();
   const key = scopedQueryKey(workspace, "sales", "credit-note", creditNoteId);
   const query = useQuery({ queryKey: key, queryFn: () => getCreditNote(creditNoteId).then((r) => r.creditNote) });
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useTabParam("overview");
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const refresh = () => {
@@ -162,9 +163,9 @@ export function CreditNoteDetailScreen({ creditNoteId }: { creditNoteId: string 
             <Tab id="overview">Overview</Tab>
             <Tab id="items">Items ({detail.lines.length})</Tab>
             <Tab id="taxes">Taxes</Tab>
-            {actions.viewApplication && <Tab id="application">Application</Tab>}
-            <Tab id="related">Related documents</Tab>
-            <Tab id="notes">Notes &amp; attachments</Tab>
+            {actions.viewApplication && <Tab id="application">Applied to</Tab>}
+            <Tab id="related">Related</Tab>
+            <Tab id="notes">Notes &amp; files</Tab>
             {actions.viewAccounting && <Tab id="accounting">Accounting</Tab>}
             <Tab id="history">History</Tab>
           </TabList>

@@ -13,7 +13,7 @@ export default async function Page({
   return (
     <div className="flex flex-col gap-4">
       <DeliveryDetailScreen deliveryId={id} />
-      <EwayBillPanel sourceType="sales_delivery" sourceId={id} />
+      <section id="e-way-bill" className="scroll-mt-20"><EwayBillPanel sourceType="sales_delivery" sourceId={id} /></section>
       <RecordThreadPanel type="sales.delivery" id={id} />
     </div>
   );

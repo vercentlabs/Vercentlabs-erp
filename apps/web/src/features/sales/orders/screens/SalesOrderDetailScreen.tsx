@@ -14,9 +14,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Check, Eye, FileText, Pencil, Send, Truck, Upload } from "lucide-react";
+import { Check, FileText, Pencil, Send, Truck, Upload } from "lucide-react";
 import {
-  Button, EnterpriseDataGrid, ErrorState, LinkButton, MetricStrip, PermissionState, ProgressBar, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, buttonVariants,
+  Button, EnterpriseDataGrid, ErrorState, LinkButton, MetricStrip, PermissionState, ProgressBar, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea,
 } from "@vercentlabs/design-system";
 
 import { useCreateRequest } from "@/features/sales/shared/use-create-request";
@@ -48,9 +48,11 @@ import { CancelOrderDialog, CancelRemainingDialog, ReopenOrderDialog, failureTex
 import { NextStep, orderNextStep } from "@/features/sales/shared/NextStep";
 import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
 import { RepeatOrderButton } from "../components/RepeatOrderButton";
+import { MoreActions } from "@/shared/ui/record";
 import { MakeChallanButton } from "../components/MakeChallanButton";
 import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge, ReservationStatusBadge } from "../components/OrderStatusBadges";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { useTabParam } from "@/features/sales/shared/useTabParam";
 
 type Snapshot = Record<string, string | null | undefined> | null;
 const addressText = (snapshot: Snapshot) =>
@@ -108,7 +110,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   // Where the order stands: one service for every dimension, read beside the order itself.
   const trackingKey = scopedQueryKey(workspace, "sales", "order", orderId, "tracking");
   const trackingQuery = useQuery({ queryKey: trackingKey, queryFn: () => getOrderTracking(orderId).then((r) => r.tracking) });
-  const [chosenTab, setTab] = useState<string | null>(null);
+  const [tab, setTab] = useTabParam("overview");
   // Check Availability in the header opens Fulfillment and runs the check.
   const [checkAvailability, setCheckAvailability] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -157,7 +159,11 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const currency = order.currency_code;
   const executing = order.status !== "draft";
   const tracking = trackingQuery.data;
-  const tab = chosenTab ?? "overview";
+  // Where a payment, credit note or return of this order starts: its latest open invoice, posted invoice and dispatched delivery.
+  const invoicesOnly = detail.invoices.filter((invoice) => invoice.invoice_type === "invoice");
+  const openInvoice = [...invoicesOnly].reverse().find((invoice) => ["posted", "partially_paid", "overdue", "disputed"].includes(invoice.status) && Number(invoice.outstanding_amount) > 0.005);
+  const postedInvoice = [...invoicesOnly].reverse().find((invoice) => ["posted", "partially_paid", "paid", "overdue", "disputed"].includes(invoice.status));
+  const shippedDelivery = [...detail.deliveries].reverse().find((delivery) => ["dispatched", "delivered"].includes(delivery.delivery_status));
   const trackingMissing = executing && !tracking && (trackingQuery.isLoading
     ? <p className="text-sm text-text-muted">Loading where the order stands…</p>
     : <ErrorState title="Could not load the order's tracking" action={{ label: "Retry", onPress: () => trackingQuery.refetch() }} />);
@@ -214,24 +220,30 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           ) : actions.invoice ? (
             <Button variant="primary" onPress={() => setDialog("invoice")}><FileText className="size-4" aria-hidden="true" />Create Invoice</Button>
           ) : undefined,
+          // The everyday actions as buttons; the rest under "More" (Line-by-line audit, navigation): one PDF button, and from the order
+          // a payment, a credit note or a return can be started on the invoice or delivery it belongs to.
           secondaryActions: (
             <div className="flex flex-wrap items-center gap-2">
               {actions.edit && <LinkButton variant="secondary" href={`/sales/orders/${orderId}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
-              {actions.viewConfirmation && <a className={buttonVariants({ variant: "secondary" })} href={orderPdfUrl(orderId, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />View Confirmation</a>}
               {actions.sendConfirmation && <Button variant="secondary" onPress={() => setDialog("email")}><Send className="size-4" aria-hidden="true" />Send Confirmation</Button>}
               {actions.markConfirmationSent && <WhatsAppSendButton kind="order" id={orderId} onSent={refresh} />}
-              {stockOn && order.status !== "cancelled" && order.status !== "closed" && detail.capabilities.checkAvailability && detail.lines.some((line) => line.is_stock_tracked) && (
-                <Button variant="secondary" onPress={() => { setCheckAvailability(true); setTab("fulfillment"); }}>Check Availability</Button>
-              )}
-              {actions.reserve && <Button variant="secondary" isLoading={reserve.isPending} onPress={() => reserve.mutate()}>Reserve Stock</Button>}
-              {order.status === "confirmed" && <CreateProjectFromOrder salesOrderId={orderId} orderNumber={order.sales_order_number} />}
-              {actions.deliver && actions.invoice && <Button variant="secondary" onPress={() => setDialog("invoice")}><FileText className="size-4" aria-hidden="true" />Create Invoice</Button>}
-              {actions.print && <LinkButton variant="secondary" href={orderPdfUrl(orderId)} download>{order.status === "draft" ? "Draft PDF" : "Download PDF"}</LinkButton>}
+              {actions.print && <LinkButton variant="secondary" href={orderPdfUrl(orderId)} download>{order.status === "draft" ? "Draft PDF" : "PDF"}</LinkButton>}
               {order.status !== "draft" && (workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.create")) && <RepeatOrderButton orderId={orderId} />}
               {!stockOn && order.status === "confirmed" && (workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.delivery.dispatch")) && <MakeChallanButton orderId={orderId} />}
-              {actions.reopen && <Button variant="ghost" onPress={() => setDialog("reopen")}>Reopen to Draft</Button>}
-              {actions.cancelRemaining && <Button variant="ghost" onPress={() => setDialog("cancelRemaining")}>Cancel Remaining</Button>}
-              {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel Order</Button>}
+              {order.status === "confirmed" && <CreateProjectFromOrder salesOrderId={orderId} orderNumber={order.sales_order_number} />}
+              <MoreActions actions={[
+                { id: "invoice", label: "Create invoice", show: actions.deliver && actions.invoice, run: () => setDialog("invoice") },
+                { id: "payment", label: "Record a payment", show: Boolean(openInvoice), run: () => openInvoice && router.push(`/sales/invoices/${openInvoice.id}?create=payment`) },
+                { id: "credit", label: "Create a credit note", show: Boolean(postedInvoice), run: () => postedInvoice && router.push(`/sales/invoices/${postedInvoice.id}?create=credit`) },
+                { id: "return", label: "Start a return", show: stockOn && Boolean(shippedDelivery), run: () => shippedDelivery && router.push(`/sales/deliveries/${shippedDelivery.id}?create=return`) },
+                { id: "availability", label: "Check availability", show: stockOn && order.status !== "cancelled" && order.status !== "closed" && detail.capabilities.checkAvailability && detail.lines.some((line) => line.is_stock_tracked),
+                  run: () => { setCheckAvailability(true); setTab("fulfillment"); } },
+                { id: "reserve", label: "Reserve stock", show: actions.reserve, run: () => reserve.mutate() },
+                { id: "confirmation", label: "View confirmation", show: actions.viewConfirmation, run: () => window.open(orderPdfUrl(orderId, true), "_blank", "noopener") },
+                { id: "reopen", label: "Reopen to draft", show: actions.reopen, run: () => setDialog("reopen") },
+                { id: "cancelRemaining", label: "Cancel remaining", show: actions.cancelRemaining, run: () => setDialog("cancelRemaining") },
+                { id: "cancel", label: "Cancel order", show: actions.cancel, run: () => setDialog("cancel") },
+              ]} />
             </div>
           ),
         }}
@@ -257,8 +269,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
             <Tab id="confirmation">Confirmation</Tab>
             {executing && <Tab id="returns">Returns &amp; credits</Tab>}
             {executing && manufacturingOn && <Tab id="manufacturing">Manufacturing</Tab>}
-            <Tab id="related">Related documents</Tab>
-            <Tab id="notes">Notes &amp; attachments</Tab>
+            <Tab id="related">Related</Tab>
+            <Tab id="notes">Notes &amp; files</Tab>
             <Tab id="history">History</Tab>
           </TabList>
                     <TabPanel id="overview"><Overview detail={detail} tracking={executing ? tracking : undefined} /></TabPanel>
@@ -645,15 +657,7 @@ function Confirmation({ detail, onSend, onMarkSent, onAcknowledge }: {
           </ul>
         )}
       </Panel>
-      <Panel title="Related documents">
-        <Facts items={[
-          { label: "Quotation", value: order.source_quotation_id ? <Link className="text-brand hover:underline" href={`/sales/quotations/${order.source_quotation_id}`}>{order.source_quotation_number}</Link> : "None (direct order)" },
-          { label: "Deliveries", value: detail.deliveries.length ? detail.deliveries.map((delivery) => delivery.delivery_number).join(", ") : "None" },
-          { label: "Returns", value: detail.returns.length ? <span className="flex flex-wrap gap-2">{detail.returns.map((item) => <Link key={item.id} className="text-brand hover:underline" href={`/sales/returns/${item.id}`}>{item.return_number}</Link>)}</span> : "None" },
-          { label: "Invoices", value: detail.invoices.length ? detail.invoices.map((invoice) => invoice.invoice_number).join(", ") : "None" },
-          { label: "Credit notes", value: detail.creditNotes.length ? <span className="flex flex-wrap gap-2">{detail.creditNotes.map((credit) => <Link key={credit.id} className="text-brand hover:underline" href={`/sales/credit-notes/${credit.id}`}>{credit.invoice_number}</Link>)}</span> : "None" },
-        ]} />
-      </Panel>
+      {/* The quotation, deliveries, returns, invoices and credit notes are listed once, on the Related tab. */}
     </div>
   );
 }

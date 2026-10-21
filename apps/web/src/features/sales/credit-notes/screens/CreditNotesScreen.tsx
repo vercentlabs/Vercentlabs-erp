@@ -22,6 +22,7 @@ import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api"
 
 import { listCreditNotes, type CreditNoteRow } from "../api/credit-notes-api";
 import { CreditNoteStatusBadges } from "../components/CreditNoteStatusBadges";
+import { readListState, useListUrlState } from "@/features/sales/shared/listUrlState";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -30,18 +31,23 @@ type Filters = Record<FilterKey, string>;
 const NO_FILTERS: Filters = { partyId: ANY, reasonCode: ANY, fromReturn: ANY, dateFrom: "", dateTo: "" };
 const NAMES: Record<FilterKey, string> = { partyId: "Customer", reasonCode: "Reason", fromReturn: "Source", dateFrom: "Dated from", dateTo: "Dated to" };
 
+// What the list shows with nothing in the address.
+const LIST_DEFAULTS = { sort: [{ id: "created", desc: true }] as SortingState, filters: NO_FILTERS };
+
 export function CreditNotesScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const params = useSearchParams();
-  const [view, setViewState] = useState(params.get("view") || "all");
-  const [search, setSearch] = useState("");
-  const [submitted, setSubmittedState] = useState("");
-  const [filters, setFiltersState] = useState<Filters>(NO_FILTERS);
-  const [sorting, setSortingState] = useState<SortingState>([{ id: "created", desc: true }]);
-  const [pageIndex, setPageIndex] = useState(0);
+  const initial = readListState(params, LIST_DEFAULTS);
+  const [view, setViewState] = useState(initial.view);
+  const [search, setSearch] = useState(initial.search);
+  const [submitted, setSubmittedState] = useState(initial.search);
+  const [filters, setFiltersState] = useState<Filters>(initial.filters);
+  const [sorting, setSortingState] = useState<SortingState>(initial.sorting);
+  const [pageIndex, setPageIndex] = useState(initial.pageIndex);
   const scope = { invoiceId: params.get("invoiceId") ?? undefined, returnId: params.get("returnId") ?? undefined, salesOrderId: params.get("salesOrderId") ?? undefined };
   const setView = (next: string) => { setViewState(next); setPageIndex(0); };
+  useListUrlState({ view, search: submitted, filters: filters, sorting, pageIndex }, LIST_DEFAULTS, setView);
   const setFilters = (next: Filters) => { setFiltersState(next); setPageIndex(0); };
   const setSorting = (next: SortingState) => { setSortingState(next); setPageIndex(0); };
   const setSubmitted = (next: string) => { if (next !== submitted) { setSubmittedState(next); setPageIndex(0); } };

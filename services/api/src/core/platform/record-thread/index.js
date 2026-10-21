@@ -22,6 +22,9 @@ const lazy = (path, name) => async (client, context, id) => (await import(path))
 export const RECORD_THREAD_TYPES = Object.freeze({
   "sales.quotation": { module: "sales", label: "Quotation", href: (id) => `/sales/quotations/${id}`, read: lazy("../../../modules/sales/quotations/records.js", "getQuotation"),
     title: (record) => record?.quotation?.quotation_number ?? record?.quotation_number },
+  // A customer's notes and to-dos in Sales, for a company without CRM (Line-by-line audit).
+  "sales.customer": { module: "sales", label: "Customer", href: (id) => `/sales/customers/${id}`, read: lazy("../../../modules/sales/customers/records.js", "getCustomer"),
+    title: (record) => record?.displayName ?? record?.customer?.displayName },
   "sales.order": { module: "sales", label: "Sales order", href: (id) => `/sales/orders/${id}`, read: lazy("../../../modules/sales/orders/records.js", "getSalesOrder"),
     title: (record) => record?.order?.sales_order_number ?? record?.sales_order_number },
   "sales.invoice": { module: "sales", label: "Invoice", href: (id) => `/sales/invoices/${id}`, read: lazy("../../../modules/sales/invoices/records.js", "getSalesInvoice"),

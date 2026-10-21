@@ -174,15 +174,20 @@ export function CustomerOverviewPanel({ customer, onOpenTab }: { customer: Custo
                 ))}
               </div>
             </div>
-            <p className="text-xs text-text-muted">These figures come from Accounting. They cannot be edited here.</p>
+            <p className="text-xs text-text-muted">In the company's currency. They change only through invoices, payments and credit notes.</p>
             <div className="flex flex-wrap gap-3">
               {tabLink("invoices", "Customer statement: invoices")}{tabLink("payments", "Payments")}
               {/* Available credit (unapplied receipts and credit notes) can be paid back: Sales → Refunds, with this customer chosen. */}
               {canRefund && overview.finance.unallocatedAdvance + overview.finance.creditNoteCredit > 0.005 && (
                 <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/sales/refunds?create=1&partyId=${customer.id}`}>Refund available credit</Link>
               )}
-              <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/accounting/customer-invoices?partyId=${customer.id}`}>Open receivables in Accounting</Link>
-              <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/accounting/statements/customer/${customer.id}`}>Statement of account</Link>
+              {/* Only while Accounting is on; without it Sales has the ledger tab and Outstanding (Line-by-line audit). */}
+              {workspace.accessibleModuleKeys.includes("accounting") ? (
+                <>
+                  <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/accounting/customer-invoices?partyId=${customer.id}`}>Open receivables in Accounting</Link>
+                  <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/accounting/statements/customer/${customer.id}`}>Statement of account</Link>
+                </>
+              ) : <Link className="text-xs text-brand underline-offset-2 hover:underline" href="/sales/outstanding">Outstanding</Link>}
             </div>
           </Card>
         </div>
