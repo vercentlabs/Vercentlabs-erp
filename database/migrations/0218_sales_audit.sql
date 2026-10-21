@@ -123,3 +123,7 @@ ON CONFLICT DO NOTHING;
 -- 8. Documents sent on WhatsApp (M6): a quotation records WhatsApp as how it was sent.
 ALTER TABLE tenant.sales_quotations DROP CONSTRAINT IF EXISTS sales_quotations_sent_channel_check;
 ALTER TABLE tenant.sales_quotations ADD CONSTRAINT sales_quotations_sent_channel_check CHECK (sent_channel IS NULL OR sent_channel IN ('email', 'manual', 'link', 'whatsapp'));
+
+-- 9. A new company starts with no discount approval for quotations (it was 10%: approvals on day one surprised new companies). Companies
+--    that already have Sales settings keep theirs.
+ALTER TABLE tenant.sales_settings ALTER COLUMN quotation_approval_discount SET DEFAULT 0;

@@ -101,7 +101,8 @@ const SETTINGS_DEFAULTS = Object.freeze({
   default_warehouse_id: null,
   default_quote_validity_days: 15,
   quotation_approval_amount: 0,
-  quotation_approval_discount: 10,
+  // No approval for discounts until the company sets one (Sales audit, Low: 10% surprised new companies on day one).
+  quotation_approval_discount: 0,
   minimum_margin_percent: 0,
   allow_direct_orders: true,
   invoice_quantity_basis: "ordered",
