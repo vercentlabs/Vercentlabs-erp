@@ -23,3 +23,4 @@ export {
 } from "./import-export.js";
 export { analyzeCustomerRelatedImport, buildCustomerRelatedImportTemplate, exportCustomerRelated, importCustomerRelated } from "./related-import-export.js";
 export { COUNTRIES, getCustomerOptions } from "./options.js";
+export { getCustomerLedger, getCustomerOutstanding } from "./ledger.js";

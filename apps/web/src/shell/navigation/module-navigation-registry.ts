@@ -256,6 +256,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           },
           { ...available("Deliveries", "/sales/deliveries"), requiredApp: "stock", aliases: ["shipment", "delivery note", "dispatch", "tracking number", "carrier", "proof of delivery"] },
           { ...available("Sales Invoices", "/sales/invoices"), aliases: ["invoices", "billing", "balance due", "overdue invoices"] },
+          // What customers owe and since when, with each customer's ledger (Sales audit M7).
+          { ...available("Outstanding", "/sales/outstanding"), aliases: ["receivables", "ageing", "aging", "customer ledger", "party ledger", "dues", "collections"], requiredPermission: "sales.customers.view_financials" },
           { ...available("Sales Returns", "/sales/returns"), requiredApp: "stock", aliases: ["returns", "return note", "rma"] },
           { ...available("Credit Notes", "/sales/credit-notes"), aliases: ["credits", "price adjustment"] },
           // The customer refunds Finance owns, the same records as Finance → Customer Refunds.

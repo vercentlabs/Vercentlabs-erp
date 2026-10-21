@@ -31,6 +31,7 @@ import {
   CancelInvoiceDialog, ChangeDueDateDialog, EditInvoiceDialog, MarkSentDialog, PostInvoiceDialog, ReverseInvoiceDialog, SendInvoiceDialog, failureText,
 } from "../components/InvoiceDialogs";
 import { InvoiceStatusBadges } from "../components/InvoiceStatusBadges";
+import { RecordPaymentDialog } from "../components/RecordPaymentDialog";
 import { CreateCreditNoteDialog } from "@/features/sales/credit-notes/components/CreditNoteDialogs";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
@@ -44,7 +45,7 @@ const quantity = (value: number | string | null | undefined) => Number(value ?? 
 const by = (at: string | null, name: string | null) => (at ? `${dateTime(at)}${name ? ` by ${name}` : ""}` : "—");
 const TAX_LABELS: Record<string, string> = { cgst: "CGST", sgst: "SGST", igst: "IGST", cess: "Cess" };
 
-type DialogKind = "edit" | "terms" | "post" | "cancel" | "reverse" | "send" | "markSent" | "credit" | "dueDate" | null;
+type DialogKind = "edit" | "terms" | "post" | "cancel" | "reverse" | "send" | "markSent" | "credit" | "dueDate" | "payment" | null;
 
 const EVENT_LABELS: Record<string, string> = {
   "sales_invoice.created": "Invoice created", "sales_invoice.updated": "Draft changed", "sales_invoice.submitted_for_approval": "Sent to Finance for approval",
@@ -142,7 +143,7 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
               {actions.print && posted && <LinkButton variant="secondary" href={invoicePdfUrl(invoiceId)} download>Download</LinkButton>}
               {actions.print && posted && <a className={buttonVariants({ variant: "secondary" })} href={`${invoicePdfUrl(invoiceId, true)}&copies=3`} target="_blank" rel="noreferrer">Print 3 copies</a>}
               {actions.markSent && <Button variant="secondary" onPress={() => setDialog("markSent")}>Mark as Sent</Button>}
-              {actions.recordPayment && <LinkButton variant="secondary" href={`/accounting/receipts/new?partyId=${invoice.party_id}&invoiceId=${invoice.id}`}><Wallet className="size-4" aria-hidden="true" />Record Payment</LinkButton>}
+              {actions.recordPayment && <Button variant="secondary" onPress={() => setDialog("payment")}><Wallet className="size-4" aria-hidden="true" />Record Payment</Button>}
               {actions.creditNote && <Button variant="secondary" onPress={() => setDialog("credit")}><FileMinus className="size-4" aria-hidden="true" />Create Credit Note</Button>}
               {actions.changeDueDate && <Button variant="ghost" onPress={() => setDialog("dueDate")}>Change Due Date</Button>}
               {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel Draft</Button>}
@@ -193,6 +194,10 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
       {dialog === "send" && <SendInvoiceDialog detail={detail} onClose={() => setDialog(null)} onDone={(sentTo) => done(`The invoice was sent to ${sentTo}.`)} />}
       {dialog === "dueDate" && <ChangeDueDateDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The due date was changed.")} />}
       {dialog === "markSent" && <MarkSentDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The invoice is marked as sent.")} />}
+      {dialog === "payment" && (
+        <RecordPaymentDialog invoiceId={invoice.id} invoiceNumber={invoice.invoice_number} currencyCode={invoice.currency_code} balance={invoice.balanceDue}
+          onClose={() => setDialog(null)} onDone={(message) => done(message)} />
+      )}
       {dialog === "credit" && <CreateCreditNoteDialog invoiceId={invoice.id} onClose={() => setDialog(null)} onDone={(creditNoteId) => router.push(`/sales/credit-notes/${creditNoteId}`)} />}
     </div>
   );

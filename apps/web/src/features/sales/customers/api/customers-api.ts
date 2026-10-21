@@ -228,6 +228,21 @@ export const changeCustomerStatus = (id: string, action: "activate" | "deactivat
 export const findDuplicateCustomers = (probe: Record<string, unknown>) => post<DuplicateResult>(`${BASE}/duplicates`, probe);
 
 export const getCustomerOverview = (id: string) => request<{ overview: CustomerOverview }>(`${BASE}/${id}/overview`).then((response) => response.overview);
+// The customer's ledger and the outstanding list (Sales audit M7).
+export type CustomerLedger = {
+  from: string; to: string; opening: number; closing: number;
+  lines: Array<{ date: string; document: string; number: string; href: string | null; description: string | null; increase: number; decrease: number; balance: number }>;
+  aging: Record<string, number>;
+};
+export type CustomerOutstanding = {
+  asOf: string; currencyCode: string; buckets: Array<{ key: string; label: string }>;
+  rows: Array<{ partyId: string; name: string; code: string | null; notDue: number; d1_30: number; d31_60: number; d61_90: number; over90: number; credits: number; net: number; documents: number; oldestDaysPastDue: number }>;
+  totals: Record<string, number>;
+};
+export const getCustomerLedger = (id: string, filters: { from?: string; to?: string } = {}) =>
+  request<{ ledger: CustomerLedger }>(`${BASE}/${id}/ledger${filters.from || filters.to ? `?${new URLSearchParams(Object.entries(filters).filter(([, value]) => value) as Array<[string, string]>)}` : ""}`).then((response) => response.ledger);
+export const getCustomerOutstanding = (filters: { asOf?: string; search?: string } = {}) =>
+  request<{ outstanding: CustomerOutstanding }>(`${BASE}/outstanding${filters.asOf || filters.search ? `?${new URLSearchParams(Object.entries(filters).filter(([, value]) => value) as Array<[string, string]>)}` : ""}`).then((response) => response.outstanding);
 export const listCustomerRelated = (id: string, list: string) => request<{ rows: RelatedRow[] }>(`${BASE}/${id}/related/${list}`).then((response) => response.rows);
 export const listCustomerHistory = (id: string) => request<{ history: HistoryEntry[] }>(`${BASE}/${id}/history`).then((response) => response.history);
 

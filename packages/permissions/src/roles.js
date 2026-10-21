@@ -2820,6 +2820,8 @@ function withOrderPermissions(role) {
       // Order confirmations: sent and acknowledged by whoever creates or confirms orders.
       ...(has("sales.order.create") || has("sales.order.confirm") ? ["sales.order.confirmation.send", "sales.order.confirmation.mark_sent", "sales.order.confirmation.acknowledge"] : []),
       ...(has("sales.order.cancel") ? ["sales.order.confirm_quote_variance", "sales.order.credit_release"] : []),
+      // Payments on invoices, from Sales: whoever posts invoices, or receives payments in Accounting.
+      ...(has("sales.invoice.post") || has("accounting.receipts.manage") ? ["sales.invoice.record_payment"] : []),
       // Stock availability: seen by everyone who opens orders; the warehouse is changed by whoever reserves.
       ...(has("sales.view") ? ["sales.availability.view", "sales.availability.check", "sales.availability.other_warehouses"] : []),
       ...(has("sales.order.confirm") || has("sales.fulfillment.request") ? ["sales.order.change_warehouse"] : []),

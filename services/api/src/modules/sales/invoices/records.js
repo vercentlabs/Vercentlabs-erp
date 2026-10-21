@@ -449,7 +449,7 @@ function availableActions(context, invoice, { paid, credits, balance }, credited
     print: status !== INVOICE_STATUS.cancelled && can(INVOICE_PERMISSIONS.print),
     send: posted && can(INVOICE_PERMISSIONS.send),
     markSent: posted && can(INVOICE_PERMISSIONS.send),
-    recordPayment: posted && balance > 0.005 && can(INVOICE_PERMISSIONS.recordPayment),
+    recordPayment: posted && balance > 0.005 && (can(INVOICE_PERMISSIONS.recordPayment) || can("accounting.receipts.manage")),
     creditNote: posted && creditedTotal + 0.005 < Number(invoice.grand_total) && can(INVOICE_PERMISSIONS.creditNote),
     reverse: ["posted", "overdue"].includes(invoice.status) && paid <= 0.005 && credits <= 0.005 && can(INVOICE_PERMISSIONS.reverse),
     changePaymentTerms: invoice.status === "draft" && can(INVOICE_PERMISSIONS.changePaymentTerms),

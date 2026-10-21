@@ -98,3 +98,12 @@ ALTER TABLE tenant.sales_order_lines ADD COLUMN IF NOT EXISTS scheme_rule_id uui
 --    Stock app has no delivery to generate it from. source_id is the invoice (accounting_customer_invoices.id).
 ALTER TABLE tenant.eway_bills DROP CONSTRAINT IF EXISTS eway_bills_source_type_check;
 ALTER TABLE tenant.eway_bills ADD CONSTRAINT eway_bills_source_type_check CHECK (source_type IN ('sales_delivery', 'stock_transfer', 'purchase_return', 'sales_invoice'));
+
+-- 6. Payments recorded from Sales (B7): the invoice's Record Payment writes and applies the receipt even without the Accounting app.
+INSERT INTO public.permissions (key, name, category, description) VALUES
+  ('sales.invoice.record_payment', 'Record payments on invoices', 'Sales', 'Record a customer''s payment against a posted invoice, into a bank or cash account.')
+ON CONFLICT (key) DO NOTHING;
+INSERT INTO public.role_permissions (role_id, permission_key)
+SELECT DISTINCT existing.role_id, 'sales.invoice.record_payment' FROM public.role_permissions existing
+ WHERE existing.permission_key IN ('sales.invoice.post', 'accounting.receipts.manage')
+ON CONFLICT DO NOTHING;

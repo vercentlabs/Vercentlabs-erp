@@ -58,3 +58,7 @@ export function listInvoiceFiles(client: QueryClient, context: Context, invoiceI
 export function uploadInvoiceFile(client: QueryClient, context: Context, invoiceId: string, input: { prepared: unknown }, options?: FileOptions): Promise<{ id: string; fileName: string; mimeType: string; sizeBytes: number; uploadedAt: string }>;
 export function removeInvoiceFile(client: QueryClient, context: Context, invoiceId: string, fileId: string): Promise<{ removed: true }>;
 export function readInvoiceFile(client: QueryClient, context: Context, invoiceId: string, fileId: string, options?: FileOptions): Promise<{ fileName: string; mimeType: string; body: Uint8Array }>;
+
+// Recording a customer's payment from Sales (Sales audit B7).
+export function listPaymentAccounts(client: any, context: any): Promise<{ accounts: Array<{ id: string; code: string; name: string; type: string; currencyCode: string | null }>; methods: Array<{ code: string; label: string }> }>;
+export function recordInvoicePayment(client: any, context: any, invoiceId: string, input: { amount: number; receiptDate?: string; paymentMethod?: string; reference?: string; bankAccountId?: string | null }): Promise<{ receiptId: string; receiptNumber: string; amount: number; outstanding: number; status: string }>;

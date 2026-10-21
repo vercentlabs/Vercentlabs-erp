@@ -59,7 +59,8 @@ export const INVOICE_PERMISSIONS = Object.freeze({
   overrideDueDate: "sales.invoice.override_due_date",
   changePostedDueDate: "sales.invoice.change_posted_due_date",
   overrideTax: "tax.transaction.override",
-  recordPayment: "accounting.receipts.manage",
+  // Record a customer's payment on the invoice from Sales (Sales audit B7); Accounting's receipts permission does it too.
+  recordPayment: "sales.invoice.record_payment",
 });
 
 export const INVOICE_VIEWS = Object.freeze([

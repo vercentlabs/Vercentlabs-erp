@@ -72,3 +72,7 @@ export function buildCustomerRelatedImportTemplate(kind: string): string;
 export function exportCustomerRelated(client: Client, context: Context, kind: string, filters?: Input): Promise<{ fileName: string; csv: string; count: number }>;
 export function buildCustomerImportErrorFile(results: any[]): string;
 export function exportCustomers(client: Client, context: Context, filters?: Input): Promise<{ fileName: string; csv: string; count: number }>;
+
+// A customer's ledger and the outstanding list inside Sales (Sales audit M7).
+export function getCustomerLedger(client: any, context: any, customerId: string, filters?: { from?: string; to?: string }): Promise<any>;
+export function getCustomerOutstanding(client: any, context: any, filters?: { asOf?: string; search?: string }): Promise<any>;

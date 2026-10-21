@@ -25,6 +25,7 @@ import { CustomerAddressesPanel } from "../components/CustomerAddressesPanel";
 import { CustomerContactsPanel } from "../components/CustomerContactsPanel";
 import { CustomerStatusDialog, LinkAccountDialog, type StatusAction } from "../components/CustomerDialogs";
 import { CustomerOverviewPanel } from "../components/CustomerOverviewPanel";
+import { CustomerLedgerPanel } from "../components/CustomerLedgerPanel";
 import { CustomerHistoryPanel, CustomerRelatedPanel, type RelatedList } from "../components/CustomerRelatedPanels";
 
 const RELATED_TABS: Array<{ id: RelatedList; label: string; needs: "sales" | "finance" | "projects" | "support" }> = [
@@ -149,6 +150,7 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
             {can.viewAddresses && <Tab id="addresses">Addresses</Tab>}
             {can.viewContacts && <Tab id="contacts">Contacts</Tab>}
             {RELATED_TABS.filter((entry) => access[entry.needs]).map((entry) => <Tab key={entry.id} id={entry.id}>{entry.label}</Tab>)}
+            {access.finance && <Tab id="ledger">Ledger</Tab>}
             {(access.notes || access.files) && <Tab id="notes">Notes &amp; Attachments</Tab>}
             <Tab id="history">History</Tab>
           </TabList>
@@ -158,6 +160,7 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
           {RELATED_TABS.filter((entry) => access[entry.needs]).map((entry) => (
             <TabPanel key={entry.id} id={entry.id}><CustomerRelatedPanel customerId={customer.id} list={entry.id} /></TabPanel>
           ))}
+          {access.finance && <TabPanel id="ledger"><CustomerLedgerPanel customerId={customer.id} /></TabPanel>}
           {(access.notes || access.files) && (
             <TabPanel id="notes">
               <div className="flex flex-col gap-6 pt-3">

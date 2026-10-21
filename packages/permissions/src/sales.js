@@ -25,6 +25,7 @@ export const SALES_PERMISSIONS = Object.freeze({
   orderConfirmationAcknowledge: "sales.order.confirmation.acknowledge",
   orderConfirmQuoteVariance: "sales.order.confirm_quote_variance",
   orderCreditRelease: "sales.order.credit_release",
+  invoiceRecordPayment: "sales.invoice.record_payment",
   availabilityView: "sales.availability.view",
   availabilityCheck: "sales.availability.check",
   availabilityOtherWarehouses: "sales.availability.other_warehouses",
