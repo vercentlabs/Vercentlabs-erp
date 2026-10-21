@@ -331,7 +331,8 @@ function RuleDialog({ rule, options, onClose, onSaved }: { rule: LeadAssignmentR
           {conditions.length === 0 && <p className="text-sm text-text-secondary">No conditions: this rule matches every lead that reaches it.</p>}
           {conditions.map((row, index) => {
             const field = options.ruleFields.find((entry) => entry.code === row.field);
-            const operators = options.ruleOperators.filter((operator) => operator.code !== "contains" || field?.kind === "text" || field?.kind === "country");
+            const operators = options.ruleOperators.filter((operator) => (operator.code !== "contains" || field?.kind === "text" || field?.kind === "country")
+              && ((operator.code !== "starts_with" && operator.code !== "in_list") || field?.kind === "text"));
             return (
               <div key={index} className="grid items-end gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
                 <Select aria-label="Lead field" selectedKey={row.field} onSelectionChange={(selected) => update(index, { field: String(selected), operator: "equals", value: "" })}
@@ -348,7 +349,8 @@ function RuleDialog({ rule, options, onClose, onSaved }: { rule: LeadAssignmentR
                     <Select aria-label="Value" selectedKey={row.value} onSelectionChange={(selected) => update(index, { value: String(selected ?? NONE) })}
                       options={row.field === "rating" ? RATING_OPTIONS : PRIORITY_OPTIONS} />
                   ) : (
-                    <TextField aria-label="Value" value={row.value} onChange={(value) => update(index, { value })} placeholder="Value" />
+                    <TextField aria-label="Value" value={row.value} onChange={(value) => update(index, { value })}
+                      placeholder={row.operator === "in_list" ? "Separate with commas: 400001, 400002" : row.operator === "starts_with" && row.field === "postalCode" ? "e.g. 4000" : "Value"} />
                   )}
                 <Button variant="ghost" size="compact" aria-label="Remove condition" onPress={() => setConditions((current) => current.filter((_row, position) => position !== index))}>
                   <Trash2 className="size-4" aria-hidden="true" />

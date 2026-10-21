@@ -36,6 +36,8 @@ const country = (value) => {
   const clean = text(value, 60)?.toUpperCase();
   return clean && /^[A-Z]{2}$/.test(clean) ? clean : clean === "INDIA" ? "IN" : undefined;
 };
+// A PIN code only when it is a real 6-digit one: a bad value from a portal must not stop the lead coming in.
+const indianPin = (value) => { const pin = String(value ?? "").replace(/\s+/g, ""); return /^[1-9][0-9]{5}$/.test(pin) ? pin : undefined; };
 const compact = (object) => Object.fromEntries(Object.entries(object).filter(([, value]) => value !== undefined && value !== null && value !== ""));
 // An IST wall-clock time ("2026-10-18 09:12:33") as an instant.
 const istTime = (value) => {
@@ -129,9 +131,10 @@ function justdialLead(raw) {
       phone: phone(raw.phone),
       companyName: text(raw.company, 240),
       city: text(raw.city, 120),
+      postalCode: indianPin(raw.pincode),
       countryCode: "IN",
       productInterest: text(raw.category, 200),
-      description: text([raw.category && `Looking for: ${raw.category}`, raw.area && `Area: ${raw.area}`, raw.pincode && `PIN ${raw.pincode}`].filter(Boolean).join(" · "), 4000),
+      description: text([raw.category && `Looking for: ${raw.category}`, raw.area && `Area: ${raw.area}`].filter(Boolean).join(" · "), 4000),
       sourceDetail: text(`JustDial · ${raw.leadtype ?? "Lead"} · ${externalId}`, 200),
     }),
   };
@@ -159,6 +162,7 @@ function fromAnswers(answers, extra) {
     jobTitle: text(get("job_title"), 160),
     city: text(get("city"), 120),
     state: text(get("state", "province", "region"), 120),
+    postalCode: indianPin(get("post_code", "postal_code", "zip_code")),
     countryCode: country(get("country")),
     description: text(other.join("\n"), 4000),
     ...extra,

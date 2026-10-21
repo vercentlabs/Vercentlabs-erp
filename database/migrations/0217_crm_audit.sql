@@ -131,3 +131,7 @@ SELECT organization.organization_id, source.code, source.name, source.channel, t
 ON CONFLICT (organization_id, code) DO NOTHING;
 
 INSERT INTO public.schema_migrations (filename, checksum) VALUES ('0217_crm_audit.sql', 'crm-audit') ON CONFLICT DO NOTHING;
+
+-- 5. PIN code and district on leads (M8): Indian sales teams split territory by PIN and district.
+ALTER TABLE tenant.crm_leads ADD COLUMN IF NOT EXISTS postal_code text CHECK (postal_code IS NULL OR char_length(postal_code) <= 12);
+ALTER TABLE tenant.crm_leads ADD COLUMN IF NOT EXISTS district text CHECK (district IS NULL OR char_length(district) <= 80);

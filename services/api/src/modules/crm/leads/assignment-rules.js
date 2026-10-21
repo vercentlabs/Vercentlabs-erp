@@ -159,10 +159,12 @@ async function normalizeConditions(client, context, input) {
     const value = text(entry?.value).slice(0, 200);
     if (!value) throw new CrmError(400, `Enter a value for ${field.label}.`, "CRM_LEAD_RULE_VALIDATION");
     if (field.kind === "source") {
-      if (operator === "contains") throw new CrmError(400, "Lead source can only be compared with equals or does not equal.", "CRM_LEAD_RULE_VALIDATION");
+      if (operator !== "equals" && operator !== "not_equals") throw new CrmError(400, "Lead source can only be compared with equals or does not equal.", "CRM_LEAD_RULE_VALIDATION");
       const source = await client.query(`SELECT 1 FROM tenant.crm_lead_sources WHERE organization_id = $1 AND id = $2`, [context.organizationId, isUuid(value) ? value : null]);
       if (!source.rows[0]) throw new CrmError(400, "Choose a lead source from the list.", "CRM_LEAD_RULE_VALIDATION");
     }
+    if ((operator === "starts_with" || operator === "in_list") && field.kind !== "text")
+      throw new CrmError(400, `${field.label} can't be compared with "${operator === "in_list" ? "is any of" : "starts with"}".`, "CRM_LEAD_RULE_VALIDATION");
     if (field.kind === "country" && operator !== "contains" && !/^[A-Za-z]{2}$/.test(value)) throw new CrmError(400, "Choose a country.", "CRM_LEAD_RULE_VALIDATION");
     conditions.push({ field: field.code, operator, value: field.kind === "country" ? value.toUpperCase() : value });
   }
@@ -272,6 +274,8 @@ export function leadMatchesConditions(lead, conditions = []) {
     if (condition.operator === "equals") return actual === expected;
     if (condition.operator === "not_equals") return actual !== expected;
     if (condition.operator === "contains") return actual.includes(expected);
+    if (condition.operator === "starts_with") return actual !== "" && actual.startsWith(expected);
+    if (condition.operator === "in_list") return expected.split(",").map((entry) => entry.trim()).filter(Boolean).includes(actual);
     return false;
   });
 }

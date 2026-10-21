@@ -49,7 +49,7 @@ export function csvResponse(csv: string, fileName: string) {
 
 const FILTER_KEYS = [
   "view", "search", "status", "stage", "priority", "rating", "ownerId", "teamId", "sourceId",
-  "createdFrom", "createdTo", "qualifiedFrom", "qualifiedTo", "convertedFrom", "convertedTo", "qualificationStatus", "disqualificationReason", "stale", "stageEnteredFrom", "stageEnteredTo", "countryCode", "state", "city", "productInterest", "olderThanDays", "assignedFrom", "assignedTo", "sortBy", "sortDirection", "campaignId", "medium", "tagId", "scoreMin",
+  "createdFrom", "createdTo", "qualifiedFrom", "qualifiedTo", "convertedFrom", "convertedTo", "qualificationStatus", "disqualificationReason", "stale", "stageEnteredFrom", "stageEnteredTo", "countryCode", "state", "district", "city", "postalCode", "productInterest", "olderThanDays", "assignedFrom", "assignedTo", "sortBy", "sortDirection", "campaignId", "medium", "tagId", "scoreMin",
 ] as const;
 
 // The list filters accepted from the query string (list and export).

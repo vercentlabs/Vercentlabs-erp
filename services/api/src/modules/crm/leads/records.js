@@ -107,6 +107,8 @@ export function toLead(row) {
     website: row.website,
     city: row.city,
     state: row.state,
+    postalCode: row.postal_code ?? null,
+    district: row.district ?? null,
     countryCode: row.country_code?.trim() ?? null,
     sourceId: row.source_id,
     campaignId: row.campaign_id ?? null,
@@ -330,8 +332,11 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   // The unassigned queue is worked by geography, product and age.
   const contains = (value) => `%${String(value).trim().toLowerCase().replace(/[\\%_]/g, "\\$&")}%`;
   if (/^[A-Za-z]{2}$/.test(String(filters.countryCode ?? ""))) where.push(`lead.country_code = ${bind(String(filters.countryCode).toUpperCase())}`);
-  for (const [key, column] of Object.entries({ state: "lead.state", city: "lead.city", productInterest: "lead.product_interest" }))
+  for (const [key, column] of Object.entries({ state: "lead.state", city: "lead.city", district: "lead.district", productInterest: "lead.product_interest" }))
     if (String(filters[key] ?? "").trim()) where.push(`lower(COALESCE(${column}, '')) LIKE ${bind(contains(filters[key]))}`);
+  // PIN codes: one, a prefix ("4000" for south Mumbai) or several separated by commas.
+  const pins = String(filters.postalCode ?? "").split(",").map((pin) => pin.replace(/\D/g, "")).filter(Boolean).slice(0, 50);
+  if (pins.length) where.push(`(${pins.map((pin) => `lead.postal_code LIKE ${bind(`${pin}%`)}`).join(" OR ")})`);
   const olderThanDays = Number(filters.olderThanDays);
   if (Number.isInteger(olderThanDays) && olderThanDays > 0 && olderThanDays <= 3650) where.push(`lead.created_at < now() - make_interval(days => ${bind(olderThanDays)}::int)`);
   if (filters.stale === "yes" || filters.stale === true)

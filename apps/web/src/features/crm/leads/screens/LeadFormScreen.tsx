@@ -36,14 +36,14 @@ const UNASSIGNED = "__unassigned__";
 
 type FormValues = {
   firstName: string; lastName: string; companyName: string; jobTitle: string; email: string; phone: string; mobile: string; website: string;
-  city: string; state: string; countryCode: string; sourceId: string; sourceDetail: string; campaignId: string; medium: string; industry: string; productInterest: string; languageCode: string;
+  city: string; district: string; postalCode: string; state: string; countryCode: string; sourceId: string; sourceDetail: string; campaignId: string; medium: string; industry: string; productInterest: string; languageCode: string;
   estimatedValue: string; currencyCode: string; purchaseTimeframe: string; priority: string; rating: string; description: string;
   ownerUserId: string; teamId: string;
   consentEmail: boolean; consentSms: boolean; consentWhatsapp: boolean; doNotContact: boolean;
 };
 
 const EMPTY: FormValues = {
-  firstName: "", lastName: "", companyName: "", jobTitle: "", email: "", phone: "", mobile: "", website: "", city: "", state: "", countryCode: "",
+  firstName: "", lastName: "", companyName: "", jobTitle: "", email: "", phone: "", mobile: "", website: "", city: "", district: "", postalCode: "", state: "", countryCode: "",
   sourceId: NONE, sourceDetail: "", campaignId: NONE, medium: NONE, industry: "", productInterest: "", languageCode: NONE, estimatedValue: "", currencyCode: "", purchaseTimeframe: NONE,
   priority: "medium", rating: "cold", description: "", ownerUserId: AUTO, teamId: NONE,
   consentEmail: false, consentSms: false, consentWhatsapp: false, doNotContact: false,
@@ -54,6 +54,7 @@ function valuesFromLead(lead: Lead): FormValues {
     ...EMPTY,
     firstName: lead.firstName ?? "", lastName: lead.lastName ?? "", companyName: lead.companyName ?? "", jobTitle: lead.jobTitle ?? "",
     email: lead.email ?? "", phone: lead.phone ?? "", mobile: lead.mobile ?? "", website: lead.website ?? "", city: lead.city ?? "",
+    district: lead.district ?? "", postalCode: lead.postalCode ?? "",
     state: lead.state ?? "", countryCode: lead.countryCode ?? "", sourceId: lead.sourceId ?? NONE, sourceDetail: lead.sourceDetail ?? "",
     campaignId: lead.campaignId ?? NONE, medium: lead.medium ?? NONE,
     industry: lead.industry ?? "", productInterest: lead.productInterest ?? "", languageCode: lead.languageCode ?? NONE, estimatedValue: lead.estimatedValue ? String(lead.estimatedValue) : "",
@@ -220,7 +221,7 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
       )}
 
       <MoreDetails description="Job title, industry, website, phone, location, value, timeframe, priority, rating and description."
-        hasContent={Boolean(values.jobTitle || values.industry || values.website || values.phone || values.city || values.state || values.sourceDetail || values.campaignId || values.medium || values.estimatedValue
+        hasContent={Boolean(values.jobTitle || values.industry || values.website || values.phone || values.city || values.district || values.postalCode || values.state || values.sourceDetail || values.campaignId || values.medium || values.estimatedValue
           || values.purchaseTimeframe || values.description || values.consentEmail || values.consentSms || values.consentWhatsapp || values.doNotContact || (mode === "edit" && (values.priority !== "medium" || values.rating !== "cold"))
           || Object.entries(fieldErrors).some(([key, message]) => message && !["firstName", "lastName", "companyName", "mobile", "email"].includes(key)))}>
         <TextField label="Job title" value={values.jobTitle} onChange={set("jobTitle")} />
@@ -230,6 +231,8 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
         <TextField label="Website" value={values.website} onChange={set("website")} placeholder="https://" />
         {!contactHidden && <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />}
         <TextField label="City" value={values.city} onChange={set("city")} />
+        <TextField label="District" value={values.district} onChange={set("district")} errorMessage={fieldErrors.district} />
+        <TextField label="PIN code" inputMode="numeric" value={values.postalCode} onChange={set("postalCode")} errorMessage={fieldErrors.postalCode} />
         <StateField countryCode={values.countryCode} value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
         <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
         <Select label="Campaign" selectedKey={values.campaignId} errorMessage={fieldErrors.campaignId}

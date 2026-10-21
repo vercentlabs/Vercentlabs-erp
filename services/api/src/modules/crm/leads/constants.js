@@ -163,6 +163,8 @@ export const LEAD_RULE_FIELDS = Object.freeze([
   { code: "countryCode", label: "Country", column: "country_code", kind: "country" },
   { code: "state", label: "State", column: "state", kind: "text" },
   { code: "city", label: "City", column: "city", kind: "text" },
+  { code: "district", label: "District", column: "district", kind: "text" },
+  { code: "postalCode", label: "PIN code", column: "postal_code", kind: "text" },
   { code: "productInterest", label: "Product / service interest", column: "product_interest", kind: "text" },
   { code: "industry", label: "Industry", column: "industry", kind: "text" },
   { code: "sourceDetail", label: "Campaign / source detail", column: "source_detail", kind: "text" },
@@ -175,6 +177,9 @@ export const LEAD_RULE_OPERATORS = Object.freeze([
   { code: "equals", label: "equals" },
   { code: "not_equals", label: "does not equal" },
   { code: "contains", label: "contains" },
+  { code: "starts_with", label: "starts with" },
+  // A comma-separated list: "400001, 400002, 400003".
+  { code: "in_list", label: "is any of" },
   { code: "is_empty", label: "is empty" },
   { code: "is_not_empty", label: "is not empty" },
 ]);

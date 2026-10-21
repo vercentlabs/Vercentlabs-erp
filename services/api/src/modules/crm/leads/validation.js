@@ -23,6 +23,8 @@ const TEXT_FIELDS = Object.freeze({
   website: ["website", 500],
   city: ["city", 160],
   state: ["state", 160],
+  postalCode: ["postal_code", 12],
+  district: ["district", 80],
   sourceDetail: ["source_detail", 240],
   industry: ["industry", 160],
   productInterest: ["product_interest", 4000],
@@ -141,6 +143,12 @@ export function validateLead(normalized, existing = {}) {
     const state = findIndianState({ name: normalized.state ?? candidate.state });
     if (!state) issue("state", "Choose the state from the list.");
     else normalized.state = state.name;
+  }
+  // An Indian PIN code is six digits, the first never 0.
+  if (candidate.countryCode === "IN" && normalized.postalCode) {
+    const pin = String(normalized.postalCode).replace(/\s+/g, "");
+    if (!/^[1-9][0-9]{5}$/.test(pin)) issue("postalCode", "Enter the 6-digit PIN code.");
+    else normalized.postalCode = pin;
   }
   if (normalized.currencyCode && !/^[A-Z]{3}$/.test(normalized.currencyCode)) issue("currencyCode", "Choose a currency.");
   if (normalized.sourceId && !isUuid(normalized.sourceId)) issue("sourceId", "Choose a lead source.");

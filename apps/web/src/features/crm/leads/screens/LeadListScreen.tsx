@@ -74,9 +74,9 @@ const NO_FILTERS: Filters = { status: ANY, stage: ANY, ownerId: ANY, sourceId: A
 
 // Where the lead is, what it wants and how long it has waited: the filters
 // the unassigned queue is worked by.
-type QueueFilters = { state: string; city: string; productInterest: string; olderThanDays: string };
-const NO_QUEUE_FILTERS: QueueFilters = { state: "", city: "", productInterest: "", olderThanDays: "" };
-const QUEUE_FILTER_NAMES: Record<keyof QueueFilters, string> = { state: "State", city: "City", productInterest: "Interest", olderThanDays: "Waiting" };
+type QueueFilters = { state: string; district: string; city: string; postalCode: string; productInterest: string; olderThanDays: string };
+const NO_QUEUE_FILTERS: QueueFilters = { state: "", district: "", city: "", postalCode: "", productInterest: "", olderThanDays: "" };
+const QUEUE_FILTER_NAMES: Record<keyof QueueFilters, string> = { state: "State", district: "District", city: "City", postalCode: "PIN", productInterest: "Interest", olderThanDays: "Waiting" };
 const AGE_OPTIONS = [
   { value: ANY, label: "Any age" },
   ...[1, 2, 3, 7, 14, 30].map((days) => ({ value: String(days), label: `Created more than ${days} ${days === 1 ? "day" : "days"} ago` })),
@@ -111,7 +111,7 @@ export function LeadListScreen() {
     scoreMin: params.get("scoreMin") ?? ANY,
   });
   const [queue, setQueueState] = useState<QueueFilters>({
-    state: params.get("state") ?? "", city: params.get("city") ?? "", productInterest: params.get("productInterest") ?? "", olderThanDays: params.get("olderThanDays") ?? "",
+    state: params.get("state") ?? "", district: params.get("district") ?? "", city: params.get("city") ?? "", postalCode: params.get("postalCode") ?? "", productInterest: params.get("productInterest") ?? "", olderThanDays: params.get("olderThanDays") ?? "",
   });
   const [ranges, setRanges] = useState<FilterRange>({ qualifiedFrom: params.get("qualifiedFrom") ?? "", qualifiedTo: params.get("qualifiedTo") ?? "",
     convertedFrom: params.get("convertedFrom") ?? "", convertedTo: params.get("convertedTo") ?? "" });
@@ -382,7 +382,9 @@ export function LeadListScreen() {
                           options={filterOptions((options.tags ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any tag")} />
                         <p className="border-t border-border pt-3 text-xs font-medium text-text-secondary sm:col-span-2 lg:col-span-3">Location, interest and age</p>
                         <TextField label="State" value={queue.state} onChange={(state) => setQueue({ ...queue, state })} />
+                        <TextField label="District" value={queue.district} onChange={(district) => setQueue({ ...queue, district })} />
                         <TextField label="City" value={queue.city} onChange={(city) => setQueue({ ...queue, city })} />
+                        <TextField label="PIN code" description="A PIN, its start (4000) or several with commas." value={queue.postalCode} onChange={(postalCode) => setQueue({ ...queue, postalCode })} />
                         <TextField label="Product / service interest" value={queue.productInterest} onChange={(productInterest) => setQueue({ ...queue, productInterest })} />
                         <Select label="Waiting" size="compact" selectedKey={queue.olderThanDays || ANY}
                           onSelectionChange={(key) => setQueue({ ...queue, olderThanDays: String(key) === ANY ? "" : String(key) })} options={AGE_OPTIONS} />

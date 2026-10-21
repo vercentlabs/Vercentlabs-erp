@@ -45,6 +45,8 @@ export type Lead = {
   website: string | null;
   city: string | null;
   state: string | null;
+  postalCode?: string | null;
+  district?: string | null;
   countryCode: string | null;
   sourceId: string | null;
   sourceName: string | null;

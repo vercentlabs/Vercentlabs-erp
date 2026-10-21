@@ -246,6 +246,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                   { label: "Mobile", value: lead.mobile ? formatPhone(lead.mobile) : null },
                   { label: "Phone", value: lead.phone ? formatPhone(lead.phone) : null },
                   { label: "City", value: lead.city },
+                  { label: "District", value: lead.district ?? null },
+                  { label: "PIN code", value: lead.postalCode ?? null },
                   { label: "State", value: lead.state },
                   { label: "Country", value: lead.countryCode ? countryName(lead.countryCode) : null },
                 ]}
