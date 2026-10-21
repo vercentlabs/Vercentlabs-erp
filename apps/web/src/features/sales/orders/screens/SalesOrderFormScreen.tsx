@@ -20,7 +20,8 @@ import { money, statusLabel } from "@/features/sales/shared/format";
 import {
   BILLING_ADDRESS_TYPES, SHIPPING_ADDRESS_TYPES, contactLabel, defaultAddress, defaultLineDescription, defaultLineUom, usableAddresses,
 } from "@/features/sales/shared/document-defaults";
-import { getSalesOptions, previewSalesDocument, type SalesDocumentInput, type SalesOptions } from "@/features/sales/quotations/api/quotations-api";
+import { getSalesOptions, previewSalesDocument, type SalesDocumentInput, type SalesOptions, type SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
+import { mergeSalesOptions, SalesSearchPicker } from "@/features/sales/shared/SalesSearchPicker";
 import { AUTOMATIC_TAX, DocumentTaxPanel, taxDraftOf, taxInput, type DocumentTaxDraft } from "@/features/sales/shared/DocumentTax";
 import {
   DocumentDiscountPanel, DocumentTotals, NO_DOCUMENT_DISCOUNT, defaultDiscountType, discountTypeOptions, type DocumentDiscountDraft,
@@ -61,15 +62,25 @@ export function SalesOrderFormScreen({ orderId, initialPartyId }: { orderId?: st
   const router = useRouter();
   const queryClient = useQueryClient();
   const editing = Boolean(orderId);
-  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "options"), queryFn: () => getSalesOptions().then((r) => r.options) });
   const defaultsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "order-defaults"), queryFn: () => getSalesOrderDefaults().then((r) => r.defaults) });
   const existingQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "sales", "order", orderId),
     queryFn: () => getSalesOrder(orderId!).then((r) => r.order),
     enabled: editing,
   });
+  // The form's options carry the order's own customer and products (and that customer's contacts and addresses); any other is found by
+  // searching (Sales audit B4).
+  const optionParty = editing ? existingQuery.data?.order.party_id : initialPartyId;
+  const optionItems = [...new Set((existingQuery.data?.lines ?? []).map((line) => line.item_id).filter(Boolean))] as string[];
+  const optionsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "sales", "options", optionParty ?? "", optionItems.join(",")),
+    queryFn: () => getSalesOptions(optionParty ?? undefined, optionItems).then((r) => r.options),
+    enabled: !editing || Boolean(existingQuery.data),
+  });
 
-  if (optionsQuery.isLoading || defaultsQuery.isLoading || (editing && existingQuery.isLoading)) return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
+  if (editing && existingQuery.isError)
+    return <ErrorState title="Could not load this order" action={{ label: "Retry", onPress: () => existingQuery.refetch() }} />;
+  if (optionsQuery.isPending || defaultsQuery.isLoading || (editing && existingQuery.isLoading)) return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
   if (optionsQuery.isError || !optionsQuery.data || defaultsQuery.isError || !defaultsQuery.data)
     return <ErrorState title="Could not load the form" action={{ label: "Retry", onPress: () => { void optionsQuery.refetch(); void defaultsQuery.refetch(); } }} />;
   if (editing && (existingQuery.isError || !existingQuery.data))
@@ -99,11 +110,13 @@ export function SalesOrderFormScreen({ orderId, initialPartyId }: { orderId?: st
   );
 }
 
-function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone, onCancel }: {
+function FormBody({ options: initialOptions, defaults, existing, orderId, initialPartyId, onDone, onCancel }: {
   options: SalesOptions; defaults: SalesOrderDefaults; existing: SalesOrderDetail | null; orderId?: string; initialPartyId?: string;
   onDone: (id: string) => void; onCancel: () => void;
 }) {
   const workspace = useWorkspaceContext();
+  // What the form holds grows as customers and products are found by search (Sales audit B4).
+  const [options, setOptions] = useState(initialOptions);
   // Warehouses are asked for only when the business keeps stock.
   const stockOn = useApp("stock");
   const order = existing?.order;
@@ -168,8 +181,6 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
   const can = (permission: string) => workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(permission);
   const canOverridePrice = can("sales.price.override");
   const canDiscountLines = options.discounts.allowLine && options.discounts.canApplyLine;
-  const partyOptions: SelectOption[] = options.parties.filter((party) => ["customer", "both"].includes(party.party_type))
-    .map((party) => ({ value: party.id, label: `${party.display_name} (${party.code})` }));
   const partyContacts = options.contacts.filter((contact) => contact.party_id === partyId);
   const partyAddresses = options.addresses.filter((address) => address.party_id === partyId);
   const contactOptions: SelectOption[] = [{ value: "", label: "None" }, ...partyContacts.map((contact) => ({ value: contact.id, label: contactLabel(contact) }))];
@@ -181,7 +192,6 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
         + ((types === BILLING_ADDRESS_TYPES ? address.is_default_billing : address.is_default_shipping) ? " (default)" : ""),
     })),
   ];
-  const itemOptions: SelectOption[] = options.items.map((item) => ({ value: item.id, label: `${item.name} (${item.code})` }));
   const uomById = new Map(options.uoms.map((uom) => [uom.id, uom]));
   function uomOptionsFor(itemId: string): SelectOption[] {
     const item = options.items.find((candidate) => candidate.id === itemId);
@@ -212,26 +222,45 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
   ];
   const ownerOptions: SelectOption[] = options.users.map((user) => ({ value: user.id, label: user.full_name }));
 
-  function selectParty(id: string) {
+  // A picked customer brings its contacts and addresses (loaded now), then the form defaults from it.
+  const [loadingParty, setLoadingParty] = useState(false);
+  async function pickParty(id: string, found: SalesSearchResults) {
+    let next = mergeSalesOptions(options, found);
     setPartyId(id);
-    const party = options.parties.find((candidate) => candidate.id === id);
+    setLoadingParty(true);
+    try {
+      next = mergeSalesOptions(next, (await getSalesOptions(id)).options);
+    } catch {
+      setError("The customer's contacts and addresses could not be loaded. Try choosing the customer again.");
+    } finally {
+      setLoadingParty(false);
+    }
+    setOptions(next);
+    selectParty(id, next);
+  }
+  function selectParty(id: string, from: SalesOptions = options) {
+    setPartyId(id);
+    const party = from.parties.find((candidate) => candidate.id === id);
     if (party?.currency_code) setCurrencyCode(party.currency_code);
-    setPaymentTermId(party?.payment_term_id && options.paymentTerms.some((term) => term.id === party.payment_term_id) ? party.payment_term_id : "");
+    setPaymentTermId(party?.payment_term_id && from.paymentTerms.some((term) => term.id === party.payment_term_id) ? party.payment_term_id : "");
     setPriceListId("");
     // The customer's salesperson owns their documents; with none, whoever is creating it.
-    if (party?.owner_user_id && options.users.some((user) => user.id === party.owner_user_id)) setOwnerUserId(party.owner_user_id);
-    const addresses = options.addresses.filter((address) => address.party_id === id);
-    setContactId(options.contacts.find((contact) => contact.party_id === id && contact.is_primary)?.id ?? "");
+    if (party?.owner_user_id && from.users.some((user) => user.id === party.owner_user_id)) setOwnerUserId(party.owner_user_id);
+    const addresses = from.addresses.filter((address) => address.party_id === id);
+    setContactId(from.contacts.find((contact) => contact.party_id === id && contact.is_primary)?.id ?? "");
     setBillingAddressId(defaultAddress(addresses, BILLING_ADDRESS_TYPES));
     setShippingAddressId(defaultAddress(addresses, SHIPPING_ADDRESS_TYPES));
   }
   function updateLine(key: number, patch: Partial<LineDraft>) {
     setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   }
-  function selectLineItem(key: number, itemId: string) {
-    const item = options.items.find((candidate) => candidate.id === itemId);
+  // A picked product joins the form's options with its unit conversions.
+  function selectLineItem(key: number, itemId: string, found: SalesSearchResults) {
+    const next = mergeSalesOptions(options, found);
+    setOptions(next);
+    const item = next.items.find((candidate) => candidate.id === itemId);
     // Another product is a new line: it is priced from today's price list, not from the quotation.
-    updateLine(key, { itemId, quoted: false, salesOrderLineId: "", uomId: defaultLineUom(item, options.itemUomConversions), description: defaultLineDescription(item) });
+    updateLine(key, { itemId, quoted: false, salesOrderLineId: "", uomId: defaultLineUom(item, next.itemUomConversions), description: defaultLineDescription(item) });
   }
 
   const validLines = lines.filter((line) => line.itemId && line.quantity > 0);
@@ -345,8 +374,8 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
 
           <FormSection columns={1} title="Customer">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Select label="Customer" isRequired options={partyOptions} selectedKey={partyId || null} onSelectionChange={(key) => selectParty(String(key ?? ""))}
-                placeholder="Select a customer" isDisabled={fromQuotation} description={fromQuotation ? "An order made from a quotation keeps the quotation's customer." : undefined} />
+              <SalesSearchPicker kind="customers" customersOnly label="Customer" isRequired known={options} value={partyId || null} onPick={(id, found) => void pickParty(id, found)}
+                placeholder={loadingParty ? "Loading the customer…" : "Search customers by name, code, GSTIN or phone"} isDisabled={fromQuotation} description={fromQuotation ? "An order made from a quotation keeps the quotation's customer." : undefined} />
               <Select label="Contact" options={contactOptions} selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key ?? ""))} isDisabled={!partyId} />
               <Select label="Billing address" options={addressOptionsFor(BILLING_ADDRESS_TYPES)} selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key ?? ""))} isDisabled={!partyId} />
               <Select label="Shipping address" options={addressOptionsFor(SHIPPING_ADDRESS_TYPES)} selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key ?? ""))} isDisabled={!partyId} />
@@ -396,8 +425,8 @@ function FormBody({ options, defaults, existing, orderId, initialPartyId, onDone
                 const service = isService(line.itemId);
                 return (
                   <div key={line.key} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,2.7fr)_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_auto]">
-                    <Select aria-label={`Item ${index + 1}`} label={index === 0 ? "Item" : undefined} options={itemOptions} selectedKey={line.itemId || null}
-                      onSelectionChange={(key) => selectLineItem(line.key, String(key ?? ""))} placeholder="Select an item" />
+                    <SalesSearchPicker kind="products" aria-label={`Item ${index + 1}`} label={index === 0 ? "Item" : undefined} known={options} value={line.itemId || null}
+                      onPick={(id, found) => selectLineItem(line.key, id, found)} placeholder="Search products by name, code, HSN or barcode" />
                     <Select aria-label={`Unit ${index + 1}`} label={index === 0 ? "Unit" : undefined} options={uoms} selectedKey={line.uomId || null}
                       onSelectionChange={(key) => updateLine(line.key, { uomId: String(key ?? "") })} isDisabled={line.quoted || uoms.length <= 1} />
                     <NumberField aria-label={`Quantity ${index + 1}`} label={index === 0 ? "Quantity" : undefined} value={line.quantity}

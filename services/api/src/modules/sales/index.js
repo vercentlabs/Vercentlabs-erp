@@ -1044,12 +1044,13 @@ export async function getSalesOptions(
   context,
   opportunityId = null,
   partyId = null,
+  { itemIds = [] } = {},
 ) {
   requirePermission(context, "sales.view");
-  // Contacts/addresses join across every customer in the org; once a
-  // specific customer is chosen this scopes to just its own records instead
-  // of fetching every customer's contacts/addresses on every load.
+  // A form never loads every customer and product (Sales audit B4): a first page of each — with the document's own customer and products
+  // always in it — and the contacts and addresses of the chosen customer only; the rest are found by searchSalesOptions as the user types.
   const partyFilterId = partyId ? uuid(partyId, "Customer") : null;
+  const wantedItems = [...new Set((Array.isArray(itemIds) ? itemIds : []).filter((id) => /^[0-9a-f-]{36}$/i.test(String(id))))].slice(0, 500);
   const [
     parties,
     contacts,
@@ -1065,15 +1066,15 @@ export async function getSalesOptions(
     opportunities,
   ] = await Promise.all([
     client.query(
-      `SELECT id,code,party_type,display_name,legal_name,currency_code,owner_user_id,credit_limit,payment_term_id,default_price_list_id,tax_treatment,default_shipping_method,default_delivery_terms,default_incoterm,sales_block,sales_block_reason FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both') ORDER BY display_name LIMIT 500`,
-      [context.organizationId],
+      `SELECT id,code,party_type,display_name,legal_name,currency_code,owner_user_id,credit_limit,payment_term_id,default_price_list_id,tax_treatment,default_shipping_method,default_delivery_terms,default_incoterm,sales_block,sales_block_reason FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both') ORDER BY (id=$2::uuid) DESC NULLS LAST,display_name LIMIT 100`,
+      [context.organizationId, partyFilterId],
     ),
     client.query(
       `SELECT contact.id,link.party_id,contact.first_name,contact.last_name,contact.email,contact.mobile,COALESCE(link.job_title,contact.designation) AS designation,contact.phone,
               link.is_primary_contact AS is_primary,link.role,link.department,link.is_billing_contact,link.is_shipping_contact,link.address_id
          FROM tenant.crm_contact_account_relationships link
          JOIN tenant.contacts contact ON contact.organization_id=link.organization_id AND contact.id=link.contact_id
-        WHERE link.organization_id=$1 AND link.status='active' AND contact.status='active'${partyFilterId ? ` AND link.party_id=$2` : ""} ORDER BY link.is_primary_contact DESC,contact.first_name LIMIT 1000`,
+        WHERE link.organization_id=$1 AND link.status='active' AND contact.status='active'${partyFilterId ? ` AND link.party_id=$2` : " AND false"} ORDER BY link.is_primary_contact DESC,contact.first_name LIMIT 1000`,
       partyFilterId
         ? [context.organizationId, partyFilterId]
         : [context.organizationId],
@@ -1082,14 +1083,14 @@ export async function getSalesOptions(
       `SELECT address.id,address.party_id,address.address_type,address.line1,address.city,address.state,address.state_code,address.postal_code,address.line2,address.district,address.country_code,address.gstin,address.is_primary,address.label,address.is_default_billing,address.is_default_shipping
          FROM tenant.addresses address
          JOIN tenant.business_parties party ON party.organization_id=address.organization_id AND party.id=address.party_id
-        WHERE address.organization_id=$1 AND address.status='active'${partyFilterId ? ` AND address.party_id=$2` : ""} ORDER BY address.is_default_billing DESC,address.is_primary DESC,address.city LIMIT 500`,
+        WHERE address.organization_id=$1 AND address.status='active'${partyFilterId ? ` AND address.party_id=$2` : " AND false"} ORDER BY address.is_default_billing DESC,address.is_primary DESC,address.city LIMIT 500`,
       partyFilterId
         ? [context.organizationId, partyFilterId]
         : [context.organizationId],
     ),
     client.query(
-      `SELECT id,code,name,item_type,uom_id,sales_uom_id,sales_description,description,track_inventory,standard_cost,tax_category_id,parent_item_id,variant_attributes FROM tenant.items WHERE organization_id=$1 AND status='active' AND is_sellable ORDER BY name LIMIT 2000`,
-      [context.organizationId],
+      `SELECT id,code,name,item_type,uom_id,sales_uom_id,sales_description,description,track_inventory,standard_cost,tax_category_id,parent_item_id,variant_attributes FROM tenant.items WHERE organization_id=$1 AND status='active' AND is_sellable ORDER BY (id=ANY($2::uuid[])) DESC,name LIMIT ${200 + wantedItems.length}`,
+      [context.organizationId, wantedItems],
     ),
     client.query(
       `SELECT id,code,name,decimal_places FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY category,name`,
@@ -1100,8 +1101,10 @@ export async function getSalesOptions(
     // editor's per-item UOM picker filters against, instead of offering every
     // UOM in the org regardless of whether a conversion exists.
     client.query(
-      `SELECT item_id,from_uom_id,to_uom_id,conversion_factor FROM tenant.item_uom_conversions WHERE organization_id=$1 AND status='active' AND sales_enabled LIMIT 2000`,
-      [context.organizationId],
+      `SELECT conversion.item_id,conversion.from_uom_id,conversion.to_uom_id,conversion.conversion_factor FROM tenant.item_uom_conversions conversion
+         WHERE conversion.organization_id=$1 AND conversion.status='active' AND conversion.sales_enabled
+           AND conversion.item_id IN (SELECT id FROM tenant.items WHERE organization_id=$1 AND status='active' AND is_sellable ORDER BY (id=ANY($2::uuid[])) DESC,name LIMIT ${200 + wantedItems.length})`,
+      [context.organizationId, wantedItems],
     ),
     client.query(
       `SELECT id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' AND system_role IS NULL ORDER BY name LIMIT 500`,
@@ -1163,6 +1166,35 @@ export async function getSalesOptions(
     },
     context,
   );
+}
+
+// The pickers' search (Sales audit B4/M4): customers by name, code, GSTIN or phone; products by name, code or HSN — each with the same
+// columns the form's options carry (a product with its unit conversions), so a found record joins the form like one it already had.
+// input: { kind: "customers" | "products", q, prospects? (customers: prospects too) }
+export async function searchSalesOptions(client, context, { kind, q = "", prospects = true } = {}) {
+  requirePermission(context, "sales.view");
+  const term = String(q ?? "").trim().toLowerCase().slice(0, 100);
+  const like = `%${term.replace(/[\\%_]/g, "\\// pass1-operations.js: sales settings, advances, drop-ship requests and")}%`;
+  if (kind === "customers") {
+    const rows = (await client.query(
+      `SELECT id,code,party_type,display_name,legal_name,currency_code,owner_user_id,credit_limit,payment_term_id,default_price_list_id,tax_treatment,default_shipping_method,default_delivery_terms,default_incoterm,sales_block,sales_block_reason FROM tenant.business_parties party
+        WHERE party.organization_id=$1 AND party.status='active' AND party.party_type IN (${prospects ? "'customer','prospect','both'" : "'customer','both'"})
+          AND ($2='' OR lower(party.display_name || ' ' || COALESCE(party.legal_name,'') || ' ' || party.code || ' ' || COALESCE(party.gstin,'') || ' ' || COALESCE(party.phone,'')) LIKE $3)
+        ORDER BY (lower(party.display_name) LIKE $4) DESC, party.display_name LIMIT 30`, [context.organizationId, term, like, `${term}%`])).rows;
+    return { parties: rows };
+  }
+  if (kind === "products") {
+    const rows = (await client.query(
+      `SELECT id,code,name,item_type,uom_id,sales_uom_id,sales_description,description,track_inventory,standard_cost,tax_category_id,parent_item_id,variant_attributes FROM tenant.items item
+        WHERE item.organization_id=$1 AND item.status='active' AND item.is_sellable
+          AND ($2='' OR lower(item.name || ' ' || item.code || ' ' || COALESCE(item.hsn_sac_code,'') || ' ' || COALESCE(item.barcode,'')) LIKE $3)
+        ORDER BY (lower(item.name) LIKE $4) DESC, item.name LIMIT 30`, [context.organizationId, term, like, `${term}%`])).rows;
+    const conversions = rows.length ? (await client.query(
+      "SELECT item_id,from_uom_id,to_uom_id,conversion_factor FROM tenant.item_uom_conversions WHERE organization_id=$1 AND status='active' AND sales_enabled AND item_id=ANY($2::uuid[])",
+      [context.organizationId, rows.map((row) => row.id)])).rows : [];
+    return redactMargin({ items: rows, itemUomConversions: conversions }, context);
+  }
+  throw new SalesError(400, "Search customers or products.");
 }
 
 // pass1-operations.js: sales settings, advances, drop-ship requests and

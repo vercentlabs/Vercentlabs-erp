@@ -508,5 +508,11 @@ export async function uploadSalesQuotationFile(id: string, file: File) {
 export const removeSalesQuotationFile = (id: string, fileId: string) => del<{ result: { removed: boolean } }>(`/quotations/${id}/files/${fileId}`);
 export const previewSalesDocument = (input: SalesDocumentInput) =>
   post<{ preview: SalesDocumentPreview }>("/documents/preview", input);
-export const getSalesOptions = (partyId?: string) =>
-  request<{ options: SalesOptions }>(`/options${qs({ partyId })}`);
+// A first page of customers and products, with the document's own customer (partyId) and products (itemIds) always in it, and the
+// chosen customer's contacts and addresses (Sales audit B4).
+export const getSalesOptions = (partyId?: string, itemIds?: string[]) =>
+  request<{ options: SalesOptions }>(`/options${qs({ partyId, itemIds: itemIds?.length ? itemIds.join(",") : undefined })}`);
+export type SalesSearchResults = Partial<Pick<SalesOptions, "parties" | "items" | "itemUomConversions">>;
+// Search-as-you-type for the pickers: customers by name, code, GSTIN or phone; products by name, code, HSN or barcode.
+export const searchSalesOptions = (kind: "customers" | "products", q: string, prospects = true) =>
+  request<{ results: SalesSearchResults }>(`/options/search${qs({ kind, q, prospects: prospects ? undefined : "0" })}`);

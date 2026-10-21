@@ -3,7 +3,9 @@ export type SalesContext = { organizationId: string; userId: string | null; perm
 export class SalesError extends Error { readonly status: number; readonly code: string; constructor(status: number, message: string, code?: string); }
 export function previewSalesDocument(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, options?: { order?: boolean; allowMissingPrice?: boolean; preview?: boolean; carryQuotedPrices?: boolean }): Promise<any>;
 export function getSalesReport(client: SalesQueryClient, context: SalesContext, key: string): Promise<any[]>;
-export function getSalesOptions(client: SalesQueryClient, context: SalesContext, opportunityId?: string | null, partyId?: string | null): Promise<any>;
+export function getSalesOptions(client: SalesQueryClient, context: SalesContext, opportunityId?: string | null, partyId?: string | null, options?: { itemIds?: string[] }): Promise<any>;
+// The pickers' search (Sales audit B4).
+export function searchSalesOptions(client: SalesQueryClient, context: SalesContext, input: { kind: "customers" | "products"; q?: string; prospects?: boolean }): Promise<any>;
 
 export function accrueSalesCommission(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
 

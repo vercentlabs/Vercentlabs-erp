@@ -55,6 +55,8 @@ import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
 import { FormSection } from "@/shared/ui/FormSection";
 import { Notice, Panel } from "@/shared/ui/Panel";
 import { ChargeRows, chargeDraftOf, chargesInput, type ChargeDraft } from "@/features/sales/shared/ChargeRows";
+import { mergeSalesOptions, SalesSearchPicker } from "@/features/sales/shared/SalesSearchPicker";
+import type { SalesOptions, SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
 
 type LineDraft = {
   key: number;
@@ -96,21 +98,33 @@ export function SalesQuotationFormScreen({
   const queryClient = useQueryClient();
   const editing = Boolean(quotationId);
 
-  const optionsQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "sales", "options"),
-    queryFn: () => getSalesOptions().then((r) => r.options),
-  });
   const existingQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "sales", "quotation", quotationId),
     queryFn: () => getSalesQuotation(quotationId!).then((r) => r.quotation),
     enabled: editing,
+  });
+  // The form's options carry the quotation's own customer and products (and that customer's contacts and addresses); any other is
+  // found by searching (Sales audit B4).
+  const optionParty = editing ? existingQuery.data?.quotation.party_id : initialPartyId;
+  const optionItems = [...new Set((existingQuery.data?.lines ?? []).map((line) => line.item_id).filter(Boolean))] as string[];
+  const optionsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "sales", "options", optionParty ?? "", optionItems.join(",")),
+    queryFn: () => getSalesOptions(optionParty ?? undefined, optionItems).then((r) => r.options),
+    enabled: !editing || Boolean(existingQuery.data),
   });
   const defaultsQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "sales", "quotation-defaults"),
     queryFn: () => getQuotationDefaults().then((r) => r.defaults),
   });
 
-  if (optionsQuery.isLoading || defaultsQuery.isLoading || (editing && existingQuery.isLoading))
+  if (editing && existingQuery.isError)
+    return (
+      <ErrorState
+        title="Could not load this quotation"
+        action={{ label: "Retry", onPress: () => existingQuery.refetch() }}
+      />
+    );
+  if (optionsQuery.isPending || defaultsQuery.isLoading || (editing && existingQuery.isLoading))
     return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
   if (optionsQuery.isError || !optionsQuery.data)
     return (
@@ -170,7 +184,7 @@ export function SalesQuotationFormScreen({
 }
 
 function FormBody({
-  options,
+  options: initialOptions,
   defaults,
   existing,
   quotationId,
@@ -198,6 +212,8 @@ function FormBody({
 }) {
   const workspace = useWorkspaceContext();
   const editing = Boolean(quotationId);
+  // What the form holds grows as customers and products are found by search (Sales audit B4).
+  const [options, setOptions] = useState(initialOptions);
   // A revision stays an offer to the same customer.
   const customerLocked = Boolean(existing && existing.quotation.revision_number > 0);
   const canCreateCustomer =
@@ -330,10 +346,6 @@ function FormBody({
   const [error, setError] = useState<string | null>(null);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
-  const partyOptions: SelectOption[] = options.parties.map((party) => ({
-    value: party.id,
-    label: `${party.display_name} (${party.code})`,
-  }));
   // Every top-ERP customer-master comparison (SAP's partner functions,
   // NetSuite's per-transaction ship-to/bill-to) resolves contact/address at
   // the document level, independent of which one the customer has marked
@@ -367,10 +379,6 @@ function FormBody({
   ];
   const billingAddressOptions = addressOptionsFor(BILLING_ADDRESS_TYPES);
   const shippingAddressOptions = addressOptionsFor(SHIPPING_ADDRESS_TYPES);
-  const itemOptions: SelectOption[] = options.items.map((item) => ({
-    value: item.id,
-    label: `${item.name} (${item.code})`,
-  }));
   // A line's unit is chosen from what the item converts to (the server
   // enforces the same thing). A variant (Large / Brown) is an item of its own.
   const uomById = new Map(options.uoms.map((uom) => [uom.id, uom]));
@@ -388,9 +396,9 @@ function FormBody({
       .filter((uom): uom is NonNullable<typeof uom> => Boolean(uom))
       .map((uom) => ({ value: uom.id, label: `${uom.name} (${uom.code})` }));
   }
-  function selectLineItem(key: number, itemId: string) {
-    const item = options.items.find((candidate) => candidate.id === itemId);
-    updateLine(key, { itemId, uomId: defaultLineUom(item, options.itemUomConversions), description: defaultLineDescription(item) });
+  function selectLineItem(key: number, itemId: string, from: SalesOptions = options) {
+    const item = from.items.find((candidate) => candidate.id === itemId);
+    updateLine(key, { itemId, uomId: defaultLineUom(item, from.itemUomConversions), description: defaultLineDescription(item) });
   }
   const currencyOptions: SelectOption[] = options.currencies.map(
     (currency) => ({
@@ -413,9 +421,32 @@ function FormBody({
     ...(keptTerm?.id && !options.paymentTerms.some((term) => term.id === keptTerm.id) ? [{ value: keptTerm.id, label: `${keptTerm.name ?? "Payment terms"} (as agreed; no longer offered)` }] : []),
   ];
 
-  function selectParty(id: string) {
+  // A picked product joins the form's options with its unit conversions.
+  function pickLineItem(key: number, itemId: string, found: SalesSearchResults) {
+    const next = mergeSalesOptions(options, found);
+    setOptions(next);
+    selectLineItem(key, itemId, next);
+  }
+  // A picked customer brings its contacts and addresses (loaded now), then the form defaults from it.
+  const [loadingParty, setLoadingParty] = useState(false);
+  async function pickParty(id: string, found: SalesSearchResults) {
+    let next = mergeSalesOptions(options, found);
     setPartyId(id);
-    const party = options.parties.find((candidate) => candidate.id === id);
+    setLoadingParty(true);
+    try {
+      next = mergeSalesOptions(next, (await getSalesOptions(id)).options);
+    } catch {
+      setError("The customer's contacts and addresses could not be loaded. Try choosing the customer again.");
+    } finally {
+      setLoadingParty(false);
+    }
+    setOptions(next);
+    selectParty(id, next);
+  }
+
+  function selectParty(id: string, from: SalesOptions = options) {
+    setPartyId(id);
+    const party = from.parties.find((candidate) => candidate.id === id);
     // A customer's own currency and terms are the natural starting point; the
     // user can still change either, and the server validates the combination.
     if (party?.currency_code) setCurrencyCode(party.currency_code);
@@ -431,10 +462,10 @@ function FormBody({
     // Default to the new customer's primary contact/billing/shipping address
     // (still fully overridable below) -- the previous customer's selections
     // don't carry over.
-    const contacts = options.contacts.filter(
+    const contacts = from.contacts.filter(
       (contact) => contact.party_id === id,
     );
-    const addresses = options.addresses.filter(
+    const addresses = from.addresses.filter(
       (address) => address.party_id === id,
     );
     setContactId(contacts.find((contact) => contact.is_primary)?.id ?? "");
@@ -617,13 +648,14 @@ function FormBody({
 
           <FormSection columns={1} title="Customer & terms">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Select
+              <SalesSearchPicker
+                kind="customers"
                 label="Customer"
                 isRequired
-                options={partyOptions}
-                selectedKey={partyId || null}
-                onSelectionChange={(key) => selectParty(String(key ?? ""))}
-                placeholder="Select a customer"
+                known={options}
+                value={partyId || null}
+                onPick={(id, found) => void pickParty(id, found)}
+                placeholder={loadingParty ? "Loading the customer…" : "Search customers by name, code, GSTIN or phone"}
                 isDisabled={customerLocked}
                 description={
                   !editing && canCreateCustomer ? (
@@ -788,15 +820,14 @@ function FormBody({
                     key={line.key}
                     className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto]"
                   >
-                    <Select
+                    <SalesSearchPicker
+                      kind="products"
                       aria-label={`Item ${index + 1}`}
                       label={index === 0 ? "Item" : undefined}
-                      options={itemOptions}
-                      selectedKey={line.itemId || null}
-                      onSelectionChange={(key) =>
-                        selectLineItem(line.key, String(key ?? ""))
-                      }
-                      placeholder="Select an item"
+                      known={options}
+                      value={line.itemId || null}
+                      onPick={(id, found) => pickLineItem(line.key, id, found)}
+                      placeholder="Search products by name, code, HSN or barcode"
                     />
                     <Select
                       aria-label={`UOM ${index + 1}`}
