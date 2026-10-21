@@ -44,6 +44,9 @@ export default async function InvitationPage({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
+        <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">
+          Vercentlabs ERP
+        </p>
         <h1 className="text-xl font-semibold text-text">
           {invitation ? `Join ${invitation.organization_name}` : "Invitation"}
         </h1>

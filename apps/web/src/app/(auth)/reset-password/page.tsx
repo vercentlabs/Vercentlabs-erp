@@ -12,6 +12,9 @@ export default async function ResetPasswordPage({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
+        <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">
+          Vercentlabs ERP
+        </p>
         <h1 className="text-xl font-semibold text-text">
           Choose a new password
         </h1>
