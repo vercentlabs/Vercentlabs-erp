@@ -290,6 +290,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Customers", "/sales/customers"), aliases: ["customer master", "parties", "addresses", "contacts", "customer 360", "import customers"] },
           { ...available("Products & Services", "/sales/products"), aliases: ["catalog", "items", "services", "sku", "hsn", "sac"] },
           { ...available("Price Lists", "/sales/price-lists"), aliases: ["prices", "rate list", "default price list"] },
+          { ...available("Rate Contracts", "/sales/rate-contracts"), aliases: ["rate contract", "blanket order", "annual contract", "call-off", "agreed rates"] },
           { ...available("Schemes & Rates", "/sales/pricing-rules"), aliases: ["schemes", "special rates", "party rates", "quantity slabs", "free goods", "buy 10 get 1", "pricing rules"] },
         ],
       },

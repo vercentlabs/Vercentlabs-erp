@@ -75,7 +75,7 @@ export async function insertOrderVersion(client, context, orderId, input, previe
       discount_amount: line.discountAmount, gross_amount: line.grossAmount, net_amount: line.netAmount, document_discount_amount: line.documentDiscountAmount,
       taxable_amount: line.taxableAmount, tax_amount: line.taxAmount, line_total: line.lineTotal, standard_cost: line.standardCost, cost_amount: line.costAmount,
       margin_amount: line.marginAmount, margin_percent: line.marginPercent, tax_category_id: line.taxCategoryId,
-      requested_delivery_date: line.requestedDeliveryDate, promised_delivery_date: line.requestedDeliveryDate, scheme_rule_id: line.schemeRuleId ?? null, mrp: line.mrp ?? null,
+      requested_delivery_date: line.requestedDeliveryDate, promised_delivery_date: line.requestedDeliveryDate, scheme_rule_id: line.schemeRuleId ?? null, mrp: line.mrp ?? null, rate_contract_line_id: line.rateContractLineId ?? null,
       pricing_trace: json(line.pricingTrace), tax_trace: json(line.taxTrace), created_by: context.userId ?? null,
       ...zip(LINE_TAX_COLUMNS, lineTaxColumns(line)),
     }, "id");

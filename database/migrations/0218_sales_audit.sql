@@ -274,3 +274,53 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- 16. Rate contracts (should-have): a customer's agreed rates for products over a period, with the quantity it may draw (a blanket order).
+--     Orders "call off" against it: a line for a contracted product is priced at the contract rate while quantity remains, and records the
+--     contract line it drew from; confirmation never draws more than was contracted.
+CREATE TABLE IF NOT EXISTS tenant.sales_rate_contracts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  contract_number text NOT NULL,
+  party_id uuid NOT NULL REFERENCES tenant.business_parties(id) ON DELETE RESTRICT,
+  name text NOT NULL,
+  customer_reference text,
+  currency_code text NOT NULL,
+  valid_from date NOT NULL,
+  valid_to date NOT NULL CHECK (valid_to >= valid_from),
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'closed', 'cancelled')),
+  notes text,
+  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (organization_id, contract_number)
+);
+CREATE TABLE IF NOT EXISTS tenant.sales_rate_contract_lines (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  contract_id uuid NOT NULL REFERENCES tenant.sales_rate_contracts(id) ON DELETE CASCADE,
+  sequence integer NOT NULL CHECK (sequence > 0),
+  item_id uuid NOT NULL REFERENCES tenant.items(id) ON DELETE RESTRICT,
+  rate numeric(24,6) NOT NULL CHECK (rate >= 0),
+  contracted_quantity numeric(24,10) NOT NULL CHECK (contracted_quantity > 0),
+  UNIQUE (contract_id, sequence),
+  UNIQUE (contract_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS sales_rate_contracts_party_idx ON tenant.sales_rate_contracts (organization_id, party_id, status);
+CREATE INDEX IF NOT EXISTS sales_rate_contract_lines_item_idx ON tenant.sales_rate_contract_lines (organization_id, item_id);
+DO $$
+DECLARE
+  name text;
+BEGIN
+  FOREACH name IN ARRAY ARRAY['sales_rate_contracts', 'sales_rate_contract_lines'] LOOP
+    EXECUTE format('ALTER TABLE tenant.%I ENABLE ROW LEVEL SECURITY', name);
+    EXECUTE format('ALTER TABLE tenant.%I FORCE ROW LEVEL SECURITY', name);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tenant' AND tablename = name AND policyname = 'organization_isolation') THEN
+      EXECUTE format('CREATE POLICY organization_isolation ON tenant.%I USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id())', name);
+    END IF;
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON tenant.%I TO vercent_app, vercent_worker', name);
+  END LOOP;
+END $$;
+ALTER TABLE tenant.sales_order_lines ADD COLUMN IF NOT EXISTS rate_contract_line_id uuid REFERENCES tenant.sales_rate_contract_lines(id) ON DELETE SET NULL;
+ALTER TABLE tenant.sales_quotation_lines ADD COLUMN IF NOT EXISTS rate_contract_line_id uuid REFERENCES tenant.sales_rate_contract_lines(id) ON DELETE SET NULL;

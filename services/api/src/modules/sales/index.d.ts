@@ -54,3 +54,8 @@ export function setSalesChallanStatus(client: SalesQueryClient, context: SalesCo
 export const SALES_ACCESS_LEVELS: ReadonlyArray<{ key: string; label: string; slug: string | null; description: string }>;
 export function listSalesAccess(client: SalesQueryClient, session: any): Promise<any>;
 export function setSalesAccessLevel(client: SalesQueryClient, session: any, userId: string, level: string): Promise<any>;
+// Rate contracts (Sales audit).
+export function listRateContracts(client: SalesQueryClient, context: SalesContext, filters?: { status?: string; partyId?: string }): Promise<any>;
+export function getRateContract(client: SalesQueryClient, context: SalesContext, contractId: string): Promise<any>;
+export function saveRateContract(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, contractId?: string | null): Promise<any>;
+export function setRateContractStatus(client: SalesQueryClient, context: SalesContext, contractId: string, action: "activate" | "close" | "cancel"): Promise<any>;

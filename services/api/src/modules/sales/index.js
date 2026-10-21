@@ -21,6 +21,7 @@ import { salesOrderTrackingReport } from "./order-tracking/summary.js";
 import { resolveSalesPrice, resolveSalesPriceList } from "./price-lists/resolver.js";
 import { allocateDocumentDiscount, checkDiscountRules, discountOptions, readDocumentDiscount } from "./discounts.js";
 import { companyToday } from "./today.js";
+import { contractLineFor } from "./rate-contracts.js";
 import { orderScopeSql } from "./orders/access.js";
 import { quotationScopeSql } from "./quotations/access.js";
 
@@ -430,11 +431,30 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   const appliedRules = [];
   // A free line of a scheme (buy 10, get 1 free): no price and no discount; previewSalesDocument checks the document earns it.
   const schemeRuleId = line.schemeRuleId ? uuid(line.schemeRuleId, `Line ${sequence} scheme`) : null;
+  // A rate contract (Sales audit): the customer's agreed rate for the product on the document's date, while the contract has quantity left
+  // for this line (and the document's other lines on it). It replaces the list price, and no pricing rule applies on top of it.
+  let rateContractLineId = carried ? line.rateContractLineId ?? null : null;
+  if (!carried && !schemeRuleId) {
+    master.contractTaken ??= new Map();
+    const base = Number(asDatabaseDecimal(baseQuantity));
+    const contract = await contractLineFor(client, context.organizationId, { partyId: master.partyId, itemId, currencyCode: String(master.currency.code).trim(),
+      documentDate: master.documentDate, baseQuantity: base, exceptOrderId: options.orderId ?? null });
+    const taken = contract ? master.contractTaken.get(contract.id) ?? 0 : 0;
+    if (contract && contract.remaining - taken + 1e-9 >= base) {
+      rateContractLineId = contract.id;
+      master.contractTaken.set(contract.id, taken + base);
+      listUnitPrice = mul(decimal(String(contract.rate)), conversionFactor);
+      priceSource = "rate_contract";
+      priceMissing = false;
+      priceMessage = null;
+      appliedRules.push({ id: contract.id, code: contract.contractNumber, type: "rate_contract", value: String(contract.rate) });
+    }
+  }
   // Special rates, discounts and quantity slabs (Sales › Schemes & Rates). Rules at different priorities apply one after another; among
   // the rules of one priority only the best fit applies — the highest quantity slab reached (in the product's base unit), then the most
   // specific (a customer's own before a group's or everyone's) — so 1% from 10 cases and 2% from 100 give 2% at 120, not 3%. A rule is
   // valid on the document's date, not today's (Sales audit M3/B6).
-  const rules = schemeRuleId ? { rows: [] } : await client.query(
+  const rules = schemeRuleId || rateContractLineId ? { rows: [] } : await client.query(
     `SELECT DISTINCT ON (priority) id,code,adjustment_type,adjustment_value FROM tenant.sales_pricing_rules
       WHERE organization_id=$1 AND status='active' AND adjustment_type<>'free_goods' AND (party_id IS NULL OR party_id=$2) AND (party_type IS NULL OR party_type=$3 OR party_type='both')
         AND (item_id IS NULL OR item_id=$4) AND (item_group_id IS NULL OR item_group_id=(SELECT group_id FROM tenant.items WHERE id=$4)) AND (price_list_id IS NULL OR price_list_id=$5)
@@ -646,6 +666,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     quoted: Boolean(line.quoted),
     carried,
     schemeRuleId,
+    rateContractLineId,
     sourceQuotationLineId: line.sourceQuotationLineId ?? null,
     discountType,
     discountValue: asDatabaseDecimal(discountValue),
@@ -1319,6 +1340,7 @@ export * from "./pricing-rules/index.js";
 export { sendDocumentOnWhatsApp } from "./whatsapp.js";
 export { CHALLAN_PURPOSES, createSalesChallan, getSalesChallan, listSalesChallans, setSalesChallanStatus } from "./challans.js";
 export { SALES_ACCESS_LEVELS, listSalesAccess, setSalesAccessLevel } from "./access-levels.js";
+export { getRateContract, listRateContracts, saveRateContract, setRateContractStatus } from "./rate-contracts.js";
 export { getSalesPerformance, listCommissionRules, saveCommissionRule, setCommissionRuleStatus, setInvoicedTarget } from "./performance.js";
 export * from "./after-sales.js";
 export * from "./quotations/index.js";
