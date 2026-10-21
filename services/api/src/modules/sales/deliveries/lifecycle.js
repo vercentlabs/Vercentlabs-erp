@@ -143,7 +143,7 @@ export async function dispatchDelivery(client, context, deliveryId, input = {}) 
     }
   }
   await client.query(
-    `UPDATE tenant.sales_delivery_lines line SET stock_issued = COALESCE(item.track_inventory, false) AND item.item_type <> 'service', updated_at = now()
+    `UPDATE tenant.sales_delivery_lines line SET stock_issued = COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AND EXISTS (SELECT 1 FROM public.organization_modules stock_app WHERE stock_app.organization_id = line.organization_id AND stock_app.module_key = 'stock' AND stock_app.status = 'enabled'), updated_at = now()
        FROM tenant.items item WHERE item.organization_id = line.organization_id AND item.id = line.item_id AND line.organization_id = $1 AND line.delivery_id = $2`,
     [context.organizationId, delivery.id]);
   await client.query(
@@ -281,7 +281,7 @@ export async function changeDeliveryWarehouse(client, context, deliveryId, input
     throw new DeliveryError(409, `${warehouse.name} is inactive or does not ship.`, "SALES_WAREHOUSE_NOT_ELIGIBLE");
   await validateWarehouseOperation(client, context, warehouse.id, "ship", { label: "Delivery" });
   const lines = (await client.query(
-    `SELECT line.id, line.sales_order_line_id, line.item_name_snapshot, COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AS stock_tracked
+    `SELECT line.id, line.sales_order_line_id, line.item_name_snapshot, COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AND EXISTS (SELECT 1 FROM public.organization_modules stock_app WHERE stock_app.organization_id = line.organization_id AND stock_app.module_key = 'stock' AND stock_app.status = 'enabled') AS stock_tracked
        FROM tenant.sales_delivery_lines line JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
       WHERE line.organization_id = $1 AND line.delivery_id = $2`, [context.organizationId, delivery.id])).rows;
   const from = delivery.warehouse_id;

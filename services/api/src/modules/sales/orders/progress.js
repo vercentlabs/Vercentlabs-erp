@@ -14,10 +14,11 @@
 import { FULFILLMENT, INVOICING, STATUS } from "./constants.js";
 
 // A service is never delivered or reserved; a product that is not stock
-// tracked is delivered but never reserved.
+// tracked is delivered but never reserved. Stock is tracked only while the
+// Stock app is on, whatever the product's own setting (Sales audit B8).
 const LINES_SQL = `
   SELECT line.id, line.sequence, line.item_id, COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id) AS warehouse_id, line.quantity, line.conversion_factor, line.line_total, line.item_name_snapshot, line.uom_snapshot,
-         item.item_type <> 'service' AS deliverable, COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AS stock_tracked,
+         item.item_type <> 'service' AS deliverable, COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AND EXISTS (SELECT 1 FROM public.organization_modules stock_app WHERE stock_app.organization_id = line.organization_id AND stock_app.module_key = 'stock' AND stock_app.status = 'enabled') AS stock_tracked,
          progress.cancelled_quantity,
          COALESCE((SELECT sum(returned.quantity) FROM tenant.sales_return_lines returned
                      JOIN tenant.sales_returns sales_return ON sales_return.id = returned.sales_return_id AND sales_return.status = 'received'
