@@ -19,7 +19,7 @@ import {
 import { failureText } from "./OrderDialogs";
 import { Notice } from "@/shared/ui/Panel";
 
-const amount = (value: number | null | undefined) => (value == null ? "—" : Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 }));
+const amount = (value: number | null | undefined) => (value == null ? "—" : Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 }));
 const SENT_CHANNELS = [
   { value: "external_email", label: "Email from another mailbox" }, { value: "whatsapp", label: "WhatsApp" }, { value: "printed", label: "Printed copy" }, { value: "other", label: "Other" },
 ];

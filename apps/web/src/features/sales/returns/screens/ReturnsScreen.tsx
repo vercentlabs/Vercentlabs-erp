@@ -28,7 +28,7 @@ type FilterKey = "partyId" | "warehouseId" | "reasonCode" | "credited" | "dateFr
 type Filters = Record<FilterKey, string>;
 const NO_FILTERS: Filters = { partyId: ANY, warehouseId: ANY, reasonCode: ANY, credited: ANY, dateFrom: "", dateTo: "" };
 const NAMES: Record<FilterKey, string> = { partyId: "Customer", warehouseId: "Warehouse", reasonCode: "Reason", credited: "Credit note", dateFrom: "Returned from", dateTo: "Returned to" };
-const quantity = (value: number | string) => Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 });
+const quantity = (value: number | string) => Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 
 export function ReturnsScreen() {
   const workspace = useWorkspaceContext();

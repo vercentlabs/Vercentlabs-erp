@@ -42,7 +42,7 @@ const addressText = (snapshot: Snapshot) =>
   snapshot ? [snapshot.label, snapshot.line1, snapshot.line2, [snapshot.city, snapshot.state, snapshot.postal_code].filter(Boolean).join(", "), snapshot.gstin ? `GSTIN ${snapshot.gstin}` : null]
     .filter(Boolean).join("\n") || "—" : "—";
 const personName = (snapshot: Snapshot) => [snapshot?.first_name, snapshot?.last_name].filter(Boolean).join(" ") || null;
-const quantity = (value: number | string | null | undefined) => Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
+const quantity = (value: number | string | null | undefined) => Number(value ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 const withUnit = (value: number | string | null | undefined, unit: string | null) => `${quantity(value)}${unit ? ` ${unit}` : ""}`;
 const by = (at: string | null, name: string | null) => (at ? `${dateTime(at)}${name ? ` by ${name}` : ""}` : "—");
 

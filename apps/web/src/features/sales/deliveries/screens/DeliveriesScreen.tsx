@@ -33,7 +33,7 @@ const NAMES: Record<FilterKey, string> = {
   partyId: "Customer", warehouseId: "Warehouse", ownerUserId: "Salesperson", dispatchFrom: "Dispatched from", dispatchTo: "Dispatched to", expectedFrom: "Expected from", expectedTo: "Expected to",
 };
 const DEFAULT_VIEWS = [{ key: "all", label: "All Deliveries" }];
-const quantity = (value: number | string) => Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 });
+const quantity = (value: number | string) => Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 
 export function DeliveriesScreen() {
   const workspace = useWorkspaceContext();

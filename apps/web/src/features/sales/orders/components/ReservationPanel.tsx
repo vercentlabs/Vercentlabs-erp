@@ -21,7 +21,7 @@ import {
 import { failureText } from "./OrderDialogs";
 import { Notice, Panel } from "@/shared/ui/Panel";
 
-const amount = (value: number | string | null | undefined) => Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
+const amount = (value: number | string | null | undefined) => Number(value ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 const withUnit = (value: number | string | null | undefined, unit: string | null) => `${amount(value)}${unit ? ` ${unit}` : ""}`;
 const unreservedOf = (line: SalesOrderLine) => Math.max(0, Number(line.remaining_to_deliver) - Number(line.reserved_quantity));
 const RESERVATION_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = { fully_reserved: "success", partially_reserved: "warning", not_reserved: "danger", not_required: "neutral" };

@@ -18,7 +18,7 @@ import { changeLineWarehouse, getSalesOrderAvailability, type AlternativeWarehou
 import { failureText } from "./OrderDialogs";
 import { Notice, Panel } from "@/shared/ui/Panel";
 
-const amount = (value: number | null | undefined) => (value == null ? "—" : Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 }));
+const amount = (value: number | null | undefined) => (value == null ? "—" : Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 }));
 const withUnit = (value: number | null | undefined, unit: string | null | undefined) => `${amount(value)}${unit ? ` ${unit}` : ""}`;
 
 // Text and an icon, never colour alone.

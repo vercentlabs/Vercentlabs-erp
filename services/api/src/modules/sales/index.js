@@ -1038,7 +1038,8 @@ export function redactMargin(value, context) {
   return walk(value);
 }
 
-export async function getSalesReport(client, context, key) {
+// filters (Line-by-line audit S6): { from?, to? (YYYY-MM-DD) | financialYear? (2026 or "2026-27"), customerId?, salespersonId? }.
+export async function getSalesReport(client, context, key, filters = {}) {
   requirePermission(context, "sales.reports.view");
   const allowed = new Set([
     "expiring-quotations",
@@ -1070,26 +1071,33 @@ export async function getSalesReport(client, context, key) {
     return scope ? ` AND EXISTS (SELECT 1 FROM tenant.sales_orders scoped_order WHERE scoped_order.organization_id=invoice.organization_id
         AND scoped_order.id=COALESCE(invoice.source_sales_order_id,(SELECT note.sales_order_id FROM tenant.sales_credit_notes note WHERE note.customer_invoice_id=invoice.id))${scope})` : "";
   };
+  // The filters, written as :from, :to, :customer and :salesperson; only the chosen report's text is bound (bindFilters).
+  const filter = reportFilters(filters);
+  const filtered = (date, party, owner) => ` AND (:from::date IS NULL OR ${date}>=:from::date) AND (:to::date IS NULL OR ${date}<=:to::date)
+      AND (:customer::uuid IS NULL OR ${party}=:customer::uuid) AND (:salesperson::uuid IS NULL OR ${owner}=:salesperson::uuid)`;
+  // An invoice's salesperson is its order's (a credit note's, the order it credits).
+  const INVOICE_OWNER = "(SELECT filter_order.owner_user_id FROM tenant.sales_orders filter_order WHERE filter_order.organization_id=invoice.organization_id AND filter_order.id=COALESCE(invoice.source_sales_order_id,(SELECT note.sales_order_id FROM tenant.sales_credit_notes note WHERE note.customer_invoice_id=invoice.id)))";
+  const INVOICE_FILTER = filtered("invoice.invoice_date", "invoice.party_id", INVOICE_OWNER);
   // Sales from posted invoices less credit notes (Finance's customer invoices: what was actually billed), net of discounts, before tax;
   // per currency, and in the company's currency too (base_net_sales: each document at its own rate), so exporters' figures add up.
-  const POSTED_INVOICE = `invoice.organization_id=$1 AND invoice.status IN ('posted','partially_paid','paid','overdue','disputed') AND invoice.invoice_type IN ('invoice','credit_note')${invoiceScope()}`;
+  const POSTED_INVOICE = `invoice.organization_id=$1 AND invoice.status IN ('posted','partially_paid','paid','overdue','disputed') AND invoice.invoice_type IN ('invoice','credit_note')${invoiceScope()}${INVOICE_FILTER}`;
   const SIGN = `CASE WHEN invoice.invoice_type='credit_note' THEN -1 ELSE 1 END`;
   const queries = {
-    "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('approved','sent') AND quotation.valid_until>=tenant.company_today() AND quotation.valid_until<=tenant.company_today()+30 ${quotationScope("quotation")} ORDER BY quotation.valid_until`,
+    "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('approved','sent') AND quotation.valid_until>=tenant.company_today() AND quotation.valid_until<=tenant.company_today()+30 ${quotationScope("quotation")}${filtered("quotation.quotation_date","quotation.party_id","quotation.owner_user_id")} ORDER BY quotation.valid_until`,
     // What is waiting on someone: quotations for approval, and draft orders held for credit (refused at confirmation, waiting for a manager
     // to release them).
     "pending-approvals": `SELECT * FROM (
         SELECT 'Quotation approval' AS waiting_for,quotation.id,quotation.quotation_number,NULL::text AS sales_order_number,NULL::uuid AS sales_order_id,
                version.customer_snapshot->>'displayName' AS customer,quotation.updated_at AS since
           FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id
-         WHERE quotation.organization_id=$1 AND quotation.approval_status='pending'${quotationScope("quotation")}
+         WHERE quotation.organization_id=$1 AND quotation.approval_status='pending'${quotationScope("quotation")}${filtered("quotation.quotation_date","quotation.party_id","quotation.owner_user_id")}
         UNION ALL
         SELECT 'Credit release' AS waiting_for,NULL::uuid,NULL::text,orders.sales_order_number,orders.id,version.customer_snapshot->>'displayName',refused.occurred_at
           FROM tenant.sales_orders orders JOIN tenant.sales_order_versions version ON version.id=orders.current_version_id
           JOIN LATERAL (SELECT event.occurred_at,event.metadata FROM tenant.sales_document_events event
                          WHERE event.organization_id=orders.organization_id AND event.entity_type='sales_order' AND event.entity_id=orders.id
                          ORDER BY event.occurred_at DESC LIMIT 1) refused ON refused.metadata::text LIKE '%Held for credit%'
-         WHERE orders.organization_id=$1 AND orders.lifecycle_status='draft'${orderScope("orders")}
+         WHERE orders.organization_id=$1 AND orders.lifecycle_status='draft'${orderScope("orders")}${filtered("orders.order_date","orders.party_id","orders.owner_user_id")}
       ) waiting ORDER BY since`,
     // Open demand per order, from the deliveries and cancellations themselves: what is left to deliver and whether it is late.
     fulfillment: `SELECT orders.id AS sales_order_id,orders.sales_order_number,version.customer_snapshot->>'displayName' AS customer,orders.requested_delivery_date,
@@ -1105,7 +1113,7 @@ export async function getSalesReport(client, context, key) {
       CROSS JOIN LATERAL (SELECT COALESCE(sum(delivery_line.quantity),0) AS quantity FROM tenant.sales_delivery_lines delivery_line
                             JOIN tenant.sales_fulfillment_requests delivery ON delivery.id=delivery_line.delivery_id AND delivery.delivery_status IN ('dispatched','delivered')
                            WHERE delivery_line.sales_order_line_id=line.id) delivered
-     WHERE orders.organization_id=$1 AND orders.lifecycle_status='confirmed'${orderScope("orders")}
+     WHERE orders.organization_id=$1 AND orders.lifecycle_status='confirmed'${orderScope("orders")}${filtered("orders.order_date","orders.party_id","orders.owner_user_id")}
      GROUP BY orders.id,version.customer_snapshot
     HAVING sum(GREATEST(line.quantity-progress.cancelled_quantity-delivered.quantity,0))>0
      ORDER BY orders.requested_delivery_date NULLS LAST,orders.sales_order_number LIMIT 500`,
@@ -1121,7 +1129,7 @@ export async function getSalesReport(client, context, key) {
       CROSS JOIN LATERAL (SELECT COALESCE(sum(delivery_line.quantity),0) AS quantity FROM tenant.sales_delivery_lines delivery_line
                             JOIN tenant.sales_fulfillment_requests delivery ON delivery.id=delivery_line.delivery_id AND delivery.delivery_status IN ('dispatched','delivered')
                            WHERE delivery_line.sales_order_line_id=line.id) delivered
-     WHERE orders.organization_id=$1 AND orders.lifecycle_status='confirmed'${orderScope("orders")}
+     WHERE orders.organization_id=$1 AND orders.lifecycle_status='confirmed'${orderScope("orders")}${filtered("orders.order_date","orders.party_id","orders.owner_user_id")}
      GROUP BY item.id,item.code,item.name,line.uom_snapshot
     HAVING sum(GREATEST(line.quantity-progress.cancelled_quantity-delivered.quantity,0))>0
      ORDER BY remaining DESC LIMIT 500`,
@@ -1133,7 +1141,7 @@ export async function getSalesReport(client, context, key) {
              ELSE 'Late by '||(COALESCE(delivery.delivered_at::date,delivery.dispatch_date)-orders.requested_delivery_date)||' day(s)' END AS performance
       FROM tenant.sales_fulfillment_requests delivery
       JOIN tenant.sales_orders orders ON orders.id=delivery.sales_order_id
-     WHERE delivery.organization_id=$1 AND delivery.delivery_status IN ('dispatched','delivered')${orderScope("orders")}
+     WHERE delivery.organization_id=$1 AND delivery.delivery_status IN ('dispatched','delivered')${orderScope("orders")}${filtered("delivery.dispatch_date","orders.party_id","orders.owner_user_id")}
      ORDER BY delivery.dispatch_date DESC NULLS LAST,delivery.request_number DESC LIMIT 500`,
     "sales-by-period": `SELECT date_trunc('month',invoice.invoice_date)::date AS period,invoice.currency_code AS currency,
         count(*) FILTER (WHERE invoice.invoice_type='invoice') AS invoices,count(*) FILTER (WHERE invoice.invoice_type='credit_note') AS credit_notes,
@@ -1163,18 +1171,52 @@ export async function getSalesReport(client, context, key) {
       LEFT JOIN tenant.sales_order_lines order_line ON order_line.organization_id=line.organization_id AND order_line.id=line.source_sales_order_line_id
      WHERE ${POSTED_INVOICE} GROUP BY line.item_id,item.code,item.name,line.description,invoice.currency_code,base_unit.code ORDER BY net_sales DESC LIMIT 500`,
     "billing-readiness": `SELECT orders.id AS sales_order_id,orders.sales_order_number,orders.billing_status,orders.updated_at FROM tenant.sales_orders orders
-      WHERE orders.organization_id=$1 AND orders.lifecycle_status='confirmed' AND orders.billing_status IN ('ready','partially_invoiced')${orderScope("orders")} ORDER BY orders.updated_at DESC`,
+      WHERE orders.organization_id=$1 AND orders.lifecycle_status='confirmed' AND orders.billing_status IN ('ready','partially_invoiced')${orderScope("orders")}${filtered("orders.order_date","orders.party_id","orders.owner_user_id")} ORDER BY orders.updated_at DESC`,
   };
   // Order status: each dimension of every order's progress, from the tracking service (never one squeezed "stage").
   if (key === "order-status") {
     const rows = await salesOrderTrackingReport(client, context.organizationId, { canSeeMoney: Boolean(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("sales.invoice.payments.view")) });
     const scopeValues = [context.organizationId];
     const scope = orderScopeSql(context, scopeValues, "orders");
-    if (!scope) return rows;
-    const visible = new Set((await client.query(`SELECT orders.id FROM tenant.sales_orders orders WHERE orders.organization_id=$1${scope}`, scopeValues)).rows.map((row) => row.id));
+    if (!scope && !filter.any) return rows;
+    const bound = bindFilters(`SELECT orders.id FROM tenant.sales_orders orders WHERE orders.organization_id=$1${scope}${filter.any ? filtered("orders.order_date", "orders.party_id", "orders.owner_user_id") : ""}`, scopeValues, filter);
+    const visible = new Set((await client.query(bound, scopeValues)).rows.map((row) => row.id));
     return rows.filter((row) => visible.has(row.sales_order_id));
   }
-  return (await client.query(queries[key], values)).rows;
+  const sql = bindFilters(queries[key], values, filter);
+  return (await client.query(sql, values)).rows;
+}
+
+// The report filters, checked: a financial year (2026 or "2026-27": 1 April to 31 March) or a date range, a customer, a salesperson.
+function reportFilters(filters = {}) {
+  const day = (value, label) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return null;
+    const parsed = new Date(`${raw.slice(0, 10)}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw.slice(0, 10)) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== raw.slice(0, 10))
+      throw new SalesError(400, `${label} must be a date.`, "SALES_REPORT_FILTER_INVALID");
+    return raw.slice(0, 10);
+  };
+  let from = day(filters.from, "From");
+  let to = day(filters.to, "To");
+  if (filters.financialYear) {
+    const year = Number(String(filters.financialYear).slice(0, 4));
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new SalesError(400, "Choose a financial year.", "SALES_REPORT_FILTER_INVALID");
+    from = `${year}-04-01`;
+    to = `${year + 1}-03-31`;
+  }
+  if (from && to && from > to) throw new SalesError(400, "The From date is after the To date.", "SALES_REPORT_FILTER_INVALID");
+  const customer = filters.customerId ? uuid(filters.customerId, "Customer") : null;
+  const salesperson = filters.salespersonId ? uuid(filters.salespersonId, "Salesperson") : null;
+  return { from, to, customer, salesperson, any: Boolean(from || to || customer || salesperson) };
+}
+// Replaces :from, :to, :customer and :salesperson in sql with parameters added to values.
+function bindFilters(sql, values, filter) {
+  const placed = new Map();
+  return sql.replace(/:(from|to|customer|salesperson)\b/g, (_match, name) => {
+    if (!placed.has(name)) { values.push(filter[name] ?? null); placed.set(name, `$${values.length}`); }
+    return placed.get(name);
+  });
 }
 
 export async function getSalesOptions(

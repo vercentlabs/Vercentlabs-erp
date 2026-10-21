@@ -245,5 +245,5 @@ export async function exportCustomerRelated(client, context, kind, filters = {})
       bool(row.is_shipping_contact), bool(row.is_procurement_contact), row.notes, bool(row.status === "active" && row.contact_status === "active")]);
   }
   if (body.length > EXPORT_ROW_LIMIT) throw new CustomerError(413, `More than ${EXPORT_ROW_LIMIT} rows match. Narrow the filters and export again.`, "SALES_CUSTOMER_EXPORT_TOO_LARGE");
-  return { fileName: `customer-${kind}-${new Date().toISOString().slice(0, 10)}.csv`, csv: toCsv([header, ...body]), count: body.length };
+  return { fileName: `customer-${kind}-${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date())}.csv`, csv: toCsv([header, ...body]), count: body.length };
 }

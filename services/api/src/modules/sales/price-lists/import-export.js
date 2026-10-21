@@ -11,7 +11,7 @@
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { requirePriceListPermission } from "./access.js";
-import { PRICE_LIST_PERMISSIONS, PriceListError, isCalendarDate, text } from "./constants.js";
+import { PRICE_LIST_PERMISSIONS, PriceListError, isCalendarDate, text, today } from "./constants.js";
 import { addPrice, updatePrice } from "./entries.js";
 import { recordPriceListHistory } from "./history.js";
 import { loadPriceListRow } from "./records.js";
@@ -166,5 +166,5 @@ export async function exportPrices(client, context, priceListId, { state = "acti
     [context.organizationId, list.id, ["active", "current", "all"].includes(state) ? state : "active"]);
   const header = [...PRICE_IMPORT_FIELDS.map((field) => field.label), ...(state === "all" ? ["Status"] : [])];
   const body = rows.map((row) => [row.code, row.name, row.uom_code, Number(row.rate), row.valid_from ?? "", row.valid_to ?? "", ...(state === "all" ? [row.status === "active" ? "Active" : "Removed"] : [])]);
-  return { fileName: `${list.code.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`, csv: toCsv([header, ...body]), count: rows.length };
+  return { fileName: `${list.code.toLowerCase()}-${today()}.csv`, csv: toCsv([header, ...body]), count: rows.length };
 }

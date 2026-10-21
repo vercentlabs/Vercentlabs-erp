@@ -18,7 +18,7 @@ import { Notice } from "@/shared/ui/Panel";
 export function failureText(failure: unknown, fallback: string) {
   return failure instanceof SalesApiError || failure instanceof Error ? failure.message || fallback : fallback;
 }
-const amount = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+const amount = (value: number) => value.toLocaleString("en-IN", { maximumFractionDigits: 3 });
 
 function Shell({ title, description, size, error, fallback, onClose, label, isLoading, isDisabled, onPress, children }: {
   title: string; description?: string; size?: "lg"; error: unknown; fallback: string; onClose: () => void; label: string; isLoading: boolean; isDisabled?: boolean;

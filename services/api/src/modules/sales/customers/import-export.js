@@ -19,6 +19,9 @@ import { findDuplicateCustomers } from "./duplicates.js";
 import { buildCustomerListWhere, createCustomer, customerSelect, toCustomer, updateCustomer } from "./records.js";
 import { text } from "./validation.js";
 
+// The day in India for export dates and file names (a UTC date is yesterday before 05:30 IST).
+const indiaDay = (date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(date);
+
 const IMPORT_ROW_LIMIT = 2000;
 const EXPORT_ROW_LIMIT = 10000;
 const DUPLICATE_MODES = ["skip", "update", "review"];
@@ -232,8 +235,8 @@ export async function exportCustomers(client, context, filters = {}) {
     return [customer.customerNumber, customer.displayName, customer.legalName, customer.customerKindLabel, customer.statusLabel, customer.blockReason, customer.email, customer.phone,
       customer.website, customer.primaryContactName, customer.primaryContactPhone, customer.city, customer.state, customer.countryCode, customer.currencyCode, customer.priceListName,
       customer.paymentTermName, customer.gstRegistrationLabel, customer.gstin, customer.placeOfSupplyName, customer.ownerName,
-      customer.createdAt ? new Date(customer.createdAt).toISOString().slice(0, 10) : "",
+      customer.createdAt ? indiaDay(new Date(customer.createdAt)) : "",
       ...(finance ? [customer.outstanding, customer.overdue] : [])];
   });
-  return { fileName: `customers-${new Date().toISOString().slice(0, 10)}.csv`, csv: toCsv([header, ...body]), count: rows.length };
+  return { fileName: `customers-${indiaDay(new Date())}.csv`, csv: toCsv([header, ...body]), count: rows.length };
 }

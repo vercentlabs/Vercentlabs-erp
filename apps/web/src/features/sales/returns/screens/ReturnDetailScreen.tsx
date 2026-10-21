@@ -23,7 +23,7 @@ import { ReturnCreditBadge, ReturnStatusBadge } from "../components/ReturnStatus
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 
-const quantity = (value: number | string | null | undefined) => Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
+const quantity = (value: number | string | null | undefined) => Number(value ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 const by = (at: string | null, name: string | null) => (at ? `${dateTime(at)}${name ? ` by ${name}` : ""}` : "—");
 type DialogKind = "edit" | "receive" | "cancel" | "credit" | null;
 const EVENT_LABELS: Record<string, string> = {
@@ -228,7 +228,7 @@ function Credit({ detail, onCredit }: { detail: ReturnDetail; onCredit?: () => v
                 <span className="text-text-muted">against <Link className="text-brand hover:underline" href={`/sales/invoices/${credit.source_invoice_id}`}>{credit.source_invoice_number}</Link></span>
                 {credit.refunds.map((refund) => (
                   <span key={refund.id} className="text-text-muted">→ refund <Link className="text-brand hover:underline" href={`/sales/refunds/${refund.id}`}>{refund.refundNumber}</Link>
-                    {" "}{Number(refund.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} {refund.currencyCode}{refund.status === "reversed" ? " (reversed)" : ""}</span>
+                    {" "}{Number(refund.amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })} {refund.currencyCode}{refund.status === "reversed" ? " (reversed)" : ""}</span>
                 ))}
               </li>
             ))}

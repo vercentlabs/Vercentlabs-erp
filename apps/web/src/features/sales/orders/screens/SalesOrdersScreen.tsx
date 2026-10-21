@@ -49,7 +49,7 @@ const RESERVATIONS = [
 ];
 const SOURCES = [{ value: "quotation", label: "From a quotation" }, { value: "direct", label: "Direct order" }];
 const DEFAULT_VIEWS = [{ key: "all", label: "All Orders" }];
-const amount = (value: number) => Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 });
+const amount = (value: number) => Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 
 export function SalesOrdersScreen() {
   const workspace = useWorkspaceContext();

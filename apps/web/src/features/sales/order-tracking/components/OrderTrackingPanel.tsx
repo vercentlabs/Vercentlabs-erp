@@ -23,7 +23,7 @@ const TONES: Record<string, Tone> = {
   not_invoiced: "neutral", partially_invoiced: "warning", fully_invoiced: "success",
   unpaid: "warning", partially_paid: "warning", paid: "success", overdue: "danger",
 };
-const quantity = (value: number | null | undefined) => (value === null || value === undefined ? "—" : Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 }));
+const quantity = (value: number | null | undefined) => (value === null || value === undefined ? "—" : Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 }));
 const KIND_LABELS: Record<string, string> = { order: "Order", reservation: "Inventory", delivery: "Delivery", invoice: "Invoice", payment: "Payment", return: "Return", credit: "Credit note", refund: "Refund" };
 
 function Card({ title, status, tone, headline, percent, children }: { title: string; status: string; tone: Tone; headline: string; percent?: number; children?: ReactNode }) {
@@ -301,7 +301,7 @@ function ReasonDialog({ kind, tracking, onClose, onDone }: { kind: "close" | "re
       <div className="flex flex-col gap-3">
         {Boolean(save.error) && <Notice>{save.error instanceof SalesApiError || save.error instanceof Error ? save.error.message : "That could not be done."}</Notice>}
         {closing && waived && (
-          <Notice tone="warning">{Number(tracking.invoicing.remaining).toLocaleString(undefined, { maximumFractionDigits: 3 })} is still to invoice ({money(tracking.order.currencyCode, tracking.invoicing.remainingValue)}). Closing means it will not be invoiced.</Notice>
+          <Notice tone="warning">{Number(tracking.invoicing.remaining).toLocaleString("en-IN", { maximumFractionDigits: 3 })} is still to invoice ({money(tracking.order.currencyCode, tracking.invoicing.remainingValue)}). Closing means it will not be invoiced.</Notice>
         )}
         <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
         <div className="flex justify-end gap-2">
