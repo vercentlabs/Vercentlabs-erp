@@ -1,4 +1,5 @@
-// Tags on leads and deals (CRM plan 3.4): the organization's shared labels, many per record. Whoever may edit a lead or deal may tag it,
+// Tags on leads, deals, companies and contacts (CRM plan 3.4; companies and contacts: CRM audit): the organization's shared labels, many
+// per record. Whoever may edit the record may tag it,
 // and may make a new tag while doing so; renaming, recolouring and deleting tags is for whoever manages CRM settings. A converted lead's
 // tags go on to its deal.
 import { CrmError } from "../data-management/errors.js";
@@ -8,6 +9,8 @@ import { getLead } from "../leads/records.js";
 import { requireOpportunityPermission } from "../opportunities/access.js";
 import { OPPORTUNITY_PERMISSIONS } from "../opportunities/constants.js";
 import { getOpportunity } from "../opportunities/records.js";
+import { getAccount } from "../accounts/records.js";
+import { getContact } from "../contacts/records.js";
 import { copyLeadTagsToDeal, tagsByRecord } from "./lookup.js";
 
 export const TAG_COLORS = Object.freeze(["neutral", "blue", "green", "amber", "red", "purple", "teal"]);
@@ -15,7 +18,8 @@ const MANAGE = "crm.settings.manage";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const text = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
 const invalid = (field, message) => new CrmError(400, message, "CRM_TAG_VALIDATION", { issues: [{ field, message }] });
-const toTag = (row) => ({ id: row.id, name: row.name, color: row.color, ...(row.lead_count !== undefined ? { leadCount: row.lead_count, dealCount: row.deal_count } : {}) });
+const toTag = (row) => ({ id: row.id, name: row.name, color: row.color,
+  ...(row.lead_count !== undefined ? { leadCount: row.lead_count, dealCount: row.deal_count, companyCount: row.company_count, contactCount: row.contact_count } : {}) });
 export { copyLeadTagsToDeal, tagsByRecord };
 
 function requireManage(context) {
@@ -26,7 +30,9 @@ function requireManage(context) {
 export async function listTags(client, context, { withCounts = false } = {}) {
   const counts = withCounts
     ? `, (SELECT count(*)::int FROM tenant.crm_record_tags used WHERE used.tag_id = tag.id AND used.entity_type = 'lead') AS lead_count,
-         (SELECT count(*)::int FROM tenant.crm_record_tags used WHERE used.tag_id = tag.id AND used.entity_type = 'opportunity') AS deal_count`
+         (SELECT count(*)::int FROM tenant.crm_record_tags used WHERE used.tag_id = tag.id AND used.entity_type = 'opportunity') AS deal_count,
+         (SELECT count(*)::int FROM tenant.crm_record_tags used WHERE used.tag_id = tag.id AND used.entity_type = 'party') AS company_count,
+         (SELECT count(*)::int FROM tenant.crm_record_tags used WHERE used.tag_id = tag.id AND used.entity_type = 'contact') AS contact_count`
     : "";
   const { rows } = await client.query(`SELECT tag.*${counts} FROM tenant.crm_tags tag WHERE tag.organization_id = $1 ORDER BY lower(tag.name)`, [context.organizationId]);
   return rows.map(toTag);
@@ -53,7 +59,15 @@ async function requireTaggable(client, context, entityType, entityId) {
     requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit this deal.");
     return getOpportunity(client, context, entityId);
   }
-  throw invalid("entityType", "Tags go on leads and deals.");
+  if (entityType === "party") {
+    if (!(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("crm.accounts.edit"))) throw new CrmError(403, "You do not have permission to edit this company.", "PERMISSION_DENIED");
+    return getAccount(client, context, entityId);
+  }
+  if (entityType === "contact") {
+    if (!(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("crm.contacts.edit"))) throw new CrmError(403, "You do not have permission to edit this contact.", "PERMISSION_DENIED");
+    return getContact(client, context, entityId);
+  }
+  throw invalid("entityType", "Tags go on leads, deals, companies and contacts.");
 }
 
 // Sets a record's tags to exactly these: tags: [{ id } | { name } | "name"]. Returns the record's tags.

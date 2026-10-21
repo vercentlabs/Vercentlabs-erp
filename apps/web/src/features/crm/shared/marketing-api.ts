@@ -8,7 +8,9 @@ export class MarketingApiError extends CrmApiErrorWithBody {}
 const { request } = crmApiClient(MarketingApiError, "body");
 
 export type TagColor = "neutral" | "blue" | "green" | "amber" | "red" | "purple" | "teal";
-export type CrmTag = { id: string; name: string; color: TagColor; leadCount?: number; dealCount?: number };
+export type CrmTag = { id: string; name: string; color: TagColor; leadCount?: number; dealCount?: number; companyCount?: number; contactCount?: number };
+export type TaggedEntity = "lead" | "opportunity" | "party" | "contact";
+const TAG_PATHS: Record<TaggedEntity, string> = { lead: "leads", opportunity: "opportunities", party: "accounts", contact: "contacts" };
 export type CampaignOption = { id: string; name: string; code: string | null; medium: string | null };
 export type MediumOption = { code: string; label: string };
 export type Campaign = {
@@ -33,8 +35,8 @@ export const createTag = (input: { name: string; color?: TagColor }) => request<
 export const updateTag = (id: string, input: { name?: string; color?: TagColor }) =>
   request<{ tag: CrmTag }>(`/api/crm/tags/${id}`, { method: "PATCH", json: input }).then((result) => result.tag);
 export const deleteTag = (id: string) => request<{ deleted: true }>(`/api/crm/tags/${id}`, { method: "DELETE" });
-export const setRecordTags = (entity: "lead" | "opportunity", id: string, tags: Array<{ id: string } | { name: string }>) =>
-  request<{ tags: CrmTag[] }>(`/api/crm/${entity === "lead" ? "leads" : "opportunities"}/${id}/tags`, { method: "PUT", json: { tags } }).then((result) => result.tags);
+export const setRecordTags = (entity: TaggedEntity, id: string, tags: Array<{ id: string } | { name: string }>) =>
+  request<{ tags: CrmTag[] }>(`/api/crm/${TAG_PATHS[entity]}/${id}/tags`, { method: "PUT", json: { tags } }).then((result) => result.tags);
 
 export function errorMessage(error: unknown, fallback = "Something went wrong. Try again.") {
   return error instanceof Error && error.message ? error.message : fallback;

@@ -227,3 +227,7 @@ ALTER TABLE tenant.crm_activities ADD COLUMN IF NOT EXISTS video_provider text C
 ALTER TABLE tenant.crm_activities ADD COLUMN IF NOT EXISTS video_link text CHECK (video_link IS NULL OR char_length(video_link) <= 1000);
 ALTER TABLE tenant.crm_calendar_connections ADD COLUMN IF NOT EXISTS last_pull_at timestamptz;
 ALTER TABLE tenant.crm_settings ADD COLUMN IF NOT EXISTS zoom_credentials jsonb;
+
+-- 10. Tags on companies and contacts (CRM audit), as on leads and deals.
+ALTER TABLE tenant.crm_record_tags DROP CONSTRAINT IF EXISTS crm_record_tags_entity_type_check;
+ALTER TABLE tenant.crm_record_tags ADD CONSTRAINT crm_record_tags_entity_type_check CHECK (entity_type IN ('lead', 'opportunity', 'party', 'contact'));

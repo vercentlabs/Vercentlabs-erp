@@ -24,7 +24,7 @@ import { requestJson } from "@/shared/http/request-json";
 
 import { ActionEditor, actionReady, adaptAction, blankAction, type Action, type ActionDefinition } from "./ActionEditor";
 
-const CRM_EVERY_RECORD = new Set(["crm.create_follow_up", "crm.send_email", "crm.notify_followers", "crm.create_task", "crm.send_whatsapp", "crm.call_webhook"]);
+const CRM_EVERY_RECORD = new Set(["crm.create_follow_up", "crm.send_email", "crm.notify_followers", "crm.create_task", "crm.send_whatsapp", "crm.call_webhook", "crm.add_tag"]);
 
 type Field = { key: string; label: string; type?: "user" | "list" | "number" };
 type Trigger = {

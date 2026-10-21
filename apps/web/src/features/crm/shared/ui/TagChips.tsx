@@ -9,7 +9,7 @@ import { Button, ComboBox, cn } from "@vercentlabs/design-system";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { errorMessage, setRecordTags, type CrmTag, type TagColor } from "../marketing-api";
+import { errorMessage, setRecordTags, type CrmTag, type TagColor, type TaggedEntity } from "../marketing-api";
 
 const TONE: Record<TagColor, string> = {
   neutral: "bg-surface-muted text-text-secondary border-border",
@@ -41,7 +41,7 @@ export function TagList({ tags }: { tags: Array<Pick<CrmTag, "id" | "name" | "co
 
 // The tags of one lead or deal, editable in place: pick an existing tag or type a new one.
 export function TagEditor({ entity, recordId, tags, available, canEdit, onChanged }: {
-  entity: "lead" | "opportunity"; recordId: string; tags: CrmTag[]; available: CrmTag[]; canEdit: boolean; onChanged: (tags: CrmTag[]) => void;
+  entity: TaggedEntity; recordId: string; tags: CrmTag[]; available: CrmTag[]; canEdit: boolean; onChanged: (tags: CrmTag[]) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [typed, setTyped] = useState("");
@@ -54,7 +54,7 @@ export function TagEditor({ entity, recordId, tags, available, canEdit, onChange
       setError(null); setAdding(false); setTyped("");
       // A tag made here joins the tags offered everywhere.
       if (next.some((tag) => !available.some((entry) => entry.id === tag.id)))
-        for (const key of ["lead-options", "opportunity-options"]) void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", key) });
+        for (const key of ["lead-options", "opportunity-options", "tags"]) void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", key) });
       onChanged(next);
     },
     onError: (failure) => setError(errorMessage(failure)),

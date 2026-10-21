@@ -25,7 +25,7 @@ const ENTITY = Object.freeze({ "crm.lead": "lead", "crm.opportunity": "opportuni
 const TABLE = Object.freeze({ lead: "crm_leads", opportunity: "crm_opportunities", party: "business_parties", contact: "contacts" });
 // The actions that work on companies and contacts too; the rest change what only leads and deals have (an owner rule, a priority, tags,
 // a stage).
-const EVERY_RECORD = new Set(["crm.create_follow_up", "crm.send_email", "crm.notify_followers", "crm.create_task", "crm.send_whatsapp", "crm.call_webhook"]);
+const EVERY_RECORD = new Set(["crm.create_follow_up", "crm.send_email", "crm.notify_followers", "crm.create_task", "crm.send_whatsapp", "crm.call_webhook", "crm.add_tag"]);
 const text = (value) => String(value ?? "").trim();
 const invalid = (message) => new CrmError(400, message, "WORKFLOW_DEFINITION_INVALID");
 

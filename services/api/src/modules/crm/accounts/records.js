@@ -4,6 +4,7 @@
 // customer.js.
 import { normalizePhones } from "../data-management/phones.js";
 import { customFieldFilterSql } from "../data-management/custom-filter.js";
+import { tagsByRecord } from "../tags/lookup.js";
 import { GST_TREATMENTS } from "@vercentlabs/shared-types";
 import { loadApps } from "../../../core/access/apps.js";
 import { taxIdentityEditable } from "./tax-identity.js";
@@ -141,7 +142,8 @@ export async function getAccount(client, context, partyId) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.view, "You do not have permission to view companies.");
   await loadApps(client, context);
   const row = await loadAccountRow(client, context, partyId);
-  return { ...projectAccountForContext(context, toAccount(row)), taxIdentity: taxIdentityEditable(context, row) };
+  return { ...projectAccountForContext(context, toAccount(row)), taxIdentity: taxIdentityEditable(context, row),
+    tags: (await tagsByRecord(client, context.organizationId, "party", [row.id])).get(row.id) ?? [] };
 }
 
 // ------------------------------------------------------------------ list
@@ -246,6 +248,9 @@ export function buildAccountListWhere(context, filters = {}, values = []) {
   }
   // The organization's own fields as filters (CRM audit M4).
   where.push(...customFieldFilterSql("account", filters, values));
+  // By tag (CRM audit).
+  if (/^[0-9a-f-]{36}$/i.test(String(filters.tagId ?? "")))
+    where.push(`EXISTS (SELECT 1 FROM tenant.crm_record_tags tagged WHERE tagged.organization_id = account.organization_id AND tagged.entity_type = 'party' AND tagged.entity_id = account.id AND tagged.tag_id = ${bind(String(filters.tagId))})`);
   return `WHERE ${where.join(" AND ")}${accountScopeSql(context, values, "account")}`;
 }
 
@@ -261,8 +266,9 @@ export async function listAccounts(client, context, filters = {}) {
   const where = buildAccountListWhere(context, filters, values);
   const total = await client.query(`SELECT count(*)::int AS total FROM tenant.business_parties account ${where}`, values);
   const { rows } = await client.query(`${ACCOUNT_SELECT} ${where} ORDER BY ${sortColumn} ${sortDirection} NULLS LAST, account.id DESC LIMIT ${limit} OFFSET ${offset}`, values);
+  const tags = await tagsByRecord(client, context.organizationId, "party", rows.map((row) => row.id));
   return {
-    accounts: rows.map((row) => projectAccountForContext(context, toAccount(row))),
+    accounts: rows.map((row) => ({ ...projectAccountForContext(context, toAccount(row)), tags: tags.get(row.id) ?? [] })),
     total: total.rows[0].total,
     limit,
     offset,

@@ -47,6 +47,8 @@ import {
 import { MergeAccountsDialog } from "../components/MergeAccountsDialog";
 import { LIVE_ACCOUNT_QUERY } from "../live-query";
 import { useCrmShortcut } from "@/features/crm/shared/shortcuts";
+import { listTags, type CrmTag } from "@/features/crm/shared/marketing-api";
+import { TagEditor } from "@/features/crm/shared/ui/TagChips";
 
 type DialogKind = "assign" | "activity" | "followUp" | "customer" | "linkCustomer" | "merge" | "delete" | AccountStatus | null;
 type MoneyList = "quotations" | "orders" | "deliveries" | "returns" | "invoices" | "payments" | "posSales" | "projects" | "tickets";
@@ -241,6 +243,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
                   { label: "Secondary phone", value: account.secondaryPhone ? formatPhone(account.secondaryPhone) : null },
                   { label: "Website", value: account.website ? <a className="hover:underline" href={account.website} target="_blank" rel="noreferrer">{account.website}</a> : null },
                   { label: "Description", value: account.description ? <span className="whitespace-pre-wrap">{account.description}</span> : null, wide: true },
+                  { label: "Tags", wide: true, value: <AccountTags accountId={account.id} tags={(account as { tags?: CrmTag[] }).tags ?? []} canEdit={canEdit} onChanged={refresh} /> },
                 ]}
               />
               <AccountTaxIdentityPanel account={account} options={options} onChanged={refresh}
@@ -378,4 +381,11 @@ function FieldChanges({ changes, show }: { changes: Record<string, unknown>; sho
       })}
     </ul>
   );
+}
+
+// The company's tags (CRM audit), editable in place like a lead's.
+function AccountTags({ accountId, tags, canEdit, onChanged }: { accountId: string; tags: CrmTag[]; canEdit: boolean; onChanged: () => void }) {
+  const workspace = useWorkspaceContext();
+  const available = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "tags"), queryFn: () => listTags(), staleTime: 60_000 });
+  return <TagEditor entity="party" recordId={accountId} tags={tags} available={available.data ?? []} canEdit={canEdit} onChanged={onChanged} />;
 }

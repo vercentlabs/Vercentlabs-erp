@@ -7,6 +7,8 @@ import { useEffect, useMemo, useState } from "react";
 import { CustomFieldFilters, customFilterParams } from "@/features/crm/shared/ui/CustomFields";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { listTags } from "@/features/crm/shared/marketing-api";
 import type { ColumnDef, RowSelectionState, SortingState, VisibilityState } from "@tanstack/react-table";
 import { Columns3, Mail, Phone, Plus } from "lucide-react";
 import {
@@ -62,10 +64,10 @@ function storedVisibility(): VisibilityState {
   }
 }
 
-type FilterKey = "ownerId" | "role" | "department" | "sourceId" | "isDecisionMaker" | "isPrimary";
+type FilterKey = "ownerId" | "role" | "department" | "sourceId" | "isDecisionMaker" | "isPrimary" | "tagId";
 type Filters = Record<FilterKey, string>;
-const NO_FILTERS: Filters = { ownerId: ANY, role: ANY, department: ANY, sourceId: ANY, isDecisionMaker: ANY, isPrimary: ANY };
-const FILTER_NAMES: Record<FilterKey, string> = { ownerId: "Owner", role: "Role", department: "Department", sourceId: "Source", isDecisionMaker: "Decision maker", isPrimary: "Primary contact" };
+const NO_FILTERS: Filters = { ownerId: ANY, role: ANY, department: ANY, sourceId: ANY, isDecisionMaker: ANY, isPrimary: ANY, tagId: ANY };
+const FILTER_NAMES: Record<FilterKey, string> = { ownerId: "Owner", role: "Role", department: "Department", sourceId: "Source", isDecisionMaker: "Decision maker", isPrimary: "Primary contact", tagId: "Tag" };
 
 type DialogKind = "assign" | ContactStatus | null;
 
@@ -125,6 +127,7 @@ export function ContactListScreen() {
 
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "contact-options"), queryFn: getContactOptions, staleTime: 60_000 });
   const options = optionsQuery.data;
+  const tags = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "tags"), queryFn: () => listTags(), staleTime: 60_000 });
 
   const listFilters: ContactListFilters = useMemo(() => ({
     view,
@@ -211,6 +214,7 @@ export function ContactListScreen() {
   const labelOf = (key: FilterKey, value: string) => {
     if (!options) return value;
     if (key === "ownerId") return ownerOptions.find((entry) => entry.value === value)?.label ?? value;
+    if (key === "tagId") return tags.data?.find((entry) => entry.id === value)?.name ?? value;
     if (key === "role") return options.roles.find((entry) => entry.code === value)?.label ?? value;
     if (key === "sourceId") return options.sources.find((entry) => entry.id === value)?.name ?? value;
     if (key === "isDecisionMaker" || key === "isPrimary") return value === "yes" ? "Yes" : "No";
@@ -271,6 +275,10 @@ export function ContactListScreen() {
                       onChange={(id, name) => { setAccount(id ? { id, name: name ?? "Company" } : null); restart(); }} />
                   </div>
                   <Select label="Owner" size="compact" selectedKey={filters.ownerId} onSelectionChange={(key) => setFilters({ ...filters, ownerId: String(key) })} options={ownerOptions} />
+                  {(tags.data?.length ?? 0) > 0 && (
+                    <Select label="Tag" size="compact" selectedKey={filters.tagId} onSelectionChange={(key) => setFilters({ ...filters, tagId: String(key) })}
+                      options={filterOptions((tags.data ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any tag")} />
+                  )}
                   <Select label="Role" size="compact" selectedKey={filters.role} onSelectionChange={(key) => setFilters({ ...filters, role: String(key) })}
                     options={filterOptions(options.roles.map((entry) => ({ value: entry.code, label: entry.label })), "Any role")} />
                   {options.departments.length > 0 && (

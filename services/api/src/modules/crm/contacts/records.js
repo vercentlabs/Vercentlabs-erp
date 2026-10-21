@@ -3,6 +3,7 @@
 // assignment.js; company links through relationships.js.
 import { assertConsentRequestAllowed } from "../data-management/consent.js";
 import { customFieldFilterSql } from "../data-management/custom-filter.js";
+import { tagsByRecord } from "../tags/lookup.js";
 import { normalizePhones } from "../data-management/phones.js";
 import { updatedSummary } from "../data-management/field-labels.js";
 import { phoneSearchDigits } from "../duplicates/normalize.js";
@@ -129,7 +130,8 @@ export async function lockContact(client, context, contactId, options = {}) {
 
 export async function getContact(client, context, contactId) {
   requireContactPermission(context, CONTACT_PERMISSIONS.view, "You do not have permission to view contacts.");
-  return projectContactForContext(context, toContact(await loadContactRow(client, context, contactId)));
+  const row = await loadContactRow(client, context, contactId);
+  return { ...projectContactForContext(context, toContact(row)), tags: (await tagsByRecord(client, context.organizationId, "contact", [row.id])).get(row.id) ?? [] };
 }
 
 // ------------------------------------------------------------------ list
@@ -222,6 +224,9 @@ export function buildContactListWhere(context, filters = {}, values = []) {
   }
   // The organization's own fields as filters (CRM audit M4).
   where.push(...customFieldFilterSql("contact", filters, values));
+  // By tag (CRM audit).
+  if (/^[0-9a-f-]{36}$/i.test(String(filters.tagId ?? "")))
+    where.push(`EXISTS (SELECT 1 FROM tenant.crm_record_tags tagged WHERE tagged.organization_id = contact.organization_id AND tagged.entity_type = 'contact' AND tagged.entity_id = contact.id AND tagged.tag_id = ${bind(String(filters.tagId))})`);
   return `WHERE ${where.join(" AND ")}${contactScopeValues(context, values, "contact")}`;
 }
 
@@ -241,8 +246,9 @@ export async function listContacts(client, context, filters = {}) {
     values,
   );
   const { rows } = await client.query(`${CONTACT_SELECT} ${where} ORDER BY ${sortColumn} ${sortDirection} NULLS LAST, contact.id DESC LIMIT ${limit} OFFSET ${offset}`, values);
+  const tags = await tagsByRecord(client, context.organizationId, "contact", rows.map((row) => row.id));
   return {
-    contacts: rows.map((row) => projectContactForContext(context, toContact(row))),
+    contacts: rows.map((row) => ({ ...projectContactForContext(context, toContact(row)), tags: tags.get(row.id) ?? [] })),
     total: total.rows[0].total,
     limit,
     offset,

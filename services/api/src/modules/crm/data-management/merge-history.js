@@ -2,8 +2,8 @@
 // company, contact) shares, so a WhatsApp chat, an email thread, a call or a follower never stays behind on the archived duplicate.
 // entityType: "lead" | "opportunity" | "party" | "contact" (the entity_type those tables use).
 const RECORDED = ["crm_activities", "crm_notes", "crm_attachment_details", "crm_email_messages", "crm_whatsapp_messages", "crm_calls", "crm_sms_messages"];
-// Tags exist on leads and deals only (crm_record_tags' check).
-const TAGGED = new Set(["lead", "opportunity"]);
+// Every kind of record can carry tags (crm_record_tags' check).
+const TAGGED = new Set(["lead", "opportunity", "party", "contact"]);
 
 export async function moveRecordedHistory(client, context, entityType, duplicateId, keepId) {
   const move = [context.organizationId, duplicateId, keepId, entityType];

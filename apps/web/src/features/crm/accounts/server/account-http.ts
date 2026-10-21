@@ -10,6 +10,7 @@ export { csvResponse, readBody, readUpload } from "@/features/crm/leads/server/l
 export type AccountRouteParams = { params: Promise<{ id: string }> };
 
 const FILTER_KEYS = [
+  "tagId",
   "view", "search", "accountType", "status", "industry", "sourceId", "teamId", "ownerId", "countryCode", "state",
   "createdFrom", "createdTo", "lastActivityBefore", "hasOpenOpportunity", "isCustomer", "sortBy", "sortDirection", "groupBy",
 ] as const;

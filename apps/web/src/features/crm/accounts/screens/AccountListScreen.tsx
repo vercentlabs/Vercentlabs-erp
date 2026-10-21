@@ -8,6 +8,8 @@ import { CustomFieldFilters, customFilterParams } from "@/features/crm/shared/ui
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { listTags } from "@/features/crm/shared/marketing-api";
 import type { ColumnDef, RowSelectionState, SortingState, VisibilityState } from "@tanstack/react-table";
 import { Columns3, Plus } from "lucide-react";
 import {
@@ -67,11 +69,11 @@ function storedVisibility(): VisibilityState {
   }
 }
 
-type FilterKey = "accountType" | "ownerId" | "industry" | "sourceId" | "hasOpenOpportunity" | "countryCode";
+type FilterKey = "accountType" | "ownerId" | "industry" | "sourceId" | "hasOpenOpportunity" | "countryCode" | "tagId";
 type Filters = Record<FilterKey, string>;
-const NO_FILTERS: Filters = { accountType: ANY, ownerId: ANY, industry: ANY, sourceId: ANY, hasOpenOpportunity: ANY, countryCode: ANY };
+const NO_FILTERS: Filters = { accountType: ANY, ownerId: ANY, industry: ANY, sourceId: ANY, hasOpenOpportunity: ANY, countryCode: ANY, tagId: ANY };
 const FILTER_NAMES: Record<FilterKey, string> = {
-  accountType: "Type", ownerId: "Owner", industry: "Industry", sourceId: "Source", hasOpenOpportunity: "Open deals", countryCode: "Country",
+  accountType: "Type", ownerId: "Owner", industry: "Industry", sourceId: "Source", hasOpenOpportunity: "Open deals", countryCode: "Country", tagId: "Tag",
 };
 
 type DialogKind = "assign" | AccountStatus | null;
@@ -133,6 +135,7 @@ export function AccountListScreen() {
 
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "account-options"), queryFn: getAccountOptions, staleTime: 60_000 });
   const options = optionsQuery.data;
+  const tags = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "tags"), queryFn: () => listTags(), staleTime: 60_000 });
 
   const listFilters: AccountListFilters = useMemo(() => ({
     view,
@@ -224,6 +227,7 @@ export function AccountListScreen() {
     if (!options) return value;
     if (key === "accountType") return options.types.find((entry) => entry.code === value)?.label ?? value;
     if (key === "ownerId") return ownerOptions.find((entry) => entry.value === value)?.label ?? value;
+    if (key === "tagId") return tags.data?.find((entry) => entry.id === value)?.name ?? value;
     if (key === "sourceId") return options.sources.find((entry) => entry.id === value)?.name ?? value;
     if (key === "hasOpenOpportunity") return value === "yes" ? "Yes" : "No";
     return value;
@@ -290,6 +294,10 @@ export function AccountListScreen() {
                   <Select label="Type" size="compact" selectedKey={filters.accountType} onSelectionChange={(key) => setFilters({ ...filters, accountType: String(key) })}
                     options={filterOptions(options.types.map((entry) => ({ value: entry.code, label: entry.label })), "Any type")} />
                   <Select label="Owner" size="compact" selectedKey={filters.ownerId} onSelectionChange={(key) => setFilters({ ...filters, ownerId: String(key) })} options={ownerOptions} />
+                  {(tags.data?.length ?? 0) > 0 && (
+                    <Select label="Tag" size="compact" selectedKey={filters.tagId} onSelectionChange={(key) => setFilters({ ...filters, tagId: String(key) })}
+                      options={filterOptions((tags.data ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any tag")} />
+                  )}
                   {options.industries.length > 0 && (
                     <Select label="Industry" size="compact" selectedKey={filters.industry} onSelectionChange={(key) => setFilters({ ...filters, industry: String(key) })}
                       options={filterOptions(options.industries.map((entry) => ({ value: entry, label: entry })), "Any industry")} />

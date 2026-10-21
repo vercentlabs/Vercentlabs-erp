@@ -45,6 +45,8 @@ import {
   ContactActivitiesPanel, ContactTasksPanel, LogContactActivityDialog,
 } from "../components/ContactWorkPanels";
 import { useCrmShortcut } from "@/features/crm/shared/shortcuts";
+import { listTags, type CrmTag } from "@/features/crm/shared/marketing-api";
+import { TagEditor } from "@/features/crm/shared/ui/TagChips";
 
 type DialogKind = "assign" | "activity" | "followUp" | "merge" | "delete" | ContactStatus | null;
 type SalesList = "quotations" | "orders" | "projects" | "tickets";
@@ -205,6 +207,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
                 title="Person"
                 columns={3}
                 items={[
+                  { label: "Tags", wide: true, value: <ContactTags contactId={contact.id} tags={(contact as { tags?: CrmTag[] }).tags ?? []} canEdit={canEdit} onChanged={refresh} /> },
                   { label: "First name", value: contact.firstName },
                   { label: "Middle name", value: contact.middleName },
                   { label: "Last name", value: contact.lastName },
@@ -335,4 +338,11 @@ function AuditTrail({ contactId }: { contactId: string }) {
       )}
     </section>
   );
+}
+
+// The contact's tags (CRM audit), editable in place like a lead's.
+function ContactTags({ contactId, tags, canEdit, onChanged }: { contactId: string; tags: CrmTag[]; canEdit: boolean; onChanged: () => void }) {
+  const workspace = useWorkspaceContext();
+  const available = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "tags"), queryFn: () => listTags(), staleTime: 60_000 });
+  return <TagEditor entity="contact" recordId={contactId} tags={tags} available={available.data ?? []} canEdit={canEdit} onChanged={onChanged} />;
 }
