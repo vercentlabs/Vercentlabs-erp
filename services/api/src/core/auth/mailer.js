@@ -51,11 +51,17 @@ const emailContent = {
   // Sign-in was asked for an email with no workspace: never "not found", an invitation to set one up instead.
   "sign-in-no-account": {
     subject: "Set up your Vercentlabs workspace",
-    preheader: "This email has no workspace yet.",
-    heading: "This email has no workspace yet",
-    introduction: "Someone asked to sign in to Vercentlabs with this email address, but it has no workspace yet. You can set one up in about a minute.",
+    preheader: "There's no workspace for this email yet. Setting one up takes about a minute.",
+    heading: "Let's set up your workspace",
+    introduction: "We got a request to sign in with this email address, but there's no Vercentlabs workspace for it yet. Setting one up takes about a minute, and there's no password to remember.",
+    steps: ["Tell us your name and your company", "Confirm with a 6-digit code we email you", "Pick the apps you need, and you're in"],
     actionLabel: "Set up your workspace",
-    notYou: "If you didn't ask for this, you can ignore this email.",
+    // /register is an ordinary address, not a one-time link.
+    reusableLink: true,
+    note: "Already use Vercentlabs with another email? Sign in with that address instead.",
+    // The words of the note that link to the sign-in page (the register address with /login in place of /register).
+    noteLink: { words: "Sign in with that address", from: /\/register$/, to: "/login" },
+    notYou: "Didn't try to sign in? Someone may have typed your address by mistake. You can ignore this email; nothing is created.",
   },
   "organization-invitation": {
     subject: "You're invited to join a workspace on Vercentlabs ERP",
@@ -67,8 +73,9 @@ const emailContent = {
   },
 };
 
-// The brand palette, inline (email clients drop stylesheets): indigo for the brand and the action, slate for the text.
-const C = { brand: "#4f46e5", brandSoft: "#eef2ff", ink: "#0f172a", body: "#334155", muted: "#64748b", faint: "#94a3b8", line: "#e2e8f0", canvas: "#f1f5f9", card: "#ffffff" };
+// The palette, inline (email clients drop stylesheets): the app's indigo for the brand and the action, in a light frame after Stripe's
+// (awesome-design-md): navy ink, blue-grey body text, a soft blue-white canvas and hairline borders.
+const C = { brand: "#4f46e5", brandSoft: "#eef2ff", ink: "#0d253d", body: "#425466", muted: "#64748d", faint: "#8792a2", line: "#e3e8ee", canvas: "#f6f9fc", card: "#ffffff" };
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 // Security templates below; the SMTP transport is the shared platform one
@@ -89,15 +96,25 @@ function createEmail(input) {
           actionLabel: "Join workspace" }
         : template;
   const organization = input.organizationName ? escapeHtml(input.organizationName) : null;
-  const expiry = input.expiresIn ? `This link works for ${input.expiresIn} and can be used once.` : "This link can be used once.";
+  const expiry = template.reusableLink ? null : input.expiresIn ? `This link works for ${input.expiresIn} and can be used once.` : "This link can be used once.";
+  // Which address the email is about, when the reader needs to know (a sign-in asked for an email with no workspace).
+  const forEmail = input.type === "sign-in-no-account" && input.email ? escapeHtml(input.email) : null;
+  const steps = content.steps ?? [];
+  const noteUrl = content.noteLink && input.url ? escapeHtml(input.url.replace(content.noteLink.from, content.noteLink.to)) : null;
+  const noteHtml = content.note
+    ? noteUrl ? escapeHtml(content.note).replace(content.noteLink.words, `<a href="${noteUrl}" style="color:${C.brand};text-decoration:none;font-weight:500">${content.noteLink.words}</a>`) : escapeHtml(content.note)
+    : null;
   const code = input.type === "sign-in-code" && input.code ? escapeHtml(input.code) : null;
   const support = WORKSPACE_EMAILS.support;
   const text = [
     content.heading,
     "",
     content.introduction + (input.organizationName ? ` Workspace: ${input.organizationName}.` : ""),
+    ...(forEmail ? ["", `Email: ${input.email}`] : []),
+    ...(steps.length ? ["", ...steps.map((step, index) => `${index + 1}. ${step}`)] : []),
     "",
-    ...(input.url ? [`${content.actionLabel}: ${input.url}`, "", expiry] : []),
+    ...(input.url ? [`${content.actionLabel}: ${input.url}`, "", ...(expiry ? [expiry] : [])] : []),
+    ...(content.note ? [content.note, ""] : []),
     content.notYou,
     "",
     `Need help? ${support}`,
@@ -125,37 +142,42 @@ function createEmail(input) {
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(content.preheader)}&#8203;&#8199;&#8203;&#8199;&#8203;&#8199;&#8203;&#8199;&#8203;&#8199;&#8203;&#8199;</div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:${C.canvas}">
       <tr>
-        <td align="center" style="padding:32px 12px">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px">
+        <td align="center" style="padding:40px 12px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:540px">
             <tr>
-              <td style="padding:0 4px 20px">
+              <td style="padding:0 4px 24px">
                 <table role="presentation" cellspacing="0" cellpadding="0"><tr>
-                  <td style="width:32px;height:32px;background:${C.brand};border-radius:8px;color:#ffffff;font-size:16px;font-weight:700;text-align:center;line-height:32px">V</td>
-                  <td style="padding-left:10px;color:${C.ink};font-size:15px;font-weight:700">Vercentlabs ERP</td>
+                  <td style="width:28px;height:28px;background:${C.brand};border-radius:7px;color:#ffffff;font-size:14px;font-weight:700;text-align:center;line-height:28px">V</td>
+                  <td style="padding-left:10px;color:${C.ink};font-size:15px;font-weight:600;letter-spacing:-0.2px">Vercentlabs</td>
                 </tr></table>
               </td>
             </tr>
             <tr>
-              <td class="card" style="background:${C.card};border:1px solid ${C.line};border-radius:16px;padding:36px 36px 32px">
-                <h1 class="heading" style="margin:0 0 12px;color:${C.ink};font-size:24px;line-height:1.3;font-weight:700">${escapeHtml(content.heading)}</h1>
-                <p style="margin:0 0 ${organization || code ? "16" : "28"}px;color:${C.body};font-size:15px;line-height:1.65">${escapeHtml(content.introduction)}</p>
-                ${code ? `<p style="margin:0 0 28px;padding:14px 16px;background:${C.brandSoft};border-radius:10px;color:${C.ink};font-size:30px;font-weight:700;letter-spacing:8px;text-align:center;font-family:Menlo,Consolas,monospace">${code}</p>` : ""}
+              <td class="card" style="background:${C.card};border:1px solid ${C.line};border-radius:12px;padding:40px;box-shadow:0 2px 5px rgba(50,50,93,0.06),0 1px 1px rgba(0,0,0,0.04)">
+                <h1 class="heading" style="margin:0 0 14px;color:${C.ink};font-size:26px;line-height:1.2;font-weight:600;letter-spacing:-0.5px">${escapeHtml(content.heading)}</h1>
+                <p style="margin:0 0 ${organization || code || forEmail || steps.length ? "20" : "28"}px;color:${C.body};font-size:15px;line-height:1.6">${escapeHtml(content.introduction)}</p>
+                ${forEmail ? `<p style="margin:0 0 24px"><span style="display:inline-block;padding:6px 12px;background:${C.canvas};border:1px solid ${C.line};border-radius:999px;color:${C.ink};font-size:13px;font-weight:500">${forEmail}</span></p>` : ""}
+                ${steps.length ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 28px">${steps.map((step, index) => `<tr>
+                  <td width="28" valign="top" style="padding:0 0 10px"><span style="display:inline-block;width:22px;height:22px;background:${C.brandSoft};border-radius:999px;color:${C.brand};font-size:12px;font-weight:600;line-height:22px;text-align:center">${index + 1}</span></td>
+                  <td valign="top" style="padding:2px 0 10px 6px;color:${C.body};font-size:14px;line-height:1.5">${escapeHtml(step)}</td>
+                </tr>`).join("")}</table>` : ""}
+                ${code ? `<p style="margin:0 0 28px;padding:16px;background:${C.canvas};border:1px solid ${C.line};border-radius:10px;color:${C.ink};font-size:32px;font-weight:600;letter-spacing:10px;text-align:center;font-family:Menlo,Consolas,monospace">${code}</p>` : ""}
                 ${organization ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 28px"><tr>
-                  <td style="background:${C.brandSoft};border-radius:10px;padding:12px 16px;color:${C.ink};font-size:14px">Workspace <strong style="display:block;margin-top:2px;font-size:16px">${organization}</strong></td>
+                  <td style="background:${C.canvas};border:1px solid ${C.line};border-radius:10px;padding:12px 16px;color:${C.muted};font-size:13px">Workspace <strong style="display:block;margin-top:2px;color:${C.ink};font-size:16px;font-weight:600">${organization}</strong></td>
                 </tr></table>` : ""}
-                ${url ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px"><tr>
-                  <td align="left">
-                    <a class="button-link" href="${url}" style="display:inline-block;padding:14px 28px;background:${C.brand};color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:10px">${escapeHtml(content.actionLabel)}</a>
+                ${url ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 ${expiry ? "14" : "24"}px"><tr>
+                  <td style="border-radius:8px;background:${C.brand}">
+                    <a class="button-link" href="${url}" style="display:inline-block;padding:13px 24px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px">${escapeHtml(content.actionLabel)} &rarr;</a>
                   </td>
                 </tr></table>
-                <p style="margin:0 0 28px;color:${C.muted};font-size:13px;line-height:1.6">${escapeHtml(expiry)}</p>
-                <p style="margin:0 0 8px;color:${C.muted};font-size:13px;line-height:1.6">Button not working? Paste this link into your browser:</p>
-                <p style="margin:0 0 28px;padding:10px 12px;background:${C.canvas};border-radius:8px;word-break:break-all;font-family:Menlo,Consolas,monospace;font-size:12px;line-height:1.5"><a href="${url}" style="color:${C.brand};text-decoration:none">${url}</a></p>` : ""}
+                ${expiry ? `<p style="margin:0 0 24px;color:${C.muted};font-size:13px;line-height:1.6">${escapeHtml(expiry)}</p>` : ""}` : ""}
+                ${noteHtml ? `<p style="margin:0 0 24px;color:${C.body};font-size:14px;line-height:1.6">${noteHtml}</p>` : ""}
                 <p style="margin:0;padding-top:20px;border-top:1px solid ${C.line};color:${C.muted};font-size:13px;line-height:1.6">${escapeHtml(content.notYou)}</p>
+                ${url ? `<p style="margin:16px 0 0;color:${C.faint};font-size:12px;line-height:1.6">Button not working? Copy this address into your browser:<br /><a href="${url}" style="color:${C.brand};text-decoration:none;word-break:break-all">${url}</a></p>` : ""}
               </td>
             </tr>
             <tr>
-              <td align="center" style="padding:20px 8px 0;color:${C.faint};font-size:12px;line-height:1.7">
+              <td align="center" style="padding:24px 8px 0;color:${C.faint};font-size:12px;line-height:1.7">
                 Need help? <a href="mailto:${support}" style="color:${C.muted};text-decoration:underline">${support}</a><br />
                 Vercentlabs LLP &middot; This is a security email; please don't forward it.
               </td>
