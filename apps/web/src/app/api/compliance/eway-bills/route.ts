@@ -5,8 +5,8 @@ import { generateEwayBill, getEwayBill, gspConfigured } from "@vercentlabs/api";
 import { ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// e-way bills for deliveries, transfers and purchase returns: GET ?sourceType=&sourceId= (the latest), POST to generate.
-const SOURCES = ["sales_delivery", "stock_transfer", "purchase_return"] as const;
+// e-way bills for sales invoices, deliveries, transfers and purchase returns: GET ?sourceType=&sourceId= (the latest), POST to generate.
+const SOURCES = ["sales_delivery", "stock_transfer", "purchase_return", "sales_invoice"] as const;
 export async function GET(request: Request) {
   return workspaceRoute(request, { action: "compliance.eway_bill.view" }, async ({ client, session }) => {
     const url = new URL(request.url);

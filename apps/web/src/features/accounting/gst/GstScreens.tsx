@@ -278,8 +278,8 @@ export function Gstr2bScreen() {
 type Obligations = { from: string; to: string; gspConfigured: boolean;
   einvoiceDue: Array<{ invoiceId: string; number: string; kind: string; date: string; value: number; gstin: string | null; customer: string | null; seller: string }>;
   ewayDue: Array<{ sourceType: string; sourceId: string; number: string; date: string; value: number }>; expiring: Array<{ sourceType: string; sourceId: string; number: string; ewbNumber: string; validUntil: string }> };
-const MOVEMENT_HREF: Record<string, string> = { sales_delivery: "/sales/deliveries/", stock_transfer: "/inventory/transfers/", purchase_return: "/procurement/purchase-returns/" };
-const MOVEMENT_LABEL: Record<string, string> = { sales_delivery: "Delivery", stock_transfer: "Transfer", purchase_return: "Purchase return" };
+const MOVEMENT_HREF: Record<string, string> = { sales_invoice: "/sales/invoices/", sales_delivery: "/sales/deliveries/", stock_transfer: "/inventory/transfers/", purchase_return: "/procurement/purchase-returns/" };
+const MOVEMENT_LABEL: Record<string, string> = { sales_invoice: "Invoice", sales_delivery: "Delivery", stock_transfer: "Transfer", purchase_return: "Purchase return" };
 export function GstDocumentsScreen() {
   const workspace = useWorkspaceContext();
   const [from, setFrom] = useState(() => new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10));

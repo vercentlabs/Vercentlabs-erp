@@ -83,7 +83,7 @@ export function EInvoicePanel({ invoiceId }: { invoiceId: string }) {
 }
 
 type EwayBill = { id: string; ewbNumber: string | null; ewbDate: string | null; validUntil: string | null; status: "generated" | "cancelled" | "failed"; vehicleNumber: string | null; error: string | null };
-export function EwayBillPanel({ sourceType, sourceId }: { sourceType: "sales_delivery" | "stock_transfer" | "purchase_return"; sourceId: string }) {
+export function EwayBillPanel({ sourceType, sourceId }: { sourceType: "sales_delivery" | "stock_transfer" | "purchase_return" | "sales_invoice"; sourceId: string }) {
   const queryClient = useQueryClient();
   const key = ["compliance", "eway-bill", sourceType, sourceId];
   const query = useQuery({ queryKey: key, queryFn: () => call<{ ewayBill: EwayBill | null; configured: boolean }>(`/api/compliance/eway-bills?sourceType=${sourceType}&sourceId=${sourceId}`) });

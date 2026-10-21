@@ -188,7 +188,8 @@ export async function cancelEInvoice(client, session, invoiceId, { reason = "dat
 
 // ------------------------------------------------------------------ e-way bills
 const TRANSPORT_MODES = Object.freeze({ road: "1", rail: "2", air: "3", ship: "4" });
-const SOURCE_PERMISSION = Object.freeze({ sales_delivery: "sales.delivery.dispatch", stock_transfer: "stock.transfers.dispatch", purchase_return: "procurement.returns.post" });
+const SOURCE_PERMISSION = Object.freeze({ sales_delivery: "sales.delivery.dispatch", stock_transfer: "stock.transfers.dispatch", purchase_return: "procurement.returns.post",
+  sales_invoice: "sales.invoice.post" });
 
 // What the movement carries: number, date, the two parties' GSTIN/addresses, the goods with HSN, UQC, value and GST rates.
 export async function movementOf(client, organizationId, sourceType, sourceId) {
@@ -216,6 +217,37 @@ export async function movementOf(client, organizationId, sourceType, sourceId) {
       to: { gstin: customer.gstin ?? "URP", name: customer.legalName ?? customer.displayName ?? "Customer", line1: ship.line1 ?? ship.addressLine1, city: ship.city, pin: ship.postalCode ?? ship.postal_code, state: ship.stateCode ?? ship.state_code },
       items: lines.map((line) => ({ name: line.item_name_snapshot, hsn: line.hsn_sac_snapshot, quantity: Number(line.quantity), unit: uqc(line.uom_snapshot), taxable: round(line.taxable), rate: Number(line.tax_rate ?? 0) })),
       interState, vehicle: delivery.vehicle_reference,
+    };
+  }
+  // A posted tax invoice (Sales audit M2): its goods (not services or charges), from the issuing registration's address to the shipping address.
+  if (sourceType === "sales_invoice") {
+    const invoice = (await client.query(
+      `SELECT invoice.*, sales.seller_registration_id, sales.shipping_address_snapshot, sales.customer_snapshot AS sales_customer
+         FROM tenant.accounting_customer_invoices invoice
+         LEFT JOIN tenant.sales_invoices sales ON sales.organization_id = invoice.organization_id AND sales.customer_invoice_id = invoice.id
+        WHERE invoice.organization_id = $1 AND invoice.id = $2 AND invoice.invoice_type = 'invoice'`, [organizationId, sourceId])).rows[0];
+    if (!invoice) throw new ComplianceError(404, "Invoice not found.", "EWAY_SOURCE_NOT_FOUND");
+    if (!invoice.posted_at || ["cancelled", "reversed", "void"].includes(invoice.status))
+      throw new ComplianceError(409, "Post the invoice first: an e-way bill is made from a posted tax invoice.", "EWAY_SOURCE_NOT_POSTED");
+    const lines = (await client.query(
+      `SELECT line.description, line.hsn_sac_code, line.quantity, line.net_amount, sales_line.uom_snapshot, sales_line.tax_rate
+         FROM tenant.accounting_customer_invoice_lines line
+         LEFT JOIN tenant.sales_invoice_lines sales_line ON sales_line.organization_id = line.organization_id AND sales_line.customer_invoice_line_id = line.id
+         LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+        WHERE line.organization_id = $1 AND line.customer_invoice_id = $2 AND line.item_id IS NOT NULL AND sales_line.order_charge_id IS NULL
+          AND COALESCE(sales_line.hsn_sac_kind, CASE WHEN item.item_type = 'service' THEN 'sac' ELSE 'hsn' END) <> 'sac'
+        ORDER BY line.sequence`, [organizationId, sourceId])).rows;
+    const seller = await registrationOf(invoice.seller_registration_id);
+    const customer = invoice.sales_customer ?? invoice.customer_snapshot ?? {};
+    const ship = invoice.shipping_address_snapshot && Object.keys(invoice.shipping_address_snapshot).length ? invoice.shipping_address_snapshot : invoice.billing_address_snapshot ?? {};
+    const shipState = ship.stateCode ?? ship.state_code;
+    return {
+      number: invoice.invoice_number, date: invoice.invoice_date, seller, supplyType: "O", subSupplyType: "1", docType: "INV",
+      from: { line1: seller?.address_line1, city: seller?.city, pin: seller?.postal_code, state: seller?.state_code },
+      to: { gstin: customer.gstin ?? "URP", name: customer.legalName ?? customer.displayName ?? "Customer", line1: ship.line1 ?? ship.addressLine1, city: ship.city,
+        pin: ship.postalCode ?? ship.postal_code, state: shipState },
+      items: lines.map((line) => ({ name: line.description, hsn: line.hsn_sac_code, quantity: Number(line.quantity), unit: uqc(line.uom_snapshot), taxable: round(line.net_amount), rate: Number(line.tax_rate ?? 0) })),
+      interState: shipState && seller?.state_code && shipState !== seller.state_code, vehicle: null,
     };
   }
   if (sourceType === "stock_transfer") {
@@ -262,7 +294,7 @@ export async function movementOf(client, organizationId, sourceType, sourceId) {
       interState: (address.stateCode ?? address.state_code) && seller?.state_code && (address.stateCode ?? address.state_code) !== seller.state_code, vehicle: ret.dispatch_reference,
     };
   }
-  throw new ComplianceError(400, "Choose a delivery, transfer or purchase return.", "EWAY_SOURCE_INVALID");
+  throw new ComplianceError(400, "Choose an invoice, delivery, transfer or purchase return.", "EWAY_SOURCE_INVALID");
 }
 
 export function buildEwayBillPayload(movement, { transportMode = "road", vehicleNumber = null, transporterId = null, transporterDocument = null, distanceKm = 0 } = {}) {
@@ -299,7 +331,7 @@ export async function getEwayBill(client, session, sourceType, sourceId) {
 // input: { transportMode, vehicleNumber, transporterId, transporterDocument, distanceKm, voluntary }
 export async function generateEwayBill(client, session, sourceType, sourceId, input = {}, options = {}) {
   const permission = SOURCE_PERMISSION[sourceType];
-  if (!permission) throw new ComplianceError(400, "Choose a delivery, transfer or purchase return.", "EWAY_SOURCE_INVALID");
+  if (!permission) throw new ComplianceError(400, "Choose an invoice, delivery, transfer or purchase return.", "EWAY_SOURCE_INVALID");
   need(session, permission, "You do not have permission to generate e-way bills for this movement.");
   if (!UUID.test(String(sourceId ?? ""))) throw new ComplianceError(404, "Not found.", "EWAY_SOURCE_NOT_FOUND");
   const live = (await client.query(`SELECT * FROM tenant.eway_bills WHERE organization_id = $1 AND source_type = $2 AND source_id = $3 AND status = 'generated'`, [session.organizationId, sourceType, sourceId])).rows[0];

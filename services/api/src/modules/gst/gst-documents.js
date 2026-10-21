@@ -12,7 +12,8 @@ import { checkDocument, collectOutward } from "./gst-outward.js";
 const IRN = /^[0-9a-f]{64}$/i;
 const EWB = /^\d{12}$/;
 const PIN = /^[1-9]\d{5}$/;
-const EWAY_PERMISSION = Object.freeze({ sales_delivery: "sales.delivery.dispatch", stock_transfer: "stock.transfers.dispatch", purchase_return: "procurement.returns.post" });
+const EWAY_PERMISSION = Object.freeze({ sales_delivery: "sales.delivery.dispatch", stock_transfer: "stock.transfers.dispatch", purchase_return: "procurement.returns.post",
+  sales_invoice: "sales.invoice.post" });
 const sessionNeed = (c, permission, message) => { if (!hasSessionPermission(c, permission)) throw new GstError(403, message, "GST_FORBIDDEN"); };
 
 async function invoiceOf(client, c, invoiceId) {
@@ -107,7 +108,7 @@ export async function recordPortalEInvoiceCancellation(client, c, invoiceId, inp
 
 // The data check before an e-way bill is generated for a delivery, transfer or purchase return.
 export async function getEwayBillReadiness(client, c, sourceType, sourceId) {
-  if (!EWAY_PERMISSION[sourceType]) throw new GstError(400, "Choose a delivery, transfer or purchase return.", "EWAY_SOURCE_INVALID");
+  if (!EWAY_PERMISSION[sourceType]) throw new GstError(400, "Choose an invoice, delivery, transfer or purchase return.", "EWAY_SOURCE_INVALID");
   if (!hasSessionPermission(c, P.view) && !hasSessionPermission(c, EWAY_PERMISSION[sourceType])) need(c, P.view, "You do not have permission to see e-way bill readiness.");
   const movement = await movementOf(client, c.organizationId, sourceType, uuid(sourceId, "Movement"));
   const payload = buildEwayBillPayload(movement, {});
@@ -129,7 +130,7 @@ export async function getEwayBillReadiness(client, c, sourceType, sourceId) {
 
 // An e-way bill generated on the e-way-bill portal for this movement: its 12-digit number, date and validity.
 export async function recordPortalEwayBill(client, c, sourceType, sourceId, input = {}) {
-  if (!EWAY_PERMISSION[sourceType]) throw new GstError(400, "Choose a delivery, transfer or purchase return.", "EWAY_SOURCE_INVALID");
+  if (!EWAY_PERMISSION[sourceType]) throw new GstError(400, "Choose an invoice, delivery, transfer or purchase return.", "EWAY_SOURCE_INVALID");
   sessionNeed(c, EWAY_PERMISSION[sourceType], "You do not have permission to record e-way bills for this movement.");
   const number = text(input.ewbNumber, 12);
   if (!EWB.test(number)) throw new GstError(400, "The e-way bill number is 12 digits.", "EWAY_INVALID");
@@ -169,10 +170,21 @@ export async function listGstDocumentObligations(client, c, input = {}) {
       ORDER BY i.invoice_date, i.invoice_number LIMIT 500`, [c.organizationId, from, to, fallback])).rows;
   const movements = (await client.query(`SELECT 'sales_delivery' AS source_type, id, request_number AS number, COALESCE(dispatch_date, delivery_date, requested_at::date) AS day FROM tenant.sales_fulfillment_requests
         WHERE organization_id = $1 AND delivery_status IN ('ready', 'dispatched', 'delivered') AND COALESCE(dispatch_date, delivery_date, requested_at::date) BETWEEN $2 AND $3
+          AND NOT EXISTS (SELECT 1 FROM tenant.eway_bills bill JOIN tenant.accounting_customer_invoices invoice ON invoice.id = bill.source_id
+                           WHERE bill.organization_id = $1 AND bill.source_type = 'sales_invoice' AND bill.status = 'generated'
+                             AND invoice.source_sales_order_id = sales_fulfillment_requests.sales_order_id)
       UNION ALL SELECT 'stock_transfer', id, document_number, COALESCE(dispatch_date, transfer_date) FROM tenant.inventory_transfers
         WHERE organization_id = $1 AND status IN ('dispatched', 'partially_received', 'completed') AND COALESCE(dispatch_date, transfer_date) BETWEEN $2 AND $3
       UNION ALL SELECT 'purchase_return', id, return_number, COALESCE(dispatched_at::date, return_date) FROM tenant.purchase_returns
         WHERE organization_id = $1 AND document_status = 'posted' AND COALESCE(dispatched_at::date, return_date) BETWEEN $2 AND $3
+      UNION ALL SELECT 'sales_invoice', invoice.id, invoice.invoice_number, invoice.invoice_date FROM tenant.accounting_customer_invoices invoice
+        WHERE invoice.organization_id = $1 AND invoice.invoice_type = 'invoice' AND invoice.posted_at IS NOT NULL AND invoice.status NOT IN ('cancelled', 'reversed', 'void')
+          AND invoice.invoice_date BETWEEN $2 AND $3 AND invoice.source_sales_order_id IS NOT NULL
+          AND EXISTS (SELECT 1 FROM tenant.accounting_customer_invoice_lines line JOIN tenant.items item ON item.id = line.item_id
+                       WHERE line.customer_invoice_id = invoice.id AND item.item_type <> 'service')
+          AND NOT EXISTS (SELECT 1 FROM tenant.eway_bills bill JOIN tenant.sales_fulfillment_requests delivery ON delivery.id = bill.source_id
+                           WHERE bill.organization_id = invoice.organization_id AND bill.source_type = 'sales_delivery' AND bill.status = 'generated'
+                             AND delivery.sales_order_id = invoice.source_sales_order_id)
       ORDER BY 4 DESC LIMIT 150`, [c.organizationId, from, to])).rows;
   const live = new Set((await client.query(`SELECT source_type || ':' || source_id AS k FROM tenant.eway_bills WHERE organization_id = $1 AND status = 'generated'`, [c.organizationId])).rows.map((r) => r.k));
   const ewayDue = [];

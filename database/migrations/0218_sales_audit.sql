@@ -93,3 +93,8 @@ ALTER TABLE tenant.sales_pricing_rules ADD CONSTRAINT sales_pricing_rules_free_g
   CHECK (adjustment_type <> 'free_goods' OR (free_quantity > 0 AND minimum_quantity > 0 AND (free_item_id IS NOT NULL OR item_id IS NOT NULL)));
 ALTER TABLE tenant.sales_quotation_lines ADD COLUMN IF NOT EXISTS scheme_rule_id uuid REFERENCES tenant.sales_pricing_rules(id) ON DELETE RESTRICT;
 ALTER TABLE tenant.sales_order_lines ADD COLUMN IF NOT EXISTS scheme_rule_id uuid REFERENCES tenant.sales_pricing_rules(id) ON DELETE RESTRICT;
+
+-- 5. An e-way bill from a sales invoice (M2). Most businesses generate it from the tax invoice, and a company billing goods without the
+--    Stock app has no delivery to generate it from. source_id is the invoice (accounting_customer_invoices.id).
+ALTER TABLE tenant.eway_bills DROP CONSTRAINT IF EXISTS eway_bills_source_type_check;
+ALTER TABLE tenant.eway_bills ADD CONSTRAINT eway_bills_source_type_check CHECK (source_type IN ('sales_delivery', 'stock_transfer', 'purchase_return', 'sales_invoice'));
