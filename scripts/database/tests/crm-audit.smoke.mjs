@@ -228,6 +228,33 @@ try {
     for (const heavy of ["parties", "contacts", "items", "leads", "opportunities"]) assert(!(heavy in options), `${heavy} not sent`);
     assert(Array.isArray(options.users) && Array.isArray(options.pipelines) && Array.isArray(options.salesTeams), "reference lists still there");
   });
+
+  await check("M5, B10. Company import takes GSTIN, PAN, GST treatment and payment terms, 'India' as the country and state names; a bad GSTIN fails only its row", async () => {
+    const term = (await client.query("SELECT name, default_due_days FROM tenant.payment_terms WHERE organization_id = $1 AND status = 'active' AND is_sales_enabled ORDER BY default_due_days DESC LIMIT 1", [organizationId])).rows[0];
+    const good = "27AAPFM1234K1Z" ;
+    const CH = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let sum = 0;
+    for (let i = 0; i < 14; i += 1) { const p = CH.indexOf(good[i]) * (i % 2 === 0 ? 1 : 2); sum += Math.floor(p / 36) + (p % 36); }
+    const gstin = good + CH[(36 - (sum % 36)) % 36];
+    const csv = [
+      "Company Name,GST No,GST Registration Type,Credit Days,Address,City,State,PIN,Country",
+      `Mehta Fabrics ${tag},${gstin},Registered - Regular,${term ? term.default_due_days : ""},12 Kalbadevi Road,Mumbai,Maharashtra,400002,India`,
+      `Broken GST ${tag},27BROKEN,Registered - Regular,,,,,,`,
+    ].join("\n");
+    const analysis = await crm.analyzeAccountImport(client, owner(), { bytes: Buffer.from(csv), fileName: "companies.csv" });
+    const mapping = analysis.suggestedMapping;
+    assert(Object.values(mapping).includes("gstin") && Object.values(mapping).includes("gstTreatment") && Object.values(mapping).includes("paymentTerms"), JSON.stringify(mapping));
+    const result = await crm.importAccounts(client, owner(), { bytes: Buffer.from(csv), fileName: "companies.csv", mapping });
+    assert(result.created === 1 && result.failed === 1, JSON.stringify(result.errors));
+    assert(/GSTIN/i.test(result.errors[0].message), result.errors[0].message);
+    const row = (await client.query("SELECT id, gstin, pan, tax_treatment, gst_state_code, payment_term_id FROM tenant.business_parties WHERE organization_id = $1 AND display_name = $2", [organizationId, `Mehta Fabrics ${tag}`])).rows[0];
+    assert(row.gstin === gstin && row.pan === "AAPFM1234K" && row.tax_treatment === "registered_regular" && row.gst_state_code === "27", JSON.stringify(row));
+    if (term) assert(row.payment_term_id, "payment terms set from the number of days");
+    const address = (await client.query("SELECT country_code, state, state_code FROM tenant.addresses WHERE organization_id = $1 AND party_id = $2", [organizationId, row.id])).rows[0];
+    assert(address?.country_code?.trim() === "IN" && address.state_code === "27", JSON.stringify(address));
+    const exported = await crm.exportAccounts(client, owner(), { search: `Mehta Fabrics ${tag}` });
+    assert(exported.csv.includes("GSTIN") && exported.csv.includes(gstin), "export carries the GSTIN");
+  });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);
   await client.end();

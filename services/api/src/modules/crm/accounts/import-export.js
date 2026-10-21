@@ -5,9 +5,13 @@
 // Every row goes through createAccount, so validation, duplicate detection,
 // assignment, history and notifications behave exactly as they do for an
 // account typed in by hand. A row with a complete address also gets that
-// address as its default billing and shipping address. A row that fails is
-// reported with its reason and never stops the rest of the file.
+// address as its default billing and shipping address (the country defaults to
+// the organization's, and "India" or a state name are understood). GSTIN, PAN,
+// GST treatment and payment terms — what every Tally, Busy or Excel export
+// carries — go through the same tax-identity rules as the company form. A row
+// that fails is reported with its reason and never stops the rest of the file.
 import { withMigrationAliases } from "../data-management/migration-presets.js";
+import { countryCodeOf, gstTreatmentOf } from "../data-management/import-values.js";
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { CrmError } from "../data-management/errors.js";
@@ -18,11 +22,13 @@ import { requireAccountPermission } from "./access.js";
 import { addAccountAddress } from "./addresses.js";
 import { ACCOUNT_PERMISSIONS, ACCOUNT_TYPES, accountStatusLabel, accountTypeLabel } from "./constants.js";
 import { ACCOUNT_SELECT, buildAccountListWhere, createAccount, toAccount } from "./records.js";
+import { updateAccountTaxIdentity } from "./tax-identity.js";
 
 const IMPORT_ROW_LIMIT = 2000;
 const EXPORT_ROW_LIMIT = 10000;
 const TYPE_BY_LABEL = new Map(ACCOUNT_TYPES.flatMap((entry) => [[entry.label.toLowerCase(), entry.code], [entry.code, entry.code]]));
 const ADDRESS_KEYS = ["line1", "line2", "city", "state", "postalCode", "countryCode"];
+const TAX_KEYS = ["gstin", "pan", "gstTreatment", "paymentTerms"];
 
 // Importable fields, in template order. `aliases` are other header spellings
 // the column mapping recognizes automatically.
@@ -47,6 +53,10 @@ export const ACCOUNT_IMPORT_FIELDS = withMigrationAliases("accounts", [
   { key: "state", label: "State", aliases: ["province", "region"], sample: "Maharashtra" },
   { key: "postalCode", label: "Postal Code", aliases: ["pin", "pincode", "pin code", "zip", "zip code"], sample: "400002" },
   { key: "countryCode", label: "Country Code", aliases: ["country"], sample: "IN" },
+  { key: "gstin", label: "GSTIN", aliases: ["gst", "gst no", "gst number", "gstin no", "gstin uin", "gst in", "gst registration number"], sample: "27AAPFM1234K1Z5" },
+  { key: "pan", label: "PAN", aliases: ["pan no", "pan number", "income tax pan", "it pan"], sample: "AAPFM1234K" },
+  { key: "gstTreatment", label: "GST Treatment", aliases: ["gst registration type", "registration type", "gst type", "taxpayer type", "gst status"], sample: "Registered – Regular" },
+  { key: "paymentTerms", label: "Payment Terms", aliases: ["credit days", "credit period", "terms", "payment term"], sample: "30" },
   { key: "ownerEmail", label: "Owner Email", aliases: ["owner", "account owner", "assigned to"], sample: "" },
 ]);
 
@@ -107,7 +117,26 @@ function rowToInput(record, mapping) {
   if (input.accountType) input.accountType = TYPE_BY_LABEL.get(input.accountType.toLowerCase()) ?? input.accountType.toLowerCase();
   if (input.annualRevenue) input.annualRevenue = input.annualRevenue.replace(/[,\s]/g, "");
   if (input.employeeRange) input.employeeRange = input.employeeRange.replace(/\s+/g, "");
+  if (input.countryCode) input.countryCode = countryCodeOf(input.countryCode) ?? input.countryCode;
+  if (input.gstin) input.gstin = input.gstin.replace(/\s+/g, "").toUpperCase();
+  if (input.pan) input.pan = input.pan.replace(/\s+/g, "").toUpperCase();
   return input;
+}
+
+// Payment terms as written in a spreadsheet: the terms' name or code, or a number of days ("30", "Net 30", "30 days").
+async function paymentTermIdOf(client, context, value, cache) {
+  const key = value.toLowerCase().trim();
+  if (!cache.has(key)) {
+    const days = /^(?:net\s*)?(\d{1,3})(?:\s*days?)?$/.exec(key)?.[1];
+    const term = (await client.query(
+      `SELECT id FROM tenant.payment_terms WHERE organization_id = $1 AND status = 'active' AND is_sales_enabled
+          AND (lower(name) = $2 OR lower(code) = $2 OR ($3::int IS NOT NULL AND default_due_days = $3))
+        ORDER BY (lower(name) = $2 OR lower(code) = $2) DESC, name LIMIT 1`,
+      [context.organizationId, key, days === undefined ? null : Number(days)])).rows[0];
+    cache.set(key, term?.id ?? null);
+  }
+  if (!cache.get(key)) throw new CrmError(400, `Payment terms "${value}" do not exist. Use the name of existing terms, or a number of days.`, "CRM_ACCOUNT_IMPORT_TERMS");
+  return cache.get(key);
 }
 
 // Step 2: create the accounts.
@@ -124,6 +153,8 @@ export async function importAccounts(client, context, { bytes, fileName, mapping
 
   const ownerByEmail = new Map();
   const sourceByName = new Map();
+  const termsByText = new Map();
+  const homeCountry = (await client.query("SELECT country_code FROM public.organizations WHERE id = $1", [context.organizationId])).rows[0]?.country_code?.trim() || "IN";
   const results = [];
   for (const [index, record] of parsed.records.entries()) {
     const rowNumber = index + 2;
@@ -133,7 +164,17 @@ export async function importAccounts(client, context, { bytes, fileName, mapping
     try {
       const { source, ownerEmail, ...rest } = input;
       const address = Object.fromEntries(ADDRESS_KEYS.filter((key) => rest[key]).map((key) => [key, rest[key]]));
-      const account = Object.fromEntries(Object.entries(rest).filter(([key]) => !ADDRESS_KEYS.includes(key)));
+      if (!address.countryCode && address.line1 && address.city && address.state && address.postalCode) address.countryCode = homeCountry;
+      const tax = Object.fromEntries(TAX_KEYS.filter((key) => rest[key]).map((key) => [key, rest[key]]));
+      const account = Object.fromEntries(Object.entries(rest).filter(([key]) => !ADDRESS_KEYS.includes(key) && !TAX_KEYS.includes(key)));
+      const taxInput = {};
+      if (tax.gstin) taxInput.gstin = tax.gstin;
+      if (tax.pan) taxInput.pan = tax.pan;
+      if (tax.gstTreatment) {
+        taxInput.gstTreatment = gstTreatmentOf(tax.gstTreatment);
+        if (!taxInput.gstTreatment) throw new CrmError(400, `GST treatment "${tax.gstTreatment}" is not one of: Registered – Regular, Registered – Composition, SEZ, Deemed Export, Unregistered, Consumer, Overseas.`, "CRM_ACCOUNT_IMPORT_GST");
+      }
+      if (tax.paymentTerms) taxInput.paymentTermId = await paymentTermIdOf(client, context, tax.paymentTerms, termsByText);
       if (source) {
         const key = source.toLowerCase();
         if (!sourceByName.has(key)) sourceByName.set(key, await findLeadSourceByName(client, context, source));
@@ -159,6 +200,8 @@ export async function importAccounts(client, context, { bytes, fileName, mapping
         allowDuplicate: !skipDuplicates, duplicateReason: "Imported with Create anyway", origin: "import",
         onDuplicateCheck: (found) => { possibleDuplicate = found.matches.length > 0; } ,
       });
+      // The GSTIN, PAN, treatment and terms, checked as on the company form (a wrong GSTIN fails the row with its reason).
+      if (Object.keys(taxInput).length) await updateAccountTaxIdentity(client, context, created.id, taxInput);
       // A partial address is ignored rather than failing the row; a complete one must be valid.
       if (address.line1 && address.city && address.state && address.postalCode && address.countryCode)
         await addAccountAddress(client, context, created.id, { ...address, addressType: "office" });
@@ -215,6 +258,10 @@ const EXPORT_COLUMNS = Object.freeze([
   ["City", (account) => account.city],
   ["State", (account) => account.state],
   ["Country Code", (account) => account.countryCode],
+  ["GSTIN", (account) => account.gstin],
+  ["PAN", (account) => account.pan],
+  ["GST Treatment", (account) => account.gstTreatmentLabel],
+  ["Payment Terms", (account) => account.paymentTermName],
   ["Parent Account", (account) => account.parentName],
   ["Source", (account) => account.sourceName],
   ["Source Detail", (account) => account.sourceDetail],

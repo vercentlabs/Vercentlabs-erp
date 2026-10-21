@@ -7,6 +7,7 @@
 // lead typed in by hand. A row that fails is reported with its reason and
 // never stops the rest of the file.
 import { withMigrationAliases } from "../data-management/migration-presets.js";
+import { countryCodeOf } from "../data-management/import-values.js";
 import { withConsentSource } from "../data-management/consent.js";
 import { csvCellWriter, dayIn, organizationTimeZone } from "../data-management/csv.js";
 import { createNotification } from "../../../core/platform/notifications/index.js";
@@ -98,22 +99,6 @@ export async function analyzeLeadImport(_client, context, { bytes, fileName, max
     suggestedMapping: suggestMapping(parsed.headers),
     fields: LEAD_IMPORT_FIELDS.map(({ key, label }) => ({ key, label })),
   };
-}
-
-// Country names (and codes) to ISO codes, from the platform's own region names ("India" -> IN, "United Arab Emirates" -> AE).
-let COUNTRY_BY_NAME = null;
-function countryCodeOf(value) {
-  const raw = String(value).trim();
-  if (/^[A-Za-z]{2}$/.test(raw)) return raw.toUpperCase();
-  if (!COUNTRY_BY_NAME) {
-    COUNTRY_BY_NAME = new Map([["usa", "US"], ["uk", "GB"], ["uae", "AE"], ["bharat", "IN"]]);
-    const names = new Intl.DisplayNames(["en"], { type: "region" });
-    for (let a = 65; a <= 90; a += 1) for (let b = 65; b <= 90; b += 1) {
-      const code = String.fromCharCode(a, b);
-      try { const name = names.of(code); if (name && name !== code) COUNTRY_BY_NAME.set(name.toLowerCase(), code); } catch { /* not a region */ }
-    }
-  }
-  return COUNTRY_BY_NAME.get(raw.toLowerCase().replace(/\s+/g, " ")) ?? null;
 }
 
 function rowToInput(record, mapping) {
