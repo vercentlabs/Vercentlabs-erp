@@ -2,6 +2,7 @@ import { forwardRef, type ReactNode } from "react";
 import { Checkbox as AriaCheckbox, type CheckboxProps as AriaCheckboxProps } from "react-aria-components";
 import { Check, Minus } from "lucide-react";
 import { cn } from "../utilities/cn.ts";
+import { useTranslateText } from "../utilities/translate.tsx";
 
 export interface CheckboxProps extends Omit<AriaCheckboxProps, "className" | "children"> {
   className?: string;
@@ -12,6 +13,7 @@ export const Checkbox = forwardRef<HTMLLabelElement, CheckboxProps>(function Che
   { className, children, ...props },
   ref,
 ) {
+  const t = useTranslateText();
   return (
     <AriaCheckbox
       ref={ref}
@@ -35,7 +37,7 @@ export const Checkbox = forwardRef<HTMLLabelElement, CheckboxProps>(function Che
               <Check className="size-3 text-text-inverse" aria-hidden="true" />
             ) : null}
           </div>
-          {children}
+          {t(children)}
         </>
       )}
     </AriaCheckbox>

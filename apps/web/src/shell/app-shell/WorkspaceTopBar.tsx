@@ -19,6 +19,7 @@ import {
 } from "@/shell/navigation/moduleNavigationRegistry";
 import { ProfileMenu } from "@/shell/primary-sidebar/ProfileMenu";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useT } from "@/shared/i18n/I18nText";
 
 // Settings is the registry entry flagged `placement: "topbar"` —
 // the primary sidebar filters those same entries out, so each renders in
@@ -114,6 +115,7 @@ function TopBarIconLink({
 // menu (profile, help, sign out).
 export function WorkspaceTopBar({ unreadNotificationCount = 0 }: { unreadNotificationCount?: number }) {
   const pathname = usePathname();
+  const t = useT();
   const { fullName, email, organizationName } = useWorkspaceContext();
   const { openSearch } = useSearchDialog();
 
@@ -156,12 +158,12 @@ export function WorkspaceTopBar({ unreadNotificationCount = 0 }: { unreadNotific
         <button
           type="button"
           onClick={openSearch}
-          aria-label="Search"
+          aria-label={t("Search")}
           aria-keyshortcuts="Control+K Meta+K"
           className="hidden h-9 w-56 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-canvas px-3 text-sm text-text-muted outline-none transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 lg:flex"
         >
           <Search aria-hidden="true" className="size-4 shrink-0" />
-          <span className="flex-1 truncate text-left">Search…</span>
+          <span className="flex-1 truncate text-left">{t("Search…")}</span>
           <kbd className="rounded border border-border px-1.5 font-sans text-[11px] text-text-muted">Ctrl K</kbd>
         </button>
         <span className="max-w-[220px] truncate px-2 text-sm font-medium text-text">
@@ -171,7 +173,7 @@ export function WorkspaceTopBar({ unreadNotificationCount = 0 }: { unreadNotific
           {SETTINGS_ENTRY ? (
             <TopBarIconLink
               href={SETTINGS_ENTRY.href}
-              label={SETTINGS_ENTRY.label}
+              label={t(SETTINGS_ENTRY.label)}
               icon={
                 <SETTINGS_ENTRY.icon aria-hidden="true" className="size-5" />
               }

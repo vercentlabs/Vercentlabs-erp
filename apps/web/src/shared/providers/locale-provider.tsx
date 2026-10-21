@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import { I18nProvider } from "react-aria-components";
 
+import { TextProvider } from "@/shared/i18n/I18nText";
+
 // react-aria-components' I18nProvider uses createContext and isn't itself
 // marked "use client" for direct import into a Server Component (layout.tsx)
 // — this thin wrapper is the client boundary. Locale is fixed rather than
@@ -16,5 +18,6 @@ export function LocaleProvider({
   locale: string;
   children: ReactNode;
 }) {
-  return <I18nProvider locale={locale}>{children}</I18nProvider>;
+  // The person's language also picks the screens' text (shared/i18n, CRM audit M7).
+  return <I18nProvider locale={locale}><TextProvider locale={locale}>{children}</TextProvider></I18nProvider>;
 }

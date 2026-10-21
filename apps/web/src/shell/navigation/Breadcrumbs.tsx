@@ -17,6 +17,7 @@ import {
   matchesRoute,
   type Crumb,
 } from "@/shell/navigation/navigation-resolution";
+import { useT } from "@/shared/i18n/I18nText";
 
 const GLOBAL_ENTRIES = [
   ...GLOBAL_NAV_TOP,
@@ -57,14 +58,16 @@ function BreadcrumbsWithQuery({ pathname, fallback }: { pathname: string; fallba
 
 // A phone has no room for the whole trail: it shows the last two levels, the
 // section and the page (the section opens its page when it has one).
-function Trail({ crumbs, fallback }: { crumbs: Crumb[]; fallback?: string }) {
+function Trail({ crumbs: englishCrumbs, fallback }: { crumbs: Crumb[]; fallback?: string }) {
+  const t = useT();
+  const crumbs = englishCrumbs.map((crumb) => ({ ...crumb, label: t(crumb.label) }));
   if (!crumbs.length) return fallback ? <span aria-current="page" className="truncate text-sm font-semibold text-text">{fallback}</span> : null;
   const current = crumbs[crumbs.length - 1];
   const parent = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
 
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={t("Breadcrumb")}
       className="flex min-w-0 items-center gap-1 text-sm text-text-secondary"
     >
       <span className="flex min-w-0 items-center gap-1 sm:hidden">

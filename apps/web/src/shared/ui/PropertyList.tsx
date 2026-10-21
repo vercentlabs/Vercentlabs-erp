@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useTranslateText } from "@vercentlabs/design-system";
 
 export type Property = {
   label: string;
@@ -27,10 +28,11 @@ export function PropertyList({
   items: Property[];
   columns?: 1 | 2 | 3;
 }) {
+  const t = useTranslateText();
   const filled = items.filter((item) => !isEmpty(item.value));
   const missing = items
     .filter((item) => isEmpty(item.value))
-    .map((item) => item.label);
+    .map((item) => t(item.label));
   if (filled.length === 0 && missing.length === 0) return null;
   const cols =
     columns === 1
@@ -42,9 +44,9 @@ export function PropertyList({
     <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
       {title && (
         <div>
-          <h3 className="text-sm font-semibold text-text">{title}</h3>
+          <h3 className="text-sm font-semibold text-text">{t(title)}</h3>
           {description && (
-            <p className="text-xs text-text-muted">{description}</p>
+            <p className="text-xs text-text-muted">{t(description)}</p>
           )}
         </div>
       )}
@@ -55,7 +57,7 @@ export function PropertyList({
               key={item.label}
               className={`flex flex-col gap-0.5 ${item.wide ? "sm:col-span-full" : ""}`}
             >
-              <dt className="text-xs text-text-muted">{item.label}</dt>
+              <dt className="text-xs text-text-muted">{t(item.label)}</dt>
               <dd className="text-sm text-text">{item.value}</dd>
             </div>
           ))}
@@ -63,7 +65,7 @@ export function PropertyList({
       )}
       {missing.length > 0 && (
         <p className="text-xs text-text-muted">
-          Not provided: {missing.join(", ")}
+          {t("Not provided: {list}").replace("{list}", missing.join(", "))}
         </p>
       )}
     </section>

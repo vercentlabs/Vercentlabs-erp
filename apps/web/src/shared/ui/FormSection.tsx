@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useTranslateText } from "@vercentlabs/design-system";
 
 // A titled group of related fields inside a long form (CRM's form sections), with optional actions beside the title (e.g. "Add item").
 export function FormSection({
@@ -14,16 +17,17 @@ export function FormSection({
   children: ReactNode;
   columns?: 1 | 2;
 }) {
+  const t = useTranslateText();
   return (
     <section
       className="flex flex-col gap-3 border-t border-border pt-5 first:border-t-0 first:pt-0"
-      aria-label={title}
+      aria-label={t(title)}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-text">{title}</h3>
+          <h3 className="text-sm font-semibold text-text">{t(title)}</h3>
           {description && (
-            <p className="text-xs text-text-muted">{description}</p>
+            <p className="text-xs text-text-muted">{t(description)}</p>
           )}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

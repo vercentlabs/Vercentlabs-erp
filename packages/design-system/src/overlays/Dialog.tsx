@@ -9,6 +9,7 @@ import {
 import { X } from "lucide-react";
 import { IconButton } from "../actions/IconButton.tsx";
 import { cn } from "../utilities/cn.ts";
+import { useTranslateText } from "../utilities/translate.tsx";
 
 export interface DialogProps extends Omit<ModalOverlayProps, "className" | "children"> {
   className?: string;
@@ -28,6 +29,7 @@ const sizeClasses = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl", xl: "max-
 /** Standard dialog for forms/details that aren't destructive confirmations
  * — for "are you sure" style prompts, use AlertDialog instead. */
 export function Dialog({ className, title, description, hideCloseButton, size = "md", children, ...props }: DialogProps) {
+  const t = useTranslateText();
   return (
     <ModalOverlay className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-overlay-backdrop p-4" {...props}>
       <Modal className={cn("w-full", sizeClasses[size])}>
@@ -42,7 +44,7 @@ export function Dialog({ className, title, description, hideCloseButton, size = 
               <div className="flex items-start justify-between gap-4">
                 <div className="flex flex-col gap-1">
                   <Heading slot="title" className="text-section font-semibold text-text">
-                    {title}
+                    {t(title)}
                   </Heading>
                   {description && <p className="text-sm text-text-secondary">{description}</p>}
                 </div>

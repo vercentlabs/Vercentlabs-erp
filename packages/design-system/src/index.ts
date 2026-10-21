@@ -7,3 +7,4 @@ export * from "./layout/index.ts";
 export * from "./enterprise/index.ts";
 export * from "./forms/index.ts";
 export { cn } from "./utilities/cn.ts";
+export { TranslateProvider, useTranslateText, type TranslateText } from "./utilities/translate.tsx";

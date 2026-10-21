@@ -2,6 +2,7 @@
 
 // Your profile (Shared Platform plan 3): name, phone, time zone, language, date and number format; change password; change email.
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, PageHeader, PasswordField, Select, TextField } from "@vercentlabs/design-system";
 
@@ -34,7 +35,9 @@ function ProfileForms({ profile }: { profile: OwnProfile }) {
   const [form, setForm] = useState({ fullName: profile.fullName, phone: profile.phone ?? "", timezone: profile.timezone, locale: profile.locale, dateFormat: profile.dateFormat, numberFormat: profile.numberFormat });
   const [zones] = useState(timeZoneOptions);
   const set = (key: keyof typeof form) => (value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const save = useMutation({ mutationFn: () => saveOwnProfile(form), onSuccess: refresh });
+  const router = useRouter();
+  // A new language changes every screen's text: the page is drawn again in it.
+  const save = useMutation({ mutationFn: () => saveOwnProfile(form), onSuccess: () => { refresh(); if (form.locale !== profile.locale) router.refresh(); } });
   const [password, setPassword] = useState({ currentPassword: "", newPassword: "", repeat: "" });
   const change = useMutation({ mutationFn: () => changePassword({ currentPassword: password.currentPassword, newPassword: password.newPassword }), onSuccess: () => { setPassword({ currentPassword: "", newPassword: "", repeat: "" }); refresh(); } });
   const [email, setEmail] = useState({ newEmail: "", password: "" });

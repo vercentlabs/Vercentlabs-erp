@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Inbox, SearchX, AlertOctagon, Lock, type LucideIcon } from "lucide-react";
 import { Button } from "../actions/Button.tsx";
 import { cn } from "../utilities/cn.ts";
+import { useTranslateText } from "../utilities/translate.tsx";
 
 interface StateAction {
   label: string;
@@ -24,14 +25,15 @@ interface BaseStateProps {
  * surface — deliberately plain (an icon glyph, not a cartoon
  * illustration), per the ERP visual-restraint principle. */
 function BaseState({ className, icon: Icon, title, description, action, secondaryAction }: BaseStateProps) {
+  const t = useTranslateText();
   return (
     <div className={cn("flex flex-col items-center gap-3 px-6 py-12 text-center", className)}>
       <div className="flex size-11 items-center justify-center rounded-full bg-canvas-strong text-text-muted">
         <Icon className="size-5" aria-hidden="true" />
       </div>
       <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium text-text">{title}</p>
-        {description && <p className="max-w-sm text-sm text-text-secondary">{description}</p>}
+        <p className="text-sm font-medium text-text">{t(title)}</p>
+        {description && <p className="max-w-sm text-sm text-text-secondary">{t(description)}</p>}
       </div>
       {(action || secondaryAction) && (
         <div className="mt-1 flex gap-2">

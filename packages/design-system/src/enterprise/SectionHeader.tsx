@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "../utilities/cn.ts";
+import { useTranslateText } from "../utilities/translate.tsx";
 
 export interface SectionHeaderProps {
   className?: string;
@@ -14,11 +15,12 @@ export interface SectionHeaderProps {
  * tab panel) already owns the wrapper and you only need the header row.
  */
 export function SectionHeader({ className, title, description, actions }: SectionHeaderProps) {
+  const t = useTranslateText();
   return (
     <div className={cn("flex items-start justify-between gap-4", className)}>
       <div className="flex flex-col gap-0.5">
-        <h3 className="text-section font-semibold text-text">{title}</h3>
-        {description && <p className="text-sm text-text-secondary">{description}</p>}
+        <h3 className="text-section font-semibold text-text">{t(title)}</h3>
+        {description && <p className="text-sm text-text-secondary">{t(description)}</p>}
       </div>
       {actions}
     </div>

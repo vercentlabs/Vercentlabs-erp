@@ -9,6 +9,7 @@ import { getModuleNavigation } from "@/shell/navigation/module-navigation-regist
 import { workspaceChildren, type NavViewer } from "@/shell/navigation/navigation-resolution";
 import type { SecondaryNavItem } from "@/shell/navigation/navigation-types";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useT } from "@/shared/i18n/I18nText";
 
 // A configuration hub (e.g. CRM › Lead Setup): every destination registered under the workspace, as cards in the main content — never a
 // third sidebar. Cards come from the navigation registry (parent = the workspace), grouped under the module's groups for that workspace when
@@ -18,6 +19,7 @@ export function WorkspaceHubScreen({ moduleKey, workspace, title, description, s
   moduleKey: string; workspace: string; title: string; description: string; section?: string | null;
 }) {
   const context = useWorkspaceContext();
+  const t = useT();
   const navigation = getModuleNavigation(moduleKey);
 
   useEffect(() => {
@@ -38,14 +40,14 @@ export function WorkspaceHubScreen({ moduleKey, workspace, title, description, s
 
   return (
     <div className="flex flex-1 flex-col gap-8">
-      <PageHeader title={title} description={description} />
+      <PageHeader title={t(title)} description={t(description)} />
       {groups.map(({ id, label, description: about, icon: Icon, items }) => (
         <section key={id} id={id} aria-labelledby={label ? `${id}-heading` : undefined} aria-label={label ? undefined : title} className="flex scroll-mt-6 flex-col gap-3">
           {label && (
             <div className="flex items-start gap-3">
               {Icon && <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-brand-soft text-brand"><Icon aria-hidden="true" className="size-4" /></span>}
               <div className="flex flex-col">
-                <h2 id={`${id}-heading`} className="text-base font-semibold text-text">{label}</h2>
+                <h2 id={`${id}-heading`} className="text-base font-semibold text-text">{t(label)}</h2>
                 {about && <p className="text-sm text-text-secondary">{about}</p>}
               </div>
             </div>
@@ -56,7 +58,7 @@ export function WorkspaceHubScreen({ moduleKey, workspace, title, description, s
                 <Link href={item.route}
                   className="group flex h-full items-start gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none">
                   <span className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="text-sm font-semibold text-text">{item.label}</span>
+                    <span className="text-sm font-semibold text-text">{t(item.label)}</span>
                     {item.description ? <span className="text-sm text-text-secondary">{item.description}</span> : null}
                   </span>
                   <ChevronRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-text-muted group-hover:text-text" />
