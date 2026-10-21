@@ -5,11 +5,11 @@ import { workspaceRoute } from "@/core/workspace-route";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { readBody } from "@/features/crm/leads/server/lead-http";
 
-// Custom fields (CRM plan 5.3): ?entity=lead|opportunity; ?all=1 includes switched-off ones (CRM settings managers).
+// Custom fields (CRM plan 5.3): ?entity=lead|opportunity|party|contact; ?all=1 includes switched-off ones (CRM settings managers).
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const entity = params.get("entity") ?? "";
-  if (!["lead", "opportunity"].includes(entity)) return fail("Choose lead or opportunity.", 400);
+  if (!["lead", "opportunity", "party", "contact"].includes(entity)) return fail("Choose leads, deals, companies or contacts.", 400);
   return workspaceRoute(request, { module: "crm" }, async ({ client, session, snapshot }) =>
     ok({ fields: await listCustomFields(client, crmContext(session, snapshot), entity, { includeInactive: params.get("all") === "1" }) }));
 }

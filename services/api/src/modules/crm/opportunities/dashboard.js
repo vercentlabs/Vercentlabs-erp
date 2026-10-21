@@ -3,6 +3,7 @@
 // scope and filters as the opportunity list, so a figure and the list behind
 // it always agree.
 import { csvCellWriter, dayIn, organizationTimeZone } from "../data-management/csv.js";
+import { customExportColumns } from "../data-management/custom-import.js";
 import { CrmError } from "../data-management/errors.js";
 import { opportunityScopeSql, requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_PERMISSIONS, OPPORTUNITY_STALE_DAYS, opportunityPriorityLabel, opportunityStatusLabel } from "./constants.js";
@@ -217,9 +218,10 @@ export async function exportOpportunities(client, context, filters = {}, { limit
   const opportunities = rows.map(toOpportunity);
   const timeZone = await organizationTimeZone(client, context);
   const csvCell = csvCellWriter(timeZone);
+  const columns = [...EXPORT_COLUMNS, ...(await customExportColumns(client, context, "opportunity"))];
   return {
     fileName: `deals-${dayIn(timeZone)}.csv`,
     rowCount: opportunities.length,
-    csv: `﻿${[EXPORT_COLUMNS.map(([label]) => label), ...opportunities.map((row) => EXPORT_COLUMNS.map(([, read]) => read(row)))].map((line) => line.map(csvCell).join(",")).join("\r\n")}\r\n`,
+    csv: `﻿${[columns.map(([label]) => label), ...opportunities.map((row) => columns.map(([, read]) => read(row)))].map((line) => line.map(csvCell).join(",")).join("\r\n")}\r\n`,
   };
 }

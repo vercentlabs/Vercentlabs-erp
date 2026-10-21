@@ -4,6 +4,7 @@
 // views; one Filters button holds every filter, each applying the moment it changes. Opened from a company (?accountId=), a "Company: name"
 // chip shows. Hovering a row offers its email and phone as links. New contact is the primary action; Import and Export are in the "…" menu.
 import { useEffect, useMemo, useState } from "react";
+import { CustomFieldFilters, customFilterParams } from "@/features/crm/shared/ui/CustomFields";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState, VisibilityState } from "@tanstack/react-table";
@@ -84,6 +85,9 @@ export function ContactListScreen() {
     ...NO_FILTERS,
     ...Object.fromEntries((Object.keys(NO_FILTERS) as FilterKey[]).filter((key) => params.get(key)).map((key) => [key, params.get(key) as string])),
   }));
+  // The organization's own fields as filters (CRM audit M4): { key: value }.
+  const [customFilters, setCustomFiltersState] = useState<Record<string, string>>(() =>
+    Object.fromEntries([...params].filter(([key]) => key.startsWith("cf.")).map(([key, value]) => [key.slice(3), value])));
   const [account, setAccount] = useState<{ id: string; name: string } | null>(() => {
     const id = params.get("accountId");
     return id ? { id, name: params.get("accountName") ?? "chosen company" } : null;
@@ -127,9 +131,10 @@ export function ContactListScreen() {
     search: submittedSearch || undefined,
     ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ANY)),
     accountId: account?.id,
+    ...customFilterParams(customFilters, ANY),
     sortBy: sorting[0]?.id,
     sortDirection: sorting[0]?.desc === false ? "asc" : "desc",
-  }), [view, submittedSearch, filters, account, sorting]);
+  }), [view, submittedSearch, filters, account, customFilters, sorting]);
 
   const listQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "contacts", "list", listFilters, pageIndex),
@@ -214,12 +219,18 @@ export function ContactListScreen() {
   const activeFilters: ActiveFilter[] = [
     ...(Object.keys(filters) as FilterKey[]).filter((key) => filters[key] !== ANY).map((key) => ({ id: key, label: `${FILTER_NAMES[key]}: ${labelOf(key, filters[key])}` })),
     ...(account ? [{ id: "account", label: `Company: ${account.name}` }] : []),
+    ...Object.entries(customFilters).filter(([, value]) => value !== ANY).map(([key, value]) => {
+      const field = (options?.customFields ?? []).find((entry) => entry.key === key);
+      return { id: `cf.${key}`, label: `${field?.label ?? key}: ${field?.type === "checkbox" ? (value === "true" ? "Yes" : "No") : value}` };
+    }),
   ];
   const removeFilter = (id: string) => {
-    if (id === "account") { setAccount(null); restart(); } else setFilters({ ...filters, [id]: ANY });
+    if (id === "account") { setAccount(null); restart(); }
+    else if (id.startsWith("cf.")) { setCustomFiltersState({ ...customFilters, [id.slice(3)]: ANY }); restart(); }
+    else setFilters({ ...filters, [id]: ANY });
   };
   const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== defaultView;
-  const clearFilters = () => { setAccount(null); setFilters(NO_FILTERS); };
+  const clearFilters = () => { setAccount(null); setCustomFiltersState({}); setFilters(NO_FILTERS); };
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.contacts.view"))
     return <PermissionState title="You don't have access to contacts" description="Ask an administrator for the View contacts permission." />;
@@ -270,6 +281,7 @@ export function ContactListScreen() {
                     options={filterOptions(options.sources.map((entry) => ({ value: entry.id, label: entry.name })), "Any source")} />
                   <Select label="Primary contact" size="compact" selectedKey={filters.isPrimary} onSelectionChange={(key) => setFilters({ ...filters, isPrimary: String(key) })}
                     options={filterOptions([{ value: "yes", label: "Primary contacts" }, { value: "no", label: "Not primary" }], "Primary or not")} />
+                  <CustomFieldFilters fields={options.customFields ?? []} values={customFilters} anyValue={ANY} onChange={(next) => { setCustomFiltersState(next); restart(); }} />
                 </FiltersPopover>
               )}
             </>

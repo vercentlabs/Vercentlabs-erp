@@ -4,6 +4,7 @@
 // function per contact operation; a failed request throws ContactApiError
 // carrying the server's message, code and (for duplicates) the matches.
 import { CrmApiErrorWithBody } from "@/features/crm/shared/http/crm-api-error";
+import type { CustomField, CustomValues } from "@/features/crm/shared/fields-api";
 import { crmApiClient } from "@/features/crm/shared/http/crm-request";
 
 export class ContactApiError extends CrmApiErrorWithBody {}
@@ -16,6 +17,8 @@ export type ContactRelatedList = "opportunities" | "quotations" | "orders" | "pr
 
 
 export type Contact = {
+  // The organization's own fields (CRM audit M4), keyed by field key.
+  customFields?: CustomValues;
   // the language they prefer (CRM plan 5.5), ISO 639-1
   preferredLanguage?: string | null;
   id: string;
@@ -84,6 +87,7 @@ export type ContactCapabilities = Record<
 type CodeLabel = { code: string; label: string };
 
 export type ContactOptions = {
+  customFields?: CustomField[];
   views: Array<{ key: ContactViewKey; label: string }>;
   statuses: Array<{ code: ContactStatus; label: string }>;
   roles: CodeLabel[];
@@ -104,6 +108,8 @@ export type ContactOptions = {
 };
 
 export type ContactListFilters = {
+  // Custom fields as filters ("cf.<key>": value; CRM audit M4).
+  [custom: `cf.${string}`]: string | undefined;
   view?: ContactViewKey;
   search?: string;
   status?: string;

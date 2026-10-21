@@ -27,5 +27,8 @@ export function accountFiltersFromUrl(url: URL) {
   }
   const ids = url.searchParams.get("ids");
   if (ids) filters.ids = ids.split(",");
+  // Custom fields as filters (cf.<key>=value): the record's own fields (CRM audit M4).
+  const custom = Object.fromEntries([...url.searchParams].filter(([key, value]) => key.startsWith("cf.") && value).map(([key, value]) => [key.slice(3), value]));
+  if (Object.keys(custom).length) filters.custom = custom;
   return filters;
 }

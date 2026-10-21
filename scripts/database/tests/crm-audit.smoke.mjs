@@ -353,6 +353,41 @@ try {
     assert(salesOnly.access.crm === false && salesOnly.crm.openOpportunities.length === 0, JSON.stringify(salesOnly.access));
     await onlyApps(["crm"]);
   });
+
+  await check("M4. Custom fields on companies and contacts: set on the form, filter the list, come in through import (any case) and go out in export; leads too", async () => {
+    await onlyApps(["crm"]);
+    await crm.createCustomField(client, owner(), { entityType: "party", label: "Channel", type: "select", options: ["GT", "MT"], isRequired: true });
+    await crm.createCustomField(client, owner(), { entityType: "contact", label: "Budget band", type: "text" });
+    await crm.createCustomField(client, owner(), { entityType: "lead", label: "Outlet class", type: "select", options: ["A", "B", "C"] });
+    const gt = await crm.createAccount(client, owner(), { displayName: `GT Outlet ${tag}`, customFields: { channel: "GT" } });
+    assert(gt.customFields.channel === "GT", JSON.stringify(gt.customFields));
+    await refused(() => crm.createAccount(client, owner(), { displayName: `No channel ${tag}`, customFields: {} }), "CRM_CUSTOM_FIELD_VALIDATION");
+    const mt = await crm.createAccount(client, owner(), { displayName: `MT Store ${tag}`, customFields: { channel: "MT" } });
+    const updated = await crm.updateAccount(client, owner(), mt.id, { customFields: { channel: "GT" } });
+    assert(updated.customFields.channel === "GT", "updated");
+    const list = await crm.listAccounts(client, owner(), { search: tag, custom: { channel: "GT" } });
+    const ids = (list.accounts ?? list.rows ?? []).map((row) => row.id);
+    assert(ids.includes(gt.id) && ids.includes(mt.id), JSON.stringify(ids));
+    const none = await crm.listAccounts(client, owner(), { search: tag, custom: { channel: "MT" } });
+    assert(!(none.accounts ?? none.rows ?? []).some((row) => row.id === gt.id), "filter excludes");
+    const csv = `Company Name,Channel\nImported Outlet ${tag},mt\n`;
+    const analysis = await crm.analyzeAccountImport(client, owner(), { bytes: Buffer.from(csv), fileName: "c.csv" });
+    assert(analysis.suggestedMapping.Channel === "custom:channel" && analysis.fields.some((field) => field.key === "custom:channel"), JSON.stringify(analysis.suggestedMapping));
+    const imported = await crm.importAccounts(client, owner(), { bytes: Buffer.from(csv), fileName: "c.csv", mapping: analysis.suggestedMapping });
+    assert(imported.created === 1, JSON.stringify(imported.errors));
+    const row = (await client.query("SELECT custom_data FROM tenant.business_parties WHERE organization_id = $1 AND display_name = $2", [organizationId, `Imported Outlet ${tag}`])).rows[0];
+    assert(row.custom_data.channel === "MT", JSON.stringify(row.custom_data));
+    const exported = await crm.exportAccounts(client, owner(), { search: `GT Outlet ${tag}` });
+    assert(/,Channel/.test(exported.csv.split("\n")[0]) && exported.csv.includes("GT"), exported.csv.split("\n")[0]);
+    const person = await crm.createContact(client, owner(), { firstName: "Budget", lastName: "Buyer", email: `budget-${tag}@example.in`, customFields: { budget_band: "50-75 L" } });
+    assert(person.customFields.budget_band === "50-75 L", "contact field");
+    const leadCsv = `Last Name,Company,Outlet class\nPatil ${tag},Patil Kirana,b\n`;
+    const leadAnalysis = await crm.analyzeLeadImport(client, owner(), { bytes: Buffer.from(leadCsv), fileName: "l.csv" });
+    const leadImport = await crm.importLeads(client, owner(), { bytes: Buffer.from(leadCsv), fileName: "l.csv", mapping: leadAnalysis.suggestedMapping });
+    assert(leadImport.created === 1, JSON.stringify(leadImport.errors ?? leadImport));
+    const lead = (await client.query("SELECT custom_data FROM tenant.crm_leads WHERE organization_id = $1 AND last_name = $2", [organizationId, `Patil ${tag}`])).rows[0];
+    assert(lead.custom_data.outlet_class === "B", JSON.stringify(lead.custom_data));
+  });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);
   await client.end();

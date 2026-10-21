@@ -1,5 +1,6 @@
 // Everything the contact screens need to render their pickers, in one read.
 import { activityTypeChoices } from "../activity-types/records.js";
+import { listCustomFields } from "../custom-fields/records.js";
 import { loadApps } from "../../../core/access/apps.js";
 import { contactTabAllowed } from "./summary.js";
 import { listLeadAssignmentOptions } from "../leads/assignment.js";
@@ -37,6 +38,8 @@ export async function getContactOptions(client, context) {
     departments: departments.rows.map((row) => row.department),
     currentUserId: context.userId,
     capabilities: contactCapabilities(context),
+    // The organization's own fields on this record (CRM audit M4), for the form, the record page and list filters.
+    customFields: await listCustomFields(client, context, "contact"),
     moduleAccess: { sales: contactTabAllowed(context, "sales"), projects: contactTabAllowed(context, "projects"), support: contactTabAllowed(context, "support") },
   };
 }

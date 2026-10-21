@@ -7,6 +7,7 @@
 // report counts it. The company is found by its number or name; a row naming a company that does not exist is refused unless the import
 // is asked to create missing companies. A failed row is reported with its reason and never stops the rest of the file.
 import { withMigrationAliases } from "../data-management/migration-presets.js";
+import { customExportColumns, customImportFields, suggestCustomMapping, takeCustomColumn } from "../data-management/custom-import.js";
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { accountScopeSql } from "../accounts/access.js";
@@ -78,18 +79,21 @@ function requireImport(context) {
 }
 
 // Step 1: read the file and suggest how its columns map to deal fields.
-export async function analyzeOpportunityImport(_client, context, { bytes, fileName, maxRows }) {
+export async function analyzeOpportunityImport(client, context, { bytes, fileName, maxRows }) {
+  const custom = await customImportFields(client, context, "opportunity");
   requireImport(context);
   const parsed = parseUpload(bytes, fileName, maxRows);
   return {
-    fileName, headers: parsed.headers, rowCount: parsed.rowCount, sampleRows: parsed.records.slice(0, 5), suggestedMapping: suggestMapping(parsed.headers),
-    fields: OPPORTUNITY_IMPORT_FIELDS.map(({ key, label }) => ({ key, label })),
+    fileName, headers: parsed.headers, rowCount: parsed.rowCount, sampleRows: parsed.records.slice(0, 5), suggestedMapping: suggestCustomMapping(parsed.headers, suggestMapping(parsed.headers), custom),
+    fields: [...OPPORTUNITY_IMPORT_FIELDS.map(({ key, label }) => ({ key, label })), ...custom],
   };
 }
 
 function rowToInput(record, mapping) {
   const input = {};
   for (const [header, fieldKey] of Object.entries(mapping)) {
+    // The organization's own fields (CRM audit M4) go to customFields.
+    if (takeCustomColumn(input, fieldKey, record[header])) continue;
     if (!FIELD_BY_KEY.has(fieldKey)) continue;
     const value = text(record[header]);
     if (value) input[fieldKey] = value;
@@ -208,6 +212,7 @@ export async function importOpportunities(client, context, { bytes, fileName, ma
       const status = STATUSES.get(text(input.status).toLowerCase());
       if (!status) throw new CrmError(400, `Status "${input.status}" is not Open, Won or Lost.`, "CRM_OPPORTUNITY_IMPORT_VALUE");
 
+      if (input.customFields) deal.customFields = input.customFields;
       const created = await createOpportunity(client, context, deal, { origin: "import" });
       if (status !== "open") {
         const closedOn = isoDay(input.closedOn, "Closed on");

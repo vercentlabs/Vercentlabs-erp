@@ -4,6 +4,7 @@
 // function per account operation; a failed request throws AccountApiError
 // carrying the server's message, code and (for duplicates) the matches.
 import { CrmApiErrorWithBody } from "@/features/crm/shared/http/crm-api-error";
+import type { CustomField, CustomValues } from "@/features/crm/shared/fields-api";
 import { crmApiClient } from "@/features/crm/shared/http/crm-request";
 
 export class AccountApiError extends CrmApiErrorWithBody {}
@@ -18,6 +19,8 @@ export type AccountRelatedList = "leads" | "opportunities" | "quotations" | "ord
 
 export type Account = {
   id: string;
+  // The organization's own fields (CRM audit M4), keyed by field key.
+  customFields?: CustomValues;
   code: string;
   displayName: string;
   legalName: string | null;
@@ -77,6 +80,7 @@ export type AccountCapabilities = Record<
 type CodeLabel = { code: string; label: string };
 
 export type AccountOptions = {
+  customFields?: CustomField[];
   views: Array<{ key: AccountViewKey; label: string }>;
   types: Array<{ code: AccountType; label: string }>;
   statuses: Array<{ code: AccountStatus; label: string }>;
@@ -101,6 +105,8 @@ export type AccountOptions = {
 };
 
 export type AccountListFilters = {
+  // Custom fields as filters ("cf.<key>": value; CRM audit M4).
+  [custom: `cf.${string}`]: string | undefined;
   view?: AccountViewKey;
   search?: string;
   accountType?: string;

@@ -4,6 +4,7 @@
 // qualification.js (qualify / disqualify / reopen) and ../conversion. This
 // file never writes those columns except to set the initial owner on create.
 import { applyCustomFields } from "../custom-fields/records.js";
+import { customFieldFilterSql } from "../data-management/custom-filter.js";
 import { rescoreLead } from "./scoring.js";
 import { convertArrivingLead } from "./switch.js";
 import { crmMediumLabel } from "@vercentlabs/shared-types";
@@ -357,6 +358,8 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
     where.push(`(${haystack} LIKE ${bind(`%${search.replace(/[\\%_]/g, "\\$&")}%`)}${digits
       ? ` OR lead.normalized_mobile LIKE ${bind(`%${digits}%`)} OR lead.normalized_business_phone LIKE $${values.length}` : ""})`);
   }
+  // The organization's own fields as filters (CRM audit M4).
+  where.push(...customFieldFilterSql("lead", filters, values));
   return `WHERE ${where.join(" AND ")}${leadScopeSql(context, values, "lead")}`;
 }
 
@@ -463,7 +466,7 @@ export async function createLead(client, context, input = {}, {
     await applyLeadAssignment(client, context, lead, { ownerUserId: assignment.ownerUserId, teamId: assignment.teamId }, {
       method: assignment.method, rule: assignment.rule, reason: assignmentReason, notify,
     });
-  await applyCustomFields(client, context, "lead", lead.id, input.customFields);
+  await applyCustomFields(client, context, "lead", lead.id, input.customFields, { requireAll: origin !== "import" });
   await rescoreLead(client, context.organizationId, lead.id);
   await queueOutboxEvent(client, context, "crm.leads.created", "leads", lead.id, { status: lead.status, sourceId: lead.source_id, ownerUserId: assignment.ownerUserId ?? null });
   // With leads switched off (CRM plan 5.7), an enquiry that arrived on its own becomes a deal straight away.

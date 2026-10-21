@@ -7,6 +7,7 @@
 // lead typed in by hand. A row that fails is reported with its reason and
 // never stops the rest of the file.
 import { withMigrationAliases } from "../data-management/migration-presets.js";
+import { customExportColumns, customImportFields, suggestCustomMapping, takeCustomColumn } from "../data-management/custom-import.js";
 import { countryCodeOf } from "../data-management/import-values.js";
 import { withConsentSource } from "../data-management/consent.js";
 import { csvCellWriter, dayIn, organizationTimeZone } from "../data-management/csv.js";
@@ -88,7 +89,8 @@ function suggestMapping(headers) {
 }
 
 // Step 1: read the file and suggest how its columns map to lead fields.
-export async function analyzeLeadImport(_client, context, { bytes, fileName, maxRows }) {
+export async function analyzeLeadImport(client, context, { bytes, fileName, maxRows }) {
+  const custom = await customImportFields(client, context, "lead");
   requireLeadPermission(context, LEAD_PERMISSIONS.import, "You do not have permission to import leads.");
   const parsed = parseUpload(bytes, fileName, maxRows);
   return {
@@ -96,14 +98,16 @@ export async function analyzeLeadImport(_client, context, { bytes, fileName, max
     headers: parsed.headers,
     rowCount: parsed.rowCount,
     sampleRows: parsed.records.slice(0, 5),
-    suggestedMapping: suggestMapping(parsed.headers),
-    fields: LEAD_IMPORT_FIELDS.map(({ key, label }) => ({ key, label })),
+    suggestedMapping: suggestCustomMapping(parsed.headers, suggestMapping(parsed.headers), custom),
+    fields: [...LEAD_IMPORT_FIELDS.map(({ key, label }) => ({ key, label })), ...custom],
   };
 }
 
 function rowToInput(record, mapping) {
   const input = {};
   for (const [header, fieldKey] of Object.entries(mapping)) {
+    // The organization's own fields (CRM audit M4) go to customFields.
+    if (takeCustomColumn(input, fieldKey, record[header])) continue;
     if (!FIELD_BY_KEY.has(fieldKey)) continue;
     // A leading ' is the spreadsheet guard our exports and template add before =, +, - or @ ("'+91 98200 12345"): not part of the value.
     const value = String(record[header] ?? "").trim().replace(/^'(?=[=+\-@])/, "");
@@ -304,10 +308,11 @@ export async function exportLeads(client, context, filters = {}, { limit = EXPOR
     throw new CrmError(413, `This export has more than ${limit} leads. Narrow the filters, or export it in the background.`, "CRM_LEAD_EXPORT_TOO_LARGE");
   const leads = rows.map(toLead);
   const timeZone = await organizationTimeZone(client, context);
+  const columns = [...EXPORT_COLUMNS, ...(await customExportColumns(client, context, "lead"))];
   return {
     fileName: `leads-${dayIn(timeZone)}.csv`,
     rowCount: leads.length,
-    csv: toCsv([EXPORT_COLUMNS.map(([label]) => label), ...leads.map((lead) => EXPORT_COLUMNS.map(([, read]) => read(lead)))], csvCellWriter(timeZone)),
+    csv: toCsv([columns.map(([label]) => label), ...leads.map((lead) => columns.map(([, read]) => read(lead)))], csvCellWriter(timeZone)),
   };
 }
 

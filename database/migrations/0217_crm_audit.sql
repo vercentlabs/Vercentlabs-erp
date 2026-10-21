@@ -103,4 +103,13 @@ $$;
 REVOKE ALL ON FUNCTION tenant.crm_resolve_quote_token(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION tenant.crm_resolve_quote_token(text) TO vercent_app, vercent_worker;
 
+-- 3. Custom fields on companies and contacts (M4): an FMCG distributor's outlet class, channel (GT/MT), beat and distributor on the company;
+--    a real-estate buyer's budget on the contact. Their values live in custom_data, keyed by the field's key, as on leads and deals.
+ALTER TABLE tenant.business_parties ADD COLUMN IF NOT EXISTS custom_data jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE tenant.contacts ADD COLUMN IF NOT EXISTS custom_data jsonb NOT NULL DEFAULT '{}'::jsonb;
+CREATE INDEX IF NOT EXISTS business_parties_custom_data_idx ON tenant.business_parties USING gin (custom_data jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS contacts_custom_data_idx ON tenant.contacts USING gin (custom_data jsonb_path_ops);
+ALTER TABLE tenant.crm_custom_fields DROP CONSTRAINT IF EXISTS crm_custom_fields_entity_type_check;
+ALTER TABLE tenant.crm_custom_fields ADD CONSTRAINT crm_custom_fields_entity_type_check CHECK (entity_type IN ('lead', 'opportunity', 'party', 'contact'));
+
 INSERT INTO public.schema_migrations (filename, checksum) VALUES ('0217_crm_audit.sql', 'crm-audit') ON CONFLICT DO NOTHING;

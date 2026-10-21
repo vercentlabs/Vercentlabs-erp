@@ -5,6 +5,7 @@
 // Log activity and Schedule follow-up sit beside it; everything else is in the "…" menu, grouped (Duplicates holds both merges). Six tabs,
 // the Customer 360 figures as their badges: Overview, People, Deals, Activity, Sales & money, Details.
 import { formatPhone } from "@vercentlabs/shared-types";
+import { customFieldProperties } from "@/features/crm/shared/ui/CustomFields";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -219,6 +220,9 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
             <div className="flex flex-col gap-6">
               <AccountSummaryCards accountId={account.id} currency={currency} />
               <AccountDuplicatesPanel account={account} canMerge={can.merge && !archived} hideWhenEmpty onMerged={refresh} />
+              {customFieldProperties(options.customFields ?? [], account.customFields).length > 0 && (
+                <PropertyList title="More about this company" columns={3} items={customFieldProperties(options.customFields ?? [], account.customFields)} />
+              )}
               <PropertyList
                 title="Company"
                 columns={3}

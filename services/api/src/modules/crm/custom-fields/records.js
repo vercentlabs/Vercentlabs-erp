@@ -1,12 +1,12 @@
-// Custom fields on leads and deals (CRM plan 5.3). The organization defines them (CRM settings); their values live in the record's
-// custom_data, keyed by the field's key, and are set through the lead and deal forms like any other field. A switched-off field is no
-// longer shown or accepted, but its values stay.
+// Custom fields on leads, deals, companies and contacts (CRM plan 5.3; companies and contacts: CRM audit M4). The organization defines
+// them (CRM settings); their values live in the record's custom_data, keyed by the field's key, and are set through the record's form
+// like any other field, and through import. A switched-off field is no longer shown or accepted, but its values stay.
 import { CrmError } from "../data-management/errors.js";
 
 const MANAGE = "crm.settings.manage";
-export const CUSTOM_FIELD_ENTITIES = Object.freeze(["lead", "opportunity"]);
+export const CUSTOM_FIELD_ENTITIES = Object.freeze(["lead", "opportunity", "party", "contact"]);
 export const CUSTOM_FIELD_TYPES = Object.freeze(["text", "number", "date", "select", "checkbox"]);
-const TABLE = Object.freeze({ lead: "crm_leads", opportunity: "crm_opportunities" });
+const TABLE = Object.freeze({ lead: "crm_leads", opportunity: "crm_opportunities", party: "business_parties", contact: "contacts" });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const text = (value) => String(value ?? "").trim();
@@ -18,7 +18,7 @@ function requireManage(context) {
   throw new CrmError(403, "You do not have permission to manage custom fields.", "PERMISSION_DENIED");
 }
 function requireEntity(entity) {
-  if (!CUSTOM_FIELD_ENTITIES.includes(entity)) throw invalid("entityType", "Custom fields are for leads and deals.");
+  if (!CUSTOM_FIELD_ENTITIES.includes(entity)) throw invalid("entityType", "Custom fields are for leads, deals, companies and contacts.");
 }
 
 function toField(row) {
@@ -90,6 +90,9 @@ export async function updateCustomField(client, context, fieldId, input = {}) {
 }
 
 // One value, checked against its field. Empty means "no value" (null).
+export function cleanCustomValue(field, value) {
+  return cleanValue(field, value);
+}
 function cleanValue(field, value) {
   if (value === null || value === undefined || (typeof value === "string" && !value.trim())) return null;
   switch (field.field_type) {
@@ -102,10 +105,12 @@ function cleanValue(field, value) {
       if (!DATE.test(text(value))) throw invalid(`custom.${field.key}`, `${field.label} must be a date.`);
       return text(value);
     case "checkbox":
-      return value === true || value === "true" || value === "yes";
-    case "select":
-      if (!(field.options ?? []).includes(text(value))) throw invalid(`custom.${field.key}`, `Choose ${field.label} from its list.`);
-      return text(value);
+      return value === true || ["true", "yes", "y", "1"].includes(text(value).toLowerCase());
+    case "select": {
+      const option = (field.options ?? []).find((candidate) => candidate.toLowerCase() === text(value).toLowerCase());
+      if (!option) throw invalid(`custom.${field.key}`, `Choose ${field.label} from its list.`);
+      return option;
+    }
     default: {
       const result = text(value);
       if (result.length > 2000) throw invalid(`custom.${field.key}`, `${field.label} is too long.`);
@@ -114,9 +119,10 @@ function cleanValue(field, value) {
   }
 }
 
-// Writes the custom field values given (customFields: { key: value }) onto a lead or deal. Unknown or switched-off keys are refused; when
-// values are given, every required field must have one. Returns the fields that changed: [{ key, label, from, to }].
-export async function applyCustomFields(client, context, entity, recordId, values) {
+// Writes the custom field values given (customFields: { key: value }) onto a lead, deal, company or contact. Unknown or switched-off keys
+// are refused; when values are given on a form, every required field must have one (options.requireAll false: an import fills what it
+// has). Returns the fields that changed: [{ key, label, from, to }].
+export async function applyCustomFields(client, context, entity, recordId, values, { requireAll = true } = {}) {
   requireEntity(entity);
   const fields = (await client.query("SELECT * FROM tenant.crm_custom_fields WHERE organization_id = $1 AND entity_type = $2 AND status = 'active'", [context.organizationId, entity])).rows;
   if (values === undefined || values === null) return [];
@@ -137,7 +143,7 @@ export async function applyCustomFields(client, context, entity, recordId, value
   }
   // Required fields are asked of the person filling in the form (a lead from a connector, an email or an import is never refused).
   const missing = fields.filter((field) => field.is_required && field.field_type !== "checkbox" && (next[field.key] === undefined || next[field.key] === null));
-  if (missing.length && values !== undefined && values !== null) throw invalid(`custom.${missing[0].key}`, `Fill in ${missing[0].label}.`);
+  if (requireAll && missing.length && values !== undefined && values !== null) throw invalid(`custom.${missing[0].key}`, `Fill in ${missing[0].label}.`);
   if (changed.length)
     await client.query(`UPDATE tenant.${TABLE[entity]} SET custom_data = $3::jsonb WHERE organization_id = $1 AND id = $2`, [context.organizationId, recordId, JSON.stringify(next)]);
   return changed;

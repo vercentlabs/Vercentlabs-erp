@@ -3,6 +3,7 @@
 // assignment.js; the parent through hierarchy.js; the customer link through
 // customer.js.
 import { normalizePhones } from "../data-management/phones.js";
+import { customFieldFilterSql } from "../data-management/custom-filter.js";
 import { GST_TREATMENTS } from "@vercentlabs/shared-types";
 import { loadApps } from "../../../core/access/apps.js";
 import { taxIdentityEditable } from "./tax-identity.js";
@@ -20,6 +21,7 @@ import { ACCOUNT_NUMBER_DOCUMENT_TYPE, ACCOUNT_PERMISSIONS, CRM_ACCOUNT_PARTY_SQ
 import { recordDuplicateOverride } from "../duplicates/policy.js";
 import { assertNoBlockingAccountDuplicate } from "./duplicates.js";
 import { recordAccountHistory } from "./history.js";
+import { applyCustomFields } from "../custom-fields/records.js";
 import { ACCOUNT_WRITABLE_COLUMNS, assertValidAccount, isUuid, normalizeAccountInput, requireUuid } from "./validation.js";
 
 const BULK_LIMIT = 200;
@@ -62,6 +64,7 @@ export const ACCOUNT_SELECT = `
 export function toAccount(row) {
   return {
     id: row.id,
+    customFields: row.custom_data ?? {},
     code: row.code,
     displayName: row.display_name,
     legalName: row.legal_name,
@@ -241,6 +244,8 @@ export function buildAccountListWhere(context, filters = {}, values = []) {
                   WHERE link.organization_id = account.organization_id AND link.party_id = account.id
                     AND lower(COALESCE(contact.display_name, '') || ' ' || contact.first_name || ' ' || COALESCE(contact.last_name, '')) LIKE ${pattern}))`);
   }
+  // The organization's own fields as filters (CRM audit M4).
+  where.push(...customFieldFilterSql("account", filters, values));
   return `WHERE ${where.join(" AND ")}${accountScopeSql(context, values, "account")}`;
 }
 
@@ -284,7 +289,7 @@ async function assertActiveSource(client, context, sourceId) {
 export async function createAccount(client, context, input = {}, { allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", historySummary = null } = {}) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.create, "You do not have permission to create companies.");
   // Owner and team are set below through their own rules.
-  const { ownerUserId: _owner, teamId: _team, duplicateReason: inputReason, ...accountFields } = input;
+  const { ownerUserId: _owner, teamId: _team, duplicateReason: inputReason, customFields, ...accountFields } = input;
   const normalized = normalizeAccountInput(accountFields);
   await normalizePhones(client, context, normalized, ["phone", "secondaryPhone"], normalized.countryCode ?? input.address?.countryCode, "CRM_ACCOUNT_VALIDATION");
   if (!normalized.accountType) normalized.accountType = "prospect";
@@ -321,6 +326,8 @@ export async function createAccount(client, context, input = {}, { allowDuplicat
     ...(duplicates.hasBlockingMatch ? { duplicateConfirmed: duplicates.matches.filter((match) => match.strength === "exact").map((match) => match.id) } : {}),
   });
   await applyAccountAssignment(client, context, account, { ownerUserId, teamId: input.teamId || null }, { reason: origin });
+  // The organization's own fields (outlet class, channel, beat…), checked against their definitions.
+  await applyCustomFields(client, context, "party", account.id, customFields, { requireAll: origin !== "import" });
   await queueOutboxEvent(client, context, "crm.accounts.created", "account", account.id, { accountId: account.id });
   return projectAccountForContext(context, toAccount(await loadAccountRow(client, context, account.id, { skipScope: true })));
 }
@@ -334,7 +341,8 @@ export async function updateAccount(client, context, partyId, input = {}, { allo
   if (expectedUpdatedAt && new Date(expectedUpdatedAt).getTime() !== new Date(row.updated_at).getTime())
     throw new CrmError(409, "This company was changed by someone else. Reload it and try again.", "CRM_ACCOUNT_VERSION_CONFLICT");
   const before = toAccount(row);
-  const normalized = normalizeAccountInput(input);
+  const { customFields, ...accountInput } = input;
+  const normalized = normalizeAccountInput(accountInput);
   await normalizePhones(client, context, normalized, ["phone", "secondaryPhone"], normalized.countryCode ?? before.countryCode, "CRM_ACCOUNT_VALIDATION");
   // Customer status follows the Customer Master, not a dropdown.
   if (has(normalized, "accountType") && normalized.accountType !== before.accountType && (normalized.accountType === "customer" || before.accountType === "customer"))
@@ -361,6 +369,10 @@ export async function updateAccount(client, context, partyId, input = {}, { allo
         Object.fromEntries(others.map((field) => [field, changes[field]])));
     await queueOutboxEvent(client, context, "crm.accounts.updated", "account", row.id, { accountId: row.id, changedFields: changed });
   }
+  const customChanges = await applyCustomFields(client, context, "party", row.id, customFields);
+  if (customChanges.length)
+    await recordAccountHistory(client, context, row.id, "updated", `Updated ${customChanges.map((change) => change.label).join(", ")}`,
+      Object.fromEntries(customChanges.map((change) => [`custom.${change.key}`, { from: change.from, to: change.to }])));
   return projectAccountForContext(context, toAccount(await loadAccountRow(client, context, row.id)));
 }
 

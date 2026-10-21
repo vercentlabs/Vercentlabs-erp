@@ -18,9 +18,11 @@ export const CUSTOM_FIELD_TYPES: Array<{ value: CustomFieldType; label: string }
   { value: "checkbox", label: "Yes / no" },
 ];
 
-export const listCustomFields = (entity: "lead" | "opportunity", all = false) =>
+// The record types custom fields go on (companies and contacts: CRM audit M4).
+export type CustomFieldEntity = "lead" | "opportunity" | "party" | "contact";
+export const listCustomFields = (entity: CustomFieldEntity, all = false) =>
   request<{ fields: CustomField[] }>(`/api/crm/custom-fields?entity=${entity}${all ? "&all=1" : ""}`).then((result) => result.fields);
-export const createCustomField = (input: { entityType: "lead" | "opportunity"; label: string; type: CustomFieldType; options?: string[]; isRequired?: boolean; helpText?: string }) =>
+export const createCustomField = (input: { entityType: CustomFieldEntity; label: string; type: CustomFieldType; options?: string[]; isRequired?: boolean; helpText?: string }) =>
   request<{ field: CustomField }>("/api/crm/custom-fields", { method: "POST", json: input }).then((result) => result.field);
 export const updateCustomField = (id: string, input: Partial<{ label: string; options: string[]; isRequired: boolean; helpText: string; sequence: number; isActive: boolean }>) =>
   request<{ field: CustomField }>(`/api/crm/custom-fields/${id}`, { method: "PATCH", json: input }).then((result) => result.field);

@@ -8,6 +8,7 @@
 // normalized name ("ABC Pvt Ltd" finds "ABC Private Limited"); a company that
 // is not found is reported and the person is imported without one.
 import { withMigrationAliases } from "../data-management/migration-presets.js";
+import { customExportColumns, customImportFields, suggestCustomMapping, takeCustomColumn } from "../data-management/custom-import.js";
 import { withConsentSource } from "../data-management/consent.js";
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
@@ -81,7 +82,8 @@ function suggestMapping(headers) {
   return mapping;
 }
 
-export async function analyzeContactImport(_client, context, { bytes, fileName, maxRows }) {
+export async function analyzeContactImport(client, context, { bytes, fileName, maxRows }) {
+  const custom = await customImportFields(client, context, "contact");
   requireContactPermission(context, CONTACT_PERMISSIONS.import, "You do not have permission to import contacts.");
   const parsed = parseUpload(bytes, fileName, maxRows);
   return {
@@ -89,14 +91,16 @@ export async function analyzeContactImport(_client, context, { bytes, fileName, 
     headers: parsed.headers,
     rowCount: parsed.rowCount,
     sampleRows: parsed.records.slice(0, 5),
-    suggestedMapping: suggestMapping(parsed.headers),
-    fields: CONTACT_IMPORT_FIELDS.map(({ key, label }) => ({ key, label })),
+    suggestedMapping: suggestCustomMapping(parsed.headers, suggestMapping(parsed.headers), custom),
+    fields: [...CONTACT_IMPORT_FIELDS.map(({ key, label }) => ({ key, label })), ...custom],
   };
 }
 
 function rowToInput(record, mapping) {
   const input = {};
   for (const [header, fieldKey] of Object.entries(mapping)) {
+    // The organization's own fields (CRM audit M4) go to customFields.
+    if (takeCustomColumn(input, fieldKey, record[header])) continue;
     if (!FIELD_BY_KEY.has(fieldKey)) continue;
     const value = String(record[header] ?? "").trim();
     if (value) input[fieldKey] = value;
@@ -258,10 +262,11 @@ export async function exportContacts(client, context, filters = {}, { limit = EX
   if (rows.length > limit)
     throw new CrmError(413, `This export has more than ${limit} contacts. Narrow the filters, or export it in the background.`, "CRM_CONTACT_EXPORT_TOO_LARGE");
   const contacts = rows.map(toContact);
+  const columns = [...EXPORT_COLUMNS, ...(await customExportColumns(client, context, "contact"))];
   return {
     fileName: `contacts-${new Date().toISOString().slice(0, 10)}.csv`,
     rowCount: contacts.length,
-    csv: toCsv([EXPORT_COLUMNS.map(([label]) => label), ...contacts.map((contact) => EXPORT_COLUMNS.map(([, read]) => read(contact)))]),
+    csv: toCsv([columns.map(([label]) => label), ...contacts.map((contact) => columns.map(([, read]) => read(contact)))]),
   };
 }
 

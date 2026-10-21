@@ -4,6 +4,7 @@
 // status (won, lost, reopened) through outcome.js. This file never writes
 // those columns except to set the starting stage and owner on create.
 import { applyCustomFields } from "../custom-fields/records.js";
+import { customFieldFilterSql } from "../data-management/custom-filter.js";
 import { crmMediumLabel, isCrmMedium } from "@vercentlabs/shared-types";
 
 import { assertUsableCampaign } from "../campaigns/records.js";
@@ -442,6 +443,8 @@ export function buildOpportunityListWhere(context, filters = {}, values = []) {
     where.push(`(lower(opportunity.code || ' ' || opportunity.name || ' ' || COALESCE(account.display_name, '') || ' ' || COALESCE(contact.display_name, '') || ' ' || COALESCE(opportunity.product_interest, '')) LIKE ${bind(contains(search))}${
       phone ? ` OR contact.normalized_mobile LIKE ${phone} OR contact.normalized_work_phone LIKE ${phone} OR right(regexp_replace(COALESCE(account.phone, ''), '\\D', '', 'g'), 10) LIKE ${phone}` : ""})`);
   }
+  // The organization's own fields as filters (CRM audit M4).
+  where.push(...customFieldFilterSql("opportunity", filters, values));
   return `WHERE ${where.join(" AND ")}${opportunityScopeSql(context, values, "opportunity")}`;
 }
 
@@ -720,7 +723,7 @@ export async function createOpportunity(client, context, input = {}, { origin = 
   await recordAccountHistory(client, context, account.id, "opportunity_created", `Deal ${code} created: ${fields.name}`, { opportunityId: id });
   if (fields.contactId)
     await recordContactHistory(client, context, fields.contactId, "opportunity_associated", `Primary contact of deal ${code} ${fields.name}`, { opportunityId: id });
-  await applyCustomFields(client, context, "opportunity", id, input.customFields);
+  await applyCustomFields(client, context, "opportunity", id, input.customFields, { requireAll: origin !== "import" });
   await queueOutboxEvent(client, context, "crm.opportunities.created", "opportunities", id, { partyId: account.id, ownerUserId, amount: fields.amount ?? 0 });
   return toOpportunity(await loadOpportunityRow(client, context, id, { skipScope: true }));
 }

@@ -1,27 +1,29 @@
 "use client";
 
-// CRM › Setup › Custom fields (CRM plan 5.3): the organization's own fields on leads and deals — a GST category, a machine model, a tender
-// number. They show on the lead and deal forms and pages; a switched-off field is hidden but its values are kept.
+// CRM › Setup › Custom fields (CRM plan 5.3, companies and contacts: CRM audit M4): the organization's own fields on leads, deals,
+// companies and contacts — a machine model, a tender number, an outlet's channel (GT/MT) or beat. They show on the forms and pages, come
+// in through import and go out in export, and filter the lists; a switched-off field is hidden but its values are kept.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Badge, Button, Checkbox, Dialog, ErrorState, PageHeader, PermissionState, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { SetupBackLink } from "@/features/crm/settings/screens/SetupBackLink";
-import { CUSTOM_FIELD_TYPES, createCustomField, errorMessage, listCustomFields, updateCustomField, type CustomField, type CustomFieldType } from "@/features/crm/shared/fields-api";
+import { CUSTOM_FIELD_TYPES, createCustomField, errorMessage, listCustomFields, updateCustomField, type CustomField, type CustomFieldType, type CustomFieldEntity } from "@/features/crm/shared/fields-api";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { Notice } from "@/shared/ui/Panel";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-const ENTITIES = [{ value: "lead", label: "Leads" }, { value: "opportunity", label: "Deals" }] as const;
+const ENTITIES = [{ value: "lead", label: "Leads" }, { value: "opportunity", label: "Deals" }, { value: "party", label: "Companies" }, { value: "contact", label: "Contacts" }] as const;
+const PLURAL: Record<CustomFieldEntity, string> = { lead: "leads", opportunity: "deals", party: "companies", contact: "contacts" };
 const TYPE_LABEL = Object.fromEntries(CUSTOM_FIELD_TYPES.map((entry) => [entry.value, entry.label])) as Record<string, string>;
 
 export function CustomFieldsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("crm.settings.manage");
-  const [entity, setEntity] = useState<"lead" | "opportunity">("lead");
+  const [entity, setEntity] = useState<CustomFieldEntity>("lead");
   const key = scopedQueryKey(workspace, "crm", "custom-fields", entity, "all");
   const query = useQuery({ queryKey: key, queryFn: () => listCustomFields(entity, true), enabled: canManage });
   const [editing, setEditing] = useState<CustomField | "new" | null>(null);
@@ -31,6 +33,8 @@ export function CustomFieldsScreen() {
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "custom-fields") });
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "lead-options") });
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunity-options") });
+    void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "account-options") });
+    void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "contact-options") });
   };
   const toggle = useMutation({ mutationFn: (field: CustomField) => updateCustomField(field.id, { isActive: !field.isActive }), onSuccess: refresh, onError: (failure) => setError(errorMessage(failure)) });
 
@@ -38,16 +42,16 @@ export function CustomFieldsScreen() {
   return (
     <div className="flex flex-col gap-6">
       <SetupBackLink />
-      <PageHeader title="Custom fields" description="Your own fields on leads and deals. They appear on the forms and record pages, and can be used in lead scoring."
+      <PageHeader title="Custom fields" description="Your own fields on leads, deals, companies and contacts. They appear on the forms and record pages, in import and export, and as list filters."
         primaryAction={<Button variant="primary" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New field</Button>} />
       {error && <Notice>{error}</Notice>}
       <div className="max-w-xs">
-        <Select label="Fields on" selectedKey={entity} onSelectionChange={(next) => setEntity(String(next) as "lead" | "opportunity")} options={ENTITIES.map((entry) => ({ ...entry }))} />
+        <Select label="Fields on" selectedKey={entity} onSelectionChange={(next) => setEntity(String(next) as CustomFieldEntity)} options={ENTITIES.map((entry) => ({ ...entry }))} />
       </div>
       {query.isLoading ? <LoadingState label="Loading custom fields" rows={4} /> : query.isError ? (
         <ErrorState title="Could not load the custom fields" description="Refresh to try again." action={{ label: "Try again", onPress: () => void query.refetch() }} />
       ) : (query.data ?? []).length === 0 ? (
-        <p className="text-sm text-text-secondary">No custom fields on {entity === "lead" ? "leads" : "deals"} yet.</p>
+        <p className="text-sm text-text-secondary">No custom fields on {PLURAL[entity]} yet.</p>
       ) : (
         <ul className="flex max-w-4xl flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
           {(query.data ?? []).map((field) => (
@@ -74,7 +78,7 @@ export function CustomFieldsScreen() {
   );
 }
 
-function FieldDialog({ entity, field, onClose, onSaved }: { entity: "lead" | "opportunity"; field: CustomField | null; onClose: () => void; onSaved: () => void }) {
+function FieldDialog({ entity, field, onClose, onSaved }: { entity: CustomFieldEntity; field: CustomField | null; onClose: () => void; onSaved: () => void }) {
   const [label, setLabel] = useState(field?.label ?? "");
   const [type, setType] = useState<CustomFieldType>(field?.type ?? "text");
   const [options, setOptions] = useState((field?.options ?? []).join("\n"));
@@ -91,7 +95,7 @@ function FieldDialog({ entity, field, onClose, onSaved }: { entity: "lead" | "op
   });
   const kind = field?.type ?? type;
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={field ? `Edit ${field.label}` : `New field on ${entity === "lead" ? "leads" : "deals"}`}>
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={field ? `Edit ${field.label}` : `New field on ${PLURAL[entity]}`}>
       <div className="flex flex-col gap-4">
         {error && <Notice>{error}</Notice>}
         <TextField label="Name" isRequired value={label} onChange={setLabel} maxLength={80} />

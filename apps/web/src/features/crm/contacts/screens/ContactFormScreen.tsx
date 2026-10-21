@@ -25,6 +25,8 @@ import { ContactDuplicateWarning } from "../components/ContactDuplicateWarning";
 import { ErrorBanner } from "../contact-format";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
+import { CustomFieldInputs } from "@/features/crm/shared/ui/CustomFields";
+import type { CustomValues } from "@/features/crm/shared/fields-api";
 
 const NONE = "";
 const AUTO = "__auto__";
@@ -108,6 +110,8 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
   const router = useRouter();
   const queryClient = useQueryClient();
   const [values, setValues] = useState<FormValues>(() => (contact ? valuesFromContact(contact) : { ...EMPTY, accountId: initialAccountId ?? null }));
+  const customFields = options.customFields ?? [];
+  const [customValues, setCustomValues] = useState<CustomValues>(() => ({ ...(contact?.customFields ?? {}) }));
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [blockingMatches, setBlockingMatches] = useState<ContactDuplicateMatch[] | null>(null);
@@ -139,7 +143,8 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
   const submit = useSubmitKey();
   const mutation = useMutation({
     mutationFn: (allowDuplicate: boolean) => submit.run(async () => {
-      const input = { ...toInput(values, mode, sensitiveHidden, contact), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
+      const input = { ...toInput(values, mode, sensitiveHidden, contact), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}),
+        ...(customFields.length ? { customFields: Object.fromEntries(customFields.map((field) => [field.key, customValues[field.key] ?? null])) } : {}) };
       return mode === "edit" ? updateContact(contactId as string, { ...input, expectedUpdatedAt: contact?.updatedAt }) : createContact(input);
     }),
     onSuccess: (saved) => {
@@ -213,6 +218,12 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
           </>
         )}
       </FormSection>
+
+      {customFields.length > 0 && (
+        <FormSection title="More about this contact">
+          <CustomFieldInputs fields={customFields} values={customValues} onChange={setCustomValues} />
+        </FormSection>
+      )}
 
       <MoreDetails description="Middle and display name, department, role, other emails and phones, preferences, address, source and description."
         hasContent={Boolean(values.middleName || values.displayName || values.department || values.role || values.isDecisionMaker || values.secondaryEmail || values.phone

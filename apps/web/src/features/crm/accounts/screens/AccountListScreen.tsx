@@ -4,6 +4,7 @@
 // with their counts, the rest under More views; one Filters button holds every filter, each applying the moment it changes. New company
 // is the primary action; Import and Export sit in the "…" menu, and the company report lives under Insights → Reports.
 import { formatPhone } from "@vercentlabs/shared-types";
+import { CustomFieldFilters, customFilterParams } from "@/features/crm/shared/ui/CustomFields";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -92,6 +93,9 @@ export function AccountListScreen() {
     ...Object.fromEntries((Object.keys(NO_FILTERS) as FilterKey[]).filter((key) => params.get(key)).map((key) => [key, params.get(key) as string])),
   }));
   const [lastActivityBefore, setLastActivityBefore] = useState(params.get("lastActivityBefore") ?? "");
+  // The organization's own fields as filters (CRM audit M4): { key: value }.
+  const [customFilters, setCustomFiltersState] = useState<Record<string, string>>(() =>
+    Object.fromEntries([...params].filter(([key]) => key.startsWith("cf.")).map(([key, value]) => [key.slice(3), value])));
   const [sorting, setSortingState] = useState<SortingState>([{ id: "updatedAt", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
   const [selection, setSelection] = useState<RowSelectionState>({});
@@ -135,9 +139,10 @@ export function AccountListScreen() {
     search: submittedSearch || undefined,
     ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ANY)),
     lastActivityBefore: lastActivityBefore || undefined,
+    ...customFilterParams(customFilters, ANY),
     sortBy: sorting[0]?.id,
     sortDirection: sorting[0]?.desc === false ? "asc" : "desc",
-  }), [view, submittedSearch, filters, lastActivityBefore, sorting]);
+  }), [view, submittedSearch, filters, lastActivityBefore, customFilters, sorting]);
 
   const listQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "accounts", "list", listFilters, pageIndex),
@@ -226,15 +231,21 @@ export function AccountListScreen() {
   const activeFilters: ActiveFilter[] = [
     ...(Object.keys(filters) as FilterKey[]).filter((key) => filters[key] !== ANY).map((key) => ({ id: key, label: `${FILTER_NAMES[key]}: ${labelOf(key, filters[key])}` })),
     ...(lastActivityBefore ? [{ id: "lastActivityBefore", label: `No activity since ${formatDate(lastActivityBefore)}` }] : []),
+    ...Object.entries(customFilters).filter(([, value]) => value !== ANY).map(([key, value]) => {
+      const field = (options?.customFields ?? []).find((entry) => entry.key === key);
+      return { id: `cf.${key}`, label: `${field?.label ?? key}: ${field?.type === "checkbox" ? (value === "true" ? "Yes" : "No") : value}` };
+    }),
   ];
   const removeFilter = (id: string) => {
     if (id === "lastActivityBefore") {
       setLastActivityBefore("");
       restart();
-    } else setFilters({ ...filters, [id]: ANY });
+    } else if (id.startsWith("cf.")) { setCustomFiltersState({ ...customFilters, [id.slice(3)]: ANY }); restart(); }
+    else setFilters({ ...filters, [id]: ANY });
   };
   const clearFilters = () => {
     setLastActivityBefore("");
+    setCustomFiltersState({});
     setFilters(NO_FILTERS);
   };
   const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== defaultView;
@@ -287,6 +298,7 @@ export function AccountListScreen() {
                     options={filterOptions(options.sources.map((entry) => ({ value: entry.id, label: entry.name })), "Any source")} />
                   <Select label="Open deals" size="compact" selectedKey={filters.hasOpenOpportunity}
                     onSelectionChange={(key) => setFilters({ ...filters, hasOpenOpportunity: String(key) })} options={filterOptions(yesNo, "Any")} />
+                  <CustomFieldFilters fields={options.customFields ?? []} values={customFilters} anyValue={ANY} onChange={(next) => { setCustomFiltersState(next); restart(); }} />
                 </FiltersPopover>
               )}
             </>

@@ -2,6 +2,7 @@
 // deletion of contacts with no history. Owner and team change only through
 // assignment.js; company links through relationships.js.
 import { assertConsentRequestAllowed } from "../data-management/consent.js";
+import { customFieldFilterSql } from "../data-management/custom-filter.js";
 import { normalizePhones } from "../data-management/phones.js";
 import { updatedSummary } from "../data-management/field-labels.js";
 import { phoneSearchDigits } from "../duplicates/normalize.js";
@@ -18,6 +19,7 @@ import { CONTACT_NUMBER_DOCUMENT_TYPE, CONTACT_PERMISSIONS, contactRoleLabel, co
 import { recordDuplicateOverride } from "../duplicates/policy.js";
 import { assertNoBlockingContactDuplicate } from "./duplicates.js";
 import { recordContactHistory } from "./history.js";
+import { applyCustomFields } from "../custom-fields/records.js";
 import { CONTACT_WRITABLE_COLUMNS, ROLE_FIELDS, assertValidContact, composeDisplayName, isUuid, normalizeContactInput, requireUuid } from "./validation.js";
 
 const BULK_LIMIT = 200;
@@ -49,6 +51,7 @@ export const CONTACT_SELECT = `
 export function toContact(row) {
   return {
     id: row.id,
+    customFields: row.custom_data ?? {},
     contactNumber: row.contact_number,
     firstName: row.first_name,
     middleName: row.middle_name,
@@ -217,6 +220,8 @@ export function buildContactListWhere(context, filters = {}, values = []) {
         || COALESCE(contact.last_name, '') || ' ' || COALESCE(contact.designation, '') || ' ' || COALESCE(account.display_name, '') ${details}) LIKE ${pattern}${
       details && digits ? ` OR contact.normalized_mobile LIKE ${bind(`%${digits}%`)} OR contact.normalized_work_phone LIKE $${values.length}` : ""})`);
   }
+  // The organization's own fields as filters (CRM audit M4).
+  where.push(...customFieldFilterSql("contact", filters, values));
   return `WHERE ${where.join(" AND ")}${contactScopeValues(context, values, "contact")}`;
 }
 
@@ -278,7 +283,7 @@ export async function createContact(client, context, input = {}, {
   allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", makePrimary = false, historySummary = null,
 } = {}) {
   requireContactPermission(context, CONTACT_PERMISSIONS.create, "You do not have permission to create contacts.");
-  const { ownerUserId: requestedOwner, teamId, accountId, duplicateReason: inputReason, ...fields } = input;
+  const { ownerUserId: requestedOwner, teamId, accountId, duplicateReason: inputReason, customFields, ...fields } = input;
   const normalized = normalizeContactInput(fields);
   await normalizePhones(client, context, normalized, ["phone", "mobile", "alternatePhone"], normalized.countryCode, "CRM_CONTACT_VALIDATION");
   assertValidContact(normalized);
@@ -331,6 +336,7 @@ export async function createContact(client, context, input = {}, {
     if (makePrimary) await recordAccountHistory(client, context, account.id, "primary_contact_changed", `Primary contact: ${record.displayName}`, { contactId: contact.id });
   }
   await applyContactAssignment(client, context, contact, { ownerUserId, teamId: teamId || null }, { reason: origin, notify: origin !== "lead_conversion" });
+  await applyCustomFields(client, context, "contact", contact.id, customFields, { requireAll: origin !== "import" });
   await queueOutboxEvent(client, context, "crm.contacts.created", "contact", contact.id, { contactId: contact.id, accountId: account?.id ?? null });
   return projectContactForContext(context, toContact(await loadContactRow(client, context, contact.id, { skipScope: true })));
 }
@@ -344,7 +350,7 @@ export async function updateContact(client, context, contactId, input = {}, { al
   if (expectedUpdatedAt && new Date(expectedUpdatedAt).getTime() !== new Date(row.updated_at).getTime())
     throw new CrmError(409, "This contact was changed by someone else. Reload it and try again.", "CRM_CONTACT_VERSION_CONFLICT");
   const before = toContact(row);
-  const fields = input;
+  const { customFields, ...fields } = input;
   const normalized = normalizeContactInput(fields);
   await normalizePhones(client, context, normalized, ["phone", "mobile", "alternatePhone"], normalized.countryCode ?? before.countryCode, "CRM_CONTACT_VALIDATION");
   // Contact details hidden from the caller cannot be changed by them.
@@ -405,6 +411,10 @@ export async function updateContact(client, context, contactId, input = {}, { al
     await recordContactHistory(client, context, row.id, "updated", updatedSummary(changed), changes);
     await queueOutboxEvent(client, context, "crm.contacts.updated", "contact", row.id, { contactId: row.id, changedFields: changed });
   }
+  const customChanges = await applyCustomFields(client, context, "contact", row.id, customFields);
+  if (customChanges.length)
+    await recordContactHistory(client, context, row.id, "updated", `Updated ${customChanges.map((change) => change.label).join(", ")}`,
+      Object.fromEntries(customChanges.map((change) => [`custom.${change.key}`, { from: change.from, to: change.to }])));
   return projectContactForContext(context, toContact(await loadContactRow(client, context, row.id)));
 }
 

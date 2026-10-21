@@ -2,6 +2,7 @@
 // the fixed vocabulary, the organization's sources, people, teams,
 // industries, payment terms and currencies, and what the caller may do.
 import { activityTypeChoices } from "../activity-types/records.js";
+import { listCustomFields } from "../custom-fields/records.js";
 import { GST_TREATMENTS } from "@vercentlabs/shared-types";
 import { loadApps } from "../../../core/access/apps.js";
 import { tabAllowed } from "./summary.js";
@@ -46,6 +47,8 @@ export async function getAccountOptions(client, context) {
     baseCurrency: String(currencies.rows.find((row) => row.is_base)?.code ?? currencies.rows[0]?.code ?? "INR").trim(),
     currentUserId: context.userId,
     capabilities: accountCapabilities(context),
+    // The organization's own fields on this record (CRM audit M4), for the form, the record page and list filters.
+    customFields: await listCustomFields(client, context, "party"),
     // Which read-only Customer 360 tabs the caller may open.
     moduleAccess: { sales: tabAllowed(context, "sales"), finance: tabAllowed(context, "finance"), projects: tabAllowed(context, "projects"), support: tabAllowed(context, "support") },
   };

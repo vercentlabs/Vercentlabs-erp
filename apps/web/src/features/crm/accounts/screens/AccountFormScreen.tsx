@@ -26,6 +26,8 @@ import { AccountPicker } from "../components/AccountPicker";
 import { ErrorBanner } from "../account-format";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
+import { CustomFieldInputs } from "@/features/crm/shared/ui/CustomFields";
+import type { CustomValues } from "@/features/crm/shared/fields-api";
 import { parseGstin } from "@vercentlabs/shared-types";
 import { FillFromGstin } from "../components/GstinRegister";
 import { updateAccountTaxIdentity } from "../api/accounts-api";
@@ -106,6 +108,8 @@ function AccountForm({ account, options }: { account?: Account; options: Account
   const queryClient = useQueryClient();
   const [values, setValues] = useState<FormValues>(() => (account ? valuesFromAccount(account) : { ...EMPTY, currencyCode: options.baseCurrency }));
   const [individual, setIndividual] = useState(Boolean(account?.isIndividual));
+  const customFields = options.customFields ?? [];
+  const [customValues, setCustomValues] = useState<CustomValues>(() => ({ ...(account?.customFields ?? {}) }));
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [blockingMatches, setBlockingMatches] = useState<AccountDuplicateMatch[] | null>(null);
@@ -142,7 +146,8 @@ function AccountForm({ account, options }: { account?: Account; options: Account
   const submit = useSubmitKey();
   const mutation = useMutation({
     mutationFn: (allowDuplicate: boolean) => submit.run(async () => {
-      const input = { ...toInput(values, mode, sensitiveHidden, options), customerKind: individual ? "individual" : "business", allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
+      const input = { ...toInput(values, mode, sensitiveHidden, options), customerKind: individual ? "individual" : "business", allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}),
+        ...(customFields.length ? { customFields: Object.fromEntries(customFields.map((field) => [field.key, customValues[field.key] ?? null])) } : {}) };
       if (mode === "edit") return updateAccount(accountId as string, { ...input, expectedUpdatedAt: account?.updatedAt });
       if (gstin.trim() && !parseGstin(gstin).valid) throw new Error(parseGstin(gstin).error ?? "Check the GSTIN, or clear it.");
       const created = await createAccount(input);
@@ -243,6 +248,12 @@ function AccountForm({ account, options }: { account?: Account; options: Account
           />
         )}
       </FormSection>
+
+      {customFields.length > 0 && (
+        <FormSection title="More about this company">
+          <CustomFieldInputs fields={customFields} values={customValues} onChange={setCustomValues} />
+        </FormSection>
+      )}
 
       <MoreDetails description={`Legal name, industry, website, employees, annual revenue, ${sensitiveHidden ? "" : "secondary phone, "}source, description${mode === "create" ? ", team and parent company" : ""}.`}
         hasContent={Boolean(values.legalName || values.industry || values.website || values.employeeRange || values.annualRevenue || values.secondaryPhone || values.sourceId

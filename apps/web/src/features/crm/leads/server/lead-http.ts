@@ -63,5 +63,8 @@ export function leadFiltersFromUrl(url: URL) {
     const value = url.searchParams.get(key);
     if (value) filters[key] = Number(value);
   }
+  // Custom fields as filters (cf.<key>=value): the record's own fields (CRM audit M4).
+  const custom = Object.fromEntries([...url.searchParams].filter(([key, value]) => key.startsWith("cf.") && value).map(([key, value]) => [key.slice(3), value]));
+  if (Object.keys(custom).length) filters.custom = custom;
   return filters;
 }

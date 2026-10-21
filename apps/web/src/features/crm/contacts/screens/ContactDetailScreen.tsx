@@ -4,6 +4,7 @@
 // the primary action (Reactivate when archived); Schedule follow-up and Call (hidden when the person is marked do-not-call) sit beside it;
 // the rest is in the "…" menu, grouped like the company's. Five tabs: Overview, Companies & deals, Activity, Sales, Files.
 import { formatPhone } from "@vercentlabs/shared-types";
+import { customFieldProperties } from "@/features/crm/shared/ui/CustomFields";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -197,6 +198,9 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
             <div className="flex flex-col gap-6">
               <ContactSummaryCards contactId={contact.id} />
               <ContactDuplicatesPanel contact={contact} canMerge={can.merge && !archived} hideWhenEmpty onMerged={refresh} />
+              {customFieldProperties(options.customFields ?? [], contact.customFields).length > 0 && (
+                <PropertyList title="More about this contact" columns={3} items={customFieldProperties(options.customFields ?? [], contact.customFields)} />
+              )}
               <PropertyList
                 title="Person"
                 columns={3}
