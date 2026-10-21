@@ -41,7 +41,7 @@ export function buildIcs({ method, uid, sequence, start, end, summary, descripti
 }
 
 // The meeting: its time (start, else the due time), the record it is about, who organizes it.
-async function loadMeeting(client, context, activityId) {
+export async function loadMeeting(client, context, activityId) {
   const row = (await client.query(
     `SELECT activity.*, COALESCE(activity.start_at, activity.due_at) AS meeting_at, organizer.full_name AS organizer_name, organizer.email AS organizer_email,
             organization.name AS organization_name
@@ -94,10 +94,12 @@ export async function sendMeetingInvitation(client, context, activityId, input =
   const end = meeting.end_at && new Date(meeting.end_at) > start ? new Date(meeting.end_at) : new Date(start.getTime() + duration * 60000);
   const location = text(input.location ?? existing?.location).slice(0, 500) || meeting.location || null;
   const organizer = { name: meeting.organizer_name, email: (/<([^>]+)>/.exec(env.AUTH_EMAIL_FROM ?? "")?.[1] ?? env.AUTH_EMAIL_FROM ?? meeting.organizer_email ?? "no-reply@crm.local").trim() };
-  const description = [text(input.message), meeting.description].filter(Boolean).join("\n\n").slice(0, 4000);
-  const ics = buildIcs({ method: "REQUEST", uid, sequence, start, end, summary: meeting.subject, description, location, organizer, attendees });
+  // A video call (video.js) goes in the invitation: the link in the text, and as the place when no other is given.
+  const join = meeting.video_link ? `Join: ${meeting.video_link}` : null;
+  const description = [join, text(input.message), meeting.description].filter(Boolean).join("\n\n").slice(0, 4000);
+  const ics = buildIcs({ method: "REQUEST", uid, sequence, start, end, summary: meeting.subject, description, location: location ?? meeting.video_link ?? null, organizer, attendees });
   const when = start.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: (await client.query("SELECT timezone FROM public.organizations WHERE id = $1", [context.organizationId])).rows[0]?.timezone ?? "Asia/Kolkata" });
-  const body = `${existing ? "The meeting has changed." : "You are invited to a meeting."}\n\n${meeting.subject}\nWhen: ${when}${location ? `\nWhere: ${location}` : ""}${text(input.message) ? `\n\n${text(input.message)}` : ""}\n\n${meeting.organizer_name ?? ""}${meeting.organization_name ? `, ${meeting.organization_name}` : ""}`;
+  const body = `${existing ? "The meeting has changed." : "You are invited to a meeting."}\n\n${meeting.subject}\nWhen: ${when}${location ? `\nWhere: ${location}` : ""}${join ? `\n${join}` : ""}${text(input.message) ? `\n\n${text(input.message)}` : ""}\n\n${meeting.organizer_name ?? ""}${meeting.organization_name ? `, ${meeting.organization_name}` : ""}`;
   const result = await sendMail({
     meter: { client, organizationId: context.organizationId },
     to: attendees.map((entry) => entry.email), subject: `${existing ? "Updated: " : "Invitation: "}${meeting.subject}`, text: body,

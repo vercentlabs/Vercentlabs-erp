@@ -219,3 +219,11 @@ END $$;
 
 -- 8. Files sent with a record email (CRM audit: brochure, price list, catalogue): the names, as the email went out.
 ALTER TABLE tenant.crm_email_messages ADD COLUMN IF NOT EXISTS attachment_names text[] NOT NULL DEFAULT ARRAY[]::text[];
+
+-- 9. Video calls on meetings and two-way calendar sync (CRM audit): a meeting asks for Google Meet, Teams, Zoom or a pasted link, and
+--    keeps the join link; a calendar connection remembers when it last read the calendar's changes back; the company's Zoom app
+--    (Server-to-Server OAuth) is kept encrypted.
+ALTER TABLE tenant.crm_activities ADD COLUMN IF NOT EXISTS video_provider text CHECK (video_provider IS NULL OR video_provider IN ('google_meet', 'teams', 'zoom', 'link'));
+ALTER TABLE tenant.crm_activities ADD COLUMN IF NOT EXISTS video_link text CHECK (video_link IS NULL OR char_length(video_link) <= 1000);
+ALTER TABLE tenant.crm_calendar_connections ADD COLUMN IF NOT EXISTS last_pull_at timestamptz;
+ALTER TABLE tenant.crm_settings ADD COLUMN IF NOT EXISTS zoom_credentials jsonb;

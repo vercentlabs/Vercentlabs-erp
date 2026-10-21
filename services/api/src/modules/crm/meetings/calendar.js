@@ -1,6 +1,8 @@
 // Google and Outlook calendar sync (CRM plan 4.5). A salesperson connects their own calendar (OAuth); their CRM meetings and follow-up
-// meetings are then kept in it by the worker: added when planned, moved when rescheduled, removed when cancelled. The sync is one way —
-// CRM is where the meeting is planned — and each event remembers its CRM activity, so nothing is added twice.
+// meetings are then kept in it by the worker: added when planned, moved when rescheduled, removed when cancelled. Each event remembers
+// its CRM activity, so nothing is added twice. The sync is two-way (CRM audit): a meeting moved or deleted in the calendar is moved or
+// cancelled in CRM, unless CRM changed it since the last sync (then CRM's version wins). A meeting can ask for a Meet or Teams link,
+// which the calendar makes (video.js).
 //
 // The organization's OAuth apps come from the environment: GOOGLE_CALENDAR_CLIENT_ID / _SECRET and MICROSOFT_CALENDAR_CLIENT_ID /
 // _SECRET, with APP_URL for the return address (/api/crm/calendar/callback/{provider}).
@@ -8,6 +10,8 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { decryptSecret, encryptSecret } from "../../../core/platform/secrets/index.js";
 import { CrmError } from "../data-management/errors.js";
+import { cancelPendingRemindersForActivity, replaceActivityReminder } from "../reminders/index.js";
+import { makeZoomLinks } from "./video.js";
 
 const PROVIDERS = Object.freeze({
   google: {
@@ -123,18 +127,36 @@ async function accessToken(client, connection, { fetchImpl, env }) {
   return stored.accessToken;
 }
 
-const versionOf = (meeting) => createHash("sha256").update([meeting.subject, meeting.start_iso, meeting.end_iso, meeting.location ?? "", meeting.status].join("|")).digest("hex").slice(0, 24);
+// What the calendar shows of a meeting. A different version from the one last synced means CRM changed it (pushed); the calendar's
+// own changes are read back only for a meeting CRM has not changed since (CRM wins a clash).
+const versionOf = (meeting) => createHash("sha256")
+  .update([meeting.subject, meeting.start_iso, meeting.end_iso, meeting.location ?? "", meeting.status, meeting.video_provider ?? "", meeting.video_link ?? ""].join("|")).digest("hex").slice(0, 24);
 const HREF = Object.freeze({ lead: "/crm/leads/", opportunity: "/crm/opportunities/", party: "/crm/accounts/", contact: "/crm/contacts/" });
+const PULL_EVERY_MINUTES = 10;
+const utc = (at) => new Date(at).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 function eventBody(provider, meeting, appUrl) {
   const link = appUrl && meeting.entity_id && HREF[meeting.entity_type] ? `${String(appUrl).replace(/\/+$/, "")}${HREF[meeting.entity_type]}${meeting.entity_id}` : null;
-  const notes = [meeting.description, link ? `CRM: ${link}` : null].filter(Boolean).join("\n\n");
-  if (provider === "google")
-    return { summary: meeting.subject, description: notes || undefined, location: meeting.location ?? undefined, start: { dateTime: meeting.start_iso }, end: { dateTime: meeting.end_iso },
+  const notes = [meeting.video_link ? `Join: ${meeting.video_link}` : null, meeting.description, link ? `CRM: ${link}` : null].filter(Boolean).join("\n\n");
+  if (provider === "google") {
+    const body = { summary: meeting.subject, description: notes || undefined, location: meeting.location ?? undefined, start: { dateTime: meeting.start_iso }, end: { dateTime: meeting.end_iso },
       extendedProperties: { private: { crmActivityId: meeting.id } } };
-  return { subject: meeting.subject, body: { contentType: "text", content: notes }, location: meeting.location ? { displayName: meeting.location } : undefined,
+    // Google Meet: Google makes the link (the request carries conferenceDataVersion=1).
+    if (meeting.video_provider === "google_meet" && !meeting.video_link)
+      body.conferenceData = { createRequest: { requestId: `crm-${meeting.id}-${Date.now()}`, conferenceSolutionKey: { type: "hangoutsMeet" } } };
+    return body;
+  }
+  const body = { subject: meeting.subject, body: { contentType: "text", content: notes }, location: meeting.location ? { displayName: meeting.location } : undefined,
     start: { dateTime: meeting.start_iso.replace("Z", ""), timeZone: "UTC" }, end: { dateTime: meeting.end_iso.replace("Z", ""), timeZone: "UTC" } };
+  // Microsoft Teams: Outlook makes the link.
+  if (meeting.video_provider === "teams") Object.assign(body, { isOnlineMeeting: true, onlineMeetingProvider: "teamsForBusiness" });
+  return body;
 }
+
+// The join link the calendar made for the meeting (Meet or Teams), if any.
+const madeLink = (provider, event) => (provider === "google"
+  ? event?.hangoutLink ?? event?.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")?.uri ?? null
+  : event?.onlineMeeting?.joinUrl ?? null);
 
 async function remote(fetchImpl, method, url, token, body) {
   const response = await fetchImpl(url, { method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
@@ -144,54 +166,117 @@ async function remote(fetchImpl, method, url, token, body) {
   return parsed;
 }
 
-// Brings every connected calendar of the organization up to date. Returns { connections, created, updated, removed, failed }.
+const eventsUrl = (connection) => (connection.provider === "google"
+  ? `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(connection.calendar_id)}/events` : "https://graph.microsoft.com/v1.0/me/events");
+
+// The person's meetings, with what the calendar needs. `where` narrows them (SQL on activity / event).
+const meetingsOf = (client, organizationId, connection, where, extra = []) => client.query(
+  `SELECT activity.id, activity.entity_type, activity.entity_id, activity.subject, activity.description, activity.location, activity.status,
+          activity.video_provider, activity.video_link, activity.reminder_offset_minutes, activity.start_at IS NOT NULL AS has_start,
+          to_char(COALESCE(activity.start_at, activity.due_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS start_iso,
+          to_char(COALESCE(activity.end_at, COALESCE(activity.start_at, activity.due_at) + make_interval(mins => COALESCE(invitation.duration_minutes, 30))) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS end_iso,
+          event.external_id, event.synced_version
+     FROM tenant.crm_activities activity
+     LEFT JOIN tenant.crm_meeting_invitations invitation ON invitation.organization_id = activity.organization_id AND invitation.activity_id = activity.id
+     LEFT JOIN tenant.crm_calendar_events event ON event.organization_id = activity.organization_id AND event.activity_id = activity.id AND event.user_id = $2 AND event.provider = $3
+    WHERE activity.organization_id = $1 AND activity.assigned_to = $2
+      AND (activity.activity_type = 'meeting' OR (activity.activity_type = 'follow_up' AND (activity.follow_up_type = 'meeting' OR activity.follow_up_channel = 'meeting')))
+      AND COALESCE(activity.start_at, activity.due_at) IS NOT NULL AND ${where}
+    LIMIT 500`, [organizationId, connection.user_id, connection.provider, ...extra]);
+const IN_WINDOW = `COALESCE(activity.start_at, activity.due_at) BETWEEN now() - make_interval(days => ${SYNC_DAYS_BACK}) AND now() + make_interval(days => ${SYNC_DAYS_AHEAD})`;
+const OPEN = "activity.status IN ('planned', 'in_progress', 'overdue')";
+
+// Puts one meeting in one calendar as CRM has it. Returns "created", "updated", "removed" or null (nothing to do).
+async function pushMeeting(client, organizationId, connection, token, meeting, { fetchImpl, env }) {
+  const base = eventsUrl(connection);
+  if (meeting.status === "cancelled") {
+    if (!meeting.external_id) return null;
+    await remote(fetchImpl, "DELETE", `${base}/${encodeURIComponent(meeting.external_id)}`, token);
+    await client.query("DELETE FROM tenant.crm_calendar_events WHERE organization_id = $1 AND activity_id = $2 AND user_id = $3 AND provider = $4", [organizationId, meeting.id, connection.user_id, connection.provider]);
+    return "removed";
+  }
+  if (meeting.external_id && meeting.synced_version === versionOf(meeting)) return null;
+  const conference = connection.provider === "google" ? "?conferenceDataVersion=1" : "";
+  const body = eventBody(connection.provider, meeting, env.APP_URL);
+  const event = meeting.external_id
+    ? await remote(fetchImpl, "PATCH", `${base}/${encodeURIComponent(meeting.external_id)}${conference}`, token, body)
+    : await remote(fetchImpl, "POST", `${base}${conference}`, token, body);
+  const wanted = (connection.provider === "google" && meeting.video_provider === "google_meet") || (connection.provider === "microsoft" && meeting.video_provider === "teams");
+  const link = wanted && !meeting.video_link ? madeLink(connection.provider, event) : null;
+  if (link) {
+    await client.query("UPDATE tenant.crm_activities SET video_link = $3 WHERE organization_id = $1 AND id = $2", [organizationId, meeting.id, link]);
+    meeting.video_link = link;
+  }
+  await client.query(
+    `INSERT INTO tenant.crm_calendar_events (organization_id, activity_id, user_id, provider, external_id, synced_version) VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (organization_id, activity_id, user_id, provider) DO UPDATE SET external_id = EXCLUDED.external_id, synced_version = EXCLUDED.synced_version, synced_at = now()`,
+    [organizationId, meeting.id, connection.user_id, connection.provider, String(event.id ?? meeting.external_id), versionOf(meeting)]);
+  return meeting.external_id ? "updated" : "created";
+}
+
+// The time of a calendar event (UTC), or null.
+function eventTimes(provider, event) {
+  const read = (part) => {
+    if (!part?.dateTime) return null;
+    const at = provider === "google" ? new Date(part.dateTime) : new Date(`${part.dateTime.replace(/\.\d+$/, "")}${/^utc$/i.test(part.timeZone ?? "UTC") ? "Z" : ""}`);
+    return Number.isNaN(at.getTime()) ? null : at;
+  };
+  const start = read(event?.start);
+  const end = read(event?.end);
+  return start && end && end >= start ? { start, end } : null;
+}
+
+// Two-way (CRM audit): what changed in the calendar comes back. A meeting moved there moves in CRM (its reminder with it); one deleted
+// there is cancelled in CRM. Only meetings CRM has not changed since the last sync — otherwise CRM's version goes out instead.
+async function pullChanges(client, organizationId, connection, token, counts, { fetchImpl }) {
+  const base = eventsUrl(connection);
+  const { rows } = await meetingsOf(client, organizationId, connection, `event.external_id IS NOT NULL AND ${OPEN} AND ${IN_WINDOW}`);
+  const worker = { organizationId, userId: null, permissions: [], roleSlugs: ["system_worker"] };
+  for (const meeting of rows.slice(0, 100)) {
+    if (meeting.synced_version !== versionOf(meeting)) continue;
+    const response = await fetchImpl(`${base}/${encodeURIComponent(meeting.external_id)}`, { headers: { authorization: `Bearer ${token}` } });
+    const gone = response.status === 404 || response.status === 410;
+    const event = gone ? null : await response.json().catch(() => null);
+    if (!gone && !response.ok) continue;
+    if (gone || event?.status === "cancelled" || event?.isCancelled) {
+      await client.query("UPDATE tenant.crm_activities SET status = 'cancelled', updated_at = now() WHERE organization_id = $1 AND id = $2", [organizationId, meeting.id]);
+      await cancelPendingRemindersForActivity(client, worker, meeting.id);
+      await client.query("DELETE FROM tenant.crm_calendar_events WHERE organization_id = $1 AND activity_id = $2 AND user_id = $3 AND provider = $4", [organizationId, meeting.id, connection.user_id, connection.provider]);
+      counts.pulledCancelled += 1;
+      continue;
+    }
+    const times = eventTimes(connection.provider, event);
+    if (!times || (utc(times.start) === meeting.start_iso && utc(times.end) === meeting.end_iso)) continue;
+    await client.query(meeting.has_start
+      ? "UPDATE tenant.crm_activities SET start_at = $3, end_at = $4, updated_at = now() WHERE organization_id = $1 AND id = $2"
+      : "UPDATE tenant.crm_activities SET due_at = $3, end_at = $4, updated_at = now() WHERE organization_id = $1 AND id = $2",
+    [organizationId, meeting.id, times.start, times.end]);
+    if (meeting.reminder_offset_minutes !== null && meeting.reminder_offset_minutes !== undefined)
+      await replaceActivityReminder(client, worker, meeting.id, times.start, meeting.reminder_offset_minutes);
+    await client.query("UPDATE tenant.crm_calendar_events SET synced_version = $5, synced_at = now() WHERE organization_id = $1 AND activity_id = $2 AND user_id = $3 AND provider = $4",
+      [organizationId, meeting.id, connection.user_id, connection.provider, versionOf({ ...meeting, start_iso: utc(times.start), end_iso: utc(times.end) })]);
+    counts.pulledMoved += 1;
+  }
+  await client.query("UPDATE tenant.crm_calendar_connections SET last_pull_at = now() WHERE organization_id = $1 AND user_id = $2 AND provider = $3", [organizationId, connection.user_id, connection.provider]);
+}
+
+// Brings every connected calendar of the organization up to date, both ways, and makes the Zoom links meetings asked for.
+// Returns { connections, created, updated, removed, failed, pulledMoved, pulledCancelled, zoom }.
 export async function syncCalendars(client, organizationId, { fetchImpl = fetch, env = process.env } = {}) {
-  const counts = { connections: 0, created: 0, updated: 0, removed: 0, failed: 0 };
+  const counts = { connections: 0, created: 0, updated: 0, removed: 0, failed: 0, pulledMoved: 0, pulledCancelled: 0, zoom: 0 };
+  counts.zoom = (await makeZoomLinks(client, organizationId, { fetchImpl, env })).made;
   const { rows: connections } = await client.query("SELECT * FROM tenant.crm_calendar_connections WHERE organization_id = $1 AND status IN ('active', 'error')", [organizationId]);
   for (const connection of connections) {
     counts.connections += 1;
     try {
       const token = await accessToken(client, connection, { fetchImpl, env });
-      const base = connection.provider === "google" ? `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(connection.calendar_id)}/events` : "https://graph.microsoft.com/v1.0/me/events";
-      const { rows: meetings } = await client.query(
-        `SELECT activity.id, activity.entity_type, activity.entity_id, activity.subject, activity.description, activity.location, activity.status,
-                to_char(COALESCE(activity.start_at, activity.due_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS start_iso,
-                to_char(COALESCE(activity.end_at, COALESCE(activity.start_at, activity.due_at) + make_interval(mins => COALESCE(invitation.duration_minutes, 30))) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS end_iso,
-                event.external_id, event.synced_version
-           FROM tenant.crm_activities activity
-           LEFT JOIN tenant.crm_meeting_invitations invitation ON invitation.organization_id = activity.organization_id AND invitation.activity_id = activity.id
-           LEFT JOIN tenant.crm_calendar_events event ON event.organization_id = activity.organization_id AND event.activity_id = activity.id AND event.user_id = $2 AND event.provider = $3
-          WHERE activity.organization_id = $1 AND activity.assigned_to = $2
-            AND (activity.activity_type = 'meeting' OR (activity.activity_type = 'follow_up' AND (activity.follow_up_type = 'meeting' OR activity.follow_up_channel = 'meeting')))
-            AND COALESCE(activity.start_at, activity.due_at) IS NOT NULL
-            AND (event.external_id IS NOT NULL OR (activity.status IN ('planned', 'in_progress', 'overdue')
-                 AND COALESCE(activity.start_at, activity.due_at) BETWEEN now() - make_interval(days => ${SYNC_DAYS_BACK}) AND now() + make_interval(days => ${SYNC_DAYS_AHEAD})))
-          LIMIT 500`, [organizationId, connection.user_id, connection.provider]);
+      // Read back first, so a meeting moved in the calendar is not pushed back over.
+      if (!connection.last_pull_at || Date.now() - new Date(connection.last_pull_at).getTime() >= PULL_EVERY_MINUTES * 60000)
+        await pullChanges(client, organizationId, connection, token, counts, { fetchImpl });
+      const { rows: meetings } = await meetingsOf(client, organizationId, connection, `(event.external_id IS NOT NULL OR (${OPEN} AND ${IN_WINDOW}))`);
       for (const meeting of meetings) {
-        const version = versionOf(meeting);
-        if (meeting.status === "cancelled") {
-          if (meeting.external_id) {
-            await remote(fetchImpl, "DELETE", `${base}/${encodeURIComponent(meeting.external_id)}`, token);
-            await client.query("DELETE FROM tenant.crm_calendar_events WHERE organization_id = $1 AND activity_id = $2 AND user_id = $3 AND provider = $4", [organizationId, meeting.id, connection.user_id, connection.provider]);
-            counts.removed += 1;
-          }
-          continue;
-        }
-        if (meeting.external_id && meeting.synced_version === version) continue;
-        const body = eventBody(connection.provider, meeting, env.APP_URL);
-        if (meeting.external_id) {
-          await remote(fetchImpl, "PATCH", `${base}/${encodeURIComponent(meeting.external_id)}`, token, body);
-          await client.query("UPDATE tenant.crm_calendar_events SET synced_version = $5, synced_at = now() WHERE organization_id = $1 AND activity_id = $2 AND user_id = $3 AND provider = $4",
-            [organizationId, meeting.id, connection.user_id, connection.provider, version]);
-          counts.updated += 1;
-        } else {
-          const created = await remote(fetchImpl, "POST", base, token, body);
-          await client.query(
-            `INSERT INTO tenant.crm_calendar_events (organization_id, activity_id, user_id, provider, external_id, synced_version) VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (organization_id, activity_id, user_id, provider) DO UPDATE SET external_id = EXCLUDED.external_id, synced_version = EXCLUDED.synced_version, synced_at = now()`,
-            [organizationId, meeting.id, connection.user_id, connection.provider, String(created.id), version]);
-          counts.created += 1;
-        }
+        const done = await pushMeeting(client, organizationId, connection, token, meeting, { fetchImpl, env });
+        if (done) counts[done] += 1;
       }
       await client.query("UPDATE tenant.crm_calendar_connections SET status = 'active', last_sync_at = now(), last_error = NULL WHERE organization_id = $1 AND user_id = $2 AND provider = $3",
         [organizationId, connection.user_id, connection.provider]);
@@ -204,6 +289,24 @@ export async function syncCalendars(client, organizationId, { fetchImpl = fetch,
   return counts;
 }
 
+// Pushes one meeting to its organizer's calendar now (so a Meet or Teams link exists before the invitation goes). Returns the link or null.
+export async function syncMeetingNow(client, organizationId, activityId, { fetchImpl = fetch, env = process.env } = {}) {
+  const owner = (await client.query("SELECT assigned_to, video_provider FROM tenant.crm_activities WHERE organization_id = $1 AND id = $2", [organizationId, activityId])).rows[0];
+  const provider = { google_meet: "google", teams: "microsoft" }[owner?.video_provider];
+  if (!owner?.assigned_to || !provider) return null;
+  const connection = (await client.query("SELECT * FROM tenant.crm_calendar_connections WHERE organization_id = $1 AND user_id = $2 AND provider = $3 AND status IN ('active', 'error')",
+    [organizationId, owner.assigned_to, provider])).rows[0];
+  if (!connection) return null;
+  const token = await accessToken(client, connection, { fetchImpl, env });
+  const meeting = (await meetingsOf(client, organizationId, connection, "activity.id = $4", [activityId])).rows[0];
+  if (!meeting) return null;
+  await pushMeeting(client, organizationId, connection, token, meeting, { fetchImpl, env });
+  return meeting.video_link ?? null;
+}
+
 export async function hasCalendarConnections(client, organizationId) {
-  return Boolean((await client.query("SELECT 1 FROM tenant.crm_calendar_connections WHERE organization_id = $1 AND status IN ('active', 'error') LIMIT 1", [organizationId])).rows[0]);
+  return Boolean((await client.query(
+    `SELECT 1 FROM tenant.crm_calendar_connections WHERE organization_id = $1 AND status IN ('active', 'error')
+     UNION ALL SELECT 1 FROM tenant.crm_activities WHERE organization_id = $1 AND video_provider = 'zoom' AND video_link IS NULL AND status IN ('planned', 'in_progress', 'overdue')
+     LIMIT 1`, [organizationId])).rows[0]);
 }

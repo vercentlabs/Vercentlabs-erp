@@ -63,6 +63,7 @@ function InviteForm({ invitation, activityId, defaultEmail, onClose, onDone }: {
       <div className="flex flex-col gap-4">
         {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
         {sent && <p className="text-sm text-text-secondary">Sent {formatDateTime(invitation.sentAt)}. If the meeting moved, send it again to update their calendars.</p>}
+        <VideoCallPicker activityId={activityId} />
         <TextField label="Attendees" value={attendees} onChange={setAttendees} description="Email addresses, separated by commas." />
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Where" value={location} onChange={setLocation} placeholder="Office, address or video link" />
@@ -79,5 +80,51 @@ function InviteForm({ invitation, activityId, defaultEmail, onClose, onDone }: {
         </div>
       </div>
     </Dialog>
+  );
+}
+
+type VideoProvider = "google_meet" | "teams" | "zoom" | "link";
+type MeetingVideo = { provider: VideoProvider | null; link: string | null; available: Record<VideoProvider, boolean> };
+const VIDEO_LABELS: Record<VideoProvider, string> = { google_meet: "Google Meet", teams: "Microsoft Teams", zoom: "Zoom", link: "My own link" };
+const NO_CALL = "none";
+
+// The meeting's video call (CRM audit): Google Meet or Teams from the organizer's connected calendar, Zoom from the company's Zoom, or a
+// pasted link. The link goes into the invitation and the calendar event.
+function VideoCallPicker({ activityId }: { activityId: string }) {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const key = scopedQueryKey(workspace, "crm", "meeting-video", activityId);
+  const video = useQuery({ queryKey: key, queryFn: () => request<{ video: MeetingVideo }>(`/api/crm/meetings/${activityId}/video`).then((result) => result.video) });
+  const [pasting, setPasting] = useState(false);
+  const [link, setLink] = useState("");
+  const save = useMutation({
+    mutationFn: (input: { provider: VideoProvider | null; link?: string }) => request(`/api/crm/meetings/${activityId}/video`, { method: "PUT", json: input }),
+    onSuccess: () => { setPasting(false); void queryClient.invalidateQueries({ queryKey: key }); },
+  });
+  if (!video.data) return null;
+  const current = video.data;
+  const options = [{ value: NO_CALL, label: "No video call" }, ...(Object.keys(VIDEO_LABELS) as VideoProvider[])
+    .filter((provider) => current.available[provider] || provider === current.provider).map((provider) => ({ value: provider, label: VIDEO_LABELS[provider] }))];
+  return (
+    <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
+      {save.isError && <Notice>{errorMessage(save.error)}</Notice>}
+      <Select label="Video call" selectedKey={pasting ? "link" : current.provider ?? NO_CALL} isDisabled={save.isPending}
+        onSelectionChange={(value) => {
+          const chosen = String(value);
+          if (chosen === "link") { setPasting(true); setLink(current.link ?? ""); return; }
+          setPasting(false);
+          save.mutate({ provider: chosen === NO_CALL ? null : (chosen as VideoProvider) });
+        }}
+        description={current.available.google_meet || current.available.teams ? undefined : "Connect your calendar (Setup › My calendar) for Google Meet or Teams links."}
+        options={options} />
+      {pasting && (
+        <div className="flex items-end gap-2">
+          <TextField className="flex-1" label="Meeting link" value={link} onChange={setLink} placeholder="https://" />
+          <Button variant="secondary" size="compact" isLoading={save.isPending} onPress={() => save.mutate({ provider: "link", link })}>Use this link</Button>
+        </div>
+      )}
+      {current.link ? <a className="truncate text-sm text-brand underline" href={current.link} target="_blank" rel="noreferrer">{current.link}</a>
+        : current.provider ? <p className="text-xs text-text-muted">The link is being made; it appears here and in the invitation shortly.</p> : null}
+    </div>
   );
 }

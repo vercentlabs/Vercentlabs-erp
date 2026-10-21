@@ -14,5 +14,14 @@ export function calendarAuthorizeUrl(context: CrmContext, provider: string, runt
 export function readCalendarState(state: string, env?: NodeJS.ProcessEnv): Promise<{ organizationId: string; userId: string; provider: "google" | "microsoft" }>;
 export function completeCalendarConnection(client: QueryClient, payload: { organizationId: string; userId: string; provider: string }, code: string, runtime?: Runtime): Promise<{ provider: string; accountEmail: string | null }>;
 export function disconnectCalendar(client: QueryClient, context: CrmContext, provider: string): Promise<{ disconnected: true }>;
-export function syncCalendars(client: QueryClient, organizationId: string, runtime?: Runtime): Promise<{ connections: number; created: number; updated: number; removed: number; failed: number }>;
+export function syncCalendars(client: QueryClient, organizationId: string, runtime?: Runtime): Promise<{ connections: number; created: number; updated: number; removed: number; failed: number; pulledMoved: number; pulledCancelled: number; zoom: number }>;
 export function hasCalendarConnections(client: QueryClient, organizationId: string): Promise<boolean>;
+// Two-way sync and video calls (CRM audit).
+export function syncMeetingNow(client: QueryClient, organizationId: string, activityId: string, runtime?: Runtime): Promise<string | null>;
+export type MeetingVideoProvider = "google_meet" | "teams" | "zoom" | "link";
+export type MeetingVideo = { provider: MeetingVideoProvider | null; link: string | null; available: Record<MeetingVideoProvider, boolean> };
+export function getMeetingVideo(client: QueryClient, context: CrmContext, activityId: string, runtime?: Runtime): Promise<MeetingVideo>;
+export function setMeetingVideo(client: QueryClient, context: CrmContext, activityId: string, input: { provider?: string | null; link?: string | null }, runtime?: Runtime): Promise<{ provider: MeetingVideoProvider | null; link: string | null; pending: boolean }>;
+export function getZoomSettings(client: QueryClient, context: CrmContext, runtime?: Runtime): Promise<{ connected: boolean; accountId: string | null; clientId: string | null }>;
+export function saveZoomSettings(client: QueryClient, context: CrmContext, input: Record<string, unknown>, runtime?: Runtime): Promise<{ connected: boolean; accountId: string | null; clientId: string | null }>;
+export function makeZoomLinks(client: QueryClient, organizationId: string, options?: Runtime & { activityId?: string | null }): Promise<{ made: number; failed: number }>;
