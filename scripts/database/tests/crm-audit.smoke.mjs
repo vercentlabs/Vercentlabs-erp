@@ -222,6 +222,12 @@ try {
     const unused = await crm.createAccount(client, owner(), { displayName: `Mistake ${tag}` });
     assert((await crm.deleteUnusedAccount(client, owner(), unused.id)).deleted, "an unused company still deletes");
   });
+
+  await check("Performance. The shared CRM options carry only small reference lists — no companies, contacts, products, leads or deals (pickers search)", async () => {
+    const options = await crm.getCrmOptions(client, owner());
+    for (const heavy of ["parties", "contacts", "items", "leads", "opportunities"]) assert(!(heavy in options), `${heavy} not sent`);
+    assert(Array.isArray(options.users) && Array.isArray(options.pipelines) && Array.isArray(options.salesTeams), "reference lists still there");
+  });
 } finally {
   await client.query("ROLLBACK").catch(() => undefined);
   await client.end();

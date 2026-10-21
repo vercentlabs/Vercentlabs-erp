@@ -2,41 +2,16 @@ import { listLeadAssignmentOptions } from "../leads/assignment.js";
 import { listLeadStages } from "../leads/stages.js";
 import { ensureDefaultLeadSources } from "../leads/sources.js";
 import { canViewAllCrmRecords } from "./record-policy.js";
-import { canViewAllCrmResource, crmAccountAccessSql, crmOwnerScopeSql, managedTeamMemberIds } from "./crm-access-scope.js";
+import { canViewAllCrmResource, managedTeamMemberIds } from "./crm-access-scope.js";
 import { camelizeRow } from "./record-utils.js";
 
 
 
+// The small reference lists CRM screens share (people, teams, pipelines, stages, sources…). Companies, contacts, products, leads and
+// deals are NOT here: at FMCG scale (10,000+ outlets, thousands of SKUs) they are picked by search-as-you-type (AccountPicker, the
+// deal's product search, …), 20 at a time, never sent whole with every form.
 export async function getCrmOptions(client, context) {
   const parameters = [context.organizationId];
-  // Owner/record scope for the two option lists backed by owner-scoped
-  // resources (leads, opportunities): a restricted seller must not be able
-  // to enumerate every other seller's Lead/Opportunity id+name through
-  // options/combobox endpoints, since the real list/detail queries for both
-  // resources also apply owner scope via recordScope() — dropdowns must
-  // never reveal more than the record's own list/detail view would.
-  //
-  // A SEPARATE, longer parameter array — not appended to the shared
-  // `parameters` above — because every other queryOptions() call below
-  // reuses that same array as its bound values, and Postgres's extended
-  // query protocol rejects a Bind message that supplies more values than
-  // the specific statement's own placeholder count declares.
-  const ownerScopedParameters = [
-    ...parameters,
-    context.userId,
-    Boolean(canViewAllCrmRecords(context)),
-  ];
-  // Own + unassigned + owned by a member of a team the caller manages (the
-  // shared rule, crm-access-scope.js), with $2 = caller and $3 = view-all.
-  // Resource-aware (crm.leads.view_all widens only the Lead picker, partner
-  // and customer grants apply) via the one central rule. $2 stays referenced
-  // even when the caller may see every row of that resource, because every
-  // owner-scoped statement binds it.
-  const ownerVisible = (alias, resource, column = "owner_user_id") => {
-    const scope = crmOwnerScopeSql(context, () => "$2", `${alias}.${column}`, `${alias}.organization_id`, { resource, alias });
-    return `($3::boolean OR ${scope ? scope.replace(/^ AND /, "") : "($2::uuid IS NULL OR true)"})`;
-  };
-
   const queryOptions = (sql, values) => client.query(sql, values);
   const currencies = await queryOptions(
     `SELECT code AS id, code AS name FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`,
@@ -74,22 +49,6 @@ export async function getCrmOptions(client, context) {
     `SELECT u.id, u.full_name AS name FROM public.users u JOIN public.organization_memberships membership ON membership.user_id = u.id WHERE membership.organization_id = $1 AND membership.status = 'active' ORDER BY u.full_name`,
     [context.organizationId],
   );
-  // Account/Contact pickers follow the Account ownership rule too
-  // (crm-access-scope.js); $2 = caller, bound only when the rule applies.
-  const accountAccess = crmAccountAccessSql(context, () => "$2", "party");
-  const accountParameters = accountAccess ? [...parameters, context.userId] : parameters;
-  const parties = await queryOptions(
-    `SELECT party.id, party.display_name AS name FROM tenant.business_parties party WHERE party.organization_id = $1 AND party.status = 'active'${accountAccess} ORDER BY party.display_name`,
-    accountParameters,
-  );
-  const contacts = await queryOptions(
-    `SELECT contact.id, btrim(contact.first_name || ' ' || COALESCE(contact.last_name,'')) AS name, contact.party_id FROM tenant.contacts contact JOIN tenant.business_parties party ON party.id = contact.party_id AND party.organization_id = contact.organization_id WHERE contact.organization_id = $1 AND contact.status = 'active'${accountAccess} ORDER BY contact.first_name, contact.last_name`,
-    accountParameters,
-  );
-  const items = await queryOptions(
-    `SELECT id, name FROM tenant.items WHERE organization_id = $1 AND status = 'active' AND is_sellable ORDER BY name`,
-    parameters,
-  );
   const priceLists = await queryOptions(
     `SELECT id, name, currency_code FROM tenant.price_lists WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
     parameters,
@@ -97,14 +56,6 @@ export async function getCrmOptions(client, context) {
   const lostReasons = await queryOptions(
     `SELECT id, name, outcome_type FROM tenant.crm_lost_reasons WHERE organization_id = $1 AND status = 'active' ORDER BY outcome_type, category, name`,
     parameters,
-  );
-  const leads = await queryOptions(
-    `SELECT lead.id, COALESCE(lead.full_name, lead.company_name, lead.code) AS name FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.archived_at IS NULL AND lead.status <> 'converted' AND ${ownerVisible("lead", "leads")} ORDER BY lead.updated_at DESC LIMIT 500`,
-    ownerScopedParameters,
-  );
-  const opportunities = await queryOptions(
-    `SELECT opportunity.id, opportunity.name FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status <> 'archived' AND ${ownerVisible("opportunity", "opportunities")} ORDER BY opportunity.updated_at DESC LIMIT 500`,
-    ownerScopedParameters,
   );
   const salesTeams = await queryOptions(
     `SELECT team.id, team.name FROM tenant.crm_sales_teams team WHERE team.organization_id = $1 AND team.status = 'active' ORDER BY team.name`,
@@ -124,13 +75,8 @@ export async function getCrmOptions(client, context) {
     assignableOwnerIds,
     assignableLeadOwnerIds,
     members: members.rows.map(camelizeRow),
-    parties: map(parties),
-    contacts: map(contacts),
-    items: map(items),
     priceLists: map(priceLists),
     lostReasons: map(lostReasons),
-    leads: map(leads),
-    opportunities: map(opportunities),
     salesTeams: map(salesTeams),
   };
 }
