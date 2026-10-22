@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { Breadcrumbs } from "../navigation/Breadcrumbs.tsx";
 import { cn } from "../utilities/cn.ts";
-import { useTranslateText } from "../utilities/translate.tsx";
 
 export interface PageHeaderProps {
   className?: string;
@@ -21,15 +20,14 @@ export interface PageHeaderProps {
 /** Header for a module home or list page — not for a specific record (use
  * RecordHeader, which carries status/owner/lineage a list page doesn't). */
 export function PageHeader({ className, breadcrumbs, title, description, primaryAction, secondaryActions, headingLevel = 1 }: PageHeaderProps) {
-  const t = useTranslateText();
   const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
     <header className={cn("flex flex-col gap-3", className)}>
       {breadcrumbs && <Breadcrumbs>{breadcrumbs}</Breadcrumbs>}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <Heading className={headingLevel === 1 ? "text-2xl font-semibold text-text" : "text-xl font-semibold text-text"}>{t(title)}</Heading>
-          {description && <p className="text-sm text-text-secondary">{t(description)}</p>}
+          <Heading className={headingLevel === 1 ? "text-2xl font-semibold text-text" : "text-xl font-semibold text-text"}>{title}</Heading>
+          {description && <p className="text-sm text-text-secondary">{description}</p>}
         </div>
         {(primaryAction || secondaryActions) && (
           // On a phone the buttons are a little narrower so a page's actions fit on one row.

@@ -9,6 +9,7 @@ import { Button, Checkbox, Dialog, Select, TextArea, TextField } from "@vercentl
 
 import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { DateInput, DateTimeInput, TimeInput } from "@/features/crm/shared/ui/DateTimeInput";
+import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
 import { RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -29,11 +30,12 @@ export type RelatedRecord = { type: FollowUpRelatedType; id: string; name?: stri
 function Actions({ onCancel, onConfirm, label, isLoading, isDisabled, danger }: {
   onCancel: () => void; onConfirm: () => void; label: string; isLoading: boolean; isDisabled?: boolean; danger?: boolean;
 }) {
+  // The dialog's footer, kept in view below the fields (Dialog footer).
   return (
-    <div className="flex justify-end gap-2">
+    <>
       <Button variant="secondary" onPress={onCancel}>Cancel</Button>
       <Button variant={danger ? "danger" : "primary"} onPress={onConfirm} isLoading={isLoading} isDisabled={isDisabled}>{label}</Button>
-    </div>
+    </>
   );
 }
 
@@ -114,18 +116,21 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
   });
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={editing ? `Edit ${followUp?.number ?? "follow-up"}` : "Schedule follow-up"} size="lg"
+    <Dialog footer={<Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label={editing ? "Save" : "Schedule"} isLoading={mutation.isPending} isDisabled={(!editing && !scheduledDate) || (!related && !editing && !link.entityId) || (reminder === CUSTOM && !reminderAt)} />}
+      isOpen={isOpen} onOpenChange={onOpenChange} title={editing ? `Edit ${followUp?.number ?? "follow-up"}` : "Schedule follow-up"} size="lg"
       description={related ? `With ${related.name ?? "this record"}. It also appears in To-dos.` : "When to contact the customer again, how, and why."}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         {!related && !editing && <RelatedRecordPicker label="About" value={link} onChange={setLink} />}
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Select label="Type" selectedKey={type} onSelectionChange={(key) => setType(String(key))} options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} />
+        {/* What, then when: date and time share a line even on a phone. */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <Select label="Type" className="col-span-2 sm:col-span-1" selectedKey={type} onSelectionChange={(key) => setType(String(key))} options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} />
           {!editing && <DateInput label="Date" isRequired value={scheduledDate} onChange={setScheduledDate} />}
           {!editing && <TimeInput label="Time" description="Optional." value={scheduledTime} onChange={setScheduledTime} />}
         </div>
         <TextField label="Subject" description="Leave empty to use the type and the record's name." value={subject} onChange={setSubject} placeholder="For example: Follow up on ERP pricing" />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <MoreDetails description="Contact, who it is for, reminder, repeat and notes."
+          hasContent={editing || Boolean(assignedTo || notes.trim() || repeat) || contactId !== NONE || reminder === CUSTOM}>
           {canPickContact && (
             <Select label="Contact" selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key ?? NONE))}
               options={[{ value: NONE, label: "No specific contact" }, ...(contacts.data?.rows ?? []).map((row) => ({ value: row.id, label: row.displayName }))]} />
@@ -135,11 +140,9 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
               options={[{ value: "owner", label: "The record's owner" }, ...options.users.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }))]} />
           )}
           <ReminderFields options={options} reminder={reminder} setReminder={setReminder} reminderAt={reminderAt} setReminderAt={setReminderAt} />
-        </div>
-        <RepeatFields repeat={repeat} setRepeat={setRepeat} />
-        <TextArea label="Purpose / notes" value={notes} onChange={setNotes} />
-        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label={editing ? "Save" : "Schedule"} isLoading={mutation.isPending}
-          isDisabled={(!editing && !scheduledDate) || (!related && !editing && !link.entityId) || (reminder === CUSTOM && !reminderAt)} />
+          <div className="sm:col-span-2"><RepeatFields repeat={repeat} setRepeat={setRepeat} /></div>
+          <div className="sm:col-span-2"><TextArea label="Purpose / notes" value={notes} onChange={setNotes} /></div>
+        </MoreDetails>
       </div>
     </Dialog>
   );
@@ -156,7 +159,8 @@ export function RescheduleFollowUpDialog({ isOpen, onOpenChange, followUp, onDon
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Reschedule follow-up"
+    <Dialog footer={<Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Reschedule" isLoading={mutation.isPending} isDisabled={!scheduledDate} />}
+      isOpen={isOpen} onOpenChange={onOpenChange} title="Reschedule follow-up"
       description={`Now ${whenLabel(followUp.scheduledDate, followUp.scheduledTime)}. The old time stays in the history; the reminder moves with it.`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
@@ -165,7 +169,6 @@ export function RescheduleFollowUpDialog({ isOpen, onOpenChange, followUp, onDon
           <TimeInput label="New time" description="Optional." value={scheduledTime} onChange={setScheduledTime} />
         </div>
         <TextField label="Reason" description="Optional." value={reason} onChange={setReason} />
-        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Reschedule" isLoading={mutation.isPending} isDisabled={!scheduledDate} />
       </div>
     </Dialog>
   );
@@ -211,15 +214,16 @@ export function CompleteFollowUpDialog({ isOpen, onOpenChange, followUp, options
   });
   if (suggested)
     return (
-      <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Follow-up completed" description={`Next for this kind of follow-up: ${suggested.name}, in ${suggested.inDays} ${suggested.inDays === 1 ? "day" : "days"} (${whenLabel(suggested.scheduledDate, null)}).`}>
+      <Dialog footer={<Actions onCancel={() => onOpenChange(false)} onConfirm={() => scheduleSuggested.mutate()} label={`Schedule ${suggested.name.toLowerCase()}`} isLoading={scheduleSuggested.isPending} />}
+      isOpen={isOpen} onOpenChange={onOpenChange} title="Follow-up completed" description={`Next for this kind of follow-up: ${suggested.name}, in ${suggested.inDays} ${suggested.inDays === 1 ? "day" : "days"} (${whenLabel(suggested.scheduledDate, null)}).`}>
         <div className="flex flex-col gap-4">
           <ErrorBanner message={error} />
-          <Actions onCancel={() => onOpenChange(false)} onConfirm={() => scheduleSuggested.mutate()} label={`Schedule ${suggested.name.toLowerCase()}`} isLoading={scheduleSuggested.isPending} />
         </div>
       </Dialog>
     );
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Complete follow-up" size="lg"
+    <Dialog footer={<Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Complete" isLoading={mutation.isPending} isDisabled={(nextFollowUp && !nextDate) || (nextTask && (!taskTitle.trim() || !taskDate))} />}
+      isOpen={isOpen} onOpenChange={onOpenChange} title="Complete follow-up" size="lg"
       description={`${followUp.subject}${followUp.type !== "other" ? `. The ${(followUp.typeName ?? TYPE_LABELS[followUp.type]).toLowerCase()} is recorded on the timeline.` : ""}${followUp.repeat ? " It repeats: the next one is planned when you complete this." : ""}`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
@@ -242,8 +246,6 @@ export function CompleteFollowUpDialog({ isOpen, onOpenChange, followUp, options
             <DateInput label="Due" isRequired value={taskDate} onChange={setTaskDate} />
           </div>
         )}
-        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Complete" isLoading={mutation.isPending}
-          isDisabled={(nextFollowUp && !nextDate) || (nextTask && (!taskTitle.trim() || !taskDate))} />
       </div>
     </Dialog>
   );
@@ -258,11 +260,11 @@ export function CancelFollowUpDialog({ isOpen, onOpenChange, followUp, onDone }:
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Cancel follow-up" description="It is kept with its history; its reminder is cancelled.">
+    <Dialog footer={<Actions danger onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Cancel follow-up" isLoading={mutation.isPending} />}
+      isOpen={isOpen} onOpenChange={onOpenChange} title="Cancel follow-up" description="It is kept with its history; its reminder is cancelled.">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <TextField label="Reason" description="Optional." value={reason} onChange={setReason} />
-        <Actions danger onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Cancel follow-up" isLoading={mutation.isPending} />
       </div>
     </Dialog>
   );
@@ -280,13 +282,13 @@ export function ReassignFollowUpDialog({ isOpen, onOpenChange, followUp, options
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Reassign follow-up" description={`Assigned to ${followUp.assignedName ?? "nobody"}.`}>
+    <Dialog footer={<Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Reassign" isLoading={mutation.isPending} isDisabled={!assignedTo || assignedTo === followUp.assignedTo} />}
+      isOpen={isOpen} onOpenChange={onOpenChange} title="Reassign follow-up" description={`Assigned to ${followUp.assignedName ?? "nobody"}.`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <Select label="Assign to" selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key))}
           options={options.users.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }))} />
         <TextField label="Reason" description="Optional. Kept in the history." value={reason} onChange={setReason} />
-        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Reassign" isLoading={mutation.isPending} isDisabled={!assignedTo || assignedTo === followUp.assignedTo} />
       </div>
     </Dialog>
   );

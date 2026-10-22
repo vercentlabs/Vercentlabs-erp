@@ -7,9 +7,7 @@ import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from
 import Link from "next/link";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-  Building2, Contact, Download, Eye, File, FileImage, FileSpreadsheet, FileText, Files, Handshake, Pin, Presentation, StickyNote, UserPlus,
-} from "lucide-react";
+import { Download, Eye, File, FileImage, FileSpreadsheet, FileText, Pin, Presentation } from "lucide-react";
 import { Badge, Button, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, NoResultsState, SearchField, Select } from "@vercentlabs/design-system";
 
 import { FilePreviewDialog } from "@/features/crm/attachments/components/FilePreviewDialog";
@@ -28,12 +26,12 @@ const NOTES_PAGE = 50;
 type RecordKind = typeof ANY | "lead" | "party" | "contact" | "opportunity";
 // One colour per kind of record, the same on the cards and on each row's record badge.
 const RECORD_TONES: Record<string, Exclude<QueueTone, "neutral" | "danger">> = { lead: "info", party: "brand", contact: "success", opportunity: "warning" };
-const recordCards = (all: string, allIcon: ComponentType<{ className?: string }>): Array<Omit<QueueCard<RecordKind>, "count">> => [
-  { key: ANY, label: all, tone: "neutral", icon: allIcon },
-  { key: "lead", label: "Leads", tone: "info", icon: UserPlus },
-  { key: "party", label: "Companies", tone: "brand", icon: Building2 },
-  { key: "contact", label: "Contacts", tone: "success", icon: Contact },
-  { key: "opportunity", label: "Deals", tone: "warning", icon: Handshake },
+const recordCards = (all: string): Array<Omit<QueueCard<RecordKind>, "count">> => [
+  { key: ANY, label: all, tone: "neutral" },
+  { key: "lead", label: "Leads", tone: "info" },
+  { key: "party", label: "Companies", tone: "brand" },
+  { key: "contact", label: "Contacts", tone: "success" },
+  { key: "opportunity", label: "Deals", tone: "warning" },
 ];
 const KIND_OPTIONS = [
   { value: ANY, label: "All files" }, { value: "document", label: "Documents and PDFs" }, { value: "spreadsheet", label: "Spreadsheets" },
@@ -86,7 +84,7 @@ export function NotesSearchScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const setRelatedType = (next: RecordKind) => setRelatedTypeState(next);
   const filters = { ...narrowing, relatedType: relatedType === ANY ? undefined : relatedType, limit: NOTES_PAGE, offset: page * NOTES_PAGE };
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "notes", "library", filters), queryFn: () => searchNotes(filters), placeholderData: keepPreviousData });
-  const cards = recordCards("All notes", StickyNote);
+  const cards = recordCards("All notes");
   const counts = useQueries({
     queries: cards.map((card) => {
       const countFilters = { ...narrowing, relatedType: card.key === ANY ? undefined : card.key, limit: 1 };
@@ -166,7 +164,7 @@ export function FilesSearchScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const narrowing = { search: settledSearch || undefined, kind: kind === ANY ? undefined : kind };
   const filters = { ...narrowing, relatedType: relatedType === ANY ? undefined : relatedType, limit: 100 };
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "attachments", "library", filters), queryFn: () => searchAttachments(filters), placeholderData: keepPreviousData });
-  const cards = recordCards("All files", Files);
+  const cards = recordCards("All files");
   const counts = useQueries({
     queries: cards.map((card) => {
       const countFilters = { ...narrowing, relatedType: card.key === ANY ? undefined : card.key, limit: 1 };

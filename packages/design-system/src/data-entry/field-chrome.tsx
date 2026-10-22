@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Label, Text, FieldError } from "react-aria-components";
 import { cva } from "class-variance-authority";
 import { cn } from "../utilities/cn.ts";
-import { useTranslateText } from "../utilities/translate.tsx";
 
 /** Shared input chrome (border/background/focus/invalid/disabled) reused by
  * every text-like field (TextField, NumberField, SearchField, DateField,
@@ -52,12 +51,11 @@ export interface FieldChromeProps {
  * components. The control itself (`children`) is field-specific; this only
  * owns the surrounding chrome and vertical rhythm. */
 export function FieldChrome({ label, description, errorMessage, isRequired, children, className }: FieldChromeProps) {
-  const t = useTranslateText();
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       {label && (
         <Label className={fieldLabel}>
-          {t(label)}
+          {label}
           {isRequired && (
             <span className="ml-0.5 text-danger" aria-hidden="true">
               *
@@ -66,8 +64,8 @@ export function FieldChrome({ label, description, errorMessage, isRequired, chil
         </Label>
       )}
       {children}
-      {description && <Text slot="description" className={fieldDescription}>{t(description)}</Text>}
-      <FieldError className={fieldError}>{typeof errorMessage === "function" ? errorMessage : t(errorMessage)}</FieldError>
+      {description && <Text slot="description" className={fieldDescription}>{description}</Text>}
+      <FieldError className={fieldError}>{errorMessage}</FieldError>
     </div>
   );
 }

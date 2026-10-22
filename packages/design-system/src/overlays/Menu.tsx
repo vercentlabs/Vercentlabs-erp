@@ -12,7 +12,6 @@ import {
 } from "react-aria-components";
 import { popoverChrome, listBoxItemChrome } from "../utilities/overlay-chrome.ts";
 import { cn } from "../utilities/cn.ts";
-import { useTranslateText } from "../utilities/translate.tsx";
 
 export interface MenuProps<T extends object> extends Omit<AriaMenuProps<T>, "className"> {
   className?: string;
@@ -34,13 +33,12 @@ export interface MenuItemProps extends Omit<AriaMenuItemProps, "className" | "ch
 }
 
 export function MenuItem({ className, children, isDanger, ...props }: MenuItemProps) {
-  const t = useTranslateText();
   return (
     <AriaMenuItem
       className={cn(listBoxItemChrome, isDanger && "text-danger data-[focused]:bg-danger-soft", className)}
       {...props}
     >
-      {t(children)}
+      {children}
     </AriaMenuItem>
   );
 }

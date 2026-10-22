@@ -29,8 +29,6 @@ export {
   claimDueReminders, createRemindersForActivity, cancelPendingRemindersForActivity, markReminderOutcome, resetStuckDispatchingReminders,
   replaceActivityReminder, snoozeActivityReminder,
 } from "./reminders/index.js";
-export { applyStarterPack, listStarterPacks } from "./workspace/starter-packs.js";
-export { getCrmSetupChecklist } from "./workspace/checklist.js";
 export { getMyReminderChannels, getReminderTemplates, remindOnOutsideChannels, saveMyReminderChannels, saveReminderTemplates } from "./reminders/outside-channels.js";
 
 
@@ -89,7 +87,7 @@ export {
 } from "./data-management/audited.js";
 
 // To-dos: tasks and follow-ups in one list (CRM audit navigation).
-export { listTodos, TODO_VIEWS } from "./todos/records.js";
+export { listTodos, TODO_QUEUES, TODO_SCOPES } from "./todos/records.js";
 
 // The CRM Inbox: chats, WhatsApp and emails from customers in one list (CRM audit navigation).
 export { listInbox } from "./inbox/records.js";

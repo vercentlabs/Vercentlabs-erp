@@ -80,14 +80,6 @@ export function snoozeActivityReminder(client: QueryClient, context: any, activi
 export function claimDueReminders(client: QueryClient, context: any, options?: { limit?: number }): Promise<any[]>;
 export function markReminderOutcome(client: QueryClient, context: any, reminderId: string, options: { status: "sent" | "failed"; failureReason?: string | null }): Promise<void>;
 export function resetStuckDispatchingReminders(client: QueryClient, context: any, options?: { olderThanMinutes?: number }): Promise<number>;
-// The first-run checklist on Setup (workspace/checklist.js).
-export function getCrmSetupChecklist(client: QueryClient, context: any): Promise<{ items: Array<{ id: string; title: string; hint: string; href: string; done: boolean }>; complete: boolean }>;
-// Industry starter packs (workspace/starter-packs.js).
-export type CrmStarterPack = { key: string; name: string; description: string; pipeline: string; stages: string[]; sources: string[];
-  fields: Array<{ entityType: string; label: string }>; lostReasons: string[] };
-export function listStarterPacks(): CrmStarterPack[];
-export function applyStarterPack(client: QueryClient, context: any, key: string): Promise<{ pack: string; pipeline: { id: string; name: string; created: boolean; madeDefault: boolean };
-  sources: string[]; fields: string[]; lostReasons: string[] }>;
 // Reminders on WhatsApp and SMS (reminders/outside-channels.js, CRM audit M6).
 export type CrmMyReminderChannels = { whatsapp: boolean; sms: boolean; mobile: string | null; whatsappReady: boolean; smsReady: boolean };
 export type CrmReminderTemplates = { whatsappTemplate: string | null; whatsappLanguage: string; smsTemplateId: string | null };
@@ -237,8 +229,9 @@ export * from "./contacts/index.js";
 export * from "./duplicates/index.js";
 
 // To-dos: tasks and follow-ups in one list (CRM audit navigation).
-export function listTodos(client: QueryClient, context: CrmContext, filters?: { view?: string; type?: string; search?: string; limit?: number; offset?: number }): Promise<{ total: number; limit: number; offset: number; views: ReadonlyArray<{ key: string; label: string }>; capabilities: Record<string, boolean>; todos: Array<Record<string, any>> }>;
-export const TODO_VIEWS: ReadonlyArray<{ key: string; label: string }>;
+export function listTodos(client: QueryClient, context: CrmContext, filters?: { scope?: string; queue?: string; type?: string; search?: string; limit?: number; offset?: number }): Promise<{ total: number; limit: number; offset: number; scope: string; queue: string; queues: ReadonlyArray<{ key: string; label: string }>; counts: Record<string, number>; capabilities: Record<string, boolean>; todos: Array<Record<string, any>> }>;
+export const TODO_QUEUES: ReadonlyArray<{ key: string; label: string }>;
+export const TODO_SCOPES: ReadonlyArray<string>;
 
 // The CRM Inbox and the list of every CRM quote (CRM audit navigation).
 export function listInbox(client: QueryClient, context: CrmContext, filters?: { channel?: string; days?: number; limit?: number }): Promise<{ channel: string; items: Array<Record<string, any>> }>;

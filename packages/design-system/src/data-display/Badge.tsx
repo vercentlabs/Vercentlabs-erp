@@ -2,7 +2,6 @@ import { forwardRef, type HTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../utilities/cn.ts";
 import { humanizeToken } from "../utilities/humanize-token.ts";
-import { useTranslateText } from "../utilities/translate.tsx";
 
 export const badgeVariants = cva(
   "inline-flex items-center gap-1 rounded-pill border px-2 py-0.5 text-xs font-medium whitespace-nowrap",
@@ -27,10 +26,9 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement>, VariantProp
  * record/transaction status specifically, use StatusBadge instead — it
  * enforces the icon-plus-text pairing so status is never color-only. */
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge({ className, tone, children, ...props }, ref) {
-  const t = useTranslateText();
   return (
     <span ref={ref} className={cn(badgeVariants({ tone }), className)} {...props}>
-      {t(humanizeToken(children))}
+      {humanizeToken(children)}
     </span>
   );
 });

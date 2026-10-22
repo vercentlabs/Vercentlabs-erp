@@ -1,38 +1,36 @@
 "use client";
 
-// The To-dos tabs' shared top: a row of coloured, counted cards that each open one slice of the list (Overdue, Due today… for tasks and
+// The To-dos tabs' shared top: one strip of counted queues that each open one slice of the list (Overdue, Due today… for tasks and
 // follow-ups; Leads, Companies… for notes and files), and a segmented switch for whose work is shown (Mine / Team / Everyone).
-import type { ComponentType } from "react";
-
 export type QueueTone = "danger" | "warning" | "info" | "brand" | "success" | "neutral";
-// Full class names (not built from the tone) so Tailwind keeps them.
-export const QUEUE_TONES: Record<QueueTone, { icon: string; value: string; selected: string }> = {
-  danger: { icon: "bg-danger-soft text-danger", value: "text-danger", selected: "border-danger bg-danger-soft ring-1 ring-danger" },
-  warning: { icon: "bg-warning-soft text-warning", value: "text-warning", selected: "border-warning bg-warning-soft ring-1 ring-warning" },
-  info: { icon: "bg-info-soft text-info", value: "text-info", selected: "border-info bg-info-soft ring-1 ring-info" },
-  brand: { icon: "bg-brand-soft text-brand", value: "text-brand", selected: "border-brand bg-brand-soft ring-1 ring-brand" },
-  success: { icon: "bg-success-soft text-success", value: "text-success", selected: "border-success bg-success-soft ring-1 ring-success" },
-  neutral: { icon: "bg-canvas-strong text-text-secondary", value: "text-text", selected: "border-border-strong bg-surface-muted ring-1 ring-border-strong" },
+// Full class names (not built from the tone) so Tailwind keeps them. The tone colours a count above zero and the selected bar.
+export const QUEUE_TONES: Record<QueueTone, { value: string; bar: string }> = {
+  danger: { value: "text-danger", bar: "after:bg-danger" },
+  warning: { value: "text-warning", bar: "after:bg-warning" },
+  info: { value: "text-text", bar: "after:bg-info" },
+  brand: { value: "text-text", bar: "after:bg-brand" },
+  success: { value: "text-text", bar: "after:bg-success" },
+  neutral: { value: "text-text", bar: "after:bg-text-secondary" },
 };
 
-export type QueueCard<K extends string> = { key: K; label: string; tone: QueueTone; icon: ComponentType<{ className?: string }>; count?: number };
+export type QueueCard<K extends string> = { key: K; label: string; tone: QueueTone; count?: number };
 
+// One bordered strip split into equal cells — the selected one carries a bar in its tone along the bottom, like a selected tab. A
+// zero stays grey so only real work stands out. On a phone the strip folds into two columns (an odd last cell takes the full row);
+// the 1px gaps over the border colour draw the dividers either way.
 export function QueueCards<K extends string>({ label, cards, value, onChange }: { label: string; cards: QueueCard<K>[]; value: K; onChange: (next: K) => void }) {
-  const columns = cards.length >= 5 ? "lg:grid-cols-5" : cards.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3";
   return (
-    <section aria-label={label} className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${columns}`}>
+    <section aria-label={label}
+      className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-card)] border border-border bg-border sm:flex [&>*:last-child:nth-child(odd)]:col-span-2">
       {cards.map((card) => {
         const tone = QUEUE_TONES[card.tone];
-        const Icon = card.icon;
         const selected = value === card.key;
         return (
           <button key={card.key} type="button" aria-pressed={selected} onClick={() => onChange(card.key)}
-            className={`flex items-center gap-3 rounded-[var(--radius-card)] border p-3 text-left outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand ${selected ? tone.selected : "border-border bg-surface"}`}>
-            <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${tone.icon}`}><Icon className="size-4" aria-hidden="true" /></span>
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-xs font-medium text-text-secondary">{card.label}</span>
-              <span className={`text-xl font-semibold tabular-nums ${card.count ? tone.value : "text-text"}`}>{card.count ?? "–"}</span>
-            </span>
+            className={`relative flex min-w-0 flex-1 flex-col gap-1 px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset sm:px-4 sm:py-3
+              after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 ${selected ? `bg-surface-muted ${tone.bar}` : "bg-surface after:bg-transparent hover:bg-surface-muted"}`}>
+            <span className={`truncate text-xs font-medium ${selected ? "text-text" : "text-text-secondary"}`}>{card.label}</span>
+            <span className={`text-xl leading-7 font-semibold tabular-nums ${card.count ? tone.value : "text-text-muted"}`}>{card.count ?? "–"}</span>
           </button>
         );
       })}
@@ -43,13 +41,13 @@ export function QueueCards<K extends string>({ label, cards, value, onChange }: 
 export type WorkScope = "mine" | "team" | "everyone";
 export const SCOPE_LABELS: Record<WorkScope, string> = { mine: "Mine", team: "Team", everyone: "Everyone" };
 
-// Whose work: a segmented switch at the start of the toolbar.
+// Whose work: a segmented switch at the start of the toolbar, as tall as the search and selects beside it.
 export function ScopeSwitch({ label, scopes, value, onChange }: { label: string; scopes: WorkScope[]; value: WorkScope; onChange: (next: WorkScope) => void }) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex shrink-0 items-center gap-0.5 rounded-[var(--radius-control)] border border-border bg-surface-muted p-0.5">
+    <div role="radiogroup" aria-label={label} className="flex h-[var(--control-height-standard)] shrink-0 items-stretch gap-0.5 rounded-[var(--radius-control)] border border-border bg-surface-muted p-0.5">
       {scopes.map((entry) => (
         <button key={entry} type="button" role="radio" aria-checked={value === entry} onClick={() => onChange(entry)}
-          className={`rounded-[calc(var(--radius-control)-2px)] px-3 py-1 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand ${value === entry ? "bg-surface text-brand shadow-sm" : "text-text-secondary hover:text-text"}`}>
+          className={`flex items-center rounded-[calc(var(--radius-control)-2px)] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand ${value === entry ? "bg-surface text-brand shadow-sm" : "text-text-secondary hover:text-text"}`}>
           {SCOPE_LABELS[entry]}
         </button>
       ))}

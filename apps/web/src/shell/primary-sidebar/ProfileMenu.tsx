@@ -12,13 +12,8 @@ import {
   MenuSeparator,
   IconButton,
 } from "@vercentlabs/design-system";
-import { Check, HelpCircle, Languages, LogOut, User } from "lucide-react";
+import { HelpCircle, LogOut, User } from "lucide-react";
 
-import { saveOwnProfile } from "@/features/settings/company/company-api";
-import { useT, useTextLocale } from "@/shared/i18n/I18nText";
-
-// The languages the screens can be read in (shared/i18n): the person's own choice, saved on their profile.
-const LANGUAGES = [{ code: "en-IN", name: "English" }, { code: "hi-IN", name: "हिन्दी" }];
 
 export function ProfileMenu({
   fullName,
@@ -31,8 +26,6 @@ export function ProfileMenu({
   showHelp?: boolean;
 }) {
   const router = useRouter();
-  const t = useT();
-  const locale = useTextLocale();
   const [signingOut, setSigningOut] = useState(false);
   const triggerRef = useRef<HTMLSpanElement>(null);
   // Portaled, not inline next to the trigger — see PrimaryNavItem.tsx's
@@ -91,7 +84,7 @@ export function ProfileMenu({
         onBlur={hideTooltip}
       >
         <IconButton
-          aria-label={t("Account menu for {name}", { name: fullName })}
+          aria-label={`Account menu for ${fullName}`}
           tooltip={false}
           variant="ghost"
           className="h-9 w-9 rounded-full bg-brand-soft text-xs font-semibold text-brand hover:bg-brand-soft hover:text-brand hover:ring-2 hover:ring-brand/30"
@@ -119,10 +112,8 @@ export function ProfileMenu({
           reconciliation prop and is never readable by the component. */}
       <Menu onAction={(id) => {
         if (id === "sign-out") void handleSignOut();
-        const language = String(id).startsWith("lang:") ? String(id).slice(5) : null;
-        if (language && language !== locale) void saveOwnProfile({ locale: language }).then(() => router.refresh());
       }}>
-        <MenuItem id="profile" href="/settings/profile" textValue={t("Profile")}>
+        <MenuItem id="profile" href="/settings/profile" textValue="Profile">
           <User aria-hidden="true" className="size-4" />
           <span className="flex flex-col">
             <span className="text-sm font-medium">{fullName}</span>
@@ -130,29 +121,21 @@ export function ProfileMenu({
           </span>
         </MenuItem>
         {showHelp ? (
-          <MenuItem id="help" isDisabled textValue={t("Help")}>
+          <MenuItem id="help" isDisabled textValue="Help">
             <HelpCircle aria-hidden="true" className="size-4" />
-            <span className="flex-1">{t("Help")}</span>
-            <span className="text-xs text-text-muted">{t("Coming soon")}</span>
+            <span className="flex-1">Help</span>
+            <span className="text-xs text-text-muted">Coming soon</span>
           </MenuItem>
         ) : null}
-        <MenuSeparator />
-        {LANGUAGES.map((language) => (
-          <MenuItem key={language.code} id={`lang:${language.code}`} textValue={`${t("Language")}: ${language.name}`}>
-            <Languages aria-hidden="true" className="size-4" />
-            <span className="flex-1" lang={language.code}>{language.name}</span>
-            {language.code === locale ? <Check aria-hidden="true" className="size-4" /> : null}
-          </MenuItem>
-        ))}
         <MenuSeparator />
         <MenuItem
           id="sign-out"
           isDanger
           isDisabled={signingOut}
-          textValue={t("Sign out")}
+          textValue="Sign out"
         >
           <LogOut aria-hidden="true" className="size-4" />
-          {t("Sign out")}
+          Sign out
         </MenuItem>
       </Menu>
     </MenuTrigger>

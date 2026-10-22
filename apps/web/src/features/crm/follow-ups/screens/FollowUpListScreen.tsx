@@ -9,10 +9,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState } from "@tanstack/react-table";
-import {
-  Building2, CalendarClock, CalendarDays, Check, CircleCheck, Download, ListTodo, Mail, MapPin, MessageCircle, MonitorPlay, Phone, Plus, TriangleAlert,
-  UserRound, Users,
-} from "lucide-react";
+import { Building2, CalendarClock, Check, Download, Mail, MapPin, MessageCircle, MonitorPlay, Phone, Plus, TriangleAlert, UserRound, Users } from "lucide-react";
 import {
   AlertDialog, Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState,
   SearchField, Select, TextField, buttonVariants, type ActiveFilter,
@@ -52,11 +49,11 @@ type Scope = WorkScope;
 type Queue = "overdue" | "today" | "upcoming" | "open" | "completed" | "cancelled";
 const SCOPE_NOTES: Record<Scope, string> = { mine: "assigned to you", team: "your team's scheduled follow-ups", everyone: "everyone's follow-ups" };
 const QUEUES: Array<Omit<QueueCard<Exclude<Queue, "cancelled">>, "count">> = [
-  { key: "overdue", label: "Overdue", tone: "danger", icon: TriangleAlert },
-  { key: "today", label: "Due today", tone: "warning", icon: CalendarClock },
-  { key: "upcoming", label: "Upcoming", tone: "info", icon: CalendarDays },
-  { key: "open", label: "All scheduled", tone: "brand", icon: ListTodo },
-  { key: "completed", label: "Completed", tone: "success", icon: CircleCheck },
+  { key: "overdue", label: "Overdue", tone: "danger" },
+  { key: "today", label: "Due today", tone: "warning" },
+  { key: "upcoming", label: "Upcoming", tone: "info" },
+  { key: "open", label: "All scheduled", tone: "brand" },
+  { key: "completed", label: "Completed", tone: "success" },
 ];
 // How the contact is reached, as a coloured icon in front of the subject.
 const TYPE_STYLE: Record<FollowUp["type"], { icon: ComponentType<{ className?: string }>; className: string }> = {

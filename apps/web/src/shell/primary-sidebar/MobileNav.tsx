@@ -21,7 +21,6 @@ import {
   activeWorkspaceId,
   sidebarItems,
 } from "@/shell/navigation/navigation-resolution";
-import { useT } from "@/shared/i18n/I18nText";
 
 const MODULE_ACCESS_REASON_LABEL: Record<string, string> = {
   not_released: "Not yet available",
@@ -37,7 +36,7 @@ function isActive(pathname: string, href: string) {
 
 function DrawerRow({
   href,
-  label: englishLabel,
+  label,
   icon,
   disabled,
   disabledReason,
@@ -54,15 +53,13 @@ function DrawerRow({
   onNavigate: () => void;
   badgeCount?: number;
 }) {
-  const t = useT();
-  const label = t(englishLabel);
   if (disabled) {
     return (
       <span className="flex items-center gap-3 rounded-[var(--radius-control)] px-3 py-2.5 text-sm text-text-muted opacity-60">
         {icon}
         <span className="flex-1">{label}</span>
         <Lock aria-hidden="true" className="size-3.5" />
-        <span className="sr-only">{disabledReason && t(disabledReason)}</span>
+        <span className="sr-only">{disabledReason}</span>
       </span>
     );
   }
@@ -121,7 +118,6 @@ export function MobileNav({
   unreadNotificationCount: number;
 }) {
   const [open, setOpen] = useState(false);
-  const t = useT();
   const pathname = usePathname();
   const accessByModuleKey = new Map(
     accessibleModules.map((access) => [access.moduleId, access]),
@@ -219,7 +215,7 @@ export function MobileNav({
                   />
                   {workspaces.length > 0 && (
                     <ul
-                      aria-label={t("{name} workspaces", { name: t(entry.label) })}
+                      aria-label={`${entry.label} workspaces`}
                       className="ml-6 flex flex-col gap-0.5 border-l border-border pl-2"
                     >
                       {workspaces.map((item) => (
@@ -237,7 +233,7 @@ export function MobileNav({
                                 : "text-text hover:bg-surface-muted",
                             ].join(" ")}
                           >
-                            {t(item.label)}
+                            {item.label}
                           </Link>
                         </li>
                       ))}

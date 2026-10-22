@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
-import { useT } from "@/shared/i18n/I18nText";
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -40,7 +39,7 @@ function isActive(pathname: string, href: string) {
 // flying out past the sidebar the way it's meant to.
 export function PrimaryNavItem({
   href,
-  label: englishLabel,
+  label,
   icon,
   disabled = false,
   disabledReason,
@@ -55,11 +54,9 @@ export function PrimaryNavItem({
   badgeCount?: number;
 }) {
   const pathname = usePathname();
-  const t = useT();
-  const label = t(englishLabel);
   const active = isActive(pathname, href);
   const tooltipText = disabled
-    ? (disabledReason && t(disabledReason)) || t("{name} is unavailable", { name: label })
+    ? disabledReason || `${label} is unavailable`
     : label;
 
   const triggerRef = useRef<HTMLSpanElement>(null);

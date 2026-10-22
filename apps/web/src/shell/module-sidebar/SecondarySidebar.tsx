@@ -15,7 +15,6 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { SIDEBAR_BADGES } from "./sidebar-badges";
 import { useSecondarySidebarState } from "./SecondarySidebarState";
-import { useT } from "@/shared/i18n/I18nText";
 
 // Desktop module secondary sidebar (with hover/pin behaviour). One section per work area,
 // PLANNED items rendered disabled (visible for orientation, never a
@@ -26,7 +25,6 @@ import { useT } from "@/shared/i18n/I18nText";
 // inside the region that wires up regionHandlers (see ModuleRail.tsx).
 export function SecondarySidebar() {
   const pathname = usePathname();
-  const t = useT();
   const { permissions, roleSlugs, accessibleModuleKeys } = useWorkspaceContext();
   const { activeModule, pinned, togglePinned, open } =
     useSecondarySidebarState();
@@ -35,7 +33,7 @@ export function SecondarySidebar() {
 
   return (
     <nav
-      aria-label={t("{name} navigation", { name: t(activeModule.label) })}
+      aria-label={`${activeModule.label} navigation`}
       aria-hidden={!open}
       className={
         pinned
@@ -71,7 +69,7 @@ export function SecondarySidebar() {
     >
       <div className="flex items-center justify-between px-4 pb-3">
         <h2 className="text-sm font-semibold text-text">
-          {t(activeModule.label)}
+          {activeModule.label}
         </h2>
         <button
           type="button"
@@ -79,7 +77,7 @@ export function SecondarySidebar() {
           aria-pressed={pinned}
           tabIndex={open ? 0 : -1}
           className="flex size-6 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-text-muted hover:bg-surface-muted hover:text-text"
-          title={pinned ? t("Unpin sidebar") : t("Pin sidebar open")}
+          title={pinned ? "Unpin sidebar" : "Pin sidebar open"}
         >
           {pinned ? (
             <PinOff aria-hidden="true" className="size-3.5" />
@@ -141,7 +139,6 @@ function SidebarBodyWithQuery(props: { module: ModuleNavigation; pathname: strin
 // Items with a badge show the module's attention count (sidebar-badges.ts).
 function SidebarBody({ module, pathname, search, open, viewer }: { module: ModuleNavigation; pathname: string; search: string; open: boolean; viewer: Viewer }) {
   const workspace = useWorkspaceContext();
-  const t = useT();
   // Exactly one workspace is active: the one that owns the most specific registered route (a child route such as /crm/pipeline highlights
   // its parent, Opportunities; items sharing a path are told apart by their query). Views and configuration pages inside a workspace are
   // never sidebar entries (navigation-resolution.ts), and a workspace the person may not open is not listed at all.
@@ -208,7 +205,7 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
             <Link key={section.id} href={first.route} aria-current={active ? "page" : undefined} tabIndex={tab} className={linkClass(active)}>
               <span className="flex items-center gap-2">
                 {Icon && <Icon aria-hidden="true" className="size-4 shrink-0 text-text-muted" />}
-                {t(first.label)}
+                {first.label}
               </span>
               {badgeOf(first.badge)}
             </Link>
@@ -229,7 +226,7 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
               >
                 <span className="flex items-center gap-2">
                   {Icon && <Icon aria-hidden="true" className="size-4 shrink-0 text-text-muted" />}
-                  {t(section.label)}
+                  {section.label}
                 </span>
                 <span className="flex items-center gap-1">
                   {foldedBadge}
@@ -239,7 +236,7 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
             ) : (
               <p className="flex items-center gap-2 px-2 pb-1 text-xs font-medium tracking-wide text-text-muted uppercase">
                 {Icon && <Icon aria-hidden="true" className="size-3.5" />}
-                {t(section.label)}
+                {section.label}
               </p>
             )}
             {expanded && (
@@ -252,7 +249,7 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
                     const active = item.id === activeItemId;
                     return (
                       <Link key={item.id} href={item.route} aria-current={active ? "page" : undefined} tabIndex={tab} className={linkClass(active)}>
-                        <span>{t(item.label)}</span>
+                        <span>{item.label}</span>
                         {badgeOf(item.badge)}
                       </Link>
                     );
@@ -261,9 +258,9 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
                     <span
                       key={item.id}
                       className="flex items-center justify-between rounded-[var(--radius-control)] px-2 py-1.5 text-sm text-text-secondary"
-                      title={t("Planned — not yet built")}
+                      title="Planned — not yet built"
                     >
-                      {t(item.label)}
+                      {item.label}
                       <Lock aria-hidden="true" className="size-3" />
                     </span>
                   );

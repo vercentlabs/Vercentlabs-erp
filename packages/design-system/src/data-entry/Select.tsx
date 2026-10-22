@@ -11,7 +11,6 @@ import { ChevronDown, Check } from "lucide-react";
 import { FieldChrome, inputChrome, type FieldChromeProps } from "./field-chrome.tsx";
 import { popoverChrome, listBoxItemChrome } from "../utilities/overlay-chrome.ts";
 import { cn } from "../utilities/cn.ts";
-import { useTranslateText } from "../utilities/translate.tsx";
 
 export interface SelectOption<T extends string = string> {
   value: T;
@@ -40,7 +39,6 @@ export function Select<T extends string = string>({
   options,
   ...props
 }: SelectProps<T>) {
-  const t = useTranslateText();
   return (
     <AriaSelect isRequired={isRequired} isInvalid={props.isInvalid ?? (errorMessage ? true : undefined)} className={cn("group flex flex-col gap-1.5", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
@@ -54,10 +52,10 @@ export function Select<T extends string = string>({
       <Popover className={cn(popoverChrome, "w-[var(--trigger-width)] p-1")}>
         <ListBox items={options} className="flex max-h-72 flex-col gap-0.5 overflow-auto outline-none">
           {(option) => (
-            <ListBoxItem id={option.value} isDisabled={option.isDisabled} textValue={t(option.label)} className={listBoxItemChrome}>
+            <ListBoxItem id={option.value} isDisabled={option.isDisabled} textValue={option.label} className={listBoxItemChrome}>
               {({ isSelected }) => (
                 <>
-                  <span className="flex-1 truncate">{t(option.label)}</span>
+                  <span className="flex-1 truncate">{option.label}</span>
                   {isSelected && <Check className="size-4 shrink-0" aria-hidden="true" />}
                 </>
               )}

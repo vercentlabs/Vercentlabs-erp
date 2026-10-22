@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState } from "@tanstack/react-table";
-import { CalendarClock, CalendarDays, Check, CircleCheck, Download, ListTodo, Plus, TriangleAlert } from "lucide-react";
+import { Check, Download, Plus, TriangleAlert } from "lucide-react";
 import {
   AlertDialog, Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState,
   SearchField, Select, TextField, buttonVariants, type ActiveFilter,
@@ -51,11 +51,11 @@ type Scope = WorkScope;
 type Queue = "overdue" | "today" | "upcoming" | "open" | "completed" | "cancelled";
 const SCOPE_NOTES: Record<Scope, string> = { mine: "assigned to you", team: "your team's open tasks", everyone: "everyone's tasks" };
 const QUEUES: Array<Omit<QueueCard<Exclude<Queue, "cancelled">>, "count">> = [
-  { key: "overdue", label: "Overdue", tone: "danger", icon: TriangleAlert },
-  { key: "today", label: "Due today", tone: "warning", icon: CalendarClock },
-  { key: "upcoming", label: "Upcoming", tone: "info", icon: CalendarDays },
-  { key: "open", label: "All open", tone: "brand", icon: ListTodo },
-  { key: "completed", label: "Completed", tone: "success", icon: CircleCheck },
+  { key: "overdue", label: "Overdue", tone: "danger" },
+  { key: "today", label: "Due today", tone: "warning" },
+  { key: "upcoming", label: "Upcoming", tone: "info" },
+  { key: "open", label: "All open", tone: "brand" },
+  { key: "completed", label: "Completed", tone: "success" },
 ];
 
 // The list request behind a scope and a queue. Mine uses the server's own views; Team (open tasks only) and Everyone add a status and dates.

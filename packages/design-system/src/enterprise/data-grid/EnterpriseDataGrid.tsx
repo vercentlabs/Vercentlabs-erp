@@ -16,7 +16,6 @@ import { EmptyState, NoResultsState, ErrorState, PermissionState } from "../../d
 import { Pagination } from "../../navigation/Pagination.tsx";
 import { cn } from "../../utilities/cn.ts";
 import type { EnterpriseDataGridProps } from "./types.ts";
-import { useTranslateText } from "../../utilities/translate.tsx";
 
 const SELECT_COLUMN_ID = "__select";
 const ACTIONS_COLUMN_ID = "__actions";
@@ -60,7 +59,6 @@ export function EnterpriseDataGrid<TRow>({
   renderMobileCard,
   ...ariaProps
 }: EnterpriseDataGridProps<TRow>) {
-  const t = useTranslateText();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const resolvedColumns = useMemo<ColumnDef<TRow, unknown>[]>(() => {
@@ -208,13 +206,13 @@ export function EnterpriseDataGrid<TRow>({
                           onClick={header.column.getToggleSortingHandler()}
                           className="flex items-center gap-1 uppercase outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-brand"
                         >
-                          {t(flexRender(header.column.columnDef.header, header.getContext()))}
+                          {flexRender(header.column.columnDef.header, header.getContext())}
                           {sortDir === "asc" && <ArrowUp className="size-3" aria-hidden="true" />}
                           {sortDir === "desc" && <ArrowDown className="size-3" aria-hidden="true" />}
                           {!sortDir && <ChevronsUpDown className="size-3 text-text-subtle" aria-hidden="true" />}
                         </button>
                       ) : (
-                        t(flexRender(header.column.columnDef.header, header.getContext()))
+                        flexRender(header.column.columnDef.header, header.getContext())
                       )}
                       {header.column.getCanResize() && (
                         <div

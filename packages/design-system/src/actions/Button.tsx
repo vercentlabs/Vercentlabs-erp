@@ -3,7 +3,6 @@ import { Button as AriaButton, type ButtonProps as AriaButtonProps } from "react
 import { cva, type VariantProps } from "class-variance-authority";
 import { Loader2 } from "lucide-react";
 import { cn } from "../utilities/cn.ts";
-import { useTranslateText } from "../utilities/translate.tsx";
 
 export const buttonVariants = cva(
   [
@@ -52,7 +51,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { className, variant, size, isLoading, isDisabled, children, ...props },
   ref,
 ) {
-  const t = useTranslateText();
   return (
     <AriaButton
       ref={ref}
@@ -61,7 +59,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {...props}
     >
       {isLoading && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-      {t(children)}
+      {children}
     </AriaButton>
   );
 });

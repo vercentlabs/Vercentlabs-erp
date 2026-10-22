@@ -10,9 +10,10 @@ import { taskCan, taskScopeSql } from "../tasks/access.js";
 import { TASK_PERMISSIONS } from "../tasks/constants.js";
 
 const OPEN = "('planned', 'in_progress', 'overdue')";
-export const TODO_VIEWS = Object.freeze([
-  { key: "mine", label: "My to-dos" }, { key: "overdue", label: "Overdue" }, { key: "today", label: "Due today" }, { key: "upcoming", label: "Upcoming" },
-  { key: "all", label: "All open" },
+// Whose to-dos (Mine / Everyone the caller can see) and when they are due — the same switch and queues as the Tasks and Follow-ups tabs.
+export const TODO_SCOPES = Object.freeze(["mine", "everyone"]);
+export const TODO_QUEUES = Object.freeze([
+  { key: "overdue", label: "Overdue" }, { key: "today", label: "Due today" }, { key: "upcoming", label: "Upcoming" }, { key: "open", label: "All open" },
 ]);
 
 const RECORD_NAME = `CASE todo.entity_type
@@ -23,7 +24,7 @@ const RECORD_NAME = `CASE todo.entity_type
   END`;
 const RECORD_HREF = { lead: "/crm/leads/", opportunity: "/crm/opportunities/", party: "/crm/accounts/", contact: "/crm/contacts/" };
 
-// filters: { view?, type? ("task" | a follow-up type code), search?, limit?, offset? }
+// filters: { scope? ("mine" | "everyone"), queue? (overdue | today | upcoming | open), type? ("task" | a follow-up type code), search?, limit?, offset? }
 export async function listTodos(client, context, filters = {}) {
   const tasks = taskCan(context, TASK_PERMISSIONS.view);
   const followUps = followUpCan(context, FOLLOW_UP_PERMISSIONS.view);
@@ -37,36 +38,40 @@ export async function listTodos(client, context, filters = {}) {
     ...(followUps ? [`(todo.activity_type = 'follow_up'${followUpScopeSql(context, values, "todo")})`] : []),
   ];
   const where = [`todo.organization_id = $1`, `todo.status IN ${OPEN}`, `(${kinds.join(" OR ")})`];
-  // The organization's own day (its time zone), not the server's.
-  const dayStart = orgDayStart("todo.organization_id");
-  const view = TODO_VIEWS.some((entry) => entry.key === filters.view) ? filters.view : "mine";
-  if (view === "mine") where.push(`todo.assigned_to = ${bind(context.userId)}`);
-  if (view === "overdue") where.push(`todo.due_at < now()`);
-  if (view === "today") where.push(`todo.due_at >= ${dayStart} AND todo.due_at < ${dayStart} + interval '1 day'`);
-  if (view === "upcoming") where.push(`todo.due_at >= ${dayStart} + interval '1 day'`);
+  const scope = TODO_SCOPES.includes(filters.scope) ? filters.scope : "mine";
+  if (scope === "mine") where.push(`todo.assigned_to = ${bind(context.userId)}`);
   if (filters.type === "task") where.push(`todo.activity_type = 'task'`);
   else if (filters.type) where.push(`todo.activity_type = 'follow_up' AND COALESCE(kind.code, todo.follow_up_type) = ${bind(String(filters.type))}`);
   const search = String(filters.search ?? "").trim().toLowerCase();
   if (search) where.push(`lower(todo.subject) LIKE ${bind(`%${search.replace(/[\\%_]/g, "\\$&")}%`)}`);
-  const from = `FROM tenant.crm_activities todo
-    LEFT JOIN tenant.crm_activity_types kind ON kind.organization_id = todo.organization_id AND kind.id = todo.activity_type_id
-    LEFT JOIN public.users assignee ON assignee.id = todo.assigned_to
-   WHERE ${where.join(" AND ")}`;
-  const total = (await client.query(`SELECT count(*)::int AS total ${from}`, values)).rows[0].total;
+  // The organization's own day (its time zone), not the server's.
+  const dayStart = orgDayStart("todo.organization_id");
+  const dueToday = `todo.due_at >= ${dayStart} AND todo.due_at < ${dayStart} + interval '1 day'`;
+  const queueSql = { overdue: `todo.due_at < now()`, today: dueToday, upcoming: `todo.due_at >= ${dayStart} + interval '1 day'`, open: "true" };
+  const queue = TODO_QUEUES.some((entry) => entry.key === filters.queue) ? filters.queue : "open";
+  const joins = `FROM tenant.crm_activities todo
+    LEFT JOIN tenant.crm_activity_types kind ON kind.organization_id = todo.organization_id AND kind.id = todo.activity_type_id`;
+  // Every queue's count in one pass (same scope, type and search) for the queue cards; the selected one is the total.
+  const counts = (await client.query(
+    `SELECT ${TODO_QUEUES.map((entry) => `count(*) FILTER (WHERE ${queueSql[entry.key]})::int AS ${entry.key}`).join(", ")} ${joins} WHERE ${where.join(" AND ")}`, values)).rows[0];
+  const total = counts[queue];
   const { rows } = await client.query(
     `SELECT todo.id, todo.activity_type, todo.subject, todo.due_at, todo.due_time_set, todo.priority, todo.status, todo.entity_type, todo.entity_id, todo.task_number, todo.follow_up_number,
             todo.updated_at, COALESCE(kind.name, initcap(replace(todo.follow_up_type, '_', ' '))) AS type_label, COALESCE(kind.code, todo.follow_up_type) AS type_code,
-            assignee.full_name AS assignee_name, todo.assigned_to, (todo.due_at < now()) AS overdue, ${RECORD_NAME} AS record_name
-       ${from} ORDER BY todo.due_at NULLS LAST, todo.created_at LIMIT ${limit} OFFSET ${offset}`, values);
+            assignee.full_name AS assignee_name, todo.assigned_to, (todo.due_at < now()) AS overdue, COALESCE(${dueToday}, false) AS due_today, ${RECORD_NAME} AS record_name
+       ${joins}
+       LEFT JOIN public.users assignee ON assignee.id = todo.assigned_to
+      WHERE ${[...where, queueSql[queue]].join(" AND ")}
+      ORDER BY todo.due_at NULLS LAST, todo.created_at LIMIT ${limit} OFFSET ${offset}`, values);
   return {
-    total, limit, offset, views: TODO_VIEWS,
+    total, limit, offset, scope, queue, queues: TODO_QUEUES, counts,
     capabilities: { tasks, followUps, createTask: taskCan(context, TASK_PERMISSIONS.create), createFollowUp: followUpCan(context, FOLLOW_UP_PERMISSIONS.create) },
     todos: rows.map((row) => {
       const task = row.activity_type === "task";
       return {
         id: row.id, kind: task ? "task" : "follow_up", typeCode: task ? "task" : row.type_code, typeLabel: task ? "Task" : row.type_label ?? "Follow-up",
         number: task ? row.task_number : row.follow_up_number, subject: row.subject, dueAt: row.due_at, dueTimeSet: row.due_time_set, priority: row.priority,
-        overdue: Boolean(row.overdue), assignedTo: row.assigned_to, assigneeName: row.assignee_name, updatedAt: row.updated_at,
+        overdue: Boolean(row.overdue), dueToday: row.due_today, assignedTo: row.assigned_to, assigneeName: row.assignee_name, updatedAt: row.updated_at,
         record: row.entity_id ? { type: row.entity_type, id: row.entity_id, name: row.record_name, href: RECORD_HREF[row.entity_type] ? `${RECORD_HREF[row.entity_type]}${row.entity_id}` : null } : null,
         href: task ? `/crm/tasks/${row.id}` : `/crm/follow-ups/${row.id}`,
       };

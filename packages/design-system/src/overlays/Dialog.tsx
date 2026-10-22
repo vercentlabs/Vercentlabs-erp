@@ -9,7 +9,6 @@ import {
 import { X } from "lucide-react";
 import { IconButton } from "../actions/IconButton.tsx";
 import { cn } from "../utilities/cn.ts";
-import { useTranslateText } from "../utilities/translate.tsx";
 
 export interface DialogProps extends Omit<ModalOverlayProps, "className" | "children"> {
   className?: string;
@@ -21,21 +20,26 @@ export interface DialogProps extends Omit<ModalOverlayProps, "className" | "chil
    * `isDismissable`/`isKeyboardDismissDisabled`. */
   hideCloseButton?: boolean;
   size?: "sm" | "md" | "lg" | "xl";
+  /** The dialog's actions (Cancel · Save), kept in view below the scrolling body instead of at the end of it. On a phone the
+   * buttons share the width equally. */
+  footer?: ReactNode;
   children: ReactNode | ((opts: { close: () => void }) => ReactNode);
 }
 
 const sizeClasses = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-4xl" };
 
 /** Standard dialog for forms/details that aren't destructive confirmations
- * — for "are you sure" style prompts, use AlertDialog instead. */
-export function Dialog({ className, title, description, hideCloseButton, size = "md", children, ...props }: DialogProps) {
-  const t = useTranslateText();
+ * — for "are you sure" style prompts, use AlertDialog instead. On a phone it
+ * rises from the bottom edge as a sheet; from sm up it is centred. The body
+ * scrolls with its scrollbar at the dialog's edge, never over the fields. */
+export function Dialog({ className, title, description, hideCloseButton, size = "md", footer, children, ...props }: DialogProps) {
   return (
-    <ModalOverlay className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-overlay-backdrop p-4" {...props}>
+    <ModalOverlay className="fixed inset-0 z-[var(--z-modal)] flex items-end justify-center bg-overlay-backdrop sm:items-center sm:p-4" {...props}>
       <Modal className={cn("w-full", sizeClasses[size])}>
         <AriaDialog
           className={cn(
-            "flex max-h-[85vh] flex-col gap-4 rounded-[var(--radius-panel)] border border-border bg-surface-raised p-6 shadow-overlay outline-none",
+            "flex max-h-[92dvh] flex-col gap-4 rounded-t-[var(--radius-panel)] border-t border-border bg-surface-raised p-5 shadow-overlay outline-none",
+            "sm:max-h-[85vh] sm:rounded-[var(--radius-panel)] sm:border sm:p-6",
             className,
           )}
         >
@@ -44,7 +48,7 @@ export function Dialog({ className, title, description, hideCloseButton, size = 
               <div className="flex items-start justify-between gap-4">
                 <div className="flex flex-col gap-1">
                   <Heading slot="title" className="text-section font-semibold text-text">
-                    {t(title)}
+                    {title}
                   </Heading>
                   {description && <p className="text-sm text-text-secondary">{description}</p>}
                 </div>
@@ -54,7 +58,12 @@ export function Dialog({ className, title, description, hideCloseButton, size = 
                   </IconButton>
                 )}
               </div>
-              <div className="flex-1 overflow-auto">{typeof children === "function" ? children(opts) : children}</div>
+              <div className="-mx-5 min-h-0 flex-1 overflow-auto px-5 sm:-mx-6 sm:px-6">{typeof children === "function" ? children(opts) : children}</div>
+              {footer && (
+                <div className="-mx-5 -mb-5 flex justify-end gap-2 border-t border-border px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] max-sm:[&>*]:flex-1 sm:-mx-6 sm:-mb-6 sm:px-6 sm:py-4">
+                  {footer}
+                </div>
+              )}
             </>
           )}
         </AriaDialog>

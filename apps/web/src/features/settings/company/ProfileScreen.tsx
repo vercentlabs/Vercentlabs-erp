@@ -2,7 +2,6 @@
 
 // Your profile (Shared Platform plan 3): name, phone, time zone, language, date and number format; change password; change email.
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, PageHeader, PasswordField, Select, TextField } from "@vercentlabs/design-system";
 
@@ -32,12 +31,10 @@ export function ProfileScreen() {
 function ProfileForms({ profile }: { profile: OwnProfile }) {
   const queryClient = useQueryClient();
   const refresh = () => void queryClient.invalidateQueries({ queryKey: KEY });
-  const [form, setForm] = useState({ fullName: profile.fullName, phone: profile.phone ?? "", timezone: profile.timezone, locale: profile.locale, dateFormat: profile.dateFormat, numberFormat: profile.numberFormat });
+  const [form, setForm] = useState({ fullName: profile.fullName, phone: profile.phone ?? "", timezone: profile.timezone, dateFormat: profile.dateFormat, numberFormat: profile.numberFormat });
   const [zones] = useState(timeZoneOptions);
   const set = (key: keyof typeof form) => (value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const router = useRouter();
-  // A new language changes every screen's text: the page is drawn again in it.
-  const save = useMutation({ mutationFn: () => saveOwnProfile(form), onSuccess: () => { refresh(); if (form.locale !== profile.locale) router.refresh(); } });
+  const save = useMutation({ mutationFn: () => saveOwnProfile(form), onSuccess: refresh });
   const [password, setPassword] = useState({ currentPassword: "", newPassword: "", repeat: "" });
   const change = useMutation({ mutationFn: () => changePassword({ currentPassword: password.currentPassword, newPassword: password.newPassword }), onSuccess: () => { setPassword({ currentPassword: "", newPassword: "", repeat: "" }); refresh(); } });
   const [email, setEmail] = useState({ newEmail: "", password: "" });
@@ -52,7 +49,6 @@ function ProfileForms({ profile }: { profile: OwnProfile }) {
           <TextField label="Name" isRequired value={form.fullName} onChange={set("fullName")} />
           <TextField label="Phone" value={form.phone} onChange={set("phone")} errorMessage={fieldOf(save.error) === "phone" ? message(save.error) : undefined} isInvalid={fieldOf(save.error) === "phone"} />
           <Select label="Time zone" description={profile.timezoneIsCompany ? "The company's, until you choose your own." : undefined} selectedKey={form.timezone} onSelectionChange={(key) => set("timezone")(String(key))} options={zones} />
-          <Select label="Language" selectedKey={form.locale} onSelectionChange={(key) => set("locale")(String(key))} options={profile.options.languages.map((language) => ({ value: language.code, label: language.name }))} />
           <Select label="Date format" selectedKey={form.dateFormat} onSelectionChange={(key) => set("dateFormat")(String(key))}
             options={profile.options.dateFormats.map((format) => ({ value: format, label: `${format} (${dateExample(format)})` }))} />
           <Select label="Numbers" selectedKey={form.numberFormat} onSelectionChange={(key) => set("numberFormat")(String(key))}

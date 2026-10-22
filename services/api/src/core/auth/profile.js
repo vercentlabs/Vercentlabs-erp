@@ -20,8 +20,8 @@ export class ProfileError extends Error {
 
 export const DATE_FORMATS = Object.freeze(["DD/MM/YYYY", "DD-MM-YYYY", "DD MMM YYYY", "YYYY-MM-DD", "MM/DD/YYYY"]);
 export const NUMBER_FORMATS = Object.freeze(["indian", "international"]);
-// The languages the screens can be read in (apps/web shared/i18n has a dictionary for each one but English).
-export const LANGUAGES = Object.freeze([{ code: "en-IN", name: "English (India)" }, { code: "hi-IN", name: "हिन्दी (Hindi)" }]);
+// The languages the screens can be read in: English only. A language saved earlier and since withdrawn reads as English.
+export const LANGUAGES = Object.freeze([{ code: "en-IN", name: "English (India)" }]);
 const PASSWORD_HISTORY = 5;
 const EMAIL_CHANGE_TTL_HOURS = 24;
 const has = (input, key) => Object.prototype.hasOwnProperty.call(input ?? {}, key) && input[key] !== undefined;
@@ -50,7 +50,7 @@ export async function getOwnProfile(client, session) {
     `SELECT new_email, expires_at FROM email_change_requests WHERE user_id = $1 AND used_at IS NULL AND expires_at > now() ORDER BY created_at DESC LIMIT 1`, [session.userId])).rows[0];
   return {
     fullName: user.full_name, email: user.email, phone: user.phone,
-    locale: preference?.locale ?? "en-IN", timezone: preference?.timezone ?? organization?.timezone ?? "Asia/Kolkata",
+    locale: LANGUAGES.some((language) => language.code === preference?.locale) ? preference.locale : "en-IN", timezone: preference?.timezone ?? organization?.timezone ?? "Asia/Kolkata",
     timezoneIsCompany: !preference?.timezone, dateFormat: preference?.date_format ?? "DD/MM/YYYY", numberFormat: preference?.number_format ?? "indian",
     passwordChangedAt: user.password_changed_at, mfaEnrolled: Boolean(user.mfa_enrolled_at), hasPassword: Boolean(user.password_hash),
     pendingEmail: pending ? { email: pending.new_email, expiresAt: pending.expires_at } : null,

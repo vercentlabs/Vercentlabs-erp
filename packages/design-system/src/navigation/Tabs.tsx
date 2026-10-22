@@ -9,7 +9,6 @@ import {
   type TabPanelProps as AriaTabPanelProps,
 } from "react-aria-components";
 import { cn } from "../utilities/cn.ts";
-import { useTranslateText } from "../utilities/translate.tsx";
 
 export type TabsProps = Omit<AriaTabsProps, "className"> & { className?: string };
 export function Tabs({ className, ...props }: TabsProps) {
@@ -28,7 +27,6 @@ export function TabList<T extends object>({ className, ...props }: TabListProps<
 
 export type TabProps = Omit<AriaTabProps, "className"> & { className?: string };
 export function Tab({ className, children, ...props }: TabProps) {
-  const t = useTranslateText();
   return (
     <AriaTab
       className={cn(
@@ -42,7 +40,7 @@ export function Tab({ className, children, ...props }: TabProps) {
       )}
       {...props}
     >
-      {typeof children === "function" ? children : t(children)}
+      {children}
     </AriaTab>
   );
 }
