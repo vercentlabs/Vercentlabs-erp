@@ -24,7 +24,8 @@ export const HERO = Object.freeze({
   heading: "The ERP for businesses that outgrew spreadsheets.",
   supportingText:
     "Vercentlabs connects sales, inventory, procurement, production, finance, employees, projects, and service on one live system — so the number your warehouse sees is the same one your finance team sees.",
-  primaryCta: { label: "Book a Demo", href: "/book-demo", analyticsId: "hero_primary_cta_click" },
+  // A path on the app (APP_URL): the sign-up page.
+  primaryCta: { label: "Start free trial", href: "/register", analyticsId: "hero_primary_cta_click", inApp: true },
   secondaryCta: { label: "Explore the Platform", href: "/product/platform", analyticsId: "hero_secondary_cta_click" },
   evidence: [
     { label: "Connected modules", value: "12" },

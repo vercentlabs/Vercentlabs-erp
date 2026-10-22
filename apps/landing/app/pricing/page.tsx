@@ -3,7 +3,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Heading, Text } from "@/components/ui/text";
 import { ButtonLink } from "@/components/ui/button";
 import { CTAS } from "@vercentlabs/landing-content";
-import { APP_URL } from "@/lib/site";
+import { appHref } from "@/lib/site";
 import { buildPageMetadata } from "@/lib/metadata";
 
 export const metadata = buildPageMetadata({
@@ -14,7 +14,7 @@ export const metadata = buildPageMetadata({
 
 // The plans as the product sells them (services/api/src/core/billing/catalogue.js): Free, Standard per user, Custom by contract.
 // Prices are before GST; keep them in step with the catalogue when it changes.
-const signUpHref = new URL("/register", APP_URL).toString();
+const signUpHref = appHref(CTAS.startTrial.href);
 
 const PLANS = [
   {

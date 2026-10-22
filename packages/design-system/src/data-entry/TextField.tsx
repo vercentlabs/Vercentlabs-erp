@@ -29,6 +29,9 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           <Input
             ref={ref}
             placeholder={placeholder}
+            // Password managers (Bitwarden, LastPass…) add attributes such as aria-autocomplete to password boxes before React
+            // hydrates; only those boxes ignore the attribute mismatch, so a real one elsewhere still shows.
+            suppressHydrationWarning={props.type === "password" || String(props.autoComplete ?? "").includes("password")}
             className="h-full flex-1 bg-transparent px-3 outline-none placeholder:text-text-muted"
           />
           {suffix && <span className="pr-3 text-text-muted">{suffix}</span>}

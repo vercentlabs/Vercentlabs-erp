@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ANNOUNCEMENT_BANNER } from "@vercentlabs/landing-content";
 import { track } from "@/lib/analytics";
+import { appHref } from "@/lib/site";
 
 const STORAGE_KEY = `vercentlabs_announcement_dismissed_${ANNOUNCEMENT_BANNER.id}`;
 
@@ -27,14 +28,15 @@ export function AnnouncementBanner() {
     track("announcement_banner_dismiss", { section: "announcement_banner" });
   }
 
+  const href = ANNOUNCEMENT_BANNER.inApp ? appHref(ANNOUNCEMENT_BANNER.href) : ANNOUNCEMENT_BANNER.href;
   return (
     <div className="grid min-h-9 grid-cols-[1fr_auto] items-center border-b border-(--color-border-strong) bg-(--vl-night) px-3 text-white sm:px-5">
       <p className="px-2 py-2 text-center text-xs font-semibold text-white/82 sm:text-sm">
         {ANNOUNCEMENT_BANNER.message}{" "}
         <Link
-          href={ANNOUNCEMENT_BANNER.href}
+          href={href}
           prefetch={false}
-          onClick={() => track("announcement_banner_cta_click", { ctaLocation: "announcement_banner", ctaDestination: ANNOUNCEMENT_BANNER.href })}
+          onClick={() => track("announcement_banner_cta_click", { ctaLocation: "announcement_banner", ctaDestination: href })}
           className="vl-editorial-link ml-1 text-white"
         >
           {ANNOUNCEMENT_BANNER.ctaLabel}

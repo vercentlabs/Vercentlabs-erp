@@ -181,6 +181,8 @@ export const CTAS: {
   watchTour: Cta;
   seeHowItWorks: Cta;
   talkToSpecialist: Cta;
+  /** The app's sign-up page: a path on the app's address (APP_URL). */
+  startTrial: Cta;
 };
 
 export const ANNOUNCEMENT_BANNER: {
@@ -188,6 +190,8 @@ export const ANNOUNCEMENT_BANNER: {
   message: string;
   ctaLabel: string;
   href: string;
+  /** href is a path on the app's address (APP_URL), not on the site. */
+  inApp?: boolean;
 };
 
 export const ANALYTICS_EVENTS: readonly [
@@ -280,6 +284,8 @@ export interface HomepageCta {
   label: string;
   href: string;
   analyticsId: HomepageAnalyticsId;
+  /** href is a path on the app's address (APP_URL), not on the site. */
+  inApp?: boolean;
 }
 
 export interface HomepageSectionBase {

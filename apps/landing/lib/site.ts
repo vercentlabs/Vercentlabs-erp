@@ -43,6 +43,9 @@ export const SITE_URL = safeUrl(process.env.NEXT_PUBLIC_SITE_URL, "http://localh
  */
 export const APP_URL = safeUrl(process.env.NEXT_PUBLIC_APP_URL, "http://localhost:3001", "NEXT_PUBLIC_APP_URL");
 
+/** A page of the app (e.g. "/register", the free-trial sign-up), as a full address on APP_URL. */
+export const appHref = (path: string) => new URL(path, APP_URL).toString();
+
 export function absoluteUrl(path: string): string {
   return new URL(path, SITE_URL).toString();
 }

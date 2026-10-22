@@ -39,6 +39,8 @@ export const PRIMARY_NAV = Object.freeze([
  */
 export const CTAS = Object.freeze({
   primary: { label: "Book a Demo", href: "/book-demo" },
+  // The app's sign-up page (a path on APP_URL): the header, the banner and the homepage hero.
+  startTrial: { label: "Start free trial", href: "/register" },
   exploreProduct: { label: "Explore the Platform", href: "/product/platform" },
   exploreModules: { label: "Explore Modules", href: "/modules" },
   watchTour: { label: "Watch Product Tour", href: "/product-tour" },
@@ -57,9 +59,11 @@ export const CTAS = Object.freeze({
  */
 export const ANNOUNCEMENT_BANNER = Object.freeze({
   id: "launch-2026-08",
-  message: "Vercentlabs ERP is live — see it running your workflows.",
-  ctaLabel: "Book a Demo",
-  href: "/book-demo",
+  message: "Vercentlabs ERP is live — try every app free for 30 days.",
+  ctaLabel: "Start free trial",
+  // The app's sign-up page (path on APP_URL); demo requests stay on "Book a Demo" elsewhere.
+  href: "/register",
+  inApp: true,
 });
 
 /**

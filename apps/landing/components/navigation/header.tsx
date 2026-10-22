@@ -10,6 +10,7 @@ import { NavMenu } from "@/components/navigation/nav-menu";
 import { ModuleMegaMenuContent } from "@/components/navigation/module-mega-menu";
 import { ProductMegaMenuContent } from "@/components/navigation/product-mega-menu";
 import { MobileNav } from "@/components/navigation/mobile-nav";
+import { appHref } from "@/lib/site";
 import { cx } from "@/lib/utils";
 
 const simpleLinks = PRIMARY_NAV.filter((item) => item.label !== "Product" && item.label !== "Modules");
@@ -84,8 +85,8 @@ export function Header() {
             competing base `display` utility to fight with.
           */}
           <div className="hidden sm:block">
-            <ButtonLink href={CTAS.primary.href} size="sm">
-              Book a Demo
+            <ButtonLink href={appHref(CTAS.startTrial.href)} size="sm">
+              {CTAS.startTrial.label}
             </ButtonLink>
           </div>
 

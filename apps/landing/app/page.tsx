@@ -28,6 +28,7 @@ import { TrackView } from "@/components/analytics/track-view";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { HomepageViewTracker } from "@/components/analytics/homepage-view-tracker";
 import { buildPageMetadata } from "@/lib/metadata";
+import { appHref } from "@/lib/site";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
 
 export const metadata = buildPageMetadata({
@@ -82,7 +83,7 @@ export default function HomePage() {
                 <div className="max-w-[610px] lg:pb-1">
                   <Text variant="lead">{HERO.supportingText}</Text>
                   <Inline gap={3} className="mt-7">
-                    <TrackedCtaLink href={HERO.primaryCta.href} event={HERO.primaryCta.analyticsId} ctaLocation="hero">
+                    <TrackedCtaLink href={appHref(HERO.primaryCta.href)} event={HERO.primaryCta.analyticsId} ctaLocation="hero">
                       {HERO.primaryCta.label}
                     </TrackedCtaLink>
                     <TrackedCtaLink

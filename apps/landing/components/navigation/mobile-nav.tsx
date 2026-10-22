@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { MODULE_NAV_GROUPS, LANDING_MODULES, PRIMARY_NAV, CTAS } from "@vercentlabs/landing-content";
 import { ButtonLink } from "@/components/ui/button";
+import { appHref } from "@/lib/site";
 import { cx } from "@/lib/utils";
 import { useOpenTransition } from "@/components/motion/use-open-transition";
 
@@ -194,8 +195,8 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
         </nav>
 
         <div className="border-t border-(--color-border-strong) bg-(--color-bg-subtle) px-5 py-5">
-          <ButtonLink href={CTAS.primary.href} className="w-full">
-            {CTAS.primary.label}
+          <ButtonLink href={appHref(CTAS.startTrial.href)} className="w-full">
+            {CTAS.startTrial.label}
           </ButtonLink>
         </div>
       </div>

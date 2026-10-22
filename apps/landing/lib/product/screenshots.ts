@@ -25,17 +25,20 @@ export interface ProductScreenshot {
  * for rendering raw internal UUIDs unstyled (an opportunity-detail capture
  * in Phase 3, a purchase-order-detail capture in Phase 5) — neither reads
  * as a screen an enterprise buyer should see on a marketing page.
+ *
+ * crm-pipeline-board was recaptured on 2026-10-23 from the current product (the deals board), 1920×1000, with the CRM demo data
+ * (made-up companies, example.com addresses) and the trial banner closed.
  */
 export const APPROVED_SCREENSHOTS: readonly ProductScreenshot[] = Object.freeze([
   {
     id: "crm-pipeline-board",
     src: "/product/crm-pipeline-board.png",
-    alt: "CRM opportunity pipeline board showing deals grouped by stage — Qualification, Needs analysis, Value proposition, Proposal, Negotiation, Closed won — with stage probability and value totals for each column.",
+    alt: "CRM deals board showing open deals grouped by stage — Enquiry, Requirement understood, Quotation sent, Negotiation, Order expected — with each stage's deal count and value, and each deal's company, value, close date and owner.",
     width: 1920,
     height: 1000,
     module: "crm",
     workflow: "lead-to-cash",
-    caption: "Opportunity pipeline — stage-governed, with probability and forecast value synced automatically.",
+    caption: "Every open deal by stage — drag a card to move it, with each stage's count and value always in view.",
     approvedForMarketing: true,
   },
   {
