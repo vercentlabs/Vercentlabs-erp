@@ -30,7 +30,7 @@ import {
 } from "../api/opportunities-api";
 import { ErrorBanner, PRIORITY_OPTIONS } from "../opportunity-format";
 import { useSubmitKey } from "@/shared/http/submit-once";
-import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
+import { MoreDetails, MoreDetailsGroup } from "@/features/crm/shared/ui/MoreDetails";
 
 const NONE = "";
 const UNASSIGNED = "__unassigned__";
@@ -103,6 +103,7 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
   const [values, setValues] = useState<FormValues>(() => valuesFrom(opportunity, options, account));
   // The organization's own fields and recurring revenue (CRM plan 5.3).
   const customFields = options.customFields ?? [];
+  const requiredCustom = customFields.some((field) => field.isRequired);
   const recurringPlans = (options.recurringPlans ?? []).filter((plan) => plan.isActive || plan.id === opportunity?.recurringPlanId);
   const [customValues, setCustomValues] = useState<CustomValues>(() => ({ ...(opportunity?.customFields ?? {}) }));
   const [recurringPlanId, setRecurringPlanId] = useState(opportunity?.recurringPlanId ?? "");
@@ -176,7 +177,6 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
 
   return (
     <RecordFormPage
-      repeatActions
       header={{
         title: opportunity ? `Edit ${opportunity.code}` : "New deal",
         description: opportunity ? undefined : "A deal with a company. Only the name and the company are needed to start.",
@@ -234,9 +234,12 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
           description="More contacts can be added on the deal."
           options={[{ value: NONE, label: !values.accountId ? "Choose a company first" : contacts.length ? "No primary contact" : "This company has no contacts" },
             ...contacts.map((row) => ({ value: row.id, label: row.displayName }))]} />}
-        <TextField label="Value" inputMode="decimal" value={values.amount} onChange={set("amount")} errorMessage={fieldErrors.amount}
-          description={mode === "create" && stage && Number.isFinite(amount) && amount > 0 ? `Weighted at ${stage.probability}%: ${formatMoney(values.currencyCode, Math.round(amount * stage.probability) / 100)}` : undefined} />
-        <DateInput label="Close date" value={values.expectedCloseDate} onChange={set("expectedCloseDate")} errorMessage={fieldErrors.expectedCloseDate} />
+        {/* Short fields share a line on a phone; from a tablet up the wrapper steps aside (display: contents). */}
+        <div className="grid grid-cols-2 gap-3 sm:contents">
+          <TextField label="Value" inputMode="decimal" value={values.amount} onChange={set("amount")} errorMessage={fieldErrors.amount}
+            description={mode === "create" && stage && Number.isFinite(amount) && amount > 0 ? `Weighted at ${stage.probability}%: ${formatMoney(values.currencyCode, Math.round(amount * stage.probability) / 100)}` : undefined} />
+          <DateInput label="Close date" value={values.expectedCloseDate} onChange={set("expectedCloseDate")} errorMessage={fieldErrors.expectedCloseDate} />
+        </div>
         {mode === "create" && pipelines.length > 1 && (
           <Select label="Pipeline" selectedKey={values.pipelineId || "auto"}
             onSelectionChange={(key) => { const next = String(key) === "auto" ? NONE : String(key); setValues((current) => ({ ...current, pipelineId: next, stageId: NONE })); }}
@@ -251,35 +254,27 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
         )}
       </FormSection>
 
-      {(customFields.length > 0 || recurringPlans.length > 0) && (
-        <FormSection title="More about this deal" description="Recurring revenue, and your organization's own fields.">
-          {recurringPlans.length > 0 && (
-            <>
-              <Select label="Repeat order / AMC" description="For revenue that repeats: an AMC, a subscription, a rental." selectedKey={recurringPlanId || "none"}
-                onSelectionChange={(key) => setRecurringPlanId(String(key) === "none" ? "" : String(key))}
-                options={[{ value: "none", label: "Not recurring" }, ...recurringPlans.map((plan) => ({ value: plan.id, label: plan.name }))]} />
-              {recurringPlanId && (
-                <TextField label="Recurring amount per period" inputMode="decimal" value={recurringRevenue} onChange={setRecurringRevenue}
-                  description={(() => {
-                    const plan = recurringPlans.find((entry) => entry.id === recurringPlanId);
-                    const amount = Number(recurringRevenue);
-                    return plan && Number.isFinite(amount) && amount > 0 ? `${formatMoney(values.currencyCode, Math.round((amount / plan.months) * 100) / 100)} a month` : undefined;
-                  })()} />
-              )}
-            </>
-          )}
+      {/* Your own fields stay up front only when one of them must be filled in; otherwise they wait in More details. */}
+      {requiredCustom && (
+        <FormSection title="More about this deal" description="Your organization's own fields.">
           <CustomFieldInputs fields={customFields} values={customValues} onChange={setCustomValues} />
         </FormSection>
       )}
 
-      <MoreDetails description={`${singleCurrency ? "" : "Currency, "}priority, source, product interest and description.`}
+      <MoreDetails description={`${singleCurrency ? "" : "Currency, "}priority, source, product interest${recurringPlans.length ? ", repeat revenue" : ""}, the deal's story, next step, notes${mode === "create" ? " and owner" : ""}.`}
         hasContent={Boolean(values.productInterest || values.description || values.sourceId || values.campaignId || values.medium || values.priority !== "medium" || values.currencyCode !== options.baseCurrency
-          || fieldErrors.productInterest || fieldErrors.description || fieldErrors.currencyCode)}>
-        {!singleCurrency && (
-          <Select label="Currency" selectedKey={values.currencyCode} onSelectionChange={(key) => set("currencyCode")(String(key))}
-            options={options.currencies.map((code) => ({ value: code, label: code }))} />
-        )}
-        <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key))} options={PRIORITY_OPTIONS} />
+          || recurringPlanId || values.businessProblem || values.requirements || values.proposedSolution || values.commercialNotes || values.nextStep || values.nextStepDueAt
+          || (!requiredCustom && customFields.some((field) => customValues[field.key] != null && customValues[field.key] !== ""))
+          || (mode === "create" && (values.ownerUserId !== options.currentUserId || values.teamId !== NONE))
+          || fieldErrors.productInterest || fieldErrors.description || fieldErrors.currencyCode || fieldErrors.campaignId || fieldErrors.medium)}>
+        <MoreDetailsGroup first>Selling</MoreDetailsGroup>
+        <div className={singleCurrency ? "contents" : "grid grid-cols-2 gap-3 sm:contents"}>
+          {!singleCurrency && (
+            <Select label="Currency" selectedKey={values.currencyCode} onSelectionChange={(key) => set("currencyCode")(String(key))}
+              options={options.currencies.map((code) => ({ value: code, label: code }))} />
+          )}
+          <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key))} options={PRIORITY_OPTIONS} />
+        </div>
         <Select label="Source" selectedKey={values.sourceId} onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
           options={[{ value: NONE, label: "Not set" }, ...options.sources.map((source) => ({ value: source.id, label: source.name }))]} />
         <Select label="Campaign" selectedKey={values.campaignId} errorMessage={fieldErrors.campaignId}
@@ -292,37 +287,55 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
           options={[{ value: NONE, label: "None" }, ...campaignChoices(options.campaigns ?? [], opportunity?.campaignId ?? null, opportunity?.campaignName ?? null)]} />
         <Select label="Came through" selectedKey={values.medium} onSelectionChange={(key) => set("medium")(String(key ?? NONE))} errorMessage={fieldErrors.medium}
           options={[{ value: NONE, label: "Not set" }, ...(options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label }))]} />
-        <TextArea label="Product / service interest" className="sm:col-span-2" value={values.productInterest} onChange={set("productInterest")}
-          description="In words. Products with quantities and prices are added on the deal." />
-        <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} />
-      </MoreDetails>
-
-      <MoreDetails title="The deal" description="Business problem, requirements, proposed solution and commercial notes. Fill these in as the deal moves forward."
-        hasContent={Boolean(values.businessProblem || values.requirements || values.proposedSolution || values.commercialNotes)}>
-        <TextArea label="Business problem" value={values.businessProblem} onChange={set("businessProblem")} />
-        <TextArea label="Requirements" value={values.requirements} onChange={set("requirements")} />
-        <TextArea label="Proposed solution" value={values.proposedSolution} onChange={set("proposedSolution")} />
-        <TextArea label="Commercial notes" description="Budget, terms, discounts discussed." value={values.commercialNotes} onChange={set("commercialNotes")} />
-      </MoreDetails>
-
-      <MoreDetails title="Next step" description="What happens next, and by when." hasContent={Boolean(values.nextStep || values.nextStepDueAt)}>
+        <TextField label="Product / service interest" className="sm:col-span-2" value={values.productInterest} onChange={set("productInterest")}
+          placeholder="For example: Billing and stock for 2 stores" description="In words. Products with quantities and prices are added on the deal." />
+        {recurringPlans.length > 0 && (
+          <>
+            <MoreDetailsGroup>Repeat revenue</MoreDetailsGroup>
+            <Select label="Repeat order / AMC" description="For revenue that repeats: an AMC, a subscription, a rental." selectedKey={recurringPlanId || "none"}
+              onSelectionChange={(key) => setRecurringPlanId(String(key) === "none" ? "" : String(key))}
+              options={[{ value: "none", label: "Not recurring" }, ...recurringPlans.map((plan) => ({ value: plan.id, label: plan.name }))]} />
+            {recurringPlanId && (
+              <TextField label="Recurring amount per period" inputMode="decimal" value={recurringRevenue} onChange={setRecurringRevenue}
+                description={(() => {
+                  const plan = recurringPlans.find((entry) => entry.id === recurringPlanId);
+                  const amount = Number(recurringRevenue);
+                  return plan && Number.isFinite(amount) && amount > 0 ? `${formatMoney(values.currencyCode, Math.round((amount / plan.months) * 100) / 100)} a month` : undefined;
+                })()} />
+            )}
+          </>
+        )}
+        {!requiredCustom && customFields.length > 0 && (
+          <>
+            <MoreDetailsGroup>Your fields</MoreDetailsGroup>
+            <CustomFieldInputs fields={customFields} values={customValues} onChange={setCustomValues} />
+          </>
+        )}
+        <MoreDetailsGroup hint="Fill these in as the deal moves forward.">The deal</MoreDetailsGroup>
+        <TextArea label="Business problem" rows={2} value={values.businessProblem} onChange={set("businessProblem")} />
+        <TextArea label="Requirements" rows={2} value={values.requirements} onChange={set("requirements")} />
+        <TextArea label="Proposed solution" rows={2} value={values.proposedSolution} onChange={set("proposedSolution")} />
+        <TextArea label="Commercial notes" rows={2} description="Budget, terms, discounts discussed." value={values.commercialNotes} onChange={set("commercialNotes")} />
+        <MoreDetailsGroup>Next step</MoreDetailsGroup>
         <TextField label="Next step" value={values.nextStep} onChange={set("nextStep")} placeholder="For example: Send the revised proposal" />
         <DateTimeInput label="Next step due" value={values.nextStepDueAt} onChange={set("nextStepDueAt")} />
+        <MoreDetailsGroup>Notes</MoreDetailsGroup>
+        <TextArea label="Description" rows={2} className="sm:col-span-2" value={values.description} onChange={set("description")} />
+        {mode === "create" && (
+          <>
+            <MoreDetailsGroup hint="The deal is yours unless you give it to someone else.">Owner</MoreDetailsGroup>
+            <Select label="Deal owner" selectedKey={values.ownerUserId} onSelectionChange={(key) => set("ownerUserId")(String(key))}
+              options={[
+                ...(canAssignOthers ? [{ value: UNASSIGNED, label: "Leave unassigned" }] : []),
+                ...options.users
+                  .filter((user) => (canAssignOthers || user.id === options.currentUserId) && (!chosenTeam || chosenTeam.memberIds.includes(user.id) || user.id === options.currentUserId))
+                  .map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name })),
+              ]} />
+            <Select label="Sales team" selectedKey={values.teamId} onSelectionChange={(key) => set("teamId")(String(key ?? NONE))}
+              options={[{ value: NONE, label: "No team" }, ...options.teams.map((team) => ({ value: team.id, label: team.name }))]} />
+          </>
+        )}
       </MoreDetails>
-
-      {mode === "create" && (
-        <FormSection title="Ownership" description="The deal is yours unless you give it to someone else.">
-          <Select label="Deal owner" selectedKey={values.ownerUserId} onSelectionChange={(key) => set("ownerUserId")(String(key))}
-            options={[
-              ...(canAssignOthers ? [{ value: UNASSIGNED, label: "Leave unassigned" }] : []),
-              ...options.users
-                .filter((user) => (canAssignOthers || user.id === options.currentUserId) && (!chosenTeam || chosenTeam.memberIds.includes(user.id) || user.id === options.currentUserId))
-                .map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name })),
-            ]} />
-          <Select label="Sales team" selectedKey={values.teamId} onSelectionChange={(key) => set("teamId")(String(key ?? NONE))}
-            options={[{ value: NONE, label: "No team" }, ...options.teams.map((team) => ({ value: team.id, label: team.name }))]} />
-        </FormSection>
-      )}
     </RecordFormPage>
   );
 }

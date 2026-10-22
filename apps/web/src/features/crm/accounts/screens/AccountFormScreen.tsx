@@ -185,7 +185,6 @@ function AccountForm({ account, options }: { account?: Account; options: Account
 
   return (
     <RecordFormPage
-      repeatActions
       header={{
         title: mode === "edit" ? `Edit ${account?.displayName ?? "company"}` : "New company",
         description: mode === "edit" ? account?.code : "Only the company name is required. Add the rest as you learn it.",

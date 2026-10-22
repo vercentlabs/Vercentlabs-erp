@@ -28,7 +28,7 @@ import { DuplicateOverride } from "@/features/crm/duplicates/DuplicateParts";
 import { DuplicateWarning } from "../components/DuplicateWarning";
 import { ErrorBanner, PRIORITY_OPTIONS, RATING_OPTIONS } from "../lead-format";
 import { useSubmitKey } from "@/shared/http/submit-once";
-import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
+import { MoreDetails, MoreDetailsGroup } from "@/features/crm/shared/ui/MoreDetails";
 
 const NONE = "";
 const AUTO = "__auto__";
@@ -106,6 +106,7 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
   const [values, setValues] = useState<FormValues>(() => (lead ? valuesFromLead(lead) : { ...EMPTY, currencyCode: options.baseCurrency }));
   // the organization's own fields (CRM plan 5.3)
   const customFields = options.customFields ?? [];
+  const requiredCustom = customFields.some((field) => field.isRequired);
   const [customValues, setCustomValues] = useState<CustomValues>(() => ({ ...(lead?.customFields ?? {}) }));
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -170,7 +171,6 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
 
   return (
     <RecordFormPage
-      repeatActions
       header={{
         title: mode === "edit" ? `Edit ${lead?.code ?? "lead"}` : "New lead",
         description: mode === "edit" ? undefined : "Only a name or a company is needed to start. Add the rest as you learn it.",
@@ -198,8 +198,11 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
       }
     >
       <FormSection title="Lead" description="Enter the person, the company, or both.">
-        <TextField label="First name" value={values.firstName} onChange={set("firstName")} errorMessage={fieldErrors.firstName} />
-        <TextField label="Last name" value={values.lastName} onChange={set("lastName")} errorMessage={fieldErrors.lastName} />
+        {/* Short fields share a line on a phone; from a tablet up the wrapper steps aside (display: contents). */}
+        <div className="grid grid-cols-2 gap-3 sm:contents">
+          <TextField label="First name" value={values.firstName} onChange={set("firstName")} errorMessage={fieldErrors.firstName} />
+          <TextField label="Last name" value={values.lastName} onChange={set("lastName")} errorMessage={fieldErrors.lastName} />
+        </div>
         <TextField label="Company" value={values.companyName} onChange={set("companyName")} errorMessage={fieldErrors.companyName} />
         {contactHidden ? <p className="text-sm text-text-secondary sm:col-span-2">This lead&apos;s email and phone numbers are hidden from you; saving keeps them as they are.</p> : <>
           <TextField label="Mobile" type="tel" value={values.mobile} onChange={set("mobile")} errorMessage={fieldErrors.mobile} />
@@ -211,30 +214,40 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
           onSelectionChange={(key) => set("sourceId")(String(key ?? NONE))}
           options={[{ value: NONE, label: "Not set" }, ...options.sources.map((source) => ({ value: source.id, label: source.name }))]}
         />
-        <TextArea label="Product / service interest" className="sm:col-span-2" value={values.productInterest} onChange={set("productInterest")} />
+        <TextField label="Product / service interest" className="sm:col-span-2" placeholder="For example: GST billing for 3 shops" value={values.productInterest} onChange={set("productInterest")} />
       </FormSection>
 
-      {customFields.length > 0 && (
+      {/* Your own fields stay up front only when one of them must be filled in; otherwise they wait in More details. */}
+      {requiredCustom && (
         <FormSection title="More about this lead" description="Your organization's own fields.">
           <CustomFieldInputs fields={customFields} values={customValues} onChange={setCustomValues} />
         </FormSection>
       )}
 
-      <MoreDetails description="Job title, industry, website, phone, location, value, timeframe, priority, rating and description."
-        hasContent={Boolean(values.jobTitle || values.industry || values.website || values.phone || values.city || values.district || values.postalCode || values.state || values.sourceDetail || values.campaignId || values.medium || values.estimatedValue
+      <MoreDetails description={`Work, address, how they found you, potential, notes${mode === "create" ? ", owner" : ""} and contact preferences.`}
+        hasContent={Boolean((mode === "create" && (values.ownerUserId !== AUTO || values.teamId !== NONE)) || (!requiredCustom && customFields.some((field) => customValues[field.key] != null && customValues[field.key] !== "")) || values.jobTitle || values.industry || values.website || values.phone || values.city || values.district || values.postalCode || values.state || values.sourceDetail || values.campaignId || values.medium || values.estimatedValue
           || values.purchaseTimeframe || values.description || values.consentEmail || values.consentSms || values.consentWhatsapp || values.doNotContact || (mode === "edit" && (values.priority !== "medium" || values.rating !== "cold"))
           || Object.entries(fieldErrors).some(([key, message]) => message && !["firstName", "lastName", "companyName", "mobile", "email"].includes(key)))}>
-        <TextField label="Job title" value={values.jobTitle} onChange={set("jobTitle")} />
-        <TextField label="Industry" value={values.industry} onChange={set("industry")} />
+        <MoreDetailsGroup first>Work and contact</MoreDetailsGroup>
+        <div className="grid grid-cols-2 gap-3 sm:contents">
+          <TextField label="Job title" value={values.jobTitle} onChange={set("jobTitle")} />
+          <TextField label="Industry" value={values.industry} onChange={set("industry")} />
+        </div>
         <Select label="Language" description="The language they prefer to be spoken to in." selectedKey={values.languageCode || "none"}
           onSelectionChange={(key) => set("languageCode")(String(key) === "none" ? NONE : String(key))} options={[{ value: "none", label: "Not set" }, ...LANGUAGES]} />
         <TextField label="Website" value={values.website} onChange={set("website")} placeholder="https://" />
         {!contactHidden && <TextField label="Phone" type="tel" value={values.phone} onChange={set("phone")} errorMessage={fieldErrors.phone} />}
-        <TextField label="City" value={values.city} onChange={set("city")} />
-        <TextField label="District" value={values.district} onChange={set("district")} errorMessage={fieldErrors.district} />
-        <TextField label="PIN code" inputMode="numeric" value={values.postalCode} onChange={set("postalCode")} errorMessage={fieldErrors.postalCode} />
-        <StateField countryCode={values.countryCode} value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
+        <MoreDetailsGroup>Address</MoreDetailsGroup>
+        <div className="grid grid-cols-2 gap-3 sm:contents">
+          <TextField label="City" value={values.city} onChange={set("city")} />
+          <TextField label="District" value={values.district} onChange={set("district")} errorMessage={fieldErrors.district} />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:contents">
+          <TextField label="PIN code" inputMode="numeric" value={values.postalCode} onChange={set("postalCode")} errorMessage={fieldErrors.postalCode} />
+          <StateField countryCode={values.countryCode} value={values.state} onChange={set("state")} errorMessage={fieldErrors.state} />
+        </div>
         <CountrySelect value={values.countryCode} onChange={set("countryCode")} errorMessage={fieldErrors.countryCode} />
+        <MoreDetailsGroup>How they found you</MoreDetailsGroup>
         <Select label="Campaign" selectedKey={values.campaignId} errorMessage={fieldErrors.campaignId}
           onSelectionChange={(key) => {
             const campaignId = String(key ?? NONE);
@@ -246,19 +259,55 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
         <Select label="Came through" description="How they reached you: Google, Facebook, WhatsApp…" selectedKey={values.medium} onSelectionChange={(key) => set("medium")(String(key ?? NONE))} errorMessage={fieldErrors.medium}
           options={[{ value: NONE, label: "Not set" }, ...(options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label }))]} />
         <TextField label="Source detail" description="The event, or the person who referred them." value={values.sourceDetail} onChange={set("sourceDetail")} />
-        <TextField label="Estimated value" inputMode="decimal" value={values.estimatedValue} onChange={set("estimatedValue")} errorMessage={fieldErrors.estimatedValue} />
-        <CurrencySelect value={values.currencyCode} onChange={set("currencyCode")} />
+        <MoreDetailsGroup>Potential</MoreDetailsGroup>
+        <div className="grid grid-cols-2 gap-3 sm:contents">
+          <TextField label="Estimated value" inputMode="decimal" value={values.estimatedValue} onChange={set("estimatedValue")} errorMessage={fieldErrors.estimatedValue} />
+          <CurrencySelect value={values.currencyCode} onChange={set("currencyCode")} />
+        </div>
         <Select
           label="Purchase timeframe"
           selectedKey={values.purchaseTimeframe}
           onSelectionChange={(key) => set("purchaseTimeframe")(String(key ?? NONE))}
           options={[{ value: NONE, label: "Not set" }, ...options.purchaseTimeframes.map((entry) => ({ value: entry.code, label: entry.label }))]}
         />
-        <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key))} options={PRIORITY_OPTIONS} />
-        <Select label="Rating" selectedKey={values.rating} onSelectionChange={(key) => set("rating")(String(key))} options={RATING_OPTIONS} />
+        <div className="grid grid-cols-2 gap-3 sm:contents">
+          <Select label="Priority" selectedKey={values.priority} onSelectionChange={(key) => set("priority")(String(key))} options={PRIORITY_OPTIONS} />
+          <Select label="Rating" selectedKey={values.rating} onSelectionChange={(key) => set("rating")(String(key))} options={RATING_OPTIONS} />
+        </div>
+        <MoreDetailsGroup>Notes</MoreDetailsGroup>
         <TextArea label="Description" className="sm:col-span-2" value={values.description} onChange={set("description")} />
-        <fieldset className="flex flex-col gap-2 sm:col-span-2">
-          <legend className="mb-1 text-sm font-medium">Contact preferences</legend>
+        {!requiredCustom && customFields.length > 0 && (
+          <>
+            <MoreDetailsGroup>Your fields</MoreDetailsGroup>
+            <CustomFieldInputs fields={customFields} values={customValues} onChange={setCustomValues} />
+          </>
+        )}
+        {mode === "create" && (
+          <>
+            <MoreDetailsGroup hint="Automatic lets your assignment rules choose; if none matches, the lead is yours.">Owner</MoreDetailsGroup>
+            <Select
+              label="Lead owner"
+              selectedKey={values.ownerUserId}
+              onSelectionChange={(key) => set("ownerUserId")(String(key))}
+              options={[
+                { value: AUTO, label: "Automatic (assignment rules)" },
+                { value: UNASSIGNED, label: "Leave unassigned" },
+                ...options.users
+                  .filter((user) => canAssignOthers || user.id === options.currentUserId)
+                  .map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name })),
+              ]}
+            />
+            <Select
+              label="Assigned team"
+              selectedKey={values.teamId}
+              onSelectionChange={(key) => set("teamId")(String(key ?? NONE))}
+              options={[{ value: NONE, label: "No team" }, ...options.teams.map((team) => ({ value: team.id, label: team.name }))]}
+            />
+          </>
+        )}
+        <fieldset className="flex flex-col gap-2 border-t border-border pt-4 sm:col-span-2">
+          <legend className="sr-only">Contact preferences</legend>
+          <p className="text-xs font-medium text-text-secondary">Contact preferences</p>
           <p className="text-xs text-text-muted">Agreed to receive messages by:</p>
           <div className="flex flex-wrap gap-4">
             <Checkbox isSelected={values.consentEmail && !values.doNotContact} isDisabled={values.doNotContact} onChange={set("consentEmail")}>Email</Checkbox>
@@ -268,29 +317,6 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
           <Checkbox isSelected={values.doNotContact} onChange={set("doNotContact")}>Do not contact — they asked not to be contacted at all</Checkbox>
         </fieldset>
       </MoreDetails>
-
-      {mode === "create" && (
-        <FormSection title="Ownership" description="Automatic (assignment rules): a rule decides who owns the lead; if none matches, the lead is yours.">
-          <Select
-            label="Lead owner"
-            selectedKey={values.ownerUserId}
-            onSelectionChange={(key) => set("ownerUserId")(String(key))}
-            options={[
-              { value: AUTO, label: "Automatic (assignment rules)" },
-              { value: UNASSIGNED, label: "Leave unassigned" },
-              ...options.users
-                .filter((user) => canAssignOthers || user.id === options.currentUserId)
-                .map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name })),
-            ]}
-          />
-          <Select
-            label="Assigned team"
-            selectedKey={values.teamId}
-            onSelectionChange={(key) => set("teamId")(String(key ?? NONE))}
-            options={[{ value: NONE, label: "No team" }, ...options.teams.map((team) => ({ value: team.id, label: team.name }))]}
-          />
-        </FormSection>
-      )}
     </RecordFormPage>
   );
 }

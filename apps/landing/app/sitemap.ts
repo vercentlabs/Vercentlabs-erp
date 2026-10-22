@@ -37,6 +37,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     entry("/", "weekly", 1),
     entry("/book-demo", "monthly", 0.9),
+    entry("/pricing", "monthly", 0.9),
     entry("/product", "monthly", 0.9),
     entry("/modules", "monthly", 0.9),
     ...LANDING_MODULES.map((moduleInfo) => entry(`/modules/${moduleInfo.key}`, "monthly", 0.8)),

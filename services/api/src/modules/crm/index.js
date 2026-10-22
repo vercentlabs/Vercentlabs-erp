@@ -91,4 +91,3 @@ export { listTodos, TODO_QUEUES, TODO_SCOPES } from "./todos/records.js";
 
 // The CRM Inbox: chats, WhatsApp and emails from customers in one list (CRM audit navigation).
 export { listInbox } from "./inbox/records.js";
-export { listAllDealQuotes } from "./quotes/list.js";

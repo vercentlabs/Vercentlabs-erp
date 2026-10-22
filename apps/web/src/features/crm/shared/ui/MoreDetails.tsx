@@ -17,7 +17,17 @@ export function MoreDetails({ title = "More details", description, hasContent = 
         {shown ? <ChevronDown className="size-4" aria-hidden="true" /> : <ChevronRight className="size-4" aria-hidden="true" />}{title}
       </button>
       {description && !shown && <p className="-mt-2 text-xs text-text-muted">{description}</p>}
-      {shown && <div className={columns === 2 ? "grid gap-4 sm:grid-cols-2" : "flex flex-col gap-4"}>{children}</div>}
+      {shown && <div className={columns === 2 ? "grid gap-3 sm:grid-cols-2 sm:gap-4" : "flex flex-col gap-3 sm:gap-4"}>{children}</div>}
     </section>
+  );
+}
+
+// A small heading that splits More details into groups ("Address", "Owner"); the first has no rule above it.
+export function MoreDetailsGroup({ children, hint, first = false }: { children: ReactNode; hint?: string; first?: boolean }) {
+  return (
+    <div className={`flex flex-col gap-0.5 sm:col-span-2 ${first ? "" : "border-t border-border pt-4"}`}>
+      <p className="text-xs font-medium text-text-secondary">{children}</p>
+      {hint && <p className="text-xs text-text-muted">{hint}</p>}
+    </div>
   );
 }

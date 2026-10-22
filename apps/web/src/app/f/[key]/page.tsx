@@ -13,13 +13,21 @@ export default async function HostedFormPage({ params }: { params: Promise<{ key
   const { key } = await params;
   const form = await ingressTransaction((client) => getPublicCaptureForm(client, key));
   if (!form) notFound();
+  const initial = (form.organizationName ?? "").trim().charAt(0).toUpperCase() || "•";
   return (
-    <main className="min-h-screen bg-surface-muted px-4 py-8 max-lg:pb-[calc(3rem+env(safe-area-inset-bottom))]">
-      <div className="mx-auto flex w-full max-w-xl flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-6">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-text-muted">{form.organizationName}</p>
-          <h1 className="text-xl font-semibold">{form.name}</h1>
-        </div>
+    // Phone: the form fills the screen edge to edge; from a tablet up it sits as a card a little below the top.
+    <main className="min-h-screen bg-surface-muted sm:px-6 sm:py-12 lg:py-16 max-lg:pb-[calc(3rem+env(safe-area-inset-bottom))]">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 bg-surface px-5 py-6 sm:rounded-[var(--radius-card)] sm:border sm:border-border sm:p-8 sm:shadow-sm">
+        <header className="flex flex-col gap-4 border-b border-border pb-5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-9 items-center justify-center rounded-[var(--radius-control)] bg-brand text-sm font-semibold text-text-inverse" aria-hidden="true">{initial}</span>
+            <span className="text-sm font-medium text-text-secondary">{form.organizationName}</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-text">{form.name}</h1>
+            <p className="text-sm text-text-secondary">Leave your details and the team will get back to you.</p>
+          </div>
+        </header>
         <HostedCaptureForm formKey={key} form={form} />
       </div>
     </main>

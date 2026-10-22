@@ -2,35 +2,11 @@
 
 // The pipeline in figures: four above the board (open value, closing this month, overdue, no next activity), and the manager's breakdowns
 // (by owner, by stage, by source) on the deal dashboard. All of it is the open pipeline the caller can see, for the filters applied.
-import { MetricCard } from "@vercentlabs/design-system";
 
 import { days } from "@/features/crm/opportunities/opportunity-format";
 import { formatMoney } from "@/shared/format/human";
 
 import type { Pipeline, PipelineSummary } from "../api/pipeline-api";
-
-export type SummaryPreset = "open" | "closing_this_month" | "overdue" | "no_next_activity";
-
-function Metric({ label, value, onPress }: { label: string; value: string | number; onPress?: () => void }) {
-  if (!onPress) return <MetricCard label={label} value={value} />;
-  return (
-    <button type="button" onClick={onPress} className="rounded-[var(--radius-card)] text-left outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand">
-      <MetricCard label={label} value={value} />
-    </button>
-  );
-}
-
-export function PipelineSummaryStrip({ summary, currency, onSelect }: { summary: PipelineSummary; currency: string; onSelect: (preset: SummaryPreset) => void }) {
-  const totals = summary.totals;
-  return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      <Metric label={`Open value (${totals.open} ${totals.open === 1 ? "deal" : "deals"})`} value={formatMoney(currency, totals.value)} onPress={() => onSelect("open")} />
-      <Metric label={`Closing this month (${totals.closingThisMonth})`} value={formatMoney(currency, totals.closingThisMonthValue)} onPress={() => onSelect("closing_this_month")} />
-      <Metric label="Overdue" value={totals.overdue} onPress={() => onSelect("overdue")} />
-      <Metric label="No next activity" value={totals.noNextActivity} onPress={() => onSelect("no_next_activity")} />
-    </div>
-  );
-}
 
 const panel = "flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4";
 const numeric = "py-1.5 text-right tabular-nums";

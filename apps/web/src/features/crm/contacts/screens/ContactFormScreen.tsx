@@ -174,7 +174,6 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
 
   return (
     <RecordFormPage
-      repeatActions
       header={{
         title: mode === "edit" ? `Edit ${contact?.displayName ?? "contact"}` : "New contact",
         description: mode === "edit" ? contact?.contactNumber ?? undefined : "A first name and a way to reach the person are enough to start. The company is optional.",

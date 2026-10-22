@@ -3,6 +3,7 @@
 // The public web form: the fields the form asks for, the consent notice to agree to (when it has one), two hidden honeypot fields, and
 // the thank-you message (or the thank-you page) once sent. Submits to /api/crm/public/capture/{key}, where the form's own rules apply.
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { Button, Checkbox, TextArea, TextField } from "@vercentlabs/design-system";
 import type { PublicCaptureForm } from "@vercentlabs/api/crm";
 
@@ -17,7 +18,13 @@ export function HostedCaptureForm({ formKey, form }: { formKey: string; form: Pu
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
-  if (done) return <p className="text-sm" role="status">{done}</p>;
+  if (done) return (
+    <div className="flex flex-col items-center gap-3 py-6 text-center" role="status">
+      <span className="flex size-12 items-center justify-center rounded-full bg-success-soft text-success" aria-hidden="true"><Check className="size-6" /></span>
+      <p className="text-base font-semibold text-text">Thank you</p>
+      <p className="max-w-sm text-sm text-text-secondary">{done}</p>
+    </div>
+  );
   const missing = form.fields.filter((field) => field.required && !values[field.name]?.trim());
   const submit = async () => {
     setSending(true);
@@ -46,21 +53,46 @@ export function HostedCaptureForm({ formKey, form }: { formKey: string; form: Pu
     }
   };
   const set = (name: string) => (value: string) => setValues((current) => ({ ...current, [name]: value }));
+  const hasRequired = form.fields.some((field) => field.required) || Boolean(form.notice);
+  // A short field takes half a line only when another short field shares it; one left on its own takes the full width.
+  const halfWidth: boolean[] = [];
+  for (let index = 0, column = 0; index < form.fields.length; index += 1) {
+    const short = HALF.has(form.fields[index].name) && form.fields[index].type !== "textarea";
+    const pairs = short && (column === 1 || HALF.has(form.fields[index + 1]?.name ?? ""));
+    halfWidth.push(pairs);
+    column = pairs ? (column + 1) % 2 : 0;
+  }
   return (
-    <form lang={form.language ?? "en"} className="flex flex-col gap-4" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    <form lang={form.language ?? "en"} className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       {error && <Notice>{error}</Notice>}
-      {form.fields.map((field) => field.type === "textarea"
-        ? <TextArea key={field.name} label={field.label} isRequired={field.required} value={values[field.name] ?? ""} onChange={set(field.name)} />
-        : field.type === "country"
-          ? <CountrySelect key={field.name} label={field.label} isRequired={field.required} value={values[field.name] ?? ""} onChange={(value) => set(field.name)(value ?? "")} />
-          : <TextField key={field.name} label={field.label} type={field.type === "email" ? "email" : field.type === "tel" ? "tel" : field.type === "url" ? "url" : "text"}
-              isRequired={field.required} value={values[field.name] ?? ""} onChange={set(field.name)} />)}
+      {/* Short fields share a line from a tablet up; everything else takes the full width. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {form.fields.map((field, index) => {
+          const span = halfWidth[index] ? "" : "sm:col-span-2";
+          if (field.type === "textarea")
+            return <TextArea key={field.name} className={span} label={field.label} isRequired={field.required} value={values[field.name] ?? ""} onChange={set(field.name)} />;
+          if (field.type === "country")
+            return <div key={field.name} className={span}><CountrySelect label={field.label} isRequired={field.required} value={values[field.name] ?? ""} onChange={(value) => set(field.name)(value ?? "")} /></div>;
+          return <TextField key={field.name} className={span} label={field.label} type={field.type === "email" ? "email" : field.type === "tel" ? "tel" : field.type === "url" ? "url" : "text"}
+            autoComplete={AUTOCOMPLETE[field.name]} inputMode={field.type === "tel" ? "tel" : field.type === "email" ? "email" : undefined}
+            isRequired={field.required} value={values[field.name] ?? ""} onChange={set(field.name)} />;
+        })}
+      </div>
       {/* Left empty by people; filled by bots. */}
       <input type="text" name="websiteUrl" tabIndex={-1} autoComplete="off" aria-hidden="true" className="sr-only" value={trap} onChange={(event) => setTrap(event.target.value)} />
       {form.notice && <Checkbox isSelected={agreed} onChange={setAgreed}>{form.notice.text}</Checkbox>}
-      <div>
-        <Button type="submit" variant="primary" isLoading={sending} isDisabled={missing.length > 0 || (Boolean(form.notice) && !agreed)}>{form.submitLabel ?? "Send"}</Button>
+      <div className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+        {hasRequired ? <p className="text-xs text-text-muted"><span className="text-danger">*</span> Required</p> : <span />}
+        <Button type="submit" variant="primary" className="max-sm:w-full sm:min-w-32" isLoading={sending} isDisabled={missing.length > 0 || (Boolean(form.notice) && !agreed)}>{form.submitLabel ?? "Send"}</Button>
       </div>
     </form>
   );
 }
+
+// Fields short enough to share a line with their neighbour from a tablet up.
+const HALF = new Set(["firstName", "lastName", "email", "mobile", "phone", "city", "state", "jobTitle", "companyName"]);
+// What the browser may fill in for each field.
+const AUTOCOMPLETE: Record<string, string> = {
+  firstName: "given-name", lastName: "family-name", email: "email", mobile: "tel", phone: "tel", companyName: "organization", jobTitle: "organization-title",
+  website: "url", city: "address-level2", state: "address-level1",
+};

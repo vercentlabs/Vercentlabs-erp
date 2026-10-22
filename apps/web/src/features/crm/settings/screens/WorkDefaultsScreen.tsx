@@ -3,7 +3,7 @@
 // The working week (days, hours, off Saturdays — what reminders, response times and stage limits count in), then task and follow-up
 // defaults: what a new task or follow-up starts with, on one page in short sections. The salesperson can still change each value
 // when creating one.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, PageHeader, PermissionState, Select, TextField } from "@vercentlabs/design-system";
 
@@ -52,8 +52,11 @@ export function WorkDefaultsScreen({ section }: { section: "tasks" | "follow-ups
       <PageHeader title="Working week and defaults" description="When your business works, and what a new task or follow-up starts with. Each can still be changed when it is created." />
       {query.isLoading || !query.data ? <LoadingState label="Loading defaults" rows={2} />
         : <>
-          <WorkingWeekForm defaults={query.data.defaults} choices={query.data.choices} />
-          {order.map((part) => <DefaultsForm key={part} section={part} defaults={query.data.defaults} choices={query.data.choices} />)}
+          {/* Desktop: as on Setup, each part's title on the left and its settings on the right, a rule between parts. */}
+          <div className="flex flex-col gap-4 lg:gap-0 lg:divide-y lg:divide-border lg:border-t lg:border-border">
+            <WorkingWeekForm defaults={query.data.defaults} choices={query.data.choices} />
+            {order.map((part) => <DefaultsForm key={part} section={part} defaults={query.data.defaults} choices={query.data.choices} />)}
+          </div>
         </>}
     </div>
   );
@@ -79,11 +82,7 @@ function WorkingWeekForm({ defaults, choices }: { defaults: WorkDefaults; choice
   const times = CLOCK_TIMES.some((time) => time.value === start) && CLOCK_TIMES.some((time) => time.value === end) ? CLOCK_TIMES
     : [...CLOCK_TIMES, ...[start, end].filter((value) => !CLOCK_TIMES.some((time) => time.value === value)).map((value) => ({ value, label: value }))];
   return (
-    <section id="working-week" aria-labelledby="working-week-heading" className="flex max-w-xl flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
-      <div>
-        <h2 id="working-week-heading" className="text-base font-semibold text-text">Working week</h2>
-        <p className="text-sm text-text-secondary">Reminders skip days off and holidays, and lead response times and stage time limits count only working time.</p>
-      </div>
+    <Part id="working-week" title="Working week" describeOnPhone description="Reminders skip days off and holidays, and lead response times and stage time limits count only working time.">
       {save.isError && <p role="alert" className="text-sm text-danger">{save.error instanceof Error ? save.error.message : "The working week could not be saved."}</p>}
       {save.isSuccess && <p role="status" className="text-sm text-success">Saved.</p>}
       <fieldset className="flex flex-col gap-2">
@@ -96,16 +95,18 @@ function WorkingWeekForm({ defaults, choices }: { defaults: WorkDefaults; choice
         <Select label="Day starts" selectedKey={start} onSelectionChange={(key) => setStart(String(key))} options={times} />
         <Select label="Day ends" selectedKey={end} onSelectionChange={(key) => setEnd(String(key))} options={times} />
       </div>
-      <TextField label="Flag a lead with no activity after" inputMode="numeric" value={staleDays} onChange={setStaleDays}
-        description="Days. A lead stage can set its own time instead (Setup › Lead stages)." />
-      {days.includes(6) && (
-        <Select label="Saturdays" selectedKey={saturdays} onSelectionChange={(key) => setSaturdays(String(key))}
-          options={choices.saturdayRules.map((rule) => ({ value: rule.code, label: rule.label }))} />
-      )}
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+        <TextField label="Flag a lead with no activity after" inputMode="numeric" value={staleDays} onChange={setStaleDays}
+          description="Days. A lead stage can set its own time instead (Setup › Lead stages)." />
+        {days.includes(6) && (
+          <Select label="Saturdays" selectedKey={saturdays} onSelectionChange={(key) => setSaturdays(String(key))}
+            options={choices.saturdayRules.map((rule) => ({ value: rule.code, label: rule.label }))} />
+        )}
+      </div>
       <div className="flex justify-end">
         <Button variant="secondary" isLoading={save.isPending} isDisabled={!days.length} onPress={() => save.mutate()}>Save working week</Button>
       </div>
-    </section>
+    </Part>
   );
 }
 
@@ -127,17 +128,41 @@ function DefaultsForm({ section, defaults, choices }: { section: "tasks" | "foll
     },
   });
   return (
-    <section id={section} aria-labelledby={`${section}-heading`} className="flex max-w-xl flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4">
-      <h2 id={`${section}-heading`} className="text-base font-semibold text-text">{tasks ? "New tasks" : "New follow-ups"}</h2>
+    <Part id={section} title={tasks ? "New tasks" : "New follow-ups"}
+      description={tasks ? "What a new task starts with. It can still be changed on the task." : "What a new follow-up starts with. It can still be changed on the follow-up."}>
       {save.isError && <p role="alert" className="text-sm text-danger">{save.error instanceof Error ? save.error.message : "The defaults could not be saved."}</p>}
       {save.isSuccess && <p role="status" className="text-sm text-success">Saved.</p>}
-      {tasks
-        ? <Select label="Default priority" selectedKey={first} onSelectionChange={(key) => setFirst(String(key))} options={choices.taskPriorities.map((entry) => ({ value: entry.code, label: entry.label }))} />
-        : <Select label="Default type" selectedKey={first} onSelectionChange={(key) => setFirst(String(key))} options={choices.followUpTypes.map((entry) => ({ value: entry.code, label: entry.label }))} />}
-      <Select label="Default reminder" selectedKey={reminder} onSelectionChange={(key) => setReminder(String(key))}
-        options={reminderOptions(tasks ? choices.taskReminderOptions : choices.followUpReminderOptions)} />
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+        {tasks
+          ? <Select label="Default priority" selectedKey={first} onSelectionChange={(key) => setFirst(String(key))} options={choices.taskPriorities.map((entry) => ({ value: entry.code, label: entry.label }))} />
+          : <Select label="Default type" selectedKey={first} onSelectionChange={(key) => setFirst(String(key))} options={choices.followUpTypes.map((entry) => ({ value: entry.code, label: entry.label }))} />}
+        <Select label="Default reminder" selectedKey={reminder} onSelectionChange={(key) => setReminder(String(key))}
+          options={reminderOptions(tasks ? choices.taskReminderOptions : choices.followUpReminderOptions)} />
+      </div>
       <div className="flex justify-end">
         <Button variant="secondary" isLoading={save.isPending} onPress={() => save.mutate()}>{tasks ? "Save task defaults" : "Save follow-up defaults"}</Button>
+      </div>
+    </Part>
+  );
+}
+
+// One part of the page. Phone: a card with its title inside (as before). Tablet: the card runs the full width. Desktop: the title and
+// explanation sit on the left, the card on the right, as on Setup.
+// describeOnPhone: the explanation also shows in the card on a phone (the working week's did; the defaults' cards had only a title).
+function Part({ id, title, description, describeOnPhone = false, children }: { id: string; title: string; description: string; describeOnPhone?: boolean; children: ReactNode }) {
+  return (
+    <section id={id} aria-labelledby={`${id}-heading`} className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10 lg:py-8">
+      <div className="hidden flex-col gap-1 lg:flex" aria-hidden="true">
+        <p className="text-base font-semibold text-text">{title}</p>
+        <p className="text-sm text-text-secondary">{description}</p>
+      </div>
+      <div className="flex max-w-xl flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:max-w-none sm:p-5">
+        {/* Desktop: the title moves to the left column; here it stays for screen readers only, and takes no room. */}
+        <div className="lg:contents">
+          <h2 id={`${id}-heading`} className="text-base font-semibold text-text lg:sr-only">{title}</h2>
+          <p className={`text-sm text-text-secondary lg:hidden ${describeOnPhone ? "" : "max-sm:hidden"}`}>{description}</p>
+        </div>
+        {children}
       </div>
     </section>
   );

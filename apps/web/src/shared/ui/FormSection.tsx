@@ -31,7 +31,7 @@ export function FormSection({
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
       <div
-        className={`grid grid-cols-1 gap-4 ${columns === 2 ? "sm:grid-cols-2" : ""}`}
+        className={`grid grid-cols-1 gap-3 sm:gap-4 ${columns === 2 ? "sm:grid-cols-2" : ""}`}
       >
         {children}
       </div>

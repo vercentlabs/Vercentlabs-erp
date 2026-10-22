@@ -6,8 +6,8 @@ import { UnconvertedNotice } from "@/features/crm/shared/ui/UnconvertedNotice";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Settings2 } from "lucide-react";
-import { Button, EnterpriseListPage, ErrorState, LinkButton, PermissionState, SearchField, Select, TextField, type ActiveFilter } from "@vercentlabs/design-system";
+import { Plus } from "lucide-react";
+import { EnterpriseListPage, ErrorState, LinkButton, PermissionState, SearchField, Select, TextField, type ActiveFilter } from "@vercentlabs/design-system";
 
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { getOpportunityOptions, opportunityExportUrl, optionsForDeal, type Opportunity, type OpportunityListFilters, type OpportunityViewKey } from "@/features/crm/opportunities/api/opportunities-api";
@@ -29,10 +29,9 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-import { getPipeline, getPipelineSummary, type PipelineCardSort, type PipelineFilters, type PipelineStatus } from "../api/pipeline-api";
+import { getPipeline, type PipelineCardSort, type PipelineFilters, type PipelineStatus } from "../api/pipeline-api";
 import { PipelineBoard } from "../components/PipelineBoard";
 import type { CardAction } from "../components/PipelineCard";
-import { PipelineSummaryStrip, type SummaryPreset } from "../components/PipelineInsights";
 import { QuickEditDialog } from "../components/QuickEditDialog";
 
 const ANY = "any";
@@ -133,12 +132,6 @@ export function PipelineScreen() {
 
   const pipelineKey = scopedQueryKey(workspace, "crm", "opportunities", "pipeline", pipelineFilters);
   const pipelineQuery = useQuery({ queryKey: pipelineKey, queryFn: () => getPipeline(pipelineFilters), placeholderData: keepPreviousData, ...LIVE_OPPORTUNITY_QUERY });
-  const summaryQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "opportunities", "pipeline-summary", shared),
-    queryFn: () => getPipelineSummary(shared),
-    placeholderData: keepPreviousData,
-    ...LIVE_OPPORTUNITY_QUERY,
-  });
   const pipeline = pipelineQuery.data;
 
   // Every deal query (board, figures, list, record) starts with this key.
@@ -191,7 +184,6 @@ export function PipelineScreen() {
     setMore(NO_MORE);
     setFilters(Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Record<FilterKey, string>);
   };
-  const onSummarySelect = (selected: SummaryPreset) => setPreset(selected);
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.opportunities.view") && !workspace.permissions.includes("crm.opportunities.manage"))
     return <PermissionState title="You don't have access to the pipeline" description="Ask an administrator for the View deals permission." />;
@@ -205,15 +197,10 @@ export function PipelineScreen() {
           title: "Pipeline",
           description: "Your open deals by sales stage. Drag a card, use Move to, or press ← / → on a card to move a deal; close it with Mark won or Mark lost.",
           primaryAction: can?.create ? <LinkButton href="/crm/opportunities/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New deal</LinkButton> : undefined,
-          secondaryActions: (
-            <>
-              {can?.manageStages && (
-                <LinkButton href="/crm/settings/opportunities/stages" variant="ghost" aria-label="Sales stages (Setup)"><Settings2 className="size-4" aria-hidden="true" /><span>Stages</span></LinkButton>
-              )}
-              <SavedViews screen="pipeline" basePath="/crm/pipeline" filters={pipelineFilters} />
-              {can?.export && <MoreMenu label="More pipeline actions" items={[{ id: "export", label: "Export", onAction: () => { window.location.href = opportunityExportUrl(listFilters); } }]} />}
-            </>
-          ),
+          secondaryActions: <MoreMenu label="More pipeline actions" items={[
+            ...(can?.export ? [{ id: "export", label: "Export", onAction: () => { window.location.href = opportunityExportUrl(listFilters); } }] : []),
+            ...(can?.manageStages ? [{ id: "stages", label: "Edit sales stages", onAction: () => router.push("/crm/settings/opportunities/stages") }] : []),
+          ]} />,
         }}
         savedViews={{ views: PRESETS.map((entry) => ({ id: entry.id, label: entry.label })), activeViewId: preset, onSelect: (id) => setPreset(id as PresetId), pinned: PINNED_PRESETS }}
         actionBar={{
@@ -257,6 +244,7 @@ export function PipelineScreen() {
           ),
           end: (
             <>
+              <SavedViews screen="pipeline" basePath="/crm/pipeline" filters={pipelineFilters} />
               <Select aria-label="Sort cards" size="compact" selectedKey={cardSort} onSelectionChange={(key) => setCardSort(String(key) as PipelineCardSort)} options={SORT_OPTIONS} />
               <ViewToggle label="Layout" value="board" onChange={(id) => { if (id === "list") router.push(listHref()); if (id === "calendar") router.push("/crm/opportunities/calendar"); }}
                 options={[{ id: "board", label: "Board" }, { id: "list", label: "List" }, { id: "calendar", label: "Calendar" }]} />
@@ -266,12 +254,7 @@ export function PipelineScreen() {
         filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: clearFilters } : undefined}
       >
         <div className="flex flex-col gap-4">
-          <UnconvertedNotice currency={summaryQuery.data?.currency ?? pipelineQuery.data?.currency} />
-          {summaryQuery.data && <PipelineSummaryStrip summary={summaryQuery.data} currency={currency} onSelect={onSummarySelect} />}
-          {summaryQuery.isError && (
-            <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger">Pipeline figures couldn&apos;t be loaded.
-              <Button variant="ghost" size="compact" onPress={() => void summaryQuery.refetch()}>Try again</Button></p>
-          )}
+          <UnconvertedNotice currency={pipelineQuery.data?.currency} />
 
           {pipelineQuery.isLoading || !options ? <LoadingState label="Loading pipeline" rows={6} />
             : pipelineQuery.isError || !pipeline ? <ErrorState title="Could not load the pipeline" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void pipelineQuery.refetch() }} />

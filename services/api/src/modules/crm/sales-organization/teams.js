@@ -162,7 +162,18 @@ async function assertCodeFree(client, context, code, id = null) {
   if (taken) throw new CrmError(409, "Another team already has this code.", "CRM_SALES_TEAM_CODE_EXISTS", fieldErrors([{ field: "code", message: "Already used by another team." }]));
 }
 
+// A team's code is made from its name when none is given ("West Zone Sales" -> WEST_ZONE_SALES, then _2, _3… if taken).
+async function codeFromName(client, context, name) {
+  const base = String(name ?? "").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 30) || "TEAM";
+  const taken = new Set((await client.query(`SELECT code FROM tenant.crm_sales_teams WHERE organization_id = $1 AND code LIKE $2`, [context.organizationId, `${base}%`])).rows.map((row) => row.code));
+  let code = base;
+  for (let suffix = 2; taken.has(code); suffix += 1) code = `${base}_${suffix}`;
+  return code;
+}
+
 export async function createSalesTeam(client, context, input = {}) {
+  if (!String(input.name ?? "").trim()) throw new CrmError(400, "Name the team.", "CRM_SALES_TEAM_VALIDATION", fieldErrors([{ field: "name", message: "Name the team." }]));
+  if (!String(input.code ?? "").trim()) input = { ...input, code: await codeFromName(client, context, input.name) };
   await assertCodeFree(client, context, input.code);
   await assertActiveMembers(client, context, TEAM, input);
   return insert(client, context, TEAM, input);

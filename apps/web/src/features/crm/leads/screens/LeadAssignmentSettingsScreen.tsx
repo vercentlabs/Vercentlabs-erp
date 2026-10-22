@@ -101,8 +101,8 @@ export function LeadAssignmentSettingsScreen() {
             <Button variant="outline" className="max-sm:px-3" onPress={() => setTransferring(true)}>
               Transfer<span className="max-sm:hidden"> a user&apos;s</span> leads
             </Button>
-            <LinkButton variant="outline" href="/settings/teams" className="max-sm:px-2.5" aria-label="Teams">
-              <Users className="size-4 sm:hidden" aria-hidden="true" /><span className="max-sm:hidden">Teams</span>
+            <LinkButton variant="outline" href="/crm/settings/team" className="max-sm:px-3">
+              <Users className="size-4" aria-hidden="true" /><span>Teams</span>
             </LinkButton>
           </>
         }

@@ -10,7 +10,6 @@ import { NavMenu } from "@/components/navigation/nav-menu";
 import { ModuleMegaMenuContent } from "@/components/navigation/module-mega-menu";
 import { ProductMegaMenuContent } from "@/components/navigation/product-mega-menu";
 import { MobileNav } from "@/components/navigation/mobile-nav";
-import { APP_URL } from "@/lib/site";
 import { cx } from "@/lib/utils";
 
 const simpleLinks = PRIMARY_NAV.filter((item) => item.label !== "Product" && item.label !== "Modules");
@@ -74,12 +73,6 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link
-            href={APP_URL.toString()}
-            className="hidden px-2 py-2 text-sm font-semibold text-(--color-text-secondary) hover:text-(--color-text-brand) sm:inline-flex"
-          >
-            Sign in
-          </Link>
           {/*
             Visibility toggled on this wrapper, not via a className passed
             into ButtonLink: ButtonLink's own base classes always include an

@@ -181,7 +181,7 @@ export function buildHistoryImportTemplate(): string;
 export function analyzeHistoryImport(input: { bytes: Uint8Array; fileName: string }): { headers: string[]; mapping: Record<string, string>; rowCount: number; preview: Array<Record<string, string>> };
 export function importRecordHistory(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; mapping?: Record<string, string> }):
   Promise<{ created: number; notes: number; skipped: number; failed: number; errors: Array<{ row: number; message: string }> }>;
-export const MIGRATION_SOURCES: ReadonlyArray<{ key: string; label: string; howTo: string }>;
+export const MIGRATION_SOURCES: ReadonlyArray<{ key: string; label: string; howTo: string; activities: string }>;
 export { SCORING_FIELDS, createLeadScoringRule, deleteLeadScoringRule, getLeadScoring, refreshLeadScoringHistory, rescoreLead, rescoreOpenLeads, saveLeadScoringSettings, updateLeadScoringRule } from "./leads/scoring.js";
 // The consent ledger, opt-out list and personal-data lookup (CRM plan 4.3).
 export const CONSENT_LOCK_DAYS: number;
@@ -233,6 +233,5 @@ export function listTodos(client: QueryClient, context: CrmContext, filters?: { 
 export const TODO_QUEUES: ReadonlyArray<{ key: string; label: string }>;
 export const TODO_SCOPES: ReadonlyArray<string>;
 
-// The CRM Inbox and the list of every CRM quote (CRM audit navigation).
+// The CRM Inbox (CRM audit navigation).
 export function listInbox(client: QueryClient, context: CrmContext, filters?: { channel?: string; days?: number; limit?: number }): Promise<{ channel: string; items: Array<Record<string, any>> }>;
-export function listAllDealQuotes(client: QueryClient, context: CrmContext, filters?: { status?: string; limit?: number; offset?: number }): Promise<{ total: number; limit: number; offset: number; salesOn: boolean; quotes: Array<Record<string, any>> }>;

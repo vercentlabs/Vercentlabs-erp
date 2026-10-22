@@ -10,6 +10,7 @@ import { assertMayContact, channelOf } from "../data-management/contact-preferen
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { resolveMemberExecutionContext } from "../../../core/platform/reporting/execution-context.js";
 import { CrmError } from "../data-management/errors.js";
+import { nationalHolidaySql } from "../holidays/records.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { assertEligibleLeadAssignee } from "../leads/assignment.js";
 import { replaceActivityReminder } from "../reminders/index.js";
@@ -57,8 +58,9 @@ export const FOLLOW_UP_SELECT = `
          origin.code AS origin_lead_code,
          activity_type.code AS activity_type_code, activity_type.name AS activity_type_name, plan.name AS activity_plan_name,
          to_char(follow_up.repeat_until, 'YYYY-MM-DD') AS repeat_until_on,
-         (SELECT holiday.name FROM tenant.crm_holidays holiday WHERE holiday.organization_id = follow_up.organization_id
-             AND holiday.holiday_date = (follow_up.due_at AT TIME ZONE organization.timezone)::date) AS holiday_name
+         COALESCE((SELECT holiday.name FROM tenant.crm_holidays holiday WHERE holiday.organization_id = follow_up.organization_id
+             AND holiday.holiday_date = (follow_up.due_at AT TIME ZONE organization.timezone)::date),
+           ${nationalHolidaySql("(follow_up.due_at AT TIME ZONE organization.timezone)::date")}) AS holiday_name
     FROM tenant.crm_activities follow_up
     JOIN public.organizations organization ON organization.id = follow_up.organization_id
     LEFT JOIN public.users assignee ON assignee.id = follow_up.assigned_to

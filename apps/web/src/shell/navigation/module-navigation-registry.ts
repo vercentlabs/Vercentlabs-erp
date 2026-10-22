@@ -104,8 +104,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Leads", "/crm/leads"), aliases: ["prospects", "enquiries", "lead conversion", "qualification"], requiredPermission: "crm.leads.view" },
           { ...available("Deals", "/crm/opportunities"), aliases: ["deal", "opportunities", "opportunity", "won", "lost", "win rate"], requiredPermission: "crm.opportunities.view" },
           { ...available("Deals board", "/crm/pipeline"), aliases: ["pipeline", "board", "kanban", "deals by stage"], requiredPermission: "crm.opportunities.view" },
-          // Quotations and proformas from deals (CRM quotes without Sales; with Sales, the page links to Sales quotations).
-          { ...available("Quotations", "/crm/quotes"), aliases: ["quotes", "quotation", "proforma", "proforma invoice", "estimate"], requiredPermission: "crm.opportunities.view" },
           { ...available("Deal calendar", "/crm/opportunities/calendar"), aliases: ["close dates", "calendar"], requiredPermission: "crm.opportunities.view" },
         ],
       },
@@ -194,6 +192,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Email templates", "/crm/settings/email-templates"), parent: "setup", aliases: ["email", "signature", "reply address"], requiredPermission: "crm.settings.manage" },
           { ...available("Activity types and plans", "/crm/settings/activity-types"), parent: "setup", aliases: ["follow-up types", "activity plans", "cadence"], requiredPermission: "crm.settings.manage" },
           { ...available("Website chat setup", "/crm/settings/website-chat"), parent: "setup", aliases: ["chat widget", "embed chat"], requiredPermission: "crm.settings.manage" },
+          { ...available("Teams", "/crm/settings/team"), parent: "setup", aliases: ["sales teams", "team managers", "round robin"], requiredPermission: "crm.settings.manage" },
           { ...available("Team access", "/crm/settings/team-access"), parent: "setup", aliases: ["roles", "permissions", "salesperson", "sales manager"], requiredPermission: "roles.assign" },
           { ...available("Work with leads", "/crm/settings/leads/switch"), parent: "setup", aliases: ["leads off", "without leads"], requiredPermission: "crm.settings.manage" },
           { ...available("Past notes and activities", "/crm/data/history-import"), parent: "setup", aliases: ["import history", "migrate", "zoho", "hubspot"], requiredPermission: "crm.import" },

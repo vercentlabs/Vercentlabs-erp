@@ -58,7 +58,7 @@ export function FormModal({ title, children, openAfterSave = false }: { title: s
   return (
     <FormHostContext.Provider value={host}>
       <ModalOverlay isOpen isDismissable={false} onOpenChange={(open) => { if (!open) close(null); }}
-        className="fixed inset-0 z-[var(--z-modal)] flex items-start justify-center overflow-y-auto bg-overlay-backdrop p-4 sm:p-8">
+        className="fixed inset-0 z-[var(--z-modal)] flex items-start justify-center overflow-y-auto bg-overlay-backdrop p-2 sm:p-8">
         <Modal className="w-full max-w-6xl">
           <Dialog aria-label={title} className="relative rounded-[var(--radius-panel)] border border-border bg-canvas p-4 shadow-overlay outline-none sm:p-6">
             <button type="button" aria-label="Close" onClick={() => close(null)}

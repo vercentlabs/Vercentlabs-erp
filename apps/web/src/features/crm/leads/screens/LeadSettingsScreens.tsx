@@ -10,6 +10,7 @@ import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, PermissionState
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { gridStates } from "@/features/crm/shared/ui/gridStates";
+import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -43,14 +44,41 @@ export function LeadSourcesSettingsScreen() {
     onSuccess: () => { setError(null); refresh(); },
     onError: (failure) => setError(errorMessage(failure)),
   });
-  const rows = query.data ?? [];
+  const all = useMemo(() => query.data ?? [], [query.data]);
+  const [show, setShow] = useState<"active" | "inactive" | "all">("all");
+  const rows = all.filter((row) => show === "all" || (show === "active") === row.isActive);
+  const activeCount = all.filter((row) => row.isActive).length;
+  const leadTotal = all.reduce((sum, row) => sum + (row.leadCount ?? 0), 0);
+  const busiest = Math.max(1, ...all.map((row) => row.leadCount ?? 0));
+  const actions = (row: LeadSource) => [
+    { id: "edit", label: "Edit source", onAction: () => setEditing(row) },
+    { id: "active", label: row.isActive ? "Deactivate" : "Activate", isDisabled: toggle.isPending, onAction: () => toggle.mutate(row) },
+  ];
 
   const columns = useMemo<ColumnDef<LeadSource, unknown>[]>(() => [
-    { id: "name", header: "Source", accessorKey: "name", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
-    { id: "description", header: "Description", accessorKey: "description", cell: ({ row }) => row.original.description ?? "" },
-    { id: "leadCount", header: "Leads", accessorKey: "leadCount", cell: ({ row }) => <span className="tabular-nums">{row.original.leadCount ?? 0}</span> },
-    { id: "state", header: "State", accessorKey: "isActive", cell: ({ row }) => <StatusBadge tone={row.original.isActive ? "success" : "neutral"}>{row.original.isActive ? "Active" : "Inactive"}</StatusBadge> },
-  ], []);
+    {
+      id: "name", header: "Source", accessorKey: "name",
+      cell: ({ row }) => (
+        <span className={`flex min-w-0 flex-col ${row.original.isActive ? "" : "opacity-60"}`}>
+          <span className="truncate font-medium text-text">{row.original.name}</span>
+          {row.original.description && <span className="truncate text-xs text-text-secondary">{row.original.description}</span>}
+        </span>
+      ),
+    },
+    {
+      id: "leadCount", header: "Leads", accessorKey: "leadCount",
+      // The count, with a bar against the busiest source.
+      cell: ({ row }) => (
+        <span className="flex items-center gap-3">
+          <span className="w-8 text-right tabular-nums text-text">{row.original.leadCount ?? 0}</span>
+          <span className="h-1.5 w-28 overflow-hidden rounded-full bg-surface-muted" aria-hidden="true">
+            <span className="block h-full rounded-full bg-brand" style={{ width: `${Math.round(((row.original.leadCount ?? 0) / busiest) * 100)}%` }} />
+          </span>
+        </span>
+      ),
+    },
+    { id: "state", header: "Status", accessorKey: "isActive", cell: ({ row }) => <StatusBadge tone={row.original.isActive ? "success" : "neutral"}>{row.original.isActive ? "Active" : "Inactive"}</StatusBadge> },
+  ], [busiest]);
 
   if (!canManage) return <NoAccess />;
   return (
@@ -63,6 +91,15 @@ export function LeadSourcesSettingsScreen() {
           description: "Where leads come from. A source in use is never deleted; deactivate it to stop offering it on new leads.",
           primaryAction: <Button variant="primary" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New source</Button>,
         }}
+        actionBar={{
+          start: query.isSuccess ? (
+            <p className="text-sm text-text-secondary">
+              <span className="font-medium text-text">{`${all.length} ${all.length === 1 ? "source" : "sources"}`}</span>{` · ${activeCount} active · ${leadTotal} ${leadTotal === 1 ? "lead" : "leads"}`}
+            </p>
+          ) : undefined,
+          end: <ViewToggle label="Show" value={show} onChange={(id) => setShow(id as typeof show)}
+            options={[{ id: "all", label: "All" }, { id: "active", label: "Active" }, { id: "inactive", label: "Inactive" }]} />,
+        }}
       >
         <EnterpriseDataGrid<LeadSource>
           aria-label="Lead sources"
@@ -70,10 +107,10 @@ export function LeadSourcesSettingsScreen() {
           data={rows}
           getRowId={(row) => row.id}
           {...gridStates(query, rows.length, "lead sources", { title: "No lead sources", description: "Add the channels your leads come from." })}
+          onRowClick={(row) => setEditing(row)}
           rowActions={(row) => (
-            <span className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
-              <Button variant="ghost" size="compact" onPress={() => setEditing(row)}>Edit</Button>
-              <Button variant="ghost" size="compact" onPress={() => toggle.mutate(row)} isDisabled={toggle.isPending}>{row.isActive ? "Deactivate" : "Activate"}</Button>
+            <span onClick={(event) => event.stopPropagation()}>
+              <MoreMenu label={`Actions for ${row.name}`} items={actions(row)} />
             </span>
           )}
           // One compact row per source on a phone: name and use on the left, its actions in a menu.
@@ -86,12 +123,12 @@ export function LeadSourcesSettingsScreen() {
                   <span className={`size-1.5 shrink-0 rounded-full ${row.isActive ? "bg-success" : "bg-border-strong"}`} aria-hidden="true" />
                   {row.isActive ? "Active" : "Inactive"} · {row.leadCount ?? 0} {row.leadCount === 1 ? "lead" : "leads"}
                 </span>
+                <span className="mt-1 h-1 w-full max-w-40 overflow-hidden rounded-full bg-surface-muted" aria-hidden="true">
+                  <span className="block h-full rounded-full bg-brand" style={{ width: `${Math.round(((row.leadCount ?? 0) / busiest) * 100)}%` }} />
+                </span>
               </div>
               <div className="shrink-0" onClick={(event) => event.stopPropagation()}>
-                <MoreMenu label={`Actions for ${row.name}`} items={[
-                  { id: "edit", label: "Edit", onAction: () => setEditing(row) },
-                  { id: "active", label: row.isActive ? "Deactivate" : "Activate", isDisabled: toggle.isPending, onAction: () => toggle.mutate(row) },
-                ]} />
+                <MoreMenu label={`Actions for ${row.name}`} items={actions(row)} />
               </div>
             </div>
           )}
@@ -112,15 +149,16 @@ function SourceDialog({ source, onClose, onSaved }: { source: LeadSource | null;
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={source ? "Edit lead source" : "New lead source"}>
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={source ? "Edit lead source" : "New lead source"}
+      description="Where a lead came from. It is chosen on the lead and used in assignment rules, scoring and reports."
+      footer={<>
+        <Button variant="secondary" onPress={onClose}>Cancel</Button>
+        <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>{source ? "Save changes" : "Create source"}</Button>
+      </>}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
-        <TextField label="Name" isRequired value={name} onChange={setName} />
-        <TextField label="Description" value={description} onChange={setDescription} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>{source ? "Save" : "Create source"}</Button>
-        </div>
+        <TextField label="Name" isRequired value={name} onChange={setName} placeholder="For example: IndiaMART" />
+        <TextField label="Description" value={description} onChange={setDescription} description="Optional. Shown under the name in this list." />
       </div>
     </Dialog>
   );

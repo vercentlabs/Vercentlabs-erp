@@ -53,13 +53,14 @@ export function TeamDialog({
     setCurrencyCode(team?.currencyCode ?? "");
   }
 
+  // A new team's code is made from its name on the server; an existing team's code can be changed here.
   const input = {
-    code,
+    ...(team ? { code } : {}),
     name,
     managerUserId: managerUserId || null,
     parentTeamId: parentTeamId || null,
     defaultPipelineId: defaultPipelineId || null,
-    currencyCode: currencyCode || null,
+    currencyCode: currencyCode.trim().toUpperCase() || null,
   };
   const mutation = useMutation({
     mutationFn: () =>
@@ -78,47 +79,28 @@ export function TeamDialog({
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title={team ? `Edit ${team.name}` : "New sales team"}
-    >
-      <div className="flex flex-col gap-4">
-        <TextField label="Code" isRequired value={code} onChange={setCode} />
-        <TextField label="Name" isRequired value={name} onChange={setName} />
-        <Select
-          label="Parent team"
-          options={parentTeamOptions}
-          selectedKey={parentTeamId}
-          onSelectionChange={(key) => setParentTeamId(String(key ?? ""))}
-        />
-        <Select
-          label="Manager"
-          options={managerOptions}
-          selectedKey={managerUserId}
-          onSelectionChange={(key) => setManagerUserId(String(key ?? ""))}
-        />
-        <Select
-          label="Default pipeline"
-          options={pipelineOptions}
-          selectedKey={defaultPipelineId}
-          onSelectionChange={(key) => setDefaultPipelineId(String(key ?? ""))}
-        />
-        <TextField
-          label="Currency code"
-          placeholder="e.g. INR, USD"
-          value={currencyCode}
-          onChange={setCurrencyCode}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onPress={() => mutation.mutate()}
-            isLoading={mutation.isPending}
-            isDisabled={!code.trim() || !name.trim()}
-          >
+      description="People in a team share its leads (round robin and team queues), and its manager sees the team's records."
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim() || (Boolean(team) && !code.trim())}>
             {team ? "Save changes" : "Create team"}
           </Button>
-        </div>
+        </>
+      }
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <TextField label="Team name" isRequired className={team ? undefined : "sm:col-span-2"} value={name} onChange={setName} placeholder="For example: West Zone Sales" />
+        {team && <TextField label="Code" isRequired value={code} onChange={setCode} description="Used in imports and reports." />}
+        <Select label="Manager" options={managerOptions} selectedKey={managerUserId} onSelectionChange={(key) => setManagerUserId(String(key ?? ""))}
+          description="Sees and manages the team's records." />
+        <Select label="Parent team" options={parentTeamOptions} selectedKey={parentTeamId} onSelectionChange={(key) => setParentTeamId(String(key ?? ""))}
+          description="For regions: a zone inside a bigger team." />
+        <Select label="Default pipeline" options={pipelineOptions} selectedKey={defaultPipelineId} onSelectionChange={(key) => setDefaultPipelineId(String(key ?? ""))}
+          description="Where the team's new deals start." />
+        <TextField label="Currency" placeholder="Same as the company" value={currencyCode} onChange={(value) => setCurrencyCode(value.toUpperCase().slice(0, 3))}
+          description="Three letters, e.g. INR or USD." />
       </div>
     </Dialog>
   );

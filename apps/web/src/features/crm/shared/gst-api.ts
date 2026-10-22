@@ -21,10 +21,10 @@ export const getAccountGstinCheck = (accountId: string) => request<{ check: Gsti
 export const verifyAccountGstin = (accountId: string) =>
   request<{ check: GstinCheck | null; configured: boolean; warnings: Array<{ code: string; message: string }> }>(`/api/crm/accounts/${accountId}/gstin-check`, { method: "POST", json: {} });
 
-export type Holiday = { id: string; date: string; name: string };
+// national: one of the built-in national holidays (always there, cannot be removed).
+export type Holiday = { id: string; date: string; name: string; national: boolean };
 export const listHolidays = (year?: number) => request<{ holidays: Holiday[] }>(`/api/crm/holidays${year ? `?year=${year}` : ""}`).then((result) => result.holidays);
 export const addHoliday = (input: { date: string; name: string }) => request<{ holiday: Holiday }>("/api/crm/holidays", { method: "POST", json: input });
-export const addNationalHolidays = (year: number) => request<{ added: number }>("/api/crm/holidays/national", { method: "POST", json: { year } });
 export const removeHoliday = (id: string) => request<{ removed: true }>(`/api/crm/holidays/${id}`, { method: "DELETE" });
 
 export function errorMessage(error: unknown, fallback = "Something went wrong. Try again.") {

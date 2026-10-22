@@ -124,7 +124,7 @@ const ROWS: Row[] = [
       const { defaults, choices } = await getWorkDefaults();
       return `${workingDaysLabel(defaults.workingDays, choices.weekdays)} · ${defaults.workStart}–${defaults.workEnd}`;
     } },
-  { id: "teams", title: "Teams", purpose: "The sales teams leads and deals are assigned to.", href: "/settings/teams", permission: "crm.settings.manage", external: true },
+  { id: "teams", title: "Teams", purpose: "The sales teams leads and deals are assigned to.", href: "/crm/settings/team", permission: "crm.settings.manage" },
 ];
 
 // The groups, in the order a new company works through them; a row in no group shows under Advanced.
@@ -146,7 +146,7 @@ export function CrmSetupScreen() {
   return (
     // A settings page: each group's name and purpose on the left, its settings on the right (stacked below lg), groups divided by a
     // hairline, and the whole page held to a readable width so a row's title and its state stay close.
-    <div className="flex w-full max-w-6xl flex-1 flex-col gap-6">
+    <div className="flex w-full flex-1 flex-col gap-6">
       <PageHeader title="Setup" description="Every CRM setting, grouped by what it is for." />
       <div className="flex flex-col divide-y divide-border border-t border-border">
         {GROUPS.map((group, index) => {

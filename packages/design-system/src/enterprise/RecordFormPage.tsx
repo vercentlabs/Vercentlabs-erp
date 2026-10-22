@@ -26,11 +26,13 @@ export function RecordFormPage({ header, formActions, banner, repeatActions = fa
   return (
     <Stack gap={4}>
       <PageHeader {...header} secondaryActions={repeatActions ? <div className="flex gap-2">{formActions}</div> : undefined} />
-      {banner}
-      <Surface padding="lg">
+      {/* A banner whose messages all render nothing takes no room (no empty gap under the header). */}
+      {banner && <div className="hidden has-[*:not(:empty)]:block">{banner}</div>}
+      {/* On a phone the form sits straight on the page (no card inside the window), and Save stays in reach at the bottom. */}
+      <Surface padding="lg" className="max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
         <Stack gap={4}>
           {children}
-          <div className="flex justify-end gap-2 border-t border-border pt-4">{formActions}</div>
+          <div className="flex justify-end gap-2 border-t border-border pt-4 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:-mb-4 max-sm:bg-canvas max-sm:px-4 max-sm:pb-4 max-sm:[&>*]:flex-1">{formActions}</div>
         </Stack>
       </Surface>
     </Stack>

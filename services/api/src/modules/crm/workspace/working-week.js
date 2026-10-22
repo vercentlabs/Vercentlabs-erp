@@ -1,6 +1,8 @@
 // The organization's working week (M3): the days it works, its hours, which Saturdays of the month are off, on its own clock, plus its
 // holidays — the schedule reminders, the lead first-response time and the stage time limits count in (activities/shared/business-hours.js).
 // Stored on the CRM settings row (migration 0217); an organization that never saved one works Monday–Saturday, 10:00–19:00.
+import { nationalHolidaysBetween } from "../holidays/records.js";
+
 export const STANDARD_WORKING_WEEK = Object.freeze({ workingDays: [1, 2, 3, 4, 5, 6], workStart: "10:00", workEnd: "19:00", saturdaysOff: [] });
 
 export async function getWorkingWeek(client, organizationId) {
@@ -13,8 +15,11 @@ export async function getWorkingWeek(client, organizationId) {
 export async function workSchedule(client, organizationId) {
   const week = await getWorkingWeek(client, organizationId);
   const timezone = (await client.query("SELECT timezone FROM public.organizations WHERE id = $1", [organizationId])).rows[0]?.timezone || "Asia/Kolkata";
-  const holidays = (await client.query(
-    "SELECT to_char(holiday_date, 'YYYY-MM-DD') AS day FROM tenant.crm_holidays WHERE organization_id = $1 AND holiday_date BETWEEN current_date - 400 AND current_date + 400",
-    [organizationId])).rows.map((row) => row.day);
+  const { rows } = await client.query(
+    `SELECT to_char(current_date - 400, 'YYYY-MM-DD') AS from_day, to_char(current_date + 400, 'YYYY-MM-DD') AS to_day,
+            ARRAY(SELECT to_char(holiday_date, 'YYYY-MM-DD') FROM tenant.crm_holidays WHERE organization_id = $1 AND holiday_date BETWEEN current_date - 400 AND current_date + 400) AS days`,
+    [organizationId]);
+  // The national holidays are built in (holidays/records.js), so they count whether or not they were added.
+  const holidays = [...new Set([...rows[0].days, ...nationalHolidaysBetween(rows[0].from_day, rows[0].to_day).map((entry) => entry.day)])];
   return { timezone, weekdays: week.workingDays, start: week.workStart, end: week.workEnd, saturdaysOff: week.saturdaysOff, holidays };
 }

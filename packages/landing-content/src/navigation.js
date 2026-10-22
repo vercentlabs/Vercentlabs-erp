@@ -30,6 +30,7 @@ export const PRIMARY_NAV = Object.freeze([
   { label: "Modules", href: "/modules" },
   { label: "Industries", href: "/industries" },
   { label: "Resources", href: "/resources" },
+  { label: "Pricing", href: "/pricing" },
 ]);
 
 /**

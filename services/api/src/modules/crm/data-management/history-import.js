@@ -15,13 +15,17 @@ const TYPES = Object.freeze({
   demo: "meeting", whatsapp: "whatsapp", sms: "sms", text: "sms", note: "note", notes: "note", comment: "note", other: "other", task: "other", activity: "other",
 });
 export const HISTORY_IMPORT_COLUMNS = Object.freeze([
-  { key: "record", label: "Record", aliases: ["record", "related to", "regarding", "lead", "deal", "contact", "company", "account", "record number", "record id"], sample: "LEAD-000012" },
-  { key: "type", label: "Type", aliases: ["type", "activity type", "kind", "channel"], sample: "Call" },
-  { key: "date", label: "Date", aliases: ["date", "activity date", "created", "created time", "when", "date time", "due date"], sample: "2025-11-04 15:30" },
-  { key: "subject", label: "Subject", aliases: ["subject", "title", "summary"], sample: "Discussed the AMC renewal" },
-  { key: "details", label: "Details", aliases: ["details", "description", "notes", "body", "content", "comments"], sample: "Wants a 2-year AMC at last year's rate." },
-  { key: "outcome", label: "Outcome", aliases: ["outcome", "result", "call result", "status"], sample: "Interested" },
-  { key: "by", label: "By", aliases: ["by", "owner", "user", "created by", "activity owner", "assigned to", "owner email"], sample: "" },
+  // The aliases include the headers of the other tools' activity exports (Zoho, HubSpot, Salesforce, Odoo, LeadSquared).
+  { key: "record", label: "Record", aliases: ["record", "related to", "regarding", "lead", "deal", "contact", "company", "account", "record number", "record id",
+    "associated contact", "associated company", "associated deal", "contact email", "lead email", "email", "email address", "related document", "parent record"], sample: "LEAD-000012" },
+  { key: "type", label: "Type", aliases: ["type", "activity type", "kind", "channel", "activity event", "task subtype", "event type", "call type"], sample: "Call" },
+  { key: "date", label: "Date", aliases: ["date", "activity date", "created", "created time", "when", "date time", "due date", "activity date time", "call start time",
+    "start date time", "start time", "created on", "created date", "start"], sample: "2025-11-04 15:30" },
+  { key: "subject", label: "Subject", aliases: ["subject", "title", "summary", "note title", "activity title"], sample: "Discussed the AMC renewal" },
+  { key: "details", label: "Details", aliases: ["details", "description", "notes", "body", "content", "comments", "note", "note content", "call description",
+    "activity note", "full comments"], sample: "Wants a 2-year AMC at last year's rate." },
+  { key: "outcome", label: "Outcome", aliases: ["outcome", "result", "call result", "status", "disposition", "call outcome", "activity outcome"], sample: "Interested" },
+  { key: "by", label: "By", aliases: ["by", "owner", "user", "created by", "activity owner", "assigned to", "owner email", "assigned", "call owner", "task owner"], sample: "" },
 ]);
 const headerKey = (value) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 

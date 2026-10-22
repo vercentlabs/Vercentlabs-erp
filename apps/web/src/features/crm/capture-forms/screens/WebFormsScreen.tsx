@@ -69,6 +69,39 @@ export function WebFormsScreen() {
           primaryAction: <Button variant="primary" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New form</Button>,
         }}
       >
+        {/* Tablet (between a phone and a laptop): the forms as cards, two across — the table is too narrow there. */}
+        {query.isSuccess && rows.length > 0 && (
+          <ul className="hidden gap-3 md:max-lg:grid md:max-lg:grid-cols-2" aria-label="Web forms">
+            {rows.map((row) => (
+              <li key={row.id} className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 font-semibold text-text">{row.name}</span>
+                  <StatusBadge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Taking submissions" : "Off"}</StatusBadge>
+                </div>
+                <ul className="flex flex-wrap gap-1.5" aria-label="Asks for">
+                  {row.fields.map((field) => (
+                    <li key={field.name} className="rounded-full border border-border bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">
+                      {CAPTURE_FIELDS.find((entry) => entry.name === field.name)?.label ?? field.name}
+                    </li>
+                  ))}
+                </ul>
+                <dl className="grid grid-cols-3 gap-2 border-t border-border pt-3 text-xs">
+                  <div><dt className="text-text-muted">Source</dt><dd className="truncate text-text">{row.sourceName ?? "—"}</dd></div>
+                  <div><dt className="text-text-muted">Consent notice</dt><dd className="text-text">{row.noticeVersion ? `Version ${row.noticeVersion}` : "None"}</dd></div>
+                  <div><dt className="text-text-muted">Leads</dt><dd className="tabular-nums text-text">{row.leadCount}</dd></div>
+                </dl>
+                <div className="mt-auto flex items-center justify-end gap-2">
+                  <Button variant="outline" size="compact" onPress={() => setCoding(row)}>Get the code</Button>
+                  <MoreMenu label={`Actions for ${row.name}`} items={[
+                    { id: "edit", label: "Edit", onAction: () => setEditing(row) },
+                    { id: "state", label: row.status === "active" ? "Switch off" : "Switch on", isDisabled: toggle.isPending, onAction: () => toggle.mutate(row) },
+                  ]} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className={query.isSuccess && rows.length > 0 ? "md:max-lg:hidden" : undefined}>
         <EnterpriseDataGrid<CaptureForm>
           aria-label="Web forms"
           columns={columns}
@@ -98,6 +131,7 @@ export function WebFormsScreen() {
             </div>
           )}
         />
+        </div>
       </EnterpriseListPage>
       {editing && <FormDialog form={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(saved) => { refresh(); setEditing(null); if (editing === "new") setCoding(saved); }} />}
       {coding && <CodeDialog form={coding} onClose={() => setCoding(null)} />}
