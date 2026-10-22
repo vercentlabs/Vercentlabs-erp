@@ -193,7 +193,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
               {canEdit && <WhatsAppButton entity="accounts" recordId={account.id} />}
               {canEdit && <CallSmsButtons entity="accounts" recordId={account.id} />}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("activity")}>Log activity</Button>}
-              {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
+              {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>New follow-up</Button>}
               <MoreMenu label="More company actions" items={menuActions} />
             </>
           ),

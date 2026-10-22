@@ -28,7 +28,7 @@ export function RecordActivityFeed({ entityType, entityId, sections, initial = "
         <div className="flex flex-wrap gap-2">
           {onLogActivity && <Button variant="secondary" size="compact" onPress={onLogActivity}>Log activity</Button>}
           {sections.tasks && <Button variant="secondary" size="compact" onPress={() => jump("tasks")}>New task</Button>}
-          {onScheduleFollowUp && <Button variant="secondary" size="compact" onPress={onScheduleFollowUp}>Schedule follow-up</Button>}
+          {onScheduleFollowUp && <Button variant="secondary" size="compact" onPress={onScheduleFollowUp}>New follow-up</Button>}
           {sections.notes && <Button variant="secondary" size="compact" onPress={() => jump("notes")}>Add note</Button>}
           {sections.files && <Button variant="secondary" size="compact" onPress={() => jump("files")}>Upload</Button>}
         </div>

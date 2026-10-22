@@ -258,10 +258,10 @@ export function ContactListScreen() {
           title: "Contacts",
           description: "The people you deal with — at your companies, or on their own until you know their company.",
           primaryAction: can?.create ? <LinkButton href="/crm/contacts/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New contact</LinkButton> : undefined,
-          secondaryActions: <><SavedViews screen="contacts" basePath="/crm/contacts" filters={listFilters} /><MoreMenu label="More contact actions" items={[
+          secondaryActions: <MoreMenu label="More contact actions" items={[
             ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=contacts") }] : []),
             ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("contacts", contactExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
-          ]} /></>,
+          ]} />,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as ContactViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
@@ -296,8 +296,8 @@ export function ContactListScreen() {
             </>
           ),
           end: (
-            <span className="hidden md:flex">{/* cards below md: no columns to choose */}<PopoverTrigger>
-              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Columns</span></Button>
+            <><SavedViews screen="contacts" basePath="/crm/contacts" filters={listFilters} /><span className="hidden md:flex">{/* cards below md: no columns to choose */}<PopoverTrigger>
+              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span>Columns</span></Button>
               <Popover>
                 <div className="flex flex-col gap-2 p-1">
                   <p className="text-xs font-medium text-text-secondary">Show columns</p>
@@ -306,7 +306,7 @@ export function ContactListScreen() {
                   ))}
                 </div>
               </Popover>
-            </PopoverTrigger></span>
+            </PopoverTrigger></span></>
           ),
         }}
         filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: clearFilters } : undefined}

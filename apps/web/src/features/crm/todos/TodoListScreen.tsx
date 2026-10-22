@@ -9,8 +9,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { CalendarClock, Plus } from "lucide-react";
-import { Badge, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, SearchField, Select, buttonVariants } from "@vercentlabs/design-system";
+import { CalendarClock, ChevronDown, Plus, SquareCheck } from "lucide-react";
+import {
+  Badge, Button, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, Menu, MenuItem, MenuTrigger, NoResultsState, SearchField, Select, buttonVariants,
+} from "@vercentlabs/design-system";
 
 import { CrmApiErrorWithBody } from "@/features/crm/shared/http/crm-api-error";
 import { crmApiClient } from "@/features/crm/shared/http/crm-request";
@@ -41,7 +43,6 @@ type TodoPage = {
 
 const PAGE_SIZE = 50;
 const SCOPES: Scope[] = ["mine", "everyone"];
-const SCOPE_NOTES: Record<Scope, string> = { mine: "assigned to you", everyone: "everyone's tasks and follow-ups" };
 const QUEUES: Array<Omit<QueueCard<Queue>, "count">> = [
   { key: "overdue", label: "Overdue", tone: "danger" },
   { key: "today", label: "Due today", tone: "warning" },
@@ -118,14 +119,21 @@ export function TodoListScreen({ tabs }: { tabs?: ReactNode }) {
     { id: "assignee", header: "Assigned to", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.assigneeName ?? "Unassigned"}</span> },
   ], []);
 
-  const queueLabel = QUEUES.find((entry) => entry.key === queue)?.label ?? "";
-  const newTask = can?.createTask ? (
-    <Link href="/crm/activities?tab=tasks&new=1" className={buttonVariants({ variant: "primary" })}><Plus className="size-4" aria-hidden="true" />New task</Link>
-  ) : undefined;
-  const newFollowUp = can?.createFollowUp ? (
-    <Link href="/crm/activities?tab=follow-ups&new=1" className={buttonVariants({ variant: newTask ? "outline" : "primary" })}>
-      <CalendarClock className="size-4" aria-hidden="true" /><span className={newTask ? "max-sm:sr-only" : undefined}>Schedule follow-up</span>
-    </Link>
+  // One primary + New: a task or a follow-up, each opening its own tab's form (just the one button when only one may be created).
+  const creatable = [
+    ...(can?.createTask ? [{ id: "task", label: "Task", href: "/crm/activities?tab=tasks&new=1" }] : []),
+    ...(can?.createFollowUp ? [{ id: "follow-up", label: "Follow-up", href: "/crm/activities?tab=follow-ups&new=1" }] : []),
+  ];
+  const newAction = creatable.length > 1 ? (
+    <MenuTrigger>
+      <Button variant="primary"><Plus className="size-4" aria-hidden="true" />New<ChevronDown className="size-4" aria-hidden="true" /></Button>
+      <Menu onAction={(key) => { const entry = creatable.find((item) => item.id === String(key)); if (entry) router.push(entry.href); }}>
+        <MenuItem id="task"><span className="flex items-center gap-2"><SquareCheck className="size-4" aria-hidden="true" />Task</span></MenuItem>
+        <MenuItem id="follow-up"><span className="flex items-center gap-2"><CalendarClock className="size-4" aria-hidden="true" />Follow-up</span></MenuItem>
+      </Menu>
+    </MenuTrigger>
+  ) : creatable[0] ? (
+    <Link href={creatable[0].href} className={buttonVariants({ variant: "primary" })}><Plus className="size-4" aria-hidden="true" />New {creatable[0].label.toLowerCase()}</Link>
   ) : undefined;
 
   return (
@@ -134,13 +142,7 @@ export function TodoListScreen({ tabs }: { tabs?: ReactNode }) {
       header={{
         title: "To-dos",
         description: "Tasks and follow-ups together, overdue first.",
-        primaryAction: newTask ?? newFollowUp,
-        secondaryActions: (
-          <>
-            <SavedViews screen="todos" basePath="/crm/activities" filters={{ scope, queue, type: type !== ANY ? type : undefined, search: submittedSearch || undefined }} />
-            {newTask && newFollowUp}
-          </>
-        ),
+        primaryAction: newAction,
       }}
       actionBar={{
         leading: <ScopeSwitch label="Whose to-dos" scopes={SCOPES} value={scope} onChange={setScope} />,
@@ -150,6 +152,8 @@ export function TodoListScreen({ tabs }: { tabs?: ReactNode }) {
               onSubmit={(value) => { setSubmittedSearch(value.trim()); setPageIndex(0); }} />
             {/* The one filter, so it sits in the row — one tap, not a Filters panel holding a single field. */}
             <Select aria-label="Type" className="min-w-0 max-sm:flex-1 sm:w-44" selectedKey={type} onSelectionChange={(key) => setType(String(key))} options={TYPES} />
+            {/* The list's saved views, in the same group as its search and filter, so on a narrow screen they wrap together. */}
+            <SavedViews size="standard" screen="todos" basePath="/crm/activities" filters={{ scope, queue, type: type !== ANY ? type : undefined, search: submittedSearch || undefined }} />
           </>
         ),
         collapseFilters: false,
@@ -158,7 +162,6 @@ export function TodoListScreen({ tabs }: { tabs?: ReactNode }) {
       <div className="flex flex-col gap-4">
         {notice && <p role="status" className="self-start rounded-[var(--radius-control)] bg-success-soft px-3 py-1.5 text-sm text-success">{notice}</p>}
         <QueueCards<Queue> label="To-do queues" cards={QUEUES.map((entry) => ({ ...entry, count: query.data?.counts[entry.key] }))} value={queue} onChange={setQueue} />
-        <p className="text-sm text-text-secondary"><span className="font-medium text-text">{queueLabel}</span> · {SCOPE_NOTES[scope]}</p>
         <EnterpriseDataGrid<Todo>
           aria-label="To-dos"
           columns={columns}

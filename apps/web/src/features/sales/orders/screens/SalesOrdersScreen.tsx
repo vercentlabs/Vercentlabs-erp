@@ -202,7 +202,7 @@ export function SalesOrdersScreen() {
         title: "Sales Orders",
         description: "Customer orders and where each one stands: reserved, delivered, invoiced and paid, each on its own.",
         primaryAction: canCreate ? <LinkButton href="/sales/orders/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New Sales Order</LinkButton> : undefined,
-        secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={salesOrderExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a> : undefined,
+        secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={salesOrderExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span>Export</span></a> : undefined,
       }}
       savedViews={{ views: views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView, pinned: PINNED_VIEWS.filter((key) => views.some((entry) => entry.key === key)) }}
       bulkActionBar={{

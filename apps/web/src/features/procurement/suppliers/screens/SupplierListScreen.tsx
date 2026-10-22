@@ -122,10 +122,10 @@ export function SupplierListScreen() {
           primaryAction: can?.create ? <LinkButton href="/procurement/suppliers/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New supplier</LinkButton> : undefined,
           secondaryActions: (
             <>
-              {can?.import && can.create && <LinkButton href="/procurement/suppliers/import" variant="outline"><Upload className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Import</span></LinkButton>}
+              {can?.import && can.create && <LinkButton href="/procurement/suppliers/import" variant="outline"><Upload className="size-4" aria-hidden="true" /><span>Import</span></LinkButton>}
               {can?.export && (
                 // The download follows the view, search and filters on screen.
-                <Button variant="outline" onPress={() => window.location.assign(exportUrl(listFilters))}><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></Button>
+                <Button variant="outline" onPress={() => window.location.assign(exportUrl(listFilters))}><Download className="size-4" aria-hidden="true" /><span>Export</span></Button>
               )}
             </>
           ),

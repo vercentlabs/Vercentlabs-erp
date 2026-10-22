@@ -397,12 +397,12 @@ function RoleCard({ role, canEdit, canSeeUsers, onView, onCopy, onEdit, onRemove
           )}
         </span>
         <span className="flex shrink-0 gap-0.5">
-          <Button variant="ghost" size="compact" onPress={onView} aria-label={`View ${role.name}`}><Eye className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">View</span></Button>
+          <Button variant="ghost" size="compact" onPress={onView} aria-label={`View ${role.name}`}><Eye className="size-4" aria-hidden="true" /><span>View</span></Button>
           {canEdit && (role.is_system
-            ? <Button variant="ghost" size="compact" onPress={onCopy} aria-label={`Copy ${role.name}`}><Copy className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Copy</span></Button>
+            ? <Button variant="ghost" size="compact" onPress={onCopy} aria-label={`Copy ${role.name}`}><Copy className="size-4" aria-hidden="true" /><span>Copy</span></Button>
             : (
               <>
-                <Button variant="ghost" size="compact" onPress={onEdit} aria-label={`Edit ${role.name}`}><Pencil className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Edit</span></Button>
+                <Button variant="ghost" size="compact" onPress={onEdit} aria-label={`Edit ${role.name}`}><Pencil className="size-4" aria-hidden="true" /><span>Edit</span></Button>
                 <Button variant="ghost" size="compact" onPress={onRemove} aria-label={`Remove ${role.name}`}><Trash2 className="size-4" aria-hidden="true" /></Button>
               </>
             ))}

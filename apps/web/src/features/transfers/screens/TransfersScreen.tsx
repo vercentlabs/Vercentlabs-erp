@@ -105,7 +105,7 @@ export function TransfersScreen({ initialItemId }: { initialItemId?: string }) {
         title: "Internal Transfers",
         description: "Stock moved between your warehouses or between locations of one warehouse. Confirming reserves the source stock; goods in transit stay yours until received. A transfer never changes stock's disposition and never touches profit or loss.",
         primaryAction: canCreate ? <LinkButton href={`${TRANSFERS_BASE}/new`} variant="primary"><Plus className="size-4" aria-hidden="true" />New transfer</LinkButton> : undefined,
-        secondaryActions: list.data?.canExport ? <a className={buttonVariants({ variant: "outline" })} href={exportUrl(filters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a> : undefined,
+        secondaryActions: list.data?.canExport ? <a className={buttonVariants({ variant: "outline" })} href={exportUrl(filters)} download><Download className="size-4" aria-hidden="true" /><span>Export</span></a> : undefined,
       }}
       savedViews={{ views: VIEWS, activeViewId: view, onSelect: (id) => { setView(id); paged.resetPage(); } }}
       actionBar={{

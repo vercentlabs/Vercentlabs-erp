@@ -105,7 +105,7 @@ export function PriceListDetailScreen({ priceListId }: { priceListId: string }) 
         secondaryActions: (
           <>
             {can.import && can.managePrices && <LinkButton href={`/sales/price-lists/${list.id}/import`} variant="outline"><Upload className="size-4" aria-hidden="true" />Import prices</LinkButton>}
-            {can.export && <a className={buttonVariants({ variant: "outline" })} href={priceExportUrl(list.id)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a>}
+            {can.export && <a className={buttonVariants({ variant: "outline" })} href={priceExportUrl(list.id)} download><Download className="size-4" aria-hidden="true" /><span>Export</span></a>}
             <MoreActions actions={menu} />
           </>
         ),

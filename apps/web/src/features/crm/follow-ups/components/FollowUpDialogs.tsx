@@ -126,7 +126,7 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Select label="Type" className="col-span-2 sm:col-span-1" selectedKey={type} onSelectionChange={(key) => setType(String(key))} options={options.types.map((entry) => ({ value: entry.code, label: entry.label }))} />
           {!editing && <DateInput label="Date" isRequired value={scheduledDate} onChange={setScheduledDate} />}
-          {!editing && <TimeInput label="Time" description="Optional." value={scheduledTime} onChange={setScheduledTime} />}
+          {!editing && <TimeInput label="Time" value={scheduledTime} onChange={setScheduledTime} />}
         </div>
         <TextField label="Subject" description="Leave empty to use the type and the record's name." value={subject} onChange={setSubject} placeholder="For example: Follow up on ERP pricing" />
         <MoreDetails description="Contact, who it is for, reminder, repeat and notes."
@@ -166,7 +166,7 @@ export function RescheduleFollowUpDialog({ isOpen, onOpenChange, followUp, onDon
         <ErrorBanner message={error} />
         <div className="grid gap-4 sm:grid-cols-2">
           <DateInput label="New date" isRequired value={scheduledDate} onChange={setScheduledDate} />
-          <TimeInput label="New time" description="Optional." value={scheduledTime} onChange={setScheduledTime} />
+          <TimeInput label="New time" value={scheduledTime} onChange={setScheduledTime} />
         </div>
         <TextField label="Reason" description="Optional." value={reason} onChange={setReason} />
       </div>

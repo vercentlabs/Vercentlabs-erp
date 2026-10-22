@@ -98,13 +98,13 @@ export function WorkRowActions({ kind, id, snooze = kind === "follow_up", onDone
     // Shown on hover (and to keyboard focus) on desktop; always visible on a touch screen.
     <span className="flex shrink-0 items-center gap-1 opacity-100 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 lg:opacity-0"
       onClick={(event) => event.stopPropagation()}>
-      <Button size="compact" variant="ghost" isDisabled={busy} aria-label="Complete" onPress={() => void open("complete")}><Check className="size-4" aria-hidden="true" /><span className="max-xl:sr-only">Complete</span></Button>
+      <Button size="compact" variant="ghost" isDisabled={busy} aria-label="Complete" onPress={() => void open("complete")}><Check className="size-4" aria-hidden="true" /><span>Complete</span></Button>
       {kind === "follow_up" && (
-        <Button size="compact" variant="ghost" isDisabled={busy} aria-label="Reschedule" onPress={() => void open("reschedule")}><CalendarClock className="size-4" aria-hidden="true" /><span className="max-xl:sr-only">Reschedule</span></Button>
+        <Button size="compact" variant="ghost" isDisabled={busy} aria-label="Reschedule" onPress={() => void open("reschedule")}><CalendarClock className="size-4" aria-hidden="true" /><span>Reschedule</span></Button>
       )}
       {kind === "follow_up" && snooze && (
         <MenuTrigger>
-          <Button size="compact" variant="ghost" isDisabled={busy} aria-label="Snooze the reminder"><BellOff className="size-4" aria-hidden="true" /><span className="max-xl:sr-only">Snooze</span></Button>
+          <Button size="compact" variant="ghost" isDisabled={busy} aria-label="Snooze the reminder"><BellOff className="size-4" aria-hidden="true" /><span>Snooze</span></Button>
           <Menu onAction={(key) => void snoozeFor(String(key))}>
             {snoozeChoices().map((choice) => <MenuItem key={choice.id} id={choice.id}>{choice.label}</MenuItem>)}
           </Menu>

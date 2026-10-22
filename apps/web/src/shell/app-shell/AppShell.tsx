@@ -19,8 +19,7 @@ import {
 // (240px, only when a module route is active — see SecondarySidebar.tsx)
 // + workspace content, with a persistent top strip (breadcrumbs + search,
 // company/branch context switcher, settings and the profile menu). Below 1024px the icon rail and secondary
-// sidebar are both replaced by MobileNav's top bar + full-label drawer —
-// verified at 1440/1024/390px; never squeezed into a phone viewport.
+// sidebar move into MobileNav: a top bar and a drawer with the same two columns (the app rail and the chosen app's menu).
 // trial: the company's 30-day Standard trial while it is on one (a bar while it runs; a full-page notice once it has ended).
 export function AppShell({
   workspace,

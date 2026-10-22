@@ -4,7 +4,7 @@ import { useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import {
   AlertDialog,
-  IconButton,
+  Button,
   Menu,
   MenuItem,
   MenuSection,
@@ -46,9 +46,10 @@ export function MoreMenu({
   return (
     <>
       <MenuTrigger>
-        <IconButton aria-label={label} variant="outline">
-          <MoreHorizontal className="size-4" aria-hidden="true" />
-        </IconButton>
+        {/* Named, not a bare "⋯": the word says there is more here. */}
+        <Button aria-label={label} variant="outline">
+          <MoreHorizontal className="size-4" aria-hidden="true" /><span>More</span>
+        </Button>
         <Menu
           onAction={(key) => {
             const item = items.find((i) => i.id === String(key));

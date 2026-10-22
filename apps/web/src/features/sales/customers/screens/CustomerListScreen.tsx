@@ -162,10 +162,10 @@ export function CustomerListScreen() {
           primaryAction: can?.create ? <LinkButton href="/sales/customers/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New customer</LinkButton> : undefined,
           secondaryActions: (
             <>
-              {can?.import && can.create && <LinkButton href="/sales/customers/import" variant="outline"><Upload className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Import</span></LinkButton>}
+              {can?.import && can.create && <LinkButton href="/sales/customers/import" variant="outline"><Upload className="size-4" aria-hidden="true" /><span>Import</span></LinkButton>}
               {can?.export && (
                 <MenuTrigger>
-                  <Button variant="outline"><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></Button>
+                  <Button variant="outline"><Download className="size-4" aria-hidden="true" /><span>Export</span></Button>
                   <Menu onAction={(key) => {
                     // The download follows the view, search and filters on screen.
                     window.location.assign(key === "customers" ? customerExportUrl(listFilters) : customerRelatedExportUrl(key as "addresses" | "contacts", listFilters));

@@ -208,7 +208,7 @@ export function PipelineScreen() {
           secondaryActions: (
             <>
               {can?.manageStages && (
-                <LinkButton href="/crm/settings/opportunities/stages" variant="ghost" aria-label="Sales stages (Setup)"><Settings2 className="size-4" aria-hidden="true" /></LinkButton>
+                <LinkButton href="/crm/settings/opportunities/stages" variant="ghost" aria-label="Sales stages (Setup)"><Settings2 className="size-4" aria-hidden="true" /><span>Stages</span></LinkButton>
               )}
               <SavedViews screen="pipeline" basePath="/crm/pipeline" filters={pipelineFilters} />
               {can?.export && <MoreMenu label="More pipeline actions" items={[{ id: "export", label: "Export", onAction: () => { window.location.href = opportunityExportUrl(listFilters); } }]} />}
@@ -219,10 +219,13 @@ export function PipelineScreen() {
         actionBar={{
           start: (
             <>
+              {/* Which board to look at, not a filter: kept in the row (a plain element), never folded into a Filters menu. */}
               {pipeline && pipeline.pipelines.length > 1 && (
-                <Select aria-label="Pipeline" size="compact" selectedKey={pipeline.pipeline.id}
-                  onSelectionChange={(key) => { setPipelineId(String(key)); setFilters({ ...filters, stageId: ANY }); }}
-                  options={pipeline.pipelines.map((entry) => ({ value: entry.id, label: `${entry.name} (${entry.openCount})` }))} />
+                <div className="w-full sm:w-auto">
+                  <Select aria-label="Pipeline" size="compact" className="w-full sm:w-60" selectedKey={pipeline.pipeline.id}
+                    onSelectionChange={(key) => { setPipelineId(String(key)); setFilters({ ...filters, stageId: ANY }); }}
+                    options={pipeline.pipelines.map((entry) => ({ value: entry.id, label: `${entry.name} (${entry.openCount})` }))} />
+                </div>
               )}
               <SearchField aria-label="Search the pipeline" placeholder="Search deal, company, contact or number" className="w-full sm:min-w-64 sm:flex-1" value={search} onChange={setSearch}
                 onSubmit={(value) => setSubmittedSearch(value.trim())} />

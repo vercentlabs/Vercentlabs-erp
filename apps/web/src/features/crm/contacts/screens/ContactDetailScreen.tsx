@@ -163,7 +163,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
               <FollowButton entity="contacts" recordId={contact.id} />
               {canEdit && <WhatsAppButton entity="contacts" recordId={contact.id} />}
               {canEdit && <CallSmsButtons entity="contacts" recordId={contact.id} />}
-              {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
+              {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>New follow-up</Button>}
               {phone && !contact.doNotCall && <LinkButton variant="secondary" href={`tel:${phone.replace(/[^0-9+]/g, "")}`}>Call</LinkButton>}
               <MoreMenu label="More contact actions" items={menuActions} />
             </>

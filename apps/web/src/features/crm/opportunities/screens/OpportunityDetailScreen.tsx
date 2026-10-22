@@ -132,7 +132,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
   const quoteCount = opportunity.quotationCount + (opportunity.crmQuoteCount ?? 0);
   const stageActions: Record<OpportunityStageAction, { label: string; show: boolean; run: () => void; blocked?: string | null }> = {
     log_activity: { label: "Log activity", show: can.edit, run: () => setDialog("activity") },
-    schedule_follow_up: { label: "Schedule follow-up", show: can.edit, run: () => setDialog("followUp") },
+    schedule_follow_up: { label: "New follow-up", show: can.edit, run: () => setDialog("followUp") },
     edit_details: { label: "Add requirements", show: can.edit, run: () => router.push(`/crm/opportunities/${opportunity.id}/edit`) },
     add_products: { label: "Add products", show: can.edit, run: () => setTab("products") },
     create_quotation: { label: quoteCount ? "Create revised quotation" : "Create quotation", show: can.createQuotation, blocked: quoteBlocked,
@@ -167,7 +167,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, initialChip, dia
     { id: "edit", label: "Edit deal", show: canEdit, onAction: () => router.push(`/crm/opportunities/${opportunity.id}/edit`) },
     { id: "assign", group: "Ownership", label: opportunity.ownerUserId ? "Reassign" : "Assign", show: canAssign, onAction: () => setDialog("assign") },
     { id: "probability", group: "Deal", label: "Set probability", show: open && can.changeProbability, onAction: () => setDialog("probability") },
-    { id: "followUp", group: "Deal", label: "Schedule follow-up", show: canEdit, onAction: () => setDialog("followUp") },
+    { id: "followUp", group: "Deal", label: "New follow-up", show: canEdit, onAction: () => setDialog("followUp") },
     { id: "merge", group: "Deal", label: "Merge another deal into this one", show: open && can.edit && can.markLost, onAction: () => setDialog("merge") },
     { id: "pipeline", group: "Deal", label: "Move to another pipeline", show: open && can.changeStage && (options.pipelines?.length ?? 0) > 1, onAction: () => setDialog("pipeline") },
     { id: "won", group: "Outcome", label: "Mark won", show: open && can.markWon && !wonInButtons, onAction: () => setDialog("won") },

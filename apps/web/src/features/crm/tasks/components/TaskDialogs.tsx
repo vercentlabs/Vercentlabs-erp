@@ -3,12 +3,13 @@
 // The task actions that need a few words from the user: create or edit,
 // complete (with an optional next follow-up), cancel, reassign. Each is one
 // task operation on the server.
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button, Checkbox, Dialog, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { DateInput, DateTimeInput, TimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
+import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
 import { localDate } from "@/features/crm/shared/ui/WorkQueues";
 
 import {
@@ -26,11 +27,12 @@ const FOLLOW_UP_LABELS: Record<string, string> = { call: "Call", email: "Email",
 function Actions({ onCancel, onConfirm, label, isLoading, isDisabled, danger }: {
   onCancel: () => void; onConfirm: () => void; label: string; isLoading: boolean; isDisabled?: boolean; danger?: boolean;
 }) {
+  // The dialog's footer, kept in view below the fields (Dialog footer).
   return (
-    <div className="flex justify-end gap-2">
+    <>
       <Button variant="secondary" onPress={onCancel}>Cancel</Button>
       <Button variant={danger ? "danger" : "primary"} onPress={onConfirm} isLoading={isLoading} isDisabled={isDisabled}>{label}</Button>
-    </div>
+    </>
   );
 }
 
@@ -79,21 +81,18 @@ export function TaskFormDialog({ isOpen, onOpenChange, options, related, task, o
 
   const assignees = options.users.filter((user) => canAssign || user.id === options.currentUserId);
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={editing ? `Edit ${task?.number ?? "task"}` : "New task"} size="lg"
+    <Dialog footer={<Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label={editing ? "Save" : "Create task"} isLoading={mutation.isPending}
+      isDisabled={!title.trim() || !dueDate || (reminder === CUSTOM && !reminderAt)} />}
+      isOpen={isOpen} onOpenChange={onOpenChange} title={editing ? `Edit ${task?.number ?? "task"}` : "New task"} size="lg"
       description={related ? `For ${related.name ?? "this record"}. It also appears in CRM Tasks.` : "What needs to be done, by whom and by when."}>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
-        <div className="flex flex-col gap-3">
-          <TextField label="Task" isRequired value={title} onChange={setTitle} placeholder="For example: Send revised quotation" />
-          <TextArea label="Details" rows={2} value={description} onChange={setDescription} placeholder="Optional: what to check, links, or what the customer asked for" />
-        </div>
-
-        <FormSection title="When">
-          <div className="grid gap-4 sm:grid-cols-3">
+        <TextField label="Task" isRequired value={title} onChange={setTitle} placeholder="For example: Send revised quotation" />
+        {/* When: date and time share a line even on a phone, the usual dates one tap below. */}
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-4">
             <DateInput label="Due date" isRequired value={dueDate} onChange={setDueDate} />
-            <TimeInput label="Due time" description="Optional." value={dueTime} onChange={setDueTime} />
-            <Select label="Reminder" selectedKey={reminder} onSelectionChange={(key) => setReminder(String(key))}
-              options={[{ value: NONE, label: "No reminder" }, ...options.reminderOptions.map((entry) => ({ value: String(entry.minutes), label: entry.label })), { value: CUSTOM, label: "Custom date and time" }]} />
+            <TimeInput label="Due time" value={dueTime} onChange={setDueTime} />
           </div>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Quick due dates">
             {quickDates().map((choice) => (
@@ -103,58 +102,44 @@ export function TaskFormDialog({ isOpen, onOpenChange, options, related, task, o
               </button>
             ))}
           </div>
-          {reminder === CUSTOM && <DateTimeInput label="Remind me at" isRequired value={reminderAt} onChange={setReminderAt} />}
-        </FormSection>
-
-        <FormSection title="Priority and owner">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-text" id="task-priority-label">Priority</span>
-              <div role="radiogroup" aria-labelledby="task-priority-label" className="grid grid-cols-3 gap-2">
-                {PRIORITY_OPTIONS.map((entry) => (
-                  <button key={entry.value} type="button" role="radio" aria-checked={priority === entry.value} onClick={() => setPriority(entry.value)}
-                    className={`flex h-10 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand ${priority === entry.value ? PRIORITY_STYLE[entry.value].selected : "border-border text-text-secondary hover:border-border-strong hover:text-text"}`}>
-                    <span className={`size-2 rounded-full ${PRIORITY_STYLE[entry.value].dot}`} aria-hidden="true" />{entry.label}
-                  </button>
-                ))}
-              </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-text" id="task-priority-label">Priority</span>
+            <div role="radiogroup" aria-labelledby="task-priority-label" className="grid grid-cols-3 gap-2">
+              {PRIORITY_OPTIONS.map((entry) => (
+                <button key={entry.value} type="button" role="radio" aria-checked={priority === entry.value} onClick={() => setPriority(entry.value)}
+                  className={`flex h-10 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand ${priority === entry.value ? PRIORITY_STYLE[entry.value].selected : "border-border text-text-secondary hover:border-border-strong hover:text-text"}`}>
+                  <span className={`size-2 rounded-full ${PRIORITY_STYLE[entry.value].dot}`} aria-hidden="true" />{entry.label}
+                </button>
+              ))}
             </div>
-            {!editing && (assignees.length > 1 ? (
-              <Select label="Assigned to" selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key))}
-                options={assignees.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }))} />
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-text">Assigned to</span>
-                <span className="flex h-10 items-center gap-2 text-sm text-text-secondary">
-                  <span className="flex size-7 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand" aria-hidden="true">
-                    {(assignees[0]?.name ?? "Me").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("")}
-                  </span>
-                  {assignees[0] ? `${assignees[0].name} (me)` : "Me"}
-                </span>
-              </div>
-            ))}
           </div>
-        </FormSection>
-
-        {!related && (
-          <FormSection title="About">
-            <RelatedRecordPicker label="Related record" value={link} onChange={setLink} />
-          </FormSection>
-        )}
-
-        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label={editing ? "Save" : "Create task"} isLoading={mutation.isPending}
-          isDisabled={!title.trim() || !dueDate || (reminder === CUSTOM && !reminderAt)} />
+          {!editing && (assignees.length > 1 ? (
+            <Select label="Assigned to" selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key))}
+              options={assignees.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }))} />
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-text">Assigned to</span>
+              <span className="flex h-10 items-center gap-2 text-sm text-text-secondary">
+                <span className="flex size-7 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand" aria-hidden="true">
+                  {(assignees[0]?.name ?? "Me").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("")}
+                </span>
+                {assignees[0] ? `${assignees[0].name} (me)` : "Me"}
+              </span>
+            </div>
+          ))}
+        </div>
+        <MoreDetails description={related ? "Reminder and details." : "Reminder, related record and details."}
+          hasContent={editing || Boolean(description.trim()) || reminder === CUSTOM || Boolean(link.entityId && !related)}>
+          <Select label="Reminder" selectedKey={reminder} onSelectionChange={(key) => setReminder(String(key))}
+            options={[{ value: NONE, label: "No reminder" }, ...options.reminderOptions.map((entry) => ({ value: String(entry.minutes), label: entry.label })), { value: CUSTOM, label: "Custom date and time" }]} />
+          {reminder === CUSTOM && <DateTimeInput label="Remind me at" isRequired value={reminderAt} onChange={setReminderAt} />}
+          {!related && <div className="sm:col-span-2"><RelatedRecordPicker label="Related record" value={link} onChange={setLink} /></div>}
+          <div className="sm:col-span-2"><TextArea label="Details" rows={2} value={description} onChange={setDescription} placeholder="What to check, links, or what the customer asked for" /></div>
+        </MoreDetails>
       </div>
     </Dialog>
-  );
-}
-
-function FormSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3 border-t border-border pt-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{title}</h3>
-      {children}
-    </section>
   );
 }
 
@@ -192,7 +177,8 @@ export function CompleteTaskDialog({ isOpen, onOpenChange, task, options, onDone
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Complete task" description={task.title}>
+    <Dialog footer={<Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Complete" isLoading={mutation.isPending} isDisabled={(followUp && !dueAt) || (nextTask && (!nextTitle.trim() || !nextDue))} />}
+      isOpen={isOpen} onOpenChange={onOpenChange} title="Complete task" description={task.title}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <TextArea label="Outcome" description="Optional. What happened?" value={note} onChange={setNote} />
@@ -215,8 +201,6 @@ export function CompleteTaskDialog({ isOpen, onOpenChange, task, options, onDone
             <DateInput label="Due" isRequired value={nextDue} onChange={setNextDue} />
           </div>
         )}
-        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Complete" isLoading={mutation.isPending}
-          isDisabled={(followUp && !dueAt) || (nextTask && (!nextTitle.trim() || !nextDue))} />
       </div>
     </Dialog>
   );
@@ -231,11 +215,11 @@ export function CancelTaskDialog({ isOpen, onOpenChange, task, onDone }: { isOpe
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Cancel task" description="The task is kept with its history and can be reopened.">
+    <Dialog footer={<Actions danger onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Cancel task" isLoading={mutation.isPending} />}
+      isOpen={isOpen} onOpenChange={onOpenChange} title="Cancel task" description="The task is kept with its history and can be reopened.">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <TextArea label="Reason" description="Optional." value={reason} onChange={setReason} />
-        <Actions danger onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Cancel task" isLoading={mutation.isPending} />
       </div>
     </Dialog>
   );
@@ -253,14 +237,14 @@ export function AssignTaskDialog({ isOpen, onOpenChange, task, options, onDone }
     onError: (failure) => setError(errorMessage(failure)),
   });
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Reassign task"
+    <Dialog footer={<Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Reassign" isLoading={mutation.isPending} isDisabled={!assignedTo || assignedTo === task.assignedTo} />}
+      isOpen={isOpen} onOpenChange={onOpenChange} title="Reassign task"
       description={`Assigned to ${task.assignedName ?? "nobody"}. Created by ${task.createdByName ?? "unknown"}, which does not change.`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <Select label="Assign to" selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key))}
           options={options.users.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }))} />
         <TextArea label="Reason" description="Optional. Kept in the task's history." value={reason} onChange={setReason} />
-        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Reassign" isLoading={mutation.isPending} isDisabled={!assignedTo || assignedTo === task.assignedTo} />
       </div>
     </Dialog>
   );

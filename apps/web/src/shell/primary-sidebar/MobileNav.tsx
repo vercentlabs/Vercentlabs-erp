@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu as MenuIcon, Lock, Search, Settings } from "lucide-react";
+import { Menu as MenuIcon, Search, Settings } from "lucide-react";
 import { Drawer, IconButton, IconLinkButton } from "@vercentlabs/design-system";
 import type { ModuleAccess } from "@vercentlabs/api";
 
 import { useSearchDialog } from "@/features/platform/search/SearchDialog";
+import { NotificationsPanel } from "@/features/platform/notifications/NotificationsPanel";
 
 import {
   MODULE_NAV_ENTRIES,
@@ -17,68 +18,34 @@ import {
 import { Breadcrumbs } from "@/shell/navigation/Breadcrumbs";
 import { ProfileMenu } from "@/shell/primary-sidebar/ProfileMenu";
 import { getModuleNavigation } from "@/shell/navigation/module-navigation-registry";
-import {
-  activeWorkspaceId,
-  sidebarItems,
-} from "@/shell/navigation/navigation-resolution";
-
-const MODULE_ACCESS_REASON_LABEL: Record<string, string> = {
-  not_released: "Not yet available",
-  disabled: "Not enabled for your organisation",
-  not_entitled: "Not included in your plan",
-  not_permitted: "You don't have permission for this module",
-};
+import { ModuleMenu } from "@/shell/module-sidebar/SecondarySidebar";
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function DrawerRow({
-  href,
-  label,
-  icon,
-  disabled,
-  disabledReason,
-  active,
-  onNavigate,
-  badgeCount,
-}: {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  disabled?: boolean;
-  disabledReason?: string;
-  active: boolean;
-  onNavigate: () => void;
-  badgeCount?: number;
+// The drawer's app rail: an icon over its name (no hover on a phone, so the name is always shown), in the short form that fits.
+const SHORT_NAMES: Record<string, string> = {
+  procurement: "Purchase", "hr-payroll": "HR", manufacturing: "Production", jobs: "Jobs", "point-of-sale": "POS",
+};
+const shortName = (key: string, label: string) => SHORT_NAMES[key] ?? label;
+
+const railClass = (active: boolean) =>
+  [
+    "relative flex flex-col items-center gap-1 rounded-[var(--radius-control)] px-0.5 py-2 text-center text-[11px] leading-tight transition-colors",
+    active ? "bg-brand-soft font-medium text-brand" : "text-text-secondary hover:bg-surface-muted hover:text-text",
+  ].join(" ");
+
+function RailLink({ href, label, icon, active, onNavigate, badgeCount }: {
+  href: string; label: string; icon: React.ReactNode; active: boolean; onNavigate: () => void; badgeCount?: number;
 }) {
-  if (disabled) {
-    return (
-      <span className="flex items-center gap-3 rounded-[var(--radius-control)] px-3 py-2.5 text-sm text-text-muted opacity-60">
-        {icon}
-        <span className="flex-1">{label}</span>
-        <Lock aria-hidden="true" className="size-3.5" />
-        <span className="sr-only">{disabledReason}</span>
-      </span>
-    );
-  }
   return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
-      className={[
-        "flex items-center gap-3 rounded-[var(--radius-control)] px-3 py-2.5 text-sm transition-colors",
-        active
-          ? "bg-brand-soft text-brand font-medium"
-          : "text-text hover:bg-surface-muted",
-      ].join(" ")}
-    >
+    <Link href={href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={railClass(active)}>
       {icon}
-      <span className="flex-1">{label}</span>
+      <span className="line-clamp-2 w-full break-words">{label}</span>
       {badgeCount ? (
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-text-inverse">
+        <span className="absolute top-1 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-text-inverse">
           {badgeCount > 99 ? "99+" : badgeCount}
         </span>
       ) : null}
@@ -86,9 +53,17 @@ function DrawerRow({
   );
 }
 
-// Phone/tablet nav surface (<1024px) — the primary icon rail is hidden at
-// this breakpoint (PrimarySidebar has `hidden lg:flex`) in favor of this
-// top bar + full-label drawer — never both sidebars squeezed into 390px.
+function RailButton({ label, icon, selected, current, onPress }: { label: string; icon: React.ReactNode; selected: boolean; current: boolean; onPress: () => void }) {
+  return (
+    <button type="button" onClick={onPress} aria-pressed={selected} aria-current={current ? "page" : undefined} className={railClass(selected)}>
+      {icon}
+      <span className="line-clamp-2 w-full break-words">{label}</span>
+    </button>
+  );
+}
+
+// Phone/tablet nav surface (<1024px): the top bar, and a drawer with the same two sidebars as desktop — the app rail and the chosen
+// app's menu (ModuleMenu, the desktop secondary sidebar's own body).
 const BADGE_SOURCE_VALUE: Record<
   string,
   (counts: {
@@ -125,6 +100,10 @@ export function MobileNav({
   const counts = { pendingApprovalCount, unreadNotificationCount };
 
   const { openSearch } = useSearchDialog();
+  // The app whose menu the drawer's second column shows: the one tapped, else the one you are in.
+  const [picked, setPicked] = useState<string | null>(null);
+  const modules = MODULE_NAV_ENTRIES.filter((entry) => accessByModuleKey.get(entry.moduleKey)?.accessible);
+  const currentModuleKey = modules.find((entry) => isActive(pathname, `/${entry.href.split("/")[1]}`))?.moduleKey ?? null;
 
   return (
     <div className="flex lg:hidden">
@@ -141,7 +120,7 @@ export function MobileNav({
         <div className="min-w-0 flex-1">
           <Breadcrumbs fallback="Home" />
         </div>
-        {/* Search, Settings and the account menu (profile, help, sign out) sit here, not in the drawer. */}
+        {/* Search, Settings, Notifications and the account menu (profile, help, sign out), in desktop's order — not in the drawer. */}
         <div className="flex shrink-0 items-center">
           <IconButton aria-label="Search" variant="ghost" onPress={openSearch}>
             <Search aria-hidden="true" className="size-5" />
@@ -154,121 +133,66 @@ export function MobileNav({
           >
             <Settings aria-hidden="true" className="size-5" />
           </IconLinkButton>
+          <NotificationsPanel unreadCount={unreadNotificationCount} />
           <ProfileMenu fullName={fullName} email={email} showHelp />
         </div>
       </header>
 
       <Drawer
         isOpen={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => { setOpen(next); if (!next) setPicked(null); }}
         title={organizationName || "Vercentlabs ERP"}
         side="left"
         size="sm"
+        className="gap-3 px-0 pt-4 pb-0 max-lg:pb-0"
+        headerClassName="px-4"
       >
-        {({ close }) => (
-          <nav aria-label="Primary" className="flex flex-col gap-1">
-            {GLOBAL_NAV_TOP.map((entry) => (
-              <DrawerRow
-                key={entry.key}
-                href={entry.href}
-                label={entry.label}
-                icon={<entry.icon aria-hidden="true" className="size-4" />}
-                active={isActive(pathname, entry.href)}
-                onNavigate={close}
-              />
-            ))}
-
-            <div aria-hidden="true" className="my-2 h-px bg-border" />
-
-            {MODULE_NAV_ENTRIES.filter((entry) => accessByModuleKey.get(entry.moduleKey)?.accessible).map((entry) => {
-              const access = accessByModuleKey.get(entry.moduleKey);
-              const accessible = access?.accessible ?? false;
-              const inModule = accessible && isActive(pathname, entry.href);
-              // The module you are in lists its permanent workspaces (the
-              // same set the desktop secondary sidebar shows, from the same
-              // registry and rules); views and configuration pages stay
-              // inside their workspace — no nested third navigation.
-              const moduleNavigation = inModule
-                ? getModuleNavigation(entry.moduleKey)
-                : null;
-              const activeId = moduleNavigation
-                ? activeWorkspaceId(moduleNavigation, pathname)
-                : null;
-              const workspaces = moduleNavigation
-                ? sidebarItems(moduleNavigation, { permissions })
-                    .flatMap((section) => section.items)
-                    .filter((item) => item.status === "AVAILABLE")
-                : [];
-              return (
-                <div key={entry.moduleKey} className="flex flex-col gap-1">
-                  <DrawerRow
-                    href={entry.href}
-                    label={entry.label}
-                    icon={<entry.icon aria-hidden="true" className="size-4" />}
-                    disabled={!accessible}
-                    disabledReason={
-                      access?.reason
-                        ? MODULE_ACCESS_REASON_LABEL[access.reason]
-                        : undefined
-                    }
-                    active={inModule && workspaces.length === 0}
-                    onNavigate={close}
-                  />
-                  {workspaces.length > 0 && (
-                    <ul
-                      aria-label={`${entry.label} workspaces`}
-                      className="ml-6 flex flex-col gap-0.5 border-l border-border pl-2"
-                    >
-                      {workspaces.map((item) => (
-                        <li key={item.id}>
-                          <Link
-                            href={item.route}
-                            onClick={close}
-                            aria-current={
-                              item.id === activeId ? "page" : undefined
-                            }
-                            className={[
-                              "flex rounded-[var(--radius-control)] px-3 py-2 text-sm transition-colors",
-                              item.id === activeId
-                                ? "bg-brand-soft font-medium text-brand"
-                                : "text-text hover:bg-surface-muted",
-                            ].join(" ")}
-                          >
-                            {item.label}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
-
-            <div aria-hidden="true" className="my-2 h-px bg-border" />
-
-            {GLOBAL_NAV_BOTTOM.filter(
-              (entry) =>
-                entry.placement !== "hidden" &&
-                (!entry.requiredPermission ||
-                  permissions.includes(entry.requiredPermission)),
-            ).map((entry) => (
-              <DrawerRow
-                key={entry.key}
-                href={entry.href}
-                label={entry.label}
-                icon={<entry.icon aria-hidden="true" className="size-4" />}
-                active={isActive(pathname, entry.href)}
-                onNavigate={close}
-                badgeCount={
-                  entry.badgeSource
-                    ? BADGE_SOURCE_VALUE[entry.badgeSource](counts)
-                    : undefined
-                }
-              />
-            ))}
-
-          </nav>
-        )}
+        {({ close }) => {
+          const shownKey = picked ?? currentModuleKey ?? modules[0]?.moduleKey ?? null;
+          const shown = shownKey ? getModuleNavigation(shownKey) : null;
+          const shownEntry = modules.find((entry) => entry.moduleKey === shownKey);
+          return (
+            // Two columns, as on desktop: the apps on the left, the chosen app's own menu on the right. Tapping an app shows its menu
+            // without leaving the page; a menu link opens its page and closes the drawer.
+            <div className="flex h-full min-h-0 border-t border-border">
+              <nav aria-label="Apps" className="flex w-20 shrink-0 flex-col items-stretch gap-1 overflow-y-auto border-r border-border px-1.5 py-2
+                max-lg:pb-[calc(1rem+env(safe-area-inset-bottom))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {GLOBAL_NAV_TOP.map((entry) => (
+                  <RailLink key={entry.key} href={entry.href} label={shortName(entry.key, entry.label)} icon={<entry.icon aria-hidden="true" className="size-5" />}
+                    active={isActive(pathname, entry.href)} onNavigate={close} />
+                ))}
+                <div aria-hidden="true" className="mx-2 my-1 h-px bg-border" />
+                {modules.map((entry) => (
+                  <RailButton key={entry.moduleKey} label={shortName(entry.moduleKey, entry.label)} icon={<entry.icon aria-hidden="true" className="size-5" />}
+                    selected={entry.moduleKey === shownKey} current={entry.moduleKey === currentModuleKey}
+                    onPress={() => setPicked(entry.moduleKey)} />
+                ))}
+                <div aria-hidden="true" className="mx-2 my-1 h-px bg-border" />
+                {GLOBAL_NAV_BOTTOM.filter(
+                  // The top bar's own entries (the Notifications bell) are not repeated here.
+                  (entry) => !entry.placement && (!entry.requiredPermission || permissions.includes(entry.requiredPermission)),
+                ).map((entry) => (
+                  <RailLink key={entry.key} href={entry.href} label={shortName(entry.key, entry.label)} icon={<entry.icon aria-hidden="true" className="size-5" />}
+                    active={isActive(pathname, entry.href)} onNavigate={close}
+                    badgeCount={entry.badgeSource ? BADGE_SOURCE_VALUE[entry.badgeSource](counts) : undefined} />
+                ))}
+              </nav>
+              <div className="flex min-w-0 flex-1 flex-col overflow-y-auto py-3 [scrollbar-width:thin] max-lg:pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                {shown && shownEntry ? (
+                  <>
+                    <h2 className="flex items-center gap-2 px-4 pb-3 text-base font-semibold text-text">
+                      <shownEntry.icon aria-hidden="true" className="size-5 text-brand" />
+                      {shownEntry.label}
+                    </h2>
+                    <ModuleMenu module={shown} onNavigate={close} />
+                  </>
+                ) : (
+                  <p className="px-4 text-sm text-text-muted">Choose an app on the left.</p>
+                )}
+              </div>
+            </div>
+          );
+        }}
       </Drawer>
     </div>
   );

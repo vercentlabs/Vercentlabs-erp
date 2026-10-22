@@ -19,9 +19,9 @@ import { useSecondarySidebarState } from "./SecondarySidebarState";
 // Desktop module secondary sidebar (with hover/pin behaviour). One section per work area,
 // PLANNED items rendered disabled (visible for orientation, never a
 // clickable dead link) so the intended IA is legible without pretending
-// it's built. Collapses into the mobile drawer's per-module section below
-// 1024px rather than showing two simultaneous permanent sidebars — see
-// MobileNav.tsx. Must be rendered inside a SecondarySidebarProvider and
+// it's built. Below 1024px its body (ModuleMenu) is the second column of the
+// phone/tablet drawer, next to the app rail — see MobileNav.tsx. Must be
+// rendered inside a SecondarySidebarProvider and
 // inside the region that wires up regionHandlers (see ModuleRail.tsx).
 export function SecondarySidebar() {
   const pathname = usePathname();
@@ -98,6 +98,18 @@ export function SecondarySidebar() {
 
 type Viewer = { permissions: readonly string[]; isOwner: boolean; apps?: readonly string[] };
 
+// The same module menu, for the phone and tablet drawer's second column (MobileNav.tsx): every link closes the drawer.
+export function ModuleMenu({ module, onNavigate }: { module: ModuleNavigation; onNavigate: () => void }) {
+  const pathname = usePathname();
+  const { permissions, roleSlugs, accessibleModuleKeys } = useWorkspaceContext();
+  const viewer = { permissions, isOwner: roleSlugs.includes("organization_owner"), apps: accessibleModuleKeys };
+  return (
+    <Suspense fallback={<SidebarBody module={module} pathname={pathname} search="" open viewer={viewer} onNavigate={onNavigate} touch />}>
+      <SidebarBodyWithQuery module={module} pathname={pathname} open viewer={viewer} onNavigate={onNavigate} touch />
+    </Suspense>
+  );
+}
+
 const STORAGE_EVENT = "vercent-sidebar-storage";
 function subscribeStorage(onChange: () => void) {
   window.addEventListener("storage", onChange);
@@ -129,7 +141,7 @@ function parseOpened(raw: string | null): Record<string, boolean> {
   }
 }
 
-function SidebarBodyWithQuery(props: { module: ModuleNavigation; pathname: string; open: boolean; viewer: Viewer }) {
+function SidebarBodyWithQuery(props: { module: ModuleNavigation; pathname: string; open: boolean; viewer: Viewer; onNavigate?: () => void; touch?: boolean }) {
   const search = useSearchParams()?.toString() ?? "";
   return <SidebarBody {...props} search={search} />;
 }
@@ -137,7 +149,8 @@ function SidebarBodyWithQuery(props: { module: ModuleNavigation; pathname: strin
 // One section per work area. A flat section is a single link; a collapsible one folds its items under its label — open while one of them
 // is active, when the person opens it, or by default in the modules listed in OPEN_ON_ARRIVAL. PLANNED items render disabled, never as dead links.
 // Items with a badge show the module's attention count (sidebar-badges.ts).
-function SidebarBody({ module, pathname, search, open, viewer }: { module: ModuleNavigation; pathname: string; search: string; open: boolean; viewer: Viewer }) {
+// touch: the phone and tablet drawer's rows — taller, for a finger rather than a pointer.
+function SidebarBody({ module, pathname, search, open, viewer, onNavigate, touch = false }: { module: ModuleNavigation; pathname: string; search: string; open: boolean; viewer: Viewer; onNavigate?: () => void; touch?: boolean }) {
   const workspace = useWorkspaceContext();
   // Exactly one workspace is active: the one that owns the most specific registered route (a child route such as /crm/pipeline highlights
   // its parent, Opportunities; items sharing a path are told apart by their query). Views and configuration pages inside a workspace are
@@ -182,7 +195,8 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
   const tab = open ? 0 : -1;
   const linkClass = (active: boolean) =>
     [
-      "flex items-center justify-between gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-sm transition-colors",
+      "flex items-center justify-between gap-2 rounded-[var(--radius-control)] px-2 text-sm transition-colors",
+      touch ? "min-h-10 py-2" : "py-1.5",
       active ? "bg-brand-soft font-medium text-brand" : "text-text hover:bg-surface-muted",
     ].join(" ");
   const badgeOf = (key?: string) =>
@@ -195,14 +209,14 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
     ) : null;
 
   return (
-    <div className="flex flex-col gap-4 px-2">
+    <div className={`flex flex-col px-2 ${touch ? "gap-3" : "gap-4"}`}>
       {sections.map((section) => {
         const Icon = section.icon;
         const first = section.items[0];
         if (section.flat && section.items.length === 1 && first.status === "AVAILABLE") {
           const active = first.id === activeItemId;
           return (
-            <Link key={section.id} href={first.route} aria-current={active ? "page" : undefined} tabIndex={tab} className={linkClass(active)}>
+            <Link key={section.id} href={first.route} aria-current={active ? "page" : undefined} tabIndex={tab} className={linkClass(active)} onClick={onNavigate}>
               <span className="flex items-center gap-2">
                 {Icon && <Icon aria-hidden="true" className="size-4 shrink-0 text-text-muted" />}
                 {first.label}
@@ -222,7 +236,7 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
                 tabIndex={tab}
                 aria-expanded={expanded}
                 onClick={() => toggle(section.id, !expanded)}
-                className="flex w-full items-center justify-between gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-sm font-medium text-text hover:bg-surface-muted"
+                className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-control)] px-2 text-left text-sm font-medium text-text hover:bg-surface-muted ${touch ? "min-h-10 py-2" : "py-1.5"}`}
               >
                 <span className="flex items-center gap-2">
                   {Icon && <Icon aria-hidden="true" className="size-4 shrink-0 text-text-muted" />}
@@ -248,7 +262,7 @@ function SidebarBody({ module, pathname, search, open, viewer }: { module: Modul
                   if (item.status === "AVAILABLE") {
                     const active = item.id === activeItemId;
                     return (
-                      <Link key={item.id} href={item.route} aria-current={active ? "page" : undefined} tabIndex={tab} className={linkClass(active)}>
+                      <Link key={item.id} href={item.route} aria-current={active ? "page" : undefined} tabIndex={tab} className={linkClass(active)} onClick={onNavigate}>
                         <span>{item.label}</span>
                         {badgeOf(item.badge)}
                       </Link>

@@ -64,7 +64,7 @@ export function RelatedFollowUpsPanel({ related, canCreate = true, onChanged }: 
       ) : !query.isLoading && <p className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-4 py-3 text-sm">No follow-up scheduled.</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Checkbox isSelected={showClosed} onChange={setShowClosed}>Show completed and cancelled</Checkbox>
-        {canCreate && can?.create && <Button variant="secondary" size="compact" onPress={() => setScheduling(true)}>Schedule follow-up</Button>}
+        {canCreate && can?.create && <Button variant="secondary" size="compact" onPress={() => setScheduling(true)}>New follow-up</Button>}
       </div>
       <ErrorBanner message={error} />
       {query.isLoading ? <LoadingState label="Loading follow-ups" rows={3} /> : shown.length === 0 ? (

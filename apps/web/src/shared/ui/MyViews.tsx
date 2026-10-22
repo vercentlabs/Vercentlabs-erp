@@ -40,7 +40,7 @@ export function MyViews<T extends ViewState>({ listKey, state, onApply }: { list
   return (
     <>
       <PopoverTrigger>
-        <Button variant="outline" size="compact"><Bookmark className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">My views</span></Button>
+        <Button variant="outline" size="compact"><Bookmark className="size-4" aria-hidden="true" /><span>My views</span></Button>
         <Popover placement="bottom end">
           <div className="flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-2 text-sm">
             {list.length === 0 && <p className="text-text-secondary">No saved views yet. Set the filters you use often, then save them.</p>}

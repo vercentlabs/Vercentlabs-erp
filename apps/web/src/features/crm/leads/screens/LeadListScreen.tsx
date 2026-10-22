@@ -341,10 +341,10 @@ export function LeadListScreen() {
           primaryAction: can?.create ? (
             <LinkButton href="/crm/leads/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New lead</LinkButton>
           ) : undefined,
-          secondaryActions: <><SavedViews screen="leads" basePath="/crm/leads" filters={listFilters} /><MoreMenu label="More lead actions" items={[
+          secondaryActions: <MoreMenu label="More lead actions" items={[
             ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=leads") }] : []),
             ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("leads", leadExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
-          ]} /></>,
+          ]} />,
         }}
         savedViews={options ? { views: options.views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: (id) => setView(id as LeadViewKey), pinned: PINNED_VIEWS } : undefined}
         actionBar={{
@@ -355,7 +355,7 @@ export function LeadListScreen() {
                 <>
                   <PopoverTrigger>
                     <Button variant={activeFilters.length ? "secondary" : "outline"} size="compact">
-                      <Filter className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Filters</span>
+                      <Filter className="size-4" aria-hidden="true" /><span>Filters</span>
                       {activeFilters.length > 0 && <span className="rounded-full bg-brand px-1.5 text-xs tabular-nums text-white">{activeFilters.length}</span>}
                     </Button>
                     <Popover placement="bottom start">
@@ -402,8 +402,8 @@ export function LeadListScreen() {
             </>
           ),
           end: (
-            <span className="hidden md:flex">{/* cards below md: no columns to choose */}<PopoverTrigger>
-              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Columns</span></Button>
+            <><SavedViews screen="leads" basePath="/crm/leads" filters={listFilters} /><span className="hidden md:flex">{/* cards below md: no columns to choose */}<PopoverTrigger>
+              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span>Columns</span></Button>
               <Popover>
                 <div className="flex flex-col gap-2 p-1">
                   <p className="text-xs font-medium text-text-secondary">Show columns</p>
@@ -414,7 +414,7 @@ export function LeadListScreen() {
                   ))}
                 </div>
               </Popover>
-            </PopoverTrigger></span>
+            </PopoverTrigger></span></>
           ),
         }}
         filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: clearFilters } : undefined}

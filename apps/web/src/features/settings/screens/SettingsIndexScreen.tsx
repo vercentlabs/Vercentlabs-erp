@@ -29,7 +29,7 @@ export async function SettingsIndexScreen() {
             {section.label}
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {section.items.map((item) => {
+            {section.items.filter((item) => !item.hubHidden).map((item) => {
               const permitted =
                 (item.requiredAnyPermission
                   ? item.requiredAnyPermission.some((permission) => hasSessionPermission(session, permission))
@@ -38,7 +38,8 @@ export async function SettingsIndexScreen() {
                 return (
                   <Link
                     key={item.id}
-                    href={item.route}
+                    href={item.id === "users" && !hasSessionPermission(session, "users.view")
+                      ? (hasSessionPermission(session, "users.manage") ? "/settings/invitations" : "/settings/roles") : item.route}
                     className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-surface-muted"
                   >
                     <span className="text-sm font-medium text-text">

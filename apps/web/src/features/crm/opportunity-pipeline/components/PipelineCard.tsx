@@ -26,7 +26,7 @@ export function PipelineCard({ card, baseCurrency, can, canDrag, isDragging, mov
   const actions = [
     { id: "quickEdit", label: "Quick edit", show: open && (can.edit || can.changeStage) },
     { id: "task", label: "Add task", show: open && can.edit },
-    { id: "followUp", label: "Schedule follow-up", show: open && can.edit },
+    { id: "followUp", label: "New follow-up", show: open && can.edit },
     { id: "activity", label: "Log activity", show: can.edit },
     { id: "quotation", label: "Create quotation", show: open && can.quoteInSales },
     { id: "won", label: "Mark won", show: open && can.markWon },

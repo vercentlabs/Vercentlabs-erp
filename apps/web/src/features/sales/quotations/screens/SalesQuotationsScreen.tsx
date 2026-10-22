@@ -124,7 +124,7 @@ export function SalesQuotationsScreen() {
         title: "Quotations",
         description: "Priced offers to customers, from draft through confirmation, sending and the customer's answer to a sales order.",
         primaryAction: can?.create ? <LinkButton href="/sales/quotations/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New Quotation</LinkButton> : undefined,
-        secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={quotationExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a> : undefined,
+        secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={quotationExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span>Export</span></a> : undefined,
       }}
       savedViews={{ views: views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
       actionBar={{

@@ -47,7 +47,6 @@ type BulkKind = "reassign" | "reschedule" | "cancel";
 
 type Scope = WorkScope;
 type Queue = "overdue" | "today" | "upcoming" | "open" | "completed" | "cancelled";
-const SCOPE_NOTES: Record<Scope, string> = { mine: "assigned to you", team: "your team's scheduled follow-ups", everyone: "everyone's follow-ups" };
 const QUEUES: Array<Omit<QueueCard<Exclude<Queue, "cancelled">>, "count">> = [
   { key: "overdue", label: "Overdue", tone: "danger" },
   { key: "today", label: "Due today", tone: "warning" },
@@ -250,7 +249,6 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const draft = (key: MoreKey) => (value: string) => setMore({ ...more, [key]: value });
   const summary = summaryQuery.data;
   const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || scope !== "mine" || queue !== "open";
-  const queueLabel = queue === "cancelled" ? "Cancelled" : QUEUES.find((entry) => entry.key === queue)?.label ?? "";
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.follow_ups.view") && !workspace.permissions.includes("crm.activities.manage"))
     return <PermissionState title="You don't have access to follow-ups" description="Ask an administrator for the View follow-ups permission." />;
@@ -274,8 +272,8 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
         header={{
           title: tabs ? "To-dos" : "Follow-ups",
           description: "Who to contact, how, about which record and why: overdue first, then today, then what is coming up.",
-          primaryAction: can?.create ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />Schedule follow-up</Button> : undefined,
-          secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={followUpExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a> : undefined,
+          primaryAction: can?.create ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />New follow-up</Button> : undefined,
+          secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={followUpExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span>Export</span></a> : undefined,
         }}
         actionBar={{
           leading: scopes.length > 1 ? <ScopeSwitch label="Whose follow-ups" scopes={scopes} value={scope} onChange={setScope} /> : undefined,
@@ -323,7 +321,8 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
         <div className="flex flex-col gap-4">
           <QueueCards<Queue> label="Follow-up queues" cards={queues.map((entry) => ({ ...entry, count: counts[entry.key] }))} value={queue} onChange={setQueue} />
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-text-secondary"><span className="font-medium text-text">{queueLabel}</span> · {SCOPE_NOTES[scope]}</p>
+            {/* The highlighted queue and the scope switch already say what is shown; only the cancelled list, which has no card, says so. */}
+            {queue === "cancelled" ? <p className="text-sm font-medium text-text">Cancelled follow-ups</p> : <span />}
             <span className="flex flex-wrap items-center gap-3">
               {summary?.teamOverdue && scope !== "team" ? (
                 <button type="button" onClick={() => { setScope("team"); setQueue("overdue"); }}
@@ -351,7 +350,7 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
             loadingContent={<LoadingState label="Loading follow-ups" rows={8} onRetry={() => void listQuery.refetch()} />}
             errorContent={<ErrorState title="Could not load follow-ups" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}
             emptyContent={<EmptyState title="Nobody to contact today" description="Schedule a follow-up from a lead, company, contact or deal, or here."
-              action={can?.create ? { label: "Schedule follow-up", onPress: () => setCreating(true) } : undefined} />}
+              action={can?.create ? { label: "New follow-up", onPress: () => setCreating(true) } : undefined} />}
             noResultsContent={queue === "overdue" && !submittedSearch && !activeFilters.length
               ? <NoResultsState title="Nothing overdue" description="Everyone has been contacted on time. Pick another queue to see what is next." />
               : <NoResultsState title="No follow-ups here" description="Try another queue, search or filter." />}

@@ -179,7 +179,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
               {canEdit && <CallSmsButtons entity="leads" recordId={lead.id} />}
               {canTake && <Button variant="secondary" onPress={() => action.mutate(() => assignLeadToMe(lead.id, lead.updatedAt))} isLoading={action.isPending}>Assign to me</Button>}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("activity")}>Log activity</Button>}
-              {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
+              {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>New follow-up</Button>}
               {canEdit && <ApplyPlanButton relatedType="lead" relatedId={lead.id} onApplied={refresh} />}
               {menuActions.length > 0 && <MoreMenu items={menuActions} isBusy={action.isPending} />}
             </>

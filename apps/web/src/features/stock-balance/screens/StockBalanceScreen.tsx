@@ -138,7 +138,7 @@ export function StockBalanceScreen() {
           description: "What the company holds now, by warehouse, location and batch, derived from the stock ledger and reservations. Quantities are in each item's base unit.",
           secondaryActions: (
             <>
-              {can?.export && result && rows.length > 0 && <Button variant="outline" onPress={() => exportCsv(result)}><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></Button>}
+              {can?.export && result && rows.length > 0 && <Button variant="outline" onPress={() => exportCsv(result)}><Download className="size-4" aria-hidden="true" /><span>Export</span></Button>}
               <Button variant="outline" onPress={() => setChecking(true)}>Check balances</Button>
             </>
           ),

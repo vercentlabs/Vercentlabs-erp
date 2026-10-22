@@ -30,7 +30,8 @@ export function filtersToQuery(filters: object) {
   return params.toString();
 }
 
-export function SavedViews({ screen, basePath, filters }: { screen: Screen; basePath: string; filters: object }) {
+// size: compact beside a page header's buttons; standard in a list toolbar, the height of its search and filters.
+export function SavedViews({ screen, basePath, filters, size = "compact" }: { screen: Screen; basePath: string; filters: object; size?: "compact" | "standard" }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const key = scopedQueryKey(workspace, "crm", "saved-views", screen);
@@ -59,7 +60,7 @@ export function SavedViews({ screen, basePath, filters }: { screen: Screen; base
   return (
     <>
       <PopoverTrigger>
-        <Button variant="outline" size="compact"><Bookmark className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">My views</span></Button>
+        <Button variant="outline" size={size} aria-label="My views"><Bookmark className="size-4" aria-hidden="true" /><span>My views</span></Button>
         <Popover placement="bottom end">
           <div className="flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-2 text-sm">
             {(views.data ?? []).length === 0 && <p className="text-text-secondary">No saved views yet. Set the filters you use often, then save them.</p>}

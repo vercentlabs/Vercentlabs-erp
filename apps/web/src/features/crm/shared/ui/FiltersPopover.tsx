@@ -11,7 +11,7 @@ export function FiltersPopover({ active = 0, onClear, children }: { active?: num
     <PopoverTrigger>
       <Button variant={active ? "secondary" : "outline"} size="compact">
         <Filter className="size-4" aria-hidden="true" />
-        <span className="max-sm:sr-only">Filters</span>
+        <span>Filters</span>
         {active > 0 && <span className="rounded-full bg-brand px-1.5 text-xs tabular-nums text-white">{active}</span>}
       </Button>
       <Popover placement="bottom start">

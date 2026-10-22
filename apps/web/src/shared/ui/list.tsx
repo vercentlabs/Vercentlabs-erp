@@ -103,7 +103,7 @@ export function ColumnsMenu({ columns, visibility, onChange }: { columns: Option
   return (
     <span className="hidden md:flex">
     <PopoverTrigger>
-      <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Columns</span></Button>
+      <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span>Columns</span></Button>
       <Popover>
         <div className="flex flex-col gap-2 p-1">
           <p className="text-xs font-medium text-text-secondary">Show columns</p>

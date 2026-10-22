@@ -15,6 +15,8 @@ export interface DrawerProps extends Omit<ModalOverlayProps, "className" | "chil
   title: ReactNode;
   side?: "right" | "left";
   size?: "sm" | "md" | "lg";
+  /** Classes for the title row (e.g. its own padding when the panel has none). */
+  headerClassName?: string;
   children: ReactNode | ((opts: { close: () => void }) => ReactNode);
 }
 
@@ -25,7 +27,7 @@ const sizeClasses = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl" };
  * a filter builder) that shouldn't fully interrupt the underlying page the
  * way a centered Dialog does. Use Dialog for forms/confirmations instead.
  */
-export function Drawer({ className, title, side = "right", size = "md", children, ...props }: DrawerProps) {
+export function Drawer({ className, headerClassName, title, side = "right", size = "md", children, ...props }: DrawerProps) {
   return (
     <ModalOverlay
       className={cn("fixed inset-0 z-[var(--z-modal)] flex bg-overlay-backdrop", side === "right" ? "justify-end" : "justify-start")}
@@ -43,7 +45,7 @@ export function Drawer({ className, title, side = "right", size = "md", children
         >
           {(opts) => (
             <>
-              <div className="flex items-start justify-between gap-4">
+              <div className={cn("flex items-start justify-between gap-4", headerClassName)}>
                 <Heading slot="title" className="text-section font-semibold text-text">
                   {title}
                 </Heading>

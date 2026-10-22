@@ -92,7 +92,7 @@ export function FilterMenu({ children, activeCount = 0, onClear }: FilterMenuPro
     <PopoverTrigger>
       <Button variant={activeCount ? "secondary" : "outline"} size="compact">
         <Filter className="size-4" aria-hidden="true" />
-        <span className="max-sm:sr-only">Filters</span>
+        <span>Filters</span>
         {activeCount > 0 && <span className="rounded-full bg-brand px-1.5 text-xs tabular-nums text-white">{activeCount}</span>}
       </Button>
       <Popover placement="bottom start">

@@ -135,6 +135,7 @@ export function DateInput({
 }
 
 // A time of day only: "HH:MM" in and out (empty when not set), shown in the app's locale.
+// Empty, it reads "Any time" (or "Set a time" when one is needed) instead of "–:– am".
 export function TimeInput({
   label,
   value,
@@ -143,6 +144,7 @@ export function TimeInput({
   errorMessage,
   description,
   className,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -151,10 +153,12 @@ export function TimeInput({
   errorMessage?: string;
   description?: string;
   className?: string;
+  placeholder?: string;
 }) {
   return (
     <TimeField
       label={label}
+      placeholder={placeholder ?? (isRequired ? "Set a time" : "Any time")}
       value={toTime(value)}
       onChange={(time) => onChange(timeString(time))}
       isRequired={isRequired}

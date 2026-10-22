@@ -276,10 +276,10 @@ export function AccountListScreen() {
           title: "Companies",
           description: "The businesses you sell to and work with — prospects, customers and partners — with their people, deals and history.",
           primaryAction: can?.create ? <LinkButton href="/crm/accounts/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New company</LinkButton> : undefined,
-          secondaryActions: <><SavedViews screen="accounts" basePath="/crm/accounts" filters={listFilters} /><MoreMenu label="More company actions" items={[
+          secondaryActions: <MoreMenu label="More company actions" items={[
             ...(can?.import ? [{ id: "import", label: "Import", onAction: () => router.push("/crm/data/import-export?type=companies") }] : []),
             ...(can?.export ? [{ id: "export", label: total > ON_SCREEN_EXPORT_LIMIT ? "Export in the background" : "Export", onAction: () => { void startExport("accounts", accountExportUrl(listFilters), total, (href) => router.push(href)); } }] : []),
-          ]} /></>,
+          ]} />,
         }}
         savedViews={options ? {
           views: options.views.map((entry) => ({ id: entry.key, label: entry.label, count: counts[entry.key] })),
@@ -313,8 +313,8 @@ export function AccountListScreen() {
             </>
           ),
           end: (
-            <span className="hidden md:flex">{/* cards below md: no columns to choose */}<PopoverTrigger>
-              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Columns</span></Button>
+            <><SavedViews screen="accounts" basePath="/crm/accounts" filters={listFilters} /><span className="hidden md:flex">{/* cards below md: no columns to choose */}<PopoverTrigger>
+              <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" /><span>Columns</span></Button>
               <Popover>
                 <div className="flex flex-col gap-2 p-1">
                   <p className="text-xs font-medium text-text-secondary">Show columns</p>
@@ -323,7 +323,7 @@ export function AccountListScreen() {
                   ))}
                 </div>
               </Popover>
-            </PopoverTrigger></span>
+            </PopoverTrigger></span></>
           ),
         }}
         filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: clearFilters } : undefined}

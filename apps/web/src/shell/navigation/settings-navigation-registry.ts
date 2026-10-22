@@ -18,6 +18,8 @@ type SettingsNavItem = {
   requiredPermission?: string;
   /** Any one of these is enough (checked instead of requiredPermission when set). */
   requiredAnyPermission?: readonly string[];
+  /** A tab of another item's page: kept for breadcrumbs and search, never a card of its own on the Settings hub. */
+  hubHidden?: boolean;
 };
 
 export type SettingsNavSection = {
@@ -144,12 +146,13 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
     label: "People and access",
     items: [
       {
+        // One page with Users, Invitations and Roles as its tabs, so one card.
         id: "users",
-        label: "Users",
+        label: "People and access",
         route: "/settings/users",
         status: "AVAILABLE",
-        description: "Everyone in your organization, their role and whether they can sign in.",
-        requiredPermission: "users.view",
+        description: "Who is in your organization, inviting people, and what each role lets them do.",
+        requiredAnyPermission: ["users.view", "users.manage", "roles.view"],
       },
       {
         id: "invitations",
@@ -158,6 +161,7 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         status: "AVAILABLE",
         description: "Invite people, and see who has joined and who has not yet.",
         requiredPermission: "users.manage",
+        hubHidden: true,
       },
       {
         id: "roles",
@@ -166,6 +170,7 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         status: "AVAILABLE",
         description: "What each role lets people do, and your own custom roles.",
         requiredPermission: "roles.view",
+        hubHidden: true,
       },
     ],
   },

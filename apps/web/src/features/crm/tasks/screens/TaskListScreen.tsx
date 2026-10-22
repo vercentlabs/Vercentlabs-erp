@@ -49,7 +49,6 @@ const isOpen = (task: Task) => task.status === "open" || task.status === "in_pro
 
 type Scope = WorkScope;
 type Queue = "overdue" | "today" | "upcoming" | "open" | "completed" | "cancelled";
-const SCOPE_NOTES: Record<Scope, string> = { mine: "assigned to you", team: "your team's open tasks", everyone: "everyone's tasks" };
 const QUEUES: Array<Omit<QueueCard<Exclude<Queue, "cancelled">>, "count">> = [
   { key: "overdue", label: "Overdue", tone: "danger" },
   { key: "today", label: "Due today", tone: "warning" },
@@ -240,7 +239,6 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const draft = (key: MoreKey) => (value: string) => setMore({ ...more, [key]: value });
   const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || scope !== "mine" || queue !== "open";
   const summary = summaryQuery.data;
-  const queueLabel = queue === "cancelled" ? "Cancelled" : QUEUES.find((entry) => entry.key === queue)?.label ?? "";
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.tasks.view") && !workspace.permissions.includes("crm.activities.manage"))
     return <PermissionState title="You don't have access to tasks" description="Ask an administrator for the View tasks permission." />;
@@ -266,7 +264,7 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
           description: "Overdue first, then today, then what is coming up.",
           primaryAction: can?.create ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />New task</Button> : undefined,
           secondaryActions: can?.export ? (
-            <a className={buttonVariants({ variant: "outline" })} href={taskExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a>
+            <a className={buttonVariants({ variant: "outline" })} href={taskExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span>Export</span></a>
           ) : undefined,
         }}
         actionBar={{
@@ -316,7 +314,8 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
         <div className="flex flex-col gap-4">
           <QueueCards<Queue> label="Task queues" cards={queues.map((entry) => ({ ...entry, count: counts[entry.key] }))} value={queue} onChange={setQueue} />
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-text-secondary"><span className="font-medium text-text">{queueLabel}</span> · {SCOPE_NOTES[scope]}</p>
+            {/* The highlighted queue and the scope switch already say what is shown; only the cancelled list, which has no card, says so. */}
+            {queue === "cancelled" ? <p className="text-sm font-medium text-text">Cancelled tasks</p> : <span />}
             <span className="flex flex-wrap items-center gap-3">
               {summary?.teamOverdue && scope !== "team" ? (
                 <button type="button" onClick={() => { setScope("team"); setQueue("overdue"); }}
