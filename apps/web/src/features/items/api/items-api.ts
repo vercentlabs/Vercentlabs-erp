@@ -180,6 +180,7 @@ export type CategoryActivity = { id: string; eventType: string; kind: string; su
 export type Category = {
   id: string; code: string; name: string; parentId: string | null; parentName: string | null; description: string | null; status: "active" | "inactive"; isActive: boolean;
   path: string; depth: number; breadcrumb: Array<{ id: string; code: string; name: string }>; sortOrder: number; iconAttachmentId: string | null; skuPrefix: string | null;
+  excessReceiptTolerancePercent?: string | null;
   allowedItemTypes: ItemType[] | null; effectiveItemTypes: ItemType[]; allowedItemTypesLabel: string;
   defaultValuationMethod: string | null; defaultValuationLabel: string | null; defaultInventoryProfileId: string | null; defaultInventoryProfileName: string | null;
   defaultAccountingProfileId: string | null; defaultAccountingProfileName: string | null; defaultTaxCategoryId: string | null; defaultTaxCategoryName: string | null; defaultHsnSacCode: string | null;
@@ -189,6 +190,7 @@ export type Category = {
 };
 export type CategoryInput = Partial<{
   code: string; name: string; parentId: string | null; description: string | null; sortOrder: number; allowedItemTypes: ItemType[] | null; skuPrefix: string | null;
+  excessReceiptTolerancePercent?: string | null;
   defaultValuationMethod: string | null; defaultInventoryProfileId: string | null; defaultAccountingProfileId: string | null; defaultTaxCategoryId: string | null; defaultHsnSacCode: string | null;
   expectedVersion: number;
 }>;

@@ -1,9 +1,11 @@
 "use client";
 
-// Settings › Roles and permissions. A role is a named set of permissions; people get roles in Users. Built-in roles are ready-made and
+// Settings › People and access › Roles. A role is a named set of permissions; each person has one, given in Users. Built-in roles are ready-made and
 // kept up to date by Vercentlabs, so they are viewed (and copied), never edited; custom roles are the organization's own. Roles are
 // grouped by the app they are for, with search, an app filter and Built-in / Custom, and every role opens to the permissions it grants.
 import { useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, CircleHelp, Copy, Eye, Layers, Pencil, RotateCcw, ShieldAlert, ShieldCheck, ShieldHalf, Sparkles, Trash2, UserCheck, Users } from "lucide-react";
 import {
@@ -12,6 +14,7 @@ import {
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
+import { PEOPLE_ACCESS_TITLE, PeopleAccessTabs } from "@/features/settings/people/PeopleAccessTabs";
 
 import {
   archiveRole, createRole, listArchivedRoles, listPermissionCatalog, listRoles, restoreRole, updateRole, RolesApiError,
@@ -46,6 +49,7 @@ type Focus = "all" | "in_use" | "custom" | "privileged";
 
 type EditorState = { mode: "create" } | { mode: "edit"; role: RoleRow };
 type Tab = "roles" | "matrix" | "reports" | "archived";
+const VIEWS: Array<[Tab, string]> = [["roles", "Roles"], ["matrix", "Permission matrix"], ["reports", "Reports"], ["archived", "Archived"]];
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 const people = (count: number) => `${count} ${count === 1 ? "person" : "people"}`;
 
@@ -56,7 +60,17 @@ export function RolesScreen({ canManage, canEdit, canSeeUsers = false }: { canMa
   const permissionsQuery = useQuery({ queryKey: PERMISSIONS_QUERY_KEY, queryFn: listPermissionCatalog, enabled: canManage, staleTime: 5 * 60_000 });
   const catalog = useMemo(() => new Map((permissionsQuery.data?.permissions ?? []).map((entry) => [entry.key, entry])), [permissionsQuery.data]);
 
-  const [tab, setTab] = useState<Tab>("roles");
+  // The view is in the address (?view=matrix…), so it can be linked to and survives a refresh; ?role=<id> (from Users) opens that role.
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const tab: Tab = VIEWS.some(([key]) => key === params.get("view")) ? (params.get("view") as Tab) : "roles";
+  const setTab = (next: Tab) => {
+    const query = new URLSearchParams(params.toString());
+    if (next === "roles") query.delete("view"); else query.set("view", next);
+    query.delete("role");
+    router.replace(query.size ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
   const [search, setSearch] = useState("");
   const [appFilter, setAppFilter] = useState(ALL);
   const [focus, setFocus] = useState<Focus>("all");
@@ -85,8 +99,14 @@ export function RolesScreen({ canManage, canEdit, canSeeUsers = false }: { canMa
     setAcknowledgeWarnings(false);
   }
   const openCreate = () => openEditor({ mode: "create" });
-  const openCopy = (role: RoleRow) => { setViewing(null); openEditor({ mode: "create" }, role, true); };
-  const openEdit = (role: RoleRow) => { setViewing(null); openEditor({ mode: "edit", role }, role); };
+  const linkedRoleId = params.get("role");
+  // Closing a role's dialog also drops ?role= from the address, so it does not open again.
+  const closeViewing = () => {
+    setViewing(null);
+    if (linkedRoleId) router.replace(tab === "roles" ? pathname : `${pathname}?view=${tab}`, { scroll: false });
+  };
+  const openCopy = (role: RoleRow) => { closeViewing(); openEditor({ mode: "create" }, role, true); };
+  const openEdit = (role: RoleRow) => { closeViewing(); openEditor({ mode: "edit", role }, role); };
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -123,6 +143,8 @@ export function RolesScreen({ canManage, canEdit, canSeeUsers = false }: { canMa
   });
 
   const roles = useMemo(() => query.data?.roles ?? [], [query.data]);
+  // The role open in its dialog: the one clicked, or else the one the address names (?role=<id>, from Users).
+  const shownRole = viewing ?? (linkedRoleId ? roles.find((role) => role.id === linkedRoleId) ?? null : null);
   const term = search.trim().toLowerCase();
   const shown = roles.filter((role) =>
     (appFilter === ALL || role.module_key === appFilter)
@@ -162,12 +184,14 @@ export function RolesScreen({ canManage, canEdit, canSeeUsers = false }: { canMa
   return (
     <div className="flex flex-1 flex-col gap-5">
       <PageHeader
-        title="Roles and permissions"
-        description={canEdit
-          ? "What each role lets people do. Give people their roles in Users."
-          : "What each role lets people do. Only organization owners and system administrators can change roles."}
+        title={PEOPLE_ACCESS_TITLE}
+        description={<>
+          What each role lets people do. Each person has one role{canSeeUsers ? <>, given in <Link href="/settings/users" className="font-medium text-brand hover:underline">Users</Link></> : null}.
+          {canEdit ? null : " Only organization owners and system administrators can change roles."}
+        </>}
         primaryAction={canEdit && <Button variant="primary" onPress={openCreate}>New role</Button>}
       />
+      <PeopleAccessTabs current="roles" />
 
       <div className="-mt-3 flex flex-col gap-2">
         <button type="button" aria-expanded={showGuide} onClick={() => setShowGuide((open) => !open)}
@@ -178,9 +202,9 @@ export function RolesScreen({ canManage, canEdit, canSeeUsers = false }: { canMa
         {showGuide && (
           <section aria-label="How roles work" className="grid gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-4 md:grid-cols-[1.3fr_1fr]">
             <ul className="flex flex-col gap-1.5 text-sm text-text-secondary">
-              <li><span className="font-medium text-text">A role is a set of permissions.</span> A person can hold more than one; they can do everything their roles allow.</li>
+              <li><span className="font-medium text-text">A role is a set of permissions.</span> Each person has exactly one role, and can do everything it allows.</li>
               <li><span className="font-medium text-text">Built-in roles</span> are ready-made for each app and kept up to date by Vercentlabs, so they can&apos;t be edited.</li>
-              <li><span className="font-medium text-text">Need something different?</span> Copy a built-in role into a custom role and change it, or start a new one.</li>
+              <li><span className="font-medium text-text">Someone needs access from more than one role?</span> Copy a built-in role into a custom role and add what they need, or start a new one.</li>
               <li><span className="font-medium text-text">Record access</span> decides whose records a role reaches in CRM, Sales, Procurement and Projects: their own, their team&apos;s or everyone&apos;s.</li>
             </ul>
             <dl className="flex flex-col gap-1.5 text-sm">
@@ -197,10 +221,11 @@ export function RolesScreen({ canManage, canEdit, canSeeUsers = false }: { canMa
 
       {pageError && <p role="alert" className="rounded-[var(--radius-control)] bg-danger-soft px-3 py-2 text-sm text-danger">{pageError}</p>}
 
-      <div role="tablist" aria-label="Roles and permissions" className="-mb-1 flex gap-1 overflow-x-auto border-b border-border">
-        {([["roles", "Roles"], ["matrix", "Permission matrix"], ["reports", "Reports"], ["archived", "Archived"]] as Array<[Tab, string]>).map(([key, label]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
-            className={`-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-brand ${tab === key ? "border-brand text-brand" : "border-transparent text-text-secondary hover:text-text"}`}>
+      {/* Roles' own views, as a compact switch under the People and access tabs (two tab rows would read as one). */}
+      <div role="radiogroup" aria-label="Show" className="flex h-[var(--control-height-standard)] max-w-full shrink-0 items-stretch gap-0.5 self-start overflow-x-auto rounded-[var(--radius-control)] border border-border bg-surface-muted p-0.5 [scrollbar-width:none]">
+        {VIEWS.map(([key, label]) => (
+          <button key={key} type="button" role="radio" aria-checked={tab === key} onClick={() => setTab(key)}
+            className={`flex shrink-0 items-center rounded-[calc(var(--radius-control)-2px)] px-3 text-sm font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand ${tab === key ? "bg-surface text-brand shadow-sm" : "text-text-secondary hover:text-text"}`}>
             {label}
           </button>
         ))}
@@ -266,7 +291,7 @@ export function RolesScreen({ canManage, canEdit, canSeeUsers = false }: { canMa
                   {open && (
                     <ul className="grid gap-3 border-t border-border bg-surface-muted p-3 md:grid-cols-2 xl:grid-cols-3">
                       {group.roles.map((role) => (
-                        <RoleCard key={role.id} role={role} canEdit={canEdit}
+                        <RoleCard key={role.id} role={role} canEdit={canEdit} canSeeUsers={canSeeUsers}
                           onView={() => setViewing(role)} onCopy={() => openCopy(role)} onEdit={() => openEdit(role)} onRemove={() => setArchiveTarget(role)} />
                       ))}
                     </ul>
@@ -279,9 +304,9 @@ export function RolesScreen({ canManage, canEdit, canSeeUsers = false }: { canMa
 
       </>)}
 
-      {viewing && (
-        <RoleDetailDialog role={viewing} catalog={catalog} appLabel={MODULE_LABEL.get(viewing.module_key) ?? "Platform"} risk={RISKS[riskOf(viewing.risk_level)]}
-          canEdit={canEdit} onClose={() => setViewing(null)} onCopy={() => openCopy(viewing)} onEdit={() => openEdit(viewing)} />
+      {shownRole && (
+        <RoleDetailDialog role={shownRole} catalog={catalog} appLabel={MODULE_LABEL.get(shownRole.module_key) ?? "Platform"} risk={RISKS[riskOf(shownRole.risk_level)]}
+          canEdit={canEdit} canSeeUsers={canSeeUsers} onClose={closeViewing} onCopy={() => openCopy(shownRole)} onEdit={() => openEdit(shownRole)} />
       )}
 
       <Dialog isOpen={Boolean(editor)} onOpenChange={(open) => !open && setEditor(null)} size="lg"
@@ -332,8 +357,8 @@ export function RolesScreen({ canManage, canEdit, canSeeUsers = false }: { canMa
   );
 }
 
-function RoleCard({ role, canEdit, onView, onCopy, onEdit, onRemove }: {
-  role: RoleRow; canEdit: boolean; onView: () => void; onCopy: () => void; onEdit: () => void; onRemove: () => void;
+function RoleCard({ role, canEdit, canSeeUsers, onView, onCopy, onEdit, onRemove }: {
+  role: RoleRow; canEdit: boolean; canSeeUsers: boolean; onView: () => void; onCopy: () => void; onEdit: () => void; onRemove: () => void;
 }) {
   const risk = RISKS[riskOf(role.risk_level)];
   const RiskIcon = risk.icon;
@@ -360,9 +385,16 @@ function RoleCard({ role, canEdit, onView, onCopy, onEdit, onRemove }: {
       <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-2 pl-5">
         <span className="flex items-center gap-3 text-xs text-text-secondary">
           <span className="tabular-nums">{plural(role.permission_keys.length, "permission")}</span>
-          <span className={`inline-flex items-center gap-1 tabular-nums ${role.assigned_user_count ? "font-medium text-text" : ""}`} title={people(role.assigned_user_count)}>
-            <Users className="size-3.5" aria-hidden="true" />{role.assigned_user_count}<span className="sr-only"> people with this role</span>
-          </span>
+          {/* Who holds it: opens Users showing just them. */}
+          {canSeeUsers && role.assigned_user_count > 0 ? (
+            <Link href={`/settings/users?role=${role.id}`} className="inline-flex items-center gap-1 font-medium text-text tabular-nums hover:text-brand hover:underline" title={`See the ${people(role.assigned_user_count)} with this role`}>
+              <Users className="size-3.5" aria-hidden="true" />{role.assigned_user_count}<span className="sr-only"> people with this role</span>
+            </Link>
+          ) : (
+            <span className={`inline-flex items-center gap-1 tabular-nums ${role.assigned_user_count ? "font-medium text-text" : ""}`} title={people(role.assigned_user_count)}>
+              <Users className="size-3.5" aria-hidden="true" />{role.assigned_user_count}<span className="sr-only"> people with this role</span>
+            </span>
+          )}
         </span>
         <span className="flex shrink-0 gap-0.5">
           <Button variant="ghost" size="compact" onPress={onView} aria-label={`View ${role.name}`}><Eye className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">View</span></Button>

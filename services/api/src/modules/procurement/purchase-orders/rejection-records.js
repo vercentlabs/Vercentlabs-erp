@@ -6,6 +6,7 @@
 import { decimal, formatDecimal, sub } from "../../../core/decimal.js";
 import { poCan } from "./access.js";
 import { PO_PERMISSIONS, isUuid, requireUuid, text } from "./constants.js";
+import { pagedList } from "../paging.js";
 import {
   EXPECTED_RESOLUTIONS, REJECTION_REASONS, RESOLUTION_TYPES, SOURCE_LABELS, STAGE_LABELS, blockedQuantityOf, loadRejection, reasonLabel, rejectionScopeSql, requireRejectionAccess,
 } from "./rejection-core.js";
@@ -86,8 +87,8 @@ export async function listRejections(client, context, filters = {}) {
     where += ` AND (rejection.rejection_number ILIKE ${term} OR po.purchase_order_number ILIKE ${term} OR receipt.receipt_number ILIKE ${term} OR party.display_name ILIKE ${term}
       OR rejection.description_snapshot ILIKE ${term} OR rejection.batch_number ILIKE ${term})`;
   }
-  const { rows } = await client.query(`${LIST_SELECT} WHERE rejection.organization_id = $1${where} ORDER BY rejection.observed_at DESC, rejection.rejection_number DESC LIMIT 300`, values);
-  return rows.map(toRow);
+  return pagedList(client, `${LIST_SELECT} WHERE rejection.organization_id = $1${where} ORDER BY rejection.observed_at DESC, rejection.rejection_number DESC`, values, filters, toRow,
+    { scoped: ["purchaseOrderId", "goodsReceiptId", "supplierId", "qualityInspectionId"].some((key) => isUuid(filters[key])) });
 }
 
 // getPurchaseOrderRejections / getGoodsReceiptRejections / getOpenSupplierRejections

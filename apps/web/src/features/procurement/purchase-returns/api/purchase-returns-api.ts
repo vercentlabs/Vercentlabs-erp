@@ -93,6 +93,8 @@ export type ReturnDetail = {
 export type ReturnFile = { id: string; fileName: string; mimeType: string | null; sizeBytes: number; uploadedAt: string };
 
 export const listReturns = (filters: Record<string, string | undefined> = {}) => get<{ rows: ReturnRow[] }>(`/purchase-returns${qs(filters)}`).then((result) => result.rows);
+// One page of the list with its total (Procurement plan Phase 0: the list used to stop at 300).
+export const listReturnsPage = (filters: Record<string, string | undefined> = {}) => get<{ rows: ReturnRow[]; total: number }>(`/purchase-returns${qs(filters)}`);
 export const getReturnOptions = () => get<{ options: ReturnOptions }>("/purchase-returns/options").then((result) => result.options);
 export const getEligible = (params: { order?: string; receipt?: string; exclude?: string }) =>
   get<{ eligible: Eligible }>(`/purchase-returns/eligible${qs(params)}`).then((result) => result.eligible);

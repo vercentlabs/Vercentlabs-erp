@@ -3,6 +3,7 @@
 // A role's details: Overview (what it is, its record access and its permissions), People (who holds it) and History (every saved
 // version, with the permissions added and removed).
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Pencil } from "lucide-react";
 import { Badge, Button, Dialog } from "@vercentlabs/design-system";
@@ -15,9 +16,9 @@ import { RecordAccessSummary } from "./RecordAccess";
 type Tab = "overview" | "people" | "history";
 const when = (value: string | null) => (value ? new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "Never");
 
-export function RoleDetailDialog({ role, catalog, appLabel, risk, canEdit, onClose, onCopy, onEdit }: {
+export function RoleDetailDialog({ role, catalog, appLabel, risk, canEdit, canSeeUsers = false, onClose, onCopy, onEdit }: {
   role: RoleRow; catalog: Map<string, PermissionCatalogEntry>; appLabel: string; risk: { label: string; tone: "success" | "warning" | "danger"; meaning: string };
-  canEdit: boolean; onClose: () => void; onCopy: () => void; onEdit: () => void;
+  canEdit: boolean; canSeeUsers?: boolean; onClose: () => void; onCopy: () => void; onEdit: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
   const detail = useQuery({ queryKey: ["settings", "roles", "detail", role.id], queryFn: () => getRoleDetail(role.id) });
@@ -49,15 +50,15 @@ export function RoleDetailDialog({ role, catalog, appLabel, risk, canEdit, onClo
         )}
 
         {tab === "people" && (detail.isLoading ? <LoadingState label="Loading people" rows={3} /> : people.length === 0 ? (
-          <p className="text-sm text-text-secondary">Nobody has this role. Give it to people in Users.</p>
+          <p className="text-sm text-text-secondary">Nobody has this role yet.{canSeeUsers && <> Give it to someone in <Link href="/settings/users" className="font-medium text-brand hover:underline">Users</Link>.</>}</p>
         ) : (
+          <div className="flex flex-col gap-2">
           <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-control)] border border-border">
             {people.map((person) => (
               <li key={person.userId} className="flex flex-col gap-0.5 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <span className="flex flex-col">
                   <span className="flex flex-wrap items-center gap-2 font-medium text-text">
                     {person.name}
-                    {person.isPrimary && <Badge tone="brand">Main role</Badge>}
                     {person.status !== "active" && <Badge tone="neutral">{person.status === "disabled" ? "Disabled" : person.status}</Badge>}
                   </span>
                   <span className="text-xs text-text-secondary">{person.email}</span>
@@ -66,6 +67,9 @@ export function RoleDetailDialog({ role, catalog, appLabel, risk, canEdit, onClo
               </li>
             ))}
           </ul>
+          {/* The same people in Users, where their role is changed. */}
+          {canSeeUsers && <Link href={`/settings/users?role=${role.id}`} className="self-start text-sm font-medium text-brand hover:underline">See them in Users</Link>}
+          </div>
         ))}
 
         {tab === "history" && (detail.isLoading ? <LoadingState label="Loading history" rows={3} /> : history.length === 0 ? (

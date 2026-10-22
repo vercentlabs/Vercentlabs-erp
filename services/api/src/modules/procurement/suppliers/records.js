@@ -296,7 +296,7 @@ export async function updateSupplier(client, context, supplierId, input = {}) {
   candidate.legalName ??= candidate.supplierName;
   // Without its own payment terms, a new supplier takes the company default for purchases.
   if (!candidate.paymentTermId) candidate.paymentTermId = (await getSupplierDefaultPaymentTerm(client, context.organizationId, null)).paymentTermId ?? null;
-  assertValidSupplier(candidate);
+  assertValidSupplier(candidate, changed);
   await assertSupplierReferences(client, context, candidate, changed);
   if (changed.some((field) => ["supplierName", "legalName", "gstin", "pan"].includes(field)))
     await assertNoBlockingSupplierDuplicate(client, context, {

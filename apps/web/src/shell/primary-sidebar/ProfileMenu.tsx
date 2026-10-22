@@ -83,13 +83,16 @@ export function ProfileMenu({
         onFocus={showTooltip}
         onBlur={hideTooltip}
       >
+        {/* The same 42px slot as the search and settings buttons beside it, so the bar keeps one rhythm; the avatar inside is smaller. */}
         <IconButton
           aria-label={`Account menu for ${fullName}`}
           tooltip={false}
           variant="ghost"
-          className="h-9 w-9 rounded-full bg-brand-soft text-xs font-semibold text-brand hover:bg-brand-soft hover:text-brand hover:ring-2 hover:ring-brand/30"
+          className="group rounded-full hover:bg-transparent"
         >
-          {initials}
+          <span className="flex size-7.5 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand transition-shadow group-hover:ring-2 group-hover:ring-brand/30">
+            {initials}
+          </span>
         </IconButton>
         {tooltipPosition && typeof document !== "undefined"
           ? createPortal(

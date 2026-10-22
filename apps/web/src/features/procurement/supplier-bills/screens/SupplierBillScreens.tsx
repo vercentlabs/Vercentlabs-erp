@@ -4,12 +4,14 @@
 // document; its payment, due and matching states come from Finance's records. From a bill: post it (through Finance's approval policy),
 // pay it, apply an advance or credit, correct it with a vendor credit, or reverse it while nothing settled it.
 import { ListStateViews } from "../../shared/ListStateViews";
+import { NewDocumentMenu } from "../../shared/NewDocumentMenu";
+import { listGoodsReceiptsPage, type GoodsReceiptRow } from "../../purchase-orders/api/purchase-orders-api";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Download, Eye, Pencil, Plus } from "lucide-react";
+import { Download, Eye, Pencil } from "lucide-react";
 import {
   Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, RecordDetailsPage, SearchField, Select, StatusBadge, Tab, TabList, TabPanel, Tabs,
   TextArea, TextField, buttonVariants,
@@ -18,14 +20,18 @@ import {
 import { useListState, useTabParam } from "@/features/procurement/shared/navigation";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { gridPaging, pageFilters, usePageIndex } from "@/features/procurement/shared/paging";
+import { SupplierFilter } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { DocumentChain } from "@/features/procurement/shared/DocumentChain";
 import { calendarDate, dateTime, money, quantity, statusLabel } from "@/features/procurement/shared/format";
 
 import {
-  billAction, billFileUrl, errorMessage, getBill, getBillOptions, issuesOf, listBillFiles, listBills, removeBillFile, reversePayment, uploadBillFile, validateBill, voucherUrl,
+  billAction, billFileUrl, errorMessage, getBill, getBillOptions, issuesOf, listBillFiles, listBillsPage, removeBillFile, reversePayment, uploadBillFile, validateBill, voucherUrl,
   type BillDetail, type BillRow,
 } from "../api/supplier-bills-api";
 import { PaymentSchedulePanel } from "./PaymentSchedule";
+import { LandedCostPanel } from "./LandedCostPanel";
 
 import { MatchBadge, TwoWayMatching } from "./TwoWayMatching";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
@@ -39,6 +45,9 @@ const LABELS: Record<string, string> = { awaiting_approval: "Awaiting approval",
 const label = (value: string) => LABELS[value] ?? statusLabel(value);
 export const DocStatus = ({ status }: { status: string }) => <StatusBadge tone={DOC_TONE[status] ?? "neutral"}>{label(status)}</StatusBadge>;
 const PayStatus = ({ status }: { status: string }) => (status === "not_applicable" ? null : <StatusBadge tone={PAY_TONE[status] ?? "neutral"}>{label(status)}</StatusBadge>);
+// The bill's input tax credit (Procurement plan Phase 1).
+const ITC_TONE: Record<string, Tone> = { eligible: "success", partly_blocked: "warning", blocked: "danger", rcm: "info", no_gst: "neutral" };
+const ItcStatus = ({ row }: { row: BillRow }) => (row.itcStatus && row.itcLabel ? <StatusBadge tone={ITC_TONE[row.itcStatus] ?? "neutral"}>{row.itcLabel}</StatusBadge> : <span className="text-xs text-text-muted">—</span>);
 const MatchStatus = ({ status }: { status: string }) => (status === "not_applicable" ? <span className="text-xs text-text-muted">—</span> : <StatusBadge tone={MATCH_TONE[status] ?? "neutral"}>{label(status)}</StatusBadge>);
 
 // ---------------------------------------------------------------- lists
@@ -47,7 +56,8 @@ export function SupplierBillsScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   // The view is in the URL (?view=matching-issues, ?source=direct link straight to them); the search and filters are remembered for this browser tab.
-  const list = useListState("supplier-bills", { view: "all", filters: { supplierId: "any", source: "any", documentStatus: "any", paymentStatus: "any", due: "any", matchingResult: "any", issue: "any" } });
+  // It opens on "To post" (Procurement plan Phase 1); "To create" lists the goods receipts still to bill.
+  const list = useListState("supplier-bills", { view: "to-post", filters: { supplierId: "any", source: "any", documentStatus: "any", paymentStatus: "any", due: "any", matchingResult: "any", issue: "any" } });
   const view = list.view.replace(/-/g, "_");
   const setView = (next: string) => list.setView(next.replace(/_/g, "-"));
   const { search, setSearch } = list;
@@ -56,11 +66,15 @@ export function SupplierBillsScreen() {
   const setFilter = (key: keyof typeof extra) => (value: React.Key | null) => list.setFilter(key, String(value));
   const urlSource = useSearchParams().get("source");
   useEffect(() => { if (urlSource) list.setFilter("source", urlSource === "po" ? "purchase_order" : urlSource); }, [urlSource]); // eslint-disable-line react-hooks/exhaustive-deps
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill-options"), queryFn: getBillOptions, staleTime: 60_000 });
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill-options"), queryFn: () => getBillOptions(), staleTime: 60_000 });
   const filters = useMemo(() => ({ view: view === "all" ? undefined : view, search: search.trim() || undefined, supplierId: supplierId === "any" ? undefined : supplierId,
     ...Object.fromEntries(Object.entries(extra).filter(([, value]) => value !== "any")) }), [view, search, supplierId, extra]);
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bills", filters), queryFn: () => listBills(filters) });
-  const rows = query.data ?? [];
+  const [pageIndex, setPageIndex] = usePageIndex(filters);
+  const toCreate = view === "to_create";
+  const gstOn = Boolean(options.data?.gstOn);
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bills", filters, pageIndex),
+    queryFn: () => listBillsPage({ ...filters, ...pageFilters(pageIndex) }), placeholderData: (previous) => previous, enabled: !toCreate });
+  const rows = query.data?.rows ?? [];
   const columns = useMemo<ColumnDef<BillRow, unknown>[]>(() => [
     { id: "number", header: "Bill", cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.billNumber}</span> },
     { id: "invoice", header: "Supplier invoice", cell: ({ row }) => row.original.supplierInvoiceNumber ?? "—" },
@@ -75,22 +89,26 @@ export function SupplierBillsScreen() {
       { id: "balance", header: "Balance due", cell: ({ row }: { row: { original: BillRow } }) => <span className="font-medium tabular-nums">{money(row.original.currencyCode, row.original.balanceDue)}</span> },
     ]),
     { id: "status", header: "Status", cell: ({ row }) => <span className="flex flex-wrap gap-1"><DocStatus status={row.original.documentStatus} /><PayStatus status={row.original.paymentStatus} /></span> },
+    { id: "itc", header: "ITC", cell: ({ row }) => <span className="flex flex-wrap gap-1"><ItcStatus row={row.original} />
+      {gstOn && row.original.twoB === "not_in_2b" && <StatusBadge tone="warning">Not in 2B</StatusBadge>}{gstOn && row.original.twoB === "differs" && <StatusBadge tone="warning">2B differs</StatusBadge>}</span> },
     ...([{ id: "matching", header: "Matching", cell: ({ row }: { row: { original: BillRow } }) => (
       <span className="flex flex-col gap-0.5">{row.original.twoWayResult === "not_applicable" ? <span className="text-xs text-text-muted">N/A</span> : <MatchBadge result={row.original.twoWayResult} />}
         {row.original.discrepancy && <span className="text-xs text-danger">{row.original.discrepancy}</span>}
         {row.original.matchingResult === "pending_receipt" && <span className="text-xs text-text-muted">Pending receipt</span>}</span>
     ) }]),
-  ], []);
+  ], [gstOn]);
   return (
-    <EnterpriseListPage header={{ title: "Supplier Bills",
+    <EnterpriseListPage header={{ title: "Purchase Bills",
       description: "What suppliers have charged: posted bills are Accounts Payable; payments and credits settle them.",
-      primaryAction: options.data?.capabilities.create ? <LinkButton variant="primary" href="/procurement/supplier-bills/new"><Plus className="size-4" aria-hidden="true" />New Supplier Bill</LinkButton> : undefined }}
+      primaryAction: options.data?.capabilities.create ? <NewDocumentMenu label="New Purchase Bill" sources={[
+        { id: "grn", label: "From a goods receipt (GRN)", href: "/procurement/supplier-bills?view=to-create" },
+        { id: "po", label: "From a purchase order", href: "/procurement/supplier-bills/new?source=po" },
+        { id: "direct", label: "Direct expense (no PO)", href: "/procurement/supplier-bills/new?source=direct" }]} /> : undefined }}
       savedViews={{ views: (options.data?.views ?? [{ key: "all", label: "All Bills" }]).map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
       actionBar={{ end: <ListStateViews listKey="supplier-bills" list={list} />,  start: (
         <>
           <SearchField aria-label="Search bills" placeholder="Bill, invoice, supplier, PO, line or category" className="w-full sm:w-80" value={search} onChange={setSearch} />
-          <Select aria-label="Supplier" size="compact" selectedKey={supplierId} onSelectionChange={(value) => setSupplierId(String(value))}
-            options={[{ value: "any", label: "Any supplier" }, ...(options.data?.suppliers ?? []).map((supplier) => ({ value: supplier.id, label: supplier.name }))]} />
+          <SupplierFilter known={options.data?.suppliers ?? []} value={supplierId} onChange={(id) => setSupplierId(id || "any")} />
           <Select aria-label="Source" size="compact" selectedKey={extra.source} onSelectionChange={setFilter("source")}
             options={[{ value: "any", label: "Any source" }, { value: "purchase_order", label: "Purchase order" }, { value: "direct", label: "Direct (no PO)" }]} />
           <Select aria-label="Document status" size="compact" selectedKey={extra.documentStatus} onSelectionChange={setFilter("documentStatus")}
@@ -108,16 +126,50 @@ export function SupplierBillsScreen() {
             options={[{ value: "any", label: "Any due date" }, { value: "not_due", label: "Not due" }, { value: "overdue", label: "Overdue" }]} />
         </>
       ) }}>
-      <EnterpriseDataGrid<BillRow> aria-label="Supplier bills" columns={columns} data={rows} getRowId={(row) => row.id}
+      {toCreate ? <BillsToCreate supplierId={supplierId === "any" ? undefined : supplierId} search={search.trim() || undefined} canCreate={Boolean(options.data?.capabilities.create)} /> : (
+      <EnterpriseDataGrid<BillRow> aria-label="Purchase bills" columns={columns} data={rows} getRowId={(row) => row.id} {...gridPaging(query.data?.total ?? 0, pageIndex, setPageIndex)}
         state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (search || supplierId !== "any" || view !== "all" || Object.values(extra).some((value) => value !== "any") ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading bills" rows={6} />}
         errorContent={<ErrorState title="Could not load bills" description={errorMessage(query.error)} action={{ label: "Try again", onPress: () => void query.refetch() }} />}
-        emptyContent={<EmptyState title="No supplier bills yet" description="Record one from a purchase order, a goods receipt, or directly for an expense." />}
+        emptyContent={<EmptyState title="No purchase bills yet" description="Record one from a purchase order, a goods receipt, or directly for an expense." />}
         noResultsContent={<NoResultsState title="Nothing in this view" description="Try another view or search." />}
         onRowClick={(row) => router.push(`/procurement/supplier-bills/${row.id}`)}
         renderMobileCard={(row) => <div className="flex flex-col gap-1"><span className="font-medium tabular-nums">{row.billNumber} · {row.supplierName}</span>
           <span className="text-xs text-text-muted">{row.supplierInvoiceNumber} · {money(row.currencyCode, row.balanceDue)} due</span></div>} />
+      )}
     </EnterpriseListPage>
+  );
+}
+
+// Bills › To create: posted goods receipts with goods still to bill, each a click from its bill.
+function BillsToCreate({ supplierId, search, canCreate }: { supplierId?: string; search?: string; canCreate: boolean }) {
+  const workspace = useWorkspaceContext();
+  const router = useRouter();
+  const filters = useMemo(() => ({ view: "to_bill", supplierId, search }), [supplierId, search]);
+  const [pageIndex, setPageIndex] = usePageIndex(filters);
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "goods-receipts", filters, pageIndex),
+    queryFn: () => listGoodsReceiptsPage({ ...filters, ...pageFilters(pageIndex) }), placeholderData: (previous) => previous });
+  const rows = query.data?.rows ?? [];
+  const billHref = (row: GoodsReceiptRow) => `/procurement/supplier-bills/new?source=grn&goodsReceiptIds=${row.id}`;
+  const columns = useMemo<ColumnDef<GoodsReceiptRow, unknown>[]>(() => [
+    { id: "number", header: "GRN", cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.receiptNumber}</span> },
+    { id: "date", header: "Received", cell: ({ row }) => calendarDate(row.original.receiptDate) },
+    { id: "supplier", header: "Supplier", cell: ({ row }) => row.original.supplierName },
+    { id: "order", header: "PO", cell: ({ row }) => row.original.purchaseOrderNumber },
+    { id: "challan", header: "Supplier challan", cell: ({ row }) => row.original.supplierChallanNumber ?? "—" },
+    { id: "action", header: "", cell: ({ row }) => (canCreate ? <LinkButton size="compact" variant="secondary" href={`/procurement/supplier-bills/new?source=grn&goodsReceiptIds=${row.original.id}`}>Create bill</LinkButton> : null) },
+  ], [canCreate]);
+  return (
+    <EnterpriseDataGrid<GoodsReceiptRow> aria-label="Goods receipts to bill" columns={columns} data={rows} getRowId={(row) => row.id} {...gridPaging(query.data?.total ?? 0, pageIndex, setPageIndex)}
+      state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (search || supplierId ? "no-results" : "empty") : "ready"}
+      loadingContent={<LoadingState label="Loading goods receipts to bill" rows={6} />}
+      errorContent={<ErrorState title="Could not load goods receipts" description={errorMessage(query.error)} action={{ label: "Try again", onPress: () => void query.refetch() }} />}
+      emptyContent={<EmptyState title="No GRNs waiting for a bill" description="Every posted goods receipt is billed. Record a direct expense?"
+        action={canCreate ? { label: "Direct expense", onPress: () => router.push("/procurement/supplier-bills/new?source=direct") } : undefined} />}
+      noResultsContent={<NoResultsState title="Nothing to bill for this search" description="Try another supplier or search." />}
+      onRowClick={(row) => router.push(canCreate ? billHref(row) : `/procurement/goods-receipts/${row.id}`)}
+      renderMobileCard={(row) => <div className="flex flex-col gap-1"><span className="font-medium tabular-nums">{row.receiptNumber} · {row.supplierName}</span>
+        <span className="text-xs text-text-muted">{calendarDate(row.receiptDate)} · {row.purchaseOrderNumber}</span></div>} />
   );
 }
 
@@ -164,6 +216,7 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
       {bill.documentStatus === "awaiting_approval" && <Notice tone="warning">Awaiting Finance&apos;s approval. Nothing is posted until it is approved.</Notice>}
       {detail.duplicates.length > 0 && <Notice tone="warning">Possible duplicate supplier invoice: {detail.duplicates.map((entry) => `${entry.billNumber} (${label(entry.status)})`).join(", ")}.</Notice>}
       {bill.matchingResult === "mismatch" && <Notice tone="warning">A price differs from the purchase order. Posting is blocked until the bill is corrected, the order amended, or the variance accepted with a reason.</Notice>}
+      <DocumentChain type="supplier_bill" id={bill.id} />
       <RecordDetailsPage header={{
         title: bill.billNumber,
         status: <span className="flex flex-wrap gap-2"><DocStatus status={bill.documentStatus} /><PayStatus status={bill.paymentStatus} /><MatchStatus status={bill.matchingResult} /></span>,
@@ -270,6 +323,7 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
                 <Facts columns={3} items={[
                   { label: "Section", value: bill.withholdingSection ? `${bill.withholdingSection.code} · ${bill.withholdingSection.name}` : "None" },
                   { label: "Withheld", value: c(bill.withholdingTotal) }, { label: "Net payable to supplier", value: c(bill.netPayable) },
+                  ...(bill.rcmSelfInvoiceNumber ? [{ label: "RCM self-invoice", value: bill.rcmSelfInvoiceNumber }] : []),
                 ]} />
               </Panel>
             </div>
@@ -342,6 +396,7 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
           </TabPanel>
         </Tabs>
       </RecordDetailsPage>
+      {bill.type === "bill" && <LandedCostPanel billId={bill.id} currencyCode={bill.currencyCode} />}
       {dialog === "post" && <PostDialog detail={detail} onClose={() => setDialog(null)} onDone={changed} />}
       {dialog === "cancel" && <ReasonDialog title={`Cancel ${bill.billNumber}`} description="A draft that will not be posted. It never had an accounting effect." label="Cancel draft"
         run={(reason) => billAction(bill.id, "cancel", { reason })} onClose={() => setDialog(null)} onDone={() => changed("Cancelled.")} />}
@@ -361,6 +416,7 @@ function Totals({ detail }: { detail: BillDetail }) {
     ["Subtotal", bill.subtotal], ["Discounts", `-${bill.discountTotal}`], ["Taxable value", bill.taxableTotal], ["Tax charged", bill.taxTotal],
     ...(Number(bill.reverseChargeTaxTotal) > 0 ? [["Reverse-charge tax (self-assessed)", bill.reverseChargeTaxTotal] as [string, string]] : []),
     ["Invoice total", bill.invoiceTotal, true],
+    ...(Number(bill.tcsAmount ?? 0) > 0 ? [["TCS collected by the supplier", bill.tcsAmount ?? "0"] as [string, string]] : []),
     ...(Number(bill.withholdingTotal) > 0 ? [["TDS withheld", `-${bill.withholdingTotal}`] as [string, string]] : []),
     ...(Number(bill.roundingAdjustment) !== 0 ? [["Rounding", bill.roundingAdjustment] as [string, string]] : []),
     ["Net payable", bill.netPayable, true],
@@ -485,7 +541,7 @@ function PostDialog({ detail, onClose, onDone }: { detail: BillDetail; onClose: 
 
 function PaymentDialog({ detail, onClose, onDone }: { detail: BillDetail; onClose: () => void; onDone: (message: string) => void }) {
   const workspace = useWorkspaceContext();
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill-options"), queryFn: getBillOptions, staleTime: 60_000 });
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill-options"), queryFn: () => getBillOptions(), staleTime: 60_000 });
   const [amount, setAmount] = useState(String(Number(detail.bill.balanceDue)));
   const [method, setMethod] = useState("bank_transfer");
   const [bank, setBank] = useState("none");

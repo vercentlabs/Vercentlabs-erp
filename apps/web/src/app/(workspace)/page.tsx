@@ -1,12 +1,14 @@
 import { MODULE_NAVIGATION } from "@/shell/navigation/module-navigation-registry";
 import { ModuleLauncher } from "@/features/platform/home/ModuleLauncher";
+import { YourDay } from "@/features/platform/home/YourDay";
 import { resolveWorkspaceContext } from "@/shell/workspace-context/resolveWorkspaceContext";
 
 export const metadata = { title: "Home" };
 
-// Home is the app launcher: a greeting and one tile per module the person may open, centred on the page at every screen size.
+// Home is the app launcher: a greeting, one tile per module the person may open (centred however many there are), then "Your day" —
+// the to-dos, approvals and notifications waiting for them — centred on the page at every screen size.
 export default async function HomePage() {
-  const { session, accessibleModules } = await resolveWorkspaceContext();
+  const { session, accessibleModules, pendingApprovalCount, unreadNotificationCount } = await resolveWorkspaceContext();
   const firstName = session.fullName.split(" ")[0] || session.fullName;
   const usable = new Set(
     accessibleModules.filter((m) => m.accessible).map((m) => m.moduleId),
@@ -30,6 +32,8 @@ export default async function HomePage() {
             <ModuleLauncher modules={modules} />
           </section>
         )}
+
+        <YourDay crm={usable.has("crm")} pendingApprovalCount={pendingApprovalCount} unreadNotificationCount={unreadNotificationCount} />
 
         <p className="text-center text-sm text-text-secondary">
           Looking for something? Press Ctrl K, or use Search at the top, to find records and pages.

@@ -44,6 +44,13 @@ export async function validateRoleSelection(
   },
 ) {
   const uniqueRoleIds = [...new Set(roleIds)];
+  // One person, one role: access that spans several jobs is a custom role (Settings › Roles and permissions), never a stack of roles.
+  if (uniqueRoleIds.length > 1) {
+    throw new AccessAdministrationError(
+      400,
+      "Choose one role. To combine access from several roles, create a custom role in Settings › Roles and permissions.",
+    );
+  }
   if (!uniqueRoleIds.length || !uniqueRoleIds.includes(primaryRoleId)) {
     throw new AccessAdministrationError(
       400,
@@ -115,7 +122,7 @@ export async function validateRoleSelection(
   const privilegedSystemRole = roles.some(
     (role) =>
       role.is_system &&
-      ["organization_owner", "system_administrator", "user_administrator"].includes(
+      ["organization_owner", "system_administrator"].includes(
         role.slug,
       ),
   );
@@ -154,13 +161,13 @@ export async function validateRoleSelection(
   if (!primaryRole) throw new AccessAdministrationError(400, "Select a valid primary role.");
   if (
     roles.some((role) =>
-      ["system_administrator", "user_administrator"].includes(role.slug),
+      role.slug === "system_administrator",
     ) &&
-    !["system_administrator", "user_administrator"].includes(primaryRole.slug)
+    primaryRole.slug !== "system_administrator"
   ) {
     throw new AccessAdministrationError(
       400,
-      "An administrator role must be selected as the primary role when assigned.",
+      "System Administrator must be the primary role when it is assigned.",
     );
   }
 

@@ -14,7 +14,7 @@ export default async function HostedFormPage({ params }: { params: Promise<{ key
   const form = await ingressTransaction((client) => getPublicCaptureForm(client, key));
   if (!form) notFound();
   return (
-    <main className="min-h-screen bg-surface-muted px-4 py-8">
+    <main className="min-h-screen bg-surface-muted px-4 py-8 max-lg:pb-[calc(3rem+env(safe-area-inset-bottom))]">
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-6">
         <div>
           <p className="text-xs uppercase tracking-wide text-text-muted">{form.organizationName}</p>

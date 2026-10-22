@@ -1094,7 +1094,7 @@ export function PosCheckoutScreen() {
 
       {/* Below the two-column layout the cart sits under the products: a cart button, always in reach, jumps to it. */}
       {cart && (
-        <a href="#pos-cart" className="fixed bottom-4 right-4 z-30 flex min-h-12 items-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-white shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 lg:hidden"
+        <a href="#pos-cart" className="fixed bottom-4 max-lg:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex min-h-12 items-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-white shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 lg:hidden"
           aria-label={`Cart, ${itemCount} item${itemCount === 1 ? "" : "s"}, ${money(currency, cart.grand_total)}`}>
           <ShoppingCart className="size-5" aria-hidden="true" />
           <span className="tabular-nums">{itemCount}</span>

@@ -131,7 +131,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
             <Tab id="tax">Tax &amp; Registrations</Tab>
             <Tab id="purchase-orders">Purchase Orders</Tab>
             <Tab id="goods-receipts">Goods Receipts</Tab>
-            <Tab id="supplier-bills">Supplier Bills</Tab>
+            <Tab id="supplier-bills">Purchase Bills</Tab>
             <Tab id="returns-credits">Returns &amp; Credits</Tab>
             {actions.viewPaymentDetails && <Tab id="payment-details">Payment Details</Tab>}
             <Tab id="notes">Notes &amp; Attachments</Tab>

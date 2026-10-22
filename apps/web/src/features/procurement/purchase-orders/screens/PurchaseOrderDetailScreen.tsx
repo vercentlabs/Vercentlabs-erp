@@ -15,6 +15,8 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { DocumentChain } from "@/features/procurement/shared/DocumentChain";
+import { PoWhatsAppButton } from "../components/PoWhatsAppButton";
 import { calendarDate, dateTime, money, quantity, statusLabel, statusTone } from "@/features/procurement/shared/format";
 
 import {
@@ -42,7 +44,7 @@ export function PurchaseOrderDetailScreen({ orderId }: { orderId: string }) {
   const queryClient = useQueryClient();
   const key = scopedQueryKey(workspace, "procurement", "purchase-order", orderId);
   const query = useQuery({ queryKey: key, queryFn: () => getPurchaseOrder(orderId) });
-  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: getPurchaseOrderOptions, staleTime: 60_000 });
+  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: () => getPurchaseOrderOptions(), staleTime: 60_000 });
   const [notice, setNotice] = useState<string | null>(null);
   const changed = (message: string) => {
     setNotice(message);
@@ -73,6 +75,7 @@ function Detail({ detail, options, notice, onChanged }: { detail: PurchaseOrderD
       {order.amending && <Notice tone="warning">Being amended: {order.amendmentReason}. Version {order.versionNumber} stays in force until the amendment is confirmed.</Notice>}
       {order.status === "cancelled" && <Notice tone="warning">Cancelled{order.cancelledAt ? ` on ${dateTime(order.cancelledAt)}` : ""}{order.cancelledByName ? ` by ${order.cancelledByName}` : ""}: {options.cancelReasons.find((entry) => entry.code === order.cancelReasonCode)?.label ?? order.cancelReasonCode}{order.cancelReason ? ` (${order.cancelReason})` : ""}.</Notice>}
       {order.status === "closed" && <Notice tone="success">Closed{order.closedAt ? ` on ${dateTime(order.closedAt)}` : ""}{order.closedByName ? ` by ${order.closedByName}` : ""}. {tracking.payment !== "paid" && tracking.payment !== "no_payable" ? "Payment of its bills is with Finance." : ""}</Notice>}
+      <DocumentChain type="purchase_order" id={order.id} />
       <RecordDetailsPage
         header={{
           title: `${order.purchaseOrderNumber}${order.versionNumber > 1 ? ` · version ${order.versionNumber}` : ""}`,
@@ -95,18 +98,20 @@ function Detail({ detail, options, notice, onChanged }: { detail: PurchaseOrderD
           ],
           primaryAction: actions.confirm ? <Button variant="primary" onPress={() => setDialog("confirm")}>{order.amending ? `Confirm version ${order.versionNumber + 1}` : "Confirm"}</Button>
             : actions.receive ? <LinkButton variant="primary" href={`/procurement/goods-receipts/new?purchaseOrderId=${order.id}`}><Truck className="size-4" aria-hidden="true" />Create Goods Receipt</LinkButton>
-              : actions.bill ? <LinkButton variant="primary" href={`/procurement/supplier-bills/new?source=po&purchaseOrderId=${order.id}`}>Record supplier bill</LinkButton>
+              : actions.bill ? <LinkButton variant="primary" href={`/procurement/supplier-bills/new?source=po&purchaseOrderId=${order.id}`}>Create purchase bill</LinkButton>
                 : actions.close ? <Button variant="primary" onPress={() => setDialog("close")}>Close order</Button> : undefined,
           secondaryActions: (
             <div className="flex flex-wrap items-center gap-2">
               {actions.edit && <LinkButton variant="secondary" href={`/procurement/purchase-orders/${order.id}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
-              {actions.bill && (actions.receive || actions.close) && <LinkButton variant="secondary" href={`/procurement/supplier-bills/new?source=po&purchaseOrderId=${order.id}`}>Record supplier bill</LinkButton>}
+              {actions.bill && (actions.receive || actions.close) && <LinkButton variant="secondary" href={`/procurement/supplier-bills/new?source=po&purchaseOrderId=${order.id}`}>Create purchase bill</LinkButton>}
               {actions.close && (actions.receive || actions.bill) && <Button variant="secondary" onPress={() => setDialog("close")}>Close order</Button>}
               {actions.send && <Button variant="secondary" onPress={() => setDialog("send")}><Send className="size-4" aria-hidden="true" />Send</Button>}
               {actions.send && <Button variant="ghost" onPress={() => setDialog("markSent")}>Mark sent</Button>}
+              {actions.send && order.status === "confirmed" && <PoWhatsAppButton orderId={order.id} />}
               {actions.acknowledge && <Button variant="ghost" onPress={() => setDialog("acknowledge")}>Acknowledged</Button>}
               <a className={buttonVariants({ variant: "ghost" })} href={purchaseOrderPdfUrl(order.id, { inline: true })} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />Print</a>
               <a className={buttonVariants({ variant: "ghost" })} href={purchaseOrderPdfUrl(order.id)} download><Download className="size-4" aria-hidden="true" />PDF</a>
+              <LinkButton variant="ghost" href={`/procurement/purchase-orders/new?copyFrom=${order.id}`}>Copy as new order</LinkButton>
               {actions.recordRejection && <Button variant="ghost" onPress={() => setDialog("rejection")}>Record rejection</Button>}
               {actions.updateDates && <Button variant="ghost" onPress={() => setDialog("dates")}>Update dates</Button>}
               {actions.amend && <Button variant="ghost" onPress={() => setDialog("amend")}>Amend</Button>}
@@ -122,7 +127,7 @@ function Detail({ detail, options, notice, onChanged }: { detail: PurchaseOrderD
             <Tab id="items">Items</Tab>
             <Tab id="receipts">Receipts</Tab>
             {detail.rejections && <Tab id="rejections">Rejections &amp; Discrepancies{detail.rejections.summary.open ? ` (${detail.rejections.summary.open})` : ""}</Tab>}
-            <Tab id="bills">Supplier Bills</Tab>
+            <Tab id="bills">Purchase Bills</Tab>
             <Tab id="returns-credits">Returns &amp; Credits</Tab>
             <Tab id="related">Related</Tab>
             <Tab id="notes">Notes &amp; Attachments</Tab>
@@ -475,7 +480,7 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
   const billing = query.data;
   const currency = detail.order.currencyCode;
   const createAction = detail.actions.bill && billing.readyToBill
-    ? <LinkButton size="compact" variant="primary" href={`/procurement/supplier-bills/new?source=po&purchaseOrderId=${detail.order.id}`}>Create Supplier Bill</LinkButton> : undefined;
+    ? <LinkButton size="compact" variant="primary" href={`/procurement/supplier-bills/new?source=po&purchaseOrderId=${detail.order.id}`}>Create Purchase Bill</LinkButton> : undefined;
   const pending = billing.lines.filter((line) => Number(line.remainingCommitment) > 0);
   return (
     <div className="flex flex-col gap-4">

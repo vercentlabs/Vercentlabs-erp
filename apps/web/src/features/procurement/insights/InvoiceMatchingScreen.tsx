@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, Select, StatusBadge } from "@vercentlabs/design-system";
+import { EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, StatusBadge } from "@vercentlabs/design-system";
 
 import { getPurchaseOrderOptions } from "@/features/procurement/purchase-orders/api/purchase-orders-api";
 import { calendarDate, money, quantity } from "@/features/procurement/shared/format";
@@ -16,6 +16,7 @@ import { ProcApiError, request } from "@/features/procurement/shared/http";
 import { filterBarOf, optionLabel, usePagedRows } from "@/shared/ui/list";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { SupplierFilter } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 type MatchRow = {
@@ -49,7 +50,7 @@ export function InvoiceMatchingScreen() {
   const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString();
   const matching = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "invoice-matching", query),
     queryFn: () => request<{ matching: Matching }>(`/invoice-matching${query ? `?${query}` : ""}`).then((result) => result.matching), placeholderData: (previous) => previous });
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "purchase-order-options"), queryFn: getPurchaseOrderOptions, retry: false });
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "purchase-order-options"), queryFn: () => getPurchaseOrderOptions(), retry: false });
   const data = matching.data;
   const rows = useMemo(() => data?.rows ?? [], [data]);
   const paged = usePagedRows(rows, { initialSorting: [{ id: "billDate", desc: true }] });
@@ -89,7 +90,7 @@ export function InvoiceMatchingScreen() {
 
   return (
     <EnterpriseListPage
-      header={{ title: "Invoice Matching", description: "Purchase-order bills against what was ordered and received. Open a bill to review its match, approve a variance or correct it." }}
+      header={{ title: "Bill Matching", description: "Purchase-order bills against what was ordered and received. Open a bill to review its match, approve a variance or correct it." }}
       savedViews={{
         views: (data?.views ?? [{ key: "all", label: "All bills" }]).map((entry) => ({ id: entry.key, label: entry.label, count: data?.counts[entry.key] })),
         activeViewId: filters.view, onSelect: (id) => { set("view", id); paged.resetPage(); },
@@ -98,8 +99,8 @@ export function InvoiceMatchingScreen() {
         start: (
           <>
             <SearchField aria-label="Search" placeholder="Bill, supplier invoice, PO or supplier" className="w-full sm:w-80" value={filters.search} onChange={(value) => set("search", value)} />
-            <Select aria-label="Supplier" size="compact" selectedKey={filters.supplierId || ALL} onSelectionChange={(value) => set("supplierId", String(value))}
-              options={[{ value: ALL, label: "All suppliers" }, ...(options.data?.suppliers ?? []).map((entry) => ({ value: entry.id, label: entry.name }))]} />
+            <SupplierFilter anyLabel="All suppliers" known={options.data?.suppliers ?? []} value={filters.supplierId && filters.supplierId !== ALL ? filters.supplierId : ""}
+              onChange={(id) => set("supplierId", id || ALL)} />
           </>
         ),
       }}

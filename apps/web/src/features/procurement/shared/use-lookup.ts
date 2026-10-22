@@ -23,7 +23,7 @@ export function useLookup(): Lookup {
   const workspace = useWorkspaceContext();
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "procurement", "options"),
-    queryFn: getOptions,
+    queryFn: () => getOptions(),
   });
   const o = query.data;
   const find = <T extends { id: string }>(

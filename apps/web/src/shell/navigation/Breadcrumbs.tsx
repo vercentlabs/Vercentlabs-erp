@@ -17,6 +17,7 @@ import {
   matchesRoute,
   type Crumb,
 } from "@/shell/navigation/navigation-resolution";
+import { SETTINGS_NAVIGATION } from "@/shell/navigation/settings-navigation-registry";
 
 const GLOBAL_ENTRIES = [
   ...GLOBAL_NAV_TOP,
@@ -33,6 +34,12 @@ function crumbsForPathname(pathname: string, search = ""): Crumb[] {
     matchRoute(entry, pathname),
   );
   if (activeModule) return breadcrumbTrail(activeModule, pathname, search);
+  // A settings page (Users, Roles, Billing…) reads Settings › Page, Settings opening the settings home — two levels, so a phone, which
+  // shows the last two, still has the way back.
+  const setting = SETTINGS_NAVIGATION.flatMap((section) => section.items)
+    .filter((item) => item.route !== "/settings" && matchesRoute(pathname, item.route))
+    .sort((a, b) => b.route.length - a.route.length)[0];
+  if (setting) return [{ label: "Settings", href: "/settings" }, { label: setting.label }];
   const global = GLOBAL_ENTRIES.filter((entry) =>
     matchesRoute(pathname, entry.href),
   ).sort((a, b) => b.href.length - a.href.length)[0];

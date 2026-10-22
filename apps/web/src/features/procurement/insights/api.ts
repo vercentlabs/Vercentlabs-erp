@@ -5,7 +5,8 @@ import { request } from "@/features/procurement/shared/http";
 
 export type ProcurementMetric = { key: string; label: string; value: number; href: string };
 export type AttentionItem = { kind: string; title: string; detail: string; href: string };
-export type ProcurementOverview = { today: string; metrics: ProcurementMetric[]; attention: AttentionItem[] };
+export type WorkCard = { key: string; label: string; value: number; href: string; tone: "neutral" | "info" | "warning" | "danger" };
+export type ProcurementOverview = { today: string; metrics: ProcurementMetric[]; attention: AttentionItem[]; myWork: WorkCard[] };
 export type ReportSummary = { key: string; title: string; description: string };
 export type ReportColumn = { key: string; label: string; type: "text" | "number" | "money" | "date" };
 export type ReportRow = Record<string, string | number | null> & { href: string; currency?: string };

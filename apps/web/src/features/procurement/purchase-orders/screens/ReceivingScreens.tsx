@@ -7,6 +7,7 @@
 // receipts reversed while nothing has used them, and goods returned. A
 // return is its own document; the receipt it corrects is never changed.
 import { ListStateViews } from "../../shared/ListStateViews";
+import { NewDocumentMenu } from "../../shared/NewDocumentMenu";
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -20,11 +21,15 @@ import {
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { useApp } from "@/shell/workspace-context/useApp";
+import { gridPaging, pageFilters, usePageIndex } from "@/features/procurement/shared/paging";
+import { ANY_PICK, ProcurementSearchPicker, SupplierFilter } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { DocumentChain } from "@/features/procurement/shared/DocumentChain";
 import { calendarDate, dateTime, quantity, statusLabel, statusTone } from "@/features/procurement/shared/format";
 
 import {
-  errorMessage, getGoodsReceipt, getPurchaseOrderOptions, goodsReceiptPdfUrl, issuesOf, listGoodsReceipts, listReceiptFiles,
+  errorMessage, getGoodsReceipt, getPurchaseOrderOptions, goodsReceiptPdfUrl, issuesOf, listGoodsReceiptsPage, listReceiptFiles,
   receiptAction, receiptFileUrl, recordDiscrepancy, releaseHeld, removeReceiptFile, uploadReceiptFile, validateGoodsReceipt, type Disposition, type GoodsReceiptDetail, type GoodsReceiptRow,
 } from "../api/purchase-orders-api";
 import { ReceiptRejectionDialog, ReceivingIssuesGrid, RejectionTable } from "./RejectionScreens";
@@ -40,6 +45,8 @@ const ReceiptStatus = ({ status }: { status: string }) => <StatusBadge tone={REC
 
 // Goods receipt views, then the Receiving Issues queue (its own cases, including dock refusals that created no goods receipt).
 const RECEIPT_LIST_VIEWS = [
+  // The store's day first (Procurement plan Phase 1): received today and drafts not yet posted; then goods still to bill.
+  { id: "today", label: "Today" }, { id: "to_bill", label: "To bill" },
   { id: "all", label: "All Goods Receipts" }, { id: "draft", label: "Draft" }, { id: "posted", label: "Posted" }, { id: "cancelled_reversed", label: "Cancelled / Reversed" },
   { id: "partially_billed", label: "Partially Matched to Bills" }, { id: "not_billed", label: "Not Yet Billed" }, { id: "with_rejections", label: "With Rejections / Discrepancies" },
   { id: "mine", label: "My Receipts" }, { id: "receiving-issues", label: "Receiving Issues" }, { id: "issues-before-custody", label: "↳ Before-Custody Refusals" },
@@ -52,16 +59,18 @@ export function GoodsReceiptsScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   // The view is in the URL (?view=receiving-issues opens the issue queue); the search and filters are remembered for this browser tab.
-  const list = useListState("goods-receipts", { view: "all", filters: { supplierId: ANY, warehouseId: ANY, productId: ANY, receivedById: ANY, dateFrom: "", dateTo: "", stage: ANY, reason: ANY } });
+  const list = useListState("goods-receipts", { view: "today", filters: { supplierId: ANY, warehouseId: ANY, productId: ANY, receivedById: ANY, dateFrom: "", dateTo: "", stage: ANY, reason: ANY } });
   const { view, setView, search, setSearch } = list;
   const { stage, reason, ...filters } = list.filters;
   const setFilters = (update: (current: typeof filters) => typeof filters) => list.setFilters((current) => ({ ...current, ...update(filters) }));
   const issueView = ISSUE_VIEWS[view];
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: getPurchaseOrderOptions, staleTime: 60_000 });
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: () => getPurchaseOrderOptions(), staleTime: 60_000 });
   const searchFilters = useMemo(() => ({ search: search.trim() || undefined, ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== ANY)) }), [search, filters]);
   const listFilters = useMemo(() => ({ ...searchFilters, view: view === "all" ? undefined : view }), [searchFilters, view]);
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "goods-receipts", listFilters), queryFn: () => listGoodsReceipts(listFilters), enabled: !issueView });
-  const rows = query.data ?? [];
+  const [pageIndex, setPageIndex] = usePageIndex(listFilters);
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "goods-receipts", listFilters, pageIndex),
+    queryFn: () => listGoodsReceiptsPage({ ...listFilters, ...pageFilters(pageIndex) }), enabled: !issueView, placeholderData: (previous) => previous });
+  const rows = query.data?.rows ?? [];
   const select = (key: keyof typeof filters, label: string, choices: Array<{ value: string; label: string }>) => (
     <Select aria-label={label} size="compact" selectedKey={filters[key]} onSelectionChange={(value) => setFilters((current) => ({ ...current, [key]: String(value) }))}
       options={[{ value: ANY, label }, ...choices]} />
@@ -79,10 +88,11 @@ export function GoodsReceiptsScreen() {
     { id: "by", header: "Received by", cell: ({ row }) => row.original.receivedBy ?? "" },
   ], []);
   return (
-    <EnterpriseListPage header={{ title: issueView ? "Goods Receipts — Receiving Issues" : "Goods Receipts",
+    <EnterpriseListPage header={{ title: issueView ? "Receiving Issues" : "Goods Receipts (GRN)",
       description: issueView ? "Dock refusals (no goods receipt), shortages and wrong deliveries, goods awaiting Quality and rejections after receipt — each its own case until resolved." : "Goods received against confirmed purchase orders.",
       primaryAction: issueView ? <LinkButton variant="primary" href="/procurement/receiving-issues/new"><Plus className="size-4" aria-hidden="true" />Report Issue</LinkButton>
-        : options.data?.capabilities.receive ? <LinkButton variant="primary" href="/procurement/goods-receipts/new"><Plus className="size-4" aria-hidden="true" />New Goods Receipt</LinkButton> : undefined }}
+        : options.data?.capabilities.receive ? <NewDocumentMenu label="New GRN" sources={[{ id: "po", label: "Against a purchase order", href: "/procurement/goods-receipts/new" },
+          { id: "refused", label: "Goods refused at the gate (no GRN)", href: "/procurement/receiving-issues/new" }]} /> : undefined }}
       savedViews={{ views: RECEIPT_LIST_VIEWS, activeViewId: view, onSelect: setView }}
       actionBar={{ end: <ListStateViews listKey="goods-receipts" list={list} />,  start: issueView ? (
         <>
@@ -94,15 +104,16 @@ export function GoodsReceiptsScreen() {
       ) : (
         <>
           <SearchField aria-label="Search receipts" placeholder="GRN, purchase order, supplier or challan" className="w-full sm:w-80" value={search} onChange={setSearch} />
-          {select("supplierId", "Any supplier", (options.data?.suppliers ?? []).map((supplier) => ({ value: supplier.id, label: supplier.name })))}
+          <SupplierFilter known={options.data?.suppliers ?? []} value={filters.supplierId} onChange={(id) => setFilters((current) => ({ ...current, supplierId: id || ANY }))} />
           {select("warehouseId", "Any warehouse", (options.data?.warehouses ?? []).map((warehouse) => ({ value: warehouse.id, label: warehouse.name })))}
-          {select("productId", "Any product", (options.data?.products ?? []).map((product) => ({ value: product.id, label: `${product.name} (${product.code})` })))}
+          <ProcurementSearchPicker kind="products" label="Product" anyLabel="Any product" size="compact" className="w-full sm:w-64" known={options.data?.products ?? []}
+            value={filters.productId !== ANY ? filters.productId : null} onPick={(id) => setFilters((current) => ({ ...current, productId: id === ANY_PICK ? ANY : id }))} />
           {select("receivedById", "Received by anyone", (options.data?.buyers ?? []).map((user) => ({ value: user.id, label: user.name })))}
           <TextField aria-label="Received from" type="date" size="compact" className="w-40" value={filters.dateFrom} onChange={(value) => setFilters((current) => ({ ...current, dateFrom: value }))} />
           <TextField aria-label="Received to" type="date" size="compact" className="w-40" value={filters.dateTo} onChange={(value) => setFilters((current) => ({ ...current, dateTo: value }))} />
         </>
       ) }}>
-      {issueView ? <ReceivingIssuesGrid view={issueView} search={search} stage={stage} reason={reason} /> : <EnterpriseDataGrid<GoodsReceiptRow> aria-label="Goods receipts" columns={columns} data={rows} getRowId={(row) => row.id}
+      {issueView ? <ReceivingIssuesGrid view={issueView} search={search} stage={stage} reason={reason} /> : <EnterpriseDataGrid<GoodsReceiptRow> aria-label="Goods receipts" columns={columns} data={rows} getRowId={(row) => row.id} {...gridPaging(query.data?.total ?? 0, pageIndex, setPageIndex)}
         state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (Object.keys(searchFilters).length || view !== "all" ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading goods receipts" rows={6} />}
         errorContent={<ErrorState title="Could not load goods receipts" action={{ label: "Try again", onPress: () => void query.refetch() }} />}
@@ -116,6 +127,9 @@ export function GoodsReceiptsScreen() {
 
 type DialogName = "reverse" | "return" | "discrepancy" | "post" | "rejection";
 export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
+  // Quality's inspection and Stock's ledger and item pages are linked only while those apps are on (Procurement plan Phase 0, bug 13).
+  const qualityOn = useApp("quality");
+  const stockLinksOn = useApp("stock");
   const [tab, setTab] = useTabParam(["overview","items","rejections","billing","returns","movements","notes","history"], "overview");
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
@@ -134,6 +148,7 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
       {notice && <Notice tone="success">{notice}</Notice>}
       {cancel.error && <Notice>{errorMessage(cancel.error)}</Notice>}
       {receipt.status === "reversed" && <Notice tone="warning">Reversed {dateTime(receipt.reversedAt)}{receipt.reversedByName ? ` by ${receipt.reversedByName}` : ""}: {receipt.reversalReason}. Its stock was taken back out; it no longer counts as received.</Notice>}
+      <DocumentChain type="goods_receipt" id={receipt.id} />
       <RecordDetailsPage header={{
         title: receipt.receiptNumber,
         status: <ReceiptStatus status={receipt.status} />,
@@ -150,7 +165,7 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
           <div className="flex flex-wrap gap-2">
             {actions.edit && <LinkButton variant="secondary" href={`/procurement/goods-receipts/${receipt.id}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
             {actions.cancel && <Button variant="ghost" isLoading={cancel.isPending} onPress={() => cancel.mutate()}>Cancel draft</Button>}
-            {actions.createBill && <LinkButton variant="secondary" href={`/procurement/supplier-bills/new?source=grn&goodsReceiptIds=${receipt.id}`}>Create Supplier Bill</LinkButton>}
+            {actions.createBill && <LinkButton variant="secondary" href={`/procurement/supplier-bills/new?source=grn&goodsReceiptIds=${receipt.id}`}>Create Purchase Bill</LinkButton>}
             {(actions.recordRejection || actions.recordQualityRejection) && <Button variant="ghost" onPress={() => setDialog("rejection")}>Record rejection</Button>}
             {actions.recordDiscrepancy && <Button variant="ghost" onPress={() => setDialog("discrepancy")}>Record discrepancy</Button>}
             {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Reverse</Button>}
@@ -177,7 +192,8 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                 <Facts columns={3} items={[
                   { label: "Supplier challan", value: [receipt.supplierChallanNumber, receipt.supplierChallanDate && calendarDate(receipt.supplierChallanDate)].filter(Boolean).join(" · ") || "—" },
                   { label: "Goods arrived", value: receipt.physicalReceivedAt ? dateTime(receipt.physicalReceivedAt) : "—" },
-                  { label: "Transport", value: [receipt.vehicleNumber && `Vehicle ${receipt.vehicleNumber}`, receipt.carrierName, receipt.trackingReference && `Ref ${receipt.trackingReference}`].filter(Boolean).join(" · ") || "—" },
+                  { label: "Transport", value: [receipt.vehicleNumber && `Vehicle ${receipt.vehicleNumber}`, receipt.carrierName, receipt.trackingReference && `Ref ${receipt.trackingReference}`,
+                    receipt.ewbNumber && `E-way bill ${receipt.ewbNumber}`].filter(Boolean).join(" · ") || "—" },
                   { label: "Ships from", value: receipt.shipFrom ? [receipt.shipFrom.label, receipt.shipFrom.city].filter(Boolean).join(" · ") : "—" },
                   { label: "Company", value: receipt.company ? `${receipt.company.legalName ?? receipt.company.name ?? ""}${receipt.company.gstin ? ` · ${receipt.company.gstin}` : ""}` : "—" },
                   { label: "Created", value: `${dateTime(receipt.createdAt)}${receipt.createdByName ? ` by ${receipt.createdByName}` : ""}` },
@@ -226,7 +242,9 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                         <span key={entry.id} className="flex flex-wrap items-center gap-2 text-xs">
                           <StatusBadge tone={entry.disposition === "damaged" ? "danger" : "warning"}>{entry.disposition === "damaged" ? "Damaged" : "Inspection hold"}</StatusBadge>
                           {quantity(entry.quantity)} held · {quantity(entry.released)} released · {quantity(entry.returned)} returned · {quantity(entry.open)} still held
-                          {entry.inspection && <Link className="text-brand hover:underline" href={`/quality/incoming/${entry.inspection.id}`}>Inspection {entry.inspection.number} ({statusLabel(entry.inspection.status)})</Link>}
+                          {entry.inspection && (qualityOn
+                            ? <Link className="text-brand hover:underline" href={`/quality/incoming/${entry.inspection.id}`}>Inspection {entry.inspection.number} ({statusLabel(entry.inspection.status)})</Link>
+                            : <span>Inspection {entry.inspection.number} ({statusLabel(entry.inspection.status)})</span>)}
                           {actions.release && Number(entry.open) > 0 && <Button size="compact" variant="ghost" onPress={() => setReleasing(entry)}>Release to stock</Button>}
                         </span>
                       ))}
@@ -258,7 +276,7 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
           <TabPanel id="movements">
             <div className="pt-4">
               <Panel title="Inventory movements" description="Posted by Inventory for this receipt: the receipt itself, releases from hold, returns and any reversal. Each is a Stock Ledger entry, effective on the receipt date.">
-                {receipt.status !== "draft" && <div className="flex flex-wrap gap-3 text-sm">
+                {receipt.status !== "draft" && stockLinksOn && <div className="flex flex-wrap gap-3 text-sm">
                   <Link className="text-brand hover:underline" href={`/inventory/transactions?tab=ledger&sourceId=${receipt.id}`}>View in Stock Ledger</Link>
                   {[...new Set(detail.movements.map((movement) => movement.itemId))].map((itemId) => <Link key={itemId} className="text-brand hover:underline" href={`/inventory/stock/items/${itemId}`}>Current stock{new Set(detail.movements.map((movement) => movement.itemId)).size > 1 ? ` (${detail.lines.find((line) => line.productId === itemId)?.description ?? "item"})` : ""}</Link>)}
                 </div>}
@@ -455,7 +473,7 @@ function ReceiptBillMatching({ receiptId }: { receiptId: string }) {
   const billing = query.data;
   return (
     <Panel title="Supplier bill matching" description={billing.note ?? `${billing.matchingPolicy.label}: each bill draws on the receipt lines it bills, so received goods are never billed twice. Eligible follows the order's policy.`}
-      actions={billing.canBill ? <Link className="text-sm font-medium text-brand hover:underline" href={`/procurement/supplier-bills/new?source=grn&goodsReceiptIds=${billing.receipt.id}`}>Create Supplier Bill</Link> : undefined}>
+      actions={billing.canBill ? <Link className="text-sm font-medium text-brand hover:underline" href={`/procurement/supplier-bills/new?source=grn&goodsReceiptIds=${billing.receipt.id}`}>Create Purchase Bill</Link> : undefined}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-text-muted">

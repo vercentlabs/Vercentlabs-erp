@@ -31,6 +31,9 @@ export async function GET(
   const day = (value: string | null) => (value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined);
   const from = day(params.get("from"));
   const to = day(params.get("to"));
+  // ?supplierId= addresses an RFQ to one of its suppliers.
+  const supplierParam = params.get("supplierId") ?? "";
+  const supplierId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(supplierParam) ? supplierParam : undefined;
   if (!renderer) return errorResponse(new HttpError(404, "Unknown document."));
   return workspaceRoute(
     request,
@@ -45,7 +48,7 @@ export async function GET(
         session,
         renderer.key,
         id,
-        { version, advancePercent, copies, width, from, to },
+        { version, advancePercent, copies, width, from, to, supplierId },
       );
       return new Response(new Uint8Array(pdf.body), {
         status: 200,

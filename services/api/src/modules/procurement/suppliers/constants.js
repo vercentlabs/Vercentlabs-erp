@@ -141,5 +141,7 @@ export const text = (value, max = 2000) => {
 };
 export const has = (input, key) => Object.prototype.hasOwnProperty.call(input ?? {}, key);
 export const GSTIN_PATTERN = /^[0-9]{2}[A-Z0-9]{13}$/;
+// A Udyam registration number, as the MSME ministry issues it: UDYAM-<state>-<district>-<seven digits> (Procurement plan Phase 1).
+export const UDYAM_PATTERN = /^UDYAM-[A-Z]{2}-[0-9]{2}-[0-9]{7}$/;
 export const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

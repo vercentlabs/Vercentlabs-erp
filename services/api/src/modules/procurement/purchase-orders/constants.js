@@ -74,6 +74,8 @@ export const PO_PERMISSIONS = Object.freeze({
 
 // The spec's views first (receiving and billing ones are derived filters, not statuses), then the operational queues.
 export const PO_VIEWS = Object.freeze([
+  // The list opens on Open (Procurement plan Phase 1): drafts and confirmed orders still to receive or bill.
+  { key: "open", label: "Open" },
   { key: "all", label: "All Purchase Orders" },
   { key: "draft", label: "Draft" },
   { key: "confirmed", label: "Confirmed" },

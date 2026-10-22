@@ -15,7 +15,7 @@ import { decimal, formatDecimal } from "../../core/decimal.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 import { parseCsvUpload } from "../../core/platform/data-exchange/csv.js";
 import { buildXlsxWorkbook, isXlsxFileName, parseXlsxUpload } from "../../core/platform/data-exchange/xlsx.js";
-import { draftPurchaseOrder, purchaseOn } from "./bridges/purchase.js";
+import { draftPurchaseIndent, draftPurchaseOrder, purchaseOn, reorderTarget } from "./bridges/purchase.js";
 import { visibleWarehouseIds } from "./balances.js";
 import { StockError } from "./errors.js";
 import { restrictedStockSql } from "./rules.js";
@@ -444,11 +444,12 @@ async function markActioned(client, c, ruleId, type, document) {
   if (live) await client.query(
     `UPDATE tenant.inventory_replenishment_recommendations SET status = 'actioned', action_document_type = $3, action_document_id = $4, action_document_number = $5, actioned_at = now(),
             actioned_by = $6, updated_at = now(), version = version + 1 WHERE organization_id = $1 AND id = $2`, [c.organizationId, live.id, type, document.id, document.number, c.userId ?? null]);
-  await event(client, c, { ruleId, recommendationId: live?.id ?? null, type: type === "purchase_order" ? "purchase_draft.created" : "transfer_draft.created",
-    summary: `${type === "purchase_order" ? "Draft purchase order" : "Draft transfer"} ${document.number ?? ""} opened for ${document.quantity}`.replace("  ", " "),
+  const what = { purchase_order: "Draft purchase order", purchase_indent: "Purchase indent", inventory_transfer: "Draft transfer" }[type] ?? "Draft transfer";
+  await event(client, c, { ruleId, recommendationId: live?.id ?? null, type: type === "inventory_transfer" ? "transfer_draft.created" : "purchase_draft.created",
+    summary: `${what} ${document.number ?? ""} opened for ${document.quantity}`.replace("  ", " "),
     details: { documentId: document.id, documentNumber: document.number, quantity: document.quantity } });
   if (live) await event(client, c, { ruleId, recommendationId: live.id, type: "recommendation.actioned", summary: `Actioned with ${document.number ?? "a draft"}` });
-  await alertAction(client, c, ruleId, { type: type === "purchase_order" ? "purchase_draft_created" : "transfer_draft_created", documentType: type, documentId: document.id,
+  await alertAction(client, c, ruleId, { type: type === "inventory_transfer" ? "transfer_draft_created" : "purchase_draft_created", documentType: type, documentId: document.id,
     documentNumber: document.number ?? null, quantity: document.baseQuantity ?? null });
 }
 
@@ -464,6 +465,18 @@ export async function createPurchaseDraftFromReorder(client, c, ruleId, input = 
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
   const { rule, row } = await actionable(client, c, ruleId);
   const base = quantityFor(row, input);
+  // A company that buys through indents gets a submitted indent for the store's need instead of a draft order (Procurement plan Phase 2):
+  // the buyer chooses the supplier and price from the indent.
+  if ((await reorderTarget(client, c)) === "indent") {
+    const item = await stockItem(client, c, rule.item_id);
+    const indent = await draftPurchaseIndent(client, c, { itemId: rule.item_id, quantity: String(base), uomId: item.uom_id, warehouseId: rule.warehouse_id,
+      note: `Replenishment for ${row.sku} at ${row.warehouse}: projected ${row.projectedPosition}, target ${row.targetLevel} ${row.baseUom ?? ""}`.trim() });
+    await markActioned(client, c, rule.id, "purchase_indent", { id: indent.id, number: indent.number, baseQuantity: base, quantity: `${base} ${item.base_uom ?? ""}`.trim() });
+    const response = { purchaseIndentId: indent.id, purchaseIndentNumber: indent.number, quantity: base, uomId: item.uom_id, baseQuantity: base,
+      href: `/procurement/indents/${indent.id}`, warnings: [], replayed: false };
+    await completeIdempotentOperation(client, c, idempotency, { response, aggregateType: "inventory_reorder_rule", aggregateId: rule.id });
+    return response;
+  }
   const preferred = await preferredSupplier(client, c, rule.item_id);
   const supplierId = uuidOrNull(input.supplierId, "Supplier") ?? preferred?.supplierId;
   if (!supplierId) fail("Choose the supplier: Procurement has no price or earlier order for this item.", "REORDER_SUPPLIER_REQUIRED");

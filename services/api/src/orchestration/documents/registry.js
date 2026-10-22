@@ -18,6 +18,9 @@ import { getGoodsReceipt, getPurchaseOrderDocument } from "../../modules/procure
 import { getSupplierBill } from "../../modules/procurement/supplier-bills/index.js";
 import { getPurchaseReturn } from "../../modules/procurement/purchase-returns/index.js";
 import { getSupplierDebitClaim, getVendorCredit } from "../../modules/procurement/vendor-credits/index.js";
+import { getSupplierPayment } from "../../modules/procurement/payments/index.js";
+import { getPurchaseReturnChallan } from "../../modules/procurement/purchase-returns/index.js";
+import { getPurchaseRfq } from "../../modules/procurement/rfqs/index.js";
 import { getDealQuote, loadSharedDealQuote, resolveSharedDealQuote } from "../../modules/crm/quotes/index.js";
 import { findIndianState } from "@vercentlabs/shared-types";
 import { getSalesChallan } from "../../modules/sales/challans.js";
@@ -1067,6 +1070,150 @@ function paymentReceiptModel(data, company) {
   };
 }
 
+// The Payment Advice (Procurement plan Phase 1): what was paid to a supplier, how, and the bills it settled with the TDS withheld on each,
+// so the supplier can reconcile their ledger and Form 26AS / 16A. Not a tax document.
+function paymentAdviceModel(data, company) {
+  const { payment, supplier, allocations, planned } = data;
+  const currency = payment.currencyCode;
+  const settled = allocations.filter((row) => !row.reversed);
+  const rows = settled.length ? settled : planned.map((row) => ({ ...row, billTotal: null }));
+  return {
+    title: "Payment Advice",
+    documentNumber: payment.number,
+    issuedAt: `Paid on: ${day(payment.date) ?? ""}`,
+    organizationName: company.name,
+    status: payment.reversedAt ? `Status: Reversed${payment.reversalReason ? `: ${payment.reversalReason}` : ""}`
+      : ["draft", "pending_approval", "approved"].includes(payment.status) ? `Status: ${payment.statusLabel}` : null,
+    parties: [
+      { label: "Paid by", lines: [company.name, company.taxId ? `GSTIN ${company.taxId}` : null].filter(Boolean) },
+      { label: "Paid to", lines: [supplier.legalName ?? supplier.name, supplier.number ? `Supplier no. ${supplier.number}` : null, supplier.gstin ? `GSTIN ${supplier.gstin}` : null,
+        supplier.pan ? `PAN ${supplier.pan}` : null, supplier.msme?.udyam ? `Udyam ${supplier.msme.udyam}` : null].filter(Boolean) },
+    ],
+    fields: [
+      { label: "Payment no.", value: payment.number },
+      { label: "Date", value: day(payment.date) ?? "" },
+      { label: "Paid by", value: payment.methodLabel ?? "" },
+      { label: "Reference / UTR", value: payment.reference ?? "" },
+      { label: "From", value: payment.bankAccount ?? "" },
+      { label: "Against order", value: payment.purchaseOrderNumber ?? "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "bill", label: "Our bill", width: "18%" },
+        { key: "invoice", label: "Your invoice", width: "20%" },
+        { key: "date", label: "Invoice date", width: "14%" },
+        { key: "total", label: "Bill amount", align: "right", width: "16%" },
+        { key: "tds", label: "TDS withheld", align: "right", width: "14%" },
+        { key: "amount", label: `Paid (${currency})`, align: "right", width: "18%" },
+      ],
+      rows: [
+        ...rows.map((row) => ({ bill: row.billNumber ?? "", invoice: row.supplierInvoice ?? "", date: day(row.billDate) ?? "", total: row.billTotal ? amount(row.billTotal) : "",
+          tds: Number(row.tds) ? `${amount(row.tds)}${row.tdsSection ? ` (${row.tdsSection})` : ""}` : "", amount: amount(row.amount) })),
+        ...(Number(payment.unapplied) > 0.005 && !["draft", "pending_approval", "approved"].includes(payment.status)
+          ? [{ bill: "Advance", invoice: "Kept against your next bills", date: "", total: "", tds: "", amount: amount(payment.unapplied) }] : []),
+      ],
+    },
+    totals: [
+      ...(Number(payment.tdsWithheld) ? [{ label: "TDS withheld on these bills", value: amount(payment.tdsWithheld) }] : []),
+      { label: `Paid (${currency})`, value: amount(payment.amount), emphasis: true },
+    ],
+    notes: [{ label: "", text: Number(payment.tdsWithheld)
+      ? "TDS shown was withheld when each bill was booked and is deposited with the Income Tax Department; it will appear in your Form 26AS. This advice is not a tax document."
+      : "This advice confirms a payment. It is not a tax document." }],
+    footer: payment.number,
+  };
+}
+
+// The Request for Quotation a supplier receives (Procurement plan Phase 2): the items and quantities, by when they are needed, and by when to
+// reply — addressed to one supplier when asked (?supplierId=). Prices are left for the supplier to fill in.
+function rfqModel(data, company) {
+  const { rfq, lines, supplier } = data;
+  return {
+    title: "REQUEST FOR QUOTATION",
+    documentNumber: rfq.number,
+    issuedAt: `Date: ${day(rfq.sentAt ?? rfq.createdAt) ?? ""}`,
+    organizationName: company.name,
+    status: rfq.status === "cancelled" ? "Status: Cancelled" : null,
+    parties: [
+      { label: "From", lines: [company.name, company.taxId ? `GSTIN ${company.taxId}` : null].filter(Boolean) },
+      ...(supplier ? [{ label: "To", lines: [supplier.supplierName, supplier.gstin ? `GSTIN ${supplier.gstin}` : null, supplier.email].filter(Boolean) }] : []),
+    ],
+    fields: [
+      { label: "RFQ no.", value: rfq.number },
+      { label: "Subject", value: rfq.title ?? "" },
+      { label: "Please reply by", value: rfq.responseDueDate ? day(rfq.responseDueDate) ?? "" : "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "line", label: "#", width: "6%" },
+        { key: "item", label: "Item", width: "40%" },
+        { key: "quantity", label: "Quantity", align: "right", width: "16%" },
+        { key: "needed", label: "Needed by", width: "16%" },
+        { key: "price", label: "Your rate (excl. GST)", align: "right", width: "22%" },
+      ],
+      rows: lines.map((line) => ({ line: String(line.lineNumber), item: `${line.productName}${line.productCode ? ` (${line.productCode})` : ""}${line.description ? ` — ${line.description}` : ""}`,
+        quantity: `${Number(line.quantity)} ${line.uomCode ?? ""}`.trim(), needed: line.requiredBy ? day(line.requiredBy) ?? "" : "", price: "" })),
+    },
+    totals: [],
+    notes: [
+      { label: "Please quote", text: "Your rate per unit excluding GST, the GST rate, freight and other charges, delivery lead time, payment terms and how long the prices are valid." },
+      ...(rfq.notes ? [{ label: "Notes", text: rfq.notes }] : []),
+    ],
+    footer: `${rfq.number} · request for quotation`,
+  };
+}
+
+// The delivery challan returned goods travel under (CGST rule 55; Procurement plan Phase 2): consignor and consignee with their GSTINs, the
+// place of supply, each item with HSN, quantity, taxable value and GST, the transport and the e-way bill when there is one.
+function returnChallanModel(data, company) {
+  const { purchaseReturn, movement, bill } = data;
+  const inter = Boolean(movement.interState);
+  const tax = Number(bill.cgstValue) + Number(bill.sgstValue) + Number(bill.igstValue);
+  return {
+    title: "DELIVERY CHALLAN",
+    documentNumber: purchaseReturn.number,
+    issuedAt: `Challan date: ${day(purchaseReturn.date) ?? ""}`,
+    organizationName: company.name,
+    status: purchaseReturn.status === "draft" ? "Status: Draft - not dispatched" : purchaseReturn.status === "cancelled" ? "Status: Cancelled" : null,
+    parties: [
+      { label: "Consignor", lines: [movement.seller?.legal_name || movement.seller?.name || company.name, [movement.from.line1, movement.from.city, movement.from.pin].filter(Boolean).join(", "),
+        movement.seller?.registration_number ? `GSTIN ${movement.seller.registration_number}` : null].filter(Boolean) },
+      { label: "Consignee (supplier)", lines: [movement.to.name, [movement.to.line1, movement.to.city, movement.to.pin].filter(Boolean).join(", "),
+        movement.to.gstin && movement.to.gstin !== "URP" ? `GSTIN ${movement.to.gstin}` : "Unregistered"].filter(Boolean) },
+    ],
+    fields: [
+      { label: "Challan no.", value: purchaseReturn.number },
+      { label: "Purpose", value: "Return of goods to the supplier" },
+      { label: "Place of supply", value: movement.to.state ? String(movement.to.state) : "" },
+      { label: "Vehicle", value: purchaseReturn.vehicleNumber ?? "" },
+      { label: "Transporter", value: [purchaseReturn.transporterName, purchaseReturn.transporterId].filter(Boolean).join(" · ") },
+      { label: "E-way bill", value: purchaseReturn.ewbNumber ? `${purchaseReturn.ewbNumber}${purchaseReturn.ewbValidUntil ? ` (valid till ${day(purchaseReturn.ewbValidUntil) ?? ""})` : ""}` : "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Item", width: "34%" },
+        { key: "hsn", label: "HSN", width: "11%" },
+        { key: "quantity", label: "Quantity", align: "right", width: "13%" },
+        { key: "taxable", label: "Taxable value", align: "right", width: "16%" },
+        { key: "rate", label: "GST", align: "right", width: "10%" },
+        { key: "tax", label: "Tax", align: "right", width: "16%" },
+      ],
+      rows: bill.itemList.map((item) => {
+        const rate = inter ? Number(item.igstRate) : Number(item.cgstRate) + Number(item.sgstRate);
+        return { item: item.productName, hsn: item.hsnCode, quantity: `${item.quantity} ${item.qtyUnit}`, taxable: amount(item.taxableAmount), rate: `${rate}%`,
+          tax: amount((Number(item.taxableAmount) * rate) / 100) };
+      }),
+    },
+    totals: [
+      { label: "Taxable value", value: amount(bill.totalValue) },
+      ...(inter ? [{ label: "IGST", value: amount(bill.igstValue) }] : [{ label: "CGST", value: amount(bill.cgstValue) }, { label: "SGST", value: amount(bill.sgstValue) }]),
+      { label: "Value of goods", value: amount(Number(bill.totalValue) + tax), emphasis: true },
+    ],
+    notes: [{ label: "", text: `Goods returned to the supplier: not a supply for consideration. ${Number(bill.totInvValue) >= 50000 && !purchaseReturn.ewbNumber ? "An e-way bill is needed for this consignment (₹50,000 or more)." : ""}`.trim() }],
+    footer: `${purchaseReturn.number} · delivery challan`,
+  };
+}
+
 // The Debit Note (Sales plan): titled DEBIT NOTE, naming the original invoice and the reason, the amounts added to its lines with
 // HSN/SAC and their tax components, and the totals.
 function debitNoteModel(data, uqcOf = null) {
@@ -1596,6 +1743,50 @@ export const DOCUMENT_RENDERERS = Object.freeze([
       return supplierBillModel(data.detail, data.company);
     },
     fileName: (data) => `Purchase-Voucher-${data.detail.bill.billNumber}`,
+  }),
+  Object.freeze({
+    key: "procurement.payment_advice",
+    moduleKey: "procurement",
+    permission: "procurement.bills.view",
+    label: "Payment advice",
+    async load(client, session, id) {
+      return { ...(await getSupplierPayment(client, salesContext(session), id)), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return paymentAdviceModel(data, data.company);
+    },
+    money: (data) => ({ amount: data.payment.amount, currency: data.payment.currencyCode }),
+    fileName: (data) => `Payment-Advice-${data.payment.number}`,
+  }),
+  Object.freeze({
+    key: "procurement.rfq",
+    moduleKey: "procurement",
+    permission: "procurement.po.view",
+    label: "Request for quotation",
+    // options: { supplierId? } — the copy addressed to one supplier on the RFQ.
+    async load(client, session, id, options = {}) {
+      const detail = await getPurchaseRfq(client, salesContext(session), id);
+      return { ...detail, supplier: options.supplierId ? detail.suppliers.find((entry) => entry.supplierId === options.supplierId) ?? null : null,
+        company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return rfqModel(data, data.company);
+    },
+    fileName: (data) => `RFQ-${data.rfq.number}${data.supplier ? `-${String(data.supplier.supplierNumber ?? "").replace(/[^A-Za-z0-9-]/g, "")}` : ""}`,
+  }),
+  Object.freeze({
+    key: "procurement.return_challan",
+    moduleKey: "procurement",
+    permission: "procurement.returns.view",
+    label: "Delivery challan",
+    async load(client, session, id) {
+      return { ...(await getPurchaseReturnChallan(client, salesContext(session), id)), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return returnChallanModel(data, data.company);
+    },
+    copies: ["Original for consignee", "Duplicate for transporter", "Triplicate for consignor"],
+    fileName: (data) => `Delivery-Challan-${data.purchaseReturn.number}`,
   }),
   Object.freeze({
     key: "procurement.debit_claim",

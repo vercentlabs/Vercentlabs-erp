@@ -6,8 +6,10 @@ export interface ProcurementReport {
   key: string; title: string; description: string; columns: ProcurementReportColumn[]; rows: Array<Record<string, any> & { href: string }>;
   filters: { supplierId: string | null; buyingRegistrationId: string | null; from: string | null; to: string | null; status: string | null };
 }
-export declare function getProcurementOverview(client: any, context: any): Promise<{ today: string; metrics: ProcurementMetric[]; attention: ProcurementAttentionItem[] }>;
+export interface ProcurementWorkCard { key: string; label: string; value: number; href: string; tone: "neutral" | "info" | "warning" | "danger" }
+export declare function getProcurementOverview(client: any, context: any): Promise<{ today: string; metrics: ProcurementMetric[]; attention: ProcurementAttentionItem[]; myWork: ProcurementWorkCard[] }>;
 export declare function getProcurementReportCatalog(context: any): Array<{ key: string; title: string; description: string }>;
 export declare function getProcurementReport(client: any, context: any, name: string, filters?: Record<string, unknown>): Promise<ProcurementReport>;
 export declare const INVOICE_MATCHING_VIEWS: ReadonlyArray<{ key: string; label: string }>;
 export declare function getInvoiceMatchingWorkbench(client: any, context: any, filters?: Record<string, unknown>): Promise<Record<string, unknown>>;
+export declare function exportProcurementReport(client: any, context: any, name: string, filters?: Record<string, unknown>): Promise<{ fileName: string; contentType: string; body: Buffer }>;

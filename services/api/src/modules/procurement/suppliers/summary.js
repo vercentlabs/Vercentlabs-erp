@@ -6,6 +6,8 @@
 // others see how many bills are open.
 import { SUPPLIER_PERMISSIONS } from "./constants.js";
 import { loadSupplier, supplierCan } from "./access.js";
+import { orgTodaySql } from "../org-day.js";
+import { appOn } from "../../../core/access/apps.js";
 
 const OPEN_ORDER = ["draft", "confirmed"];
 const OPEN_BILL = ["posted", "partially_paid", "overdue", "disputed"];
@@ -30,9 +32,9 @@ export async function getSupplierPayablesSummary(client, context, supplierId) {
   const money = supplierCan(context, SUPPLIER_PERMISSIONS.payablesView);
   const row = (await client.query(
     `SELECT count(*) FILTER (WHERE bill.bill_type IN ('bill', 'opening') AND bill.status = ANY($3::text[]) AND bill.outstanding_amount > 0.005)::int AS open_bills,
-            count(*) FILTER (WHERE bill.bill_type IN ('bill', 'opening') AND bill.status = ANY($3::text[]) AND bill.outstanding_amount > 0.005 AND bill.due_date < current_date)::int AS overdue_bills,
+            count(*) FILTER (WHERE bill.bill_type IN ('bill', 'opening') AND bill.status = ANY($3::text[]) AND bill.outstanding_amount > 0.005 AND bill.due_date < ${orgTodaySql("$1")})::int AS overdue_bills,
             COALESCE(sum(bill.outstanding_amount * bill.exchange_rate) FILTER (WHERE bill.bill_type IN ('bill', 'opening') AND bill.status = ANY($3::text[])), 0) AS open_payables,
-            COALESCE(sum(bill.outstanding_amount * bill.exchange_rate) FILTER (WHERE bill.bill_type IN ('bill', 'opening') AND bill.status = ANY($3::text[]) AND bill.due_date < current_date), 0) AS overdue_payables,
+            COALESCE(sum(bill.outstanding_amount * bill.exchange_rate) FILTER (WHERE bill.bill_type IN ('bill', 'opening') AND bill.status = ANY($3::text[]) AND bill.due_date < ${orgTodaySql("$1")}), 0) AS overdue_payables,
             COALESCE(sum(bill.outstanding_amount * bill.exchange_rate) FILTER (WHERE bill.bill_type IN ('credit_note', 'debit_note') AND bill.status = ANY($3::text[])), 0) AS unapplied_credit_notes
        FROM tenant.accounting_vendor_bills bill WHERE bill.organization_id = $1 AND bill.party_id = $2`, [context.organizationId, supplier.party_id, OPEN_BILL])).rows[0];
   const payments = (await client.query(
@@ -79,13 +81,17 @@ export async function listSupplierDocuments(client, context, supplierId, kind) {
            FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND party_id = $2 ORDER BY bill_date DESC, created_at DESC LIMIT 200`, [context.organizationId, supplier.party_id])).rows
         .map((row) => ({ id: row.id, number: row.bill_number, supplierInvoiceNumber: row.supplier_invoice_number, type: row.bill_type, status: row.status, date: row.bill_date, dueDate: row.due_date,
           currency: row.currency, total: money ? Number(row.grand_total) : null, outstanding: money ? Number(row.outstanding_amount) : null, href: `/procurement/supplier-bills/${row.id}` }));
-    case "payments":
+    case "payments": {
       if (!money) return [];
+      // Accounting's payment page when the company has it, else Procurement's own Supplier Payments list (Procurement plan Phase 0, bug 10).
+      const accountingOn = await appOn(client, context, "accounting");
       return (await client.query(
         `SELECT id, payment_number, status, payment_date, btrim(currency_code) AS currency, amount, unapplied_amount FROM tenant.accounting_vendor_payments
           WHERE organization_id = $1 AND party_id = $2 ORDER BY payment_date DESC, created_at DESC LIMIT 200`, [context.organizationId, supplier.party_id])).rows
         .map((row) => ({ id: row.id, number: row.payment_number, status: row.status, date: row.payment_date, currency: row.currency, amount: Number(row.amount),
-          unapplied: Number(row.unapplied_amount), href: "/accounting/payments" }));
+          unapplied: Number(row.unapplied_amount),
+          href: accountingOn ? `/accounting/payments/${row.id}` : `/procurement/payments?search=${encodeURIComponent(row.payment_number ?? "")}` }));
+    }
     default:
       return [];
   }

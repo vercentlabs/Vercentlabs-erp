@@ -10,11 +10,12 @@ import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { FileMinus, Plus, ReceiptText } from "lucide-react";
 import {
-  EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PageHeader, SearchField, Select, StatusBadge,
+  EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PageHeader, SearchField, StatusBadge,
 } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { SupplierFilter } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { calendarDate, money } from "@/features/procurement/shared/format";
 import { useListState } from "@/features/procurement/shared/navigation";
@@ -41,7 +42,7 @@ export function DebitNotesCreditsScreen() {
   const canCreate = Boolean(options.data?.permissions.claimsManage || options.data?.permissions.creditsManage);
   const columns = useMemo<ColumnDef<ListRow, unknown>[]>(() => [
     { id: "number", header: "Number", cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.number}</span> },
-    { id: "type", header: "Type", cell: ({ row }) => (row.original.kind === "claim" ? "Debit claim to supplier" : "Vendor credit") },
+    { id: "type", header: "Type", cell: ({ row }) => (row.original.kind === "claim" ? "Debit note to supplier" : "Supplier credit") },
     { id: "supplier", header: "Supplier", cell: ({ row }) => row.original.supplierName ?? "—" },
     { id: "origin", header: "Origin / supplier ref", cell: ({ row }) => <span>{row.original.kind === "credit" ? row.original.originLabel : "Claim"}
       {row.original.supplierCreditNoteNumber && <span className="block text-xs text-text-muted">{row.original.supplierCreditNoteNumber}</span>}</span> },
@@ -55,7 +56,7 @@ export function DebitNotesCreditsScreen() {
   ], []);
   const filtered = search || view !== "all" || supplierId !== "any";
   return (
-    <EnterpriseListPage header={{ title: "Supplier Credits / Debit Notes",
+    <EnterpriseListPage header={{ title: "Debit Notes & Supplier Credits",
       description: "Claims raised with suppliers and the credits suppliers give. A debit claim is a claim — it changes nothing in Accounts Payable; a vendor credit is posted through Finance and then applied to bills or refunded.",
       primaryAction: canCreate ? <LinkButton variant="primary" href="/procurement/debit-notes-credits/new"><Plus className="size-4" aria-hidden="true" />New</LinkButton> : undefined }}
       savedViews={{ views: (query.data?.views ?? options.data?.views ?? [{ key: "all", label: "All" }]).map((entry) => ({ id: entry.key,
@@ -63,8 +64,7 @@ export function DebitNotesCreditsScreen() {
       actionBar={{ end: <ListStateViews listKey="debit-notes-credits" list={list} />,  start: (
         <>
           <SearchField aria-label="Search debit claims and credits" placeholder="Number, supplier, supplier credit note" className="w-full sm:w-80" value={search} onChange={setSearch} />
-          <Select aria-label="Supplier" size="compact" selectedKey={supplierId} onSelectionChange={(value) => setSupplierId(String(value))}
-            options={[{ value: "any", label: "Any supplier" }, ...(options.data?.suppliers ?? []).map((supplier) => ({ value: supplier.id, label: supplier.name }))]} />
+          <SupplierFilter known={options.data?.suppliers ?? []} value={supplierId} onChange={(id) => setSupplierId(id || "any")} />
         </>
       ) }}>
       <EnterpriseDataGrid<ListRow> aria-label="Debit claims and vendor credits" columns={columns} data={rows} getRowId={(row) => `${row.kind}-${row.id}`}
@@ -75,7 +75,7 @@ export function DebitNotesCreditsScreen() {
         noResultsContent={<NoResultsState title="Nothing in this view" description="Try another view, supplier or search." />}
         onRowClick={(row) => router.push(row.href)}
         renderMobileCard={(row) => <div className="flex flex-col gap-1"><span className="font-medium tabular-nums">{row.number} · {row.supplierName}</span>
-          <span className="text-xs text-text-muted">{row.kind === "claim" ? "Debit claim" : "Vendor credit"} · {row.statusLabel} · {money(row.currencyCode, row.total)}</span></div>} />
+          <span className="text-xs text-text-muted">{row.kind === "claim" ? "Debit note" : "Supplier credit"} · {row.statusLabel} · {money(row.currencyCode, row.total)}</span></div>} />
     </EnterpriseListPage>
   );
 }

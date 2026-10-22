@@ -16,11 +16,13 @@ import {
 import { databaseToday, linesAsInput, procurementSettings, resolveOrderDocument, translated } from "./document.js";
 import { insertOrder, recordPoEvent, updateOrderHeader } from "./persist.js";
 import { pricedView } from "./pricing.js";
-import { LIST_PROGRESS_COLUMNS, LIST_PROGRESS_SQL, loadLineProgress, trackingFor } from "./progress.js";
+import { BILLING_STATUS_SQL, LIST_PROGRESS_COLUMNS, LIST_PROGRESS_SQL, RECEIPT_STATUS_SQL, loadLineProgress, trackingFor } from "./progress.js";
+import { itemOptions, supplierOptions } from "../options.js";
 import { MATCHING_POLICY_LABELS } from "./lifecycle.js";
 import { resolveSupplierDefaults } from "../suppliers/defaults.js";
 import { getPurchaseOrderRejections, getRejectionSummary } from "./rejection-records.js";
 import { getPurchaseOrderPaymentTerms } from "../payment-terms/orders.js";
+import { appOn } from "../../../core/access/apps.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 
@@ -40,7 +42,9 @@ async function enforceQuotedPrices(client, context, lines) {
 }
 
 function warnZeroAndMissing(priced) {
-  return priced.lines.filter((line) => line.unitPrice === 0n).map((line) => ({ line: line.lineNumber, code: "ZERO_PRICE", message: `Line ${line.lineNumber} is at no charge: ${line.zeroPriceReason}` }));
+  return [...priced.lines.filter((line) => line.unitPrice === 0n).map((line) => ({ line: line.lineNumber, code: "ZERO_PRICE", message: `Line ${line.lineNumber} is at no charge: ${line.zeroPriceReason}` })),
+    // A price that differs from the supplier's rate contract, or more than the contract still allows (Procurement plan Phase 3).
+    ...(priced.warnings ?? []).filter((warning) => String(warning.code).startsWith("CONTRACT_"))];
 }
 
 // Recent orders of the same supplier for the same products: a warning (a repeat purchase is legitimate), never a refusal.
@@ -67,7 +71,7 @@ export async function createPurchaseOrder(client, context, input = {}) {
     operation: "procurement.purchase_order.create", key: text(input.idempotencyKey, 200), payload: { ...input, idempotencyKey: undefined },
   });
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
-  const { header, priced } = await resolveOrderDocument(client, context, input, { today: await databaseToday(client) });
+  const { header, priced } = await resolveOrderDocument(client, context, input, { today: await databaseToday(client, context.organizationId) });
   if (priced.lines.some((line) => line.sourceQuotationLineId)) fail("Create an order from a quotation with Create Purchase Order on the quotation.", "lines");
   const order = await insertOrder(client, context, header, priced);
   await recordPoEvent(client, context, order.id, "purchase_order.created", `Created for ${header.supplierSnapshot.supplierName} · ${header.currencyCode} ${dec(priced.totals.grandTotal)}`,
@@ -92,7 +96,7 @@ async function editableDraft(client, context, orderId, expectedRevision) {
 }
 
 async function saveDraft(client, context, order, input, eventType, summary) {
-  const { header, priced } = await resolveOrderDocument(client, context, input, { order, today: await databaseToday(client) });
+  const { header, priced } = await resolveOrderDocument(client, context, input, { order, today: await databaseToday(client, context.organizationId) });
   await enforceQuotedPrices(client, context, priced.lines);
   const before = { total: dec(order.grand_total), supplier: order.supplier_id };
   await updateOrderHeader(client, context, order.id, header, priced);
@@ -120,7 +124,7 @@ export async function updateDraftPurchaseOrderLine(client, context, orderId, lin
   const lines = await linesAsInput(client, context.organizationId, order.id);
   const index = lines.findIndex((line) => line.lineId === requireUuid(lineId, "Line"));
   if (index < 0) throw new PurchaseOrderError(404, "That line is not on this order.", "PURCHASE_ORDER_LINE_NOT_FOUND");
-  lines[index] = { ...lines[index], ...changes, lineId: lines[index].lineId, sourceQuotationLineId: lines[index].sourceQuotationLineId };
+  lines[index] = { ...lines[index], ...changes, lineId: lines[index].lineId, sourceQuotationLineId: lines[index].sourceQuotationLineId, sourceIndentLineId: lines[index].sourceIndentLineId };
   return saveDraft(client, context, order, { lines }, "purchase_order.line_changed", `Line ${index + 1} changed`);
 }
 
@@ -138,7 +142,7 @@ export async function removeDraftPurchaseOrderLine(client, context, orderId, lin
 export async function previewPurchaseOrder(client, context, input = {}, orderId = null) {
   requirePoPermission(context, PO_PERMISSIONS.create, "You do not have permission to edit purchase orders.");
   const order = orderId ? await loadPurchaseOrder(client, context, orderId) : null;
-  const { header, priced } = await resolveOrderDocument(client, context, input, { order, today: await databaseToday(client), allowMissingPrice: true });
+  const { header, priced } = await resolveOrderDocument(client, context, input, { order, today: await databaseToday(client, context.organizationId), allowMissingPrice: true });
   return {
     ...pricedView(priced),
     supplier: header.supplierSnapshot, currencyCode: header.currencyCode, paymentTerm: header.paymentTerm, contact: header.contact, orderingAddress: header.orderingAddress,
@@ -166,7 +170,7 @@ export async function getPurchaseOrderDefaults(client, context, { supplierId, pr
     .map((row) => ({ id: row.id, code: row.code, name: row.name, suggestedPrice: row.last_price === null ? null : formatDecimal(row.last_price),
       uomId: row.purchase_uom_id ?? row.uom_id, productType: row.item_type === "service" ? "service" : row.track_inventory ? "stock" : "non_stock" })) : [];
   const settings = await procurementSettings(client, context.organizationId);
-  return { supplier, products, settings, today: await databaseToday(client) };
+  return { supplier, products, settings, today: await databaseToday(client, context.organizationId) };
 }
 
 const ORDER_COLUMNS = `po.*, supplier.supplier_number, party.display_name AS supplier_name, buyer.full_name AS buyer_name, warehouse.name AS default_warehouse_name,
@@ -227,7 +231,7 @@ async function orderLines(client, organizationId, orderId) {
     lineDiscount: dec(row.line_discount), allocatedDocumentDiscount: dec(row.allocated_document_discount), taxableAmount: dec(row.taxable_amount),
     taxCategoryId: row.tax_category_id, taxCategoryName: row.tax_category_name, taxTreatment: row.tax_treatment, taxRate: dec(row.tax_rate), taxTotal: dec(row.tax_total),
     lineTotal: dec(row.line_total), warehouseId: row.receiving_warehouse_id, warehouseName: row.warehouse_name, expectedDeliveryDate: dayOf(row.expected_delivery_date),
-    sourceQuotationLineId: row.source_quotation_line_id, expenseAccountId: row.expense_account_id,
+    sourceQuotationLineId: row.source_quotation_line_id, sourceIndentLineId: row.source_indent_line_id ?? null, expenseAccountId: row.expense_account_id,
     expenseAccount: row.expense_account_id ? `${row.expense_account_code} ${row.expense_account_name}` : null,
     taxes: taxes.filter((tax) => tax.purchase_order_line_id === row.id).map((tax) => ({ type: tax.tax_type, label: tax.label, rate: dec(tax.rate), taxableAmount: dec(tax.taxable_amount), taxAmount: dec(tax.tax_amount) })),
   }));
@@ -262,13 +266,16 @@ async function relatedDocuments(client, context, order, canSeeAmounts) {
     [organizationId, order.id])).rows
     .map((row) => ({ id: row.id, number: row.return_number, date: dayOf(row.return_date), reason: row.reason, replacementNumber: row.replacement_number,
       receiptNumber: row.receipt_number, quantity: dec(row.quantity), href: `/procurement/purchase-returns/${row.id}` }));
+  // A payment opens in Accounting when the company has it, else on its bill's Payments tab (Procurement plan Phase 0, bug 10).
+  const accountingOn = await appOn(client, context, "accounting");
   const payments = canSeeAmounts ? (await client.query(
-    `SELECT payment.id, payment.payment_number, payment.payment_date, allocation.allocated_amount AS amount, payment.currency_code
+    `SELECT payment.id, payment.payment_number, payment.payment_date, allocation.allocated_amount AS amount, payment.currency_code, bill.id AS bill_id
        FROM tenant.accounting_vendor_payment_allocations allocation
        JOIN tenant.accounting_vendor_payments payment ON payment.organization_id = allocation.organization_id AND payment.id = allocation.payment_id
        JOIN tenant.accounting_vendor_bills bill ON bill.organization_id = allocation.organization_id AND bill.id = allocation.vendor_bill_id
       WHERE allocation.organization_id = $1 AND bill.source_purchase_order_id = $2 ORDER BY payment.payment_date`, [organizationId, order.id])).rows
-    .map((row) => ({ id: row.id, number: row.payment_number, date: dayOf(row.payment_date), amount: dec(row.amount), currencyCode: row.currency_code?.trim(), href: "/accounting/payments" })) : [];
+    .map((row) => ({ id: row.id, number: row.payment_number, date: dayOf(row.payment_date), amount: dec(row.amount), currencyCode: row.currency_code?.trim(),
+      href: accountingOn ? `/accounting/payments/${row.id}` : `/procurement/supplier-bills/${row.bill_id}?tab=payments` })) : [];
   const quotation = order.source_quotation_id ? { id: order.source_quotation_id, number: order.source_quotation_number, href: `/procurement/purchase-orders/quotations/${order.source_quotation_id}` } : null;
   return {
     quotation, receipts, returns, payments,
@@ -378,6 +385,7 @@ export async function listPurchaseOrderHistory(client, context, orderId, { check
 
 const VIEW_CONDITIONS = {
   all: "",
+  open: " AND (po.status = 'draft' OR (po.status = 'confirmed' AND (progress.open_receipt_lines > 0 OR progress.unbilled_lines > 0)))",
   draft: " AND po.status = 'draft'",
   confirmed: " AND po.status = 'confirmed'",
   awaiting_receipt: " AND po.status = 'confirmed' AND progress.goods_lines > 0 AND progress.received_lines = 0 AND progress.open_receipt_lines > 0",
@@ -419,6 +427,9 @@ export async function listPurchaseOrders(client, context, filters = {}) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(filters.dateFrom ?? ""))) where += ` AND po.order_date >= ${bind(filters.dateFrom)}::date`;
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(filters.dateTo ?? ""))) where += ` AND po.order_date <= ${bind(filters.dateTo)}::date`;
   if (filters.overdue === true || filters.overdue === "true") where += " AND po.status = 'confirmed' AND progress.overdue_lines > 0";
+  // Receiving and billing status are filtered in SQL (not after the page is cut), so every page is full and the total matches.
+  if (Object.hasOwn(RECEIPT_LABELS, filters.receiptStatus ?? "")) where += ` AND (${RECEIPT_STATUS_SQL}) = ${bind(filters.receiptStatus)}`;
+  if (Object.hasOwn(BILLING_LABELS, filters.billingStatus ?? "")) where += ` AND (${BILLING_STATUS_SQL}) = ${bind(filters.billingStatus)}`;
   const search = text(filters.search, 120);
   if (search) {
     const term = bind(`%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`);
@@ -441,12 +452,9 @@ export async function listPurchaseOrders(client, context, filters = {}) {
             po.order_date, po.expected_delivery_date, po.grand_total, po.currency_code, po.buyer_user_id, buyer.full_name AS buyer_name, po.version_number,
             po.supplier_reference, ${LIST_PROGRESS_COLUMNS}
        ${base} ORDER BY po.order_date DESC, po.created_at DESC LIMIT $${listValues.length - 1} OFFSET $${listValues.length}`, listValues);
-  let receiptFilter = rows;
-  if (filters.receiptStatus) receiptFilter = receiptFilter.filter((row) => row.receipt_status === filters.receiptStatus);
-  if (filters.billingStatus) receiptFilter = receiptFilter.filter((row) => row.billing_status === filters.billingStatus);
   return {
     total,
-    rows: receiptFilter.map((row) => ({
+    rows: rows.map((row) => ({
       id: row.id, purchaseOrderNumber: row.purchase_order_number, status: row.status, statusLabel: STATUS_LABELS[row.status], communicationStatus: row.communication_status,
       supplierId: row.supplier_id, supplierNumber: row.supplier_number, supplierName: row.supplier_name, orderDate: dayOf(row.order_date),
       expectedDeliveryDate: dayOf(row.expected_delivery_date), grandTotal: dec(row.grand_total), currencyCode: row.currency_code?.trim(), buyerUserId: row.buyer_user_id,
@@ -458,8 +466,9 @@ export async function listPurchaseOrders(client, context, filters = {}) {
   };
 }
 
-// Everything the order screens offer: views, labels, reasons and the master data to choose from.
-export async function getPurchaseOrderOptions(client, context) {
+// Everything the order screens offer: views, labels, reasons and the master data to choose from. Suppliers and products are a first
+// page plus the ones the form already holds (include.supplierIds / include.productIds); the rest are found by typing (../options.js).
+export async function getPurchaseOrderOptions(client, context, include = {}) {
   requirePoAccess(context);
   const organizationId = context.organizationId;
   const q = async (sql) => (await client.query(sql, [organizationId])).rows;
@@ -467,11 +476,8 @@ export async function getPurchaseOrderOptions(client, context) {
     views: PO_VIEWS, cancelReasons: CANCEL_REASONS, sentChannels: SENT_CHANNELS, statusLabels: STATUS_LABELS, receiptLabels: RECEIPT_LABELS, billingLabels: BILLING_LABELS,
     paymentLabels: PAYMENT_LABELS, communicationLabels: COMMUNICATION_LABELS, productTypeLabels: PRODUCT_TYPE_LABELS,
     settings: await procurementSettings(client, organizationId),
-    suppliers: await q(`SELECT supplier.id, supplier.supplier_number, party.display_name AS name, supplier.status, supplier.default_currency AS currency_code
-                          FROM tenant.procurement_suppliers supplier JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
-                         WHERE supplier.organization_id = $1 ORDER BY party.display_name LIMIT 2000`),
-    products: await q(`SELECT item.id, item.code, item.name, item.item_type, item.track_inventory, item.purchase_uom_id, item.uom_id, ${LAST_PRICE_SQL("item", null)} AS last_purchase_price, item.tax_category_id
-                         FROM tenant.items item WHERE item.organization_id = $1 AND item.status = 'active' AND item.is_purchasable ORDER BY item.name LIMIT 5000`),
+    suppliers: await supplierOptions(client, organizationId, { ids: include.supplierIds }),
+    products: await itemOptions(client, organizationId, { ids: include.productIds, supplierId: include.supplierId }),
     uoms: await q(`SELECT id, code, name, decimal_places FROM tenant.units_of_measure WHERE organization_id = $1 AND status = 'active' ORDER BY code`),
     warehouses: await q(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND status = 'active' AND system_role IS NULL ORDER BY name`),
     currencies: await q(`SELECT code, name FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`),

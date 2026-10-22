@@ -46,7 +46,7 @@ function holds(context, key) {
 
 // Reading someone else's PRIVATE note/communication, or any shared inbox, is
 // CRM administration — not a consequence of broad READ visibility. Record
-// breadth (crm.records.view_all, e.g. Auditor / Read-only) no longer implies
+// breadth (crm.records.view_all, e.g. Read-only User) no longer implies
 // it: organisation owner, or umbrella visibility together with
 // crm.settings.manage (CRM Administrator, Sales Operations, System Admin).
 export function canOverridePrivateCrmContent(context) {

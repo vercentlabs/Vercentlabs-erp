@@ -19,8 +19,10 @@ type ModuleAccessSummary = {
   key: string;
   name: string;
   level: ModuleAccessLevel;
-  /** Human sentence, e.g. "Day-to-day work" or "Their own and their team's records". */
+  /** Human sentence, e.g. "Can do the day-to-day work, on only their own records". */
   detail: string;
+  /** The riskier things this module allows, in plain words: "export data", "change its settings"… */
+  extras: string[];
 };
 
 export type EffectiveAccessSummary = {
@@ -32,9 +34,9 @@ export type EffectiveAccessSummary = {
 
 const LEVEL_LABEL: Record<ModuleAccessLevel, string> = {
   none: "No access",
-  view: "View and reports",
-  operate: "Day-to-day work",
-  administer: "Full module administration",
+  view: "Can look at it, but not change it",
+  operate: "Can do the day-to-day work",
+  administer: "Can do everything, including its settings",
 };
 
 const ADMINISTRATION: ReadonlyArray<[string, string]> = [
@@ -54,10 +56,8 @@ const ORGANISATION_HIGH_RISK: ReadonlyArray<[string, string]> = [
   ["billing.manage", "Billing and plan changes"],
 ];
 
-const CRM_RECORD_SCOPE: Record<"all" | "team", string> = {
-  all: "All CRM records",
-  team: "Their own and their sales team's CRM records",
-};
+// Whose CRM records: everyone's (view_all), their team's (any CRM view_team), or only their own.
+const CRM_RECORD_SCOPE = { all: "on every record", team: "on their team's records", own: "on only their own records" } as const;
 
 function modulePrefix(viewPermission: string) {
   return viewPermission.slice(0, viewPermission.lastIndexOf(".") + 1);
@@ -71,16 +71,15 @@ function isReadOnly(key: string) {
   );
 }
 
-function highRiskLabel(key: string, moduleName: string): string | null {
-  if (/sensitive/.test(key)) return `${moduleName}: sensitive data`;
-  if (/\.export$/.test(key)) return `${moduleName}: export data`;
-  if (/\.import$/.test(key)) return `${moduleName}: import data`;
-  if (/\.(approve|finalize|post)$/.test(key))
-    return `${moduleName}: approvals and posting`;
-  if (/settings\.manage$/.test(key)) return `${moduleName}: module settings`;
-  if (/privacy\.manage$/.test(key)) return `${moduleName}: privacy requests`;
-  return null;
-}
+// The riskier abilities inside a module, in the order they are listed.
+const EXTRAS: ReadonlyArray<[RegExp, string]> = [
+  [/\.export$/, "export data"],
+  [/\.import$/, "import data"],
+  [/sensitive/, "see sensitive details"],
+  [/\.(approve|finalize|post)$/, "approve and post"],
+  [/privacy\.manage$/, "handle privacy requests"],
+  [/settings\.manage$/, "change its settings"],
+];
 
 export function summarizeEffectiveAccess(
   roles: readonly RoleLike[],
@@ -98,23 +97,22 @@ export function summarizeEffectiveAccess(
         name: module.name,
         level: "none",
         detail: LEVEL_LABEL.none,
+        extras: [],
       };
     const prefix = modulePrefix(view);
     const keys = owner
       ? ["__owner__"]
       : [...permissions].filter((key) => key.startsWith(prefix));
-    for (const key of keys) {
-      const label = highRiskLabel(key, module.name);
-      if (label) highRisk.add(label);
-    }
+    const extras = owner ? EXTRAS.map(([, label]) => label) : EXTRAS.filter(([pattern]) => keys.some((key) => pattern.test(key))).map(([, label]) => label);
     let level: ModuleAccessLevel = "view";
     if (owner || has(`${prefix}settings.manage`)) level = "administer";
     else if (keys.some((key) => !isReadOnly(key))) level = "operate";
     let detail = LEVEL_LABEL[level];
     if (module.key === "crm") {
-      detail = `${detail} · ${has(CRM_PERMISSIONS.recordsViewAll) ? CRM_RECORD_SCOPE.all : CRM_RECORD_SCOPE.team}`;
+      const scope = has(CRM_PERMISSIONS.recordsViewAll) ? "all" : keys.some((key) => key.endsWith(".view_team")) ? "team" : "own";
+      detail = `${detail}, ${CRM_RECORD_SCOPE[scope]}`;
     }
-    return { key: module.key, name: module.name, level, detail };
+    return { key: module.key, name: module.name, level, detail, extras };
   });
 
   if (owner) highRisk.add("Everything in every module (Organisation Owner)");

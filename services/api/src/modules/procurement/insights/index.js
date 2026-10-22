@@ -10,7 +10,8 @@ import { poCan, poScopeSql } from "../purchase-orders/access.js";
 import { PurchaseOrderError, dayOf, isUuid, readDate } from "../purchase-orders/constants.js";
 import { listRejections } from "../purchase-orders/rejection-records.js";
 import { listPurchaseReturns } from "../purchase-returns/records.js";
-import { listSupplierBills } from "../supplier-bills/records.js";
+import { ITC_SQL, listSupplierBills } from "../supplier-bills/records.js";
+import { buildXlsxWorkbook } from "../../../core/platform/data-exchange/xlsx.js";
 import { getSupplierDebitClaims } from "../vendor-credits/claims.js";
 import { getVendorCredits } from "../vendor-credits/records.js";
 
@@ -96,7 +97,69 @@ export async function getProcurementOverview(client, context) {
     const accepted = (await getSupplierDebitClaims(client, context, { view: "accepted_open" })).filter((claim) => Number(claim.remainingToCredit) > 0);
     metrics.push({ key: "pending_credits", label: "Pending Supplier Credits", value: accepted.length, href: "/procurement/reports/pending-supplier-credits" });
   }
-  return { today, metrics, attention };
+  if (can(context, ...SEE_ORDERS)) {
+    // Rate contracts ending within 30 days (Procurement plan Phase 3): renew them before orders fall back to open prices.
+    const ending = (await client.query(
+      `SELECT contract.id, contract.contract_number, contract.valid_to, party.display_name FROM tenant.purchase_rate_contracts contract
+         JOIN tenant.procurement_suppliers supplier ON supplier.organization_id = contract.organization_id AND supplier.id = contract.supplier_id
+         JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
+        WHERE contract.organization_id = $1 AND contract.status = 'active' AND contract.valid_to BETWEEN $2::date AND $2::date + 30 ORDER BY contract.valid_to LIMIT 5`,
+      [organizationId, today])).rows;
+    for (const row of ending) attention.push({ kind: "Rate contract ending", title: row.contract_number, detail: `${row.display_name} · ends ${dayOf(row.valid_to)}`,
+      href: `/procurement/rate-contracts/${row.id}` });
+  }
+  return { today, metrics, attention, myWork: await myWorkOf(client, context, today) };
+}
+
+// "My work" (Procurement plan Phase 1): the person's own queue, each card a count and the page that clears it — approvals waiting for
+// them, deliveries expected today, bills held before posting, and MSME payments due within 7 days. Cards a person may not act on are left out.
+async function myWorkOf(client, context, today) {
+  const organizationId = context.organizationId;
+  const cards = [];
+  const approvals = (await client.query(
+    `SELECT count(*)::int AS count FROM public.approval_requests request
+      WHERE request.organization_id = $1 AND request.status = 'pending' AND request.command_key LIKE 'procurement.%'
+        AND (request.assigned_to = $2 OR request.approver_role_id IN (SELECT assignment.role_id FROM public.user_role_assignments assignment
+              WHERE assignment.organization_id = $1 AND assignment.user_id = $2 AND assignment.status = 'active'))`, [organizationId, context.userId ?? null])).rows[0].count;
+  cards.push({ key: "approvals", label: "Waiting for my approval", value: approvals, href: "/approvals", tone: approvals ? "warning" : "neutral" });
+  // Indents waiting for a head of department (Procurement plan Phase 2), and approved ones the buyer still has to order.
+  if (can(context, "procurement.requisition.approve")) {
+    const indents = (await client.query(`SELECT count(*)::int AS count FROM tenant.purchase_indents WHERE organization_id = $1 AND status = 'submitted' AND requested_by IS DISTINCT FROM $2`,
+      [organizationId, context.userId ?? null])).rows[0].count;
+    cards.push({ key: "indents_to_approve", label: "Indents to approve", value: indents, href: "/procurement/indents?view=to-approve", tone: indents ? "warning" : "neutral" });
+  }
+  if (can(context, "procurement.po.create")) {
+    const toOrder = (await client.query(
+      `SELECT count(DISTINCT indent.id)::int AS count FROM tenant.purchase_indents indent JOIN tenant.purchase_indent_lines line ON line.organization_id = indent.organization_id AND line.indent_id = indent.id
+        WHERE indent.organization_id = $1 AND indent.status = 'approved' AND line.status = 'open'
+          AND line.quantity > (SELECT COALESCE(sum(po_line.ordered_quantity), 0) FROM tenant.purchase_order_lines po_line JOIN tenant.purchase_orders po ON po.organization_id = po_line.organization_id
+                                AND po.id = po_line.purchase_order_id WHERE po_line.organization_id = line.organization_id AND po_line.source_indent_line_id = line.id AND po.status <> 'cancelled')`,
+      [organizationId])).rows[0].count;
+    if (toOrder) cards.push({ key: "indents_to_order", label: "Approved indents to order", value: toOrder, href: "/procurement/indents?view=to-order", tone: "info" });
+  }
+  if (can(context, ...SEE_ORDERS)) {
+    const scoped = [organizationId, today];
+    const scope = poScopeSql(context, scoped);
+    const due = (await client.query(
+      `SELECT count(DISTINCT po.id)::int AS count FROM tenant.purchase_orders po
+         JOIN tenant.purchase_order_line_status status ON status.organization_id = po.organization_id AND status.purchase_order_id = po.id
+        WHERE po.organization_id = $1 AND po.status = 'confirmed' AND status.receipt_required AND status.remaining_to_receive > 0
+          AND COALESCE(status.expected_delivery_date, po.expected_delivery_date) <= $2::date${scope}`, scoped)).rows[0].count;
+    cards.push({ key: "deliveries_due", label: "Deliveries due by today", value: due, href: "/procurement/purchase-orders?view=overdue-receipt", tone: due ? "info" : "neutral" });
+  }
+  if (can(context, ...SEE_BILLS)) {
+    const held = (await client.query(
+      `SELECT count(*)::int AS count FROM tenant.accounting_vendor_bills bill WHERE bill.organization_id = $1 AND bill.bill_type = 'bill'
+          AND bill.status IN ('draft', 'pending_approval', 'approved')`, [organizationId])).rows[0].count;
+    cards.push({ key: "bills_to_post", label: "Bills to post", value: held, href: "/procurement/supplier-bills?view=to-post", tone: held ? "info" : "neutral" });
+    const msme = (await client.query(
+      `SELECT count(DISTINCT deadline.vendor_bill_id)::int AS count FROM tenant.supplier_payment_compliance_deadlines deadline
+         JOIN tenant.accounting_vendor_bills bill ON bill.organization_id = deadline.organization_id AND bill.id = deadline.vendor_bill_id
+        WHERE deadline.organization_id = $1 AND deadline.status = 'open' AND bill.outstanding_amount > 0 AND bill.status IN ${POSTED_SQL}
+          AND deadline.statutory_due_date <= $2::date + 7`, [organizationId, today])).rows[0].count;
+    cards.push({ key: "msme_due", label: "MSME payments due in 7 days", value: msme, href: "/procurement/payables/msme?view=due-7", tone: msme ? "danger" : "neutral" });
+  }
+  return cards;
 }
 
 // ---------------------------------------------------------------- reports
@@ -113,6 +176,13 @@ const REPORTS = [
   { key: "bills-due-dates", title: "Supplier Bills & Due Dates", description: "Unpaid, partially paid, overdue and upcoming instalments, from Finance's balances.", see: SEE_BILLS },
   { key: "purchase-return-summary", title: "Purchase Return Summary", description: "Returned quantities, suppliers, reasons and resolution progress.", see: SEE_RETURNS },
   { key: "pending-supplier-credits", title: "Pending Supplier Credits", description: "Returns and accepted claims awaiting their financial correction.", see: SEE_CREDITS },
+  // Registers (Procurement plan Phase 3), each exported to Excel.
+  { key: "purchase-register", title: "Purchase Register", description: "Every posted purchase bill in GST format: GSTIN, invoice, taxable value, CGST, SGST, IGST, cess, ITC status and reverse charge.", see: SEE_BILLS },
+  { key: "tds-register", title: "TDS Register", description: "TDS withheld from supplier bills: section, PAN, the amount it was withheld on, the rate and the TDS.", see: SEE_BILLS },
+  { key: "itc-register", title: "ITC Register", description: "Input tax credit by bill: eligible, blocked (s.17(5)), reverse charge, and whether GSTR-2B shows it.", see: SEE_BILLS },
+  { key: "rcm-liability", title: "RCM Liability", description: "Reverse-charge purchases: the self-invoice, the tax the company pays itself and the month it is due in GSTR-3B.", see: SEE_BILLS },
+  // Phase 4: how each supplier performs, from the receipts, rejections and bills already recorded.
+  { key: "supplier-scorecard", title: "Supplier Scorecard", description: "Per supplier: deliveries on time, goods rejected or damaged, and how far billed prices moved from the order.", see: SEE_ORDERS },
   { key: "vendor-credit-balances", title: "Vendor Credit Balances", description: "Posted, applied, refunded and unapplied credits, from Finance.", see: SEE_CREDITS },
 ];
 
@@ -307,10 +377,130 @@ export async function getProcurementReport(client, context, name, rawFilters = {
       }
       break;
     }
+    case "supplier-scorecard": {
+      columns = [col("supplier", "Supplier"), col("receipts", "Receipt lines", "number"), col("onTime", "On time %", "number"), col("avgLate", "Average days late", "number"),
+        col("rejected", "Rejected or damaged %", "number"), col("priceVariance", "Billed above order %", "number"), col("orders", "Orders", "number")];
+      const range = `${filters.from ? ` AND receipt.receipt_date >= ${bind(filters.from)}::date` : ""}${filters.to ? ` AND receipt.receipt_date <= ${bind(filters.to)}::date` : ""}`;
+      const supplierFilter = filters.supplierId ? ` AND supplier.id = ${bind(filters.supplierId)}` : "";
+      const result = await client.query(
+        `SELECT supplier.id, party.display_name AS supplier,
+                count(line.id)::int AS receipts,
+                count(line.id) FILTER (WHERE receipt.receipt_date <= COALESCE(order_line.expected_delivery_date, po.expected_delivery_date, receipt.receipt_date))::int AS on_time,
+                avg(GREATEST(receipt.receipt_date - COALESCE(order_line.expected_delivery_date, po.expected_delivery_date, receipt.receipt_date), 0)) AS avg_late,
+                sum(line.rejected_quantity + line.damaged_quantity) AS bad, sum(line.accepted_quantity + line.held_quantity + line.rejected_quantity) AS presented,
+                count(DISTINCT po.id)::int AS orders,
+                (SELECT avg((bill_line.unit_price - bill_line.ordered_unit_price) / NULLIF(bill_line.ordered_unit_price, 0)) * 100
+                   FROM tenant.accounting_vendor_bill_lines bill_line JOIN tenant.accounting_vendor_bills bill ON bill.organization_id = bill_line.organization_id AND bill.id = bill_line.vendor_bill_id
+                  WHERE bill.organization_id = supplier.organization_id AND bill.supplier_id = supplier.id AND bill.status IN ${POSTED_SQL} AND bill_line.ordered_unit_price > 0) AS price_variance
+           FROM tenant.procurement_suppliers supplier
+           JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
+           JOIN tenant.goods_receipts receipt ON receipt.organization_id = supplier.organization_id AND receipt.supplier_id = supplier.id AND receipt.status = 'posted' AND receipt.reversed_at IS NULL
+           JOIN tenant.purchase_orders po ON po.organization_id = receipt.organization_id AND po.id = receipt.purchase_order_id
+           JOIN tenant.goods_receipt_lines line ON line.organization_id = receipt.organization_id AND line.goods_receipt_id = receipt.id
+           LEFT JOIN tenant.purchase_order_lines order_line ON order_line.organization_id = line.organization_id AND order_line.id = line.purchase_order_line_id
+          WHERE supplier.organization_id = $1${range}${supplierFilter}
+          GROUP BY supplier.id, party.display_name ORDER BY party.display_name LIMIT 1000`, values);
+      const pct = (part, whole) => (Number(whole) > 0 ? dec(Math.round((Number(part) / Number(whole)) * 1000) / 10) : "");
+      rows = result.rows.map((row) => ({ supplier: row.supplier, receipts: dec(row.receipts), onTime: pct(row.on_time, row.receipts), avgLate: dec(Math.round(Number(row.avg_late ?? 0) * 10) / 10),
+        rejected: pct(row.bad, row.presented), priceVariance: row.price_variance === null ? "" : dec(Math.round(Number(row.price_variance) * 10) / 10), orders: dec(row.orders),
+        href: `/procurement/suppliers/${row.id}` }));
+      break;
+    }
+    case "purchase-register":
+    case "tds-register":
+    case "itc-register":
+    case "rcm-liability": {
+      ({ columns, rows } = await registerReport(client, organizationId, name, filters));
+      break;
+    }
     default:
       break;
   }
   return { key: report.key, title: report.title, description: report.description, columns, rows, filters };
+}
+
+// The registers: posted bills (credit notes negative) between the dates, per supplier and company when chosen.
+async function registerReport(client, organizationId, name, filters) {
+  const values = [organizationId];
+  const bind = (value) => `$${values.push(value)}`;
+  let where = "";
+  if (filters.supplierId) where += ` AND bill.supplier_id = ${bind(filters.supplierId)}`;
+  if (filters.buyingRegistrationId) where += ` AND bill.buying_registration_id = ${bind(filters.buyingRegistrationId)}`;
+  if (filters.from) where += ` AND bill.accounting_date >= ${bind(filters.from)}::date`;
+  if (filters.to) where += ` AND bill.accounting_date <= ${bind(filters.to)}::date`;
+  if (name === "tds-register") where += " AND COALESCE(bill.withholding_total, 0) <> 0";
+  if (name === "rcm-liability") where += " AND (bill.reverse_charge OR COALESCE(bill.reverse_charge_tax_total, 0) <> 0)";
+  const result = await client.query(
+    `SELECT bill.id, bill.bill_number, bill.bill_type, bill.bill_date, bill.accounting_date, COALESCE(bill.supplier_invoice_reference, bill.supplier_invoice_number) AS invoice,
+            party.display_name AS supplier, COALESCE(bill.supplier_snapshot->>'gstin', party.gstin) AS gstin, party.pan, bill.place_of_supply, btrim(bill.currency_code) AS currency,
+            COALESCE(bill.taxable_total, bill.subtotal - bill.discount_total) - COALESCE(bill.tcs_amount, 0) AS taxable, bill.grand_total, bill.withholding_total, bill.reverse_charge_tax_total,
+            bill.rcm_self_invoice_number, bill.rcm_self_invoice_date, bill.tcs_amount, section.code AS section, section.rate AS section_rate,
+            ${ITC_SQL} AS itc_status,
+            (SELECT match_status FROM tenant.gst_2b_lines two WHERE two.organization_id = bill.organization_id AND two.matched_source_type = 'vendor_bill' AND two.matched_source_id = bill.id LIMIT 1) AS in_2b,
+            taxes.cgst, taxes.sgst, taxes.igst, taxes.cess, taxes.recoverable
+       FROM tenant.accounting_vendor_bills bill
+       JOIN tenant.business_parties party ON party.organization_id = bill.organization_id AND party.id = bill.party_id
+       LEFT JOIN tenant.withholding_tax_sections section ON section.organization_id = bill.organization_id AND section.id = bill.withholding_section_id
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(sum((detail->>'taxAmount')::numeric) FILTER (WHERE detail->>'taxType' = 'cgst'), 0) AS cgst,
+                COALESCE(sum((detail->>'taxAmount')::numeric) FILTER (WHERE detail->>'taxType' IN ('sgst', 'utgst')), 0) AS sgst,
+                COALESCE(sum((detail->>'taxAmount')::numeric) FILTER (WHERE detail->>'taxType' = 'igst'), 0) AS igst,
+                COALESCE(sum((detail->>'taxAmount')::numeric) FILTER (WHERE detail->>'taxType' = 'cess'), 0) AS cess,
+                COALESCE(sum((detail->>'recoverableAmount')::numeric), 0) AS recoverable
+           FROM tenant.accounting_vendor_bill_lines line, jsonb_array_elements(CASE WHEN jsonb_typeof(line.tax_details) = 'array' THEN line.tax_details ELSE '[]'::jsonb END) detail
+          WHERE line.organization_id = bill.organization_id AND line.vendor_bill_id = bill.id) taxes ON true
+      WHERE bill.organization_id = $1 AND bill.status IN ${POSTED_SQL}${where}
+      ORDER BY bill.accounting_date, bill.bill_number LIMIT 5000`, values);
+  const sign = (row) => (row.bill_type === "credit_note" ? -1 : 1);
+  const n = (value, row) => dec(Number(value ?? 0) * sign(row));
+  const tax = (row) => Number(row.cgst) + Number(row.sgst) + Number(row.igst) + Number(row.cess);
+  const href = (row) => `/procurement/supplier-bills/${row.id}`;
+  const itcLabel = { eligible: "Eligible", partly_blocked: "Partly blocked", blocked: "Blocked", rcm: "Reverse charge", no_gst: "No GST" };
+  const twoB = (row) => (row.in_2b === "matched" ? "In 2B" : row.in_2b === "mismatch" ? "In 2B, differs" : tax(row) > 0 && row.itc_status !== "rcm" ? "Not in 2B" : "");
+  if (name === "purchase-register") return {
+    columns: [col("date", "Bill date", "date"), col("number", "Bill"), col("invoice", "Supplier invoice"), col("supplier", "Supplier"), col("gstin", "GSTIN"), col("placeOfSupply", "Place of supply"),
+      col("taxable", "Taxable value", "money"), col("cgst", "CGST", "money"), col("sgst", "SGST", "money"), col("igst", "IGST", "money"), col("cess", "Cess", "money"),
+      col("total", "Total", "money"), col("itc", "ITC"), col("rcm", "Reverse charge")],
+    rows: result.rows.map((row) => ({ date: dayOf(row.bill_date), number: row.bill_number, invoice: row.invoice, supplier: row.supplier, gstin: row.gstin ?? "Unregistered",
+      placeOfSupply: row.place_of_supply, taxable: n(row.taxable, row), cgst: n(row.cgst, row), sgst: n(row.sgst, row), igst: n(row.igst, row), cess: n(row.cess, row),
+      total: n(row.grand_total, row), itc: itcLabel[row.itc_status] ?? "", rcm: row.itc_status === "rcm" ? "Yes" : "", currency: row.currency, href: href(row) })),
+  };
+  if (name === "tds-register") return {
+    columns: [col("date", "Bill date", "date"), col("number", "Bill"), col("supplier", "Supplier"), col("pan", "PAN"), col("section", "Section"), col("taxable", "Amount", "money"),
+      col("rate", "Rate %", "number"), col("tds", "TDS", "money"), col("month", "Deposit by")],
+    rows: result.rows.map((row) => {
+      const date = dayOf(row.accounting_date);
+      // TDS is deposited by the 7th of the next month (30 April for March).
+      const [year, month] = date.split("-").map(Number);
+      const due = month === 3 ? `${year}-04-30` : `${month === 12 ? year + 1 : year}-${String(month === 12 ? 1 : month + 1).padStart(2, "0")}-07`;
+      return { date: dayOf(row.bill_date), number: row.bill_number, supplier: row.supplier, pan: row.pan ?? "No PAN", section: row.section ?? "", taxable: n(row.taxable, row),
+        rate: Number(row.taxable) ? dec(Math.round((Number(row.withholding_total) / Number(row.taxable)) * 1000000) / 10000) : "", tds: n(row.withholding_total, row), month: due,
+        currency: row.currency, href: href(row) };
+    }),
+  };
+  if (name === "itc-register") return {
+    columns: [col("date", "Bill date", "date"), col("number", "Bill"), col("supplier", "Supplier"), col("gstin", "GSTIN"), col("tax", "GST charged", "money"),
+      col("eligible", "Eligible ITC", "money"), col("blocked", "Blocked", "money"), col("rcm", "Reverse charge", "money"), col("itc", "Status"), col("twoB", "GSTR-2B")],
+    rows: result.rows.map((row) => ({ date: dayOf(row.bill_date), number: row.bill_number, supplier: row.supplier, gstin: row.gstin ?? "Unregistered", tax: n(tax(row), row),
+      eligible: n(row.recoverable, row), blocked: n(Math.max(0, tax(row) - Number(row.recoverable)), row), rcm: n(row.reverse_charge_tax_total, row), itc: itcLabel[row.itc_status] ?? "",
+      twoB: twoB(row), currency: row.currency, href: href(row) })),
+  };
+  return {
+    columns: [col("selfInvoice", "Self-invoice"), col("selfInvoiceDate", "Self-invoice date", "date"), col("number", "Bill"), col("supplier", "Supplier"), col("gstin", "Supplier GSTIN"),
+      col("taxable", "Taxable value", "money"), col("rcmTax", "Tax payable (RCM)", "money"), col("month", "GSTR-3B period")],
+    rows: result.rows.map((row) => ({ selfInvoice: row.rcm_self_invoice_number ?? "Not numbered", selfInvoiceDate: dayOf(row.rcm_self_invoice_date ?? row.accounting_date), number: row.bill_number,
+      supplier: row.supplier, gstin: row.gstin ?? "Unregistered", taxable: n(row.taxable, row), rcmTax: n(row.reverse_charge_tax_total, row),
+      month: dayOf(row.accounting_date).slice(0, 7), currency: row.currency, href: href(row) })),
+  };
+}
+
+// A report as an Excel workbook (the registers' export; any report can be exported).
+export async function exportProcurementReport(client, context, name, filters = {}) {
+  const report = await getProcurementReport(client, context, name, filters);
+  const rows = report.rows.map((row) => Object.fromEntries(report.columns.map((column) => [column.key,
+    ["money", "number"].includes(column.type) && row[column.key] !== "" && row[column.key] !== null && row[column.key] !== undefined ? Number(row[column.key]) : row[column.key]])));
+  return { fileName: `${name}-${new Date().toISOString().slice(0, 10)}.xlsx`, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    body: buildXlsxWorkbook({ sheetName: report.title, columns: report.columns, rows }) };
 }
 
 // ---------------------------------------------------------------- invoice matching workbench

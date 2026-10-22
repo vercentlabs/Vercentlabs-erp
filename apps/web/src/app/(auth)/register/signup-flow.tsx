@@ -5,9 +5,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, LoaderCircle, Plus, Sparkles } from "lucide-react";
+import { Check, LoaderCircle, Sparkles } from "lucide-react";
 
-import { Button, Checkbox, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { CodeInput } from "@/shared/ui/CodeInput";
 import { getModuleNavigation } from "@/shell/navigation/module-navigation-registry";
@@ -204,29 +204,77 @@ function Describe({ state, onDone }: { state: SignupState | null; onDone: (state
 
 // One app as a single checkbox: the whole tile toggles it. Picked tiles keep a white surface with a brand outline and a filled icon,
 // so a long list of picked apps stays calm.
-function AppTile({ app, checked, onToggle }: { app: AppCard; checked: boolean; onToggle: () => void }) {
+// One app: its icon is the tick — filled in the brand colour when the app is on. The AI's reason (or the app's own line) is the tooltip;
+// the suggested ones say so under their name.
+function AppTile({ app, checked, onToggle, index }: { app: AppCard; checked: boolean; onToggle: () => void; index: number }) {
   const Icon = getModuleNavigation(app.key)?.icon;
   return (
-    <Checkbox isSelected={checked} onChange={onToggle}
-      className={`cursor-pointer items-center gap-3 rounded-[var(--radius-card)] border bg-surface px-3 py-2.5 transition-colors ${checked ? "border-brand" : "border-border hover:border-border-strong"}`}>
-      <span className={`flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] transition-colors ${checked ? "bg-brand text-text-inverse" : "bg-surface-muted text-text-secondary"}`}>
-        {Icon ? <Icon aria-hidden className="size-4" /> : null}
+    <button type="button" role="checkbox" aria-checked={checked} onClick={onToggle} title={app.reason} style={{ animationDelay: `${index * 35}ms` }}
+      className={`signup-reveal flex h-11 min-w-0 items-center gap-2.5 rounded-[var(--radius-control)] border px-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand ${
+        checked ? "border-brand bg-surface" : "border-border bg-surface-muted hover:border-border-strong"}`}>
+      <span className={`flex size-7 shrink-0 items-center justify-center rounded-[calc(var(--radius-control)-2px)] transition-colors ${checked ? "bg-brand text-text-inverse" : "bg-surface text-text-muted"}`}>
+        {Icon ? <Icon aria-hidden className="size-3.5" /> : <Check aria-hidden className="size-3.5" />}
       </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="font-medium text-text">{app.name}</span>
-        <span className="text-xs leading-snug text-text-secondary">{app.reason}</span>
+      <span className="flex min-w-0 flex-col leading-tight">
+        <span className={`truncate text-sm font-medium ${checked ? "text-text" : "text-text-secondary"}`}>{app.name}</span>
+        {app.suggested && <span className="text-[11px] font-medium text-brand">Suggested</span>}
       </span>
-    </Checkbox>
+    </button>
+  );
+}
+
+// The 2 seconds before the apps appear: three steps tick through, a thin bar fills and the apps light up one by one — what is being done,
+// shown rather than a spinner. Reduced motion: no movement and a shorter pause.
+const ANALYSIS_MS = 2000;
+function Analysing({ companyName, apps }: { companyName: string; apps: AppCard[] }) {
+  const steps = [`Reading about ${companyName}`, "Understanding what you do", "Matching your apps"];
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const timers = [1, 2].map((next) => setTimeout(() => setStep(next), (ANALYSIS_MS / 3) * next));
+    return () => timers.forEach(clearTimeout);
+  }, []);
+  return (
+    <div className="flex flex-col gap-6" role="status" aria-live="polite">
+      <Heading title={`Your workspace for ${companyName}`} />
+      <ol className="flex flex-col gap-2.5">
+        {steps.map((label, index) => (
+          <li key={label} className={`flex items-center gap-2.5 text-sm transition-colors ${index <= step ? "text-text" : "text-text-muted"}`}>
+            <span className={`flex size-5 items-center justify-center rounded-full border transition-colors ${index < step ? "border-brand bg-brand text-text-inverse" : index === step ? "border-brand" : "border-border"}`}>
+              {index < step ? <Check aria-hidden className="size-3" strokeWidth={3} /> : index === step ? <span className="size-1.5 animate-pulse rounded-full bg-brand" /> : null}
+            </span>
+            {label}
+          </li>
+        ))}
+      </ol>
+      <div className="h-1 overflow-hidden rounded-full bg-surface-muted"><div className="signup-progress h-full rounded-full bg-brand" /></div>
+      <div aria-hidden className="grid grid-cols-6 gap-2">
+        {apps.map((app, index) => {
+          const Icon = getModuleNavigation(app.key)?.icon;
+          return (
+            <span key={app.key} className="signup-light flex aspect-square items-center justify-center rounded-[var(--radius-control)]" style={{ animationDelay: `${index * 140}ms` }}>
+              {Icon ? <Icon className="size-4" /> : null}
+            </span>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
 function Apps({ state, onChange, onSetUp }: { state: SignupState; onChange: (state: SignupState) => void; onSetUp: () => void }) {
-  const [picked, setPicked] = useState<string[]>(() => state.apps.suggested.map((app) => app.key));
-  const [showMore, setShowMore] = useState(state.apps.suggested.length === 0);
+  // Every app starts on — a business that grows uses more of them; the suggested ones lead. The first kept app is the one they land in.
+  const all = useMemo(() => [...state.apps.suggested, ...state.apps.others], [state.apps]);
+  const [picked, setPicked] = useState<string[]>(() => all.map((app) => app.key));
+  const [ready, setReady] = useState(false);
   const [editing, setEditing] = useState(false);
   const [line, setLine] = useState(state.profile?.description ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = setTimeout(() => setReady(true), reduced ? 600 : ANALYSIS_MS);
+    return () => clearTimeout(timer);
+  }, []);
   const toggle = (key: string) => setPicked((current) => (current.includes(key) ? current.filter((k) => k !== key) : [...current, key]));
   const description = state.profile?.description ?? "";
   const unsure = state.profile?.confidence !== "high";
@@ -234,9 +282,8 @@ function Apps({ state, onChange, onSetUp }: { state: SignupState; onChange: (sta
     setBusy(true);
     setError(null);
     try {
-      const next = (await call<{ state: SignupState }>("/api/auth/signup/describe", { description: line })).state;
-      onChange(next);
-      setPicked(next.apps.suggested.map((app) => app.key));
+      // A new description changes which apps are marked Suggested; what is ticked stays as the person left it.
+      onChange((await call<{ state: SignupState }>("/api/auth/signup/describe", { description: line })).state);
       setEditing(false);
     } catch (caught) {
       setError(failure(caught).message);
@@ -244,15 +291,12 @@ function Apps({ state, onChange, onSetUp }: { state: SignupState; onChange: (sta
       setBusy(false);
     }
   }
-  const all = [...state.apps.suggested, ...state.apps.others];
-  const ordered = all.filter((app) => picked.includes(app.key)).sort((a, b) => {
-    const rank = (app: AppCard) => (app.suggested ? state.apps.suggested.indexOf(app) : 100 + picked.indexOf(app.key));
-    return rank(a) - rank(b);
-  });
+  const ordered = all.filter((app) => picked.includes(app.key));
+  if (!ready) return <Analysing companyName={state.companyName} apps={all} />;
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <Heading title={`Your workspace for ${state.companyName}`} />
-      <section aria-label="What we understood" className="rounded-[var(--radius-card)] border border-border bg-surface p-3">
+      <section aria-label="What we understood" className="signup-reveal rounded-[var(--radius-card)] border border-border bg-surface p-3">
         {editing ? (
           <div className="flex flex-col gap-2">
             <TextArea label="What your business does" value={line} onChange={setLine} maxLength={200} isInvalid={Boolean(error)} errorMessage={error ?? undefined} />
@@ -264,9 +308,9 @@ function Apps({ state, onChange, onSetUp }: { state: SignupState; onChange: (sta
             <Sparkles aria-hidden className="mt-0.5 size-4 shrink-0 text-brand" />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <p className="text-xs font-medium text-text-muted">{unsure && state.apps.suggested.length ? "We think" : "What we understood"}</p>
-              <p className="text-sm text-text">
-                {!description ? "Tell us what your business does and we'll suggest apps."
-                  : !state.apps.suggested.length ? `We couldn't tell which apps fit "${description}". Pick them below, or say a bit more.` : description}
+              <p className="line-clamp-2 text-sm text-text" title={description || undefined}>
+                {!description ? "Tell us what your business does and we'll mark the apps that fit it."
+                  : !state.apps.suggested.length ? `We couldn't tell which apps fit "${description}". Every app is on; untick what you don't need.` : description}
               </p>
             </div>
             {state.suggestionsLeft > 0 && <button type="button" className="shrink-0 text-sm font-medium text-brand hover:underline" onClick={() => setEditing(true)}>Edit</button>}
@@ -274,37 +318,26 @@ function Apps({ state, onChange, onSetUp }: { state: SignupState; onChange: (sta
         )}
       </section>
       {busy ? <Working line="Finding the right apps for you…" /> : (
-        <div className="flex flex-col gap-5">
-          {state.apps.suggested.length > 0 && (
-            <section className="flex flex-col gap-2" aria-labelledby="suggested-apps">
-              <div className="flex items-baseline justify-between">
-                <h2 id="suggested-apps" className="text-sm font-semibold text-text">Suggested for you</h2>
-                <span className="text-xs text-text-muted">{`${ordered.length} selected`}</span>
-              </div>
-              {state.apps.suggested.map((app) => <AppTile key={app.key} app={app} checked={picked.includes(app.key)} onToggle={() => toggle(app.key)} />)}
-            </section>
-          )}
-          {!showMore ? (
-            <button type="button" onClick={() => setShowMore(true)}
-              className="flex items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-border-strong px-3 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:border-brand hover:text-brand">
-              <Plus aria-hidden className="size-4" />{`Add more apps (${state.apps.others.length})`}
-            </button>
-          ) : (
-            <section className="flex flex-col gap-2" aria-labelledby="more-apps">
-              <h2 id="more-apps" className="text-sm font-semibold text-text">{state.apps.suggested.length ? "More apps" : "Pick your apps"}</h2>
-              {state.apps.others.map((app) => <AppTile key={app.key} app={app} checked={picked.includes(app.key)} onToggle={() => toggle(app.key)} />)}
-            </section>
-          )}
-        </div>
+        <section className="flex flex-col gap-2" aria-labelledby="your-apps">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 id="your-apps" className="text-sm font-semibold text-text">Your apps</h2>
+            <span className="text-xs text-text-muted tabular-nums">{`${ordered.length} of ${all.length} on`}</span>
+          </div>
+          <p className="-mt-1 text-xs text-text-secondary">
+            {state.apps.suggested.length ? "All are on so you have room to grow; the suggested ones fit what you do today." : "All are on so you have room to grow."}
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {all.map((app, index) => <AppTile key={app.key} app={app} index={index} checked={picked.includes(app.key)} onToggle={() => toggle(app.key)} />)}
+          </div>
+        </section>
       )}
-      {/* Stays in view at the bottom while the list scrolls, so the next step is always one click away. */}
-      <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-border bg-canvas px-4 pt-3 pb-4">
+      <div className="flex flex-col gap-2 pt-1">
         <Button variant="primary" size="standard" isDisabled={!ordered.length || busy || editing}
           onPress={() => { window.sessionStorage.setItem("vercentlabs-signup-apps", JSON.stringify(ordered.map((app) => ({ key: app.key, name: app.name })))); onSetUp(); }}>
           {ordered.length ? `Set up workspace with ${ordered.length} ${ordered.length === 1 ? "app" : "apps"}` : "Set up workspace"}
         </Button>
         <p className={`text-center text-xs ${ordered.length ? "text-text-muted" : "text-danger"}`}>
-          {ordered.length ? "Free for 30 days, no card needed. Change your apps anytime in Settings." : "Pick at least one app."}
+          {ordered.length ? "Free for 30 days, no card needed. Change apps anytime in Settings." : "Pick at least one app."}
         </p>
       </div>
     </div>

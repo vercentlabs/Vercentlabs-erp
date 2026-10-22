@@ -128,7 +128,8 @@ export function MobileNav({
 
   return (
     <div className="flex lg:hidden">
-      <header className="flex h-14 w-full shrink-0 items-center gap-3 border-b border-border bg-surface px-3">
+      {/* Edges kept even: the menu icon and the avatar sit the same distance in from each side; the title sits just after the menu. */}
+      <header className="flex h-14 w-full shrink-0 items-center gap-1 border-b border-border bg-surface px-2.5">
         <IconButton
           aria-label="Open navigation"
           variant="ghost"
@@ -141,7 +142,7 @@ export function MobileNav({
           <Breadcrumbs fallback="Home" />
         </div>
         {/* Search, Settings and the account menu (profile, help, sign out) sit here, not in the drawer. */}
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="flex shrink-0 items-center">
           <IconButton aria-label="Search" variant="ghost" onPress={openSearch}>
             <Search aria-hidden="true" className="size-5" />
           </IconButton>

@@ -1,12 +1,14 @@
 // Procurement display formatting. Money arrives as decimal strings; format for
-// display only, never for arithmetic.
+// display only, never for arithmetic. Always Indian grouping (12,34,567.00), whatever the browser's own locale
+// (Procurement plan Phase 0, bug 12: an en-US browser showed 1,234,567).
+const LOCALE = "en-IN";
 export function money(
   currencyCode: string | null | undefined,
   value: number | string | null | undefined,
 ) {
   const numeric = typeof value === "number" ? value : Number(value ?? 0);
   const formatted = Number.isFinite(numeric)
-    ? numeric.toLocaleString(undefined, {
+    ? numeric.toLocaleString(LOCALE, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })
@@ -16,7 +18,7 @@ export function money(
 export const quantity = (value: unknown) => {
   const n = Number(value ?? 0);
   return Number.isFinite(n)
-    ? n.toLocaleString(undefined, { maximumFractionDigits: 4 })
+    ? n.toLocaleString(LOCALE, { maximumFractionDigits: 4 })
     : "—";
 };
 

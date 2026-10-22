@@ -74,7 +74,7 @@ export async function confirmPurchaseOrder(client, context, orderId, input = {})
   if (order.status !== STATUS.draft) throw new PurchaseOrderError(409, `A ${order.status} order cannot be confirmed.`, "PURCHASE_ORDER_INVALID_STATE");
   checkRevision(order, input.expectedRevision);
   // Re-validated against today's masters: a supplier blocked since the draft was made stops it here.
-  const { header, priced } = await resolveOrderDocument(client, context, {}, { order, today: await databaseToday(client) });
+  const { header, priced } = await resolveOrderDocument(client, context, {}, { order, today: await databaseToday(client, context.organizationId) });
   validateForConfirmation(header, priced, { keepsStock: await stockOn(client, context) });
   await updateOrderHeader(client, context, order.id, header, priced);
   // The company's approval rules (Shared Platform plan 6): a PO of this total waits for its approver(s); the draft is kept as it is.

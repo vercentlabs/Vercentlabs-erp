@@ -56,7 +56,7 @@ export function GoodsReceiptFormScreen({ orderId, receiptId }: { orderId?: strin
   const receivable = useQuery({
     queryKey: scopedQueryKey(workspace, "procurement", "receivable", purchaseOrderId, receiptId), queryFn: () => getReceivable(purchaseOrderId!, receiptId), enabled: Boolean(purchaseOrderId),
   });
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: getPurchaseOrderOptions, staleTime: 60_000 });
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: () => getPurchaseOrderOptions(), staleTime: 60_000 });
   if (!purchaseOrderId && !receiptId) return <OrderPicker onPick={setPickedOrderId} />;
   if (existing.isLoading || receivable.isLoading || options.isLoading) return <LoadingState label="Loading goods receipt" />;
   if (!receivable.data || !options.data || (receiptId && !existing.data))
@@ -102,7 +102,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
   const saved = existing?.receipt;
   const [header, setHeader] = useState({
     warehouseId: saved?.warehouseId ?? receivable.order.defaultWarehouseId ?? "", receiptDate: saved?.receiptDate ?? "", arrivedAt: toLocalInput(saved?.physicalReceivedAt),
-    receivedBy: saved?.receivedByUserId ?? "", vehicle: saved?.vehicleNumber ?? "", carrier: saved?.carrierName ?? "", tracking: saved?.trackingReference ?? "",
+    receivedBy: saved?.receivedByUserId ?? "", vehicle: saved?.vehicleNumber ?? "", ewbNumber: saved?.ewbNumber ?? "", ewbValidUntil: saved?.ewbValidUntil ? String(saved.ewbValidUntil).slice(0, 10) : "", carrier: saved?.carrierName ?? "", tracking: saved?.trackingReference ?? "",
     challanNumber: saved?.supplierChallanNumber ?? "", challanDate: saved?.supplierChallanDate ?? "", notes: saved?.notes ?? "",
   });
   const setField = (key: keyof typeof header) => (value: string) => setHeader((current) => ({ ...current, [key]: value }));
@@ -124,7 +124,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
   const set = (id: string, change: Partial<Row>) => setRows((current) => ({ ...current, [id]: { ...current[id], ...change } }));
   const payload = useMemo(() => ({
     warehouseId: header.warehouseId || undefined, receiptDate: header.receiptDate || undefined, physicalReceivedAt: header.arrivedAt ? new Date(header.arrivedAt).toISOString() : null,
-    receivedByUserId: header.receivedBy || null, vehicleNumber: header.vehicle || null, carrierName: header.carrier || null, trackingReference: header.tracking || null,
+    receivedByUserId: header.receivedBy || null, vehicleNumber: header.vehicle || null, ewbNumber: header.ewbNumber || null, ewbValidUntil: header.ewbValidUntil ? `${header.ewbValidUntil}T23:59:00+05:30` : null, carrierName: header.carrier || null, trackingReference: header.tracking || null,
     supplierChallanNumber: header.challanNumber || null, supplierChallanDate: header.challanDate || null, notes: header.notes || null,
     lines: goods.filter((line) => rows[line.purchaseOrderLineId]?.include).map((line) => {
       const row = rows[line.purchaseOrderLineId];
@@ -190,6 +190,8 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
           <TextField label="Supplier challan no." value={header.challanNumber} onChange={setField("challanNumber")} />
           <TextField label="Challan date" type="date" value={header.challanDate} onChange={setField("challanDate")} />
           <TextField label="Vehicle number" value={header.vehicle} onChange={setField("vehicle")} />
+          <TextField label="Supplier's e-way bill no." inputMode="numeric" value={header.ewbNumber} onChange={setField("ewbNumber")} description="12 digits, when the goods came under one." />
+          <TextField label="E-way bill valid until" type="date" value={header.ewbValidUntil} onChange={setField("ewbValidUntil")} />
           <TextField label="Carrier / transporter" value={header.carrier} onChange={setField("carrier")} />
           <TextField label="Tracking / LR / AWB no." value={header.tracking} onChange={setField("tracking")} />
         </div>

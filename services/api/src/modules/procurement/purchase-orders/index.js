@@ -50,3 +50,5 @@ export {
   REJECTION_VIEWS, getGoodsReceiptRejections, getInspectionRejections, getOpenSupplierRejections, getPurchaseOrderRejections, getRejection, getRejectionSummary, listRejections,
 } from "./rejection-records.js";
 export { REJECTION_FILE_ENTITY, listRejectionFiles, prepareRejectionFileUpload, readRejectionFile, removeRejectionFile, uploadRejectionFile } from "./rejection-files.js";
+// The supplier's WhatsApp link to a purchase order's PDF (Procurement plan Phase 3).
+export { renderSharedPurchaseOrderPdf, revokePurchaseOrderLink, sharePurchaseOrderLink } from "./share.js";

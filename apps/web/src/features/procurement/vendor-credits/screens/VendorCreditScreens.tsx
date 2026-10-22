@@ -15,6 +15,7 @@ import {
 import { useTabParam, useFormChangesWarning } from "@/features/procurement/shared/navigation";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { ProcurementSearchPicker } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { calendarDate, dateTime, money, quantity, statusLabel } from "@/features/procurement/shared/format";
 import { billFileUrl, getBill, listBillFiles, removeBillFile, uploadBillFile } from "@/features/procurement/supplier-bills/api/supplier-bills-api";
@@ -142,8 +143,8 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
       <Errors error={save.error} />
       <Panel title="Credit">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Select label="Supplier" isDisabled={Boolean(existing)} selectedKey={supplierId} onSelectionChange={(value) => { setSupplierId(String(value)); setRows([]); setPreview(null); }}
-            options={data.suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.name} (${supplier.number})` }))} />
+          <ProcurementSearchPicker kind="suppliers" label="Supplier" isDisabled={Boolean(existing)} value={supplierId} known={data.suppliers}
+            onPick={(id) => { setSupplierId(id); setRows([]); setPreview(null); }} />
           <Select label="Origin" selectedKey={header.origin} onSelectionChange={(value) => set("origin")(String(value))} options={origins} />
           <Select label="Tax treatment" selectedKey={header.taxTreatment} onSelectionChange={(value) => set("taxTreatment")(String(value))}
             options={data.taxTreatments.map((entry) => ({ value: entry.code, label: entry.label }))} />

@@ -9,6 +9,7 @@ import { calculateSupplierBillTotals } from "./calculate.js";
 import { BILL_PERMISSIONS, POSTED_STATUSES, SupplierBillError, dayOf, documentStatus, dueStatus, matchingResult, paymentStatus, requireUuid } from "./constants.js";
 import { billedOnLines, receiptLineEligibility } from "./sources.js";
 import { MATCHING_POLICIES, TWO_WAY_SQL, policyOf } from "./matching.js";
+import { databaseToday } from "../org-day.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const positive = (value) => (value > 0n ? value : 0n);
@@ -28,7 +29,7 @@ export const derivePurchaseOrderBillingStatus = deriveBillingStatus;
 
 // getRelatedSupplierBills: every bill of the order (drafts, posted, cancelled, reversed) with its own status, totals and Finance's balance.
 export async function getRelatedSupplierBills(client, context, orderId, { today = null } = {}) {
-  const day = today ?? (await client.query(`SELECT current_date::text AS today`)).rows[0].today;
+  const day = today ?? await databaseToday(client, context.organizationId);
   const { rows } = await client.query(
     `SELECT bill.id, bill.bill_number, bill.bill_type, COALESCE(bill.supplier_invoice_reference, bill.supplier_invoice_number) AS supplier_invoice, bill.status, bill.bill_date,
             bill.accounting_date, bill.due_date, bill.currency_code, bill.invoice_total, bill.grand_total, bill.outstanding_amount, bill.matching_status, bill.matching_basis,

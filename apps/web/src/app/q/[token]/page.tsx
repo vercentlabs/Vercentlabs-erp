@@ -24,7 +24,7 @@ export default async function SharedQuotePage({ params }: { params: Promise<{ to
   if (!view) notFound();
   const { quote, lines } = view;
   return (
-    <main className="min-h-screen bg-surface-muted px-4 py-8">
+    <main className="min-h-screen bg-surface-muted px-4 py-8 max-lg:pb-[calc(3rem+env(safe-area-inset-bottom))]">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 rounded-[var(--radius-card)] border border-border bg-surface p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

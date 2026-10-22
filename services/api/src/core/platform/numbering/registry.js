@@ -65,6 +65,12 @@ export const DOCUMENT_TYPES = Object.freeze(
     org("supplier", "procurement", "Supplier", "SUP-", 6),
     org("purchase_requisition", "procurement", "Purchase requisition", "PR-", 6),
     org("sourcing_event", "procurement", "Sourcing event (RFQ)", "RFQ-", 6),
+    // Procurement plan Phase 2: the indent a department raises and the RFQ sent to several suppliers.
+    std("purchase_indent", "procurement", "Purchase indent", "IND", { defaultResetPolicy: "calendar_year" }),
+    std("purchase_rfq", "procurement", "Request for quotation", "RFQ", { defaultResetPolicy: "calendar_year" }),
+    // Phase 3: rate contracts, and the self-invoice for a reverse-charge purchase (numbered per financial year, as GST expects).
+    std("purchase_rate_contract", "procurement", "Rate contract", "PRC", { defaultResetPolicy: "calendar_year" }),
+    std("rcm_self_invoice", "procurement", "Reverse-charge self-invoice", "RCM", { defaultResetPolicy: "fiscal_year" }),
     org("procurement_agreement", "procurement", "Purchase agreement", "AGR-", 6),
     std("supplier_quotation", "procurement", "Supplier quotation", "SQ", { defaultResetPolicy: "calendar_year" }),
     std("purchase_order", "procurement", "Purchase order", "PO", { defaultResetPolicy: "calendar_year" }),

@@ -5,6 +5,7 @@
 // registration. A GSTIN belongs to one supplier in the tenant, and never to
 // another company (a customer or account) at the same time. Documents keep a
 // snapshot of the registration they used.
+import { parseGstin } from "@vercentlabs/shared-types";
 import { GSTIN_PATTERN, GST_REGISTRATION_TYPES, SUPPLIER_PERMISSIONS, SupplierError, has, requireUuid, text } from "./constants.js";
 import { loadSupplier, recordSupplierEvent, requireSupplierPermission } from "./access.js";
 import { gstStateName } from "../../../core/tax/index.js";
@@ -24,6 +25,8 @@ function fail(field, message, code = "SUPPLIER_TAX_REGISTRATION_VALIDATION") {
 export function normalizeGstin(value) {
   const gstin = text(value, 20)?.toUpperCase().replace(/\s+/g, "") ?? null;
   if (gstin && !GSTIN_PATTERN.test(gstin)) fail("gstin", "A GSTIN has 15 characters: the state code, the PAN and three more.");
+  // The check character too (Procurement plan Phase 1).
+  if (gstin) { const parsed = parseGstin(gstin); if (!parsed.valid) fail("gstin", parsed.error ?? "Check the GSTIN."); }
   return gstin;
 }
 

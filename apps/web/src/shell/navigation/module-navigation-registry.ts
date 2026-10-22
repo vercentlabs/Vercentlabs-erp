@@ -24,16 +24,21 @@ import {
   Users,
   ShoppingCart,
   Truck,
-  Boxes,
   Factory,
-  FolderKanban,
   Wrench,
   Store,
   BadgeCheck,
-  LifeBuoy,
   Landmark,
-  Building2,
   Wallet,
+  Calculator,
+  Handshake,
+  Headset,
+  Monitor,
+  ReceiptIndianRupee,
+  ScanBarcode,
+  ShieldCheck,
+  SquareKanban,
+  Warehouse,
 } from "lucide-react";
 
 import type { ModuleNavigation, SecondaryNavItem } from "./navigation-types";
@@ -72,7 +77,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
   {
     moduleKey: "crm",
     label: "CRM",
-    icon: Users,
+    icon: Handshake,
     requiredPermission: "crm.view",
     sections: [
       {
@@ -216,7 +221,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
   {
     moduleKey: "sales",
     label: "Sales",
-    icon: ShoppingCart,
+    icon: ReceiptIndianRupee,
     requiredPermission: "sales.view",
     // Addresses and contacts live on the customer; confirmation, availability, reservation, partial delivery, partial invoicing and order
     // tracking on the sales order; shipment on the delivery; discounts and taxes on each document.
@@ -411,72 +416,89 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
   {
     moduleKey: "procurement",
     label: "Procurement",
-    icon: Truck,
+    icon: ShoppingCart,
     requiredPermission: "procurement.view",
-    // Partial receipts, rejections, partial billing, matching, direct bills and payment schedules live inside their documents (tabs and
-    // contextual actions); the cross-document views are Receiving Exceptions and Invoice Matching.
+    // Grouped by the job, in the order the work happens (Procurement plan): Request · Buy · Receive · Bills & Payments · Payables · Reports ·
+    // Masters · Settings — the words Indian buyers, store keepers and accountants use (Indent, GRN, Purchase Bill, Debit Note). Labels
+    // change here only; every address keeps working. Partial receipts, rejections, partial billing and payment schedules live inside
+    // their documents (tabs and actions).
     sections: [
       {
         id: "overview",
-        label: "Overview",
+        label: "Home",
         icon: LayoutDashboard,
         flat: true,
-        items: [{ ...available("Overview", "/procurement"), aliases: ["procurement home", "procurement dashboard", "requires attention"] }],
+        items: [{ ...available("Overview", "/procurement"), aliases: ["procurement home", "procurement dashboard", "requires attention", "my work", "my approvals"] }],
       },
       {
-        id: "master-data",
-        label: "Master Data",
-        icon: Database,
+        id: "request",
+        label: "Request",
+        icon: Inbox,
         collapsible: true,
         items: [
-          { ...available("Suppliers", "/procurement/suppliers"), aliases: ["supplier master", "vendors", "vendor", "supplier import", "gstin", "supplier contacts", "supplier addresses"],
-            requiredAnyPermission: ["procurement.suppliers.view", "procurement.suppliers.view_all"] },
-        ],
-      },
-      {
-        id: "operations",
-        label: "Operations",
-        icon: ArrowLeftRight,
-        collapsible: true,
-        items: [
-          { ...available("Purchase Orders", "/procurement/purchase-orders"), aliases: ["po", "purchase order", "buy", "partial receipts", "partial billing"],
-            requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
-          { ...available("Supplier Quotations", "/procurement/purchase-orders/quotations"), parent: "purchase-orders", aliases: ["quotation", "supplier quote", "rfq response"],
-            description: "Supplier quotations an order can be created from.", requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
-          { ...available("Goods Receipts", "/procurement/goods-receipts"), aliases: ["grn", "goods received", "rejected receipts", "dock refusal"],
-            requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
-          { ...available("Supplier Bills", "/procurement/supplier-bills"), aliases: ["supplier invoice", "vendor bill", "purchase invoice", "direct bill", "payment schedule"],
-            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
-          { ...available("Payment Obligations & AP Aging", "/procurement/reports/payment-obligations"), parent: "supplier-bills", aliases: ["payment obligations", "due payments", "msme payments", "ap aging"],
-            description: "Overdue and upcoming instalments, AP aging and statutory deadlines.", requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
-          { ...available("Purchase Returns", "/procurement/purchase-returns"), aliases: ["return to supplier", "rtv", "replacement"],
-            requiredAnyPermission: ["procurement.returns.view", "procurement.po.view", "procurement.po.view_all"] },
-          { ...available("Supplier Credits / Debit Notes", "/procurement/debit-notes-credits"),
-            aliases: ["debit note", "debit claim", "vendor credit", "supplier credit", "supplier credit note", "supplier refund"],
-            requiredAnyPermission: ["procurement.claims.view", "procurement.claims.manage", "procurement.credits.manage", "procurement.bills.view", "accounting.payables.manage"] },
-        ],
-      },
-      {
-        id: "planning",
-        label: "Planning & Control",
-        icon: Gauge,
-        collapsible: true,
-        items: [
-          { ...available("Receiving Exceptions", "/procurement/receiving-issues"), aliases: ["receiving issues", "refused goods", "quarantine", "shortage", "discrepancies", "wrong delivery"],
-            description: "Dock refusals, shortages, wrong deliveries and post-receipt rejections.", requiredAnyPermission: ["procurement.rejections.view", "procurement.rejections.view_all"] },
-          { ...available("Invoice Matching", "/procurement/invoice-matching"), aliases: ["2-way matching", "3-way matching", "matching exceptions", "price variance", "quantity variance"],
-            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
-          { ...available("Material Demand", "/procurement/material-demand"), aliases: ["manufacturing shortages", "material shortage", "bom shortage"],
+          { ...available("Purchase Indents", "/procurement/indents"), aliases: ["indent", "requisition", "purchase requisition", "material request", "indents to approve", "pr"],
+            requiredAnyPermission: ["procurement.requisition.create", "procurement.requisition.manage", "procurement.requisition.approve", "procurement.po.view", "procurement.po.view_all"] },
+          // Manufacturing's shortages: shown only while Manufacturing is on (Procurement plan Phase 0, bug 11).
+          { ...available("Material Demand", "/procurement/material-demand"), requiredApp: "manufacturing", aliases: ["manufacturing shortages", "material shortage", "bom shortage"],
             requiredAnyPermission: ["procurement.requisition.manage", "procurement.po.create", "procurement.po.manage", "procurement.view"] },
         ],
       },
       {
-        id: "inquiries",
-        label: "Inquiries",
-        icon: Search,
+        id: "buy",
+        label: "Buy",
+        icon: ShoppingCart,
         collapsible: true,
         items: [
-          { ...available("Purchase Status", "/procurement/purchase-status"), aliases: ["purchase order progress", "open orders", "what is outstanding"] },
+          { ...available("Purchase Orders", "/procurement/purchase-orders"), aliases: ["po", "purchase order", "buy", "partial receipts", "partial billing", "open orders"],
+            requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
+          { ...available("RFQs & Quotations", "/procurement/rfqs"), aliases: ["rfq", "request for quotation", "quotation", "supplier quote", "comparison", "compare quotes", "award", "quotes"],
+            description: "Ask several suppliers for prices, compare and award.", requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
+          { ...available("Rate Contracts", "/procurement/rate-contracts"), aliases: ["rate contract", "blanket order", "annual contract", "agreed rates", "price agreement"],
+            description: "Rates agreed with suppliers for a period.", requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
+        ],
+      },
+      {
+        id: "receive",
+        label: "Receive",
+        icon: Truck,
+        collapsible: true,
+        items: [
+          { ...available("Goods Receipts (GRN)", "/procurement/goods-receipts"), aliases: ["grn", "goods receipts", "goods received", "gate entry", "inward", "rejected receipts", "dock refusal"],
+            requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
+          { ...available("Receiving Issues", "/procurement/receiving-issues"), aliases: ["receiving exceptions", "refused goods", "quarantine", "shortage", "discrepancies", "wrong delivery", "damaged"],
+            description: "Dock refusals, shortages, wrong deliveries and post-receipt rejections.", requiredAnyPermission: ["procurement.rejections.view", "procurement.rejections.view_all"] },
+          { ...available("Purchase Returns", "/procurement/purchase-returns"), aliases: ["return to supplier", "rtv", "replacement", "delivery challan"],
+            requiredAnyPermission: ["procurement.returns.view", "procurement.po.view", "procurement.po.view_all"] },
+        ],
+      },
+      {
+        id: "bills",
+        label: "Bills & Payments",
+        icon: ReceiptIndianRupee,
+        collapsible: true,
+        items: [
+          { ...available("Purchase Bills", "/procurement/supplier-bills"), aliases: ["supplier bills", "supplier invoice", "vendor bill", "purchase invoice", "direct bill", "direct expense", "bills to create", "itc"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("Bill Matching", "/procurement/invoice-matching"), aliases: ["invoice matching", "2-way matching", "3-way matching", "matching exceptions", "price variance", "quantity variance"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("Debit Notes & Supplier Credits", "/procurement/debit-notes-credits"),
+            aliases: ["debit note", "debit claim", "vendor credit", "supplier credit", "supplier credit note", "supplier refund", "supplier credits / debit notes"],
+            requiredAnyPermission: ["procurement.claims.view", "procurement.claims.manage", "procurement.credits.manage", "procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("Supplier Payments", "/procurement/payments"), aliases: ["payments made", "vendor payments", "payment advice", "paid bills", "utr", "neft", "cheque"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+        ],
+      },
+      {
+        id: "payables",
+        label: "Payables",
+        icon: Wallet,
+        collapsible: true,
+        items: [
+          { ...available("Due & Overdue", "/procurement/reports/payment-obligations"), aliases: ["payment obligations", "due payments", "ap aging", "ageing", "due this week", "pay selected"],
+            description: "Bills and instalments by due date, AP ageing.", requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("MSME Payments", "/procurement/payables/msme"), aliases: ["msme", "45 days", "msmed", "43b(h)", "udyam", "micro small"],
+            description: "Bills to MSME suppliers against their 45-day deadline.", requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("Purchase Status", "/procurement/purchase-status"), aliases: ["purchase order progress", "open orders", "what is outstanding", "tracker"] },
         ],
       },
       {
@@ -485,26 +507,46 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         icon: BarChart3,
         collapsible: true,
         items: [
+          { ...available("Purchase Register", "/procurement/reports/purchase-register"), aliases: ["purchase register", "gst purchase register", "purchase book", "cgst sgst igst"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("TDS Register", "/procurement/reports/tds-register"), aliases: ["tds", "194c", "194j", "194q", "26q", "withholding register"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("ITC Register", "/procurement/reports/itc-register"), aliases: ["itc", "input tax credit", "blocked credit", "2b", "gstr-2b"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
+          { ...available("Supplier Scorecard", "/procurement/reports/supplier-scorecard"), aliases: ["supplier performance", "on time delivery", "rejection rate", "vendor rating"],
+            requiredAnyPermission: ["procurement.po.view", "procurement.po.view_all"] },
+          { ...available("RCM Liability", "/procurement/reports/rcm-liability"), aliases: ["rcm", "reverse charge", "self invoice", "gta"],
+            requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
           { ...available("Purchases by Period", "/procurement/reports/purchases-by-period"), aliases: ["monthly purchases", "spend"],
             requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
           { ...available("Purchases by Supplier", "/procurement/reports/purchases-by-supplier"), aliases: ["supplier spend", "top suppliers"],
             requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
           { ...available("Purchases by Item", "/procurement/reports/purchases-by-item"), aliases: ["item spend"],
             requiredAnyPermission: ["procurement.bills.view", "accounting.payables.manage"] },
-          // The report catalogue and its other reports (pending receipts, discrepancies, bills due, return summary, vendor credit balances).
-          { ...available("All Procurement Reports", "/procurement/reports"), parent: "purchases-by-period",
-            aliases: ["procurement reports", "overdue bills", "vendor credit balances", "unbilled receipts", "pending goods receipts"] },
+          // The report catalogue and its other reports (pending receipts, GRNI, discrepancies, bills due, return summary, vendor credit balances).
+          { ...available("All Reports", "/procurement/reports"),
+            aliases: ["procurement reports", "overdue bills", "vendor credit balances", "unbilled receipts", "grni", "pending goods receipts"] },
+        ],
+      },
+      {
+        id: "masters",
+        label: "Masters",
+        icon: Database,
+        collapsible: true,
+        items: [
+          { ...available("Suppliers", "/procurement/suppliers"), aliases: ["supplier master", "vendors", "vendor", "supplier import", "gstin", "supplier contacts", "supplier addresses", "udyam"],
+            requiredAnyPermission: ["procurement.suppliers.view", "procurement.suppliers.view_all"] },
+          { ...available("Supplier Categories", "/procurement/settings/categories"), description: "Categories suppliers are grouped by." },
+          { ...available("Payment Terms", "/procurement/settings/payment-terms"), aliases: ["credit terms", "supplier payment terms"] },
         ],
       },
       {
         id: "configuration",
-        label: "Configuration",
+        label: "Settings",
         icon: Settings,
-        collapsible: true,
+        flat: true,
         items: [
-          { ...available("Procurement Setup", "/procurement/settings"), aliases: ["procurement settings", "procurement configuration", "matching rules", "receiving rules"] },
-          { ...available("Supplier Categories", "/procurement/settings/categories"), parent: "procurement-setup", description: "Categories suppliers are grouped by." },
-          { ...available("Payment Terms", "/procurement/settings/payment-terms"), aliases: ["credit terms", "supplier payment terms"] },
+          { ...available("Procurement Setup", "/procurement/settings"), aliases: ["procurement settings", "procurement configuration", "matching rules", "receiving rules", "tds sections", "numbering"] },
         ],
       },
     ],
@@ -514,7 +556,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     // filters and detail pages inside these pages — never sidebar entries of their own.
     moduleKey: "stock",
     label: "Inventory",
-    icon: Boxes,
+    icon: Warehouse,
     requiredPermission: "stock.view",
     sections: [
       {
@@ -721,7 +763,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
   {
     moduleKey: "projects",
     label: "Projects",
-    icon: FolderKanban,
+    icon: SquareKanban,
     requiredPermission: "projects.view",
     sections: [
       {
@@ -834,7 +876,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
   {
     moduleKey: "assets",
     label: "Assets",
-    icon: Wrench,
+    icon: Monitor,
     requiredPermission: "assets.view",
     // Register → acquire → assign → move → maintain → depreciate → dispose. Nine groups; the features inside them (identification, status,
     // straight-line depreciation, sale / scrap, gain / loss…) are tabs, views and actions of these workspaces, not menu entries of their own.
@@ -950,7 +992,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
   {
     moduleKey: "point-of-sale",
     label: "POS",
-    icon: Store,
+    icon: ScanBarcode,
     requiredPermission: "pos.view",
     // The standard sections (as CRM, Sales, Procurement and Inventory). Smaller POS features are tabs, dialogs or actions inside these pages:
     // barcode scanning, discounts and split payments in the Register; refunds and approvals in Returns & Refunds; cash movements and cash
@@ -1051,7 +1093,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
   {
     moduleKey: "quality",
     label: "Quality",
-    icon: BadgeCheck,
+    icon: ShieldCheck,
     requiredPermission: "quality.view",
     sections: [
       {
@@ -1197,7 +1239,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
   {
     moduleKey: "support",
     label: "Support",
-    icon: LifeBuoy,
+    icon: Headset,
     requiredPermission: "support.view",
     sections: [
       {
@@ -1231,7 +1273,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
   {
     moduleKey: "hr-payroll",
     label: "HR & Payroll",
-    icon: Landmark,
+    icon: Users,
     requiredPermission: "hr_payroll.view",
     sections: [
       {
@@ -1319,7 +1361,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
   {
     moduleKey: "accounting",
     label: "Accounting",
-    icon: Building2,
+    icon: Calculator,
     requiredPermission: "accounting.view",
     sections: [
       {

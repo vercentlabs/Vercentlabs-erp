@@ -112,3 +112,7 @@ export declare function prepareRejectionFileUpload(input: { fileName: string; by
 export declare function getInspectionRejections(client: QueryClient, context: any, ...args: any[]): Promise<any>;
 export declare function changePurchaseOrderMatchingPolicy(client: QueryClient, context: any, ...args: any[]): Promise<any>;
 export declare const MATCHING_POLICY_LABELS: Record<string, string>;
+// The supplier's WhatsApp link to a purchase order's PDF (Procurement plan Phase 3).
+export declare function sharePurchaseOrderLink(client: any, context: any, orderId: string, input?: { phone?: string | null }): Promise<{ url: string; body: string; phone: string | null; whatsapp: string }>;
+export declare function revokePurchaseOrderLink(client: any, context: any, orderId: string): Promise<{ revoked: boolean }>;
+export declare function renderSharedPurchaseOrderPdf(client: any, token: string): Promise<{ fileName: string; body: Buffer } | null>;

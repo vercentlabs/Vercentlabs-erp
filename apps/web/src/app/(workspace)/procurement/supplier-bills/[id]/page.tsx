@@ -1,7 +1,7 @@
 import { RecordThreadPanel } from "@/features/platform/record-thread/RecordThreadPanel";
 import { SupplierBillDetailScreen } from "@/features/procurement/supplier-bills/screens/SupplierBillScreens";
 
-export const metadata = { title: "Supplier bill" };
+export const metadata = { title: "Purchase bill" };
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

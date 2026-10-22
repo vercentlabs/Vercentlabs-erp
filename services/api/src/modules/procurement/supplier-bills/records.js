@@ -9,6 +9,8 @@ import { creditedOnBillLines } from "../vendor-credits/credits.js";
 import { companyToday, readTermSnapshot } from "../../../core/payment-terms/index.js";
 import { getSupplierBillPaymentSchedule, getSupplierInstallmentAging } from "../payment-terms/schedule.js";
 import { TWO_WAY_SQL } from "./matching.js";
+import { pagedList } from "../paging.js";
+import { appOn } from "../../../core/access/apps.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 // The company's local date, and a bill's earliest open instalment: a bill is overdue when any instalment still owed is past due.
@@ -18,7 +20,14 @@ const NEXT_DUE_SQL = `COALESCE((SELECT min(schedule.due_date) FROM tenant.accoun
     AND schedule.vendor_bill_id = bill.id AND schedule.outstanding_amount > 0), bill.due_date)`;
 const POSTED_SQL = `bill.status IN ('posted', 'partially_paid', 'paid', 'overdue', 'disputed')`;
 const VIEW_SQL = {
-  all: "", draft: " AND bill.status IN ('draft', 'pending_approval', 'approved')", posted: ` AND ${POSTED_SQL}`,
+  all: "",
+  // "To create" lists goods receipts, not bills (the screen reads the receipts' "to_bill" view); asked of the bill list it is empty.
+  to_create: " AND false",
+  // Posted bills with input GST that GSTR-2B does not show (Procurement plan Phase 3): their ITC is not yet available (s.16(2)(aa)).
+  not_in_2b: ` AND ${POSTED_SQL} AND bill.tax_total > 0 AND NOT bill.reverse_charge AND NOT EXISTS (SELECT 1 FROM tenant.gst_2b_lines two WHERE two.organization_id = bill.organization_id
+    AND two.matched_source_type = 'vendor_bill' AND two.matched_source_id = bill.id)`,
+  to_post: " AND bill.status IN ('draft', 'pending_approval', 'approved')",
+  due_week: ` AND ${POSTED_SQL} AND bill.outstanding_amount > 0 AND ${NEXT_DUE_SQL} <= ${COMPANY_TODAY_SQL} + 7`, draft: " AND bill.status IN ('draft', 'pending_approval', 'approved')", posted: ` AND ${POSTED_SQL}`,
   unpaid: ` AND ${POSTED_SQL} AND bill.outstanding_amount > 0 AND bill.outstanding_amount >= bill.grand_total`,
   partially_paid: ` AND ${POSTED_SQL} AND bill.outstanding_amount > 0 AND bill.outstanding_amount < bill.grand_total`,
   paid: ` AND ${POSTED_SQL} AND bill.outstanding_amount <= 0`, overdue: ` AND ${POSTED_SQL} AND bill.outstanding_amount > 0 AND ${NEXT_DUE_SQL} < ${COMPANY_TODAY_SQL}`,
@@ -32,6 +41,17 @@ const VIEW_SQL = {
     AND EXISTS (SELECT 1 FROM tenant.purchase_order_line_status status WHERE status.organization_id = bill.organization_id AND status.purchase_order_id = bill.source_purchase_order_id AND status.posted_billed_quantity > 0)
     AND EXISTS (SELECT 1 FROM tenant.purchase_order_line_status status WHERE status.organization_id = bill.organization_id AND status.purchase_order_id = bill.source_purchase_order_id AND status.posted_billed_quantity < status.bill_target_quantity)`,
 };
+
+// The bill's input tax credit (Procurement plan Phase 1): reverse charge (the buyer pays the GST and claims it), no GST charged, blocked
+// (s.17(5), or the company is not GST registered), partly blocked, or eligible.
+export const ITC_SQL = `(SELECT CASE
+    WHEN bill.reverse_charge OR bool_or(line.reverse_charge) THEN 'rcm'
+    WHEN COALESCE(sum(line.tax_amount), 0) = 0 THEN 'no_gst'
+    WHEN bool_and(line.tax_amount = 0 OR line.input_tax_eligibility = 'blocked') THEN 'blocked'
+    WHEN bool_or(line.tax_amount > 0 AND line.input_tax_eligibility = 'blocked') THEN 'partly_blocked'
+    ELSE 'eligible' END
+  FROM tenant.accounting_vendor_bill_lines line WHERE line.organization_id = bill.organization_id AND line.vendor_bill_id = bill.id)`;
+export const ITC_LABELS = Object.freeze({ eligible: "Eligible", partly_blocked: "Partly blocked", blocked: "Blocked", rcm: "Reverse charge", no_gst: "No GST" });
 
 const MATCH_FILTERS = ["matched", "mismatch", "approved_exception", "not_checked", "not_applicable"];
 // Matching issue categories: open (not accepted) discrepancies of the bill's current evaluation, or a duplicate supplier invoice.
@@ -86,8 +106,11 @@ export async function listSupplierBills(client, context, filters = {}) {
       OR EXISTS (SELECT 1 FROM tenant.accounting_vendor_bill_lines line LEFT JOIN tenant.expense_categories category ON category.organization_id = line.organization_id AND category.id = line.expense_category_id
                   WHERE line.organization_id = bill.organization_id AND line.vendor_bill_id = bill.id AND (line.description ILIKE ${term} OR category.name ILIKE ${term})))`;
   }
-  const { rows } = await client.query(
+  const sql =
     `SELECT bill.*, party.display_name AS supplier_name, po.purchase_order_number, source.bill_number AS source_bill_number, ${TWO_WAY_SQL} AS two_way, ${NEXT_DUE_SQL} AS next_due_date,
+            ${ITC_SQL} AS itc_status,
+            (SELECT two.match_status FROM tenant.gst_2b_lines two WHERE two.organization_id = bill.organization_id AND two.matched_source_type = 'vendor_bill' AND two.matched_source_id = bill.id
+              LIMIT 1) AS in_2b,
             (SELECT evaluation.discrepancies FROM tenant.supplier_bill_match_evaluations evaluation WHERE evaluation.organization_id = bill.organization_id
                 AND evaluation.id = bill.two_way_evaluation_id) AS match_discrepancies,
             (SELECT COALESCE(sum(allocation.allocated_amount), 0) FROM tenant.accounting_vendor_payment_allocations allocation
@@ -98,14 +121,17 @@ export async function listSupplierBills(client, context, filters = {}) {
        JOIN tenant.business_parties party ON party.organization_id = bill.organization_id AND party.id = bill.party_id
        LEFT JOIN tenant.purchase_orders po ON po.organization_id = bill.organization_id AND po.id = bill.source_purchase_order_id
        LEFT JOIN tenant.accounting_vendor_bills source ON source.organization_id = bill.organization_id AND source.id = bill.source_bill_id
-      WHERE bill.organization_id = $1${where} ORDER BY bill.bill_date DESC, bill.created_at DESC LIMIT 300`, values);
+      WHERE bill.organization_id = $1${where} ORDER BY bill.bill_date DESC, bill.created_at DESC`;
   const day = await today(client, context);
-  return rows.map((row) => ({
+  return pagedList(client, sql, values, filters, (row) => ({
     id: row.id, billNumber: row.bill_number, supplierInvoiceNumber: row.supplier_invoice_reference ?? row.supplier_invoice_number, supplierId: row.supplier_id, supplierName: row.supplier_name,
     supplierInvoiceDate: dayOf(row.bill_date), postingDate: dayOf(row.accounting_date), dueDate: dayOf(row.due_date), purchaseOrderId: row.source_purchase_order_id,
     purchaseOrderNumber: row.purchase_order_number, sourceType: row.source_type ?? (row.source_purchase_order_id ? "purchase_order" : "direct"), currencyCode: row.currency_code.trim(),
     invoiceTotal: dec(row.invoice_total && decimal(row.invoice_total) > 0n ? row.invoice_total : row.grand_total), netPayable: dec(row.grand_total), paid: dec(row.paid),
     credited: dec(row.credited), balanceDue: dec(row.outstanding_amount), sourceBillId: row.source_bill_id, sourceBillNumber: row.source_bill_number, status: row.status, ...states(row, day),
+    itcStatus: row.itc_status, itcLabel: ITC_LABELS[row.itc_status] ?? null,
+    twoB: row.in_2b === "matched" ? "in_2b" : row.in_2b === "mismatch" ? "differs" : ["posted", "partially_paid", "paid", "overdue", "disputed"].includes(row.status)
+      && decimal(row.tax_total ?? 0) > 0n && !row.reverse_charge ? "not_in_2b" : null,
     twoWayResult: row.bill_type === "credit_note" ? "not_applicable" : row.two_way, ...discrepancySummary(row.match_discrepancies, row.two_way),
   }));
 }
@@ -263,7 +289,7 @@ export async function getSupplierBill(client, context, billId) {
       paymentTermChangeReason: row.payment_term_change_reason,
       subtotal: dec(row.subtotal), discountTotal: dec(row.discount_total), taxableTotal: dec(row.taxable_total), taxTotal: dec(row.tax_total), reverseChargeTaxTotal: dec(row.reverse_charge_tax_total),
       invoiceTotal: dec(row.invoice_total), withholdingTotal: dec(row.withholding_total), roundingAdjustment: dec(row.rounding_adjustment), netPayable: dec(row.grand_total),
-      baseCurrencyTotal: dec(row.base_currency_total), supplierStatedTotal: dec(row.supplier_stated_total), paid: balance.paid, credited: balance.credited, balanceDue: dec(row.outstanding_amount),
+      baseCurrencyTotal: dec(row.base_currency_total), supplierStatedTotal: dec(row.supplier_stated_total), tcsAmount: dec(row.tcs_amount ?? 0), rcmSelfInvoiceNumber: row.rcm_self_invoice_number ?? null, paid: balance.paid, credited: balance.credited, balanceDue: dec(row.outstanding_amount),
       withholdingSection: row.withholding_section_id ? { id: row.withholding_section_id, code: row.section_code, name: row.section_name } : null,
       matchingStatus: row.matching_status, matchOverrideReason: row.match_override_reason, duplicateOverrideReason: row.duplicate_override_reason,
       duplicateOverrideByName: row.duplicate_override_by_name, sourceBillId: row.source_bill_id, sourceBillNumber: row.source_bill_number, debitNoteReason: row.debit_note_reason,
@@ -328,14 +354,15 @@ export async function getSupplierBill(client, context, billId) {
 }
 
 // The bill form's choices: suppliers, expense and asset accounts, tax categories, TDS sections, payment terms, currencies, company registrations, bank accounts.
-export async function getSupplierBillOptions(client, context) {
+// Suppliers are a first page plus the ones the form holds (include.supplierIds); the rest are found by typing (../options.js).
+export async function getSupplierBillOptions(client, context, include = {}) {
   requireBillAccess(context);
   const q = async (sql) => (await client.query(sql, [context.organizationId])).rows;
+  // GSTR-2B is the GST app's: without it the 2B badge and view are left out.
+  const gstOn = await appOn(client, context, "gst");
   return {
-    views: BILL_VIEWS, sourceTypes: SOURCE_TYPES,
-    suppliers: await q(`SELECT supplier.id, supplier.supplier_number, party.display_name AS name, supplier.status, btrim(supplier.default_currency) AS currency_code, supplier.payment_term_id,
-                               supplier.withholding_section_id FROM tenant.procurement_suppliers supplier JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id
-                               AND party.id = supplier.party_id WHERE supplier.organization_id = $1 ORDER BY party.display_name`),
+    views: gstOn ? BILL_VIEWS : BILL_VIEWS.filter((entry) => entry.key !== "not_in_2b"), sourceTypes: SOURCE_TYPES, gstOn,
+    suppliers: await supplierOptions(client, context.organizationId, { ids: include.supplierIds }),
     accounts: await q(`SELECT id, code, name, account_class FROM tenant.accounting_accounts WHERE organization_id = $1 AND status = 'active' AND NOT is_group AND account_class IN ('expense', 'asset')
                          ORDER BY code`),
     taxCategories: await q(`SELECT id, code, name, reverse_charge FROM tenant.tax_categories WHERE organization_id = $1 AND status = 'active' ORDER BY name`),

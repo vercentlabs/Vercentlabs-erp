@@ -31,6 +31,8 @@ import { BILL_PERMISSIONS, POSTED_STATUSES, SupplierBillError, dayOf, fail, has,
 import { billedOnLines, receiptLineEligibility } from "./sources.js";
 import { APPROVABLE_CODES, RECEIPT_CODES, evaluateTwoWayMatch, linesFromCalculated, linesFromStored, persistMatchEvaluation } from "./matching.js";
 import { stockOn } from "../../../core/products/tracking.js";
+import { databaseToday } from "../org-day.js";
+import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -51,7 +53,8 @@ const drafting = (context) => ({ ...fin(context), permissions: [...new Set([...f
 export function requireBillCreate(context, message = "You do not have permission to record supplier bills.") {
   if (!poCan(context, BILL_PERMISSIONS.create) && !poCan(context, BILL_PERMISSIONS.manage)) throw new SupplierBillError(403, message, "PERMISSION_DENIED");
 }
-const today = async (client) => (await client.query(`SELECT current_date::text AS today`)).rows[0].today;
+// Today in the organization's time zone (Procurement plan Phase 0, bug 8).
+const today = (client, organizationId) => databaseToday(client, organizationId);
 
 export function requireBillAccess(context) {
   if (!poCan(context, BILL_PERMISSIONS.view) && !poCan(context, BILL_PERMISSIONS.manage) && !poCan(context, BILL_PERMISSIONS.approve))
@@ -139,7 +142,7 @@ async function resolveHeader(client, context, input, { order = null, current = n
   const supplierStateCode = registration?.state_code ?? order?.supplier_tax_snapshot?.stateCode ?? address?.stateCode ?? null;
   const sectionId = has(input, "withholdingSectionId") ? optionalUuid(input.withholdingSectionId, "Withholding section") : current ? current.withholding_section_id : supplier.withholding_section_id;
   const section = await withholdingSection(client, organizationId, sectionId);
-  const day = await today(client);
+  const day = await today(client, organizationId);
   const billDate = readDate(input.supplierInvoiceDate ?? input.billDate, "Supplier invoice date") ?? dayOf(current?.bill_date) ?? day;
   if (billDate > day) fail("The supplier invoice date cannot be in the future.", "supplierInvoiceDate", "SUPPLIER_BILL_DATE_INVALID");
   const receivedOn = readDate(has(input, "invoiceReceivedDate") ? input.invoiceReceivedDate : current?.invoice_received_date, "Invoice received date");
@@ -182,10 +185,19 @@ async function resolveHeader(client, context, input, { order = null, current = n
     documentDiscountType: order ? null : keep("documentDiscountType", "document_discount_type") ?? null,
     documentDiscountValue: order ? "0" : String(keep("documentDiscountValue", "document_discount_value") ?? "0"),
     statedTotal: stated === undefined || stated === null || stated === "" ? null : decimal(String(stated).trim()),
+    // TCS the supplier collected on the invoice (Procurement plan Phase 2): outside the taxable value, added to what is owed.
+    tcsAmount: readTcs(has(input, "tcsAmount") ? input.tcsAmount : current?.tcs_amount),
     notes: has(input, "notes") ? text(input.notes, 2000) : current?.notes ?? null, warnings, organization,
     supplierSnapshot: { supplierId: supplier.id, supplierNumber: supplier.supplier_number, supplierName: supplier.display_name, legalName: text(input.supplierLegalName, 300) ?? supplier.legal_name ?? supplier.display_name,
       gstin: registration?.gstin ?? supplier.party_gstin ?? null, pan: supplier.pan ?? null, registrationType: registration?.registration_type ?? (registration ? null : "unregistered") },
   };
+}
+
+function readTcs(value) {
+  if (value === undefined || value === null || value === "") return 0n;
+  const raw = String(value).trim();
+  if (!QTY.test(raw)) fail("Enter the TCS shown on the supplier's invoice (zero or more).", "tcsAmount", "SUPPLIER_BILL_TCS_INVALID");
+  return decimal(raw);
 }
 
 // ---------------------------------------------------------------- lines
@@ -467,10 +479,20 @@ async function financeDocument(client, context, header, source, calculated, { or
         taxAmount: dec(component.taxAmount), classification: component.classification })),
     });
   }
-  // The supplier's stated total is verified: a difference within rounding is booked as rounding; anything more stops posting.
-  const roundingAdjustment = header.statedTotal !== null && sub(header.statedTotal, calculated.totals.invoiceTotal) !== 0n
-    && (sub(header.statedTotal, calculated.totals.invoiceTotal) < 0n ? -sub(header.statedTotal, calculated.totals.invoiceTotal) : sub(header.statedTotal, calculated.totals.invoiceTotal)) <= ROUNDING_TOLERANCE
-    ? sub(header.statedTotal, calculated.totals.invoiceTotal) : 0n;
+  // TCS the supplier collected: its own line, booked to TCS receivable — no GST, no TDS, never matched against the order.
+  if (header.tcsAmount > 0n) {
+    const tcsAccount = await finance(() => getAccountMapping(client, context, ledger.id, "tcs_receivable", {}));
+    lines.push({
+      description: "TCS collected by the supplier", quantity: "1", unitPrice: dec(header.tcsAmount), grossAmount: dec(header.tcsAmount), discountAmount: "0", netAmount: dec(header.tcsAmount),
+      taxAmount: "0", withholdingAmount: "0", reverseChargeTax: "0", accountId: tcsAccount.account_id, productType: "expense", productSnapshot: { name: "TCS collected by the supplier", tcs: true },
+      withholdingRate: "0", taxDetails: [], taxComponents: [], inputTaxEligibility: "eligible", lineDiscountAmount: "0", allocatedDocumentDiscount: "0",
+    });
+  }
+  // The supplier's stated total (TCS included) is verified: a difference within rounding is booked as rounding; anything more stops posting.
+  const invoiceTotal = add(calculated.totals.invoiceTotal, header.tcsAmount ?? 0n);
+  const roundingAdjustment = header.statedTotal !== null && sub(header.statedTotal, invoiceTotal) !== 0n
+    && (sub(header.statedTotal, invoiceTotal) < 0n ? -sub(header.statedTotal, invoiceTotal) : sub(header.statedTotal, invoiceTotal)) <= ROUNDING_TOLERANCE
+    ? sub(header.statedTotal, invoiceTotal) : 0n;
   return {
     partyId: header.partyId, supplierInvoiceReference: header.reference, billDate: header.billDate, accountingDate: header.postingDate, dueDate: header.dueDate ?? undefined,
     currencyCode: header.currencyCode, exchangeRate: header.exchangeRate, paymentTermId: header.paymentTermId ?? undefined, paymentTermSnapshot: header.paymentTermSnapshot,
@@ -554,7 +576,7 @@ async function buildBill(client, context, source, input, { order, receiptIds, cu
   // 2-Way Matching against the order, every time the bill is built (saved, previewed, rechecked, posted).
   const twoWay = order ? await evaluateTwoWayMatch(client, context, { order, lines: linesFromCalculated(calculated), billId: current?.id ?? null,
     header: { supplierId: header.supplier.id, buyingRegistrationId: header.buyer?.id ?? null, currencyCode: header.currencyCode, statedTotal: header.statedTotal,
-      invoiceTotal: calculated.totals.invoiceTotal, places: calculated.places } }) : null;
+      invoiceTotal: add(calculated.totals.invoiceTotal, header.tcsAmount ?? 0n), places: calculated.places } }) : null;
   const discrepancies = twoWay ? priceDiscrepancies(twoWay) : [];
   const approved = twoWay ? twoWay.discrepancies.filter((entry) => entry.approved && entry.reason) : [];
   const overrideReason = approved.length ? [...new Set(approved.map((entry) => entry.reason))].join(" · ") : null;
@@ -583,9 +605,10 @@ function priceDiscrepancies(twoWay) {
 async function afterWrite(client, context, billId, built) {
   const billLines = (await client.query(`SELECT id, sequence FROM tenant.accounting_vendor_bill_lines WHERE organization_id = $1 AND vendor_bill_id = $2`, [context.organizationId, billId])).rows;
   await writeAllocations(client, context, billId, built.calculated, billLines);
-  await client.query(`UPDATE tenant.accounting_vendor_bills SET match_override_reason = $3, matching_basis = $4, source_goods_receipt_ids = $5, matching_status = $6
+  await client.query(`UPDATE tenant.accounting_vendor_bills SET match_override_reason = $3, matching_basis = $4, source_goods_receipt_ids = $5, matching_status = $6, tcs_amount = $7
      WHERE organization_id = $1 AND id = $2`,
-    [context.organizationId, billId, built.matchingStatus === "overridden" ? built.overrideReason : null, built.header.matchingBasis, built.header.receiptIds, built.matchingStatus]);
+    [context.organizationId, billId, built.matchingStatus === "overridden" ? built.overrideReason : null, built.header.matchingBasis, built.header.receiptIds, built.matchingStatus,
+      dec(built.header.tcsAmount ?? 0n)]);
   // Each order line records how it bills the commitment (by quantity, or by amount of a fixed-value service's agreed value) and what the
   // supplier invoiced as invoiced: another unit, an explicit discount.
   for (const [index, line] of built.calculated.lines.entries()) {
@@ -688,7 +711,8 @@ async function rebuildDraft(client, context, current, input, { strict = false, t
   const allocated = (await client.query(`SELECT vendor_bill_line_id, goods_receipt_line_id FROM tenant.supplier_bill_receipt_allocations WHERE organization_id = $1 AND vendor_bill_id = $2`,
     [context.organizationId, current.id])).rows;
   if (!Array.isArray(lines)) {
-    const stored = (await client.query(`SELECT * FROM tenant.accounting_vendor_bill_lines WHERE organization_id = $1 AND vendor_bill_id = $2 ORDER BY sequence`, [context.organizationId, current.id])).rows;
+    const stored = (await client.query(`SELECT * FROM tenant.accounting_vendor_bill_lines WHERE organization_id = $1 AND vendor_bill_id = $2 ORDER BY sequence`, [context.organizationId, current.id])).rows
+      .filter((line) => !line.product_snapshot?.tcs);
     lines = stored.map((line) => source === "direct"
       ? { expenseAccountId: line.expense_account_id, productId: line.item_id, description: line.description, quantity: formatDecimal(line.quantity), uomId: line.uom_id,
         unitPrice: formatDecimal(line.unit_price), discountType: line.line_discount_type, discountValue: formatDecimal(line.line_discount_value), taxCategoryId: line.tax_category_id,
@@ -939,6 +963,17 @@ async function finishPosting(client, context, bill) {
     // persistPostingMatchEvidence: the evaluation that authorised this posting, kept unchangeable.
     await persistMatchEvaluation(client, context, bill.id, twoWay, { posted: true });
   }
+  // A reverse-charge purchase gets the buyer's self-invoice number (s.31(3)(f); Procurement plan Phase 3), in its own series per financial year —
+  // given before Finance posts it, as a posted bill is fixed.
+  if (bill.bill_type === "bill") {
+    const rcm = (await client.query(`SELECT reverse_charge, reverse_charge_tax_total, rcm_self_invoice_number, accounting_date FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND id = $2`,
+      [context.organizationId, bill.id])).rows[0];
+    if (rcm && !rcm.rcm_self_invoice_number && (rcm.reverse_charge || decimal(rcm.reverse_charge_tax_total ?? 0) > 0n)) {
+      const number = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: "rcm_self_invoice", at: new Date(`${dayOf(rcm.accounting_date)}T12:00:00Z`) });
+      await client.query(`UPDATE tenant.accounting_vendor_bills SET rcm_self_invoice_number = $3, rcm_self_invoice_date = $4 WHERE organization_id = $1 AND id = $2`,
+        [context.organizationId, bill.id, number, dayOf(rcm.accounting_date)]);
+    }
+  }
   const posted = await finance(() => postVendorBill(client, fin(context), bill.id));
   if (bill.bill_type === "bill") await generateComplianceDeadlines(client, context, bill.id);
   if (bill.source_purchase_order_id)
@@ -1008,6 +1043,7 @@ export async function previewSupplierBill(client, context, input = {}) {
   const view = totalsView(built.calculated);
   return {
     ...view, matchingStatus: built.matchingStatus, discrepancies: built.discrepancies, duplicates, warnings: built.header.warnings,
+    tcs: dec(built.header.tcsAmount ?? 0n), totalWithTcs: dec(add(built.calculated.totals.invoiceTotal, built.header.tcsAmount ?? 0n)),
     twoWay: built.twoWay ? { result: built.twoWay.result, header: built.twoWay.header, lines: built.twoWay.lines, discrepancies: built.twoWay.discrepancies,
       expectedAmount: built.twoWay.expectedAmount, actualAmount: built.twoWay.actualAmount, varianceAmount: built.twoWay.varianceAmount } : { result: "not_applicable" },
     lines: view.lines.map((line, index) => ({ ...line, description: built.calculated.lines[index].description, purchaseOrderLineId: built.calculated.lines[index].order?.id ?? null,

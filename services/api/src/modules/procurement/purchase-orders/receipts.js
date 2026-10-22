@@ -115,6 +115,20 @@ export async function orderLinesById(client, organizationId, orderId) {
 const serialsOf = (value) => (Array.isArray(value) ? value : String(value ?? "").split(/[\s,;]+/)).map((entry) => text(entry, 120)).filter(Boolean);
 
 // The receipt lines to store, checked against the order and what is still owed (posted receipts only).
+// What an order line may still receive: what it still owes, plus its item group's over-receipt tolerance (Procurement plan Phase 3) — a
+// percentage of what is still ordered, less what earlier receipts already took over the order.
+async function receivable(client, organizationId, productId, state) {
+  const percent = productId ? decimal((await client.query(
+    `SELECT COALESCE(item_group.excess_receipt_tolerance_percent, 0) AS percent FROM tenant.items item LEFT JOIN tenant.item_groups item_group
+        ON item_group.organization_id = item.organization_id AND item_group.id = item.group_id WHERE item.organization_id = $1 AND item.id = $2`,
+    [organizationId, productId])).rows[0]?.percent ?? 0) : 0n;
+  if (percent <= 0n) return state.remainingToReceive;
+  const committed = sub(state.ordered, state.cancelled);
+  const over = sub(add(state.accepted, state.held), committed);
+  const tolerance = sub(roundMoney(div(mul(committed, percent), decimal(100)), 6), over > 0n ? over : 0n);
+  return add(state.remainingToReceive, tolerance > 0n ? tolerance : 0n);
+}
+
 async function readReceiptLines(client, context, order, inputLines, warehouseId, receiptDate) {
   const organizationId = context.organizationId;
   const lines = await orderLinesById(client, organizationId, order.id);
@@ -223,7 +237,7 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
       fail(`${label}: the lot expired on ${expiryDate}. Receive it as damaged, or refuse it.`, "expiryDate", "GOODS_RECEIPT_LOT_EXPIRED");
     // The entitlement is compared in base units (what is still owed × the order's own factor), whatever unit the receipt is entered in.
     // What the order line still owes, less what earlier lots of this receipt already take.
-    const owed = sub(progress.get(line.id).remainingToReceive, taken.get(line.id) ?? 0n);
+    const owed = sub(await receivable(client, context.organizationId, line.product_id, progress.get(line.id)), taken.get(line.id) ?? 0n);
     taken.set(line.id, add(taken.get(line.id) ?? 0n, received));
     const factor = line.conversion_factor ?? ONE;
     if (mul(received, factor) > mul(owed, factor)) {
@@ -347,7 +361,23 @@ async function readHeader(client, context, input, current = null) {
     supplierChallanDate: has(input, "supplierChallanDate") ? readDate(input.supplierChallanDate, "Challan date") : dayOf(current?.supplier_challan_date) ?? null,
     physicalReceivedAt, receivedByUserId, vehicleNumber: keep("vehicleNumber", "vehicle_number", 40), carrierName: keep("carrierName", "carrier_name", 120),
     trackingReference: keep("trackingReference", "tracking_reference", 120), notes: keep("notes", "notes", 2000),
+    // The supplier's e-way bill the goods came under (Procurement plan Phase 2): its 12-digit number, validity and the transporter.
+    ewbNumber: readEwb(has(input, "ewbNumber") ? input.ewbNumber : current?.ewb_number),
+    ewbValidUntil: has(input, "ewbValidUntil") ? (input.ewbValidUntil ? readTimestamp(input.ewbValidUntil, "E-way bill valid until") : null) : current?.ewb_valid_until ?? null,
+    transporterId: keep("transporterId", "transporter_id", 20)?.toUpperCase() ?? null,
   };
+}
+
+function readEwb(value) {
+  const raw = value === undefined || value === null ? "" : String(value).replace(/\s/g, "");
+  if (!raw) return null;
+  if (!/^\d{12}$/.test(raw)) fail("The e-way bill number is 12 digits.", "ewbNumber", "GOODS_RECEIPT_EWB_INVALID");
+  return raw;
+}
+function readTimestamp(value, label) {
+  const at = new Date(String(value));
+  if (Number.isNaN(at.getTime())) fail(`Enter the ${label.toLowerCase()}.`, "ewbValidUntil", "GOODS_RECEIPT_EWB_INVALID");
+  return at.toISOString();
 }
 
 async function receivingWarehouse(client, context, warehouseId) {
@@ -371,7 +401,7 @@ export async function createGoodsReceiptFromPurchaseOrder(client, context, order
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
   const order = await loadPurchaseOrder(client, context, orderId, { lock: true });
   receivableOrder(order);
-  const today = await databaseToday(client);
+  const today = await databaseToday(client, context.organizationId);
   const receiptDate = readDate(input.receiptDate, "Receipt date") ?? today;
   if (receiptDate < dayOf(order.order_date)) fail("The receipt date cannot be before the order date.", "receiptDate");
   if (receiptDate > today) fail("The receipt date cannot be in the future.", "receiptDate");
@@ -381,11 +411,12 @@ export async function createGoodsReceiptFromPurchaseOrder(client, context, order
   const number = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: "goods_receipt", at: new Date(`${receiptDate}T12:00:00Z`) });
   const receipt = (await client.query(
     `INSERT INTO tenant.goods_receipts (organization_id, receipt_number, purchase_order_id, supplier_id, receipt_date, supplier_delivery_note, supplier_challan_date, warehouse_id,
-       ship_from_snapshot, buying_registration_snapshot, notes, physical_received_at, received_by_user_id, vehicle_number, carrier_name, tracking_reference, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12, $13, $14, $15, $16, $17, $17) RETURNING *`,
+       ship_from_snapshot, buying_registration_snapshot, notes, physical_received_at, received_by_user_id, vehicle_number, carrier_name, tracking_reference, created_by, updated_by,
+       ewb_number, ewb_valid_until, transporter_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12, $13, $14, $15, $16, $17, $17, $18, $19, $20) RETURNING *`,
     [context.organizationId, number, order.id, order.supplier_id, receiptDate, header.supplierChallanNumber, header.supplierChallanDate, warehouseId,
       JSON.stringify(order.ship_from_snapshot ?? null), JSON.stringify(order.buyer_registration_snapshot ?? null), header.notes, header.physicalReceivedAt, header.receivedByUserId,
-      header.vehicleNumber, header.carrierName, header.trackingReference, context.userId ?? null])).rows[0];
+      header.vehicleNumber, header.carrierName, header.trackingReference, context.userId ?? null, header.ewbNumber, header.ewbValidUntil, header.transporterId])).rows[0];
   await writeReceiptLines(client, context, receipt.id, order.id, warehouseId, lines);
   await recordReceiptEvent(client, context, receipt.id, "goods_receipt.created", `Drafted against ${order.purchase_order_number}`, { lines: lines.length });
   let response = { id: receipt.id, receiptNumber: receipt.receipt_number, status: "draft", replayed: false };
@@ -416,7 +447,7 @@ export async function updateDraftGoodsReceipt(client, context, receiptId, input 
   const order = await loadPurchaseOrder(client, context, receipt.purchase_order_id, { lock: true });
   receivableOrder(order);
   const receiptDate = readDate(input.receiptDate, "Receipt date") ?? dayOf(receipt.receipt_date);
-  if (receiptDate > await databaseToday(client)) fail("The receipt date cannot be in the future.", "receiptDate");
+  if (receiptDate > await databaseToday(client, context.organizationId)) fail("The receipt date cannot be in the future.", "receiptDate");
   const warehouseId = has(input, "warehouseId") ? await receivingWarehouse(client, context, optionalUuid(input.warehouseId, "Warehouse")) : receipt.warehouse_id;
   if (Array.isArray(input.lines)) await writeReceiptLines(client, context, receipt.id, order.id, warehouseId, await readReceiptLines(client, context, order, input.lines, warehouseId, receiptDate));
   else if (warehouseId !== receipt.warehouse_id)
@@ -425,10 +456,11 @@ export async function updateDraftGoodsReceipt(client, context, receiptId, input 
   const header = await readHeader(client, context, input, receipt);
   await client.query(
     `UPDATE tenant.goods_receipts SET receipt_date = $3, supplier_delivery_note = $4, supplier_challan_date = $5, warehouse_id = $6, notes = $7, physical_received_at = $8,
-            received_by_user_id = $9, vehicle_number = $10, carrier_name = $11, tracking_reference = $12, updated_by = $13, updated_at = now()
+            received_by_user_id = $9, vehicle_number = $10, carrier_name = $11, tracking_reference = $12, updated_by = $13, ewb_number = $14, ewb_valid_until = $15,
+            transporter_id = $16, updated_at = now()
       WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, receipt.id, receiptDate, header.supplierChallanNumber, header.supplierChallanDate, warehouseId, header.notes, header.physicalReceivedAt,
-      header.receivedByUserId, header.vehicleNumber, header.carrierName, header.trackingReference, context.userId ?? null]);
+      header.receivedByUserId, header.vehicleNumber, header.carrierName, header.trackingReference, context.userId ?? null, header.ewbNumber, header.ewbValidUntil, header.transporterId]);
   await recordReceiptEvent(client, context, receipt.id, "goods_receipt.updated", "Draft changed");
   return { id: receipt.id };
 }
@@ -475,7 +507,7 @@ export async function validateGoodsReceiptForPosting(client, context, receiptId,
     if (line.product_id !== orderLine.product_id) issues.push(`${label}: the product does not match the order line.`);
     const received = add(line.accepted_quantity, line.held_quantity);
     if (received + decimal(line.rejected_quantity) <= 0n) issues.push(`${label}: nothing is entered.`);
-    const owed = progress.get(orderLine.id)?.remainingToReceive ?? 0n;
+    const owed = progress.get(orderLine.id) ? await receivable(client, organizationId, orderLine.product_id, progress.get(orderLine.id)) : 0n;
     const total = onReceipt.get(orderLine.id) ?? received;
     if (!checkedOrderLines.has(orderLine.id) && total > owed)
       issues.push(owed === 0n ? `${label} has meanwhile been received in full (or cancelled).` : `${label}: only ${dec(owed)} is still to be received; this receipt has ${dec(total)}.`);
@@ -673,7 +705,7 @@ export async function postGoodsReceipt(client, context, receiptId) {
       const held = add(posted.inspection, posted.damaged);
       if (held > 0n && posted.holdLocationId) {
         const serials = orderLine.tracking_type === "serial" ? (await client.query(
-          `SELECT id FROM tenant.stock_serials WHERE organization_id = $1 AND item_id = $2 AND warehouse_location_id = $3 AND status = available AND lower(serial_number) = ANY($4::text[])`,
+          `SELECT id FROM tenant.stock_serials WHERE organization_id = $1 AND item_id = $2 AND warehouse_location_id = $3 AND status = 'available' AND lower(serial_number) = ANY($4::text[])`,
           [organizationId, line.product_id, posted.holdLocationId, (line.serial_numbers ?? []).map((value) => value.toLowerCase())])).rows : [];
         await registerHeldStock(client, context, { sourceType: "goods_receipt", sourceId: receipt.id, sourceNumber: receipt.receipt_number, sourceLineId: line.id, warehouseId: line.warehouse_id,
           reasonCode: posted.inspection > 0n ? "RECEIVING_INSPECTION" : "DAMAGE_SUSPECTED",
@@ -854,7 +886,7 @@ export async function releaseHeldGoods(client, context, dispositionId, input = {
   if (quantity > open)
     throw new PurchaseOrderError(409, decimal(disposition.blocked_quantity) > 0n ? `Only ${dec(open)} is still held and undecided; ${dec(disposition.blocked_quantity)} is rejected and is handled through its rejection case.` : `Only ${dec(open)} is still held.`,
       "GOODS_RECEIPT_RELEASE_EXCEEDS_HELD");
-  if (line.expiry_date && dayOf(line.expiry_date) < await databaseToday(client)) fail(`The lot expired on ${dayOf(line.expiry_date)}; it cannot be released to usable stock.`, "quantity", "GOODS_RECEIPT_LOT_EXPIRED", 409);
+  if (line.expiry_date && dayOf(line.expiry_date) < await databaseToday(client, context.organizationId)) fail(`The lot expired on ${dayOf(line.expiry_date)}; it cannot be released to usable stock.`, "quantity", "GOODS_RECEIPT_LOT_EXPIRED", 409);
   // Quality's gate first: stock of a line with Quality requirements is released only up to what Quality cleared (Inventory checks it again).
   await assertQualityRelease(client, qualityContextFor(context), { sourceLineId: line.id, quantity: Number(formatDecimal(roundMoney(mul(quantity, line.conversion_factor), 6))) });
   const destination = optionalUuid(input.warehouseLocationId, "Location") ?? line.warehouse_location_id ?? null;

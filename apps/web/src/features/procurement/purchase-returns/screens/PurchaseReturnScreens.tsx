@@ -18,11 +18,14 @@ import {
 import { useListState, useTabParam } from "@/features/procurement/shared/navigation";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { gridPaging, pageFilters, usePageIndex } from "@/features/procurement/shared/paging";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { DocumentChain } from "@/features/procurement/shared/DocumentChain";
+import { ReturnTransportPanel } from "./ReturnTransportPanel";
 import { calendarDate, dateTime, money, quantity, statusLabel } from "@/features/procurement/shared/format";
 
 import {
-  errorMessage, getReturn, getReturnOptions, issuesOf, listReturnFiles, listReturns, removeReturnFile, returnAction, returnFileUrl, returnNoteUrl, uploadReturnFile,
+  errorMessage, getReturn, getReturnOptions, issuesOf, listReturnFiles, listReturnsPage, removeReturnFile, returnAction, returnFileUrl, returnNoteUrl, uploadReturnFile,
   type ReturnDetail, type ReturnRow,
 } from "../api/purchase-returns-api";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
@@ -44,8 +47,10 @@ export function PurchaseReturnsScreen() {
   const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "return-options"), queryFn: getReturnOptions, staleTime: 60_000 });
   const query = useMemo(() => ({ view: view === "all" ? undefined : view, search: search.trim() || undefined,
     ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== "any")) }), [view, search, filters]);
-  const list = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "purchase-returns", query), queryFn: () => listReturns(query) });
-  const rows = list.data ?? [];
+  const [pageIndex, setPageIndex] = usePageIndex(query);
+  const list = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "purchase-returns", query, pageIndex),
+    queryFn: () => listReturnsPage({ ...query, ...pageFilters(pageIndex) }), placeholderData: (previous) => previous });
+  const rows = list.data?.rows ?? [];
   const set = (key: keyof typeof filters) => (value: React.Key | null) => setFilters((current) => ({ ...current, [key]: String(value) }));
   const columns = useMemo<ColumnDef<ReturnRow, unknown>[]>(() => [
     { id: "number", header: "Return", cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.returnNumber}</span> },
@@ -78,7 +83,7 @@ export function PurchaseReturnsScreen() {
               { value: "completed", label: "Completed" }, { value: "not_required", label: "Not required" }]} />
         </>
       ) }}>
-      <EnterpriseDataGrid<ReturnRow> aria-label="Purchase returns" columns={columns} data={rows} getRowId={(row) => row.id}
+      <EnterpriseDataGrid<ReturnRow> aria-label="Purchase returns" columns={columns} data={rows} getRowId={(row) => row.id} {...gridPaging(list.data?.total ?? 0, pageIndex, setPageIndex)}
         state={list.isLoading ? "loading" : list.isError ? "error" : rows.length === 0 ? (filtered ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading purchase returns" rows={6} />}
         errorContent={<ErrorState title="Could not load purchase returns" description={errorMessage(list.error)} action={{ label: "Try again", onPress: () => void list.refetch() }} />}
@@ -134,6 +139,7 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
         : <Notice>{(validation.issues ?? []).map((issue) => <p key={issue}>{issue}</p>)}</Notice>)}
       {ret.status === "reversed" && <Notice tone="warning">Reversed {dateTime(ret.reversedAt)}{ret.reversedByName ? ` by ${ret.reversedByName}` : ""}: {ret.reversalReason}. The goods came back; the return no longer counts.</Notice>}
       {ret.status === "cancelled" && <Notice tone="info">Cancelled {dateTime(ret.cancelledAt)}{ret.cancelReason ? `: ${ret.cancelReason}` : ""}.</Notice>}
+      <DocumentChain type="purchase_return" id={ret.id} />
       <RecordDetailsPage header={{
         title: ret.returnNumber,
         status: <span className="flex flex-wrap gap-2"><StatusBadge tone={DOC_TONE[ret.status] ?? "neutral"}>{ret.statusLabel}</StatusBadge>
@@ -326,6 +332,7 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
           </TabPanel>
         </Tabs>
       </RecordDetailsPage>
+      {ret.status !== "cancelled" && <ReturnTransportPanel returnId={ret.id} />}
       {dialog === "post" && <PostDialog detail={detail} onClose={() => setDialog(null)} onDone={changed} />}
       {dialog === "cancel" && <ReasonDialog title="Cancel the draft return" label="Cancel draft" action="cancel" returnId={ret.id} required={false} onClose={() => setDialog(null)} onDone={() => changed("Draft cancelled.")} />}
       {dialog === "reverse" && <ReverseDialog returnId={ret.id} onClose={() => setDialog(null)} onDone={changed} />}

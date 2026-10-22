@@ -104,7 +104,7 @@ export async function recordSupplierAcknowledgment(client, context, returnId, in
   requirePermission(context, RETURN_PERMISSIONS.resolve, "You do not have permission to record supplier acknowledgements.");
   const row = await loadReturn(client, context, returnId, { lock: true });
   if (["cancelled", "reversed"].includes(row.document_status)) throw new PurchaseReturnError(409, `The return is ${row.document_status}.`, "PURCHASE_RETURN_LOCKED");
-  const at = readDate(input.acknowledgedAt, "Acknowledged on") ?? await databaseToday(client);
+  const at = readDate(input.acknowledgedAt, "Acknowledged on") ?? await databaseToday(client, context.organizationId);
   const reference = text(input.reference, 200);
   await client.query(`UPDATE tenant.purchase_returns SET supplier_acknowledged_at = $3::date, supplier_acknowledgement_reference = $4, supplier_acknowledged_by = $5,
        supplier_rma_reference = COALESCE($6, supplier_rma_reference), updated_at = now() WHERE organization_id = $1 AND id = $2`,
@@ -231,7 +231,7 @@ async function draftReplacementOrder(client, context, order, row, noCharge) {
       warehouseId: line.receiving_warehouse_id, taxCategoryId: line.product_id ? undefined : line.tax_category_id, noTax: !line.product_id && !line.tax_category_id,
       expenseAccountId: line.expense_account_id, carried: true,
     })),
-  }, { today: await databaseToday(client) });
+  }, { today: await databaseToday(client, context.organizationId) });
   const replacement = await insertOrder(client, context, header, priced);
   await recordPoEvent(client, context, replacement.id, "purchase_order.created", `Drafted as the replacement for return ${row.return_number} (order ${order.purchase_order_number})${noCharge ? " at no charge" : ""}`,
     { to: "draft", details: { source: "purchase_return", returnId: row.id, originalOrderId: order.id, noCharge } });

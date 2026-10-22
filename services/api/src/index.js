@@ -22,6 +22,11 @@ export * from "./modules/procurement/vendor-credits/index.js";
 export * from "./modules/procurement/payment-terms/index.js";
 export * from "./modules/procurement/form-options.js";
 export * from "./modules/procurement/insights/index.js";
+export * from "./modules/procurement/payments/index.js";
+export * from "./modules/procurement/chain.js";
+export * from "./modules/procurement/indents/index.js";
+export * from "./modules/procurement/rfqs/index.js";
+export * from "./modules/procurement/rate-contracts/index.js";
 
 
 

@@ -17,3 +17,5 @@ export {
   getPurchaseReturnOptions, getSupplierPurchaseReturns, listPurchaseReturns,
 } from "./records.js";
 export { PURCHASE_RETURN_FILE_ENTITY, listPurchaseReturnFiles, preparePurchaseReturnFileUpload, readPurchaseReturnFile, removePurchaseReturnFile, uploadPurchaseReturnFile } from "./files.js";
+// Delivery challan and e-way bill for the goods going back (Procurement plan Phase 2).
+export { getPurchaseReturnChallan, getPurchaseReturnTransport, purchaseReturnEwayBillJson, updatePurchaseReturnTransport } from "./compliance.js";

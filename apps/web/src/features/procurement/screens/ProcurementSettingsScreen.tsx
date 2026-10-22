@@ -23,7 +23,7 @@ import { Notice, Panel } from "@/shared/ui/Panel";
 
 export function ProcurementSettingsScreen() {
   const workspace = useWorkspaceContext();
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: getPurchaseOrderOptions });
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: () => getPurchaseOrderOptions() });
   if (query.isError) {
     if (errorCode(query.error) === "PERMISSION_DENIED") return <PermissionState title="You don't have access to Procurement" />;
     return <ErrorState title="Could not load procurement settings" action={{ label: "Retry", onPress: () => query.refetch() }} />;
@@ -32,7 +32,8 @@ export function ProcurementSettingsScreen() {
   return <SettingsForm options={query.data} />;
 }
 
-const SETTINGS_TABS = ["general", "numbering", "purchasing", "receiving", "matching", "returns", "billing", "templates"] as const;
+// Procurement plan Phase 1: Defaults, Numbering, Approvals, Matching and TDS have tabs of their own.
+const SETTINGS_TABS = ["general", "numbering", "approvals", "purchasing", "receiving", "matching", "returns", "billing", "tds", "templates"] as const;
 
 // Settings kept elsewhere that Procurement depends on.
 function SettingsLink({ href, label, hint }: { href: string; label: string; hint: string }) {
@@ -66,13 +67,15 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
       {save.error && <Notice>{errorMessage(save.error)}</Notice>}
       <Tabs selectedKey={tab} onSelectionChange={(value) => setTab(String(value))}>
         <TabList aria-label="Settings categories">
-          <Tab id="general">General</Tab>
+          <Tab id="general">Defaults</Tab>
           <Tab id="numbering">Numbering</Tab>
+          <Tab id="approvals">Approvals</Tab>
           <Tab id="purchasing">Purchasing Rules</Tab>
           <Tab id="receiving">Receiving Rules</Tab>
           <Tab id="matching">Matching Rules</Tab>
           <Tab id="returns">Returns Rules</Tab>
           <Tab id="billing">Billing Rules</Tab>
+          <Tab id="tds">TDS</Tab>
           <Tab id="templates">Templates</Tab>
         </TabList>
         <TabPanel id="general">
@@ -99,12 +102,36 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
             </Panel>
           </div>
         </TabPanel>
-        <TabPanel id="purchasing">
+        <TabPanel id="approvals">
           <div className="pt-4">
+            <Panel title="Approvals" description="Purchase orders over a value ask the approver of each level before they are confirmed; bills and supplier payments follow Finance's approval policy. Approvers decide from the Approvals inbox.">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <SettingsLink href="/settings/approval-rules" label="Approval rules" hint="Who approves purchase orders, by value and level" />
+                <SettingsLink href="/approvals" label="Approvals inbox" hint="What is waiting for a decision" />
+              </div>
+            </Panel>
+          </div>
+        </TabPanel>
+        <TabPanel id="purchasing">
+          <div className="flex flex-col gap-4 pt-4">
             <Panel title="Purchase orders" description="A confirmed order is the commitment to the supplier: its lines are changed by an amendment, never edited in place.">
               <Checkbox isDisabled={!canManage} isSelected={values.requireExpectedDate} onChange={set("requireExpectedDate")}>
                 An expected delivery date is required to confirm an order
               </Checkbox>
+            </Panel>
+            <Panel title="Indents and RFQs" description="Both are optional: a purchase order stays the usual way to start buying.">
+              <div className="flex flex-col gap-3">
+                <Checkbox isDisabled={!canManage} isSelected={values.useIndents}
+                  onChange={(on) => setValues((current) => ({ ...current, useIndents: on, reorderCreates: on ? current.reorderCreates : "purchase_order" }))}>
+                  Use purchase indents — departments and the store ask for items; the head approves before the buyer orders
+                </Checkbox>
+                <Checkbox isDisabled={!canManage} isSelected={values.useRfqs} onChange={set("useRfqs")}>
+                  Use RFQs — ask several suppliers for prices and compare them before ordering
+                </Checkbox>
+                <Select label="When stock falls below its reorder level" isDisabled={!canManage || !values.useIndents} selectedKey={values.reorderCreates}
+                  onSelectionChange={(value) => set("reorderCreates")(String(value) as "purchase_order" | "indent")}
+                  options={[{ value: "purchase_order", label: "Open a draft purchase order" }, { value: "indent", label: "Raise an indent for approval" }]} className="sm:w-96" />
+              </div>
             </Panel>
           </div>
         </TabPanel>
@@ -148,8 +175,13 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
             <Panel title="Payment terms" description="A supplier bill's due dates and instalments come from its payment term, defaulted from the order or the supplier.">
               <SettingsLink href="/settings/finance-commercial/payment-terms" label="Payment Terms" hint="Manage the company's payment terms" />
             </Panel>
-            <WithholdingSections />
             <ExpenseCategories />
+          </div>
+        </TabPanel>
+        <TabPanel id="tds">
+          <div className="flex flex-col gap-4 pt-4">
+            <Notice tone="info">194C, 194J, 194I, 194H and 194Q come set up with the current rates and limits. 194Q withholds only on purchases above ₹50 lakh in the year; 194C catches up the year&apos;s earlier bills once they cross ₹1 lakh.</Notice>
+            <WithholdingSections />
           </div>
         </TabPanel>
         <TabPanel id="templates">
@@ -171,7 +203,7 @@ function ExpenseCategories() {
   const queryClient = useQueryClient();
   const key = scopedQueryKey(workspace, "procurement", "expense-categories");
   const query = useQuery({ queryKey: key, queryFn: listExpenseCategories });
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill-options"), queryFn: getBillOptions, staleTime: 60_000 });
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill-options"), queryFn: () => getBillOptions(), staleTime: 60_000 });
   const blank = { code: "", name: "", accountId: "", defaultTaxCategoryId: "none", defaultHsnSac: "" };
   const [draft, setDraft] = useState(blank);
   const field = (name: keyof typeof blank) => (value: string) => setDraft((current) => ({ ...current, [name]: value }));
@@ -229,7 +261,9 @@ function WithholdingSections() {
             <span>
               <span className="font-medium">{section.code}</span> · {section.name} · {Number(section.rate)}%{section.status !== "active" ? " (inactive)" : ""}
               <span className="block text-xs text-text-muted">
-                {[section.thresholdSingle && `from ₹${Number(section.thresholdSingle).toLocaleString("en-IN")} a bill`, section.thresholdAnnual && `or ₹${Number(section.thresholdAnnual).toLocaleString("en-IN")} a year`,
+                {[section.basis === "excess_over_annual" ? `only on the year's purchases above ₹${Number(section.thresholdAnnual ?? 0).toLocaleString("en-IN")}`
+                  : section.thresholdSingle && `from ₹${Number(section.thresholdSingle).toLocaleString("en-IN")} a bill`,
+                  section.basis !== "excess_over_annual" && section.thresholdAnnual && `or ₹${Number(section.thresholdAnnual).toLocaleString("en-IN")} a year`,
                   section.rateIndividual && `individuals ${Number(section.rateIndividual)}%`, `no PAN ${section.rateNoPan ? Number(section.rateNoPan) : Math.max(20, Number(section.rate) * 2)}%`].filter(Boolean).join(" · ")}
               </span>
             </span>

@@ -54,7 +54,7 @@ export function ConfirmDialog({ detail, onClose, onDone }: DialogProps) {
     <Shell title={detail.order.amending ? `Confirm version ${detail.order.versionNumber + 1}` : "Confirm purchase order"} error={run.error} onClose={onClose} label="Confirm" isLoading={run.isPending}
       onPress={() => run.mutate({ expectedRevision: detail.order.revision })}
       description="The supplier, lines, prices, warehouses and taxes are checked again against today's records, and the order as it stands is kept as a confirmed version. No stock moves and no payable is created.">
-      <p className="text-sm">Total {detail.order.currencyCode} {Number(detail.order.grandTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })} for {detail.order.supplierName}.</p>
+      <p className="text-sm">Total {detail.order.currencyCode} {Number(detail.order.grandTotal).toLocaleString("en-IN", { minimumFractionDigits: 2 })} for {detail.order.supplierName}.</p>
     </Shell>
   );
 }

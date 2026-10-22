@@ -26,14 +26,16 @@ export async function translated(work) {
   }
 }
 
-export async function databaseToday(client) {
-  return (await client.query(`SELECT current_date::text AS today`)).rows[0].today;
-}
+// Today in the organization's time zone (../org-day.js), re-exported for the files that already read it from here.
+export { databaseToday, orgTodaySql } from "../org-day.js";
 
 export async function procurementSettings(client, organizationId) {
-  const row = (await client.query(`SELECT billing_basis, require_expected_date, default_warehouse_id, bill_held_goods, post_receipt_accrual FROM tenant.procurement_settings WHERE organization_id = $1`, [organizationId])).rows[0];
+  const row = (await client.query(`SELECT billing_basis, require_expected_date, default_warehouse_id, bill_held_goods, post_receipt_accrual, use_indents, use_rfqs, reorder_creates
+                                     FROM tenant.procurement_settings WHERE organization_id = $1`, [organizationId])).rows[0];
   return { billingBasis: row?.billing_basis ?? "receipt", requireExpectedDate: Boolean(row?.require_expected_date), defaultWarehouseId: row?.default_warehouse_id ?? null,
-    billHeldGoods: Boolean(row?.bill_held_goods), postReceiptAccrual: Boolean(row?.post_receipt_accrual) };
+    billHeldGoods: Boolean(row?.bill_held_goods), postReceiptAccrual: Boolean(row?.post_receipt_accrual),
+    // Procurement plan Phase 2: purchase indents and RFQs are optional; a reorder opens an indent instead of a draft order when asked.
+    useIndents: Boolean(row?.use_indents), useRfqs: Boolean(row?.use_rfqs), reorderCreates: row?.use_indents && row?.reorder_creates === "indent" ? "indent" : "purchase_order" };
 }
 
 const ADDRESS_FIELDS = ["name", "line1", "line2", "city", "stateCode", "stateName", "postalCode", "countryCode", "contactName", "phone"];
@@ -87,7 +89,7 @@ export async function linesAsInput(client, organizationId, orderId) {
     uomId: row.purchase_uom_id, unitPrice: formatDecimal(row.unit_price), zeroPriceReason: row.zero_price_reason, discountType: row.discount_type,
     discountValue: formatDecimal(row.discount_value), warehouseId: row.receiving_warehouse_id, expectedDeliveryDate: dayOf(row.expected_delivery_date),
     taxCategoryId: row.product_id ? undefined : row.tax_category_id, noTax: !row.product_id && !row.tax_category_id, expenseAccountId: row.expense_account_id,
-    sourceQuotationLineId: row.source_quotation_line_id, priceSource: row.price_source, hsnSacCode: row.hsn_sac_code,
+    sourceQuotationLineId: row.source_quotation_line_id, sourceIndentLineId: row.source_indent_line_id ?? null, priceSource: row.price_source, hsnSacCode: row.hsn_sac_code,
   }));
 }
 
@@ -185,7 +187,7 @@ export async function resolveOrderDocument(client, context, input, { order = nul
   }
   const priced = await calculatePurchaseOrderTotals(client, context, {
     supplier: supplierSnapshot, supplierStateCode: supplierTax?.stateCode ?? shipFrom?.stateCode ?? orderingAddress?.stateCode ?? defaults.supplier.registeredStateCode,
-    buyerStateCode: shipTo?.stateCode ?? buyerRegistration?.stateCode ?? null, buyingRegistrationId: header.buyingRegistrationId, orderDate,
+    buyerStateCode: shipTo?.stateCode ?? buyerRegistration?.stateCode ?? null, buyingRegistrationId: header.buyingRegistrationId, orderDate, supplierId: header.supplierId,
     currencyCode, priceMode, documentDiscountType: header.documentDiscountType, documentDiscountValue: header.documentDiscountValue,
     defaultWarehouseId: header.defaultWarehouseId, lines,
   }, { allowMissingPrice });

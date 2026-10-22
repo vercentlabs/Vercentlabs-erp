@@ -3,6 +3,7 @@
 // Supplier bills: the shapes the screens read and the calls they make. Every amount is the server's decimal string; the screen
 // never calculates a total it shows — it asks the server for a preview.
 import { ProcApiError } from "@/features/procurement/shared/http";
+import type { ProcurementPickRow } from "@/features/procurement/shared/api";
 
 import type { BillPaymentSchedule } from "../screens/PaymentSchedule";
 
@@ -43,7 +44,7 @@ export type BillRow = {
   id: string; billNumber: string; supplierInvoiceNumber: string | null; supplierId: string | null; supplierName: string; supplierInvoiceDate: string; postingDate: string; dueDate: string | null;
   purchaseOrderId: string | null; purchaseOrderNumber: string | null; sourceType: string; currencyCode: string; invoiceTotal: string; netPayable: string; paid: string; credited: string;
   balanceDue: string; sourceBillId: string | null; sourceBillNumber: string | null; status: string; documentStatus: string; paymentStatus: string; dueStatus: string; matchingResult: string;
-  twoWayResult: MatchResult; discrepancyCount: number; discrepancy: string | null;
+  twoWayResult: MatchResult; discrepancyCount: number; discrepancy: string | null; itcStatus: string | null; itcLabel: string | null; twoB?: "in_2b" | "differs" | "not_in_2b" | null;
 };
 export type MatchResult = "matched" | "mismatch" | "approved_exception" | "not_checked" | "not_applicable";
 export type MatchDiscrepancy = {
@@ -90,7 +91,7 @@ export type BillDetail = {
     buyingRegistration: { name?: string; legalName?: string; gstin?: string } | null; placeOfSupply: string | null; supplyNature: string | null; reverseCharge: boolean; sourceType: string;
     sourceLabel: string; purchaseOrderId: string | null; purchaseOrderNumber: string | null; currencyCode: string; baseCurrencyCode: string; exchangeRate: string;
     paymentTerm: { name?: string } | null; priceMode: string; notes: string | null; subtotal: string; discountTotal: string; taxableTotal: string; taxTotal: string; reverseChargeTaxTotal: string;
-    invoiceTotal: string; withholdingTotal: string; roundingAdjustment: string; netPayable: string; baseCurrencyTotal: string; supplierStatedTotal: string | null; paid: string; credited: string;
+    invoiceTotal: string; withholdingTotal: string; roundingAdjustment: string; netPayable: string; baseCurrencyTotal: string; supplierStatedTotal: string | null; tcsAmount?: string; rcmSelfInvoiceNumber?: string | null; paid: string; credited: string;
     balanceDue: string; withholdingSection: { id: string; code: string; name: string } | null; matchingStatus: string; matchOverrideReason: string | null; duplicateOverrideReason: string | null;
     duplicateOverrideByName: string | null; sourceBillId: string | null; sourceBillNumber: string | null; debitNoteReason: string | null; sourcePurchaseReturnId: string | null;
     purchaseReturnNumber: string | null; createdAt: string; createdByName: string | null; updatedAt: string; postedAt: string | null; postedByName: string | null; cancelledAt: string | null;
@@ -114,7 +115,7 @@ export type BillDetail = {
 };
 export type BillOptions = {
   views: Array<{ key: string; label: string }>; sourceTypes: Array<{ code: string; label: string }>;
-  suppliers: Array<{ id: string; supplier_number: string; name: string; status: string; currency_code: string | null; payment_term_id: string | null; withholding_section_id: string | null }>;
+  suppliers: Array<ProcurementPickRow & { supplier_number: string; name: string; status: string; currency_code: string | null; payment_term_id: string | null; withholding_section_id: string | null }>;
   accounts: Array<{ id: string; code: string; name: string; account_class: string }>; taxCategories: Array<{ id: string; code: string; name: string; reverse_charge: boolean }>;
   withholdingSections: Array<{ id: string; code: string; name: string; rate: string }>; paymentTerms: Array<{ id: string; code: string; name: string; term_type?: string; is_default?: boolean; needs_invoice_received_date?: boolean }>;
   currencies: Array<{ code: string; name: string }>; registrations: Array<{ id: string; code: string; name: string; gstin: string | null; state_code: string | null; is_default: boolean }>;
@@ -122,6 +123,7 @@ export type BillOptions = {
   expenseCategories: Array<{ id: string; code: string; name: string; account_id: string; default_tax_category_id: string | null; default_hsn_sac: string | null }>;
   costCenters: Array<{ id: string; code: string; name: string }>; departments: Array<{ id: string; code: string; name: string }>; uoms: Array<{ id: string; code: string; name: string }>;
   capabilities: Record<"manage" | "create" | "payments" | "reverse" | "overrideDuplicate" | "overrideMatch" | "overrideDueDate" | "categories", boolean>;
+  gstOn?: boolean;
 };
 export type Eligibility = {
   order: { id: string; purchaseOrderNumber: string; status: string; currencyCode: string; priceMode: string; supplierId: string; matchingPolicy: string | null };
@@ -133,7 +135,7 @@ export type Eligibility = {
     receipts: Array<{ goodsReceiptLineId: string; goodsReceiptId: string; receiptNumber: string; billable: string; allocated: string; draftAllocated: string; remaining: string }> }>;
 };
 export type BillPreview = {
-  totals: Record<string, string>; matchingStatus: string; warnings: string[];
+  totals: Record<string, string>; matchingStatus: string; warnings: string[]; tcs?: string; totalWithTcs?: string;
   discrepancies: Array<{ lineNumber: number; ordered: string; billed: string; difference: string; totalDifference: string }>;
   duplicates: Array<{ id: string; billNumber: string; status: string }>;
   lines: Array<{ description: string; quantity: string; unitPrice: string; gross: string; lineDiscount: string; allocatedDocumentDiscount: string; taxableAmount: string; taxAmount: string;
@@ -145,8 +147,12 @@ export type BillPreview = {
 };
 
 export const listBills = (filters: Record<string, string | undefined> = {}) => get<{ rows: BillRow[] }>(`/supplier-bills${qs(filters)}`).then((result) => result.rows);
+// One page of the list with its total (Procurement plan Phase 0: the list used to stop at 300).
+export const listBillsPage = (filters: Record<string, string | undefined> = {}) => get<{ rows: BillRow[]; total: number }>(`/supplier-bills${qs(filters)}`);
 export const getBill = (id: string) => get<BillDetail>(`/supplier-bills/${id}`);
-export const getBillOptions = () => get<{ options: BillOptions }>("/supplier-bills/options").then((result) => result.options);
+// Suppliers are a first page plus the ones the form holds; the rest are found by typing (ProcurementSearchPicker).
+export const getBillOptions = (include: { supplierIds?: string[] } = {}) =>
+  get<{ options: BillOptions }>(`/supplier-bills/options${include.supplierIds?.filter(Boolean).length ? `?supplierIds=${include.supplierIds.filter(Boolean).join(",")}` : ""}`).then((result) => result.options);
 export const getEligibility = (orderId: string, billId?: string) =>
   get<{ eligibility: Eligibility }>(`/supplier-bills/eligibility${qs({ order: orderId, bill: billId })}`).then((result) => result.eligibility);
 export const getAging = (supplierId?: string) => get<{ rows: Array<Record<string, string>> }>(`/supplier-bills/aging${qs({ supplierId })}`).then((result) => result.rows);
@@ -169,7 +175,7 @@ export const uploadBillFile = (id: string, file: File) => {
 export const removeBillFile = (id: string, fileId: string) => call<{ result: { removed: boolean } }>(`/supplier-bills/${id}/files/${fileId}`, { method: "DELETE", body: "{}" });
 export const billFileUrl = (id: string, fileId: string, inline = false) => `/api/procurement/supplier-bills/${id}/files/${fileId}${inline ? "?disposition=inline" : ""}`;
 export type WithholdingSection = { id: string; code: string; name: string; rate: string; status: string; thresholdSingle: string | null; thresholdAnnual: string | null;
-  rateIndividual: string | null; rateNoPan: string | null };
+  rateIndividual: string | null; rateNoPan: string | null; basis?: "full" | "excess_over_annual" };
 export const listWithholdingSections = () => get<{ sections: WithholdingSection[] }>("/withholding-sections").then((result) => result.sections);
 export const saveWithholdingSection = (input: Record<string, unknown>) => post<{ section: unknown }>("/withholding-sections", input);
 export const getSupplierRegistrations = (supplierId: string) =>

@@ -21,7 +21,7 @@ export function SavedNotice() {
   }, []);
   if (!href) return null;
   return (
-    <div role="status" className="fixed right-4 bottom-4 z-[var(--z-modal)] flex items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface-raised px-4 py-3 text-sm shadow-overlay">
+    <div role="status" className="fixed right-4 bottom-4 max-lg:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-[var(--z-modal)] flex items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface-raised px-4 py-3 text-sm shadow-overlay">
       <CheckCircle2 aria-hidden className="size-4 text-success" />
       <span className="text-text">Saved.</span>
       <Link className="font-medium text-brand hover:underline" href={href} onClick={() => setHref(null)}>Open</Link>

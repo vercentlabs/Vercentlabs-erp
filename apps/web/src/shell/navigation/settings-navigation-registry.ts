@@ -148,24 +148,15 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         label: "Users",
         route: "/settings/users",
         status: "AVAILABLE",
-        description: "Members and their roles.",
+        description: "Everyone in your organization, their role and whether they can sign in.",
         requiredPermission: "users.view",
-      },
-      {
-        id: "teams",
-        label: "Teams",
-        route: "/settings/teams",
-        status: "AVAILABLE",
-        description: "Teams for lead assignment and for team visibility of customers, quotations and orders.",
-        // A Sales-only company sets up teams too (Sales audit B10).
-        requiredAnyPermission: ["crm.teams.manage", "sales.settings.manage"],
       },
       {
         id: "invitations",
         label: "Invitations",
         route: "/settings/invitations",
         status: "AVAILABLE",
-        description: "Pending invitations and their status.",
+        description: "Invite people, and see who has joined and who has not yet.",
         requiredPermission: "users.manage",
       },
       {
@@ -173,8 +164,7 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         label: "Roles and permissions",
         route: "/settings/roles",
         status: "AVAILABLE",
-        description:
-          "Create custom roles, edit permission grants, and assign roles to users.",
+        description: "What each role lets people do, and your own custom roles.",
         requiredPermission: "roles.view",
       },
     ],

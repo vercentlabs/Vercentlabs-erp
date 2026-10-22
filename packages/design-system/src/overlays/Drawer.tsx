@@ -35,6 +35,8 @@ export function Drawer({ className, title, side = "right", size = "md", children
         <AriaDialog
           className={cn(
             "flex h-full flex-col gap-4 border-border bg-surface-raised p-6 shadow-overlay outline-none",
+            // Below lg the end of its list keeps clear of the system navigation bar.
+            "max-lg:pb-[calc(2rem+env(safe-area-inset-bottom))]",
             side === "right" ? "border-l" : "border-r",
             className,
           )}

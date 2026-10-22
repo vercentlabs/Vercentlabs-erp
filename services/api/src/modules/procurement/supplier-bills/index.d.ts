@@ -82,3 +82,6 @@ export declare function getGoodsReceiptBillingProgress(client: QueryClient, cont
 export declare function getPurchaseOrderMatchingSummary(client: QueryClient, context: any, ...args: any[]): Promise<any>;
 export declare function getSupplierBillMatchStatus(client: QueryClient, context: any, ...args: any[]): Promise<any>;
 export declare function getEligibleGoodsReceiptLines(client: QueryClient, ...args: any[]): Promise<any>;
+// Landed cost (Procurement plan Phase 3).
+export declare function getBillLandedCosts(client: any, context: any, billId: string): Promise<Record<string, any>>;
+export declare function allocateLandedCost(client: any, context: any, billId: string, input?: Record<string, unknown>): Promise<Record<string, any>>;

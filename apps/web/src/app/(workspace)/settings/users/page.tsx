@@ -26,6 +26,7 @@ export default async function UsersSettingsPage() {
         ),
         isOwner: session.roleSlugs.includes("organization_owner"),
         isAdmin: session.roleSlugs.includes("system_administrator"),
+        canViewRoles: hasSessionPermission(session, "roles.view"),
       }}
     />
   );

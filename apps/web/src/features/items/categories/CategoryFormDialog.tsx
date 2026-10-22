@@ -17,16 +17,17 @@ import { defaultValueLabel } from "../components/ReclassifyDialog";
 import { ErrorBanner, NONE, orNull, withNone } from "../item-format";
 
 type Draft = {
-  code: string; name: string; parentId: string; description: string; sortOrder: number; skuPrefix: string; restrictTypes: boolean; allowedItemTypes: ItemType[];
+  code: string; name: string; parentId: string; description: string; sortOrder: number; skuPrefix: string; restrictTypes: boolean; allowedItemTypes: ItemType[]; tolerance: string;
   defaultValuationMethod: string; defaultInventoryProfileId: string; defaultAccountingProfileId: string; defaultTaxCategoryId: string; defaultHsnSacCode: string;
 };
 const blank = (parentId: string | null): Draft => ({
-  code: "", name: "", parentId: parentId ?? NONE, description: "", sortOrder: 0, skuPrefix: "", restrictTypes: false, allowedItemTypes: [],
+  code: "", name: "", parentId: parentId ?? NONE, description: "", sortOrder: 0, skuPrefix: "", restrictTypes: false, allowedItemTypes: [], tolerance: "",
   defaultValuationMethod: NONE, defaultInventoryProfileId: NONE, defaultAccountingProfileId: NONE, defaultTaxCategoryId: NONE, defaultHsnSacCode: "",
 });
 const draftOf = (category: Category): Draft => ({
   code: category.code, name: category.name, parentId: category.parentId ?? NONE, description: category.description ?? "", sortOrder: category.sortOrder, skuPrefix: category.skuPrefix ?? "",
   restrictTypes: Boolean(category.allowedItemTypes?.length), allowedItemTypes: category.allowedItemTypes ?? [],
+  tolerance: category.excessReceiptTolerancePercent && Number(category.excessReceiptTolerancePercent) ? String(Number(category.excessReceiptTolerancePercent)) : "",
   defaultValuationMethod: category.defaultValuationMethod ?? NONE, defaultInventoryProfileId: category.defaultInventoryProfileId ?? NONE,
   defaultAccountingProfileId: category.defaultAccountingProfileId ?? NONE, defaultTaxCategoryId: category.defaultTaxCategoryId ?? NONE, defaultHsnSacCode: category.defaultHsnSacCode ?? "",
 });
@@ -74,7 +75,7 @@ function CategoryForm({ target, categories, options, onClose, onSaved }: {
     mutationFn: () => {
       const input: CategoryInput = {
         code: draft.code.trim(), name: draft.name.trim(), description: draft.description.trim() || null, sortOrder: Number.isFinite(draft.sortOrder) ? draft.sortOrder : 0,
-        allowedItemTypes: draft.restrictTypes ? draft.allowedItemTypes : null, skuPrefix: draft.skuPrefix.trim() || null,
+        allowedItemTypes: draft.restrictTypes ? draft.allowedItemTypes : null, skuPrefix: draft.skuPrefix.trim() || null, excessReceiptTolerancePercent: draft.tolerance.trim() || "0",
       };
       const defaults: CategoryInput = {
         defaultValuationMethod: orNull(draft.defaultValuationMethod), defaultInventoryProfileId: orNull(draft.defaultInventoryProfileId),
@@ -127,6 +128,8 @@ function CategoryForm({ target, categories, options, onClose, onSaved }: {
         </div>
         <TextField label="SKU prefix" value={draft.skuPrefix} onChange={(value) => set("skuPrefix")(value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} errorMessage={errors.skuPrefix}
           description={draft.skuPrefix ? `Generated SKUs here and below: ${draft.skuPrefix}-000001. Existing SKUs never change.` : "Optional. Empty: the parent's prefix, else the default."} />
+        <TextField label="Receive up to % more than ordered" inputMode="decimal" value={draft.tolerance} onChange={set("tolerance")} errorMessage={errors.excessReceiptTolerancePercent}
+          description="For goods that come by weight or in bulk. Empty: never more than ordered." />
         <TextArea className="sm:col-span-2" label="Description" rows={2} value={draft.description} onChange={set("description")} />
       </div>
       <fieldset className="flex flex-col gap-3 border-t border-border pt-4">

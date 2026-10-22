@@ -4,9 +4,10 @@
 // notes), tax (GST registration type, GSTIN, PAN, registered state) and the
 // commercial defaults (currency, payment terms, buyer) are read separately,
 // because separate permissions change them.
+import { parseGstin } from "@vercentlabs/shared-types";
 import { purchaseTermSnapshot } from "../../../core/payment-terms/index.js";
 import {
-  EMAIL_PATTERN, GSTIN_PATTERN, GST_REGISTRATION_TYPES, PAN_PATTERN, SUPPLIER_CATEGORIES, SUPPLIER_TYPES, SupplierError, has, isUuid, text,
+  EMAIL_PATTERN, GSTIN_PATTERN, GST_REGISTRATION_TYPES, PAN_PATTERN, SUPPLIER_CATEGORIES, SUPPLIER_TYPES, SupplierError, UDYAM_PATTERN, has, isUuid, text,
 } from "./constants.js";
 
 export const IDENTITY_FIELDS = Object.freeze(["supplierName", "legalName", "supplierType", "category", "primaryEmail", "primaryPhone", "website", "countryCode", "notes"]);
@@ -59,8 +60,11 @@ export function normalizeSupplierInput(input = {}) {
   return out;
 }
 
-// The whole supplier as it will be saved (current values merged with the change) must hold together.
-export function assertValidSupplier(candidate) {
+// The whole supplier as it will be saved (current values merged with the change) must hold together. changed: the fields an edit
+// changes (null for a new supplier) — the GSTIN check digit and the Udyam format are checked on what is typed now, so a supplier saved
+// before those checks is not blocked from other edits.
+export function assertValidSupplier(candidate, changed = null) {
+  const typed = (field) => !changed || changed.includes(field);
   const issues = [];
   const issue = (field, message) => issues.push({ field, message });
   if (!candidate.supplierName) issue("supplierName", "Enter the supplier name.");
@@ -83,6 +87,13 @@ export function assertValidSupplier(candidate) {
   if (candidate.gstRegistrationType && !gstType) issue("gstRegistrationType", "Choose the GST registration type.");
   if (gstType?.needsGstin && !candidate.gstin) issue("gstin", `A ${gstType.label} supplier needs a GSTIN.`);
   if (candidate.gstin && !GSTIN_PATTERN.test(candidate.gstin)) issue("gstin", "A GSTIN has 15 characters: the state code, the PAN and three more.");
+  // The GSTIN's own check character and format (Procurement plan Phase 1): imports and API calls are checked as the form is.
+  else if (candidate.gstin && typed("gstin")) {
+    const parsed = parseGstin(candidate.gstin);
+    if (!parsed.valid) issue("gstin", parsed.error ?? "Check the GSTIN.");
+  }
+  if (candidate.msmeRegistrationNumber && typed("msmeRegistrationNumber") && !UDYAM_PATTERN.test(candidate.msmeRegistrationNumber))
+    issue("msmeRegistrationNumber", "A Udyam registration number looks like UDYAM-MH-26-0012345.");
   if (candidate.gstin && gstType && !gstType.needsGstin && candidate.gstRegistrationType !== "deemed_export")
     issue("gstin", `${gstType.label} suppliers have no GSTIN.`);
   if (candidate.pan && !PAN_PATTERN.test(candidate.pan)) issue("pan", "A PAN has 10 characters, like ABCDE1234F.");

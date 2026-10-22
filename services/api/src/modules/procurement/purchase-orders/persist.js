@@ -67,7 +67,7 @@ async function writeLines(client, context, orderId, lines) {
         ?? (line.unitPrice === null ? "price not entered" : null),
       line.discountType, d(line.discountValue), d(line.gross), d(line.lineDiscount), d(line.allocatedDocumentDiscount), d(line.taxableAmount), line.taxCategoryId,
       line.taxTreatment, d(line.taxRate), d(line.taxTotal), d(line.lineTotal), line.warehouseId, line.expectedDeliveryDate, line.sourceQuotationLineId,
-      line.expenseAccountId,
+      line.expenseAccountId, line.sourceIndentLineId ?? null, line.sourceRateContractLineId ?? null,
     ];
     let lineId = line.lineId && kept.has(line.lineId) ? line.lineId : null;
     if (lineId) {
@@ -76,16 +76,16 @@ async function writeLines(client, context, orderId, lines) {
                 ordered_quantity = $9, purchase_uom_id = $10, uom_snapshot = $11::jsonb, conversion_factor = $12, base_uom_id = $13, base_quantity = $14, unit_price = $15,
                 price_source = $16, zero_price_reason = $17, discount_type = $18, discount_value = $19, gross_amount = $20, line_discount = $21,
                 allocated_document_discount = $22, taxable_amount = $23, tax_category_id = $24, tax_treatment = $25, tax_rate = $26, tax_total = $27, line_total = $28,
-                receiving_warehouse_id = $29, expected_delivery_date = $30, source_quotation_line_id = $31, expense_account_id = $32, updated_at = now()
+                receiving_warehouse_id = $29, expected_delivery_date = $30, source_quotation_line_id = $31, expense_account_id = $32, source_indent_line_id = COALESCE($33, source_indent_line_id), source_rate_contract_line_id = $34, updated_at = now()
           WHERE organization_id = $1 AND id = $2`, [organizationId, lineId, ...values]);
     } else {
       lineId = (await client.query(
         `INSERT INTO tenant.purchase_order_lines (organization_id, purchase_order_id, line_number, product_type, product_id, product_snapshot, description, hsn_sac_code,
            ordered_quantity, purchase_uom_id, uom_snapshot, conversion_factor, base_uom_id, base_quantity, unit_price, price_source, zero_price_reason, discount_type,
            discount_value, gross_amount, line_discount, allocated_document_discount, taxable_amount, tax_category_id, tax_treatment, tax_rate, tax_total, line_total,
-           receiving_warehouse_id, expected_delivery_date, source_quotation_line_id, expense_account_id)
+           receiving_warehouse_id, expected_delivery_date, source_quotation_line_id, expense_account_id, source_indent_line_id, source_rate_contract_line_id)
          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
-                 $31, $32) RETURNING id`, [organizationId, orderId, ...values])).rows[0].id;
+                 $31, $32, $33, $34) RETURNING id`, [organizationId, orderId, ...values])).rows[0].id;
     }
     for (const [sequence, component] of line.components.entries()) {
       await client.query(

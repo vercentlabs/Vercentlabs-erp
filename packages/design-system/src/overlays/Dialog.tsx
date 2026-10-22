@@ -39,6 +39,8 @@ export function Dialog({ className, title, description, hideCloseButton, size = 
         <AriaDialog
           className={cn(
             "flex max-h-[92dvh] flex-col gap-4 rounded-t-[var(--radius-panel)] border-t border-border bg-surface-raised p-5 shadow-overlay outline-none",
+            // As a phone sheet its last line (or its buttons) keeps clear of the system navigation bar under it.
+            "max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
             "sm:max-h-[85vh] sm:rounded-[var(--radius-panel)] sm:border sm:p-6",
             className,
           )}
@@ -60,7 +62,7 @@ export function Dialog({ className, title, description, hideCloseButton, size = 
               </div>
               <div className="-mx-5 min-h-0 flex-1 overflow-auto px-5 sm:-mx-6 sm:px-6">{typeof children === "function" ? children(opts) : children}</div>
               {footer && (
-                <div className="-mx-5 -mb-5 flex justify-end gap-2 border-t border-border px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] max-sm:[&>*]:flex-1 sm:-mx-6 sm:-mb-6 sm:px-6 sm:py-4">
+                <div className="-mx-5 flex justify-end gap-2 border-t border-border px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] max-sm:-mb-[calc(1.5rem+env(safe-area-inset-bottom))] max-sm:[&>*]:flex-1 sm:-mx-6 sm:-mb-6 sm:px-6 sm:py-4">
                   {footer}
                 </div>
               )}

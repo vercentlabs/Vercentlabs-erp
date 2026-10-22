@@ -1,17 +1,18 @@
 import { ProcurementError } from "./index.js";
+import { itemOptions, supplierOptions } from "./options.js";
+
+export { searchProcurementOptions } from "./options.js";
 
 const has = (c, p) => c.roleSlugs?.includes("organization_owner") || c.permissions?.includes(p);
 
-// The master data Procurement's configuration forms choose from (categories, policies, source rules).
+// The master data Procurement's configuration forms and list filters choose from (categories, policies, source rules). Suppliers and
+// items are a first page plus the ones asked for (include.supplierIds / include.itemIds); the rest are found by typing (./options.js).
 // One connection runs one query at a time, so they run in turn.
-export async function listProcurementFormOptions(client, c) {
+export async function listProcurementFormOptions(client, c, include = {}) {
   if (!has(c, "procurement.view")) throw new ProcurementError(403, "You do not have permission to perform this Procurement operation.");
   const values = [c.organizationId];
-  const suppliers = await client.query(
-    `SELECT supplier.id, party.display_name || ' · ' || supplier.supplier_number AS label, supplier.status, (supplier.status = 'active') AS selectable
-       FROM tenant.procurement_suppliers supplier JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
-      WHERE supplier.organization_id = $1 ORDER BY (supplier.status = 'active') DESC, party.display_name LIMIT 2000`, values);
-  const items = await client.query(`SELECT id, code, name FROM tenant.items WHERE organization_id = $1 AND status = 'active' AND is_purchasable ORDER BY name LIMIT 1000`, values);
+  const suppliers = { rows: await supplierOptions(client, c.organizationId, { ids: include.supplierIds }) };
+  const items = { rows: await itemOptions(client, c.organizationId, { ids: include.itemIds }) };
   const warehouses = await client.query(`SELECT id, code, name FROM tenant.warehouses WHERE organization_id = $1 AND status = 'active' AND system_role IS NULL ORDER BY name LIMIT 1000`, values);
   const uoms = await client.query(`SELECT id, code, name FROM tenant.units_of_measure WHERE organization_id = $1 AND status = 'active' ORDER BY name LIMIT 200`, values);
   const categories = await client.query(

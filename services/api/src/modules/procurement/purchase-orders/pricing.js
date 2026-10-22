@@ -16,6 +16,7 @@ import { normalizeQuantityToBase } from "../../products/uom.js";
 import { poCan } from "./access.js";
 import { PO_PERMISSIONS, PurchaseOrderError, fail, optionalUuid, readDate, text } from "./constants.js";
 import { stockOn } from "../../../core/products/tracking.js";
+import { contractOverdraw, contractRatesFor } from "../rate-contracts/index.js";
 
 export const dec = (value) => formatDecimal(value);
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -82,6 +83,8 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
   const supplyType = supplyTypeForSupplier(document.supplier?.gstRegistrationType);
   const inclusive = document.priceMode === "inclusive";
   const warnings = [];
+  // The supplier's active rate contracts on the order date (Procurement plan Phase 3): a contracted item's price defaults to the contract rate.
+  const contracts = await contractRatesFor(client, organizationId, { supplierId: document.supplierId, date: document.orderDate ?? new Date().toISOString().slice(0, 10) });
   const priced = [];
   // Without the Stock app nothing bought is kept in stock: products are non-stock lines with no receiving warehouse.
   const keepsStock = await stockOn(client, context);
@@ -136,7 +139,11 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
       if (roundMoney(quantity, decimals) !== quantity) fail(`${label}: ${uom.code} allows ${decimals} decimal place${decimals === 1 ? "" : "s"}.`, "quantity", "PURCHASE_ORDER_QUANTITY_INVALID");
     }
 
-    const rawPrice = input.unitPrice === undefined || input.unitPrice === null ? "" : String(input.unitPrice).trim();
+    const contract = item ? contracts.get(`${item.id}:${uom.id}`) ?? null : null;
+    let rawPrice = input.unitPrice === undefined || input.unitPrice === null ? "" : String(input.unitPrice).trim();
+    if (rawPrice === "" && contract) rawPrice = contract.rate;
+    if (contract && rawPrice !== "" && MONEY.test(rawPrice) && decimal(rawPrice) !== decimal(contract.rate))
+      warnings.push({ line: index + 1, code: "CONTRACT_RATE_DIFFERS", message: `${label}: rate contract ${contract.contractNumber} agrees ${contract.rate}.` });
     let unitPrice = null;
     if (rawPrice === "") {
       if (!allowMissingPrice) fail(`${label}: enter the agreed purchase price.`, "unitPrice", "PURCHASE_ORDER_PRICE_MISSING");
@@ -161,8 +168,27 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
       warehouseId: productType === "service" || !keepsStock ? null : optionalUuid(input.warehouseId ?? input.receivingWarehouseId ?? document.defaultWarehouseId, "Warehouse"),
       expectedDeliveryDate: readDate(input.expectedDeliveryDate, `${label} expected date`),
       sourceQuotationLineId: optionalUuid(input.sourceQuotationLineId, "Quotation line"),
+      // The indent line this order line buys for (Procurement plan Phase 2); checked against the indent below.
+      sourceIndentLineId: optionalUuid(input.sourceIndentLineId, "Indent line"),
+      // The rate contract line it draws from, when bought at the contract rate.
+      contract: contract && rawPrice !== "" && decimal(rawPrice) === decimal(contract.rate) ? contract : null,
       priceSource: input.priceSource === "quotation" ? "quotation" : input.priceSource === "product_cost" ? "product_cost" : "manual",
     });
+  }
+
+  // A contract with a quantity or value cap: drawing more than is left is warned about (the rest is bought at the price entered).
+  for (const [index, line] of priced.entries()) if (line.contract)
+    for (const issue of contractOverdraw(line.contract, line.quantity, line.net))
+      warnings.push({ line: index + 1, code: "CONTRACT_OVERDRAWN", message: `${line.label}: ${issue}.` });
+
+  // An order line bought for an indent line names an approved indent's open line for the same item.
+  const indentLineIds = priced.map((line) => line.sourceIndentLineId).filter(Boolean);
+  if (indentLineIds.length) {
+    const found = new Map((await client.query(
+      `SELECT line.id, line.item_id FROM tenant.purchase_indent_lines line JOIN tenant.purchase_indents indent ON indent.organization_id = line.organization_id AND indent.id = line.indent_id
+        WHERE line.organization_id = $1 AND line.id = ANY($2::uuid[]) AND indent.status IN ('approved', 'closed') AND line.status = 'open'`, [context.organizationId, indentLineIds])).rows.map((row) => [row.id, row]));
+    for (const line of priced) if (line.sourceIndentLineId && found.get(line.sourceIndentLineId)?.item_id !== line.productId)
+      fail(`${line.label}: the indent line is not an approved, open line for this product.`, "sourceIndentLineId", "PURCHASE_ORDER_INDENT_LINE_INVALID", 409);
   }
 
   // The document discount, shared over the lines in proportion to their value.
@@ -204,7 +230,8 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
       zeroPriceReason: line.unitPrice === 0n ? line.zeroPriceReason : null, discountType: line.discount.type, discountValue: line.discount.value, gross: line.gross,
       lineDiscount: line.lineDiscount, allocatedDocumentDiscount: line.allocated ?? decimal(0), taxableAmount: computed.taxableAmount, taxCategoryId: line.taxCategoryId,
       taxTreatment: resolved.treatment, taxRate: resolved.rate, taxTotal: computed.taxAmount, lineTotal, components: computed.components,
-      warehouseId: line.warehouseId, expectedDeliveryDate: line.expectedDeliveryDate, sourceQuotationLineId: line.sourceQuotationLineId, expenseAccountId: line.expenseAccountId,
+      warehouseId: line.warehouseId, expectedDeliveryDate: line.expectedDeliveryDate, sourceQuotationLineId: line.sourceQuotationLineId, sourceIndentLineId: line.sourceIndentLineId ?? null, sourceRateContractLineId: line.contract?.lineId ?? null,
+      expenseAccountId: line.expenseAccountId,
       productSnapshot: line.item
         ? { id: line.item.id, code: line.item.code, name: line.item.name, type: line.productType, itemType: line.item.item_type, trackingType: line.item.tracking_type, hsnSacCode: line.item.hsn_sac_code }
         : { id: null, code: null, name: line.description, type: line.productType, descriptive: true },

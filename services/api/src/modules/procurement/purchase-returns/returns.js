@@ -307,7 +307,7 @@ export async function createPurchaseReturn(client, context, input = {}) {
 
 async function resolveHeader(client, context, input, { order, entries, current = null }) {
   const keep = (key, column) => (has(input, key) ? input[key] : current?.[column]);
-  const today = await databaseToday(client);
+  const today = await databaseToday(client, context.organizationId);
   const returnDate = readDate(has(input, "returnDate") ? input.returnDate : null, "Return date") ?? dayOf(current?.return_date) ?? today;
   if (returnDate > today) fail("The return date cannot be in the future.", "returnDate", "PURCHASE_RETURN_DATE_INVALID");
   const latestReceipt = entries.map((entry) => dayOf(entry.line.receipt_date)).sort()[entries.length - 1];

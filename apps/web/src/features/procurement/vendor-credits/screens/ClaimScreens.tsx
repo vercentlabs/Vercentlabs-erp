@@ -14,6 +14,7 @@ import {
 import { useTabParam, useFormChangesWarning } from "@/features/procurement/shared/navigation";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { ProcurementSearchPicker } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { calendarDate, dateTime, money, quantity, statusLabel } from "@/features/procurement/shared/format";
 import { getBill } from "@/features/procurement/supplier-bills/api/supplier-bills-api";
@@ -94,8 +95,8 @@ function ClaimForm({ existing, presetSupplierId, presetBillId }: { existing: Cla
       <Errors error={save.error} />
       <Panel title="Claim">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Select label="Supplier" isDisabled={Boolean(existing)} selectedKey={supplierId} onSelectionChange={(value) => { setSupplierId(String(value)); setRows([]); }}
-            options={options.data.suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.name} (${supplier.number})` }))} />
+          <ProcurementSearchPicker kind="suppliers" label="Supplier" isDisabled={Boolean(existing)} value={supplierId} known={options.data.suppliers}
+            onPick={(id) => { setSupplierId(id); setRows([]); }} />
           <TextField label="Issue date" type="date" value={header.issueDate} onChange={set("issueDate")} />
           <TextField label="Supplier reference (if any)" value={header.supplierReference} onChange={set("supplierReference")} />
         </div>

@@ -24,6 +24,7 @@ import {
   CLAIM_ROUNDING, LIVE_SQL, POSTED_STATUSES, REASON_LABELS, VC_PERMISSIONS, VendorCreditError, can, dayOf, dec, drafting, fail, fin, normalizedNumber, optionalUuid, readAmount, readDate, readReason,
   requireAny, requireCreditView, requireUuid, text,
 } from "./constants.js";
+import { databaseToday } from "../org-day.js";
 
 const CREDITABLE_CLAIM = ["accepted", "partially_accepted"];
 const ORIGINS = ["supplier_credit_note", "accepted_claim", "other_authorized"];
@@ -286,7 +287,7 @@ export async function buildVendorCredit(client, context, input, { current = null
       "VENDOR_CREDIT_EXCEEDS_ACCEPTED", { field: "lines" });
   }
   if (supplierNoteDate && firstBill && supplierNoteDate < dayOf(firstBill.bill_date)) issues.push("The supplier's credit note is dated before the bill it corrects.");
-  const creditDate = readDate(input.creditDate, "Credit date") ?? (current ? dayOf(current.bill_date) : null) ?? (await client.query(`SELECT current_date::text AS d`)).rows[0].d;
+  const creditDate = readDate(input.creditDate, "Credit date") ?? (current ? dayOf(current.bill_date) : null) ?? await databaseToday(client, context.organizationId);
   const earliest = billList.map((bill) => dayOf(bill.bill_date)).sort()[0];
   if (earliest && creditDate < earliest) fail("A credit cannot be dated before the bill it corrects.", "creditDate", "VENDOR_CREDIT_DATE_INVALID");
   const orders = new Set(billList.map((bill) => bill.source_purchase_order_id).filter(Boolean));

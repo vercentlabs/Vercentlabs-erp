@@ -3,6 +3,8 @@
 // The Procurement Overview, in CRM's shape: four headline figures, the purchasing work in progress and what needs attention side by side, and
 // the documents that need someone to act. Each figure opens the list behind it; a figure the person may not see is not sent by the server.
 // New documents start from the Create menu, as on every module's overview.
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorState, PermissionState } from "@vercentlabs/design-system";
 
@@ -20,8 +22,14 @@ const HEADLINE = ["open_orders", "pending_receipts", "bill_mismatches", "overdue
 const WORK = ["open_orders", "pending_receipts", "unresolved_returns", "pending_credits"];
 const ATTENTION: Record<string, CountRow["tone"]> = { receiving_issues: "warning", bill_mismatches: "warning", overdue_bills: "danger" };
 
+// Someone whose only Procurement role is the store's lands on Goods Receipts · Today, their daily screen (Procurement plan Phase 1).
+const STORE_ONLY = ["goods_receipt_user"];
+
 export function ProcurementHomeScreen() {
   const workspace = useWorkspaceContext();
+  const router = useRouter();
+  const storeOnly = workspace.roleSlugs.length > 0 && workspace.roleSlugs.every((slug) => STORE_ONLY.includes(slug));
+  useEffect(() => { if (storeOnly) router.replace("/procurement/goods-receipts"); }, [storeOnly, router]);
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "overview"), queryFn: getProcurementOverview });
   if (query.isError && query.error instanceof ProcApiError && query.error.status === 403)
     return <PermissionState title="You don't have access to Procurement" description="Ask an administrator for a Procurement role." />;
@@ -39,6 +47,13 @@ export function ProcurementHomeScreen() {
         : query.isError || !data ? <ErrorState title="Could not load the Procurement overview" description={query.error instanceof Error ? query.error.message : undefined} action={{ label: "Try again", onPress: () => void query.refetch() }} />
         : (
           <>
+            {data.myWork.length > 0 && (
+              <OverviewPanel title="My work">
+                <CountList rows={data.myWork.map((card) => ({ label: card.label, value: card.value, href: card.href, tone: card.tone === "danger" || card.tone === "warning" ? card.tone : undefined }))}
+                  empty="Nothing waiting for you." />
+              </OverviewPanel>
+            )}
+
             <OverviewCards label="Overview" cards={HEADLINE.map((key) => metric(key)).filter((entry): entry is ProcurementMetric => Boolean(entry))
               .map((entry) => ({ label: entry.label, value: entry.value, href: entry.href }))} />
 

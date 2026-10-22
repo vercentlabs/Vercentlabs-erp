@@ -88,29 +88,6 @@ function unique(values) {
   return [...new Set(values)];
 }
 
-// User Administrator is a delegated ADMINISTRATION role, not a business superuser: an
-// explicit least-privilege allow-list (never ALL_PERMISSIONS minus a
-// deny-list, which silently inherits every future business permission). It
-// administers users and may assign only roles whose permissions fit its own
-// authority (grant ceiling); it never administers owners or system
-// administrators. Business authority is composed by assigning the matching
-// module role as well (e.g. Sales Head, CRM Administrator). It deliberately
-// lacks organization.manage, roles.manage (organisation-global role
-// definitions), modules.manage (organisation-global module enablement), SoD
-// override, audit and billing.
-export const USER_ADMINISTRATOR_PERMISSIONS = Object.freeze([
-  "workspace.view",
-  "notifications.view",
-  "profile.manage",
-  "department.manage",
-  "cost_center.manage",
-  "team.manage",
-  "users.view",
-  "users.manage",
-  "roles.view",
-  "roles.assign",
-]);
-
 // The Roles & Permissions MVP's functional templates. Kept as lists so migration 0194 grants exactly the same keys.
 export const WAREHOUSE_OPERATOR_PERMISSIONS = Object.freeze([
   ...businessReader,
@@ -162,16 +139,6 @@ const ROLE_DEFINITIONS = [
     permissions: ALL_PERMISSIONS,
   },
   {
-    name: "User Administrator",
-    slug: "user_administrator",
-    description:
-      "Delegated user and role-assignment administration. No business-module, module-enablement, role-definition or billing authority.",
-    moduleKey: "platform",
-    riskLevel: "privileged",
-    assignable: true,
-    permissions: USER_ADMINISTRATOR_PERMISSIONS,
-  },
-  {
     name: "Employee",
     slug: "employee",
     description:
@@ -180,92 +147,6 @@ const ROLE_DEFINITIONS = [
     riskLevel: "standard",
     assignable: true,
     permissions: unique([...businessReader, "projects.view", "projects.customer.view", "projects.milestones.view", "projects.tasks.view", "projects.tasks.start", "projects.tasks.block", "projects.tasks.complete", "projects.tasks.submit_review", "projects.milestones.submit", "projects.time.view_own", "projects.time.create", "projects.time.edit_draft", "projects.time.submit", "projects.comments.view", "projects.comments.create", "projects.comments.reply", "projects.comments.edit_own", "projects.comments.delete_own", "projects.comments.attach", "projects.comments.mention", "projects.expenses.view_own", "projects.expenses.create", "projects.expenses.edit_draft", "projects.expenses.submit", "assets.view", "assets.status.report_missing", "assets.custody.acknowledge", "assets.custody.dispute", "assets.transfer.view", "assets.transfer.create", "assets.transfer.submit", "assets.transfer.report_exception", "assets.assignment.view", "assets.assignment.request", "assets.movement.view", "assets.maintenance.view", "assets.maintenance.request"]),
-  },
-  {
-    name: "Auditor",
-    slug: "auditor",
-    description:
-      "Read-only governance, audit and released-module reporting access.",
-    moduleKey: "platform",
-    riskLevel: "sensitive",
-    assignable: true,
-    permissions: unique([
-      "support.view",
-      "gst.view",
-      "support.ticket.view_all",
-      "support.reports.view",
-      "support.audit.view",
-      "quality.nonconformance.view",
-      "quality.nonconformance.export",
-      "quality.dispatch.view",
-      "quality.dispatch.export",
-      "quality.dispatch.view_audit",
-      "quality.final.view",
-      "quality.final.export",
-      "quality.final.view_audit",
-      "quality.inprocess.view",
-      "quality.inprocess.export",
-      "quality.inprocess.view_audit",
-      "quality.incoming.view",
-      "quality.incoming.export",
-      "quality.incoming.view_audit",
-      // Quality Control Points (as migration 0163 grants).
-      "quality.qcp.view",
-      "quality.qcp.view_history",
-      "quality.qcp.export",
-      // Inspection Specifications (as migration 0162 grants).
-      "quality.view",
-      "quality.spec.view",
-      "quality.spec.view_history",
-      "quality.spec.export",
-      "quality.spec.view_evidence",
-      "assets.depreciation.view",
-      "assets.depreciation.view_financials",
-      "assets.depreciation.export",
-      "assets.depreciation.view_audit",
-      "assets.depreciation.automation_view",
-      "assets.movement.view",
-      "assets.disposal.view",
-      "assets.disposal.view_financials",
-      "assets.disposal.export",
-      "assets.disposal.view_audit",
-      "assets.maintenance.view",
-      "assets.maintenance.view_cost",
-      "assets.maintenance.export",
-      "assets.maintenance.view_audit",
-      "assets.movement.view_history",
-      "assets.movement.view_evidence",
-      "assets.movement.view_custody",
-      "assets.movement.view_audit",
-      "assets.movement.export",
-      ...base,
-      // Company-wide CRM READ visibility for auditing (no manage, import,
-      // settings or sensitive-field permission); export = this read scope.
-      "crm.records.view_all",
-      "users.view",
-      "roles.view",
-      "audit.view",
-      "compliance.view",
-      "automation.view",
-      "integrations.view",
-      "data_management.view",
-      "business_data.view",
-      "crm.view",
-      "crm.export",
-      "crm.reports.view",
-      "billing.view",
-      "billing.audit",
-      "sales.view",
-      "sales.margin.view",
-      "sales.reports.view",
-      "accounting.view",
-      "accounting.reports.view",
-      "accounting.audit.view",
-      "procurement.view",
-      "procurement.suppliers.view",
-      "procurement.reports.view",
-      "procurement.audit.view",
-    ]),
   },
   {
     name: "Read-only User",
@@ -707,75 +588,6 @@ const ROLE_DEFINITIONS = [
       "sales.return.receive",
       "sales.return.print",
       "sales.return.select_warehouse",
-    ]),
-  },
-  {
-    name: "Marketing Manager",
-    slug: "marketing_manager",
-    description:
-      "Campaigns, segments, journeys, forms, events, attribution and marketing integrations.",
-    moduleKey: "crm",
-    riskLevel: "sensitive",
-    assignable: true,
-    permissions: unique([
-      ...crmReader,
-      // Every Lead (campaigns, capture, import/export, attribution) — not every
-      // Opportunity, Account or sales Activity (crm.records.view_all removed).
-      "crm.leads.view_all",
-      "crm.contacts.view_sensitive",
-      "parties.manage",
-      ...leadManager,
-      ...contactManager,
-      "crm.leads.view_sensitive",
-      "crm.saved_views.share",
-      "crm.activities.manage",
-      "crm.capture.manage",
-      "crm.import",
-      "crm.export",
-    ]),
-  },
-  {
-    name: "Customer Success Manager",
-    slug: "customer_success_manager",
-    description:
-      "Customer health, success plans, renewals, feedback, playbooks and account engagement.",
-    moduleKey: "crm",
-    riskLevel: "standard",
-    assignable: true,
-    permissions: unique([
-      "support.view",
-      "support.ticket.create",
-      "support.ticket.reply",
-      "support.ticket.note",
-      "support.ticket.assign",
-      "support.ticket.resolve",
-      "support.communication.manage",
-      ...crmReader,
-      // Every customer Account, its Contacts and customer Activities — not
-      // Leads, prospects or the sales pipeline (crm.records.view_all removed).
-      "crm.customers.view_all",
-      "crm.contacts.view_sensitive",
-      "parties.manage",
-      ...accountWorker,
-      ...contactWorker,
-      "crm.accounts.view_sensitive",
-      "crm.activities.manage",
-    ]),
-  },
-  {
-    name: "Partner Manager",
-    slug: "partner_manager",
-    description:
-      "Partner onboarding, deal registration, MDF, partner performance and field engagement.",
-    moduleKey: "crm",
-    riskLevel: "sensitive",
-    assignable: true,
-    permissions: unique([
-      ...crmReader,
-      "parties.manage",
-      "crm.opportunities.manage",
-      ...opportunityWorker,
-      "crm.activities.manage",
     ]),
   },
   {

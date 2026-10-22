@@ -14,7 +14,7 @@ export default async function ChatPage({ params, searchParams }: { params: Promi
   const chat = await ingressTransaction((client) => getPublicChat(client, key)).catch(() => null);
   if (!chat) notFound();
   return (
-    <main className="flex h-dvh flex-col bg-white text-slate-900">
+    <main className="flex h-dvh flex-col bg-white text-slate-900 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
       <header className="border-b px-4 py-3">
         <p className="text-xs uppercase tracking-wide text-slate-500">{chat.organizationName}</p>
         <h1 className="text-base font-semibold">{chat.name}</h1>

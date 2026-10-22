@@ -271,10 +271,9 @@ export async function getVendorCreditOptions(client, context, filters = {}) {
     permissions: { claimsManage: can(context, VC_PERMISSIONS.claimsManage), claimsRespond: can(context, VC_PERMISSIONS.claimsRespond), creditsManage: can(context, VC_PERMISSIONS.creditsManage)
       || can(context, VC_PERMISSIONS.payablesManage), exceptional: can(context, VC_PERMISSIONS.creditsExceptional), post: can(context, VC_PERMISSIONS.payablesManage),
       settle: can(context, VC_PERMISSIONS.payments) },
-    suppliers: (await client.query(`SELECT supplier.id, supplier.supplier_number, party.display_name FROM tenant.procurement_suppliers supplier
-        JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
-       WHERE supplier.organization_id = $1 AND supplier.status <> 'blocked' ORDER BY party.display_name LIMIT 500`, [organizationId])).rows
-      .map((row) => ({ id: row.id, number: row.supplier_number, name: row.display_name })),
+    // A first page plus the supplier being worked on; the rest are found by typing (../options.js).
+    suppliers: (await supplierOptions(client, organizationId, { ids: filters.supplierId ? [filters.supplierId] : [] }))
+      .filter((row) => row.status !== "blocked" || row.id === filters.supplierId).map((row) => ({ id: row.id, number: row.supplier_number, name: row.name })),
     bankAccounts: (await client.query(`SELECT id, bank_name, account_name, masked_account_number, currency_code FROM tenant.accounting_bank_accounts WHERE organization_id = $1 AND status = 'active'
        ORDER BY bank_name`, [organizationId])).rows.map((row) => ({ id: row.id, name: `${row.bank_name} · ${row.account_name}${row.masked_account_number ? ` (${row.masked_account_number})` : ""}`,
       currencyCode: row.currency_code?.trim() })),

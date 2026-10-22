@@ -25,7 +25,7 @@ export type FormConfig = {
 
 export function DocumentForm({ config, id }: { config: FormConfig; id?: string }) {
   const workspace = useWorkspaceContext();
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "options"), queryFn: getOptions });
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "options"), queryFn: () => getOptions() });
   const existing = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", config.resource, id), queryFn: () => getRecord(config.resource, id!), enabled: Boolean(id) });
   if (options.isLoading || (id && existing.isLoading)) return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
   if (options.isError || !options.data) return <ErrorState title="Could not load the form" action={{ label: "Retry", onPress: () => options.refetch() }} />;

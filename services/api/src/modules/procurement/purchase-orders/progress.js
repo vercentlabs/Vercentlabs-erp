@@ -8,6 +8,7 @@
 // bill (or one awaiting approval) is shown, but never counts as billed.
 import { decimal, formatDecimal, sub } from "../../../core/decimal.js";
 import { STATUS, dayOf } from "./constants.js";
+import { databaseToday, orgTodaySql } from "../org-day.js";
 
 const dec = (value) => formatDecimal(value);
 const ZERO = 0n;
@@ -108,7 +109,7 @@ export async function trackingFor(client, organizationId, order, lines = null) {
   const progress = lines ?? await loadLineProgress(client, organizationId, order.id);
   const draftReceipts = Number((await client.query(
     `SELECT count(*) FROM tenant.goods_receipts WHERE organization_id = $1 AND purchase_order_id = $2 AND status = 'draft'`, [organizationId, order.id])).rows[0].count);
-  const today = (await client.query(`SELECT current_date::text AS today`)).rows[0].today;
+  const today = await databaseToday(client, organizationId);
   const confirmed = order.status === STATUS.confirmed;
   const overdue = confirmed && progress.some((line) => line.remainingToReceive > ZERO
     && (dayOf(line.expectedDeliveryDate ?? order.expected_delivery_date) ?? "9999-12-31") < today);
@@ -150,18 +151,22 @@ export const LIST_PROGRESS_SQL = `
            count(*) FILTER (WHERE status.open_inspection_quantity + status.open_damaged_quantity > 0) AS held_lines,
            COALESCE(sum(status.open_rejection_cases), 0) AS open_rejections,
            count(*) FILTER (WHERE status.receipt_required AND status.remaining_to_receive > 0
-                              AND COALESCE(status.expected_delivery_date, po.expected_delivery_date) < current_date) AS overdue_lines
+                              AND COALESCE(status.expected_delivery_date, po.expected_delivery_date) < ${orgTodaySql("po.organization_id")}) AS overdue_lines
       FROM tenant.purchase_order_line_status status WHERE status.organization_id = po.organization_id AND status.purchase_order_id = po.id) progress ON true
   LEFT JOIN LATERAL (
     SELECT count(*) AS draft_receipts FROM tenant.goods_receipts receipt WHERE receipt.organization_id = po.organization_id AND receipt.purchase_order_id = po.id AND receipt.status = 'draft') drafts ON true`;
-export const LIST_PROGRESS_COLUMNS = `
-  CASE WHEN progress.goods_lines = 0 THEN 'not_required'
+// An order's receiving and billing status from LIST_PROGRESS_SQL — the list's columns and its filters use the same expressions, so a
+// filtered page and its total agree.
+export const RECEIPT_STATUS_SQL = `CASE WHEN progress.goods_lines = 0 THEN 'not_required'
        WHEN progress.open_receipt_lines = 0 THEN CASE WHEN progress.cancelled_lines > 0 THEN 'complete_with_cancellations' ELSE 'fully_received' END
-       WHEN progress.received_lines > 0 THEN 'partially_received' ELSE 'not_received' END AS receipt_status,
-  CASE WHEN progress.overbilled_lines > 0 THEN 'overbilled'
+       WHEN progress.received_lines > 0 THEN 'partially_received' ELSE 'not_received' END`;
+export const BILLING_STATUS_SQL = `CASE WHEN progress.overbilled_lines > 0 THEN 'overbilled'
        WHEN progress.billed_lines = 0 THEN CASE WHEN progress.all_lines > 0 AND progress.nothing_to_bill_lines = progress.all_lines THEN 'complete_with_cancellation' ELSE 'not_billed' END
        WHEN progress.unbilled_lines > 0 THEN 'partially_billed'
-       WHEN progress.cancelled_any > 0 THEN 'complete_with_cancellation' ELSE 'fully_billed' END AS billing_status,
+       WHEN progress.cancelled_any > 0 THEN 'complete_with_cancellation' ELSE 'fully_billed' END`;
+export const LIST_PROGRESS_COLUMNS = `
+  ${RECEIPT_STATUS_SQL} AS receipt_status,
+  ${BILLING_STATUS_SQL} AS billing_status,
   (progress.goods_lines > 0 AND progress.open_receipt_lines = 0) AS receiving_complete,
   (po.status = 'confirmed' AND progress.open_receipt_lines > 0) AS ready_to_receive,
   (po.status = 'confirmed' AND progress.billable_lines > 0) AS ready_to_bill,

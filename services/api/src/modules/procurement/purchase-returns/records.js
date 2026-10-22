@@ -8,6 +8,7 @@ import {
 } from "./constants.js";
 import { getReturnBillingAllocations, returnStatuses } from "./resolution.js";
 import { can, loadReturn, orderReader, receiptLinesFor, requireReturnAccess, returnableOf } from "./returns.js";
+import { pagingOf } from "../paging.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 
@@ -202,7 +203,12 @@ export async function listPurchaseReturns(client, context, filters = {}) {
                   JOIN tenant.goods_receipts gr ON gr.organization_id = gl.organization_id AND gr.id = gl.goods_receipt_id
                  WHERE rl.organization_id = purchase_return.organization_id AND rl.purchase_return_id = purchase_return.id AND (gr.receipt_number ILIKE ${term} OR rl.description ILIKE ${term})))`;
   }
-  const { rows } = await client.query(
+  // Statuses worked out per return (financial, resolution, replacement) filter after the query, so with one of those filters the page is
+  // cut from the filtered rows; without one, the database pages (Procurement plan Phase 0, bug 7).
+  const afterQuery = Boolean(filters.financialStatus || filters.resolutionStatus || filters.replacementStatus)
+    || ["awaiting_resolution", "awaiting_financial", "awaiting_replacement"].includes(filters.view);
+  const paging = pagingOf(filters, { scoped: ["supplierId", "purchaseOrderId", "goodsReceiptId"].some((key) => isUuid(filters[key])) });
+  const sql =
     `SELECT purchase_return.*, po.purchase_order_number, party.display_name AS supplier_name, warehouse.name AS warehouse_name, users.full_name AS created_by_name,
             (SELECT array_agg(DISTINCT gr.receipt_number) FROM tenant.purchase_return_lines rl JOIN tenant.goods_receipt_lines gl ON gl.organization_id = rl.organization_id AND gl.id = rl.goods_receipt_line_id
                JOIN tenant.goods_receipts gr ON gr.organization_id = gl.organization_id AND gr.id = gl.goods_receipt_id WHERE rl.organization_id = purchase_return.organization_id
@@ -214,7 +220,8 @@ export async function listPurchaseReturns(client, context, filters = {}) {
        JOIN tenant.business_parties party ON party.organization_id = po.organization_id AND party.id = po.party_id
        LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = purchase_return.organization_id AND warehouse.id = purchase_return.warehouse_id
        LEFT JOIN public.users users ON users.id = purchase_return.created_by
-      WHERE purchase_return.organization_id = $1${where} ORDER BY purchase_return.return_date DESC, purchase_return.created_at DESC LIMIT 300`, values);
+      WHERE purchase_return.organization_id = $1${where} ORDER BY purchase_return.return_date DESC, purchase_return.created_at DESC`;
+  const { rows } = await client.query(`${sql}${afterQuery ? "" : paging.clause}`, values);
   const result = [];
   for (const row of rows) {
     const statuses = await returnStatuses(client, context, row);
@@ -232,7 +239,10 @@ export async function listPurchaseReturns(client, context, filters = {}) {
     if (filters.view === "awaiting_replacement" && !(entry.status === "posted" && ["awaiting", "partially_received"].includes(entry.replacementStatus))) continue;
     result.push(entry);
   }
-  return result;
+  if (!paging.paged) return result;
+  if (afterQuery) return { rows: result.slice(paging.offset, paging.offset + paging.limit), total: result.length, limit: paging.limit, offset: paging.offset };
+  const total = Number((await client.query(`SELECT count(*)::int AS total FROM (${sql}) counted`, values)).rows[0].total);
+  return { rows: result, total, limit: paging.limit, offset: paging.offset };
 }
 
 // getPurchaseOrderReturnSummary / getGoodsReceiptReturnSummary / getSupplierPurchaseReturns: received, returned (posted) and net retained —

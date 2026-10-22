@@ -38,3 +38,5 @@ export { MATCHING_POLICIES, RECEIPT_CODES as MATCH_RECEIPT_CODES, evaluateThreeW
 export { getGoodsReceiptBillingEligibility as getGoodsReceiptBillingProgress, getPurchaseOrderBillingMatchingSummary as getPurchaseOrderMatchingSummary } from "./partial.js";
 export { getSupplierBillMatchingResult as getSupplierBillMatchStatus } from "./bills.js";
 export { receiptLineEligibility as getEligibleGoodsReceiptLines } from "./sources.js";
+// Landed cost: a bill's freight and other charges added to the value of the goods they brought (Procurement plan Phase 3).
+export { allocateLandedCost, getBillLandedCosts } from "./landed-cost.js";

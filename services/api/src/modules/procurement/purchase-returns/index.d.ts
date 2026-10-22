@@ -37,3 +37,8 @@ export declare const PURCHASE_RETURN_PERMISSIONS: Record<string, string>;
 export declare const PURCHASE_RETURN_REASONS: ReadonlyArray<{ code: string; label: string }>;
 export declare const PURCHASE_RETURN_VIEWS: ReadonlyArray<{ key: string; label: string }>;
 export declare class PurchaseReturnError extends Error { status: number; code: string; details?: unknown; }
+// Delivery challan and e-way bill (Procurement plan Phase 2).
+export declare function getPurchaseReturnTransport(client: any, context: any, returnId: string): Promise<Record<string, any>>;
+export declare function updatePurchaseReturnTransport(client: any, context: any, returnId: string, input?: Record<string, unknown>): Promise<Record<string, any>>;
+export declare function purchaseReturnEwayBillJson(client: any, context: any, returnId: string): Promise<{ fileName: string; json: Record<string, unknown> }>;
+export declare function getPurchaseReturnChallan(client: any, context: any, returnId: string): Promise<Record<string, any>>;

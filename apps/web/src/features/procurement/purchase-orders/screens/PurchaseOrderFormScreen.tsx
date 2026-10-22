@@ -15,6 +15,7 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { ProcurementSearchPicker, useKnownRows } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useApp } from "@/shell/workspace-context/useApp";
 import { money } from "@/features/procurement/shared/format";
 import { getSupplier } from "@/features/procurement/suppliers/api/suppliers-api";
@@ -74,25 +75,48 @@ function linesFrom(detail: PurchaseOrderDetail | null, defaultWarehouse: string)
   }));
 }
 
-export function PurchaseOrderFormScreen({ orderId, supplierId }: { orderId?: string; supplierId?: string }) {
+// A copy of an earlier order (Procurement plan Phase 1, "+ New › Copy previous"): its supplier, terms and lines, with new dates and references.
+function copyOf(detail: PurchaseOrderDetail): PurchaseOrderDetail {
+  return {
+    ...detail,
+    order: { ...detail.order, orderDate: "", expectedDeliveryDate: "", supplierReference: "", supplierQuotationReference: "" },
+    lines: detail.lines.map((line) => ({ ...line, id: "", expectedDeliveryDate: "", sourceQuotationLineId: null })),
+  } as PurchaseOrderDetail;
+}
+
+export function PurchaseOrderFormScreen({ orderId, supplierId, copyFromId }: { orderId?: string; supplierId?: string; copyFromId?: string }) {
   const workspace = useWorkspaceContext();
-  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: getPurchaseOrderOptions, staleTime: 60_000 });
-  const detailQuery = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "purchase-order", orderId), queryFn: () => getPurchaseOrder(orderId!), enabled: Boolean(orderId) });
-  if (optionsQuery.isLoading || (orderId && detailQuery.isLoading)) return <LoadingState label="Loading purchase order" />;
+  const sourceId = orderId ?? copyFromId;
+  const detailQuery = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "purchase-order", sourceId), queryFn: () => getPurchaseOrder(sourceId!), enabled: Boolean(sourceId) });
+  // The order's own supplier and products come with the options' first page, so an edit knows them whatever page they are on.
+  const include = {
+    supplierIds: [detailQuery.data?.order.supplierId ?? supplierId ?? ""],
+    productIds: (detailQuery.data?.lines ?? []).map((line) => line.productId ?? ""),
+    supplierId: detailQuery.data?.order.supplierId ?? supplierId,
+  };
+  const optionsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "procurement", "po-options", include.supplierIds.join(","), include.productIds.join(",")),
+    queryFn: () => getPurchaseOrderOptions(include), staleTime: 60_000, enabled: !sourceId || Boolean(detailQuery.data),
+  });
+  if ((sourceId && detailQuery.isLoading) || optionsQuery.isLoading) return <LoadingState label="Loading purchase order" />;
   if (!optionsQuery.data) return <ErrorState title="Could not load the form" action={{ label: "Retry", onPress: () => optionsQuery.refetch() }} />;
+  if (copyFromId && !orderId) {
+    if (!detailQuery.data) return <ErrorState title="Could not load the order to copy" description={errorMessage(detailQuery.error)} action={{ label: "Retry", onPress: () => detailQuery.refetch() }} />;
+    return <OrderForm key={`copy-${copyFromId}`} options={optionsQuery.data} detail={null} copy={copyOf(detailQuery.data)} supplierId={supplierId} />;
+  }
   if (orderId && !detailQuery.data) return <ErrorState title="Could not load this purchase order" description={errorMessage(detailQuery.error)} action={{ label: "Retry", onPress: () => detailQuery.refetch() }} />;
   if (detailQuery.data && !detailQuery.data.actions.edit)
     return <ErrorState title="This order cannot be edited" description={`It is ${detailQuery.data.order.statusLabel.toLowerCase()}. A confirmed order is changed by amending it.`} />;
   return <OrderForm key={orderId ?? "new"} options={optionsQuery.data} detail={detailQuery.data ?? null} supplierId={supplierId} />;
 }
 
-function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOptions; detail: PurchaseOrderDetail | null; supplierId?: string }) {
+function OrderForm({ options, detail, supplierId, copy = null }: { options: PurchaseOrderOptions; detail: PurchaseOrderDetail | null; supplierId?: string; copy?: PurchaseOrderDetail | null }) {
   const workspace = useWorkspaceContext();
   // Without Stock nothing is received into a warehouse: goods are marked received on the order.
   const stockOn = useApp("stock");
   const router = useRouter();
-  const [header, setHeader] = useState<Header>(() => headerFrom(detail, supplierId, options));
-  const [lines, setLines] = useState<Line[]>(() => linesFrom(detail, options.settings.defaultWarehouseId ?? ""));
+  const [header, setHeader] = useState<Header>(() => headerFrom(detail ?? copy, supplierId, options));
+  const [lines, setLines] = useState<Line[]>(() => linesFrom(detail ?? copy, options.settings.defaultWarehouseId ?? "").map((line) => (copy && !detail ? { ...line, lineId: undefined } : line)));
   const [failure, setFailure] = useState<unknown>(null);
   const set = (key: keyof Header) => (value: string) => setHeader((current) => ({ ...current, [key]: value }));
   const setLine = (key: number, change: Partial<Line>) => setLines((current) => current.map((line) => (line.key === key ? { ...line, ...change } : line)));
@@ -146,7 +170,9 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
     onError: setFailure,
   });
 
-  const productOptions = options.products.map((product) => ({ value: product.id, label: `${product.name} (${product.code})` }));
+  // The suppliers and products this form knows: the options' first page and every one picked since (ProcurementSearchPicker).
+  const [knownSuppliers, keepSupplier] = useKnownRows(options.suppliers);
+  const [knownProducts, keepProduct] = useKnownRows(options.products);
   const uomOptions = options.uoms.map((uom) => ({ value: uom.id, label: uom.code }));
   const warehouseOptions = options.warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }));
   const choosePerson = supplier ? supplier.contacts.filter((contact) => contact.status === "active").map((contact) => ({ value: contact.id, label: contact.name })) : [];
@@ -172,10 +198,12 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
     >
       <FormSection columns={1} title="Supplier and terms" description="Choosing the supplier proposes its currency, payment terms, buyer, contact and locations. Change what differs.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Select label="Supplier" isRequired selectedKey={header.supplierId || null} isDisabled={Boolean(detail?.order.sourceQuotationId)}
-            onSelectionChange={(value) => setHeader((current) => ({ ...current, supplierId: String(value), supplierContactId: DEFAULT, supplierAddressId: DEFAULT, supplierBillingAddressId: DEFAULT,
-              supplierShipFromId: DEFAULT, currencyCode: DEFAULT, paymentTermId: DEFAULT }))}
-            options={options.suppliers.filter((entry) => entry.status === "active" || entry.id === header.supplierId).map((entry) => ({ value: entry.id, label: `${entry.name} · ${entry.supplier_number}` }))} />
+          <ProcurementSearchPicker kind="suppliers" label="Supplier" isRequired activeOnly value={header.supplierId || null} isDisabled={Boolean(detail?.order.sourceQuotationId)}
+            known={knownSuppliers} onPick={(id, row) => {
+              keepSupplier(row as (typeof knownSuppliers)[number] | null);
+              setHeader((current) => ({ ...current, supplierId: id, supplierContactId: DEFAULT, supplierAddressId: DEFAULT, supplierBillingAddressId: DEFAULT,
+                supplierShipFromId: DEFAULT, currencyCode: DEFAULT, paymentTermId: DEFAULT }));
+            }} />
           <Select label="Currency" selectedKey={header.currencyCode} onSelectionChange={(value) => set("currencyCode")(String(value))}
             options={[{ value: DEFAULT, label: `Supplier's (${preview?.currencyCode ?? "…"})` }, ...options.currencies.map((currency) => ({ value: currency.code, label: currency.code }))]} />
           <Select label="Payment terms" selectedKey={header.paymentTermId} onSelectionChange={(value) => set("paymentTermId")(String(value))}
@@ -236,7 +264,7 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
         <div className="flex flex-col gap-3">
           {lines.map((line, index) => {
             const priced = preview?.lines[lines.filter((entry) => entry.productId || entry.descriptive).indexOf(line)];
-            const product = options.products.find((entry) => entry.id === line.productId);
+            const product = knownProducts.find((entry) => entry.id === line.productId);
             const stocked = line.descriptive ? false : product ? product.item_type !== "service" : true;
             return (
               <div key={line.key} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
@@ -248,17 +276,19 @@ function OrderForm({ options, detail, supplierId }: { options: PurchaseOrderOpti
                         options={[{ value: "service", label: "Service" }, { value: "non_stock", label: "Non-stock item" }]} />
                     </>
                   ) : (
-                    <Select className="sm:col-span-3" label={`Line ${index + 1} product`} selectedKey={line.productId || null} isDisabled={Boolean(line.sourceQuotationLineId)}
-                      onSelectionChange={(value) => {
-                        const chosen = options.products.find((entry) => entry.id === String(value));
-                        setLine(line.key, { productId: String(value), uomId: chosen?.purchase_uom_id ?? chosen?.uom_id ?? "",
-                          unitPrice: line.unitPrice || (chosen?.last_purchase_price ? trimNumber(chosen.last_purchase_price) : "") });
-                      }} options={productOptions} />
+                    <ProcurementSearchPicker kind="products" className="sm:col-span-3" label={`Line ${index + 1} product`} value={line.productId || null}
+                      isDisabled={Boolean(line.sourceQuotationLineId)} supplierId={header.supplierId || null} known={knownProducts}
+                      onPick={(id, row) => {
+                        const chosen = (row ?? knownProducts.find((entry) => entry.id === id)) as (typeof knownProducts)[number] | undefined;
+                        keepProduct(chosen ?? null);
+                        setLine(line.key, { productId: id, uomId: chosen?.purchase_uom_id ?? chosen?.uom_id ?? "",
+                          unitPrice: line.unitPrice || (chosen?.contract_rate ? trimNumber(chosen.contract_rate) : chosen?.last_purchase_price ? trimNumber(chosen.last_purchase_price) : "") });
+                      }} />
                   )}
                   <TextField label="Quantity" inputMode="decimal" value={line.quantity} onChange={(value) => setLine(line.key, { quantity: value })} />
                   <Select label="Unit" selectedKey={line.uomId || null} onSelectionChange={(value) => setLine(line.key, { uomId: String(value) })} options={uomOptions} isDisabled={Boolean(line.sourceQuotationLineId)} />
                   <TextField label={`Unit price (${preview?.currencyCode ?? ""})`} inputMode="decimal" value={line.unitPrice} onChange={(value) => setLine(line.key, { unitPrice: value })}
-                    description={line.sourceQuotationLineId ? "Quoted price" : product?.last_purchase_price ? `Last price paid ${trimNumber(product.last_purchase_price)}: confirm the agreed price` : undefined} />
+                    description={line.sourceQuotationLineId ? "Quoted price" : product?.contract_rate ? `Rate contract ${product.contract_number}: ${trimNumber(product.contract_rate)}` : product?.last_purchase_price ? `Last price paid ${trimNumber(product.last_purchase_price)}: confirm the agreed price` : undefined} />
                 </div>
                 <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-6">
                   <Select label="Discount" selectedKey={line.discountType} onSelectionChange={(value) => setLine(line.key, { discountType: String(value) })}

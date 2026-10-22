@@ -1,7 +1,6 @@
-import { SupplierQuotationsScreen } from "@/features/procurement/purchase-orders/screens/QuotationScreens";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Supplier quotations" };
-
+// Supplier quotations moved to Buy › RFQs & Quotations (Procurement plan Phase 2); this address keeps working.
 export default function Page() {
-  return <SupplierQuotationsScreen />;
+  redirect("/procurement/rfqs?view=quotations");
 }

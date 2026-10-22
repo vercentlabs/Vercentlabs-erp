@@ -8,8 +8,9 @@ import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { assertSupplierUsable } from "../suppliers/defaults.js";
 import { poCan, requirePoPermission } from "./access.js";
 import { PO_PERMISSIONS, PurchaseOrderError, STATUS, dayOf, fail, has, isUuid, optionalUuid, readDate, requireUuid, text } from "./constants.js";
-import { databaseToday, resolveOrderDocument, translated } from "./document.js";
+import { databaseToday, orgTodaySql, resolveOrderDocument, translated } from "./document.js";
 import { insertOrder, recordPoEvent } from "./persist.js";
+import { pagedList } from "../paging.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -40,43 +41,54 @@ async function readQuotationInput(client, context, input, current = null) {
     const discountValue = discountType ? String(line.discountValue ?? "0").trim() : "0";
     if (!QTY.test(discountValue) || (discountType === "percent" && decimal(discountValue) > decimal(100))) fail(`${label}: check the discount.`, "discountValue");
     parsed.push({ itemId, description: text(line.description, 2000), quantity, uomId: optionalUuid(line.uomId, "Unit") ?? item.purchase_uom_id ?? item.uom_id, unitPrice: price,
-      discountType, discountValue, taxCategoryId: optionalUuid(line.taxCategoryId, "Tax category") });
+      discountType, discountValue, taxCategoryId: optionalUuid(line.taxCategoryId, "Tax category"), rfqLineId: optionalUuid(line.rfqLineId, "RFQ line") });
   }
   const discountType = ["percent", "amount"].includes(input.documentDiscountType) ? input.documentDiscountType : has(input, "documentDiscountType") ? null : current?.document_discount_type ?? null;
   return {
     supplierId, currencyCode, lines: lines ? parsed : null,
     supplierReference: has(input, "supplierReference") ? text(input.supplierReference, 200) : current?.supplier_reference ?? null,
     rfqReference: has(input, "rfqReference") ? text(input.rfqReference, 200) : current?.rfq_reference ?? null,
-    quotationDate: readDate(input.quotationDate, "Quotation date") ?? (current ? dayOf(current.quotation_date) : await databaseToday(client)),
+    quotationDate: readDate(input.quotationDate, "Quotation date") ?? (current ? dayOf(current.quotation_date) : await databaseToday(client, context.organizationId)),
     validUntil: has(input, "validUntil") ? readDate(input.validUntil, "Valid until") : current ? dayOf(current.valid_until) : null,
     paymentTermId: has(input, "paymentTermId") ? optionalUuid(input.paymentTermId, "Payment terms") : current?.payment_term_id ?? null,
     priceMode: (has(input, "priceMode") ? input.priceMode : current?.price_mode) === "inclusive" ? "inclusive" : "exclusive",
     documentDiscountType: discountType, documentDiscountValue: discountType ? String(input.documentDiscountValue ?? current?.document_discount_value ?? "0") : "0",
     deliveryLeadDays: has(input, "deliveryLeadDays") ? (input.deliveryLeadDays === null || input.deliveryLeadDays === "" ? null : Math.max(0, Math.floor(Number(input.deliveryLeadDays) || 0))) : current?.delivery_lead_days ?? null,
     notes: has(input, "notes") ? text(input.notes, 4000) : current?.notes ?? null,
+    // Freight and other charges on the quotation (Procurement plan Phase 2), for the RFQ comparison's landed rate.
+    freightAmount: has(input, "freightAmount") ? readFreight(input.freightAmount) : current ? formatDecimal(current.freight_amount ?? 0) : "0",
   };
+}
+
+function readFreight(value) {
+  const raw = value === null || value === undefined || value === "" ? "0" : String(value).trim();
+  if (!/^\d+(\.\d{1,6})?$/.test(raw)) fail("Freight and other charges must be zero or more.", "freightAmount");
+  return raw;
 }
 
 async function writeQuotationLines(client, context, quotationId, lines) {
   await client.query(`DELETE FROM tenant.supplier_quotation_lines WHERE organization_id = $1 AND supplier_quotation_id = $2`, [context.organizationId, quotationId]);
   for (const [index, line] of lines.entries()) {
     await client.query(
-      `INSERT INTO tenant.supplier_quotation_lines (organization_id, supplier_quotation_id, line_number, item_id, description, quantity, uom_id, unit_price, discount_type, discount_value, tax_category_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [context.organizationId, quotationId, index + 1, line.itemId, line.description, line.quantity, line.uomId, line.unitPrice, line.discountType, line.discountValue, line.taxCategoryId]);
+      `INSERT INTO tenant.supplier_quotation_lines (organization_id, supplier_quotation_id, line_number, item_id, description, quantity, uom_id, unit_price, discount_type, discount_value, tax_category_id,
+         rfq_line_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [context.organizationId, quotationId, index + 1, line.itemId, line.description, line.quantity, line.uomId, line.unitPrice, line.discountType, line.discountValue, line.taxCategoryId,
+        line.rfqLineId ?? null]);
   }
 }
 
-export async function createSupplierQuotation(client, context, input = {}) {
+// options.rfqId: the RFQ the quotation answers (recorded from the RFQ; ../rfqs).
+export async function createSupplierQuotation(client, context, input = {}, { rfqId = null } = {}) {
   requirePoPermission(context, PO_PERMISSIONS.quotations, "You do not have permission to record supplier quotations.");
   const data = await readQuotationInput(client, context, input);
   const number = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: "supplier_quotation" });
   const row = (await client.query(
     `INSERT INTO tenant.supplier_quotations (organization_id, quotation_number, supplier_id, supplier_reference, rfq_reference, quotation_date, valid_until, currency_code, payment_term_id,
-       price_mode, document_discount_type, document_discount_value, delivery_lead_days, notes, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15) RETURNING id, quotation_number`,
+       price_mode, document_discount_type, document_discount_value, delivery_lead_days, notes, created_by, updated_by, freight_amount, rfq_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17) RETURNING id, quotation_number`,
     [context.organizationId, number, data.supplierId, data.supplierReference, data.rfqReference, data.quotationDate, data.validUntil, data.currencyCode, data.paymentTermId, data.priceMode,
-      data.documentDiscountType, data.documentDiscountValue, data.deliveryLeadDays, data.notes, context.userId ?? null])).rows[0];
+      data.documentDiscountType, data.documentDiscountValue, data.deliveryLeadDays, data.notes, context.userId ?? null, data.freightAmount, rfqId])).rows[0];
   await writeQuotationLines(client, context, row.id, data.lines);
   return { id: row.id, quotationNumber: row.quotation_number };
 }
@@ -94,10 +106,10 @@ export async function updateSupplierQuotation(client, context, quotationId, inpu
   const data = await readQuotationInput(client, context, input, current);
   await client.query(
     `UPDATE tenant.supplier_quotations SET supplier_id = $3, supplier_reference = $4, rfq_reference = $5, quotation_date = $6, valid_until = $7, currency_code = $8, payment_term_id = $9,
-            price_mode = $10, document_discount_type = $11, document_discount_value = $12, delivery_lead_days = $13, notes = $14, updated_by = $15, updated_at = now()
+            price_mode = $10, document_discount_type = $11, document_discount_value = $12, delivery_lead_days = $13, notes = $14, updated_by = $15, freight_amount = $16, updated_at = now()
       WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, current.id, data.supplierId, data.supplierReference, data.rfqReference, data.quotationDate, data.validUntil, data.currencyCode, data.paymentTermId,
-      data.priceMode, data.documentDiscountType, data.documentDiscountValue, data.deliveryLeadDays, data.notes, context.userId ?? null]);
+      data.priceMode, data.documentDiscountType, data.documentDiscountValue, data.deliveryLeadDays, data.notes, context.userId ?? null, data.freightAmount]);
   if (data.lines) await writeQuotationLines(client, context, current.id, data.lines);
   return { id: current.id };
 }
@@ -133,12 +145,13 @@ export async function getSupplierQuotation(client, context, quotationId) {
       currencyCode: row.currency_code?.trim(), paymentTermId: row.payment_term_id, paymentTermName: row.payment_term_name, priceMode: row.price_mode,
       documentDiscountType: row.document_discount_type, documentDiscountValue: dec(row.document_discount_value), deliveryLeadDays: row.delivery_lead_days, notes: row.notes,
       status: row.status, convertedPurchaseOrderId: row.converted_purchase_order_id, convertedPurchaseOrderNumber: row.converted_purchase_order_number,
-      expired: Boolean(row.valid_until && dayOf(row.valid_until) < await databaseToday(client)),
+      expired: Boolean(row.valid_until && dayOf(row.valid_until) < await databaseToday(client, context.organizationId)),
+      freightAmount: dec(row.freight_amount ?? 0), rfqId: row.rfq_id ?? null,
     },
     lines: lines.map((line) => ({
       id: line.id, lineNumber: line.line_number, productId: line.item_id, productCode: line.item_code, productName: line.item_name, description: line.description,
       quantity: dec(line.quantity), uomId: line.uom_id, uomCode: line.uom_code, unitPrice: dec(line.unit_price), discountType: line.discount_type, discountValue: dec(line.discount_value),
-      taxCategoryId: line.tax_category_id,
+      taxCategoryId: line.tax_category_id, rfqLineId: line.rfq_line_id ?? null,
     })),
     actions: {
       edit: row.status === "received" && poCan(context, PO_PERMISSIONS.quotations),
@@ -151,12 +164,18 @@ export async function getSupplierQuotation(client, context, quotationId) {
 export async function listSupplierQuotations(client, context, filters = {}) {
   requireQuotationAccess(context);
   const values = [context.organizationId];
+  // Buyer scope, like purchase orders (Procurement plan Phase 0, bug 9): without View all orders, the quotations they recorded and those
+  // that became one of their own orders.
   let where = "";
+  if (!poCan(context, PO_PERMISSIONS.viewAll)) {
+    values.push(context.userId ?? null);
+    where += ` AND (quotation.created_by = $${values.length} OR po.buyer_user_id = $${values.length} OR po.created_by = $${values.length})`;
+  }
   if (["received", "converted", "cancelled"].includes(filters.status)) { values.push(filters.status); where += ` AND quotation.status = $${values.length}`; }
   if (isUuid(filters.supplierId)) { values.push(filters.supplierId); where += ` AND quotation.supplier_id = $${values.length}`; }
   const search = text(filters.search, 120);
   if (search) { values.push(`%${search}%`); where += ` AND (quotation.quotation_number ILIKE $${values.length} OR quotation.supplier_reference ILIKE $${values.length} OR party.display_name ILIKE $${values.length})`; }
-  const { rows } = await client.query(
+  return pagedList(client,
     `SELECT quotation.id, quotation.quotation_number, quotation.status, quotation.quotation_date, quotation.valid_until, quotation.currency_code, quotation.supplier_reference,
             party.display_name AS supplier_name, po.purchase_order_number, quotation.converted_purchase_order_id,
             (SELECT COALESCE(sum(line.quantity * line.unit_price), 0) FROM tenant.supplier_quotation_lines line WHERE line.organization_id = quotation.organization_id AND line.supplier_quotation_id = quotation.id) AS gross
@@ -164,8 +183,7 @@ export async function listSupplierQuotations(client, context, filters = {}) {
        JOIN tenant.procurement_suppliers supplier ON supplier.organization_id = quotation.organization_id AND supplier.id = quotation.supplier_id
        JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
        LEFT JOIN tenant.purchase_orders po ON po.organization_id = quotation.organization_id AND po.id = quotation.converted_purchase_order_id
-      WHERE quotation.organization_id = $1${where} ORDER BY quotation.quotation_date DESC, quotation.created_at DESC LIMIT 300`, values);
-  return rows.map((row) => ({
+      WHERE quotation.organization_id = $1${where} ORDER BY quotation.quotation_date DESC, quotation.created_at DESC`, values, filters, (row) => ({
     id: row.id, quotationNumber: row.quotation_number, status: row.status, quotationDate: dayOf(row.quotation_date), validUntil: dayOf(row.valid_until), currencyCode: row.currency_code?.trim(),
     supplierReference: row.supplier_reference, supplierName: row.supplier_name, grossValue: dec(row.gross), purchaseOrderId: row.converted_purchase_order_id,
     purchaseOrderNumber: row.purchase_order_number,
@@ -189,14 +207,14 @@ export async function createPurchaseOrderFromQuotation(client, context, quotatio
   if (quotation.status !== "received") throw new PurchaseOrderError(409, "A cancelled quotation cannot become an order.", "SUPPLIER_QUOTATION_LOCKED");
   const lines = (await client.query(`SELECT * FROM tenant.supplier_quotation_lines WHERE organization_id = $1 AND supplier_quotation_id = $2 ORDER BY line_number`,
     [context.organizationId, quotation.id])).rows;
-  const today = await databaseToday(client);
+  const today = await databaseToday(client, context.organizationId);
   const document = {
     ...input,
     supplierId: quotation.supplier_id, currencyCode: quotation.currency_code.trim(), paymentTermId: quotation.payment_term_id ?? input.paymentTermId ?? undefined,
     priceMode: quotation.price_mode, documentDiscountType: quotation.document_discount_type, documentDiscountValue: formatDecimal(quotation.document_discount_value),
     supplierQuotationReference: quotation.supplier_reference ?? quotation.quotation_number,
     expectedDeliveryDate: input.expectedDeliveryDate ?? (quotation.delivery_lead_days != null
-      ? (await client.query(`SELECT (current_date + $1::int)::text AS day`, [quotation.delivery_lead_days])).rows[0].day : undefined),
+      ? (await client.query(`SELECT (${orgTodaySql("$2::uuid")} + $1::int)::text AS day`, [quotation.delivery_lead_days, context.organizationId])).rows[0].day : undefined),
     lines: lines.map((line) => ({
       productId: line.item_id, description: line.description ?? undefined, quantity: formatDecimal(line.quantity), uomId: line.uom_id, unitPrice: formatDecimal(line.unit_price),
       discountType: line.discount_type, discountValue: formatDecimal(line.discount_value), priceSource: "quotation", sourceQuotationLineId: line.id,

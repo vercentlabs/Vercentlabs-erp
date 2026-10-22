@@ -58,5 +58,21 @@ export const updateRecord = (
   patch<{ record: ProcRecord }>(`/${resource}/${id}`, input).then(
     (r) => r.record,
   );
-export const getOptions = () =>
-  request<{ options: ProcOptions }>("/options").then((r) => r.options);
+// Suppliers and items are a first page plus the ones asked for; the rest are found by typing (ProcurementSearchPicker).
+export const getOptions = (include: { supplierIds?: string[]; itemIds?: string[] } = {}) =>
+  request<{ options: ProcOptions }>(`/options${qs({ supplierIds: include.supplierIds?.filter(Boolean).join(","), itemIds: include.itemIds?.filter(Boolean).join(",") })}`).then((r) => r.options);
+
+// A supplier or purchasable item as the pickers show it (services/api/src/modules/procurement/options.js): one shape for every screen.
+export type ProcurementPickRow = {
+  id: string; label: string; name: string; status?: string; selectable?: boolean;
+  // suppliers
+  supplier_number?: string; display_name?: string; currency_code?: string | null; payment_term_id?: string | null; withholding_section_id?: string | null;
+  gstin?: string | null; msme?: boolean;
+  // products
+  code?: string; item_type?: string; track_inventory?: boolean; purchase_uom_id?: string | null; uom_id?: string | null; tax_category_id?: string | null;
+  last_purchase_price?: string | null; contract_rate?: string | null; contract_number?: string | null;
+};
+export const searchProcurementOptions = (input: { kind: "suppliers" | "products"; search?: string; ids?: string[]; supplierId?: string | null; activeOnly?: boolean }) =>
+  request<{ suppliers?: ProcurementPickRow[]; products?: ProcurementPickRow[] }>(`/options/search${qs({
+    kind: input.kind, search: input.search, ids: input.ids?.join(","), supplierId: input.supplierId ?? undefined, activeOnly: input.activeOnly ? "true" : undefined,
+  })}`);

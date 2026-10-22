@@ -13,7 +13,9 @@ import { Button, Checkbox, ErrorState, PageHeader, Select, TextArea, TextField }
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { ANY_PICK, ProcurementSearchPicker, useKnownRows } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { getSupplierAdvances } from "../../payments/api";
 import { calendarDate, money, quantity } from "@/features/procurement/shared/format";
 import { listPurchaseOrders } from "@/features/procurement/purchase-orders/api/purchase-orders-api";
 import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
@@ -38,8 +40,11 @@ const trim = (value: string | null | undefined) => (value == null || value === "
 
 export function SupplierBillFormScreen({ orderId, receiptIds, billId, source, supplierId }: { orderId?: string; receiptIds?: string[]; billId?: string; source?: string; supplierId?: string }) {
   const workspace = useWorkspaceContext();
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill-options"), queryFn: getBillOptions, staleTime: 60_000 });
   const existing = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill", billId), queryFn: () => getBill(billId!), enabled: Boolean(billId) });
+  // The bill's own (or the preset) supplier comes with the options' first page, so the form knows it whatever page it is on.
+  const supplierIds = [existing.data?.bill.supplierId ?? supplierId ?? ""];
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill-options", supplierIds.join(",")), queryFn: () => getBillOptions({ supplierIds }),
+    staleTime: 60_000, enabled: !billId || Boolean(existing.data) });
   if (options.isLoading || existing.isLoading) return <LoadingState label="Loading supplier bill" />;
   if (!options.data || (billId && !existing.data)) return <ErrorState title="Could not load the bill form" description={errorMessage(options.error ?? existing.error)} />;
   if (existing.data && existing.data.bill.status !== "draft") return <ErrorState title="This bill cannot be edited" description="Only a draft is edited. Correct a posted bill with a vendor credit, or reverse it." />;
@@ -82,7 +87,7 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
     postingDate: saved?.postingDate ?? "", dueDate: saved?.dueDateOverrideReason ? saved.dueDate ?? "" : "", dueDateOverrideReason: saved?.dueDateOverrideReason ?? "",
     paymentTermId: saved?.paymentTermId ?? "", currencyCode: saved?.currencyCode ?? "", exchangeRate: saved && saved.currencyCode !== saved.baseCurrencyCode ? saved.exchangeRate : "",
     supplierTaxRegistrationId: saved?.supplierTaxRegistrationId ?? "", buyingRegistrationId: saved?.buyingRegistrationId ?? "", placeOfSupply: saved?.placeOfSupply ?? "",
-    withholdingSectionId: saved ? saved.withholdingSection?.id ?? "none" : "default", supplierInvoiceTotal: saved?.supplierStatedTotal ? trim(saved.supplierStatedTotal) : "",
+    withholdingSectionId: saved ? saved.withholdingSection?.id ?? "none" : "default", supplierInvoiceTotal: saved?.supplierStatedTotal ? trim(saved.supplierStatedTotal) : "", tcsAmount: saved?.tcsAmount && Number(saved.tcsAmount) ? trim(saved.tcsAmount) : "",
     notes: saved?.notes ?? "", priceMode: saved?.priceMode ?? "exclusive",
     documentDiscountType: "none", documentDiscountValue: "", invoiceReceivedDate: saved?.invoiceReceivedDate ?? "", acceptanceDate: saved?.acceptanceDate ?? "",
     supplierStatedTermId: saved?.supplierStatedTermId ?? "", supplierStatedTerms: saved?.supplierStatedTerms ?? "", paymentTermChangeReason: saved?.paymentTermChangeReason ?? "",
@@ -98,6 +103,8 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
   })) : [blankDirect()]);
 
   const [orderSupplier, setOrderSupplier] = useState<string>(presetSupplierId ?? "");
+  // The suppliers this form knows: the options' first page and every one picked since (ProcurementSearchPicker).
+  const [knownSuppliers, keepSupplier] = useKnownRows(options.suppliers);
   const orders = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "billable-orders", orderSupplier), queryFn: () => listPurchaseOrders({ view: "confirmed", limit: 200, supplierId: orderSupplier || undefined }),
     enabled: source !== null && source !== "direct" && !saved });
   const eligibility = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill-eligibility", orderId, saved?.id), queryFn: () => getEligibility(orderId, saved?.id),
@@ -106,6 +113,10 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
   // only between several GSTINs).
   const defaults = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill-defaults", header.supplierId), queryFn: () => getSupplierBillDefaults(header.supplierId),
     enabled: source === "direct" && Boolean(header.supplierId) });
+  // Advances the supplier has paid and not used (Procurement plan Phase 1): shown while the bill is entered, adjusted once it posts.
+  const billSupplier = source === "direct" ? header.supplierId : eligibility.data?.order.supplierId ?? "";
+  const advances = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "supplier-advances", billSupplier, orderId),
+    queryFn: () => getSupplierAdvances(billSupplier, orderId || undefined), enabled: Boolean(billSupplier) && !saved, staleTime: 30_000 });
   const receiptChoices = useMemo(() => [...new Map((eligibility.data?.lines ?? []).flatMap((line) => line.receipts).filter((entry) => Number(entry.remaining) > 0 || receipts.includes(entry.goodsReceiptId))
     .map((entry) => [entry.goodsReceiptId, entry.receiptNumber])).entries()], [eligibility.data, receipts]);
 
@@ -114,7 +125,7 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
       sourceType: source, supplierInvoiceNumber: header.supplierInvoiceNumber || null, supplierInvoiceDate: header.supplierInvoiceDate || undefined, postingDate: header.postingDate || undefined,
       dueDate: header.dueDate || undefined, dueDateOverrideReason: header.dueDateOverrideReason || undefined, paymentTermId: header.paymentTermId || undefined,
       placeOfSupply: header.placeOfSupply || undefined, supplierTaxRegistrationId: header.supplierTaxRegistrationId || undefined, buyingRegistrationId: header.buyingRegistrationId || undefined,
-      supplierInvoiceTotal: header.supplierInvoiceTotal || null, notes: header.notes || null, invoiceReceivedDate: header.invoiceReceivedDate || null, acceptanceDate: header.acceptanceDate || null,
+      supplierInvoiceTotal: header.supplierInvoiceTotal || null, tcsAmount: header.tcsAmount || "0", notes: header.notes || null, invoiceReceivedDate: header.invoiceReceivedDate || null, acceptanceDate: header.acceptanceDate || null,
       supplierStatedTermId: header.supplierStatedTermId || null, supplierStatedTerms: header.supplierStatedTerms || null, paymentTermChangeReason: header.paymentTermChangeReason || null,
       ...(header.withholdingSectionId === "default" ? {} : { withholdingSectionId: header.withholdingSectionId === "none" ? null : header.withholdingSectionId }),
       ...(header.exchangeRate ? { exchangeRate: header.exchangeRate } : {}),
@@ -184,8 +195,8 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
         {source !== "direct" && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {!saved && (
-              <Select label="Supplier" selectedKey={orderSupplier || "any"} onSelectionChange={(value) => { setOrderSupplier(value === "any" ? "" : String(value)); setOrderId(""); setOrderRows({}); setReceipts([]); }}
-                options={[{ value: "any", label: "Any supplier" }, ...options.suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} />
+              <ProcurementSearchPicker kind="suppliers" label="Supplier" anyLabel="Any supplier" value={orderSupplier || null} known={knownSuppliers}
+                onPick={(id, row) => { keepSupplier(row as (typeof knownSuppliers)[number] | null); setOrderSupplier(id === ANY_PICK ? "" : id); setOrderId(""); setOrderRows({}); setReceipts([]); }} />
             )}
             <Select label="Purchase order" isDisabled={Boolean(saved)} selectedKey={orderId || null} onSelectionChange={(value) => { setOrderId(String(value)); setOrderRows({}); setReceipts([]); }}
               options={(orders.data?.rows ?? (saved ? [{ id: saved.purchaseOrderId!, purchaseOrderNumber: saved.purchaseOrderNumber!, supplierName: saved.supplierName }] : []))
@@ -203,8 +214,8 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
         )}
         {source === "direct" && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Select label="Supplier" isRequired isDisabled={Boolean(saved)} selectedKey={header.supplierId || null} onSelectionChange={(value) => set("supplierId")(String(value))}
-              options={options.suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.name}${supplier.status !== "active" ? ` (${supplier.status})` : ""}` }))} />
+            <ProcurementSearchPicker kind="suppliers" label="Supplier" isRequired isDisabled={Boolean(saved)} value={header.supplierId || null} known={knownSuppliers}
+              onPick={(id, row) => { keepSupplier(row as (typeof knownSuppliers)[number] | null); set("supplierId")(id); }} />
             <Select label="Currency" selectedKey={header.currencyCode || "default"} onSelectionChange={(value) => set("currencyCode")(value === "default" ? "" : String(value))}
               options={[{ value: "default", label: defaults.data?.currencyCode ? `Supplier's default (${defaults.data.currencyCode})` : "Supplier's default" }, ...options.currencies.map((entry) => ({ value: entry.code, label: `${entry.code} · ${entry.name}` }))]} />
             <Select label="Prices on the invoice" selectedKey={header.priceMode} onSelectionChange={(value) => set("priceMode")(String(value))}
@@ -232,7 +243,9 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
           <TextField label="Due date" type="date" value={header.dueDate} onChange={set("dueDate")} isDisabled={!options.capabilities.overrideDueDate}
             description={computedDue ? `From the terms: ${calendarDate(computedDue)}${options.capabilities.overrideDueDate ? ". A different date needs a reason." : "."}` : "Worked out from the terms."} />
           {overriding && <TextField label="Reason for the due date" isRequired value={header.dueDateOverrideReason} onChange={set("dueDateOverrideReason")} />}
-          <TextField label="Total on the supplier's invoice" inputMode="decimal" value={header.supplierInvoiceTotal} onChange={set("supplierInvoiceTotal")} description="Checked against the calculation." />
+          <TextField label="Total on the supplier's invoice" inputMode="decimal" value={header.supplierInvoiceTotal} onChange={set("supplierInvoiceTotal")} description="Checked against the calculation (TCS included)." />
+          <TextField label="TCS collected by the supplier" inputMode="decimal" value={header.tcsAmount} onChange={set("tcsAmount")}
+            description="Only when the invoice charges TCS (s.206C): added to what you owe, claimed back as TCS receivable." />
           {(source === "direct" ? defaults.data?.registrations.length ?? 0 : preview.data?.header.registrationChoices ?? 0) > 1 && (
             <Select label="Supplier GSTIN (on the invoice)" isRequired selectedKey={header.supplierTaxRegistrationId || null} onSelectionChange={(value) => set("supplierTaxRegistrationId")(String(value))}
               options={(defaults.data?.registrations ?? []).map((entry) => ({ value: entry.id, label: `${entry.gstin} · state ${entry.stateCode}` }))} />
@@ -249,6 +262,13 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
         </div>
       </FormSection>
 
+      {advances.data && Number(advances.data.total) > 0 && (
+        <Notice tone="info">
+          Advance paid: {money(advances.data.advances[0]?.currencyCode ?? "INR", advances.data.total)} not used yet ({advances.data.advances.map((entry) =>
+            `${entry.number}${entry.againstThisOrder ? " against this order" : entry.purchaseOrderNumber ? ` against ${entry.purchaseOrderNumber}` : ""}`).join(", ")}).
+          Once this bill is posted, apply it from the bill: Apply advance.
+        </Notice>
+      )}
       {source !== "direct" && eligibility.data && (
         <>
         {eligibility.data.order.matchingPolicy && (
@@ -393,7 +413,8 @@ function BillForm({ options, existing, presetSource, presetOrderId, presetReceip
               {[["Subtotal", preview.data.totals.gross], ["Discounts", String(Number(preview.data.totals.lineDiscount) + Number(preview.data.totals.documentDiscount))], ["Taxable value", preview.data.totals.taxable],
                 ["Tax", preview.data.totals.tax], ...(Number(preview.data.totals.reverseChargeTax) > 0 ? [["Reverse-charge tax (self-assessed)", preview.data.totals.reverseChargeTax]] : []),
                 ["Invoice total", preview.data.totals.invoiceTotal], ...(Number(preview.data.totals.withholding) > 0 ? [[`TDS${preview.data.header.withholdingSection ? ` (${preview.data.header.withholdingSection.code})` : ""}`, `-${preview.data.totals.withholding}`]] : []),
-                ["Net payable", preview.data.totals.netPayable]].map(([name, value]) => (
+                ...(Number(preview.data.tcs ?? 0) > 0 ? [["TCS collected by the supplier", preview.data.tcs ?? "0"]] : []),
+                ["Net payable", String(Number(preview.data.totals.netPayable) + Number(preview.data.tcs ?? 0))]].map(([name, value]) => (
                 <div key={name} className="contents"><dt className="text-text-secondary">{name}</dt><dd className="text-right tabular-nums">{c(value)}</dd></div>
               ))}
               {preview.data.header.dueDate && <div className="contents"><dt className="text-text-secondary">Due</dt><dd className="text-right">{calendarDate(preview.data.header.dueDate)}</dd></div>}

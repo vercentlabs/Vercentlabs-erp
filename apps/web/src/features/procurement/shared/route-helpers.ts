@@ -75,3 +75,8 @@ export async function procurementMutation<I, T>(
     },
   );
 }
+
+// A document list's reply: { rows, total } whether the list was paged (?limit=&offset=, Procurement plan Phase 0) or returned whole.
+export function asPage<T>(result: T[] | { rows: T[]; total: number }) {
+  return Array.isArray(result) ? { rows: result, total: result.length } : { rows: result.rows, total: result.total };
+}

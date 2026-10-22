@@ -191,6 +191,31 @@ body {
   to { transform: translate(-5rem, -6rem) scale(1.05); }
 }
 
+/* Signup › your apps ((auth)/register/signup-flow.tsx): the 2-second analysis (a bar filling, the apps lighting up one by one), then
+   the description and app tiles rising in. Reduced motion stops all of it (below). */
+.signup-progress {
+  width: 0;
+  animation: signup-progress 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes signup-progress {
+  to { width: 100%; }
+}
+.signup-light {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  animation: signup-light 260ms ease-out forwards;
+}
+@keyframes signup-light {
+  to { background: var(--color-brand); color: var(--color-text-inverse); }
+}
+.signup-reveal {
+  animation: signup-reveal 320ms ease-out both;
+}
+@keyframes signup-reveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

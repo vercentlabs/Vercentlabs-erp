@@ -6,10 +6,11 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Download } from "lucide-react";
-import { Button, EmptyState, ErrorState, PageHeader, PermissionState, Select, TextField } from "@vercentlabs/design-system";
+import { Button, EmptyState, ErrorState, PageHeader, PermissionState, Select, TextField, buttonVariants } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { SupplierFilter } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { ProcApiError } from "@/features/procurement/shared/http";
 import { calendarDate, money, quantity } from "@/features/procurement/shared/format";
@@ -104,7 +105,7 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
     const text = next.toString();
     router.replace(text ? `${pathname}?${text}` : pathname, { scroll: false });
   };
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "purchase-order-options"), queryFn: getPurchaseOrderOptions, retry: false });
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "purchase-order-options"), queryFn: () => getPurchaseOrderOptions(), retry: false });
   const report = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "report", reportKey, JSON.stringify(filters)), queryFn: () => getReport(reportKey, filters) });
   const statuses = STATUS_OPTIONS[reportKey];
   const related = RELATED[reportKey];
@@ -113,14 +114,19 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={report.data?.title ?? "Report"} description={report.data?.description}
-        secondaryActions={report.data ? <Button variant="secondary" onPress={() => downloadCsv(reportKey, report.data.columns, report.data.rows)} isDisabled={!report.data.rows.length}>
-          <Download className="size-4" aria-hidden="true" />Export CSV</Button> : undefined} />
+        secondaryActions={report.data ? (
+          <div className="flex flex-wrap gap-2">
+            <a className={buttonVariants({ variant: "secondary" })} href={`/api/procurement/reports/${reportKey}/xlsx${params.toString() ? `?${params.toString()}` : ""}`} download>
+              <Download className="size-4" aria-hidden="true" />Excel</a>
+            <Button variant="ghost" onPress={() => downloadCsv(reportKey, report.data.columns, report.data.rows)} isDisabled={!report.data.rows.length}>CSV</Button>
+          </div>
+        ) : undefined} />
       <Panel title="Filters" actions={related ? <Link className="text-sm text-brand hover:underline" href={related.href}>{related.label}</Link> : undefined}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Select label="Company" selectedKey={filters.buyingRegistrationId ?? ALL} onSelectionChange={(value) => setFilter("buyingRegistrationId", String(value))}
             options={[{ value: ALL, label: "All registrations" }, ...(options.data?.registrations ?? []).map((entry) => ({ value: entry.id, label: `${entry.name}${entry.gstin ? ` · ${entry.gstin}` : ""}` }))]} />
-          <Select label="Supplier" selectedKey={filters.supplierId ?? ALL} onSelectionChange={(value) => setFilter("supplierId", String(value))}
-            options={[{ value: ALL, label: "All suppliers" }, ...(options.data?.suppliers ?? []).map((entry) => ({ value: entry.id, label: entry.name }))]} />
+          <SupplierFilter anyLabel="All suppliers" className="w-full" known={options.data?.suppliers ?? []} value={filters.supplierId && filters.supplierId !== ALL ? filters.supplierId : ""}
+            onChange={(id) => setFilter("supplierId", id || ALL)} />
           <TextField label="From" type="date" value={filters.from ?? ""} onChange={(value) => setFilter("from", value)} />
           <TextField label="To" type="date" value={filters.to ?? ""} onChange={(value) => setFilter("to", value)} />
           {statuses && <Select label="Status" selectedKey={filters.status ?? ALL} onSelectionChange={(value) => setFilter("status", String(value))}

@@ -375,8 +375,12 @@ export async function movementOf(client, organizationId, sourceType, sourceId) {
       from: { line1: seller?.address_line1, city: seller?.city, pin: seller?.postal_code, state: seller?.state_code },
       to: { gstin: supplier.gstin ?? "URP", name: supplier.legalName ?? supplier.supplierName ?? supplier.name ?? "Supplier", line1: address.line1, city: address.city, pin: address.postalCode ?? address.postal_code,
         state: address.stateCode ?? address.state_code },
-      items: lines.map((line) => ({ name: line.name, hsn: line.hsn_sac_code, quantity: Number(line.quantity), unit: uqc(line.uom_snapshot), taxable: round(line.taxable), rate: Number(line.tax_rate ?? 0) })),
-      interState: (address.stateCode ?? address.state_code) && seller?.state_code && (address.stateCode ?? address.state_code) !== seller.state_code, vehicle: ret.dispatch_reference,
+      items: lines.map((line) => ({ name: line.name, hsn: line.hsn_sac_code, quantity: Number(line.quantity), unit: uqc(line.uom_snapshot?.code ?? line.uom_snapshot), taxable: round(line.taxable),
+        rate: Number(line.tax_rate ?? 0) })),
+      interState: (address.stateCode ?? address.state_code) && seller?.state_code && (address.stateCode ?? address.state_code) !== seller.state_code,
+      // The transport recorded on the return (Procurement plan Phase 2), else its dispatch reference.
+      vehicle: ret.vehicle_number ?? ret.dispatch_reference,
+      transport: { vehicleNumber: ret.vehicle_number ?? undefined, transporterId: ret.transporter_id ?? undefined, distanceKm: ret.transport_distance_km ?? undefined },
     };
   }
   throw new ComplianceError(400, "Choose an invoice, delivery, transfer or purchase return.", "EWAY_SOURCE_INVALID");

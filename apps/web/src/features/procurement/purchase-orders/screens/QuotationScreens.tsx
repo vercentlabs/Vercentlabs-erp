@@ -11,27 +11,33 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, Trash2 } from "lucide-react";
 import {
   Button, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, LinkButton, NoResultsState, PageHeader, RecordDetailsPage, SearchField, Select, StatusBadge, TextArea,
-  TextField,
+  TextField, type SavedViewBarProps,
 } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { gridPaging, pageFilters, usePageIndex } from "@/features/procurement/shared/paging";
+import { ProcurementSearchPicker, useKnownRows } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { DocumentChain } from "@/features/procurement/shared/DocumentChain";
 import { calendarDate, money, quantity, statusLabel, statusTone } from "@/features/procurement/shared/format";
 
 import {
-  cancelQuotation, convertQuotation, createQuotation, errorMessage, getPurchaseOrderOptions, getQuotation, listQuotations, updateQuotation, type QuotationDetail, type QuotationRow,
+  cancelQuotation, convertQuotation, createQuotation, errorMessage, getPurchaseOrderOptions, getQuotation, listQuotationsPage, updateQuotation, type QuotationDetail, type QuotationRow,
 } from "../api/purchase-orders-api";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
-export function SupplierQuotationsScreen() {
+// Shown as the Quotations view of RFQs & Quotations (Procurement plan Phase 2), with that page's views.
+export function SupplierQuotationsScreen({ savedViews }: { savedViews?: SavedViewBarProps } = {}) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: getPurchaseOrderOptions, staleTime: 60_000 });
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "quotations", search), queryFn: () => listQuotations({ search: search.trim() || undefined }) });
-  const rows = query.data ?? [];
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: () => getPurchaseOrderOptions(), staleTime: 60_000 });
+  const [pageIndex, setPageIndex] = usePageIndex(search.trim());
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "quotations", search, pageIndex),
+    queryFn: () => listQuotationsPage({ search: search.trim() || undefined, ...pageFilters(pageIndex) }), placeholderData: (previous) => previous });
+  const rows = query.data?.rows ?? [];
   const canCreate = Boolean(options.data?.capabilities.quotations);
   const columns = useMemo<ColumnDef<QuotationRow, unknown>[]>(() => [
     { id: "number", header: "Quotation", cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.quotationNumber}</span> },
@@ -44,10 +50,11 @@ export function SupplierQuotationsScreen() {
     { id: "order", header: "Purchase order", cell: ({ row }) => row.original.purchaseOrderNumber ?? "" },
   ], []);
   return (
-    <EnterpriseListPage header={{ title: "Supplier Quotations", description: "Offers received from suppliers, ready to become purchase orders at the quoted prices.",
+    <EnterpriseListPage header={{ title: savedViews ? "RFQs & Quotations" : "Supplier Quotations", description: "Offers received from suppliers, ready to become purchase orders at the quoted prices.",
       primaryAction: canCreate ? <LinkButton variant="primary" href="/procurement/purchase-orders/quotations/new"><Plus className="size-4" aria-hidden="true" />Record quotation</LinkButton> : undefined }}
+      savedViews={savedViews}
       actionBar={{ start: <SearchField aria-label="Search quotations" placeholder="Quotation, supplier reference or supplier" className="w-full sm:w-96" value={search} onChange={setSearch} /> }}>
-      <EnterpriseDataGrid<QuotationRow> aria-label="Supplier quotations" columns={columns} data={rows} getRowId={(row) => row.id}
+      <EnterpriseDataGrid<QuotationRow> aria-label="Supplier quotations" columns={columns} data={rows} getRowId={(row) => row.id} {...gridPaging(query.data?.total ?? 0, pageIndex, setPageIndex)}
         state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (search ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading quotations" rows={6} />}
         errorContent={<ErrorState title="Could not load quotations" action={{ label: "Try again", onPress: () => void query.refetch() }} />}
@@ -65,9 +72,14 @@ const blank = (): QuoteLine => ({ key: ++quoteKey, productId: "", quantity: "1",
 
 export function SupplierQuotationFormScreen({ quotationId }: { quotationId?: string }) {
   const workspace = useWorkspaceContext();
-  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: getPurchaseOrderOptions, staleTime: 60_000 });
   const existing = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "quotation", quotationId), queryFn: () => getQuotation(quotationId!), enabled: Boolean(quotationId) });
-  if (options.isLoading || (quotationId && existing.isLoading)) return <LoadingState label="Loading quotation" />;
+  // The quotation's own supplier and products come with the options' first page, so an edit knows them whatever page they are on.
+  const include = { supplierIds: [existing.data?.quotation.supplierId ?? ""], productIds: (existing.data?.lines ?? []).map((line) => line.productId) };
+  const options = useQuery({
+    queryKey: scopedQueryKey(workspace, "procurement", "po-options", include.supplierIds.join(","), include.productIds.join(",")),
+    queryFn: () => getPurchaseOrderOptions(include), staleTime: 60_000, enabled: !quotationId || Boolean(existing.data),
+  });
+  if ((quotationId && existing.isLoading) || options.isLoading) return <LoadingState label="Loading quotation" />;
   if (!options.data || (quotationId && !existing.data)) return <ErrorState title="Could not load the form" action={{ label: "Retry", onPress: () => options.refetch() }} />;
   return <QuotationForm options={options.data} existing={existing.data ?? null} />;
 }
@@ -78,18 +90,21 @@ function QuotationForm({ options, existing }: { options: NonNullable<Awaited<Ret
   const [values, setValues] = useState({
     supplierId: q?.supplierId ?? "", supplierReference: q?.supplierReference ?? "", rfqReference: q?.rfqReference ?? "", quotationDate: q?.quotationDate ?? "", validUntil: q?.validUntil ?? "",
     currencyCode: q?.currencyCode ?? "", paymentTermId: q?.paymentTermId ?? "", priceMode: q?.priceMode ?? "exclusive", deliveryLeadDays: q?.deliveryLeadDays != null ? String(q.deliveryLeadDays) : "",
-    notes: q?.notes ?? "",
+    notes: q?.notes ?? "", freightAmount: q?.freightAmount && Number(q.freightAmount) ? String(Number(q.freightAmount)) : "",
   });
   const [lines, setLines] = useState<QuoteLine[]>(() => existing?.lines.length ? existing.lines.map((line) => ({
     key: ++quoteKey, productId: line.productId, quantity: String(Number(line.quantity)), uomId: line.uomId ?? "", unitPrice: String(Number(line.unitPrice)), discountType: line.discountType ?? "none",
     discountValue: line.discountType ? String(Number(line.discountValue)) : "" })) : [blank()]);
   const set = (key: keyof typeof values) => (value: string) => setValues((current) => ({ ...current, [key]: value }));
   const setLine = (key: number, change: Partial<QuoteLine>) => setLines((current) => current.map((line) => (line.key === key ? { ...line, ...change } : line)));
+  // The suppliers and products this form knows: the options' first page and every one picked since (ProcurementSearchPicker).
+  const [knownSuppliers, keepSupplier] = useKnownRows(options.suppliers);
+  const [knownProducts, keepProduct] = useKnownRows(options.products);
   const submit = useSubmitKey();
   const save = useMutation({
     mutationFn: () => submit.run(async () => {
       const body = { ...values, currencyCode: values.currencyCode || undefined, paymentTermId: values.paymentTermId || null, quotationDate: values.quotationDate || undefined,
-        validUntil: values.validUntil || null, deliveryLeadDays: values.deliveryLeadDays || null,
+        validUntil: values.validUntil || null, deliveryLeadDays: values.deliveryLeadDays || null, freightAmount: values.freightAmount || "0",
         lines: lines.filter((line) => line.productId).map((line) => ({ productId: line.productId, quantity: line.quantity, uomId: line.uomId || undefined, unitPrice: line.unitPrice,
           discountType: line.discountType === "none" ? null : line.discountType, discountValue: line.discountType === "none" ? "0" : line.discountValue || "0" })) };
       return existing ? updateQuotation(existing.quotation.id, body).then(() => existing.quotation.id) : createQuotation(body).then((result) => result.id);
@@ -104,8 +119,8 @@ function QuotationForm({ options, existing }: { options: NonNullable<Awaited<Ret
       {save.error && <Notice>{errorMessage(save.error)}</Notice>}
       <Panel title="Quotation">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Select label="Supplier" isRequired selectedKey={values.supplierId || null} onSelectionChange={(value) => set("supplierId")(String(value))}
-            options={options.suppliers.filter((supplier) => supplier.status === "active").map((supplier) => ({ value: supplier.id, label: `${supplier.name} · ${supplier.supplier_number}` }))} />
+          <ProcurementSearchPicker kind="suppliers" label="Supplier" isRequired activeOnly value={values.supplierId || null} known={knownSuppliers}
+            onPick={(id, row) => { keepSupplier(row as (typeof knownSuppliers)[number] | null); set("supplierId")(id); }} />
           <TextField label="Supplier's reference" value={values.supplierReference} onChange={set("supplierReference")} />
           <TextField label="RFQ reference" value={values.rfqReference} onChange={set("rfqReference")} />
           <TextField label="Quotation date" type="date" value={values.quotationDate} onChange={set("quotationDate")} />
@@ -117,15 +132,18 @@ function QuotationForm({ options, existing }: { options: NonNullable<Awaited<Ret
           <Select label="Prices" selectedKey={values.priceMode} onSelectionChange={(value) => set("priceMode")(String(value))}
             options={[{ value: "exclusive", label: "Exclusive of tax" }, { value: "inclusive", label: "Inclusive of tax" }]} />
           <TextField label="Delivery lead time (days)" inputMode="numeric" value={values.deliveryLeadDays} onChange={set("deliveryLeadDays")} />
+          <TextField label="Freight and other charges" inputMode="decimal" value={values.freightAmount} onChange={set("freightAmount")} />
         </div>
       </Panel>
       <Panel title="Quoted lines" actions={<Button size="compact" variant="secondary" onPress={() => setLines((current) => [...current, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add line</Button>}>
         {lines.map((line, index) => (
           <div key={line.key} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto]">
-            <Select label={`Line ${index + 1} product`} selectedKey={line.productId || null} onSelectionChange={(value) => {
-              const product = options.products.find((entry) => entry.id === String(value));
-              setLine(line.key, { productId: String(value), uomId: product?.purchase_uom_id ?? product?.uom_id ?? "" });
-            }} options={options.products.map((product) => ({ value: product.id, label: `${product.name} (${product.code})` }))} />
+            <ProcurementSearchPicker kind="products" label={`Line ${index + 1} product`} value={line.productId || null} supplierId={values.supplierId || null} known={knownProducts}
+              onPick={(id, row) => {
+                const product = (row ?? knownProducts.find((entry) => entry.id === id)) as (typeof knownProducts)[number] | undefined;
+                keepProduct(product ?? null);
+                setLine(line.key, { productId: id, uomId: product?.purchase_uom_id ?? product?.uom_id ?? "" });
+              }} />
             <TextField label="Quantity" inputMode="decimal" value={line.quantity} onChange={(value) => setLine(line.key, { quantity: value })} />
             <Select label="Unit" selectedKey={line.uomId || null} onSelectionChange={(value) => setLine(line.key, { uomId: String(value) })} options={options.uoms.map((uom) => ({ value: uom.id, label: uom.code }))} />
             <TextField label="Quoted price" inputMode="decimal" value={line.unitPrice} onChange={(value) => setLine(line.key, { unitPrice: value })} />
@@ -158,6 +176,7 @@ export function SupplierQuotationDetailScreen({ quotationId }: { quotationId: st
     <div className="flex flex-col gap-4">
       {(convert.error || cancel.error) && <Notice>{errorMessage(convert.error ?? cancel.error)}</Notice>}
       {quotation.expired && quotation.status === "received" && <Notice tone="warning">This quotation expired on {calendarDate(quotation.validUntil)}. Check the prices with the supplier before ordering.</Notice>}
+      <DocumentChain type="supplier_quotation" id={quotation.id} />
       <RecordDetailsPage header={{
         title: quotation.quotationNumber,
         status: <StatusBadge tone={statusTone(quotation.status)}>{statusLabel(quotation.status)}</StatusBadge>,

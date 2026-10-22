@@ -4,6 +4,7 @@
 // the shapes the screens read, and the calls they make. Amounts and
 // quantities are the server's decimal strings; nothing here calculates.
 import { ProcApiError } from "@/features/procurement/shared/http";
+import type { ProcurementPickRow } from "@/features/procurement/shared/api";
 
 export class PurchaseApiError extends ProcApiError {
   constructor(message: string, status: number, code: string | undefined, readonly details: Record<string, unknown>) {
@@ -117,9 +118,11 @@ type Coded = { code: string; label: string };
 export type PurchaseOrderOptions = {
   views: Array<{ key: string; label: string }>; cancelReasons: Coded[]; sentChannels: Coded[]; statusLabels: Record<string, string>; receiptLabels: Record<string, string>;
   billingLabels: Record<string, string>; paymentLabels: Record<string, string>; communicationLabels: Record<string, string>; productTypeLabels: Record<string, string>;
-  settings: { billingBasis: "receipt" | "order"; requireExpectedDate: boolean; defaultWarehouseId: string | null; billHeldGoods: boolean; postReceiptAccrual: boolean };
-  suppliers: Array<{ id: string; supplier_number: string; name: string; status: string; currency_code: string }>;
-  products: Array<{ id: string; code: string; name: string; item_type: string; track_inventory: boolean; purchase_uom_id: string | null; uom_id: string | null; last_purchase_price: string | null; tax_category_id: string | null }>;
+  settings: { billingBasis: "receipt" | "order"; requireExpectedDate: boolean; defaultWarehouseId: string | null; billHeldGoods: boolean; postReceiptAccrual: boolean;
+    useIndents: boolean; useRfqs: boolean; reorderCreates: "purchase_order" | "indent" };
+  suppliers: Array<ProcurementPickRow & { supplier_number: string; name: string; status: string; currency_code: string }>;
+  products: Array<ProcurementPickRow & { code: string; name: string; item_type: string; track_inventory: boolean; purchase_uom_id: string | null; uom_id: string | null; last_purchase_price: string | null; tax_category_id: string | null;
+    contract_rate?: string | null; contract_number?: string | null }>;
   uoms: Array<{ id: string; code: string; name: string; decimal_places: number }>; warehouses: Array<{ id: string; code: string; name: string }>;
   currencies: Array<{ code: string; name: string }>; paymentTerms: Array<{ id: string; code: string; name: string; term_type?: string; advance_percentage?: string | null; is_default?: boolean }>;
   registrations: Array<{ id: string; code: string; name: string; gstin: string | null; state_code: string | null; is_default: boolean }>;
@@ -141,7 +144,10 @@ export type Preview = {
 export type OrderFilters = Record<string, string | number | undefined>;
 export const listPurchaseOrders = (filters: OrderFilters) =>
   get<{ rows: PurchaseOrderRow[]; total: number; views: Array<{ key: string; label: string }> }>(`/purchase-orders${qs(filters)}`);
-export const getPurchaseOrderOptions = () => get<{ options: PurchaseOrderOptions }>("/purchase-orders/options").then((result) => result.options);
+// Suppliers and products are a first page plus the ones a form holds; the rest are found by typing (ProcurementSearchPicker).
+export const getPurchaseOrderOptions = (include: { supplierIds?: string[]; productIds?: string[]; supplierId?: string } = {}) =>
+  get<{ options: PurchaseOrderOptions }>(`/purchase-orders/options${qs({ supplierIds: include.supplierIds?.filter(Boolean).join(","), productIds: include.productIds?.filter(Boolean).join(","),
+    supplierId: include.supplierId })}`).then((result) => result.options);
 export const getPurchaseOrder = (id: string) => get<PurchaseOrderDetail>(`/purchase-orders/${id}`);
 export const getSupplierDefaults = (supplierId: string, productIds: string[] = []) =>
   get<{ defaults: { supplier: Record<string, unknown> | null; products: Array<{ id: string; suggestedPrice: string | null; uomId: string | null; productType: string }>; today: string } }>(
@@ -189,7 +195,7 @@ export type GoodsReceiptDetail = {
     supplierName: string; company: Registration; warehouseId: string | null; warehouseName: string | null; receiptDate: string; supplierChallanNumber: string | null;
     supplierChallanDate: string | null; shipFrom: Address | null; notes: string | null; createdAt: string; createdByName: string | null; updatedAt: string; postedAt: string | null;
     postedByName: string | null; cancelledAt: string | null; cancelReason: string | null; reversedAt: string | null; reversedByName: string | null; reversalReason: string | null;
-    physicalReceivedAt: string | null; vehicleNumber: string | null; carrierName: string | null; trackingReference: string | null; receivedByUserId: string | null; receivedByName: string | null;
+    physicalReceivedAt: string | null; vehicleNumber: string | null; ewbNumber?: string | null; ewbValidUntil?: string | null; carrierName: string | null; trackingReference: string | null; receivedByUserId: string | null; receivedByName: string | null;
     currencyCode: string | null;
     accrual: { journalEntryId: string; entryNumber: string; amount: string; reversalJournalEntryId: string | null; reversalEntryNumber: string | null } | null;
   };
@@ -225,6 +231,8 @@ export const getReceivable = (orderId: string, exceptReceiptId?: string) =>
 export const createGoodsReceipt = (orderId: string, input: Record<string, unknown>) =>
   post<{ result: { id: string; receiptNumber: string; status: string } }>(`/purchase-orders/${orderId}/receipts`, input).then((result) => result.result);
 export const listGoodsReceipts = (filters: Record<string, string | undefined> = {}) => get<{ rows: GoodsReceiptRow[] }>(`/goods-receipts${qs(filters)}`).then((result) => result.rows);
+// One page of the list with its total (Procurement plan Phase 0: the list used to stop at 300).
+export const listGoodsReceiptsPage = (filters: Record<string, string | undefined> = {}) => get<{ rows: GoodsReceiptRow[]; total: number }>(`/goods-receipts${qs(filters)}`);
 export const getGoodsReceipt = (id: string) => get<GoodsReceiptDetail>(`/goods-receipts/${id}`);
 export const validateGoodsReceipt = (id: string) => get<{ validation: { ready: boolean; issues: string[] } }>(`/goods-receipts/${id}/validate`).then((result) => result.validation);
 export const updateGoodsReceipt = (id: string, input: Record<string, unknown>) => patch<{ result: { id: string } }>(`/goods-receipts/${id}`, input);
@@ -250,12 +258,15 @@ export type QuotationRow = { id: string; quotationNumber: string; status: string
 export type QuotationDetail = {
   quotation: { id: string; quotationNumber: string; supplierId: string; supplierName: string; supplierNumber: string; supplierReference: string | null; rfqReference: string | null;
     quotationDate: string; validUntil: string | null; currencyCode: string; paymentTermId: string | null; paymentTermName: string | null; priceMode: string; documentDiscountType: string | null;
-    documentDiscountValue: string; deliveryLeadDays: number | null; notes: string | null; status: string; convertedPurchaseOrderId: string | null; convertedPurchaseOrderNumber: string | null; expired: boolean };
+    documentDiscountValue: string; deliveryLeadDays: number | null; notes: string | null; status: string; convertedPurchaseOrderId: string | null; convertedPurchaseOrderNumber: string | null; expired: boolean;
+    freightAmount?: string; rfqId?: string | null };
   lines: Array<{ id: string; lineNumber: number; productId: string; productCode: string; productName: string; description: string | null; quantity: string; uomId: string | null; uomCode: string | null;
     unitPrice: string; discountType: string | null; discountValue: string; taxCategoryId: string | null }>;
   actions: { edit: boolean; convert: boolean; cancel: boolean };
 };
 export const listQuotations = (filters: Record<string, string | undefined> = {}) => get<{ rows: QuotationRow[] }>(`/supplier-quotations${qs(filters)}`).then((result) => result.rows);
+// One page of the list with its total (Procurement plan Phase 0: the list used to stop at 300).
+export const listQuotationsPage = (filters: Record<string, string | undefined> = {}) => get<{ rows: QuotationRow[]; total: number }>(`/supplier-quotations${qs(filters)}`);
 export const getQuotation = (id: string) => get<QuotationDetail>(`/supplier-quotations/${id}`);
 export const createQuotation = (input: Record<string, unknown>) => post<{ result: { id: string; quotationNumber: string } }>("/supplier-quotations", input).then((result) => result.result);
 export const updateQuotation = (id: string, input: Record<string, unknown>) => patch<{ result: { id: string } }>(`/supplier-quotations/${id}`, input).then((result) => result.result);
@@ -299,6 +310,8 @@ export const REJECTION_REASON_OPTIONS = [
   { value: "missing_documentation", label: "Missing documentation" }, { value: "failed_inspection", label: "Failed inspection" }, { value: "other", label: "Other" },
 ];
 export const listRejections = (filters: Record<string, string | undefined> = {}) => get<{ rows: RejectionRow[] }>(`/rejections${qs(filters)}`).then((result) => result.rows);
+// One page of the list with its total (Procurement plan Phase 0: the list used to stop at 300).
+export const listRejectionsPage = (filters: Record<string, string | undefined> = {}) => get<{ rows: RejectionRow[]; total: number }>(`/rejections${qs(filters)}`);
 export const getRejection = (id: string) => get<RejectionDetail>(`/rejections/${id}`);
 export const updateRejection = (id: string, input: Record<string, unknown>) => patch<{ result: { id: string } }>(`/rejections/${id}`, input);
 export const resolveRejection = (id: string, input: Record<string, unknown>) => post<{ result: Record<string, unknown> }>(`/rejections/${id}/resolve`, input).then((result) => result.result);

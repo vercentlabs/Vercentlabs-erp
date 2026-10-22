@@ -151,6 +151,7 @@ async function openInstalments(client, context, filters = {}) {
   return (await client.query(
     `SELECT schedule.id, schedule.sequence, schedule.due_date, schedule.original_due_date, schedule.amount, schedule.outstanding_amount, bill.id AS bill_id, bill.bill_number,
             bill.supplier_invoice_reference, bill.supplier_id, btrim(bill.currency_code) AS currency_code, party.display_name AS supplier_name,
+            (SELECT supplier.msme_classification FROM tenant.procurement_suppliers supplier WHERE supplier.organization_id = bill.organization_id AND supplier.id = bill.supplier_id) AS msme_classification,
             (SELECT count(*) FROM tenant.accounting_vendor_bill_schedules other WHERE other.organization_id = schedule.organization_id AND other.vendor_bill_id = schedule.vendor_bill_id)::int AS instalments
        FROM tenant.accounting_vendor_bill_schedules schedule
        JOIN tenant.accounting_vendor_bills bill ON bill.organization_id = schedule.organization_id AND bill.id = schedule.vendor_bill_id
@@ -161,6 +162,8 @@ async function openInstalments(client, context, filters = {}) {
 const obligation = (row, today) => ({
   scheduleId: row.id, billId: row.bill_id, billNumber: row.bill_number, supplierInvoice: row.supplier_invoice_reference, supplierId: row.supplier_id, supplierName: row.supplier_name,
   installment: row.sequence, installments: row.instalments, currencyCode: row.currency_code, dueDate: dayOf(row.due_date), originalDueDate: dayOf(row.original_due_date ?? row.due_date),
+  // Micro and small suppliers come first on Due & Overdue (MSMED Act: 45 days at most).
+  msme: ["micro", "small"].includes(row.msme_classification) ? row.msme_classification : null,
   scheduled: dec(row.amount), outstanding: dec(row.outstanding_amount), daysOverdue: Math.max(0, Math.round((Date.parse(today) - Date.parse(dayOf(row.due_date))) / 86400000)),
   href: `/procurement/supplier-bills/${row.bill_id}`,
 });

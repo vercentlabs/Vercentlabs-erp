@@ -13,11 +13,15 @@ import { DISCREPANCY_LABELS, DISCREPANCY_TYPES, loadReceipt, orderLinesById, sta
 import { loadLineProgress } from "./progress.js";
 import { getEligibleRejectableQuantity } from "./rejections.js";
 import { getGoodsReceiptRejections } from "./rejection-records.js";
+import { pagedList } from "../paging.js";
+import { orgTodaySql } from "../org-day.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const seesCost = (context) => poCan(context, PO_PERMISSIONS.viewPayables) || poCan(context, PO_PERMISSIONS.bill);
 
-export const RECEIPT_VIEWS = Object.freeze(["all", "draft", "posted", "cancelled_reversed", "mine", "with_rejections", "discrepancies_open", "discrepancies_resolved", "not_billed", "partially_billed"]);
+export const RECEIPT_VIEWS = Object.freeze(["all", "draft", "posted", "cancelled_reversed", "mine", "with_rejections", "discrepancies_open", "discrepancies_resolved", "not_billed", "partially_billed",
+  // The store's day (Procurement plan Phase 1): received today, and drafts not yet posted; and the accountant's: posted receipts with goods still to bill.
+  "today", "to_bill"]);
 
 // getPurchaseOrderRemainingReceivableQty (getPurchaseOrderReceiptProgress): what each line may still receive, with what other draft receipts hold (a warning, not a reservation).
 export async function getPurchaseOrderRemainingReceivableQty(client, context, orderId, { exceptReceiptId = null } = {}) {
@@ -145,6 +149,7 @@ export async function getGoodsReceipt(client, context, receiptId) {
       supplierId: row.supplier_id, supplierName: row.supplier_name, company: row.buying_registration_snapshot, warehouseId: row.warehouse_id, warehouseName: row.warehouse_name,
       receiptDate: dayOf(row.receipt_date), physicalReceivedAt: row.physical_received_at, supplierChallanNumber: row.supplier_delivery_note, supplierChallanDate: dayOf(row.supplier_challan_date),
       vehicleNumber: row.vehicle_number, carrierName: row.carrier_name, trackingReference: row.tracking_reference, receivedByUserId: row.received_by_user_id, receivedByName: row.received_by_name,
+      ewbNumber: row.ewb_number ?? null, ewbValidUntil: row.ewb_valid_until ?? null, transporterId: row.transporter_id ?? null,
       shipFrom: row.ship_from_snapshot, notes: row.notes, createdAt: row.created_at, createdByName: row.created_by_name, updatedAt: row.updated_at, postedAt: row.posted_at,
       postedByName: row.posted_by_name, cancelledAt: row.cancelled_at, cancelReason: row.cancel_reason, reversedAt: row.reversed_at, reversedByName: row.reversed_by_name,
       reversalReason: row.reversal_reason, currencyCode: row.currency_code?.trim() ?? null,
@@ -222,6 +227,11 @@ export async function listGoodsReceipts(client, context, filters = {}) {
   else if (view === "not_billed" || view === "partially_billed")
     where += ` AND receipt.status = 'posted' AND receipt.reversed_at IS NULL AND EXISTS (SELECT 1 FROM tenant.goods_receipt_line_billing billing WHERE billing.organization_id = receipt.organization_id
       AND billing.goods_receipt_id = receipt.id GROUP BY billing.goods_receipt_id HAVING ${view === "not_billed" ? "sum(billing.allocated_quantity) = 0 AND sum(billing.billable_quantity) > 0" : "sum(billing.allocated_quantity) > 0 AND sum(billing.billable_quantity) > sum(billing.allocated_quantity)"})`;
+  else if (view === "today")
+    where += ` AND (receipt.receipt_date = ${orgTodaySql("receipt.organization_id")} OR receipt.status = 'draft')`;
+  else if (view === "to_bill")
+    where += ` AND receipt.status = 'posted' AND receipt.reversed_at IS NULL AND EXISTS (SELECT 1 FROM tenant.goods_receipt_line_billing billing WHERE billing.organization_id = receipt.organization_id
+      AND billing.goods_receipt_id = receipt.id GROUP BY billing.goods_receipt_id HAVING sum(billing.billable_quantity) > sum(billing.allocated_quantity))`;
   else if (view === "mine") {
     const me = bind(context.userId ?? null);
     where += ` AND (receipt.received_by_user_id = ${me} OR (receipt.received_by_user_id IS NULL AND receipt.created_by = ${me}))`;
@@ -241,9 +251,9 @@ export async function listGoodsReceipts(client, context, filters = {}) {
   if (search) {
     const term = bind(`%${search}%`);
     where += ` AND (receipt.receipt_number ILIKE ${term} OR po.purchase_order_number ILIKE ${term} OR party.display_name ILIKE ${term} OR receipt.supplier_delivery_note ILIKE ${term}
-      OR receipt.vehicle_number ILIKE ${term} OR receipt.tracking_reference ILIKE ${term})`;
+      OR receipt.vehicle_number ILIKE ${term} OR receipt.tracking_reference ILIKE ${term} OR receipt.ewb_number ILIKE ${term})`;
   }
-  const { rows } = await client.query(
+  return pagedList(client,
     `SELECT receipt.id, receipt.receipt_number, receipt.status, receipt.reversed_at, receipt.receipt_date, receipt.physical_received_at, receipt.supplier_delivery_note,
             receipt.received_by_user_id, po.id AS purchase_order_id, po.purchase_order_number, party.display_name AS supplier_name, warehouse.name AS warehouse_name,
             receiver.full_name AS received_by,
@@ -254,12 +264,11 @@ export async function listGoodsReceipts(client, context, filters = {}) {
        JOIN tenant.business_parties party ON party.organization_id = po.organization_id AND party.id = po.party_id
        LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = receipt.organization_id AND warehouse.id = receipt.warehouse_id
        LEFT JOIN public.users receiver ON receiver.id = receipt.received_by_user_id
-      WHERE receipt.organization_id = $1${where} ORDER BY receipt.receipt_date DESC, receipt.created_at DESC LIMIT 300`, values);
-  return rows.map((row) => ({
+      WHERE receipt.organization_id = $1${where} ORDER BY receipt.receipt_date DESC, receipt.created_at DESC`, values, filters, (row) => ({
     id: row.id, receiptNumber: row.receipt_number, status: statusOf(row), receiptDate: dayOf(row.receipt_date), physicalReceivedAt: row.physical_received_at,
     supplierChallanNumber: row.supplier_delivery_note, purchaseOrderId: row.purchase_order_id, purchaseOrderNumber: row.purchase_order_number, supplierName: row.supplier_name,
     warehouseName: row.warehouse_name, lineCount: row.line_count, receivedById: row.received_by_user_id, receivedBy: row.received_by, openRejections: row.open_rejections,
-  }));
+  }), { scoped: isUuid(filters.purchaseOrderId) });
 }
 
 // getGoodsReceiptsForPurchaseOrder: every receipt of an order.

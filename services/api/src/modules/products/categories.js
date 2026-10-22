@@ -20,11 +20,14 @@ const LABELS = Object.freeze({
   code: "Code", name: "Name", description: "Description", sortOrder: "Sort order", allowedItemTypes: "Allowed item types", iconAttachmentId: "Icon",
   defaultValuationMethod: "Default valuation method", defaultInventoryProfileId: "Default inventory profile", defaultAccountingProfileId: "Default accounting profile",
   defaultTaxCategoryId: "Default tax profile", defaultHsnSacCode: "Default HSN / SAC", parentId: "Parent category", skuPrefix: "SKU prefix",
+  excessReceiptTolerancePercent: "Over-receipt tolerance %",
 });
 const COLUMNS = Object.freeze({
   code: "code", name: "name", description: "description", sortOrder: "sort_order", allowedItemTypes: "allowed_item_types", iconAttachmentId: "icon_attachment_id",
   defaultValuationMethod: "default_valuation_method", defaultInventoryProfileId: "default_inventory_profile_id", defaultAccountingProfileId: "default_accounting_profile_id",
   defaultTaxCategoryId: "default_tax_category_id", defaultHsnSacCode: "default_hsn_sac_code", skuPrefix: "sku_prefix",
+  // How much more than ordered a goods receipt may take for this category's items (Procurement plan Phase 3).
+  excessReceiptTolerancePercent: "excess_receipt_tolerance_percent",
 });
 // Each group of category defaults and the permission it needs beyond Manage Categories.
 const FIELD_PERMISSION = Object.freeze({
@@ -99,7 +102,7 @@ function toCategory(row, tree) {
     defaultInventoryProfileId: row.default_inventory_profile_id, defaultInventoryProfileName: row.default_inventory_profile_name ?? null,
     defaultAccountingProfileId: row.default_accounting_profile_id, defaultAccountingProfileName: row.default_accounting_profile_name ?? null,
     defaultTaxCategoryId: row.default_tax_category_id, defaultTaxCategoryName: row.default_tax_category_name ?? null, defaultHsnSacCode: row.default_hsn_sac_code,
-    skuPrefix: row.sku_prefix ?? null,
+    skuPrefix: row.sku_prefix ?? null, excessReceiptTolerancePercent: row.excess_receipt_tolerance_percent === undefined ? null : String(Number(row.excess_receipt_tolerance_percent ?? 0)),
     childCount: (tree.children.get(row.id) ?? []).length, descendantCount: descendants.length,
     directItems: Number(row.direct_items ?? 0), directActiveItems: Number(row.direct_active_items ?? 0),
     totalItems: subtree.reduce((sum, entry) => sum + Number(entry.direct_items ?? 0), 0),
@@ -248,6 +251,7 @@ function normalize(input) {
   if (has(input, "defaultHsnSacCode")) out.defaultHsnSacCode = text(input.defaultHsnSacCode).replace(/\s/g, "") || null;
   // A prefix for the SKUs generated for this category's items (an existing item's SKU never changes with it).
   if (has(input, "skuPrefix")) out.skuPrefix = text(input.skuPrefix).normalize("NFKC").toUpperCase() || null;
+  if (has(input, "excessReceiptTolerancePercent")) out.excessReceiptTolerancePercent = input.excessReceiptTolerancePercent === null || text(input.excessReceiptTolerancePercent) === "" ? "0" : text(input.excessReceiptTolerancePercent);
   if (has(input, "sortOrder")) out.sortOrder = input.sortOrder === null || text(input.sortOrder) === "" ? 0 : Number(input.sortOrder);
   if (has(input, "allowedItemTypes")) {
     // Every type, or none listed, means no restriction.
@@ -265,6 +269,9 @@ async function validate(client, context, values, { categoryId = null, parentId =
   if (!Number.isInteger(values.sortOrder ?? 0) || Math.abs(values.sortOrder ?? 0) > 100000) throw issue("sortOrder", "Enter a whole number.");
   if (values.allowedItemTypes?.some((type) => !TYPE_CODES.includes(type))) throw issue("allowedItemTypes", "Choose Stock Item, Non-Stock Item or Service.");
   if (values.defaultValuationMethod && !VALUATION.has(values.defaultValuationMethod)) throw issue("defaultValuationMethod", "Choose Moving average or FIFO.");
+  if (values.excessReceiptTolerancePercent !== undefined && values.excessReceiptTolerancePercent !== null
+    && (!/^\d{1,3}(\.\d{1,3})?$/.test(values.excessReceiptTolerancePercent) || Number(values.excessReceiptTolerancePercent) > 100))
+    throw issue("excessReceiptTolerancePercent", "Enter a percentage from 0 to 100.");
   if (values.skuPrefix && !/^[A-Z0-9]{1,12}$/.test(values.skuPrefix)) throw issue("skuPrefix", "Use 1 to 12 letters or digits, such as PUMP.");
   if (values.defaultHsnSacCode && !/^[0-9]{4}([0-9]{2}){0,2}$/.test(values.defaultHsnSacCode)) throw issue("defaultHsnSacCode", "Enter a 4, 6 or 8-digit HSN or a 6-digit SAC.");
   const active = async (sql, id, field, message) => { if (id && !(isUuid(id) && (await client.query(sql, [context.organizationId, id])).rows[0])) throw issue(field, message); };

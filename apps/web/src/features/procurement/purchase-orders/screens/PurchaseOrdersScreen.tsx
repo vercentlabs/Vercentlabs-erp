@@ -5,18 +5,19 @@
 // PO number, supplier, supplier reference, quotation, product, goods receipt
 // and bill. Receiving and billing come from the documents, never typed in.
 import { ListStateViews } from "../../shared/ListStateViews";
+import { NewDocumentMenu } from "../../shared/NewDocumentMenu";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus } from "lucide-react";
 import {
-  EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, SearchField, Select, TextField, type ActiveFilter,
+  EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, Select, TextField, type ActiveFilter,
 } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { useListState } from "@/features/procurement/shared/navigation";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { SupplierFilter, useResolvedRow } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { calendarDate, money } from "@/features/procurement/shared/format";
 
@@ -37,7 +38,7 @@ export function PurchaseOrdersScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   // The view is in the URL; the search, filters and page are remembered for this browser tab (back from an order, the list is as it was).
-  const list = useListState("purchase-orders", { view: "all", filters: { ...NO_FILTERS, page: "0" } });
+  const list = useListState("purchase-orders", { view: "open", filters: { ...NO_FILTERS, page: "0" } });
   const { view, search, setSearch } = list;
   const { page, ...filters } = list.filters;
   const pageIndex = Number(page) || 0;
@@ -51,8 +52,9 @@ export function PurchaseOrdersScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the page resets only when the search itself changes
   }, [search]);
 
-  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: getPurchaseOrderOptions, staleTime: 60_000 });
+  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: () => getPurchaseOrderOptions(), staleTime: 60_000 });
   const options = optionsQuery.data;
+  const filteredSupplier = useResolvedRow("suppliers", filters.supplierId !== ANY ? filters.supplierId : null, options?.suppliers ?? []);
   const listFilters = useMemo(() => ({
     view, search: submitted || undefined, ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== ANY)),
   }), [view, submitted, filters]);
@@ -94,7 +96,7 @@ export function PurchaseOrdersScreen() {
 
   const choices: Partial<Record<FilterKey, Array<{ value: string; label: string }>>> = {
     status: ["draft", "confirmed", "closed", "cancelled"].map((value) => ({ value, label: options?.statusLabels[value] ?? value })),
-    supplierId: (options?.suppliers ?? []).map((supplier) => ({ value: supplier.id, label: `${supplier.name} · ${supplier.supplier_number}` })),
+    supplierId: filteredSupplier ? [{ value: filteredSupplier.id, label: filteredSupplier.name }] : [],
     buyerId: (options?.buyers ?? []).map((buyer) => ({ value: buyer.id, label: buyer.name })),
     warehouseId: (options?.warehouses ?? []).map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
     receiptStatus: Object.entries(options?.receiptLabels ?? {}).map(([value, label]) => ({ value, label })),
@@ -111,6 +113,10 @@ export function PurchaseOrdersScreen() {
   const activeFilters: ActiveFilter[] = (Object.keys(filters) as FilterKey[]).filter((key) => filters[key] && filters[key] !== ANY)
     .map((key) => ({ id: key, label: `${NAMES[key]}: ${choices[key]?.find((entry) => entry.value === filters[key])?.label ?? filters[key]}` }));
   const hasCriteria = Boolean(submitted) || activeFilters.length > 0 || view !== "all";
+  // "+ New": a blank order, or one from an approved indent or a supplier's quotation (an earlier order is copied from its own page).
+  const newSources = [{ id: "blank", label: "Blank purchase order", href: "/procurement/purchase-orders/new" },
+    { id: "indent", label: "From an approved indent", href: "/procurement/indents?view=to-order" },
+    { id: "quotation", label: "From a supplier quotation", href: "/procurement/rfqs?view=quotations" }];
   const views = listQuery.data?.views ?? options?.views ?? [{ key: "all", label: "All Purchase Orders" }];
 
   return (
@@ -118,7 +124,7 @@ export function PurchaseOrdersScreen() {
       header={{
         title: "Purchase Orders",
         description: "Commitments to suppliers and where each stands: received, billed and paid, each worked out from its own documents.",
-        primaryAction: canCreate ? <LinkButton href="/procurement/purchase-orders/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New Purchase Order</LinkButton> : undefined,
+        primaryAction: canCreate ? <NewDocumentMenu label="New Purchase Order" sources={newSources} /> : undefined,
       }}
       savedViews={{ views: views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
       actionBar={{ end: <ListStateViews listKey="purchase-orders" list={list} />, 
@@ -130,7 +136,7 @@ export function PurchaseOrdersScreen() {
             {select("receiptStatus", "Any receiving")}
             {select("billingStatus", "Any billing")}
             {select("overdue", "Any delivery date")}
-            {select("supplierId", "Any supplier")}
+            <SupplierFilter key="supplierId" known={options?.suppliers ?? []} value={filters.supplierId} onChange={(id) => setFilters({ ...filters, supplierId: id || ANY })} />
             {select("buyerId", "Any buyer")}
             {select("warehouseId", "Any warehouse")}
             {date("dateFrom")}

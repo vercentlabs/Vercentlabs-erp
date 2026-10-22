@@ -18,11 +18,13 @@ import {
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { useApp } from "@/shell/workspace-context/useApp";
+import { gridPaging, pageFilters, usePageIndex } from "@/features/procurement/shared/paging";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { calendarDate, dateTime, quantity, statusLabel, statusTone } from "@/features/procurement/shared/format";
 
 import {
-  REJECTION_REASON_OPTIONS, cancelRejection, errorMessage, getInspectionRejections, getRejection, issuesOf, listRejections, recordDockRejection, recordPostReceiptRejection,
+  REJECTION_REASON_OPTIONS, cancelRejection, errorMessage, getInspectionRejections, getRejection, issuesOf, listRejectionsPage, recordDockRejection, recordPostReceiptRejection,
   rejectFromInspection, rejectionFileUrl, resolveRejection, returnRejection, updateRejection, uploadRejectionFile, type GoodsReceiptDetail, type OrderLine, type RejectionDetail,
   type RejectionRow,
 } from "../api/purchase-orders-api";
@@ -70,8 +72,10 @@ export function ReceivingIssuesGrid({ view, search, stage, reason }: { view: str
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const listFilters = useMemo(() => ({ view, search: search.trim() || undefined, ...(stage !== ANY ? { stage } : {}), ...(reason !== ANY ? { reason } : {}) }), [view, search, stage, reason]);
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "rejections", listFilters), queryFn: () => listRejections(listFilters) });
-  const rows = query.data ?? [];
+  const [pageIndex, setPageIndex] = usePageIndex(listFilters);
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "rejections", listFilters, pageIndex),
+    queryFn: () => listRejectionsPage({ ...listFilters, ...pageFilters(pageIndex) }), placeholderData: (previous) => previous });
+  const rows = query.data?.rows ?? [];
   const columns = useMemo<ColumnDef<RejectionRow, unknown>[]>(() => [
     { id: "number", header: "Issue", cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.rejectionNumber}</span> },
     { id: "stage", header: "Custody stage", cell: ({ row }) => <StageBadge stage={row.original.stage} /> },
@@ -86,7 +90,7 @@ export function ReceivingIssuesGrid({ view, search, stage, reason }: { view: str
     { id: "status", header: "Status", cell: ({ row }) => <RejectionStatus status={row.original.status} /> },
   ], []);
   return (
-    <EnterpriseDataGrid<RejectionRow> aria-label="Receiving issues" columns={columns} data={rows} getRowId={(row) => row.id}
+    <EnterpriseDataGrid<RejectionRow> aria-label="Receiving issues" columns={columns} data={rows} getRowId={(row) => row.id} {...gridPaging(query.data?.total ?? 0, pageIndex, setPageIndex)}
       state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (search || stage !== ANY || reason !== ANY ? "no-results" : "empty") : "ready"}
       loadingContent={<LoadingState label="Loading receiving issues" rows={6} />}
       errorContent={<ErrorState title="Could not load receiving issues" description={errorMessage(query.error)} action={{ label: "Try again", onPress: () => void query.refetch() }} />}
@@ -123,6 +127,8 @@ export function RejectionTable({ rows, empty }: { rows: RejectionRow[]; empty: s
 
 type DetailDialog = "edit" | "cancel" | "resolve" | "return";
 export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) {
+  // Quality's inspection is linked only while Quality is on (Procurement plan Phase 0, bug 13).
+  const qualityOn = useApp("quality");
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "rejection", rejectionId), queryFn: () => getRejection(rejectionId) });
@@ -155,7 +161,7 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
         secondaryActions: (
           <div className="flex flex-wrap gap-2">
             {canReturn && otherOptions.length > 0 && <Button variant="secondary" onPress={() => setDialog("resolve")}>Record Resolution</Button>}
-            {rejection.inspection && <Link className="inline-flex items-center px-3 text-sm text-brand hover:underline" href={`/quality/incoming/${rejection.inspection.id}`}>Open Quality Inspection</Link>}
+            {rejection.inspection && qualityOn && <Link className="inline-flex items-center px-3 text-sm text-brand hover:underline" href={`/quality/incoming/${rejection.inspection.id}`}>Open Quality Inspection</Link>}
             {actions.edit && <Button variant="ghost" onPress={() => setDialog("edit")}>Edit</Button>}
             {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel as invalid</Button>}
           </div>
@@ -167,7 +173,7 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
             <Tab id="resolution">Resolution</Tab>
             <Tab id="stock">Stock &amp; Quality</Tab>
             <Tab id="evidence">Evidence</Tab>
-            {detail.financial && <Tab id="finance">Supplier Bills</Tab>}
+            {detail.financial && <Tab id="finance">Purchase Bills</Tab>}
             <Tab id="history">History</Tab>
           </TabList>
           <TabPanel id="overview">
@@ -223,7 +229,9 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
                   { label: "Lot", value: rejection.batchNumber ? `${rejection.batchNumber}${rejection.expiryDate ? ` · expires ${calendarDate(rejection.expiryDate)}` : ""}` : "—" },
                   { label: "Serial numbers", value: rejection.serialNumbers.length ? rejection.serialNumbers.join(", ") : "—" },
                   { label: "Quality inspection", value: rejection.inspection
-                    ? <Link className="text-brand hover:underline" href={`/quality/incoming/${rejection.inspection.id}`}>{rejection.inspection.number} ({statusLabel(rejection.inspection.status)}, {quantity(rejection.inspection.rejected)} rejected)</Link> : "—" },
+                    ? (qualityOn
+                      ? <Link className="text-brand hover:underline" href={`/quality/incoming/${rejection.inspection.id}`}>{rejection.inspection.number} ({statusLabel(rejection.inspection.status)}, {quantity(rejection.inspection.rejected)} rejected)</Link>
+                      : `${rejection.inspection.number} (${statusLabel(rejection.inspection.status)}, ${quantity(rejection.inspection.rejected)} rejected)`) : "—" },
                 ]} />
               </Panel>
               <Panel title="Inventory movements" description="Posted by Inventory: quarantine, return, disposal or acceptance. A refusal at the dock moves nothing.">

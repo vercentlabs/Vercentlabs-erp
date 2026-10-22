@@ -28,7 +28,7 @@ export const SUPPLIER_IMPORT_FIELDS = Object.freeze([
   { key: "paymentTerms", label: "Payment Terms", aliases: ["terms", "payment term"], sample: "" },
   { key: "buyerEmail", label: "Buyer Email", aliases: ["buyer", "owner", "owner email", "purchaser"], sample: "" },
   { key: "gstRegistrationType", label: "GST Registration Type", aliases: ["gst type", "registration type"], sample: "Registered – Regular" },
-  { key: "gstin", label: "GSTIN", aliases: ["gst number", "gst no", "gst"], sample: "27AAACS1234A1Z5" },
+  { key: "gstin", label: "GSTIN", aliases: ["gst number", "gst no", "gst"], sample: "27AAACS1234A1Z2" },
   { key: "pan", label: "PAN", aliases: ["pan number", "tax id"], sample: "" },
   { key: "line1", label: "Address Line 1", aliases: ["address", "street", "address 1"], sample: "Plot 14, MIDC Bhosari" },
   { key: "line2", label: "Address Line 2", aliases: ["address 2"], sample: "" },

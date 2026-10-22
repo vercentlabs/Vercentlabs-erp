@@ -8,6 +8,7 @@ import {
   CLAIM_ROUNDING, CLAIM_STATUS_LABELS, LIVE_SQL, POSTED_SQL, POSTED_STATUSES, REASON_LABELS, VC_PERMISSIONS, VendorCreditError, can, dayOf, dec, fail, optionalUuid, readAmount, readDate, readReason,
   requireAny, requireClaimView, requireUuid, text,
 } from "./constants.js";
+import { databaseToday } from "../org-day.js";
 
 const OPEN_FOR_RESPONSE = ["issued", "partially_accepted", "rejected"];
 const CREDITABLE = ["accepted", "partially_accepted"];
@@ -140,7 +141,7 @@ export async function createSupplierDebitClaim(client, context, input = {}) {
   if (!reason || reason.length < 3) fail("Give the reason for the claim.", "reason", "DEBIT_CLAIM_REASON_REQUIRED");
   const currency = await claimCurrency(client, context, supplier, input);
   const lines = await buildClaimLines(client, context, supplier, input, currency);
-  const issueDate = readDate(input.issueDate, "Issue date") ?? (await client.query(`SELECT current_date::text AS d`)).rows[0].d;
+  const issueDate = readDate(input.issueDate, "Issue date") ?? await databaseToday(client, context.organizationId);
   const firstBill = lines.find((line) => line.supplierBillId);
   const registration = optionalUuid(input.buyingRegistrationId, "Company registration") ?? (firstBill
     ? (await client.query(`SELECT buying_registration_id FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND id = $2`, [context.organizationId, firstBill.supplierBillId])).rows[0]?.buying_registration_id
