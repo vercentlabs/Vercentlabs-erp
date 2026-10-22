@@ -1,7 +1,7 @@
 "use client";
 
-// The pages inside Sales Settings: Quotation & Order Rules, Fulfillment and
-// Discount Controls. Each reads the organization's Sales settings and saves
+// The pages inside Sales Settings: Quotation & Order Rules, Fulfillment,
+// Discount Controls, Credit Control and GST & e-invoice (Sales plan). Each reads the organization's Sales settings and saves
 // only its own fields; Payment Terms are shared settings (Settings → Payment Terms). Viewing needs
 // sales.view, changing needs sales.settings.manage (and, for discounts,
 // sales.discount.manage_settings). The server checks both again.
@@ -26,6 +26,8 @@ type Settings = {
   credit_control?: "off" | "warn" | "block";
   credit_overdue_days?: number | null;
   unassigned_customers_visible?: boolean;
+  einvoice_on_post?: boolean;
+  einvoice_30_day_limit?: boolean;
   require_requested_delivery_date: boolean;
   check_availability_on_confirm: boolean;
   show_prices_on_delivery_note: boolean;
@@ -118,8 +120,6 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
   const [direct, setDirect] = useState(settings.allow_direct_orders);
   const [requirePo, setRequirePo] = useState(Boolean(settings.require_customer_po));
   const [requireDelivery, setRequireDelivery] = useState(Boolean(settings.require_requested_delivery_date));
-  const [creditControl, setCreditControl] = useState<string>(settings.credit_control ?? "block");
-  const [overdueDays, setOverdueDays] = useState<number>(settings.credit_overdue_days ?? NaN);
   const [unassigned, setUnassigned] = useState(Boolean(settings.unassigned_customers_visible));
   const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
   return (
@@ -146,23 +146,10 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
       <Panel title="Customers" description="A salesperson who sees only their own customers sees those they are the salesperson of or added.">
         <Switch isSelected={unassigned} onChange={touch(setUnassigned)} isDisabled={!canManage}>Every salesperson also sees customers with no salesperson</Switch>
       </Panel>
-      <Panel title="Credit control" description="Each customer's credit limit is set on the customer, in the company's currency. Used credit is what the customer owes, less advances, plus confirmed orders not yet invoiced.">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Select label="An order over the customer's credit limit" selectedKey={creditControl} onSelectionChange={(key) => touch(setCreditControl)(String(key ?? "block"))} isDisabled={!canManage}
-            options={[
-              { value: "block", label: "Is held until a manager releases it" },
-              { value: "warn", label: "Is confirmed with a warning" },
-              { value: "off", label: "Is not checked" },
-            ]} />
-          <NumberField label="Also hold orders when an invoice is overdue more than (days)" description="Leave empty to not check overdue invoices." value={overdueDays}
-            onChange={touch(setOverdueDays)} minValue={0} maxValue={3650} step={1} isDisabled={!canManage || creditControl === "off"} />
-        </div>
-      </Panel>
       <SaveBar canManage={canManage} save={save} saved={saved} readOnlyText="You can view these rules. Changing them needs the Sales settings permission."
         onSave={() => save.mutate({
           defaultQuoteValidityDays: validity, quotationApprovalAmount: quoteAmount, quotationApprovalDiscount: quoteDiscount, minimumMarginPercent: margin,
           defaultQuotationTerms: quotationTerms, allowDirectOrders: direct, requireCustomerPo: requirePo, requireRequestedDeliveryDate: requireDelivery,
-          creditControl: creditControl as "off" | "warn" | "block", creditOverdueDays: Number.isFinite(overdueDays) ? overdueDays : null,
           unassignedCustomersVisible: unassigned,
         })} />
     </div>
@@ -270,6 +257,78 @@ function DiscountForm({ settings }: { settings: Settings }) {
           allowLineDiscounts: lineDiscounts, allowDocumentDiscounts: documentDiscounts, allowPercentDiscounts: percentDiscounts, allowAmountDiscounts: amountDiscounts,
           discountReasonAbovePercent: percentOrNull(reasonAbove), discountLimitPercent: percentOrNull(discountLimit), discountLimitElevatedPercent: percentOrNull(managerLimit),
         })} />
+    </div>
+  );
+}
+
+// ------------------------------------------------------------- credit control
+// Setup › Credit control (Sales plan): what happens to an order over the customer's limit or with bills overdue too long. Hold is the
+// approval: the order waits in Credit hold until someone who can release credit confirms it with a reason (the salesperson can ask).
+export function CreditControlScreen() {
+  return (
+    <SettingsPage title="Credit Control" description="What happens when an order would take a customer over its credit limit, or the customer has bills overdue too long.">
+      {({ settings }) => <CreditControlForm settings={settings} />}
+    </SettingsPage>
+  );
+}
+
+function CreditControlForm({ settings }: { settings: Settings }) {
+  const canManage = useHolds(SALES_PERMISSIONS.settingsManage);
+  const [saved, setSaved] = useState(false);
+  const save = useSave(() => setSaved(true));
+  const [creditControl, setCreditControl] = useState<string>(settings.credit_control ?? "block");
+  const [overdueDays, setOverdueDays] = useState<number>(settings.credit_overdue_days ?? NaN);
+  const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
+  return (
+    <div className="flex flex-col gap-4">
+      <Panel title="When an order goes over the limit" description="Each customer's credit limit is set on the customer, in the company's currency (0: no limit). Used credit is what the customer owes, less advances and credit notes, plus confirmed orders not yet invoiced.">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Select label="An order over the customer's credit limit" selectedKey={creditControl} onSelectionChange={(key) => touch(setCreditControl)(String(key ?? "block"))} isDisabled={!canManage}
+            options={[
+              { value: "block", label: "Is held until a manager releases it (approval)" },
+              { value: "warn", label: "Is confirmed with a warning" },
+              { value: "off", label: "Is not checked" },
+            ]} />
+          <NumberField label="Also hold orders when a bill is overdue more than (days)" description="Leave empty to not check overdue bills." value={overdueDays}
+            onChange={touch(setOverdueDays)} minValue={0} maxValue={3650} step={1} isDisabled={!canManage || creditControl === "off"} />
+        </div>
+        <p className="text-sm text-text-secondary">A held order shows in Sales Orders › Credit hold and on the home. The salesperson can ask for it to be released; whoever has
+          the Release credit permission confirms it and gives the reason, which is kept on the order&apos;s history.</p>
+      </Panel>
+      <SaveBar canManage={canManage} save={save} saved={saved} readOnlyText="You can view these rules. Changing them needs the Sales settings permission."
+        onSave={() => save.mutate({ creditControl: creditControl as "off" | "warn" | "block", creditOverdueDays: Number.isFinite(overdueDays) ? overdueDays : null })} />
+    </div>
+  );
+}
+
+// ----------------------------------------------------------- GST & e-invoice
+// Setup › GST & e-invoice (Sales plan): the IRN when an invoice is posted (once the GSP is tested), and the 30-day reporting limit.
+export function GstEinvoiceScreen() {
+  return (
+    <SettingsPage title="GST & e-invoice" description="E-invoices (IRN) for invoices, credit notes and debit notes to registered customers, through the company's GST Suvidha Provider.">
+      {({ settings }) => <GstEinvoiceForm settings={settings} />}
+    </SettingsPage>
+  );
+}
+
+function GstEinvoiceForm({ settings }: { settings: Settings }) {
+  const canManage = useHolds(SALES_PERMISSIONS.settingsManage);
+  const [saved, setSaved] = useState(false);
+  const save = useSave(() => setSaved(true));
+  const [onPost, setOnPost] = useState(Boolean(settings.einvoice_on_post));
+  const [limit, setLimit] = useState(Boolean(settings.einvoice_30_day_limit));
+  const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
+  return (
+    <div className="flex flex-col gap-4">
+      <Panel title="E-invoice on posting" description="Switch on once the GSP credentials are tested. Without a GSP, generate the IRN on the e-invoice portal and record it on the invoice's GST tab.">
+        <Switch isSelected={onPost} onChange={touch(setOnPost)} isDisabled={!canManage}>Generate the IRN when an invoice, credit note or debit note to a registered customer is posted</Switch>
+        <p className="text-sm text-text-secondary">If the GSP refuses, the document stays posted and its GST tab shows why, to retry.</p>
+      </Panel>
+      <Panel title="30-day reporting limit" description="From 1 April 2025 a company with annual turnover of ₹10 crore or more must report an invoice to the IRP within 30 days of its date. Check with your CA.">
+        <Switch isSelected={limit} onChange={touch(setLimit)} isDisabled={!canManage}>Our turnover is ₹10 crore or more: warn on documents nearing 30 days without an IRN</Switch>
+      </Panel>
+      <SaveBar canManage={canManage} save={save} saved={saved} readOnlyText="You can view these settings. Changing them needs the Sales settings permission."
+        onSave={() => save.mutate({ einvoiceOnPost: onPost, einvoice30DayLimit: limit })} />
     </div>
   );
 }

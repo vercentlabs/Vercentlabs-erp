@@ -18,6 +18,7 @@ import { unitUqcMap } from "../../core/tax/uqc.js";
 import { getSalesInvoice } from "../../modules/sales/invoices/records.js";
 import { loadCreditNote } from "../../modules/sales/credit-notes/access.js";
 import { creditNoteLines } from "../../modules/sales/credit-notes/build.js";
+import { debitNoteLines, loadDebitNote } from "../../modules/sales/debit-notes/index.js";
 
 export class ComplianceError extends Error {
   constructor(status, message, code = "GST_COMPLIANCE_ERROR", details) {
@@ -98,12 +99,15 @@ async function documentKind(client, organizationId, documentId) {
   return (await client.query("SELECT invoice_type FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND id = $2", [organizationId, documentId])).rows[0]?.invoice_type ?? null;
 }
 
-// The INV-01 JSON for a posted sales invoice or credit note (from its snapshots). A credit note is type CRN and names the invoice it
-// credits (Sales audit B9).
+// The INV-01 JSON for a posted sales invoice, credit note or debit note (from its snapshots). A credit note is type CRN and a debit note
+// DBN, each naming the invoice it corrects (Sales audit B9, Sales plan).
 export async function buildEInvoicePayload(client, session, invoiceId) {
-  const creditNote = (await documentKind(client, session.organizationId, invoiceId)) === "credit_note";
+  const kind = await documentKind(client, session.organizationId, invoiceId);
+  const creditNote = kind === "credit_note";
+  const debitNote = kind === "debit_note";
   const { invoice, lines } = creditNote
     ? { invoice: await loadCreditNote(client, session, invoiceId), lines: await creditNoteLines(client, session.organizationId, invoiceId) }
+    : debitNote ? { invoice: await loadDebitNote(client, session, invoiceId), lines: await debitNoteLines(client, session.organizationId, invoiceId) }
     : await getSalesInvoice(client, session, invoiceId);
   const seller = await sellerRegistration(client, session.organizationId, invoice.seller_registration_id);
   if (!seller?.registration_number) throw new ComplianceError(409, "The invoice has no seller GSTIN.", "EINVOICE_NOT_APPLICABLE");
@@ -128,8 +132,8 @@ export async function buildEInvoicePayload(client, session, invoiceId) {
     payload: {
       Version: "1.1",
       TranDtls: { TaxSch: "GST", SupTyp: exportSupply ? (invoice.supply_type === "sez" ? "SEZWP" : "EXPWP") : "B2B", RegRev: invoice.reverse_charge ? "Y" : "N" },
-      DocDtls: { Typ: creditNote ? "CRN" : "INV", No: invoice.invoice_number, Dt: indianDate(invoice.invoice_date) },
-      ...(creditNote ? { RefDtls: { PrecDocDtls: [{ InvNo: invoice.source_invoice_number, InvDt: indianDate(invoice.source_invoice_date) }] } } : {}),
+      DocDtls: { Typ: creditNote ? "CRN" : debitNote ? "DBN" : "INV", No: invoice.invoice_number, Dt: indianDate(invoice.invoice_date) },
+      ...(creditNote || debitNote ? { RefDtls: { PrecDocDtls: [{ InvNo: invoice.source_invoice_number, InvDt: indianDate(invoice.source_invoice_date) }] } } : {}),
       SellerDtls: { Gstin: seller.registration_number, LglNm: seller.legal_name || seller.name, Addr1: seller.address_line1 ?? seller.name, Loc: seller.city ?? seller.name, Pin: pin(seller.postal_code), Stcd: seller.state_code },
       BuyerDtls: { Gstin: customer.gstin ?? "URP", LglNm: customer.legalName ?? customer.displayName ?? customer.display_name ?? "Customer", Pos: invoice.place_of_supply ?? billing.stateCode ?? seller.state_code,
         Addr1: billing.line1 ?? billing.addressLine1 ?? billing.address_line1 ?? "-", Loc: billing.city ?? "-", Pin: pin(billing.postalCode ?? billing.postal_code), Stcd: billing.stateCode ?? billing.state_code ?? invoice.place_of_supply },
@@ -138,7 +142,7 @@ export async function buildEInvoicePayload(client, session, invoiceId) {
         TotInvVal: round(invoice.grand_total) },
     },
     invoice,
-    documentType: creditNote ? "credit_note" : "invoice",
+    documentType: creditNote ? "credit_note" : debitNote ? "debit_note" : "invoice",
   };
 }
 
@@ -159,7 +163,7 @@ export async function generateEInvoice(client, session, invoiceId, options = {})
   const { seller, payload, invoice, documentType } = await buildEInvoicePayload(client, session, invoiceId);
   // Posted, and still standing (paid or partly paid included).
   if (!invoice.posted_at || ["draft", "cancelled", "reversed", "void"].includes(invoice.status))
-    throw new ComplianceError(409, `Post the ${documentType === "credit_note" ? "credit note" : "invoice"} before its e-invoice is generated.`, "EINVOICE_NOT_POSTED");
+    throw new ComplianceError(409, `Post the ${documentType.replace("_", " ")} before its e-invoice is generated.`, "EINVOICE_NOT_POSTED");
   if (seller.registration_type === "composition") throw new ComplianceError(409, "A composition dealer issues bills of supply, which have no IRN.", "EINVOICE_NOT_APPLICABLE");
   if (payload.TranDtls.SupTyp === "B2B" && payload.BuyerDtls.Gstin === "URP") throw new ComplianceError(409, "The customer has no GSTIN: a B2C invoice needs no IRN.", "EINVOICE_NOT_APPLICABLE");
   let answer;
@@ -183,6 +187,47 @@ export async function generateEInvoice(client, session, invoiceId, options = {})
   await client.query(`UPDATE tenant.accounting_customer_invoices SET e_invoice_status = 'generated', e_invoice_reference = $3 WHERE organization_id = $1 AND id = $2`,
     [session.organizationId, invoiceId, answer.irn]);
   return { einvoice: einvoiceView(row), replayed: false };
+}
+
+// After a posting (Sales plan): the IRN, when the company has switched on "e-invoice on posting" and the document needs one (B2B or an
+// export, with a GSP). Never undoes the posting: a refusal is kept on the document (status failed) for someone to retry from its page.
+// Returns null when nothing was tried, else { status: 'generated' | 'failed', irn?, error? }.
+export async function einvoiceAfterPost(client, session, documentId, options = {}) {
+  const settings = (await client.query("SELECT einvoice_on_post FROM tenant.sales_settings WHERE organization_id = $1", [session.organizationId])).rows[0];
+  if (!settings?.einvoice_on_post || !gspConfigured(options.env ?? process.env)) return null;
+  const doc = (await client.query("SELECT status, posted_at, customer_snapshot->>'gstin' AS gstin FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND id = $2",
+    [session.organizationId, documentId])).rows[0];
+  if (!doc?.posted_at) return null;
+  await client.query("SAVEPOINT einvoice_after_post");
+  try {
+    const { einvoice } = await generateEInvoice(client, session, documentId, options);
+    await client.query("RELEASE SAVEPOINT einvoice_after_post");
+    return { status: "generated", irn: einvoice.irn };
+  } catch (error) {
+    if (error?.code === "EINVOICE_NOT_APPLICABLE") {
+      await client.query("ROLLBACK TO SAVEPOINT einvoice_after_post");
+      return null;
+    }
+    // A GSP refusal is already recorded (failed); anything else is undone and reported.
+    if (error?.code === "GSP_REFUSED" || error?.code === "GSP_UNREACHABLE") await client.query("RELEASE SAVEPOINT einvoice_after_post");
+    else await client.query("ROLLBACK TO SAVEPOINT einvoice_after_post");
+    return { status: "failed", error: String(error?.message ?? error).slice(0, 300) };
+  }
+}
+
+// The 30-day limit (Sales plan): a company with turnover of ₹10 crore or more must report an invoice or note to the IRP within 30 days
+// of its date, from 1 April 2025. Returns { limitDays, daysLeft, lastDay } for a document still without an IRN, else null.
+export async function einvoiceDeadline(client, session, documentId) {
+  const settings = (await client.query("SELECT einvoice_30_day_limit FROM tenant.sales_settings WHERE organization_id = $1", [session.organizationId])).rows[0];
+  if (!settings?.einvoice_30_day_limit || !UUID.test(String(documentId ?? ""))) return null;
+  const row = (await client.query(
+    `SELECT (invoice.invoice_date + 30)::text AS last_day, (invoice.invoice_date + 30) - tenant.company_today() AS days_left
+       FROM tenant.accounting_customer_invoices invoice
+      WHERE invoice.organization_id = $1 AND invoice.id = $2 AND invoice.posted_at IS NOT NULL AND invoice.status NOT IN ('cancelled', 'reversed', 'void')
+        AND COALESCE(invoice.customer_snapshot->>'gstin', '') <> ''
+        AND NOT EXISTS (SELECT 1 FROM tenant.einvoice_documents doc WHERE doc.organization_id = invoice.organization_id AND doc.document_id = invoice.id AND doc.status = 'generated')`,
+    [session.organizationId, documentId])).rows[0];
+  return row ? { limitDays: 30, daysLeft: Number(row.days_left), lastDay: row.last_day } : null;
 }
 
 const CANCEL_REASONS = Object.freeze({ duplicate: "1", data_entry_mistake: "2", order_cancelled: "3", other: "4" });
@@ -440,4 +485,25 @@ export async function cancelEwayBill(client, session, ewayBillId, { reason = "da
   await gsp("ewaybill/cancel", { gstin: row.payload.fromGstin, ewbNo: row.ewb_number, reason: codes[reason] ?? "4", remarks: note }, options);
   const updated = (await client.query(`UPDATE tenant.eway_bills SET status = 'cancelled', cancel_reason = $2, cancelled_at = now(), updated_at = now() WHERE id = $1 RETURNING *`, [row.id, note])).rows[0];
   return { ewayBill: ewayView(updated) };
+}
+
+// The e-way bills of Sales' movements (Sales plan, Dispatch › E-way Bills): from invoices, deliveries and challans, newest first, with
+// their validity and vehicle. Company-wide, to whoever handles dispatch or invoices. filters: { status, search, limit, offset }
+export async function listSalesEwayBills(client, session, filters = {}) {
+  const can = (permission) => session.roleSlugs?.includes("organization_owner") || session.permissions?.includes(permission);
+  if (!can("sales.delivery.view") && !can("sales.invoice.view") && !can("gst.view")) throw new ComplianceError(403, "You do not have permission to see e-way bills.", "PERMISSION_DENIED");
+  const values = [session.organizationId];
+  const bind = (value) => { values.push(value); return `$${values.length}`; };
+  let where = "bill.organization_id = $1 AND bill.source_type IN ('sales_invoice', 'sales_delivery', 'sales_challan')";
+  if (["generated", "cancelled", "failed"].includes(filters.status)) where += ` AND bill.status = ${bind(filters.status)}`;
+  if (filters.status === "expiring") where += " AND bill.status = 'generated' AND bill.valid_until BETWEEN now() AND now() + interval '1 day'";
+  const search = String(filters.search ?? "").trim().toLowerCase().slice(0, 100);
+  if (search) where += ` AND lower(concat_ws(' ', bill.ewb_number, bill.source_number, bill.vehicle_number)) LIKE ${bind(`%${search.replace(/[\%_]/g, (c) => `\${c}`)}%`)}`;
+  const limit = Math.min(Math.max(Number(filters.limit) || 25, 1), 100);
+  const offset = Math.max(Number(filters.offset) || 0, 0);
+  const rows = (await client.query(
+    `SELECT count(*) OVER () AS total_count, bill.*, (bill.payload->>'totInvValue')::numeric AS value, bill.payload->>'toTrdName' AS consignee
+       FROM tenant.eway_bills bill WHERE ${where} ORDER BY bill.created_at DESC LIMIT ${limit} OFFSET ${offset}`, values)).rows;
+  return { rows: rows.map((row) => ({ ...ewayView(row), value: row.value == null ? null : Number(row.value), consignee: row.consignee ?? null, createdAt: row.created_at })),
+    total: Number(rows[0]?.total_count ?? 0), limit, offset };
 }

@@ -125,6 +125,9 @@ const SETTINGS_DEFAULTS = Object.freeze({
   credit_overdue_days: null,
   // Whether every salesperson sees the customers that have no salesperson (Line-by-line audit X9).
   unassigned_customers_visible: false,
+  // GST & e-invoice (Sales plan): the IRN on posting, and the 30-day reporting limit for turnover of ₹10 crore or more.
+  einvoice_on_post: false,
+  einvoice_30_day_limit: false,
 });
 const DISCOUNT_SETTINGS = Object.freeze({
   allowLineDiscounts: "allow_line_discounts", allowDocumentDiscounts: "allow_document_discounts", allowPercentDiscounts: "allow_percent_discounts",
@@ -198,11 +201,13 @@ export async function updateSalesSettings(client, c, input = {}) {
   }
   if (input.creditOverdueDays !== undefined)
     next.credit_overdue_days = input.creditOverdueDays === null || input.creditOverdueDays === "" ? null : Math.trunc(boundedNumber(input.creditOverdueDays, "Overdue days", { min: 0, max: 3650 }));
+  if (input.einvoiceOnPost !== undefined) next.einvoice_on_post = Boolean(input.einvoiceOnPost);
+  if (input.einvoice30DayLimit !== undefined) next.einvoice_30_day_limit = Boolean(input.einvoice30DayLimit);
   if (input.invoiceQuantityBasis !== undefined) {
     if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
     next.invoice_quantity_basis = input.invoiceQuantityBasis;
   }
-  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_warehouse_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent","credit_control","credit_overdue_days","unassigned_customers_visible"];
+  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_warehouse_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent","credit_control","credit_overdue_days","unassigned_customers_visible","einvoice_on_post","einvoice_30_day_limit"];
   const result = await client.query(
     `INSERT INTO tenant.sales_settings(organization_id,${columns.join(",")},created_by,updated_by)
      VALUES($1,${columns.map((_, index) => `$${index + 3}`).join(",")},$2,$2)

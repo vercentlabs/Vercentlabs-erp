@@ -53,13 +53,18 @@ export const ORDER_PERMISSIONS = Object.freeze({
 
 export const ORDER_VIEWS = Object.freeze([
   { key: "all", label: "All Orders" },
+  // The work, in its order (Sales plan); the views after them are under More views.
+  { key: "to_confirm", label: "To Confirm" },
+  { key: "credit_hold", label: "Credit Hold" },
+  { key: "to_dispatch", label: "To Dispatch" },
+  { key: "to_bill", label: "To Bill" },
+  { key: "overdue_delivery", label: "Overdue Delivery" },
   { key: "draft", label: "Draft" },
   { key: "confirmed", label: "Confirmed" },
   { key: "awaiting_reservation", label: "Awaiting Reservation" },
   { key: "partially_reserved", label: "Partially Reserved" },
   { key: "awaiting_delivery", label: "Awaiting Delivery" },
   { key: "partially_delivered", label: "Partially Delivered" },
-  { key: "overdue_delivery", label: "Overdue Delivery" },
   { key: "ready_to_invoice", label: "Ready to Invoice" },
   { key: "partially_invoiced", label: "Partially Invoiced" },
   { key: "fully_invoiced", label: "Fully Invoiced" },

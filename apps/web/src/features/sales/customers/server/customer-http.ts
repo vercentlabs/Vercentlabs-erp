@@ -73,7 +73,7 @@ export function customerUpload(request: Request, permission: string, run: (clien
 }
 
 const FILTER_KEYS = [
-  "view", "search", "status", "customerKind", "ownerUserId", "state", "countryCode", "gstRegistrationType", "currencyCode", "priceListId", "paymentTermId",
+  "view", "search", "status", "customerKind", "ownerUserId", "state", "countryCode", "gstRegistrationType", "currencyCode", "priceListId", "paymentTermId", "salesRouteId",
   "createdFrom", "createdTo", "hasOutstanding", "hasOverdue", "sort", "direction",
 ] as const;
 

@@ -7,3 +7,10 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 export function useApp(app: string) {
   return useWorkspaceContext().accessibleModuleKeys.includes(app);
 }
+
+// Every app another one can light up, at once (Sales plan): one answer for the sidebar, tabs, buttons, filters and + Create.
+export function useApps() {
+  const keys = useWorkspaceContext().accessibleModuleKeys;
+  return { stock: keys.includes("stock"), accounting: keys.includes("accounting"), crm: keys.includes("crm"), pos: keys.includes("point-of-sale"),
+    manufacturing: keys.includes("manufacturing") };
+}

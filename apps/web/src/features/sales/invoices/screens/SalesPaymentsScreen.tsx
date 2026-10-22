@@ -1,13 +1,13 @@
 "use client";
 
-// Sales › Bill & collect › Payments Received (Line-by-line audit): every payment a customer made, with the invoices it paid; a payment is
-// recorded from its invoice (Record Payment) or from + Create › Payment Received. The search, dates and page live in the address.
+// Sales › Billing › Payments Received (Line-by-line audit, Sales plan): every payment a customer made, with the bills it paid; New payment
+// takes the customer's payment and applies it oldest first (or from an invoice's Record Payment). The search, dates and page live in the address.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, TextField } from "@vercentlabs/design-system";
+import { EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, SearchField, TextField } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -69,9 +69,11 @@ export function SalesPaymentsScreen() {
   if (listQuery.isError && listQuery.error instanceof SalesApiError && listQuery.error.status === 403)
     return <PermissionState title="You don't have access to payments" description="Ask an administrator for the View invoice payments permission." />;
   const hasCriteria = Boolean(submitted || from || to);
+  const canRecord = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.invoice.record_payment");
   return (
     <EnterpriseListPage
-      header={{ title: "Payments Received", description: "What customers paid, and the invoices each payment settled. Record a payment from its invoice.", primaryAction: <SalesCreateMenu /> }}
+      header={{ title: "Payments Received", description: "What customers paid, the bills each payment settled and what is kept as an advance.",
+        primaryAction: canRecord ? <LinkButton variant="primary" href="/sales/payments/new">New payment</LinkButton> : <SalesCreateMenu /> }}
       actionBar={{
         start: (
           <>
@@ -90,14 +92,14 @@ export function SalesPaymentsScreen() {
         state={listQuery.isLoading ? "loading" : listQuery.isError ? "error" : rows.length === 0 ? (hasCriteria ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading payments" rows={8} onRetry={() => void listQuery.refetch()} />}
         errorContent={<ErrorState title="Could not load payments" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}
-        emptyContent={<EmptyState title="No payments yet" description="Record a payment from a posted invoice." action={{ label: "Invoices with a balance", onPress: () => router.push("/sales/invoices?view=balance_due") }} />}
+        emptyContent={<EmptyState title="No payments yet" description="Record what a customer paid: it settles their oldest bills first." action={canRecord ? { label: "New payment", onPress: () => router.push("/sales/payments/new") } : { label: "Invoices with a balance", onPress: () => router.push("/sales/invoices?view=balance_due") }} />}
         noResultsContent={<NoResultsState title="Nothing matches" description="Try a different search or dates." />}
         pageIndex={pageIndex}
         pageSize={PAGE_SIZE}
         pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
         totalRowCount={total}
         onPageChange={(page) => go({ page: page > 0 ? String(page + 1) : "" })}
-        onRowClick={(row) => { const first = row.invoices[0]; if (first) router.push(`/sales/invoices/${first.id}?tab=payments`); }}
+        onRowClick={(row) => router.push(`/sales/payments/${row.id}`)}
         renderMobileCard={(row) => (
           <div className="flex flex-col gap-1">
             <span className="font-medium tabular-nums">{row.receipt_number} · {money(row.currency_code, row.amount)}</span>

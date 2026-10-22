@@ -31,7 +31,7 @@ export function customerSelect({ finance = false } = {}) {
   return `
   SELECT customer.*, owner.full_name AS owner_name, creator.full_name AS created_by_name, updater.full_name AS updated_by_name,
          blocker.full_name AS blocked_by_name, status_actor.full_name AS status_changed_by_name,
-         term.name AS payment_term_name, price_list.name AS price_list_name,
+         term.name AS payment_term_name, price_list.name AS price_list_name, (SELECT route.name FROM tenant.sales_routes route WHERE route.id = customer.sales_route_id) AS sales_route_name,
          billing.city AS billing_city, billing.state AS billing_state, billing.country_code AS billing_country_code,
          primary_contact.contact_id AS primary_contact_id, primary_contact.name AS primary_contact_name, primary_contact.phone AS primary_contact_phone,
          ${finance ? "finance.outstanding, finance.overdue" : "NULL::numeric AS outstanding, NULL::numeric AS overdue"}
@@ -89,6 +89,9 @@ export function toCustomer(row, { finance = false } = {}) {
     // In base currency; 0 is no limit.
     creditLimit: Number(row.credit_limit ?? 0),
     salesChannel: row.sales_channel ?? null,
+    // The beat (route) the customer is visited on (Sales plan, Phase 4).
+    salesRouteId: row.sales_route_id ?? null,
+    salesRouteName: row.sales_route_name ?? null,
     gstRegistrationType: row.tax_treatment,
     gstRegistrationLabel: row.tax_treatment ? gstRegistrationLabel(row.tax_treatment) : null,
     gstin: row.gstin,
@@ -190,6 +193,7 @@ export function buildCustomerListWhere(context, filters = {}) {
   if (text(filters.gstRegistrationType)) where.push(`customer.tax_treatment = ${bind(text(filters.gstRegistrationType))}`);
   if (text(filters.currencyCode)) where.push(`customer.currency_code = ${bind(text(filters.currencyCode).toUpperCase())}`);
   if (isUuid(filters.priceListId)) where.push(`customer.default_price_list_id = ${bind(filters.priceListId)}`);
+  if (isUuid(filters.salesRouteId)) where.push(`customer.sales_route_id = ${bind(filters.salesRouteId)}`);
   if (isUuid(filters.paymentTermId)) where.push(`customer.payment_term_id = ${bind(filters.paymentTermId)}`);
   if (/^\d{4}-\d{2}-\d{2}$/.test(text(filters.createdFrom))) where.push(`COALESCE(customer.customer_since, customer.created_at) >= ${bind(text(filters.createdFrom))}::date`);
   if (/^\d{4}-\d{2}-\d{2}$/.test(text(filters.createdTo))) where.push(`COALESCE(customer.customer_since, customer.created_at) < ${bind(text(filters.createdTo))}::date + 1`);
@@ -253,6 +257,8 @@ export async function assertCustomerReferences(client, context, normalized) {
     throw new CustomerError(400, "Choose an active sales price list.", "SALES_CUSTOMER_VALIDATION", { issues: [{ field: "priceListId", message: "Choose an active sales price list." }] });
   if (normalized.paymentTermId && !(await one(`SELECT 1 FROM tenant.payment_terms WHERE organization_id = $1 AND id = $2 AND status = 'active' AND is_sales_enabled`, normalized.paymentTermId)))
     throw new CustomerError(400, "Choose active payment terms.", "SALES_CUSTOMER_VALIDATION", { issues: [{ field: "paymentTermId", message: "Choose active payment terms." }] });
+  if (normalized.salesRouteId && !(await one(`SELECT 1 FROM tenant.sales_routes WHERE organization_id = $1 AND id = $2 AND status = 'active'`, normalized.salesRouteId)))
+    throw new CustomerError(400, "Choose an active beat.", "SALES_CUSTOMER_VALIDATION", { issues: [{ field: "salesRouteId", message: "Choose an active beat." }] });
   if (normalized.ownerUserId && !(await one(
     `SELECT 1 FROM public.organization_memberships membership JOIN public.users users ON users.id = membership.user_id
       WHERE membership.organization_id = $1 AND membership.user_id = $2 AND membership.status = 'active' AND users.status = 'active'`, normalized.ownerUserId)))

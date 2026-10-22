@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// Order Status is now Pending Orders › All open orders (Sales audit: one place for "where is my order").
+// Order Status is now Reports › Orders › Order status (Sales plan: one Reports page).
 export default function Page() {
-  redirect("/sales/pending-orders?report=order-status");
+  redirect("/sales/reports?tab=orders&report=order-status");
 }

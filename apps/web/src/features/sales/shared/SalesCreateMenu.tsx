@@ -29,6 +29,8 @@ const STARTS = [
   { key: "/sales/customers/new", label: "Customer", permission: "sales.customers.create" },
   { key: "/sales/quotations/new", label: "Quotation", permission: "sales.quotation.create" },
   { key: "/sales/orders/new", label: "Sales Order", permission: "sales.order.create" },
+  // Customer first: the payment settles the customer's oldest bills (Sales plan, Flow 4).
+  { key: "/sales/payments/new", label: "Payment Received", permission: "sales.invoice.record_payment" },
 ];
 const text = (value: unknown) => (value === null || value === undefined ? "" : String(value));
 const PICKERS: Picker[] = [
@@ -48,14 +50,14 @@ const PICKERS: Picker[] = [
     read: (row) => ({ id: text(row.id), number: text(row.delivery_number), detail: [row.customer_name, row.sales_order_number].filter(Boolean).join(" · ") }),
   },
   {
-    // The most common document after an invoice: the customer paid (Line-by-line audit).
-    key: "payment", label: "Payment Received", permission: "sales.invoice.record_payment", title: "Payment received", description: "Choose the posted invoice the customer paid.",
-    path: "/invoices?view=balance_due&sort=date&direction=desc", open: (id) => `/sales/invoices/${id}?create=payment`,
-    read: (row) => ({ id: text(row.id), number: text(row.invoice_number), detail: [row.customer_name, row.balance_due != null && `due ${text(row.balance_due)}`].filter(Boolean).join(" · ") }),
-  },
-  {
     key: "credit", label: "Credit Note", permission: "sales.credit_note.create", title: "New credit note", description: "Choose the posted invoice to credit. For returned goods, start from the sales return.",
     path: "/invoices?view=posted&sort=date&direction=desc", open: (id) => `/sales/invoices/${id}?create=credit`,
+    read: (row) => ({ id: text(row.id), number: text(row.invoice_number), detail: [row.customer_name, row.sales_order_number].filter(Boolean).join(" · ") }),
+  },
+  {
+    // An undercharge or rate difference after the invoice (Sales plan).
+    key: "debit", label: "Debit Note", permission: "sales.credit_note.create", title: "New debit note", description: "Choose the posted invoice the customer was undercharged on.",
+    path: "/invoices?view=posted&sort=date&direction=desc", open: (id) => `/sales/invoices/${id}?create=debit`,
     read: (row) => ({ id: text(row.id), number: text(row.invoice_number), detail: [row.customer_name, row.sales_order_number].filter(Boolean).join(" · ") }),
   },
 ];

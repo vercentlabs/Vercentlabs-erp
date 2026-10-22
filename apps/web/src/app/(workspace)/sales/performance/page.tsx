@@ -1,7 +1,6 @@
-import { SalesPerformanceScreen } from "@/features/sales/reports/screens/SalesPerformanceScreen";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Salesperson Performance" };
-
+// Salesperson Performance is now Masters › Salespeople & Targets (Sales plan).
 export default function Page() {
-  return <SalesPerformanceScreen />;
+  redirect("/sales/team");
 }

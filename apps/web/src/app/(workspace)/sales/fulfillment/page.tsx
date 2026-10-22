@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
-// Order Fulfillment is now Pending Orders › To dispatch (Sales audit: one place for "where is my order").
+// Order Fulfillment is now Reports › Orders › To dispatch (Sales plan: one Reports page).
 export default async function Page({ searchParams }: { searchParams: Promise<{ report?: string }> }) {
   const { report } = await searchParams;
-  redirect(`/sales/pending-orders?report=${encodeURIComponent(report ?? "fulfillment")}`);
+  redirect(`/sales/reports?tab=orders&report=${encodeURIComponent(report ?? "fulfillment")}`);
 }

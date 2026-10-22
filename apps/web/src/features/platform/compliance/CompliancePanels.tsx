@@ -32,7 +32,7 @@ export function EInvoicePanel({ invoiceId }: { invoiceId: string }) {
   const queryClient = useQueryClient();
   const url = `/api/sales/invoices/${invoiceId}/einvoice`;
   const key = ["sales", "einvoice", invoiceId];
-  const query = useQuery({ queryKey: key, queryFn: () => call<{ einvoice: EInvoice | null; configured: boolean }>(url) });
+  const query = useQuery({ queryKey: key, queryFn: () => call<{ einvoice: EInvoice | null; configured: boolean; deadline?: { limitDays: number; daysLeft: number; lastDay: string } | null }>(url) });
   const readiness = useQuery({ queryKey: [...key, "readiness"], retry: false,
     queryFn: () => call<{ readiness: { applicable: boolean; why: string | null; ready: boolean; problems: Problem[] } }>(`/api/compliance/references?invoiceId=${invoiceId}`).then((r) => r.readiness) });
   const refresh = () => void queryClient.invalidateQueries({ queryKey: key });
@@ -43,12 +43,18 @@ export function EInvoicePanel({ invoiceId }: { invoiceId: string }) {
   const [reason, setReason] = useState("data_entry_mistake");
   const cancel = useMutation({ mutationFn: () => call(url, { method: "PATCH", body: JSON.stringify({ reason }) }), onSuccess: refresh });
   if (!query.data) return null;
-  const { einvoice, configured } = query.data;
+  const { einvoice, configured, deadline } = query.data;
   const error = (generate.error ?? cancel.error ?? record.error ?? portalCancel.error) as Error | null;
   const ready = readiness.data;
   return (
     <Panel title="e-Invoice" description="The IRN from the Invoice Registration Portal, for a B2B invoice of a GSTIN under the e-invoice mandate. It can be cancelled within 24 hours.">
       {error && <Notice>{error.message}</Notice>}
+      {/* The 30-day reporting limit for turnover of ₹10 crore or more (Sales plan). */}
+      {deadline && einvoice?.status !== "generated" && (
+        <Notice tone={deadline.daysLeft <= 5 ? "danger" : "warning"}>{deadline.daysLeft >= 0
+          ? `Report it to the IRP within ${deadline.daysLeft} day${deadline.daysLeft === 1 ? "" : "s"} (by ${deadline.lastDay.split("-").reverse().join("-")}): after 30 days from its date the IRP refuses it.`
+          : `The 30 days to report it passed on ${deadline.lastDay.split("-").reverse().join("-")}: the IRP will refuse an IRN. Talk to your CA.`}</Notice>
+      )}
       {ready && (ready.applicable ? <Readiness problems={ready.problems} ready={ready.ready} /> : <p className="text-sm text-text-muted">{ready.why}</p>)}
       {!configured && einvoice?.status !== "generated" && <p className="text-sm text-text-muted">No GSP is connected: generate the IRN on the e-invoice portal (IRP), then record its IRN and acknowledgement here.</p>}
       {einvoice && (

@@ -19,6 +19,7 @@ export type SessionContext = {
   fullName: string;
   locale: string;
   timezone: string;
+  dateFormat?: string | null;
   emailVerified: boolean;
   mfaEnrolled: boolean;
   mfaPolicyRequired: boolean;

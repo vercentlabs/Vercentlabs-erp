@@ -33,8 +33,7 @@ import {
   LifeBuoy,
   Landmark,
   Building2,
-
-
+  Wallet,
 } from "lucide-react";
 
 import type { ModuleNavigation, SecondaryNavItem } from "./navigation-types";
@@ -222,15 +221,23 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     // Addresses and contacts live on the customer; confirmation, availability, reservation, partial delivery, partial invoicing and order
     // tracking on the sales order; shipment on the delivery; discounts and taxes on each document.
     sections: [
+      // The order of the work (Sales plan): sell → dispatch → bill → collect → review, then the masters and the settings. One home for each
+      // thing; an entry for another app's step shows only while that app is on.
       {
         id: "overview",
-        label: "Overview",
+        label: "Home",
         icon: LayoutDashboard,
         flat: true,
-        items: [{ ...available("Overview", "/sales"), aliases: ["sales home", "sales dashboard"] }],
+        items: [{ ...available("Today", "/sales"), aliases: ["sales home", "sales dashboard", "overview", "owner's morning"] }],
       },
-      // Sections in the words of the work, in its order: sell, deliver, bill and collect; then customers and prices, reports and setup
-      // (Sales audit: plain names like CRM's, not SAP's).
+      {
+        id: "customers",
+        label: "Customers",
+        icon: Users,
+        flat: true,
+        featureRange: "F031-F034",
+        items: [{ ...available("Customers", "/sales/customers"), aliases: ["customer master", "parties", "party", "addresses", "contacts", "customer 360", "import customers"] }],
+      },
       {
         id: "sell",
         label: "Sell",
@@ -241,119 +248,131 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Quotations", "/sales/quotations"), aliases: ["quotes", "estimates", "revisions", "proforma"] },
           {
             ...available("Sales Orders", "/sales/orders"),
-            aliases: ["orders", "order tracking", "order acceptance", "availability", "stock kept aside", "partial delivery", "partial invoicing", "customer order no", "customer po"],
+            aliases: ["orders", "order tracking", "order acceptance", "availability", "stock kept aside", "partial delivery", "partial invoicing", "customer order no", "customer po",
+              "credit hold", "to confirm", "to dispatch", "to bill"],
           },
-          // One place for "where is my order": every open order, what is left to dispatch (by order and by product), what is ready to bill.
-          {
-            ...available("Pending Orders", "/sales/pending-orders"),
-            aliases: ["where is my order", "order status", "order fulfillment", "remaining by order", "remaining by product", "backorders", "billing readiness", "dispatch performance"],
-            requiredPermission: "sales.reports.view",
-          },
+          // The old "where is my order" page, now Reports › Orders; its address still opens it.
+          { ...available("Pending Orders", "/sales/reports?tab=orders"), parent: "sales-orders", requiredPermission: "sales.reports.view",
+            aliases: ["where is my order", "order status", "order fulfillment", "remaining by order", "remaining by product", "backorders", "billing readiness", "dispatch performance"] },
         ],
       },
       {
-        id: "deliver",
-        label: "Deliver",
+        id: "dispatch",
+        label: "Dispatch",
         icon: Truck,
         collapsible: true,
         items: [
-          { ...available("Deliveries", "/sales/deliveries"), requiredApp: "stock", aliases: ["shipment", "delivery note", "delivery challan", "dispatch", "tracking number", "carrier", "proof of delivery", "lr number"] },
+          { ...available("Deliveries", "/sales/deliveries"), requiredApp: "stock", aliases: ["challans", "shipment", "delivery note", "delivery challan", "dispatch", "tracking number", "carrier", "proof of delivery", "lr number"] },
           // Without Stock there are no deliveries: a challan is the dispatch document (Sales audit).
           { ...available("Delivery Challans", "/sales/challans"), withoutApp: "stock", aliases: ["challan", "delivery challan", "dispatch", "job work", "sale on approval", "branch transfer"] },
-          { ...available("Sales Returns", "/sales/returns"), requiredApp: "stock", aliases: ["returns", "return note", "rma", "goods returned"] },
+          { ...available("Returns", "/sales/returns"), requiredApp: "stock", aliases: ["sales returns", "return note", "rma", "goods returned"] },
+          { ...available("E-way Bills", "/sales/eway-bills"), aliases: ["eway bill", "e way bill", "ewb", "part b", "vehicle number", "transporter"] },
         ],
       },
       {
-        id: "bill-collect",
-        label: "Bill & collect",
+        id: "billing",
+        label: "Billing",
         icon: Landmark,
         collapsible: true,
         items: [
-          { ...available("Sales Invoices", "/sales/invoices"), aliases: ["invoices", "billing", "tax invoice", "balance due", "overdue invoices", "e-invoice", "irn", "e-way bill"] },
-          { ...available("Payments Received", "/sales/payments"), aliases: ["receipts", "payments", "collections", "money received"], requiredPermission: "sales.invoice.payments.view" },
-          { ...available("Credit Notes", "/sales/credit-notes"), aliases: ["credits", "rate difference", "discount after sale", "price adjustment"] },
+          { ...available("Invoices", "/sales/invoices"), aliases: ["sales invoices", "bills", "billing", "tax invoice", "balance due", "overdue invoices", "e-invoice", "irn"] },
+          { ...available("Credit & Debit Notes", "/sales/credit-notes"), aliases: ["credit notes", "debit notes", "credits", "rate difference", "undercharge", "discount after sale", "price adjustment"] },
+          { ...available("Debit Notes", "/sales/debit-notes"), parent: "credit-debit-notes", aliases: ["debit note", "undercharge", "rate difference"] },
+          { ...available("Payments Received", "/sales/payments"), aliases: ["receipts", "payments", "collections", "money received", "cheque", "utr", "advance"],
+            requiredAnyPermission: ["sales.invoice.payments.view", "sales.invoice.record_payment"] },
           // The customer refunds Finance owns, the same records as Finance → Customer Refunds.
           { ...available("Refunds", "/sales/refunds"), aliases: ["customer refunds", "refund credit"], requiredPermission: "accounting.refund.view" },
-          // What customers owe and since when, with each customer's ledger (Sales audit M7).
-          // GST from Sales (Sales audit M8): a company that bills with Sales alone files GSTR-1 and tracks its IRNs and e-way bills here.
-          { ...available("GST Returns", "/sales/gst-returns"), aliases: ["gstr-1", "gstr1", "gst return", "b2b", "b2cs", "hsn summary"], requiredPermission: "gst.view" },
-          { ...available("E-invoices & E-way Bills", "/sales/gst-documents"), aliases: ["e-invoice", "irn", "e-way bill", "eway bill", "ewb"], requiredPermission: "gst.view" },
-          { ...available("Outstanding", "/sales/outstanding"), aliases: ["receivables", "ageing", "aging", "customer ledger", "party ledger", "dues", "collections"], requiredPermission: "sales.customers.view_financials" },
+          // GST from Sales (Sales audit M8): a company that bills with Sales alone files GSTR-1 here; found by search and from Reports › GST.
+          { ...available("GST Returns", "/sales/gst-returns"), parent: "invoices", aliases: ["gstr-1", "gstr1", "gst return", "b2b", "b2cs", "hsn summary"], requiredPermission: "gst.view" },
+          { ...available("E-invoices & E-way Bills Due", "/sales/gst-documents"), parent: "invoices", aliases: ["e-invoice due", "irn pending", "e-way bill due"], requiredPermission: "gst.view" },
         ],
       },
       {
-        id: "customers-prices",
-        label: "Customers & prices",
-        icon: Users,
+        id: "outstanding",
+        label: "Outstanding",
+        icon: Wallet,
         collapsible: true,
-        featureRange: "F031-F034",
         items: [
-          { ...available("Customers", "/sales/customers"), aliases: ["customer master", "parties", "addresses", "contacts", "customer 360", "import customers"] },
-          { ...available("Products & Services", "/sales/products"), aliases: ["catalog", "items", "services", "sku", "hsn", "sac"] },
-          { ...available("Price Lists", "/sales/price-lists"), aliases: ["prices", "rate list", "default price list"] },
-          { ...available("Rate Contracts", "/sales/rate-contracts"), aliases: ["rate contract", "blanket order", "annual contract", "call-off", "agreed rates"] },
-          { ...available("Schemes & Rates", "/sales/pricing-rules"), aliases: ["schemes", "special rates", "party rates", "quantity slabs", "free goods", "buy 10 get 1", "pricing rules"] },
+          { ...available("Outstanding & Ageing", "/sales/outstanding"), aliases: ["outstanding", "receivables", "ageing", "aging", "dues", "overdue", "reminders", "promise to pay"],
+            requiredPermission: "sales.customers.view_financials" },
+          { ...available("Customer Statements", "/sales/outstanding?tab=statements"), aliases: ["statement of account", "customer ledger", "party ledger", "statement"],
+            requiredPermission: "sales.customers.view_financials" },
         ],
       },
       {
         id: "reports",
         label: "Reports",
         icon: BarChart3,
-        collapsible: true,
+        flat: true,
         featureRange: "F059-F062",
+        items: [{ ...available("Reports", "/sales/reports"), requiredPermission: "sales.reports.view",
+          aliases: ["sales reports", "sales register", "sales by customer", "sales by product", "sales by salesperson", "gst report", "gstr-1 view", "hsn", "collections report",
+            "scheme cost", "discounts given", "quotation conversion", "monthly sales"] }],
+      },
+      {
+        id: "masters",
+        label: "Masters",
+        icon: Database,
+        collapsible: true,
         items: [
-          { ...available("Sales by Period", "/sales/reports?report=sales-by-period"), aliases: ["sales reports", "monthly sales", "revenue"], requiredPermission: "sales.reports.view" },
-          { ...available("Sales by Customer", "/sales/reports?report=sales-by-customer"), aliases: ["top customers"], requiredPermission: "sales.reports.view" },
-          { ...available("Sales by Item", "/sales/reports?report=sales-by-item"), aliases: ["top products", "product sales"], requiredPermission: "sales.reports.view" },
-          { ...available("Waiting for Approval", "/sales/reports?report=pending-approvals"), aliases: ["pending approvals", "approvals"], requiredPermission: "sales.reports.view" },
-          { ...available("Expiring Quotations", "/sales/reports?report=expiring-quotations"), aliases: ["quotations about to lapse"], requiredPermission: "sales.reports.view" },
-          { ...available("Salesperson Performance", "/sales/performance"), aliases: ["targets", "achievement", "salesperson report", "margin report", "commission report"] },
+          { ...available("Products & Services", "/sales/products"), aliases: ["catalog", "items", "services", "sku", "hsn", "sac", "mrp"] },
+          { ...available("Price Lists", "/sales/price-lists"), aliases: ["prices", "rate list", "default price list", "channel prices"] },
+          { ...available("Rate Contracts", "/sales/rate-contracts"), aliases: ["rate contract", "blanket order", "annual contract", "call-off", "agreed rates"] },
+          { ...available("Schemes", "/sales/pricing-rules"), aliases: ["schemes & rates", "special rates", "party rates", "quantity slabs", "free goods", "buy 10 get 1", "pricing rules"] },
+          { ...available("Beats", "/sales/beats"), aliases: ["routes", "beat plan", "route plan", "territory", "visit days"] },
+          { ...available("Salespeople & Targets", "/sales/team"), aliases: ["targets", "achievement", "salesperson performance", "salesperson report", "margin report", "commission report"] },
         ],
       },
       {
         id: "configuration",
-        label: "Setup",
+        label: "Settings",
         icon: Settings,
-        collapsible: true,
+        flat: true,
         items: [
-          { ...available("Sales Setup", "/sales/settings"), aliases: ["sales settings", "setup", "configuration"] },
+          { ...available("Sales Settings", "/sales/settings"), aliases: ["sales setup", "setup", "configuration"] },
           // ---- Commercial
           {
             ...available("Quotation & Order Rules", "/sales/settings/quotations-orders"),
-            parent: "sales-setup",
+            parent: "sales-settings",
             group: "commercial",
             description: "Quotation approval and validity, standard terms, and what an order needs before it is confirmed.",
             aliases: ["quotation approval", "quotation validity", "direct orders", "customer po required"],
           },
-          // ---- Fulfillment
-          {
-            ...available("Fulfillment Settings", "/sales/settings/fulfillment"),
-            parent: "sales-setup",
-            group: "fulfillment",
-            description: "Invoice based on order or delivery, availability and reservation on confirmation, default warehouse, delivery note.",
-            aliases: ["invoice based on", "invoicing basis", "auto reserve", "default warehouse", "delivery note prices"],
-          },
-          // Every setting page is a card of the one Sales Setup hub (Line-by-line audit), found there and by search.
           {
             ...available("Discounts", "/sales/settings/discounts"),
-            parent: "sales-setup",
+            parent: "sales-settings",
             group: "commercial",
             description: "Line and document discounts, the limits each person may give, and when a reason is needed.",
             aliases: ["discount controls", "discount limits", "maximum discount"],
           },
           {
             ...available("Payment Terms", "/sales/settings/payment-terms"),
-            parent: "sales-setup",
+            parent: "sales-settings",
             group: "commercial",
             description: "Credit days and due dates customers are given.",
             aliases: ["credit terms", "net 30", "due date"],
           },
+          // ---- Fulfillment
+          {
+            ...available("Fulfilment & Invoicing", "/sales/settings/fulfillment"),
+            parent: "sales-settings",
+            group: "fulfillment",
+            description: "Invoice based on order or dispatch, availability and reservation on confirmation, default warehouse, delivery note.",
+            aliases: ["fulfillment settings", "invoice based on", "invoicing basis", "auto reserve", "default warehouse", "delivery note prices"],
+          },
+          // ---- Credit and GST (Sales plan)
+          { ...available("Credit Control", "/sales/settings/credit"), parent: "sales-settings", group: "control",
+            description: "Hold, warn or ignore an order over the customer's credit limit or with bills overdue too long.", aliases: ["credit limit", "credit hold", "overdue block", "credit approval"] },
+          { ...available("GST & e-invoice", "/sales/settings/gst"), parent: "sales-settings", group: "control",
+            description: "The IRN when an invoice is posted, and the 30-day reporting limit.", aliases: ["e-invoice settings", "auto irn", "gsp", "30 day limit"] },
+          { ...available("Print & WhatsApp Templates", "/sales/settings/templates"), parent: "sales-settings", group: "control",
+            description: "The WhatsApp message each document and reminder starts from.", aliases: ["message templates", "whatsapp templates", "reminder text"] },
           // Teams decide team visibility of customers, quotations and orders; set up here too when CRM is off (Sales audit B10).
-          { ...available("Commission Rules", "/sales/settings/commissions"), parent: "sales-setup", group: "team", description: "What salespeople earn on what they sell.",
+          { ...available("Commission Rules", "/sales/settings/commissions"), parent: "sales-settings", group: "team", description: "What salespeople earn on what they sell.",
             aliases: ["commission", "incentive", "salesperson commission"] },
-          { ...available("Team Access", "/sales/settings/team-access"), parent: "sales-setup", group: "team", description: "Salesperson, billing and dispatch access for each member.",
+          { ...available("Team Access", "/sales/settings/team-access"), parent: "sales-settings", group: "team", description: "Salesperson, billing and dispatch access for each member.",
             aliases: ["access levels", "billing clerk", "dispatch clerk", "salesperson access", "roles"], requiredPermission: "roles.assign" },
-          { ...available("Sales Teams", "/settings/teams"), parent: "sales-setup", group: "team", description: "Teams and their managers, who see their team's customers and orders.",
+          { ...available("Sales Teams", "/settings/teams"), parent: "sales-settings", group: "team", description: "Teams and their managers, who see their team's customers and orders.",
             aliases: ["teams", "sales team", "team members", "team manager"], requiredPermission: "sales.settings.manage" },
         ],
       },
@@ -361,21 +380,28 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     groups: [
       {
         id: "commercial",
-        workspace: "sales-setup",
-        label: "Commercial",
-        description: "The rules for quotations and orders.",
+        workspace: "sales-settings",
+        label: "Quotations, orders & discounts",
+        description: "The rules for quotations and orders, discounts and payment terms.",
         icon: Store,
       },
       {
         id: "fulfillment",
-        workspace: "sales-setup",
-        label: "Fulfillment",
+        workspace: "sales-settings",
+        label: "Fulfilment & invoicing",
         description: "How orders are reserved, delivered and invoiced.",
         icon: Truck,
       },
       {
+        id: "control",
+        workspace: "sales-settings",
+        label: "Credit, GST & messages",
+        description: "Credit control, e-invoicing and what customers are sent.",
+        icon: Landmark,
+      },
+      {
         id: "team",
-        workspace: "sales-setup",
+        workspace: "sales-settings",
         label: "Team",
         description: "Who sells, what they may do, and what they earn.",
         icon: Users,

@@ -34,6 +34,8 @@ export async function getCustomerOptions(client, context) {
     paymentTerms: (await rows(`SELECT id, name, default_due_days, calculation_type FROM tenant.payment_terms WHERE organization_id = $1 AND status = 'active' AND is_sales_enabled
                                  ORDER BY (calculation_type = 'custom'), default_due_days, name`))
       .map((row) => ({ id: row.id, name: row.name, dueDays: row.default_due_days })),
+    // Beats (Sales plan, Phase 4).
+    salesRoutes: (await rows(`SELECT id, code, name FROM tenant.sales_routes WHERE organization_id = $1 AND status = 'active' ORDER BY name`)).map((row) => ({ id: row.id, code: row.code, name: row.name })),
     salespeople: (await rows(
       `SELECT users.id, users.full_name FROM public.organization_memberships membership JOIN public.users users ON users.id = membership.user_id
         WHERE membership.organization_id = $1 AND membership.status = 'active' AND users.status = 'active' ORDER BY users.full_name`)).map((row) => ({ id: row.id, name: row.full_name })),

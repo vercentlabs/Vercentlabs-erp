@@ -62,6 +62,11 @@ export async function confirmSalesOrder(client, context, orderId, input = {}) {
   }
   if (problems.length) {
     await recordOrderEvent(client, context, order.id, "sales_order.confirmation_refused", STATUS.draft, STATUS.draft, { problems });
+    // Held for credit until it is confirmed (Sales plan): the Credit hold view and the home count it.
+    if (check.credit?.held)
+      await client.query(
+        `UPDATE tenant.sales_orders SET credit_hold_since = COALESCE(credit_hold_since, clock_timestamp()), credit_hold_reasons = $3::jsonb WHERE organization_id = $1 AND id = $2`,
+        [context.organizationId, order.id, JSON.stringify(check.credit.reasons)]);
     return { orderId: order.id, confirmed: false, status: STATUS.draft, changed: false, problems, warnings: check.warnings };
   }
 
@@ -69,7 +74,8 @@ export async function confirmSalesOrder(client, context, orderId, input = {}) {
   await client.query(
     `UPDATE tenant.sales_orders
         SET lifecycle_status = $3, approval_status = 'not_required', fulfillment_status = $4, billing_status = $5, confirmed_at = now(), confirmed_by = $6,
-            cancelled_at = NULL, cancelled_by = NULL, cancel_reason = NULL, cancel_reason_code = NULL, updated_by = $6, updated_at = now()
+            cancelled_at = NULL, cancelled_by = NULL, cancel_reason = NULL, cancel_reason_code = NULL, updated_by = $6, updated_at = now(),
+            credit_hold_since = NULL, credit_hold_reasons = '[]'::jsonb, credit_release_requested_at = NULL, credit_release_requested_by = NULL
       WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, order.id, STATUS.confirmed, FULFILLMENT.notStarted, INVOICING.notInvoiced, context.userId ?? null]);
   await client.query(
@@ -124,4 +130,26 @@ export async function confirmSalesOrder(client, context, orderId, input = {}) {
     fulfillmentStatus: progress.fulfillmentStatus, reservation, shortages: check.shortages, warnings: check.warnings, sourceOpportunityId: order.source_opportunity_id ?? null,
     dealValueUpdated: Boolean(deal?.changed),
   };
+}
+
+// A salesperson asks for an order held for credit to be released (Sales plan, Flow 1): everyone who can release credit is told, once per
+// hold. Releasing is confirming with a reason (above). input: { note? }
+export async function requestCreditRelease(client, context, orderId, input = {}) {
+  requireOrderPermission(context, CONFIRMATION_PERMISSIONS.confirm, "You do not have permission to confirm sales orders.");
+  const order = await lockOrder(client, context, orderId);
+  await assertOrderVisible(client, context, order.id);
+  if (order.lifecycle_status !== STATUS.draft || !order.credit_hold_since)
+    throw new OrderError(409, "This order is not held for credit. Confirm it to check the customer's credit.", "SALES_ORDER_NOT_CREDIT_HELD");
+  if (order.credit_release_requested_at) return { orderId: order.id, requested: true, told: 0, replayed: true };
+  const note = text(input.note, 500);
+  await client.query(`UPDATE tenant.sales_orders SET credit_release_requested_at = clock_timestamp(), credit_release_requested_by = $3 WHERE organization_id = $1 AND id = $2`,
+    [context.organizationId, order.id, context.userId ?? null]);
+  await recordOrderEvent(client, context, order.id, "sales_order.credit_release_requested", STATUS.draft, STATUS.draft, { note: note ?? undefined, reasons: order.credit_hold_reasons });
+  const { notifyPermissionHolders } = await import("../../../core/platform/notifications/service.js");
+  const told = await notifyPermissionHolders(client, context, CONFIRMATION_PERMISSIONS.creditRelease, {
+    category: "sales_credit_release", title: `Order ${order.sales_order_number} is held for credit`,
+    message: [...(Array.isArray(order.credit_hold_reasons) ? order.credit_hold_reasons : []), note].filter(Boolean).join(" ").slice(0, 500) || "Asked to release it.",
+    href: `/sales/orders/${order.id}`, entityType: "sales_order", entityId: order.id,
+  });
+  return { orderId: order.id, requested: true, told, replayed: false };
 }

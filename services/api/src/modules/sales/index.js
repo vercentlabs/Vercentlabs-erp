@@ -24,6 +24,7 @@ import { companyToday } from "./today.js";
 import { contractLineFor } from "./rate-contracts.js";
 import { orderScopeSql } from "./orders/access.js";
 import { quotationScopeSql } from "./quotations/access.js";
+import { COMPUTED_REPORTS, computedSalesReport } from "./reports/index.js";
 
 export class SalesError extends Error {
   constructor(status, message, code = "SALES_ERROR") {
@@ -1038,7 +1039,8 @@ export function redactMargin(value, context) {
   return walk(value);
 }
 
-// filters (Line-by-line audit S6): { from?, to? (YYYY-MM-DD) | financialYear? (2026 or "2026-27"), customerId?, salespersonId? }.
+// filters (Line-by-line audit S6): { from?, to? (YYYY-MM-DD) | financialYear? (2026 or "2026-27"), customerId?, salespersonId?,
+//   registrationId? (the GSTIN that issued it), currency? (Sales plan) }.
 export async function getSalesReport(client, context, key, filters = {}) {
   requirePermission(context, "sales.reports.view");
   const allowed = new Set([
@@ -1052,6 +1054,9 @@ export async function getSalesReport(client, context, key, filters = {}) {
     "sales-by-period",
     "sales-by-customer",
     "sales-by-item",
+    // The one Reports page (Sales plan).
+    "sales-register", "sales-by-salesperson", "sales-by-region", "sales-by-beat", "quotation-conversion", "collections-by-salesperson", "overdue-invoices",
+    "scheme-cost", "discounts-given", ...COMPUTED_REPORTS,
   ]);
   if (!allowed.has(key)) throw new SalesError(404, "Unknown Sales report.");
   // Each person sees the reports of the orders and quotations they may see (own, team or all), like the lists (Sales audit, Low).
@@ -1077,12 +1082,104 @@ export async function getSalesReport(client, context, key, filters = {}) {
       AND (:customer::uuid IS NULL OR ${party}=:customer::uuid) AND (:salesperson::uuid IS NULL OR ${owner}=:salesperson::uuid)`;
   // An invoice's salesperson is its order's (a credit note's, the order it credits).
   const INVOICE_OWNER = "(SELECT filter_order.owner_user_id FROM tenant.sales_orders filter_order WHERE filter_order.organization_id=invoice.organization_id AND filter_order.id=COALESCE(invoice.source_sales_order_id,(SELECT note.sales_order_id FROM tenant.sales_credit_notes note WHERE note.customer_invoice_id=invoice.id)))";
-  const INVOICE_FILTER = filtered("invoice.invoice_date", "invoice.party_id", INVOICE_OWNER);
+  // The registration that issued it (a credit or debit note: its invoice's) and its currency (Sales plan).
+  const INVOICE_REGISTRATION = "COALESCE((SELECT si.seller_registration_id FROM tenant.sales_invoices si WHERE si.customer_invoice_id=invoice.id),(SELECT scn.seller_registration_id FROM tenant.sales_credit_notes scn WHERE scn.customer_invoice_id=invoice.id),(SELECT sdn.seller_registration_id FROM tenant.sales_debit_notes sdn WHERE sdn.customer_invoice_id=invoice.id))";
+  const INVOICE_FILTER = filtered("invoice.invoice_date", "invoice.party_id", INVOICE_OWNER)
+    + ` AND (:registration::uuid IS NULL OR ${INVOICE_REGISTRATION}=:registration::uuid) AND (:currency::text IS NULL OR btrim(invoice.currency_code)=:currency::text)`;
+  const GST_STATE_NAME_SQL = `(CASE invoice.place_of_supply ${GST_STATES.map((state) => [state.code ?? state[0], state.name ?? state[1]]).map(([code, name]) => `WHEN '${code}' THEN '${name.replace(/'/g, "''")}'`).join(" ")} END)`;
   // Sales from posted invoices less credit notes (Finance's customer invoices: what was actually billed), net of discounts, before tax;
   // per currency, and in the company's currency too (base_net_sales: each document at its own rate), so exporters' figures add up.
-  const POSTED_INVOICE = `invoice.organization_id=$1 AND invoice.status IN ('posted','partially_paid','paid','overdue','disputed') AND invoice.invoice_type IN ('invoice','credit_note')${invoiceScope()}${INVOICE_FILTER}`;
+  const POSTED_INVOICE = `invoice.organization_id=$1 AND invoice.status IN ('posted','partially_paid','paid','overdue','disputed') AND invoice.invoice_type IN ('invoice','credit_note','debit_note')${invoiceScope()}${INVOICE_FILTER}`;
   const SIGN = `CASE WHEN invoice.invoice_type='credit_note' THEN -1 ELSE 1 END`;
   const queries = {
+    // ---- Sales plan: the one Reports page. Sales tab.
+    // Every posted invoice, debit note and credit note in the period with its GST split: the sales register.
+    "sales-register": `SELECT invoice.id,invoice.invoice_date,invoice.invoice_number AS document_number,
+        CASE invoice.invoice_type WHEN 'credit_note' THEN 'Credit note' WHEN 'debit_note' THEN 'Debit note' ELSE 'Invoice' END AS document,
+        invoice.party_id AS customer_id,COALESCE(party.display_name,invoice.customer_snapshot->>'displayName') AS customer,invoice.customer_snapshot->>'gstin' AS gstin,
+        invoice.place_of_supply,invoice.currency_code AS currency,(${SIGN}*(invoice.subtotal-invoice.discount_total))::numeric(20,6) AS taxable,
+        (${SIGN}*COALESCE((SELECT sum(tax.tax_amount) FROM tenant.sales_invoice_line_taxes tax WHERE tax.customer_invoice_id=invoice.id AND tax.tax_type='cgst'),0))::numeric(20,6) AS cgst,
+        (${SIGN}*COALESCE((SELECT sum(tax.tax_amount) FROM tenant.sales_invoice_line_taxes tax WHERE tax.customer_invoice_id=invoice.id AND tax.tax_type IN ('sgst','utgst')),0))::numeric(20,6) AS sgst,
+        (${SIGN}*COALESCE((SELECT sum(tax.tax_amount) FROM tenant.sales_invoice_line_taxes tax WHERE tax.customer_invoice_id=invoice.id AND tax.tax_type='igst'),0))::numeric(20,6) AS igst,
+        (${SIGN}*invoice.tax_total)::numeric(20,6) AS tax,(${SIGN}*invoice.grand_total)::numeric(20,6) AS total,owner.full_name AS salesperson
+      FROM tenant.accounting_customer_invoices invoice
+      LEFT JOIN tenant.business_parties party ON party.organization_id=invoice.organization_id AND party.id=invoice.party_id
+      LEFT JOIN public.users owner ON owner.id=${INVOICE_OWNER}
+     WHERE ${POSTED_INVOICE} ORDER BY invoice.invoice_date DESC,invoice.invoice_number DESC LIMIT 500`,
+    "sales-by-salesperson": `SELECT ${INVOICE_OWNER} AS salesperson_id,COALESCE(owner.full_name,'No salesperson') AS salesperson,
+        count(*) FILTER (WHERE invoice.invoice_type='invoice') AS invoices,count(*) FILTER (WHERE invoice.invoice_type='credit_note') AS credit_notes,
+        count(DISTINCT invoice.party_id) AS customers,sum(${SIGN}*(invoice.subtotal-invoice.discount_total)*COALESCE(invoice.exchange_rate,1))::numeric(20,2) AS base_net_sales,
+        sum(invoice.outstanding_amount*COALESCE(invoice.exchange_rate,1)) FILTER (WHERE invoice.invoice_type<>'credit_note')::numeric(20,2) AS base_outstanding
+      FROM tenant.accounting_customer_invoices invoice LEFT JOIN public.users owner ON owner.id=${INVOICE_OWNER}
+     WHERE ${POSTED_INVOICE} GROUP BY 1,2 ORDER BY base_net_sales DESC NULLS LAST LIMIT 500`,
+    // By the state supplied to (place of supply), in the company's currency.
+    "sales-by-region": `SELECT COALESCE(${GST_STATE_NAME_SQL},invoice.place_of_supply,'Not recorded') AS state,invoice.place_of_supply AS state_code,
+        count(*) FILTER (WHERE invoice.invoice_type='invoice') AS invoices,count(DISTINCT invoice.party_id) AS customers,
+        sum(${SIGN}*(invoice.subtotal-invoice.discount_total)*COALESCE(invoice.exchange_rate,1))::numeric(20,2) AS base_net_sales,
+        sum(${SIGN}*invoice.tax_total*COALESCE(invoice.exchange_rate,1))::numeric(20,2) AS base_tax
+      FROM tenant.accounting_customer_invoices invoice
+     WHERE ${POSTED_INVOICE} GROUP BY 1,2 ORDER BY base_net_sales DESC NULLS LAST LIMIT 500`,
+    // By the customer's beat (Phase 4: route-wise sales).
+    "sales-by-beat": `SELECT route.id AS beat_id,COALESCE(route.name,'No beat') AS beat,route_owner.full_name AS beat_salesperson,count(DISTINCT invoice.party_id) AS customers,
+        count(*) FILTER (WHERE invoice.invoice_type='invoice') AS invoices,sum(${SIGN}*(invoice.subtotal-invoice.discount_total)*COALESCE(invoice.exchange_rate,1))::numeric(20,2) AS base_net_sales
+      FROM tenant.accounting_customer_invoices invoice
+      JOIN tenant.business_parties party ON party.organization_id=invoice.organization_id AND party.id=invoice.party_id
+      LEFT JOIN tenant.sales_routes route ON route.id=party.sales_route_id LEFT JOIN public.users route_owner ON route_owner.id=route.salesperson_user_id
+     WHERE ${POSTED_INVOICE} GROUP BY route.id,route.name,route_owner.full_name ORDER BY base_net_sales DESC NULLS LAST LIMIT 500`,
+    // ---- Quotations tab: how many quotations sent became orders, by month.
+    "quotation-conversion": `SELECT date_trunc('month',quotation.quotation_date)::date AS period,count(*) AS quotations,
+        count(*) FILTER (WHERE quotation.lifecycle_status='accepted' OR converted.id IS NOT NULL) AS accepted,
+        count(*) FILTER (WHERE converted.id IS NOT NULL) AS converted,
+        round(100.0*count(*) FILTER (WHERE converted.id IS NOT NULL)/NULLIF(count(*),0),1) AS conversion_pct,
+        sum(version.grand_total*COALESCE(version.exchange_rate,1))::numeric(20,2) AS base_quoted,
+        sum(version.grand_total*COALESCE(version.exchange_rate,1)) FILTER (WHERE converted.id IS NOT NULL)::numeric(20,2) AS base_converted
+      FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id
+      LEFT JOIN LATERAL (SELECT orders.id FROM tenant.sales_orders orders WHERE orders.organization_id=quotation.organization_id AND orders.source_quotation_id=quotation.id
+                          AND orders.lifecycle_status<>'cancelled' LIMIT 1) converted ON true
+     WHERE quotation.organization_id=$1 AND quotation.lifecycle_status NOT IN ('draft','pending_approval','cancelled','withdrawn')${quotationScope("quotation")}${filtered("quotation.quotation_date","quotation.party_id","quotation.owner_user_id")}
+     GROUP BY 1 ORDER BY 1 DESC LIMIT 500`,
+    // ---- Collections tab.
+    // What was collected in the period, by the salesperson of the bills it settled (company currency).
+    "collections-by-salesperson": `SELECT COALESCE(owner.full_name,'No salesperson') AS salesperson,count(DISTINCT allocation.receipt_id) AS payments,
+        count(DISTINCT invoice.party_id) AS customers,sum(allocation.receipt_amount*COALESCE(receipt.exchange_rate,1))::numeric(20,2) AS base_collected,
+        sum(allocation.withholding_amount)::numeric(20,2) AS tds
+      FROM tenant.accounting_customer_receipt_allocations allocation
+      JOIN tenant.accounting_customer_receipts receipt ON receipt.id=allocation.receipt_id AND receipt.status IN ('posted','partially_applied','applied')
+      JOIN tenant.accounting_customer_invoices invoice ON invoice.id=allocation.customer_invoice_id
+      LEFT JOIN public.users owner ON owner.id=${INVOICE_OWNER}
+     WHERE allocation.organization_id=$1${invoiceScope()}${filtered("receipt.receipt_date","invoice.party_id",INVOICE_OWNER)}
+     GROUP BY 1 ORDER BY base_collected DESC NULLS LAST LIMIT 500`,
+    // Bills past their due date and still unpaid, oldest first.
+    "overdue-invoices": `SELECT invoice.id,invoice.invoice_number AS document_number,invoice.invoice_date,invoice.due_date,(tenant.company_today()-invoice.due_date) AS days_overdue,
+        invoice.party_id AS customer_id,COALESCE(party.display_name,invoice.customer_snapshot->>'displayName') AS customer,invoice.currency_code AS currency,
+        invoice.grand_total::numeric(20,6) AS total,invoice.outstanding_amount::numeric(20,6) AS outstanding,owner.full_name AS salesperson
+      FROM tenant.accounting_customer_invoices invoice
+      LEFT JOIN tenant.business_parties party ON party.organization_id=invoice.organization_id AND party.id=invoice.party_id
+      LEFT JOIN public.users owner ON owner.id=${INVOICE_OWNER}
+     WHERE invoice.organization_id=$1 AND invoice.invoice_type IN ('invoice','debit_note') AND invoice.status IN ('posted','partially_paid','overdue','disputed')
+       AND invoice.outstanding_amount>0 AND invoice.due_date<tenant.company_today()${invoiceScope()}${INVOICE_FILTER}
+     ORDER BY invoice.due_date,invoice.invoice_number LIMIT 500`,
+    // ---- Schemes & discounts tab.
+    // What each scheme gave away on confirmed orders: free goods at their list price and the scheme's price cut (company currency).
+    "scheme-cost": `SELECT rule.id AS scheme_id,COALESCE(rule.name,'Scheme') AS scheme,count(DISTINCT orders.id) AS orders,
+        sum(line.quantity) FILTER (WHERE line.unit_price=0) AS free_quantity,
+        sum(GREATEST(line.list_unit_price*line.quantity-line.net_amount,0)*COALESCE(version.exchange_rate,1))::numeric(20,2) AS base_scheme_cost,
+        sum(line.net_amount*COALESCE(version.exchange_rate,1))::numeric(20,2) AS base_net_sales
+      FROM tenant.sales_orders orders JOIN tenant.sales_order_versions version ON version.id=orders.current_version_id
+      JOIN tenant.sales_order_lines line ON line.sales_order_version_id=version.id AND line.scheme_rule_id IS NOT NULL
+      LEFT JOIN tenant.sales_pricing_rules rule ON rule.id=line.scheme_rule_id
+     WHERE orders.organization_id=$1 AND orders.lifecycle_status IN ('confirmed','closed')${orderScope("orders")}${filtered("orders.order_date","orders.party_id","orders.owner_user_id")}
+     GROUP BY rule.id,rule.name ORDER BY base_scheme_cost DESC NULLS LAST LIMIT 500`,
+    // Discounts given on posted invoices by salesperson, against the limit a salesperson may give.
+    "discounts-given": `SELECT COALESCE(owner.full_name,'No salesperson') AS salesperson,count(DISTINCT invoice.id) AS invoices,
+        sum(sales_line.gross_amount*COALESCE(invoice.exchange_rate,1))::numeric(20,2) AS base_gross,
+        sum((sales_line.line_discount_amount+sales_line.document_discount_amount)*COALESCE(invoice.exchange_rate,1))::numeric(20,2) AS base_discount,
+        round(100.0*sum(sales_line.line_discount_amount+sales_line.document_discount_amount)/NULLIF(sum(sales_line.gross_amount),0),1) AS discount_pct,
+        (SELECT settings.discount_limit_percent FROM tenant.sales_settings settings WHERE settings.organization_id=$1) AS limit_pct
+      FROM tenant.accounting_customer_invoices invoice
+      JOIN tenant.sales_invoice_lines sales_line ON sales_line.customer_invoice_id=invoice.id AND sales_line.order_charge_id IS NULL
+      LEFT JOIN public.users owner ON owner.id=${INVOICE_OWNER}
+     WHERE ${POSTED_INVOICE} AND invoice.invoice_type='invoice' GROUP BY 1 ORDER BY base_discount DESC NULLS LAST LIMIT 500`,
     "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('approved','sent') AND quotation.valid_until>=tenant.company_today() AND quotation.valid_until<=tenant.company_today()+30 ${quotationScope("quotation")}${filtered("quotation.quotation_date","quotation.party_id","quotation.owner_user_id")} ORDER BY quotation.valid_until`,
     // What is waiting on someone: quotations for approval, and draft orders held for credit (refused at confirmation, waiting for a manager
     // to release them).
@@ -1183,6 +1280,7 @@ export async function getSalesReport(client, context, key, filters = {}) {
     const visible = new Set((await client.query(bound, scopeValues)).rows.map((row) => row.id));
     return rows.filter((row) => visible.has(row.sales_order_id));
   }
+  if (COMPUTED_REPORTS.includes(key)) return computedSalesReport(client, context, key, filter);
   const sql = bindFilters(queries[key], values, filter);
   return (await client.query(sql, values)).rows;
 }
@@ -1208,12 +1306,15 @@ function reportFilters(filters = {}) {
   if (from && to && from > to) throw new SalesError(400, "The From date is after the To date.", "SALES_REPORT_FILTER_INVALID");
   const customer = filters.customerId ? uuid(filters.customerId, "Customer") : null;
   const salesperson = filters.salespersonId ? uuid(filters.salespersonId, "Salesperson") : null;
-  return { from, to, customer, salesperson, any: Boolean(from || to || customer || salesperson) };
+  const registration = filters.registrationId ? uuid(filters.registrationId, "GST registration") : null;
+  const currency = filters.currency ? String(filters.currency).trim().toUpperCase().slice(0, 3) : null;
+  if (currency && !/^[A-Z]{3}$/.test(currency)) throw new SalesError(400, "Choose a currency.", "SALES_REPORT_FILTER_INVALID");
+  return { from, to, customer, salesperson, registration, currency, any: Boolean(from || to || customer || salesperson || registration || currency) };
 }
-// Replaces :from, :to, :customer and :salesperson in sql with parameters added to values.
+// Replaces :from, :to, :customer, :salesperson, :registration and :currency in sql with parameters added to values.
 function bindFilters(sql, values, filter) {
   const placed = new Map();
-  return sql.replace(/:(from|to|customer|salesperson)\b/g, (_match, name) => {
+  return sql.replace(/:(from|to|customer|salesperson|registration|currency)\b/g, (_match, name) => {
     if (!placed.has(name)) { values.push(filter[name] ?? null); placed.set(name, `$${values.length}`); }
     return placed.get(name);
   });
@@ -1402,3 +1503,10 @@ export * from "./credit-notes/index.js";
 export * from "./order-tracking/index.js";
 export * from "./home/index.js";
 export { DISCOUNT_PERMISSIONS, DISCOUNT_REASONS } from "./discounts.js";
+// Sales plan (Phase 2–4): payments received, collections, debit notes, message templates, beats and orders in bulk.
+export { PAYMENT_METHODS as SALES_PAYMENT_METHODS, allocateOldestFirst, applyAdvanceToInvoice, getCustomerOpenItems, getSalesPayment, listInvoiceAdvances, recordCustomerPayment } from "./payments/index.js";
+export { addCollectionNote, getCustomerStatementDocument, listCollectionNotes } from "./outstanding/index.js";
+export { DEBIT_REASONS as SALES_DEBIT_REASONS, cancelDraftDebitNote, createDebitNote, getDebitNote, getDebitNoteDocument, getDebitNoteProposal, listDebitNotes, postDebitNote } from "./debit-notes/index.js";
+export { TEMPLATE_KINDS as SALES_TEMPLATE_KINDS, listMessageTemplates, saveMessageTemplate } from "./templates.js";
+export { WEEKDAYS as SALES_ROUTE_WEEKDAYS, assignCustomersToRoute, listSalesRoutes, saveSalesRoute } from "./routes.js";
+export { createDeliveriesForOrders, createInvoicesForOrders } from "./bulk.js";

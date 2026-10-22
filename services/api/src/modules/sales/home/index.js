@@ -21,6 +21,8 @@ import { creditNoteScopeSql } from "../credit-notes/access.js";
 
 // The order list views the home counts, in the order the home shows them.
 export const HOME_ORDER_VIEWS = Object.freeze([
+  // The work views (Sales plan, the owner's morning): to confirm, held for credit, to dispatch, to bill.
+  "to_confirm", "credit_hold", "to_dispatch", "to_bill",
   "confirmed", "awaiting_reservation", "partially_reserved", "awaiting_delivery", "partially_delivered", "overdue_delivery", "ready_to_invoice", "partially_invoiced", "needs_attention",
 ]);
 const sees = (context, permissions) => orderCan(context, permissions.view) || orderCan(context, permissions.viewAll);
@@ -42,6 +44,7 @@ export async function getSalesHome(client, context) {
     orders: access.orders ? await countSalesOrderViews(client, context, HOME_ORDER_VIEWS) : null,
     invoiceBalance: balances ? { ...(await salesInvoiceBalance(client, context)), currencyCode: organization?.currency ?? null } : null,
     money: balances ? { ...(await salesHomeMoney(client, context)), currencyCode: organization?.currency ?? null } : null,
+    today: await salesHomeToday(client, context, access, balances),
     activity: await recentSalesActivity(client, context, access),
   };
 }
@@ -71,6 +74,58 @@ async function salesHomeMoney(client, context) {
     invoicedToday: Number(figures.today), invoicedThisMonth: Number(figures.month), dueToday: Number(figures.due_today), dueTodayCount: figures.due_today_count,
     topOverdue: overdue.map((row) => ({ customerId: row.party_id, name: row.name, amount: Number(row.amount), oldestDue: row.oldest_due })),
   };
+}
+
+// Today and the month so far (Sales plan, Flow 6): orders taken today, money received today, invoiced this month against the month's
+// target (the person's own, or everyone's for whoever sees every order), and invoices still waiting for their IRN. Company currency.
+async function salesHomeToday(client, context, access, balances) {
+  const result = { ordersToday: null, orderValueToday: null, collectedToday: null, monthTarget: null, einvoicePending: null };
+  if (access.orders) {
+    const values = [context.organizationId];
+    const scope = orderScopeSql(context, values, "sales_order");
+    const row = (await client.query(
+      `SELECT count(*)::int AS orders, COALESCE(sum(version.grand_total * COALESCE(version.exchange_rate, 1)), 0) AS value
+         FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.organization_id = sales_order.organization_id AND version.id = sales_order.current_version_id
+        WHERE sales_order.organization_id = $1 AND sales_order.order_date = tenant.company_today() AND sales_order.lifecycle_status <> 'cancelled'${scope}`, values)).rows[0];
+    result.ordersToday = row.orders;
+    result.orderValueToday = Number(row.value);
+  }
+  if (balances) {
+    const values = [context.organizationId];
+    const scope = invoiceScopeSql(context, values, "sales_order");
+    // Money applied today to the bills the person may see; with every invoice in view, all money received today (advances too).
+    result.collectedToday = Number((await client.query(scope
+      ? `SELECT COALESCE(sum(allocation.receipt_amount * COALESCE(receipt.exchange_rate, 1)), 0) AS amount
+           FROM tenant.accounting_customer_receipt_allocations allocation
+           JOIN tenant.accounting_customer_receipts receipt ON receipt.id = allocation.receipt_id AND receipt.receipt_date = tenant.company_today() AND receipt.status <> 'draft'
+           JOIN tenant.sales_invoices sales_invoice ON sales_invoice.customer_invoice_id = allocation.customer_invoice_id
+           JOIN tenant.sales_orders sales_order ON sales_order.id = sales_invoice.sales_order_id
+          WHERE allocation.organization_id = $1${scope}`
+      : `SELECT COALESCE(sum(receipt.base_amount), 0) AS amount FROM tenant.accounting_customer_receipts receipt
+          WHERE receipt.organization_id = $1 AND receipt.receipt_date = tenant.company_today() AND receipt.status NOT IN ('draft', 'reversed')`, values)).rows[0].amount);
+    const everyone = orderCan(context, ORDER_PERMISSIONS.viewAll);
+    const target = (await client.query(
+      `SELECT sum(target) AS target FROM tenant.crm_sales_targets WHERE organization_id = $1 AND metric = 'invoiced_value'
+          AND month = date_trunc('month', tenant.company_today())::date AND ($2 OR user_id = $3)`, [context.organizationId, everyone, context.userId ?? null])).rows[0].target;
+    result.monthTarget = target == null ? null : Number(target);
+    // Only for a company that e-invoices (switched on, or has issued an IRN): posted invoices to registered customers still without one.
+    const einvoicing = (await client.query(
+      `SELECT EXISTS (SELECT 1 FROM tenant.sales_settings WHERE organization_id = $1 AND (einvoice_on_post OR einvoice_30_day_limit))
+           OR EXISTS (SELECT 1 FROM tenant.einvoice_documents WHERE organization_id = $1 AND status = 'generated') AS einvoicing`, [context.organizationId])).rows[0].einvoicing;
+    if (einvoicing) {
+      const pending = [context.organizationId];
+      const pendingScope = invoiceScopeSql(context, pending, "sales_order");
+      result.einvoicePending = (await client.query(
+        `SELECT count(*)::int AS count FROM tenant.sales_invoices sales_invoice
+           JOIN tenant.accounting_customer_invoices invoice ON invoice.id = sales_invoice.customer_invoice_id
+           JOIN tenant.sales_orders sales_order ON sales_order.id = sales_invoice.sales_order_id
+          WHERE sales_invoice.organization_id = $1 AND invoice.posted_at IS NOT NULL AND invoice.status NOT IN ('cancelled', 'reversed')
+            AND COALESCE(invoice.customer_snapshot->>'gstin', '') <> '' AND invoice.invoice_date >= tenant.company_today() - 60
+            AND NOT EXISTS (SELECT 1 FROM tenant.einvoice_documents doc WHERE doc.organization_id = invoice.organization_id AND doc.document_id = invoice.id AND doc.status = 'generated')${pendingScope}`,
+        pending)).rows[0].count;
+    }
+  }
+  return result;
 }
 
 // The last things that happened to Sales documents: quotations confirmed,

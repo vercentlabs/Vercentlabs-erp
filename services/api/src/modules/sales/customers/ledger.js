@@ -5,6 +5,7 @@ import { getPartyAging, getPartyStatement } from "../../accounting/party-ledgers
 import { canViewCustomerFinancials, customerScopeSql, requireCustomerPermission } from "./access.js";
 import { CUSTOMER_PARTY_SQL, CUSTOMER_PERMISSIONS, CustomerError } from "./constants.js";
 import { loadCustomerRow } from "./records.js";
+import { collectionStateOf } from "../outstanding/index.js";
 
 // Finance reads on Sales' behalf: the Sales permission checked here authorises it.
 const ledgerContext = (context) => ({ organizationId: context.organizationId, userId: context.userId ?? null, roleSlugs: [], permissions: ["accounting.view"] });
@@ -42,7 +43,11 @@ export async function getCustomerOutstanding(client, context, filters = {}) {
   const visible = new Set((await client.query(
     `SELECT customer.id FROM tenant.business_parties customer WHERE customer.organization_id = $1 AND ${CUSTOMER_PARTY_SQL("customer")}${scope}`, values)).rows.map((row) => row.id));
   const search = String(filters.search ?? "").trim().toLowerCase();
-  const rows = aging.rows.filter((row) => visible.has(row.partyId) && (!search || `${row.name} ${row.code ?? ""}`.toLowerCase().includes(search)));
+  const shown = aging.rows.filter((row) => visible.has(row.partyId) && (!search || `${row.name} ${row.code ?? ""}`.toLowerCase().includes(search)));
+  // Each customer's latest promise to pay and last reminder (Sales plan, Flow 4).
+  const collection = await collectionStateOf(client, context.organizationId, shown.map((row) => row.partyId));
+  const rows = shown.map((row) => ({ ...row, promisedDate: collection.get(row.partyId)?.promisedDate ?? null, promisedAmount: collection.get(row.partyId)?.promisedAmount ?? null,
+    lastReminderAt: collection.get(row.partyId)?.lastReminderAt ?? null }));
   const money = (value) => Math.round(value * 100) / 100;
   const totals = Object.fromEntries([...aging.buckets.map((bucket) => bucket.key), "credits", "net"].map((key) => [key, money(rows.reduce((sum, row) => sum + row[key], 0))]));
   const currency = (await client.query("SELECT base_currency FROM public.organizations WHERE id = $1", [context.organizationId])).rows[0]?.base_currency;

@@ -23,6 +23,9 @@ const schema = z.object({
   // Credit control (Sales audit M1): hold, warn or off; and the overdue days that also hold an order (null: not checked).
   creditControl: z.enum(["off", "warn", "block"]).optional(),
   creditOverdueDays: z.number().int().min(0).max(3650).nullable().optional(),
+  // GST & e-invoice (Sales plan): the IRN when an invoice is posted; the 30-day reporting limit (turnover ₹10 crore or more).
+  einvoiceOnPost: z.boolean().optional(),
+  einvoice30DayLimit: z.boolean().optional(),
   defaultWarehouseId: z.string().uuid().nullable().optional(),
   defaultQuotationTerms: z.string().max(20000).nullish(),
   // Pricing & Discounts (needs sales.discount.manage_settings). A null limit or threshold switches it off.

@@ -210,6 +210,10 @@ export type SalesOrderDetail = {
   order: DisplayStatuses & {
     id: string;
     sales_order_number: string;
+    // Held for credit at its last confirmation (Sales plan), and whether a manager was asked to release it.
+    credit_hold_since?: string | null;
+    credit_hold_reasons?: string[];
+    credit_release_requested_at?: string | null;
     current_version_id: string;
     version_number: number;
     lifecycle_status: string;
@@ -379,7 +383,7 @@ const qs = (params: Record<string, string | number | undefined>) => {
 
 export type OrderFilters = {
   view?: string; search?: string; status?: string; confirmation?: string; reservation?: string; fulfillment?: string; invoicing?: string; deliveryOverdue?: string; readyToInvoice?: string;
-  balance?: string; partyId?: string; ownerUserId?: string; warehouseId?: string;
+  balance?: string; partyId?: string; ownerUserId?: string; warehouseId?: string; salesRouteId?: string;
   currencyCode?: string; quotationId?: string; opportunityId?: string; productId?: string; source?: string; dateFrom?: string; dateTo?: string;
   deliveryFrom?: string; deliveryTo?: string; sort?: string; direction?: string; limit?: number; offset?: number;
 };

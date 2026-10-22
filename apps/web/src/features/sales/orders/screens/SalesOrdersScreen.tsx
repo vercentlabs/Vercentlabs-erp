@@ -6,7 +6,7 @@
 // and product. The three statuses and the totals come from the server.
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { Download, Plus, SlidersHorizontal } from "lucide-react";
 import {
@@ -18,7 +18,8 @@ import { MyViews } from "@/shared/ui/MyViews";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { SalesApiError } from "@/features/sales/shared/http";
+import { SalesApiError, post, request } from "@/features/sales/shared/http";
+import { Notice } from "@/shared/ui/Panel";
 import { calendarDate, money } from "@/features/sales/shared/format";
 import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 
@@ -31,14 +32,14 @@ import type { SalesOptions } from "@/features/sales/quotations/api/quotations-ap
 
 const PAGE_SIZE = 25;
 const ANY = "any";
-type FilterKey = "status" | "confirmation" | "reservation" | "fulfillment" | "invoicing" | "deliveryOverdue" | "readyToInvoice" | "balance" | "partyId" | "ownerUserId" | "warehouseId" | "source" | "dateFrom" | "dateTo" | "deliveryFrom" | "deliveryTo";
+type FilterKey = "status" | "confirmation" | "reservation" | "fulfillment" | "invoicing" | "deliveryOverdue" | "readyToInvoice" | "balance" | "partyId" | "ownerUserId" | "warehouseId" | "salesRouteId" | "source" | "dateFrom" | "dateTo" | "deliveryFrom" | "deliveryTo";
 type Filters = Record<FilterKey, string>;
 const NO_FILTERS: Filters = {
-  status: ANY, confirmation: ANY, reservation: ANY, fulfillment: ANY, invoicing: ANY, deliveryOverdue: ANY, readyToInvoice: ANY, balance: ANY, partyId: ANY, ownerUserId: ANY, warehouseId: ANY, source: ANY, dateFrom: "", dateTo: "", deliveryFrom: "", deliveryTo: "",
+  status: ANY, confirmation: ANY, reservation: ANY, fulfillment: ANY, invoicing: ANY, deliveryOverdue: ANY, readyToInvoice: ANY, balance: ANY, partyId: ANY, ownerUserId: ANY, warehouseId: ANY, salesRouteId: ANY, source: ANY, dateFrom: "", dateTo: "", deliveryFrom: "", deliveryTo: "",
 };
 const NAMES: Record<FilterKey, string> = {
   status: "Order status", confirmation: "Confirmation", reservation: "Stock kept aside", fulfillment: "Dispatch", invoicing: "Invoicing", deliveryOverdue: "Delivery", readyToInvoice: "Invoicing now",
-  balance: "Balance", partyId: "Customer", ownerUserId: "Salesperson", warehouseId: "Warehouse", source: "Source",
+  balance: "Balance", partyId: "Customer", ownerUserId: "Salesperson", warehouseId: "Warehouse", salesRouteId: "Beat", source: "Source",
   dateFrom: "Ordered from", dateTo: "Ordered to", deliveryFrom: "Delivery from", deliveryTo: "Delivery to",
 };
 const STATUSES = [{ value: "draft", label: "Draft" }, { value: "confirmed", label: "Confirmed" }, { value: "cancelled", label: "Cancelled" }, { value: "closed", label: "Closed" }];
@@ -53,6 +54,9 @@ const RESERVATIONS = [
 ];
 const SOURCES = [{ value: "quotation", label: "From a quotation" }, { value: "direct", label: "Direct order" }];
 const DEFAULT_VIEWS = [{ key: "all", label: "All Orders" }];
+// The work, always in sight (Sales plan); every other view is under More views.
+const PINNED_VIEWS = ["all", "to_confirm", "to_dispatch", "to_bill", "credit_hold", "overdue_delivery"];
+type BulkResult = { results: Array<{ orderId: string; orderNumber: string | null; invoiceNumber?: string; deliveries?: Array<{ deliveryNumber: string }>; error?: string }>; created: number };
 const amount = (value: number) => Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 
 // What the list shows with nothing in the address.
@@ -81,6 +85,21 @@ export function SalesOrdersScreen() {
   }, [search]);
 
   const stockOn = useApp("stock");
+  // Many orders at once (Sales plan, Flows 2 and 3): select, then Create invoices or Create deliveries.
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const chosen = Object.keys(selected).filter((id) => selected[id]);
+  const [bulkNotice, setBulkNotice] = useState<string | null>(null);
+  const bulk = useMutation({
+    mutationFn: (action: "invoices" | "deliveries") => post<BulkResult>("/orders/bulk", { action, orderIds: chosen, idempotencyKey: crypto.randomUUID() }).then((result) => ({ action, result })),
+    onSuccess: ({ action, result }) => {
+      const made = result.results.flatMap((row) => (action === "invoices" ? (row.invoiceNumber ? [row.invoiceNumber] : []) : (row.deliveries ?? []).map((entry) => entry.deliveryNumber)));
+      const failed = result.results.filter((row) => row.error).map((row) => `${row.orderNumber ?? "An order"}: ${row.error}`);
+      setBulkNotice([made.length ? `${made.length} ${action === "invoices" ? "draft invoice" : "delivery"}${made.length === 1 ? "" : action === "invoices" ? "s" : "s"} made: ${made.join(", ")}.` : "Nothing was made.", ...failed].join("\n"));
+      setSelected({});
+      void listQuery.refetch();
+    },
+  });
+  const beats = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "beats"), queryFn: () => request<{ routes: Array<{ id: string; name: string }> }>("/routes").then((r) => r.routes), staleTime: 60_000 });
   const [moreFilters, setMoreFilters] = useState(false);
   const [pickedCustomers, setPickedCustomers] = useState<SalesOptions | null>(null);
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "options"), queryFn: () => getSalesOptions().then((r) => r.options), staleTime: 60_000 });
@@ -160,6 +179,7 @@ export function SalesOrdersScreen() {
     partyId: (options?.parties ?? []).filter((party) => ["customer", "both"].includes(party.party_type)).map((party) => ({ value: party.id, label: party.display_name })),
     ownerUserId: (options?.users ?? []).map((user) => ({ value: user.id, label: user.full_name })),
     warehouseId: (options?.warehouses ?? []).map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
+    salesRouteId: (beats.data ?? []).map((beat) => ({ value: beat.id, label: beat.name })),
   };
   const select = (key: FilterKey, anyLabel: string) => (
     <Select key={key} aria-label={NAMES[key]} size="compact" selectedKey={filters[key]} onSelectionChange={(value) => setFilters({ ...filters, [key]: String(value) })}
@@ -184,7 +204,17 @@ export function SalesOrdersScreen() {
         primaryAction: canCreate ? <LinkButton href="/sales/orders/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New Sales Order</LinkButton> : undefined,
         secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={salesOrderExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">Export</span></a> : undefined,
       }}
-      savedViews={{ views: views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
+      savedViews={{ views: views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView, pinned: PINNED_VIEWS.filter((key) => views.some((entry) => entry.key === key)) }}
+      bulkActionBar={{
+        selectedCount: chosen.length,
+        onClearSelection: () => setSelected({}),
+        actions: (
+          <>
+            <Button size="compact" variant="primary" isLoading={bulk.isPending && bulk.variables === "invoices"} onPress={() => bulk.mutate("invoices")}>Create invoices</Button>
+            {stockOn && <Button size="compact" variant="secondary" isLoading={bulk.isPending && bulk.variables === "deliveries"} onPress={() => bulk.mutate("deliveries")}>Create deliveries</Button>}
+          </>
+        ),
+      }}
       actionBar={{
         start: (
           <>
@@ -213,6 +243,7 @@ export function SalesOrdersScreen() {
                 {select("balance", "Any balance")}
                 {select("ownerUserId", "Any salesperson")}
                 {stockOn && select("warehouseId", "Any warehouse")}
+                {(beats.data?.length ?? 0) > 0 && select("salesRouteId", "Any beat")}
                 {select("source", "Any source")}
                 {date("dateFrom")}
                 {date("dateTo")}
@@ -229,11 +260,16 @@ export function SalesOrdersScreen() {
       }}
       filterBar={activeFilters.length ? { filters: activeFilters, onRemove: (id) => setFilters({ ...filters, [id]: NO_FILTERS[id as FilterKey] }), onClearAll: () => setFilters(NO_FILTERS) } : undefined}
     >
+      {bulkNotice && <Notice tone="info" className="whitespace-pre-line">{bulkNotice}</Notice>}
+      {bulk.isError && <Notice tone="danger">{(bulk.error as Error).message}</Notice>}
       <EnterpriseDataGrid<SalesOrderRow>
         aria-label="Sales orders"
         columns={columns}
         data={rows}
         getRowId={(row) => row.id}
+        enableRowSelection
+        rowSelection={selected}
+        onRowSelectionChange={setSelected}
         state={listQuery.isLoading ? "loading" : listQuery.isError ? "error" : rows.length === 0 ? (hasCriteria ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading sales orders" rows={8} onRetry={() => void listQuery.refetch()} />}
         errorContent={<ErrorState title="Could not load sales orders" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}

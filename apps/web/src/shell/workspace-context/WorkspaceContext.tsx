@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
-import { setDisplayTimeZone } from "@/shared/format/display-time-zone";
+import { setDisplayDateFormat, setDisplayTimeZone } from "@/shared/format/display-time-zone";
 
 // Client-side view of the server-resolved workspace context.
 // Deliberately narrow and serializable — only what client components need
@@ -18,6 +18,7 @@ export type WorkspaceContextValue = {
   email: string;
   locale: string;
   timezone: string;
+  dateFormat?: string | null;
   roleSlugs: string[];
   permissions: string[];
   accessibleModuleKeys: string[];
@@ -34,6 +35,7 @@ export function WorkspaceContextProvider({
 }) {
   // Times show in the person's time zone (else the organization's), not the browser's — set before any child renders.
   setDisplayTimeZone(value.timezone);
+  setDisplayDateFormat(value.dateFormat);
   return (
     <WorkspaceReactContext.Provider value={value}>
       {children}

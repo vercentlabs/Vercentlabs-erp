@@ -2,7 +2,7 @@ export type SalesQueryClient = { query(text: string, values?: unknown[]): Promis
 export type SalesContext = { organizationId: string; userId: string | null; permissions: string[]; roleSlugs: string[] };
 export class SalesError extends Error { readonly status: number; readonly code: string; constructor(status: number, message: string, code?: string); }
 export function previewSalesDocument(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, options?: { order?: boolean; allowMissingPrice?: boolean; preview?: boolean; carryQuotedPrices?: boolean }): Promise<any>;
-export function getSalesReport(client: SalesQueryClient, context: SalesContext, key: string, filters?: { from?: string; to?: string; financialYear?: string | number; customerId?: string; salespersonId?: string }): Promise<any[]>;
+export function getSalesReport(client: SalesQueryClient, context: SalesContext, key: string, filters?: { from?: string; to?: string; financialYear?: string | number; customerId?: string; salespersonId?: string; registrationId?: string; currency?: string }): Promise<any[]>;
 export function getSalesOptions(client: SalesQueryClient, context: SalesContext, opportunityId?: string | null, partyId?: string | null, options?: { itemIds?: string[] }): Promise<any>;
 // The pickers' search (Sales audit B4).
 export function searchSalesOptions(client: SalesQueryClient, context: SalesContext, input: { kind: "customers" | "products"; q?: string; prospects?: boolean }): Promise<any>;
@@ -16,7 +16,7 @@ export function updateSalesSettings(client: SalesQueryClient, context: SalesCont
 export * from "./price-lists/index.js";
 export * from "./pricing-rules/index.js";
 // Sending a Sales document on WhatsApp (Sales audit M6).
-export function sendDocumentOnWhatsApp(client: SalesQueryClient, context: SalesContext, input: { kind: "quotation" | "proforma" | "order" | "invoice" | "credit_note"; id: string; phone?: string; body?: string; idempotencyKey?: string }): Promise<{ phone: string; body: string; link: string }>;
+export function sendDocumentOnWhatsApp(client: SalesQueryClient, context: SalesContext, input: { kind: "quotation" | "proforma" | "order" | "invoice" | "credit_note" | "debit_note" | "receipt" | "reminder"; id: string; phone?: string; body?: string; idempotencyKey?: string }): Promise<{ phone: string; body: string; link: string }>;
 
 export * from "./quotations/index.js";
 
@@ -76,3 +76,33 @@ export function getSalesDataJob(client: SalesQueryClient, context: SalesContext,
 export function readSalesDataJobOutput(client: SalesQueryClient, context: SalesContext, jobId: string, options?: { storage?: unknown }): Promise<{ body: Uint8Array; fileName?: string; mimeType?: string; [key: string]: unknown }>;
 export function executeSalesDataJob(client: SalesQueryClient, organizationId: string, payload: { salesDataJobId: string }, options?: { env?: Record<string, string | undefined>; storage?: unknown }): Promise<Record<string, unknown>>;
 export function failSalesDataJob(client: SalesQueryClient, organizationId: string, salesDataJobId: string, error: unknown): Promise<void>;
+// Sales plan (Phase 2–4).
+export const SALES_PAYMENT_METHODS: Readonly<Record<string, string>>;
+export function allocateOldestFirst(invoices: Array<{ id: string; outstanding_amount: number }>, amount: number): Array<{ invoiceId: string; amount: number }>;
+export function getCustomerOpenItems(client: SalesQueryClient, context: SalesContext, partyId: string): Promise<any>;
+export function recordCustomerPayment(client: SalesQueryClient, context: SalesContext, input: Record<string, any>): Promise<{ receiptId: string; receiptNumber: string; amount: number; applied: number; advance: number; allocations: Array<{ invoiceId: string; invoiceNumber: string; amount: number; tds: number }> }>;
+export function listInvoiceAdvances(client: SalesQueryClient, context: SalesContext, invoiceId: string): Promise<any>;
+export function applyAdvanceToInvoice(client: SalesQueryClient, context: SalesContext, invoiceId: string, input?: { receiptId?: string; amount?: number }): Promise<any>;
+export function getSalesPayment(client: SalesQueryClient, context: SalesContext, receiptId: string): Promise<any>;
+export function listCollectionNotes(client: SalesQueryClient, context: SalesContext, partyId: string): Promise<any>;
+export function addCollectionNote(client: SalesQueryClient, context: SalesContext, partyId: string, input: Record<string, any>): Promise<any>;
+export function getCustomerStatementDocument(client: SalesQueryClient, context: SalesContext, partyId: string, options?: { from?: string; to?: string }): Promise<any>;
+export const SALES_DEBIT_REASONS: ReadonlyArray<{ code: string; label: string }>;
+export function getDebitNoteProposal(client: SalesQueryClient, context: SalesContext, invoiceId: string): Promise<any>;
+export function createDebitNote(client: SalesQueryClient, context: SalesContext, invoiceId: string, input: Record<string, any>): Promise<{ debitNoteId: string; debitNoteNumber: string; status: string; replayed: boolean }>;
+export function postDebitNote(client: SalesQueryClient, context: SalesContext, debitNoteId: string): Promise<any>;
+export function cancelDraftDebitNote(client: SalesQueryClient, context: SalesContext, debitNoteId: string, input?: { reason?: string }): Promise<any>;
+export function getDebitNote(client: SalesQueryClient, context: SalesContext, debitNoteId: string): Promise<any>;
+export function getDebitNoteDocument(client: SalesQueryClient, context: SalesContext, debitNoteId: string): Promise<any>;
+export function listDebitNotes(client: SalesQueryClient, context: SalesContext, filters?: Record<string, any>): Promise<any>;
+export const SALES_TEMPLATE_KINDS: ReadonlyArray<{ kind: string; label: string; placeholders: string[] }>;
+export function listMessageTemplates(client: SalesQueryClient, context: SalesContext): Promise<any>;
+export function saveMessageTemplate(client: SalesQueryClient, context: SalesContext, input: { kind: string; channel: string; body?: string | null }): Promise<any>;
+export const SALES_ROUTE_WEEKDAYS: ReadonlyArray<{ day: number; label: string }>;
+export function listSalesRoutes(client: SalesQueryClient, context: SalesContext, filters?: { status?: string; today?: boolean | string }): Promise<any>;
+export function saveSalesRoute(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, routeId?: string | null): Promise<any>;
+export function assignCustomersToRoute(client: SalesQueryClient, context: SalesContext, input: { customerIds: string[]; routeId: string | null }): Promise<{ updated: number }>;
+export function createDeliveriesForOrders(client: SalesQueryClient, context: SalesContext, input: { orderIds: string[]; idempotencyKey: string; dispatch?: boolean }): Promise<any>;
+export function createInvoicesForOrders(client: SalesQueryClient, context: SalesContext, input: { orderIds: string[]; idempotencyKey: string }): Promise<any>;
+export function requestCreditRelease(client: SalesQueryClient, context: SalesContext, orderId: string, input?: { note?: string }): Promise<any>;
+export function allocateStockFairShare(client: SalesQueryClient, context: SalesContext, input: { itemId: string; warehouseId: string; preview?: boolean; idempotencyKey?: string }): Promise<any>;

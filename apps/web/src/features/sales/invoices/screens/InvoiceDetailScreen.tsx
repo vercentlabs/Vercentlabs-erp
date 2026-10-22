@@ -7,12 +7,12 @@
 // the documents it comes from, notes and files, the journal entry (for those
 // who may see the books) and the history. A Draft is edited and posted; a
 // posted invoice never changes: corrections are credit notes.
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Check, Eye, FileMinus, Pencil, Send, Upload, Wallet } from "lucide-react";
+import { Check, Eye, Pencil, Send, Upload, Wallet } from "lucide-react";
 import {
   Button, EnterpriseDataGrid, ErrorState, LinkButton, MetricStrip, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, buttonVariants,
 } from "@vercentlabs/design-system";
@@ -37,6 +37,8 @@ import { ShareLinkButton } from "@/features/sales/shared/ShareLinkButton";
 import { RepeatOrderButton } from "@/features/sales/orders/components/RepeatOrderButton";
 import { RecordPaymentDialog } from "../components/RecordPaymentDialog";
 import { CreateCreditNoteDialog } from "@/features/sales/credit-notes/components/CreditNoteDialogs";
+import { CreateDebitNoteDialog } from "@/features/sales/debit-notes/DebitNoteDialog";
+import { applyAdvance, getInvoiceAdvances } from "@/features/sales/payments/api";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 import { AccountingRecorded } from "@/features/accounting/automatic/components/AccountingRecorded";
 import { useTabParam } from "@/features/sales/shared/useTabParam";
@@ -51,7 +53,7 @@ const quantity = (value: number | string | null | undefined) => Number(value ?? 
 const by = (at: string | null, name: string | null) => (at ? `${dateTime(at)}${name ? ` by ${name}` : ""}` : "—");
 const TAX_LABELS: Record<string, string> = { cgst: "CGST", sgst: "SGST", igst: "IGST", cess: "Cess" };
 
-type DialogKind = "edit" | "terms" | "post" | "cancel" | "reverse" | "send" | "markSent" | "credit" | "dueDate" | "payment" | null;
+type DialogKind = "edit" | "terms" | "post" | "cancel" | "reverse" | "send" | "markSent" | "credit" | "debit" | "dueDate" | "payment" | null;
 
 const EVENT_LABELS: Record<string, string> = {
   "sales_invoice.created": "Invoice created", "sales_invoice.updated": "Draft changed", "sales_invoice.submitted_for_approval": "Sent to Finance for approval",
@@ -74,7 +76,9 @@ function eventDetail(event: SalesDocumentEvent) {
     text("fileName"), text("note"), text("reason")].filter(Boolean).join(" · ");
 }
 
-export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
+// gst: the e-invoice and e-way bill panels, shown in the GST tab; thread: the record's notes and files, in the Notes & files tab (Sales plan:
+// nothing below the page, one tab set for every document).
+export function InvoiceDetailScreen({ invoiceId, gst, thread }: { invoiceId: string; gst?: ReactNode; thread?: ReactNode }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -89,10 +93,17 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
     if (query.data) void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "order", query.data.invoice.sales_order_id) });
   };
   const done = (message?: string) => { setDialog(null); setNotice(message ?? null); refresh(); };
+  // The customer's advance, offered on this invoice (Sales plan, Flow 4).
+  const canRecord = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.invoice.record_payment");
+  const canRaiseNotes = workspace.roleSlugs.includes("organization_owner") || (workspace.permissions.includes("sales.credit_note.create") && workspace.permissions.includes("sales.credit_note.amount"));
+  const owes = Boolean(query.data && query.data.invoice.status === "posted" && Number(query.data.invoice.balanceDue) > 0.005);
+  const advances = useQuery({ queryKey: [...key, "advances"], queryFn: () => getInvoiceAdvances(invoiceId), enabled: canRecord && owes, retry: false });
+  const useAdvance = useMutation({ mutationFn: () => applyAdvance(invoiceId), onSuccess: ({ result }) => { void advances.refetch(); done(result.outstanding > 0.005 ? `The advance paid part of the invoice; ${result.outstanding.toFixed(2)} is still due.` : "The advance paid the invoice."); } });
 
   // From Sales → + Create: open the credit note dialog when this invoice allows it.
   useCreateRequest(Boolean(query.data), (kind) => {
     if (kind === "payment") { if (query.data?.actions.recordPayment) setDialog("payment"); else setNotice("A payment cannot be recorded on this invoice: it must be posted, with a balance to pay."); return; }
+    if (kind === "debit") { if (query.data?.invoice.status === "posted" && query.data?.actions.creditNote !== undefined && canRaiseNotes) setDialog("debit"); else setNotice("A debit note is raised on a posted invoice."); return; }
     if (kind !== "credit") return;
     if (query.data?.actions.creditNote) setDialog("credit"); else setNotice("A credit note cannot be created from this invoice: it must be posted, with something left to credit.");
   });
@@ -110,6 +121,7 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
   const currency = invoice.currency_code;
   const canChangeDates = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.invoice.change_posting_date");
   const posted = invoice.status === "posted";
+  const available = advances.data?.available ?? 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -123,6 +135,14 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
         <Notice tone="warning">Payment terms &quot;{invoice.paymentTerm?.name}&quot; do not set a due date. Enter the due date (Edit) before posting this invoice.</Notice>
       )}
       {detail.draftWarnings.map((warning, index) => <Notice key={index} tone="warning">{warning.message}</Notice>)}
+      {available > 0.005 && (
+        <Notice tone="info">
+          <span className="flex flex-wrap items-center gap-3">The customer has {money(currency, available)} paid in advance.
+            <Button size="compact" variant="secondary" isLoading={useAdvance.isPending} onPress={() => useAdvance.mutate()}>Apply to this invoice</Button>
+          </span>
+        </Notice>
+      )}
+      {useAdvance.isError && <Notice tone="danger">{(useAdvance.error as Error).message}</Notice>}
 
       <RecordDetailsPage
         header={{
@@ -156,11 +176,11 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
               {actions.print && <a className={buttonVariants({ variant: "secondary" })} href={invoicePdfUrl(invoiceId, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />{posted ? "PDF" : "Draft PDF"}</a>}
               {actions.markSent && <WhatsAppSendButton kind="invoice" id={invoiceId} pdfUrl={invoicePdfUrl(invoiceId)} onSent={refresh} />}
               {actions.markSent && <ShareLinkButton kind="invoice" id={invoiceId} />}
-              {posted && <a className={buttonVariants({ variant: "secondary" })} href="#e-invoice">E-invoice (IRN)</a>}
-              {posted && <a className={buttonVariants({ variant: "secondary" })} href="#e-way-bill">E-way bill</a>}
+              {posted && gst && <Button variant="secondary" onPress={() => setTab("gst")}>E-invoice &amp; e-way bill</Button>}
               {posted && invoice.sales_order_id && (workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.create")) && <RepeatOrderButton invoiceId={invoiceId} />}
               <MoreActions actions={[
                 { id: "credit", label: "Create credit note", show: actions.creditNote, run: () => setDialog("credit") },
+                { id: "debit", label: "Debit note (undercharge)", show: posted && canRaiseNotes, run: () => setDialog("debit") },
                 { id: "download", label: "Download PDF", show: actions.print && posted, run: () => { window.location.href = invoicePdfUrl(invoiceId); } },
                 { id: "copies", label: "Print 3 copies", show: actions.print && posted, run: () => window.open(`${invoicePdfUrl(invoiceId, true)}&copies=3`, "_blank", "noopener") },
                 { id: "markSent", label: "Mark as sent", show: actions.markSent, run: () => setDialog("markSent") },
@@ -190,6 +210,7 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
             <Tab id="taxes">Taxes</Tab>
             {actions.viewPayments && <Tab id="payments">Payments</Tab>}
             <Tab id="credits">Credits</Tab>
+            {posted && gst && <Tab id="gst">GST</Tab>}
             <Tab id="related">Related</Tab>
             <Tab id="notes">Notes &amp; files</Tab>
             {actions.viewAccounting && <Tab id="accounting">Accounting</Tab>}
@@ -201,7 +222,8 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
           {actions.viewPayments && <TabPanel id="payments"><Payments detail={detail} /></TabPanel>}
           <TabPanel id="credits"><Credits detail={detail} onCredit={actions.creditNote ? () => setDialog("credit") : undefined} /></TabPanel>
           <TabPanel id="related"><Related detail={detail} /></TabPanel>
-          <TabPanel id="notes"><Notes detail={detail} canEdit={actions.edit || actions.send} onChanged={refresh} /></TabPanel>
+          {posted && gst && <TabPanel id="gst"><div className="flex flex-col gap-4 pt-4">{gst}</div></TabPanel>}
+          <TabPanel id="notes"><div className="flex flex-col gap-4"><Notes detail={detail} canEdit={actions.edit || actions.send} onChanged={refresh} />{thread}</div></TabPanel>
           {actions.viewAccounting && <TabPanel id="accounting"><Accounting detail={detail} /></TabPanel>}
           <TabPanel id="history"><History detail={detail} /></TabPanel>
         </Tabs>
@@ -220,6 +242,7 @@ export function InvoiceDetailScreen({ invoiceId }: { invoiceId: string }) {
           onClose={() => setDialog(null)} onDone={(message) => done(message)} />
       )}
       {dialog === "credit" && <CreateCreditNoteDialog invoiceId={invoice.id} onClose={() => setDialog(null)} onDone={(creditNoteId) => router.push(`/sales/credit-notes/${creditNoteId}`)} />}
+      {dialog === "debit" && <CreateDebitNoteDialog invoiceId={invoice.id} onClose={() => setDialog(null)} onDone={(debitNoteId) => router.push(`/sales/debit-notes/${debitNoteId}`)} />}
     </div>
   );
 }

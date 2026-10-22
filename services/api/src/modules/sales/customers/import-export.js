@@ -14,7 +14,7 @@
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { requireCustomerPermission } from "./access.js";
-import { CUSTOMER_KINDS, CUSTOMER_PERMISSIONS, CustomerError, GST_REGISTRATION_TYPES, gstStateCode } from "./constants.js";
+import { CUSTOMER_KINDS, CUSTOMER_PERMISSIONS, CustomerError, GST_REGISTRATION_TYPES, SALES_CHANNELS, gstStateCode } from "./constants.js";
 import { findDuplicateCustomers } from "./duplicates.js";
 import { buildCustomerListWhere, createCustomer, customerSelect, toCustomer, updateCustomer } from "./records.js";
 import { text } from "./validation.js";
@@ -42,6 +42,11 @@ export const CUSTOMER_IMPORT_FIELDS = Object.freeze([
   { key: "placeOfSupply", label: "Place of Supply", aliases: ["pos"], sample: "Maharashtra" },
   { key: "paymentTerms", label: "Payment Terms", aliases: ["terms", "payment term"], sample: "" },
   { key: "priceList", label: "Price List", aliases: ["pricelist"], sample: "" },
+  // Credit control, channel and beat from the client's Tally/Excel (Sales plan, data migration).
+  { key: "creditLimit", label: "Credit Limit", aliases: ["credit limit (inr)", "limit"], sample: "500000" },
+  { key: "creditDays", label: "Credit Days", aliases: ["credit period", "days"], sample: "30" },
+  { key: "salesChannel", label: "Customer Group", aliases: ["channel", "sales channel", "group", "customer group / channel"], sample: "General trade" },
+  { key: "beat", label: "Beat", aliases: ["route", "beat / route", "beat name"], sample: "" },
   { key: "salespersonEmail", label: "Salesperson Email", aliases: ["salesperson", "owner", "owner email", "account manager"], sample: "" },
   { key: "line1", label: "Address Line 1", aliases: ["address", "street", "billing address", "address 1"], sample: "12 Kalbadevi Road" },
   { key: "line2", label: "Address Line 2", aliases: ["address 2"], sample: "" },
@@ -125,6 +130,15 @@ async function rowToInput(client, context, values, lookups) {
   if (values.paymentTerms) input.paymentTermId = await lookups.paymentTerm(values.paymentTerms);
   if (values.priceList) input.priceListId = await lookups.priceList(values.priceList);
   if (values.salespersonEmail) input.ownerUserId = await lookups.user(values.salespersonEmail);
+  if (values.creditLimit) {
+    const limit = Number(values.creditLimit.replace(/[,₹\s]/g, ""));
+    if (!Number.isFinite(limit) || limit < 0) throw new CustomerError(400, `Credit limit "${values.creditLimit}" is not an amount.`, "SALES_CUSTOMER_IMPORT_ROW");
+    input.creditLimit = limit;
+  }
+  // Credit days pick the payment terms with that many days (unless Payment Terms is given too).
+  if (values.creditDays && !input.paymentTermId) input.paymentTermId = await lookups.termByDays(values.creditDays);
+  if (values.salesChannel) input.salesChannel = SALES_CHANNELS.find((entry) => [headerKey(entry.label), headerKey(entry.label.split(" (")[0]), headerKey(entry.code)].includes(headerKey(values.salesChannel)))?.code ?? values.salesChannel;
+  if (values.beat) input.salesRouteId = await lookups.beat(values.beat);
   return input;
 }
 
@@ -140,6 +154,13 @@ function makeLookups(client, context) {
     country: (value) => (value.length === 2 ? value.toUpperCase() : ({ india: "IN", "united states": "US", usa: "US", "united kingdom": "GB", uk: "GB", "united arab emirates": "AE", uae: "AE", singapore: "SG" }[value.toLowerCase()] ?? value.toUpperCase())),
     paymentTerm: (value) => find("term", `SELECT id FROM tenant.payment_terms WHERE organization_id = $1 AND status = 'active' AND (lower(name) = $2 OR lower(code) = $2)`, value, `Payment terms "${value}" were not found.`),
     priceList: (value) => find("list", `SELECT id FROM tenant.price_lists WHERE organization_id = $1 AND status = 'active' AND price_list_type = 'sales' AND (lower(name) = $2 OR lower(code) = $2)`, value, `Price list "${value}" was not found.`),
+    termByDays: (value) => {
+      const days = Number(value);
+      if (!Number.isInteger(days) || days < 0) throw new CustomerError(400, `Credit days "${value}" is not a number of days.`, "SALES_CUSTOMER_IMPORT_ROW");
+      return find("days", `SELECT id FROM tenant.payment_terms WHERE organization_id = $1 AND status = 'active' AND is_sales_enabled AND default_due_days::text = $2
+        ORDER BY (calculation_type = 'custom'), name LIMIT 1`, String(days), `No payment terms of ${days} days: add them in Sales › Setup › Payment Terms.`);
+    },
+    beat: (value) => find("beat", `SELECT id FROM tenant.sales_routes WHERE organization_id = $1 AND status = 'active' AND (lower(name) = $2 OR lower(code) = $2)`, value, `Beat "${value}" was not found.`),
     user: (value) => find("user",
       `SELECT users.id FROM public.organization_memberships membership JOIN public.users users ON users.id = membership.user_id
         WHERE membership.organization_id = $1 AND membership.status = 'active' AND lower(users.email) = $2`, value, `No active user has the email ${value}.`),

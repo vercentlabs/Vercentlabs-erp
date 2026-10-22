@@ -23,7 +23,7 @@ import { useCreateRequest } from "@/features/sales/shared/use-create-request";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { useApp } from "@/shell/workspace-context/useApp";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { SalesApiError } from "@/features/sales/shared/http";
+import { SalesApiError, post } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { StoredTotals, discountReasonLabel } from "@/features/sales/shared/DocumentDiscounts";
 import { getOrderTracking, type OrderTracking } from "@/features/sales/order-tracking/api/order-tracking-api";
@@ -144,6 +144,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
     const actions = query.data?.actions;
     if (kind === "delivery") { if (actions?.deliver && stockOn) setDialog("delivery"); else setNotice("Nothing on this order can be delivered now."); }
     if (kind === "invoice") { if (actions?.invoice) setDialog("invoice"); else setNotice("Nothing on this order can be invoiced now."); }
+    // Save & Confirm from the order form (Sales plan).
+    if (kind === "confirm" && actions?.confirm) setDialog("confirm");
   });
 
   if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
@@ -178,6 +180,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           {" "}{[detail.cancelReasons.find((reason) => reason.code === order.cancel_reason_code)?.label, order.cancel_reason].filter(Boolean).join(": ")}
         </Notice>
       )}
+      {order.status === "draft" && order.credit_hold_since && <CreditHoldNotice orderId={orderId} reasons={order.credit_hold_reasons ?? []} requestedAt={order.credit_release_requested_at ?? null} onDone={refresh} />}
       {detail.duplicatePurchaseOrders.length > 0 && order.status !== "cancelled" && (
         <Notice tone="warning">
           Customer PO {order.customer_po_number} is also on{" "}
@@ -763,5 +766,25 @@ function History({ detail }: { detail: SalesOrderDetail }) {
         </ol>
       </Panel>
     </div>
+  );
+}
+
+// Held for credit (Sales plan, Flow 1): why, and — for a salesperson who cannot release credit — asking whoever can. Whoever can release
+// it confirms the order and gives the reason.
+function CreditHoldNotice({ orderId, reasons, requestedAt, onDone }: { orderId: string; reasons: string[]; requestedAt: string | null; onDone: () => void }) {
+  const workspace = useWorkspaceContext();
+  const canRelease = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.credit_release");
+  const ask = useMutation({ mutationFn: () => post<{ result: { told: number } }>(`/orders/${orderId}/credit-release`, {}), onSuccess: onDone });
+  return (
+    <Notice tone="warning">
+      <span className="flex flex-col gap-2">
+        <span>Held for credit. {reasons.join(" ")}</span>
+        {canRelease ? <span>Confirm the order and give the reason to release it, or take a payment first.</span>
+          : requestedAt ? <span>A manager was asked to release it on {dateTime(requestedAt)}.</span>
+            : <span className="flex flex-wrap items-center gap-2">Ask whoever can release credit to look at it.
+              <Button size="compact" variant="secondary" isLoading={ask.isPending} onPress={() => ask.mutate()}>Request approval</Button>
+              {ask.isError && <span className="text-danger">{(ask.error as Error).message}</span>}</span>}
+      </span>
+    </Notice>
   );
 }

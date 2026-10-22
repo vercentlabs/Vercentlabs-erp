@@ -32,6 +32,7 @@ export default async function WorkspaceLayout({
         email: session.email,
         locale: session.locale,
         timezone: session.timezone,
+        dateFormat: session.dateFormat ?? null,
         roleSlugs: session.roleSlugs,
         permissions: session.permissions,
         accessibleModuleKeys: accessibleModules

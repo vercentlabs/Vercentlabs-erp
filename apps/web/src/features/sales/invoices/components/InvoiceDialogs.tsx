@@ -222,7 +222,8 @@ export function PostInvoiceDialog({ detail, onClose, onDone }: { detail: Invoice
   const recalculate = useMutation({ mutationFn: () => updateDraftInvoice(invoice.id, { expectedVersion: invoice.version, recalculateTax: true }), onSuccess: () => onDone("The tax was worked out again on the invoice date. Check the invoice, then post it.") });
   const save = useMutation({
     mutationFn: () => postInvoice(invoice.id, invoice.version),
-    onSuccess: ({ result }) => onDone(result.awaitingApproval ? "The invoice is waiting for Finance approval before it is posted." : `Invoice ${result.invoiceNumber} is posted: it is now the customer's receivable.`),
+    onSuccess: ({ result }) => onDone(result.awaitingApproval ? "The invoice is waiting for Finance approval before it is posted." : [`Invoice ${result.invoiceNumber} is posted: it is now the customer's receivable.`,
+      result.einvoice?.status === "generated" ? `IRN generated: ${result.einvoice.irn}.` : result.einvoice?.status === "failed" ? `The IRN could not be generated (${result.einvoice.error}). Retry from the GST tab.` : null].filter(Boolean).join(" ")),
   });
   const problems = check.data?.problems ?? [];
   return (

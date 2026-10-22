@@ -24,15 +24,15 @@ import { readListState, useListUrlState } from "@/features/sales/shared/listUrlS
 const PAGE_SIZE = 25;
 const ANY = "any";
 
-type FilterKey = "status" | "customerKind" | "ownerUserId" | "state" | "countryCode" | "gstRegistrationType" | "currencyCode" | "priceListId" | "paymentTermId" | "created" | "hasOutstanding" | "hasOverdue";
+type FilterKey = "status" | "customerKind" | "ownerUserId" | "state" | "countryCode" | "gstRegistrationType" | "currencyCode" | "priceListId" | "paymentTermId" | "salesRouteId" | "created" | "hasOutstanding" | "hasOverdue";
 type Filters = Record<FilterKey, string>;
 const NO_FILTERS: Filters = {
-  status: ANY, customerKind: ANY, ownerUserId: ANY, state: ANY, countryCode: ANY, gstRegistrationType: ANY, currencyCode: ANY, priceListId: ANY, paymentTermId: ANY, created: ANY,
+  status: ANY, customerKind: ANY, ownerUserId: ANY, state: ANY, countryCode: ANY, gstRegistrationType: ANY, currencyCode: ANY, priceListId: ANY, paymentTermId: ANY, salesRouteId: ANY, created: ANY,
   hasOutstanding: ANY, hasOverdue: ANY,
 };
 const FILTER_NAMES: Record<FilterKey, string> = {
   status: "Status", customerKind: "Type", ownerUserId: "Salesperson", state: "State", countryCode: "Country", gstRegistrationType: "GST registration", currencyCode: "Currency",
-  priceListId: "Price list", paymentTermId: "Payment terms", created: "Created", hasOutstanding: "Outstanding", hasOverdue: "Overdue",
+  priceListId: "Price list", paymentTermId: "Payment terms", salesRouteId: "Beat", created: "Created", hasOutstanding: "Outstanding", hasOverdue: "Overdue",
 };
 const CREATED = [{ value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }, { value: "365", label: "Last 12 months" }];
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
@@ -143,6 +143,7 @@ export function CustomerListScreen() {
     currencyCode: options.currencies.map((currency) => ({ value: currency.code, label: currency.code })),
     priceListId: options.priceLists.map((list) => ({ value: list.id, label: list.name })),
     paymentTermId: options.paymentTerms.map((term) => ({ value: term.id, label: term.name })),
+    salesRouteId: (options.salesRoutes ?? []).map((beat) => ({ value: beat.id, label: beat.name })),
     created: CREATED,
     hasOutstanding: yes,
     hasOverdue: yes,
@@ -195,6 +196,7 @@ export function CustomerListScreen() {
                   {select("currencyCode", "Currency", choices.currencyCode ?? [], "Any currency")}
                   {options.priceLists.length > 0 && select("priceListId", "Price list", choices.priceListId ?? [], "Any price list")}
                   {options.paymentTerms.length > 0 && select("paymentTermId", "Payment terms", choices.paymentTermId ?? [], "Any payment terms")}
+                  {(options.salesRoutes?.length ?? 0) > 0 && select("salesRouteId", "Beat", choices.salesRouteId ?? [], "Any beat")}
                   {select("created", "Created", CREATED, "Created any time")}
                   {finance && select("hasOutstanding", "Outstanding", [{ value: "true", label: "Has outstanding" }], "Any balance")}
                   {finance && select("hasOverdue", "Overdue", [{ value: "true", label: "Has overdue" }], "Overdue or not")}

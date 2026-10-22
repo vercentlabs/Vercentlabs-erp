@@ -1,13 +1,14 @@
 "use client";
 
-// The Sales Overview, in CRM's shape: the money first (invoiced today and this month, collections due today, outstanding), what needs
-// action and the customers owing the most overdue side by side, the order pipeline by stage (each count shown once), and recent activity
-// (Line-by-line audit). Each figure is the count of a list view and opens that view,
+// The Sales Overview — the owner's morning (Sales plan, Flow 6): today and the month so far (orders, sales, collections, the month against
+// its target), what needs action (to confirm, held for credit, to dispatch, to bill, e-invoices pending, overdue money) beside the
+// customers owing the most overdue (each with a WhatsApp reminder), the order pipeline by stage and recent activity. Each figure is the count of a list view and opens that view,
 // so the home never keeps a second copy of the records. Figures the person may not see are left out.
 import { useQuery } from "@tanstack/react-query";
 import { ErrorState, PermissionState } from "@vercentlabs/design-system";
 
-import { calendarDate, dateTime, money } from "@/features/sales/shared/format";
+import { calendarDate, compactMoney, dateTime, money } from "@/features/sales/shared/format";
+import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
 import { request, SalesApiError } from "@/features/sales/shared/http";
 import { SalesCreateMenu } from "@/features/sales/shared/SalesCreateMenu";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -23,6 +24,7 @@ type SalesHome = {
   invoiceBalance: { invoices: number; outstanding: number; overdue: number; currencyCode: string | null } | null;
   money: { invoicedToday: number; invoicedThisMonth: number; dueToday: number; dueTodayCount: number; currencyCode: string | null;
     topOverdue: Array<{ customerId: string; name: string | null; amount: number; oldestDue: string }> } | null;
+  today?: { ordersToday: number | null; orderValueToday: number | null; collectedToday: number | null; monthTarget: number | null; einvoicePending: number | null };
   activity: Activity[];
 };
 
@@ -64,6 +66,11 @@ export function SalesHomeScreen() {
   // Reservation figures only with Stock.
   const stockOn = stockOnEarly;
   const stages = STAGES.filter((stage) => stockOn || stage.view !== "awaiting_reservation");
+  const today = home?.today;
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+  const baseCurrency = cash?.currencyCode ?? currency;
+  const target = today?.monthTarget ?? null;
+  const achieved = target && cash ? Math.round((cash.invoicedThisMonth / target) * 100) : null;
 
   return (
     <div className="flex flex-1 flex-col gap-6">
@@ -73,10 +80,12 @@ export function SalesHomeScreen() {
         : (
           <>
             <OverviewCards label="Overview" cards={cash ? [
-              { label: "Invoiced today", value: money(cash.currencyCode, cash.invoicedToday), href: "/sales/invoices?view=posted" },
-              { label: "Invoiced this month", value: money(cash.currencyCode, cash.invoicedThisMonth), href: "/sales/reports?report=sales-by-period" },
-              { label: `Collections due today${cash.dueTodayCount ? ` (${cash.dueTodayCount})` : ""}`, value: money(cash.currencyCode, cash.dueToday), href: "/sales/invoices?view=due_today" },
-              { label: "Outstanding", value: balance ? money(currency, balance.outstanding) : null, href: "/sales/outstanding" },
+              { label: `Orders today${today?.ordersToday ? ` (${today.ordersToday})` : ""}`, value: today?.orderValueToday != null ? compactMoney(baseCurrency, today.orderValueToday) : null,
+                href: `/sales/orders?f.dateFrom=${day}&f.dateTo=${day}` },
+              { label: "Sales today", value: compactMoney(cash.currencyCode, cash.invoicedToday), href: `/sales/reports?tab=sales&report=sales-register&from=${day}&to=${day}` },
+              { label: "Collected today", value: today?.collectedToday != null ? compactMoney(baseCurrency, today.collectedToday) : null, href: `/sales/payments?from=${day}&to=${day}` },
+              { label: target ? `This month · ${achieved}% of ${compactMoney(baseCurrency, target)} target` : "Invoiced this month", value: compactMoney(cash.currencyCode, cash.invoicedThisMonth),
+                href: "/sales/reports?tab=sales&report=sales-by-period" },
             ] : [
               { label: "Quotations awaiting response", value: home.quotationsAwaitingResponse, href: "/sales/quotations?view=awaiting" },
               { label: "Confirmed orders", value: order("confirmed"), href: "/sales/orders?view=confirmed" },
@@ -85,11 +94,18 @@ export function SalesHomeScreen() {
             <div className="grid gap-6 lg:grid-cols-2">
               <OverviewPanel title="Needs action">
                 <CountList rows={[
-                  ...(cash ? [{ label: "Quotations awaiting the customer's answer", value: home.quotationsAwaitingResponse, href: "/sales/quotations?view=awaiting" }] : []),
-                  { label: "Orders needing attention (short stock, late or ready to bill)", value: order("needs_attention"), href: "/sales/orders?view=needs_attention", tone: "warning" },
+                  ...(orders ? [
+                    { label: "Orders to confirm", value: order("to_confirm"), href: "/sales/orders?view=to_confirm" },
+                    { label: "Orders held for credit", value: order("credit_hold"), href: "/sales/orders?view=credit_hold", tone: "danger" as const },
+                    ...(stockOn ? [{ label: "Orders to dispatch", value: order("to_dispatch"), href: "/sales/orders?view=to_dispatch" }] : []),
+                    { label: "Orders to bill", value: order("to_bill"), href: "/sales/orders?view=to_bill" },
+                  ] : []),
+                  ...(today?.einvoicePending != null ? [{ label: "Invoices waiting for their IRN", value: today.einvoicePending, href: "/sales/gst-documents", tone: "warning" as const }] : []),
+                  ...(cash ? [{ label: `Collections due today${cash.dueTodayCount ? ` (${cash.dueTodayCount})` : ""}`, value: money(cash.currencyCode, cash.dueToday), href: "/sales/invoices?view=due_today" },
+                    { label: "Quotations awaiting the customer's answer", value: home.quotationsAwaitingResponse, href: "/sales/quotations?view=awaiting" }] : []),
                   { label: "Overdue deliveries", value: order("overdue_delivery"), href: "/sales/orders?view=overdue_delivery", tone: "danger" },
                   ...(stockOn ? [{ label: "Partially reserved (stock short)", value: order("partially_reserved"), href: "/sales/orders?view=partially_reserved", tone: "warning" as const }] : []),
-                  { label: "Overdue invoice balance", value: balance ? money(currency, balance.overdue) : null, href: "/sales/invoices?view=overdue", tone: balance && balance.overdue > 0.005 ? "danger" : undefined },
+                  { label: "Overdue collections", value: balance ? money(currency, balance.overdue) : null, href: "/sales/outstanding", tone: balance && balance.overdue > 0.005 ? "danger" : undefined },
                 ]} />
               </OverviewPanel>
 
@@ -98,6 +114,11 @@ export function SalesHomeScreen() {
                   <CountList empty="No customer is overdue." rows={cash.topOverdue.map((entry) => ({
                     label: `${entry.name ?? "Customer"} · since ${calendarDate(entry.oldestDue)}`, value: money(cash.currencyCode, entry.amount), href: `/sales/customers/${entry.customerId}?tab=ledger`, tone: "danger" as const,
                   }))} />
+                  {cash.topOverdue.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {cash.topOverdue.map((entry) => <WhatsAppSendButton key={entry.customerId} kind="reminder" id={entry.customerId} size="compact" label={`Remind ${(entry.name ?? "customer").split(" ")[0]}`} />)}
+                    </div>
+                  )}
                 </OverviewPanel>
               )}
             </div>

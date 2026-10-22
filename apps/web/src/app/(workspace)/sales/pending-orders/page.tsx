@@ -1,18 +1,8 @@
-import { Suspense } from "react";
+import { redirect } from "next/navigation";
 
-import { PENDING_ORDER_REPORTS, SalesReportScreen } from "@/features/sales/reports/screens/SalesReportScreen";
-
-export const metadata = { title: "Pending Orders" };
-
-// Sales › Sell › Pending Orders: the one place for "where is my order" (Sales audit). Every row opens its order.
-export default function Page() {
-  return (
-    <Suspense>
-      <SalesReportScreen
-        title="Pending Orders"
-        description="Orders not yet finished: what is still to dispatch, by order or by product, what is ready to bill, and whether dispatches kept the customer's date. Every row opens its order."
-        reports={PENDING_ORDER_REPORTS}
-      />
-    </Suspense>
-  );
+// Pending Orders is now Reports › Orders (Sales plan: one Reports page); its old links keep working.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const params = new URLSearchParams(Object.entries(await searchParams).filter(([, value]) => value) as Array<[string, string]>);
+  params.set("tab", "orders");
+  redirect(`/sales/reports?${params}`);
 }

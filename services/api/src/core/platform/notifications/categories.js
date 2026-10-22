@@ -561,6 +561,16 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    // Sales (Sales plan): an order is held for credit and the salesperson asks someone who can release credit to look at it.
+    key: "sales_credit_release",
+    displayName: "Orders held for credit",
+    description: "When a salesperson asks you to release an order held over the customer's credit limit or for overdue bills.",
+    moduleKey: "sales",
+    defaultInAppEnabled: true,
+    defaultEmailEnabled: true,
+    userConfigurable: true,
+  },
+  {
     // Sales: an open quotation passed its Valid Until date (told once, by the daily expiry check).
     key: "sales_quotation_expired",
     displayName: "Expired quotations",

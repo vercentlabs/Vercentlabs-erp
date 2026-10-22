@@ -56,16 +56,21 @@ export async function collectOutward(client, c, registration, from, to, { source
   // ---- Finance customer invoices / credit notes / debit notes
   const inv = (await client.query(`SELECT i.id, i.invoice_number, i.invoice_type, i.invoice_date, i.status, i.customer_snapshot, i.place_of_supply, i.supply_type, i.grand_total, i.tax_total,
       i.exchange_rate, i.source_invoice_id, o.invoice_number AS original_number, o.invoice_date AS original_date, i.e_invoice_status, i.e_invoice_reference, i.updated_at,
-      si.seller_registration_id
+      COALESCE(si.seller_registration_id, scn.seller_registration_id, sdn.seller_registration_id) AS seller_registration_id
     FROM tenant.accounting_customer_invoices i LEFT JOIN tenant.sales_invoices si ON si.customer_invoice_id = i.id
+    -- A Sales credit or debit note was issued by its invoice's registration (Sales plan: debit notes).
+    LEFT JOIN tenant.sales_credit_notes scn ON scn.customer_invoice_id = i.id
+    LEFT JOIN tenant.sales_debit_notes sdn ON sdn.customer_invoice_id = i.id
     LEFT JOIN tenant.accounting_customer_invoices o ON o.id = i.source_invoice_id
     WHERE i.organization_id = $1 AND i.invoice_type IN ('invoice', 'credit_note', 'debit_note') AND i.posted_at IS NOT NULL AND i.status NOT IN ('cancelled', 'reversed')
-      AND i.invoice_date BETWEEN $2 AND $3 AND COALESCE(si.seller_registration_id, $5::uuid) = $4 AND ($6::uuid[] IS NULL OR i.id = ANY($6::uuid[]))
+      AND i.invoice_date BETWEEN $2 AND $3 AND COALESCE(si.seller_registration_id, scn.seller_registration_id, sdn.seller_registration_id, $5::uuid) = $4 AND ($6::uuid[] IS NULL OR i.id = ANY($6::uuid[]))
     ORDER BY i.invoice_date, i.invoice_number`, [c.organizationId, from, to, registration.id, fallback, ids])).rows;
   const lineRows = inv.length ? (await client.query(`SELECT l.id, l.customer_invoice_id, l.hsn_sac_code, l.description, l.quantity, l.net_amount, l.tax_amount, l.tax_details,
-      u.code AS uom_code, sl.tax_rate, sl.tax_treatment, sl.hsn_sac_kind, sl.uom_snapshot, cl.credit_type
+      u.code AS uom_code, sl.tax_rate, sl.tax_treatment, sl.hsn_sac_kind, sl.uom_snapshot, CASE WHEN dl.customer_invoice_line_id IS NOT NULL THEN 'amount' ELSE cl.credit_type END AS credit_type
     FROM tenant.accounting_customer_invoice_lines l LEFT JOIN tenant.sales_invoice_lines sl ON sl.customer_invoice_line_id = l.id
     LEFT JOIN tenant.sales_credit_note_lines cl ON cl.customer_invoice_line_id = l.id
+    -- A debit note adds value only: no quantity in the HSN summary.
+    LEFT JOIN tenant.sales_debit_note_lines dl ON dl.customer_invoice_line_id = l.id
     LEFT JOIN tenant.accounting_customer_invoice_lines credited ON credited.id = cl.source_invoice_line_id
     LEFT JOIN tenant.units_of_measure u ON u.id = COALESCE(l.uom_id, credited.uom_id)
     WHERE l.organization_id = $1 AND l.customer_invoice_id = ANY($2::uuid[]) ORDER BY l.customer_invoice_id, l.sequence`, [c.organizationId, inv.map((i) => i.id)])).rows : [];
@@ -128,8 +133,9 @@ export async function collectOutward(client, c, registration, from, to, { source
 
   // ---- what was cancelled or reversed in the period (GSTR-1 Table 13)
   const cancelled = sourceIds ? [] : (await client.query(`SELECT i.invoice_type AS kind, i.invoice_number AS number FROM tenant.accounting_customer_invoices i LEFT JOIN tenant.sales_invoices si ON si.customer_invoice_id = i.id
+      LEFT JOIN tenant.sales_credit_notes scn ON scn.customer_invoice_id = i.id LEFT JOIN tenant.sales_debit_notes sdn ON sdn.customer_invoice_id = i.id
       WHERE i.organization_id = $1 AND i.invoice_type IN ('invoice', 'credit_note', 'debit_note') AND i.status IN ('cancelled', 'reversed') AND i.invoice_number IS NOT NULL AND i.posted_at IS NOT NULL
-        AND i.invoice_date BETWEEN $2 AND $3 AND COALESCE(si.seller_registration_id, $5::uuid) = $4
+        AND i.invoice_date BETWEEN $2 AND $3 AND COALESCE(si.seller_registration_id, scn.seller_registration_id, sdn.seller_registration_id, $5::uuid) = $4
     UNION ALL SELECT CASE WHEN document_type = 'credit_note' THEN 'credit_note' ELSE 'pos_invoice' END, invoice_number FROM tenant.gst_invoices
       WHERE organization_id = $1 AND seller_registration_id = $4 AND document_status = 'cancelled' AND (COALESCE(issued_at, created_at) AT TIME ZONE $6)::date BETWEEN $2 AND $3`,
     [c.organizationId, from, to, registration.id, fallback, tz])).rows;

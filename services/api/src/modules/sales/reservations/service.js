@@ -358,3 +358,70 @@ export async function reconcileSalesReservations(client, context, { repair = fal
 }
 
 export { RESERVATION_STATUS_LABELS };
+
+// Fair share on a shortage (Sales plan, Phase 4): when a product's free stock in a warehouse is less than what confirmed orders still
+// need there, each order line gets its share of what is free — in proportion to what it still needs, in whole units, any units left over
+// to the oldest orders first — instead of the first order taking it all. What a line already holds stays. input: { itemId, warehouseId,
+// preview? (work it out, reserve nothing), idempotencyKey? }. Returns { available, demand, lines: [{ orderId, orderNumber, lineId, needed,
+// share, reserved }] }.
+export async function allocateStockFairShare(client, context, input = {}) {
+  requireOrderPermission(context, RESERVATION_PERMISSIONS.reserve, "You do not have permission to reserve stock for sales orders.");
+  if (!orderCan(context, RESERVATION_PERMISSIONS.reservePartial))
+    throw new OrderError(403, "Sharing stock between orders reserves part of lines: it needs the partial reservation permission.", "PERMISSION_DENIED");
+  const itemId = requireUuid(input.itemId, "Product");
+  const warehouseId = requireUuid(input.warehouseId, "Warehouse");
+  const values = [context.organizationId, itemId];
+  const scope = orderScopeSql(context, values, "sales_order");
+  const candidates = (await client.query(
+    `SELECT DISTINCT sales_order.id, sales_order.order_date, sales_order.sales_order_number FROM tenant.sales_orders sales_order
+       JOIN tenant.sales_order_lines line ON line.organization_id = sales_order.organization_id AND line.sales_order_version_id = sales_order.current_version_id
+      WHERE sales_order.organization_id = $1 AND sales_order.lifecycle_status = 'confirmed' AND line.item_id = $2${scope}
+      ORDER BY sales_order.order_date, sales_order.sales_order_number`, values)).rows;
+  // Orders are locked in one order (by id) so two allocations never deadlock; the shares then go oldest first.
+  const locked = new Map();
+  for (const candidate of [...candidates].sort((a, b) => (a.id < b.id ? -1 : 1))) locked.set(candidate.id, await lockOrder(client, context, candidate.id));
+  const orders = candidates.map((candidate) => locked.get(candidate.id));
+  const progress = await loadOrderLineProgressFor(client, context.organizationId, orders.map((order) => order.current_version_id));
+  const demand = [];
+  for (const order of orders) {
+    const defaultWarehouseId = await defaultWarehouseOf(client, context, order);
+    for (const line of progress.get(order.current_version_id) ?? []) {
+      if (line.itemId !== itemId || !line.stockTracked || (line.warehouseId ?? defaultWarehouseId) !== warehouseId) continue;
+      const needed = round(line.remainingToDeliver - line.reserved);
+      if (needed > EPSILON) demand.push({ order, line, needed, defaultWarehouseId });
+    }
+  }
+  const { getStockAvailability } = await import("../../stock/index.js");
+  const free = Number((await getStockAvailability(client, orderStockContext(context), { itemId, warehouseId })).availableQuantity);
+  // In each line's own unit: the free stock as that many of the line's units.
+  const neededBase = demand.reduce((total, entry) => total + entry.needed * entry.line.conversionFactor, 0);
+  const shares = demand.map((entry) => {
+    const exact = neededBase <= free + EPSILON ? entry.needed : (free * (entry.needed * entry.line.conversionFactor) / neededBase) / entry.line.conversionFactor;
+    return { ...entry, share: neededBase <= free + EPSILON ? entry.needed : Math.min(entry.needed, Math.floor(exact + EPSILON)) };
+  });
+  let left = free - shares.reduce((total, entry) => total + entry.share * entry.line.conversionFactor, 0);
+  for (const entry of shares) {
+    if (left + EPSILON < entry.line.conversionFactor) continue;
+    if (entry.share + 1 <= entry.needed + EPSILON) { entry.share += 1; left -= entry.line.conversionFactor; }
+  }
+  const plan = shares.map((entry) => ({ orderId: entry.order.id, orderNumber: entry.order.sales_order_number, lineId: entry.line.lineId, item: entry.line.itemName, unit: entry.line.unit,
+    needed: entry.needed, share: round(entry.share), reserved: 0 }));
+  if (input.preview) return { available: round(free), demand: round(neededBase), lines: plan, preview: true };
+  return idempotent(client, context, "sales.order.fair_share", input.idempotencyKey, { orderId: null, itemId, warehouseId }, async () => {
+    const byOrder = new Map();
+    for (let index = 0; index < shares.length; index += 1) {
+      const entry = shares[index];
+      if (entry.share <= EPSILON) continue;
+      const outcome = await reserveLine(client, context, entry.order, entry.line, entry.share, entry.defaultWarehouseId);
+      plan[index].reserved = outcome.reserved;
+      byOrder.set(entry.order.id, [...(byOrder.get(entry.order.id) ?? []), outcome]);
+    }
+    for (const [orderId, outcome] of byOrder) {
+      const order = locked.get(orderId);
+      if (outcome.some((line) => line.reserved > EPSILON))
+        await recordOrderEvent(client, context, order.id, "sales_order.stock_reserved", order.lifecycle_status, order.lifecycle_status, { ...reservedEvent(outcome), fairShare: true });
+      await refreshSalesOrderProgress(client, context.organizationId, order.id, context.userId ?? null);
+    }
+    return { available: round(free), demand: round(neededBase), lines: plan, preview: false };
+  });
+}

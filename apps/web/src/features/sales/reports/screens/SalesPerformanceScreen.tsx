@@ -5,7 +5,7 @@
 // see it) and commission. A salesperson sees their own row; whoever sees every order sees everyone. Targets are set here.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, ErrorState, NumberField, PageHeader, ProgressBar, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, ErrorState, LinkButton, NumberField, PageHeader, ProgressBar, TextField } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -27,7 +27,9 @@ export function SalesPerformanceScreen() {
   const data = query.data;
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Salesperson Performance" description="What each salesperson invoiced this month against their target, in the company's currency, with orders, margin and commission." />
+      <PageHeader title="Salespeople & Targets" description="Each salesperson's monthly target of invoiced value and what they achieved, in the company's currency, with orders, margin and commission."
+        secondaryActions={<div className="flex flex-wrap gap-2"><LinkButton variant="secondary" href="/settings/teams">Sales teams</LinkButton>
+          <LinkButton variant="secondary" href="/sales/settings/commissions">Commission rules</LinkButton><LinkButton variant="secondary" href="/sales/beats">Beats</LinkButton></div>} />
       <div className="flex items-end gap-3"><TextField label="Month" type="month" value={month} onChange={(value) => value && setMonth(value)} /></div>
       {query.isLoading && <LoadingState label="Loading performance" rows={5} />}
       {query.isError && <ErrorState title="Could not load performance" action={{ label: "Try again", onPress: () => void query.refetch() }} />}

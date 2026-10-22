@@ -27,6 +27,10 @@ export async function GET(
   const copies = Number(params.get("copies") ?? 1) || 1;
   // ?width=58|80 prints a POS receipt for a thermal printer.
   const width = Number(params.get("width") ?? 0) || undefined;
+  // ?from=&to= (YYYY-MM-DD) bound a statement of account.
+  const day = (value: string | null) => (value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined);
+  const from = day(params.get("from"));
+  const to = day(params.get("to"));
   if (!renderer) return errorResponse(new HttpError(404, "Unknown document."));
   return workspaceRoute(
     request,
@@ -41,7 +45,7 @@ export async function GET(
         session,
         renderer.key,
         id,
-        { version, advancePercent, copies, width },
+        { version, advancePercent, copies, width, from, to },
       );
       return new Response(new Uint8Array(pdf.body), {
         status: 200,

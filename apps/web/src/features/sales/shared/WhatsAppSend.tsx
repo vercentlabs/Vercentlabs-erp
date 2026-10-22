@@ -9,14 +9,17 @@ import { Button, Dialog, TextField } from "@vercentlabs/design-system";
 
 import { post, SalesApiError } from "./http";
 
-type Kind = "quotation" | "proforma" | "order" | "invoice" | "credit_note";
-const NOUN: Record<Kind, string> = { quotation: "quotation", proforma: "proforma invoice", order: "order confirmation", invoice: "invoice", credit_note: "credit note" };
+// A receipt and a payment reminder too (Sales plan): a reminder is sent to the customer (id is the customer's).
+export type WhatsAppKind = "quotation" | "proforma" | "order" | "invoice" | "credit_note" | "debit_note" | "receipt" | "reminder";
+type Kind = WhatsAppKind;
+const NOUN: Record<Kind, string> = { quotation: "quotation", proforma: "proforma invoice", order: "order confirmation", invoice: "invoice", credit_note: "credit note",
+  debit_note: "debit note", receipt: "payment receipt", reminder: "payment reminder" };
 
-export function WhatsAppSendButton({ kind, id, pdfUrl, size, onSent }: { kind: Kind; id: string; pdfUrl?: string; size?: "compact" | "standard"; onSent?: () => void }) {
+export function WhatsAppSendButton({ kind, id, pdfUrl, size, label = "WhatsApp", onSent }: { kind: Kind; id: string; pdfUrl?: string; size?: "compact" | "standard"; label?: string; onSent?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="secondary" size={size} onPress={() => setOpen(true)}>WhatsApp</Button>
+      <Button variant="secondary" size={size} onPress={() => setOpen(true)}>{label}</Button>
       {open && <WhatsAppSendDialog kind={kind} id={id} pdfUrl={pdfUrl} onClose={() => setOpen(false)} onSent={onSent} />}
     </>
   );

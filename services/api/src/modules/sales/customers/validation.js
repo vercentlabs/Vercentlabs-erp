@@ -48,6 +48,7 @@ export const CUSTOMER_COLUMNS = Object.freeze({
   ownerUserId: "owner_user_id",
   creditLimit: "credit_limit",
   salesChannel: "sales_channel",
+  salesRouteId: "sales_route_id",
 });
 
 export const CUSTOMER_FIELD_LABELS = Object.freeze({
@@ -56,6 +57,7 @@ export const CUSTOMER_FIELD_LABELS = Object.freeze({
   gstin: "GSTIN", pan: "PAN", gstStateCode: "GST state", placeOfSupply: "Place of supply", ownerUserId: "Salesperson",
   creditLimit: "Credit limit",
   salesChannel: "Sales channel",
+  salesRouteId: "Beat",
 });
 
 function normalizeWebsite(value) {
@@ -72,7 +74,7 @@ export function normalizeCustomerInput(input = {}) {
   if (has(normalized, "website")) normalized.website = normalizeWebsite(normalized.website);
   for (const field of ["customerKind", "gstRegistrationType"]) if (has(input, field)) normalized[field] = text(input[field]).toLowerCase() || null;
   for (const field of ["countryCode", "currencyCode", "gstin", "pan"]) if (has(input, field)) normalized[field] = text(input[field]).toUpperCase() || null;
-  for (const field of ["priceListId", "paymentTermId", "ownerUserId", "gstStateCode", "placeOfSupply"]) if (has(input, field)) normalized[field] = text(input[field]) || null;
+  for (const field of ["priceListId", "paymentTermId", "ownerUserId", "gstStateCode", "placeOfSupply", "salesRouteId"]) if (has(input, field)) normalized[field] = text(input[field]) || null;
   // The credit limit, in the company's base currency; 0 (or empty) is no limit.
   if (has(input, "creditLimit")) normalized.creditLimit = input.creditLimit === null || input.creditLimit === "" ? 0 : Number(input.creditLimit);
   // The channel the customer buys through (general trade, modern trade, HoReCa…): it picks the channel's price list.
@@ -105,7 +107,7 @@ export function validateCustomer(normalized, existing = {}) {
     issue("creditLimit", "Enter a credit limit of 0 or more (0 or empty is no limit).");
   if (normalized.salesChannel && !["general_trade", "modern_trade", "horeca", "institutional", "ecommerce", "distributor", "export", "other"].includes(normalized.salesChannel)) issue("salesChannel", "Choose a sales channel.");
   if (normalized.website && !/^https?:\/\/[^\s/.]+\.[^\s]+$/i.test(normalized.website)) issue("website", "Enter a valid website, such as acme.example.");
-  for (const [field, label] of [["priceListId", "a price list"], ["paymentTermId", "payment terms"], ["ownerUserId", "a salesperson"]])
+  for (const [field, label] of [["priceListId", "a price list"], ["paymentTermId", "payment terms"], ["ownerUserId", "a salesperson"], ["salesRouteId", "a beat"]])
     if (normalized[field] && !isUuid(normalized[field])) issue(field, `Choose ${label}.`);
 
   const registration = candidate.gstRegistrationType ? REGISTRATIONS.get(candidate.gstRegistrationType) : null;

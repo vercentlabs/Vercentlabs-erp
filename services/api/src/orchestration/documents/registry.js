@@ -21,6 +21,9 @@ import { getSupplierDebitClaim, getVendorCredit } from "../../modules/procuremen
 import { getDealQuote, loadSharedDealQuote, resolveSharedDealQuote } from "../../modules/crm/quotes/index.js";
 import { findIndianState } from "@vercentlabs/shared-types";
 import { getSalesChallan } from "../../modules/sales/challans.js";
+import { getSalesPayment } from "../../modules/sales/payments/index.js";
+import { getDebitNoteDocument } from "../../modules/sales/debit-notes/index.js";
+import { getCustomerStatementDocument } from "../../modules/sales/outstanding/index.js";
 
 const amount = (value, locale = "en-IN") => new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
 const date = (value, timeZone) => (value ? formatDateTime(value, { timeZone: timeZone || "UTC" }) : null);
@@ -114,6 +117,9 @@ export function hsnSummaryTable(lines, uqcOf = null) {
 
 // The payment terms as the customer reads them: what the term says (its description) and anything added for this
 // document. When payment is due, never where or how to pay, and never internal notes.
+// "Batch B12 exp 31-03-2027" for each lot a line issued (Sales plan: FMCG documents print batch and expiry).
+const batchText = (batches) => (batches ?? []).map((batch) => `Batch ${batch.batchNumber}${batch.expiresOn ? ` exp ${day(batch.expiresOn)}` : ""}`).join(", ") || null;
+
 const paymentTermNotes = (snapshot) => {
   const text = [snapshot?.description, snapshot?.note].filter(Boolean).join("\n");
   return text ? [{ label: `Payment terms: ${snapshot.name ?? ""}`.trim(), text }] : [];
@@ -762,7 +768,7 @@ function deliveryNoteModel(data) {
       rows: data.lines.map((line, index) => ({
         number: index + 1,
         code: line.item_code_snapshot ?? "",
-        item: [line.item_name_snapshot, line.description_snapshot && line.description_snapshot !== line.item_name_snapshot ? line.description_snapshot : null].filter(Boolean).join(" · "),
+        item: [line.item_name_snapshot, line.description_snapshot && line.description_snapshot !== line.item_name_snapshot ? line.description_snapshot : null, batchText(line.batches)].filter(Boolean).join(" · "),
         ordered: line.ordered_quantity != null ? `${quantity(line.ordered_quantity)} ${line.uom_snapshot ?? ""}`.trim() : "",
         quantity: `${quantity(line.quantity)} ${line.uom_snapshot ?? ""}`.trim(),
         ...(data.showPrices ? { price: line.unit_price != null ? amount(line.unit_price) : "" } : {}),
@@ -908,7 +914,7 @@ function salesInvoiceModel(data, uqcOf = null) {
       ],
       rows: lines.map((line) => ({
         item: [line.item_name_snapshot, line.description_snapshot && line.description_snapshot !== line.item_name_snapshot ? line.description_snapshot : null,
-          line.hsn_sac_code ? `${line.hsn_sac_kind === "sac" ? "SAC" : "HSN"} ${line.hsn_sac_code}` : null].filter(Boolean).join(" · "),
+          line.hsn_sac_code ? `${line.hsn_sac_kind === "sac" ? "SAC" : "HSN"} ${line.hsn_sac_code}` : null, batchText(line.batches)].filter(Boolean).join(" · "),
         quantity: `${Number(line.quantity)} ${line.uom_snapshot ?? ""}`.trim(),
         ...(withMrp ? { mrp: Number(line.mrp) > 0 ? amount(line.mrp) : "" } : {}),
         price: amount(line.unit_price),
@@ -1014,6 +1020,157 @@ function creditNoteModel(data, uqcOf = null) {
     ],
     summaryTable: hsnSummaryTable(lines, uqcOf),
     footer: `${creditNote.invoice_number} · against invoice ${creditNote.source_invoice_number}`,
+  };
+}
+
+// The Payment Receipt (Sales plan): what the customer paid, how (UPI, NEFT, cheque with its number and date), and the bills it settled.
+// Not a tax document.
+function paymentReceiptModel(data, company) {
+  const { payment, allocations } = data;
+  const currency = payment.currencyCode;
+  return {
+    title: "Payment Receipt",
+    documentNumber: payment.number,
+    issuedAt: `Received on: ${day(payment.date) ?? ""}`,
+    organizationName: company.name,
+    status: payment.reversedAt ? `Status: Reversed${payment.reversalReason ? `: ${payment.reversalReason}` : ""}` : null,
+    parties: [
+      { label: "Received by", lines: [company.name, company.taxId ? `GSTIN ${company.taxId}` : null].filter(Boolean) },
+      { label: "Received from", lines: [payment.customer.legalName ?? payment.customer.name, payment.customer.customerNumber ? `Customer no. ${payment.customer.customerNumber}` : null,
+        payment.customer.gstin ? `GSTIN ${payment.customer.gstin}` : null].filter(Boolean) },
+    ],
+    fields: [
+      { label: "Receipt no.", value: payment.number },
+      { label: "Date", value: day(payment.date) ?? "" },
+      { label: "Paid by", value: payment.methodLabel ?? "" },
+      { label: "Cheque no.", value: payment.chequeNumber ?? "" },
+      { label: "Cheque date", value: payment.chequeDate ? day(payment.chequeDate) ?? "" : "" },
+      { label: "Drawn on", value: payment.draweeBank ?? "" },
+      { label: "Reference / UTR", value: payment.reference ?? "" },
+      { label: "Into", value: payment.bankAccount ?? "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "bill", label: "Bill", width: "40%" },
+        { key: "date", label: "Bill date", width: "20%" },
+        { key: "tds", label: "TDS", align: "right", width: "15%" },
+        { key: "amount", label: `Settled (${currency})`, align: "right", width: "25%" },
+      ],
+      rows: [
+        ...allocations.map((row) => ({ bill: row.invoiceNumber, date: day(row.invoiceDate) ?? "", tds: row.tds ? `${amount(row.tds)}${row.tdsSection ? ` (${row.tdsSection})` : ""}` : "", amount: amount(row.amount) })),
+        ...(payment.unapplied > 0.005 ? [{ bill: "Advance (kept for the next bills)", date: "", tds: "", amount: amount(payment.unapplied) }] : []),
+      ],
+    },
+    totals: [{ label: `Received (${currency})`, value: amount(payment.amount), emphasis: true }],
+    notes: [{ label: "", text: "This receipt confirms a payment. It is not a tax document." }],
+    footer: payment.number,
+  };
+}
+
+// The Debit Note (Sales plan): titled DEBIT NOTE, naming the original invoice and the reason, the amounts added to its lines with
+// HSN/SAC and their tax components, and the totals.
+function debitNoteModel(data, uqcOf = null) {
+  const { debitNote, row, lines, company } = data;
+  const currency = debitNote.currencyCode;
+  const customer = row.sales_customer_snapshot || row.customer_snapshot || {};
+  const seller = row.seller_snapshot || {};
+  const types = ["cgst", "sgst", "igst", "cess"].filter((type) => lines.some((line) => line.taxes.some((tax) => tax.tax_type === type)));
+  const label = { cgst: "CGST", sgst: "SGST", igst: "IGST", cess: "Cess" };
+  const byRate = new Map();
+  for (const line of lines) for (const tax of line.taxes) {
+    const key = `${tax.tax_type}:${tax.rate}`;
+    byRate.set(key, { type: tax.tax_type, rate: tax.rate, amount: (byRate.get(key)?.amount ?? 0) + Number(tax.tax_amount) });
+  }
+  const status = { draft: "Draft - not posted", cancelled: "Cancelled" }[debitNote.status];
+  return {
+    title: "DEBIT NOTE",
+    documentNumber: debitNote.number,
+    issuedAt: `Debit note date: ${day(debitNote.date) ?? ""}`,
+    organizationName: company.name,
+    status: status ? `Status: ${status}` : null,
+    parties: [
+      { label: "From", lines: sellerLines(seller, { legalName: company.name, taxId: company.taxId }) },
+      { label: "Debit to", lines: [customer.legalName ?? customer.displayName ?? customer.display_name, ...addressLines(row.billing_address_snapshot), customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
+    ].filter((party) => party.lines.length),
+    fields: [
+      { label: "Debit note no.", value: debitNote.number },
+      { label: "Debit note date", value: day(debitNote.date) ?? "" },
+      { label: "Original invoice", value: debitNote.sourceInvoice.number ?? "" },
+      { label: "Invoice date", value: day(debitNote.sourceInvoice.date) ?? "" },
+      { label: "Reason", value: [debitNote.reasonLabel, debitNote.reasonNote].filter(Boolean).join(": ") },
+      { label: "Due date", value: day(debitNote.dueDate) ?? "" },
+      { label: "Place of supply", value: row.place_of_supply ? `${row.place_of_supply_name ?? ""} (${row.place_of_supply})`.trim() : "" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Item", width: "36%" },
+        { key: "taxable", label: `Taxable (${currency})`, align: "right", width: "16%" },
+        ...types.map((type) => ({ key: type, label: label[type], align: "right", width: "12%" })),
+        { key: "total", label: "Amount", align: "right", width: "16%" },
+      ],
+      rows: lines.map((line) => ({
+        item: [line.item_name_snapshot, "Value added", line.hsn_sac_code ? `${line.hsn_sac_kind === "sac" ? "SAC" : "HSN"} ${line.hsn_sac_code}` : null].filter(Boolean).join(" · "),
+        taxable: amount(line.net_amount),
+        ...Object.fromEntries(types.map((type) => {
+          const tax = line.taxes.find((component) => component.tax_type === type);
+          return [type, tax ? `${amount(tax.tax_amount)} (${Number(tax.rate)}%)` : ""];
+        })),
+        total: amount(line.line_total),
+      })),
+    },
+    totals: [
+      { label: "Taxable value added", value: amount(debitNote.subtotal) },
+      ...[...byRate.values()].map((tax) => ({ label: `${label[tax.type] ?? tax.type} ${tax.rate}%`, value: amount(tax.amount) })),
+      { label: `Total debit (${currency})`, value: amount(debitNote.total), emphasis: true },
+    ],
+    summaryTable: hsnSummaryTable(lines, uqcOf),
+    footer: `${debitNote.number} · against invoice ${debitNote.sourceInvoice.number}`,
+  };
+}
+
+// The Statement of Account (Sales plan, Flow 4): opening balance, every bill, note, payment and refund with a running balance, the
+// closing balance and what is open by age, in the company currency.
+function customerStatementModel(data, company) {
+  const { statement } = data;
+  const aging = statement.aging ?? {};
+  return {
+    title: "Statement of Account",
+    documentNumber: statement.party.code ?? statement.party.name,
+    issuedAt: `${day(statement.from) ?? ""} to ${day(statement.to) ?? ""}`,
+    organizationName: company.name,
+    parties: [
+      { label: "From", lines: [statement.company?.name ?? company.name, statement.company?.address, statement.company?.gstin ? `GSTIN ${statement.company.gstin}` : null].filter(Boolean) },
+      { label: "Customer", lines: [statement.party.legalName ?? statement.party.name, statement.party.gstin ? `GSTIN ${statement.party.gstin}` : null].filter(Boolean) },
+    ],
+    fields: [
+      { label: "Opening balance", value: amount(statement.opening) },
+      { label: "Closing balance", value: amount(statement.closing) },
+    ],
+    table: {
+      columns: [
+        { key: "date", label: "Date", width: "13%" },
+        { key: "document", label: "Document", width: "17%" },
+        { key: "number", label: "Number", width: "18%" },
+        { key: "debit", label: "Debit", align: "right", width: "17%" },
+        { key: "credit", label: "Credit", align: "right", width: "17%" },
+        { key: "balance", label: "Balance", align: "right", width: "18%" },
+      ],
+      rows: [
+        { date: day(statement.from) ?? "", document: "Opening balance", number: "", debit: "", credit: "", balance: amount(statement.opening) },
+        ...statement.lines.map((line) => ({ date: day(line.date) ?? "", document: line.document ?? "", number: line.number ?? "", debit: line.increase ? amount(line.increase) : "",
+          credit: line.decrease ? amount(line.decrease) : "", balance: amount(line.balance) })),
+      ],
+    },
+    totals: [
+      { label: "Not yet due", value: amount(aging.notDue ?? 0) },
+      { label: "1–30 days overdue", value: amount(aging.d1_30 ?? 0) },
+      { label: "31–60 days overdue", value: amount(aging.d31_60 ?? 0) },
+      { label: "61–90 days overdue", value: amount(aging.d61_90 ?? 0) },
+      { label: "Over 90 days overdue", value: amount(aging.over90 ?? 0) },
+      { label: "Balance due", value: amount(statement.closing), emphasis: true },
+    ],
+    notes: [{ label: "", text: "Please tell us within 15 days if anything on this statement does not agree with your books." }],
+    footer: `Statement ${day(statement.from) ?? ""} to ${day(statement.to) ?? ""}`,
   };
 }
 
@@ -1316,6 +1473,50 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     money: (data) => ({ amount: data.creditNote.grand_total, currency: data.creditNote.currency_code }),
     copies: ["Original for recipient", "Duplicate for supplier"],
     fileName: (data) => `Credit-Note-${data.creditNote.invoice_number}${data.creditNote.status === "draft" ? "-draft" : ""}`,
+  }),
+  Object.freeze({
+    key: "sales.receipt",
+    moduleKey: "sales",
+    permission: "sales.invoice.payments.view",
+    label: "Payment receipt",
+    async load(client, session, id) {
+      return { ...(await getSalesPayment(client, salesContext(session), id)), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return paymentReceiptModel(data, data.company);
+    },
+    money: (data) => ({ amount: data.payment.amount, currency: data.payment.currencyCode }),
+    fileName: (data) => `Receipt-${data.payment.number}`,
+  }),
+  Object.freeze({
+    key: "sales.debit_note",
+    moduleKey: "sales",
+    permission: "sales.credit_note.print",
+    label: "Debit note",
+    async load(client, session, id) {
+      return getDebitNoteDocument(client, salesContext(session), id);
+    },
+    async toModel(client, session, data) {
+      return debitNoteModel(data, await unitUqcMap(client, session.organizationId));
+    },
+    money: (data) => ({ amount: data.debitNote.total, currency: data.debitNote.currencyCode }),
+    collectsPayment: (data) => (data.debitNote.status === "posted" ? { amount: data.debitNote.outstanding, note: data.debitNote.number } : null),
+    copies: ["Original for recipient", "Duplicate for supplier"],
+    fileName: (data) => `Debit-Note-${data.debitNote.number}${data.debitNote.status === "draft" ? "-draft" : ""}`,
+  }),
+  Object.freeze({
+    key: "sales.customer_statement",
+    moduleKey: "sales",
+    permission: "sales.customers.view_financials",
+    label: "Statement of account",
+    // options: { from?, to? } (the financial year so far by default).
+    async load(client, session, id, options = {}) {
+      return { ...(await getCustomerStatementDocument(client, salesContext(session), id, { from: options.from, to: options.to })), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return customerStatementModel(data, data.company);
+    },
+    fileName: (data) => `Statement-${data.statement.party.code ?? data.statement.party.name}-${data.statement.to}`,
   }),
   Object.freeze({
     key: "accounting.customer_refund",

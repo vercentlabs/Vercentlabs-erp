@@ -5,5 +5,5 @@ export {
   RELEASE_REASONS as SALES_RESERVATION_RELEASE_REASONS, RESERVATION_PERMISSIONS as SALES_RESERVATION_PERMISSIONS, RESERVATION_STATUS_LABELS as SALES_RESERVATION_STATUS_LABELS,
 } from "./constants.js";
 export {
-  getSalesOrderReservations, reconcileSalesReservations, releaseSalesOrderReservation, reserveSalesOrderLine, reserveSalesOrderStock,
+  allocateStockFairShare, getSalesOrderReservations, reconcileSalesReservations, releaseSalesOrderReservation, reserveSalesOrderLine, reserveSalesOrderStock,
 } from "./service.js";

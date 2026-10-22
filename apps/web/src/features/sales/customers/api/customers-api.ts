@@ -38,6 +38,8 @@ export type Customer = {
   creditLimit?: number;
   // The channel the customer buys through (picks the channel's price list).
   salesChannel?: string | null;
+  salesRouteId?: string | null;
+  salesRouteName?: string | null;
   gstRegistrationType: string | null;
   gstRegistrationLabel: string | null;
   gstin: string | null;
@@ -127,6 +129,7 @@ export type CustomerInput = {
   countryCode?: string; currencyCode?: string; priceListId?: string | null; paymentTermId?: string | null; gstRegistrationType?: string | null; gstin?: string | null;
   creditLimit?: number;
   salesChannel?: string | null;
+  salesRouteId?: string | null;
   placeOfSupply?: string | null; ownerUserId?: string | null; notes?: string | null;
   billingAddress?: AddressInput | null; shippingAddress?: AddressInput | null;
   primaryContact?: { firstName: string; lastName?: string; email?: string; phone?: string; jobTitle?: string } | null;
@@ -147,6 +150,8 @@ export type CustomerOptions = {
   priceLists: Array<{ id: string; name: string; currencyCode: string | null }>;
   paymentTerms: Array<{ id: string; name: string; dueDays: number }>;
   salespeople: Array<{ id: string; name: string }>;
+  // Beats (Sales plan, Phase 4).
+  salesRoutes?: Array<{ id: string; code: string; name: string }>;
   defaults: { currencyCode: string | null; countryCode: string; ownerUserId: string | null };
   showsFinancials: boolean;
   canOverrideDuplicate: boolean;
@@ -241,7 +246,9 @@ export type CustomerLedger = {
 };
 export type CustomerOutstanding = {
   asOf: string; currencyCode: string; buckets: Array<{ key: string; label: string }>;
-  rows: Array<{ partyId: string; name: string; code: string | null; notDue: number; d1_30: number; d31_60: number; d61_90: number; over90: number; credits: number; net: number; documents: number; oldestDaysPastDue: number }>;
+  rows: Array<{ partyId: string; name: string; code: string | null; notDue: number; d1_30: number; d31_60: number; d61_90: number; over90: number; credits: number; net: number; documents: number; oldestDaysPastDue: number;
+    // The latest promise to pay and the last reminder (Sales plan, Flow 4).
+    promisedDate: string | null; promisedAmount: number | null; lastReminderAt: string | null }>;
   totals: Record<string, number>;
 };
 export const getCustomerLedger = (id: string, filters: { from?: string; to?: string } = {}) =>

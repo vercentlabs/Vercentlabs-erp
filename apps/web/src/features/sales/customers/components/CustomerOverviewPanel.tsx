@@ -13,6 +13,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import { getCustomerOverview, type Customer } from "../api/customers-api";
+import { statementPdfUrl } from "../screens/CustomerOutstandingScreen";
 
 function Card({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
@@ -174,20 +175,19 @@ export function CustomerOverviewPanel({ customer, onOpenTab }: { customer: Custo
                 ))}
               </div>
             </div>
-            <p className="text-xs text-text-muted">In the company's currency. They change only through invoices, payments and credit notes.</p>
+            <p className="text-xs text-text-muted">In the company&apos;s currency. They change only through invoices, payments and credit notes.</p>
             <div className="flex flex-wrap gap-3">
               {tabLink("invoices", "Customer statement: invoices")}{tabLink("payments", "Payments")}
               {/* Available credit (unapplied receipts and credit notes) can be paid back: Sales → Refunds, with this customer chosen. */}
               {canRefund && overview.finance.unallocatedAdvance + overview.finance.creditNoteCredit > 0.005 && (
                 <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/sales/refunds?create=1&partyId=${customer.id}`}>Refund available credit</Link>
               )}
-              {/* Only while Accounting is on; without it Sales has the ledger tab and Outstanding (Line-by-line audit). */}
-              {workspace.accessibleModuleKeys.includes("accounting") ? (
-                <>
-                  <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/accounting/customer-invoices?partyId=${customer.id}`}>Open receivables in Accounting</Link>
-                  <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/accounting/statements/customer/${customer.id}`}>Statement of account</Link>
-                </>
-              ) : <Link className="text-xs text-brand underline-offset-2 hover:underline" href="/sales/outstanding">Outstanding</Link>}
+              {/* The statement is Sales' own (Sales plan): the same ledger Accounting shows; Accounting's receivables only while that app is on. */}
+              <a className="text-xs text-brand underline-offset-2 hover:underline" href={statementPdfUrl(customer.id)} target="_blank" rel="noreferrer">Statement of account</a>
+              <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/sales/outstanding?tab=statements&customer=${customer.id}`}>Reminders and promises</Link>
+              {workspace.accessibleModuleKeys.includes("accounting") && (
+                <Link className="text-xs text-brand underline-offset-2 hover:underline" href={`/accounting/customer-invoices?partyId=${customer.id}`}>Open receivables in Accounting</Link>
+              )}
             </div>
           </Card>
         </div>

@@ -268,6 +268,7 @@ async function resolveSessionContextInTransaction(client, token, sessionType, en
       app_user.full_name,
       COALESCE(preference.locale, 'en-IN') AS locale,
       COALESCE(preference.timezone, membership.organization_timezone, 'UTC') AS timezone,
+      preference.date_format,
       app_user.email_verified_at,
       app_user.mfa_enrolled_at IS NOT NULL AS mfa_enrolled,
       app_user.mfa_required AS mfa_required_self,
@@ -372,6 +373,8 @@ async function resolveSessionContextInTransaction(client, token, sessionType, en
     fullName: row.full_name,
     locale: row.locale,
     timezone: row.timezone,
+    // The person's date format (Profile); unset, screens show 22 Oct 2026.
+    dateFormat: row.date_format ?? null,
     emailVerified: Boolean(row.email_verified_at),
     // Has a working TOTP factor enrolled right now.
     mfaEnrolled: Boolean(row.mfa_enrolled),

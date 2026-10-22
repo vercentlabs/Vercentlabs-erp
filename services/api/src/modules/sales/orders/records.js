@@ -505,6 +505,11 @@ function orderViewSql(view, context, bind) {
     case "mine": where += ` AND sales_order.owner_user_id = ${bind(context.userId ?? null)}`; break;
     case "team": where += seesTeam ? ` AND sales_order.owner_user_id IN ${teamOwnersSql(bind(context.userId ?? null))}` : " AND false"; break;
     case "draft": where += lifecycle(STATUS.draft); break;
+    // The work views (Sales plan): to confirm (drafts not held), held for credit, to dispatch, to bill.
+    case "to_confirm": where += lifecycle(STATUS.draft) + " AND sales_order.credit_hold_since IS NULL"; break;
+    case "credit_hold": where += lifecycle(STATUS.draft) + " AND sales_order.credit_hold_since IS NOT NULL"; break;
+    case "to_dispatch": where += lifecycle(STATUS.confirmed) + fulfillment(FULFILLMENT.notStarted, FULFILLMENT.partiallyDelivered) + " AND quantities.goods_lines > 0"; break;
+    case "to_bill": where += ` AND ${is.readyToInvoice}`; break;
     case "confirmed": where += lifecycle(STATUS.confirmed); break;
     case "confirmation_not_sent": where += lifecycle(STATUS.confirmed) + " AND confirmation.id IS NOT NULL AND confirmation.sent_at IS NULL"; break;
     case "confirmation_sent": where += " AND sales_order.lifecycle_status IN ('confirmed','closed') AND confirmation.sent_at IS NOT NULL"; break;
@@ -601,6 +606,8 @@ export async function listSalesOrders(client, context, filters = {}) {
   uuidFilter("quotationId", (p) => ` AND sales_order.source_quotation_id = ${p}`, "Quotation");
   uuidFilter("opportunityId", (p) => ` AND sales_order.source_opportunity_id = ${p}`, "Opportunity");
   uuidFilter("warehouseId", (p) => ` AND (version.default_warehouse_id = ${p} OR EXISTS (SELECT 1 FROM tenant.sales_order_lines line WHERE line.sales_order_version_id = version.id AND line.warehouse_id = ${p}))`, "Warehouse");
+  // The customer's beat (Sales plan, Phase 4): the route-wise order list.
+  uuidFilter("salesRouteId", (p) => ` AND EXISTS (SELECT 1 FROM tenant.business_parties route_party WHERE route_party.organization_id = sales_order.organization_id AND route_party.id = sales_order.party_id AND route_party.sales_route_id = ${p})`, "Beat");
   uuidFilter("productId", (p) => ` AND EXISTS (SELECT 1 FROM tenant.sales_order_lines line WHERE line.sales_order_version_id = version.id AND line.item_id = ${p})`, "Product");
   if (filters.source === "quotation") where += " AND sales_order.source_quotation_id IS NOT NULL";
   if (filters.source === "direct") where += " AND sales_order.source_quotation_id IS NULL";

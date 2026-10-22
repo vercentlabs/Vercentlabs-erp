@@ -16,3 +16,6 @@ export function getEwayBill(client: Client, session: Session, sourceType: string
 export function generateEwayBill(client: Client, session: Session, sourceType: string, sourceId: string, input?: Record<string, unknown>, options?: Options): Promise<{ ewayBill: EwayBill; replayed: boolean }>;
 export function updateEwayBillVehicle(client: Client, session: Session, ewayBillId: string, input?: Record<string, unknown>, options?: Options): Promise<{ ewayBill: EwayBill }>;
 export function cancelEwayBill(client: Client, session: Session, ewayBillId: string, input?: { reason?: string; remarks?: string }, options?: Options): Promise<{ ewayBill: EwayBill }>;
+export function einvoiceAfterPost(client: Client, session: Session, documentId: string, options?: Options): Promise<{ status: "generated" | "failed"; irn?: string; error?: string } | null>;
+export function einvoiceDeadline(client: Client, session: Session, documentId: string): Promise<{ limitDays: number; daysLeft: number; lastDay: string } | null>;
+export function listSalesEwayBills(client: Client, session: Session, filters?: { status?: string; search?: string; limit?: number; offset?: number }): Promise<{ rows: Array<EwayBill & { value: number | null; consignee: string | null; createdAt: string }>; total: number; limit: number; offset: number }>;

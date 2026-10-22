@@ -34,6 +34,8 @@ import {
 } from "../api/orders-api";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
+import { CustomerOrderCard } from "../components/CustomerOrderCard";
+import { listSalesOrders } from "../api/orders-api";
 import { FormSection } from "@/shared/ui/FormSection";
 import { Notice, Panel } from "@/shared/ui/Panel";
 import { ChargeRows, chargeDraftOf, chargesInput, type ChargeDraft } from "@/features/sales/shared/ChargeRows";
@@ -104,10 +106,11 @@ export function SalesOrderFormScreen({ orderId, initialPartyId }: { orderId?: st
       existing={existingQuery.data ?? null}
       orderId={orderId}
       initialPartyId={initialPartyId}
-      onDone={(id) => {
+      onDone={(id, andConfirm) => {
         void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "orders") });
         void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "order", id) });
-        router.replace(`/sales/orders/${id}`);
+        // Save & Confirm (Sales plan): the order opens with its confirmation, where credit and stock are checked.
+        router.replace(`/sales/orders/${id}${andConfirm ? "?create=confirm" : ""}`);
       }}
       onCancel={() => router.replace(orderId ? `/sales/orders/${orderId}` : "/sales/orders")}
     />
@@ -116,7 +119,7 @@ export function SalesOrderFormScreen({ orderId, initialPartyId }: { orderId?: st
 
 function FormBody({ options: initialOptions, defaults, existing, orderId, initialPartyId, onDone, onCancel }: {
   options: SalesOptions; defaults: SalesOrderDefaults; existing: SalesOrderDetail | null; orderId?: string; initialPartyId?: string;
-  onDone: (id: string) => void; onCancel: () => void;
+  onDone: (id: string, andConfirm?: boolean) => void; onCancel: () => void;
 }) {
   const workspace = useWorkspaceContext();
   // What the form holds grows as customers and products are found by search (Sales audit B4).
@@ -240,6 +243,26 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
       description: `${item?.name ?? scheme.freeItemName} (free: ${scheme.name})`,
     }]);
   }
+  // Repeat last order (Sales plan, Flow 1): the customer's latest order's products and quantities, priced at today's prices and rules.
+  const [repeating, setRepeating] = useState(false);
+  async function repeatLastOrder() {
+    setRepeating(true);
+    try {
+      const last = (await listSalesOrders({ partyId, sort: "date", direction: "desc", limit: 5 })).rows.find((row) => row.id !== orderId && row.status !== "cancelled");
+      if (!last) { setError("This customer has no earlier order to repeat."); return; }
+      const source = (await getSalesOrder(last.id)).order;
+      const copied = source.lines.filter((line) => line.item_id && !line.scheme_rule_id);
+      const itemIds = copied.map((line) => line.item_id).filter((id) => !options.items.some((item) => item.id === id));
+      if (itemIds.length) setOptions(mergeSalesOptions(options, (await getSalesOptions(partyId || undefined, itemIds)).options));
+      setLines([...lines.filter((line) => line.itemId), ...copied.map((line) => ({ ...blank(), itemId: line.item_id, uomId: line.uom_id ?? "", quantity: Number(line.quantity),
+        warehouseId: line.warehouse_id ?? "", description: line.description_snapshot ?? "" }))]);
+      setError(null);
+    } catch (failure) {
+      setError(failure instanceof SalesApiError ? failure.message : "The last order could not be copied.");
+    } finally {
+      setRepeating(false);
+    }
+  }
   // A picked customer brings its contacts and addresses (loaded now), then the form defaults from it.
   const [loadingParty, setLoadingParty] = useState(false);
   async function pickParty(id: string, found: SalesSearchResults) {
@@ -346,8 +369,11 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
   const previewError = previewQuery.isError ? (previewQuery.error instanceof SalesApiError ? previewQuery.error.message : "Pricing could not be calculated.") : null;
 
   const submit = useSubmitKey();
+  const canConfirm = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.confirm");
   const save = useMutation({
-    mutationFn: () => submit.run(async () => {
+    // The flag is read by onSuccess (Save & Confirm opens the confirmation).
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    mutationFn: (_andConfirm: boolean) => submit.run(async () => {
       if (!input) throw new SalesApiError("Choose a customer and add at least one item.", 400);
       if (orderId) {
         await updateSalesOrder(orderId, input);
@@ -355,7 +381,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
       }
       return (await createSalesOrder({ ...input, idempotencyKey })).order.id;
     }),
-    onSuccess: (id) => onDone(id),
+    onSuccess: (id, andConfirm) => onDone(id, andConfirm),
     onError: (failure) => setError(failure instanceof SalesApiError ? failure.message : "The order could not be saved."),
   });
 
@@ -375,11 +401,14 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
       formActions={
         <>
           <Button variant="secondary" onPress={onCancel}>Cancel</Button>
-          {
-          <Button variant="primary" onPress={() => save.mutate()} isLoading={save.isPending || save.isSuccess} isDisabled={!input || Boolean(previewError) || Boolean(blocked)}>
+          <Button variant={canConfirm ? "secondary" : "primary"} onPress={() => save.mutate(false)} isLoading={(save.isPending || save.isSuccess) && save.variables === false} isDisabled={!input || Boolean(previewError) || Boolean(blocked) || save.isPending || save.isSuccess}>
             {existing ? "Save Draft" : "Save as Draft"}
           </Button>
-        }
+          {canConfirm && (
+            <Button variant="primary" onPress={() => save.mutate(true)} isLoading={(save.isPending || save.isSuccess) && save.variables === true} isDisabled={!input || Boolean(previewError) || Boolean(blocked) || save.isPending || save.isSuccess}>
+              Save &amp; Confirm
+            </Button>
+          )}
         </>
       }
       aside={<>
@@ -389,6 +418,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
                 : <DocumentTotals currencyCode={currencyCode} preview={preview} />}
           </Panel>
           <SchemeOffers schemes={preview?.schemes} onAdd={(scheme) => void addFreeLine(scheme)} />
+          {partyId && <CustomerOrderCard partyId={partyId} />}
       </>}
     >
 
@@ -408,7 +438,10 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
             </div>
           </FormSection>
 
-          <FormSection columns={1} title="Items" actions={<Button variant="secondary" size="compact" onPress={() => setLines((current) => [...current, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add item</Button>}>
+          <FormSection columns={1} title="Items" actions={<>
+            {partyId && !fromQuotation && <Button variant="ghost" size="compact" isLoading={repeating} onPress={() => void repeatLastOrder()}>Repeat last order</Button>}
+            <Button variant="secondary" size="compact" onPress={() => setLines((current) => [...current, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add item</Button>
+          </>}>
             <div className="flex flex-col gap-3">
               {lines.map((line, index) => {
                 const priced = preview?.lines.find((candidate) => candidate.sequence === validLines.findIndex((valid) => valid.key === line.key) + 1);

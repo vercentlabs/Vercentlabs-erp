@@ -213,7 +213,9 @@ export const listPaymentAccounts = () =>
 export const recordInvoicePayment = (id: string, input: { amount: number; receiptDate?: string; paymentMethod?: string; reference?: string; bankAccountId?: string | null; tdsAmount?: number; tdsSection?: string }) =>
   post<{ result: { receiptId: string; receiptNumber: string; amount: number; outstanding: number; status: string } }>(`/invoices/${id}/payments`, input);
 export const validateInvoice = (id: string) => request<{ check: PostingCheck }>(`/invoices/${id}/validate`);
-export const postInvoice = (id: string, expectedVersion?: number) => post<{ result: { invoiceNumber: string; status: InvoiceStatusKey; awaitingApproval?: boolean; replayed: boolean } }>(`/invoices/${id}/post`, { expectedVersion });
+// einvoice: the IRN made on posting when the company switched it on (Sales plan), or why it failed.
+export const postInvoice = (id: string, expectedVersion?: number) => post<{ result: { invoiceNumber: string; status: InvoiceStatusKey; awaitingApproval?: boolean; replayed: boolean;
+  einvoice?: { status: "generated" | "failed"; irn?: string; error?: string } | null } }>(`/invoices/${id}/post`, { expectedVersion });
 export const cancelInvoice = (id: string, reason?: string) => post<{ result: unknown }>(`/invoices/${id}/cancel`, { reason });
 export const changeInvoiceDueDate = (id: string, input: { dueDate: string; reason: string }) => post<{ result: { changed: boolean } }>(`/invoices/${id}/due-date`, input);
 export const reverseInvoice = (id: string, reason: string) => post<{ result: unknown }>(`/invoices/${id}/reverse`, { reason });

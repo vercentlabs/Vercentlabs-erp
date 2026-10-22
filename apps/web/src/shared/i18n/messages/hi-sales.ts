@@ -1,7 +1,25 @@
 // Hindi for the Sales screens (Sales audit: Indian-language Sales). Keys are the English text as the screens write it; words shared with
 // other apps are in hi.ts and hi-crm.ts. Anything not here shows in English.
 export const HINDI_SALES: Readonly<Record<string, string>> = Object.freeze({
-  // Sidebar
+  // Sidebar (Sales plan: Home · Customers · Sell · Dispatch · Billing · Outstanding · Reports · Masters · Settings)
+  "Today": "आज",
+  "Billing": "बिलिंग",
+  "Masters": "मास्टर",
+  "Returns": "वापसी",
+  "E-way Bills": "ई-वे बिल",
+  "Invoices": "बिल",
+  "Credit & Debit Notes": "क्रेडिट और डेबिट नोट",
+  "Debit Notes": "डेबिट नोट",
+  "Payments Received": "मिले भुगतान",
+  "Outstanding & Ageing": "बकाया और उम्र",
+  "Customer Statements": "ग्राहक खाता विवरण",
+  "Beats": "बीट",
+  "Salespeople & Targets": "सेल्सपर्सन और टारगेट",
+  "Sales Settings": "बिक्री सेटिंग",
+  "Credit Control": "क्रेडिट नियंत्रण",
+  "Credit hold": "क्रेडिट होल्ड",
+  "Payment received": "भुगतान मिला",
+  "Debit note": "डेबिट नोट",
   "Deliver": "डिलीवरी",
   "Bill & collect": "बिल और वसूली",
   "Customers & prices": "ग्राहक और दाम",

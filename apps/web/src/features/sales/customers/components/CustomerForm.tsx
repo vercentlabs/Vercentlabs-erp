@@ -24,7 +24,7 @@ import { useSubmitKey } from "@/shared/http/submit-once";
 
 type Values = {
   displayName: string; legalName: string; customerKind: string; status: string; email: string; phone: string; website: string; countryCode: string; currencyCode: string;
-  priceListId: string; paymentTermId: string; creditLimit: string; salesChannel: string; gstRegistrationType: string; gstin: string; placeOfSupply: string; ownerUserId: string; notes: string;
+  priceListId: string; paymentTermId: string; creditLimit: string; salesChannel: string; salesRouteId: string; gstRegistrationType: string; gstin: string; placeOfSupply: string; ownerUserId: string; notes: string;
 };
 type AddressValues = { label: string; line1: string; line2: string; city: string; district: string; state: string; postalCode: string; countryCode: string };
 type ContactValues = { firstName: string; lastName: string; email: string; phone: string; jobTitle: string };
@@ -49,6 +49,7 @@ function initialValues(options: CustomerOptions, source?: Partial<CustomerInput>
     paymentTermId: from.paymentTermId ?? NONE,
     creditLimit: Number((source as Customer | null)?.creditLimit ?? 0) > 0 ? String((source as Customer).creditLimit) : "",
     salesChannel: (source as Customer | null)?.salesChannel ?? NONE,
+    salesRouteId: (source as Customer | null)?.salesRouteId ?? NONE,
     gstRegistrationType: from.gstRegistrationType ?? NONE,
     gstin: from.gstin ?? "",
     placeOfSupply: from.placeOfSupply ?? NONE,
@@ -61,7 +62,7 @@ function toInput(values: Values): CustomerInput {
   return {
     displayName: values.displayName.trim(), legalName: values.legalName.trim() || null, customerKind: values.customerKind, email: values.email.trim() || null,
     phone: values.phone.trim() || null, website: values.website.trim() || null, countryCode: values.countryCode, currencyCode: values.currencyCode,
-    priceListId: orNull(values.priceListId), paymentTermId: orNull(values.paymentTermId), creditLimit: values.creditLimit.trim() ? Number(values.creditLimit.replace(/,/g, "")) : 0, salesChannel: orNull(values.salesChannel), gstRegistrationType: orNull(values.gstRegistrationType),
+    priceListId: orNull(values.priceListId), paymentTermId: orNull(values.paymentTermId), creditLimit: values.creditLimit.trim() ? Number(values.creditLimit.replace(/,/g, "")) : 0, salesChannel: orNull(values.salesChannel), salesRouteId: orNull(values.salesRouteId), gstRegistrationType: orNull(values.gstRegistrationType),
     gstin: values.gstin.trim().toUpperCase() || null, placeOfSupply: orNull(values.placeOfSupply), ownerUserId: orNull(values.ownerUserId), notes: values.notes.trim() || null,
   };
 }
@@ -252,6 +253,11 @@ export function CustomerForm({ options, customer, accountId, prefill, initialAdd
             <Select label="Sales channel" selectedKey={values.salesChannel} onSelectionChange={(key) => set("salesChannel")(String(key))}
               options={withNone(SALES_CHANNELS.map((channel) => ({ value: channel.value, label: channel.label })))} errorMessage={errors.salesChannel}
               description="Without a price list of its own, the customer is priced from its channel's list." />
+            {(options.salesRoutes?.length ?? 0) > 0 && (
+              <Select label="Beat" selectedKey={values.salesRouteId} onSelectionChange={(key) => set("salesRouteId")(String(key))}
+                options={withNone((options.salesRoutes ?? []).map((beat) => ({ value: beat.id, label: beat.name })))} errorMessage={errors.salesRouteId}
+                description="The round the salesperson visits this customer on." />
+            )}
             <Select label="Price list" selectedKey={values.priceListId} onSelectionChange={(key) => set("priceListId")(String(key))}
               options={withNone(options.priceLists.map((list) => ({ value: list.id, label: list.name })), "Standard prices")} isDisabled={editing && !can.changePriceList} errorMessage={errors.priceListId} />
           </>
