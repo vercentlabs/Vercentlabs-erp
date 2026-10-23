@@ -29,6 +29,11 @@ export const previewPosLineDiscount = (id: string, lineId: string, input: { type
   post<{ preview: PosLineDiscountPreview }>(`/carts/${id}/lines/${lineId}/discount-preview`, input).then((response) => response.preview);
 export const getPosLineDiscountEligibility = (id: string, lineId: string) =>
   request<{ eligibility: PosLineDiscountEligibility }>(`/carts/${id}/lines/${lineId}/discount-eligibility`).then((response) => response.eligibility);
+// An open item (Create-Where-You-Are): something not in the catalogue, by a typed name, price, GST category and HSN/SAC.
+export const getPosOpenItemOptions = (id: string) =>
+  request<{ allowed: boolean; taxCategories: Array<{ id: string; code: string; name: string }> }>(`/carts/${id}/open-items`);
+export const addPosOpenItem = (id: string, input: { itemName: string; unitPrice: string; quantity?: number; hsnSac?: string | null; taxCategoryId?: string | null; expectedVersion?: number }) =>
+  post<{ cart: PosCart }>(`/carts/${id}/open-items`, { idempotencyKey: actionKey(), ...input });
 // An authorized price for one line (null: back to the list price).
 export const overridePosLinePrice = (id: string, lineId: string, input: { unitPrice: string | null; reason?: string; approvalId?: string; expectedVersion: number }) =>
   post<{ cart: PosCart }>(`/carts/${id}/lines/${lineId}/price`, { idempotencyKey: actionKey(), ...input });

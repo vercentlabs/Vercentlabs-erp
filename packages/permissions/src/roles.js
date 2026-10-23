@@ -1953,6 +1953,7 @@ const ROLE_DEFINITIONS = [
       "pos.return.approve",
       "pos.cash.adjust",
       "pos.price.override",
+      "pos.open_item",
       "pos.terminal.manage",
       "pos.store.manage",
       "pos.payment.manage",
@@ -2052,6 +2053,7 @@ const ROLE_DEFINITIONS = [
       "pos.return.approve",
       "pos.cash.adjust",
       "pos.price.override",
+      "pos.open_item",
       "pos.payment.refund",
       "pos.reports.view",
       // F303: pos_supervisor generates/reviews the day-end (Z) report draft

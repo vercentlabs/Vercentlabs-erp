@@ -5,20 +5,27 @@ import { D, MO, STATUS_LABEL, ZERO, div, has, moError, mul, needMo, q, text } fr
 
 export async function getManufacturingOrderOptions(client, c) {
   needMo(c, MO.view);
+  // Every product that can be made — a stocked product, or one that already has a BOM — so one without a BOM is listed and can get one
+  // from the order form (Create-Where-You-Are M1) instead of being invisible.
   const products = (await client.query(
-    `SELECT DISTINCT item.id, item.code, item.name, item.uom_id, uom.code AS uom, item.tracking_type,
-            policy.lead_time_days, policy.default_material_warehouse_id, policy.default_manufacturing_warehouse_id
-       FROM tenant.manufacturing_bom_masters master JOIN tenant.items item ON item.id = master.finished_item_id
+    `SELECT item.id, item.code, item.name, item.uom_id, uom.code AS uom, item.tracking_type,
+            policy.lead_time_days, policy.default_material_warehouse_id, policy.default_manufacturing_warehouse_id,
+            EXISTS (SELECT 1 FROM tenant.manufacturing_bom_masters master WHERE master.organization_id = item.organization_id AND master.finished_item_id = item.id
+                      AND master.archived_at IS NULL) AS has_bom
+       FROM tenant.items item
        LEFT JOIN tenant.units_of_measure uom ON uom.id = item.uom_id
        LEFT JOIN tenant.manufacturing_item_policies policy ON policy.organization_id = item.organization_id AND policy.item_id = item.id
-      WHERE master.organization_id = $1 AND master.archived_at IS NULL AND item.status = 'active' ORDER BY item.code`, [c.organizationId])).rows;
+      WHERE item.organization_id = $1 AND item.status = 'active'
+        AND ((item.item_type = 'product' AND item.track_inventory)
+          OR EXISTS (SELECT 1 FROM tenant.manufacturing_bom_masters master WHERE master.organization_id = item.organization_id AND master.finished_item_id = item.id AND master.archived_at IS NULL))
+      ORDER BY has_bom DESC, item.code LIMIT 2000`, [c.organizationId])).rows;
   const withRevision = [];
   for (const product of products) {
-    const window = await effectiveWindowAt(client, c.organizationId, product.id).catch(() => null);
-    const next = (await client.query(
+    const window = product.has_bom ? await effectiveWindowAt(client, c.organizationId, product.id).catch(() => null) : null;
+    const next = !product.has_bom ? null : (await client.query(
       `SELECT effectivity.effective_from, revision.revision_number FROM tenant.manufacturing_bom_effectivities effectivity JOIN tenant.manufacturing_bom_revisions revision ON revision.id = effectivity.revision_id
         WHERE effectivity.organization_id = $1 AND effectivity.finished_item_id = $2 AND effectivity.status = 'SCHEDULED' ORDER BY effectivity.effective_from LIMIT 1`, [c.organizationId, product.id])).rows[0];
-    withRevision.push({ id: product.id, code: product.code, name: product.name, uomId: product.uom_id, uom: product.uom, trackingType: product.tracking_type,
+    withRevision.push({ id: product.id, code: product.code, name: product.name, uomId: product.uom_id, uom: product.uom, trackingType: product.tracking_type, hasBom: product.has_bom,
       // The product's planning defaults (Sales Demand policy): a new order proposes these warehouses and its lead time.
       defaults: { leadTimeDays: product.lead_time_days, materialWarehouseId: product.default_material_warehouse_id, manufacturingWarehouseId: product.default_manufacturing_warehouse_id },
       effectiveRevision: window ? { id: window.revision_id, number: window.revision_number, from: window.effective_from, to: window.effective_to } : null,

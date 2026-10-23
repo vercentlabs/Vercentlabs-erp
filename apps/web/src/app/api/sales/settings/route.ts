@@ -26,6 +26,7 @@ const schema = z.object({
   // GST & e-invoice (Sales plan): the IRN when an invoice is posted; the 30-day reporting limit (turnover ₹10 crore or more).
   einvoiceOnPost: z.boolean().optional(),
   einvoice30DayLimit: z.boolean().optional(),
+  allowLinesWithoutItem: z.boolean().optional(),
   defaultWarehouseId: z.string().uuid().nullable().optional(),
   defaultQuotationTerms: z.string().max(20000).nullish(),
   // Pricing & Discounts (needs sales.discount.manage_settings). A null limit or threshold switches it off.

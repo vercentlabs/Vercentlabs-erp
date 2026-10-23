@@ -4,13 +4,14 @@
 // unit (the item's own units and conversions), proportional or fixed per batch, extra-material allowance, an optional pinned subassembly
 // recipe and notes. Lines are added, removed and reordered; saving keeps it a draft, and the server checks everything again (a stale
 // version, an unconvertible unit, a cycle) before it can be submitted.
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Button, ComboBox, IconButton, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { Notice, Panel } from "@/shared/ui/Panel";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 
 import { bomOptions, errorIssues, errorMessage, itemUnits, type BomIssue, type BomRevision } from "../api/bom-api";
 
@@ -43,6 +44,11 @@ export function BomEditor({ state, onChange, productLocked, issues, saving, onSa
   const options = useQuery({ queryKey: scopedQueryKey(workspace, "manufacturing", "bom-options"), queryFn: bomOptions, staleTime: 60_000 });
   const product = useQuery({ queryKey: scopedQueryKey(workspace, "manufacturing", "item-units", state.finishedItemId ?? ""), queryFn: () => itemUnits(state.finishedItemId!), enabled: Boolean(state.finishedItemId) });
   const set = <K extends keyof EditorState>(key: K, value: EditorState[K]) => onChange({ ...state, [key]: value });
+  // A product not in the catalogue yet is created in place (Create-Where-You-Are M2); the options reload with it.
+  const newProduct = useQuickCreate("item", {
+    prefill: { type: "stock", isSellable: true, isPurchasable: false },
+    onCreated: (record) => { void options.refetch().then((fresh) => onChange({ ...state, finishedItemId: record.id, outputUomId: fresh.data?.products.find((item) => item.id === record.id)?.uomId ?? null })); },
+  });
   const setLine = (index: number, patch: Partial<EditorLine>) => onChange({ ...state, lines: state.lines.map((line, at) => (at === index ? { ...line, ...patch } : line)) });
   const move = (index: number, by: number) => {
     const lines = [...state.lines];
@@ -58,7 +64,9 @@ export function BomEditor({ state, onChange, productLocked, issues, saving, onSa
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ComboBox label="Product to manufacture" isRequired isDisabled={productLocked} placeholder="Search products" selectedKey={state.finishedItemId}
             onSelectionChange={(key) => onChange({ ...state, finishedItemId: key ? String(key) : null, outputUomId: options.data?.products.find((item) => item.id === key)?.uomId ?? null })}
-            options={(options.data?.products ?? []).filter((item) => productLocked || !item.hasBom || item.id === state.finishedItemId).map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} />
+            options={(options.data?.products ?? []).filter((item) => productLocked || !item.hasBom || item.id === state.finishedItemId).map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))}
+            onCreate={!productLocked && newProduct.canCreate ? newProduct.open : undefined} createLabel={(text) => (text ? `+ New product "${text}"` : "+ New product")} />
+          {newProduct.drawer}
           <TextField label="BOM name (optional)" value={state.name} onChange={(value) => set("name", value)} maxLength={200} />
           <div className="flex gap-2">
             <TextField label="Output quantity" isRequired inputMode="decimal" value={state.outputQuantity} onChange={(value) => set("outputQuantity", value)} className="w-32" />
@@ -102,13 +110,24 @@ function MaterialLine({ line, index, count, materials, issues, onChange, onMove,
   const units = useQuery({ queryKey: scopedQueryKey(workspace, "manufacturing", "item-units", line.componentItemId ?? ""), queryFn: () => itemUnits(line.componentItemId!),
     enabled: Boolean(line.componentItemId) });
   const material = materials.find((item) => item.id === line.componentItemId);
+  // A material not in the catalogue yet is created in place (Create-Where-You-Are M2).
+  const queryClient = useQueryClient();
+  const newMaterial = useQuickCreate("item", {
+    prefill: { type: "stock", isSellable: false, isPurchasable: true },
+    onCreated: (record) => {
+      void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "manufacturing", "bom-options") })
+        .then(() => onChange({ lineageId: undefined, componentItemId: record.id, uomId: String((record.raw as { baseUomId?: string } | undefined)?.baseUomId ?? "") || null, childBomRevisionId: null }));
+    },
+  });
   return (
     <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
       <div className="flex flex-wrap items-end gap-2">
         <span className="pb-2 text-sm font-medium tabular-nums text-text-muted">{index + 1}</span>
         <ComboBox label="Material" className="sm:w-72" placeholder="Search items" selectedKey={line.componentItemId}
           onSelectionChange={(key) => onChange({ ...(key !== line.componentItemId ? { lineageId: undefined } : {}), componentItemId: key ? String(key) : null, uomId: materials.find((item) => item.id === key)?.uomId ?? null, childBomRevisionId: null })}
-          options={materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.hasBom ? " (has a recipe)" : ""}` }))} />
+          options={materials.map((item) => ({ value: item.id, label: `${item.code} · ${item.name}${item.hasBom ? " (has a recipe)" : ""}` }))}
+          onCreate={newMaterial.canCreate ? newMaterial.open : undefined} createLabel={(text) => (text ? `+ New item "${text}"` : "+ New item")} />
+        {newMaterial.drawer}
         <TextField label="Quantity" inputMode="decimal" value={line.quantity} onChange={(value) => onChange({ quantity: value })} className="w-28" />
         <Select label="Unit" selectedKey={line.uomId} onSelectionChange={(key) => onChange({ uomId: String(key) })}
           options={(units.data?.units ?? []).map((unit) => ({ value: unit.uomId, label: unit.isBase ? unit.code : `${unit.code} (${unit.text})` }))} />

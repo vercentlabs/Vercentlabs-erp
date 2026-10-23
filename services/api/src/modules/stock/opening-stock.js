@@ -24,6 +24,7 @@ import { add, decimal, div, formatDecimal, mul, roundMoney } from "../../core/de
 import { createJournalEntry, getAccountMapping, getOpenPeriod, getPrimaryLedger, postJournalEntry, reverseJournalEntry } from "../accounting/index.js";
 import { AccountingError } from "../accounting/core.js";
 import { normalizeQuantityToBase } from "../products/uom.js";
+import { createProduct } from "../products/records.js";
 import { StockError, postStockMovement, reverseStockMovements } from "./index.js";
 import { canUseWarehouse, validateWarehouseOperation } from "./warehouses.js";
 
@@ -745,13 +746,16 @@ export async function getOpeningStockReconciliation(client, c) {
 
 // ------------------------------------------------------------------ import
 
-export const OPENING_STOCK_IMPORT_COLUMNS = Object.freeze(["SKU", "Warehouse", "Location", "Qty", "UOM", "Unit Cost", "Batch", "Manufactured", "Expiry", "Serial", "Disposition", "Notes"]);
+// Item Name, Category, HSN/SAC and GST % are read only for a SKU that is not an item yet, when missing items are to be created
+// (Create-Where-You-Are ST1: items and their opening stock from one file).
+export const OPENING_STOCK_IMPORT_COLUMNS = Object.freeze(["SKU", "Warehouse", "Location", "Qty", "UOM", "Unit Cost", "Batch", "Manufactured", "Expiry", "Serial", "Disposition", "Notes",
+  "Item Name", "Category", "HSN/SAC", "GST %"]);
 
 export function buildOpeningStockTemplate() {
   const rows = [OPENING_STOCK_IMPORT_COLUMNS,
-    ["PUMP-001", "PUN-01", "MAIN", "100", "PCS", "500", "", "", "", "", "available", ""],
-    ["CHEM-A", "PUN-01", "MAIN", "120", "L", "50", "B001", "2026-01-15", "2027-12-31", "", "available", ""],
-    ["LAPTOP", "PUN-01", "MAIN", "1", "PCS", "45000", "", "", "", "DL-001", "available", "One row per serial number"]];
+    ["PUMP-001", "PUN-01", "MAIN", "100", "PCS", "500", "", "", "", "", "available", "", "Centrifugal pump 1 HP", "Pumps", "84137010", "18"],
+    ["CHEM-A", "PUN-01", "MAIN", "120", "L", "50", "B001", "2026-01-15", "2027-12-31", "", "available", "", "", "", "", ""],
+    ["LAPTOP", "PUN-01", "MAIN", "1", "PCS", "45000", "", "", "", "DL-001", "available", "One row per serial number", "", "", "", ""]];
   const cell = (value) => (/[",\r\n]/.test(String(value)) ? `"${String(value).replace(/"/g, '""')}"` : String(value));
   return `﻿${rows.map((row) => row.map(cell).join(",")).join("\r\n")}\r\n`;
 }
@@ -767,8 +771,10 @@ function toImport(row) {
 
 // Reads a CSV / XLSX into lines for `document` (its warehouse): one row per line, or per serial number (rows of one item, location, unit,
 // cost and disposition gather into one line). dryRun checks and reports, saving nothing but the report; otherwise the lines are added to the
-// draft (replacing none of its others). The same file is never applied twice.
-export async function importOpeningStock(client, c, documentId, { bytes, fileName, dryRun = true } = {}) {
+// draft (replacing none of its others). The same file is never applied twice. createMissingItems: a SKU that is not an item yet is created
+// from its row (Item Name, UOM, Category, HSN/SAC, GST %) through the same checks as the item form — in a dry run inside a savepoint
+// that is rolled back, so the preview says exactly what would be created.
+export async function importOpeningStock(client, c, documentId, { bytes, fileName, dryRun = true, createMissingItems = false } = {}) {
   need(c, P.prepare, "You do not have permission to import opening stock.");
   const row = await loadDocument(client, c, documentId, { lock: true });
   requireDraft(row);
@@ -785,14 +791,25 @@ export async function importOpeningStock(client, c, documentId, { bytes, fileNam
   const lookup = async (sql, values) => (await client.query(sql, values)).rows[0] ?? null;
   const results = [];
   const groups = new Map();
+  const created = new Map();
+  if (createMissingItems && dryRun) await client.query("SAVEPOINT opening_stock_preview");
   for (const [index, record] of parsed.records.entries()) {
     const rowNumber = index + 2;
     const value = (name) => pickColumn(record, name);
     const report = (outcome, message) => results.push({ rowNumber, sku: value("SKU"), outcome, message });
     if (!Object.values(record).some((cell) => String(cell ?? "").trim())) continue;
     const sku = value("SKU");
-    const item = sku ? await lookup(`SELECT id, code, tracking_type, uom_id FROM tenant.items WHERE organization_id = $1 AND (upper(code) = upper($2) OR upper(sku) = upper($2)) LIMIT 1`, [c.organizationId, sku]) : null;
-    if (!item) { report("error", `SKU ${sku || "(blank)"} not found.`); continue; }
+    let item = sku ? await lookup(`SELECT id, code, tracking_type, uom_id FROM tenant.items WHERE organization_id = $1 AND (upper(code) = upper($2) OR upper(sku) = upper($2)) LIMIT 1`, [c.organizationId, sku]) : null;
+    if (!item && sku && createMissingItems) {
+      const made = await createImportedItem(client, c, sku, value);
+      if (made.error) { report("error", `SKU ${sku} could not be created: ${made.error}`); continue; }
+      item = made.item;
+      created.set(item.id, sku);
+    }
+    if (!item) {
+      report("error", `SKU ${sku || "(blank)"} not found.${sku && !createMissingItems ? " Add Item Name (with UOM, Category, HSN/SAC and GST %) and choose to create missing items to create it from this file." : ""}`);
+      continue;
+    }
     const warehouseCode = value("Warehouse");
     if (warehouseCode && warehouseCode.toUpperCase() !== row.warehouse_code.toUpperCase()) { report("error", `Warehouse ${warehouseCode} is not ${row.warehouse_code}; import each warehouse into its own document.`); continue; }
     const locationCode = value("Location");
@@ -831,7 +848,7 @@ export async function importOpeningStock(client, c, documentId, { bytes, fileNam
       const taken = read.serials.length ? (await client.query(`SELECT serial_number FROM tenant.stock_serials WHERE organization_id = $1 AND lower(serial_number) = ANY($2::text[])`,
         [c.organizationId, read.serials.map((entry) => entry.toLowerCase())])).rows : [];
       if (taken.length) throw new OpeningStockError(409, `Serial ${taken.map((entry) => entry.serial_number).join(", ")} already exists.`, "OPENING_STOCK_SERIAL_EXISTS");
-      const warnings = [read.unitCost === ZERO && "zero cost", read.expired && "expired batch", read.inactiveItem && "inactive item"].filter(Boolean);
+      const warnings = [created.has(group.line.itemId) && "new item", read.unitCost === ZERO && "zero cost", read.expired && "expired batch", read.inactiveItem && "inactive item"].filter(Boolean);
       for (const entry of group.rows) results.push({ rowNumber: entry.rowNumber, sku: entry.sku, outcome: warnings.length ? "warning" : "valid", message: warnings.join(", ") || null });
       lines.push(group.line);
     } catch (error) {
@@ -840,6 +857,7 @@ export async function importOpeningStock(client, c, documentId, { bytes, fileNam
       for (const entry of group.rows) results.push({ rowNumber: entry.rowNumber, sku: entry.sku, outcome: "error", message });
     }
   }
+  if (createMissingItems && dryRun) await client.query("ROLLBACK TO SAVEPOINT opening_stock_preview");
   results.sort((left, right) => left.rowNumber - right.rowNumber);
   const counts = { total: results.length, valid: results.filter((entry) => entry.outcome === "valid").length, warnings: results.filter((entry) => entry.outcome === "warning").length,
     errors: results.filter((entry) => entry.outcome === "error").length };
@@ -858,7 +876,38 @@ export async function importOpeningStock(client, c, documentId, { bytes, fileNam
     [c.organizationId, row.warehouse_id, row.id, row.migration_reference, String(fileName ?? "upload").slice(0, 240), checksum, status, counts.total, counts.valid, counts.warnings, counts.errors,
       JSON.stringify(results.filter((entry) => entry.outcome !== "valid").slice(0, 2000)), c.userId ?? null]);
   if (!dryRun) await event(client, c, row.id, "imported", `Imported ${lines.length} line${lines.length === 1 ? "" : "s"} from ${fileName}`, { fileName, rows: counts.total, warnings: counts.warnings });
-  return { dryRun: Boolean(dryRun), status, rows: counts.total, valid: counts.valid, warnings: counts.warnings, errors: counts.errors, lines: lines.length, results };
+  return { dryRun: Boolean(dryRun), status, rows: counts.total, valid: counts.valid, warnings: counts.warnings, errors: counts.errors, lines: lines.length,
+    itemsCreated: created.size, results };
+}
+
+// A new stock item from an import row: SKU, Item Name, UOM (else Numbers), Category (by name or code), HSN/SAC and GST % (the GST-n
+// category). Created active through the item form's own checks; what stops it is returned as the row's error.
+async function createImportedItem(client, c, sku, value) {
+  const name = value("Item Name");
+  if (!name) return { error: "add its Item Name." };
+  const lookup = async (sql, values) => (await client.query(sql, values)).rows[0] ?? null;
+  const uomCode = value("UOM");
+  const uom = uomCode
+    ? await lookup(`SELECT id FROM tenant.units_of_measure WHERE organization_id = $1 AND upper(code) = upper($2) AND status = 'active'`, [c.organizationId, uomCode])
+    : await lookup(`SELECT id FROM tenant.units_of_measure WHERE organization_id = $1 AND status = 'active' ORDER BY (code = 'NOS') DESC, (code = 'PCS') DESC, code LIMIT 1`, [c.organizationId]);
+  if (!uom) return { error: `UOM ${uomCode || "(blank)"} not found.` };
+  const categoryName = value("Category");
+  const category = categoryName ? await lookup(`SELECT id FROM tenant.item_groups WHERE organization_id = $1 AND status = 'active' AND (lower(name) = lower($2) OR upper(code) = upper($2))
+                                                 ORDER BY (lower(name) = lower($2)) DESC LIMIT 1`, [c.organizationId, categoryName]) : null;
+  if (categoryName && !category) return { error: `category ${categoryName} not found.` };
+  const rate = value("GST %").replace(/[%\s]/g, "");
+  const tax = rate ? await lookup(`SELECT id FROM tenant.tax_categories WHERE organization_id = $1 AND status = 'active' AND (upper(code) = upper($2) OR upper(code) = upper($3))`,
+    [c.organizationId, `GST-${rate}`, rate]) : null;
+  if (rate && !tax) return { error: `no GST category for ${rate}%.` };
+  try {
+    const product = await createProduct(client, c, { code: sku, name, type: "stock", baseUomId: uom.id, categoryId: category?.id ?? null, hsnSacCode: value("HSN/SAC") || null,
+      taxCategoryId: tax?.id ?? null }, { origin: "import" });
+    const id = product.id ?? product.item?.id ?? product.product?.id;
+    return { item: await lookup(`SELECT id, code, tracking_type, uom_id FROM tenant.items WHERE organization_id = $1 AND id = $2`, [c.organizationId, id]) };
+  } catch (error) {
+    if (!error?.status || error.status >= 500) throw error;
+    return { error: String(error.message ?? "the item could not be created.").replace(/\.$/, "") + "." };
+  }
 }
 
 export async function listOpeningStockImports(client, c) {

@@ -14,6 +14,7 @@ import { Notice, Panel } from "@/shared/ui/Panel";
 import { Cell, FactList, HistoryList, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 
 import { AskDialog, type Ask } from "@/shared/ui/AskDialog";
 import {
@@ -161,6 +162,14 @@ function CustomerPicker({ value, onChange, crmAccounts }: { value: EligibleCusto
   const term = useDebouncedValue(search);
   const customers = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "customers", term, crmAccounts), queryFn: () => searchCustomers(term, crmAccounts), staleTime: 30_000 });
   const [problem, setProblem] = useState<string | null>(null);
+  // Create where you are (PJ1): a customer not yet in the master is created here and chosen.
+  const quickCreate = useQuickCreate("customer", {
+    onCreated: (record) => {
+      setSearch(record.label);
+      onChange({ id: record.id, name: record.label, legalName: null, number: record.description ?? null, kind: "CUSTOMER", city: null, state: null, status: "active",
+        inactive: false, salesBlocked: false, similarNames: false, selectable: true, note: null });
+    },
+  });
   return (
     <div className="flex flex-col gap-2">
       <ComboBox label="Customer" placeholder="Search by name, number, phone or GSTIN" selectedKey={value?.id ?? null} inputValue={search} onInputChange={setSearch}
@@ -170,7 +179,9 @@ function CustomerPicker({ value, onChange, crmAccounts }: { value: EligibleCusto
           setProblem(null); onChange(row);
         }}
         options={(customers.data ?? []).map((row) => ({ value: row.id, label: [row.name, row.number, row.city, row.note].filter(Boolean).join(" · ") }))}
-        isLoading={customers.isFetching} emptyMessage="No customer matches. A new customer is created in Sales or CRM first." errorMessage={problem ?? undefined} />
+        isLoading={customers.isFetching} emptyMessage="No customer matches." errorMessage={problem ?? undefined}
+        onCreate={quickCreate.canCreate ? quickCreate.open : undefined} createLabel={(typed) => (typed ? `Create customer "${typed}"` : "Create a new customer")} />
+      {quickCreate.drawer}
       {value?.similarNames && <Notice tone="warning">Customers with similar names exist. Check the number and city.</Notice>}
       {errorStatus(customers.error) === 403 && <Notice tone="neutral">You may not search customers.</Notice>}
     </div>
@@ -310,6 +321,12 @@ function ContactDialog({ project, data, replace, onClose, onDone }: { project: P
   const term = useDebouncedValue(search);
   const people = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "eligible-contacts", project.id, term), queryFn: () => eligibleContacts(project.id, term) });
   const [contactId, setContactId] = useState<string | null>(null);
+  // Someone new at the customer is added here (Create-Where-You-Are PJ2) and chosen.
+  const party = data.customer?.id ?? data.provisional?.id ?? null;
+  const newContact = useQuickCreate("customerContact", {
+    prefill: { partyId: party ?? undefined, partyName: data.customer?.name ?? data.provisional?.name ?? undefined },
+    onCreated: (record) => { setSearch(record.label); setContactId(record.id); },
+  });
   const [role, setRole] = useState<ContactRole>(data.contacts.some((row) => row.primary) ? "TECHNICAL" : "PRIMARY");
   const [title, setTitle] = useState("");
   const [replacePrimary, setReplacePrimary] = useState(false);
@@ -319,10 +336,12 @@ function ContactDialog({ project, data, replace, onClose, onDone }: { project: P
   return (
     <Dialog isOpen isDismissable onOpenChange={(open) => { if (!open) onClose(); }} title={replace ? `Replace ${replace.name}` : "Add a contact"} size="md">
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-text-secondary">{`${data.customer?.name ?? data.provisional?.name}'s active contacts are offered. A new person is added in CRM first.`}</p>
+        <p className="text-sm text-text-secondary">{`${data.customer?.name ?? data.provisional?.name}'s active contacts are offered; someone new is added here.`}</p>
         <ComboBox label="Person" placeholder="Search by name or email" selectedKey={contactId} inputValue={search} onInputChange={setSearch} onSelectionChange={(key) => setContactId(key ? String(key) : null)}
           options={(people.data ?? []).filter((row) => row.id !== replace?.contactId).map((row) => ({ value: row.id, label: [row.name, row.designation, row.email].filter(Boolean).join(" · ") }))}
+          onCreate={party && newContact.canCreate ? newContact.open : undefined} createLabel={(text) => (text ? `+ New contact "${text}"` : "+ New contact")}
           isLoading={people.isFetching} emptyMessage="No active contact of the customer matches." />
+        {newContact.drawer}
         {!replace && <Select label="Role on the project" selectedKey={role} onSelectionChange={(key) => setRole(String(key) as ContactRole)} options={ROLE_OPTIONS} />}
         {!replace && <TextField label={role === "OTHER" ? "Describe the role" : "Title on the project"} value={title} onChange={setTitle} maxLength={120} isRequired={role === "OTHER"}
           description="For example: Project Coordinator" />}

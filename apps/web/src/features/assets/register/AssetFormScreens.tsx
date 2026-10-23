@@ -9,7 +9,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, LinkButton, PageHeader, PermissionState, Select, Tab, TabList, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, ComboBox, ErrorState, LinkButton, PageHeader, PermissionState, Select, Tab, TabList, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { FormSection } from "@/shared/ui/FormSection";
@@ -37,6 +38,19 @@ export function NewAssetScreen() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: string) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+  // A supplier or location not on file yet is created in place (Create-Where-You-Are AS1); an asset names the supplier's party.
+  const [added, setAdded] = useState<{ suppliers: Array<{ value: string; label: string }>; locations: Array<{ value: string; label: string }> }>({ suppliers: [], locations: [] });
+  const newSupplier = useQuickCreate("supplier", {
+    onCreated: (record) => {
+      const partyId = String((record.raw as { partyId?: string } | undefined)?.partyId ?? "");
+      if (!partyId) return;
+      setAdded((current) => ({ ...current, suppliers: [...current.suppliers, { value: partyId, label: record.label }] }));
+      set("supplierId")(partyId);
+    },
+  });
+  const newLocation = useQuickCreate("assetLocation", {
+    onCreated: (record) => { setAdded((current) => ({ ...current, locations: [...current.locations, { value: record.id, label: record.label }] })); set("locationId")(record.id); },
+  });
   const o = options.data;
   const category = o?.categories.find((c) => c.id === form.categoryId);
   const save = async (registerNow: boolean) => {
@@ -80,7 +94,9 @@ export function NewAssetScreen() {
       <FormSection title="Where did it come from?">
         <Select label="Source" selectedKey={form.origin} onSelectionChange={(k) => set("origin")(String(k))} options={[{ value: "PURCHASE", label: "Purchased from a supplier" }, { value: "OPENING_BALANCE", label: "We already owned it" },
           { value: "OTHER", label: "Other approved source (no purchase document)" }]} />
-        <Select label="Supplier" selectedKey={form.supplierId || null} onSelectionChange={(k) => set("supplierId")(String(k ?? ""))} options={(o?.suppliers ?? []).map((s) => ({ value: s.id, label: s.name }))} />
+        <ComboBox label="Supplier" selectedKey={form.supplierId || null} onSelectionChange={(k) => set("supplierId")(String(k ?? ""))} placeholder="Search suppliers"
+          options={[...(o?.suppliers ?? []).map((s) => ({ value: s.id, label: s.name })), ...added.suppliers]}
+          onCreate={newSupplier.canCreate ? newSupplier.open : undefined} createLabel={(text) => (text ? `+ New supplier "${text}"` : "+ New supplier")} />
         <TextField label="Purchase date" type="date" value={form.purchaseDate} onChange={set("purchaseDate")} />
         <TextField label="Received" type="date" value={form.receivedDate} onChange={set("receivedDate")} />
         {form.origin === "OPENING_BALANCE" && <TextField label="Original cost (Finance validates it)" inputMode="decimal" value={form.openingCost} onChange={set("openingCost")} />}
@@ -93,7 +109,10 @@ export function NewAssetScreen() {
         <TextField label="Asset tag (company label)" value={form.tagCode} onChange={set("tagCode")} isRequired={category?.asset_tag_policy === "REQUIRED"} />
       </FormSection>
       <FormSection title="Where is it, and who looks after it?" description="The initial assignment. Once the asset is commissioned, assignments and transfers change it.">
-        <Select label="Location" selectedKey={form.locationId || null} onSelectionChange={(k) => set("locationId")(String(k ?? ""))} options={(o?.locations ?? []).map((l) => ({ value: l.id, label: l.name }))} isRequired={Boolean(category?.location_required)} />
+        <ComboBox label="Location" selectedKey={form.locationId || null} onSelectionChange={(k) => set("locationId")(String(k ?? ""))} placeholder="Search locations"
+          options={[...(o?.locations ?? []).map((l) => ({ value: l.id, label: l.name })), ...added.locations]} isRequired={Boolean(category?.location_required)}
+          onCreate={newLocation.canCreate ? newLocation.open : undefined} createLabel={(text) => (text ? `+ New location "${text}"` : "+ New location")} />
+        {newSupplier.drawer}{newLocation.drawer}
         <Select label="Department" selectedKey={form.departmentId || null} onSelectionChange={(k) => set("departmentId")(String(k ?? ""))} options={(o?.departments ?? []).map((d) => ({ value: d.id, label: d.name }))} />
         {category?.custodian_policy !== "NOT_APPLICABLE" && <Select label="Custodian" description={category?.custodian_policy === "REQUIRED" ? "Needed before the asset is commissioned." : undefined} selectedKey={form.custodianUserId || null}
           onSelectionChange={(k) => set("custodianUserId")(String(k ?? ""))} options={(o?.users ?? []).map((u) => ({ value: u.id, label: u.name }))} />}

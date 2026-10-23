@@ -30,12 +30,15 @@ export async function translated(work) {
 export { databaseToday, orgTodaySql } from "../org-day.js";
 
 export async function procurementSettings(client, organizationId) {
-  const row = (await client.query(`SELECT billing_basis, require_expected_date, default_warehouse_id, bill_held_goods, post_receipt_accrual, use_indents, use_rfqs, reorder_creates
+  const row = (await client.query(`SELECT billing_basis, require_expected_date, default_warehouse_id, bill_held_goods, post_receipt_accrual, use_indents, use_rfqs, reorder_creates,
+                                            allow_receipt_without_order
                                      FROM tenant.procurement_settings WHERE organization_id = $1`, [organizationId])).rows[0];
   return { billingBasis: row?.billing_basis ?? "receipt", requireExpectedDate: Boolean(row?.require_expected_date), defaultWarehouseId: row?.default_warehouse_id ?? null,
     billHeldGoods: Boolean(row?.bill_held_goods), postReceiptAccrual: Boolean(row?.post_receipt_accrual),
     // Procurement plan Phase 2: purchase indents and RFQs are optional; a reorder opens an indent instead of a draft order when asked.
-    useIndents: Boolean(row?.use_indents), useRfqs: Boolean(row?.use_rfqs), reorderCreates: row?.use_indents && row?.reorder_creates === "indent" ? "indent" : "purchase_order" };
+    useIndents: Boolean(row?.use_indents), useRfqs: Boolean(row?.use_rfqs), reorderCreates: row?.use_indents && row?.reorder_creates === "indent" ? "indent" : "purchase_order",
+    // Create-Where-You-Are PR3: goods that arrive without an order may be received, raising the order as they are.
+    allowReceiptWithoutOrder: row?.allow_receipt_without_order !== false };
 }
 
 const ADDRESS_FIELDS = ["name", "line1", "line2", "city", "stateCode", "stateName", "postalCode", "countryCode", "contactName", "phone"];

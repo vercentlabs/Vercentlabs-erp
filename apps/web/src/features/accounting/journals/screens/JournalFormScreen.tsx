@@ -19,6 +19,7 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { Notice } from "@/shared/ui/Panel";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 
 import {
   createJournal, errorMessage, errorStatus, getJournal, journalOptions, journalStep, updateJournal, type JournalDetail, type JournalInput, type JournalOptions,
@@ -69,7 +70,17 @@ function JournalForm({ options, existing }: { options: JournalOptions; existing:
   const difference = debit - credit;
   const filled = lines.filter((line) => line.accountId && (cents(line.debit) > 0 || cents(line.credit) > 0));
   const ready = Boolean(header.journalId && header.accountingDate && header.description.trim()) && filled.length >= 2 && difference === 0;
-  const accountOptions = useMemo(() => options.accounts.map((account) => ({ value: account.id, label: `${account.code} · ${account.name}` })), [options.accounts]);
+  // A ledger the chart does not have yet is created from the line (Create-Where-You-Are A4) and chosen on it.
+  const [addedAccounts, setAddedAccounts] = useState<Array<{ value: string; label: string }>>([]);
+  const [ledgerFor, setLedgerFor] = useState<string | null>(null);
+  const newLedger = useQuickCreate("ledger", {
+    onCreated: (record) => {
+      setAddedAccounts((current) => [...current, { value: record.id, label: record.label }]);
+      if (ledgerFor) change(ledgerFor, { accountId: record.id });
+    },
+  });
+  const accountOptions = useMemo(() => [...options.accounts.map((account) => ({ value: account.id, label: `${account.code} · ${account.name}` })), ...addedAccounts],
+    [options.accounts, addedAccounts]);
   const partyOptions = useMemo(() => options.parties.map((party) => ({ value: party.id, label: party.name })), [options.parties]);
   const usesDimensions = options.departments.length > 0 || options.costCenters.length > 0 || options.dimensions.length > 0;
   useFormChangesWarning({ header, lines: lines.map((line) => ({ ...line, key: undefined })) });
@@ -168,7 +179,9 @@ function JournalForm({ options, existing }: { options: JournalOptions; existing:
                   <span className="col-span-2 text-xs font-medium text-text-muted lg:hidden">Line {index + 1}</span>
                   <div className="col-span-2 lg:col-span-5">
                     <ComboBox label={index === 0 ? "Account" : undefined} aria-label={`Line ${index + 1} account`} placeholder="Choose an account" selectedKey={line.accountId}
-                      onSelectionChange={(value) => change(line.key, { accountId: value ? String(value) : null })} options={accountOptions} />
+                      onSelectionChange={(value) => change(line.key, { accountId: value ? String(value) : null })} options={accountOptions}
+                      onCreate={newLedger.canCreate ? (text) => { setLedgerFor(line.key); newLedger.open(text); } : undefined}
+                      createLabel={(text) => (text ? `+ New ledger "${text}"` : "+ New ledger")} />
                   </div>
                   <div className="col-span-2 lg:col-span-3">
                     <TextField label={index === 0 ? "Description" : undefined} aria-label={`Line ${index + 1} description`} placeholder={header.description || "Line description"} value={line.description}
@@ -222,6 +235,7 @@ function JournalForm({ options, existing }: { options: JournalOptions; existing:
           {!usesDimensions && <p className="text-xs text-text-muted">Departments and cost centres appear here once they are set up in Settings.</p>}
         </div>
       </FormSection>
+      {newLedger.drawer}
     </DocumentFormPage>
   );
 }

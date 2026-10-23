@@ -10,6 +10,8 @@ export const POS_PERMISSIONS = Object.freeze({
   returnApprove: "pos.return.approve",
   cashAdjust: "pos.cash.adjust",
   priceOverride: "pos.price.override",
+  // Create-Where-You-Are: bill something not yet in the catalogue (a typed name, price and GST rate).
+  openItem: "pos.open_item",
   terminalManage: "pos.terminal.manage",
   storeManage: "pos.store.manage",
   paymentManage: "pos.payment.manage",

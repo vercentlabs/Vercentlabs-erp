@@ -323,7 +323,11 @@ export type SalesOptions = {
   settings?: {
     default_quote_validity_days: number;
     allow_direct_orders: boolean;
+    allow_lines_without_item?: boolean;
   };
+  // Lines without a catalogue product (Create-Where-You-Are): their GST choices and the system item they are kept on.
+  taxCategories?: Array<{ id: string; code: string; name: string }>;
+  unlistedItemId?: string | null;
   tax: {
     enabled: boolean;
     registrations: Array<{ id: string; code: string; name: string; registrationNumber: string | null; stateCode: string | null; isDefault: boolean }>;
@@ -339,7 +343,11 @@ export type SalesOptions = {
 };
 
 type SalesDocumentLineInput = {
-  itemId: string;
+  // Without an item: a line typed as itemName (+ hsnSac, taxCategoryId) with its unitPrice (Create-Where-You-Are).
+  itemId?: string;
+  itemName?: string;
+  hsnSac?: string;
+  taxCategoryId?: string;
   quantity: number;
   discountType?: "percent" | "amount";
   discountValue?: number;

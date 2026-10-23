@@ -17,7 +17,7 @@ import {
 } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { CustomerQuickCreateDialog } from "@/features/sales/customers/components/CustomerDialogs";
+import { RecordPicker } from "@/shell/pickers/RecordPicker";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { money, statusLabel } from "@/features/sales/shared/format";
@@ -57,6 +57,8 @@ import { Notice, Panel } from "@/shared/ui/Panel";
 import { ChargeRows, chargeDraftOf, chargesInput, type ChargeDraft } from "@/features/sales/shared/ChargeRows";
 import { mergeSalesOptions, SalesSearchPicker } from "@/features/sales/shared/SalesSearchPicker";
 import type { SalesDocumentScheme, SalesOptions, SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
+import { searchSalesOptions } from "@/features/sales/quotations/api/quotations-api";
+import { TypedLineFields } from "@/features/sales/shared/TypedLineFields";
 import { SchemeOffers } from "@/features/sales/shared/SchemeOffers";
 import { mrpNote } from "@/features/sales/shared/mrp";
 
@@ -73,6 +75,11 @@ type LineDraft = {
   priceReason: string;
   // A free line of a scheme: no price, no discount (Sales audit M3).
   schemeRuleId: string;
+  // A line without a catalogue product (Create-Where-You-Are): what is sold, its HSN/SAC and GST are typed; unitPrice is its price.
+  typed: boolean;
+  itemName: string;
+  hsnSac: string;
+  taxCategoryId: string;
 };
 
 let draftKey = 0;
@@ -80,6 +87,7 @@ const nextKey = () => ++draftKey;
 
 const emptyLine = (): LineDraft => ({
   key: nextKey(), itemId: "", uomId: "", quantity: 1, discountType: "percent", discountValue: 0, description: "", unitPrice: "", priceReason: "", schemeRuleId: "",
+  typed: false, itemName: "", hsnSac: "", taxCategoryId: "",
 });
 
 // Create a quotation (Sales → Quotations → New), or edit a Draft. Each save
@@ -177,12 +185,6 @@ export function SalesQuotationFormScreen({
             : "/sales/quotations",
         )
       }
-      onCustomerCreated={async (customerId) => {
-        // The new customer joins the options, then the form restarts with it
-        // chosen so its terms, contact and addresses are defaulted.
-        await optionsQuery.refetch();
-        router.replace(`/sales/quotations/new?customer=${customerId}`);
-      }}
     />
   );
 }
@@ -196,7 +198,6 @@ function FormBody({
   initialContactId,
   onDone,
   onCancel,
-  onCustomerCreated,
 }: {
   options: NonNullable<
     ReturnType<typeof getSalesOptions> extends Promise<infer R>
@@ -212,18 +213,16 @@ function FormBody({
   initialContactId?: string;
   onDone: (id: string) => void;
   onCancel: () => void;
-  onCustomerCreated: (customerId: string) => void;
 }) {
   const workspace = useWorkspaceContext();
   const editing = Boolean(quotationId);
   // What the form holds grows as customers and products are found by search (Sales audit B4).
   const [options, setOptions] = useState(initialOptions);
+  // A saved line on the system "Unlisted item" is a typed line (Create-Where-You-Are); the setting allows new ones.
+  const isTyped = (itemId: string | null | undefined) => Boolean(options.unlistedItemId && itemId === options.unlistedItemId);
+  const typedAllowed = options.settings?.allow_lines_without_item !== false;
   // A revision stays an offer to the same customer.
   const customerLocked = Boolean(existing && existing.quotation.revision_number > 0);
-  const canCreateCustomer =
-    workspace.roleSlugs.includes("organization_owner") ||
-    workspace.permissions.includes("sales.customers.create");
-  const [creatingCustomer, setCreatingCustomer] = useState(false);
   const baseCurrency =
     options.currencies.find((currency) => currency.is_base)?.code ??
     options.currencies[0]?.code ??
@@ -339,9 +338,13 @@ function FormBody({
           discountType: line.discount_type === "amount" ? "amount" : "percent",
           discountValue: Number(line.discount_type === "amount" ? line.discount_value : line.discount_percent),
           description: line.description_snapshot ?? "",
-          unitPrice: line.manual_price_override ? String(Number(line.unit_price)) : "",
+          unitPrice: line.manual_price_override || isTyped(line.item_id) ? String(Number(line.unit_price)) : "",
           priceReason: line.manual_price_reason ?? "",
           schemeRuleId: line.scheme_rule_id ?? "",
+          typed: isTyped(line.item_id),
+          itemName: String((line as Record<string, unknown>).item_name_snapshot ?? ""),
+          hsnSac: String((line as Record<string, unknown>).hsn_sac_snapshot ?? ""),
+          taxCategoryId: String((line as Record<string, unknown>).tax_category_id ?? ""),
         }))
       : [{ ...emptyLine(), discountType: defaultDiscountType(options.discounts) }],
   );
@@ -427,6 +430,12 @@ function FormBody({
   ];
 
   // A picked product joins the form's options with its unit conversions.
+  // A typed line saved as a product: it becomes a catalogue line, keeping the price typed (with its reason).
+  async function saveTypedAsProduct(line: LineDraft, itemId: string) {
+    const found = (await searchSalesOptions("products", line.itemName.trim()).catch(() => ({ results: {} as SalesSearchResults }))).results;
+    pickLineItem(line.key, itemId, found);
+    updateLine(line.key, { typed: false, itemName: "", unitPrice: line.unitPrice, priceReason: "Price agreed before the product was added" });
+  }
   function pickLineItem(key: number, itemId: string, found: SalesSearchResults) {
     const next = mergeSalesOptions(options, found);
     setOptions(next);
@@ -492,7 +501,7 @@ function FormBody({
     setShippingAddressId(defaultAddress(addresses, SHIPPING_ADDRESS_TYPES));
   }
 
-  const validLines = lines.filter((line) => line.itemId && line.quantity > 0);
+  const validLines = lines.filter((line) => (line.typed ? line.itemName.trim() : line.itemId) && line.quantity > 0);
   const input: SalesDocumentInput | null = useMemo(() => {
     if (!partyId || !currencyCode || validLines.length === 0) return null;
     return {
@@ -520,12 +529,13 @@ function FormBody({
       incoterm: incoterm || undefined,
       ...taxInput(documentTax),
       lines: validLines.map((line) => ({
-        itemId: line.itemId,
-        uomId: line.uomId || undefined,
+        itemId: line.itemId || undefined,
+        ...(line.typed ? { itemName: line.itemName.trim(), hsnSac: line.hsnSac || undefined, taxCategoryId: line.taxCategoryId || undefined } : {}),
+        uomId: line.typed ? undefined : line.uomId || undefined,
         description: line.description.trim() || undefined,
         ...(line.schemeRuleId ? { schemeRuleId: line.schemeRuleId } : {}),
         ...(!line.schemeRuleId && line.unitPrice.trim() !== "" && Number.isFinite(Number(line.unitPrice))
-          ? { unitPrice: Number(line.unitPrice), manualPriceReason: line.priceReason.trim() || undefined }
+          ? { unitPrice: Number(line.unitPrice), ...(line.typed ? {} : { manualPriceReason: line.priceReason.trim() || undefined }) }
           : {}),
         quantity: line.quantity,
         ...(!line.schemeRuleId && line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
@@ -678,25 +688,12 @@ function FormBody({
                 onPick={(id, found) => void pickParty(id, found)}
                 placeholder={loadingParty ? "Loading the customer…" : "Search customers by name, code, GSTIN or phone"}
                 isDisabled={customerLocked}
-                description={
-                  !editing && canCreateCustomer ? (
-                    <button
-                      type="button"
-                      className="text-brand underline-offset-2 hover:underline"
-                      onClick={() => setCreatingCustomer(true)}
-                    >
-                      New customer
-                    </button>
-                  ) : undefined
-                }
+                creatable={!editing}
               />
-              <Select
-                label="Contact"
-                options={contactOptions}
-                selectedKey={contactId}
-                onSelectionChange={(key) => setContactId(String(key ?? ""))}
-                isDisabled={!partyId}
-              />
+              <RecordPicker kind="customerContact" label="Contact" value={contactId || null} onChange={(id) => setContactId(id ?? "")}
+                filters={{ partyId }} createPrefill={{ partyId, partyName: options.parties.find((party) => party.id === partyId)?.display_name }}
+                selected={contactId ? { id: contactId, label: contactOptions.find((option) => option.value === contactId)?.label ?? "Contact" } : null}
+                isDisabled={!partyId} placeholder={partyId ? "No contact" : "Choose the customer first"} />
               <TextField
                 label="Quotation date"
                 type="date"
@@ -718,7 +715,7 @@ function FormBody({
 
           <FormSection columns={1}
             title="Items"
-            actions={
+            actions={<>
               <Button
                 variant="secondary"
                 size="compact"
@@ -729,7 +726,14 @@ function FormBody({
                 <Plus className="size-3.5" aria-hidden="true" />
                 Add item
               </Button>
-            }
+              {typedAllowed && (
+                <Button variant="ghost" size="compact"
+                  onPress={() => setLines((current) => [...current, { ...emptyLine(), discountType: defaultDiscountType(options.discounts), typed: true }])}>
+                  <Plus className="size-3.5" aria-hidden="true" />
+                  Line without a product
+                </Button>
+              )}
+            </>}
           >
             <div className="flex flex-col gap-3">
               {lines.map((line, index) => {
@@ -744,6 +748,10 @@ function FormBody({
                     key={line.key}
                     className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto]"
                   >
+                    {line.typed ? (
+                      <TypedLineFields index={index} line={line} taxCategories={options.taxCategories ?? []} onChange={(patch) => updateLine(line.key, patch)}
+                        onSavedAsProduct={(id) => void saveTypedAsProduct(line, id)} />
+                    ) : (<>
                     <SalesSearchPicker
                       kind="products"
                       aria-label={`Item ${index + 1}`}
@@ -763,6 +771,7 @@ function FormBody({
                       }
                       isDisabled={lineUomOptions.length <= 1}
                     />
+                    </>)}
                     <NumberField
                       aria-label={`Quantity ${index + 1}`}
                       label={index === 0 ? "Quantity" : undefined}
@@ -811,7 +820,7 @@ function FormBody({
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
                     </IconButton>
-                    {line.itemId && (
+                    {(line.itemId || line.typed) && (
                       <TextField
                         className="sm:col-span-6"
                         aria-label={`Description ${index + 1}`}
@@ -827,7 +836,7 @@ function FormBody({
                       </p>
                     )}
                     {line.schemeRuleId && <p className="text-xs text-success sm:col-span-6">Free under a scheme: no price and no discount.</p>}
-                    {line.itemId && canOverridePrice && !line.schemeRuleId && (
+                    {line.itemId && !line.typed && canOverridePrice && !line.schemeRuleId && (
                       <div className="grid grid-cols-1 gap-2 sm:col-span-6 sm:grid-cols-[12rem_minmax(0,1fr)]">
                         <TextField
                           aria-label={`Unit price ${index + 1}`}
@@ -1029,14 +1038,6 @@ function FormBody({
             />
           </FormSection>
     </DocumentFormPage>
-    <CustomerQuickCreateDialog
-        isOpen={creatingCustomer}
-        onClose={() => setCreatingCustomer(false)}
-        onCreated={(customer) => {
-          setCreatingCustomer(false);
-          onCustomerCreated(customer.id);
-        }}
-      />
       <AlertDialog
         isOpen={pendingPriceList !== null}
         onOpenChange={(open) => !open && setPendingPriceList(null)}

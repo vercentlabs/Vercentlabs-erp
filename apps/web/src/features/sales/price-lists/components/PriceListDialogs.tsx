@@ -8,6 +8,7 @@ import { Button, Checkbox, ComboBox, Dialog, NumberField, Select, TextArea, Text
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { listItems } from "@/features/items/api/items-api";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 import { GST_STATES } from "@/features/crm/shared/gst-states";
 import { SALES_CHANNELS } from "@/features/sales/shared/sales-channels";
 
@@ -108,6 +109,11 @@ export function PriceDialog({ priceList, entry, onClose, onSaved }: { priceList:
     queryFn: () => listItems({ search: search || undefined, status: "active", sellable: "yes", limit: 30 }),
     enabled: !entry,
   });
+  // A product not in the catalogue yet is created in place (Create-Where-You-Are S7), then priced here.
+  const newProduct = useQuickCreate("item", {
+    prefill: { isSellable: true },
+    onCreated: (record) => { setSearch(record.label); setProductId(record.id); setUomId(""); },
+  });
   const chosen = products.data?.products.find((product) => product.id === productId);
   // The units a product can be priced in: its base unit and the units it converts to.
   const units = chosen
@@ -131,7 +137,9 @@ export function PriceDialog({ priceList, entry, onClose, onSaved }: { priceList:
           <>
             <ComboBox label="Product or service" isRequired placeholder="Search by code, name or SKU" selectedKey={productId}
               onSelectionChange={(key) => { setProductId(key ? String(key) : null); setUomId(""); }} onInputChange={setSearch} isLoading={products.isFetching} emptyMessage="No sellable products match"
-              options={(products.data?.products ?? []).map((product) => ({ value: product.id, label: `${product.name} (${product.code})` }))} errorMessage={errors.productId} />
+              options={(products.data?.products ?? []).map((product) => ({ value: product.id, label: `${product.name} (${product.code})` }))} errorMessage={errors.productId}
+              onCreate={newProduct.canCreate ? newProduct.open : undefined} createLabel={(text) => (text ? `+ New product "${text}"` : "+ New product")} />
+            {newProduct.drawer}
             {chosen && units.length > 1 && (
               <Select label="Unit" selectedKey={uomId || chosen.baseUomId} onSelectionChange={(key) => setUomId(String(key))} options={units} errorMessage={errors.uomId} />
             )}

@@ -18,6 +18,8 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { Notice } from "@/shared/ui/Panel";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
+import type { PickedRecord } from "@/shell/pickers/types";
 
 import { METHODS, cents, errorMessage, errorStatus, fromCents, inr, paymentOptions, preparePayment } from "../api/payables-api";
 
@@ -26,6 +28,9 @@ export function PaymentFormScreen() {
   const router = useRouter();
   const params = useSearchParams();
   const [partyId, setPartyId] = useState<string | null>(params.get("partyId"));
+  // Create where you are (A3): an advance to a new supplier is recorded without leaving for Procurement first.
+  const [createdParties, setCreatedParties] = useState<PickedRecord[]>([]);
+  const quickCreate = useQuickCreate("supplier", { onCreated: (record) => { setCreatedParties((current) => [...current, record]); setPartyId(record.id); setAmounts({}); } });
   const presetBill = params.get("billId");
   const base = useQuery({ queryKey: scopedQueryKey(workspace, "accounting", "payment-options"), queryFn: () => paymentOptions(), staleTime: 60_000, retry: false });
   const forParty = useQuery({ queryKey: scopedQueryKey(workspace, "accounting", "payment-options", partyId), queryFn: () => paymentOptions(partyId), enabled: Boolean(partyId), retry: false });
@@ -107,7 +112,10 @@ export function PaymentFormScreen() {
       <FormSection columns={1} title="Payment">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ComboBox label="Supplier" isRequired placeholder="Choose a supplier" selectedKey={partyId} onSelectionChange={(key) => { setPartyId(key ? String(key) : null); setAmounts({}); }}
-            options={options.suppliers.map((entry) => ({ value: entry.id, label: entry.name }))} />
+            options={[...options.suppliers.map((entry) => ({ value: entry.id, label: entry.name })),
+              ...createdParties.filter((record) => !options.suppliers.some((entry) => entry.id === record.id)).map((record) => ({ value: record.id, label: record.label }))]}
+            onCreate={quickCreate.canCreate ? quickCreate.open : undefined} createLabel={(typed) => (typed ? `Create supplier "${typed}"` : "Create a new supplier")} />
+          {quickCreate.drawer}
           <TextField label="Payment date" type="date" isRequired value={form.paymentDate || options.today} onChange={set("paymentDate")} description="Posts on this date; its period must be open." />
           <TextField label={`Amount (${currency})`} inputMode="decimal" isRequired placeholder="0.00" value={form.amount} onChange={set("amount")} />
           <Select label="Paid from" selectedKey={accountKey} onSelectionChange={(key) => set("bankAccountId")(key === "default" ? "" : String(key))}

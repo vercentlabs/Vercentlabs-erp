@@ -10,6 +10,8 @@ import { listLeads } from "@/features/crm/leads/api/leads-api";
 import { listOpportunities } from "@/features/crm/opportunities/api/opportunities-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { RecordPicker } from "@/shell/pickers/RecordPicker";
+import type { PickerKind } from "@/shell/pickers/types";
 
 export type RelatedValue = {
   entityType: "general" | "lead" | "party" | "contact" | "opportunity";
@@ -23,6 +25,9 @@ const TYPES = [
   { value: "contact", label: "Contact" },
   { value: "opportunity", label: "Deal" },
 ];
+
+// The kinds a related record can be created as, in place.
+const CREATABLE: Partial<Record<RelatedValue["entityType"], PickerKind>> = { lead: "lead", party: "company", contact: "contact" };
 
 type Row = Record<string, unknown> & { id: string };
 const rowLabel = (type: string, row: Row) => {
@@ -69,7 +74,7 @@ export function RelatedRecordPicker({
       text,
     ),
     queryFn: () => search(value.entityType, text),
-    enabled: value.entityType !== "general",
+    enabled: value.entityType === "opportunity",
     staleTime: 15_000,
   });
   const rows = query.data ?? [];
@@ -90,7 +95,14 @@ export function RelatedRecordPicker({
           });
         }}
       />
-      {value.entityType !== "general" && (
+      {/* A lead, company or contact that does not exist yet is created right here (Create-Where-You-Are C10): a call from someone new
+          is logged against a new lead without leaving the form. */}
+      {CREATABLE[value.entityType] && (
+        <RecordPicker key={value.entityType} kind={CREATABLE[value.entityType]!}
+          label={TYPES.find((t) => t.value === value.entityType)?.label ?? "Record"} placeholder="Search by name"
+          value={value.entityId || null} onChange={(id) => onChange({ ...value, entityId: id ?? "" })} />
+      )}
+      {value.entityType === "opportunity" && (
         <ComboBox
           label={
             TYPES.find((t) => t.value === value.entityType)?.label ?? "Record"

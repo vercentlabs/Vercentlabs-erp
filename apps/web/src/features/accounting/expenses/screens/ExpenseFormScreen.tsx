@@ -18,6 +18,7 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { Notice } from "@/shared/ui/Panel";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 
 import {
   GST_TREATMENTS, PAYMENT_METHODS, cents, createExpense, errorMessage, errorStatus, expenseOptions, expenseStep, fromCents, getExpense, inr, updateExpense, uploadExpenseFile,
@@ -49,6 +50,10 @@ export function ExpenseFormScreen({ id }: { id?: string }) {
   const [form, setForm] = useState(EMPTY);
   const [loaded, setLoaded] = useState(!id);
   const [files, setFiles] = useState<File[]>([]);
+  // A new kind of expense is created in place (Create-Where-You-Are PR7), posting to an expense ledger; the options reload with it.
+  const newCategory = useQuickCreate("expenseCategory", {
+    onCreated: (record) => { void options.refetch().then(() => setForm((current) => ({ ...current, categoryId: record.id }))); },
+  });
   const set = <K extends keyof typeof EMPTY>(key: K) => (value: (typeof EMPTY)[K]) => setForm((current) => ({ ...current, [key]: value }));
   useFormChangesWarning({ form, files: files.length });
   // An expense being corrected fills the form once it arrives (adjusted while rendering, once).
@@ -142,7 +147,9 @@ export function ExpenseFormScreen({ id }: { id?: string }) {
       <FormSection columns={1} title="Expense">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ComboBox label="Category" isRequired placeholder="What it was for" selectedKey={form.categoryId || null} onSelectionChange={(key) => key && pickCategory(String(key))}
-            options={data.categories.map((entry) => ({ value: entry.id, label: entry.name }))} description={category?.description ?? undefined} />
+            options={data.categories.map((entry) => ({ value: entry.id, label: entry.name }))} description={category?.description ?? undefined}
+            onCreate={newCategory.canCreate ? newCategory.open : undefined} createLabel={(text) => (text ? `+ New category "${text}"` : "+ New category")} />
+          {newCategory.drawer}
           <TextField label="Date" type="date" isRequired value={form.date || data.today} onChange={set("date")} description="The date on the bill; its period must be open." />
           <TextField label={`Amount before GST (${data.baseCurrency})`} isRequired inputMode="decimal" placeholder="0.00" value={form.amount} onChange={set("amount")} />
           <div className="sm:col-span-2 lg:col-span-3"><TextField label="Description" isRequired value={form.description} onChange={set("description")} maxLength={500} placeholder="Printer toner for the accounts office" /></div>

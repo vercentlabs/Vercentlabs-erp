@@ -176,6 +176,7 @@ export {
   getPosCart,
   addPosCartLine,
   addProductToPosCart,
+  getPosOpenItemOptions,
   updatePosCartLineQuantity,
   removePosCartLine,
   setPosCartLineTracking,

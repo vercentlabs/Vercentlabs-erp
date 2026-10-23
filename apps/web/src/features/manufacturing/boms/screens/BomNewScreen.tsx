@@ -15,11 +15,13 @@ import { createBom, errorIssues, errorMessage, revisionAction, type BomIssue } f
 import { BomEditor, blankLine, payloadOf, type EditorState } from "../components/BomEditor";
 import { BOM_BASE } from "./BomListScreen";
 
-export function BomNewScreen() {
+// Inside another form (a manufacturing order's "Create its BOM"): `initialItemId` fixes the product and `onCreated` gets the new BOM
+// instead of the BOM page opening.
+export function BomNewScreen({ initialItemId, onCreated }: { initialItemId?: string; onCreated?: (bom: { id: string; number: string; submitted: boolean }) => void } = {}) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [state, setState] = useState<EditorState>({ finishedItemId: null, name: "", outputQuantity: "1", outputUomId: null, expectedYieldPct: "100", batchSize: "", defaultWarehouseId: null,
+  const [state, setState] = useState<EditorState>({ finishedItemId: initialItemId ?? null, name: "", outputQuantity: "1", outputUomId: null, expectedYieldPct: "100", batchSize: "", defaultWarehouseId: null,
     description: "", changeReason: "", lines: [blankLine()] });
   const [issues, setIssues] = useState<BomIssue[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -32,18 +34,23 @@ export function BomNewScreen() {
     try {
       const bom = await submitKey.run(() => createBom({ finishedItemId: state.finishedItemId, ...payloadOf(state) }));
       await queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "manufacturing") });
+      let submitted = false;
       if (submit && bom.revision) {
-        try { await revisionAction(bom.id, bom.revision.id, "submit", { expectedVersion: bom.revision.version }); }
-        catch (failure) { router.replace(`${BOM_BASE}/${bom.id}?submitError=${encodeURIComponent(errorMessage(failure))}`); return; }
+        try { await revisionAction(bom.id, bom.revision.id, "submit", { expectedVersion: bom.revision.version }); submitted = true; }
+        catch (failure) {
+          if (onCreated) { setError(`The BOM was saved as a draft, but could not be submitted: ${errorMessage(failure)}`); onCreated({ id: bom.id, number: bom.number, submitted: false }); setSaving(false); return; }
+          router.replace(`${BOM_BASE}/${bom.id}?submitError=${encodeURIComponent(errorMessage(failure))}`); return;
+        }
       }
+      if (onCreated) { onCreated({ id: bom.id, number: bom.number, submitted }); return; }
       router.replace(`${BOM_BASE}/${bom.id}`);
     } catch (failure) { setError(errorMessage(failure)); setIssues(errorIssues(failure)); setSaving(false); }
   };
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="New bill of materials" description="Manufacturing › Bills of Materials › New. The recipe starts as revision 1, a draft; it is used for production only once approved and active." />
+      {!onCreated && <PageHeader title="New bill of materials" description="Manufacturing › Bills of Materials › New. The recipe starts as revision 1, a draft; it is used for production only once approved and active." />}
       {error && <Notice tone="danger">{error}</Notice>}
-      <BomEditor state={state} onChange={setState} productLocked={false} issues={issues} saving={saving} onSave={() => save(false)} onSubmit={() => save(true)} />
+      <BomEditor state={state} onChange={setState} productLocked={Boolean(initialItemId)} issues={issues} saving={saving} onSave={() => save(false)} onSubmit={() => save(true)} />
     </div>
   );
 }

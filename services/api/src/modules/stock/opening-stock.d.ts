@@ -24,7 +24,7 @@ export declare function validateOpeningStockReversal(client: Client, context: St
 export declare function reverseOpeningStock(client: Client, context: StockContext, documentId: string, input?: Row): Promise<Row>;
 export declare function getOpeningStockReconciliation(client: Client, context: StockContext): Promise<Row>;
 export declare function buildOpeningStockTemplate(): string;
-export declare function importOpeningStock(client: Client, context: StockContext, documentId: string, input: { bytes: Buffer | Uint8Array; fileName: string; dryRun?: boolean }): Promise<Row>;
+export declare function importOpeningStock(client: Client, context: StockContext, documentId: string, input: { bytes: Buffer | Uint8Array; fileName: string; dryRun?: boolean; createMissingItems?: boolean }): Promise<Row>;
 export declare function listOpeningStockImports(client: Client, context: StockContext): Promise<Row[]>;
 export declare function prepareOpeningStockFileUpload(input: { fileName: string; bytes: Buffer | Uint8Array }, env?: Record<string, string | undefined>): Promise<unknown>;
 export declare function listOpeningStockFiles(client: Client, context: StockContext, documentId: string): Promise<Row[]>;

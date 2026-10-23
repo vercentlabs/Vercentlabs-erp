@@ -9,5 +9,6 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(request: Request, { params }: Params) {
   const { id } = await params;
   return inventoryUpload(request, async (client, context, upload) =>
-    ({ result: await importOpeningStock(client, context, id, { bytes: upload.bytes, fileName: upload.fileName, dryRun: upload.field("dryRun") !== "false" }) }), 200, OPENING_STOCK_PERMISSIONS.view);
+    ({ result: await importOpeningStock(client, context, id, { bytes: upload.bytes, fileName: upload.fileName, dryRun: upload.field("dryRun") !== "false",
+      createMissingItems: upload.field("createMissingItems") === "true" }) }), 200, OPENING_STOCK_PERMISSIONS.view);
 }

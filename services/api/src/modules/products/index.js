@@ -8,6 +8,7 @@ export {
   reclassifyItem, updateProduct, validateItemForActivation,
 } from "./records.js";
 export { findDuplicateProducts } from "./duplicates.js";
+export { UNLISTED_ITEM_ROLE, ensureUnlistedItem, hsnSacKindOf, isUnlistedItem } from "./unlisted.js";
 export { addItemIdentifier, findItemByIdentifier, listItemIdentifiers, removeItemIdentifier, setPrimaryBarcode, updateItemIdentifier } from "./identifiers.js";
 export { BARCODE_FORMATS, expandUpcE, validGtinCheckDigit } from "./validation.js";
 export {

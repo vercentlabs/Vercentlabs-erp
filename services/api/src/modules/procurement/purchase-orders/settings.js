@@ -9,7 +9,7 @@ export async function getProcurementSettings(client, context) {
 }
 
 // input: { billingBasis?: "receipt" | "order", requireExpectedDate?, defaultWarehouseId?, billHeldGoods?, postReceiptAccrual?, useIndents?, useRfqs?,
-// reorderCreates?: "purchase_order" | "indent" }
+// reorderCreates?: "purchase_order" | "indent", allowReceiptWithoutOrder? }
 export async function updateProcurementSettings(client, context, input = {}) {
   requirePoPermission(context, PO_PERMISSIONS.settings, "You do not have permission to change procurement settings.");
   const current = await procurementSettings(client, context.organizationId);
@@ -26,13 +26,15 @@ export async function updateProcurementSettings(client, context, input = {}) {
   if (reorderCreates === "indent" && !useIndents) fail("Turn on purchase indents before reorders open indents.", "reorderCreates");
   await client.query(
     `INSERT INTO tenant.procurement_settings (organization_id, billing_basis, require_expected_date, default_warehouse_id, updated_by, updated_at, bill_held_goods, post_receipt_accrual,
-       use_indents, use_rfqs, reorder_creates) VALUES ($1, $2, $3, $4, $5, now(), $6, $7, $8, $9, $10)
+       use_indents, use_rfqs, reorder_creates, allow_receipt_without_order) VALUES ($1, $2, $3, $4, $5, now(), $6, $7, $8, $9, $10, $11)
      ON CONFLICT (organization_id) DO UPDATE SET billing_basis = EXCLUDED.billing_basis, require_expected_date = EXCLUDED.require_expected_date,
        default_warehouse_id = EXCLUDED.default_warehouse_id, bill_held_goods = EXCLUDED.bill_held_goods, post_receipt_accrual = EXCLUDED.post_receipt_accrual,
-       use_indents = EXCLUDED.use_indents, use_rfqs = EXCLUDED.use_rfqs, reorder_creates = EXCLUDED.reorder_creates, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+       use_indents = EXCLUDED.use_indents, use_rfqs = EXCLUDED.use_rfqs, reorder_creates = EXCLUDED.reorder_creates,
+       allow_receipt_without_order = EXCLUDED.allow_receipt_without_order, updated_by = EXCLUDED.updated_by, updated_at = now()`,
     [context.organizationId, billingBasis, has(input, "requireExpectedDate") ? Boolean(input.requireExpectedDate) : current.requireExpectedDate, warehouseId, context.userId ?? null,
       has(input, "billHeldGoods") ? Boolean(input.billHeldGoods) : current.billHeldGoods,
       has(input, "postReceiptAccrual") ? Boolean(input.postReceiptAccrual) : current.postReceiptAccrual,
-      useIndents, has(input, "useRfqs") ? Boolean(input.useRfqs) : current.useRfqs, reorderCreates]);
+      useIndents, has(input, "useRfqs") ? Boolean(input.useRfqs) : current.useRfqs, reorderCreates,
+      has(input, "allowReceiptWithoutOrder") ? Boolean(input.allowReceiptWithoutOrder) : current.allowReceiptWithoutOrder]);
   return procurementSettings(client, context.organizationId);
 }

@@ -14,8 +14,6 @@ import { CustomFieldInputs } from "@/features/crm/shared/ui/CustomFields";
 
 import { campaignChoices } from "@/features/crm/shared/marketing-api";
 import { getAccount } from "@/features/crm/accounts/api/accounts-api";
-import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
-import { ContactPicker } from "@/features/crm/contacts/components/ContactPicker";
 import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { DateInput, DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { FormSection } from "@/shared/ui/FormSection";
@@ -31,6 +29,8 @@ import {
 import { ErrorBanner, PRIORITY_OPTIONS } from "../opportunity-format";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { MoreDetails, MoreDetailsGroup } from "@/features/crm/shared/ui/MoreDetails";
+import { PartyModeField, type PartyMode } from "@/shell/pickers/PartyModeField";
+import { RecordPicker } from "@/shell/pickers/RecordPicker";
 
 const NONE = "";
 const UNASSIGNED = "__unassigned__";
@@ -111,6 +111,9 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [duplicates, setDuplicates] = useState<OpportunityDuplicate[]>([]);
+  // Selling to a business (a company, optionally its contact) or to a person (no company: they become an individual customer).
+  const [partyMode, setPartyMode] = useState<PartyMode>("business");
+  const forPerson = mode === "create" && !account && partyMode === "person";
 
   const set = <K extends keyof FormValues>(key: K) => (value: FormValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }));
@@ -171,7 +174,10 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
   const amount = Number(values.amount);
   const cancelHref = opportunity ? `/crm/opportunities/${opportunity.id}` : account ? `/crm/accounts/${account.id}` : "/crm/opportunities";
   // A deal is for a company, or for a person (their company, or an individual customer created for them).
-  const ready = Boolean(values.name.trim() && (values.accountId || (mode === "create" && values.contactId && values.contactId !== NONE)));
+  const ready = Boolean(values.name.trim() && (forPerson ? values.contactId && values.contactId !== NONE : values.accountId));
+  const chosenContact = contacts.find((row) => row.id === values.contactId);
+  const contactSelected = values.contactId && values.contactId !== NONE
+    ? { id: values.contactId, label: chosenContact?.displayName ?? opportunity?.contactName ?? "Contact" } : null;
   // The currency field shows only when the organization works in more than one.
   const singleCurrency = options.currencies.length <= 1 && values.currencyCode === options.baseCurrency;
 
@@ -179,7 +185,7 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
     <RecordFormPage
       header={{
         title: opportunity ? `Edit ${opportunity.code}` : "New deal",
-        description: opportunity ? undefined : "A deal with a company. Only the name and the company are needed to start.",
+        description: opportunity ? undefined : "A deal with a business or a person. Only a name and who it is with are needed to start.",
       }}
       banner={
         <div className="flex flex-col gap-3">
@@ -218,22 +224,28 @@ function OpportunityForm({ opportunity, options, account }: { opportunity?: Oppo
       <FormSection title="Deal" description="What the deal is, who it is with, and when it should close.">
         <TextField label="Deal name" isRequired className="sm:col-span-2" value={values.name} onChange={set("name")} errorMessage={fieldErrors.name}
           placeholder="For example: Acme – ERP implementation" />
+        {/* Who the deal is with: a business, or a person — the form changes shape instead of a company that is sometimes not required. */}
+        {mode === "create" && !account && (
+          <PartyModeField value={partyMode} onChange={(next) => { setPartyMode(next); setValues((current) => ({ ...current, accountId: "", accountName: "", contactId: NONE })); }} />
+        )}
         {account && !opportunity ? (
           <TextField label="Company" isReadOnly value={values.accountName} onChange={() => undefined} description="Opened from this company." />
-        ) : (
-          <AccountPicker label="Company" isRequired value={values.accountId || null} errorMessage={fieldErrors.accountId || undefined}
-            description={values.accountName ? `Chosen: ${values.accountName}` : mode === "create" ? "Leave empty to sell to a person: choose them below." : "Every deal belongs to a company."}
-            onChange={(id, name) => setValues((current) => ({ ...current, accountId: id ?? "", accountName: name ?? "", contactId: NONE }))} />
-        )}
-        {mode === "create" && !values.accountId && !account && (
-          <ContactPicker label="Person buying" value={values.contactId && values.contactId !== NONE ? values.contactId : null}
-            description="For a sale to a person: the deal is for their company, or for them as an individual customer."
+        ) : forPerson ? (
+          <RecordPicker kind="contact" label="Person buying" isRequired value={values.contactId && values.contactId !== NONE ? values.contactId : null} selected={contactSelected}
+            description="They become an individual customer; no company is needed. Not on the list? Type their name and create them here."
             onChange={(id) => setValues((current) => ({ ...current, contactId: id ?? NONE }))} />
+        ) : (
+          <RecordPicker kind="company" label="Company" isRequired value={values.accountId || null} errorMessage={fieldErrors.accountId || undefined}
+            selected={values.accountId ? { id: values.accountId, label: values.accountName || "Company" } : null}
+            description={mode === "create" ? "Not on the list? Type its name and create it here." : undefined}
+            onChange={(id, record) => setValues((current) => ({ ...current, accountId: id ?? "", accountName: record?.label ?? "", contactId: NONE }))} />
         )}
-        {(values.accountId || account) && <Select label="Primary contact" isDisabled={!values.accountId} selectedKey={values.contactId} onSelectionChange={(key) => set("contactId")(String(key ?? NONE))}
-          description="More contacts can be added on the deal."
-          options={[{ value: NONE, label: !values.accountId ? "Choose a company first" : contacts.length ? "No primary contact" : "This company has no contacts" },
-            ...contacts.map((row) => ({ value: row.id, label: row.displayName }))]} />}
+        {!forPerson && (values.accountId || account) && (
+          <RecordPicker kind="contact" label="Primary contact" value={values.contactId && values.contactId !== NONE ? values.contactId : null} selected={contactSelected}
+            filters={{ accountId: values.accountId }} createPrefill={{ accountId: values.accountId, accountName: values.accountName }}
+            description={contacts.length ? "More contacts can be added on the deal." : "This company has no contacts yet: type a name to add one."}
+            onChange={(id) => set("contactId")(id ?? NONE)} />
+        )}
         {/* Short fields share a line on a phone; from a tablet up the wrapper steps aside (display: contents). */}
         <div className="grid grid-cols-2 gap-3 sm:contents">
           <TextField label="Value" inputMode="decimal" value={values.amount} onChange={set("amount")} errorMessage={fieldErrors.amount}

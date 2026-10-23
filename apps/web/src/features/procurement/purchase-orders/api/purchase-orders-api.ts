@@ -119,7 +119,7 @@ export type PurchaseOrderOptions = {
   views: Array<{ key: string; label: string }>; cancelReasons: Coded[]; sentChannels: Coded[]; statusLabels: Record<string, string>; receiptLabels: Record<string, string>;
   billingLabels: Record<string, string>; paymentLabels: Record<string, string>; communicationLabels: Record<string, string>; productTypeLabels: Record<string, string>;
   settings: { billingBasis: "receipt" | "order"; requireExpectedDate: boolean; defaultWarehouseId: string | null; billHeldGoods: boolean; postReceiptAccrual: boolean;
-    useIndents: boolean; useRfqs: boolean; reorderCreates: "purchase_order" | "indent" };
+    useIndents: boolean; useRfqs: boolean; reorderCreates: "purchase_order" | "indent"; allowReceiptWithoutOrder?: boolean };
   suppliers: Array<ProcurementPickRow & { supplier_number: string; name: string; status: string; currency_code: string }>;
   products: Array<ProcurementPickRow & { code: string; name: string; item_type: string; track_inventory: boolean; purchase_uom_id: string | null; uom_id: string | null; last_purchase_price: string | null; tax_category_id: string | null;
     contract_rate?: string | null; contract_number?: string | null }>;
@@ -228,6 +228,12 @@ export type Receivable = {
 };
 export const getReceivable = (orderId: string, exceptReceiptId?: string) =>
   get<{ receivable: Receivable }>(`/purchase-orders/${orderId}/receivable${qs({ exceptReceiptId })}`).then((result) => result.receivable);
+// Goods that came without an order (Create-Where-You-Are PR3): raises and confirms a matching order, then drafts the receipt against it.
+export const receiveWithoutOrder = (input: {
+  supplierId: string; reason: string; warehouseId?: string; receiptDate?: string; supplierChallanNumber?: string;
+  lines: Array<{ productId: string; quantity: string; unitPrice: string }>;
+}) => post<{ result: { orderId: string; purchaseOrderNumber: string; approvalRequired: boolean; receipt: { id: string; receiptNumber: string; status: string } | null } }>(
+  "/goods-receipts", input).then((result) => result.result);
 export const createGoodsReceipt = (orderId: string, input: Record<string, unknown>) =>
   post<{ result: { id: string; receiptNumber: string; status: string } }>(`/purchase-orders/${orderId}/receipts`, input).then((result) => result.result);
 export const listGoodsReceipts = (filters: Record<string, string | undefined> = {}) => get<{ rows: GoodsReceiptRow[] }>(`/goods-receipts${qs(filters)}`).then((result) => result.rows);

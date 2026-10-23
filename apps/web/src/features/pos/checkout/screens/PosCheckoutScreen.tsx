@@ -49,6 +49,8 @@ import {
   releasePosCheckout,
   setPosCartNotes,
   overridePosLinePrice,
+  addPosOpenItem,
+  getPosOpenItemOptions,
   type PosCartIssue,
 } from "@/features/pos/checkout/api/checkout-api";
 import { money, statusLabel, statusTone } from "@/features/pos/shared/format";
@@ -155,6 +157,15 @@ export function PosCheckoutScreen() {
   const [resumeChanges, setResumeChanges] = useState<PosCartIssue[]>([]);
   const [holdOpen, setHoldOpen] = useState(false);
   const [priceLine, setPriceLine] = useState<PosCart["lines"][number] | null>(null);
+  // An open item (Create-Where-You-Are POS1): something not in the catalogue, billed by a typed name, price and GST.
+  const [openItemText, setOpenItemText] = useState<string | null>(null);
+  const openItemOptions = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "open-item-options"),
+    queryFn: () => getPosOpenItemOptions(cart?.id ?? "-"),
+    enabled: Boolean(cart?.id),
+    staleTime: 5 * 60_000,
+  });
+  const canOpenItem = Boolean(openItemOptions.data?.allowed);
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
   // This app has no TanStack Query SSR hydration boundary (no dehydrate/
   // HydrationBoundary anywhere), so shiftsQuery.isLoading is not
@@ -637,6 +648,12 @@ export function PosCheckoutScreen() {
               paused={!editable}
               onCart={(next) => { setCart(next); setError(null); setConflict(null); }}
             />
+            {canOpenItem && editable && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-sm text-text-secondary">
+                <span>Not in the catalogue?</span>
+                <Button variant="outline" size="compact" onPress={() => setOpenItemText("")}><Plus className="size-4" aria-hidden="true" />Open item</Button>
+              </div>
+            )}
           </PosPanel>
 
         </div>
@@ -852,9 +869,13 @@ export function PosCheckoutScreen() {
 
                       {editable && (
                         <div className="flex flex-wrap items-center gap-2">
-                          <Button variant="ghost" size="compact" onPress={() => setPriceLine(line)}>
-                            {line.price_override ? "Price changed — edit" : "Change price"}
-                          </Button>
+                          {line.system_role ? (
+                            <span className="text-xs text-text-secondary">Open item{line.hsn_sac_code ? ` · HSN/SAC ${line.hsn_sac_code}` : ""}</span>
+                          ) : (
+                            <Button variant="ghost" size="compact" onPress={() => setPriceLine(line)}>
+                              {line.price_override ? "Price changed — edit" : "Change price"}
+                            </Button>
+                          )}
                         </div>
                       )}
                       {canDiscount && editable && (
@@ -1102,6 +1123,19 @@ export function PosCheckoutScreen() {
         </a>
       )}
       {holdOpen && <HoldDialog onClose={() => setHoldOpen(false)} onHold={(note) => holdCurrentCart(note)} busy={loading} />}
+      {openItemText !== null && cart && (
+        <OpenItemDialog initialName={openItemText} currency={currency} taxCategories={openItemOptions.data?.taxCategories ?? []} busy={loading}
+          onClose={() => setOpenItemText(null)}
+          onAdd={async (input) => {
+            try {
+              const result = await addPosOpenItem(cart.id, { ...input, expectedVersion: cart.version });
+              setCart(result.cart); setError(null); setConflict(null); setOpenItemText(null);
+              return null;
+            } catch (err) {
+              return err instanceof PosApiError ? err.message : "The open item could not be added.";
+            }
+          }} />
+      )}
       {priceLine && (
         <PriceDialog line={priceLine} currency={currency} onClose={() => setPriceLine(null)}
           onApply={(input) => { overridePrice(priceLine.id, input); setPriceLine(null); }} />
@@ -1230,6 +1264,50 @@ function HoldDialog({ onClose, onHold, busy }: { onClose: () => void; onHold: (n
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onPress={onClose}>Cancel</Button>
           <Button variant="primary" isLoading={busy} onPress={() => onHold(note.trim())}>Hold bill</Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+// An open item: what is sold, its price, quantity, GST category and HSN/SAC (a SAC starts with 99). The server works out the tax at this
+// outlet and refuses a category or code that does not work here; the line keeps the price typed.
+function OpenItemDialog({ initialName, currency, taxCategories, busy, onClose, onAdd }: {
+  initialName: string; currency: string; taxCategories: Array<{ id: string; code: string; name: string }>; busy: boolean; onClose: () => void;
+  /** Adds the line; resolves to an error message when it was refused. */
+  onAdd: (input: { itemName: string; unitPrice: string; quantity: number; hsnSac: string | null; taxCategoryId: string | null }) => Promise<string | null>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [name, setName] = useState(initialName);
+  const [price, setPrice] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [hsnSac, setHsnSac] = useState("");
+  const [taxCategoryId, setTaxCategoryId] = useState("default");
+  const valid = name.trim() && /^\d{1,12}(\.\d{1,6})?$/.test(price.trim()) && Number(quantity) > 0;
+  return (
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Open item">
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-text-secondary">For something not in the catalogue yet. It is billed with the name, price and GST typed here, and does not change stock.</p>
+        <TextField label="What is sold" value={name} onChange={setName} isRequired autoFocus />
+        <div className="grid grid-cols-2 gap-3">
+          <TextField label={`Price per unit (${currency})`} value={price} onChange={(value) => setPrice(value.replace(/[^0-9.]/g, ""))} inputMode="decimal" isRequired />
+          <TextField label="Quantity" value={quantity} onChange={(value) => setQuantity(value.replace(/[^0-9.]/g, ""))} inputMode="decimal" isRequired />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Select label="GST" selectedKey={taxCategoryId} onSelectionChange={(key) => setTaxCategoryId(String(key))}
+            options={[{ value: "default", label: "Company default" }, ...taxCategories.map((tax) => ({ value: tax.id, label: tax.name }))]} />
+          <TextField label="HSN / SAC" value={hsnSac} onChange={(value) => setHsnSac(value.replace(/[^0-9]/g, "").slice(0, 8))} inputMode="numeric"
+            description="A service code starts with 99." />
+        </div>
+        {failure && <PosAlert>{failure}</PosAlert>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onPress={onClose}>Cancel</Button>
+          <Button variant="primary" isDisabled={!valid || busy || saving} onPress={() => {
+            setSaving(true);
+            void onAdd({ itemName: name.trim(), unitPrice: price.trim(), quantity: Number(quantity), hsnSac: hsnSac || null,
+              taxCategoryId: taxCategoryId === "default" ? null : taxCategoryId }).then((message) => { setFailure(message); setSaving(false); });
+          }}>{saving ? "Adding…" : "Add to bill"}</Button>
         </div>
       </div>
     </Dialog>

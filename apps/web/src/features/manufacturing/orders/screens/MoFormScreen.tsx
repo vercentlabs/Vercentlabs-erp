@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ComboBox, ErrorState, PageHeader, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, ComboBox, Drawer, ErrorState, PageHeader, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -17,6 +17,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { useSubmitKey } from "@/shared/http/submit-once";
 
 import { itemUnits } from "@/features/manufacturing/boms/api/bom-api";
+import { BomNewScreen } from "@/features/manufacturing/boms/screens/BomNewScreen";
 import { MO_BASE, createOrder, errorMessage, getOrder, inr, newKey, orderOptions, previewOrder, qty, saveDraft, type MoOptions, type MoPreview } from "../api/mo-api";
 
 type FormState = { finishedItemId: string | null; plannedQuantity: string; uomId: string | null; plannedStartAt: string; plannedEndAt: string; manufacturingWarehouseId: string | null;
@@ -68,6 +69,9 @@ function MoForm({ orderId, options, initial, version, number }: { orderId?: stri
   const [state, setState] = useState<FormState>(() => initial ?? withProduct({ ...blank(), productionOwnerId: options.currentUserId }, null, options));
   const [preview, setPreview] = useState<MoPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [bomFor, setBomFor] = useState<string | null>(null);
+  const [bomNote, setBomNote] = useState<string | null>(null);
+  const queryClientForBom = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [key] = useState(newKey);
   const submitKey = useSubmitKey();
@@ -101,18 +105,39 @@ function MoForm({ orderId, options, initial, version, number }: { orderId?: stri
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ComboBox label="Product" isRequired isDisabled={Boolean(orderId)} placeholder="Products with a BOM" selectedKey={state.finishedItemId}
             onSelectionChange={(value) => { const id = value ? String(value) : null; setState((current) => withProduct({ ...current, finishedItemId: id }, options.products.find((row) => row.id === id) ?? null, options)); setPreview(null); }}
-            options={(options.products ?? []).map((row) => ({ value: row.id, label: `${row.code} · ${row.name}${row.effectiveRevision ? "" : " (no effective BOM)"}` }))} />
+            options={(options.products ?? []).map((row) => ({ value: row.id, label: `${row.code} · ${row.name}`,
+              description: !row.hasBom ? "No BOM yet: create one from here" : row.effectiveRevision ? undefined : "BOM not approved yet" }))} />
           <TextField label="Planned quantity" isRequired inputMode="decimal" value={state.plannedQuantity} onChange={(value) => set("plannedQuantity", value)} />
           <Select label="Unit" selectedKey={state.uomId ?? product?.uomId ?? null} onSelectionChange={(value) => set("uomId", String(value))}
             options={(units.data?.units ?? []).map((unit) => ({ value: unit.uomId, label: unit.code }))} />
         </div>
-        {product && (
+        {/* A product without a recipe gets one from here (Create-Where-You-Are M1): the BOM form opens beside the order. */}
+        {product && !product.hasBom && (
+          <Notice tone="warning">
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span>{`${product.name} has no bill of materials yet, so the order cannot know its materials.`}</span>
+              <Button variant="outline" size="compact" onPress={() => setBomFor(product.id)}>Create its BOM</Button>
+            </span>
+          </Notice>
+        )}
+        {bomNote && <Notice tone="info">{bomNote}</Notice>}
+        {product && product.hasBom && (
           <p className="text-xs text-text-muted">
             {product.effectiveRevision ? `BOM revision ${product.effectiveRevision.number} is in use now.` : "No BOM revision is in use now."}
             {product.scheduledRevision ? ` Revision ${product.scheduledRevision.number} takes over from ${formatDateTime(product.scheduledRevision.from)} — orders starting then use it.` : ""}
           </p>
         )}
       </Panel>
+      {bomFor && (
+        <Drawer isOpen isDismissable onOpenChange={(open) => !open && setBomFor(null)} title="New bill of materials" size="lg">
+          <BomNewScreen initialItemId={bomFor} onCreated={(bom) => {
+            setBomFor(null);
+            void queryClientForBom.invalidateQueries({ queryKey: scopedQueryKey(workspace, "manufacturing", "order-options") });
+            setBomNote(bom.submitted ? `BOM ${bom.number} is submitted for approval. Once approved, Calculate shows its materials.`
+              : `BOM ${bom.number} is saved as a draft. Approve it (Manufacturing › Bills of Materials) and Calculate shows its materials.`);
+          }} />
+        </Drawer>
+      )}
       <Panel title="Schedule and warehouses">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <TextField label="Planned start" isRequired type="datetime-local" value={state.plannedStartAt} onChange={(value) => set("plannedStartAt", value)} />

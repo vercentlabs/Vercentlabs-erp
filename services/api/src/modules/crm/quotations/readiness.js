@@ -111,7 +111,7 @@ export async function getQuotationReadiness(client, context, opportunityId) {
       [context.organizationId, account.id]) : { rows: [] },
     () => client.query(
       `SELECT line.id, line.item_id, line.description, line.quantity, line.unit_price, line.discount_percent, item.code AS item_code, item.name AS item_name,
-              item.status AS item_status, uom.code AS uom_code
+              item.status AS item_status, uom.code AS uom_code, item.system_role
          FROM tenant.crm_opportunity_items line
          JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
          LEFT JOIN tenant.units_of_measure uom ON uom.id = item.uom_id
@@ -195,10 +195,15 @@ export async function getQuotationReadiness(client, context, opportunityId) {
       id: row.id, type: row.address_type, label: [row.line1, row.city, row.state].filter(Boolean).join(", "), stateCode: row.state_code,
       isDefaultBilling: row.is_default_billing, isDefaultShipping: row.is_default_shipping,
     })),
+    // A deal line typed without a catalogue product (Create-Where-You-Are): its name is its description, and it is quoted as typed.
     lines: lines.rows.map((row) => ({
-      id: row.id, itemId: row.item_id, itemCode: row.item_code, itemName: row.item_name, active: row.item_status === "active", uom: row.uom_code,
-      description: row.description, quantity: Number(row.quantity), estimatedUnitPrice: Number(row.unit_price), estimatedDiscountPercent: Number(row.discount_percent ?? 0),
+      id: row.id, itemId: row.item_id, itemCode: row.system_role ? null : row.item_code, itemName: row.system_role ? row.description : row.item_name,
+      active: row.item_status === "active", uom: row.uom_code, unlisted: Boolean(row.system_role),
+      description: row.system_role ? null : row.description, quantity: Number(row.quantity), estimatedUnitPrice: Number(row.unit_price), estimatedDiscountPercent: Number(row.discount_percent ?? 0),
     })),
+    taxCategories: (await client.query(
+      `SELECT id, code, name FROM tenant.tax_categories WHERE organization_id = $1 AND status = 'active' AND applies_to IN ('all', 'sales', 'both') ORDER BY code`,
+      [context.organizationId])).rows,
     priceLists: priceLists.rows.map((row) => ({ id: row.id, code: row.code, name: row.name, currencyCode: String(row.currency_code).trim(), taxInclusive: row.tax_inclusive })),
     paymentTerms: paymentTerms.rows.map((row) => ({ id: row.id, code: row.code, name: row.name })),
     currencies: activeCurrencies,

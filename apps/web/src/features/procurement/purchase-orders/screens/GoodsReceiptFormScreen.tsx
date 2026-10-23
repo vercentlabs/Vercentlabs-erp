@@ -30,6 +30,7 @@ import {
 import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
 import { FormSection } from "@/shared/ui/FormSection";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { ReceiveWithoutOrderForm } from "../components/ReceiveWithoutOrderForm";
 
 // A lot of a lot-tracked line received in several lots: its number, how much of the line it is, and its dates.
 type Lot = { batch: string; quantity: string; expiry: string; manufactured: string };
@@ -69,7 +70,19 @@ export function GoodsReceiptFormScreen({ orderId, receiptId }: { orderId?: strin
 function OrderPicker({ onPick }: { onPick: (id: string) => void }) {
   const workspace = useWorkspaceContext();
   const [search, setSearch] = useState("");
+  // Goods that came without an order (Create-Where-You-Are PR3), when Procurement settings allow it.
+  const [withoutOrder, setWithoutOrder] = useState(false);
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options"), queryFn: () => getPurchaseOrderOptions(), staleTime: 60_000 });
   const orders = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "receivable-orders", search), queryFn: () => listPurchaseOrders({ view: "receivable", search, limit: 50 }) });
+  const canWithoutOrder = Boolean(options.data && options.data.settings.allowReceiptWithoutOrder !== false && options.data.capabilities.receive);
+  if (withoutOrder && options.data) {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader title="New Goods Receipt" description="Goods that arrived without a purchase order." />
+        <ReceiveWithoutOrderForm options={options.data} onCancel={() => setWithoutOrder(false)} />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="New Goods Receipt" description="Choose the confirmed purchase order the goods arrived against. Only orders with something still to receive are listed." />
@@ -78,6 +91,12 @@ function OrderPicker({ onPick }: { onPick: (id: string) => void }) {
         {orders.isLoading && <p className="text-sm text-text-secondary">Loading orders…</p>}
         {orders.error && <Notice>{errorMessage(orders.error)}</Notice>}
         {orders.data && !orders.data.rows.length && <p className="text-sm text-text-secondary">No confirmed purchase order is waiting for goods.</p>}
+        {canWithoutOrder && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3 text-sm text-text-secondary">
+            <span>Goods came without an order?</span>
+            <Button variant="outline" size="compact" onPress={() => setWithoutOrder(true)}>Receive without an order</Button>
+          </div>
+        )}
         <div className="flex flex-col divide-y divide-border">
           {orders.data?.rows.map((order) => (
             <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-2">

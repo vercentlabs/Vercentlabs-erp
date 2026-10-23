@@ -18,6 +18,8 @@ import { Notice } from "@/shared/ui/Panel";
 import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
+import type { PickedRecord } from "@/shell/pickers/types";
 
 import { paymentOptions } from "../../payables/api/payables-api";
 import { cents, errorMessage, errorStatus, fromCents, inr, receiptOptions } from "../../receivables/api/receivables-api";
@@ -59,6 +61,11 @@ export function DirectDocumentFormScreen({ kind }: { kind: Kind }) {
     staleTime: 60_000, retry: false,
   });
   const [partyId, setPartyId] = useState<string | null>(null);
+  // Create where you are (A1): a first-time customer or supplier is created here and chosen.
+  const [createdParties, setCreatedParties] = useState<PickedRecord[]>([]);
+  const quickCreate = useQuickCreate(kind === "invoice" ? "customer" : "supplier", {
+    onCreated: (record) => { setCreatedParties((current) => [...current, record]); setPartyId(record.id); },
+  });
   const [form, setForm] = useState({ date: "", dueDate: "", reference: "", notes: "" });
   const set = (key: keyof typeof form) => (value: string) => setForm((current) => ({ ...current, [key]: value }));
   const [lines, setLines] = useState<Line[]>(() => [blankLine()]);
@@ -114,7 +121,10 @@ export function DirectDocumentFormScreen({ kind }: { kind: Kind }) {
       <FormSection columns={1} title={kind === "invoice" ? "Invoice" : "Bill"}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ComboBox label={text.party} isRequired placeholder={`Choose a ${text.party.toLowerCase()}`} selectedKey={partyId} onSelectionChange={(key) => setPartyId(key ? String(key) : null)}
-            options={options.data.parties.map((entry) => ({ value: entry.id, label: entry.number ? `${entry.name} · ${entry.number}` : entry.name }))} />
+            options={[...options.data.parties.map((entry) => ({ value: entry.id, label: entry.number ? `${entry.name} · ${entry.number}` : entry.name })),
+              ...createdParties.filter((record) => !options.data!.parties.some((entry) => entry.id === record.id)).map((record) => ({ value: record.id, label: record.label }))]}
+            onCreate={quickCreate.canCreate ? quickCreate.open : undefined} createLabel={(typed) => (typed ? `Create ${quickCreate.noun} "${typed}"` : `Create a new ${quickCreate.noun}`)} />
+          {quickCreate.drawer}
           <TextField label={text.date} type="date" isRequired value={form.date || options.data.today} onChange={set("date")} description="Posts on this date; its period must be open." />
           <TextField label="Due date" type="date" value={form.dueDate} onChange={set("dueDate")} description={`Left empty, the ${text.party.toLowerCase()}'s payment terms decide.`} />
           {kind === "bill" && <TextField label="Supplier's invoice number" value={form.reference} onChange={set("reference")} maxLength={100} />}

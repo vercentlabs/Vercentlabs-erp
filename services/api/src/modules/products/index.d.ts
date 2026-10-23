@@ -159,3 +159,9 @@ export function importProducts(client: Client, context: Context, input: { bytes:
 export function buildProductImportTemplate(): string;
 export function buildProductImportErrorFile(results: any[]): string;
 export function exportProducts(client: Client, context: Context, filters?: Input): Promise<{ fileName: string; csv: string; count: number }>;
+
+// Create-Where-You-Are: the system "Unlisted item" a line typed without a catalogue item points at.
+export declare const UNLISTED_ITEM_ROLE: "unlisted";
+export declare function ensureUnlistedItem(client: unknown, organizationId: string): Promise<string>;
+export declare function isUnlistedItem(client: unknown, organizationId: string, itemId: string | null | undefined): Promise<boolean>;
+export declare function hsnSacKindOf(code: string | null | undefined): "hsn" | "sac" | null;

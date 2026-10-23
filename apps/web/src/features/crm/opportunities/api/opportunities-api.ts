@@ -208,6 +208,8 @@ export type OpportunityAssignmentEntry = {
 export type OpportunityProductLine = {
   id: string; productId: string; productCode: string | null; productName: string | null; description: string | null; quantity: number; unitPrice: number;
   discountPercent: number; lineTotal: number;
+  // A line typed without a catalogue product (Create-Where-You-Are): productName is the name typed.
+  unlisted?: boolean;
 };
 export type OpportunityProductOption = { id: string; code: string; name: string; type: string };
 export type OpportunityContact = {

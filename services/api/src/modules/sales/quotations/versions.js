@@ -163,6 +163,9 @@ export async function inputFromQuotation(client, context, quote, { carryPrices =
     discountReasonText: version.discount_reason_text,
     lines: lines.map((line) => ({
       itemId: line.item_id,
+      itemName: line.item_name_snapshot,
+      hsnSac: line.hsn_sac_snapshot,
+      taxCategoryId: line.tax_category_id,
       uomId: line.uom_id,
       warehouseId: line.warehouse_id,
       description: line.description_snapshot,

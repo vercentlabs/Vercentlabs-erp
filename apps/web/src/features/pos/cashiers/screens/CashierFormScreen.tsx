@@ -1,6 +1,6 @@
 "use client";
 
-// Create or edit a cashier: the workspace user (an existing one — new people are invited under Users first), the cashier code, outlets and
+// Create or edit a cashier: the workspace user (an existing one, or someone invited from here), the cashier code, outlets and
 // a default outlet, an optional short display name for receipts and an HR employee. Saved inactive unless activated now; a used cashier
 // keeps its code and user.
 import { useState } from "react";
@@ -19,6 +19,7 @@ import {
   CASHIERS_BASE, createCashier, errorMessage, fieldErrors, getCashier, getCashierOptions, setCashierOutlets, updateCashier, type CashierDetail, type CashierOptions,
 } from "../api/cashiers-api";
 import { useSubmitKey } from "@/shared/http/submit-once";
+import { InviteUserDialog, useCanInvite } from "@/shell/pickers/InviteUserDialog";
 
 type Draft = { userId: string; code: string; displayName: string; employeeId: string; outletIds: string[]; defaultOutletId: string; permissionProfileId: string; notes: string; activate: boolean };
 
@@ -43,6 +44,10 @@ function Form({ options, cashier, initialOutletId }: { options: CashierOptions; 
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  // Someone new is invited from here (Create-Where-You-Are POS2); they can be made a cashier once they accept.
+  const canInvite = useCanInvite();
+  const [inviting, setInviting] = useState(false);
+  const [invited, setInvited] = useState<string | null>(null);
   const can = cashier?.capabilities ?? options.capabilities;
   const set = <K extends keyof Draft>(key: K) => (value: Draft[K]) => { setDraft((current) => ({ ...current, [key]: value })); setErrors((current) => ({ ...current, [key]: "" })); };
   const editable = cashier ? can.edit : can.create;
@@ -83,7 +88,7 @@ function Form({ options, cashier, initialOutletId }: { options: CashierOptions; 
       header={{
         title: cashier ? `Edit ${cashier.code} · ${cashier.name}` : "New cashier",
         description: cashier ? "Their name and sign-in stay with their workspace user. Receipts already issued keep the code and name they were printed with."
-          : "Choose an existing workspace user. Someone new is invited under Settings → Users first; they sign in with their own account.",
+          : "Choose a workspace user, or invite someone new; they sign in with their own account.",
       }}
       banner={<ErrorBanner message={error} />}
       formActions={
@@ -98,6 +103,15 @@ function Form({ options, cashier, initialOutletId }: { options: CashierOptions; 
           options={withNone(members.map((member) => ({ value: member.id, label: `${member.name} · ${member.email}` })), "Choose a user")}
           onSelectionChange={(key) => key !== null && set("userId")(String(key))}
           description={locked ? "Fixed once used: sessions and receipts belong to this person." : "One cashier profile per person, whatever the number of outlets."} />
+        {!cashier && (
+          <div className="flex flex-col gap-1 text-sm text-text-secondary sm:col-span-2">
+            {invited ? <p>{`Invitation sent to ${invited}. Make them a cashier here once they accept.`}</p> : null}
+            {canInvite ? (
+              <span className="flex flex-wrap items-center gap-2">Someone new?<Button variant="outline" size="compact" onPress={() => setInviting(true)}>Invite a person</Button></span>
+            ) : <p>Someone new? Ask your administrator to invite them; they appear here once they join.</p>}
+          </div>
+        )}
+        {inviting && <InviteUserDialog suggestedRole="Cashier" onClose={() => setInviting(false)} onSent={(email) => { setInviting(false); setInvited(email); }} />}
         <TextField label="Cashier code" value={draft.code} onChange={(value) => set("code")(value.toUpperCase().replace(/\s/g, ""))} errorMessage={errors.code}
           isDisabled={!editable || locked} placeholder={options.nextCode}
           description={locked ? "Fixed once used." : cashier ? "Unique in the company." : `Leave empty to use ${options.nextCode}.`} />

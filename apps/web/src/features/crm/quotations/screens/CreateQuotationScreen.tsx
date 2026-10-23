@@ -7,9 +7,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { TypedLineFields } from "@/features/sales/shared/TypedLineFields";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, Plus, Trash2, X } from "lucide-react";
-import { Button, Checkbox, IconButton, PageHeader, Radio, RadioGroup, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { ComboBox, Button, Checkbox, IconButton, PageHeader, Radio, RadioGroup, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { changeOpportunityStage, searchOpportunityProducts } from "@/features/crm/opportunities/api/opportunities-api";
 import { GST_STATES, gstStateByName } from "@/features/crm/shared/gst-states";
@@ -31,6 +32,8 @@ const CREATE = "__create__";
 type Line = {
   key: string; itemId: string; name: string; description: string; quantity: string; discountPercent: string;
   estimate: number | null; useEstimate: boolean; reason: string; fromOpportunity: boolean;
+  // A line without a catalogue product (Create-Where-You-Are C6): name, HSN/SAC, GST and price typed.
+  typed: boolean; hsnSac: string; taxCategoryId: string; price: string;
 };
 
 // The quotation link for a deal (the deal page, its Quotes tab and the pipeline card all open it).
@@ -98,15 +101,18 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
   const [terms, setTerms] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
   const [lines, setLines] = useState<Line[]>(() => readiness.lines.filter((line) => line.active).map((line) => ({
-    key: line.id, itemId: line.itemId, name: `${line.itemName} (${line.itemCode})`, description: line.description ?? "", quantity: String(line.quantity),
+    key: line.id, itemId: line.itemId, name: line.unlisted ? line.itemName : `${line.itemName} (${line.itemCode})`, description: line.description ?? "", quantity: String(line.quantity),
     discountPercent: line.estimatedDiscountPercent ? String(line.estimatedDiscountPercent) : "", estimate: line.estimatedUnitPrice, useEstimate: false, reason: "", fromOpportunity: true,
+    typed: Boolean(line.unlisted), hsnSac: "", taxCategoryId: "", price: line.unlisted ? String(line.estimatedUnitPrice) : "",
   })));
   const [search, setSearch] = useState("");
   const products = useQuery({ queryKey: ["quotation-product-search", search], queryFn: () => searchOpportunityProducts(search), enabled: search.trim().length >= 2 });
 
   const isCustomer = Boolean(account?.isCustomer);
-  const linking = !isCustomer && customerChoice !== CREATE;
-  const creatingCustomer = !isCustomer && customerChoice === CREATE;
+  // Someone who may not create customers quotes the company as a prospect; its customer is opened with the order (Create-Where-You-Are C7).
+  const asProspect = Boolean(account) && !isCustomer && !can.createCustomer;
+  const linking = !isCustomer && !asProspect && customerChoice !== CREATE;
+  const creatingCustomer = !isCustomer && !asProspect && customerChoice === CREATE;
   // A person (B2C) needs no billing address or GSTIN: GST treats them as a consumer. They may still give an address for the invoice.
   const individual = Boolean(account?.isIndividual);
   const offersAddress = creatingCustomer && !account?.hasBillingAddress;
@@ -118,7 +124,6 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
 
   const problems = [
     ...readiness.checks.filter((check) => check.blocking && !check.met).map((check) => `${check.label}: ${check.value ?? "missing"}`),
-    !isCustomer && !can.createCustomer && "This company is not a customer yet, and you cannot create or link customers. Ask a manager to create its customer first.",
     creatingCustomer && strongMatch && "This company is already a customer: link it to the existing customer.",
     creatingCustomer && !strongMatch && visibleMatches.length > 0 && !confirmNoMatch && "Confirm that none of the matching customers is this company.",
     needsAddress && !addressComplete && "Enter the customer's billing address.",
@@ -131,7 +136,7 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
 
   const input = (): CreateQuotationInput => ({
     idempotencyKey,
-    ...(isCustomer ? {} : linking
+    ...(isCustomer ? {} : asProspect ? { customer: { mode: "prospect" as const } } : linking
       ? { customer: { mode: "link" as const, customerId: customerChoice } }
       : { customer: {
         mode: "create" as const, gstin: individual ? undefined : gstin.trim() || undefined, paymentTermId: customerTerms === NONE ? undefined : customerTerms, currencyCode,
@@ -148,9 +153,11 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
     termsAndConditions: terms.trim() || undefined,
     internalNotes: internalNotes.trim() || undefined,
     lines: lines.map((line) => ({
-      itemId: line.itemId, description: line.description.trim() || undefined, quantity: Number(line.quantity),
+      ...(line.typed ? { ...(line.itemId ? { itemId: line.itemId } : {}), itemName: line.name.trim(), hsnSac: line.hsnSac || undefined, taxCategoryId: line.taxCategoryId || undefined,
+        unitPrice: Number(line.price) } : { itemId: line.itemId }),
+      description: line.description.trim() || undefined, quantity: Number(line.quantity),
       discountPercent: line.discountPercent.trim() ? Number(line.discountPercent) : undefined,
-      ...(line.useEstimate && line.estimate !== null ? { unitPrice: line.estimate, manualPriceReason: line.reason.trim() } : {}),
+      ...(!line.typed && line.useEstimate && line.estimate !== null ? { unitPrice: line.estimate, manualPriceReason: line.reason.trim() } : {}),
     })),
   });
   const create = useMutation({ mutationFn: () => createQuotationFromOpportunity(opportunityId, input()), onSuccess: onCreated });
@@ -159,8 +166,7 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
 
   const chosenContact = readiness.contacts.find((contact) => contact.id === contactId);
   const customerName = isCustomer ? account?.name : linking ? visibleMatches.find((match) => match.id === customerChoice)?.name : account?.name;
-  const blockedOnCustomer = Boolean(account) && !isCustomer && !can.createCustomer;
-  const customerState = isCustomer ? "Customer" : linking ? "Links to this existing customer" : blockedOnCustomer ? "A manager must create the customer first" : "Customer created from the company";
+  const customerState = isCustomer ? "Customer" : asProspect ? "Quoted as a prospect; the customer is opened with the order" : linking ? "Links to this existing customer" : "Customer created from the company";
   // The deal's own estimate for the lines it knows a price for; Sales prices the quotation when it is saved.
   const estimate = lines.reduce((sum, line) => (line.estimate === null ? sum
     : sum + line.estimate * (Number(line.quantity) || 0) * (1 - (Number(line.discountPercent) || 0) / 100)), 0);
@@ -170,7 +176,6 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
     <div className="flex min-w-0 flex-col gap-5">
       {/* Said before the form, so nobody fills it in only to find Create disabled. */}
-      {blockedOnCustomer && <Banner tone="warning" message={`${account?.name ?? "This company"} is not a customer yet, and you cannot create or link customers. A manager must create its customer first; then come back to quote it.`} />}
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">{readiness.opportunity.code} · {readiness.opportunity.name}</h2>
         <ul className="grid gap-1 text-sm sm:grid-cols-2">
@@ -186,7 +191,9 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
       {account && !isCustomer && (
         <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border p-3">
           <h2 className="text-sm font-semibold">Customer</h2>
-          <p className="text-sm text-text-secondary">Sales quotes a customer. {account.name} is still a prospect: create its customer master, or link it to a customer that already exists (the company and this deal move to that customer).</p>
+          <p className="text-sm text-text-secondary">{asProspect
+            ? `${account.name} is still a prospect. The quotation goes to it as a prospect; its customer master is opened when the accepted quotation becomes a sales order.`
+            : `${account.name} is still a prospect: create its customer master, or link it to a customer that already exists (the company and this deal move to that customer).`}</p>
           {can.createCustomer ? (
             <RadioGroup label="Customer for this quotation" value={customerChoice} onChange={setCustomerChoice}>
               {visibleMatches.map((match) => <Radio key={match.id} value={match.id}><CustomerMatchLabel match={match} /></Radio>)}
@@ -225,7 +232,7 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
       {account && isCustomer && <p className="text-sm">Customer: <span className="font-medium">{account.name}</span>{account.customerNumber ? ` (${account.customerNumber})` : ""}</p>}
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <Select label="Contact person" selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key))}
+        <ComboBox label="Contact person" selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key))}
           options={[{ value: NONE, label: "No contact" }, ...readiness.contacts.map((contact) => ({ value: contact.id, label: [contact.name, contact.jobTitle].filter(Boolean).join(" · ") }))]} />
         {!linking && (
           <>
@@ -257,13 +264,19 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
                 <span className="text-sm font-medium">{index + 1}. {line.name}{line.fromOpportunity ? "" : " (added)"}</span>
                 <IconButton aria-label={`Remove ${line.name}`} size="compact" variant="ghost" onPress={() => setLines(lines.filter((entry) => entry.key !== line.key))}><Trash2 className="size-4" aria-hidden="true" /></IconButton>
               </div>
+              {line.typed && (
+                <TypedLineFields index={1} line={{ itemName: line.name, hsnSac: line.hsnSac, taxCategoryId: line.taxCategoryId, unitPrice: line.price }}
+                  taxCategories={readiness.taxCategories ?? []}
+                  onChange={(patch) => update(line.key, { ...(patch.itemName !== undefined ? { name: patch.itemName } : {}), ...(patch.hsnSac !== undefined ? { hsnSac: patch.hsnSac } : {}),
+                    ...(patch.taxCategoryId !== undefined ? { taxCategoryId: patch.taxCategoryId } : {}), ...(patch.unitPrice !== undefined ? { price: patch.unitPrice } : {}) })} />
+              )}
               <div className="grid gap-2 sm:grid-cols-4">
                 <TextField className="sm:col-span-2" label="Description" value={line.description} onChange={(description) => update(line.key, { description })} />
                 <TextField label="Quantity" inputMode="decimal" isRequired value={line.quantity} onChange={(quantity) => update(line.key, { quantity })} />
                 <TextField label="Discount %" inputMode="decimal" isDisabled={!can.applyDiscount} description={can.applyDiscount ? undefined : "No discount permission."}
                   value={line.discountPercent} onChange={(discountPercent) => update(line.key, { discountPercent })} />
               </div>
-              {line.estimate !== null && can.overridePrice && (
+              {!line.typed && line.estimate !== null && can.overridePrice && (
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Checkbox isSelected={line.useEstimate} onChange={(useEstimate) => update(line.key, { useEstimate })}>
                     Use the estimated price ({formatMoney(currencyCode, line.estimate)}) instead of the price list
@@ -281,12 +294,21 @@ function QuotationForm({ opportunityId, readiness, onClose, onCreated }: {
               {(products.data ?? []).slice(0, 8).map((product) => (
                 <li key={product.id}>
                   <Button variant="ghost" size="compact" onPress={() => {
-                    setLines([...lines, { key: crypto.randomUUID(), itemId: product.id, name: `${product.name} (${product.code})`, description: "", quantity: "1", discountPercent: "", estimate: null, useEstimate: false, reason: "", fromOpportunity: false }]);
+                    setLines([...lines, { key: crypto.randomUUID(), itemId: product.id, name: `${product.name} (${product.code})`, description: "", quantity: "1", discountPercent: "", estimate: null, useEstimate: false, reason: "", fromOpportunity: false,
+                      typed: false, hsnSac: "", taxCategoryId: "", price: "" }]);
                     setSearch("");
                   }}><Plus className="size-4" aria-hidden="true" />{product.name} ({product.code})</Button>
                 </li>
               ))}
             </ul>
+          )}
+          {/* Not in the catalogue: a line with just a name, HSN/SAC, GST and price (Create-Where-You-Are C6). */}
+          {search.trim().length >= 2 && !products.isFetching && (
+            <Button variant="outline" size="compact" className="w-fit" onPress={() => {
+              setLines([...lines, { key: crypto.randomUUID(), itemId: "", name: search.trim(), description: "", quantity: "1", discountPercent: "", estimate: null, useEstimate: false, reason: "",
+                fromOpportunity: false, typed: true, hsnSac: "", taxCategoryId: "", price: "" }]);
+              setSearch("");
+            }}><Plus className="size-4" aria-hidden="true" />{`Add "${search.trim()}" without a product`}</Button>
           )}
         </div>
       </section>

@@ -67,9 +67,12 @@ export function SupportWorkspaceScreen() {
   );
 }
 function newTicketAsk(o: Options, onDone: (id: string) => void): Ask {
-  return { title: "New ticket", confirm: "Create ticket", description: "A case raised by hand (a call, a walk-in). Link the customer from the Customer Master; email tickets are created by themselves.",
+  // A caller who is not a customer yet is recorded by name and phone (Create-Where-You-Are SU1); the customer can be linked later.
+  return { title: "New ticket", confirm: "Create ticket", description: "A case raised by hand (a call, a walk-in). Choose the customer, or note who called if they are not a customer yet; email tickets are created by themselves.",
     fields: [{ name: "subject", label: "Subject", kind: "text", required: true }, { name: "description", label: "Description", kind: "textarea", required: true },
-      { name: "customerId", label: "Customer", kind: "select", options: o.customers }, { name: "customerEmail", label: "Customer email (for replies)", kind: "text" },
+      { name: "customerId", label: "Customer", kind: "select", options: o.customers },
+      { name: "customerName", label: "Caller name (if not a customer yet)", kind: "text" }, { name: "customerPhone", label: "Caller phone", kind: "text" },
+      { name: "customerEmail", label: "Customer email (for replies)", kind: "text" },
       { name: "categoryId", label: "Category", kind: "select", options: o.categories }, { name: "priority", label: "Priority", kind: "select", initial: "normal", options: o.priorities },
       { name: "assignedUserId", label: "Agent", kind: "select", options: o.agents }],
     run: async (v, key) => { const body = Object.fromEntries(Object.entries(v).filter(([, x]) => x !== "")); const made = await deskApi.create({ ...body, idempotencyKey: key }); onDone(made.id); } };
@@ -194,7 +197,7 @@ export function TicketDetailScreen({ id }: { id: string }) {
     fields: [{ name: "reason", label: "Reason", kind: "textarea", required: true }], run: async (v) => { await run("cancel", v); } })}>Cancel</Button>);
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={`${d.number} · ${d.subject}`} description={[d.customer?.name ?? d.customerName, d.customerEmail, d.contact?.name, d.mailbox ? `via ${d.mailbox.address}` : null].filter(Boolean).join(" · ")} />
+      <PageHeader title={`${d.number} · ${d.subject}`} description={[d.customer?.name ?? d.customerName, d.customerPhone, d.customerEmail, d.contact?.name, d.mailbox ? `via ${d.mailbox.address}` : null].filter(Boolean).join(" · ")} />
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge tone={STATUS_TONE[d.status] ?? "neutral"}>{d.statusLabel}</StatusBadge><StatusBadge tone={PRIORITY_TONE[d.priority] ?? "neutral"}>{d.priorityLabel}</StatusBadge>
         <span className="text-sm text-text-muted">Response</span>{clock(d.response, d.responseDue)}<span className="text-sm text-text-muted">Resolution</span>{clock(d.resolution, d.resolutionDue)}

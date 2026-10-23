@@ -6,7 +6,7 @@
 // linked to the project, as their own modules hold them (amounts only for those who may see project financials).
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ComboBox, Dialog, LinkButton, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, ComboBox, Dialog, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { useDebouncedValue } from "@/shared/ui/list";
@@ -15,6 +15,7 @@ import { Notice, Panel } from "@/shared/ui/Panel";
 import { Cell, LinesTable } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { InviteUserDialog } from "@/shell/pickers/InviteUserDialog";
 
 import {
   addLink, addMember, addNote, changeMemberRole, editNote, errorCode, errorDetails, errorMessage, fileHref, getFiles, getLinks, getMembers, getNotes, getOptions, getProjectContacts, removeFile, removeLink,
@@ -37,6 +38,9 @@ export function TeamTab({ project, onChanged }: { project: Project; onChanged: (
   const [error, setError] = useState<string | null>(null);
   // Someone with open tasks leaves only once they are reassigned (or kept by a recorded exception).
   const [leaving, setLeaving] = useState<{ memberId: string; name: string; userId: string; tasks: Array<{ code: string; title: string }> } | null>(null);
+  // Someone new is invited from the team panel (Create-Where-You-Are PJ3).
+  const [inviting, setInviting] = useState(false);
+  const [invited, setInvited] = useState<string | null>(null);
   if (team.isLoading) return <LoadingState label="Loading the team" rows={4} />;
   const members = team.data?.members ?? [];
   const current = members.filter((row) => row.active);
@@ -80,8 +84,10 @@ export function TeamTab({ project, onChanged }: { project: Project; onChanged: (
         {manage && (
           <p className="text-sm text-text-secondary">
             Someone new to the company? {options.data?.can.inviteUsers
-              ? <><LinkButton variant="ghost" size="compact" href="/settings/users">Invite them through User Management</LinkButton> — a new user takes a seat on your subscription; add them here once they join.</>
+              ? <><Button variant="outline" size="compact" onPress={() => setInviting(true)}>Invite a person</Button> — a new user takes a seat on your subscription; add them here once they join.</>
               : "Ask your administrator to invite them (a new user takes a seat on your subscription); add them here once they join."}
+            {invited && <span className="block">{`Invitation sent to ${invited}.`}</span>}
+            {inviting && <InviteUserDialog onClose={() => setInviting(false)} onSent={(email) => { setInviting(false); setInvited(email); }} />}
           </p>
         )}
         <p className="text-xs text-text-muted">The Project Manager is changed on the project itself (Edit); the previous manager stays on the team.</p>
@@ -160,7 +166,7 @@ export function DocumentsTab({ project }: { project: Project }) {
           <div className="flex flex-col gap-2">
             <TextArea aria-label="New note" placeholder="Write an update" value={body} onChange={setBody} maxLength={5000} />
             {(contacts.data?.contacts ?? []).length > 0 && (
-              <Select label="With a customer contact" placeholder="Not about a contact" selectedKey={contactId} onSelectionChange={(key) => setContactId(key && key !== "none" ? String(key) : null)}
+              <ComboBox label="With a customer contact" placeholder="Not about a contact" selectedKey={contactId} onSelectionChange={(key) => setContactId(key && key !== "none" ? String(key) : null)}
                 options={[{ value: "none", label: "Not about a contact" }, ...[...new Map((contacts.data?.contacts ?? []).map((row) => [row.contactId, row])).values()].map((row) => ({ value: row.contactId, label: row.name }))]} />
             )}
             <div><Button variant="primary" isLoading={busy} isDisabled={!body.trim() || busy} onPress={() => run(async () => { await addNote(project.id, body.trim(), contactId); setBody(""); setContactId(null); })}>Add note</Button></div>

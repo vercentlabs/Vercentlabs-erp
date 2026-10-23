@@ -15,6 +15,8 @@ import { formatDateTime, formatMoney, humanize } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { RecordPicker } from "@/shell/pickers/RecordPicker";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 
 import {
   addOpportunityContact, addOpportunityProduct, errorMessage, listOpportunityActivities, listOpportunityAssignmentHistory, listOpportunityContacts,
@@ -138,39 +140,65 @@ function AddProductDialog({ opportunityId, currency, onClose, onAdded }: { oppor
   const workspace = useWorkspaceContext();
   const [search, setSearch] = useState("");
   const [productId, setProductId] = useState<string | null>(null);
+  // Something not in the catalogue (Create-Where-You-Are C5): a line with just a name and a price, or a product created here.
+  const [typedName, setTypedName] = useState<string | null>(null);
   const [quantity, setQuantity] = useState("1");
   const [unitPrice, setUnitPrice] = useState("");
   const [discount, setDiscount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const products = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "opportunity-products", search), queryFn: () => searchOpportunityProducts(search), staleTime: 15_000 });
+  const createProduct = useQuickCreate("item", {
+    prefill: { isSellable: true },
+    onCreated: (record) => { setTypedName(null); setProductId(record.id); setSearch(record.label); },
+  });
   const mutation = useMutation({
-    mutationFn: () => addOpportunityProduct(opportunityId, { productId, quantity, ...(unitPrice.trim() ? { unitPrice } : {}), ...(discount.trim() ? { discountPercent: discount } : {}) }),
+    mutationFn: () => addOpportunityProduct(opportunityId, {
+      ...(typedName !== null ? { itemName: typedName.trim() } : { productId }),
+      quantity, ...(unitPrice.trim() ? { unitPrice } : {}), ...(discount.trim() ? { discountPercent: discount } : {}),
+    }),
     onSuccess: () => { onAdded(); onClose(); },
     onError: (failure) => setError(errorMessage(failure)),
   });
+  const ready = typedName !== null ? Boolean(typedName.trim() && unitPrice.trim()) : Boolean(productId);
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Add product or service">
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Add product or service"
+      footer={<>
+        <Button variant="secondary" onPress={onClose}>Cancel</Button>
+        <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!ready}>Add to the deal</Button>
+      </>}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
-        <ComboBox label="Product / service" isRequired placeholder="Search products and services" selectedKey={productId} inputValue={search} onInputChange={setSearch}
-          options={(products.data ?? []).map((entry) => ({ value: entry.id, label: `${entry.name} (${entry.code})` }))}
-          onSelectionChange={(key) => {
-            const id = key ? String(key) : null;
-            setProductId(id);
-            const picked = products.data?.find((entry) => entry.id === id);
-            if (picked) setSearch(`${picked.name} (${picked.code})`);
-          }} />
+        {typedName === null ? (
+          <ComboBox label="Product / service" isRequired placeholder="Search products and services" selectedKey={productId} inputValue={search} onInputChange={setSearch}
+            options={(products.data ?? []).map((entry) => ({ value: entry.id, label: entry.name, description: entry.code }))}
+            onSelectionChange={(key) => {
+              const id = key ? String(key) : null;
+              setProductId(id);
+              const picked = products.data?.find((entry) => entry.id === id);
+              if (picked) setSearch(picked.name);
+            }}
+            onCreate={(typed) => { setTypedName(typed); setProductId(null); }}
+            createLabel={(typed) => (typed ? `Add "${typed}" without a product` : "Add a line without a product")} />
+        ) : (
+          <div className="flex flex-col gap-2">
+            <TextField label="What is sold" isRequired autoFocus value={typedName} onChange={setTypedName} placeholder="For example: Weekend batch – Python"
+              description="Not in the catalogue: the deal keeps this name and price. It becomes a product line when quoted." />
+            <span className="flex flex-wrap gap-2">
+              {createProduct.canCreate && typedName.trim() && (
+                <Button variant="outline" size="compact" onPress={() => createProduct.open(typedName.trim())}>Save as a product instead</Button>
+              )}
+              <Button variant="ghost" size="compact" onPress={() => setTypedName(null)}>Choose from the catalogue</Button>
+            </span>
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-3">
           <TextField label="Quantity" inputMode="decimal" value={quantity} onChange={setQuantity} />
-          <TextField label={`Estimated price${currency ? ` (${currency})` : ""}`} inputMode="decimal" value={unitPrice} onChange={setUnitPrice}
-            description="Leave empty to use the price on the company's price list." />
+          <TextField label={`Estimated price${currency ? ` (${currency})` : ""}`} inputMode="decimal" value={unitPrice} onChange={setUnitPrice} isRequired={typedName !== null}
+            description={typedName !== null ? undefined : "Leave empty to use the price on the company's price list."} />
           <TextField label="Discount %" inputMode="decimal" value={discount} onChange={setDiscount} />
         </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!productId}>Add product</Button>
-        </div>
       </div>
+      {createProduct.drawer}
     </Dialog>
   );
 }
@@ -225,8 +253,11 @@ export function OpportunityContactsPanel({ opportunity, options, canEdit, onChan
       )}
       {canEdit && (
         <div className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]">
-          <Select label="Add a contact" selectedKey={contactId} onSelectionChange={(selected) => setContactId(String(selected ?? NONE))}
-            options={[{ value: NONE, label: available.length ? "Choose a contact" : "No other contacts at this company" }, ...available.map((row) => ({ value: row.id, label: row.displayName }))]} />
+          {/* A person not yet at the company is created here and linked to it (Create-Where-You-Are C8). */}
+          <RecordPicker kind="contact" label="Add a contact" value={contactId || null} onChange={(id) => setContactId(id ?? NONE)}
+            filters={opportunity.accountId ? { accountId: opportunity.accountId } : {}} excludeIds={contacts.map((entry) => entry.contactId)}
+            createPrefill={opportunity.accountId ? { accountId: opportunity.accountId, accountName: opportunity.accountName } : undefined}
+            placeholder={available.length ? "Search contacts" : "Type a name to add someone"} />
           <Select label="Role" selectedKey={role} onSelectionChange={(selected) => setRole(String(selected ?? NONE))}
             options={[{ value: NONE, label: "No role" }, ...options.contactRoles.map((entry) => ({ value: entry.code, label: entry.label }))]} />
           <Button variant="secondary" isDisabled={!contactId || change.isPending} onPress={() => change.mutate(() => addOpportunityContact(opportunity.id, { contactId, role: role || null }))}>Add</Button>

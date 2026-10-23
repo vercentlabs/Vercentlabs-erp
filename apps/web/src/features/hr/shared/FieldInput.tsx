@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import {
+  ComboBox,
   NumberField,
   Select,
   TextArea,
@@ -9,6 +13,9 @@ import {
 } from "@vercentlabs/design-system";
 
 import type { HrOptions } from "@/features/hr/shared/client";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 export type OptionSource =
   | "employees"
@@ -40,7 +47,47 @@ export type FieldDef = {
   min?: number;
   // The row's key when it differs from the field name (read models are snake_case).
   rowKey?: string;
+  // A department or designation not on file yet is created in place (Create-Where-You-Are H1).
+  creatable?: boolean;
 };
+
+// Lists kept as setup (Create-Where-You-Are H2): when empty, the field links to the page that sets one up.
+const SETUP_PAGES: Partial<Record<OptionSource, { href: string; noun: string }>> = {
+  leaveTypes: { href: "/hr/leave-types", noun: "leave type" },
+  shifts: { href: "/hr/shifts", noun: "shift" },
+  salaryStructures: { href: "/hr/salary-structures", noun: "salary structure" },
+};
+
+function CreatableMasterSelect({ field, value, onChange, options }: {
+  field: FieldDef; value: FieldValue | undefined; onChange: (value: FieldValue) => void; options: SelectOption[];
+}) {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const [added, setAdded] = useState<SelectOption[]>([]);
+  const quickCreate = useQuickCreate(field.options === "designations" ? "designation" : "department", {
+    onCreated: (record) => {
+      setAdded((current) => [...current, { value: record.id, label: record.label }]);
+      onChange(record.id);
+      void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "hr", "options") });
+    },
+  });
+  const known = new Set(options.map((option) => option.value));
+  return (
+    <>
+      <ComboBox
+        label={field.label}
+        isRequired={field.required}
+        options={[...options, ...added.filter((option) => !known.has(option.value))]}
+        selectedKey={value !== undefined && value !== "" ? String(value) : null}
+        onSelectionChange={(key) => onChange(String(key ?? ""))}
+        placeholder={field.placeholder ?? `Search ${field.label.toLowerCase()}`}
+        onCreate={quickCreate.canCreate ? quickCreate.open : undefined}
+        createLabel={(text) => (text ? `+ New ${quickCreate.noun} "${text}"` : `+ New ${quickCreate.noun}`)}
+      />
+      {quickCreate.drawer}
+    </>
+  );
+}
 
 function resolveOptions(
   field: FieldDef,
@@ -97,7 +144,20 @@ export function FieldInput({
         />
       );
     case "select":
-    case "bool":
+    case "bool": {
+      const choices = resolveOptions(field, options);
+      if (field.creatable && (field.options === "departments" || field.options === "designations"))
+        return <CreatableMasterSelect field={field} value={value} onChange={onChange} options={choices} />;
+      const setup = typeof field.options === "string" ? SETUP_PAGES[field.options] : undefined;
+      if (setup && options && !choices.length)
+        return (
+          <div className="flex flex-col gap-1 text-sm">
+            <span className="font-medium">{label}</span>
+            <span className="text-text-secondary">
+              No {setup.noun} is set up yet. <Link className="font-medium text-brand underline-offset-2 hover:underline" href={setup.href}>Set up a {setup.noun}</Link>, then come back.
+            </span>
+          </div>
+        );
       return (
         <Select
           label={label}
@@ -110,6 +170,7 @@ export function FieldInput({
           placeholder={field.placeholder ?? `Select ${label.toLowerCase()}`}
         />
       );
+    }
     case "datetime":
       return (
         <TextField

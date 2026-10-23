@@ -20,7 +20,8 @@ import { money, statusLabel } from "@/features/sales/shared/format";
 import {
   BILLING_ADDRESS_TYPES, SHIPPING_ADDRESS_TYPES, contactLabel, defaultAddress, defaultLineDescription, defaultLineUom, usableAddresses,
 } from "@/features/sales/shared/document-defaults";
-import { getSalesOptions, previewSalesDocument, type SalesDocumentInput, type SalesDocumentScheme, type SalesOptions, type SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
+import { TypedLineFields } from "@/features/sales/shared/TypedLineFields";
+import { getSalesOptions, previewSalesDocument, searchSalesOptions, type SalesDocumentInput, type SalesDocumentScheme, type SalesOptions, type SalesSearchResults } from "@/features/sales/quotations/api/quotations-api";
 import { SchemeOffers } from "@/features/sales/shared/SchemeOffers";
 import { mrpNote } from "@/features/sales/shared/mrp";
 import { mergeSalesOptions, SalesSearchPicker } from "@/features/sales/shared/SalesSearchPicker";
@@ -37,6 +38,7 @@ import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
 import { CustomerOrderCard } from "../components/CustomerOrderCard";
 import { listSalesOrders } from "../api/orders-api";
 import { FormSection } from "@/shared/ui/FormSection";
+import { RecordPicker } from "@/shell/pickers/RecordPicker";
 import { Notice, Panel } from "@/shared/ui/Panel";
 import { ChargeRows, chargeDraftOf, chargesInput, type ChargeDraft } from "@/features/sales/shared/ChargeRows";
 
@@ -58,6 +60,11 @@ type LineDraft = {
   warehouseId: string;
   // A free line of a scheme: no price, no discount (Sales audit M3).
   schemeRuleId: string;
+  // A line without a catalogue product (Create-Where-You-Are): what is sold, its HSN/SAC and GST are typed; unitPrice is its price.
+  typed: boolean;
+  itemName: string;
+  hsnSac: string;
+  taxCategoryId: string;
 };
 
 let draftKey = 0;
@@ -134,8 +141,11 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
   const seedAddresses = options.addresses.filter((address) => address.party_id === seedParty?.id);
   const blank = (): LineDraft => ({
     key: nextKey(), salesOrderLineId: "", quoted: false, itemId: "", uomId: "", quantity: 1, discountType: defaultDiscountType(options.discounts),
-    discountValue: 0, description: "", unitPrice: "", priceReason: "", warehouseId: "", schemeRuleId: "",
+    discountValue: 0, description: "", unitPrice: "", priceReason: "", warehouseId: "", schemeRuleId: "", typed: false, itemName: "", hsnSac: "", taxCategoryId: "",
   });
+  // A saved line on the system "Unlisted item" is a typed line (Create-Where-You-Are); the setting allows new ones.
+  const isTyped = (itemId: string | null | undefined) => Boolean(options.unlistedItemId && itemId === options.unlistedItemId);
+  const typedAllowed = options.settings?.allow_lines_without_item !== false;
 
   const [partyId, setPartyId] = useState(order?.party_id ?? seedParty?.id ?? "");
   const [contactId, setContactId] = useState(order?.contact_id ?? options.contacts.find((contact) => contact.party_id === seedParty?.id && contact.is_primary)?.id ?? "");
@@ -168,8 +178,10 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
         key: nextKey(), salesOrderLineId: line.id, quoted: line.is_quoted, itemId: line.item_id, uomId: line.uom_id ?? "",
         quantity: Number(line.quantity), discountType: line.discount_type === "amount" ? "amount" : "percent", discountValue: Number(line.discount_value),
         warehouseId: line.warehouse_id ?? "", description: line.description_snapshot ?? "",
-        unitPrice: line.manual_price_override && !line.is_quoted ? String(Number(line.unit_price)) : "", priceReason: line.manual_price_reason ?? "",
+        unitPrice: (line.manual_price_override && !line.is_quoted) || isTyped(line.item_id) ? String(Number(line.unit_price)) : "", priceReason: line.manual_price_reason ?? "",
         schemeRuleId: line.scheme_rule_id ?? "",
+        typed: isTyped(line.item_id), itemName: String((line as Record<string, unknown>).item_name_snapshot ?? ""),
+        hsnSac: String((line as Record<string, unknown>).hsn_sac_snapshot ?? ""), taxCategoryId: String((line as Record<string, unknown>).tax_category_id ?? ""),
       }))
     : [blank()]);
   // A saved draft's charges one by one (an older order's: their total, as one charge).
@@ -295,6 +307,12 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
   function updateLine(key: number, patch: Partial<LineDraft>) {
     setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   }
+  // A typed line saved as a product: it becomes a catalogue line, keeping the price typed (with its reason).
+  async function saveTypedAsProduct(line: LineDraft, itemId: string) {
+    const found = (await searchSalesOptions("products", line.itemName.trim()).catch(() => ({ results: {} as SalesSearchResults }))).results;
+    selectLineItem(line.key, itemId, found);
+    updateLine(line.key, { typed: false, itemName: "", unitPrice: line.unitPrice, priceReason: "Price agreed before the product was added" });
+  }
   // A picked product joins the form's options with its unit conversions.
   function selectLineItem(key: number, itemId: string, found: SalesSearchResults) {
     const next = mergeSalesOptions(options, found);
@@ -304,7 +322,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
     updateLine(key, { itemId, quoted: false, salesOrderLineId: "", uomId: defaultLineUom(item, next.itemUomConversions), description: defaultLineDescription(item) });
   }
 
-  const validLines = lines.filter((line) => line.itemId && line.quantity > 0);
+  const validLines = lines.filter((line) => (line.typed ? line.itemName.trim() : line.itemId) && line.quantity > 0);
   const input: SalesOrderDocumentInput | null = useMemo(() => {
     if (!partyId || !currencyCode || validLines.length === 0) return null;
     return {
@@ -334,12 +352,13 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
       expectedVersionNumber: order?.version_number,
       lines: validLines.map((line) => ({
         ...(line.salesOrderLineId ? { salesOrderLineId: line.salesOrderLineId } : {}),
-        itemId: line.itemId,
-        uomId: line.uomId || undefined,
+        itemId: line.itemId || undefined,
+        ...(line.typed ? { itemName: line.itemName.trim(), hsnSac: line.hsnSac || undefined, taxCategoryId: line.taxCategoryId || undefined } : {}),
+        uomId: line.typed ? undefined : line.uomId || undefined,
         description: line.description.trim() || undefined,
         ...(line.schemeRuleId ? { schemeRuleId: line.schemeRuleId } : {}),
         ...(!line.quoted && !line.schemeRuleId && line.unitPrice.trim() !== "" && Number.isFinite(Number(line.unitPrice))
-          ? { unitPrice: Number(line.unitPrice), manualPriceReason: line.priceReason.trim() || undefined } : {}),
+          ? { unitPrice: Number(line.unitPrice), ...(line.typed ? {} : { manualPriceReason: line.priceReason.trim() || undefined }) } : {}),
         quantity: line.quantity,
         ...(!line.quoted && !line.schemeRuleId && line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
         warehouseId: line.warehouseId || undefined,
@@ -426,7 +445,10 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <SalesSearchPicker kind="customers" customersOnly label="Customer" isRequired known={options} value={partyId || null} onPick={(id, found) => void pickParty(id, found)}
                 placeholder={loadingParty ? "Loading the customer…" : "Search customers by name, code, GSTIN or phone"} isDisabled={fromQuotation} description={fromQuotation ? "An order made from a quotation keeps the quotation's customer." : undefined} />
-              <Select label="Contact" options={contactOptions} selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key ?? ""))} isDisabled={!partyId} />
+              <RecordPicker kind="customerContact" label="Contact" value={contactId || null} onChange={(id) => setContactId(id ?? "")}
+                filters={{ partyId }} createPrefill={{ partyId, partyName: options.parties.find((party) => party.id === partyId)?.display_name }}
+                selected={contactId ? { id: contactId, label: contactOptions.find((option) => option.value === contactId)?.label ?? "Contact" } : null}
+                isDisabled={!partyId} placeholder={partyId ? "No contact" : "Choose the customer first"} />
             </div>
           </FormSection>
 
@@ -441,6 +463,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
           <FormSection columns={1} title="Items" actions={<>
             {partyId && !fromQuotation && <Button variant="ghost" size="compact" isLoading={repeating} onPress={() => void repeatLastOrder()}>Repeat last order</Button>}
             <Button variant="secondary" size="compact" onPress={() => setLines((current) => [...current, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add item</Button>
+            {typedAllowed && <Button variant="ghost" size="compact" onPress={() => setLines((current) => [...current, { ...blank(), typed: true }])}><Plus className="size-3.5" aria-hidden="true" />Line without a product</Button>}
           </>}>
             <div className="flex flex-col gap-3">
               {lines.map((line, index) => {
@@ -449,10 +472,15 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
                 const service = isService(line.itemId);
                 return (
                   <div key={line.key} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,2.7fr)_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_auto]">
+                    {line.typed ? (
+                      <TypedLineFields index={index} line={line} taxCategories={options.taxCategories ?? []} onChange={(patch) => updateLine(line.key, patch)}
+                        onSavedAsProduct={line.quoted ? undefined : (id) => void saveTypedAsProduct(line, id)} />
+                    ) : (<>
                     <SalesSearchPicker kind="products" aria-label={`Item ${index + 1}`} label={index === 0 ? "Item" : undefined} known={options} value={line.itemId || null}
                       onPick={(id, found) => selectLineItem(line.key, id, found)} placeholder="Search products by name, code, HSN or barcode" />
                     <Select aria-label={`Unit ${index + 1}`} label={index === 0 ? "Unit" : undefined} options={uoms} selectedKey={line.uomId || null}
                       onSelectionChange={(key) => updateLine(line.key, { uomId: String(key ?? "") })} isDisabled={line.quoted || uoms.length <= 1} />
+                    </>)}
                     <NumberField aria-label={`Quantity ${index + 1}`} label={index === 0 ? "Quantity" : undefined} value={line.quantity}
                       onChange={(value) => updateLine(line.key, { quantity: value })} minValue={0} step={1} />
                     <div className="grid grid-cols-[minmax(0,1fr)_4.5rem] items-end gap-1">
@@ -468,7 +496,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
                       onPress={() => setLines((current) => current.filter((candidate) => candidate.key !== line.key))}>
                       <Trash2 className="size-4" aria-hidden="true" />
                     </IconButton>
-                    {line.itemId && (
+                    {(line.itemId || line.typed) && (
                       <TextField className="sm:col-span-7" aria-label={`Description ${index + 1}`} placeholder="Description on the document" value={line.description}
                         onChange={(value) => updateLine(line.key, { description: value })} />
                     )}
@@ -479,7 +507,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
                       </p>
                     )}
                     {line.schemeRuleId && <p className="text-xs text-success sm:col-span-7">Free under a scheme: no price and no discount.</p>}
-                    {line.itemId && !line.quoted && !line.schemeRuleId && canOverridePrice && (
+                    {line.itemId && !line.typed && !line.quoted && !line.schemeRuleId && canOverridePrice && (
                       <div className="grid grid-cols-1 gap-2 sm:col-span-7 sm:grid-cols-[12rem_minmax(0,1fr)]">
                         <TextField aria-label={`Unit price ${index + 1}`} inputMode="decimal" value={line.unitPrice}
                           placeholder={priced && !priced.priceMissing ? `List price ${money(currencyCode, priced.listUnitPrice)}` : "Unit price"}

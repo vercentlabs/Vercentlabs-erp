@@ -137,7 +137,12 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
         </TabPanel>
         <TabPanel id="receiving">
           <div className="flex flex-col gap-4 pt-4">
-            <Panel title="Receiving accounting" description="Goods are received only against a confirmed purchase order; refused goods create no goods receipt.">
+            <Panel title="Goods without an order" description="Small suppliers often deliver without a purchase order. When allowed, the receipt raises and confirms a matching order (marked as created from the receipt, with the reason), so bills still match three ways. Purchase order approval rules still apply.">
+              <Checkbox isDisabled={!canManage} isSelected={values.allowReceiptWithoutOrder !== false} onChange={set("allowReceiptWithoutOrder")}>
+                Allow receiving goods without a purchase order
+              </Checkbox>
+            </Panel>
+            <Panel title="Receiving accounting" description="Refused goods create no goods receipt.">
               <Checkbox isDisabled={!canManage} isSelected={values.postReceiptAccrual} onChange={set("postReceiptAccrual")}>
                 Book received stock against Goods Received Not Invoiced (Dr Inventory, Cr GRNI); the supplier bill then clears GRNI. Needs the Inventory and GRNI account mappings.
               </Checkbox>

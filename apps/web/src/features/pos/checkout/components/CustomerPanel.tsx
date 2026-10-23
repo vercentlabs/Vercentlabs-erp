@@ -33,6 +33,8 @@ export function CustomerPanel({ cart, editable, onCart }: { cart: PosCart; edita
   const [adding, setAdding] = useState(false);
   const [history, setHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // An error that needs a named customer offers to add one right there (Create-Where-You-Are POS3).
+  const [needsCustomer, setNeedsCustomer] = useState(false);
   const [changes, setChanges] = useState<Change[]>([]);
   const [showBuyer, setShowBuyer] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -43,10 +45,12 @@ export function CustomerPanel({ cart, editable, onCart }: { cart: PosCart; edita
       onCart(result.cart);
       setChanges((result.cart as PosCart & { customerChanges?: Change[] }).customerChanges ?? []);
       setError(null);
+      setNeedsCustomer(false);
       void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "customer-context", cart.id) });
       return true;
     } catch (failure) {
       setError(failure instanceof PosApiError ? failure.message : "The customer could not be changed.");
+      setNeedsCustomer(failure instanceof PosApiError && failure.code === "POS_CUSTOMER_BILLING_ADDRESS_INVALID");
       return false;
     }
   }
@@ -111,7 +115,12 @@ export function CustomerPanel({ cart, editable, onCart }: { cart: PosCart; edita
         </div>
       )}
 
-      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+      {error && (
+        <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger">
+          {error}
+          {needsCustomer && <Button variant="outline" size="compact" onPress={() => { setError(null); setNeedsCustomer(false); setAdding(true); }}>Add new customer</Button>}
+        </p>
+      )}
       {changes.length > 0 && (
         <div className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-xs text-warning">
           <p className="font-medium">The bill was recalculated for this customer:</p>

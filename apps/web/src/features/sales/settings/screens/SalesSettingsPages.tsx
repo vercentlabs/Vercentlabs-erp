@@ -21,6 +21,7 @@ type Settings = {
   quotation_approval_discount: string | number;
   minimum_margin_percent: string | number;
   allow_direct_orders: boolean;
+  allow_lines_without_item?: boolean;
   reserve_stock_on_confirm: boolean;
   require_customer_po: boolean;
   credit_control?: "off" | "warn" | "block";
@@ -121,6 +122,7 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
   const [requirePo, setRequirePo] = useState(Boolean(settings.require_customer_po));
   const [requireDelivery, setRequireDelivery] = useState(Boolean(settings.require_requested_delivery_date));
   const [unassigned, setUnassigned] = useState(Boolean(settings.unassigned_customers_visible));
+  const [typedLines, setTypedLines] = useState(settings.allow_lines_without_item !== false);
   const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
   return (
     <div className="flex flex-col gap-4">
@@ -143,6 +145,9 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
         <Switch isSelected={requirePo} onChange={touch(setRequirePo)} isDisabled={!canManage}>Require the customer&apos;s PO number before an order is confirmed</Switch>
         <Switch isSelected={requireDelivery} onChange={touch(setRequireDelivery)} isDisabled={!canManage}>Require a requested delivery date before an order is confirmed</Switch>
       </Panel>
+      <Panel title="Lines" description="A line that is just a name, price, HSN/SAC and GST, for something not in the catalogue (a one-off service, a course batch). It can be saved as a product later.">
+        <Switch isSelected={typedLines} onChange={touch(setTypedLines)} isDisabled={!canManage}>Allow lines without a catalogue product</Switch>
+      </Panel>
       <Panel title="Customers" description="A salesperson who sees only their own customers sees those they are the salesperson of or added.">
         <Switch isSelected={unassigned} onChange={touch(setUnassigned)} isDisabled={!canManage}>Every salesperson also sees customers with no salesperson</Switch>
       </Panel>
@@ -150,7 +155,7 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
         onSave={() => save.mutate({
           defaultQuoteValidityDays: validity, quotationApprovalAmount: quoteAmount, quotationApprovalDiscount: quoteDiscount, minimumMarginPercent: margin,
           defaultQuotationTerms: quotationTerms, allowDirectOrders: direct, requireCustomerPo: requirePo, requireRequestedDeliveryDate: requireDelivery,
-          unassignedCustomersVisible: unassigned,
+          unassignedCustomersVisible: unassigned, allowLinesWithoutItem: typedLines,
         })} />
     </div>
   );

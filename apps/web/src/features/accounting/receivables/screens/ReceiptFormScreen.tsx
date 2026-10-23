@@ -19,6 +19,8 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { Notice } from "@/shared/ui/Panel";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
+import type { PickedRecord } from "@/shell/pickers/types";
 
 import { METHODS, cents, errorMessage, errorStatus, fromCents, inr, receiptOptions, recordReceipt } from "../api/receivables-api";
 
@@ -27,6 +29,9 @@ export function ReceiptFormScreen() {
   const router = useRouter();
   const params = useSearchParams();
   const [partyId, setPartyId] = useState<string | null>(params.get("partyId"));
+  // Create where you are (A2): an advance from a new customer is recorded without leaving for Sales first.
+  const [createdParties, setCreatedParties] = useState<PickedRecord[]>([]);
+  const quickCreate = useQuickCreate("customer", { onCreated: (record) => { setCreatedParties((current) => [...current, record]); setPartyId(record.id); setAmounts({}); } });
   const presetInvoice = params.get("invoiceId");
   const base = useQuery({ queryKey: scopedQueryKey(workspace, "accounting", "receipt-options"), queryFn: () => receiptOptions(), staleTime: 60_000, retry: false });
   const forParty = useQuery({ queryKey: scopedQueryKey(workspace, "accounting", "receipt-options", partyId), queryFn: () => receiptOptions(partyId), enabled: Boolean(partyId), retry: false });
@@ -109,7 +114,10 @@ export function ReceiptFormScreen() {
       <FormSection columns={1} title="Payment">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ComboBox label="Customer" isRequired placeholder="Choose a customer" selectedKey={partyId} onSelectionChange={(key) => { setPartyId(key ? String(key) : null); setAmounts({}); }}
-            options={options.customers.map((entry) => ({ value: entry.id, label: entry.number ? `${entry.name} · ${entry.number}` : entry.name }))} />
+            options={[...options.customers.map((entry) => ({ value: entry.id, label: entry.number ? `${entry.name} · ${entry.number}` : entry.name })),
+              ...createdParties.filter((record) => !options.customers.some((entry) => entry.id === record.id)).map((record) => ({ value: record.id, label: record.label }))]}
+            onCreate={quickCreate.canCreate ? quickCreate.open : undefined} createLabel={(typed) => (typed ? `Create customer "${typed}"` : "Create a new customer")} />
+          {quickCreate.drawer}
           <TextField label="Date received" type="date" isRequired value={form.receiptDate || options.today} onChange={set("receiptDate")} description="Posts on this date; its period must be open." />
           <TextField label={`Amount (${currency})`} inputMode="decimal" isRequired placeholder="0.00" value={form.amount} onChange={set("amount")} />
           <Select label="Received into" selectedKey={accountKey} onSelectionChange={(key) => set("bankAccountId")(key === "default" ? "" : String(key))}

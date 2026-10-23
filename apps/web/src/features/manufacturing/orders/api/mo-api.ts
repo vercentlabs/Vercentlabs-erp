@@ -83,7 +83,7 @@ export type MoOrder = {
 };
 export type MoOptions = {
   products: Array<{ id: string; code: string; name: string; uomId: string; uom: string; trackingType: string;
-    defaults: { leadTimeDays: number | null; materialWarehouseId: string | null; manufacturingWarehouseId: string | null }; effectiveRevision: { id: string; number: number; from: string; to: string | null } | null;
+    defaults: { leadTimeDays: number | null; materialWarehouseId: string | null; manufacturingWarehouseId: string | null }; hasBom: boolean; effectiveRevision: { id: string; number: number; from: string; to: string | null } | null;
     scheduledRevision: { number: number; from: string } | null }>;
   warehouses: Array<{ id: string; code: string; name: string; isDefault: boolean }>; currentUserId: string | null; people: Array<{ id: string; name: string }>; salesOrders: Array<{ id: string; number: string }>;
 };

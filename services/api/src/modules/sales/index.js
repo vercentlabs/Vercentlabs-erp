@@ -1,5 +1,6 @@
 import { finalizeApprovalRequest } from "../../core/platform/approvals/index.js";
 import { normalizeQuantityToBase, resolveItemUnit } from "../products/uom.js";
+import { ensureUnlistedItem, hsnSacKindOf, UNLISTED_ITEM_ROLE } from "../products/unlisted.js";
 import {
   decimal,
   add,
@@ -368,17 +369,30 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   // the whole document when an order is made from a quotation, or one quoted
   // line when a draft order made from a quotation is edited (line.quoted).
   const carried = Boolean(options.carryQuotedPrices || line.quoted);
-  const itemId = uuid(line.itemId, `Line ${sequence} item`);
+  // A line without a catalogue item (Create-Where-You-Are): a typed name, quantity, price, HSN/SAC and GST. It points at the company's
+  // system "Unlisted item" and keeps its own name and tax; the company decides in Sales › Settings whether such lines are allowed.
+  const typedName = text(line.itemName, 300);
+  if (!line.itemId && !typedName) throw new SalesError(400, `Line ${sequence}: choose a product, or type what is being sold.`, "SALES_LINE_ITEM_REQUIRED");
+  let itemId = line.itemId ? uuid(line.itemId, `Line ${sequence} item`) : null;
+  if (!itemId) {
+    const allowed = (await client.query("SELECT allow_lines_without_item FROM tenant.sales_settings WHERE organization_id=$1", [context.organizationId])).rows[0]?.allow_lines_without_item ?? true;
+    if (!allowed && !carried)
+      throw new SalesError(409, `Line ${sequence}: choose a product from the catalogue. Lines without a product are switched off in Sales › Settings.`, "SALES_LINE_ITEM_REQUIRED");
+    itemId = await ensureUnlistedItem(client, context.organizationId);
+  }
   const itemResult = await client.query(
-    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.tax_category_id,item.item_type,item.is_variant_template,item.mrp,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
+    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.tax_category_id,item.item_type,item.is_variant_template,item.mrp,item.system_role,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
   if (!item)
     throw new SalesError(409, `Line ${sequence} item is inactive.`);
+  const unlisted = item.system_role === UNLISTED_ITEM_ROLE;
+  if (unlisted && !typedName) throw new SalesError(400, `Line ${sequence}: type what is being sold.`, "SALES_LINE_ITEM_REQUIRED");
+  if (unlisted) line = { ...line, uomId: null, warehouseId: null };
   // A line carried over from a quotation keeps its product even if it has
   // since stopped being sold; a new line must be a sellable product.
-  if (!item.is_sellable && !carried)
+  if (!item.is_sellable && !carried && !unlisted)
     throw new SalesError(409, `Line ${sequence}: ${item.name} is not sold.`, "SALES_ITEM_NOT_SELLABLE");
   // A variant is an item of its own: the line names the variant's item.
   if (line.variantId) throw new SalesError(409, `Line ${sequence}: choose the variant item itself.`, "SALES_VARIANT_IS_ITEM");
@@ -421,6 +435,11 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   if (carried && line.listUnitPrice != null) {
     listUnitPrice = decimal(line.listUnitPrice);
     priceSource = "quotation";
+  } else if (unlisted) {
+    // A typed line has no price list: its price is the one typed.
+    if (line.unitPrice == null || line.unitPrice === "") throw new SalesError(400, `Line ${sequence}: enter the price of ${typedName}.`, "SALES_PRICE_MISSING");
+    listUnitPrice = decimal(line.unitPrice);
+    priceSource = "typed";
   } else {
     const resolved = await resolveSalesPrice(client, context, { priceList: master.priceList, itemId, uomId, documentDate: master.documentDate });
     listUnitPrice = decimal(resolved.listPrice);
@@ -435,7 +454,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   // A rate contract (Sales audit): the customer's agreed rate for the product on the document's date, while the contract has quantity left
   // for this line (and the document's other lines on it). It replaces the list price, and no pricing rule applies on top of it.
   let rateContractLineId = carried ? line.rateContractLineId ?? null : null;
-  if (!carried && !schemeRuleId) {
+  if (!carried && !schemeRuleId && !unlisted) {
     master.contractTaken ??= new Map();
     const base = Number(asDatabaseDecimal(baseQuantity));
     const contract = await contractLineFor(client, context.organizationId, { partyId: master.partyId, itemId, currencyCode: String(master.currency.code).trim(),
@@ -455,7 +474,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   // the rules of one priority only the best fit applies — the highest quantity slab reached (in the product's base unit), then the most
   // specific (a customer's own before a group's or everyone's) — so 1% from 10 cases and 2% from 100 give 2% at 120, not 3%. A rule is
   // valid on the document's date, not today's (Sales audit M3/B6).
-  const rules = schemeRuleId || rateContractLineId ? { rows: [] } : await client.query(
+  const rules = schemeRuleId || rateContractLineId || unlisted ? { rows: [] } : await client.query(
     `SELECT DISTINCT ON (priority) id,code,adjustment_type,adjustment_value FROM tenant.sales_pricing_rules
       WHERE organization_id=$1 AND status='active' AND adjustment_type<>'free_goods' AND (party_id IS NULL OR party_id=$2) AND (party_type IS NULL OR party_type=$3 OR party_type='both')
         AND (item_id IS NULL OR item_id=$4) AND (item_group_id IS NULL OR item_group_id=(SELECT group_id FROM tenant.items WHERE id=$4)) AND (price_list_id IS NULL OR price_list_id=$5)
@@ -503,7 +522,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   const requestedUnitPrice = manualPriceGiven ? decimal(line.unitPrice) : calculatedUnitPrice;
   if (requestedUnitPrice < 0n) throw new SalesError(400, `Line ${sequence}: the price cannot be negative.`, "SALES_PRICE_INVALID");
   // carryQuotedPrices: the price was settled (and, if overridden, authorised) on the quotation.
-  const manualOverride = carried ? line.manualPriceOverride === true : requestedUnitPrice !== calculatedUnitPrice || (priceMissing && manualPriceGiven);
+  const manualOverride = unlisted ? false : carried ? line.manualPriceOverride === true : requestedUnitPrice !== calculatedUnitPrice || (priceMissing && manualPriceGiven);
   if (manualOverride && !carried) {
     requirePermission(context, "sales.price.override");
     if (!text(line.manualPriceReason, 1000))
@@ -560,7 +579,8 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   } else {
     try {
       resolvedTax = await resolveLineTax(client, master.tax, {
-        taxCategoryId: item.tax_category_id ?? master.tax.defaultTaxCategoryId, date: master.documentDate, sellerStateCode: master.tax.registration?.stateCode,
+        taxCategoryId: (unlisted ? (line.taxCategoryId ? uuid(line.taxCategoryId, `Line ${sequence} GST`) : null) : item.tax_category_id) ?? master.tax.defaultTaxCategoryId,
+        date: master.documentDate, sellerStateCode: master.tax.registration?.stateCode,
         placeOfSupply: master.placeOfSupply?.code, supplyType: master.supplyType, allowInactive: Boolean(carried),
       });
     } catch (error) {
@@ -646,11 +666,12 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     uomId,
     warehouseId: line.warehouseId || null,
     itemCodeSnapshot: item.code,
-    itemNameSnapshot: item.name,
-    descriptionSnapshot: text(line.description, 4000) || item.sales_description || item.description,
-    hsnSacSnapshot: item.hsn_sac_code,
-    // Goods carry an HSN code, services a SAC code.
-    hsnSacKind: item.hsn_sac_code ? (item.item_type === "service" ? "sac" : "hsn") : null,
+    itemNameSnapshot: unlisted ? typedName : item.name,
+    descriptionSnapshot: text(line.description, 4000) || (unlisted ? null : item.sales_description || item.description),
+    hsnSacSnapshot: unlisted ? text(line.hsnSac, 12) || null : item.hsn_sac_code,
+    // Goods carry an HSN code, services a SAC code (a typed line: SAC codes start with 99).
+    hsnSacKind: unlisted ? hsnSacKindOf(text(line.hsnSac, 12)) : item.hsn_sac_code ? (item.item_type === "service" ? "sac" : "hsn") : null,
+    unlisted,
     taxRate: asDatabaseDecimal(taxRate),
     taxRateId: resolvedTax.rateId,
     taxCategoryCode: resolvedTax.categoryCode,
@@ -1440,8 +1461,14 @@ export async function getSalesOptions(
       opportunityItems,
       // Only what the document forms need to pre-fill; thresholds stay server-side.
       settings: await client
-        .query(`SELECT default_quote_validity_days,allow_direct_orders FROM tenant.sales_settings WHERE organization_id=$1`, [context.organizationId])
-        .then((r) => r.rows[0] || { default_quote_validity_days: 15, allow_direct_orders: true }),
+        .query(`SELECT default_quote_validity_days,allow_direct_orders,allow_lines_without_item FROM tenant.sales_settings WHERE organization_id=$1`, [context.organizationId])
+        .then((r) => r.rows[0] || { default_quote_validity_days: 15, allow_direct_orders: true, allow_lines_without_item: true }),
+      // Lines without a catalogue product (Create-Where-You-Are): the GST choices for such a line, and the system item they point at
+      // (a saved line with this item is one of them).
+      taxCategories: (await client.query(
+        `SELECT id, code, name FROM tenant.tax_categories WHERE organization_id = $1 AND status = 'active' AND applies_to IN ('all', 'sales', 'both') ORDER BY code`,
+        [context.organizationId])).rows,
+      unlistedItemId: (await client.query(`SELECT id FROM tenant.items WHERE organization_id = $1 AND system_role = 'unlisted'`, [context.organizationId])).rows[0]?.id ?? null,
       discounts: await discountOptions(client, context),
       tax: await documentTaxOptions(client, context),
     },

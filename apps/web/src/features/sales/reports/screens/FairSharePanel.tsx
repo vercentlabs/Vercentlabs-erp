@@ -35,7 +35,7 @@ export function FairSharePanel() {
   return (
     <Panel title="Short stock: share it fairly" description="When free stock is less than what confirmed orders need, share it in proportion to each order instead of first come, first served.">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {known && <SalesSearchPicker kind="products" label="Product" value={itemId} known={known}
+        {known && <SalesSearchPicker creatable={false} kind="products" label="Product" value={itemId} known={known}
           onPick={(id, results) => { setFound((current) => mergeSalesOptions(current ?? known, results)); setItemId(id || null); setPlan(null); }} />}
         <Select label="Warehouse" selectedKey={warehouseId || null} onSelectionChange={(key) => { setWarehouseId(String(key ?? "")); setPlan(null); }}
           options={(options.data?.warehouses ?? []).map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))} />

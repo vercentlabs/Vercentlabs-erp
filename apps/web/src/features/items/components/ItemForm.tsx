@@ -15,6 +15,7 @@ import { FormSection } from "@/shared/ui/FormSection";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { useApp } from "@/shell/workspace-context/useApp";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 import { useSubmitKey } from "@/shared/http/submit-once";
 import { useFormChangesWarning } from "@/features/procurement/shared/navigation";
 
@@ -90,6 +91,15 @@ export function ItemForm({ options, item, onSaved, onCancel }: { options: ItemOp
   // Category defaults still as inherited (field -> where from); a field changed by hand is the user's own from then on.
   const [inherited, setInherited] = useState<Partial<Record<DefaultField, string>>>({});
   const [ownFields, setOwnFields] = useState<Set<string>>(() => new Set());
+  // A category or unit the company does not have yet is created in place (Create-Where-You-Are IT1, IT2) and joins the lists here.
+  const [addedCategories, setAddedCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [addedUoms, setAddedUoms] = useState<Array<{ id: string; label: string }>>([]);
+  const newCategory = useQuickCreate("itemCategory", {
+    onCreated: (record) => { setAddedCategories((current) => [...current, { id: record.id, name: record.label }]); chooseCategory(record.id); },
+  });
+  const newUom = useQuickCreate("uom", {
+    onCreated: (record) => { setAddedUoms((current) => [...current, { id: record.id, label: record.label }]); set("baseUomId")(record.id); },
+  });
   // A new item's SKU: generated on save, or typed — as the numbering setting and the user's permissions allow.
   const skuSetting = options.sku.mode;
   const canGenerate = skuSetting !== "manual" && can.generateSku;
@@ -207,7 +217,7 @@ export function ItemForm({ options, item, onSaved, onCancel }: { options: ItemOp
   const itemType: ItemType = template && values.type === "stock" ? "non_stock" : values.type;
   const categoryChoices = [{ value: NONE, label: "No category" }, ...options.categories.map((entry) => ({
     value: entry.id, label: entry.effectiveItemTypes.includes(itemType) ? entry.name : `${entry.name} (not for this type)`, isDisabled: !entry.effectiveItemTypes.includes(itemType),
-  }))];
+  })), ...addedCategories.map((entry) => ({ value: entry.id, label: entry.name }))];
   const profileChoices = (list: ItemOptions["inventoryProfiles"]) => withNone(list.map((entry) => ({ value: entry.id, label: entry.name })), "None (account mappings apply)");
   const uomOptions = (category?: string) => options.uoms.filter((uom) => !category || uom.category === category).map((uom) => ({ value: uom.id, label: `${uom.name} (${uom.code})` }));
   const baseCode = options.uoms.find((uom) => uom.id === values.baseUomId)?.code ?? "base units";
@@ -244,6 +254,7 @@ export function ItemForm({ options, item, onSaved, onCancel }: { options: ItemOp
           description={service ? "No inventory: no warehouse stock, batches or serials." : stock ? "Quantity tracked in warehouses, valued in Inventory." : "Bought or sold physically, but stock is not tracked."} />
         <ComboBox label="Category" isRequired={stock} selectedKey={values.categoryId} onSelectionChange={(key) => key !== null && chooseCategory(String(key))}
           options={categoryChoices} errorMessage={errors.categoryId ?? categoryError ?? undefined} isDisabled={editing} placeholder="Search categories"
+          onCreate={!editing && newCategory.canCreate ? newCategory.open : undefined} createLabel={(text) => (text ? `+ New category "${text}"` : "+ New category")}
           description={editing ? "To move the item to another category, use Reclassify on the item page." : "The category fills in its defaults; you can still change each one."} />
         {!service && <TextField label="Brand" value={values.brand} onChange={set("brand")} errorMessage={errors.brand} />}
         {!service && <TextField label="Manufacturer" value={values.manufacturerName} onChange={set("manufacturerName")} errorMessage={errors.manufacturerName} />}
@@ -280,9 +291,11 @@ export function ItemForm({ options, item, onSaved, onCancel }: { options: ItemOp
       )}
 
       <FormSection title="Units" description={editing ? "More units (a carton of 120) are added under Units & Identifiers." : "More units can be added after saving, under Units & Identifiers."}>
-        <Select label={service ? "Unit" : "Base unit"} isRequired isDisabled={editing && !can.editInventory} selectedKey={values.baseUomId || null} placeholder="Choose a unit"
-          onSelectionChange={(key) => set("baseUomId")(String(key))} options={uomOptions()} errorMessage={errors.baseUomId}
+        <ComboBox label={service ? "Unit" : "Base unit"} isRequired isDisabled={editing && !can.editInventory} selectedKey={values.baseUomId || null} placeholder="Choose a unit"
+          onSelectionChange={(key) => key !== null && set("baseUomId")(String(key))} options={[...uomOptions(), ...addedUoms.map((uom) => ({ value: uom.id, label: uom.label }))]}
+          errorMessage={errors.baseUomId} onCreate={newUom.canCreate ? newUom.open : undefined} createLabel={(text) => (text ? `+ New unit "${text}"` : "+ New unit")}
           description={service ? "Hour, Day, Month, Licence…" : "Stock is always counted in this unit. It cannot change once the item is used."} />
+        {newCategory.drawer}{newUom.drawer}
         <span aria-hidden="true" />
         {(values.isPurchasable || template) && (
           <>

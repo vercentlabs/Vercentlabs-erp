@@ -74,6 +74,11 @@ export declare const GOODS_RECEIPT_DISCREPANCY_TYPES: any;
 export declare const GOODS_RECEIPT_FILE_ENTITY: string;
 export declare function prepareGoodsReceiptFileUpload(input: { fileName: string; bytes: Uint8Array }, env?: Record<string, string | undefined>): Promise<any>;
 export declare const GOODS_RECEIPT_VIEWS: readonly string[];
+// Receive without a purchase order (Create-Where-You-Are PR3): raises and confirms a matching order, then drafts or posts the receipt.
+export declare function createGoodsReceiptWithoutOrder(client: QueryClient, context: any, input: {
+  supplierId: string; warehouseId?: string | null; receiptDate?: string | null; reason: string; supplierChallanNumber?: string | null; supplierChallanDate?: string | null;
+  notes?: string | null; post?: boolean; idempotencyKey?: string; lines: Array<{ productId: string; quantity: string; unitPrice: string; uomId?: string | null }>;
+}): Promise<{ orderId: string; purchaseOrderNumber: string; approvalRequired: boolean; pendingApproval?: unknown; receipt: { id: string; receiptNumber: string; status: string } | null }>;
 export declare function createDraftGoodsReceipt(client: QueryClient, context: any, ...args: any[]): Promise<any>;
 export declare function recordGoodsReceiptDiscrepancy(client: QueryClient, context: any, ...args: any[]): Promise<any>;
 export declare function getPurchaseOrderReceiptProgress(client: QueryClient, context: any, ...args: any[]): Promise<any>;

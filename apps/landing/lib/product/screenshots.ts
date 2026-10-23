@@ -32,7 +32,7 @@ export interface ProductScreenshot {
 export const APPROVED_SCREENSHOTS: readonly ProductScreenshot[] = Object.freeze([
   {
     id: "crm-pipeline-board",
-    src: "/product/crm-pipeline-board.png",
+    src: "/product/crm-deals-board-2026-10.png",
     alt: "CRM deals board showing open deals grouped by stage — Enquiry, Requirement understood, Quotation sent, Negotiation, Order expected — with each stage's deal count and value, and each deal's company, value, close date and owner.",
     width: 1920,
     height: 1000,

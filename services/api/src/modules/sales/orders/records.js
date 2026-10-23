@@ -278,10 +278,12 @@ function commercialChanges(before, preview, document) {
   say("Document discount", Number(before.version.document_discount_value) ? `${Number(before.version.document_discount_value)}${before.version.document_discount_type === "percent" ? "%" : ""}` : null,
     Number(preview.totals.documentDiscountValue) ? `${Number(preview.totals.documentDiscountValue)}${preview.totals.documentDiscountType === "percent" ? "%" : ""}` : null);
   const discount = (type, value) => (Number(value) ? `${Number(value)}${type === "percent" ? "%" : ""}` : null);
-  const earlier = new Map(before.lines.map((line) => [line.item_id, line]));
+  // A line is the same product (typed lines without one: the same item and name).
+  const earlier = new Map(before.lines.map((line) => [`${line.item_id}:${line.item_name_snapshot}`, line]));
   for (const line of preview.lines) {
-    const was = earlier.get(line.itemId);
-    earlier.delete(line.itemId);
+    const key = `${line.itemId}:${line.itemNameSnapshot}`;
+    const was = earlier.get(key) ?? [...earlier.values()].find((entry) => entry.item_id === line.itemId);
+    if (was) earlier.delete(`${was.item_id}:${was.item_name_snapshot}`);
     if (!was) { changes.push({ what: `Added ${line.itemNameSnapshot}`, from: null, to: `${Number(line.quantity)} × ${Number(line.unitPrice)}` }); continue; }
     say(`${line.itemNameSnapshot}: quantity`, Number(was.quantity), Number(line.quantity));
     say(`${line.itemNameSnapshot}: price${line.manualPriceOverride ? " (overridden)" : ""}`, Number(was.unit_price), Number(line.unitPrice));

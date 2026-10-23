@@ -22,6 +22,7 @@ import {
   type DuplicateMatch, type Supplier, type SupplierOptions,
 } from "../api/suppliers-api";
 import { DuplicateWarning } from "../components/DuplicateWarning";
+import { RecordPicker } from "@/shell/pickers/RecordPicker";
 import { Notice, Panel } from "@/shared/ui/Panel";
 
 type Values = Record<
@@ -209,7 +210,10 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
       <Panel title="Commercial defaults" description={editing && !can.commercial ? "Changing these needs the Manage supplier commercial defaults permission." : "New RFQs and purchase orders start from these; documents keep what they were given."}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {select("defaultCurrency", "Default currency", options.currencies.map((currency) => ({ value: currency.code, label: `${currency.code} · ${currency.name}` })), { isRequired: true })}
-          {select("paymentTermId", "Default payment terms", options.paymentTerms.map((term) => ({ value: term.id, label: term.name })), { isRequired: true })}
+          {/* A term the company does not have yet is created here (Create-Where-You-Are PR5). */}
+          <RecordPicker kind="paymentTerm" label="Default payment terms" isRequired value={values.paymentTermId || null} isDisabled={!editable("paymentTermId")}
+            errorMessage={fieldErrors.paymentTermId || undefined} onChange={(id) => set("paymentTermId")(id ?? "")}
+            selected={(() => { const term = options.paymentTerms.find((entry) => entry.id === values.paymentTermId); return term ? { id: term.id, label: term.name, description: term.code } : null; })()} />
           {select("assignedBuyerId", "Buyer", [{ value: "", label: "Unassigned" }, ...options.buyers.map((user) => ({ value: user.id, label: user.name }))])}
         </div>
       </Panel>

@@ -430,6 +430,8 @@ export type PosCartLine = {
   // F295: joined in from tenant.items for display, not a real column on
   // pos_cart_lines -- see loadLines()'s doc comment in cart.js.
   tracking_type?: "none" | "batch" | "serial";
+  // Joined in from tenant.items: "unlisted" on an open item (a typed name, price, HSN/SAC and GST; Create-Where-You-Are).
+  system_role?: string | null;
   [key: string]: any;
 };
 export type PosCartLifecycle = "DRAFT" | "CHECKOUT_PENDING" | "HELD" | "COMPLETED" | "CANCELLED" | "EXPIRED";
@@ -541,6 +543,7 @@ export declare function quickCreatePosCustomer(client: any, context: PointOfSale
   contactPerson?: string | null; notes?: string | null; cartId?: string | null; idempotencyKey?: string; confirmNotDuplicate?: boolean; duplicateReason?: string | null;
 }): Promise<{ customer: PointOfSaleCustomerMatch; created: boolean; warnings: string[] }>;
 export declare function addPosCartLine(client: any, context: PointOfSaleContext, cartId: string, input: Record<string, any>): Promise<PosCart>;
+export declare function getPosOpenItemOptions(client: any, context: PointOfSaleContext): Promise<{ allowed: boolean; taxCategories: Array<{ id: string; code: string; name: string }> }>;
 export declare function addProductToPosCart(client: any, context: PointOfSaleContext, cartId: string, input: Record<string, any>): Promise<PosCart & { replayed?: boolean }>;
 export declare function updatePosCartLineQuantity(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input: { quantity: number | string; expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;
 export declare function removePosCartLine(client: any, context: PointOfSaleContext, cartId: string, lineId: string, input?: { expectedVersion?: number; idempotencyKey?: string }): Promise<PosCart>;

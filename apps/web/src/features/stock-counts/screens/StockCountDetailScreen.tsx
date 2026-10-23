@@ -19,6 +19,7 @@ import { Notice } from "@/shared/ui/Panel";
 import { FactList, HistoryList, MoreActions } from "@/shared/ui/record";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 
 import {
   KIND_LABEL, LINE_STATUS_LABEL, STATUS_TONE, STOCK_COUNTS_BASE, acceptLines, addUnexpected, cancelCount, completeCount, enterCount, enterSerials, errorCode, errorDetails, errorMessage,
@@ -268,6 +269,11 @@ function UnexpectedDialog({ detail, onClose, onDone }: { detail: CountDetail; on
   const [expires, setExpires] = useState("");
   const [serials, setSerials] = useState("");
   const item = items.find((entry) => entry.id === itemId);
+  // Found an item that is not in the catalogue at all (Create-Where-You-Are ST2): it is created here, then counted.
+  const newItem = useQuickCreate("item", {
+    prefill: { type: "stock", isSellable: true, isPurchasable: true },
+    onCreated: (record) => { void inv.refetch().then(() => setItemId(record.id)); },
+  });
   const save = useMutation({
     mutationFn: () => addUnexpected(detail.count.id, { itemId, locationId: locationId || null, quantity: value, uomId: uomId || undefined, batchNumber: batch || undefined, newExpiresOn: expires || undefined,
       serialNumbers: serials.split(/[\s,;]+/).filter(Boolean) }),
@@ -277,7 +283,9 @@ function UnexpectedDialog({ detail, onClose, onDone }: { detail: CountDetail; on
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Add unexpected stock">
       <div className="flex flex-col gap-3 text-sm">
         <p className="text-text-muted">Stock physically found that the count has no line for. It becomes a gain on completion, at an authorized cost.</p>
-        <ComboBox label="Item" selectedKey={itemId || null} onSelectionChange={(key) => setItemId(key ? String(key) : "")} options={items.map((entry) => ({ value: entry.id, label: `${entry.code} · ${entry.name}` }))} />
+        <ComboBox label="Item" selectedKey={itemId || null} onSelectionChange={(key) => setItemId(key ? String(key) : "")} options={items.map((entry) => ({ value: entry.id, label: `${entry.code} · ${entry.name}` }))}
+          onCreate={newItem.canCreate ? newItem.open : undefined} createLabel={(text) => (text ? `+ Found an item not in the list: "${text}"` : "+ Found an item not in the list")} />
+        {newItem.drawer}
         <Select label="Location" selectedKey={locationId || null} onSelectionChange={(key) => setLocationId(String(key))} options={locations.map((entry) => ({ value: entry.id, label: entry.code }))} />
         {item?.tracking_type === "batch" && <div className="grid grid-cols-2 gap-2"><TextField label="Batch" value={batch} onChange={setBatch} description="An existing batch number, or a new lot." /><TextField label="Expiry (new lot)" type="date" value={expires} onChange={setExpires} /></div>}
         {item?.tracking_type === "serial" ? <TextField label="Serial numbers found" value={serials} onChange={setSerials} placeholder="SN-0101, SN-0102" /> : <div className="grid grid-cols-2 gap-2">

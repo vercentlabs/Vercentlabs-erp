@@ -10,6 +10,8 @@ import { Button, Checkbox, Dialog, Select, TextArea, TextField } from "@vercentl
 import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { DateInput, DateTimeInput, TimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { MoreDetails } from "@/features/crm/shared/ui/MoreDetails";
+import { RecordPicker } from "@/shell/pickers/RecordPicker";
+import { linkAccountContact } from "@/features/crm/accounts/api/accounts-api";
 import { RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -88,6 +90,9 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
   const editing = Boolean(followUp);
   const [type, setType] = useState<string>(followUp?.typeCode ?? options.defaults?.type ?? "call");
   const [repeat, setRepeat] = useState<FollowUpRepeat | null>(followUp?.repeat ?? null);
+  // A contact on file but not yet linked to this company is found and linked from here (Create-Where-You-Are C11).
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [subject, setSubject] = useState(followUp?.subject ?? "");
   const [notes, setNotes] = useState(followUp?.notes ?? "");
   const [scheduledDate, setScheduledDate] = useState(today());
@@ -131,10 +136,23 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
         <TextField label="Subject" description="Leave empty to use the type and the record's name." value={subject} onChange={setSubject} placeholder="For example: Follow up on ERP pricing" />
         <MoreDetails description="Contact, who it is for, reminder, repeat and notes."
           hasContent={editing || Boolean(assignedTo || notes.trim() || repeat) || contactId !== NONE || reminder === CUSTOM}>
-          {canPickContact && (
-            <Select label="Contact" selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key ?? NONE))}
-              options={[{ value: NONE, label: "No specific contact" }, ...(contacts.data?.rows ?? []).map((row) => ({ value: row.id, label: row.displayName }))]} />
+          {/* The company's contacts; someone new is added and linked to the company right here (Create-Where-You-Are C11). */}
+          {canPickContact && accountId && (
+            <RecordPicker kind="contact" label="Contact" value={contactId === NONE ? null : contactId} onChange={(id) => setContactId(id ?? NONE)}
+              filters={{ accountId }} createPrefill={{ accountId, accountName: related?.name ?? followUp?.accountName ?? undefined }} placeholder="No specific contact"
+              selected={contactId !== NONE ? { id: contactId, label: (contacts.data?.rows ?? []).find((row) => row.id === contactId)?.displayName ?? followUp?.contactName ?? "Contact" } : null} />
           )}
+          {canPickContact && accountId && (linking ? (
+            <RecordPicker kind="contact" label={`Any contact (linked to ${related?.name ?? followUp?.accountName ?? "this company"} when chosen)`} value={null} creatable={false}
+              onChange={(id) => {
+                if (!id) return;
+                setLinkError(null);
+                void linkAccountContact(accountId, id).then(() => { setContactId(id); setLinking(false); void contacts.refetch?.(); })
+                  .catch((failure) => setLinkError(errorMessage(failure)));
+              }} errorMessage={linkError ?? undefined} />
+          ) : (
+            <Button variant="ghost" size="compact" className="w-fit" onPress={() => setLinking(true)}>Contact not linked to this company yet?</Button>
+          ))}
           {!editing && (
             <Select label="Assigned to" selectedKey={assignedTo || "owner"} onSelectionChange={(key) => setAssignedTo(String(key) === "owner" ? "" : String(key))}
               options={[{ value: "owner", label: "The record's owner" }, ...options.users.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }))]} />

@@ -38,6 +38,12 @@ async function resolveCustomer(client, context, opportunityRow, input) {
   if (!account || account.status !== "active") throw new CrmError(409, "Add an active company to this deal before creating a quotation.", "CRM_OPPORTUNITY_ACCOUNT_REQUIRED");
   if (isCustomer(account)) return { partyId: account.id, decision: "existing" };
   const mode = input?.mode;
+  // Quoted as a prospect (Create-Where-You-Are C7): someone who may not create customers still quotes the company; Sales opens its
+  // customer master when the accepted quotation becomes an order.
+  if (mode === "prospect") {
+    if (account.party_type !== "prospect") throw new CrmError(409, "Only a prospect company can be quoted before it is a customer.", "CRM_QUOTATION_CUSTOMER_REQUIRED");
+    return { partyId: account.id, decision: "prospect" };
+  }
   if (mode === "link") {
     const customerId = requireUuid(input.customerId, "Customer");
     // The prospect account is merged into the customer: its contacts, this opportunity and its history move there.
@@ -74,6 +80,17 @@ function readLines(input) {
     const unitPrice = line.unitPrice === undefined || line.unitPrice === null || line.unitPrice === "" ? null : Number(line.unitPrice);
     if (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice < 0))
       throw new CrmError(400, `Line ${index + 1}: enter a price of zero or more.`, "CRM_QUOTATION_VALIDATION", { line: index + 1 });
+    // A line without a catalogue product (Create-Where-You-Are C6): what is sold, its HSN/SAC and GST and its price, typed.
+    const typedName = text(line.itemName, 300);
+    if (typedName) {
+      if (unitPrice === null) throw new CrmError(400, `Line ${index + 1}: enter the price of ${typedName}.`, "CRM_QUOTATION_VALIDATION", { line: index + 1 });
+      return {
+        ...(text(line.itemId) ? { itemId: requireUuid(line.itemId, `Line ${index + 1} product`) } : {}),
+        itemName: typedName, hsnSac: text(line.hsnSac, 12) ?? undefined, ...(text(line.taxCategoryId) ? { taxCategoryId: requireUuid(line.taxCategoryId, `Line ${index + 1} GST`) } : {}),
+        description: text(line.description, 4000), quantity, unitPrice,
+        ...(discountPercent ? { discountType: "percent", discountValue: discountPercent } : {}),
+      };
+    }
     return {
       itemId: requireUuid(line.itemId, `Line ${index + 1} product`),
       ...(text(line.uomId) ? { uomId: requireUuid(line.uomId, `Line ${index + 1} unit`) } : {}),

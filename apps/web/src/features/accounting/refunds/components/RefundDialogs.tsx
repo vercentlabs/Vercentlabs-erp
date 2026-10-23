@@ -6,7 +6,7 @@
 // really left, and checks again at posting.
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Button, Dialog, NumberField, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { ComboBox, Button, Dialog, NumberField, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -100,7 +100,7 @@ export function CreateRefundDialog({ preset, partyId: chosenParty, onClose, onDo
       size="lg" error={save.error ?? credit.error} fallback="The refund could not be created." onClose={onClose} label="Create Draft Refund" isLoading={save.isPending}
       isDisabled={!source || amount <= 0 || amount > (source?.available ?? 0) + 0.005 || (reason === "other" && !reasonNote.trim())} onPress={() => save.mutate()}>
       {!preset && (
-        <Select label="Customer" isRequired placeholder="Choose" selectedKey={partyId || null} options={(options.data?.customers ?? []).map((customer) => ({ value: customer.id, label: customer.name }))}
+        <ComboBox label="Customer" isRequired placeholder="Choose" selectedKey={partyId || null} options={(options.data?.customers ?? []).map((customer) => ({ value: customer.id, label: customer.name }))}
           onSelectionChange={(selected) => { setPartyId(String(selected ?? "")); setSourceKey(""); setAmount(null); }} />
       )}
       {partyId && credit.isLoading && <p className="text-sm text-text-muted">Loading the customer&apos;s credit…</p>}

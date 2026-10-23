@@ -4,6 +4,7 @@
 // headings are found even below the bank's account details) and every row is checked — a readable date, one amount in or out — with rows
 // already imported left out. Correct the column mapping if a column was not recognised, check the balances add up (opening + in − out =
 // closing), then import: the lines open in the reconciliation with the best matches already suggested.
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -117,7 +118,7 @@ export function StatementImportScreen() {
               onChange={(event) => { const next = event.target.files?.[0] ?? null; setFile(next); setMapping(undefined); setClosing(null); reread({ file: next, mapping: undefined }); }} />
             <span className="text-xs text-text-muted">{file ? `Chosen: ${file.name} (${Math.max(1, Math.round(file.size / 1024))} KB)` : "Up to 5 MB. Old .xls files: open in Excel and save as .xlsx or CSV."}</span></label>
         </div>
-        {banks.length === 0 && <Notice tone="info">Add a bank account first, under Bank &amp; cash accounts.</Notice>}
+        {banks.length === 0 && <Notice tone="info">No bank account yet. <Link className="font-medium underline" href="/accounting/bank-accounts">Add a bank account</Link>, then come back to import.</Notice>}
         {read.isPending && <LoadingState label="Reading the file" rows={3} />}
         {read.error && <Notice>{errorMessage(read.error)}</Notice>}
       </FormSection>

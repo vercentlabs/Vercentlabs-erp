@@ -26,6 +26,7 @@ import { determineRequiredSalesDocument } from "../../../core/invoicing/index.js
 import { createHash } from "node:crypto";
 import { computeTax, gstStateName, loadTaxContext, resolveLineTax, summarizeTax } from "../../../core/tax/index.js";
 import { posError } from "../shared/errors.js";
+import { UNLISTED_ITEM_ROLE, hsnSacKindOf } from "../../products/unlisted.js";
 import { resolveSalesPrice, resolveSalesPriceList } from "../../sales/price-lists/resolver.js";
 import {
   resolveActivePosLoyaltyProgram,
@@ -238,7 +239,7 @@ async function resolveSaleItem(client, context, itemId, variantId) {
   if (variantId) throw posError(409, "Choose the variant item itself.", "POS_SALE_VARIANT_IS_ITEM");
   const itemResult = await client.query(
     `SELECT item.id,item.code,item.name,item.description,item.standard_cost,item.tax_category_id,item.group_id,item.status,item.lifecycle_status,item.tracking_type,
-            item.is_sellable,item.uom_id,item.hsn_sac_code,item.item_type,item.manual_discount_allowed,item.max_manual_discount_percent,item.min_selling_price,
+            item.is_sellable,item.uom_id,item.hsn_sac_code,item.item_type,item.manual_discount_allowed,item.max_manual_discount_percent,item.min_selling_price,item.system_role,
             item_group.name AS group_name, item_group.manual_discount_allowed AS group_manual_discount_allowed, item_group.max_manual_discount_percent AS group_max_manual_discount_percent
        FROM tenant.items item
        LEFT JOIN tenant.item_groups item_group ON item_group.organization_id = item.organization_id AND item_group.id = item.group_id
@@ -246,7 +247,7 @@ async function resolveSaleItem(client, context, itemId, variantId) {
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
-  if (!item || item.status !== "active" || item.lifecycle_status !== "active" || !item.is_sellable) {
+  if (!item || item.status !== "active" || item.lifecycle_status !== "active" || (!item.is_sellable && item.system_role !== UNLISTED_ITEM_ROLE)) {
     throw posError(404, "One or more POS sale items were not found.", "POS_SALE_ITEM_NOT_FOUND");
   }
   return item;
@@ -808,9 +809,19 @@ export async function priceCartLines(client, context, {
     lineNumber += 1;
     const quantity = decimal(rawLine.quantity);
     if (quantity <= 0n) throw posError(400, "POS sale quantity must be greater than zero.", "POS_SALE_QUANTITY_INVALID");
-    const item = await resolveSaleItem(client, context, rawLine.itemId, rawLine.variantId || null);
+    let item = await resolveSaleItem(client, context, rawLine.itemId, rawLine.variantId || null);
+    // An open item (Create-Where-You-Are POS1): the line's own name, HSN/SAC (goods or a service by its code), GST category and price.
+    const openItem = item.system_role === UNLISTED_ITEM_ROLE;
+    if (openItem) {
+      const name = String(rawLine.description ?? "").trim();
+      if (!name) throw posError(400, `Line ${lineNumber}: type what is being sold.`, "POS_OPEN_ITEM_NAME_REQUIRED");
+      if (rawLine.unitPrice === undefined || rawLine.unitPrice === null || rawLine.unitPrice === "") throw posError(400, `${name}: enter its price.`, "POS_OPEN_ITEM_PRICE_REQUIRED");
+      const code = String(rawLine.hsnSac ?? "").replace(/[\s.]/g, "");
+      item = { ...item, name, hsn_sac_code: code || null, tax_category_id: rawLine.taxCategoryId || null, item_type: hsnSacKindOf(code) === "hsn" ? "product" : "service" };
+    }
     const taxDecision = await resolvePosLineTax(client, supply, item);
-    const resolvedPrice = await resolveUnitPrice(client, context, store, policy, { ...rawLine, quantity: asDatabaseDecimal(quantity) }, item, customerId, customerList);
+    const resolvedPrice = await resolveUnitPrice(client, context, store, policy, { ...rawLine, priceOverride: Boolean(rawLine.priceOverride) || openItem, quantity: asDatabaseDecimal(quantity) },
+      item, customerId, customerList);
     const unitPrice = resolvedPrice.unitPrice;
     const listPrice = unitPrice;
     const grossAmount = roundMoney(mul(quantity, unitPrice), decimalPlaces);
@@ -832,6 +843,7 @@ export async function priceCartLines(client, context, {
       lineNumber,
       lineId: rawLine.lineId ?? null,
       itemId: item.id,
+      openItem,
       // The unit sold, its factor and the base quantity stock moves (a box of 12 issues 12 pieces).
       uomId: rawLine.uomId || item.uom_id,
       // Snapshots for the receipt: the barcode the line was scanned with and the SKU it was sold under.

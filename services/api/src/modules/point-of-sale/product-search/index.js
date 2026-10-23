@@ -732,7 +732,9 @@ export async function collectPosCartProductIssues(client, context, cartId) {
   const ctx = await resolvePosProductContext(client, context, { cartId });
   const { rows } = await client.query(
     `SELECT item_id, sum(COALESCE(base_quantity, quantity))::text AS needed, bool_or(price_override) AS overridden FROM tenant.pos_cart_lines
-      WHERE organization_id = $1 AND cart_id = $2 GROUP BY item_id`, [ctx.organizationId, cartId]);
+      WHERE organization_id = $1 AND cart_id = $2
+        AND item_id NOT IN (SELECT id FROM tenant.items WHERE organization_id = $1 AND system_role IS NOT NULL)
+      GROUP BY item_id`, [ctx.organizationId, cartId]);
   if (!rows.length) return [];
   const items = await loadItems(client, ctx.organizationId, rows.map((row) => row.item_id));
   const products = await decorate(client, context, { ...ctx, allowNegativeStock: true, internal: true }, items.map((item) => ({ item })));

@@ -16,6 +16,7 @@ import { Notice } from "@/shared/ui/Panel";
 import { useDebouncedValue } from "@/shared/ui/list";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 
 import {
   PROJECTS_BASE, createProject, customerContacts, errorDetails, errorMessage, errorStatus, getOptions, getProject, newKey, searchCustomers, updateProject,
@@ -91,6 +92,15 @@ function ProjectForm({ project, options }: { project?: Project; options: Options
       customerName: row ? [row.name, row.number].filter(Boolean).join(" · ") : "", customerContactId: null }));
     setFieldErrors((current) => ({ ...current, customerId: "" }));
   };
+  // Create where you are (PJ1): a customer not yet in the master is created here and chosen.
+  const quickCreate = useQuickCreate("customer", {
+    onCreated: (record) => {
+      setChosen(null);
+      setCustomerSearch(record.label);
+      setValues((current) => ({ ...current, customerId: record.id, crmAccountId: null, customerName: [record.label, record.description].filter(Boolean).join(" · "), customerContactId: null }));
+      setFieldErrors((current) => ({ ...current, customerId: "" }));
+    },
+  });
   const dateProblem = values.plannedStartDate && values.targetEndDate && values.targetEndDate < values.plannedStartDate ? "The target date cannot be before the start date." : "";
   const submit = useSubmitKey();
   // The create request key: a repeated save (double click, retry after a lost answer) returns the same project.
@@ -156,8 +166,10 @@ function ProjectForm({ project, options }: { project?: Project; options: Options
           <div className="flex flex-col gap-2">
             <ComboBox label="Customer" placeholder="Search by name, number, phone or GSTIN" selectedKey={partyId} inputValue={customerSearch} onInputChange={setCustomerSearch}
               onSelectionChange={(key) => pickCustomer(key ? String(key) : null)}
-              options={customerOptions} isLoading={customers.isFetching} emptyMessage="No customer matches. A new customer is created in Sales or CRM first." errorMessage={fieldErrors.customerId}
+              options={customerOptions} isLoading={customers.isFetching} emptyMessage="No customer matches." errorMessage={fieldErrors.customerId}
+              onCreate={quickCreate.canCreate ? quickCreate.open : undefined} createLabel={(typed) => (typed ? `Create customer "${typed}"` : "Create a new customer")}
               description="From the shared customer master; required to activate." />
+            {quickCreate.drawer}
             {chosen?.similarNames && <Notice tone="warning">Customers with similar names exist. Check the number and city before saving.</Notice>}
             {values.crmAccountId && <Notice tone="info">A CRM account, not yet a Customer: the draft keeps it as a provisional customer. It is linked to a Customer record before activation.</Notice>}
           </div>

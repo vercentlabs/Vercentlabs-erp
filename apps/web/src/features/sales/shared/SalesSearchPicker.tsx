@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ComboBox } from "@vercentlabs/design-system";
 
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
@@ -29,6 +30,8 @@ export function SalesSearchPicker(props: {
   isDisabled?: boolean;
   placeholder?: string;
   description?: React.ReactNode;
+  /** false hides "+ Create" (a filter, a report). On a document form a missing customer or product is created right there. */
+  creatable?: boolean;
 }) {
   const { kind, value, onPick } = props;
   const known = props.customersOnly ? { ...props.known, parties: props.known.parties.filter((party) => party.party_type !== "prospect") } : props.known;
@@ -47,10 +50,19 @@ export function SalesSearchPicker(props: {
     staleTime: 15_000,
   });
   const found: SalesSearchResults = typed && search.data ? search.data : {};
+  // Create where you are: the new customer or product is found in Sales' own terms (prices, units, tax) and picked like any other.
+  const quickCreate = useQuickCreate(kind === "customers" ? "customer" : "item", {
+    prefill: kind === "products" ? { isSellable: true } : undefined,
+    onCreated: async (record) => {
+      const results = (await searchSalesOptions(kind, record.label, !props.customersOnly).catch(() => ({ results: {} as SalesSearchResults }))).results;
+      onPick(record.id, results);
+    },
+  });
   const records: Array<Party | Item> = kind === "customers"
     ? merged(found.parties ?? (typed ? [] : known.parties), known.parties.filter((party) => party.id === value))
     : merged(found.items ?? (typed ? [] : known.items), known.items.filter((item) => item.id === value));
   return (
+    <>
     <ComboBox
       label={props.label}
       aria-label={props["aria-label"]}
@@ -71,7 +83,11 @@ export function SalesSearchPicker(props: {
       allowsEmptyCollection
       // The server already matched (by GSTIN, phone, HSN… too); the box must not filter its answer again by the label.
       defaultFilter={() => true}
+      onCreate={props.creatable !== false && quickCreate.canCreate ? quickCreate.open : undefined}
+      createLabel={(text) => (text ? `Create ${quickCreate.noun} "${text}"` : `Create a new ${quickCreate.noun}`)}
     />
+    {quickCreate.drawer}
+    </>
   );
 }
 

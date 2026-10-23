@@ -21,6 +21,8 @@ import { resolveTerminalStockSource, validateTerminalOperationAccess } from "../
 import { posError } from "../shared/errors.js";
 import { collectPosCartProductIssues, posProductError, resolvePosProductContext, validatePosProductSelection } from "../product-search/index.js";
 import { normalizeQuantityToBase } from "../../products/uom.js";
+import { ensureUnlistedItem, isUnlistedItem } from "../../products/unlisted.js";
+import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 import { allocateScannedBatch, validateScannedSerial } from "../barcode-scanning/index.js";
 import { requirePermission, assertPosStoreAccess, accessiblePosStoreIds } from "../shared/access-control.js";
 import {
@@ -199,7 +201,7 @@ function checkVersion(cart, expectedVersion) {
 // requirement from postStockMovement's rejection at that point.
 async function loadLines(client, context, cartId) {
   const result = await client.query(
-    `SELECT line.*, item.tracking_type, item.code AS sku, uom.code AS uom_code
+    `SELECT line.*, item.tracking_type, item.code AS sku, item.system_role, uom.code AS uom_code
      FROM tenant.pos_cart_lines line
      LEFT JOIN tenant.items item ON item.organization_id=line.organization_id AND item.id=line.item_id
      LEFT JOIN tenant.units_of_measure uom ON uom.organization_id=line.organization_id AND uom.id=line.uom_id
@@ -219,9 +221,12 @@ function toPricingInputLines(rows) {
     uomId: row.uom_id,
     uomFactor: row.uom_factor,
     scannedBarcode: row.scanned_barcode ?? null,
-    unitPrice: row.price_override ? row.unit_price : undefined,
+    // An open item is sold at the price typed, under the HSN/SAC and GST category typed (Create-Where-You-Are POS1).
+    unitPrice: row.price_override || row.system_role ? row.unit_price : undefined,
     priceOverride: row.price_override,
     description: row.description,
+    hsnSac: row.system_role ? row.hsn_sac_code : undefined,
+    taxCategoryId: row.system_role ? row.tax_category_id : undefined,
     warehouseId: row.warehouse_id,
     warehouseLocationId: row.warehouse_location_id,
     batchId: row.batch_id,
@@ -444,6 +449,16 @@ export async function addPosCartLine(client, context, cartId, input) {
   const quantity = input.quantity ?? 1;
   const existingLines = await loadLines(client, context, cartId);
   if (existingLines.length >= 200) throw posError(400, "A POS cart cannot contain more than 200 lines.", "POS_CART_LINE_LIMIT_EXCEEDED");
+  if (!input.itemId && input.itemName !== undefined) {
+    const opened = await insertPosOpenItemLine(client, context, cart, existingLines, input, quantity);
+    if (key) {
+      await client.query(`INSERT INTO tenant.pos_cart_request_keys (organization_id,cart_id,idempotency_key,line_id,created_by) VALUES ($1,$2,$3,$4,$5)`,
+        [context.organizationId, cartId, key, opened.lineId, context.userId ?? null]);
+    }
+    const result = await reprice(client, context, cart, policy);
+    await cartEvent(client, context, cartId, "item_added", `Open item: ${opened.name} × ${String(quantity)}`, { lineId: opened.lineId, itemId: opened.itemId, quantity: String(quantity), openItem: true });
+    return result;
+  }
   const ctx = await resolvePosProductContext(client, context, { cartId });
   const inCart = existingLines.filter((line) => line.item_id === input.itemId).reduce((sum, line) => sum + decimal(line.base_quantity ?? line.quantity), decimal(0));
   const selection = await validatePosProductSelection(client, context, ctx, { itemId: input.itemId, uomId: input.uomId ?? null, quantity, alreadyInCartBase: inCart });
@@ -513,6 +528,51 @@ export async function addPosCartLine(client, context, cartId, input) {
 // The Product Search name for the same operation.
 export const addProductToPosCart = addPosCartLine;
 
+// The GST categories an open item may be billed under (the company's active sales categories), and whether this person may bill one.
+export async function getPosOpenItemOptions(client, context) {
+  requirePermission(context, "pos.sale.create");
+  const allowed = context.roleSlugs?.includes("organization_owner") || Boolean(context.permissions?.includes(POS_PERMISSIONS.openItem));
+  const taxCategories = allowed ? (await client.query(
+    `SELECT id, code, name FROM tenant.tax_categories WHERE organization_id = $1 AND status = 'active' AND applies_to IN ('all', 'sales', 'both') ORDER BY code`,
+    [context.organizationId])).rows : [];
+  return { allowed, taxCategories };
+}
+
+// An open item (Create-Where-You-Are POS1): something the catalogue does not have yet, billed by a name, price, GST category and HSN/SAC
+// typed at the counter, by someone allowed to (pos.open_item). It sits on the company's "Unlisted item" (a service, no stock), keeps its
+// own name and tax, is its own line (never merged) and is not a price override. Its tax is worked out when the cart is priced, so a
+// category or code that does not work at this outlet refuses the line.
+async function insertPosOpenItemLine(client, context, cart, existingLines, input, quantity) {
+  requirePermission(context, POS_PERMISSIONS.openItem);
+  const name = String(input.itemName ?? "").trim().slice(0, 300);
+  if (!name) throw posError(400, "Type what is being sold.", "POS_OPEN_ITEM_NAME_REQUIRED");
+  if (input.unitPrice === undefined || input.unitPrice === null || input.unitPrice === "") throw posError(400, `${name}: enter its price.`, "POS_OPEN_ITEM_PRICE_REQUIRED");
+  const price = decimal(String(input.unitPrice));
+  if (price < 0n) throw posError(400, "POS unit price must be zero or greater.", "POS_UNIT_PRICE_INVALID");
+  const units = decimal(String(quantity));
+  if (units <= 0n) throw posError(400, "POS sale quantity must be greater than zero.", "POS_SALE_QUANTITY_INVALID");
+  const hsnSac = String(input.hsnSac ?? "").replace(/[^0-9]/g, "").slice(0, 8) || null;
+  let taxCategoryId = null;
+  if (input.taxCategoryId) {
+    taxCategoryId = (await client.query(`SELECT id FROM tenant.tax_categories WHERE organization_id=$1 AND id=$2 AND status='active'`,
+      [context.organizationId, input.taxCategoryId])).rows[0]?.id ?? null;
+    if (!taxCategoryId) throw posError(404, "Choose an active GST category.", "POS_OPEN_ITEM_TAX_CATEGORY_INVALID");
+  }
+  const itemId = await ensureUnlistedItem(client, context.organizationId);
+  const uomId = (await client.query(`SELECT uom_id FROM tenant.items WHERE organization_id=$1 AND id=$2`, [context.organizationId, itemId])).rows[0].uom_id;
+  const source = await resolveTerminalStockSource(client, context.organizationId, cart.terminal_id, null);
+  const nextLineNumber = existingLines.reduce((highest, line) => Math.max(highest, line.line_number), 0) + 1;
+  const lineId = (await client.query(
+    `INSERT INTO tenant.pos_cart_lines
+      (organization_id,cart_id,line_number,item_id,description,quantity,unit_price,price_override,warehouse_id,warehouse_location_id,uom_id,uom_factor,base_quantity,
+       hsn_sac_code,tax_category_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,false,$8,$9,$10,1,$6,$11,$12) RETURNING id`,
+    [context.organizationId, cart.id, nextLineNumber, itemId, name, asDatabaseDecimal(units), asDatabaseDecimal(price), source.warehouseId, source.locationId, uomId,
+      hsnSac, taxCategoryId],
+  )).rows[0].id;
+  return { lineId, itemId, name };
+}
+
 export async function updatePosCartLineQuantity(client, context, cartId, lineId, input) {
   requirePermission(context, "pos.sale.create");
   const policy = await loadPolicy(client, context);
@@ -525,7 +585,10 @@ export async function updatePosCartLineQuantity(client, context, cartId, lineId,
   const line = lines.find((candidate) => candidate.id === lineId);
   if (!line) throw posError(404, "Cart line was not found.", "POS_CART_LINE_NOT_FOUND");
   let baseQuantity;
-  if (decimal(String(quantity)) > decimal(line.quantity)) {
+  // An open item has no stock or catalogue checks: only its quantity changes.
+  if (line.system_role) {
+    baseQuantity = decimal(String(quantity));
+  } else if (decimal(String(quantity)) > decimal(line.quantity)) {
     const others = lines.filter((candidate) => candidate.item_id === line.item_id && candidate.id !== line.id)
       .reduce((sum, candidate) => sum + decimal(candidate.base_quantity ?? candidate.quantity), decimal(0));
     const ctx = await resolvePosProductContext(client, context, { cartId });
@@ -1352,6 +1415,8 @@ export async function overridePosCartLinePrice(client, context, cartId, lineId, 
   const line = (await client.query(`SELECT id, item_id, uom_id, unit_price, list_price, description, price_override FROM tenant.pos_cart_lines WHERE organization_id=$1 AND id=$2 AND cart_id=$3`,
     [context.organizationId, lineId, cartId])).rows[0];
   if (!line) throw posError(404, "Cart line was not found.", "POS_CART_LINE_NOT_FOUND");
+  if (await isUnlistedItem(client, context.organizationId, line.item_id))
+    throw posError(409, "An open item is sold at the price typed. Remove it and add it again to change the price.", "POS_OPEN_ITEM_PRICE_FIXED");
   if (input.unitPrice !== null && input.unitPrice !== undefined) {
     const discounted = (await client.query(`SELECT manual_discount_type, manual_discount_amount FROM tenant.pos_cart_lines WHERE organization_id=$1 AND id=$2`, [context.organizationId, lineId])).rows[0];
     if (discounted?.manual_discount_type || Number(discounted?.manual_discount_amount ?? 0) > 0)

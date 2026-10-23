@@ -38,9 +38,12 @@ export type QuotationReadiness = {
   contacts: Array<{ id: string; name: string; jobTitle: string | null; email: string | null; phone: string | null }>;
   addresses: Array<{ id: string; type: string; label: string; stateCode: string | null; isDefaultBilling: boolean; isDefaultShipping: boolean }>;
   lines: Array<{
-    id: string; itemId: string; itemCode: string; itemName: string; active: boolean; uom: string | null; description: string | null; quantity: number;
+    id: string; itemId: string; itemCode: string | null; itemName: string; active: boolean; uom: string | null; description: string | null; quantity: number;
     estimatedUnitPrice: number; estimatedDiscountPercent: number;
+    // Typed on the deal without a catalogue product (Create-Where-You-Are): quoted as typed.
+    unlisted?: boolean;
   }>;
+  taxCategories?: Array<{ id: string; code: string; name: string }>;
   priceLists: Array<{ id: string; code: string; name: string; currencyCode: string; taxInclusive: boolean }>;
   paymentTerms: Array<{ id: string; code: string; name: string }>;
   currencies: string[];
@@ -51,11 +54,15 @@ export type QuotationReadiness = {
     currencyCode: string; priceListId: string | null; paymentTermId: string | null;
   };
 };
-export type QuotationLineInput = { itemId: string; description?: string; quantity: number; discountPercent?: number; unitPrice?: number; manualPriceReason?: string };
+// A line without a catalogue product (Create-Where-You-Are): itemName, hsnSac, taxCategoryId and unitPrice instead of an itemId.
+export type QuotationLineInput = {
+  itemId?: string; itemName?: string; hsnSac?: string; taxCategoryId?: string; description?: string; quantity: number; discountPercent?: number; unitPrice?: number;
+  manualPriceReason?: string;
+};
 export type BillingAddressInput = { line1: string; line2?: string; city: string; state: string; stateCode?: string; postalCode: string; countryCode: string };
 export type CreateQuotationInput = {
   idempotencyKey: string;
-  customer?: { mode: "create"; gstin?: string; paymentTermId?: string; currencyCode?: string; billingAddress?: BillingAddressInput; confirmNoMatch?: boolean } | { mode: "link"; customerId: string };
+  customer?: { mode: "create"; gstin?: string; paymentTermId?: string; currencyCode?: string; billingAddress?: BillingAddressInput; confirmNoMatch?: boolean } | { mode: "link"; customerId: string } | { mode: "prospect" };
   contactId?: string; billingAddressId?: string; shippingAddressId?: string;
   validUntil: string; currencyCode: string; priceListId?: string; paymentTermId?: string; customerReference?: string;
   customerNotes?: string; termsAndConditions?: string; internalNotes?: string;

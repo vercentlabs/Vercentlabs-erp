@@ -9,7 +9,7 @@ import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, ErrorState, RecordFormPage, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
-import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
+import { RecordPicker } from "@/shell/pickers/RecordPicker";
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import { FormSection } from "@/shared/ui/FormSection";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -205,7 +205,8 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
         <TextField label="Last name" value={values.lastName} onChange={set("lastName")} errorMessage={fieldErrors.lastName} />
         {mode === "create" && (
           <div className="flex flex-col gap-2">
-            <AccountPicker label="Company" description="Optional. A person can be linked to more companies later." value={values.accountId} onChange={(id) => set("accountId")(id)} />
+            <RecordPicker kind="company" label="Company" description="Optional. Not on the list? Type its name and create it here." value={values.accountId}
+              onChange={(id) => set("accountId")(id)} />
             {values.accountId && <Checkbox isSelected={values.makePrimary} onChange={set("makePrimary")}>Primary contact for this company</Checkbox>}
           </div>
         )}

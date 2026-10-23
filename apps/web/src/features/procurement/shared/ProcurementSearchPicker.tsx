@@ -10,6 +10,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ComboBox } from "@vercentlabs/design-system";
 
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
@@ -62,6 +63,8 @@ export function ProcurementSearchPicker(props: {
   placeholder?: string;
   description?: React.ReactNode;
   className?: string;
+  /** Create where you are: a document's supplier or product picker offers "+ Create" (a list filter, with anyLabel, never does). */
+  creatable?: boolean;
 }) {
   const { kind, value, onPick, anyLabel } = props;
   const workspace = useWorkspaceContext();
@@ -80,7 +83,18 @@ export function ProcurementSearchPicker(props: {
   const found = typed && search.data ? (kind === "suppliers" ? search.data.suppliers : search.data.products) ?? [] : null;
   const rows = merged(found ?? known, chosen ? [chosen] : []);
   const options = [...(anyLabel ? [{ value: ANY_PICK, label: anyLabel }] : []), ...rows.map((row) => ({ value: row.id, label: pickLabel(kind, row) }))];
+  // The new supplier or item is read back in Procurement's own terms (GSTIN, MSME, last price) and picked like any other.
+  const quickCreate = useQuickCreate(kind === "suppliers" ? "supplier" : "item", {
+    prefill: kind === "products" ? { isPurchasable: true, isSellable: false } : undefined,
+    onCreated: async (record) => {
+      const found = await searchProcurementOptions({ kind, ids: [record.id] }).catch(() => null);
+      const row = (kind === "suppliers" ? found?.suppliers : found?.products)?.find((entry) => entry.id === record.id) ?? null;
+      onPick(record.id, row);
+    },
+  });
+  const creatable = (props.creatable ?? !anyLabel) && quickCreate.canCreate;
   return (
+    <>
     <ComboBox
       className={props.className}
       size={props.size}
@@ -103,7 +117,11 @@ export function ProcurementSearchPicker(props: {
       allowsEmptyCollection
       // The server already matched (by GSTIN, barcode, HSN… too); the box must not filter its answer again by the label.
       defaultFilter={() => true}
+      onCreate={creatable ? quickCreate.open : undefined}
+      createLabel={(text) => (text ? `Create ${quickCreate.noun} "${text}"` : `Create a new ${quickCreate.noun}`)}
     />
+    {quickCreate.drawer}
+    </>
   );
 }
 

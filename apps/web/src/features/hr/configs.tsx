@@ -180,6 +180,7 @@ const employees: RegisterConfig = {
       label: "Department",
       kind: "select",
       options: "departments",
+      creatable: true,
     },
     {
       name: "designationId",
@@ -187,6 +188,7 @@ const employees: RegisterConfig = {
       label: "Designation",
       kind: "select",
       options: "designations",
+      creatable: true,
     },
     {
       name: "managerEmployeeId",

@@ -276,7 +276,7 @@ function ReportFilterBar({ filters, onChange }: { filters: ReportFilters; onChan
       <TextField label="From" type="date" value={filters.from ?? ""} isDisabled={Boolean(filters.fy)} onChange={(from) => onChange({ ...filters, from: from || undefined })} />
       <TextField label="To" type="date" value={filters.to ?? ""} isDisabled={Boolean(filters.fy)} onChange={(to) => onChange({ ...filters, to: to || undefined })} />
       {known ? (
-        <SalesSearchPicker kind="customers" label="Customer" value={filters.customer ?? null} known={known} placeholder="All customers"
+        <SalesSearchPicker creatable={false} kind="customers" label="Customer" value={filters.customer ?? null} known={known} placeholder="All customers"
           onPick={(id, results) => { setFound((current) => mergeSalesOptions(current ?? known, results)); onChange({ ...filters, customer: id || undefined }); }} />
       ) : <TextField label="Customer" isDisabled value="" />}
       <Select label="Salesperson" selectedKey={filters.salesperson ?? "all"}

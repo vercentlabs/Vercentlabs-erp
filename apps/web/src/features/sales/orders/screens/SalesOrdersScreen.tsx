@@ -223,7 +223,7 @@ export function SalesOrdersScreen() {
             {select("status", "Any order status")}
             {options && (
               <div className="w-56">
-                <SalesSearchPicker kind="customers" aria-label="Customer" customersOnly value={filters.partyId === ANY ? null : filters.partyId} placeholder="Any customer"
+                <SalesSearchPicker creatable={false} kind="customers" aria-label="Customer" customersOnly value={filters.partyId === ANY ? null : filters.partyId} placeholder="Any customer"
                   known={pickedCustomers ? mergeSalesOptions(options, pickedCustomers) : options}
                   onPick={(id, found) => { setPickedCustomers((current) => mergeSalesOptions(current ?? options, found)); setFilters({ ...filters, partyId: id || ANY }); }} />
               </div>

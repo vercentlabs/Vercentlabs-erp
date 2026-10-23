@@ -224,7 +224,8 @@ const like = (value) => `%${text(value).toLowerCase().replace(/[\\%_]/g, "\\$&")
 export function buildProductListWhere(context, filters = {}) {
   const values = [context.organizationId];
   const bind = (value) => { values.push(value); return `$${values.length}`; };
-  const where = ["item.organization_id = $1"];
+  // The system "Unlisted item" (lines without a catalogue item) is never part of the catalogue.
+  const where = ["item.organization_id = $1", "item.system_role IS NULL"];
   const view = text(filters.view) || "all";
   if (VIEW_SQL[view]) where.push(VIEW_SQL[view]);
   let rank = null;

@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuickCreate } from "@/shell/pickers/useQuickCreate";
 import { Button, Checkbox, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
@@ -21,7 +22,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { AskDialog, type Ask, type Field } from "@/shared/ui/AskDialog";
 import {
   APPROVAL_TONE, BLOCKER_LABEL, MILESTONES_BASE, MILESTONE_TONE, MILESTONE_TYPE_LABEL, PROJECTS_BASE, dateLabel, dueLabel, errorDetails,
-  errorMessage, errorStatus, getLinks, getMembers, getMilestone, getMilestoneActivity, getProjectContacts, getProjectMilestones, milestoneAction, milestoneFileHref,
+  addProjectContact, getProject, errorMessage, errorStatus, getLinks, getMembers, getMilestone, getMilestoneActivity, getProjectContacts, getProjectMilestones, milestoneAction, milestoneFileHref,
   newKey, removeMilestoneFile, searchMilestoneTasks, updateMilestone, uploadMilestoneFile, getMilestoneFiles, type BillingStage, type MilestoneCheck, type MilestoneDetail,
 } from "../api/projects-api";
 import { AssignTaskDialog } from "../assignees/AssignTaskDialog";
@@ -599,6 +600,19 @@ function CustomerDecisionDialog({ milestone, onClose, act }: { milestone: Milest
   const files = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "milestone-files", milestone.id), queryFn: () => getMilestoneFiles(milestone.id) });
   const set = (name: keyof typeof form) => (value: string) => setForm((current) => ({ ...current, [name]: value }));
   const contactOptions = (contacts.data?.contacts ?? []).filter((row) => row.active).map((row) => ({ value: row.contactId, label: `${row.name} · ${row.roleLabel}` }));
+  // The customer's person who decided, added here when not yet on the project (Create-Where-You-Are PJ2): a new customer contact,
+  // linked to the project as its approval contact.
+  const project = useQuery({ queryKey: scopedQueryKey(workspace, "projects", "project", milestone.projectId), queryFn: () => getProject(milestone.projectId) });
+  const customerId = project.data?.customerId ?? null;
+  const newContact = useQuickCreate("customerContact", {
+    prefill: { partyId: customerId ?? undefined, partyName: project.data?.customer ?? undefined },
+    onCreated: (record) => {
+      void addProjectContact(milestone.projectId, { contactId: record.id, role: "APPROVAL" })
+        .then(() => queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "projects", "project-contacts", milestone.projectId) }))
+        .then(() => set("contactId")(record.id))
+        .catch((failure) => setError(errorMessage(failure)));
+    },
+  });
   const fileOptions = [{ value: "", label: "No file" }, ...(files.data ?? []).map((row) => ({ value: row.id, label: row.fileName }))];
   const ready = Boolean(form.contactId) && Boolean(form.date) && (Boolean(form.fileId) || form.reference.trim().length >= 3) && (form.decision === "APPROVED" || form.note.trim().length >= 3);
   return (
@@ -606,7 +620,11 @@ function CustomerDecisionDialog({ milestone, onClose, act }: { milestone: Milest
       <div className="flex flex-col gap-3">
         <p className="text-sm text-text-secondary">Record what the customer decided, from the evidence they sent (a signed document, an email). This records an external decision; it does not sign on the customer&apos;s behalf.</p>
         <Select label="Who decided" selectedKey={form.contactId || null} onSelectionChange={(next) => set("contactId")(String(next))} options={contactOptions} isRequired
-          description={contactOptions.length ? "One of the project's customer contacts." : "Add the customer's contact on the project's Customer & Contacts tab first."} />
+          description={contactOptions.length ? "One of the project's customer contacts." : "No customer contact on this project yet."} />
+        {customerId && newContact.canCreate && (
+          <Button variant="outline" size="compact" className="w-fit" onPress={() => newContact.open("")}>Add a customer contact</Button>
+        )}
+        {newContact.drawer}
         <div className="grid gap-3 sm:grid-cols-2">
           <Select label="Decision" selectedKey={form.decision} onSelectionChange={(next) => set("decision")(String(next))}
             options={[{ value: "APPROVED", label: "Accepted" }, { value: "CHANGES_REQUESTED", label: "Asked for changes" }, { value: "REJECTED", label: "Rejected" }]} />

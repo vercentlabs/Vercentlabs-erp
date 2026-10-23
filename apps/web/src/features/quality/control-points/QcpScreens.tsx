@@ -8,7 +8,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, PageHeader, PermissionState, Select, StatusBadge, Tab, TabList, Tabs, TextField } from "@vercentlabs/design-system";
+import { ComboBox, Button, PageHeader, PermissionState, Select, StatusBadge, Tab, TabList, Tabs, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -178,8 +178,8 @@ function PreviewPanel() {
     <div className="flex flex-col gap-3">
       <p className="text-sm text-text-secondary">Test the rules against an example goods receipt: nothing is created.</p>
       <div className="flex flex-wrap items-end gap-2">
-        <Select label="Product" selectedKey={input.itemId || null} onSelectionChange={set("itemId")} options={o?.items ?? []} />
-        <Select label="Supplier" selectedKey={input.supplierId || null} onSelectionChange={set("supplierId")} options={[blank, ...(o?.suppliers ?? [])]} />
+        <ComboBox label="Product" selectedKey={input.itemId || null} onSelectionChange={set("itemId")} options={o?.items ?? []} />
+        <ComboBox label="Supplier" selectedKey={input.supplierId || null} onSelectionChange={set("supplierId")} options={[blank, ...(o?.suppliers ?? [])]} />
         <Select label="Site" selectedKey={input.warehouseId || null} onSelectionChange={set("warehouseId")} options={[blank, ...(o?.sites ?? [])]} />
         <TextField label="Receipt date" type="date" value={input.date ?? ""} onChange={set("date")} />
         <Button variant="primary" isDisabled={!input.itemId} onPress={async () => { setError(null); try { setResult(await previewQcp({ ...input, trigger: "INVENTORY_GOODS_RECEIPT_CONFIRMED" })); } catch (e) { setError(errorMessage(e)); } }}>Preview</Button>

@@ -10,7 +10,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Breadcrumb, Button, Dialog, ErrorState, LinkButton, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
+import { ComboBox, Breadcrumb, Button, Dialog, ErrorState, LinkButton, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { formatDateTime } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -476,7 +476,7 @@ function AskDialog({ ask, bom, busy, onClose, onConfirm }: { ask: Ask; bom: Bom;
           </>
         )}
         {ask.product && (
-          <Select label="Product for the copy" selectedKey={productId} onSelectionChange={(key) => setProductId(String(key))}
+          <ComboBox label="Product for the copy" selectedKey={productId} onSelectionChange={(key) => setProductId(String(key))}
             options={(options.data?.products ?? []).filter((item) => !item.hasBom && item.id !== bom.finishedItem.id).map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }))} />
         )}
         {ask.action === "discard" && <p className="text-sm text-text-secondary">The draft is removed; its history stays. An approved revision is retired instead.</p>}
