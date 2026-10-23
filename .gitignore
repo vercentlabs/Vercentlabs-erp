@@ -115,3 +115,6 @@ tfplan*
 crash.log
 *.tfvars
 !*.tfvars.example
+
+# Cloud Run deployment settings (infrastructure/cloudrun/deploy.env.example is the template)
+infrastructure/cloudrun/deploy.env

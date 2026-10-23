@@ -4,6 +4,9 @@
 // Configuration: MIGRATION_DATABASE_URL (the owner role; only this Job receives it), optionally via MIGRATION_DATABASE_URL_FILE.
 // MIGRATIONS_DIR overrides the directory (default: the image's /app/database/migrations, or the repo's database/migrations).
 // `--dry-run` lists what would run.
+// Runtime logins: with APP_DB_PASSWORD and WORKER_DB_PASSWORD set (Cloud Run deploy), the restricted runtime roles vercent_app (web) and
+// vercent_worker (worker) are then made LOGIN NOINHERIT with those passwords, so the web and worker pass their restricted-role check.
+// Run every time; it only (re)sets the two roles' login and password.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,9 +31,22 @@ async function main() {
       log: ({ filename, milliseconds }) => logger.info("migration applied", { filename, milliseconds }),
     });
     if (dryRun) logger.info("dry run", { pending: result.pending, alreadyApplied: result.skipped });
-    else logger.info("migrations complete", { applied: result.applied.length, alreadyApplied: result.skipped });
+    else {
+      logger.info("migrations complete", { applied: result.applied.length, alreadyApplied: result.skipped });
+      await provisionRuntimeLogins(client);
+    }
   } finally {
     await client.end();
+  }
+}
+
+// ALTER ROLE takes no bind parameters: the password is quoted as a literal by the driver.
+async function provisionRuntimeLogins(client) {
+  const logins = [["vercent_app", process.env.APP_DB_PASSWORD], ["vercent_worker", process.env.WORKER_DB_PASSWORD]].filter(([, password]) => password);
+  for (const [role, password] of logins) {
+    if (String(password).length < 24) throw new Error(`The password for ${role} must be at least 24 characters.`);
+    await client.query(`ALTER ROLE ${role} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD ${client.escapeLiteral(String(password))}`);
+    logger.info("runtime login ready", { role });
   }
 }
 

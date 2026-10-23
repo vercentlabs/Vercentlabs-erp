@@ -1,0 +1,4 @@
+# What Cloud Build uploads (gcloud builds submit): the same as the Docker build context (.dockerignore), plus git.
+#!include:.dockerignore
+.git
+.gitignore

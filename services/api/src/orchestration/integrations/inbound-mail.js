@@ -13,6 +13,7 @@ import {
   completeInboundMailEvent,
   inboundPayloadDigest,
   InboundMailError,
+  loadInboundMailRoute,
   normalizeInboundMessage,
   recordInboundMailEvent,
   resolveInboundMailRoute,
@@ -20,6 +21,7 @@ import {
   verifyInboundMailSignature,
 } from "../../core/platform/integrations/inbound-mail/index.js";
 import { entitlementFromBillingSummary, getEnabledModuleKeys } from "../../core/access/index.js";
+import { createHmac, randomUUID } from "node:crypto";
 import { deliverEmailToSupport } from "../../modules/support/desk/sd-mail.js";
 import { prepareAttachmentUpload as prepareCrmAttachment } from "../../modules/crm/attachments/records.js";
 import { deliverInboundEmailToCrm } from "../../modules/crm/email/inbound.js";
@@ -68,6 +70,29 @@ async function assertModuleAvailable(client, organizationId, env, moduleKey = "s
 export async function receiveInboundMail({ runPlatform, runTenant }, { routeKey, rawBody, signature }, env = process.env) {
   if (Buffer.byteLength(rawBody) > MAX_RAW_BODY) throw new InboundMailError(413, "The inbound message is too large.", "PLATFORM_INBOUND_MAIL_TOO_LARGE");
   const route = await runPlatform((client) => resolveInboundMailRoute(client, routeKey));
+  return processInboundMail({ runTenant }, route, { rawBody, signature }, env);
+}
+
+// "Send test email" (Settings › Integrations › Inbound email): a sample customer email, signed with the address's own secret, through
+// exactly the steps a provider's delivery takes (signature, idempotency, Support or CRM delivery). It opens a real ticket or lead, named
+// as a test, so the whole path is seen working before a mailbox is pointed at it.
+export async function sendInboundMailTest({ runTenant }, session, routeId, env = process.env) {
+  const route = await runTenant(session.organizationId, (client) => loadInboundMailRoute(client, session.organizationId, routeId));
+  const crm = route.target === "crm.email_to_lead";
+  const stamp = new Date().toISOString();
+  const rawBody = JSON.stringify({
+    provider: "test",
+    messageId: `test-${randomUUID()}@vercentlabs.test`,
+    from: { email: "test.customer@example.com", name: "Test Customer" },
+    to: ["inbound@example.com"],
+    subject: crm ? "Test enquiry from the inbound email setup" : "Test support request from the inbound email setup",
+    text: `This is a test message sent from Settings › Integrations › Inbound email at ${stamp}. It shows that email sent to "${route.name}" ${crm ? "opens a CRM lead" : "opens a Support ticket"}. You can close or delete it.`,
+  });
+  const signature = `sha256=${createHmac("sha256", await routeSigningSecret(route, env)).update(rawBody).digest("hex")}`;
+  return processInboundMail({ runTenant }, route, { rawBody, signature }, env);
+}
+
+async function processInboundMail({ runTenant }, route, { rawBody, signature }, env) {
   verifyInboundMailSignature(rawBody, signature, await routeSigningSecret(route, env));
   let payload;
   try {

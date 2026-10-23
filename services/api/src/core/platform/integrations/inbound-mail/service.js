@@ -83,6 +83,31 @@ export async function createInboundMailRoute(client, session, input, env = proce
   return { route: routeDto(rows[0]), routeKey, signingSecret };
 }
 
+// New keys for an address whose webhook URL or signing secret was lost or leaked: the old ones stop working at once. Returns the new
+// route key and signing secret ONCE, like creation.
+export async function rotateInboundMailRouteKeys(client, session, routeId, env = process.env) {
+  if (!UUID.test(String(routeId || ""))) throw new InboundMailError(404, "Inbound address not found.", "PLATFORM_INBOUND_MAIL_ROUTE_NOT_FOUND");
+  const routeKey = `imr_${randomBytes(24).toString("base64url")}`;
+  const signingSecret = `whsec_${randomBytes(32).toString("base64url")}`;
+  const { rows } = await client.query(
+    `UPDATE inbound_mail_routes SET route_key_hash=$3, route_key_prefix=$4, encrypted_signing_secret=$5::jsonb, updated_at=now()
+      WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [session.organizationId, routeId, hash(routeKey), routeKey.slice(0, 12), JSON.stringify(await encryptSecret({ secret: signingSecret }, env))],
+  );
+  if (!rows[0]) throw new InboundMailError(404, "Inbound address not found.", "PLATFORM_INBOUND_MAIL_ROUTE_NOT_FOUND");
+  await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "integration.inbound_route_keys_rotated", entityType: "inbound_mail_route", entityId: rows[0].id });
+  return { route: routeDto(rows[0]), routeKey, signingSecret };
+}
+
+// The route row by id, in the caller's organization (for an in-app test message).
+export async function loadInboundMailRoute(client, organizationId, routeId) {
+  if (!UUID.test(String(routeId || ""))) throw new InboundMailError(404, "Inbound address not found.", "PLATFORM_INBOUND_MAIL_ROUTE_NOT_FOUND");
+  const route = (await client.query(`SELECT * FROM inbound_mail_routes WHERE organization_id=$1 AND id=$2`, [organizationId, routeId])).rows[0];
+  if (!route) throw new InboundMailError(404, "Inbound address not found.", "PLATFORM_INBOUND_MAIL_ROUTE_NOT_FOUND");
+  if (route.status !== "active") throw new InboundMailError(409, "Enable this address before sending a test message.", "PLATFORM_INBOUND_MAIL_ROUTE_DISABLED");
+  return route;
+}
+
 export async function setInboundMailRouteStatus(client, session, routeId, status) {
   if (!["active", "disabled"].includes(status)) throw new InboundMailError(400, "Unsupported status.", "PLATFORM_INBOUND_MAIL_INPUT_INVALID");
   if (!UUID.test(String(routeId || ""))) throw new InboundMailError(404, "Inbound address not found.", "PLATFORM_INBOUND_MAIL_ROUTE_NOT_FOUND");

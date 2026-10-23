@@ -4,6 +4,8 @@
 **/.next
 node_modules
 **/node_modules
+# pnpm's local virtual store (pnpm-workspace.yaml virtualStoreDir), built for the developer's OS: images install their own.
+.pnpm
 out
 dist
 build

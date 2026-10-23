@@ -28,6 +28,8 @@ export function createInboundMailRoute(
   input: { name: string; target: string; recordedAsUserId?: string | null },
   env?: Env,
 ): Promise<{ route: InboundMailRouteSummary; routeKey: string; signingSecret: string }>;
+export function rotateInboundMailRouteKeys(client: Client, session: Session, routeId: string, env?: Env): Promise<{ route: InboundMailRouteSummary; routeKey: string; signingSecret: string }>;
+export function loadInboundMailRoute(client: Client, organizationId: string, routeId: string): Promise<Record<string, any>>;
 export function setInboundMailRouteStatus(client: Client, session: Session, routeId: string, status: "active" | "disabled"): Promise<InboundMailRouteSummary>;
 export function listInboundMailEvents(client: Client, organizationId: string, options?: { routeId?: string | null; limit?: number }): Promise<
   Array<{ id: string; routeId: string | null; provider: string; subject: string | null; status: string; outcome: string | null; error: string | null; ticketId: string | null; receivedAt: string; processedAt: string | null; attachmentNotes: unknown }>

@@ -1,11 +1,14 @@
-// Google and Outlook calendar sync (CRM plan 4.5). A salesperson connects their own calendar (OAuth); their CRM meetings and follow-up
-// meetings are then kept in it by the worker: added when planned, moved when rescheduled, removed when cancelled. Each event remembers
+// Google and Outlook calendar sync (CRM plan 4.5). A salesperson connects their own calendar (OAuth); everything scheduled for them in CRM —
+// meetings, follow-ups of every kind (call, visit, demo, email, WhatsApp), tasks and planned calls — is then kept in it by the worker (and
+// at once by "Sync now"): added when planned, moved when rescheduled, marked done when completed, removed when cancelled. A task due on a
+// day without a time is an all-day event. Each event remembers
 // its CRM activity, so nothing is added twice. The sync is two-way (CRM audit): a meeting moved or deleted in the calendar is moved or
 // cancelled in CRM, unless CRM changed it since the last sync (then CRM's version wins). A meeting can ask for a Meet or Teams link,
 // which the calendar makes (video.js).
 //
 // The organization's OAuth apps come from the environment: GOOGLE_CALENDAR_CLIENT_ID / _SECRET and MICROSOFT_CALENDAR_CLIENT_ID /
-// _SECRET, with APP_URL for the return address (/api/crm/calendar/callback/{provider}).
+// _SECRET — else the same provider's sign-in app (GOOGLE_OAUTH_CLIENT_ID / _SECRET, MICROSOFT_OAUTH_…), so one OAuth client serves both —
+// with APP_URL for the return address (/api/crm/calendar/callback/{provider}).
 import { createHash, randomBytes } from "node:crypto";
 
 import { decryptSecret, encryptSecret } from "../../../core/platform/secrets/index.js";
@@ -20,6 +23,7 @@ const PROVIDERS = Object.freeze({
     token: "https://oauth2.googleapis.com/token",
     scope: "openid email https://www.googleapis.com/auth/calendar.events",
     env: ["GOOGLE_CALENDAR_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_SECRET"],
+    fallbackEnv: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"],
     extra: { access_type: "offline", prompt: "consent" },
   },
   microsoft: {
@@ -28,6 +32,7 @@ const PROVIDERS = Object.freeze({
     token: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
     scope: "offline_access openid email Calendars.ReadWrite User.Read",
     env: ["MICROSOFT_CALENDAR_CLIENT_ID", "MICROSOFT_CALENDAR_CLIENT_SECRET"],
+    fallbackEnv: ["MICROSOFT_OAUTH_CLIENT_ID", "MICROSOFT_OAUTH_CLIENT_SECRET"],
     extra: { response_mode: "query" },
   },
 });
@@ -42,8 +47,9 @@ function providerOf(key) {
 
 function appConfig(key, env) {
   const provider = providerOf(key);
-  const clientId = env[provider.env[0]];
-  const clientSecret = env[provider.env[1]];
+  const own = Boolean(env[provider.env[0]] && env[provider.env[1]]);
+  const clientId = own ? env[provider.env[0]] : env[provider.fallbackEnv[0]];
+  const clientSecret = own ? env[provider.env[1]] : env[provider.fallbackEnv[1]];
   const appUrl = env.APP_URL;
   if (!clientId || !clientSecret || !appUrl) return null;
   return { provider, clientId, clientSecret, redirectUri: `${String(appUrl).replace(/\/+$/, "")}/api/crm/calendar/callback/${key}` };
@@ -130,7 +136,18 @@ async function accessToken(client, connection, { fetchImpl, env }) {
 // What the calendar shows of a meeting. A different version from the one last synced means CRM changed it (pushed); the calendar's
 // own changes are read back only for a meeting CRM has not changed since (CRM wins a clash).
 const versionOf = (meeting) => createHash("sha256")
-  .update([meeting.subject, meeting.start_iso, meeting.end_iso, meeting.location ?? "", meeting.status, meeting.video_provider ?? "", meeting.video_link ?? ""].join("|")).digest("hex").slice(0, 24);
+  .update([meeting.subject, meeting.start_iso, meeting.end_iso, meeting.location ?? "", meeting.status, meeting.video_provider ?? "", meeting.video_link ?? "",
+    meeting.all_day ? `day:${meeting.day}` : ""].join("|")).digest("hex").slice(0, 24);
+
+// The event's title: what it is (a meeting is just its subject), and "Done" once completed in CRM.
+const KIND = Object.freeze({ task: "Task", follow_up: "Follow-up", call: "Call", email: "Email", whatsapp: "WhatsApp", other: "To-do" });
+function titleOf(meeting) {
+  const subject = meeting.subject || (meeting.follow_up_type ? `${meeting.follow_up_type[0].toUpperCase()}${meeting.follow_up_type.slice(1)}` : "CRM to-do");
+  const kind = KIND[meeting.activity_type];
+  const title = kind && !subject.toLowerCase().startsWith(kind.toLowerCase()) ? `${kind}: ${subject}` : subject;
+  return meeting.status === "completed" ? `Done – ${title}` : title;
+}
+const nextDay = (day) => new Date(Date.parse(`${day}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
 const HREF = Object.freeze({ lead: "/crm/leads/", opportunity: "/crm/opportunities/", party: "/crm/accounts/", contact: "/crm/contacts/" });
 const PULL_EVERY_MINUTES = 10;
 const utc = (at) => new Date(at).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -138,16 +155,20 @@ const utc = (at) => new Date(at).toISOString().replace(/\.\d{3}Z$/, "Z");
 function eventBody(provider, meeting, appUrl) {
   const link = appUrl && meeting.entity_id && HREF[meeting.entity_type] ? `${String(appUrl).replace(/\/+$/, "")}${HREF[meeting.entity_type]}${meeting.entity_id}` : null;
   const notes = [meeting.video_link ? `Join: ${meeting.video_link}` : null, meeting.description, link ? `CRM: ${link}` : null].filter(Boolean).join("\n\n");
+  const title = titleOf(meeting);
   if (provider === "google") {
-    const body = { summary: meeting.subject, description: notes || undefined, location: meeting.location ?? undefined, start: { dateTime: meeting.start_iso }, end: { dateTime: meeting.end_iso },
+    const when = meeting.all_day ? { start: { date: meeting.day }, end: { date: nextDay(meeting.day) } } : { start: { dateTime: meeting.start_iso }, end: { dateTime: meeting.end_iso } };
+    const body = { summary: title, description: notes || undefined, location: meeting.location ?? undefined, ...when,
       extendedProperties: { private: { crmActivityId: meeting.id } } };
     // Google Meet: Google makes the link (the request carries conferenceDataVersion=1).
     if (meeting.video_provider === "google_meet" && !meeting.video_link)
       body.conferenceData = { createRequest: { requestId: `crm-${meeting.id}-${Date.now()}`, conferenceSolutionKey: { type: "hangoutsMeet" } } };
     return body;
   }
-  const body = { subject: meeting.subject, body: { contentType: "text", content: notes }, location: meeting.location ? { displayName: meeting.location } : undefined,
-    start: { dateTime: meeting.start_iso.replace("Z", ""), timeZone: "UTC" }, end: { dateTime: meeting.end_iso.replace("Z", ""), timeZone: "UTC" } };
+  const body = { subject: title, body: { contentType: "text", content: notes }, location: meeting.location ? { displayName: meeting.location } : undefined,
+    ...(meeting.all_day
+      ? { isAllDay: true, start: { dateTime: `${meeting.day}T00:00:00`, timeZone: "UTC" }, end: { dateTime: `${nextDay(meeting.day)}T00:00:00`, timeZone: "UTC" } }
+      : { start: { dateTime: meeting.start_iso.replace("Z", ""), timeZone: "UTC" }, end: { dateTime: meeting.end_iso.replace("Z", ""), timeZone: "UTC" } }) };
   // Microsoft Teams: Outlook makes the link.
   if (meeting.video_provider === "teams") Object.assign(body, { isOnlineMeeting: true, onlineMeetingProvider: "teamsForBusiness" });
   return body;
@@ -162,16 +183,27 @@ async function remote(fetchImpl, method, url, token, body) {
   const response = await fetchImpl(url, { method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
   if (method === "DELETE" && (response.status === 404 || response.status === 410)) return {};
   const parsed = await response.json().catch(() => ({}));
-  if (!response.ok) throw new CrmError(502, `The calendar refused the change: ${parsed?.error?.message ?? response.status}.`, "CRM_CALENDAR_REFUSED");
+  if (!response.ok) {
+    const message = String(parsed?.error?.message ?? response.status);
+    // Google's calendar service is off for the workspace's OAuth project: something only the administrator can turn on.
+    if (/has not been used in project|accessNotConfigured|SERVICE_DISABLED|is disabled/i.test(`${message} ${JSON.stringify(parsed?.error?.details ?? parsed?.error?.errors ?? "")}`))
+      throw new CrmError(502, "Google Calendar is not switched on for this workspace yet. Ask your administrator to enable the Google Calendar API in Google Cloud, then click Sync now.",
+        "CRM_CALENDAR_API_DISABLED");
+    throw new CrmError(502, `The calendar refused the change: ${message}.`, "CRM_CALENDAR_REFUSED");
+  }
   return parsed;
 }
 
 const eventsUrl = (connection) => (connection.provider === "google"
   ? `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(connection.calendar_id)}/events` : "https://graph.microsoft.com/v1.0/me/events");
 
-// The person's meetings, with what the calendar needs. `where` narrows them (SQL on activity / event).
+// Everything scheduled for the person (meetings, follow-ups, tasks, planned calls…), with what the calendar needs. A task or follow-up
+// due on a day without a time is all-day (its date in the company's timezone). `where` narrows them (SQL on activity / event).
 const meetingsOf = (client, organizationId, connection, where, extra = []) => client.query(
   `SELECT activity.id, activity.entity_type, activity.entity_id, activity.subject, activity.description, activity.location, activity.status,
+          activity.activity_type, activity.follow_up_type,
+          (activity.start_at IS NULL AND activity.due_time_set IS FALSE) AS all_day,
+          to_char((activity.due_at AT TIME ZONE COALESCE((SELECT org.timezone FROM public.organizations org WHERE org.id = activity.organization_id), 'Asia/Kolkata'))::date, 'YYYY-MM-DD') AS day,
           activity.video_provider, activity.video_link, activity.reminder_offset_minutes, activity.start_at IS NOT NULL AS has_start,
           to_char(COALESCE(activity.start_at, activity.due_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS start_iso,
           to_char(COALESCE(activity.end_at, COALESCE(activity.start_at, activity.due_at) + make_interval(mins => COALESCE(invitation.duration_minutes, 30))) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS end_iso,
@@ -180,11 +212,15 @@ const meetingsOf = (client, organizationId, connection, where, extra = []) => cl
      LEFT JOIN tenant.crm_meeting_invitations invitation ON invitation.organization_id = activity.organization_id AND invitation.activity_id = activity.id
      LEFT JOIN tenant.crm_calendar_events event ON event.organization_id = activity.organization_id AND event.activity_id = activity.id AND event.user_id = $2 AND event.provider = $3
     WHERE activity.organization_id = $1 AND activity.assigned_to = $2
-      AND (activity.activity_type = 'meeting' OR (activity.activity_type = 'follow_up' AND (activity.follow_up_type = 'meeting' OR activity.follow_up_channel = 'meeting')))
       AND COALESCE(activity.start_at, activity.due_at) IS NOT NULL AND ${where}
     LIMIT 500`, [organizationId, connection.user_id, connection.provider, ...extra]);
 const IN_WINDOW = `COALESCE(activity.start_at, activity.due_at) BETWEEN now() - make_interval(days => ${SYNC_DAYS_BACK}) AND now() + make_interval(days => ${SYNC_DAYS_AHEAD})`;
 const OPEN = "activity.status IN ('planned', 'in_progress', 'overdue')";
+// Past items added on request ("Add past items"): meetings, calls, follow-ups and tasks of the last days, done or not; logged emails and
+// WhatsApp messages are records of messages, not appointments, so they stay out. Once added they are kept like any other event.
+const MAX_PAST_DAYS = 365;
+const pastItems = (days) => `(activity.status <> 'cancelled' AND activity.activity_type NOT IN ('email', 'whatsapp')
+  AND COALESCE(activity.start_at, activity.due_at) BETWEEN now() - make_interval(days => ${days}) AND now() + make_interval(days => ${SYNC_DAYS_AHEAD}))`;
 
 // Puts one meeting in one calendar as CRM has it. Returns "created", "updated", "removed" or null (nothing to do).
 async function pushMeeting(client, organizationId, connection, token, meeting, { fetchImpl, env }) {
@@ -234,6 +270,7 @@ async function pullChanges(client, organizationId, connection, token, counts, { 
   const worker = { organizationId, userId: null, permissions: [], roleSlugs: ["system_worker"] };
   for (const meeting of rows.slice(0, 100)) {
     if (meeting.synced_version !== versionOf(meeting)) continue;
+    // An all-day task keeps its day in CRM; a deleted event still cancels it (below), a moved one is not read back.
     const response = await fetchImpl(`${base}/${encodeURIComponent(meeting.external_id)}`, { headers: { authorization: `Bearer ${token}` } });
     const gone = response.status === 404 || response.status === 410;
     const event = gone ? null : await response.json().catch(() => null);
@@ -245,6 +282,7 @@ async function pullChanges(client, organizationId, connection, token, counts, { 
       counts.pulledCancelled += 1;
       continue;
     }
+    if (meeting.all_day) continue;
     const times = eventTimes(connection.provider, event);
     if (!times || (utc(times.start) === meeting.start_iso && utc(times.end) === meeting.end_iso)) continue;
     await client.query(meeting.has_start
@@ -262,10 +300,13 @@ async function pullChanges(client, organizationId, connection, token, counts, { 
 
 // Brings every connected calendar of the organization up to date, both ways, and makes the Zoom links meetings asked for.
 // Returns { connections, created, updated, removed, failed, pulledMoved, pulledCancelled, zoom }.
-export async function syncCalendars(client, organizationId, { fetchImpl = fetch, env = process.env } = {}) {
+// userId: only that person's calendars ("Sync now"); pastDays: also add their past items of that many days ("Add past items").
+export async function syncCalendars(client, organizationId, { fetchImpl = fetch, env = process.env, userId = null, pastDays = 0 } = {}) {
+  const past = Math.min(MAX_PAST_DAYS, Math.max(0, Math.trunc(Number(pastDays) || 0)));
   const counts = { connections: 0, created: 0, updated: 0, removed: 0, failed: 0, pulledMoved: 0, pulledCancelled: 0, zoom: 0 };
-  counts.zoom = (await makeZoomLinks(client, organizationId, { fetchImpl, env })).made;
-  const { rows: connections } = await client.query("SELECT * FROM tenant.crm_calendar_connections WHERE organization_id = $1 AND status IN ('active', 'error')", [organizationId]);
+  if (!userId) counts.zoom = (await makeZoomLinks(client, organizationId, { fetchImpl, env })).made;
+  const { rows: connections } = await client.query(
+    "SELECT * FROM tenant.crm_calendar_connections WHERE organization_id = $1 AND status IN ('active', 'error') AND ($2::uuid IS NULL OR user_id = $2)", [organizationId, userId]);
   for (const connection of connections) {
     counts.connections += 1;
     try {
@@ -273,7 +314,8 @@ export async function syncCalendars(client, organizationId, { fetchImpl = fetch,
       // Read back first, so a meeting moved in the calendar is not pushed back over.
       if (!connection.last_pull_at || Date.now() - new Date(connection.last_pull_at).getTime() >= PULL_EVERY_MINUTES * 60000)
         await pullChanges(client, organizationId, connection, token, counts, { fetchImpl });
-      const { rows: meetings } = await meetingsOf(client, organizationId, connection, `(event.external_id IS NOT NULL OR (${OPEN} AND ${IN_WINDOW}))`);
+      const { rows: meetings } = await meetingsOf(client, organizationId, connection,
+        `(event.external_id IS NOT NULL OR (${OPEN} AND ${IN_WINDOW})${past ? ` OR ${pastItems(past)}` : ""})`);
       for (const meeting of meetings) {
         const done = await pushMeeting(client, organizationId, connection, token, meeting, { fetchImpl, env });
         if (done) counts[done] += 1;
@@ -302,6 +344,11 @@ export async function syncMeetingNow(client, organizationId, activityId, { fetch
   if (!meeting) return null;
   await pushMeeting(client, organizationId, connection, token, meeting, { fetchImpl, env });
   return meeting.video_link ?? null;
+}
+
+// "Sync now" from My calendar: the signed-in person's calendars, both ways, at once.
+export async function syncMyCalendar(client, context, options = {}) {
+  return syncCalendars(client, context.organizationId, { ...options, userId: context.userId });
 }
 
 export async function hasCalendarConnections(client, organizationId) {

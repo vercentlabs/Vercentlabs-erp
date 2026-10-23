@@ -15,6 +15,7 @@ export function readCalendarState(state: string, env?: NodeJS.ProcessEnv): Promi
 export function completeCalendarConnection(client: QueryClient, payload: { organizationId: string; userId: string; provider: string }, code: string, runtime?: Runtime): Promise<{ provider: string; accountEmail: string | null }>;
 export function disconnectCalendar(client: QueryClient, context: CrmContext, provider: string): Promise<{ disconnected: true }>;
 export function syncCalendars(client: QueryClient, organizationId: string, runtime?: Runtime): Promise<{ connections: number; created: number; updated: number; removed: number; failed: number; pulledMoved: number; pulledCancelled: number; zoom: number }>;
+export function syncMyCalendar(client: QueryClient, context: { organizationId: string; userId: string }, runtime?: Runtime & { pastDays?: number }): Promise<{ connections: number; created: number; updated: number; removed: number; failed: number; pulledMoved: number; pulledCancelled: number; zoom: number }>;
 export function hasCalendarConnections(client: QueryClient, organizationId: string): Promise<boolean>;
 // Two-way sync and video calls (CRM audit).
 export function syncMeetingNow(client: QueryClient, organizationId: string, activityId: string, runtime?: Runtime): Promise<string | null>;

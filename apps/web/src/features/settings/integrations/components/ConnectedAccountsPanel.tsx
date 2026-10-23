@@ -4,16 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
   Button,
-  EmptyState,
   ErrorState,
   StatusBadge,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
 } from "@vercentlabs/design-system";
+import Link from "next/link";
 import { useState } from "react";
 
 import { requestJson } from "@/shared/http/request-json";
@@ -155,103 +149,87 @@ export function ConnectedAccountsPanel({
         </p>
       )}
       <div className="grid gap-3 md:grid-cols-2">
-        {profiles.map((profile) => (
-          <div
-            key={profile.key}
-            className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-4"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-text">{profile.label}</span>
-              {!profile.configured && (
-                <StatusBadge tone="neutral">Not set up</StatusBadge>
-              )}
-            </div>
-            <p className="text-sm text-text-secondary">{profile.description}</p>
-            {canManage && (
-              <div>
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  isDisabled={!profile.configured}
-                  isLoading={
-                    connect.isPending && connect.variables === profile.key
-                  }
-                  onPress={() => connect.mutate(profile.key)}
-                >
-                  Connect
-                </Button>
+        {profiles.map((profile) => {
+          const accounts = visible.filter((connection) => connection.profileKey === profile.key);
+          return (
+            <section
+              key={profile.key}
+              className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col gap-1">
+                  <h2 className="font-medium text-text">{profile.label}</h2>
+                  <p className="text-sm text-text-secondary">{profile.description}</p>
+                </div>
+                {!profile.configured ? (
+                  <StatusBadge tone="neutral">Not set up</StatusBadge>
+                ) : accounts.some((connection) => connection.status === "active") ? (
+                  <StatusBadge tone="success">Connected</StatusBadge>
+                ) : null}
               </div>
-            )}
-            {!profile.configured && (
-              <p className="text-xs text-text-muted">
-                The platform operator has not configured this provider yet.
-              </p>
-            )}
-          </div>
-        ))}
+              {/* The accounts linked with this provider, each with who linked it and when. */}
+              {accounts.length > 0 && (
+                <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-control)] border border-border">
+                  {accounts.map((connection) => (
+                    <li key={connection.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm font-medium text-text">{connection.accountLabel ?? "Unnamed account"}</span>
+                        <span className="text-xs text-text-muted">
+                          {[connection.connectedByName ? `Linked by ${connection.connectedByName}` : null,
+                            formatter.format(new Date(connection.lastRefreshedAt ?? connection.updatedAt))].filter(Boolean).join(" · ")}
+                        </span>
+                        {connection.lastError && <span className="text-xs text-danger">{connection.lastError}</span>}
+                      </span>
+                      {connection.status !== "active" && (
+                        <StatusBadge tone={STATUS[connection.status]?.tone ?? "neutral"}>
+                          {STATUS[connection.status]?.label ?? connection.status}
+                        </StatusBadge>
+                      )}
+                      {canManage && (
+                        <Button variant="ghost" size="compact" onPress={() => setRevoking(connection)}>
+                          Disconnect
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {canManage && profile.configured && (
+                <div>
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    isLoading={connect.isPending && connect.variables === profile.key}
+                    onPress={() => connect.mutate(profile.key)}
+                  >
+                    Connect
+                  </Button>
+                </div>
+              )}
+              {!profile.configured && (
+                <p className="text-xs text-text-muted">
+                  The platform operator has not configured this provider yet.
+                </p>
+              )}
+            </section>
+          );
+        })}
       </div>
-      {visible.length === 0 ? (
-        <EmptyState
-          title="No connected accounts"
-          description="Connected accounts appear here after someone signs in with a provider."
-        />
-      ) : (
-        <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border bg-surface">
-          <Table caption="Connected accounts">
-            <TableHead>
-              <TableRow>
-                <TableHeaderCell>Account</TableHeaderCell>
-                <TableHeaderCell>Connected by</TableHeaderCell>
-                <TableHeaderCell>Status</TableHeaderCell>
-                <TableHeaderCell>Last refreshed</TableHeaderCell>
-                <TableHeaderCell>
-                  <span className="sr-only">Actions</span>
-                </TableHeaderCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {visible.map((connection) => (
-                <TableRow key={connection.id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-text">
-                        {connection.accountLabel ?? "Unnamed account"}
-                      </span>
-                      <span className="text-xs text-text-muted">
-                        {connection.profileLabel}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{connection.connectedByName ?? "—"}</TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      tone={STATUS[connection.status]?.tone ?? "neutral"}
-                    >
-                      {STATUS[connection.status]?.label ?? connection.status}
-                    </StatusBadge>
-                  </TableCell>
-                  <TableCell>
-                    {connection.lastRefreshedAt
-                      ? formatter.format(new Date(connection.lastRefreshedAt))
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
-                    {canManage && (
-                      <Button
-                        variant="ghost"
-                        size="compact"
-                        onPress={() => setRevoking(connection)}
-                      >
-                        Disconnect
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      {/* Linking an account shares only a name and email; the calendar is connected separately, from CRM. */}
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="font-medium text-text">Calendar sync</h2>
+          <p className="text-sm text-text-secondary">
+            Want your CRM meetings, follow-ups and tasks in Google Calendar or Outlook? Each person connects their own calendar from CRM.
+          </p>
         </div>
-      )}
+        <Link
+          href="/crm/settings/calendar"
+          className="inline-flex h-8 items-center rounded-[var(--radius-control)] border border-border px-3 text-sm font-medium text-text hover:bg-surface-muted"
+        >
+          Set up calendar sync
+        </Link>
+      </section>
       <AlertDialog
         isOpen={Boolean(revoking)}
         onOpenChange={(open) => !open && setRevoking(null)}
