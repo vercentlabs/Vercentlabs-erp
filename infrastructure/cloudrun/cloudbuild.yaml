@@ -15,7 +15,7 @@ options:
     - DOCKER_BUILDKIT=1
   logging: CLOUD_LOGGING_ONLY
 
-timeout: 3600s
+timeout: 7200s
 
 steps:
   - id: web

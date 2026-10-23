@@ -13,6 +13,9 @@ WORKDIR /app
 COPY . .
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter "@vercentlabs/web..."
+# Lean production build (apps/web/next.config.ts): Next's own type check is skipped (every change is type-checked separately), page data
+# is collected by two workers and no build cache is written, so the build fits a build machine's memory (about 10 GB at its peak).
+ENV NEXT_BUILD_SKIP_TYPECHECK=1 NEXT_BUILD_CPUS=2 NODE_OPTIONS=--max-old-space-size=6144
 RUN pnpm --filter @vercentlabs/web build
 
 FROM ${NODE_IMAGE} AS runtime

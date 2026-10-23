@@ -32,6 +32,13 @@ const nextConfig: NextConfig = {
   // apps/web/server.js as the runnable entrypoint — do not change this
   // without updating that Dockerfile.
   output: "standalone",
+  // An image build (infrastructure/docker/Dockerfile.web) skips Next's own type check — every change is type-checked separately — and
+  // collects page data with fewer workers, so the build fits a build machine's memory.
+  typescript: { ignoreBuildErrors: process.env.NEXT_BUILD_SKIP_TYPECHECK === "1" },
+  // An image is built once, so Turbopack's on-disk build cache (minutes of writing, never read again) is not kept there.
+  ...(process.env.NEXT_BUILD_CPUS
+    ? { experimental: { cpus: Number(process.env.NEXT_BUILD_CPUS), turbopackFileSystemCacheForBuild: false } }
+    : {}),
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,

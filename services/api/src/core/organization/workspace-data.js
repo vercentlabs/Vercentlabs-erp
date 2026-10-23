@@ -174,15 +174,8 @@ export async function cancelWorkspaceClosure(client, session) {
 
 // Worker: workspaces whose waiting period ended are closed — nobody can sign in, every session ends. (Platform client; the
 // organization directory and sessions are not tenant-scoped.)
+// Run by the worker, whose role may not change the organization directory itself: an owner-run function (migration 0223) marks the
+// workspaces closed and revokes their members' sessions.
 export async function closeDueWorkspaces(client, { limit = 20 } = {}) {
-  const due = (await client.query(
-    `UPDATE public.organizations SET status = 'closed', closed_at = now(), updated_at = now()
-      WHERE id IN (SELECT id FROM public.organizations WHERE closure_scheduled_for <= now() AND closed_at IS NULL LIMIT $1)
-      RETURNING id`, [limit])).rows;
-  for (const row of due) {
-    await client.query(
-      `UPDATE public.sessions SET revoked_at = now(), revoked_reason = 'workspace_closed'
-        WHERE revoked_at IS NULL AND user_id IN (SELECT user_id FROM public.organization_memberships WHERE organization_id = $1)`, [row.id]);
-  }
-  return due.length;
+  return Number((await client.query("SELECT public.close_due_workspaces($1) AS closed", [limit])).rows[0]?.closed ?? 0);
 }

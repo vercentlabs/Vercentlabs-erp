@@ -1,4 +1,40 @@
-# What Cloud Build uploads (gcloud builds submit): the same as the Docker build context (.dockerignore), plus git.
-#!include:.dockerignore
+# What Cloud Build uploads (gcloud builds submit). The same as the Docker build context (.dockerignore), written out here because gcloud
+# reads this file with .gitignore rules: an unanchored name such as "reports" would match every folder of that name at any depth
+# (it dropped the Reports pages and the CRM and Sales report modules). Top-level-only entries are therefore anchored with "/".
 .git
 .gitignore
+.github
+**/.next
+**/.next-*
+**/node_modules
+.pnpm
+/out
+/dist
+/build
+**/coverage
+**/.turbo
+/tmp
+/temp
+**/.cache
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+*.log
+*.pem
+*.key
+*.crt
+**/playwright-report
+**/test-results
+**/blob-report
+/tests
+/reports
+/research_notes
+/docs
+*.tfstate
+*.tfstate.*
+*.tfplan
+**/.terraform
+/infrastructure/terraform
+/infrastructure/cloudrun/deploy.env

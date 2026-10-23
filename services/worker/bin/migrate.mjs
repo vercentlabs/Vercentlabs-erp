@@ -45,7 +45,9 @@ async function provisionRuntimeLogins(client) {
   const logins = [["vercent_app", process.env.APP_DB_PASSWORD], ["vercent_worker", process.env.WORKER_DB_PASSWORD]].filter(([, password]) => password);
   for (const [role, password] of logins) {
     if (String(password).length < 24) throw new Error(`The password for ${role} must be at least 24 characters.`);
-    await client.query(`ALTER ROLE ${role} LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD ${client.escapeLiteral(String(password))}`);
+    // Only what the migration owner may change on Cloud SQL (no superuser there): the roles were created NOSUPERUSER NOBYPASSRLS
+    // NOCREATEDB NOCREATEROLE by the baseline, and the web and worker check those again at start.
+    await client.query(`ALTER ROLE ${role} LOGIN NOINHERIT PASSWORD ${client.escapeLiteral(String(password))}`);
     logger.info("runtime login ready", { role });
   }
 }

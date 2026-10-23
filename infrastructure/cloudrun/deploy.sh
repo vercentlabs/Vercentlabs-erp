@@ -34,6 +34,9 @@ SQL_TIER="${SQL_TIER:-db-custom-1-3840}"
 DB_NAME="${DB_NAME:-vercentlabs}"
 BUCKET="${BUCKET:-${PROJECT_ID}-erp-files}"
 REPOSITORY="${REPOSITORY:-vercentlabs}"
+# Where the landing site runs: "cloudrun" (behind the same load balancer) or "hostinger" (Hostinger's Node.js hosting builds it from the
+# repo; Google Cloud then serves only the ERP, and only the app record points here).
+LANDING_HOST="${LANDING_HOST:-cloudrun}"
 TAG="${TAG:-$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)}"
 : "${SMTP_HOST:?set SMTP_HOST}" "${SMTP_USER:?set SMTP_USER}" "${AUTH_EMAIL_FROM:?set AUTH_EMAIL_FROM}"
 SMTP_PORT="${SMTP_PORT:-465}"
@@ -169,6 +172,8 @@ runtime_secrets() {
   local database="$1"
   local list="$database=$database:latest,SMTP_PASSWORD=SMTP_PASSWORD:latest"
   exists "${GC[@]}" secrets describe GOOGLE_OAUTH_CLIENT_SECRET && list="$list,GOOGLE_OAUTH_CLIENT_SECRET=GOOGLE_OAUTH_CLIENT_SECRET:latest"
+  # The landing site's demo form signs its leads with this shared secret (the web checks it; the same value is set on the landing host).
+  [[ "$database" == DATABASE_URL ]] && exists "${GC[@]}" secrets describe CRM_CAPTURE_PROXY_SECRET && list="$list,CRM_CAPTURE_PROXY_SECRET=CRM_CAPTURE_PROXY_SECRET:latest"
   printf '%s' "$list"
 }
 
@@ -193,7 +198,10 @@ release() {
     say "Using the images already pushed for $TAG"
   else
     say "Build the four images in Cloud Build (tag $TAG) — about 10–15 minutes"
-    (cd "$ROOT" && "${GC[@]}" builds submit --config infrastructure/cloudrun/cloudbuild.yaml --region="$REGION" \
+    # BUILD_REGION=global and BUILD_MACHINE=e2-highcpu-8: a new project may not get a large build machine in its own region yet.
+    local where=(--region="${BUILD_REGION:-$REGION}"); [[ "${BUILD_REGION:-}" == global ]] && where=()
+    local machine=(); [[ -n "${BUILD_MACHINE:-}" ]] && machine=(--machine-type="$BUILD_MACHINE")
+    (cd "$ROOT" && "${GC[@]}" builds submit --config infrastructure/cloudrun/cloudbuild.yaml "${where[@]}" "${machine[@]}" \
       --substitutions="_REGION=$REGION,_REPOSITORY=$REPOSITORY,_TAG=$TAG,_SITE_URL=https://$SITE_DOMAIN,_APP_URL=https://$APP_DOMAIN" .)
   fi
 
@@ -210,7 +218,7 @@ release() {
   "${GC[@]}" run deploy vercentlabs-web --image="$REGISTRY/web:$TAG" --region="$REGION" --service-account="$SA_WEB" --port=3001 \
     --add-cloudsql-instances="$CONNECTION" --set-env-vars="$(runtime_env 10)" --set-secrets="$(runtime_secrets DATABASE_URL)" \
     --cpu=1 --memory=1Gi --min-instances=1 --max-instances=6 --concurrency=60 --timeout=300 --cpu-boost \
-    --ingress=internal-and-cloud-load-balancing --allow-unauthenticated
+    --ingress=internal-and-cloud-load-balancing --no-invoker-iam-check
 
   say "Worker (always on, not public)"
   "${GC[@]}" run deploy vercentlabs-worker --image="$REGISTRY/worker:$TAG" --region="$REGION" --service-account="$SA_WORKER" --port=8081 \
@@ -218,10 +226,11 @@ release() {
     --set-secrets="$(runtime_secrets WORKER_DATABASE_URL)" \
     --cpu=1 --memory=1Gi --min-instances=1 --max-instances=1 --no-cpu-throttling --ingress=internal --no-allow-unauthenticated
 
+  if [[ "$LANDING_HOST" == hostinger ]]; then echo "Release $TAG deployed (the landing site is on Hostinger)."; return; fi
   say "Landing ($SITE_DOMAIN)"
   "${GC[@]}" run deploy vercentlabs-landing --image="$REGISTRY/landing:$TAG" --region="$REGION" --port=3000 \
     --set-env-vars="^|^NODE_ENV=production|NEXT_PUBLIC_SITE_URL=https://$SITE_DOMAIN|NEXT_PUBLIC_APP_URL=https://$APP_DOMAIN|FORM_ALLOWED_ORIGINS=https://$SITE_DOMAIN,https://www.$SITE_DOMAIN" \
-    --cpu=1 --memory=512Mi --min-instances=0 --max-instances=4 --ingress=internal-and-cloud-load-balancing --allow-unauthenticated
+    --cpu=1 --memory=512Mi --min-instances=0 --max-instances=4 --ingress=internal-and-cloud-load-balancing --no-invoker-iam-check
   echo "Release $TAG deployed."
 }
 
@@ -230,8 +239,11 @@ network() {
   exists "${GC[@]}" compute addresses describe vercentlabs-ip --global || "${GC[@]}" compute addresses create vercentlabs-ip --global --ip-version=IPV4
   local ip; ip="$("${GC[@]}" compute addresses describe vercentlabs-ip --global --format='value(address)')"
 
+  local services=(web) domains="$APP_DOMAIN"
+  [[ "$LANDING_HOST" == hostinger ]] || { services+=(landing); domains="$SITE_DOMAIN,www.$SITE_DOMAIN,$APP_DOMAIN"; }
+
   say "Cloud Run behind the load balancer"
-  for service in web landing; do
+  for service in "${services[@]}"; do
     exists "${GC[@]}" compute network-endpoint-groups describe "neg-$service" --region="$REGION" ||
       "${GC[@]}" compute network-endpoint-groups create "neg-$service" --region="$REGION" --network-endpoint-type=serverless --cloud-run-service="vercentlabs-$service"
     if ! exists "${GC[@]}" compute backend-services describe "backend-$service" --global; then
@@ -240,15 +252,19 @@ network() {
     fi
   done
 
-  say "Hosts: $APP_DOMAIN -> web, $SITE_DOMAIN and www -> landing"
+  say "Hosts: $domains"
   if ! exists "${GC[@]}" compute url-maps describe vercentlabs-https --global; then
-    "${GC[@]}" compute url-maps create vercentlabs-https --global --default-service=backend-landing
-    "${GC[@]}" compute url-maps add-path-matcher vercentlabs-https --global --path-matcher-name=app --default-service=backend-web --new-hosts="$APP_DOMAIN"
+    if [[ "$LANDING_HOST" == hostinger ]]; then
+      "${GC[@]}" compute url-maps create vercentlabs-https --global --default-service=backend-web
+    else
+      "${GC[@]}" compute url-maps create vercentlabs-https --global --default-service=backend-landing
+      "${GC[@]}" compute url-maps add-path-matcher vercentlabs-https --global --path-matcher-name=app --default-service=backend-web --new-hosts="$APP_DOMAIN"
+    fi
   fi
 
   say "Google-managed certificate (becomes ACTIVE 15–60 minutes after the DNS records point here)"
   exists "${GC[@]}" compute ssl-certificates describe vercentlabs-cert --global ||
-    "${GC[@]}" compute ssl-certificates create vercentlabs-cert --global --domains="$SITE_DOMAIN,www.$SITE_DOMAIN,$APP_DOMAIN"
+    "${GC[@]}" compute ssl-certificates create vercentlabs-cert --global --domains="$domains"
   exists "${GC[@]}" compute target-https-proxies describe vercentlabs-https-proxy --global ||
     "${GC[@]}" compute target-https-proxies create vercentlabs-https-proxy --global --url-map=vercentlabs-https --ssl-certificates=vercentlabs-cert
   exists "${GC[@]}" compute forwarding-rules describe vercentlabs-https-rule --global ||
@@ -268,16 +284,27 @@ network() {
     "${GC[@]}" compute forwarding-rules create vercentlabs-http-rule --global --load-balancing-scheme=EXTERNAL_MANAGED \
       --address=vercentlabs-ip --target-http-proxy=vercentlabs-http-proxy --ports=80
 
-  cat <<EOF
+  if [[ "$LANDING_HOST" == hostinger ]]; then
+    cat <<EOF
+
+== Add this DNS record at Hostinger (hPanel › Domains › $SITE_DOMAIN › DNS / Nameservers)
+   Delete any existing A/AAAA/CNAME record named app first. Leave @, www, MX and TXT as they are (the site and your email).
+
+   Type  Name  Points to          TTL
+   A     app   $ip     3600
+EOF
+  else
+    cat <<EOF
 
 == Add these DNS records at Hostinger (hPanel › Domains › $SITE_DOMAIN › DNS / Nameservers)
-   Delete any existing A/AAAA/CNAME records for @, www and app first (keep MX and TXT: they carry your Hostinger email).
+   Delete any existing A/AAAA/CNAME records for @, www and app first (keep MX and TXT: they carry your email).
 
    Type  Name  Points to          TTL
    A     @     $ip     3600
    A     www   $ip     3600
    A     app   $ip     3600
 EOF
+  fi
 }
 
 status() {
