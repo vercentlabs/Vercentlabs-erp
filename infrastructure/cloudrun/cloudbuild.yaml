@@ -8,8 +8,9 @@ substitutions:
   _SITE_URL: https://vercentlabs.com
   _APP_URL: https://app.vercentlabs.com
 
+# The default build machine: a new project may not use the larger ones yet (quota). The images build one after another so a
+# Next.js build never shares the machine's memory with another.
 options:
-  machineType: E2_HIGHCPU_8
   env:
     - DOCKER_BUILDKIT=1
   logging: CLOUD_LOGGING_ONLY
@@ -23,17 +24,14 @@ steps:
       -t, $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/web:$_TAG, .]
   - id: worker
     name: gcr.io/cloud-builders/docker
-    waitFor: ["-"]
     args: [build, -f, infrastructure/docker/Dockerfile.worker, --build-arg, GIT_SHA=$_TAG,
       -t, $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/worker:$_TAG, .]
   - id: migration
     name: gcr.io/cloud-builders/docker
-    waitFor: ["-"]
     args: [build, -f, infrastructure/docker/Dockerfile.migration, --build-arg, GIT_SHA=$_TAG,
       -t, $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/migration:$_TAG, .]
   - id: landing
     name: gcr.io/cloud-builders/docker
-    waitFor: ["-"]
     args: [build, -f, infrastructure/docker/Dockerfile.landing, --build-arg, GIT_SHA=$_TAG,
       --build-arg, NEXT_PUBLIC_SITE_URL=$_SITE_URL, --build-arg, NEXT_PUBLIC_APP_URL=$_APP_URL,
       -t, $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/landing:$_TAG, .]

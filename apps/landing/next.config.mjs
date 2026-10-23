@@ -25,6 +25,8 @@ const nextConfig = {
   // Required: repo-root server.js boots this app from its standalone build
   // (see server.js and infrastructure/docker/Dockerfile.landing).
   output: "standalone",
+  // A verification build can write elsewhere (NEXT_DIST_DIR) so it never disturbs a running dev server.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,

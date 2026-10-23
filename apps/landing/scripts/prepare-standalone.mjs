@@ -7,7 +7,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const standaloneAppDir = path.join(appDir, ".next", "standalone", "apps", "landing");
+const distDir = process.env.NEXT_DIST_DIR || ".next";
+const standaloneAppDir = path.join(appDir, distDir, "standalone", "apps", "landing");
 
 if (!existsSync(standaloneAppDir)) {
   console.error(
@@ -16,7 +17,7 @@ if (!existsSync(standaloneAppDir)) {
   process.exit(1);
 }
 
-const staticSrc = path.join(appDir, ".next", "static");
+const staticSrc = path.join(appDir, distDir, "static");
 const staticDest = path.join(standaloneAppDir, ".next", "static");
 const publicSrc = path.join(appDir, "public");
 const publicDest = path.join(standaloneAppDir, "public");

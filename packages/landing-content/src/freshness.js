@@ -109,6 +109,7 @@ export const CONTENT_FRESHNESS = Object.freeze({
   "/product/analytics": { publishedAt: "2026-08-06", lastModifiedAt: "2026-08-06", lastReviewedAt: "2026-08-07", reviewReason: "Phase 4 content, unchanged since." },
   "/product/mobile": { publishedAt: "2026-08-06", lastModifiedAt: "2026-08-06", lastReviewedAt: "2026-08-07", reviewReason: "Phase 4 content, unchanged since." },
   "/product/integrations": { publishedAt: "2026-08-06", lastModifiedAt: "2026-08-06", lastReviewedAt: "2026-08-07", reviewReason: "Phase 4 content, unchanged since." },
+  "/pricing": { publishedAt: "2026-10-22", lastModifiedAt: "2026-10-22", lastReviewedAt: "2026-10-23", reviewReason: "New page: plans and the free trial." },
   "/security": { publishedAt: "2026-08-06", lastModifiedAt: "2026-08-06", lastReviewedAt: "2026-08-07", reviewReason: "Phase 4 content, unchanged since." },
   "/privacy": { publishedAt: "2026-08-08", lastModifiedAt: "2026-08-08", lastReviewedAt: "2026-08-08", reviewReason: "Published at Phase 8 launch hardening." },
   "/terms": { publishedAt: "2026-08-08", lastModifiedAt: "2026-08-08", lastReviewedAt: "2026-08-08", reviewReason: "Published at Phase 8 launch hardening." },

@@ -65,70 +65,100 @@ export function LeadStagesSettingsScreen() {
   };
   const track = stages.filter((stage) => stage.isActive);
 
+  // New and Qualification are always kept; any other stage may be switched off for a simpler funnel.
+  const fixed = (stage: LeadStageDefinition) => ["new", "qualification"].includes(stage.code);
+  const toggleActive = (stage: LeadStageDefinition) => change.mutate(() => updateLeadStage(stage.id, { isActive: !stage.isActive }));
+
+  // Desktop: the stages on the left, the preview and the rules on the right. Tablet and phone: one column, the stages first.
   return (
     <div className="flex flex-col gap-6">
       <SetupBackLink />
       <PageHeader
         title="Lead stages"
         description="The steps a lead moves through while it is being worked. A lead can move forwards or backwards between them while it is open."
-        primaryAction={<Button variant="primary" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New stage</Button>}
+        primaryAction={<Button variant="primary" className="w-full sm:w-auto" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New stage</Button>}
       />
       <ErrorBanner message={error} />
-      {track.length > 0 && (
-        <section aria-label="Preview" className="flex max-w-3xl flex-col gap-2">
-          <p className="text-sm text-text-secondary">How a lead page shows the stages (here, a lead in the second stage):</p>
-          <ol className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3 text-sm">
-            {track.map((stage, index) => (
-              <li key={stage.id} className={`flex items-center gap-1 ${index === 1 ? "font-semibold text-brand" : index < 1 ? "text-text" : "text-text-muted"}`}>
-                <span aria-hidden="true">{index < 1 ? "✓" : index === 1 ? "●" : "○"}</span>{stage.name}{index === 1 ? " · 3 days" : ""}
-                {index < track.length - 1 && <span aria-hidden="true" className="ml-1 text-text-muted">›</span>}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6">
+        <section aria-labelledby="stage-list" className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3">
+            <h2 id="stage-list" className="text-sm font-semibold text-text">{`${track.length} active stage${track.length === 1 ? "" : "s"}`}</h2>
+            <p className="hidden text-xs text-text-muted sm:block">Drag a stage to reorder it, or use Up and Down.</p>
+          </div>
+          <ol className="flex flex-col divide-y divide-border">
+            {stages.map((stage, index) => (
+              <li key={stage.id} draggable={!change.isPending} onDragStart={() => setDragged(index)} onDragEnd={() => setDragged(null)}
+                onDragOver={(event) => event.preventDefault()} onDrop={() => drop(index)}
+                className={`flex items-center gap-3 px-4 py-3 sm:cursor-grab ${dragged === index ? "opacity-50" : ""} ${stage.isActive ? "" : "bg-surface-muted"}`}>
+                <span aria-hidden="true" className={`flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums ${stage.isActive ? "border-brand/40 text-brand" : "border-border text-text-muted"}`}>{index + 1}</span>
+                <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`font-medium ${stage.isActive ? "text-text" : "text-text-muted"}`}>{stage.name}</span>
+                    {stage.isSystem && <Badge tone="neutral">Standard</Badge>}
+                    {!stage.isActive && <StatusBadge tone="neutral">Inactive</StatusBadge>}
+                    {stage.staleAfterDays ? <Badge tone="warning">{`Stale after ${stage.staleAfterDays} ${stage.staleAfterDays === 1 ? "day" : "days"}`}</Badge> : null}
+                  </div>
+                  <span className="text-xs text-text-muted">{`${stage.leadCount ?? 0} open ${stage.leadCount === 1 ? "lead" : "leads"}`}{fixed(stage) ? " · always on" : ""}</span>
+                </div>
+                {/* On a phone the actions sit in a menu so each stage stays one compact row. */}
+                <div className="shrink-0 sm:hidden">
+                  <MoreMenu label={`Actions for ${stage.name}`} items={[
+                    { id: "up", label: "Move up", isDisabled: index === 0 || change.isPending, onAction: () => move(index, -1) },
+                    { id: "down", label: "Move down", isDisabled: index === stages.length - 1 || change.isPending, onAction: () => move(index, 1) },
+                    { id: "rename", label: "Edit", onAction: () => setEditing(stage) },
+                    ...(!fixed(stage) ? [{ id: "active", label: stage.isActive ? "Deactivate" : "Activate", isDisabled: change.isPending, onAction: () => toggleActive(stage) }] : []),
+                  ]} />
+                </div>
+                {/* Tablet and desktop: the same four places in every row, so the buttons line up; a stage that is always on keeps the last place empty. */}
+                <div className="hidden shrink-0 items-center gap-1 sm:grid sm:grid-cols-[auto_auto_auto_6.5rem]">
+                  <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} up`} isDisabled={index === 0 || change.isPending} onPress={() => move(index, -1)}>
+                    <ArrowUp className="size-4" aria-hidden="true" />Up
+                  </Button>
+                  <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} down`} isDisabled={index === stages.length - 1 || change.isPending} onPress={() => move(index, 1)}>
+                    <ArrowDown className="size-4" aria-hidden="true" />Down
+                  </Button>
+                  <Button variant="ghost" size="compact" onPress={() => setEditing(stage)}>Edit</Button>
+                  {fixed(stage) ? <span aria-hidden="true" /> : (
+                    <Button variant="ghost" size="compact" isDisabled={change.isPending} onPress={() => toggleActive(stage)}>{stage.isActive ? "Deactivate" : "Activate"}</Button>
+                  )}
+                </div>
               </li>
             ))}
           </ol>
         </section>
-      )}
-      <ol className="flex max-w-3xl flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
-        {stages.map((stage, index) => (
-          <li key={stage.id} draggable={!change.isPending} onDragStart={() => setDragged(index)} onDragEnd={() => setDragged(null)}
-            onDragOver={(event) => event.preventDefault()} onDrop={() => drop(index)}
-            className={`flex cursor-grab items-center justify-between gap-3 p-4 sm:gap-2 ${dragged === index ? "opacity-50" : ""}`}>
-            <div className="flex min-w-0 flex-col gap-1 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{index + 1}. {stage.name}</span>
-                {stage.isSystem && <Badge tone="neutral">Standard</Badge>}
-                {!stage.isActive && <StatusBadge tone="neutral">Inactive</StatusBadge>}
-                {stage.staleAfterDays ? <Badge tone="warning">{`Stale after ${stage.staleAfterDays} ${stage.staleAfterDays === 1 ? "day" : "days"}`}</Badge> : null}
+
+        <div className="flex flex-col gap-4">
+          {track.length > 0 && (
+            <section aria-labelledby="stage-preview" className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+              <div className="flex flex-col gap-0.5">
+                <h2 id="stage-preview" className="text-sm font-semibold text-text">Preview</h2>
+                <p className="text-xs text-text-muted">How a lead page shows the stages, for a lead in the second stage.</p>
               </div>
-              <span className="text-xs text-text-muted">{stage.leadCount ?? 0} open {stage.leadCount === 1 ? "lead" : "leads"} in this stage</span>
-            </div>
-            {/* On a phone the actions sit in a menu so each stage stays one compact row. */}
-            <div className="shrink-0 sm:hidden">
-              <MoreMenu label={`Actions for ${stage.name}`} items={[
-                { id: "up", label: "Move up", isDisabled: index === 0 || change.isPending, onAction: () => move(index, -1) },
-                { id: "down", label: "Move down", isDisabled: index === stages.length - 1 || change.isPending, onAction: () => move(index, 1) },
-                { id: "rename", label: "Edit", onAction: () => setEditing(stage) },
-                ...(!["new", "qualification"].includes(stage.code) ? [{ id: "active", label: stage.isActive ? "Deactivate" : "Activate", isDisabled: change.isPending,
-                  onAction: () => change.mutate(() => updateLeadStage(stage.id, { isActive: !stage.isActive })) }] : []),
-              ]} />
-            </div>
-            <div className="hidden flex-wrap items-center gap-1 sm:flex">
-              <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} up`} isDisabled={index === 0 || change.isPending} onPress={() => move(index, -1)}><ArrowUp className="size-4" aria-hidden="true" /></Button>
-              <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} down`} isDisabled={index === stages.length - 1 || change.isPending} onPress={() => move(index, 1)}><ArrowDown className="size-4" aria-hidden="true" /></Button>
-              <Button variant="ghost" size="compact" onPress={() => setEditing(stage)}>Rename</Button>
-              {/* New and Qualification are always kept; any other stage may be switched off for a simpler funnel. */}
-              {!["new", "qualification"].includes(stage.code) && (
-                <Button variant="ghost" size="compact" isDisabled={change.isPending} onPress={() => change.mutate(() => updateLeadStage(stage.id, { isActive: !stage.isActive }))}>
-                  {stage.isActive ? "Deactivate" : "Activate"}
-                </Button>
-              )}
-            </div>
-          </li>
-        ))}
-      </ol>
-      <p className="max-w-3xl text-sm text-text-secondary">
-        Drag a stage to reorder it, or use the arrows. Standard stages can be renamed and reordered but not removed: starting qualification, for example, always moves a lead to the Qualification stage,
-        whatever you call it. Proposal, negotiation and won or lost belong to deals, not leads.
-      </p>
+              {/* A track that reads down the panel: done, current (with its days), then the stages still ahead. */}
+              <ol className="flex flex-col gap-2 text-sm">
+                {track.map((stage, index) => (
+                  <li key={stage.id} className="flex items-center gap-2">
+                    <span aria-hidden="true" className={`flex size-5 shrink-0 items-center justify-center rounded-full border text-[10px] ${index < 1 ? "border-text-muted text-text" : index === 1 ? "border-brand bg-brand text-white" : "border-border text-text-muted"}`}>
+                      {index < 1 ? "✓" : index === 1 ? "●" : ""}
+                    </span>
+                    <span className={index === 1 ? "font-semibold text-brand" : index < 1 ? "text-text" : "text-text-muted"}>{stage.name}</span>
+                    {index === 1 && <span className="text-xs text-text-muted">3 days</span>}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+          <section aria-labelledby="stage-rules" className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+            <h2 id="stage-rules" className="text-sm font-semibold text-text">How stages work</h2>
+            <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-text-secondary">
+              <li>Standard stages can be renamed and reordered but not removed.</li>
+              <li>New and Qualification are always on: starting qualification moves a lead to Qualification, whatever you call it.</li>
+              <li>A stage that is switched off keeps its history.</li>
+              <li>Proposal, negotiation and won or lost belong to deals, not leads.</li>
+            </ul>
+          </section>
+        </div>
+      </div>
       {editing && <StageDialog stage={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={refresh} />}
     </div>
   );
@@ -157,9 +187,9 @@ function StageDialog({ stage, onClose, onSaved }: { stage: LeadStageDefinition |
         <TextField label="Stage name" isRequired value={name} onChange={(value) => { setName(value); setError(null); }} />
         <TextField label="Stale after (days)" inputMode="numeric" description="Days without activity before an open lead in this stage is shown as stale. Empty: the standard 7."
           value={staleDays} onChange={setStaleDays} isInvalid={!daysValid} errorMessage={daysValid ? undefined : "Enter 1 to 365, or leave it empty."} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim() || !daysValid}>{stage ? "Save" : "Add stage"}</Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="secondary" className="w-full sm:w-auto" onPress={onClose}>Cancel</Button>
+          <Button variant="primary" className="w-full sm:w-auto" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim() || !daysValid}>{stage ? "Save" : "Add stage"}</Button>
         </div>
       </div>
     </Dialog>

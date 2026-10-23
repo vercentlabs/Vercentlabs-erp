@@ -116,13 +116,18 @@ setup() {
   secret_once WORKER_DATABASE_URL "postgresql://vercent_worker:$(secret_value WORKER_DB_PASSWORD)@localhost/$DB_NAME?$socket"
 
   say "Mail and Google sign-in secrets"
+  # Asked for in a terminal, or taken from SMTP_PASSWORD_VALUE / GOOGLE_OAUTH_CLIENT_SECRET_VALUE; without either, skipped with the
+  # command that adds it (the release needs SMTP_PASSWORD).
   if ! exists "${GC[@]}" secrets describe SMTP_PASSWORD; then
-    read -r -s -p "Password of the mailbox $SMTP_USER (Hostinger): " smtp_password; echo
-    secret_once SMTP_PASSWORD "$smtp_password"
+    local smtp_password="${SMTP_PASSWORD_VALUE:-}"
+    [[ -z "$smtp_password" && -t 0 ]] && { read -r -s -p "Password (or app password) of the mailbox $SMTP_USER: " smtp_password; echo; }
+    if [[ -n "$smtp_password" ]]; then secret_once SMTP_PASSWORD "$smtp_password"
+    else echo "SKIPPED: add the mailbox password before the release: printf '%s' '<password>' | gcloud secrets create SMTP_PASSWORD --replication-policy=user-managed --locations=$REGION --data-file=-"; fi
   fi
   if [[ -n "${GOOGLE_OAUTH_CLIENT_ID:-}" ]] && ! exists "${GC[@]}" secrets describe GOOGLE_OAUTH_CLIENT_SECRET; then
-    read -r -s -p "Google OAuth client secret: " google_secret; echo
-    secret_once GOOGLE_OAUTH_CLIENT_SECRET "$google_secret"
+    local google_secret="${GOOGLE_OAUTH_CLIENT_SECRET_VALUE:-}"
+    [[ -z "$google_secret" && -t 0 ]] && { read -r -s -p "Google OAuth client secret: " google_secret; echo; }
+    [[ -n "$google_secret" ]] && secret_once GOOGLE_OAUTH_CLIENT_SECRET "$google_secret"
   fi
 
   say "Who reads which secret"
@@ -130,7 +135,7 @@ setup() {
   grant_secret DATABASE_URL "$SA_WEB"
   grant_secret WORKER_DATABASE_URL "$SA_WORKER"
   for sa in "$SA_WEB" "$SA_WORKER"; do
-    grant_secret SMTP_PASSWORD "$sa"
+    exists "${GC[@]}" secrets describe SMTP_PASSWORD && grant_secret SMTP_PASSWORD "$sa"
     exists "${GC[@]}" secrets describe GOOGLE_OAUTH_CLIENT_SECRET && grant_secret GOOGLE_OAUTH_CLIENT_SECRET "$sa"
   done
 
@@ -138,6 +143,11 @@ setup() {
   local number; number="$("${GC[@]}" projects describe "$PROJECT_ID" --format='value(projectNumber)')"
   "${GC[@]}" projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$number@cloudbuild.gserviceaccount.com" \
     --role=roles/artifactregistry.writer --condition=None >/dev/null
+  # Newer projects build as the default compute account: it needs the builder role (source bucket, images, logs).
+  for role in roles/cloudbuild.builds.builder roles/logging.logWriter; do
+    "${GC[@]}" projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$number-compute@developer.gserviceaccount.com" \
+      --role="$role" --condition=None >/dev/null
+  done
   echo "Setup done."
 }
 
@@ -162,10 +172,30 @@ runtime_secrets() {
   printf '%s' "$list"
 }
 
+# The four images built with this machine's Docker and pushed to Artifact Registry: for a project whose Cloud Build quota does not yet
+# allow a machine large enough for the Next.js builds. Then: SKIP_BUILD=1 deploy.sh release.
+build_local() {
+  say "Docker may push to $REGISTRY"
+  "${GC[@]}" auth configure-docker "$REGION-docker.pkg.dev" >/dev/null
+  local image
+  for image in web worker migration landing; do
+    say "Build and push $image:$TAG"
+    local extra=()
+    [[ "$image" == landing ]] && extra=(--build-arg "NEXT_PUBLIC_SITE_URL=https://$SITE_DOMAIN" --build-arg "NEXT_PUBLIC_APP_URL=https://$APP_DOMAIN")
+    (cd "$ROOT" && DOCKER_BUILDKIT=1 docker build --platform=linux/amd64 -f "infrastructure/docker/Dockerfile.$image" --build-arg "GIT_SHA=$TAG" "${extra[@]}" \
+      -t "$REGISTRY/$image:$TAG" .)
+    docker push "$REGISTRY/$image:$TAG"
+  done
+}
+
 release() {
-  say "Build the four images in Cloud Build (tag $TAG) — about 10–15 minutes"
-  (cd "$ROOT" && "${GC[@]}" builds submit --config infrastructure/cloudrun/cloudbuild.yaml --region="$REGION" \
-    --substitutions="_REGION=$REGION,_REPOSITORY=$REPOSITORY,_TAG=$TAG,_SITE_URL=https://$SITE_DOMAIN,_APP_URL=https://$APP_DOMAIN" .)
+  if [[ "${SKIP_BUILD:-}" == 1 ]]; then
+    say "Using the images already pushed for $TAG"
+  else
+    say "Build the four images in Cloud Build (tag $TAG) — about 10–15 minutes"
+    (cd "$ROOT" && "${GC[@]}" builds submit --config infrastructure/cloudrun/cloudbuild.yaml --region="$REGION" \
+      --substitutions="_REGION=$REGION,_REPOSITORY=$REPOSITORY,_TAG=$TAG,_SITE_URL=https://$SITE_DOMAIN,_APP_URL=https://$APP_DOMAIN" .)
+  fi
 
   say "Migrate the database (and set the web and worker database logins)"
   local job_args=(--image="$REGISTRY/migration:$TAG" --region="$REGION" --service-account="$SA_MIGRATION" --set-cloudsql-instances="$CONNECTION"
@@ -259,8 +289,9 @@ status() {
 case "${1:-}" in
   setup) setup ;;
   release) release ;;
+  build-local) build_local ;;
   network) network ;;
   all) setup; release; network ;;
   status) status ;;
-  *) echo "Usage: $0 setup|release|network|all|status"; exit 1 ;;
+  *) echo "Usage: $0 setup|release|build-local|network|all|status"; exit 1 ;;
 esac
