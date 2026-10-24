@@ -149,7 +149,7 @@ async function supersedePrevious(client, context, quote) {
       [context.organizationId, previous.id, STATUS.superseded, quote.id, context.userId ?? null]);
     await finalizeApprovalRequest(client, {
       organizationId: context.organizationId, commandKey: "sales.quotation.approve", entityId: previous.id, decision: "cancelled", actorUserId: context.userId ?? null,
-      note: `Superseded by ${quote.quotation_number}.`,
+      note: `Replaced by ${quote.quotation_number}.`,
     });
     await recordQuotationEvent(client, context, previous.id, "quotation.superseded", previous.lifecycle_status, STATUS.superseded,
       { supersededBy: quote.id, supersededByNumber: quote.quotation_number });
@@ -206,14 +206,17 @@ export async function emailQuotation(client, context, quotationId, input = {}, a
   const subject = text(input.subject, 300) ?? `Quotation ${quote.quotation_number}`;
   const message = text(input.message, 10000)
     ?? `Please find attached our quotation ${quote.quotation_number}${customer ? ` for ${customer}` : ""}, valid until ${dayOf(quote.valid_until) ?? "the date shown"}.`;
+  // Replies come back to the company's document address and join the document (Sales report Phase 3).
+  const { documentReplyTo, keepSentDocumentEmail } = await import("../document-emails.js");
   const result = await sendMail({
-    meter: { client, organizationId: context.organizationId },
+    meter: { client, organizationId: context.organizationId }, replyTo: await documentReplyTo(client, context.organizationId),
     to, cc: cc.length ? cc : undefined, subject, text: message,
     html: `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">${escapeHtml(message).replace(/\n/g, "<br>")}</body></html>`,
     attachments: [{ filename: attachment.fileName, content: attachment.content, contentType: "application/pdf" }],
   }, env);
   if (!result.sent)
     throw new QuotationError(409, "Email is not set up for this workspace. Download the PDF, send it yourself and use Mark as sent.", "SALES_QUOTATION_EMAIL_UNAVAILABLE");
+  await keepSentDocumentEmail(client, context, { type: "sales.quotation", id: quote.id, messageId: result.messageId, to: [to, ...cc].join(", "), subject, body: message });
   // The deal it was raised from keeps the email too (CRM plan 4.1): its timeline shows it, and a reply threads onto the deal. Never
   // stops the send.
   if (quote.source_opportunity_id) {

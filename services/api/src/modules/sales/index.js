@@ -165,7 +165,7 @@ async function loadDocumentContext(client, context, input, options = {}) {
 
   const partyResult = await client.query(
     `SELECT id,code,customer_number,party_type,display_name,legal_name,gstin,pan,currency_code,credit_limit,payment_term_id,status,
-            default_price_list_id,tax_treatment,sales_block,sales_block_reason,place_of_supply,gst_state_code
+            default_price_list_id,tax_treatment,sales_block,sales_block_reason,place_of_supply,gst_state_code,sales_warning
        FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, partyId],
   );
@@ -375,13 +375,14 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   if (!line.itemId && !typedName) throw new SalesError(400, `Line ${sequence}: choose a product, or type what is being sold.`, "SALES_LINE_ITEM_REQUIRED");
   let itemId = line.itemId ? uuid(line.itemId, `Line ${sequence} item`) : null;
   if (!itemId) {
-    const allowed = (await client.query("SELECT allow_lines_without_item FROM tenant.sales_settings WHERE organization_id=$1", [context.organizationId])).rows[0]?.allow_lines_without_item ?? true;
-    if (!allowed && !carried)
+    // Read once per document, not once per line (Sales report H11).
+    master.allowLinesWithoutItem ??= (await client.query("SELECT allow_lines_without_item FROM tenant.sales_settings WHERE organization_id=$1", [context.organizationId])).rows[0]?.allow_lines_without_item ?? true;
+    if (!master.allowLinesWithoutItem && !carried)
       throw new SalesError(409, `Line ${sequence}: choose a product from the catalogue. Lines without a product are switched off in Sales › Settings.`, "SALES_LINE_ITEM_REQUIRED");
     itemId = await ensureUnlistedItem(client, context.organizationId);
   }
   const itemResult = await client.query(
-    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.tax_category_id,item.item_type,item.is_variant_template,item.mrp,item.system_role,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
+    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.tax_category_id,item.item_type,item.is_variant_template,item.mrp,item.system_role,item.sales_warning,item.sales_warning_level,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
@@ -394,6 +395,11 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   // since stopped being sold; a new line must be a sellable product.
   if (!item.is_sellable && !carried && !unlisted)
     throw new SalesError(409, `Line ${sequence}: ${item.name} is not sold.`, "SALES_ITEM_NOT_SELLABLE");
+  // A product's sales warning (Sales report Phase 3): Block stops a new line; Warn is shown with the document.
+  if (item.sales_warning_level === "block" && !carried)
+    throw new SalesError(409, `Line ${sequence}: ${item.name} cannot be sold${item.sales_warning ? `: ${item.sales_warning}` : "."}`, "SALES_ITEM_BLOCKED");
+  if (item.sales_warning_level === "warn" && item.sales_warning && !(master.warnings ??= []).some((entry) => entry.itemId === item.id))
+    master.warnings.push({ kind: "product", itemId: item.id, name: item.name, message: item.sales_warning });
   // A variant is an item of its own: the line names the variant's item.
   if (line.variantId) throw new SalesError(409, `Line ${sequence}: choose the variant item itself.`, "SALES_VARIANT_IS_ITEM");
   if (item.is_variant_template) throw new SalesError(409, `Line ${sequence}: ${item.name} is a variant template. Choose one of its variants.`, "SALES_ITEM_TEMPLATE");
@@ -690,6 +696,8 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     schemeRuleId,
     rateContractLineId,
     sourceQuotationLineId: line.sourceQuotationLineId ?? null,
+    // Make-to-order (Sales report Phase 3): from stock, bought for the order or made for it.
+    supplyRoute: line.supplyRoute === "buy" || line.supplyRoute === "make" ? line.supplyRoute : "stock",
     discountType,
     discountValue: asDatabaseDecimal(discountValue),
     discountAmount: asDatabaseDecimal(discountAmount),
@@ -861,9 +869,19 @@ export async function previewSalesDocument(
   // 2. the document discount, shared across the lines in proportion to their value
   const documentDiscount = readDocumentDiscount(context, master, input, priced.map((line) => line.eligibleNet),
     { ...options, carryQuotedPrices: Boolean(options.carryQuotedPrices || options.carryDocumentDiscount) });
-  const shares = allocateDocumentDiscount(documentDiscount.amount, priced.map((line) => line.eligibleNet), master.currency.decimal_places);
+  // A coupon (Sales report Phase 3) comes off after the document discount and is shared across the lines the same way; its share is kept
+  // apart so it does not count against the salesperson's discount limit.
+  const nets = priced.map((line) => line.eligibleNet);
+  const { couponDiscount } = await import("./coupons.js");
+  const coupon = await couponDiscount(client, context, input.couponCode, {
+    value: Number(asDatabaseDecimal(sub(nets.reduce((total, net) => add(total, net), decimal(0)), documentDiscount.amount))), partyId: master.partyId,
+    documentDate: master.documentDate, orderId: options.orderId ?? null, carried: Boolean(options.carryQuotedPrices || options.carryDocumentDiscount),
+  });
+  const couponAmount = coupon ? roundMoney(decimal(String(coupon.amount)), master.currency.decimal_places) : decimal(0);
+  const shares = allocateDocumentDiscount(add(documentDiscount.amount, couponAmount), nets, master.currency.decimal_places);
+  const couponShares = allocateDocumentDiscount(couponAmount, nets, master.currency.decimal_places);
   // 3. taxable value and tax, per line
-  const lines = priced.map((line, index) => line.finish(shares[index]));
+  const lines = priced.map((line, index) => ({ ...line.finish(shares[index]), couponAmount: asDatabaseDecimal(couponShares[index]) }));
   // 4. free goods: what each scheme earns on this document, and the free lines claimed against it
   const schemes = await documentSchemes(client, context, master, lines);
   const headerDiscountPercent = documentDiscount.percent;
@@ -897,6 +915,13 @@ export async function previewSalesDocument(
   // percentage charge is a percentage of the value after the document discount.
   const principal = lines.filter((line) => line.taxLines.length).reduce((best, line) => (!best || decimal(line.taxableAmount) > decimal(best.taxableAmount) ? line : best), null);
   const chargeBase = sub(subtotal, headerDiscountAmount);
+  // A delivery method sets the freight (Sales report Phase 3): it replaces any typed freight charge.
+  const { deliveryMethodCharge } = await import("./delivery-methods.js");
+  const freight = await deliveryMethodCharge(client, context, input.deliveryMethodId || null, {
+    lines, value: Number(asDatabaseDecimal(chargeBase)), stateCode: master.shipping.row?.state_code ?? master.placeOfSupply?.code ?? null,
+  });
+  if (freight) input = { ...input, charges: [...(input.charges || []).filter((charge) => charge.chargeType !== "freight"),
+    ...(freight.charge > 0 ? [{ chargeType: "freight", label: freight.method.name, calculationType: "fixed", value: String(freight.charge), taxable: true }] : [])] };
   const charges = [];
   let chargeTotal = decimal(0);
   for (let i = 0; i < (input.charges || []).length; i++) {
@@ -967,10 +992,14 @@ export async function previewSalesDocument(
     shippingAddress: master.shipping.row || {},
     paymentTerm: master.paymentTerm || {},
   };
+  // A customer's sales warning comes first, then each product's (Sales report Phase 3).
+  const warnings = [...(master.party?.sales_warning ? [{ kind: "customer", partyId: master.party.id, name: master.party.display_name, message: master.party.sales_warning }] : []),
+    ...(master.warnings ?? [])];
   return {
     master,
     lines,
     charges,
+    warnings,
     // Free-goods schemes the document earns or claims (Sales audit M3).
     schemes,
     snapshots,
@@ -992,6 +1021,9 @@ export async function previewSalesDocument(
       documentDiscountValue: asDatabaseDecimal(documentDiscount.value),
       documentDiscountPercent: asDatabaseDecimal(documentDiscount.percent),
       documentDiscountAmount: asDatabaseDecimal(headerDiscountAmount),
+      couponId: coupon?.coupon.id ?? null,
+      couponCode: coupon?.coupon.code ?? null,
+      couponAmount: asDatabaseDecimal(couponAmount),
       taxableTotal: asDatabaseDecimal(taxableTotal),
     },
     discount: discountChecks,
@@ -1514,7 +1546,29 @@ export { sendDocumentOnWhatsApp } from "./whatsapp.js";
 export { CHALLAN_PURPOSES, createSalesChallan, getSalesChallan, listSalesChallans, setSalesChallanStatus } from "./challans.js";
 export { SALES_ACCESS_LEVELS, listSalesAccess, setSalesAccessLevel } from "./access-levels.js";
 export { getRateContract, listRateContracts, saveRateContract, setRateContractStatus } from "./rate-contracts.js";
-export { acceptSharedQuotation, loadSharedDocument, renderSharedDocumentPdf, revokeDocumentLink, shareDocumentLink } from "./portal.js";
+export { getVariantGrid, searchVariantTemplates } from "./variant-grid.js";
+export { deliveryMethodCharge, listDeliveryMethods, saveDeliveryMethod, setDeliveryMethodActive } from "./delivery-methods.js";
+export { couponDiscount, listCoupons, normaliseCouponCode, saveCoupon, setCouponActive } from "./coupons.js";
+export { getSalesOrderSupply, raiseSupplyForOrder } from "./supply.js";
+export { EXPORTABLE_LISTS, exportSalesList } from "./list-export.js";
+export { getFieldDay, getFieldSummary, recordFieldCollection, submitFieldOrder } from "./field.js";
+export { getCustomerPortal, loadCustomerPortal, requestPortalCode, setCustomerPortal, signOutOfPortal, verifyPortalCode } from "./customer-portal.js";
+export { confirmLinkPayment, gatewayOn, getPaymentGateway, receiveGatewayWebhook, savePaymentGateway, startLinkPayment } from "./gateway.js";
+export { deliverInboundEmailToSales, documentReplyTo, getDocumentConversation, keepSentDocumentEmail, listDocumentEmails } from "./document-emails.js";
+export { addMonthsOnDay, getRecurringSchedule, listRecurringSchedules, runRecurringSchedules, saveRecurringSchedule, setRecurringScheduleStatus } from "./recurring/index.js";
+export { ANALYSIS_DIMENSIONS, ANALYSIS_MEASURES, exportSalesAnalysis, getSalesAnalysis } from "./analysis.js";
+export { TDS_QUARTERS, deleteTdsCertificate, financialYearOf, getTdsCertificates, recordTdsCertificate } from "./tds-certificates.js";
+export { setCustomerSalesWarning, setProductInvoiceBasis, setProductSalesWarning } from "./warnings.js";
+export { adjustReceiptVouchers, issueReceiptVoucher, issueRefundVoucher, listReceiptVouchers, setReceiptVouchersFrom, taxOfAdvance } from "./advances/index.js";
+export {
+  DEFAULT_REMINDER_MESSAGE, deleteReminderRule, getPaymentReminders, listReminderLog, runPaymentReminders, saveReminderRule, setCustomerRemindersPaused, setPaymentRemindersMode,
+  setReminderRuleActive,
+} from "./reminders/index.js";
+export { bounceCheque, CHEQUE_STATUSES, cancelPostDatedCheque, clearCheques, depositCheques, listCheques } from "./payments/cheques.js";
+export {
+  createQuotationTemplate, deleteQuotationTemplate, getQuotationTemplate, listQuotationTemplates, setQuotationTemplateActive, updateQuotationTemplate,
+} from "./templates/quotation-templates.js";
+export { acceptSharedQuotation, declineSharedQuotation, loadSharedDocument, renderSharedDocumentPdf, requestQuotationChanges, revokeDocumentLink, shareDocumentLink } from "./portal.js";
 export { getSalesPerformance, listCommissionRules, saveCommissionRule, setCommissionRuleStatus, setInvoicedTarget } from "./performance.js";
 export { BACKGROUND_IMPORT_ROW_LIMIT, SALES_DATA_JOB_TYPE, executeSalesDataJob, failSalesDataJob, getSalesDataJob, listSalesDataJobs, readSalesDataJobOutput, requestSalesImportJob } from "./data-jobs.js";
 export * from "./after-sales.js";
@@ -1536,4 +1590,4 @@ export { addCollectionNote, getCustomerStatementDocument, listCollectionNotes } 
 export { DEBIT_REASONS as SALES_DEBIT_REASONS, cancelDraftDebitNote, createDebitNote, getDebitNote, getDebitNoteDocument, getDebitNoteProposal, listDebitNotes, postDebitNote } from "./debit-notes/index.js";
 export { TEMPLATE_KINDS as SALES_TEMPLATE_KINDS, listMessageTemplates, saveMessageTemplate } from "./templates.js";
 export { WEEKDAYS as SALES_ROUTE_WEEKDAYS, assignCustomersToRoute, listSalesRoutes, saveSalesRoute } from "./routes.js";
-export { createDeliveriesForOrders, createInvoicesForOrders } from "./bulk.js";
+export { createDeliveriesForOrders, createInvoicesForOrders, finaliseInvoicesInBulk, sendInvoicesInBulk } from "./bulk.js";

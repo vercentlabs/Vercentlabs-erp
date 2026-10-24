@@ -47,3 +47,14 @@ export function importPrices(client: Client, context: Context, priceListId: stri
 export function buildPriceImportTemplate(): string;
 export function buildPriceImportErrorFile(results: any[]): string;
 export function exportPrices(client: Client, context: Context, priceListId: string, options?: { state?: string }): Promise<{ fileName: string; csv: string; count: number }>;
+
+// Price list formulas (Sales report Phase 3).
+export type PriceListFormula = { id: string; sequence: number; appliesTo: "all" | "category" | "product"; itemGroupId: string | null; categoryName: string | null; itemId: string | null;
+  productName: string | null; base: "cost" | "list"; basePriceListId: string | null; basePriceListName: string | null; percent: number; rounding: string; roundingLabel: string; description: string };
+export function roundPrice(value: number, rounding: string): number;
+export function listPriceListFormulas(client: Client, context: Context, priceListId: string): Promise<{ formulas: PriceListFormula[] }>;
+export function addPriceListFormula(client: Client, context: Context, priceListId: string, input: { appliesTo: string; itemGroupId?: string | null; itemId?: string | null;
+  base: string; basePriceListId?: string | null; percent: number; rounding?: string }): Promise<{ formula: PriceListFormula }>;
+export function deletePriceListFormula(client: Client, context: Context, priceListId: string, formulaId: string): Promise<{ deleted: boolean }>;
+export function workOutPriceListPrices(client: Client, context: Context, priceListId: string, options?: { apply?: boolean }): Promise<{
+  changes: Array<{ itemId: string; name: string; from: number | null; to: number; rule: string }>; skipped: Array<{ itemId: string; name: string; reason: string }>; applied: boolean }>;

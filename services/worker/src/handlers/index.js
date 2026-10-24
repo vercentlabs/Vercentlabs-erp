@@ -15,6 +15,8 @@ import { notifyOverdueTasksHandler, JOB_TYPE as TASK_OVERDUE_JOB_TYPE, payloadSc
 import { notifyOverdueProductionHoldsHandler, JOB_TYPE as HOLD_OVERDUE_JOB_TYPE, payloadSchema as holdOverduePayloadSchema } from "./manufacturing-hold-overdue.js";
 import { notifyProjectAlertsHandler, JOB_TYPE as PROJECT_ALERTS_JOB_TYPE, payloadSchema as projectAlertsPayloadSchema } from "./projects-alerts.js";
 import { noteExpiredQuotationsHandler, JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE, payloadSchema as quotationExpiryPayloadSchema } from "./sales-quotation-expiry.js";
+import { paymentRemindersHandler, JOB_TYPE as PAYMENT_REMINDERS_JOB_TYPE, payloadSchema as paymentRemindersPayloadSchema } from "./sales-payment-reminders.js";
+import { recurringHandler, JOB_TYPE as RECURRING_JOB_TYPE, payloadSchema as recurringPayloadSchema } from "./sales-recurring.js";
 import { openNextFiscalYearHandler, JOB_TYPE as FISCAL_YEAR_AHEAD_JOB_TYPE, payloadSchema as fiscalYearAheadPayloadSchema } from "./platform-fiscal-year-ahead.js";
 import { leadScoringHistoryHandler, JOB_TYPE as LEAD_SCORING_HISTORY_JOB_TYPE, payloadSchema as leadScoringHistoryPayloadSchema } from "./crm-lead-scoring-history.js";
 import { buildWorkspaceExportHandler, JOB_TYPE as WORKSPACE_EXPORT_JOB_TYPE, payloadSchema as workspaceExportPayloadSchema } from "./platform-workspace-export.js";
@@ -193,6 +195,20 @@ export function registerBuiltinHandlers() {
     handler: noteExpiredQuotationsHandler,
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // the quotation.expired history event marks each quotation once
+    maxAttempts: 3,
+  });
+  registerJobHandler(PAYMENT_REMINDERS_JOB_TYPE, {
+    schema: paymentRemindersPayloadSchema,
+    handler: paymentRemindersHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // the reminder log stamps each rule and invoice once
+    maxAttempts: 3,
+  });
+  registerJobHandler(RECURRING_JOB_TYPE, {
+    schema: recurringPayloadSchema,
+    handler: recurringHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // the run log has one row per schedule and date
     maxAttempts: 3,
   });
   registerJobHandler(DEPRECIATION_AUTOMATION_JOB_TYPE, {

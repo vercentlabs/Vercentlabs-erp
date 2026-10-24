@@ -41,9 +41,10 @@ const EVENT_LABELS: Record<string, string> = {
   "quotation.created": "Created", "quotation.updated": "Draft saved", "quotation.submitted": "Submitted for approval", "quotation.approved": "Approved and confirmed",
   "quotation.approval_rejected": "Approval rejected, back to draft", "quotation.confirmed": "Finalised", "quotation.sent": "Sent", "quotation.resent": "Sent again",
   "quotation.accepted": "Accepted by the customer", "quotation.rejected": "Rejected by the customer", "quotation.cancelled": "Cancelled",
+  "quotation.viewed": "Opened by the customer", "quotation.changes_requested": "Customer asked for changes",
   "quotation.revision_created": "Revision created", "quotation.superseded": "Replaced by revision", "quotation.duplicated": "Duplicated from another quotation",
   "quotation.order_created": "Sales order created", "quotation.discount_added": "Discount added", "quotation.discount_changed": "Discount changed",
-  "quotation.discount_removed": "Discount removed", "quotation.price_overridden": "Price overridden", "quotation.discount_limit_overridden": "Discount above the standard limit", "quotation.note_added": "Note", "quotation.file_added": "File added", "quotation.file_removed": "File removed",
+  "quotation.discount_removed": "Discount removed", "quotation.price_overridden": "Price changed", "quotation.discount_limit_overridden": "Discount above the standard limit", "quotation.note_added": "Note", "quotation.file_added": "File added", "quotation.file_removed": "File removed",
 };
 function eventDetail(event: SalesDocumentEvent) {
   const m = (event.metadata ?? {}) as Record<string, unknown>;
@@ -51,7 +52,7 @@ function eventDetail(event: SalesDocumentEvent) {
   return [
     text("scope") && `${text("scope")![0].toUpperCase()}${text("scope")!.slice(1)}`, text("from") && text("to") && `${text("from")} → ${text("to")}`,
     text("requestedPercent") && `${Number(text("requestedPercent"))}% requested`,
-    text("note"), text("reason"), text("notes"), text("recipient") && `To ${text("recipient")}`, text("channel") === "manual" ? "Sent outside Vercentlabs" : null,
+    text("customerName") && `From ${text("customerName")}`, text("note"), text("reason"), text("notes"), text("recipient") && `To ${text("recipient")}`, text("channel") === "manual" ? "Sent outside Vercentlabs" : null,
     text("revisionNumber") && `Revision ${text("revisionNumber")}`, text("supersededByNumber") && `By ${text("supersededByNumber")}`,
     text("revisionOfNumber") && `Revises ${text("revisionOfNumber")}`, text("fromQuotationNumber") && `From ${text("fromQuotationNumber")}`,
     text("orderNumber") && `Order ${text("orderNumber")}`, text("fileName"), text("reference") && `Reference ${text("reference")}`,
@@ -106,7 +107,7 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
     <div className="flex flex-col gap-4">
       {error && <Notice>{error}</Notice>}
       {quote.status === "superseded" && quote.superseded_by_quotation_id && (
-        <Notice tone="info">This quotation was superseded by <Link className="underline" href={`/sales/quotations/${quote.superseded_by_quotation_id}`}>{quote.superseded_by_number}</Link>.</Notice>
+        <Notice tone="info">This quotation was replaced by <Link className="underline" href={`/sales/quotations/${quote.superseded_by_quotation_id}`}>{quote.superseded_by_number}</Link>.</Notice>
       )}
       {quote.is_expired && <Notice tone="warning">The validity of this quotation has passed. Create a revision with a new valid-until date to offer it again.</Notice>}
 
@@ -170,7 +171,7 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
             <Tab id="timeline">History</Tab>
           </TabList>
           <TabPanel id="overview"><Overview detail={detail} /></TabPanel>
-          <TabPanel id="lines"><Lines detail={detail} /></TabPanel>
+          <TabPanel id="lines"><div className="flex flex-col gap-4"><Lines detail={detail} /><OptionalExtras detail={detail} /></div></TabPanel>
           <TabPanel id="notes"><Notes detail={detail} /></TabPanel>
           <TabPanel id="related"><Related detail={detail} /></TabPanel>
           <TabPanel id="files"><Files quotationId={quotationId} canEdit={can("sales.quotation.create")} onChanged={refresh} /></TabPanel>
@@ -213,8 +214,10 @@ function Overview({ detail }: { detail: SalesQuotationDetail }) {
           { label: "Customer reference", value: quote.customer_reference ?? "—" },
           { label: "Delivery terms", value: quote.delivery_terms ?? "—" },
           { label: "Shipping method", value: quote.shipping_method ?? "—" },
-          { label: "Additional discount", value: !Number(quote.document_discount_amount) ? "None" : quote.document_discount_type === "percent"
-            ? `${Number(quote.document_discount_value)}% (${money(quote.currency_code, quote.document_discount_amount)})` : money(quote.currency_code, quote.document_discount_amount) },
+          { label: "Additional discount", value: !(Number(quote.document_discount_amount) - Number(quote.coupon_amount ?? 0)) ? "None" : quote.document_discount_type === "percent"
+            ? `${Number(quote.document_discount_value)}% (${money(quote.currency_code, Number(quote.document_discount_amount) - Number(quote.coupon_amount ?? 0))})`
+            : money(quote.currency_code, Number(quote.document_discount_amount) - Number(quote.coupon_amount ?? 0)) },
+          ...(Number(quote.coupon_amount ?? 0) ? [{ label: "Coupon", value: `${quote.coupon_code ?? ""} (${money(quote.currency_code, quote.coupon_amount ?? 0)})` }] : []),
           { label: "Discount reason", value: discountReasonLabel(quote.discount_reason_code, quote.discount_reason_text) ?? "—" },
         ]} />
       </Panel>
@@ -223,6 +226,10 @@ function Overview({ detail }: { detail: SalesQuotationDetail }) {
           { label: "Created", value: `${dateTime(quote.created_at)}${quote.created_by_name ? ` by ${quote.created_by_name}` : ""}` },
           { label: "Finalised", value: quote.confirmed_at ? `${dateTime(quote.confirmed_at)}${quote.confirmed_by_name ? ` by ${quote.confirmed_by_name}` : ""}` : "—" },
           { label: "Sent", value: quote.sent_at ? `${dateTime(quote.sent_at)}${quote.sent_by_name ? ` by ${quote.sent_by_name}` : ""}${quote.sent_to ? ` to ${quote.sent_to}` : ""}` : "—" },
+          { label: "Opened by the customer", value: quote.customer_viewed_at ? dateTime(quote.customer_viewed_at) : "Not yet" },
+          ...(quote.signature_file_id ? [{ label: "Signed online", value: (
+            <a className="text-brand hover:underline" href={`/api/sales/quotations/${quote.id}/files/${quote.signature_file_id}`}>{`${quote.signed_by_name ?? "Customer"}: see the signature`}</a>
+          ) }] : []),
           { label: "Accepted", value: quote.accepted_at ? `${dateTime(quote.accepted_at)}${quote.decision_reference ? ` · ${quote.decision_reference}` : ""}` : "—" },
           { label: "Rejected", value: quote.rejected_at ? `${dateTime(quote.rejected_at)}${quote.decision_notes ? `: ${quote.decision_notes}` : ""}` : "—" },
           { label: "Cancelled", value: quote.cancelled_at ? `${dateTime(quote.cancelled_at)}${quote.cancel_reason ? `: ${quote.cancel_reason}` : ""}` : "—" },
@@ -254,7 +261,7 @@ function Lines({ detail }: { detail: SalesQuotationDetail }) {
       cell: ({ row }) => (
         <span className="flex flex-col tabular-nums">
           {money(currency, row.original.unit_price)}
-          {row.original.manual_price_override && <span className="text-xs text-warning" title={row.original.manual_price_reason ?? undefined}>Overridden{row.original.manual_price_reason ? `: ${row.original.manual_price_reason}` : ""}</span>}
+          {row.original.manual_price_override && <span className="text-xs text-warning" title={row.original.manual_price_reason ?? undefined}>Changed{row.original.manual_price_reason ? `: ${row.original.manual_price_reason}` : ""}</span>}
         </span>
       ),
     },
@@ -318,7 +325,7 @@ function Related({ detail }: { detail: SalesQuotationDetail }) {
           { label: "Customer", value: <Link className="text-brand hover:underline" href={`/sales/customers/${quote.party_id}`}>{quote.customer_snapshot?.displayName ?? "Open customer"}</Link> },
         ]} />
       </Panel>
-      <Panel title="Revisions" description="Each revision is its own quotation. When a revision is sent, the one it revises is superseded.">
+      <Panel title="Revisions" description="Each revision is its own quotation. When a revision is sent, the one it revises is replaced.">
         {detail.revisions.length <= 1 ? <p className="text-sm text-text-muted">This quotation has no revisions.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.revisions.map((revision) => (
@@ -424,5 +431,30 @@ function RejectApprovalDialog({ quotationId, onClose, onDone }: { quotationId: s
         </div>
       </div>
     </Dialog>
+  );
+}
+
+// Optional products (Sales report Phase 3): offered beside the lines, not in the total; the ones the customer chose online are marked.
+function OptionalExtras({ detail }: { detail: SalesQuotationDetail }) {
+  const quote = detail.quotation;
+  const extras = quote.optional_lines ?? [];
+  if (!extras.length) return null;
+  const chosen = new Set(quote.optional_chosen ?? []);
+  const currency = String(quote.currency_code ?? "INR").trim();
+  return (
+    <Panel title="Optional extras" description="Offered beside the lines, not in the total. The customer can add them when accepting online.">
+      <ul className="flex flex-col divide-y divide-border text-sm">
+        {extras.map((line, index) => (
+          <li key={`${line.itemId}-${index}`} className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <span className="flex min-w-0 flex-col"><span className="font-medium">{line.description || line.name}</span>
+              <span className="text-xs text-text-secondary">{`${line.quantity} ${line.unit ?? ""} · ${money(currency, line.unitPrice)} each`}</span></span>
+            <span className="flex items-center gap-2">
+              {chosen.has(index) && <StatusBadge tone="success">Chosen by the customer</StatusBadge>}
+              <span className="tabular-nums">{money(currency, line.lineTotal)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Panel>
   );
 }

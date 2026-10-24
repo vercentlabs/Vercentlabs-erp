@@ -15,7 +15,8 @@ import { SalesApiError } from "@/features/sales/shared/http";
 import { money } from "@/features/sales/shared/format";
 
 import {
-  cancelCreditNote, createCreditNote, getCreditProposal, markCreditNoteSent, postCreditNote, reverseCreditNote, sendCreditNote, updateDraftCreditNote,
+  applyCreditNote, cancelCreditNote, createCreditNote, getCreditNoteApplication, getCreditProposal, markCreditNoteSent, postCreditNote, reverseCreditNote, sendCreditNote,
+  updateDraftCreditNote,
   validateCreditNote, type CreditLineInput, type CreditNoteDetail, type CreditProposal, type CreditType,
 } from "../api/credit-notes-api";
 import { Notice } from "@/shared/ui/Panel";
@@ -128,7 +129,7 @@ export function CreateCreditNoteDialog({ invoiceId, onClose, onDone }: { invoice
   const data = proposal.data;
   return (
     <Shell title={`Credit note against ${data?.invoiceNumber ?? "the invoice"}`}
-      description="The invoice itself never changes. The credit note is created as a draft; posting it reduces what the customer owes and applies it to this invoice."
+      description="Made as a draft. Finalise it to reduce what the customer owes on this invoice."
       size="lg" error={save.error ?? proposal.error} fallback="The credit note could not be created." onClose={onClose} label="Create Draft Credit Note" isLoading={save.isPending}
       isDisabled={!lines.length || !reasonCode || (reasonCode === "other" && !reasonNote.trim())} onPress={() => save.mutate()}>
       {proposal.isLoading || !data ? <p className="text-sm text-text-muted">Loading what is left to credit…</p> : (
@@ -137,7 +138,7 @@ export function CreateCreditNoteDialog({ invoiceId, onClose, onDone }: { invoice
             <span className="tabular-nums">{money(data.currencyCode, data.creditedTotal)}</span> · still owed <span className="tabular-nums">{money(data.currencyCode, data.outstanding)}</span></p>
           <CreditLines proposal={data} values={values} onChange={setValues} allowAmount={data.canCreditAmount} />
           {data.lines.some((line) => line.draftCreditNotes.length > 0) && (
-            <Notice tone="warning">Other draft credit notes already credit some of these lines. Drafts credit nothing yet: whichever is posted first goes through.</Notice>
+            <Notice tone="warning">Other draft credit notes already credit some of these lines. Drafts credit nothing yet: whichever is finalised first goes through.</Notice>
           )}
           <ReasonFields reasons={data.reasons} reasonCode={reasonCode} setReasonCode={setReasonCode} reasonNote={reasonNote} setReasonNote={setReasonNote} />
           <TextField label="Credit note date" type="date" value={creditDate} onChange={setCreditDate} />
@@ -203,17 +204,17 @@ export function PostCreditNoteDialog({ detail, onClose, onDone }: { detail: Cred
   const currency = creditNote.currency_code;
   const save = useMutation({
     mutationFn: () => postCreditNote(creditNote.id, creditNote.version),
-    onSuccess: ({ result }) => onDone(result.awaitingApproval ? "The credit note is waiting for Finance approval before it is posted."
-      : `Credit note ${result.creditNoteNumber} is posted. ${money(currency, result.applied ?? 0)} was applied to invoice ${creditNote.sourceInvoice.invoiceNumber}`
+    onSuccess: ({ result }) => onDone(result.awaitingApproval ? "The credit note is waiting for Finance approval before it is finalised."
+      : `Credit note ${result.creditNoteNumber} is finalised. ${money(currency, result.applied ?? 0)} was applied to invoice ${creditNote.sourceInvoice.invoiceNumber}`
         + `${(result.unapplied ?? 0) > 0.005 ? `; ${money(currency, result.unapplied ?? 0)} is left as the customer's credit.` : "."}`),
   });
   const problems = check.data?.problems ?? [];
   return (
-    <Shell title={`Post ${creditNote.invoice_number}?`}
-      description="Posting reduces what the customer owes and enters it in the books (receivable, revenue and output tax taken back). It is applied to the invoice for as much as the invoice still owes; the rest is the customer's credit. A posted credit note cannot be edited."
-      error={save.error ?? check.error} fallback="The credit note could not be posted." onClose={onClose} label="Post Credit Note" isLoading={save.isPending}
+    <Shell title={`Finalise ${creditNote.invoice_number}?`}
+      description="This reduces what the customer owes on the invoice; anything left becomes their credit. It cannot be edited afterwards."
+      error={save.error ?? check.error} fallback="The credit note could not be finalised." onClose={onClose} label="Finalise Credit Note" isLoading={save.isPending}
       isDisabled={check.isLoading || problems.length > 0} onPress={() => save.mutate()}>
-      <p className="text-sm">Total credit <span className="font-medium tabular-nums">{money(currency, creditNote.grand_total)}</span> · against {creditNote.sourceInvoice.invoiceNumber} · posting date {day(creditNote.accounting_date)}</p>
+      <p className="text-sm">Total credit <span className="font-medium tabular-nums">{money(currency, creditNote.grand_total)}</span> · against {creditNote.sourceInvoice.invoiceNumber} · accounting date {day(creditNote.accounting_date)}</p>
       {check.isLoading ? <p className="text-sm text-text-muted">Checking the credit note…</p> : problems.length ? (
         <Notice tone="warning"><ul className="list-disc pl-4">{problems.map((problem, index) => <li key={index}>{problem.message}</li>)}</ul></Notice>
       ) : <Notice tone="success">Quantities, value left on the invoice, period and totals are in order.</Notice>}
@@ -237,14 +238,63 @@ export function ReverseCreditNoteDialog({ detail, onClose, onDone }: { detail: C
   const [reason, setReason] = useState("");
   const save = useMutation({
     mutationFn: () => reverseCreditNote(detail.creditNote.id, reason.trim()),
-    onSuccess: ({ result }) => onDone(`The credit note was reversed.${result.unapplied?.length ? ` ${result.unapplied.map((entry) => `${entry.invoiceNumber} owes ${money(detail.creditNote.currency_code, entry.amount)} again`).join("; ")}.` : ""}`),
+    onSuccess: ({ result }) => onDone(`The credit note was cancelled.${result.unapplied?.length ? ` ${result.unapplied.map((entry) => `${entry.invoiceNumber} owes ${money(detail.creditNote.currency_code, entry.amount)} again`).join("; ")}.` : ""}`),
   });
   return (
-    <Shell title={`Reverse ${detail.creditNote.invoice_number}?`}
-      description="For a credit note posted in error: it is unapplied from the invoices it was applied to (they owe it again), and a reversing entry restores the receivable, revenue and output tax. The credit note is kept, marked Reversed."
-      error={save.error} fallback="The credit note could not be reversed." onClose={onClose} label="Reverse Credit Note" tone="danger" isLoading={save.isPending} isDisabled={!reason.trim()}
+    <Shell title={`Cancel ${detail.creditNote.invoice_number}?`}
+      description="Use this for a credit note finalised by mistake. The invoices owe the amount again."
+      error={save.error} fallback="The credit note could not be cancelled." onClose={onClose} label="Cancel Credit Note" tone="danger" isLoading={save.isPending} isDisabled={!reason.trim()}
       onPress={() => save.mutate()}>
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
+    </Shell>
+  );
+}
+
+// The credit left on a final credit note, used on the customer's other open invoices (Sales report H7). Filled oldest due first; any
+// amount can be changed, never above what an invoice owes or what is left.
+export function ApplyCreditDialog({ detail, onClose, onDone }: { detail: CreditNoteDetail; onClose: () => void; onDone: (message: string) => void }) {
+  const workspace = useWorkspaceContext();
+  const currency = detail.creditNote.currency_code;
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "credit-note-apply", detail.creditNote.id), queryFn: () => getCreditNoteApplication(detail.creditNote.id) });
+  const [amounts, setAmounts] = useState<Record<string, number> | null>(null);
+  const application = query.data;
+  const proposed = (() => {
+    if (!application) return {};
+    let left = application.creditLeft;
+    return Object.fromEntries(application.invoices.map((invoice) => {
+      const amount = Math.max(0, Math.min(left, invoice.outstanding));
+      left = Math.round((left - amount) * 100) / 100;
+      return [invoice.invoiceId, Math.round(amount * 100) / 100];
+    }));
+  })();
+  const values = amounts ?? proposed;
+  const total = Object.values(values).reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+  const over = application ? total > application.creditLeft + 0.005 : false;
+  const save = useMutation({
+    mutationFn: () => applyCreditNote(detail.creditNote.id, Object.entries(values).filter(([, amount]) => amount > 0).map(([invoiceId, amount]) => ({ invoiceId, amount }))),
+    onSuccess: ({ result }) => onDone(`Credit used: ${result.applied.map((entry) => `${money(currency, Number(entry.amount))} on ${entry.invoiceNumber}`).join(", ")}.`),
+  });
+  return (
+    <Shell title={`Use the credit on ${detail.creditNote.invoice_number}`} description="Choose how much goes on each open invoice of this customer."
+      error={save.error ?? query.error} fallback="The credit could not be used." onClose={onClose} label="Use Credit" isLoading={save.isPending}
+      isDisabled={!application || total <= 0.005 || over} onPress={() => save.mutate()}>
+      {query.isLoading ? <p className="text-sm text-text-secondary">Loading open invoices…</p> : application && (
+        application.invoices.length === 0 ? <p className="text-sm text-text-secondary">This customer has no open invoice. Refund the credit instead, or keep it for later.</p> : (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-text-secondary">{`Left on this credit note: ${money(currency, application.creditLeft)}. Using ${money(currency, total)}.`}</p>
+            {application.invoices.map((invoice) => (
+              <div key={invoice.invoiceId} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                <div className="flex flex-col text-sm">
+                  <span className="font-medium tabular-nums">{invoice.invoiceNumber}</span>
+                  <span className="text-xs text-text-muted">{`Owes ${money(currency, invoice.outstanding)}${invoice.dueDate ? ` · due ${invoice.dueDate}` : ""}`}</span>
+                </div>
+                <NumberField label="Use" value={values[invoice.invoiceId] ?? 0} minValue={0} maxValue={invoice.outstanding} step={0.01}
+                  onChange={(value) => setAmounts({ ...values, [invoice.invoiceId]: Number.isFinite(value) ? value : 0 })} />
+              </div>
+            ))}
+            {over && <Notice>That is more than is left on the credit note.</Notice>}
+          </div>
+        ))}
     </Shell>
   );
 }

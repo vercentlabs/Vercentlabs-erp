@@ -10,7 +10,7 @@
 import { OrderError } from "../orders/constants.js";
 
 export const INVOICE_STATUS = Object.freeze({ draft: "draft", posted: "posted", reversed: "reversed", cancelled: "cancelled" });
-export const INVOICE_STATUS_LABELS = Object.freeze({ draft: "Draft", awaiting_approval: "Awaiting Finance approval", posted: "Posted", reversed: "Reversed", cancelled: "Cancelled" });
+export const INVOICE_STATUS_LABELS = Object.freeze({ draft: "Draft", awaiting_approval: "Awaiting Finance approval", posted: "Final", reversed: "Cancelled", cancelled: "Cancelled" });
 // Finance's statuses and what Sales shows for each.
 export const FINANCE_DRAFT = Object.freeze(["draft", "pending_approval", "approved"]);
 export const FINANCE_POSTED = Object.freeze(["posted", "partially_paid", "paid", "overdue", "disputed"]);
@@ -66,7 +66,7 @@ export const INVOICE_PERMISSIONS = Object.freeze({
 export const INVOICE_VIEWS = Object.freeze([
   { key: "all", label: "All Invoices" },
   { key: "draft", label: "Draft" },
-  { key: "posted", label: "Posted" },
+  { key: "posted", label: "Final" },
   { key: "unpaid", label: "Unpaid" },
   { key: "partially_paid", label: "Partially Paid" },
   { key: "balance_due", label: "Balance Due" },
@@ -74,7 +74,7 @@ export const INVOICE_VIEWS = Object.freeze([
   { key: "due_today", label: "Due Today" },
   { key: "due_this_week", label: "Due This Week" },
   { key: "overdue", label: "Overdue" },
-  { key: "reversed", label: "Cancelled / Reversed" },
+  { key: "reversed", label: "Cancelled" },
   { key: "mine", label: "My Invoices" },
 ]);
 

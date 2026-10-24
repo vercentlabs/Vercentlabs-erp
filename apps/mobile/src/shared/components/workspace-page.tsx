@@ -391,6 +391,13 @@ export function WorkspacePage({ area }: { area: string }) {
                 label="Open modules"
                 onPress={() => router.push("/(protected)/workspace/modules")}
               />
+              {(permissionSet.has("sales.order.create") || auth.session?.access.roleSlugs.includes("organization_owner")) && (
+                <Button
+                  label="Today's beat"
+                  variant="secondary"
+                  onPress={() => router.push("/(protected)/field")}
+                />
+              )}
               <Button
                 label="Workspace settings"
                 variant="secondary"

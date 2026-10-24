@@ -50,13 +50,13 @@ const PICKERS: Picker[] = [
     read: (row) => ({ id: text(row.id), number: text(row.delivery_number), detail: [row.customer_name, row.sales_order_number].filter(Boolean).join(" · ") }),
   },
   {
-    key: "credit", label: "Credit Note", permission: "sales.credit_note.create", title: "New credit note", description: "Choose the posted invoice to credit. For returned goods, start from the sales return.",
+    key: "credit", label: "Credit Note", permission: "sales.credit_note.create", title: "New credit note", description: "Choose the final invoice to credit. For returned goods, start from the sales return.",
     path: "/invoices?view=posted&sort=date&direction=desc", open: (id) => `/sales/invoices/${id}?create=credit`,
     read: (row) => ({ id: text(row.id), number: text(row.invoice_number), detail: [row.customer_name, row.sales_order_number].filter(Boolean).join(" · ") }),
   },
   {
     // An undercharge or rate difference after the invoice (Sales plan).
-    key: "debit", label: "Debit Note", permission: "sales.credit_note.create", title: "New debit note", description: "Choose the posted invoice the customer was undercharged on.",
+    key: "debit", label: "Debit Note", permission: "sales.credit_note.create", title: "New debit note", description: "Choose the final invoice the customer was undercharged on.",
     path: "/invoices?view=posted&sort=date&direction=desc", open: (id) => `/sales/invoices/${id}?create=debit`,
     read: (row) => ({ id: text(row.id), number: text(row.invoice_number), detail: [row.customer_name, row.sales_order_number].filter(Boolean).join(" · ") }),
   },

@@ -5,26 +5,29 @@
 // Paid, Paid, Overdue, Cancelled / Reversed), searchable by invoice and order
 // number, customer, customer number, customer PO, delivery, product and
 // GSTIN. Payment status, balance and overdue come from what Finance applied.
-// Invoices are created from a confirmed sales order or a delivery.
+// Invoices are created from a confirmed sales order or a delivery. Select many to finalise the drafts or email the final ones (Sales
+// report H2).
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import {
-  EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, Select, TextField, type ActiveFilter,
+  Button, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, Select, TextField, type ActiveFilter,
 } from "@vercentlabs/design-system";
 
 import { MyViews } from "@/shared/ui/MyViews";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { SalesApiError } from "@/features/sales/shared/http";
+import { Notice } from "@/shared/ui/Panel";
+import { SalesApiError, post } from "@/features/sales/shared/http";
 import { calendarDate, money } from "@/features/sales/shared/format";
 import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 
 import { listInvoices, type InvoiceFilters, type InvoiceRow } from "../api/invoices-api";
 import { InvoiceStatusBadges } from "../components/InvoiceStatusBadges";
 import { readListState, useListUrlState } from "@/features/sales/shared/listUrlState";
+import { ExportLink, exportHref, useListColumns } from "@/features/sales/shared/list-kit";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -35,9 +38,20 @@ const NAMES: Record<FilterKey, string> = {
   status: "Invoice status", paymentStatus: "Payment status", partyId: "Customer", ownerUserId: "Salesperson", paymentTermId: "Payment terms", currencyCode: "Currency", dateFrom: "Invoiced from", dateTo: "Invoiced to",
   dueFrom: "Due from", dueTo: "Due to",
 };
-const STATUSES = [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "reversed", label: "Cancelled / Reversed" }];
+const STATUSES = [{ value: "draft", label: "Draft" }, { value: "posted", label: "Final" }, { value: "reversed", label: "Cancelled" }];
 const PAYMENTS = [{ value: "unpaid", label: "Unpaid" }, { value: "partially_paid", label: "Partially paid" }, { value: "paid", label: "Paid" }];
 const DEFAULT_VIEWS = [{ key: "all", label: "All Invoices" }];
+type BulkResult = { results: Array<{ invoiceNumber: string | null; finalised?: boolean; alreadyFinal?: boolean; sentTo?: string; einvoice?: { status: string; error?: string } | null; error?: string }> };
+
+// What a bulk finalise or send did, one line per problem.
+export function bulkInvoiceSummary(action: "finalise" | "send", result: BulkResult) {
+  const done = result.results.filter((row) => (action === "finalise" ? row.finalised || row.alreadyFinal : row.sentTo));
+  const numbers = done.map((row) => row.invoiceNumber).filter(Boolean).join(", ");
+  const head = done.length ? `${done.length} ${done.length === 1 ? "invoice" : "invoices"} ${action === "finalise" ? "final" : "emailed"}: ${numbers}.` : "Nothing was done.";
+  const irn = result.results.filter((row) => row.einvoice?.status === "failed").map((row) => `${row.invoiceNumber}: final, but the IRN failed (${row.einvoice?.error}). Retry from its GST tab.`);
+  const failed = result.results.filter((row) => row.error).map((row) => `${row.invoiceNumber ?? "An invoice"}: ${row.error}`);
+  return [head, ...irn, ...failed].join("\n");
+}
 
 // What the list shows with nothing in the address.
 const LIST_DEFAULTS = { sort: [{ id: "created", desc: true }] as SortingState, filters: NO_FILTERS };
@@ -78,6 +92,14 @@ export function InvoicesScreen() {
   });
   const rows = listQuery.data?.rows ?? [];
   const total = listQuery.data?.total ?? 0;
+  const can = (permission: string) => workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(permission);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const chosen = Object.keys(selected).filter((id) => selected[id]);
+  const [bulkNotice, setBulkNotice] = useState<string | null>(null);
+  const bulk = useMutation({
+    mutationFn: (action: "finalise" | "send") => post<BulkResult>("/invoices/bulk", { action, invoiceIds: chosen, idempotencyKey: crypto.randomUUID() }).then((result) => ({ action, result })),
+    onSuccess: ({ action, result }) => { setBulkNotice(bulkInvoiceSummary(action, result)); setSelected({}); void listQuery.refetch(); },
+  });
 
   const columns = useMemo<ColumnDef<InvoiceRow, unknown>[]>(() => [
     { id: "number", accessorKey: "invoice_number", header: "Invoice", cell: ({ row }) => <span className="font-medium whitespace-nowrap tabular-nums">{row.original.invoice_number}</span> },
@@ -95,6 +117,9 @@ export function InvoicesScreen() {
     { id: "credit", header: "Credited", enableSorting: false, cell: ({ row }) => (row.original.creditStatus === "not_credited" ? "" : <span className="whitespace-nowrap">{row.original.creditStatusLabel}</span>) },
     { id: "owner", header: "Salesperson", enableSorting: false, cell: ({ row }) => row.original.owner_name ?? "" },
   ], []);
+  // CRM parity: choose the columns, tick rows to export them.
+  const cols = useListColumns("sales.invoices.columns", columns);
+  const mayExport = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.invoice.print");
 
   if (listQuery.isError && listQuery.error instanceof SalesApiError && listQuery.error.status === 403)
     return <PermissionState title="You don't have access to sales invoices" description="Ask an administrator for the View sales invoices permission." />;
@@ -121,8 +146,19 @@ export function InvoicesScreen() {
 
   return (
     <EnterpriseListPage
-      header={{ title: "Invoices", description: "Customer invoices made from sales orders and deliveries: drafts to check and post, and what each customer still owes." }}
+      header={{ title: "Invoices", description: "Customer invoices made from sales orders and deliveries: drafts to check and finalise, and what each customer still owes.", secondaryActions: mayExport ? <ExportLink href={exportHref("/api/sales/list-export/invoices", listFilters)} /> : undefined }}
       savedViews={{ views: views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
+      bulkActionBar={{
+        selectedCount: chosen.length,
+        onClearSelection: () => setSelected({}),
+        actions: (
+          <>
+            {mayExport && <ExportLink compact label="Export selected" href={exportHref("/api/sales/list-export/invoices", listFilters, chosen)} />}
+            {can("sales.invoice.post") && <Button size="compact" variant="primary" isLoading={bulk.isPending && bulk.variables === "finalise"} onPress={() => bulk.mutate("finalise")}>Finalise</Button>}
+            {can("sales.invoice.send") && <Button size="compact" variant="secondary" isLoading={bulk.isPending && bulk.variables === "send"} onPress={() => bulk.mutate("send")}>Send by email</Button>}
+          </>
+        ),
+      }}
       actionBar={{
         start: (
           <>
@@ -141,17 +177,27 @@ export function InvoicesScreen() {
           </>
         ),
         end: (
+          <>
           <MyViews listKey="sales.invoices" state={{ view, search: submitted, filters, sorting }}
             onApply={(saved) => { setViewState(saved.view); setSearch(saved.search); setSubmittedState(saved.search); setFiltersState({ ...NO_FILTERS, ...saved.filters }); setSortingState(saved.sorting); setPageIndex(0); }} />
+          {cols.menu}
+          </>
         ),
       }}
       filterBar={activeFilters.length ? { filters: activeFilters, onRemove: (id) => setFilters({ ...filters, [id]: NO_FILTERS[id as FilterKey] }), onClearAll: () => setFilters(NO_FILTERS) } : undefined}
     >
+      {bulkNotice && <Notice tone="info" className="whitespace-pre-line">{bulkNotice}</Notice>}
+      {bulk.isError && <Notice tone="danger">{(bulk.error as Error).message}</Notice>}
       <EnterpriseDataGrid<InvoiceRow>
+        columnVisibility={cols.visibility}
+        onColumnVisibilityChange={cols.setVisibility}
         aria-label="Invoices"
         columns={columns}
         data={rows}
         getRowId={(row) => row.id}
+        enableRowSelection
+        rowSelection={selected}
+        onRowSelectionChange={setSelected}
         state={listQuery.isLoading ? "loading" : listQuery.isError ? "error" : rows.length === 0 ? (hasCriteria ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading invoices" rows={8} onRetry={() => void listQuery.refetch()} />}
         errorContent={<ErrorState title="Could not load invoices" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}

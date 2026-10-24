@@ -25,6 +25,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import { deliverEmailToSupport } from "../../modules/support/desk/sd-mail.js";
 import { prepareAttachmentUpload as prepareCrmAttachment } from "../../modules/crm/attachments/records.js";
 import { deliverInboundEmailToCrm } from "../../modules/crm/email/inbound.js";
+import { deliverInboundEmailToSales } from "../../modules/sales/document-emails.js";
 
 const MAX_RAW_BODY = 30 * 1024 * 1024;
 
@@ -47,7 +48,7 @@ async function prepareAttachments(message, env, target = "support.email_to_ticke
 }
 
 async function assertModuleAvailable(client, organizationId, env, moduleKey = "support") {
-  const label = moduleKey === "crm" ? "CRM" : "Support";
+  const label = moduleKey === "crm" ? "CRM" : moduleKey === "sales" ? "Sales" : "Support";
   const enabled = await getEnabledModuleKeys(client, organizationId);
   if (!enabled.has(moduleKey)) throw new InboundMailError(409, `${label} is not enabled for this organisation.`, "PLATFORM_INBOUND_MAIL_TARGET_UNAVAILABLE");
   let billing = null;
@@ -79,14 +80,17 @@ export async function receiveInboundMail({ runPlatform, runTenant }, { routeKey,
 export async function sendInboundMailTest({ runTenant }, session, routeId, env = process.env) {
   const route = await runTenant(session.organizationId, (client) => loadInboundMailRoute(client, session.organizationId, routeId));
   const crm = route.target === "crm.email_to_lead";
+  const sales = route.target === "sales.email_replies";
   const stamp = new Date().toISOString();
   const rawBody = JSON.stringify({
     provider: "test",
     messageId: `test-${randomUUID()}@vercentlabs.test`,
     from: { email: "test.customer@example.com", name: "Test Customer" },
     to: ["inbound@example.com"],
-    subject: crm ? "Test enquiry from the inbound email setup" : "Test support request from the inbound email setup",
-    text: `This is a test message sent from Settings › Integrations › Inbound email at ${stamp}. It shows that email sent to "${route.name}" ${crm ? "opens a CRM lead" : "opens a Support ticket"}. You can close or delete it.`,
+    subject: sales ? "Test reply from the inbound email setup" : crm ? "Test enquiry from the inbound email setup" : "Test support request from the inbound email setup",
+    text: sales
+      ? `This is a test message sent from Settings › Integrations › Inbound email at ${stamp}. It names no document, so it is logged as unmatched: a real reply joins its quotation, order or invoice.`
+      : `This is a test message sent from Settings › Integrations › Inbound email at ${stamp}. It shows that email sent to "${route.name}" ${crm ? "opens a CRM lead" : "opens a Support ticket"}. You can close or delete it.`,
   });
   const signature = `sha256=${createHmac("sha256", await routeSigningSecret(route, env)).update(rawBody).digest("hex")}`;
   return processInboundMail({ runTenant }, route, { rawBody, signature }, env);
@@ -106,12 +110,15 @@ async function processInboundMail({ runTenant }, route, { rawBody, signature }, 
     return { eventId: event.id, replayed: true, outcome: event.outcome, ticketId: event.ticket_id, recordType: event.record_type ?? null, recordId: event.record_id ?? null };
 
   const crm = route.target === "crm.email_to_lead";
-  const { prepared, notes } = await prepareAttachments(message, env, route.target);
+  const sales = route.target === "sales.email_replies";
+  // Sales keeps the reply's text on the document; its attachments are named, not kept.
+  const { prepared, notes } = sales ? { prepared: [], notes: [] } : await prepareAttachments(message, env, route.target);
   try {
     const result = await runTenant(route.organization_id, async (client) => {
-      await assertModuleAvailable(client, route.organization_id, env, crm ? "crm" : "support");
+      await assertModuleAvailable(client, route.organization_id, env, crm ? "crm" : sales ? "sales" : "support");
       const delivered = crm
         ? await deliverInboundEmailToCrm(client, route, message, prepared, { inboundEventId: event.id })
+        : sales ? await deliverInboundEmailToSales(client, route, message)
         : await deliverEmailToSupport(client, route, message, prepared, { env });
       await completeInboundMailEvent(client, event.id, { status: "processed", ...delivered, attachmentNotes: notes });
       return delivered;

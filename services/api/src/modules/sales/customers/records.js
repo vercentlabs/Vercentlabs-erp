@@ -100,6 +100,7 @@ export function toCustomer(row, { finance = false } = {}) {
     gstStateName: gstStateName(row.gst_state_code),
     placeOfSupply: row.place_of_supply,
     placeOfSupplyName: gstStateName(row.place_of_supply),
+    salesWarning: row.sales_warning ?? null,
     ownerUserId: row.owner_user_id,
     ownerName: row.owner_name ?? null,
     notes: row.customer_notes,

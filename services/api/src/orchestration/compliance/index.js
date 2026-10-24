@@ -9,7 +9,8 @@
 //   POST {url}/ewaybill/update-part-b   { gstin, ewbNo, vehicleNo, ... }        -> { validUpto }
 //   POST {url}/ewaybill/cancel          { gstin, ewbNo, reason, remarks }       -> { ewbNo, cancelDate }
 // An error answer is { error: "message" } with a 4xx/5xx status. EINVOICE_GSP_URL=standin (never in production) answers locally, for
-// tests and demos. Nothing is sent without a configured GSP.
+// tests and demos. Nothing is sent without a configured GSP. A company that connected its own GSP account for a GSTIN (Sales report
+// Phase 2, ./gsp-connections.js) uses it for that GSTIN; the platform-wide URL and token are the fallback.
 import { createHash, randomInt } from "node:crypto";
 
 import { isProductionRuntime } from "@vercentlabs/config";
@@ -19,6 +20,9 @@ import { getSalesInvoice } from "../../modules/sales/invoices/records.js";
 import { loadCreditNote } from "../../modules/sales/credit-notes/access.js";
 import { creditNoteLines } from "../../modules/sales/credit-notes/build.js";
 import { debitNoteLines, loadDebitNote } from "../../modules/sales/debit-notes/index.js";
+import { callCompanyGsp, companyGsp, companyHasGsp } from "./gsp-connections.js";
+
+export { deleteGspConnection, GspConnectionError, listGspConnections, saveGspConnection, testGspConnection } from "./gsp-connections.js";
 
 export class ComplianceError extends Error {
   constructor(status, message, code = "GST_COMPLIANCE_ERROR", details) {
@@ -68,8 +72,15 @@ function standin(path, body) {
   throw new ComplianceError(500, "Unknown GSP call.");
 }
 
-async function gsp(path, body, { env = process.env, fetchImpl = fetch } = {}) {
-  if (!gspConfigured(env)) throw new ComplianceError(503, "No GST Suvidha Provider (GSP) is configured. Set EINVOICE_GSP_URL and EINVOICE_GSP_TOKEN.", "GSP_NOT_CONFIGURED");
+// Whether e-invoices can be made for the company: its own connection for a GSTIN, or the platform-wide GSP.
+export async function gspAvailable(client, organizationId, env = process.env) {
+  return gspConfigured(env) || await companyHasGsp(client, organizationId, env);
+}
+
+async function gsp(client, session, path, body, { env = process.env, fetchImpl = fetch } = {}) {
+  const own = await companyGsp(client, session.organizationId, body.gstin, env);
+  if (own) return callCompanyGsp(client, session.organizationId, own, path, body, { userId: session.userId ?? null, fetchImpl, standin });
+  if (!gspConfigured(env)) throw new ComplianceError(503, "No GST Suvidha Provider (GSP) is connected for this GSTIN. Connect one in Sales › Setup › GST & e-invoice.", "GSP_NOT_CONFIGURED");
   const url = String(env.EINVOICE_GSP_URL).trim();
   if (url === "standin") return standin(path, body);
   let response;
@@ -168,7 +179,7 @@ export async function generateEInvoice(client, session, invoiceId, options = {})
   if (payload.TranDtls.SupTyp === "B2B" && payload.BuyerDtls.Gstin === "URP") throw new ComplianceError(409, "The customer has no GSTIN: a B2C invoice needs no IRN.", "EINVOICE_NOT_APPLICABLE");
   let answer;
   try {
-    answer = await gsp("einvoice/generate", { gstin: seller.registration_number, invoice: payload }, options);
+    answer = await gsp(client, session, "einvoice/generate", { gstin: seller.registration_number, invoice: payload }, options);
   } catch (error) {
     if (error.code === "GSP_REFUSED" || error.code === "GSP_UNREACHABLE") {
       await client.query(
@@ -194,7 +205,7 @@ export async function generateEInvoice(client, session, invoiceId, options = {})
 // Returns null when nothing was tried, else { status: 'generated' | 'failed', irn?, error? }.
 export async function einvoiceAfterPost(client, session, documentId, options = {}) {
   const settings = (await client.query("SELECT einvoice_on_post FROM tenant.sales_settings WHERE organization_id = $1", [session.organizationId])).rows[0];
-  if (!settings?.einvoice_on_post || !gspConfigured(options.env ?? process.env)) return null;
+  if (!settings?.einvoice_on_post || !(await gspAvailable(client, session.organizationId, options.env ?? process.env))) return null;
   const doc = (await client.query("SELECT status, posted_at, customer_snapshot->>'gstin' AS gstin FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND id = $2",
     [session.organizationId, documentId])).rows[0];
   if (!doc?.posted_at) return null;
@@ -240,7 +251,7 @@ export async function cancelEInvoice(client, session, invoiceId, { reason = "dat
   const code = CANCEL_REASONS[reason];
   if (!code) throw new ComplianceError(400, "Choose why the e-invoice is cancelled.", "EINVOICE_CANCEL_REASON");
   const note = String(remarks ?? "").trim().slice(0, 100) || reason.replace(/_/g, " ");
-  await gsp("einvoice/cancel", { gstin: row.seller_gstin, irn: row.irn, reason: code, remarks: note }, options);
+  await gsp(client, session, "einvoice/cancel", { gstin: row.seller_gstin, irn: row.irn, reason: code, remarks: note }, options);
   const updated = (await client.query(`UPDATE tenant.einvoice_documents SET status = 'cancelled', cancel_reason = $2, cancelled_at = now(), updated_at = now() WHERE id = $1 RETURNING *`, [row.id, note])).rows[0];
   await client.query(`UPDATE tenant.accounting_customer_invoices SET e_invoice_status = 'cancelled' WHERE organization_id = $1 AND id = $2`, [session.organizationId, invoiceId]);
   return { einvoice: einvoiceView(updated) };
@@ -447,7 +458,7 @@ export async function generateEwayBill(client, session, sourceType, sourceId, in
     distance, JSON.stringify(payload), session.userId ?? null];
   let answer;
   try {
-    answer = await gsp("ewaybill/generate", { gstin: payload.fromGstin, ewaybill: payload }, options);
+    answer = await gsp(client, session, "ewaybill/generate", { gstin: payload.fromGstin, ewaybill: payload }, options);
   } catch (error) {
     if (error.code === "GSP_REFUSED" || error.code === "GSP_UNREACHABLE")
       await client.query(
@@ -471,7 +482,7 @@ export async function updateEwayBillVehicle(client, session, ewayBillId, { vehic
   const vehicle = String(vehicleNumber ?? "").toUpperCase().replace(/[\s-]/g, "");
   if (!/^[A-Z0-9]{6,12}$/.test(vehicle)) throw new ComplianceError(400, "Enter the vehicle number, such as MH12AB1234.", "EWAY_INVALID", { field: "vehicleNumber" });
   const reasons = { breakdown: "1", transhipment: "2", others: "3", first_time: "4" };
-  const answer = await gsp("ewaybill/update-part-b", { gstin: row.payload.fromGstin, ewbNo: row.ewb_number, vehicleNo: vehicle, reasonCode: reasons[reason] ?? "3", reasonRem: reason.replace(/_/g, " "),
+  const answer = await gsp(client, session, "ewaybill/update-part-b", { gstin: row.payload.fromGstin, ewbNo: row.ewb_number, vehicleNo: vehicle, reasonCode: reasons[reason] ?? "3", reasonRem: reason.replace(/_/g, " "),
     fromPlace: fromPlace || row.payload.fromPlace, fromState: row.payload.fromStateCode, transMode: TRANSPORT_MODES[transportMode] ?? "1" }, options);
   const updated = (await client.query(`UPDATE tenant.eway_bills SET vehicle_number = $2, transport_mode = $3, part_b_updated_at = now(), valid_until = COALESCE($4, valid_until), updated_at = now() WHERE id = $1 RETURNING *`,
     [row.id, vehicle, transportMode, answer.validUpto ?? null])).rows[0];
@@ -486,7 +497,7 @@ export async function cancelEwayBill(client, session, ewayBillId, { reason = "da
   if (Date.now() - new Date(row.ewb_date).getTime() > 24 * 3600 * 1000) throw new ComplianceError(409, "An e-way bill can be cancelled only within 24 hours of generation.", "EWAY_CANCEL_WINDOW_PASSED");
   const codes = { duplicate: "1", order_cancelled: "2", data_entry_mistake: "3", others: "4" };
   const note = String(remarks ?? "").trim().slice(0, 100) || reason.replace(/_/g, " ");
-  await gsp("ewaybill/cancel", { gstin: row.payload.fromGstin, ewbNo: row.ewb_number, reason: codes[reason] ?? "4", remarks: note }, options);
+  await gsp(client, session, "ewaybill/cancel", { gstin: row.payload.fromGstin, ewbNo: row.ewb_number, reason: codes[reason] ?? "4", remarks: note }, options);
   const updated = (await client.query(`UPDATE tenant.eway_bills SET status = 'cancelled', cancel_reason = $2, cancelled_at = now(), updated_at = now() WHERE id = $1 RETURNING *`, [row.id, note])).rows[0];
   return { ewayBill: ewayView(updated) };
 }

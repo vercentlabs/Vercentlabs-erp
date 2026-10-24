@@ -54,9 +54,9 @@ export function OrderTrackingSummary({ tracking, onChanged }: { tracking: OrderT
       {order.outcome && <span>{OUTCOMES[order.outcome]}</span>}
     </Card>,
     tracking.applies.inventory && executing ? (
-      <Card key="inventory" title="Inventory" status={reservation.label} tone={TONES[reservation.status]} headline={reservation.status === "not_required" ? "Nothing left to reserve" : `${quantity(reservation.reserved)} / ${quantity(reservation.required)} reserved`}
+      <Card key="inventory" title="Inventory" status={reservation.label} tone={TONES[reservation.status]} headline={reservation.status === "not_required" ? "Nothing left to keep aside" : `${quantity(reservation.reserved)} / ${quantity(reservation.required)} kept aside`}
         percent={reservation.status === "not_required" ? undefined : reservation.percent}>
-        {reservation.remainingToReserve > 0 && <span>{quantity(reservation.remainingToReserve)} still to reserve of what is left to deliver</span>}
+        {reservation.remainingToReserve > 0 && <span>{quantity(reservation.remainingToReserve)} still to keep aside of what is left to deliver</span>}
       </Card>
     ) : null,
     tracking.applies.fulfillment && executing ? (
@@ -68,7 +68,7 @@ export function OrderTrackingSummary({ tracking, onChanged }: { tracking: OrderT
     ) : null,
     executing ? (
       <Card key="invoicing" title="Invoicing" status={invoicing.label} tone={TONES[invoicing.status]} headline={`${quantity(invoicing.invoiced)} / ${quantity(invoicing.ordered - invoicing.cancelled)} invoiced`} percent={invoicing.percent}>
-        {order.status === "confirmed" && <span>Invoiceable now {quantity(invoicing.invoiceableNow)}{invoicing.basis === "delivered" ? " (delivered, not yet invoiced)" : ""}</span>}
+        {order.status === "confirmed" && <span>Ready to bill {quantity(invoicing.invoiceableNow)}{invoicing.basis === "delivered" ? " (delivered, not yet invoiced)" : ""}</span>}
         {invoicing.pendingDelivery > 0 && <span>{quantity(invoicing.pendingDelivery)} waits for delivery before it can be invoiced</span>}
         {invoicing.remaining > 0 && <span>Still to invoice {money(currency, invoicing.remainingValue)}</span>}
       </Card>
@@ -128,14 +128,14 @@ export function OrderProgress({ tracking }: { tracking: OrderTracking }) {
   const { order } = tracking;
   return (
     <div className="flex flex-col gap-4">
-      <Panel title="Progress by line" description="Ordered = delivered + cancelled + still to deliver. A return never reduces what was delivered, and a credit note never reduces what was invoiced.">
+      <Panel title="Progress by line" description="Ordered = delivered + cancelled + still to deliver. Returns and credit notes are shown separately.">
         <LineTable lines={tracking.lines} showInventory={tracking.applies.inventory} showDelivery={tracking.applies.fulfillment} confirmed={order.status === "confirmed"} />
       </Panel>
       <Panel title="Milestones">
         <Facts columns={4} items={[
           { label: "Created", value: dateTime(tracking.milestones.createdAt) },
           { label: "Confirmed", value: tracking.milestones.confirmedAt ? dateTime(tracking.milestones.confirmedAt) : "—" },
-          ...(tracking.applies.inventory ? [{ label: "First reserved", value: tracking.milestones.firstReservedAt ? dateTime(tracking.milestones.firstReservedAt) : "—" }] : []),
+          ...(tracking.applies.inventory ? [{ label: "First kept aside", value: tracking.milestones.firstReservedAt ? dateTime(tracking.milestones.firstReservedAt) : "—" }] : []),
           ...(tracking.applies.fulfillment ? [
             { label: "First delivery", value: tracking.milestones.firstDeliveryAt ? dateTime(tracking.milestones.firstDeliveryAt) : "—" },
             { label: "Last delivery", value: tracking.milestones.lastDeliveryAt ? dateTime(tracking.milestones.lastDeliveryAt) : "—" },
@@ -145,7 +145,7 @@ export function OrderProgress({ tracking }: { tracking: OrderTracking }) {
           { label: order.status === "cancelled" ? "Cancelled" : "Closed", value: (tracking.milestones.cancelledAt ?? tracking.milestones.closedAt) ? dateTime(tracking.milestones.cancelledAt ?? tracking.milestones.closedAt) : "—" },
         ]} />
       </Panel>
-      <Panel title="Timeline" description="What happened, from the order, its reservations, deliveries, invoices, receipts, returns, credit notes and refunds. Edits and notes are in History.">
+      <Panel title="Timeline" description="Everything that happened to this order. Edits and notes are in History.">
         {!tracking.timeline.length ? <p className="text-sm text-text-muted">Nothing yet.</p> : (
           <ol className="flex flex-col divide-y divide-border text-sm">
             {tracking.timeline.map((event) => (
@@ -219,13 +219,13 @@ function LineTable({ lines, showInventory, showDelivery, confirmed }: { lines: T
           <tr className="border-b border-border">
             <th className="py-2 pr-3 font-medium">Product / service</th>
             <th className={head}>Ordered</th>
-            {showInventory && <th className={head}>Reserved</th>}
+            {showInventory && <th className={head}>Kept aside</th>}
             {showDelivery && <th className={head}>Delivered</th>}
             {showDelivery && <th className={head}>Returned</th>}
             <th className={head}>Cancelled</th>
             <th className={head}>Invoiced</th>
             {showDelivery && <th className={head}>To deliver</th>}
-            {confirmed && <th className={head}>Invoiceable now</th>}
+            {confirmed && <th className={head}>Ready to bill</th>}
             <th className={head}>To invoice</th>
           </tr>
         </thead>
@@ -262,7 +262,7 @@ export function RelatedDocuments({ tracking }: { tracking: OrderTracking }) {
     <Panel title="Related documents" description={`Deliveries ${documents.counts.deliveries} · Invoices ${documents.counts.invoices} · Receipts ${documents.counts.receipts} · Returns ${documents.counts.returns} · Credit notes ${documents.counts.creditNotes} · Refunds ${documents.counts.refunds}`}>
       <Facts columns={2} items={[
         { label: "Source quotation", value: documents.quotation ? link(`/sales/quotations/${documents.quotation.id}`, documents.quotation.number) : "None (direct order)" },
-        { label: "Reservations", value: documents.reservations.total ? `${documents.reservations.active} active of ${documents.reservations.total}` : "None" },
+        { label: "Stock kept aside", value: documents.reservations.total ? `${documents.reservations.active} active of ${documents.reservations.total}` : "None" },
         { label: `Deliveries (${documents.counts.deliveries})`, value: list(documents.deliveries, (delivery) => <>
           {link(`/sales/deliveries/${delivery.id}`, delivery.number)}<StatusBadge tone={statusTone(delivery.status)}>{statusLabel(delivery.status)}</StatusBadge>
           <span className="text-text-muted">{quantity(delivery.quantity)}{delivery.dispatch_date ? ` · ${calendarDate(delivery.dispatch_date)}` : ""}</span></>) },
@@ -296,7 +296,7 @@ function ReasonDialog({ kind, tracking, onClose, onDone }: { kind: "close" | "re
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={closing ? `Close ${tracking.order.number}?` : `Reopen ${tracking.order.number}?`}
       description={closing
-        ? "An order closes by itself when nothing is left to deliver or invoice. Close it by hand only when the work is done and that will not happen on its own. Payment does not need to be complete: Finance keeps collecting."
+        ? "Orders close by themselves when everything is delivered and billed. Close by hand only when nothing more will happen."
         : "The order becomes Confirmed again with whatever was left on it."}>
       <div className="flex flex-col gap-3">
         {Boolean(save.error) && <Notice>{save.error instanceof SalesApiError || save.error instanceof Error ? save.error.message : "That could not be done."}</Notice>}

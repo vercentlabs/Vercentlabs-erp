@@ -38,6 +38,12 @@ export function cancelDraftCreditNote(client: QueryClient, context: Context, cre
 export function reverseCreditNote(client: QueryClient, context: Context, creditNoteId: string, input: { reason: string }): Promise<{
   creditNoteId: string; status: SalesCreditNoteStatus; changed: boolean; unapplied?: Array<{ invoiceId: string; invoiceNumber: string; amount: string }>;
 }>;
+export type CreditNoteApplication = { creditLeft: number; currencyCode: string;
+  invoices: Array<{ invoiceId: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; outstanding: number }> };
+export function getCreditNoteApplication(client: QueryClient, context: Context, creditNoteId: string): Promise<CreditNoteApplication>;
+export function applySalesCreditNote(client: QueryClient, context: Context, creditNoteId: string, input?: { allocations?: Array<{ invoiceId: string; amount: number | string }> }): Promise<{
+  creditNoteId: string; applied: Array<{ invoiceId: string; invoiceNumber: string | null; amount: string }>;
+}>;
 export function sendCreditNote(client: QueryClient, context: Context, creditNoteId: string, input: { to: string; cc?: string; subject?: string; message?: string; idempotencyKey: string },
   attachment: { fileName: string; content: Uint8Array } | null, env?: Record<string, string | undefined>): Promise<{ creditNoteId: string; sentTo: string; messageId: string | null; replayed: boolean }>;
 export function markCreditNoteSent(client: QueryClient, context: Context, creditNoteId: string, input: { channel: string; recipient?: string; note?: string; sentAt?: string; idempotencyKey?: string }): Promise<{ creditNoteId: string; replayed: boolean }>;

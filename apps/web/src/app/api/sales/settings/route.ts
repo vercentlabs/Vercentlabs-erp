@@ -27,6 +27,8 @@ const schema = z.object({
   einvoiceOnPost: z.boolean().optional(),
   einvoice30DayLimit: z.boolean().optional(),
   allowLinesWithoutItem: z.boolean().optional(),
+  orderOnOnlineAcceptance: z.boolean().optional(),
+  documentReplyTo: z.string().trim().max(320).nullish(),
   defaultWarehouseId: z.string().uuid().nullable().optional(),
   defaultQuotationTerms: z.string().max(20000).nullish(),
   // Pricing & Discounts (needs sales.discount.manage_settings). A null limit or threshold switches it off.

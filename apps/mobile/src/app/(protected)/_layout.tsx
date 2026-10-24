@@ -16,6 +16,9 @@ export default function ProtectedLayout() {
       <Stack.Screen name="workspace/[area]/[resource]" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="search" />
+      <Stack.Screen name="field/index" />
+      <Stack.Screen name="field/[retailer]" />
+      <Stack.Screen name="field/summary" />
     </Stack>
   );
 }

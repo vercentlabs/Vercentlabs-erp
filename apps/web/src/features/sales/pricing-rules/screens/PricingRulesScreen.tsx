@@ -71,8 +71,8 @@ export function PricingRulesScreen() {
     <>
       <EnterpriseListPage
         header={{
-          title: "Schemes & Rates",
-          description: "Special rates for a customer, discounts and quantity slabs, and free-goods schemes. Quotations and orders apply them on top of the price list.",
+          title: "Schemes & offers",
+          description: "Special rates, discounts, quantity slabs and free goods, applied on top of the price list.",
           primaryAction: can?.manage ? <Button variant="primary" onPress={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />New scheme or rate</Button> : undefined,
         }}
         savedViews={{ views: VIEWS, activeViewId: status, onSelect: (id) => { setStatus(id); paged.resetPage(); } }}

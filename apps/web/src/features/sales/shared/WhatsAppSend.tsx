@@ -35,7 +35,7 @@ function WhatsAppSendDialog({ kind, id, pdfUrl, onClose, onSent }: { kind: Kind;
   const result = send.data?.result;
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Send the ${NOUN[kind]} on WhatsApp`} size="md"
-      description="The message is written for you, to the contact's mobile unless you enter another number. WhatsApp opens with it ready; attach the PDF there.">
+      description="WhatsApp opens with the message ready for the contact's mobile. Attach the PDF there.">
       <div className="flex flex-col gap-4">
         {send.isError && (
           <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">

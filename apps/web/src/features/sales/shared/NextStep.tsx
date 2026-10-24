@@ -51,7 +51,7 @@ export function orderNextStep(
 }
 
 export function invoiceNextStep(invoice: { status: string; balanceDue: number; overdue: boolean; sent: boolean; currency_code: string }): Step | null {
-  if (invoice.status === "draft") return { text: "Post the invoice", tone: "action" };
+  if (invoice.status === "draft") return { text: "Finalise the invoice", tone: "action" };
   if (["cancelled", "reversed"].includes(invoice.status)) return null;
   if (!invoice.sent) return { text: "Send to the customer", tone: "action" };
   if (invoice.balanceDue > 0.005) return { text: `${money(invoice.currency_code, invoice.balanceDue)} to collect${invoice.overdue ? " (overdue)" : ""}`, tone: "money" };

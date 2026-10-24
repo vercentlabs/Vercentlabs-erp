@@ -38,6 +38,9 @@ export const DOCUMENT_TYPES = Object.freeze(
     std("sales_return", "sales", "Sales return", "SRN", { defaultResetPolicy: "calendar_year" }),
     // A dispatch document without the Stock app (Sales audit).
     std("sales_challan", "sales", "Delivery challan", "DC", { defaultResetPolicy: "calendar_year" }),
+    // GST on advances (Sales report Phase 2): the receipt voucher for an advance (Rule 50) and the refund voucher when it is returned (Rule 51).
+    { ...std("sales_receipt_voucher", "sales", "Receipt voucher (advance)", "RV", { defaultResetPolicy: "fiscal_year" }), gstDocument: true },
+    { ...std("sales_refund_voucher", "sales", "Refund voucher (advance)", "RFV", { defaultResetPolicy: "fiscal_year" }), gstDocument: true },
     std("sales_rate_contract", "sales", "Rate contract", "RC", { defaultResetPolicy: "calendar_year" }),
     org("sales_invoice_request", "sales", "Invoice request", "SIR-"),
     // Accounting

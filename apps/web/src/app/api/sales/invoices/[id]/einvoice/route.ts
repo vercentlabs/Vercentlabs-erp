@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { cancelEInvoice, einvoiceDeadline, generateEInvoice, getEInvoice, gspConfigured } from "@vercentlabs/api";
+import { cancelEInvoice, einvoiceDeadline, generateEInvoice, getEInvoice, gspAvailable } from "@vercentlabs/api";
 
 import { ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
@@ -10,7 +10,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   return workspaceRoute(request, { module: "sales", permission: "sales.invoice.view", action: "sales.einvoice.view" }, async ({ client, session }) => {
     const { id } = await context.params;
     // The 30-day reporting limit (turnover ₹10 crore or more), while the document has no IRN (Sales plan).
-    return ok({ einvoice: await getEInvoice(client, session, id), configured: gspConfigured(process.env), deadline: await einvoiceDeadline(client, session, id) });
+    return ok({ einvoice: await getEInvoice(client, session, id), configured: await gspAvailable(client, session.organizationId, process.env), deadline: await einvoiceDeadline(client, session, id) });
   });
 }
 

@@ -22,7 +22,7 @@ export const RELEASE_REASONS = Object.freeze([
   { code: "customer_delay", label: "Customer delay" },
   { code: "warehouse_reassignment", label: "Warehouse reassignment" },
   { code: "order_amendment", label: "Order amendment" },
-  { code: "reservation_correction", label: "Reservation correction" },
+  { code: "reservation_correction", label: "Correction to stock kept aside" },
   { code: "other", label: "Other" },
 ]);
 // Releases made by the system, with the event that caused them.
@@ -30,7 +30,7 @@ export const SYSTEM_RELEASE_REASONS = Object.freeze({
   order_cancelled: "Order cancelled",
   quantity_cancelled: "Remaining quantity cancelled",
   order_reopened: "Order reopened to draft",
-  warehouse_changed: "Fulfillment warehouse changed",
+  warehouse_changed: "Delivery warehouse changed",
 });
 
 export const RESERVATION_STATUS_LABELS = Object.freeze({

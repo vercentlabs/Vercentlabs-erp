@@ -19,7 +19,7 @@ export async function repeatSalesOrder(client, context, input = {}) {
     orderId = invoice.source_sales_order_id;
     invoiceLines = (await client.query(
       `SELECT line.item_id, line.quantity, line.uom_id, line.description, order_line.warehouse_id, order_line.item_name_snapshot, order_line.hsn_sac_snapshot,
-              order_line.tax_category_id, order_line.unit_price, (SELECT item.system_role FROM tenant.items item WHERE item.id = line.item_id) AS system_role
+              order_line.tax_category_id, order_line.unit_price, order_line.supply_route, (SELECT item.system_role FROM tenant.items item WHERE item.id = line.item_id) AS system_role
          FROM tenant.accounting_customer_invoice_lines line
          LEFT JOIN tenant.sales_invoice_lines sales_line ON sales_line.customer_invoice_line_id = line.id
          LEFT JOIN tenant.sales_order_lines order_line ON order_line.id = line.source_sales_order_line_id
@@ -34,7 +34,7 @@ export async function repeatSalesOrder(client, context, input = {}) {
       WHERE sales_order.organization_id = $1 AND sales_order.id = $2`, [context.organizationId, orderId])).rows[0];
   if (!order) throw new OrderError(404, "Sales order not found.", "SALES_ORDER_NOT_FOUND");
   const lines = invoiceLines ?? (await client.query(
-    `SELECT item_id, item_name_snapshot, hsn_sac_snapshot, tax_category_id, unit_price, quantity, uom_id, description_snapshot AS description, warehouse_id,
+    `SELECT item_id, item_name_snapshot, hsn_sac_snapshot, tax_category_id, unit_price, quantity, uom_id, description_snapshot AS description, warehouse_id, supply_route,
             (SELECT item.system_role FROM tenant.items item WHERE item.id = item_id) AS system_role FROM tenant.sales_order_lines
       WHERE organization_id = $1 AND sales_order_version_id = $2 AND scheme_rule_id IS NULL ORDER BY sequence`, [context.organizationId, order.version_id])).rows;
   if (!lines.length) throw new OrderError(409, "There is nothing to repeat on this document.", "SALES_ORDER_REPEAT_EMPTY");
@@ -49,6 +49,7 @@ export async function repeatSalesOrder(client, context, input = {}) {
     charges: charges.map((charge) => ({ chargeType: charge.charge_type, label: charge.label, calculationType: charge.calculation_type, value: charge.value, taxable: charge.taxable })),
     // A typed line (no catalogue item) is repeated with its name, HSN/SAC, GST and price.
     lines: lines.map((line) => ({ itemId: line.item_id, quantity: line.quantity, uomId: line.uom_id ?? undefined, warehouseId: line.warehouse_id ?? undefined, description: line.description ?? undefined,
+      supplyRoute: line.supply_route ?? undefined,
       ...(line.system_role === "unlisted" ? { itemName: line.item_name_snapshot, hsnSac: line.hsn_sac_snapshot ?? undefined, taxCategoryId: line.tax_category_id ?? undefined, unitPrice: line.unit_price } : {}) })),
     idempotencyKey: input.idempotencyKey ? `repeat:${orderId}:${text(input.idempotencyKey, 150)}` : undefined,
   });

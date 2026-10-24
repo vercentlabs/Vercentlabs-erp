@@ -156,7 +156,7 @@ export function CustomerOverviewPanel({ customer, onOpenTab }: { customer: Custo
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <Figure label="Outstanding receivable" value={formatMoney(overview.finance.currencyCode, overview.finance.outstanding)} />
               <Figure label="Overdue" value={formatMoney(overview.finance.currencyCode, overview.finance.overdue)} tone={overview.finance.overdue > 0 ? "danger" : undefined} />
-              <Figure label="Unallocated advance" value={formatMoney(overview.finance.currencyCode, overview.finance.unallocatedAdvance)} />
+              <Figure label="Advance not used yet" value={formatMoney(overview.finance.currencyCode, overview.finance.unallocatedAdvance)} />
               <Figure label="Credit on credit notes" value={formatMoney(overview.finance.currencyCode, overview.finance.creditNoteCredit)} />
               <Figure label="Refunded" value={formatMoney(overview.finance.currencyCode, overview.finance.refunded)} />
               <Figure label="Last payment" value={overview.finance.lastPaymentDate ? formatDate(overview.finance.lastPaymentDate) : "None"} />
@@ -165,7 +165,7 @@ export function CustomerOverviewPanel({ customer, onOpenTab }: { customer: Custo
               <p className="text-xs text-text-muted">Last payment {overview.finance.lastPaymentNumber}: {formatMoney(overview.finance.currencyCode, overview.finance.lastPaymentAmount)}.</p>
             )}
             <div className="flex flex-col gap-1 border-t border-border pt-3">
-              <span className="text-xs font-medium text-text-muted">Receivables aging · {overview.finance.openInvoices} open {overview.finance.openInvoices === 1 ? "invoice" : "invoices"}</span>
+              <span className="text-xs font-medium text-text-muted">How long unpaid · {overview.finance.openInvoices} open {overview.finance.openInvoices === 1 ? "invoice" : "invoices"}</span>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 {overview.finance.aging.map((bucket) => (
                   <div key={bucket.key} className="flex flex-col gap-0.5 rounded-[var(--radius-control)] border border-border px-3 py-2">

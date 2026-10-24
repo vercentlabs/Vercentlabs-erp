@@ -1,4 +1,5 @@
 import { RecordThreadPanel } from "@/features/platform/record-thread/RecordThreadPanel";
+import { CustomerConversationPanel } from "@/features/sales/shared/CustomerConversationPanel";
 import { SalesQuotationDetailScreen } from "@/features/sales/quotations/screens/SalesQuotationDetailScreen";
 
 export const metadata = { title: "Quotation" };
@@ -12,6 +13,7 @@ export default async function Page({
   return (
     <div className="flex flex-col gap-4">
       <SalesQuotationDetailScreen quotationId={id} />
+      <CustomerConversationPanel type="sales.quotation" id={id} />
       <RecordThreadPanel type="sales.quotation" id={id} />
     </div>
   );

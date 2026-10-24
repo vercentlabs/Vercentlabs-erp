@@ -16,6 +16,7 @@ import { calendarDate, money } from "@/features/sales/shared/format";
 import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
 
 import { getPayment, receiptPdfUrl } from "./api";
+import { ReceiptVouchersPanel } from "./ReceiptVouchersPanel";
 
 export function PaymentDetailScreen({ paymentId }: { paymentId: string }) {
   const workspace = useWorkspaceContext();
@@ -30,11 +31,11 @@ export function PaymentDetailScreen({ paymentId }: { paymentId: string }) {
   const how = [payment.methodLabel, payment.chequeNumber && `No. ${payment.chequeNumber}`, payment.chequeDate && `dated ${calendarDate(payment.chequeDate)}`, payment.draweeBank].filter(Boolean).join(" · ");
   return (
     <div className="flex flex-col gap-4">
-      {payment.reversedAt && <Notice tone="warning">This payment was reversed{payment.reversalReason ? `: ${payment.reversalReason}` : ""}. The bills it paid are owed again.</Notice>}
+      {payment.reversedAt && <Notice tone="warning">This payment was cancelled{payment.reversalReason ? `: ${payment.reversalReason}` : ""}. The bills it paid are owed again.</Notice>}
       <RecordDetailsPage
         header={{
           title: payment.number,
-          status: <StatusBadge tone={payment.reversedAt ? "danger" : "success"}>{payment.reversedAt ? "Reversed" : "Received"}</StatusBadge>,
+          status: <StatusBadge tone={payment.reversedAt ? "danger" : "success"}>{payment.reversedAt ? "Cancelled" : "Received"}</StatusBadge>,
           fields: [
             { label: "Customer", value: <Link className="hover:underline" href={`/sales/customers/${payment.customer.id}`}>{payment.customer.name}</Link> },
             { label: "Received on", value: calendarDate(payment.date) },
@@ -64,6 +65,7 @@ export function PaymentDetailScreen({ paymentId }: { paymentId: string }) {
             ))}
           </LinesTable>
         </Panel>
+        <ReceiptVouchersPanel receiptId={payment.id} unapplied={payment.unapplied} />
         <Panel title="Details">
           <Facts items={[
             { label: "Reference / UTR", value: payment.reference ?? "—" },

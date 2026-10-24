@@ -75,8 +75,8 @@ export function CancelRemainingDialog({ orderId, detail, onClose, onDone }: { or
   const save = useMutation({ mutationFn: () => cancelSalesOrderRemaining(orderId, { lines, reasonCode: reasonCode || undefined, reason: reason.trim() || undefined }), onSuccess: onDone });
   return (
     <Shell title={`Cancel the remaining quantity of ${detail.order.sales_order_number}`}
-      description="What was delivered and invoiced stays. The ordered quantity is kept and the cancelled quantity is recorded beside it; stock reserved for it is released."
-      size="lg" error={save.error} fallback="The quantity could not be cancelled." onClose={onClose} label="Cancel Remaining" isLoading={save.isPending}
+      description="What was delivered and billed stays. The rest is cancelled and its stock is released."
+      size="lg" error={save.error} fallback="The quantity could not be cancelled." onClose={onClose} label="Cancel what is not Delivered" isLoading={save.isPending}
       isDisabled={!lines.length || !reasonCode || (reasonCode === "other" && !reason.trim())} onPress={() => save.mutate()}>
       {rows.length ? <QuantityRows rows={rows} values={values} onChange={setValues} /> : <p className="text-sm text-text-muted">Nothing is left to cancel on this order.</p>}
       <Select label="Reason" isRequired placeholder="Choose a reason" options={detail.cancelReasons.map((entry) => ({ value: entry.code, label: entry.label }))}
@@ -93,7 +93,7 @@ export function CancelOrderDialog({ orderId, number, reasons, reasonRequired, on
   const [reason, setReason] = useState("");
   const save = useMutation({ mutationFn: () => cancelSalesOrder(orderId, { reasonCode: reasonCode || undefined, reason: reason.trim() || undefined }), onSuccess: onDone });
   return (
-    <Shell title={`Cancel ${number}?`} description="The order is kept for the record and its stock reservations are released. A cancelled order cannot be confirmed again."
+    <Shell title={`Cancel ${number}?`} description="The order is kept for the record and its stock is released. It cannot be confirmed again."
       error={save.error} fallback="The order could not be cancelled." onClose={onClose} label="Cancel Order" isLoading={save.isPending}
       isDisabled={(reasonRequired && !reasonCode) || (reasonCode === "other" && !reason.trim())} onPress={() => save.mutate()}>
       <Select label="Reason" isRequired={reasonRequired} placeholder="Choose a reason" options={reasons.map((entry) => ({ value: entry.code, label: entry.label }))}
@@ -107,7 +107,7 @@ export function ReopenOrderDialog({ orderId, number, onClose, onDone }: { orderI
   const [reason, setReason] = useState("");
   const save = useMutation({ mutationFn: () => reopenSalesOrder(orderId, reason.trim()), onSuccess: onDone });
   return (
-    <Shell title={`Reopen ${number} to draft?`} description="The order becomes a draft again so it can be changed: its current Order Confirmation is superseded (kept as history) and the stock reserved for it is released. Confirming it again makes the next revision."
+    <Shell title={`Reopen ${number} to draft?`} description="The order becomes a draft you can change, and its stock is released. Confirm it again when ready."
       error={save.error} fallback="The order could not be reopened." onClose={onClose} label="Reopen to Draft" isLoading={save.isPending} isDisabled={!reason.trim()} onPress={() => save.mutate()}>
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
     </Shell>

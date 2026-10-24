@@ -82,100 +82,138 @@ export function SalesStagesSettingsScreen() {
     change.mutate(() => reorderSalesStages(ids, pipeline?.id));
   };
 
+  const inactive = stages.filter((stage) => !stage.isActive);
+  const stageRow = (stage: SalesStage) => {
+    const index = active.findIndex((entry) => entry.id === stage.id);
+    const required = stage.entryRules.filter((entry) => entry.level === "require").map((entry) => STAGE_RULE_LABELS[entry.rule]);
+    const warned = stage.entryRules.filter((entry) => entry.level === "warn").map((entry) => STAGE_RULE_LABELS[entry.rule]);
+    const goals = (stage.guidance ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    return (
+      <li key={stage.id} className={`flex items-start gap-3 px-4 py-4 ${stage.isActive ? "" : "bg-surface-muted"}`}>
+        <span aria-hidden="true" className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums ${stage.isActive ? "border-brand/40 text-brand" : "border-border text-text-muted"}`}>
+          {stage.isActive ? index + 1 : "–"}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`font-medium ${stage.isActive ? "text-text" : "text-text-muted"}`}>{stage.name}</span>
+            <Badge tone="brand">{stage.probability}%</Badge>
+            {stage.isStandard && <Badge tone="neutral">Standard</Badge>}
+            {stage.timeLimitDays && <Badge tone="warning">{`Within ${stage.timeLimitDays} ${stage.timeLimitDays === 1 ? "day" : "days"}`}</Badge>}
+            {!stage.isActive && <StatusBadge tone="neutral">Inactive</StatusBadge>}
+          </div>
+          {stage.description && <p className="text-text-secondary">{stage.description}</p>}
+          {/* The goals as the deal page shows them under the stage track. */}
+          {goals.length > 0 && (
+            <ul className="flex flex-col gap-0.5 text-text-secondary">
+              {goals.map((line) => <li key={line} className="flex gap-1.5"><span aria-hidden="true" className="text-text-muted">•</span>{line}</li>)}
+            </ul>
+          )}
+          {(required.length > 0 || warned.length > 0) && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              {required.length > 0 && <span className="text-text"><span className="font-medium">Needs:</span> {required.join(", ")}</span>}
+              {warned.length > 0 && <span className="text-text-secondary"><span className="font-medium">Asks to confirm without:</span> {warned.join(", ")}</span>}
+            </div>
+          )}
+          <span className="text-xs text-text-muted">{`${stage.openCount} open ${stage.openCount === 1 ? "deal" : "deals"} in this stage`}</span>
+        </div>
+        {/* On a phone the actions sit in a menu so each stage stays one compact row. */}
+        <div className="shrink-0 sm:hidden">
+          <MoreMenu label={`Actions for ${stage.name}`} items={[
+            ...(stage.isActive ? [
+              { id: "up", label: "Move earlier", isDisabled: index === 0 || busy, onAction: () => move(index, -1) },
+              { id: "down", label: "Move later", isDisabled: index === active.length - 1 || busy, onAction: () => move(index, 1) },
+            ] : []),
+            { id: "edit", label: "Edit", onAction: () => setEditing(stage) },
+            { id: "active", label: stage.isActive ? "Deactivate" : "Activate", isDisabled: busy, onAction: () => setActive.mutate({ stage, isActive: !stage.isActive }) },
+          ]} />
+        </div>
+        {/* Tablet and desktop: the same places in every row, so the buttons line up; words on every button. */}
+        <div className="hidden shrink-0 items-center gap-1 sm:grid sm:grid-cols-[auto_auto_auto_6.5rem]">
+          {stage.isActive ? (
+            <>
+              <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} earlier`} isDisabled={index === 0 || busy} onPress={() => move(index, -1)}>
+                <ArrowUp className="size-4" aria-hidden="true" />Up
+              </Button>
+              <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} later`} isDisabled={index === active.length - 1 || busy} onPress={() => move(index, 1)}>
+                <ArrowDown className="size-4" aria-hidden="true" />Down
+              </Button>
+            </>
+          ) : <><span aria-hidden="true" /><span aria-hidden="true" /></>}
+          <Button variant="ghost" size="compact" onPress={() => setEditing(stage)}>Edit</Button>
+          <Button variant="ghost" size="compact" isDisabled={busy} onPress={() => setActive.mutate({ stage, isActive: !stage.isActive })}>{stage.isActive ? "Deactivate" : "Activate"}</Button>
+        </div>
+      </li>
+    );
+  };
+
+  // Desktop: the pipeline and its stages on the left, how stages work on the right. Tablet and phone: one column, the stages first.
   return (
     <div className="flex flex-col gap-6">
       <SetupBackLink />
       <PageHeader
         title="Pipelines and deal stages"
-        description="The steps a deal moves through while it is open. They are the columns of the pipeline, and each gives a deal its default probability. Run several pipelines when deals follow different steps."
-        primaryAction={<Button variant="primary" onPress={() => setEditing("new")} isDisabled={!pipeline?.isActive}><Plus className="size-4" aria-hidden="true" />New stage</Button>}
-        secondaryActions={<LinkButton variant="outline" href={`/crm/pipeline${pipeline && !pipeline.isDefault ? `?pipelineId=${pipeline.id}` : ""}`}>Open pipeline</LinkButton>}
+        description="The steps a deal moves through while it is open: the columns of the pipeline, each giving a deal its default probability. Run several pipelines when deals follow different steps."
+        primaryAction={<Button variant="primary" className="flex-1 sm:flex-none" onPress={() => setEditing("new")} isDisabled={!pipeline?.isActive}><Plus className="size-4" aria-hidden="true" />New stage</Button>}
+        secondaryActions={<LinkButton variant="outline" className="flex-1 sm:flex-none" href={`/crm/pipeline${pipeline && !pipeline.isDefault ? `?pipelineId=${pipeline.id}` : ""}`}>Open pipeline</LinkButton>}
       />
       <ErrorBanner message={error} />
 
-      <section className="flex max-w-4xl flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4" aria-label="Pipeline">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-56 flex-1">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6">
+        <div className="flex min-w-0 flex-col gap-4">
+          <section aria-labelledby="pipeline-choice" className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+            <h2 id="pipeline-choice" className="sr-only">Pipeline</h2>
             <Select label="Pipeline" selectedKey={pipeline?.id ?? null} onSelectionChange={(next) => setChosen(String(next))}
               options={all.map((entry) => ({ value: entry.id, label: `${entry.name}${entry.isDefault ? " (default)" : ""}${entry.isActive ? "" : " (off)"}` }))} />
-          </div>
-          <Button variant="secondary" onPress={() => setPipelineDialog("new")}><Plus className="size-4" aria-hidden="true" />New pipeline</Button>
-          {pipeline && <Button variant="ghost" isDisabled={!pipeline.isActive} onPress={() => setPipelineDialog(pipeline)}>Edit pipeline</Button>}
-          {pipeline && !pipeline.isDefault && pipeline.isActive && <Button variant="ghost" isDisabled={busy} onPress={() => change.mutate(() => updatePipeline(pipeline.id, { isDefault: true }))}>Make default</Button>}
-          {pipeline && !pipeline.isDefault && (
-            <Button variant="ghost" isDisabled={busy} onPress={() => setPipelineActive.mutate({ target: pipeline, isActive: !pipeline.isActive })}>{pipeline.isActive ? "Switch off" : "Switch on"}</Button>
+            {pipeline && (
+              <p className="text-sm text-text-secondary">
+                {pipeline.isDefault ? "The default pipeline: new deals start here unless their team has its own. " : ""}
+                {pipeline.teamName ? `Deals created by ${pipeline.teamName} start here. ` : ""}
+                {`${pipeline.openCount} open ${pipeline.openCount === 1 ? "deal" : "deals"}.`}
+              </p>
+            )}
+            {/* Phone: two buttons a row, all the same style. Tablet and desktop: one row, Switch off at the far end. */}
+            <div className="grid grid-cols-2 gap-2 border-t border-border pt-3 sm:flex sm:flex-wrap sm:items-center">
+              <Button variant="secondary" size="compact" onPress={() => setPipelineDialog("new")}><Plus className="size-4" aria-hidden="true" />New pipeline</Button>
+              {pipeline && <Button variant="secondary" size="compact" isDisabled={!pipeline.isActive} onPress={() => setPipelineDialog(pipeline)}>Edit pipeline</Button>}
+              {pipeline && !pipeline.isDefault && pipeline.isActive && (
+                <Button variant="secondary" size="compact" isDisabled={busy} onPress={() => change.mutate(() => updatePipeline(pipeline.id, { isDefault: true }))}>Make default</Button>
+              )}
+              {pipeline && !pipeline.isDefault && (
+                <Button variant="secondary" size="compact" className="sm:ml-auto" isDisabled={busy}
+                  onPress={() => setPipelineActive.mutate({ target: pipeline, isActive: !pipeline.isActive })}>{pipeline.isActive ? "Switch off" : "Switch on"}</Button>
+              )}
+            </div>
+          </section>
+
+          <section aria-labelledby="pipeline-stages" className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3">
+              <h2 id="pipeline-stages" className="text-sm font-semibold text-text">{`${active.length} active stage${active.length === 1 ? "" : "s"}`}</h2>
+              <span className="hidden text-xs text-text-muted sm:inline">Up and Down change the order of the columns.</span>
+            </div>
+            {active.length === 0 ? <p className="px-4 py-6 text-sm text-text-secondary">No active stages. Add one with New stage.</p>
+              : <ol className="flex flex-col divide-y divide-border">{active.map(stageRow)}</ol>}
+          </section>
+
+          {inactive.length > 0 && (
+            <section aria-labelledby="pipeline-inactive" className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
+              <h2 id="pipeline-inactive" className="border-b border-border px-4 py-3 text-sm font-semibold text-text">{`Inactive stages (${inactive.length})`}</h2>
+              <ul className="flex flex-col divide-y divide-border">{inactive.map(stageRow)}</ul>
+            </section>
           )}
         </div>
-        {pipeline && (
-          <p className="text-sm text-text-secondary">
-            {pipeline.isDefault ? "The default pipeline: new deals start here unless their team has its own. " : ""}
-            {pipeline.teamName ? `Deals created by ${pipeline.teamName} start here. ` : ""}
-            {pipeline.openCount} open {pipeline.openCount === 1 ? "deal" : "deals"}.
-          </p>
-        )}
-      </section>
 
-      <ol className="flex max-w-4xl flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
-        {stages.map((stage) => {
-          const index = active.findIndex((entry) => entry.id === stage.id);
-          const required = stage.entryRules.filter((entry) => entry.level === "require").map((entry) => STAGE_RULE_LABELS[entry.rule]);
-          const warned = stage.entryRules.filter((entry) => entry.level === "warn").map((entry) => STAGE_RULE_LABELS[entry.rule]);
-          return (
-            <li key={stage.id} className="flex items-start justify-between gap-3 p-4 sm:gap-2">
-              <div className="flex min-w-0 flex-col gap-1 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{stage.isActive ? `${index + 1}. ` : ""}{stage.name}</span>
-                  <Badge tone="brand">{stage.probability}%</Badge>
-                  {stage.isStandard && <Badge tone="neutral">Standard</Badge>}
-                  {stage.timeLimitDays && <Badge tone="warning">{`Within ${stage.timeLimitDays} ${stage.timeLimitDays === 1 ? "day" : "days"}`}</Badge>}
-                  {!stage.isActive && <StatusBadge tone="neutral">Inactive</StatusBadge>}
-                </div>
-                {stage.description && <span className="text-text-secondary">{stage.description}</span>}
-                {/* The goals as the deal page shows them under the stage track. */}
-                {stage.guidance && (
-                  <ul className="flex flex-col gap-0.5 text-text-secondary">
-                    {stage.guidance.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => <li key={line} className="flex gap-1.5"><span aria-hidden="true">•</span>{line}</li>)}
-                  </ul>
-                )}
-                {(required.length > 0 || warned.length > 0) && (
-                  <span className="text-xs text-text-secondary">
-                    {required.length > 0 && `Needs: ${required.join(", ")}. `}
-                    {warned.length > 0 && `Asks to confirm without: ${warned.join(", ")}.`}
-                  </span>
-                )}
-                <span className="text-xs text-text-muted">
-                  {stage.openCount} open {stage.openCount === 1 ? "deal" : "deals"} in this stage
-                </span>
-              </div>
-              {/* On a phone the actions sit in a menu so each stage stays one compact row. */}
-              <div className="shrink-0 sm:hidden">
-                <MoreMenu label={`Actions for ${stage.name}`} items={[
-                  ...(stage.isActive ? [
-                    { id: "up", label: "Move earlier", isDisabled: index === 0 || busy, onAction: () => move(index, -1) },
-                    { id: "down", label: "Move later", isDisabled: index === active.length - 1 || busy, onAction: () => move(index, 1) },
-                  ] : []),
-                  { id: "edit", label: "Edit", onAction: () => setEditing(stage) },
-                  { id: "active", label: stage.isActive ? "Deactivate" : "Activate", isDisabled: busy, onAction: () => setActive.mutate({ stage, isActive: !stage.isActive }) },
-                ]} />
-              </div>
-              <div className="hidden shrink-0 flex-wrap items-center gap-1 sm:flex">
-                {stage.isActive && (
-                  <>
-                    <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} earlier`} isDisabled={index === 0 || busy} onPress={() => move(index, -1)}><ArrowUp className="size-4" aria-hidden="true" /></Button>
-                    <Button variant="ghost" size="compact" aria-label={`Move ${stage.name} later`} isDisabled={index === active.length - 1 || busy} onPress={() => move(index, 1)}><ArrowDown className="size-4" aria-hidden="true" /></Button>
-                  </>
-                )}
-                <Button variant="ghost" size="compact" onPress={() => setEditing(stage)}>Edit</Button>
-                <Button variant="ghost" size="compact" isDisabled={busy} onPress={() => setActive.mutate({ stage, isActive: !stage.isActive })}>{stage.isActive ? "Deactivate" : "Activate"}</Button>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-      <div className="flex max-w-4xl flex-col gap-2 text-sm text-text-secondary">
-        <p>Changing the order changes how the pipeline is displayed. It does not move any deal or rewrite its stage history. Renaming a stage keeps every deal and its history attached to it.</p>
-        <p>A stage is never deleted, only deactivated, so the history of deals that passed through it stays readable. Changing a stage&apos;s probability updates the open deals in it, except those whose probability was set by hand.</p>
-        <p>A stage&apos;s time limit flags deals that stay longer: their owner is told, and their manager when a deal stays twice as long. Won and Lost are outcomes, set with Mark won and Mark lost, not stages.</p>
+        <section aria-labelledby="stages-how" className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+          <h2 id="stages-how" className="text-sm font-semibold text-text">How stages work</h2>
+          <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-text-secondary">
+            <li>The order is only how the pipeline is shown. It never moves a deal or rewrites its stage history.</li>
+            <li>Renaming a stage keeps every deal and its history with it.</li>
+            <li>A stage is never deleted, only deactivated, so the history of deals that passed through it stays readable. Its open deals are moved to a stage you choose.</li>
+            <li>Changing a stage&apos;s probability updates its open deals, except those whose probability was set by hand.</li>
+            <li>A stage&apos;s rules decide what a deal needs to enter it: Required refuses the move, Ask to confirm warns first.</li>
+            <li>A time limit flags deals that stay longer: their owner is told, and their manager when a deal stays twice as long.</li>
+            <li>Won and Lost are outcomes, set with Mark won and Mark lost, not stages.</li>
+          </ul>
+        </section>
       </div>
       {editing && pipeline && <StageDialog stage={editing === "new" ? null : editing} pipelineId={pipeline.id} onClose={() => setEditing(null)} onSaved={refresh} />}
       {deactivating && (
@@ -254,9 +292,9 @@ function StageDialog({ stage, pipelineId, onClose, onSaved }: { stage: SalesStag
             <div><Button variant="ghost" size="compact" isLoading={restoreStandard.isPending} onPress={() => restoreStandard.mutate()}>Use the standard rules</Button></div>
           )}
         </fieldset>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!valid}>{stage ? "Save" : "Add stage"}</Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="secondary" className="w-full sm:w-auto" onPress={onClose}>Cancel</Button>
+          <Button variant="primary" className="w-full sm:w-auto" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!valid}>{stage ? "Save" : "Add stage"}</Button>
         </div>
       </div>
     </Dialog>
@@ -292,9 +330,9 @@ function PipelineDialog({ pipeline, pipelines, onClose, onSaved }: { pipeline: P
           <Select label="Start with" selectedKey={copyFrom} onSelectionChange={(next) => setCopyFrom(String(next))}
             options={[{ value: "standard", label: "The standard stages" }, ...pipelines.map((entry) => ({ value: entry.id, label: `A copy of ${entry.name}'s stages` }))]} />
         )}
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>{pipeline ? "Save" : "Create pipeline"}</Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="secondary" className="w-full sm:w-auto" onPress={onClose}>Cancel</Button>
+          <Button variant="primary" className="w-full sm:w-auto" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>{pipeline ? "Save" : "Create pipeline"}</Button>
         </div>
       </div>
     </Dialog>
@@ -316,9 +354,9 @@ function SwitchOffDialog({ pipeline, openCount, targets, onClose, onDone }: { pi
         <ErrorBanner message={error} />
         <Select label="Move the open deals to" isRequired selectedKey={target} onSelectionChange={(key) => setTarget(String(key ?? ""))}
           options={targets.map((entry) => ({ value: entry.id, label: entry.name }))} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="danger" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!target}>Move and switch off</Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="secondary" className="w-full sm:w-auto" onPress={onClose}>Cancel</Button>
+          <Button variant="danger" className="w-full sm:w-auto" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!target}>Move and switch off</Button>
         </div>
       </div>
     </Dialog>
@@ -340,9 +378,9 @@ function DeactivateDialog({ stage, openCount, targets, onClose, onDone }: { stag
         <ErrorBanner message={error} />
         <Select label="Move the open deals to" isRequired selectedKey={target} onSelectionChange={(key) => setTarget(String(key ?? ""))}
           options={targets.map((entry) => ({ value: entry.id, label: `${entry.name} · ${entry.probability}%` }))} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="danger" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!target}>Move and deactivate</Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="secondary" className="w-full sm:w-auto" onPress={onClose}>Cancel</Button>
+          <Button variant="danger" className="w-full sm:w-auto" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!target}>Move and deactivate</Button>
         </div>
       </div>
     </Dialog>

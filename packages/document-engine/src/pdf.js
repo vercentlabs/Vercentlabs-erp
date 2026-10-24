@@ -54,6 +54,9 @@ const styles = StyleSheet.create({
   field: { width: "25%", marginBottom: 5, paddingRight: 4 },
   tableHeader: { flexDirection: "row", paddingVertical: 4, paddingHorizontal: 2, marginBottom: 1 },
   tableRow: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#e2e8f0", paddingVertical: 3, paddingHorizontal: 2 },
+  // A heading or a note inside the lines (Sales report Phase 2), across the whole table.
+  sectionRow: { flexDirection: "row", backgroundColor: "#f1f5f9", borderBottomWidth: 0.5, borderBottomColor: "#e2e8f0", paddingVertical: 4, paddingHorizontal: 2 },
+  noteText: { color: "#475569" },
   headerCell: { ...BOLD, fontSize: 7.5, color: "#ffffff" },
   totalsArea: { flexDirection: "row", justifyContent: "space-between", marginTop: 8, gap: 12 },
   words: { flex: 1, paddingTop: 2 },
@@ -156,7 +159,10 @@ function pageFor(model, copyName, qr, einvoiceQr = null) {
           View,
           null,
           h(View, { style: [styles.tableHeader, { backgroundColor: brand }], fixed: true }, ...table.columns.map((column) => cell(column, column.label, true))),
-          ...table.rows.map((row, index) => h(View, { key: `r${index}`, style: styles.tableRow, wrap: false }, ...table.columns.map((column) => cell(column, row[column.key])))),
+          ...table.rows.map((row, index) => (row.__section !== undefined || row.__note !== undefined
+            ? h(View, { key: `r${index}`, style: row.__section !== undefined ? styles.sectionRow : styles.tableRow, wrap: false },
+              h(Text, { style: row.__section !== undefined ? BOLD : styles.noteText }, text(row.__section ?? row.__note, 1000)))
+            : h(View, { key: `r${index}`, style: styles.tableRow, wrap: false }, ...table.columns.map((column) => cell(column, row[column.key]))))),
         )
       : null,
     model.totals?.length || model.amountInWords

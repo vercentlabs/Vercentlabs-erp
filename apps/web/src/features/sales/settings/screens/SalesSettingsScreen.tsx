@@ -94,7 +94,7 @@ export function SalesSettingsScreen() {
   if (own.length === 0 && shared.length === 0) return <PermissionState title="You do not have access to Sales Settings" />;
   return (
     <div className="flex flex-1 flex-col gap-8">
-      <PageHeader title="Sales Settings" description="Every Sales setting in one place: quotation and order rules, discounts, payment terms, fulfilment, credit control, GST and e-invoice, message templates, the team, and the shared settings Sales documents use." />
+      <PageHeader title="Sales Settings" description="Every Sales setting in one place." />
       {own.map(({ group, items }) => <Section key={group.id} id={group.id} label={group.label} description={group.description} icon={group.icon} items={items} />)}
       {shared.map((entry) => <Section key={entry.id} id={entry.id} label={entry.label} description={entry.description} icon={entry.icon} items={entry.cards} />)}
     </div>

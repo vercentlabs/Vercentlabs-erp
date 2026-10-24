@@ -29,6 +29,9 @@ import { readListState, useListUrlState } from "@/features/sales/shared/listUrlS
 import { useApp } from "@/shell/workspace-context/useApp";
 import { SalesSearchPicker, mergeSalesOptions } from "@/features/sales/shared/SalesSearchPicker";
 import type { SalesOptions } from "@/features/sales/quotations/api/quotations-api";
+import { bulkInvoiceSummary } from "@/features/sales/invoices/screens/InvoicesScreen";
+import { ExportLink, exportHref, useListColumns } from "@/features/sales/shared/list-kit";
+import { BOARD_LIMIT, SalesBoard, useBoardMode, type BoardCard } from "@/features/sales/shared/SalesBoard";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -56,7 +59,7 @@ const SOURCES = [{ value: "quotation", label: "From a quotation" }, { value: "di
 const DEFAULT_VIEWS = [{ key: "all", label: "All Orders" }];
 // The work, always in sight (Sales plan); every other view is under More views.
 const PINNED_VIEWS = ["all", "to_confirm", "to_dispatch", "to_bill", "credit_hold", "overdue_delivery"];
-type BulkResult = { results: Array<{ orderId: string; orderNumber: string | null; invoiceNumber?: string; deliveries?: Array<{ deliveryNumber: string }>; error?: string }>; created: number };
+type BulkResult = { results: Array<{ orderId: string; orderNumber: string | null; invoiceId?: string; invoiceNumber?: string; deliveries?: Array<{ deliveryNumber: string }>; error?: string }>; created: number };
 const amount = (value: number) => Number(value).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 
 // What the list shows with nothing in the address.
@@ -85,13 +88,27 @@ export function SalesOrdersScreen() {
   }, [search]);
 
   const stockOn = useApp("stock");
-  // Many orders at once (Sales plan, Flows 2 and 3): select, then Create invoices or Create deliveries.
+  // Many orders at once (Sales plan, Flows 2 and 3): select, then Create invoices (as drafts, or made final at once: Sales report H2) or
+  // Create deliveries.
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const chosen = Object.keys(selected).filter((id) => selected[id]);
   const [bulkNotice, setBulkNotice] = useState<string | null>(null);
   const bulk = useMutation({
-    mutationFn: (action: "invoices" | "deliveries") => post<BulkResult>("/orders/bulk", { action, orderIds: chosen, idempotencyKey: crypto.randomUUID() }).then((result) => ({ action, result })),
-    onSuccess: ({ action, result }) => {
+    mutationFn: async (action: "invoices" | "final" | "deliveries") => {
+      const result = await post<BulkResult>("/orders/bulk", { action: action === "final" ? "invoices" : action, orderIds: chosen, idempotencyKey: crypto.randomUUID() });
+      const invoiceIds = result.results.flatMap((row) => (row.invoiceId ? [row.invoiceId] : []));
+      const final = action === "final" && invoiceIds.length
+        ? await post<Parameters<typeof bulkInvoiceSummary>[1]>("/invoices/bulk", { action: "finalise", invoiceIds, idempotencyKey: crypto.randomUUID() }) : null;
+      return { action, result, final };
+    },
+    onSuccess: ({ action, result, final }) => {
+      if (final) {
+        const failed = result.results.filter((row) => row.error).map((row) => `${row.orderNumber ?? "An order"}: ${row.error}`);
+        setBulkNotice([bulkInvoiceSummary("finalise", final), ...failed].join("\n"));
+        setSelected({});
+        void listQuery.refetch();
+        return;
+      }
       const made = result.results.flatMap((row) => (action === "invoices" ? (row.invoiceNumber ? [row.invoiceNumber] : []) : (row.deliveries ?? []).map((entry) => entry.deliveryNumber)));
       const failed = result.results.filter((row) => row.error).map((row) => `${row.orderNumber ?? "An order"}: ${row.error}`);
       setBulkNotice([made.length ? `${made.length} ${action === "invoices" ? "draft invoice" : "delivery"}${made.length === 1 ? "" : action === "invoices" ? "s" : "s"} made: ${made.join(", ")}.` : "Nothing was made.", ...failed].join("\n"));
@@ -116,6 +133,22 @@ export function SalesOrdersScreen() {
   });
   const rows = listQuery.data?.rows ?? [];
   const total = listQuery.data?.total ?? 0;
+  // The board (CRM parity): the same filters, the newest 200, by where each order stands.
+  const board = useBoardMode("sales.orders.board");
+  const boardQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "sales", "orders", "board", listFilters),
+    queryFn: () => listSalesOrders({ ...listFilters, limit: BOARD_LIMIT, offset: 0 }), enabled: board.mode === "board",
+  });
+  const stageOf = (row: SalesOrderRow) => {
+    if (row.status === "draft") return "draft";
+    if (row.status === "cancelled") return null;
+    if (row.invoicing === "fully_invoiced" || row.status === "closed") return "billed";
+    if (["not_delivered", "partially_delivered"].includes(row.fulfillment)) return "deliver";
+    return "bill";
+  };
+  const boardCards: Array<BoardCard & { stage: string | null }> = (boardQuery.data?.rows ?? []).map((row) => ({ id: row.id, href: `/sales/orders/${row.id}`,
+    title: row.sales_order_number, subtitle: row.customer_name, meta: [row.order_date ? calendarDate(row.order_date) : null, row.fulfillmentLabel].filter(Boolean).join(" · "),
+    currency: row.currency_code, amount: Number(row.grand_total), stage: stageOf(row) }));
   const can = listQuery.data?.capabilities;
   // Orders without a quotation can be switched off in Sales settings.
   const canCreate = Boolean(can?.create) && options?.settings?.allow_direct_orders !== false;
@@ -168,6 +201,9 @@ export function SalesOrdersScreen() {
       ),
     },
   ], []);
+  // CRM parity: choose the columns, tick rows to export them.
+  const cols = useListColumns("sales.orders.columns", columns);
+  const mayExport = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.export");
 
   if (listQuery.isError && listQuery.error instanceof SalesApiError && listQuery.error.status === 403)
     return <PermissionState title="You don't have access to sales orders" description="Ask an administrator for the View sales orders permission." />;
@@ -200,7 +236,7 @@ export function SalesOrdersScreen() {
     <EnterpriseListPage
       header={{
         title: "Sales Orders",
-        description: "Customer orders and where each one stands: reserved, delivered, invoiced and paid, each on its own.",
+        description: "Customer orders and where each one stands: kept aside, delivered, invoiced and paid, each on its own.",
         primaryAction: canCreate ? <LinkButton href="/sales/orders/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New Sales Order</LinkButton> : undefined,
         secondaryActions: can?.export ? <a className={buttonVariants({ variant: "outline" })} href={salesOrderExportUrl(listFilters)} download><Download className="size-4" aria-hidden="true" /><span>Export</span></a> : undefined,
       }}
@@ -210,7 +246,9 @@ export function SalesOrdersScreen() {
         onClearSelection: () => setSelected({}),
         actions: (
           <>
-            <Button size="compact" variant="primary" isLoading={bulk.isPending && bulk.variables === "invoices"} onPress={() => bulk.mutate("invoices")}>Create invoices</Button>
+            {mayExport && <ExportLink compact label="Export selected" href={exportHref("/api/sales/orders/export", listFilters, chosen)} />}
+            <Button size="compact" variant="primary" isLoading={bulk.isPending && bulk.variables === "final"} onPress={() => bulk.mutate("final")}>Create & finalise invoices</Button>
+            <Button size="compact" variant="secondary" isLoading={bulk.isPending && bulk.variables === "invoices"} onPress={() => bulk.mutate("invoices")}>Create draft invoices</Button>
             {stockOn && <Button size="compact" variant="secondary" isLoading={bulk.isPending && bulk.variables === "deliveries"} onPress={() => bulk.mutate("deliveries")}>Create deliveries</Button>}
           </>
         ),
@@ -237,9 +275,9 @@ export function SalesOrdersScreen() {
             {moreFilters && (
               <>
                 {select("confirmation", "Any confirmation")}
-                {stockOn && select("reservation", "Any reservation")}
+                {stockOn && select("reservation", "Any stock kept aside")}
                 {select("deliveryOverdue", "Any delivery date")}
-                {select("readyToInvoice", "Invoiceable or not")}
+                {select("readyToInvoice", "Ready to bill or not")}
                 {select("balance", "Any balance")}
                 {select("ownerUserId", "Any salesperson")}
                 {stockOn && select("warehouseId", "Any warehouse")}
@@ -254,15 +292,27 @@ export function SalesOrdersScreen() {
           </>
         ),
         end: (
+          <>
           <MyViews listKey="sales.orders" state={{ view, search: submitted, filters, sorting }}
             onApply={(saved) => { setViewState(saved.view); setSearch(saved.search); setSubmittedState(saved.search); setFiltersState({ ...NO_FILTERS, ...saved.filters }); setSortingState(saved.sorting); setPageIndex(0); }} />
+          {board.toggle}
+          {cols.menu}
+          </>
         ),
       }}
       filterBar={activeFilters.length ? { filters: activeFilters, onRemove: (id) => setFilters({ ...filters, [id]: NO_FILTERS[id as FilterKey] }), onClearAll: () => setFilters(NO_FILTERS) } : undefined}
     >
       {bulkNotice && <Notice tone="info" className="whitespace-pre-line">{bulkNotice}</Notice>}
       {bulk.isError && <Notice tone="danger">{(bulk.error as Error).message}</Notice>}
+      {board.mode === "board" ? (
+        <SalesBoard loading={boardQuery.isLoading} total={boardQuery.data?.total ?? 0} cards={boardCards}
+          columnOf={(card) => (card as BoardCard & { stage: string | null }).stage}
+          columns={[{ key: "draft", label: "Draft" }, { key: "deliver", label: "To deliver", tone: "warning" }, { key: "bill", label: "To bill", tone: "warning" },
+            { key: "billed", label: "Billed", tone: "success" }]} />
+      ) : (
       <EnterpriseDataGrid<SalesOrderRow>
+        columnVisibility={cols.visibility}
+        onColumnVisibilityChange={cols.setVisibility}
         aria-label="Sales orders"
         columns={columns}
         data={rows}
@@ -293,6 +343,7 @@ export function SalesOrdersScreen() {
           </div>
         )}
       />
+      )}
     </EnterpriseListPage>
   );
 }

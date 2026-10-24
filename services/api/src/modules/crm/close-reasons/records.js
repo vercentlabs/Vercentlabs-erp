@@ -9,6 +9,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CATEGORIES = new Set(CLOSE_REASON_CATEGORIES.map((entry) => entry.code));
 const text = (value) => String(value ?? "").trim();
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+const STANDARD_CODES = new Set(DEFAULT_CLOSE_REASONS.map((entry) => entry.code));
 const invalid = (message, field) => new CrmError(400, message, "CRM_CLOSE_REASON_VALIDATION", { field });
 
 function canManage(context) {
@@ -32,6 +33,7 @@ export function toCloseReason(row) {
     requiresCompetitor: row.requires_competitor,
     offersFollowUp: row.offers_follow_up,
     linksDuplicate: row.links_duplicate,
+    isStandard: STANDARD_CODES.has(row.code),
     useCount: row.use_count === undefined ? undefined : Number(row.use_count),
   };
 }
@@ -217,7 +219,7 @@ export async function deleteCloseReason(client, context, reasonId) {
   );
   if (Number(used.rows[0].uses) > 0)
     throw new CrmError(409, "This reason has been used on closed deals. Deactivate it instead, so they keep showing it.", "CRM_CLOSE_REASON_IN_USE");
-  if (DEFAULT_CLOSE_REASONS.some((entry) => entry.code === current.code))
+  if (STANDARD_CODES.has(current.code))
     throw new CrmError(409, "A standard reason cannot be deleted. Deactivate it instead.", "CRM_CLOSE_REASON_STANDARD");
   await client.query(`DELETE FROM tenant.crm_lost_reasons WHERE organization_id = $1 AND id = $2`, [context.organizationId, current.id]);
   return { deleted: true };

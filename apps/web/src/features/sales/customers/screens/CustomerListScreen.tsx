@@ -17,6 +17,8 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
+import { ExportLink, exportHref, useListColumns } from "@/features/sales/shared/list-kit";
+import { MyViews } from "@/shared/ui/MyViews";
 import { customerExportUrl, customerRelatedExportUrl, errorCode, getCustomerOptions, listCustomers, type Customer, type CustomerListFilters } from "../api/customers-api";
 import { CustomerStatusBadge, ErrorBanner, cityState } from "../customer-format";
 import { readListState, useListUrlState } from "@/features/sales/shared/listUrlState";
@@ -124,6 +126,10 @@ export function CustomerListScreen() {
     { id: "status", header: "Status", enableSorting: false, cell: ({ row }) => <CustomerStatusBadge status={row.original.status} /> },
     { id: "createdAt", accessorKey: "createdAt", header: "Created", cell: ({ row }) => <span className="whitespace-nowrap">{formatDate(row.original.createdAt)}</span> },
   ], [finance]);
+  // CRM parity: choose the columns, tick customers to export them.
+  const cols = useListColumns("sales.customers.columns", columns);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const chosen = Object.keys(selected).filter((id) => selected[id]);
 
   if (optionsQuery.isError && errorCode(optionsQuery.error) === "PERMISSION_DENIED")
     return <PermissionState title="You don't have access to customers" description="Ask an administrator for the View customers permission." />;
@@ -156,6 +162,8 @@ export function CustomerListScreen() {
     <div className="flex flex-col gap-4">
       <ErrorBanner message={optionsQuery.isError ? "The customer filters could not be loaded. Refresh the page." : null} />
       <EnterpriseListPage
+        bulkActionBar={chosen.length && can?.export ? { selectedCount: chosen.length, onClearSelection: () => setSelected({}),
+          actions: <ExportLink compact label="Export selected" href={exportHref("/api/sales/customers/export", listFilters, chosen)} /> } : undefined}
         header={{
           title: "Customers",
           description: "The companies and people you quote, sell and deliver to, with their addresses, contacts, terms and tax details.",
@@ -204,10 +212,20 @@ export function CustomerListScreen() {
               )}
             </>
           ),
+          end: (
+            <><MyViews listKey="sales.customers" state={{ view, search: submittedSearch, filters, sorting }}
+              onApply={(saved) => { setViewState(saved.view); setSearch(saved.search); setSubmittedSearchState(saved.search); setFiltersState({ ...NO_FILTERS, ...saved.filters });
+                setSortingState(saved.sorting); setPageIndex(0); }} />{cols.menu}</>
+          ),
         }}
         filterBar={activeFilters.length ? { filters: activeFilters, onRemove: (id) => setFilters({ ...filters, [id]: ANY }), onClearAll: () => setFilters(NO_FILTERS) } : undefined}
       >
         <EnterpriseDataGrid<Customer>
+          columnVisibility={cols.visibility}
+          onColumnVisibilityChange={cols.setVisibility}
+          enableRowSelection
+          rowSelection={selected}
+          onRowSelectionChange={setSelected}
           aria-label="Customers"
           columns={columns}
           data={customers}

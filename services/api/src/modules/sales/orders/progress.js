@@ -19,7 +19,7 @@ import { FULFILLMENT, INVOICING, STATUS } from "./constants.js";
 const LINES_SQL = `
   SELECT line.id, line.sales_order_version_id, line.sequence, line.item_id, COALESCE(progress.fulfillment_warehouse_id, line.warehouse_id) AS warehouse_id, line.quantity, line.conversion_factor, line.line_total, line.item_name_snapshot, line.uom_snapshot, item.uom_id AS base_uom_id,
          (SELECT unit.code FROM tenant.units_of_measure unit WHERE unit.organization_id = item.organization_id AND unit.id = item.uom_id) AS base_unit,
-         item.item_type <> 'service' AS deliverable, COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AND EXISTS (SELECT 1 FROM public.organization_modules stock_app WHERE stock_app.organization_id = line.organization_id AND stock_app.module_key = 'stock' AND stock_app.status = 'enabled') AS stock_tracked,
+         item.item_type <> 'service' AS deliverable, item.invoice_basis, COALESCE(item.track_inventory, false) AND item.item_type <> 'service' AND EXISTS (SELECT 1 FROM public.organization_modules stock_app WHERE stock_app.organization_id = line.organization_id AND stock_app.module_key = 'stock' AND stock_app.status = 'enabled') AS stock_tracked,
          progress.cancelled_quantity,
          COALESCE((SELECT sum(returned.quantity) FROM tenant.sales_return_lines returned
                      JOIN tenant.sales_returns sales_return ON sales_return.id = returned.sales_return_id AND sales_return.status = 'received'
@@ -73,6 +73,8 @@ function toProgressLine(row) {
     remainingToDeliver: row.deliverable ? Math.max(0, open - delivered) : 0,
     remainingToInvoice: Math.max(0, open - invoiced),
     lineTotal: number(row.line_total),
+    // The product's own billing basis (Sales report Phase 3), over the company's.
+    invoiceBasis: row.invoice_basis ?? null,
   };
 }
 

@@ -28,7 +28,7 @@ export async function postingProblems(client, context, creditNote) {
   const source = (await client.query(`SELECT status, invoice_number, invoice_date FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, creditNote.source_invoice_id])).rows[0];
   if (!source || !FINANCE_POSTED.includes(source.status))
-    problem("SALES_INVOICE_NOT_POSTED", `Invoice ${source?.invoice_number ?? ""} is ${source?.status === "reversed" ? "reversed" : "no longer posted"}.`.replace("  ", " "));
+    problem("SALES_INVOICE_NOT_POSTED", `Invoice ${source?.invoice_number ?? ""} is ${source?.status === "reversed" ? "reversed" : "no longer final"}.`.replace("  ", " "));
   const lines = await creditNoteLines(client, context.organizationId, creditNote.id);
   if (!lines.length) problem("SALES_CREDIT_NOTE_EMPTY", "The credit note has no lines.");
   const left = new Map((await creditableLines(client, context.organizationId, creditNote.source_invoice_id, { exceptCreditNoteId: creditNote.id })).map((line) => [line.id, line]));
@@ -39,7 +39,7 @@ export async function postingProblems(client, context, creditNote) {
       if (Number(line.quantity) > state.quantityLeft + EPSILON)
         problem("SALES_CREDIT_NOTE_EXCEEDS_QUANTITY", `${line.item_name_snapshot}: only ${state.quantityLeft} ${line.uom_snapshot ?? ""} is left to credit; the credit note credits ${Number(line.quantity)}.`.replace("  ", " "));
       else if (state.draftQuantity > EPSILON && Number(line.quantity) + state.draftQuantity > state.quantityLeft + EPSILON)
-        warnings.push({ code: "SALES_CREDIT_NOTE_DRAFT_CONFLICT", message: `${line.item_name_snapshot}: draft ${state.draftCreditNotes.join(", ")} also credit this line; only ${state.quantityLeft} is left, so not all of them can be posted.` });
+        warnings.push({ code: "SALES_CREDIT_NOTE_DRAFT_CONFLICT", message: `${line.item_name_snapshot}: draft ${state.draftCreditNotes.join(", ")} also credit this line; only ${state.quantityLeft} is left, so not all of them can be finalised.` });
     }
     if (Number(line.net_amount) > state.valueLeft + 0.005)
       problem("SALES_CREDIT_NOTE_EXCEEDS_VALUE", `${line.item_name_snapshot}: only ${state.valueLeft.toFixed(2)} of its value is left to credit; the credit note credits ${Number(line.net_amount).toFixed(2)}.`);
@@ -55,12 +55,12 @@ export async function postingProblems(client, context, creditNote) {
     const [year, month] = dayOf(source.invoice_date).split("-").map(Number);
     const limit = `${month >= 4 ? year + 1 : year}-11-30`;
     if (dayOf(creditNote.invoice_date) > limit)
-      warnings.push({ code: "SALES_CREDIT_NOTE_SECTION_34", message: `Invoice ${source.invoice_number} was for financial year ${month >= 4 ? year : year - 1}-${String((month >= 4 ? year + 1 : year) % 100).padStart(2, "0")}: GST can be reduced by a credit note only until ${limit.split("-").reverse().join("-")} (Section 34). Check with your accountant before posting; the GST on this note may not be claimable.` });
+      warnings.push({ code: "SALES_CREDIT_NOTE_SECTION_34", message: `Invoice ${source.invoice_number} was for financial year ${month >= 4 ? year : year - 1}-${String((month >= 4 ? year + 1 : year) % 100).padStart(2, "0")}: GST can be reduced by a credit note only until ${limit.split("-").reverse().join("-")} (Section 34). Check with your accountant before finalising; the GST on this note may not be claimable.` });
   }
   try {
     await getOpenPeriod(client, context, dayOf(creditNote.accounting_date));
   } catch (error) {
-    problem("SALES_CREDIT_NOTE_PERIOD_CLOSED", `Posting date ${dayOf(creditNote.accounting_date)}: ${error.message}`);
+    problem("SALES_CREDIT_NOTE_PERIOD_CLOSED", `Accounting date ${dayOf(creditNote.accounting_date)}: ${error.message}`);
   }
   return { problems, warnings };
 }
@@ -83,17 +83,17 @@ async function lockBoth(client, context, creditNoteId) {
 // Posts the credit note and applies it to the source invoice. input: { expectedVersion? }
 // Returns { creditNoteId, creditNoteNumber, status, applied, unapplied, replayed, awaitingApproval? }.
 export async function postCreditNote(client, context, creditNoteId, input = {}) {
-  requireCreditNotePermission(context, CREDIT_NOTE_PERMISSIONS.post, "You do not have permission to post credit notes.");
+  requireCreditNotePermission(context, CREDIT_NOTE_PERMISSIONS.post, "You do not have permission to finalise credit notes.");
   const creditNote = await lockBoth(client, context, creditNoteId);
   const result = (extra) => ({ creditNoteId: creditNote.id, creditNoteNumber: creditNote.invoice_number, ...extra });
   if (FINANCE_POSTED.includes(creditNote.status)) return result({ status: CREDIT_NOTE_STATUS.posted, replayed: true });
   if (creditNote.status === "pending_approval") return result({ status: CREDIT_NOTE_STATUS.draft, awaitingApproval: true, replayed: true });
-  if (!["draft", "approved"].includes(creditNote.status)) throw new CreditNoteError(409, `A ${creditNote.status} credit note cannot be posted.`, "SALES_CREDIT_NOTE_LOCKED");
+  if (!["draft", "approved"].includes(creditNote.status)) throw new CreditNoteError(409, `A ${creditNote.status} credit note cannot be finalised.`, "SALES_CREDIT_NOTE_LOCKED");
   if (input.expectedVersion != null && Number(input.expectedVersion) !== Number(creditNote.version))
     throw new CreditNoteError(409, "Someone else changed this credit note. Reload it and try again.", "SALES_CREDIT_NOTE_VERSION_CONFLICT");
   const { problems } = await postingProblems(client, context, creditNote);
   if (problems.length)
-    throw new CreditNoteError(409, `The credit note cannot be posted: ${problems.map((entry) => entry.message).join(" ")}`, problems[0].code, { problems });
+    throw new CreditNoteError(409, `The credit note cannot be finalised: ${problems.map((entry) => entry.message).join(" ")}`, problems[0].code, { problems });
   // The shares of each invoice line over what is credited now: posted credit notes add up to the invoice exactly.
   if (creditNote.status === "draft") await rewriteDraft(client, context, creditNote, { creditDate: dayOf(creditNote.invoice_date) });
   const finance = financeContext(context);
@@ -108,7 +108,7 @@ export async function postCreditNote(client, context, creditNoteId, input = {}) 
     }
     await postCustomerInvoice(client, finance, creditNote.id, { internal: true, fromSales: true });
   } catch (error) {
-    throw financeError(error, "The credit note could not be posted");
+    throw financeError(error, "The credit note could not be finalised");
   }
   // Applied to the source invoice for as much as it still owes; the rest is the customer's credit.
   const amounts = (await client.query(
@@ -155,7 +155,7 @@ export async function cancelDraftCreditNote(client, context, creditNoteId, input
 // Reverses a posted credit note posted in error: it is unapplied from the invoices it was applied to (they
 // owe it again), the journal is reversed, the output tax restored; it is kept, Reversed. input: { reason }
 export async function reverseCreditNote(client, context, creditNoteId, input = {}) {
-  requireCreditNotePermission(context, CREDIT_NOTE_PERMISSIONS.reverse, "You do not have permission to reverse credit notes.");
+  requireCreditNotePermission(context, CREDIT_NOTE_PERMISSIONS.reverse, "You do not have permission to cancel credit notes.");
   const reason = text(input.reason, 1000);
   if (!reason) throw new CreditNoteError(400, "Give the reason for reversing the credit note.", "SALES_CREDIT_NOTE_REASON_REQUIRED", { field: "reason" });
   const creditNote = await lockBoth(client, context, creditNoteId);
@@ -164,11 +164,69 @@ export async function reverseCreditNote(client, context, creditNoteId, input = {
   try {
     result = await reverseCustomerCreditNote(client, financeContext(context), creditNote.id, { reason }, { internal: true });
   } catch (error) {
-    throw financeError(error, "The credit note could not be reversed");
+    throw financeError(error, "The credit note could not be cancelled");
   }
   await client.query(
     `UPDATE tenant.sales_credit_notes SET reversed_at = now(), reversed_by = $3, reversal_reason = $4, reversal_journal_entry_id = $5, updated_at = now()
       WHERE organization_id = $1 AND customer_invoice_id = $2`, [context.organizationId, creditNote.id, context.userId ?? null, reason, result.reversalEntryId ?? null]);
   await recordCreditNoteEvent(client, context, creditNote.id, "sales_credit_note.reversed", CREDIT_NOTE_STATUS.posted, CREDIT_NOTE_STATUS.reversed, { reason, unapplied: result.unapplied });
   return { creditNoteId: creditNote.id, status: CREDIT_NOTE_STATUS.reversed, changed: true, unapplied: result.unapplied };
+}
+
+// Who may use a credit note's leftover on other invoices from Sales (Sales report H7): whoever finalises credit notes or records payments.
+function requireApplyPermission(context) {
+  const can = (permission) => context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(permission);
+  if (!can(CREDIT_NOTE_PERMISSIONS.post) && !can("sales.invoice.record_payment") && !can("accounting.receipts.manage"))
+    throw new CreditNoteError(403, "You do not have permission to apply credit notes.", "PERMISSION_DENIED");
+}
+
+async function openInvoicesFor(client, context, creditNote) {
+  return (await client.query(
+    `SELECT id, invoice_number, invoice_date::text AS invoice_date, due_date::text AS due_date, outstanding_amount
+       FROM tenant.accounting_customer_invoices
+      WHERE organization_id = $1 AND party_id = $2 AND ledger_id = $3 AND btrim(currency_code) = $4 AND invoice_type = 'invoice'
+        AND status IN ('posted', 'partially_paid', 'overdue', 'disputed') AND outstanding_amount > 0
+      ORDER BY due_date, invoice_date, invoice_number LIMIT 200`,
+    [context.organizationId, creditNote.party_id, creditNote.ledger_id, creditNote.currency_code])).rows
+    .map((row) => ({ invoiceId: row.id, invoiceNumber: row.invoice_number, invoiceDate: row.invoice_date, dueDate: row.due_date, outstanding: Number(row.outstanding_amount) }));
+}
+
+// What is left on the credit note and the customer's open invoices it can go on, oldest due first.
+export async function getCreditNoteApplication(client, context, creditNoteId) {
+  requireApplyPermission(context);
+  const creditNote = await loadCreditNote(client, context, creditNoteId);
+  if (!FINANCE_POSTED.includes(creditNote.status)) throw new CreditNoteError(409, "Finalise the credit note before using its credit.", "SALES_CREDIT_NOTE_NOT_POSTED");
+  return { creditLeft: Number(creditNote.outstanding_amount), currencyCode: creditNote.currency_code, invoices: await openInvoicesFor(client, context, creditNote) };
+}
+
+// Uses the credit note's leftover on the customer's other open invoices. input: { allocations?: [{ invoiceId, amount }] }; without
+// allocations, the oldest due invoices first, as far as the credit goes. Never more than an invoice owes or the credit has left (Finance
+// checks both again).
+export async function applySalesCreditNote(client, context, creditNoteId, input = {}) {
+  requireApplyPermission(context);
+  const creditNote = await loadCreditNote(client, context, creditNoteId, { lock: true });
+  if (!FINANCE_POSTED.includes(creditNote.status)) throw new CreditNoteError(409, "Finalise the credit note before using its credit.", "SALES_CREDIT_NOTE_NOT_POSTED");
+  let left = Math.round(Number(creditNote.outstanding_amount) * 100) / 100;
+  if (left <= 0.005) throw new CreditNoteError(409, "Nothing is left on this credit note.", "SALES_CREDIT_NOTE_NOTHING_LEFT");
+  let allocations = Array.isArray(input.allocations) ? input.allocations.filter((entry) => Number(entry?.amount) > 0) : [];
+  if (!allocations.length) {
+    for (const invoice of await openInvoicesFor(client, context, creditNote)) {
+      if (left <= 0.005) break;
+      const amount = Math.min(left, invoice.outstanding);
+      allocations.push({ invoiceId: invoice.invoiceId, amount });
+      left = Math.round((left - amount) * 100) / 100;
+    }
+    if (!allocations.length) throw new CreditNoteError(409, "The customer has no open invoice to use this credit on.", "SALES_CREDIT_NOTE_NO_OPEN_INVOICE");
+  }
+  allocations = allocations.map((entry) => ({ invoiceId: String(entry.invoiceId), amount: (Math.round(Number(entry.amount) * 100) / 100).toFixed(2) }));
+  try {
+    await applyCustomerCreditNote(client, financeContext(context), creditNote.id, { allocations });
+  } catch (error) {
+    throw financeError(error, "The credit could not be applied");
+  }
+  const numbers = (await client.query("SELECT id, invoice_number FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND id = ANY($2::uuid[])",
+    [context.organizationId, allocations.map((entry) => entry.invoiceId)])).rows;
+  const applied = allocations.map((entry) => ({ ...entry, invoiceNumber: numbers.find((row) => row.id === entry.invoiceId)?.invoice_number ?? null }));
+  await recordCreditNoteEvent(client, context, creditNote.id, "sales_credit_note.applied", CREDIT_NOTE_STATUS.posted, CREDIT_NOTE_STATUS.posted, { applied });
+  return { creditNoteId: creditNote.id, applied };
 }

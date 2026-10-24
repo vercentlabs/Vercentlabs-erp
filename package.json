@@ -56,6 +56,7 @@
     "verify:fast": "npx --yes pnpm@11.21.0 typecheck:web && npx --yes pnpm@11.21.0 lint:web && node scripts/architecture/check-app-imports.mjs",
     "check:app-imports": "node scripts/architecture/check-app-imports.mjs",
     "verify:routes": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web verify:routes",
+    "copy-lint:web": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web copy-lint",
     "verify:web": "npx --yes pnpm@11.21.0 verify:fast && npx --yes pnpm@11.21.0 verify:routes && npx --yes pnpm@11.21.0 build:web",
     "verify:mobile": "npx --yes pnpm@11.21.0 typecheck:mobile && npx --yes pnpm@11.21.0 lint:mobile",
     "verify": "npx --yes pnpm@11.21.0 verify:fast && npx --yes pnpm@11.21.0 verify:routes && npx --yes pnpm@11.21.0 verify:mobile",

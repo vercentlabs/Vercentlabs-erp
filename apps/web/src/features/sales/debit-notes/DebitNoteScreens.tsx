@@ -20,32 +20,15 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, money } from "@/features/sales/shared/format";
 import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
+import { NotesTabs } from "@/features/sales/shared/SalesTabs";
 
 import { cancelDebitNote, debitNotePdfUrl, getDebitNote, listDebitNotes, postDebitNote, type DebitNote } from "./api";
 
 const PAGE_SIZE = 25;
 const TONE = { draft: "neutral", posted: "success", cancelled: "neutral", reversed: "warning" } as const;
-const VIEWS = [{ id: "all", label: "All Debit Notes" }, { id: "draft", label: "Draft" }, { id: "posted", label: "Posted" }, { id: "cancelled", label: "Cancelled" }];
+const VIEWS = [{ id: "all", label: "All Debit Notes" }, { id: "draft", label: "Draft" }, { id: "posted", label: "Final" }, { id: "cancelled", label: "Cancelled" }];
 
 // Credit notes and debit notes are one place in the sidebar: two lists side by side.
-export function NotesTabs({ current }: { current: "credit" | "debit" }) {
-  const tabs = [{ id: "credit", label: "Credit notes", href: "/sales/credit-notes" }, { id: "debit", label: "Debit notes", href: "/sales/debit-notes" }];
-  return (
-    <nav aria-label="Credit and debit notes" className="-mb-1 overflow-x-auto">
-      <ul className="flex min-w-max gap-1 border-b border-border">
-        {tabs.map((tab) => (
-          <li key={tab.id}>
-            <Link href={tab.href} aria-current={tab.id === current ? "page" : undefined}
-              className={`-mb-px flex border-b-2 px-3 py-2 text-sm font-medium ${tab.id === current ? "border-brand text-text" : "border-transparent text-text-secondary hover:text-text"}`}>
-              {tab.label}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
-}
-
 export function DebitNotesScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
@@ -75,7 +58,7 @@ export function DebitNotesScreen() {
     { id: "reason", header: "Why", cell: ({ row }) => row.original.reasonLabel },
     { id: "total", header: "Amount", cell: ({ row }) => <span className="tabular-nums">{money(row.original.currencyCode, row.original.total)}</span> },
     { id: "outstanding", header: "To collect", cell: ({ row }) => <span className="tabular-nums">{row.original.status === "posted" ? money(row.original.currencyCode, row.original.outstanding) : "—"}</span> },
-    { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={TONE[row.original.status]}>{row.original.status === "draft" ? "Draft" : row.original.status === "posted" ? "Posted" : "Cancelled"}</StatusBadge> },
+    { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={TONE[row.original.status]}>{row.original.status === "draft" ? "Draft" : row.original.status === "posted" ? "Final" : "Cancelled"}</StatusBadge> },
   ], []);
   if (query.isError && query.error instanceof SalesApiError && query.error.status === 403)
     return <PermissionState title="You don't have access to debit notes" description="Ask an administrator for the View credit notes permission." />;
@@ -83,7 +66,7 @@ export function DebitNotesScreen() {
     <div className="flex flex-col gap-4">
       <NotesTabs current="debit" />
       <EnterpriseListPage
-        header={{ title: "Debit Notes", description: "Amounts added to posted invoices: undercharges, rate differences and missed charges. Raise one from its invoice." }}
+        header={{ title: "Debit Notes", description: "Amounts added to final invoices: undercharges, rate differences and missed charges. Raise one from its invoice." }}
         savedViews={{ views: VIEWS, activeViewId: view, onSelect: (id) => go({ view: id }) }}
         actionBar={{ start: <SearchField aria-label="Search debit notes" placeholder="Search number, invoice or customer" className="w-full sm:w-80" value={search} onChange={setSearch} onSubmit={(value) => go({ q: value.trim() })} /> }}
       >
@@ -95,7 +78,7 @@ export function DebitNotesScreen() {
           state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (submitted || view !== "all" ? "no-results" : "empty") : "ready"}
           loadingContent={<LoadingState label="Loading debit notes" rows={6} />}
           errorContent={<ErrorState title="Could not load debit notes" action={{ label: "Try again", onPress: () => void query.refetch() }} />}
-          emptyContent={<EmptyState title="No debit notes" description="Open a posted invoice and choose More › Debit note when the customer was undercharged." />}
+          emptyContent={<EmptyState title="No debit notes" description="Open a final invoice and choose More › Debit note when the customer was undercharged." />}
           noResultsContent={<NoResultsState title="Nothing matches" description="Try another view or search." />}
           pageIndex={pageIndex}
           pageSize={PAGE_SIZE}
@@ -125,9 +108,9 @@ export function DebitNoteDetailScreen({ debitNoteId }: { debitNoteId: string }) 
   const postIt = useMutation({
     mutationFn: () => postDebitNote(debitNoteId),
     onSuccess: ({ result }) => {
-      setNotice(result.awaitingApproval ? "Sent to Finance for approval: it is posted once approved."
-        : result.einvoice?.status === "generated" ? `Posted. IRN generated: ${result.einvoice.irn}.`
-          : result.einvoice?.status === "failed" ? `Posted. The IRN could not be generated: ${result.einvoice.error} Retry from the e-invoice panel.` : "Posted. The customer owes it like a bill.");
+      setNotice(result.awaitingApproval ? "Sent to Finance for approval: it is finalised once approved."
+        : result.einvoice?.status === "generated" ? `Final. IRN generated: ${result.einvoice.irn}.`
+          : result.einvoice?.status === "failed" ? `Final. The IRN could not be generated: ${result.einvoice.error} Retry from the e-invoice panel.` : "Final. The customer owes it like a bill.");
       refresh();
     },
   });
@@ -142,11 +125,11 @@ export function DebitNoteDetailScreen({ debitNoteId }: { debitNoteId: string }) 
     <div className="flex flex-col gap-4">
       {notice && <Notice tone="info">{notice}</Notice>}
       {error && <Notice tone="danger">{error.message}</Notice>}
-      {debitNote.financeStatus === "pending_approval" && <Notice tone="warning">Waiting for Finance approval. It is posted once approved.</Notice>}
+      {debitNote.financeStatus === "pending_approval" && <Notice tone="warning">Waiting for Finance approval. It is finalised once approved.</Notice>}
       <RecordDetailsPage
         header={{
           title: debitNote.number,
-          status: <StatusBadge tone={TONE[debitNote.status]}>{debitNote.status === "draft" ? "Draft" : debitNote.status === "posted" ? "Posted" : "Cancelled"}</StatusBadge>,
+          status: <StatusBadge tone={TONE[debitNote.status]}>{debitNote.status === "draft" ? "Draft" : debitNote.status === "posted" ? "Final" : "Cancelled"}</StatusBadge>,
           fields: [
             { label: "Customer", value: <Link className="hover:underline" href={`/sales/customers/${debitNote.customer.id}`}>{debitNote.customer.name ?? "—"}</Link> },
             { label: "Invoice", value: <Link className="hover:underline" href={`/sales/invoices/${debitNote.sourceInvoice.id}`}>{debitNote.sourceInvoice.number}</Link> },
@@ -154,7 +137,7 @@ export function DebitNoteDetailScreen({ debitNoteId }: { debitNoteId: string }) 
             { label: "Total", value: money(currency, debitNote.total) },
             ...(debitNote.status === "posted" ? [{ label: "To collect", value: money(currency, debitNote.outstanding) }, { label: "Due", value: calendarDate(debitNote.dueDate) }] : []),
           ],
-          primaryAction: actions.post ? <Button variant="primary" isLoading={postIt.isPending} onPress={() => postIt.mutate()}><Check className="size-4" aria-hidden="true" />Post debit note</Button> : undefined,
+          primaryAction: actions.post ? <Button variant="primary" isLoading={postIt.isPending} onPress={() => postIt.mutate()}><Check className="size-4" aria-hidden="true" />Finalise debit note</Button> : undefined,
           secondaryActions: (
             <div className="flex flex-wrap items-center gap-2">
               <a className={buttonVariants({ variant: "secondary" })} href={debitNotePdfUrl(debitNoteId, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />{debitNote.status === "draft" ? "Draft PDF" : "PDF"}</a>

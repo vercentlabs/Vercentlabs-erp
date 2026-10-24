@@ -47,11 +47,11 @@ export function AvailabilityPanel({ orderId, autoCheck, canReserve, reserving, o
   const otherLines = data?.lines.filter((line) => !line.stockTracked) ?? [];
   return (
     <Panel title="Availability"
-      description="On hand minus reserved, in the warehouse each line ships from; stock under quality hold is not counted. A check is for now only: only a reservation commits stock."
+      description="Stock on hand that no other order has kept aside, in each line's warehouse."
       actions={(
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="compact" isLoading={query.isFetching} onPress={refresh}><RefreshCw className="size-3.5" aria-hidden="true" />{data ? "Refresh" : "Check Availability"}</Button>
-          {canReserve && data && !data.informational && <Button variant="primary" size="compact" isLoading={reserving} onPress={onReserve}>Reserve Available</Button>}
+          {canReserve && data && !data.informational && <Button variant="primary" size="compact" isLoading={reserving} onPress={onReserve}>Keep Available Stock Aside</Button>}
         </div>
       )}>
       {query.isError && <Notice>{failureText(query.error, "Availability could not be checked.")}</Notice>}
@@ -63,15 +63,15 @@ export function AvailabilityPanel({ orderId, autoCheck, canReserve, reserving, o
             <ResultBadge result={data.summary === "fully_available" ? "available" : data.summary} label={data.summaryLabel} />
             <span className="text-text-muted">Availability checked {dateTime(data.checkedAt)}</span>
           </div>
-          {data.informational && <Notice tone="info">This order is a draft: the result is for information. Stock can be reserved once the order is confirmed.</Notice>}
+          {data.informational && <Notice tone="info">This order is a draft: the result is for information. Stock can be kept aside once the order is confirmed.</Notice>}
           {stockLines.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[56rem] text-sm">
                 <thead className="bg-surface-muted text-left text-text-secondary">
                   <tr className="border-b border-border">
                     <th className="py-2 pr-3 font-medium">Product</th><th className="py-2 pr-3 font-medium">Warehouse</th>
-                    <th className="py-2 pr-3 text-right font-medium">Required</th><th className="py-2 pr-3 text-right font-medium">Reserved for this order</th>
-                    <th className="py-2 pr-3 text-right font-medium">On hand</th><th className="py-2 pr-3 text-right font-medium">Reserved by others</th>
+                    <th className="py-2 pr-3 text-right font-medium">Required</th><th className="py-2 pr-3 text-right font-medium">Kept aside for this order</th>
+                    <th className="py-2 pr-3 text-right font-medium">On hand</th><th className="py-2 pr-3 text-right font-medium">Kept aside by others</th>
                     <th className="py-2 pr-3 text-right font-medium">Available</th><th className="py-2 pr-3 text-right font-medium">Shortage</th><th className="py-2 font-medium">Result</th>
                   </tr>
                 </thead>
@@ -149,7 +149,7 @@ function ChangeWarehouseDialog({ orderId, line, to, onClose, onDone }: { orderId
   const save = useMutation({ mutationFn: () => changeLineWarehouse(orderId, line.lineId, { warehouseId: to.warehouseId, reason: reason.trim() || undefined }), onSuccess: onDone });
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Ship ${line.itemName} from ${to.warehouseName}?`}
-      description={`The line will ship from ${to.warehouseName} instead of ${line.warehouseName ?? "its current warehouse"}. Stock reserved for it in ${line.warehouseName ?? "the old warehouse"} is released; reserve again afterwards.`}>
+      description={`The line will ship from ${to.warehouseName} instead. Keep stock aside again afterwards.`}>
       <div className="flex flex-col gap-3">
         {save.isError && <Notice>{failureText(save.error, "The warehouse could not be changed.")}</Notice>}
         <TextField label="Reason" value={reason} onChange={setReason} />

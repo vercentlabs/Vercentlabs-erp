@@ -59,7 +59,7 @@ async function postingProblems(client, context, invoice, order) {
     if (!state) { problem("SALES_INVOICE_ORDER_CHANGED", `${line.item_name_snapshot} is no longer on the order.`); continue; }
     if (state.onDrafts > EPSILON && quantity + state.onDrafts > state.eligible + EPSILON)
       warnings.push({ code: "SALES_INVOICE_DRAFT_CONFLICT",
-        message: `${line.item_name_snapshot}: ${state.draftInvoices.map((draft) => `${draft.invoiceNumber} (${draft.quantity})`).join(", ")} also bill this line; only ${state.eligible} is left, so not all of these drafts can be posted.` });
+        message: `${line.item_name_snapshot}: ${state.draftInvoices.map((draft) => `${draft.invoiceNumber} (${draft.quantity})`).join(", ")} also bill this line; only ${state.eligible} is left, so not all of these drafts can be finalised.` });
     if (quantity > state.eligible + EPSILON)
       problem("SALES_ORDER_INVOICE_EXCEEDS_REMAINING", `${line.item_name_snapshot}: only ${state.eligible} ${line.uom_snapshot ?? ""} can be invoiced now; the invoice bills ${quantity}.`.replace("  ", " "));
     if (line.source_sales_delivery_line_id && quantity > (deliveryAvailable.get(line.source_sales_delivery_line_id) ?? 0) + EPSILON)
@@ -88,7 +88,7 @@ async function postingProblems(client, context, invoice, order) {
   try {
     await getOpenPeriod(client, context, dayOf(invoice.accounting_date));
   } catch (error) {
-    problem("SALES_INVOICE_PERIOD_CLOSED", `Posting date ${dayOf(invoice.accounting_date)}: ${error.message}`);
+    problem("SALES_INVOICE_PERIOD_CLOSED", `Accounting date ${dayOf(invoice.accounting_date)}: ${error.message}`);
   }
   return { problems, warnings, taxDifferences: differences };
 }
@@ -104,7 +104,7 @@ export async function validateInvoiceForPosting(client, context, invoiceId) {
 
 // Posts the invoice. input: { expectedVersion? }. Returns { invoiceId, invoiceNumber, status, replayed, awaitingApproval? }.
 export async function postSalesInvoice(client, context, invoiceId, input = {}) {
-  requireInvoicePermission(context, INVOICE_PERMISSIONS.post, "You do not have permission to post invoices.");
+  requireInvoicePermission(context, INVOICE_PERMISSIONS.post, "You do not have permission to finalise invoices.");
   // The order is locked first, as everything that changes what is invoiced does, then the invoice.
   const seen = await loadInvoice(client, context, invoiceId);
   const order = await lockOrder(client, context, seen.sales_order_id);
@@ -112,12 +112,12 @@ export async function postSalesInvoice(client, context, invoiceId, input = {}) {
   if (FINANCE_POSTED.includes(invoice.status)) return { invoiceId: invoice.id, invoiceNumber: invoice.invoice_number, status: INVOICE_STATUS.posted, replayed: true };
   if (invoice.status === "pending_approval")
     return { invoiceId: invoice.id, invoiceNumber: invoice.invoice_number, status: INVOICE_STATUS.draft, awaitingApproval: true, replayed: true };
-  if (!["draft", "approved"].includes(invoice.status)) throw new InvoiceError(409, `A ${invoice.status} invoice cannot be posted.`, "SALES_INVOICE_LOCKED");
+  if (!["draft", "approved"].includes(invoice.status)) throw new InvoiceError(409, `A ${invoice.status} invoice cannot be finalised.`, "SALES_INVOICE_LOCKED");
   if (input.expectedVersion != null && Number(input.expectedVersion) !== Number(invoice.version))
     throw new InvoiceError(409, "Someone else changed this invoice. Reload it and try again.", "SALES_INVOICE_VERSION_CONFLICT");
   const { problems } = await postingProblems(client, context, invoice, order);
   if (problems.length)
-    throw new InvoiceError(409, `The invoice cannot be posted: ${problems.map((entry) => entry.message).join(" ")}`, problems[0].code, { problems });
+    throw new InvoiceError(409, `The invoice cannot be finalised: ${problems.map((entry) => entry.message).join(" ")}`, problems[0].code, { problems });
   // The shares of each order line over what is posted now: the posted invoices add up to the order exactly.
   if (invoice.status === "draft")
     await rewriteDraft(client, context, invoice, order, { invoiceDate: dayOf(invoice.invoice_date), postingDate: dayOf(invoice.accounting_date), dueDate: dayOf(invoice.due_date) });
@@ -133,7 +133,7 @@ export async function postSalesInvoice(client, context, invoiceId, input = {}) {
     }
     await postCustomerInvoice(client, finance, invoice.id, { internal: true, fromSales: true });
   } catch (error) {
-    throw financeError(error, "The invoice could not be posted");
+    throw financeError(error, "The invoice could not be finalised");
   }
   const posted = (await client.query(`SELECT journal_entry_id, grand_total FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND id = $2`, [context.organizationId, invoice.id])).rows[0];
   const after = await invoiceableLines(client, context.organizationId, { ...order, current_version_id: invoice.sales_order_version_id ?? order.current_version_id }, invoice.quantity_basis);
@@ -167,7 +167,7 @@ export async function cancelDraftInvoice(client, context, invoiceId, input = {})
 // Reverses a posted invoice that nothing has been applied to: the receivable, revenue and output
 // tax are taken back by a reversing entry; the invoice is kept, Reversed. input: { reason }
 export async function reverseSalesInvoice(client, context, invoiceId, input = {}) {
-  requireInvoicePermission(context, INVOICE_PERMISSIONS.reverse, "You do not have permission to reverse invoices.");
+  requireInvoicePermission(context, INVOICE_PERMISSIONS.reverse, "You do not have permission to cancel invoices.");
   const reason = text(input.reason, 1000);
   if (!reason) throw new InvoiceError(400, "Give the reason for reversing the invoice.", "SALES_INVOICE_REASON_REQUIRED", { field: "reason" });
   const seen = await loadInvoice(client, context, invoiceId);
@@ -178,7 +178,7 @@ export async function reverseSalesInvoice(client, context, invoiceId, input = {}
   try {
     result = await reverseCustomerInvoice(client, financeContext(context), invoice.id, { reason }, { internal: true });
   } catch (error) {
-    throw financeError(error, "The invoice could not be reversed");
+    throw financeError(error, "The invoice could not be cancelled");
   }
   await client.query(
     `UPDATE tenant.sales_invoices SET reversed_at = now(), reversed_by = $3, reversal_reason = $4, reversal_journal_entry_id = $5, updated_at = now()

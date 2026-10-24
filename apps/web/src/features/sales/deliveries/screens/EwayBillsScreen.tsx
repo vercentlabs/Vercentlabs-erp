@@ -52,7 +52,7 @@ export function EwayBillsScreen() {
         {SOURCE[row.original.sourceType].label} {row.original.sourceNumber}
       </Link>
     ) },
-    { id: "consignee", header: "Consignee", cell: ({ row }) => row.original.consignee ?? "—" },
+    { id: "consignee", header: "Ship to", cell: ({ row }) => row.original.consignee ?? "—" },
     { id: "value", header: "Value", cell: ({ row }) => <span className="tabular-nums">{row.original.value != null ? money("INR", row.original.value) : "—"}</span> },
     { id: "vehicle", header: "Vehicle", cell: ({ row }) => row.original.vehicleNumber ?? "Part B pending" },
     { id: "date", header: "Generated", cell: ({ row }) => (row.original.ewbDate ? dateTime(row.original.ewbDate) : "—") },
@@ -64,7 +64,7 @@ export function EwayBillsScreen() {
     return <PermissionState title="You don't have access to e-way bills" description="It needs access to deliveries or invoices." />;
   return (
     <EnterpriseListPage
-      header={{ title: "E-way Bills", description: "E-way bills made for invoices, deliveries and challans. A consignment worth more than ₹50,000 needs one before it moves.",
+      header={{ title: "E-way bills made", description: "E-way bills made for invoices, deliveries and challans. A consignment worth more than ₹50,000 needs one before it moves.",
         primaryAction: <LinkButton variant="secondary" href="/sales/gst-documents">What still needs one</LinkButton> }}
       savedViews={{ views: VIEWS, activeViewId: view, onSelect: (id) => go({ view: id }) }}
       actionBar={{ start: <SearchField aria-label="Search e-way bills" placeholder="Search e-way bill, document or vehicle" className="w-full sm:w-80" value={search} onChange={setSearch} onSubmit={(value) => go({ q: value.trim() })} /> }}
@@ -77,7 +77,7 @@ export function EwayBillsScreen() {
         state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (submitted || view !== "all" ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading e-way bills" rows={6} />}
         errorContent={<ErrorState title="Could not load e-way bills" action={{ label: "Try again", onPress: () => void query.refetch() }} />}
-        emptyContent={<EmptyState title="No e-way bills yet" description="Make one from a dispatched delivery, an issued challan or a posted invoice (its GST tab)." />}
+        emptyContent={<EmptyState title="No e-way bills yet" description="Make one from a dispatched delivery, an issued challan or a final invoice (its GST tab)." />}
         noResultsContent={<NoResultsState title="Nothing matches" description="Try another view or search." />}
         pageIndex={pageIndex}
         pageSize={PAGE_SIZE}

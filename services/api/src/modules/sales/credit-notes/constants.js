@@ -15,7 +15,7 @@ import { OrderError } from "../orders/constants.js";
 
 export const CREDIT_NOTE_STATUS = Object.freeze({ draft: "draft", posted: "posted", reversed: "reversed", cancelled: "cancelled" });
 export const CREDIT_NOTE_STATUS_LABELS = Object.freeze({
-  draft: "Draft", awaiting_approval: "Awaiting Finance approval", posted: "Posted", reversed: "Reversed", cancelled: "Cancelled",
+  draft: "Draft", awaiting_approval: "Awaiting Finance approval", posted: "Final", reversed: "Cancelled", cancelled: "Cancelled",
 });
 // Finance's statuses and what Sales shows for each.
 export const FINANCE_DRAFT = Object.freeze(["draft", "pending_approval", "approved"]);
@@ -45,7 +45,7 @@ export const CREDIT_REASONS = Object.freeze([
   { code: "damaged_goods", label: "Damaged / defective goods" },
   { code: "billing_error", label: "Billing error" },
   { code: "price_adjustment", label: "Price adjustment" },
-  { code: "post_sale_discount", label: "Post-sale discount" },
+  { code: "post_sale_discount", label: "After-sale discount" },
   { code: "short_supply", label: "Short supply" },
   { code: "tax_correction", label: "Tax correction" },
   { code: "order_cancellation", label: "Order cancellation" },
@@ -73,8 +73,8 @@ export const CREDIT_NOTE_PERMISSIONS = Object.freeze({
 export const CREDIT_NOTE_VIEWS = Object.freeze([
   { key: "all", label: "All Credit Notes" },
   { key: "draft", label: "Draft" },
-  { key: "posted", label: "Posted" },
-  { key: "reversed", label: "Reversed / Cancelled" },
+  { key: "posted", label: "Final" },
+  { key: "reversed", label: "Cancelled" },
   { key: "from_returns", label: "From Returns" },
   { key: "price_adjustments", label: "Price Adjustments" },
   { key: "unapplied", label: "Unapplied Credit" },

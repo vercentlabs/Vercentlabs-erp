@@ -12,3 +12,4 @@ export { addPrice, expirePrice, getProductPriceHistory, listPriceListEntries, re
 export { resolveSalesPrice, resolveSalesPriceList, unitFactor } from "./resolver.js";
 export { listPriceListHistory } from "./history.js";
 export { PRICE_IMPORT_FIELDS, analyzePriceImport, buildPriceImportErrorFile, buildPriceImportTemplate, exportPrices, importPrices } from "./import-export.js";
+export { addPriceListFormula, deletePriceListFormula, listPriceListFormulas, roundPrice, workOutPriceListPrices } from "./formulas.js";

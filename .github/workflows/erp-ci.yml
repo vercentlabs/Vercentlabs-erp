@@ -73,6 +73,9 @@ jobs:
       - name: Route contract verification
         run: pnpm verify:routes
 
+      - name: Sales copy lint (everyday words, short help text)
+        run: pnpm copy-lint:web
+
       - name: Mobile typecheck + lint
         run: pnpm verify:mobile
 

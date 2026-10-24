@@ -47,7 +47,9 @@ export async function draftQuantities(client, organizationId, orderId, exceptInv
 }
 
 // The invoicing position of one order line on a basis.
-export function invoicingOfLine(line, basis) {
+export function invoicingOfLine(line, documentBasis) {
+  // A product billed as ordered or as delivered whatever the company's setting (Sales report Phase 3).
+  const basis = line.invoiceBasis ?? documentBasis;
   const open = Math.max(0, line.ordered - line.cancelled);
   // Delivery-based: what the customer kept (delivered less returned) is what can be billed.
   const kept = Math.max(0, line.delivered - (line.returned ?? 0));

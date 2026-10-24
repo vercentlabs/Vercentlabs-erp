@@ -7,6 +7,13 @@ import Link from "next/link";
 export function RouteTabs({ label, base, tabs, current, className = "-mb-1" }: {
   label: string; base: string; tabs: ReadonlyArray<{ id: string; label: string }>; current: string; className?: string;
 }) {
+  return <LinkTabs label={label} current={current} className={className} tabs={tabs.map((tab) => ({ ...tab, href: `${base}?tab=${tab.id}` }))} />;
+}
+
+// The same tab bar when each tab is its own page (one sidebar item over several addresses, e.g. Credit & Debit Notes).
+export function LinkTabs({ label, tabs, current, className = "-mb-1" }: {
+  label: string; tabs: ReadonlyArray<{ id: string; label: string; href: string }>; current: string; className?: string;
+}) {
   return (
     <nav aria-label={label} className={className}>
       <ul className="flex max-w-full gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--color-border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -14,7 +21,7 @@ export function RouteTabs({ label, base, tabs, current, className = "-mb-1" }: {
           const selected = tab.id === current;
           return (
             <li key={tab.id} className="shrink-0">
-              <Link href={`${base}?tab=${tab.id}`} aria-current={selected ? "page" : undefined}
+              <Link href={tab.href} aria-current={selected ? "page" : undefined}
                 className={`flex items-center border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors duration-[var(--motion-fast)] outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset ${
                   selected ? "border-brand text-text" : "border-transparent text-text-secondary hover:border-border-strong hover:text-text"}`}>
                 {tab.label}

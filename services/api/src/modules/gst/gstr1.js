@@ -8,10 +8,12 @@ import {
   GST_PERMISSIONS as P, GstError, HEADS, addInto, asRupees, can, monthOf, need, paise, registrationOf, rupees, text, uuid, ymd, zero,
 } from "./gst-common.js";
 import { checkDocument, collectOutward, sectionOf } from "./gst-outward.js";
+import { collectAdvances } from "./gst-advances.js";
 
 export const GSTR1_SECTIONS = Object.freeze({
   b2b: "B2B invoices (4A, 4B, 6B, 6C)", b2cl: "B2C large invoices (5)", b2cs: "B2C small (7)", cdnr: "Credit / debit notes — registered (9B)",
   cdnur: "Credit / debit notes — unregistered (9B)", exp: "Exports (6A)", nil: "Nil-rated, exempt and non-GST (8)", hsn: "HSN / SAC summary (12)", docs: "Documents issued (13)",
+  at: "Advances received, not yet invoiced (11A)", atadj: "Advances adjusted or refunded (11B)",
 });
 const LIABLE = ["b2b", "b2cl", "b2cs", "cdnr", "cdnur", "exp"];
 const sha = (v) => createHash("sha256").update(JSON.stringify(v)).digest("hex").slice(0, 40);
@@ -158,7 +160,7 @@ export async function prepareGstr1(client, c, input = {}) {
         VALUES ($1,$2,'GSTR1',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24::jsonb,$25)`,
         [c.organizationId, row.id, g.section, d.sourceType, d.sourceId, d.kind, d.number, d.date, d.recipientGstin, d.recipientName, d.pos, d.nature, g.classification, g.rate,
           rupees(g.taxable), rupees(g.igst), rupees(g.cgst), rupees(g.sgst), rupees(g.utgst), rupees(g.cess), rupees(sign * d.value), d.original?.number ?? null, d.original?.date ?? null,
-          JSON.stringify({ supplyType: d.supplyType, sez: d.supplyType === "sez" }), d.hash]);
+          JSON.stringify({ supplyType: d.supplyType, sez: d.supplyType === "sez", ...(d.exportDetails ? { export: d.exportDetails } : {}) }), d.hash]);
       const bucket = sections[g.section];
       if (!counted.has(g.section)) { bucket.documents += 1; counted.add(g.section); }
       addInto(bucket, g);
@@ -175,6 +177,22 @@ export async function prepareGstr1(client, c, input = {}) {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, [c.organizationId, row.id, h.recipient, h.hsn, text(h.description, 200) || null, h.uqc, h.quantity, h.rate,
       rupees(h.taxable), rupees(h.igst), rupees(h.cgst), rupees(h.sgst), rupees(h.utgst), rupees(h.cess)]);
   }
+  // Tables 11A and 11B: GST on advances, from Sales' receipt and refund vouchers (Sales report Phase 2). Their tax is paid through the
+  // return (11A adds it, 11B takes it off) and is not in Finance's ledger, so it stays out of the reconciliation below.
+  const advanceTax = { at: zero(), atadj: zero() };
+  for (const a of await collectAdvances(client, c, registration, start, end)) {
+    await client.query(`INSERT INTO tenant.gst_return_documents (organization_id, return_id, return_type, section, source_type, source_id, document_type, document_number, document_date,
+        counterparty_gstin, counterparty_name, place_of_supply, supply_nature, classification, rate, taxable, igst, cgst, sgst, utgst, cess, document_value, original_number, original_date,
+        detail, content_hash)
+      VALUES ($1,$2,'GSTR1',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'taxable',$13,$14,$15,$16,$17,0,0,$18,$19,$20,'{}'::jsonb,$21)`,
+      [c.organizationId, row.id, a.section, a.sourceType, a.sourceId, a.kind, a.number, a.date, a.gstin, a.name, a.pos, a.nature, a.rate,
+        rupees(a.taxable), rupees(a.igst), rupees(a.cgst), rupees(a.sgst), rupees(a.value), a.original?.number ?? null, a.original?.date ?? null,
+        sha([a.sourceId, a.value, a.taxable, a.igst, a.cgst, a.sgst])]);
+    sections[a.section].documents += 1;
+    addInto(sections[a.section], a);
+    addInto(advanceTax[a.section], a);
+  }
+
   // Table 13: number series by kind, with cancelled documents
   const series = {};
   const nature = (kind, sourceType) => (kind === "credit_note" ? "Credit notes" : kind === "debit_note" ? "Debit notes" : sourceType === "pos_invoice" ? "Invoices (POS)" : "Invoices for outward supply");
@@ -199,7 +217,9 @@ export async function prepareGstr1(client, c, input = {}) {
   const summary = {
     sections: Object.fromEntries(Object.entries(sections).map(([k, v]) => [k, { ...asRupees(v), documents: v.documents }])), liability: asRupees(totals),
     nil: Object.fromEntries(Object.entries(nil).map(([k, v]) => [k, asRupees(v)])), docs, documents: documents.length, exceptions: open,
-    unsupported: ["Amendments of earlier returns (9A, 9C, 10, 11)", "Advances received and adjusted (11A, 11B)", "Supplies through e-commerce operators (14, 15)", "Export shipping bill and port details (6A)"],
+    // The tax on advances (11A less 11B), paid with this return on top of the documents' tax.
+    advanceTax: asRupees(addInto(addInto(zero(), advanceTax.at), advanceTax.atadj, -1)),
+    unsupported: ["Amendments of earlier returns (9A, 9C, 10, 11)", "Supplies through e-commerce operators (14, 15)"],
   };
   const label = open.blocking ? "Draft — exceptions to resolve" : reconciliation.ledgerAgrees ? "Prepared — ready for approval" : "Draft — reconciliation required";
   const updated = (await client.query(`UPDATE tenant.gst_returns SET status = 'PREPARED', summary = $2::jsonb, reconciliation = $3::jsonb, label = $4, content_hash = $5, prepared_by = $6,
@@ -333,7 +353,8 @@ export async function exportGstr1Section(client, c, id, section) {
       lines = docs.map((d) => [d.detail?.supplyType === "export" ? (Number(d.igst) > 0 ? "EXPWP" : "EXPWOP") : "B2CL", d.document_number, ymd(d.document_date), d.document_type === "credit_note" ? "C" : "D",
         pos(d.place_of_supply), abs(d.document_value), Number(d.rate), abs(d.taxable), abs(d.igst), abs(d.cess)]); break;
     case "exp": header = ["Export type", "Invoice number", "Invoice date", "Invoice value", "Port code", "Shipping bill number", "Shipping bill date", "Rate", "Taxable value", "IGST", "Cess"];
-      lines = docs.map((d) => [Number(d.igst) > 0 ? "WPAY" : "WOPAY", d.document_number, ymd(d.document_date), n(d.document_value), "", "", "", Number(d.rate), n(d.taxable), n(d.igst), n(d.cess)]); break;
+      lines = docs.map((d) => [Number(d.igst) > 0 ? "WPAY" : "WOPAY", d.document_number, ymd(d.document_date), n(d.document_value), d.detail?.export?.portCode ?? "",
+        d.detail?.export?.shippingBillNumber ?? "", d.detail?.export?.shippingBillDate ?? "", Number(d.rate), n(d.taxable), n(d.igst), n(d.cess)]); break;
     case "nil": {
       const s = r.summary?.nil ?? {};
       header = ["Description", "Nil-rated supplies", "Exempted (other than nil-rated / non-GST)", "Non-GST supplies"];
@@ -344,6 +365,18 @@ export async function exportGstr1Section(client, c, id, section) {
       const rows = (await client.query(`SELECT * FROM tenant.gst_return_hsn WHERE return_id = $1 ORDER BY recipient, hsn_sac, rate`, [r.id])).rows;
       header = ["B2B / B2C", "HSN", "Description", "UQC", "Total quantity", "Rate", "Taxable value", "IGST", "CGST", "SGST/UTGST", "Cess"];
       lines = rows.map((h) => [h.recipient.toUpperCase(), h.hsn_sac, h.description ?? "", h.uqc, Number(h.quantity), Number(h.rate), n(h.taxable), n(h.igst), n(h.cgst), n(Number(h.sgst) + Number(h.utgst)), n(h.cess)]); break;
+    }
+    case "at":
+    case "atadj": {
+      const g = new Map();
+      for (const d of docs) {
+        const k = `${d.place_of_supply}|${d.rate}|${d.supply_nature}`;
+        const t = g.get(k) ?? { pos: d.place_of_supply, rate: Number(d.rate), nature: d.supply_nature, taxable: 0, igst: 0, cgst: 0, sgst: 0 };
+        for (const h of ["taxable", "igst", "cgst", "sgst"]) t[h] += Number(d[h]);
+        g.set(k, t);
+      }
+      header = ["Place of supply", "Supply", "Rate", section === "at" ? "Gross advance received (taxable value)" : "Gross advance adjusted (taxable value)", "IGST", "CGST", "SGST/UTGST", "Cess"];
+      lines = [...g.values()].map((t) => [pos(t.pos), t.nature === "inter" ? "Inter-state" : "Intra-state", t.rate, n(t.taxable), n(t.igst), n(t.cgst), n(t.sgst), n(0)]); break;
     }
     default: header = ["Nature of document", "Serial from", "Serial to", "Total number", "Cancelled"];
       lines = (r.summary?.docs ?? []).map((d) => [d.nature, d.from ?? "", d.to ?? "", d.total, d.cancelled]);

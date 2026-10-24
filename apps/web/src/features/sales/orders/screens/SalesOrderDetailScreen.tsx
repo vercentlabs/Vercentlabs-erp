@@ -48,6 +48,8 @@ import { CancelOrderDialog, CancelRemainingDialog, ReopenOrderDialog, failureTex
 import { NextStep, orderNextStep } from "@/features/sales/shared/NextStep";
 import { WhatsAppSendButton } from "@/features/sales/shared/WhatsAppSend";
 import { RepeatOrderButton } from "../components/RepeatOrderButton";
+import { RecurringPanel } from "../components/RecurringPanel";
+import { SupplyPanel } from "../components/SupplyPanel";
 import { MoreActions } from "@/shared/ui/record";
 import { MakeChallanButton } from "../components/MakeChallanButton";
 import { ConfirmationStatusBadge, FulfillmentStatusBadge, InvoicingStatusBadge, OrderStatusBadge, OverdueDeliveryBadge, ReservationStatusBadge } from "../components/OrderStatusBadges";
@@ -66,11 +68,11 @@ type DialogKind = "confirm" | "reopen" | "cancel" | "cancelRemaining" | "deliver
 
 const EVENT_LABELS: Record<string, string> = {
   "sales_order.created": "Created", "sales_order.updated": "Draft saved", "sales_order.confirmed": "Confirmed", "sales_order.reconfirmed": "Reconfirmed", "sales_order.reopened": "Reopened to draft",
-  "sales_order.confirmation_refused": "Confirmation refused", "sales_order.confirmation_created": "Order Confirmation recorded", "sales_order.confirmation_superseded": "Order Confirmation superseded",
+  "sales_order.confirmation_refused": "Confirmation refused", "sales_order.confirmation_created": "Order Confirmation recorded", "sales_order.confirmation_superseded": "Order Confirmation replaced",
   "sales_order.confirmation_marked_sent": "Order Confirmation marked as sent", "sales_order.confirmation_acknowledged": "Customer acknowledged the confirmation",
-  "sales_order.cancelled": "Cancelled", "sales_order.quantity_cancelled": "Remaining quantity cancelled", "sales_order.stock_reserved": "Stock reserved",
-  "sales_order.stock_released": "Reservation released", "sales_order.delivery_created": "Delivery created", "sales_order.delivery_dispatched": "Delivery dispatched", "sales_order.delivery_cancelled": "Delivery cancelled",
-  "sales_order.reservation_consumed": "Reserved stock issued",
+  "sales_order.cancelled": "Cancelled", "sales_order.quantity_cancelled": "Remaining quantity cancelled", "sales_order.stock_reserved": "Stock kept aside",
+  "sales_order.stock_released": "Stock kept aside released", "sales_order.delivery_created": "Delivery created", "sales_order.delivery_dispatched": "Delivery dispatched", "sales_order.delivery_cancelled": "Delivery cancelled",
+  "sales_order.reservation_consumed": "Stock kept aside issued",
   "sales_order.delivery_received": "Delivered to the customer", "sales_order.invoice_created": "Invoice created", "sales_order.confirmation_sent": "Order Confirmation sent",
   "sales_order.closed": "Closed", "sales_order.reopened_for_work": "Open again", "sales_order.note_added": "Note", "sales_order.file_added": "File added",
   "sales_order.file_removed": "File removed",
@@ -92,7 +94,7 @@ function eventDetail(event: SalesDocumentEvent) {
   return [
     event.event_type === "sales_order.created" && (text("quotationNumber") ? `From quotation ${text("quotationNumber")}` : "Direct order"),
     revision, problems, text("channel"), text("varianceReason") && `Differs from the quotation: ${text("varianceReason")}`,
-    text("deliveryNumber"), text("invoiceNumber"), lines, changes, m.automatic ? "Reserved automatically on confirmation" : null,
+    text("deliveryNumber"), text("invoiceNumber"), lines, changes, m.automatic ? "Kept aside automatically on confirmation" : null,
     Number(m.short) > 0 ? `${m.short} line(s) short of stock` : null, text("carrier") && `Carrier ${text("carrier")}${text("trackingNumber") ? ` · ${text("trackingNumber")}` : ""}`,
     text("receivedBy") && `Received by ${text("receivedBy")}`, text("recipient") && `To ${text("recipient")}`, text("fileName"), text("note"), text("reason"),
   ].filter(Boolean).join(" · ");
@@ -127,16 +129,16 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const confirmed = (result: ConfirmResult) => {
     const short = shortOf(result.reservation);
     const revision = result.confirmationVersion && result.confirmationVersion > 1 ? ` (revision ${result.confirmationVersion})` : "";
-    done(short.length ? `The order is confirmed${revision}. Stock could not be reserved in full:\n${short.join("\n")}` : `The order is confirmed${revision}. Send the Order Confirmation to the customer when ready.`);
+    done(short.length ? `The order is confirmed${revision}. Stock could not be kept aside in full:\n${short.join("\n")}` : `The order is confirmed${revision}. Send the Order Confirmation to the customer when ready.`);
   };
   const reserve = useMutation({
     // Stock is checked again by the server; what is short stays unreserved demand.
     mutationFn: () => reserveSalesOrderStock(orderId, { idempotencyKey: crypto.randomUUID() }),
     onSuccess: ({ result }) => {
       const short = shortOf(result.lines);
-      done(short.length ? `Reserved what is available now.\n${short.join("\n")}` : result.reservedLines ? "Stock is reserved." : "There was nothing more to reserve.");
+      done(short.length ? `Kept aside what is available now.\n${short.join("\n")}` : result.reservedLines ? "Stock is kept aside." : "There was nothing more to keep aside.");
     },
-    onError: fail("The stock could not be reserved."),
+    onError: fail("The stock could not be kept aside."),
   });
 
   // From Sales → + Create: open the delivery or invoice dialog when this order allows it.
@@ -241,10 +243,10 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
                 { id: "return", label: "Start a return", show: stockOn && Boolean(shippedDelivery), run: () => shippedDelivery && router.push(`/sales/deliveries/${shippedDelivery.id}?create=return`) },
                 { id: "availability", label: "Check availability", show: stockOn && order.status !== "cancelled" && order.status !== "closed" && detail.capabilities.checkAvailability && detail.lines.some((line) => line.is_stock_tracked),
                   run: () => { setCheckAvailability(true); setTab("fulfillment"); } },
-                { id: "reserve", label: "Reserve stock", show: actions.reserve, run: () => reserve.mutate() },
+                { id: "reserve", label: "Keep stock aside", show: actions.reserve, run: () => reserve.mutate() },
                 { id: "confirmation", label: "View confirmation", show: actions.viewConfirmation, run: () => window.open(orderPdfUrl(orderId, true), "_blank", "noopener") },
                 { id: "reopen", label: "Reopen to draft", show: actions.reopen, run: () => setDialog("reopen") },
-                { id: "cancelRemaining", label: "Cancel remaining", show: actions.cancelRemaining, run: () => setDialog("cancelRemaining") },
+                { id: "cancelRemaining", label: "Cancel what is not delivered", show: actions.cancelRemaining, run: () => setDialog("cancelRemaining") },
                 { id: "cancel", label: "Cancel order", show: actions.cancel, run: () => setDialog("cancel") },
               ]} />
             </div>
@@ -295,7 +297,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
       </RecordDetailsPage>
 
       {dialog === "confirm" && <ConfirmOrderDialog orderId={orderId} number={order.sales_order_number} versionNumber={order.version_number} onClose={() => setDialog(null)} onDone={confirmed} />}
-      {dialog === "reopen" && <ReopenOrderDialog orderId={orderId} number={order.sales_order_number} onClose={() => setDialog(null)} onDone={() => done("The order is a draft again. Its Order Confirmation was superseded and the stock reserved for it was released.")} />}
+      {dialog === "reopen" && <ReopenOrderDialog orderId={orderId} number={order.sales_order_number} onClose={() => setDialog(null)} onDone={() => done("The order is a draft again. Its Order Confirmation was replaced and the stock kept aside for it was released.")} />}
       {dialog === "markSent" && <MarkConfirmationSentDialog orderId={orderId} number={order.sales_order_number} contactName={personName(order.contact_snapshot)} onClose={() => setDialog(null)} onDone={() => done("The confirmation is marked as sent.")} />}
       {dialog === "acknowledge" && <AcknowledgeConfirmationDialog orderId={orderId} number={order.sales_order_number} onClose={() => setDialog(null)} onDone={() => done("The customer's acknowledgement is recorded.")} />}
       {dialog === "cancel" && (
@@ -319,6 +321,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
 
 function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: OrderTracking }) {
   const order = detail.order;
+  const workspace = useWorkspaceContext();
+  const canRepeat = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.create");
   const stockOn = useApp("stock");
   return (
     <div className="flex flex-col gap-4 pt-4">
@@ -356,8 +360,10 @@ function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: O
             ? `${order.place_of_supply_name ?? order.place_of_supply} (${order.place_of_supply})${order.place_of_supply_source === "override" ? ` · changed: ${order.place_of_supply_reason ?? ""}` : ""}`
             : "—" },
           { label: "GST", value: order.tax_treatment !== "taxable" ? "No tax charged" : ({ intra_state: "Within the state: CGST + SGST", inter_state: "Between states: IGST" } as Record<string, string>)[order.supply_nature ?? ""] ?? "—" },
-          { label: "Additional discount", value: !Number(order.document_discount_amount) ? "None" : order.document_discount_type === "percent"
-            ? `${Number(order.document_discount_value)}% (${money(order.currency_code, order.document_discount_amount)})` : money(order.currency_code, order.document_discount_amount) },
+          { label: "Additional discount", value: !(Number(order.document_discount_amount) - Number(order.coupon_amount ?? 0)) ? "None" : order.document_discount_type === "percent"
+            ? `${Number(order.document_discount_value)}% (${money(order.currency_code, Number(order.document_discount_amount) - Number(order.coupon_amount ?? 0))})`
+            : money(order.currency_code, Number(order.document_discount_amount) - Number(order.coupon_amount ?? 0)) },
+          ...(Number(order.coupon_amount ?? 0) ? [{ label: "Coupon", value: `${order.coupon_code ?? ""} (${money(order.currency_code, order.coupon_amount ?? 0)})` }] : []),
           { label: "Discount reason", value: discountReasonLabel(order.discount_reason_code, order.discount_reason_text) ?? "—" },
         ]} />
       </Panel>
@@ -370,6 +376,8 @@ function Overview({ detail, tracking }: { detail: SalesOrderDetail; tracking?: O
           { label: "Cancelled", value: order.cancelled_at ? `${dateTime(order.cancelled_at)}${order.cancelled_by_name ? ` by ${order.cancelled_by_name}` : ""}` : "—" },
         ]} />
       </Panel>
+      {order.status !== "draft" && <SupplyPanel orderId={order.id} />}
+      {order.status !== "cancelled" && <RecurringPanel orderId={order.id} canEdit={canRepeat} />}
     </div>
   );
 }
@@ -398,7 +406,7 @@ function Items({ detail }: { detail: SalesOrderDetail }) {
         <span className="flex flex-col tabular-nums">
           {money(currency, row.original.unit_price)}
           {row.original.is_quoted ? <span className="text-xs text-text-muted">As quoted</span>
-            : row.original.manual_price_override ? <span className="text-xs text-warning" title={row.original.manual_price_reason ?? undefined}>Overridden{row.original.manual_price_reason ? `: ${row.original.manual_price_reason}` : ""}</span>
+            : row.original.manual_price_override ? <span className="text-xs text-warning" title={row.original.manual_price_reason ?? undefined}>Changed{row.original.manual_price_reason ? `: ${row.original.manual_price_reason}` : ""}</span>
               : null}
         </span>
       ),
@@ -432,7 +440,7 @@ function Items({ detail }: { detail: SalesOrderDetail }) {
             <Facts columns={2} items={detail.taxLines.map((tax) => ({ label: `${tax.label ?? tax.tax_type.toUpperCase()} ${Number(tax.rate)}% on ${money(currency, tax.taxable_amount)}`, value: money(currency, tax.tax_amount) }))} />
           ) : <p className="text-sm text-text-muted">No tax on this order.</p>}
         </Panel>
-        <Panel title="Totals" description="Calculated by the server when the order was saved. Tax is posted by the invoice, not by the order.">
+        <Panel title="Totals" description="Calculated by the server when the order was saved. Tax is charged by the invoice, not by the order.">
           <StoredTotals currencyCode={currency} document={order} taxLines={detail.taxLines} />
         </Panel>
       </div>
@@ -506,7 +514,7 @@ function DeliveryProgress({ detail, canDeliver, onDeliver }: { detail: SalesOrde
             <tr className="border-b border-border">
               <th className="py-2 pr-3 font-medium">Product</th>
               <th className="py-2 pr-3 text-right font-medium">Ordered</th>
-              <th className="py-2 pr-3 text-right font-medium">Reserved</th>
+              <th className="py-2 pr-3 text-right font-medium">Kept aside</th>
               <th className="py-2 pr-3 text-right font-medium">Dispatched</th>
               <th className="py-2 pr-3 text-right font-medium">Cancelled</th>
               {returns && <th className="py-2 pr-3 text-right font-medium">Returned</th>}
@@ -544,7 +552,7 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
     { id: "cancelled", header: "Cancelled", cell: ({ row }) => <span className="tabular-nums">{row.original.cancelled_quantity ? quantity(row.original.cancelled_quantity) : ""}</span> },
     { id: "invoiced", header: "Invoiced", cell: ({ row }) => <span className="tabular-nums">{quantity(row.original.invoiced_quantity)}</span> },
     { id: "drafts", header: "On drafts", cell: ({ row }) => <span className="tabular-nums text-text-muted">{row.original.on_draft_invoices ? quantity(row.original.on_draft_invoices) : ""}</span> },
-    { id: "now", header: "Invoiceable now", cell: ({ row }) => <span className="font-medium tabular-nums">{quantity(row.original.invoiceable_now)}</span> },
+    { id: "now", header: "Ready to bill", cell: ({ row }) => <span className="font-medium tabular-nums">{quantity(row.original.invoiceable_now)}</span> },
     ...(detail.invoicing.basis === "delivered"
       ? [{ id: "pending", header: "Pending delivery", cell: ({ row }: { row: { original: SalesOrderLine } }) => <span className="tabular-nums">{row.original.is_service ? "—" : quantity(row.original.pending_delivery_to_invoice)}</span> } as ColumnDef<SalesOrderLine, unknown>]
       : []),
@@ -554,7 +562,7 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
   return (
     <div className="flex flex-col gap-4 pt-4">
       <Panel title="Invoicing progress"
-        description={`Invoiced on ${detail.invoicing.basis === "delivered" ? "delivered" : "ordered"} quantities (Sales settings). Only posted invoices count as invoiced; payment is recorded against each invoice by Finance.`}
+        description={`Invoiced on ${detail.invoicing.basis === "delivered" ? "delivered" : "ordered"} quantities (Sales settings). Only final invoices count as invoiced; payment is recorded against each invoice by Finance.`}
         actions={(
           <span className="flex flex-wrap items-center gap-2">
             {order.status !== "draft" && <InvoicingStatusBadge status={order.invoicing} label={order.invoicingLabel} />}
@@ -567,11 +575,11 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
           { label: "Credited", value: money(currency, detail.invoicing.creditedValue) },
           { label: "Net billed", value: money(currency, detail.invoicing.netBilledValue) },
           { label: "Remaining to invoice", value: money(currency, detail.invoicing.remainingValue) },
-          { label: "Invoiceable now", value: money(currency, detail.invoicing.invoiceableNowValue) },
+          { label: "Ready to bill", value: money(currency, detail.invoicing.invoiceableNowValue) },
         ]} />
-        {onDrafts && <Notice tone="info">Draft invoices bill part of what is left. They are not invoiced until posted, and only what is left at posting can be posted.</Notice>}
+        {onDrafts && <Notice tone="info">Draft invoices bill part of what is left. They are not invoiced until finalised, and only what is left at finalising can be finalised.</Notice>}
       </Panel>
-      <Panel title="Invoices" description="An order can be invoiced in several parts. Each invoice bills its quantity with the discount and tax in proportion; only posted invoices count as invoiced.">
+      <Panel title="Invoices" description="An order can be billed in several parts. Only final invoices count as billed.">
         {!detail.invoices.length ? <p className="text-sm text-text-muted">No invoices yet.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.invoices.map((invoice) => (
@@ -589,7 +597,7 @@ function Invoices({ detail, onInvoice }: { detail: SalesOrderDetail; onInvoice: 
           </ul>
         )}
       </Panel>
-      <Panel title="Credit notes" description="Credits against the order's posted invoices: returned goods, price adjustments and corrections. Invoices keep their totals; posted credit notes reduce what was billed.">
+      <Panel title="Credit notes" description="Credits for returned goods, price changes and corrections on this order's invoices.">
         {!detail.creditNotes.length ? <p className="text-sm text-text-muted">No credit notes.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.creditNotes.map((credit) => (
@@ -618,7 +626,7 @@ function Confirmation({ detail, onSend, onMarkSent, onAcknowledge }: {
   return (
     <div className="flex flex-col gap-4 pt-4">
       <Panel title="Order Confirmation"
-        description="The Order Confirmation is this order's own number, as confirmed. Each confirmation is kept unchanged; reopening the order supersedes it and confirming again makes the next revision. Sending it never changes the order's status, and delivery and invoicing never wait for an acknowledgement."
+        description="Send this to the customer as proof of their order."
         actions={(
           <div className="flex flex-wrap gap-2">
             {actions.sendConfirmation && <Button variant="primary" size="compact" onPress={onSend}>Send Confirmation</Button>}
@@ -626,7 +634,7 @@ function Confirmation({ detail, onSend, onMarkSent, onAcknowledge }: {
             {actions.acknowledgeConfirmation && <Button variant="secondary" size="compact" onPress={onAcknowledge}>Record Acknowledgement</Button>}
           </div>
         )}>
-        {order.status === "draft" && <Notice tone="info">{detail.confirmations.length ? "The order was reopened: its earlier confirmation is superseded. Confirm the order again to issue the next revision." : "The order is a draft: it has no Order Confirmation until it is confirmed."}</Notice>}
+        {order.status === "draft" && <Notice tone="info">{detail.confirmations.length ? "The order was reopened: its earlier confirmation is replaced. Confirm the order again to issue the next revision." : "The order is a draft: it has no Order Confirmation until it is confirmed."}</Notice>}
         {!detail.confirmations.length ? <p className="text-sm text-text-muted">Not confirmed yet.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.confirmations.map((confirmation) => (
@@ -653,7 +661,7 @@ function Confirmation({ detail, onSend, onMarkSent, onAcknowledge }: {
                   <span className="text-success">Acknowledged {dateTime(confirmation.acknowledged_at)}{confirmation.acknowledgement_reference ? ` · ${confirmation.acknowledgement_reference}` : ""}{confirmation.acknowledged_by_name ? ` · recorded by ${confirmation.acknowledged_by_name}` : ""}</span>
                 )}
                 {confirmation.superseded_at && (
-                  <span className="text-text-muted">Superseded {dateTime(confirmation.superseded_at)}{confirmation.superseded_by_name ? ` by ${confirmation.superseded_by_name}` : ""}{confirmation.superseded_reason ? `: ${confirmation.superseded_reason}` : ""}</span>
+                  <span className="text-text-muted">Replaced {dateTime(confirmation.superseded_at)}{confirmation.superseded_by_name ? ` by ${confirmation.superseded_by_name}` : ""}{confirmation.superseded_reason ? `: ${confirmation.superseded_reason}` : ""}</span>
                 )}
               </li>
             ))}

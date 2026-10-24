@@ -37,8 +37,8 @@ export async function closeSalesOrder(client, context, orderId, input = {}) {
             (SELECT count(*)::int FROM tenant.stock_reservations WHERE organization_id = $1 AND sales_order_id = $2 AND status = 'active' AND active_quantity > 0) AS reservations`,
     [context.organizationId, order.id])).rows[0];
   if (open.deliveries) throw new OrderError(409, `Delivery ${open.deliveries} is not dispatched yet. Dispatch or cancel it first.`, "SALES_ORDER_CLOSE_OPEN_DOCUMENTS");
-  if (open.invoices) throw new OrderError(409, `Draft invoice ${open.invoices} is not posted yet. Post or cancel it first.`, "SALES_ORDER_CLOSE_OPEN_DOCUMENTS");
-  if (open.reservations) throw new OrderError(409, "Stock is still reserved for this order. Release it first.", "SALES_ORDER_CLOSE_RESERVED");
+  if (open.invoices) throw new OrderError(409, `Draft invoice ${open.invoices} is not final yet. Finalise or cancel it first.`, "SALES_ORDER_CLOSE_OPEN_DOCUMENTS");
+  if (open.reservations) throw new OrderError(409, "Stock is still kept aside for this order. Release it first.", "SALES_ORDER_CLOSE_RESERVED");
   // What will not be invoiced: recorded, so the closure can be explained later.
   const uninvoiced = lines.filter((line) => line.remainingToInvoice > EPSILON).map((line) => ({ item: line.itemName, quantity: line.remainingToInvoice, unit: line.unit }));
   await client.query(

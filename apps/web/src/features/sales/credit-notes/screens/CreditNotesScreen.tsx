@@ -23,6 +23,8 @@ import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api"
 import { listCreditNotes, type CreditNoteRow } from "../api/credit-notes-api";
 import { CreditNoteStatusBadges } from "../components/CreditNoteStatusBadges";
 import { readListState, useListUrlState } from "@/features/sales/shared/listUrlState";
+import { ExportLink, exportHref, useListColumns } from "@/features/sales/shared/list-kit";
+import { MyViews } from "@/shared/ui/MyViews";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -87,6 +89,11 @@ export function CreditNotesScreen() {
     { id: "status", header: "Status", enableSorting: false, cell: ({ row }) => <CreditNoteStatusBadges row={row.original} /> },
     { id: "sent", header: "Sent", enableSorting: false, cell: ({ row }) => (row.original.sent_at ? "Sent" : row.original.status === "posted" ? "Not sent" : "") },
   ], []);
+  // CRM parity: choose the columns, tick rows to export them.
+  const cols = useListColumns("sales.credit-notes.columns", columns);
+  const mayExport = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.credit_note.print");
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const chosen = Object.keys(selected).filter((id) => selected[id]);
 
   if (listQuery.isError && listQuery.error instanceof SalesApiError && listQuery.error.status === 403)
     return <PermissionState title="You don't have access to credit notes" description="Ask an administrator for the View credit notes permission." />;
@@ -111,7 +118,9 @@ export function CreditNotesScreen() {
 
   return (
     <EnterpriseListPage
-      header={{ title: "Credit Notes", description: "Credits against posted invoices: returned goods, price adjustments and corrections. Posted credit notes reduce what the customer owes." }}
+      bulkActionBar={chosen.length && mayExport ? { selectedCount: chosen.length, onClearSelection: () => setSelected({}),
+        actions: <ExportLink compact label="Export selected" href={exportHref("/api/sales/list-export/credit-notes", listFilters, chosen)} /> } : undefined}
+      header={{ title: "Credit Notes", description: "Credits against final invoices: returned goods, price adjustments and corrections. Final credit notes reduce what the customer owes.", secondaryActions: mayExport ? <ExportLink href={exportHref("/api/sales/list-export/credit-notes", listFilters)} /> : undefined }}
       savedViews={{ views: views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
       actionBar={{
         start: (
@@ -125,6 +134,10 @@ export function CreditNotesScreen() {
             {date("dateTo")}
           </>
         ),
+        end: (
+          <><MyViews listKey="sales.credit-notes" state={{ view, search: submitted, filters, sorting }}
+            onApply={(saved) => { setViewState(saved.view); setSearch(saved.search); setSubmittedState(saved.search); setFiltersState({ ...NO_FILTERS, ...saved.filters }); setSortingState(saved.sorting); setPageIndex(0); }} />{cols.menu}</>
+        ),
       }}
       filterBar={activeFilters.length || scoped ? {
         filters: [...activeFilters, ...(scoped ? [{ id: "scope", label: "Showing one document's credit notes" }] : [])],
@@ -133,6 +146,11 @@ export function CreditNotesScreen() {
       } : undefined}
     >
       <EnterpriseDataGrid<CreditNoteRow>
+        columnVisibility={cols.visibility}
+        onColumnVisibilityChange={cols.setVisibility}
+        enableRowSelection
+        rowSelection={selected}
+        onRowSelectionChange={setSelected}
         aria-label="Credit notes"
         columns={columns}
         data={rows}
@@ -140,7 +158,7 @@ export function CreditNotesScreen() {
         state={listQuery.isLoading ? "loading" : listQuery.isError ? "error" : rows.length === 0 ? (hasCriteria ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading credit notes" rows={8} onRetry={() => void listQuery.refetch()} />}
         errorContent={<ErrorState title="Could not load credit notes" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void listQuery.refetch() }} />}
-        emptyContent={<EmptyState title="No credit notes yet" description="Create a credit note from a posted invoice, or from a received return." action={{ label: "Invoices", onPress: () => router.push("/sales/invoices?view=posted") }} />}
+        emptyContent={<EmptyState title="No credit notes yet" description="Create a credit note from a final invoice, or from a received return." action={{ label: "Invoices", onPress: () => router.push("/sales/invoices?view=posted") }} />}
         noResultsContent={<NoResultsState title="Nothing matches" description="Try a different view, search or filter." />}
         manualSorting
         sorting={sorting}

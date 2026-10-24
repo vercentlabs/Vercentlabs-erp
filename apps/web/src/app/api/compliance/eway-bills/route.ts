@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ewayTransportDefaults, generateEwayBill, getEwayBill, gspConfigured } from "@vercentlabs/api";
+import { ewayTransportDefaults, generateEwayBill, getEwayBill, gspAvailable } from "@vercentlabs/api";
 
 import { ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const known = SOURCES.includes(sourceType as (typeof SOURCES)[number]);
     const sourceId = url.searchParams.get("sourceId") ?? "";
     return ok({ ewayBill: known ? await getEwayBill(client, session, sourceType, sourceId) : null,
-      defaults: known ? await ewayTransportDefaults(client, session, sourceType, sourceId) : null, configured: gspConfigured(process.env) });
+      defaults: known ? await ewayTransportDefaults(client, session, sourceType, sourceId) : null, configured: await gspAvailable(client, session.organizationId, process.env) });
   });
 }
 

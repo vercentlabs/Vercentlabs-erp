@@ -19,6 +19,7 @@ export const PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT = "PLATFORM_INBOUND_MAIL
 export const INBOUND_MAIL_TARGETS = Object.freeze([
   Object.freeze({ key: "support.email_to_ticket", moduleKey: "support", label: "Support: new emails open tickets, replies join them" }),
   Object.freeze({ key: "crm.email_to_lead", moduleKey: "crm", label: "CRM: new emails open leads, replies join their lead or deal" }),
+  Object.freeze({ key: "sales.email_replies", moduleKey: "sales", label: "Sales: replies to quotations, orders and invoices join their document" }),
 ]);
 const MAX_TEXT = 100_000;
 const MAX_ATTACHMENTS = 10;

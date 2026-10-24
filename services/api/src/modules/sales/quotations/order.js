@@ -24,7 +24,9 @@ export async function createSalesOrderFromQuotation(client, context, quotationId
   if (quote.lifecycle_status !== STATUS.accepted)
     throw new QuotationError(409, "Only an accepted quotation can become a sales order.", "SALES_QUOTATION_NOT_ACCEPTED");
   const prospect = await customerOfProspect(client, context, quote);
-  const source = await inputFromQuotation(client, context, quote, { carryPrices: true });
+  const { optionalLines: _optional, chosenOptionalLines: chosen, ...source } = await inputFromQuotation(client, context, quote, { carryPrices: true });
+  // The optional products the customer chose (Sales report Phase 3) join the quoted lines, priced from the price list.
+  source.lines = [...source.lines, ...chosen];
   const document = {
     ...source,
     orderDate: text(input.orderDate, 10) ?? undefined,

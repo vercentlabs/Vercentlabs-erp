@@ -33,7 +33,7 @@ export function CreateDebitNoteDialog({ invoiceId, onClose, onDone }: { invoiceI
   });
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={`Debit note on ${data?.invoice.number ?? "the invoice"}`} size="lg"
-      description="For an undercharge, a rate difference or a missed charge. Each amount is taxed at its line's GST; the customer owes it like a bill once posted.">
+      description="For an undercharge, a rate difference or a missed charge. The customer owes it like a bill once final.">
       <div className="flex flex-col gap-4">
         {(save.isError || proposal.isError) && (
           <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">

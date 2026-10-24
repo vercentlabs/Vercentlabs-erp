@@ -12,11 +12,11 @@ const MILESTONES = Object.freeze({
   "sales_order.confirmed": () => "Order confirmed",
   "sales_order.reconfirmed": () => "Order confirmed again",
   "sales_order.reopened": (m) => `Order reopened to draft${m.reason ? `: ${m.reason}` : ""}`,
-  "sales_order.stock_reserved": (m) => `Stock reserved${quantities(m.lines)}`,
-  "sales_order.stock_released": (m) => `Reserved stock released${quantities(m.lines)}${m.reason ? ` (${m.reason})` : ""}`,
+  "sales_order.stock_reserved": (m) => `Stock kept aside${quantities(m.lines)}`,
+  "sales_order.stock_released": (m) => `Stock kept aside released${quantities(m.lines)}${m.reason ? ` (${m.reason})` : ""}`,
   "sales_order.delivery_dispatched": (m) => `${m.deliveryNumber ?? "Delivery"} dispatched${quantities(m.lines)}`,
   "sales_order.delivery_received": (m) => `${m.deliveryNumber ?? "Delivery"} received by the customer`,
-  "sales_order.invoice_posted": (m) => `${m.invoiceNumber ?? "Invoice"} posted`,
+  "sales_order.invoice_posted": (m) => `${m.invoiceNumber ?? "Invoice"} final`,
   "sales_order.fully_invoiced": () => "Order fully invoiced",
   "sales_order.quantity_cancelled": (m) => `Remaining quantity cancelled${quantities(m.lines)}${m.reason ? `. Reason: ${m.reason}` : ""}`,
   "sales_order.cancelled": (m) => `Order cancelled${m.reason ? `. Reason: ${m.reason}` : ""}`,
@@ -45,19 +45,19 @@ export async function buildOrderTimeline(client, context, order, documents, { ca
   const add = (at, kind, type, text, documentId) => { if (at) timeline.push({ id: `${type}:${documentId}:${new Date(at).getTime()}`, at, kind, type, text, actor: null, documentId }); };
   const amount = (value) => `${Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${order.currency_code ?? ""}`.trim();
   for (const invoice of documents.invoices)
-    add(invoice.reversed_at, "invoice", "invoice.reversed", `${invoice.number} reversed${invoice.reversal_reason ? `: ${invoice.reversal_reason}` : ""}`, invoice.id);
+    add(invoice.reversed_at, "invoice", "invoice.reversed", `${invoice.number} cancelled${invoice.reversal_reason ? `: ${invoice.reversal_reason}` : ""}`, invoice.id);
   if (canSeeMoney)
     for (const receipt of documents.receipts)
       add(receipt.allocated_at, "payment", "receipt.applied", `Receipt ${receipt.number} — ${amount(receipt.amount)} applied to ${receipt.invoice_number}`, receipt.receipt_id);
   for (const entry of documents.returns)
     add(entry.received_at, "return", "return.received", `${entry.number} received — ${number(entry.quantity)} returned`, entry.id);
   for (const credit of documents.creditNotes) {
-    add(credit.posted_at, "credit", "credit_note.posted", `${credit.number} posted against ${credit.invoice_number}${canSeeMoney ? ` — ${amount(credit.grand_total)}` : ""}`, credit.id);
-    add(credit.reversed_at, "credit", "credit_note.reversed", `${credit.number} reversed`, credit.id);
+    add(credit.posted_at, "credit", "credit_note.posted", `${credit.number} paid against ${credit.invoice_number}${canSeeMoney ? ` — ${amount(credit.grand_total)}` : ""}`, credit.id);
+    add(credit.reversed_at, "credit", "credit_note.reversed", `${credit.number} cancelled`, credit.id);
   }
   for (const refund of documents.refunds) {
     add(refund.posted_at, "refund", "refund.posted", `${refund.number} — ${amount(refund.amount)} refunded from ${refund.credit_note_number}`, refund.id);
-    add(refund.reversed_at, "refund", "refund.reversed", `${refund.number} reversed`, refund.id);
+    add(refund.reversed_at, "refund", "refund.reversed", `${refund.number} cancelled`, refund.id);
   }
   return timeline.sort((a, b) => new Date(a.at) - new Date(b.at));
 }

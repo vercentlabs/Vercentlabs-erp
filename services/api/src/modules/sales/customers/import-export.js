@@ -246,7 +246,11 @@ export function buildCustomerImportErrorFile(results) {
 export async function exportCustomers(client, context, filters = {}) {
   requireCustomerPermission(context, CUSTOMER_PERMISSIONS.export, "You do not have permission to export customers.");
   const { finance, values, sql } = buildCustomerListWhere(context, filters);
-  const { rows } = await client.query(`${customerSelect({ finance })} ${sql} ORDER BY lower(customer.display_name) LIMIT ${EXPORT_ROW_LIMIT + 1}`, values);
+  // Export selected (CRM parity): only the ticked customers.
+  const wanted = String(filters.ids ?? "").split(",").filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  if (wanted.length) values.push(wanted);
+  const { rows } = await client.query(`${customerSelect({ finance })} ${sql}${wanted.length ? ` AND customer.id = ANY($${values.length}::uuid[])` : ""} ORDER BY lower(customer.display_name)
+    LIMIT ${EXPORT_ROW_LIMIT + 1}`, values);
   if (rows.length > EXPORT_ROW_LIMIT) throw new CustomerError(413, `More than ${EXPORT_ROW_LIMIT} customers match. Narrow the filters and export again.`, "SALES_CUSTOMER_EXPORT_TOO_LARGE");
   const header = ["Customer Number", "Customer Name", "Legal Name", "Customer Type", "Status", "Block Reason", "Email", "Phone", "Website", "Primary Contact", "Contact Phone",
     "City", "State", "Country", "Currency", "Price List", "Payment Terms", "GST Registration Type", "GSTIN", "Place of Supply", "Salesperson", "Created",

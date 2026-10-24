@@ -95,7 +95,7 @@ export function CreateDeliveryDialog({ orderId, number, onClose, onDone }: {
     id: line.salesOrderLineId, name: line.itemName, unit: line.unit, max: line.assignable, initial: line.suggested,
     hint: [
       `Ordered ${amount(line.ordered)}`, `delivered ${amount(line.delivered)}`, line.cancelled ? `cancelled ${amount(line.cancelled)}` : null,
-      `remaining ${amount(line.remaining)}${line.unit ? ` ${line.unit}` : ""}`, line.stockTracked ? `reserved ${amount(line.reserved)}` : "not stock tracked",
+      `remaining ${amount(line.remaining)}${line.unit ? ` ${line.unit}` : ""}`, line.stockTracked ? `kept aside ${amount(line.reserved)}` : "not stock tracked",
       line.openElsewhere ? `${amount(line.openElsewhere)} on another delivery not yet dispatched` : null,
     ].filter(Boolean).join(" · "),
   }));
@@ -109,7 +109,7 @@ export function CreateDeliveryDialog({ orderId, number, onClose, onDone }: {
   });
   return (
     <Shell title={`Create a delivery for ${number}`}
-      description="The delivery is created as a draft: no stock moves until it is dispatched. Enter what goes on this delivery; what is left stays open for the next one."
+      description="Made as a draft; stock moves only when dispatched. Enter what goes on this delivery."
       size="lg" error={save.error ?? proposal.error} fallback="The delivery could not be created." onClose={onClose} label="Create Delivery" isLoading={save.isPending}
       isDisabled={!lines.length} onPress={() => save.mutate()}>
       {warehouses.length > 1 && (
@@ -141,7 +141,7 @@ export function EditDeliveryDialog({ detail, onClose, onDone }: { detail: Delive
     const max = Math.max(0, line.remaining_now - line.open_elsewhere);
     return {
       id: line.sales_order_line_id, name: line.item_name_snapshot, unit: line.uom_snapshot, max, initial: line.quantity,
-      hint: `Ordered ${amount(line.ordered_now)} · delivered ${amount(line.delivered_now)} · reserved ${amount(line.reserved_now)} · up to ${amount(max)}${line.uom_snapshot ? ` ${line.uom_snapshot}` : ""}`,
+      hint: `Ordered ${amount(line.ordered_now)} · delivered ${amount(line.delivered_now)} · kept aside ${amount(line.reserved_now)} · up to ${amount(max)}${line.uom_snapshot ? ` ${line.uom_snapshot}` : ""}`,
     };
   });
   const [values, setValues] = useState<Record<string, number>>({});
@@ -224,15 +224,14 @@ export function DispatchDialog({ detail, onClose, onDone }: { detail: DeliveryDe
     }),
     onSuccess: onDone,
   });
-  const stockLines = detail.lines.filter((line) => line.warehouse_id);
   return (
     <Shell title={`Dispatch ${delivery.request_number}?`}
-      description={`The goods leave ${delivery.warehouse_name ?? "the warehouse"}: ${stockLines.length ? "stock is issued now, from what is reserved for the order first. " : ""}A dispatched delivery cannot be cancelled; goods that come back are recorded as a sales return.`}
+      description={`The goods leave ${delivery.warehouse_name ?? "the warehouse"}. A dispatched delivery cannot be cancelled; record goods that come back as a return.`}
       size="lg" error={save.error} fallback="The delivery could not be dispatched." onClose={onClose} label="Dispatch" isLoading={save.isPending} onPress={() => save.mutate()}>
       <ul className="flex flex-col gap-1 text-sm">
         {detail.lines.map((line) => (
           <li key={line.id}><span className="font-medium">{line.item_name_snapshot}</span> × {amount(line.quantity)}{line.uom_snapshot ? ` ${line.uom_snapshot}` : ""}
-            {line.warehouse_id ? <span className="text-text-muted"> · reserved {amount(line.reserved_now)}</span> : <span className="text-text-muted"> · not stock tracked</span>}</li>
+            {line.warehouse_id ? <span className="text-text-muted"> · kept aside {amount(line.reserved_now)}</span> : <span className="text-text-muted"> · not stock tracked</span>}</li>
         ))}
       </ul>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -271,7 +270,7 @@ export function CancelDeliveryDialog({ detail, onClose, onDone }: { detail: Deli
   const [reason, setReason] = useState("");
   const save = useMutation({ mutationFn: () => cancelDelivery(detail.delivery.id, { reasonCode, reason: optional(reason) }), onSuccess: onDone });
   return (
-    <Shell title={`Cancel ${detail.delivery.request_number}?`} description="Nothing has left the warehouse, so no stock moves. The order's reservations stay as they are and its quantities can go on another delivery."
+    <Shell title={`Cancel ${detail.delivery.request_number}?`} description="Nothing has left the warehouse. The quantities can go on another delivery."
       error={save.error} fallback="The delivery could not be cancelled." onClose={onClose} label="Cancel Delivery" isLoading={save.isPending}
       isDisabled={!reasonCode || (reasonCode === "other" && !reason.trim())} onPress={() => save.mutate()}>
       <Select label="Reason" isRequired placeholder="Choose a reason" options={detail.cancelReasons.map((entry) => ({ value: entry.code, label: entry.label }))}
@@ -337,7 +336,7 @@ export function ChangeWarehouseDialog({ detail, onClose, onDone }: { detail: Del
   const save = useMutation({ mutationFn: () => changeDeliveryWarehouse(detail.delivery.id, { warehouseId, reason: optional(reason) }), onSuccess: onDone });
   return (
     <Shell title={`Ship ${detail.delivery.request_number} from another warehouse`}
-      description="The order lines on this delivery move to the new warehouse: what is reserved for them is released where it is and reserved again in the new warehouse, as far as stock allows."
+      description="The lines move to the new warehouse, and stock is kept aside there as far as it allows."
       error={save.error} fallback="The warehouse could not be changed." onClose={onClose} label="Change Warehouse" isLoading={save.isPending} isDisabled={!warehouseId} onPress={() => save.mutate()}>
       <Select label="Warehouse" isRequired placeholder="Choose a warehouse" selectedKey={warehouseId || null}
         options={(options.data?.warehouses ?? []).filter((warehouse) => warehouse.id !== detail.delivery.warehouse_id).map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))}

@@ -24,6 +24,7 @@ import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api"
 import { listDeliveries, type DeliveryFilters, type DeliveryRow } from "../api/deliveries-api";
 import { DeliveryStatusBadge } from "../components/DeliveryStatusBadge";
 import { readListState, useListUrlState } from "@/features/sales/shared/listUrlState";
+import { ExportLink, exportHref, useListColumns } from "@/features/sales/shared/list-kit";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -88,6 +89,11 @@ export function DeliveriesScreen() {
     { id: "carrier", header: "Carrier / tracking", enableSorting: false, cell: ({ row }) => [row.original.carrier, row.original.tracking_number].filter(Boolean).join(" · ") },
     { id: "lines", header: "Items", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{quantity(row.original.total_quantity)} of {quantity(row.original.ordered_quantity)} · {row.original.line_count} line(s)</span> },
   ], []);
+  // CRM parity: choose the columns, tick rows to export them.
+  const cols = useListColumns("sales.deliveries.columns", columns);
+  const mayExport = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.delivery.print");
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const chosen = Object.keys(selected).filter((id) => selected[id]);
 
   if (listQuery.isError && listQuery.error instanceof SalesApiError && listQuery.error.status === 403)
     return <PermissionState title="You don't have access to deliveries" description="Ask an administrator for the View deliveries permission." />;
@@ -112,7 +118,9 @@ export function DeliveriesScreen() {
 
   return (
     <EnterpriseListPage
-      header={{ title: "Deliveries", description: "What leaves the warehouse against confirmed sales orders: prepared, dispatched and delivered to the customer." }}
+      bulkActionBar={chosen.length && mayExport ? { selectedCount: chosen.length, onClearSelection: () => setSelected({}),
+        actions: <ExportLink compact label="Export selected" href={exportHref("/api/sales/list-export/deliveries", listFilters, chosen)} /> } : undefined}
+      header={{ title: "Deliveries", description: "What leaves the warehouse against confirmed sales orders: prepared, dispatched and delivered to the customer.", secondaryActions: mayExport ? <ExportLink href={exportHref("/api/sales/list-export/deliveries", listFilters)} /> : undefined }}
       savedViews={{ views: views.map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
       actionBar={{
         start: (
@@ -129,13 +137,21 @@ export function DeliveriesScreen() {
           </>
         ),
         end: (
+          <>
           <MyViews listKey="sales.deliveries" state={{ view, search: submitted, filters, sorting }}
             onApply={(saved) => { setViewState(saved.view); setSearch(saved.search); setSubmittedState(saved.search); setFiltersState({ ...NO_FILTERS, ...saved.filters }); setSortingState(saved.sorting); setPageIndex(0); }} />
+          {cols.menu}
+          </>
         ),
       }}
       filterBar={activeFilters.length ? { filters: activeFilters, onRemove: (id) => setFilters({ ...filters, [id]: NO_FILTERS[id as FilterKey] }), onClearAll: () => setFilters(NO_FILTERS) } : undefined}
     >
       <EnterpriseDataGrid<DeliveryRow>
+        columnVisibility={cols.visibility}
+        onColumnVisibilityChange={cols.setVisibility}
+        enableRowSelection
+        rowSelection={selected}
+        onRowSelectionChange={setSelected}
         aria-label="Deliveries"
         columns={columns}
         data={rows}

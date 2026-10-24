@@ -62,7 +62,7 @@ export async function debitNoteLines(client, organizationId, debitNoteId) {
 export async function getDebitNoteProposal(client, context, invoiceId) {
   requireCreditNotePermission(context, CREDIT_NOTE_PERMISSIONS.create, "You do not have permission to raise debit notes.");
   const invoice = await loadSourceInvoice(client, context, invoiceId);
-  if (!FINANCE_POSTED.includes(invoice.status)) throw new CreditNoteError(409, "Only a posted invoice can have a debit note.", "SALES_INVOICE_NOT_POSTED");
+  if (!FINANCE_POSTED.includes(invoice.status)) throw new CreditNoteError(409, "Only a final invoice can have a debit note.", "SALES_INVOICE_NOT_POSTED");
   const lines = await creditableLines(client, context.organizationId, invoice.id);
   return {
     invoice: { id: invoice.id, number: invoice.invoice_number, date: dayOf(invoice.invoice_date), currencyCode: invoice.currency_code, customer: invoice.sales_customer_snapshot?.displayName ?? null },
@@ -88,7 +88,7 @@ export async function createDebitNote(client, context, invoiceId, input = {}) {
     if (existing.source_invoice_id !== invoice.id) throw new CreditNoteError(409, "That request key was used for another invoice.", "SALES_DEBIT_NOTE_VALIDATION");
     return { debitNoteId: existing.customer_invoice_id, debitNoteNumber: existing.invoice_number, status: "draft", replayed: true };
   }
-  if (!FINANCE_POSTED.includes(invoice.status)) throw new CreditNoteError(409, "Only a posted invoice can have a debit note.", "SALES_INVOICE_NOT_POSTED");
+  if (!FINANCE_POSTED.includes(invoice.status)) throw new CreditNoteError(409, "Only a final invoice can have a debit note.", "SALES_INVOICE_NOT_POSTED");
   const reasonCode = DEBIT_REASONS.some((entry) => entry.code === input.reasonCode) ? input.reasonCode : null;
   if (!reasonCode) throw new CreditNoteError(400, "Choose why the customer is debited.", "SALES_DEBIT_NOTE_VALIDATION", { field: "reasonCode" });
   const reasonNote = text(input.reasonNote, 1000);
@@ -145,14 +145,14 @@ export async function createDebitNote(client, context, invoiceId, input = {}) {
 
 // Posts a draft debit note: the customer owes more (it is due like the invoice's terms) and the books and output tax are entered.
 export async function postDebitNote(client, context, debitNoteId) {
-  requireCreditNotePermission(context, CREDIT_NOTE_PERMISSIONS.post, "You do not have permission to post debit notes.");
+  requireCreditNotePermission(context, CREDIT_NOTE_PERMISSIONS.post, "You do not have permission to finalise debit notes.");
   const note = await loadDebitNote(client, context, debitNoteId, { lock: true });
   const result = (extra) => ({ debitNoteId: note.id, debitNoteNumber: note.invoice_number, ...extra });
   if (FINANCE_POSTED.includes(note.status)) return result({ status: "posted", replayed: true });
   if (note.status === "pending_approval") return result({ status: "draft", awaitingApproval: true, replayed: true });
-  if (!["draft", "approved"].includes(note.status)) throw new CreditNoteError(409, `A ${note.status} debit note cannot be posted.`, "SALES_DEBIT_NOTE_LOCKED");
+  if (!["draft", "approved"].includes(note.status)) throw new CreditNoteError(409, `A ${note.status} debit note cannot be finalised.`, "SALES_DEBIT_NOTE_LOCKED");
   const source = (await client.query("SELECT status, invoice_number FROM tenant.accounting_customer_invoices WHERE organization_id = $1 AND id = $2", [context.organizationId, note.source_invoice_id])).rows[0];
-  if (!source || !FINANCE_POSTED.includes(source.status)) throw new CreditNoteError(409, `Invoice ${source?.invoice_number ?? ""} is no longer posted.`.replace("  ", " "), "SALES_INVOICE_NOT_POSTED");
+  if (!source || !FINANCE_POSTED.includes(source.status)) throw new CreditNoteError(409, `Invoice ${source?.invoice_number ?? ""} is no longer final.`.replace("  ", " "), "SALES_INVOICE_NOT_POSTED");
   try {
     if (note.status === "draft") {
       const submitted = await submitSubledgerDocument(client, financeContext(context), "customer_invoice", note.id);
@@ -160,7 +160,7 @@ export async function postDebitNote(client, context, debitNoteId) {
     }
     await postCustomerInvoice(client, financeContext(context), note.id, { internal: true, fromSales: true });
   } catch (error) {
-    throw financeError(error, "The debit note could not be posted");
+    throw financeError(error, "The debit note could not be finalised");
   }
   await client.query(
     `INSERT INTO tenant.sales_document_events (organization_id, entity_type, entity_id, event_type, from_status, to_status, metadata, actor_user_id, occurred_at)

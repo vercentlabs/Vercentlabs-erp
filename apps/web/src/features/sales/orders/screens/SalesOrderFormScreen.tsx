@@ -6,7 +6,7 @@
 // agreed: its customer, currency, price list and additional discount stay,
 // and each quoted line keeps its quoted price, discount and tax; quantities,
 // warehouses, dates and addresses can still change while it is a draft.
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
@@ -26,6 +26,11 @@ import { SchemeOffers } from "@/features/sales/shared/SchemeOffers";
 import { mrpNote } from "@/features/sales/shared/mrp";
 import { mergeSalesOptions, SalesSearchPicker } from "@/features/sales/shared/SalesSearchPicker";
 import { AUTOMATIC_TAX, DocumentTaxPanel, taxDraftOf, taxInput, type DocumentTaxDraft } from "@/features/sales/shared/DocumentTax";
+import { AddSectionButtons, SectionLineRow, sectionsAt, useSectionLines } from "@/features/sales/shared/SectionLines";
+import { DocumentWarnings } from "@/features/sales/shared/SalesWarningDialog";
+import { VariantGridDialog } from "@/features/sales/shared/VariantGridDialog";
+import { DeliveryMethodSelect } from "@/features/sales/shared/DeliveryMethodSelect";
+import { CouponField } from "@/features/sales/shared/CouponField";
 import {
   DocumentDiscountPanel, DocumentTotals, NO_DOCUMENT_DISCOUNT, defaultDiscountType, discountTypeOptions, type DocumentDiscountDraft,
 } from "@/features/sales/shared/DocumentDiscounts";
@@ -58,6 +63,8 @@ type LineDraft = {
   unitPrice: string;
   priceReason: string;
   warehouseId: string;
+  // Make-to-order (Sales report Phase 3): from stock, or bought or made for this order when it is confirmed.
+  supplyRoute: "stock" | "buy" | "make";
   // A free line of a scheme: no price, no discount (Sales audit M3).
   schemeRuleId: string;
   // A line without a catalogue product (Create-Where-You-Are): what is sold, its HSN/SAC and GST are typed; unitPrice is its price.
@@ -141,7 +148,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
   const seedAddresses = options.addresses.filter((address) => address.party_id === seedParty?.id);
   const blank = (): LineDraft => ({
     key: nextKey(), salesOrderLineId: "", quoted: false, itemId: "", uomId: "", quantity: 1, discountType: defaultDiscountType(options.discounts),
-    discountValue: 0, description: "", unitPrice: "", priceReason: "", warehouseId: "", schemeRuleId: "", typed: false, itemName: "", hsnSac: "", taxCategoryId: "",
+    discountValue: 0, description: "", unitPrice: "", priceReason: "", warehouseId: "", supplyRoute: "stock", schemeRuleId: "", typed: false, itemName: "", hsnSac: "", taxCategoryId: "",
   });
   // A saved line on the system "Unlisted item" is a typed line (Create-Where-You-Are); the setting allows new ones.
   const isTyped = (itemId: string | null | undefined) => Boolean(options.unlistedItemId && itemId === options.unlistedItemId);
@@ -177,7 +184,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
     ? existing.lines.map((line) => ({
         key: nextKey(), salesOrderLineId: line.id, quoted: line.is_quoted, itemId: line.item_id, uomId: line.uom_id ?? "",
         quantity: Number(line.quantity), discountType: line.discount_type === "amount" ? "amount" : "percent", discountValue: Number(line.discount_value),
-        warehouseId: line.warehouse_id ?? "", description: line.description_snapshot ?? "",
+        warehouseId: line.warehouse_id ?? "", description: line.description_snapshot ?? "", supplyRoute: line.supply_route ?? "stock",
         unitPrice: (line.manual_price_override && !line.is_quoted) || isTyped(line.item_id) ? String(Number(line.unit_price)) : "", priceReason: line.manual_price_reason ?? "",
         schemeRuleId: line.scheme_rule_id ?? "",
         typed: isTyped(line.item_id), itemName: String((line as Record<string, unknown>).item_name_snapshot ?? ""),
@@ -187,6 +194,8 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
   // A saved draft's charges one by one (an older order's: their total, as one charge).
   const [charges, setCharges] = useState<ChargeDraft[]>(() => existing?.charges?.length ? existing.charges.map((charge) => chargeDraftOf(charge, nextKey()))
     : order && Number(order.charge_total) > 0 ? [{ key: nextKey(), chargeType: "other", label: "Charges", calculationType: "fixed", value: Number(order.charge_total), taxable: true }] : []);
+  const [deliveryMethodId, setDeliveryMethodId] = useState(order?.delivery_method_id ?? "");
+  const [couponCode, setCouponCode] = useState(order?.coupon_code ?? "");
   const [error, setError] = useState<string | null>(null);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
@@ -322,7 +331,20 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
     updateLine(key, { itemId, quoted: false, salesOrderLineId: "", uomId: defaultLineUom(item, next.itemUomConversions), description: defaultLineDescription(item) });
   }
 
-  const validLines = lines.filter((line) => (line.typed ? line.itemName.trim() : line.itemId) && line.quantity > 0);
+  const isFilled = (line: (typeof lines)[number]) => Boolean((line.typed ? line.itemName.trim() : line.itemId) && line.quantity > 0);
+  const validLines = lines.filter(isFilled);
+  const sectionLines = useSectionLines(order?.section_lines);
+  // The variant grid (Sales report Phase 3): each filled cell becomes a line.
+  const [grid, setGrid] = useState(false);
+  async function addVariantLines(picked: Array<{ itemId: string; quantity: number }>) {
+    setGrid(false);
+    const next = mergeSalesOptions(options, (await getSalesOptions(undefined, picked.map((line) => line.itemId))).options);
+    setOptions(next);
+    setLines((current) => [...current.filter((line) => line.itemId || line.typed), ...picked.map((line) => {
+      const item = next.items.find((candidate) => candidate.id === line.itemId);
+      return { ...blank(), itemId: line.itemId, quantity: line.quantity, uomId: defaultLineUom(item, next.itemUomConversions), description: defaultLineDescription(item) };
+    })]);
+  }
   const input: SalesOrderDocumentInput | null = useMemo(() => {
     if (!partyId || !currencyCode || validLines.length === 0) return null;
     return {
@@ -362,11 +384,16 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
         quantity: line.quantity,
         ...(!line.quoted && !line.schemeRuleId && line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
         warehouseId: line.warehouseId || undefined,
+        ...(line.supplyRoute !== "stock" && !line.typed ? { supplyRoute: line.supplyRoute } : {}),
       })),
       charges: chargesInput(charges),
+      deliveryMethodId: deliveryMethodId || null,
+      couponCode: couponCode || null,
+      sectionLines: sectionLines.toSaved(lines.map(isFilled)),
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the blocks are read through sectionLines.sections
   }, [partyId, contactId, ownerUserId, billingAddressId, shippingAddressId, currencyCode, priceListId, paymentTermId, paymentTermsNote, orderDate, deliveryDate, poNumber, poDate, customerReference,
-    defaultWarehouseId, documentDiscount, customerNotes, internalNotes, documentTax, terms, order?.version_number, validLines, charges]);
+    defaultWarehouseId, documentDiscount, customerNotes, internalNotes, documentTax, terms, order?.version_number, validLines, charges, deliveryMethodId, couponCode, sectionLines.sections]);
 
   // Debounce so typing a quantity doesn't fire a pricing request per keystroke.
   const inputJson = JSON.stringify(input);
@@ -411,7 +438,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
         title: existing ? `Edit ${order?.sales_order_number}` : "New Sales Order",
         description: fromQuotation
           ? `Made from quotation ${order?.source_quotation_number}: quoted prices, discounts and tax are kept as agreed.`
-          : "Saved as a draft. Totals update as you edit and are calculated by the server; confirm the order when it is ready.",
+          : "Saved as a draft. Confirm the order when it is ready.",
       }}
       banner={<div className="flex flex-col gap-3">
         {error && <Notice>{error}</Notice>}
@@ -464,14 +491,23 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
             {partyId && !fromQuotation && <Button variant="ghost" size="compact" isLoading={repeating} onPress={() => void repeatLastOrder()}>Repeat last order</Button>}
             <Button variant="secondary" size="compact" onPress={() => setLines((current) => [...current, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add item</Button>
             {typedAllowed && <Button variant="ghost" size="compact" onPress={() => setLines((current) => [...current, { ...blank(), typed: true }])}><Plus className="size-3.5" aria-hidden="true" />Line without a product</Button>}
+            <Button variant="ghost" size="compact" onPress={() => setGrid(true)}>Add by size and colour</Button>
+            <AddSectionButtons onAdd={(kind) => sectionLines.add(kind, lines.length)} />
+            {grid && <VariantGridDialog onClose={() => setGrid(false)} onAdd={(picked) => void addVariantLines(picked)} />}
           </>}>
             <div className="flex flex-col gap-3">
+              <DocumentWarnings warnings={preview?.warnings} />
               {lines.map((line, index) => {
                 const priced = preview?.lines.find((candidate) => candidate.sequence === validLines.findIndex((valid) => valid.key === line.key) + 1);
                 const uoms = uomOptionsFor(line.itemId);
                 const service = isService(line.itemId);
                 return (
-                  <div key={line.key} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,2.7fr)_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_auto]">
+                  <Fragment key={line.key}>
+                  {sectionsAt(sectionLines.sections, index).map((block) => (
+                    <SectionLineRow key={`s${block.key}`} block={block} lineCount={lines.length} onChange={(text) => sectionLines.update(block.key, text)}
+                      onMove={(by) => sectionLines.move(block.key, by, lines.length)} onRemove={() => sectionLines.remove(block.key)} />
+                  ))}
+                  <div className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,2.7fr)_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_auto]">
                     {line.typed ? (
                       <TypedLineFields index={index} line={line} taxCategories={options.taxCategories ?? []} onChange={(patch) => updateLine(line.key, patch)}
                         onSavedAsProduct={line.quoted ? undefined : (id) => void saveTypedAsProduct(line, id)} />
@@ -493,14 +529,21 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
                     {stockOn ? <Select aria-label={`Warehouse ${index + 1}`} label={index === 0 ? "Warehouse" : undefined} options={lineWarehouseOptions} selectedKey={line.warehouseId}
                       onSelectionChange={(key) => updateLine(line.key, { warehouseId: String(key ?? "") })} isDisabled={service} /> : <span aria-hidden="true" />}
                     <IconButton aria-label={`Remove item ${index + 1}`} variant="ghost" isDisabled={lines.length === 1}
-                      onPress={() => setLines((current) => current.filter((candidate) => candidate.key !== line.key))}>
+                      onPress={() => { sectionLines.lineRemoved(index); setLines((current) => current.filter((candidate) => candidate.key !== line.key)); }}>
                       <Trash2 className="size-4" aria-hidden="true" />
                     </IconButton>
                     {(line.itemId || line.typed) && (
-                      <TextField className="sm:col-span-7" aria-label={`Description ${index + 1}`} placeholder="Description on the document" value={line.description}
-                        onChange={(value) => updateLine(line.key, { description: value })} />
+                      <div className="grid grid-cols-1 items-end gap-2 sm:col-span-7 md:grid-cols-[minmax(0,1fr)_15rem]">
+                        <TextField aria-label={`Description ${index + 1}`} placeholder="Description on the document" value={line.description}
+                          onChange={(value) => updateLine(line.key, { description: value })} />
+                        {!line.typed && !line.schemeRuleId && (
+                          <Select aria-label={`Supply ${index + 1}`} selectedKey={line.supplyRoute}
+                            onSelectionChange={(key) => updateLine(line.key, { supplyRoute: key === "buy" ? "buy" : key === "make" ? "make" : "stock" })}
+                            options={[{ value: "stock", label: "From stock" }, { value: "buy", label: "Buy for this order" }, ...(service ? [] : [{ value: "make", label: "Make for this order" }])]} />
+                        )}
+                      </div>
                     )}
-                    {line.quoted && <p className="text-xs text-text-muted sm:col-span-7">From the quotation: the agreed price, discount and tax are kept. A service is not delivered or reserved.</p>}
+                    {line.quoted && <p className="text-xs text-text-muted sm:col-span-7">From the quotation: the agreed price, discount and tax are kept. A service is not delivered or kept aside.</p>}
                     {priced?.priceMissing && (
                       <p role="alert" className="rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-2 py-1 text-xs text-warning sm:col-span-7">
                         {priced.priceMessage}{" "}{canOverridePrice ? "Enter a price below, or choose another price list." : "Choose another price list, or ask someone who may set prices."}
@@ -527,13 +570,19 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
                       </p>
                     )}
                   </div>
+                  </Fragment>
                 );
               })}
+              {sectionsAt(sectionLines.sections, lines.length).map((block) => (
+                <SectionLineRow key={`s${block.key}`} block={block} lineCount={lines.length} onChange={(text) => sectionLines.update(block.key, text)}
+                  onMove={(by) => sectionLines.move(block.key, by, lines.length)} onRemove={() => sectionLines.remove(block.key)} />
+              ))}
             </div>
           </FormSection>
 
           <FormSection columns={1} title="Charges" description="Freight, packing or handling, added to the order total."
             actions={<Button variant="secondary" size="compact" onPress={() => setCharges((current) => [...current, { key: nextKey(), chargeType: "freight", label: "", calculationType: "fixed", value: 0, taxable: true }])}><Plus className="size-3.5" aria-hidden="true" />Add charge</Button>}>
+            <DeliveryMethodSelect value={deliveryMethodId} onChange={setDeliveryMethodId} />
             {charges.length === 0 && <p className="text-sm text-text-muted">No charges.</p>}
             <ChargeRows charges={charges} onChange={setCharges} />
           </FormSection>
@@ -541,11 +590,13 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
           {fromQuotation ? (
             <FormSection columns={1} title="Additional discount" description="Kept from the quotation.">
               <p className="text-sm">{Number(order?.document_discount_amount) ? `${order?.document_discount_type === "percent" ? `${Number(order?.document_discount_value)}% · ` : ""}${money(currencyCode, order?.document_discount_amount)}` : "None"}</p>
+              {order?.coupon_code && <p className="text-sm text-text-secondary">{`Includes the coupon ${order.coupon_code} (${money(currencyCode, order.coupon_amount ?? 0)}).`}</p>}
             </FormSection>
-          ) : (
+          ) : (<>
+            <CouponField value={couponCode} onChange={setCouponCode} preview={preview} previewError={previewQuery.error} currencyCode={currencyCode} />
             <DocumentDiscountPanel discounts={options.discounts} currencyCode={currencyCode} value={documentDiscount} onChange={setDocumentDiscount} preview={preview}
               hasAnyDiscount={documentDiscount.value > 0 || lines.some((line) => line.discountValue > 0)} />
-          )}
+          </>)}
 
           {/* Everything but the customer, dates, PO and items, out of the way until wanted (Line-by-line audit). Open when editing. */}
           <details className="group rounded-[var(--radius-card)] border border-border bg-surface" open={Boolean(orderId) || undefined}>
@@ -596,7 +647,7 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
           </FormSection>
     </DocumentFormPage>
     <AlertDialog isOpen={pendingPriceList !== null} onOpenChange={(open) => !open && setPendingPriceList(null)} tone="primary"
-        title="Re-price the lines with the new price list?" description="Every line without a manual price takes its price from the new list. Choose Cancel to keep the current price list."
+        title="Re-price the lines with the new price list?" description="Lines without a changed price take their price from the new list. Choose Cancel to keep the current list."
         confirmLabel="Re-price lines" onConfirm={() => { setPriceListId(pendingPriceList ?? ""); setPendingPriceList(null); }} />
     </>
   );

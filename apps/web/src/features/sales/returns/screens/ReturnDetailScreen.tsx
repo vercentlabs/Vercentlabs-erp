@@ -121,7 +121,7 @@ export function ReturnDetailScreen({ returnId }: { returnId: string }) {
       {dialog === "cancel" && <CancelReturnDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The draft was cancelled.")} />}
       {dialog === "credit" && <ReturnCreditDialog detail={detail} onClose={() => setDialog(null)} onDone={(creditNotes) => {
         if (creditNotes.length === 1) { router.push(`/sales/credit-notes/${creditNotes[0].creditNoteId}`); return; }
-        setTab("credit"); done(`Draft credit notes ${creditNotes.map((note) => note.creditNoteNumber).join(", ")} were created, one per invoice. Check and post each.`);
+        setTab("credit"); done(`Draft credit notes ${creditNotes.map((note) => note.creditNoteNumber).join(", ")} were created, one per invoice. Check and finalise each.`);
       }} />}
     </div>
   );
@@ -187,7 +187,7 @@ function Items({ detail }: { detail: ReturnDetail }) {
 function Inventory({ detail }: { detail: ReturnDetail }) {
   return (
     <div className="pt-4">
-      <Panel title="Stock returned" description="Stock comes back only when the return is received. Restocked goods are sellable; held and damaged goods sit in a quality location and are not available to sell.">
+      <Panel title="Stock returned" description="Stock comes back when the return is received. Damaged or held goods cannot be sold.">
         {!detail.movements.length ? <p className="text-sm text-text-muted">{detail.salesReturn.status === "draft" ? "Nothing has come back into stock yet." : "No stock-tracked items on this return."}</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.movements.map((movement) => (
@@ -208,7 +208,7 @@ function Inventory({ detail }: { detail: ReturnDetail }) {
 function Credit({ detail, onCredit }: { detail: ReturnDetail; onCredit?: () => void }) {
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <Panel title="Credit" description="A return moves stock; a credit note corrects what the customer owes. Goods returned before they were invoiced need no credit note. A refund is separate."
+      <Panel title="Credit" description="A return moves stock; a credit note changes what the customer owes. Goods not yet billed need no credit note."
         actions={onCredit ? <Button variant="primary" size="compact" onPress={onCredit}>Create Credit Note</Button> : undefined}>
         <p className="text-sm">{detail.credit.label}</p>
         {detail.credit.lines.length > 0 && (
@@ -219,7 +219,7 @@ function Credit({ detail, onCredit }: { detail: ReturnDetail; onCredit?: () => v
           </ul>
         )}
       </Panel>
-      <Panel title="Credit notes" description="A return is not refunded directly: the credit note makes the customer's credit, and Finance refunds that credit or applies it to another invoice.">
+      <Panel title="Credit notes" description="Refund through the credit note: Finance refunds the credit or uses it on another invoice.">
         {!detail.credits.length ? <p className="text-sm text-text-muted">No credit notes.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.credits.map((credit) => (

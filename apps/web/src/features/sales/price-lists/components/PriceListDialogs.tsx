@@ -130,7 +130,7 @@ export function PriceDialog({ priceList, entry, onClose, onSaved }: { priceList:
   });
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={entry ? `${entry.productName} (${entry.uomCode})` : "Add price"}
-      description={entry ? "Change the price or its dates. A new price from a later date is better added as a separate price, so the history shows both." : `Prices on this list are in ${priceList.currencyCode}, ${priceList.taxInclusive ? "including" : "excluding"} tax.`}>
+      description={entry ? "Change the price or its dates. For a new price from a later date, add a separate price." : `Prices on this list are in ${priceList.currencyCode}, ${priceList.taxInclusive ? "including" : "excluding"} tax.`}>
       <div className="flex flex-col gap-4">
         <Banner message={error} />
         {!entry && (

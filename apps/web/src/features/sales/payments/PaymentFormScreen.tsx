@@ -64,7 +64,8 @@ export function PaymentFormScreen() {
       ...(method === "cheque" ? { chequeNumber: cheque.number.trim(), chequeDate: cheque.date, draweeBank: cheque.bank.trim() || undefined } : {}),
       allocations: invoices.map((invoice) => ({ invoiceId: invoice.id, amount: allocation[invoice.id] ?? 0 })).filter((entry) => entry.amount > 0),
     })),
-    onSuccess: ({ result }) => router.replace(`/sales/payments/${result.receiptId}`),
+    // A post-dated cheque waits on the cheque register until it clears (Sales report Phase 2).
+    onSuccess: ({ result }) => router.replace(result.postDated || !result.receiptId ? "/sales/payments/cheques" : `/sales/payments/${result.receiptId}`),
   });
   const chequeMissing = method === "cheque" && (!cheque.number.trim() || !cheque.date);
   const ready = Boolean(partyId) && amount > 0 && !overApplied && !chequeMissing;
@@ -88,7 +89,8 @@ export function PaymentFormScreen() {
         {method === "cheque" ? (
           <>
             <TextField label="Cheque number" isRequired value={cheque.number} onChange={(number) => setCheque((current) => ({ ...current, number }))} />
-            <TextField label="Cheque date" type="date" isRequired value={cheque.date} onChange={(value) => setCheque((current) => ({ ...current, date: value }))} />
+            <TextField label="Cheque date" type="date" isRequired value={cheque.date} onChange={(value) => setCheque((current) => ({ ...current, date: value }))}
+              description="A later date: kept on the cheque register and recorded when it clears." />
             <TextField label="Drawn on (bank)" value={cheque.bank} onChange={(bank) => setCheque((current) => ({ ...current, bank }))} />
           </>
         ) : (

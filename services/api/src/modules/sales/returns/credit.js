@@ -114,7 +114,7 @@ export async function createCreditNoteFromReturn(client, context, returnId, inpu
       left = round(left - take);
     }
     // A draft credit note already crediting these invoice lines holds that quantity: it is named, so it can be posted or cancelled (Line-by-line audit, Low).
-    if (left > EPSILON) throw new ReturnError(409, `${line.item}: the invoices that billed it have only ${round(quantity - left)} left to credit.${drafts.size ? ` Draft credit note ${[...drafts].join(", ")} already credits it: post or cancel that draft first.` : ""}`, "SALES_RETURN_CREDIT_EXCEEDS", { draftCreditNotes: [...drafts] });
+    if (left > EPSILON) throw new ReturnError(409, `${line.item}: the invoices that billed it have only ${round(quantity - left)} left to credit.${drafts.size ? ` Draft credit note ${[...drafts].join(", ")} already credits it: finalise or cancel that draft first.` : ""}`, "SALES_RETURN_CREDIT_EXCEEDS", { draftCreditNotes: [...drafts] });
   }
   const reason = text(input.reason, 800) ?? reasonLabel(salesReturn.reason_code);
   // The credit-notes module checks the invoice side; the permission to credit from a return authorises it.

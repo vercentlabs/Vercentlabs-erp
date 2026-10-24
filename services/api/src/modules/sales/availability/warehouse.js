@@ -15,7 +15,7 @@ import { AVAILABILITY_PERMISSIONS } from "./constants.js";
 
 // input: { lineId, warehouseId, reason?, reserve? (default true) }
 export async function changeSalesOrderLineWarehouse(client, context, orderId, input = {}) {
-  requireOrderPermission(context, AVAILABILITY_PERMISSIONS.changeWarehouse, "You do not have permission to change the fulfillment warehouse.");
+  requireOrderPermission(context, AVAILABILITY_PERMISSIONS.changeWarehouse, "You do not have permission to change the delivery warehouse.");
   const order = await lockOrder(client, context, orderId);
   await assertOrderVisible(client, context, order.id);
   if (order.lifecycle_status !== STATUS.confirmed)
@@ -54,7 +54,7 @@ export async function changeSalesOrderLineWarehouse(client, context, orderId, in
           WHERE balance.organization_id = $1 AND balance.warehouse_id = $2 AND balance.item_id = (SELECT item_id FROM tenant.sales_order_lines WHERE organization_id = $1 AND id = $3)`,
         [context.organizationId, warehouse.id, lineId])).rows[0].free);
       if (free + 1e-9 < held)
-        throw new OrderError(409, `${warehouse.name} has only ${free} ${line.base_unit ?? ""} available; ${held} ${line.base_unit ?? ""} are reserved in ${line.old_name ?? "the current warehouse"} and stay there. Nothing was changed.`.replace(/ {2,}/g, " "),
+        throw new OrderError(409, `${warehouse.name} has only ${free} ${line.base_unit ?? ""} available; ${held} ${line.base_unit ?? ""} are kept aside in ${line.old_name ?? "the current warehouse"} and stay there. Nothing was changed.`.replace(/ {2,}/g, " "),
           "SALES_WAREHOUSE_INSUFFICIENT", { reserved: held, available: free });
     }
   }
@@ -73,7 +73,7 @@ export async function changeSalesOrderLineWarehouse(client, context, orderId, in
     const factor = Number((await client.query(`SELECT COALESCE(NULLIF(conversion_factor, 0), 1) AS factor FROM tenant.sales_order_lines WHERE organization_id = $1 AND id = $2`,
       [context.organizationId, lineId])).rows[0].factor);
     if (heldBase > 0 && (reservation?.reserved ?? 0) * factor + 1e-9 < heldBase)
-      throw new OrderError(409, `${warehouse.name} could not take the ${Math.round((heldBase / factor) * 1e6) / 1e6} reserved: nothing was changed and the reservation stays in ${line.old_name ?? "the current warehouse"}.`,
+      throw new OrderError(409, `${warehouse.name} could not take the ${Math.round((heldBase / factor) * 1e6) / 1e6} kept aside: nothing was changed and what is kept aside stays in ${line.old_name ?? "the current warehouse"}.`,
         "SALES_WAREHOUSE_INSUFFICIENT", { reserved: heldBase / factor, available: reservation?.reserved ?? 0 });
     if (reservation?.reserved > 0)
       await recordOrderEvent(client, context, order.id, "sales_order.stock_reserved", order.lifecycle_status, order.lifecycle_status, {

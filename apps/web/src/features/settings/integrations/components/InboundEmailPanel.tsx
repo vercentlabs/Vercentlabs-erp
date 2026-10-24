@@ -58,6 +58,7 @@ const OUTCOME: Record<string, string> = {
 const TARGET_HELP: Record<string, { title: string; text: string; name: string }> = {
   "support.email_to_ticket": { title: "Support tickets", text: "A new email opens a ticket; replies join the same ticket.", name: "Support inbox" },
   "crm.email_to_lead": { title: "CRM leads", text: "A new email opens a lead; replies join their lead or deal.", name: "Sales enquiries" },
+  "sales.email_replies": { title: "Sales replies", text: "Replies to quotations, orders and invoices join their document.", name: "Sales replies" },
 };
 
 function recordLink(item: { ticketId?: string | null; recordType?: string | null; recordId?: string | null }) {

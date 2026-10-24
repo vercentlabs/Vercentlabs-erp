@@ -106,7 +106,7 @@ export function CreateReturnDialog({ deliveryId, number, onClose, onDone }: { de
     onSuccess: ({ result }) => onDone(result.returnId),
   });
   return (
-    <Shell title={`Create a sales return from ${number}`} description="The return is created as a draft: stock comes back only when it is received. Enter what comes back, why and in what condition."
+    <Shell title={`Create a sales return from ${number}`} description="Made as a draft; stock comes back when received. Enter what came back and why."
       size="lg" error={save.error ?? proposal.error} fallback="The return could not be created." onClose={onClose} label="Create Draft" isLoading={save.isPending}
       isDisabled={!lines.length || !reasonCode || (reasonCode === "other" && !reasonNote.trim()) || !target} onPress={() => save.mutate()}>
       {proposal.isLoading ? <p className="text-sm text-text-muted">Loading what can come back…</p>
@@ -191,7 +191,7 @@ export function CancelReturnDialog({ detail, onClose, onDone }: { detail: Return
   const [reason, setReason] = useState("");
   const save = useMutation({ mutationFn: () => cancelReturn(detail.salesReturn.id, optional(reason)), onSuccess: onDone });
   return (
-    <Shell title={`Cancel draft ${detail.salesReturn.return_number}?`} description="Nothing has come back into stock, so nothing is reversed." error={save.error}
+    <Shell title={`Cancel draft ${detail.salesReturn.return_number}?`} description="Nothing has come back into stock, so nothing is taken back." error={save.error}
       fallback="The return could not be cancelled." onClose={onClose} label="Cancel Draft" tone="danger" isLoading={save.isPending} onPress={() => save.mutate()}>
       <TextArea label="Reason" value={reason} onChange={setReason} />
     </Shell>
@@ -211,7 +211,7 @@ export function ReturnCreditDialog({ detail, onClose, onDone }: { detail: Return
   });
   return (
     <Shell title={`Credit note for ${detail.salesReturn.return_number}`}
-      description="For what came back after it was invoiced: credited against the original invoice at its prices, discounts and tax. One draft credit note per invoice; nothing is posted until someone posts it. No refund is made."
+      description="Credits the original invoice for what came back, one draft credit note per invoice. No refund is made."
       size="lg" error={save.error} fallback="The credit note could not be created." onClose={onClose} label="Create Draft Credit Note" isLoading={save.isPending} isDisabled={!chosen.length} onPress={() => save.mutate()}>
       {lines.map((line) => (
         <div key={line.returnLineId} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-2 sm:grid-cols-[minmax(0,1fr)_9rem]">

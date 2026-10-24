@@ -74,7 +74,7 @@ function eventDetail(event: SalesDocumentEvent) {
     ? (m.stock as Array<Record<string, unknown>>).map((entry) => {
         const reservations = (entry.reservations as Array<Record<string, unknown>> | undefined) ?? [];
         const reserved = reservations.reduce((total, used) => total + Number(used.quantity ?? 0), 0);
-        return `${entry.item}: ${quantity(reserved)} from reservations${Number(entry.fromFreeStock) ? `, ${quantity(entry.fromFreeStock as number)} from free stock` : ""}`;
+        return `${entry.item}: ${quantity(reserved)} from stock kept aside${Number(entry.fromFreeStock) ? `, ${quantity(entry.fromFreeStock as number)} from free stock` : ""}`;
       }).join("\n")
     : null;
   return [
@@ -278,7 +278,7 @@ function Items({ detail }: { detail: DeliveryDetail }) {
       id: "stock", header: "Stock",
       cell: ({ row }) => !row.original.warehouse_id ? "" : shipped
         ? <span className="text-xs">{row.original.consumed_reservations.length ? `Issued from ${row.original.consumed_reservations.map((used) => used.reservation ?? "free stock").join(", ")}` : "Issued"}</span>
-        : <span className="text-xs text-text-muted">Reserved {quantity(row.original.reserved_now)}</span>,
+        : <span className="text-xs text-text-muted">Kept aside {quantity(row.original.reserved_now)}</span>,
     },
     { id: "returned", header: "Returned", cell: ({ row }) => shipped && row.original.returned_quantity ? <span className="tabular-nums">{quantity(row.original.returned_quantity)}</span> : "" },
     { id: "invoiced", header: "Invoiced", cell: ({ row }) => shipped ? <span className="tabular-nums">{quantity(row.original.invoiced_quantity)}</span> : "" },
@@ -318,7 +318,7 @@ function Shipment({ detail }: { detail: DeliveryDetail }) {
           { label: "Delivery note", value: delivery.delivery_note ?? "—" },
         ]} />
       </Panel>
-      <Panel title="Stock movements" description="Stock is issued when the delivery is dispatched, from what is reserved for the order first.">
+      <Panel title="Stock movements" description="Stock is issued when the delivery is dispatched, from what is kept aside for the order first.">
         {!detail.stockMovements.length ? <p className="text-sm text-text-muted">{["draft", "ready"].includes(delivery.status) ? "No stock moves until the delivery is dispatched." : "No stock-tracked items on this delivery."}</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.stockMovements.map((movement) => (
@@ -394,7 +394,7 @@ function Notes({ detail, onChanged }: { detail: DeliveryDetail; onChanged: () =>
       <Panel title="Internal notes" description="Never printed or shown to the customer.">
         <p className="text-sm whitespace-pre-line">{delivery.internal_notes ?? "None"}</p>
       </Panel>
-      <Panel title="Proof of delivery" description="The signed delivery note, a photo of the goods received, or the customer's acknowledgement (PDF or image, up to 10 MB)."
+      <Panel title="Proof of delivery" description="The signed delivery note, a photo or the customer's acknowledgement (PDF or image, up to 10 MB)."
         actions={detail.actions.uploadProof ? (
           <>
             <input ref={input} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden"

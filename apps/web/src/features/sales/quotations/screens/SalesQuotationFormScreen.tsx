@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
@@ -31,6 +31,12 @@ import {
   defaultLineUom,
 } from "@/features/sales/shared/document-defaults";
 import { AUTOMATIC_TAX, DocumentTaxPanel, taxDraftOf, taxInput, type DocumentTaxDraft } from "@/features/sales/shared/DocumentTax";
+import { AddSectionButtons, SectionLineRow, sectionsAt, useSectionLines } from "@/features/sales/shared/SectionLines";
+import { getQuotationTemplate, listQuotationTemplates } from "../api/templates-api";
+import { DocumentWarnings } from "@/features/sales/shared/SalesWarningDialog";
+import { VariantGridDialog } from "@/features/sales/shared/VariantGridDialog";
+import { DeliveryMethodSelect } from "@/features/sales/shared/DeliveryMethodSelect";
+import { CouponField } from "@/features/sales/shared/CouponField";
 import {
   DocumentDiscountPanel,
   DocumentTotals,
@@ -351,6 +357,8 @@ function FormBody({
   const [charges, setCharges] = useState<ChargeDraft[]>(() =>
     (existing?.charges ?? []).map((charge) => chargeDraftOf(charge, nextKey())),
   );
+  const [deliveryMethodId, setDeliveryMethodId] = useState(existing?.quotation.delivery_method_id ?? "");
+  const [couponCode, setCouponCode] = useState(existing?.quotation.coupon_code ?? "");
   const [error, setError] = useState<string | null>(null);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
@@ -458,6 +466,50 @@ function FormBody({
     selectParty(id, next);
   }
 
+  // Start from template (Sales report Phase 2): the template's products, headings, terms and validity fill the form. Prices come from
+  // the price list as for any line; everything can be changed before saving.
+  const templatesQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "sales", "quotation-templates", "active"), queryFn: () => listQuotationTemplates(), enabled: !existing, staleTime: 60_000,
+  });
+  const [templateId, setTemplateId] = useState("");
+  // The variant grid (Sales report Phase 3): each filled cell becomes a line.
+  const [grid, setGrid] = useState(false);
+  async function addVariantLines(picked: Array<{ itemId: string; quantity: number }>) {
+    setGrid(false);
+    const next = mergeSalesOptions(options, (await getSalesOptions(undefined, picked.map((line) => line.itemId))).options);
+    setOptions(next);
+    setLines((current) => [...current.filter((line) => line.itemId || line.typed), ...picked.map((line) => {
+      const item = next.items.find((candidate) => candidate.id === line.itemId);
+      return { ...emptyLine(), itemId: line.itemId, quantity: line.quantity, uomId: defaultLineUom(item, next.itemUomConversions), description: defaultLineDescription(item),
+        discountType: defaultDiscountType(options.discounts) };
+    })]);
+  }
+  async function startFromTemplate(id: string) {
+    setTemplateId(id);
+    if (!id) return;
+    try {
+      const template = await getQuotationTemplate(id);
+      const next = mergeSalesOptions(options, (await getSalesOptions(undefined, template.lines.map((line) => line.itemId))).options);
+      setOptions(next);
+      setLines(template.lines.map((line) => {
+        const item = next.items.find((candidate) => candidate.id === line.itemId);
+        return { ...emptyLine(), itemId: line.itemId, quantity: line.quantity, uomId: line.uomId ?? defaultLineUom(item, next.itemUomConversions),
+          description: line.description ?? defaultLineDescription(item), discountType: line.discountType ?? "percent", discountValue: line.discountValue ?? 0 };
+      }));
+      sectionLines.replace(template.sectionLines);
+      if (template.validityDays) {
+        const until = new Date(`${quotationDate || new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+        until.setUTCDate(until.getUTCDate() + template.validityDays);
+        setValidUntil(until.toISOString().slice(0, 10));
+      }
+      if (template.paymentTermId) setPaymentTermId(template.paymentTermId);
+      if (template.termsAndConditions) setTerms(template.termsAndConditions);
+      if (template.customerNotes) setCustomerNotes(template.customerNotes);
+    } catch {
+      setError("The template could not be loaded. Try again.");
+    }
+  }
+
   // The rest of what a scheme earns, as a free line of its free product (loaded into the options when the form does not have it yet).
   async function addFreeLine(scheme: SalesDocumentScheme) {
     let from = options;
@@ -501,7 +553,12 @@ function FormBody({
     setShippingAddressId(defaultAddress(addresses, SHIPPING_ADDRESS_TYPES));
   }
 
-  const validLines = lines.filter((line) => (line.typed ? line.itemName.trim() : line.itemId) && line.quantity > 0);
+  const isFilled = (line: LineDraft) => Boolean((line.typed ? line.itemName.trim() : line.itemId) && line.quantity > 0);
+  const validLines = lines.filter(isFilled);
+  const sectionLines = useSectionLines(existing?.quotation.section_lines);
+  // Optional products (Sales report Phase 3): offered beside the lines, priced but not in the total.
+  const [optional, setOptional] = useState<Array<{ key: number; itemId: string; quantity: number; description: string }>>(() =>
+    (existing?.quotation.optional_lines ?? []).map((line) => ({ key: nextKey(), itemId: line.itemId, quantity: line.quantity, description: line.description ?? "" })));
   const input: SalesDocumentInput | null = useMemo(() => {
     if (!partyId || !currencyCode || validLines.length === 0) return null;
     return {
@@ -541,8 +598,18 @@ function FormBody({
         ...(!line.schemeRuleId && line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
       })),
       charges: chargesInput(charges),
+      deliveryMethodId: deliveryMethodId || null,
+      couponCode: couponCode || null,
+      sectionLines: sectionLines.toSaved(lines.map(isFilled)),
+      optionalLines: optional.filter((line) => line.itemId && line.quantity > 0)
+        .map((line) => ({ itemId: line.itemId, quantity: line.quantity, description: line.description.trim() || null })),
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the blocks are read through sectionLines.sections
   }, [
+    sectionLines.sections,
+    optional,
+    deliveryMethodId,
+    couponCode,
     partyId,
     contactId,
     billingAddressId,
@@ -733,10 +800,23 @@ function FormBody({
                   Line without a product
                 </Button>
               )}
+              <Button variant="ghost" size="compact" onPress={() => setGrid(true)}>Add by size and colour</Button>
+              <AddSectionButtons onAdd={(kind) => sectionLines.add(kind, lines.length)} />
+              {grid && <VariantGridDialog onClose={() => setGrid(false)} onAdd={(picked) => void addVariantLines(picked)} />}
             </>}
           >
             <div className="flex flex-col gap-3">
+              <DocumentWarnings warnings={preview?.warnings} />
+              {!existing && (templatesQuery.data?.length ?? 0) > 0 && (
+                <Select label="Start from template" description="Fills the products, headings, terms and validity. Change anything before saving." className="w-full sm:max-w-sm"
+                  selectedKey={templateId || "none"} onSelectionChange={(key) => void startFromTemplate(key === "none" ? "" : String(key))}
+                  options={[{ value: "none", label: "No template" }, ...(templatesQuery.data ?? []).map((template) => ({ value: template.id, label: template.name }))]} />
+              )}
               {lines.map((line, index) => {
+                const blocks = sectionsAt(sectionLines.sections, index).map((block) => (
+                  <SectionLineRow key={`s${block.key}`} block={block} lineCount={lines.length} onChange={(text) => sectionLines.update(block.key, text)}
+                    onMove={(by) => sectionLines.move(block.key, by, lines.length)} onRemove={() => sectionLines.remove(block.key)} />
+                ));
                 const priced = preview?.lines.find(
                   (candidate) =>
                     candidate.sequence ===
@@ -744,8 +824,9 @@ function FormBody({
                 );
                 const lineUomOptions = uomOptionsFor(line.itemId);
                 return (
+                  <Fragment key={line.key}>
+                  {blocks}
                   <div
-                    key={line.key}
                     className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto]"
                   >
                     {line.typed ? (
@@ -810,13 +891,14 @@ function FormBody({
                       aria-label={`Remove item ${index + 1}`}
                       variant="ghost"
                       isDisabled={lines.length === 1}
-                      onPress={() =>
+                      onPress={() => {
+                        sectionLines.lineRemoved(index);
                         setLines((current) =>
                           current.filter(
                             (candidate) => candidate.key !== line.key,
                           ),
-                        )
-                      }
+                        );
+                      }}
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
                     </IconButton>
@@ -857,7 +939,7 @@ function FormBody({
                     )}
                     {priced && (
                       <p className="text-xs text-text-muted sm:col-span-6">
-                        {priced.manualPriceOverride ? `List ${money(currencyCode, priced.listUnitPrice)} · overridden to ` : ""}
+                        {priced.manualPriceOverride ? `List ${money(currencyCode, priced.listUnitPrice)} · changed to ` : ""}
                         {money(currencyCode, priced.unitPrice)} each{mrpNote(priced, currencyCode)}
                         {Number(priced.discountAmount) > 0
                           ? ` · gross ${money(currencyCode, priced.grossAmount)} · discount ${priced.discountType === "percent" ? `${Number(priced.discountValue)}% = ` : ""}${money(currencyCode, priced.discountAmount)}`
@@ -873,9 +955,43 @@ function FormBody({
                       </p>
                     )}
                   </div>
+                  </Fragment>
                 );
               })}
+              {sectionsAt(sectionLines.sections, lines.length).map((block) => (
+                <SectionLineRow key={`s${block.key}`} block={block} lineCount={lines.length} onChange={(text) => sectionLines.update(block.key, text)}
+                  onMove={(by) => sectionLines.move(block.key, by, lines.length)} onRemove={() => sectionLines.remove(block.key)} />
+              ))}
             </div>
+          </FormSection>
+
+          <FormSection columns={1}
+            title="Optional products"
+            description="Extras the customer can add when accepting online. Not in the total."
+            actions={<Button variant="secondary" size="compact" onPress={() => setOptional((current) => [...current, { key: nextKey(), itemId: "", quantity: 1, description: "" }])}>
+              <Plus className="size-3.5" aria-hidden="true" />Add optional product
+            </Button>}
+          >
+            {optional.length === 0 ? <p className="text-sm text-text-muted">None offered.</p> : (
+              <div className="flex flex-col gap-3">
+                {optional.map((line, index) => {
+                  return (
+                    <div key={line.key} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-dashed border-border p-3 sm:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1.5fr)_auto]">
+                      <SalesSearchPicker kind="products" aria-label={`Optional product ${index + 1}`} label={index === 0 ? "Product" : undefined} known={options} value={line.itemId || null}
+                        onPick={(id, found) => { setOptions(mergeSalesOptions(options, found)); setOptional((current) => current.map((entry) => (entry.key === line.key ? { ...entry, itemId: id } : entry))); }} />
+                      <NumberField aria-label={`Optional quantity ${index + 1}`} label={index === 0 ? "Quantity" : undefined} value={line.quantity} minValue={0} step={1}
+                        onChange={(value) => setOptional((current) => current.map((entry) => (entry.key === line.key ? { ...entry, quantity: Number.isFinite(value) ? value : 0 } : entry)))} />
+                      <TextField aria-label={`Optional description ${index + 1}`} label={index === 0 ? "Shown as" : undefined} placeholder="For example: Extended warranty" value={line.description}
+                        onChange={(value) => setOptional((current) => current.map((entry) => (entry.key === line.key ? { ...entry, description: value } : entry)))} />
+                      <Button variant="ghost" size="compact" aria-label={`Remove optional product ${index + 1}`}
+                        onPress={() => setOptional((current) => current.filter((entry) => entry.key !== line.key))}>
+                        <Trash2 className="size-4" aria-hidden="true" />Remove
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </FormSection>
 
           <FormSection columns={1}
@@ -897,8 +1013,11 @@ function FormBody({
               </Button>
             }
           >
+            <DeliveryMethodSelect value={deliveryMethodId} onChange={setDeliveryMethodId} />
             <ChargeRows charges={charges} onChange={setCharges} />
           </FormSection>
+
+          <CouponField value={couponCode} onChange={setCouponCode} preview={preview} previewError={previewQuery.error} currencyCode={currencyCode} />
 
           <DocumentDiscountPanel
             discounts={options.discounts}
@@ -1043,7 +1162,7 @@ function FormBody({
         onOpenChange={(open) => !open && setPendingPriceList(null)}
         tone="primary"
         title="Re-price the lines with the new price list?"
-        description="Every line without a manual price takes its price from the new list. Choose Cancel to keep the current price list."
+        description="Lines without a changed price take their price from the new list. Choose Cancel to keep the current list."
         confirmLabel="Re-price lines"
         onConfirm={() => {
           setPriceListId(pendingPriceList ?? "");

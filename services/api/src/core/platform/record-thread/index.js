@@ -1,4 +1,5 @@
-// The shared record thread (Shared Platform plan 4): on any main document — quotations, orders, invoices, deliveries, purchase
+// The shared record thread (Shared Platform plan 4): on any main document — quotations, orders, invoices, deliveries, returns, credit and
+// debit notes, challans, purchase
 // orders, supplier bills, items, assets — one place for:
 //   comments and internal notes, with @mentions (the person is told),
 //   followers (told of new comments on records they follow; the author of a comment follows the record),
@@ -31,6 +32,15 @@ export const RECORD_THREAD_TYPES = Object.freeze({
     title: (record) => record?.invoice?.invoice_number ?? record?.invoice_number },
   "sales.delivery": { module: "sales", label: "Delivery", href: (id) => `/sales/deliveries/${id}`, read: lazy("../../../modules/sales/deliveries/records.js", "getDelivery"),
     title: (record) => record?.delivery?.request_number ?? record?.request_number },
+  // Every Sales document has its thread (Sales report H1).
+  "sales.return": { module: "sales", label: "Sales return", href: (id) => `/sales/returns/${id}`, read: lazy("../../../modules/sales/returns/records.js", "getSalesReturn"),
+    title: (record) => record?.salesReturn?.return_number },
+  "sales.credit_note": { module: "sales", label: "Credit note", href: (id) => `/sales/credit-notes/${id}`, read: lazy("../../../modules/sales/credit-notes/records.js", "getCreditNote"),
+    title: (record) => record?.creditNote?.invoice_number },
+  "sales.debit_note": { module: "sales", label: "Debit note", href: (id) => `/sales/debit-notes/${id}`, read: lazy("../../../modules/sales/debit-notes/index.js", "getDebitNote"),
+    title: (record) => record?.debitNote?.number },
+  "sales.challan": { module: "sales", label: "Delivery challan", href: (id) => `/sales/challans/${id}`, read: lazy("../../../modules/sales/challans.js", "getSalesChallan"),
+    title: (record) => record?.challanNumber },
   "procurement.purchase_order": { module: "procurement", label: "Purchase order", href: (id) => `/procurement/purchase-orders/${id}`,
     read: lazy("../../../modules/procurement/purchase-orders/records.js", "getPurchaseOrder"), title: (record) => record?.order?.purchase_order_number ?? record?.purchaseOrderNumber ?? record?.purchase_order_number },
   "procurement.supplier_bill": { module: "procurement", label: "Supplier bill", href: (id) => `/procurement/supplier-bills/${id}`,

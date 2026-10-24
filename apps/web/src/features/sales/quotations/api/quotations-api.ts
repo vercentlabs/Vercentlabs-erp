@@ -194,6 +194,15 @@ export type SalesQuotationDetail = {
     sent_at: string | null;
     sent_by_name: string | null;
     sent_to: string | null;
+    customer_viewed_at?: string | null;
+    section_lines?: Array<{ kind: "section" | "note"; text: string; position: number }>;
+    delivery_method_id?: string | null;
+    coupon_code?: string | null;
+    coupon_amount?: string;
+    optional_lines?: Array<{ itemId: string; uomId: string | null; quantity: number; description: string | null; name: string; unit: string | null; unitPrice: number; lineTotal: number }>;
+    optional_chosen?: number[];
+    signature_file_id?: string | null;
+    signed_by_name?: string | null;
     sent_channel: string | null;
     accepted_at: string | null;
     accepted_by_name: string | null;
@@ -360,6 +369,10 @@ type SalesDocumentLineInput = {
 };
 export type SalesDocumentInput = {
   partyId: string;
+  // Headings and notes between the lines (Sales report Phase 2).
+  sectionLines?: Array<{ kind: "section" | "note"; text: string; position: number }>;
+  // Optional products beside the lines (Sales report Phase 3).
+  optionalLines?: Array<{ itemId: string; uomId?: string | null; quantity: number; description?: string | null }>;
   contactId?: string | null;
   ownerUserId?: string;
   quotationDate?: string | null;
@@ -405,6 +418,8 @@ export type SalesDocumentScheme = {
 };
 export type SalesDocumentPreview = {
   schemes?: SalesDocumentScheme[];
+  // Sales warnings of the customer and products (Sales report Phase 3).
+  warnings?: Array<{ kind: "customer" | "product"; name: string; message: string }>;
   // The price list the document is priced from, and why (chosen, the customer's, or the default).
   priceList: { id: string; code: string; name: string; currencyCode: string; taxInclusive: boolean; basis: "chosen" | "customer" | "default" } | null;
   totals: {
@@ -415,6 +430,8 @@ export type SalesDocumentPreview = {
     documentDiscountValue: string;
     documentDiscountPercent: string;
     documentDiscountAmount: string;
+    couponCode?: string | null;
+    couponAmount?: string;
     taxableTotal: string;
     discountTotal: string;
     chargeTotal: string;

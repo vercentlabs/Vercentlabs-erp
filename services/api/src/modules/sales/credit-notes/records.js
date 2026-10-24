@@ -109,7 +109,7 @@ export async function createCreditNote(client, context, invoiceId, input = {}, o
     return { creditNoteId: existing.customer_invoice_id, creditNoteNumber: existing.invoice_number, status: CREDIT_NOTE_STATUS.draft, replayed: true, warnings: [] };
   }
   if (!FINANCE_POSTED.includes(invoice.status))
-    throw new CreditNoteError(409, invoice.status === "reversed" ? "A reversed invoice cannot be credited." : "Only a posted invoice can be credited.", "SALES_INVOICE_NOT_POSTED");
+    throw new CreditNoteError(409, invoice.status === "reversed" ? "A cancelled invoice cannot be credited." : "Only a final invoice can be credited.", "SALES_INVOICE_NOT_POSTED");
   const reason = readReason(input, { fromReturn: Boolean(options.salesReturn), keepsStock: await stockOn(client, context) });
   const creditDate = readCreditDate(input, invoice, await companyToday(client));
   const lines = await creditableLines(client, context.organizationId, invoice.id);
@@ -198,7 +198,7 @@ export async function updateDraftCreditNote(client, context, creditNoteId, input
   const creditNote = await loadCreditNote(client, context, creditNoteId, { lock: true });
   if (creditNote.status !== "draft")
     throw new CreditNoteError(409, creditNote.status === "pending_approval" || creditNote.status === "approved" ? "The credit note is with Finance for approval and cannot be changed."
-      : "A posted credit note cannot be changed. Reverse it and make a new one.", "SALES_CREDIT_NOTE_LOCKED");
+      : "A final credit note cannot be changed. Cancel it and make a new one.", "SALES_CREDIT_NOTE_LOCKED");
   if (input.expectedVersion != null && Number(input.expectedVersion) !== Number(creditNote.version))
     throw new CreditNoteError(409, "Someone else changed this credit note. Reload it and try again.", "SALES_CREDIT_NOTE_VERSION_CONFLICT");
   const has = (key) => Object.prototype.hasOwnProperty.call(input, key) && input[key] !== undefined;
@@ -265,7 +265,8 @@ function availableActions(context, creditNote, unapplied, refunded) {
     creditAmount: can(CREDIT_NOTE_PERMISSIONS.amount),
     viewApplication: can(CREDIT_NOTE_PERMISSIONS.applicationView),
     viewAccounting: Boolean(creditNote.journal_entry_id) && can(CREDIT_NOTE_PERMISSIONS.accountingView),
-    applyCredit: posted && unapplied > 0.005 && can("accounting.receipts.manage"),
+    // Sales report H7: billing people use the leftover too, not only Finance.
+    applyCredit: posted && unapplied > 0.005 && (can(CREDIT_NOTE_PERMISSIONS.post) || can("sales.invoice.record_payment") || can("accounting.receipts.manage")),
     // What the invoice did not owe is the customer's credit: Finance applies it to another invoice, or refunds it.
     refund: posted && unapplied > 0.005 && can("accounting.refund.create"),
   };

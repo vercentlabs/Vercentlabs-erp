@@ -59,8 +59,8 @@ export function PriceListsScreen() {
     <>
       <EnterpriseListPage
         header={{
-          title: "Price Lists",
-          description: "The prices quotations and orders start from. A customer uses its own price list, else the default list for the document's currency.",
+          title: "Price lists",
+          description: "The prices quotations and orders start from. A customer's own list comes first.",
           primaryAction: can?.create ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />New price list</Button> : undefined,
         }}
         savedViews={{ views: VIEWS, activeViewId: status, onSelect: (id) => { setStatus(id); paged.resetPage(); } }}

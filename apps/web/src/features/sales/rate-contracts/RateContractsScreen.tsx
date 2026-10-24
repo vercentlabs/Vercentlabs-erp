@@ -41,8 +41,8 @@ export function RateContractsScreen() {
   return (
     <>
       <EnterpriseListPage header={{
-        title: "Rate Contracts",
-        description: "A customer's agreed rates for products over a period, with the quantity it may draw. Its orders are priced at the contract rate while quantity remains.",
+        title: "Customer rates",
+        description: "Rates agreed with a customer for a period. Their orders use these rates while quantity remains.",
         primaryAction: can ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />New contract</Button> : undefined,
       }}>
         <EnterpriseDataGrid<RateContract>

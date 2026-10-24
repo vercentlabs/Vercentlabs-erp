@@ -9,6 +9,7 @@ import {
   Button,
   EnterpriseDataGrid,
   ErrorState,
+  LinkButton,
   PageHeader,
   PermissionState,
   Select,
@@ -325,7 +326,8 @@ export function SalesReportsPage({ tabs }: { tabs: ReportTab[] }) {
   const fairShare = workspace.accessibleModuleKeys.includes("stock") && (workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.order.reserve_partial"));
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Sales Reports" description="Every Sales report in one place, with one set of filters. Every row opens its record; export to Excel or print any of them." />
+      <PageHeader title="Sales Reports" description="Every Sales report with one set of filters. Open any row, export to Excel or print."
+        secondaryActions={<LinkButton href="/sales/reports/analysis" variant="secondary" className="flex-1 sm:flex-none">Analysis by any grouping</LinkButton>} />
       <ReportFilterBar filters={filters} onChange={(next) => go(tab.id, report, next)} />
       <Tabs selectedKey={tab.id} onSelectionChange={(key) => go(String(key), undefined, filters)}>
         <TabList aria-label="Report groups">
@@ -366,9 +368,9 @@ const spec = (key: string, label: string, description: string): ReportSpec => ({
 // Built here, in the client module: a server page can pass these lists on but not compute with them.
 export const SALES_REPORT_TABS: ReportTab[] = [
   {
-    id: "sales", label: "Sales", description: "What was billed: posted invoices and debit notes less credit notes, net of discounts, before tax.",
+    id: "sales", label: "Sales", description: "What was billed: final invoices and debit notes less credit notes, net of discounts, before tax.",
     reports: [
-      spec("sales-register", "Sales register", "Every posted invoice, debit note and credit note with its GSTIN, place of supply and CGST, SGST and IGST."),
+      spec("sales-register", "Sales register", "Every final invoice, debit note and credit note with its GSTIN, place of supply and CGST, SGST and IGST."),
       spec("sales-by-period", "By period", "By month: invoices, credit notes, net sales, tax and total, per currency, with net sales in the company's currency."),
       spec("sales-by-customer", "By customer", "Net sales per customer, what is still outstanding and the last invoice date."),
       spec("sales-by-item", "By product", "Quantities (in each product's base unit) and net sales per product."),
@@ -378,7 +380,7 @@ export const SALES_REPORT_TABS: ReportTab[] = [
     ],
   },
   {
-    id: "orders", label: "Orders", description: "Where orders stand: what is still to dispatch, by order and by product, what is ready to bill, and whether dispatches kept the customer's date.",
+    id: "orders", label: "Orders", description: "What is still to deliver, what is ready to bill, and whether deliveries were on time.",
     reports: [
       spec("order-status", "Order status", "Every confirmed or closed order with each dimension on its own: stock kept aside, dispatch, invoicing and payment."),
       spec("fulfillment", "To dispatch", "Confirmed orders with goods still to deliver, and whether the requested date has passed."),
@@ -407,7 +409,7 @@ export const SALES_REPORT_TABS: ReportTab[] = [
   {
     id: "collections", label: "Collections", description: "What customers owe, what came in and what is overdue.",
     reports: [
-      spec("collections-ageing", "Ageing", "What each customer owes by age, less their credits, with the promise to pay."),
+      spec("collections-ageing", "How long unpaid", "What each customer owes by age, less their credits, with the promise to pay."),
       spec("collections-by-salesperson", "Collected by salesperson", "Payments received in the period by the salesperson of the bills they settled."),
       spec("overdue-invoices", "Overdue bills", "Bills past their due date and still unpaid, oldest first."),
     ],
@@ -416,7 +418,7 @@ export const SALES_REPORT_TABS: ReportTab[] = [
     id: "schemes", label: "Schemes & discounts", description: "What schemes and discounts gave away.",
     reports: [
       spec("scheme-cost", "Scheme cost", "Per scheme on confirmed orders: free goods at list price and the price given away."),
-      spec("discounts-given", "Discounts given", "Discounts on posted invoices by salesperson, against the limit a salesperson may give."),
+      spec("discounts-given", "Discounts given", "Discounts on final invoices by salesperson, against the limit a salesperson may give."),
     ],
   },
 ];

@@ -541,6 +541,9 @@ export async function exportQuotations(client, context, filters = {}) {
     rows.push(...page.rows);
     if (page.rows.length < 200) break;
   }
+  // Export selected (CRM parity): only the ticked rows.
+  const wanted = new Set(String(filters.ids ?? "").split(",").filter(Boolean));
+  if (wanted.size) rows.splice(0, rows.length, ...rows.filter((row) => wanted.has(row.id)));
   const header = ["Quotation", "Date", "Customer", "Customer number", "Contact", "Opportunity", "Owner", "Status", "Valid until", "Currency", "Subtotal", "Tax", "Total", "Reference"];
   const body = rows.map((row) => [row.quotation_number, dayOf(row.quotation_date), row.customer_name, row.customer_number, row.contact_name, row.opportunity_name, row.owner_name,
     row.status_label, dayOf(row.valid_until), row.currency_code, row.subtotal, row.tax_total, row.grand_total, row.customer_reference].map(csvCell).join(","));

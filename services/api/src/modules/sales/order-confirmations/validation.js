@@ -223,7 +223,7 @@ export async function evaluateConfirmation(client, context, order) {
     availability = await computeOrderAvailability(client, context, order.id);
     shortages = availability.lines.filter((line) => Number(line.shortage) > 0 || line.problem)
       .map((line) => ({ itemName: line.itemName, unit: line.unit, required: line.remaining, available: line.available, shortage: line.shortage, problem: line.problem }));
-    if (shortages.length) warnings.push(`Stock is short on ${shortages.length} line(s). The order can still be confirmed; what is available is reserved and the rest later.`);
+    if (shortages.length) warnings.push(`Stock is short on ${shortages.length} line(s). The order can still be confirmed; what is available is kept aside and the rest later.`);
   }
   // Credit (Sales audit M1): the customer's exposure with this order, in base currency, against its limit and the overdue rule. Held
   // (block) — confirmed only by someone who can release credit, with a reason; or a warning (warn); or not checked (off).

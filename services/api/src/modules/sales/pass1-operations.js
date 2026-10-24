@@ -90,7 +90,7 @@ async function accrueCommission(client, c, input) {
     formula: `${orderCurrency !== currency ? `${orderCurrency} ${orderAmount} × ${rate} = ` : ""}${currency} ${basisAmount} × ${Number(rule.rate_percent)}% = ${currency} ${commission}`,
   };
   const result = await client.query(`INSERT INTO tenant.sales_commission_entries(organization_id,sales_order_id,rule_id,owner_user_id,basis_amount,rate_percent,commission_amount,explanation,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$9::jsonb,$8,$8) ON CONFLICT(organization_id,sales_order_id,owner_user_id,rule_id) DO UPDATE SET basis_amount=EXCLUDED.basis_amount,rate_percent=EXCLUDED.rate_percent,commission_amount=EXCLUDED.commission_amount,explanation=EXCLUDED.explanation,updated_by=EXCLUDED.updated_by,updated_at=now() WHERE tenant.sales_commission_entries.status='accrued' RETURNING *`, [c.organizationId,target.id,rule.id,ownerUserId,basisAmount,rule.rate_percent,commission,c.userId,JSON.stringify(explanation)]);
-  if (!result.rows[0]) throw new SalesError(409, "This commission is already approved, paid or reversed and can't be recalculated.", "SALES_COMMISSION_LOCKED");
+  if (!result.rows[0]) throw new SalesError(409, "This commission is already approved, paid or cancelled and can't be recalculated.", "SALES_COMMISSION_LOCKED");
   return result.rows[0];
 }
 
@@ -130,6 +130,9 @@ const SETTINGS_DEFAULTS = Object.freeze({
   einvoice_30_day_limit: false,
   // Create-Where-You-Are: a line may be typed without a catalogue product (name, price, HSN/SAC and GST).
   allow_lines_without_item: true,
+  // Sales report H5: a quotation accepted online becomes its sales order at once.
+  order_on_online_acceptance: false,
+  document_reply_to: null,
 });
 const DISCOUNT_SETTINGS = Object.freeze({
   allowLineDiscounts: "allow_line_discounts", allowDocumentDiscounts: "allow_document_discounts", allowPercentDiscounts: "allow_percent_discounts",
@@ -206,11 +209,18 @@ export async function updateSalesSettings(client, c, input = {}) {
   if (input.einvoiceOnPost !== undefined) next.einvoice_on_post = Boolean(input.einvoiceOnPost);
   if (input.einvoice30DayLimit !== undefined) next.einvoice_30_day_limit = Boolean(input.einvoice30DayLimit);
   if (input.allowLinesWithoutItem !== undefined) next.allow_lines_without_item = Boolean(input.allowLinesWithoutItem);
+  if (input.orderOnOnlineAcceptance !== undefined) next.order_on_online_acceptance = Boolean(input.orderOnOnlineAcceptance);
+  // Replies to document emails go to this address (an inbound address set to file Sales replies), Sales report Phase 3.
+  if (input.documentReplyTo !== undefined) {
+    const address = String(input.documentReplyTo ?? "").trim().toLowerCase();
+    if (address && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) throw new SalesError(400, "Enter a valid email address for replies.", "SALES_SETTINGS_INVALID", { field: "documentReplyTo" });
+    next.document_reply_to = address || null;
+  }
   if (input.invoiceQuantityBasis !== undefined) {
     if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
     next.invoice_quantity_basis = input.invoiceQuantityBasis;
   }
-  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_warehouse_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent","credit_control","credit_overdue_days","unassigned_customers_visible","einvoice_on_post","einvoice_30_day_limit","allow_lines_without_item"];
+  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","allow_direct_orders","reserve_stock_on_confirm","require_customer_po","require_requested_delivery_date","check_availability_on_confirm","show_prices_on_delivery_note","invoice_quantity_basis","default_price_list_id","default_warehouse_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent","credit_control","credit_overdue_days","unassigned_customers_visible","einvoice_on_post","einvoice_30_day_limit","allow_lines_without_item","order_on_online_acceptance","document_reply_to"];
   const result = await client.query(
     `INSERT INTO tenant.sales_settings(organization_id,${columns.join(",")},created_by,updated_by)
      VALUES($1,${columns.map((_, index) => `$${index + 3}`).join(",")},$2,$2)

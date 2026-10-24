@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 
 import { GST_PERMISSIONS as P, GstError, HEADS, defaultRegistrationId, monthOf, need, paise, registrationOf, rupees, uuid, ymd } from "./gst-common.js";
 import { checkDocument, collectOutward } from "./gst-outward.js";
+import { collectAdvances } from "./gst-advances.js";
 import { loadReturn, shapeReturn, syncExceptions } from "./gstr1.js";
 
 const DRAFT = "Draft GSTR-3B Summary — Reconciliation Required";
@@ -40,6 +41,9 @@ async function build(client, c, registration, period) {
       }
     }
   }
+  // Advances (Sales report Phase 2): 3.1(a) carries the tax on advances received this month (GSTR-1 11A) less what earlier advances
+  // used or refunded this month already paid (11B).
+  for (const a of await collectAdvances(client, c, registration, start, end)) put(t31.a, a, a.section === "at" ? 1 : -1);
   if (blocked) found.push({ code: "OUTWARD_BLOCKED", severity: "blocking", detail: "outward", message: `${blocked} outward document(s) of this month have blocking problems. See the GSTR-1 for the month and fix them at the source.` });
   // ---- the books' input side for this GSTIN: Finance's tax ledger
   const ledger = (await client.query(`SELECT t.id, t.source_type, t.source_id, t.tax_type, t.direction, t.tax_period, t.taxable_amount, t.tax_amount, t.itc_status, t.reverse_charge, t.supply_category,
@@ -100,7 +104,9 @@ async function build(client, c, registration, period) {
   if (!g1 || g1.status === "DRAFT") found.push({ code: "GSTR1_NOT_PREPARED", severity: "warning", detail: "gstr1", message: "The GSTR-1 of this month is not prepared, so the outward tax is not compared with it." });
   else {
     const s = g1.summary?.liability ?? {};
-    const diff = ["igst", "cgst", "cess"].map((h) => [h, paise(s[h]) - liability[h]]).concat([["sgst", paise(s.sgst) + paise(s.utgst) - liability.sgst]]);
+    const advance = g1.summary?.advanceTax ?? {};
+    const diff = ["igst", "cgst", "cess"].map((h) => [h, paise(s[h]) + paise(advance[h]) - liability[h]])
+      .concat([["sgst", paise(s.sgst) + paise(s.utgst) + paise(advance.sgst) + paise(advance.utgst) - liability.sgst]]);
     gstr1 = { status: g1.status, differences: Object.fromEntries(diff.map(([h, v]) => [h, rupees(v)])) };
     if (diff.some(([, v]) => Math.abs(v) > 100)) found.push({ code: "OUTWARD_DIFFERS_FROM_GSTR1", severity: "warning", detail: "gstr1", message: `The outward tax differs from the ${g1.status.toLowerCase()} GSTR-1 of this month. Prepare the GSTR-1 again or explain the difference.` });
   }

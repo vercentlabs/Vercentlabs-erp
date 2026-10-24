@@ -16,6 +16,8 @@ import { JOB_TYPE as CALENDAR_SYNC_JOB_TYPE } from "./handlers/crm-calendar-sync
 import { JOB_TYPE as MAILINGS_SEND_JOB_TYPE } from "./handlers/crm-mailings-send.js";
 import { JOB_TYPE as BROADCASTS_SEND_JOB_TYPE } from "./handlers/crm-whatsapp-broadcasts-send.js";
 import { JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE } from "./handlers/sales-quotation-expiry.js";
+import { JOB_TYPE as PAYMENT_REMINDERS_JOB_TYPE } from "./handlers/sales-payment-reminders.js";
+import { JOB_TYPE as RECURRING_JOB_TYPE } from "./handlers/sales-recurring.js";
 import { JOB_TYPE as FISCAL_YEAR_AHEAD_JOB_TYPE } from "./handlers/platform-fiscal-year-ahead.js";
 import { JOB_TYPE as LEAD_SCORING_HISTORY_JOB_TYPE } from "./handlers/crm-lead-scoring-history.js";
 import { JOB_TYPE as EXCHANGE_RATE_FEED_JOB_TYPE } from "./handlers/platform-exchange-rate-feed.js";
@@ -73,6 +75,10 @@ export const SCHEDULED_JOBS = Object.freeze([
   { name: "lead scoring history", module: "crm", every: "day", jobType: LEAD_SCORING_HISTORY_JOB_TYPE, key: "crm-lead-scoring-history", maxAttempts: 3 },
   // Quotations past their Valid Until date become Expired.
   { name: "expired quotations", module: "sales", every: "day", jobType: QUOTATION_EXPIRY_JOB_TYPE, key: "sales-quotation-expiry", maxAttempts: 3 },
+  // Payment reminders by the company's rules (off, preview or sending).
+  { name: "payment reminders", module: "sales", every: "day", jobType: PAYMENT_REMINDERS_JOB_TYPE, key: "sales-payment-reminders", maxAttempts: 3 },
+  // Recurring orders and invoices that are due.
+  { name: "recurring orders", module: "sales", every: "day", jobType: RECURRING_JOB_TYPE, key: "sales-recurring", maxAttempts: 3 },
 ]);
 
 // What the company has: its switched-on apps and its time zone (organization_modules is tenant-scoped, so this runs in the company's

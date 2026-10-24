@@ -26,7 +26,7 @@ const STATUS_COPY: Record<StatusAction, { title: string; description: string; co
   unblock: { title: "Unblock customer", confirm: "Unblock customer", reasonRequired: false, reasonLabel: "Note (optional)", description: "New quotations and sales orders can be created again." },
   deactivate: {
     title: "Inactivate customer", confirm: "Inactivate", reasonRequired: false, reasonLabel: "Reason (optional)",
-    description: "An inactive customer cannot be chosen on new documents. It stays on its existing documents and reports, and can be reactivated.",
+    description: "It can no longer be chosen on new documents, but stays on old ones. You can reactivate it.",
   },
   activate: { title: "Reactivate customer", confirm: "Reactivate", reasonRequired: false, reasonLabel: "Note (optional)", description: "The customer can be chosen on new documents again." },
 };
@@ -71,7 +71,7 @@ export function LinkAccountDialog({ customer, onClose, onDone }: { customer: Cus
   });
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Link CRM account"
-      description={`The CRM account you choose is merged into ${customer.displayName}. The customer keeps its number and documents and gains the account's contacts, opportunities and history. This cannot be undone.`}>
+      description={`The CRM account you choose is merged into ${customer.displayName}, with its contacts and history. This cannot be undone.`}>
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
         <ComboBox label="CRM account" isRequired placeholder="Search accounts that are not customers yet" selectedKey={accountId} onSelectionChange={(value) => setAccountId(value ? String(value) : null)}

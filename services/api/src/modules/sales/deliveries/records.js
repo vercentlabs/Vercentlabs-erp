@@ -148,7 +148,7 @@ async function settleLines(client, context, order, lines, requested, warehouseHi
   for (const { line } of chosen) {
     const elsewhere = (reserved.get(line.lineId) ?? []).find((row) => row.id !== warehouseId);
     if (elsewhere)
-      throw new DeliveryError(409, `${line.itemName} is reserved in ${elsewhere.name}. Change the line's warehouse (which releases that reservation) or deliver from ${elsewhere.name}.`,
+      throw new DeliveryError(409, `${line.itemName} is kept aside in ${elsewhere.name}. Change the line's warehouse (which releases what is kept aside there) or deliver from ${elsewhere.name}.`,
         "SALES_DELIVERY_WAREHOUSE_MISMATCH");
   }
   return { chosen, warehouseId };

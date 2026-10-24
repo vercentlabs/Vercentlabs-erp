@@ -5,7 +5,7 @@
 // the obligation is tracked either way. Generation through a GSP stays in orchestration/compliance.
 import { hasSessionPermission } from "../../core/access/index.js";
 import { validateGstin } from "../../core/invoicing/index.js";
-import { EWAY_BILL_THRESHOLD, buildEwayBillPayload, gspConfigured, movementOf } from "../../orchestration/compliance/index.js";
+import { EWAY_BILL_THRESHOLD, buildEwayBillPayload, gspAvailable, movementOf } from "../../orchestration/compliance/index.js";
 import { GST_PERMISSIONS as P, GstError, defaultRegistrationId, need, paise, rupees, text, uuid, ymd } from "./gst-common.js";
 import { checkDocument, collectOutward } from "./gst-outward.js";
 
@@ -65,7 +65,7 @@ export async function getEInvoiceReadiness(client, c, invoiceId) {
   }
   const live = (await client.query(`SELECT irn, ack_number, ack_date, origin FROM tenant.einvoice_documents WHERE organization_id = $1 AND document_id = $2 AND status = 'generated'`, [c.organizationId, invoice.id])).rows[0] ?? null;
   return { invoiceId: invoice.id, number: invoice.invoice_number, applicable, why, ready: applicable && !problems.some((p) => p.severity === "blocking"), problems, live,
-    gspConfigured: gspConfigured(process.env),
+    gspConfigured: await gspAvailable(client, c.organizationId, process.env),
     meaning: "Ready means the data meets the IRP's requirements. It is not an e-invoice until an IRN is generated (through the GSP or on the portal) and recorded here." };
 }
 
@@ -125,7 +125,7 @@ export async function getEwayBillReadiness(client, c, sourceType, sourceId) {
   const live = (await client.query(`SELECT ewb_number, ewb_date, valid_until, origin FROM tenant.eway_bills WHERE organization_id = $1 AND source_type = $2 AND source_id = $3 AND status = 'generated'`,
     [c.organizationId, sourceType, sourceId])).rows[0] ?? null;
   return { sourceType, sourceId, number: movement.number, value, required: value >= EWAY_BILL_THRESHOLD, ready: !problems.some((p) => p.severity === "blocking"), problems, live,
-    gspConfigured: gspConfigured(process.env) };
+    gspConfigured: await gspAvailable(client, c.organizationId, process.env) };
 }
 
 // An e-way bill generated on the e-way-bill portal for this movement: its 12-digit number, date and validity.
@@ -198,7 +198,7 @@ export async function listGstDocumentObligations(client, c, input = {}) {
   }
   const expiring = (await client.query(`SELECT source_type, source_id, source_number, ewb_number, valid_until FROM tenant.eway_bills WHERE organization_id = $1 AND status = 'generated'
       AND valid_until BETWEEN now() AND now() + interval '1 day' ORDER BY valid_until`, [c.organizationId])).rows;
-  return { from, to, gspConfigured: gspConfigured(process.env),
+  return { from, to, gspConfigured: await gspAvailable(client, c.organizationId, process.env),
     einvoiceDue: invoices.map((i) => ({ invoiceId: i.id, number: i.invoice_number, kind: i.invoice_type, date: ymd(i.invoice_date), value: rupees(paise(i.grand_total)), gstin: i.gstin || null, customer: i.customer, seller: i.registration_number })),
     ewayDue, expiring: expiring.map((e) => ({ sourceType: e.source_type, sourceId: e.source_id, number: e.source_number, ewbNumber: e.ewb_number, validUntil: e.valid_until })) };
 }

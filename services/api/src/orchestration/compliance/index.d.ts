@@ -6,6 +6,19 @@ export type EwayBill = { id: string; sourceType: string; sourceId: string; sourc
 export class ComplianceError extends Error { status: number; code: string }
 export const EWAY_BILL_THRESHOLD: number;
 export function gspConfigured(env?: Record<string, string | undefined>): boolean;
+export function gspAvailable(client: unknown, organizationId: string, env?: Record<string, string | undefined>): Promise<boolean>;
+// E-invoice per company (Sales report Phase 2).
+export class GspConnectionError extends Error { status: number; code: string; details?: unknown }
+export type GspConnectionView = { provider: string; providerLabel: string; baseUrl: string | null; credentialHint: string | null; status: "untested" | "connected" | "failed";
+  lastTestedAt: string | null; lastError: string | null; lastUsedAt: string | null; useCount: number };
+export function listGspConnections(client: unknown, session: unknown, env?: Record<string, string | undefined>): Promise<{
+  registrations: Array<{ registrationId: string; name: string; gstin: string; connection: GspConnectionView | null }>;
+  providers: Array<{ value: string; label: string; fields: string[] }> }>;
+export function saveGspConnection(client: unknown, session: unknown, registrationId: string, input: { provider: string; baseUrl?: string; username?: string; token?: string },
+  env?: Record<string, string | undefined>): Promise<{ connection: GspConnectionView }>;
+export function deleteGspConnection(client: unknown, session: unknown, registrationId: string): Promise<{ removed: boolean }>;
+export function testGspConnection(client: unknown, session: unknown, registrationId: string, options?: { env?: Record<string, string | undefined>; fetchImpl?: typeof fetch }): Promise<{
+  connected: boolean; error: string | null }>;
 export function buildEInvoicePayload(client: Client, session: Session, invoiceId: string): Promise<{ seller: Record<string, any>; payload: Record<string, any>; invoice: Record<string, any> }>;
 export function getEInvoice(client: Client, session: Session, invoiceId: string): Promise<EInvoice | null>;
 export function generateEInvoice(client: Client, session: Session, invoiceId: string, options?: Options): Promise<{ einvoice: EInvoice; replayed: boolean }>;

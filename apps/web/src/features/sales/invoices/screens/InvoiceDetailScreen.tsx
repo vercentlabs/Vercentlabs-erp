@@ -57,10 +57,10 @@ type DialogKind = "edit" | "terms" | "post" | "cancel" | "reverse" | "send" | "m
 
 const EVENT_LABELS: Record<string, string> = {
   "sales_invoice.created": "Invoice created", "sales_invoice.updated": "Draft changed", "sales_invoice.submitted_for_approval": "Sent to Finance for approval",
-  "sales_invoice.posted": "Invoice posted", "sales_invoice.cancelled": "Draft cancelled", "sales_invoice.reversed": "Invoice reversed", "sales_invoice.sent": "Invoice emailed",
-  "sales_invoice.marked_sent": "Marked as sent", "sales_invoice.credit_note_created": "Credit note created", "sales_invoice.due_date_changed": "Due date changed", "accounting.customer_invoice.due_date_changed": "Due date changed in Finance", "sales_invoice.credit_note_posted": "Credit note posted",
+  "sales_invoice.posted": "Invoice finalised", "sales_invoice.cancelled": "Draft cancelled", "sales_invoice.reversed": "Invoice cancelled", "sales_invoice.sent": "Invoice emailed",
+  "sales_invoice.marked_sent": "Marked as sent", "sales_invoice.credit_note_created": "Credit note created", "sales_invoice.due_date_changed": "Due date changed", "accounting.customer_invoice.due_date_changed": "Due date changed in Finance", "sales_invoice.credit_note_posted": "Credit note finalised",
   "accounting.customer_credit.applied": "Credit note applied", "accounting.customer_credit.unapplied": "Credit note unapplied", "sales_invoice.file_added": "File added", "sales_invoice.file_removed": "File removed",
-  "accounting.customer_invoice.posted": "Entered in the books", "accounting.customer_invoice.reversed": "Reversing entry posted",
+  "accounting.customer_invoice.posted": "Entered in the books", "accounting.customer_invoice.reversed": "Reversing entry made",
   "accounting.customer_invoice.approved": "Approved by Finance", "accounting.customer_invoice.submitted": "Submitted to Finance",
 };
 function eventDetail(event: SalesDocumentEvent) {
@@ -102,10 +102,10 @@ export function InvoiceDetailScreen({ invoiceId, gst, thread }: { invoiceId: str
 
   // From Sales → + Create: open the credit note dialog when this invoice allows it.
   useCreateRequest(Boolean(query.data), (kind) => {
-    if (kind === "payment") { if (query.data?.actions.recordPayment) setDialog("payment"); else setNotice("A payment cannot be recorded on this invoice: it must be posted, with a balance to pay."); return; }
-    if (kind === "debit") { if (query.data?.invoice.status === "posted" && query.data?.actions.creditNote !== undefined && canRaiseNotes) setDialog("debit"); else setNotice("A debit note is raised on a posted invoice."); return; }
+    if (kind === "payment") { if (query.data?.actions.recordPayment) setDialog("payment"); else setNotice("A payment cannot be recorded on this invoice: it must be finalised, with a balance to pay."); return; }
+    if (kind === "debit") { if (query.data?.invoice.status === "posted" && query.data?.actions.creditNote !== undefined && canRaiseNotes) setDialog("debit"); else setNotice("A debit note is raised on a final invoice."); return; }
     if (kind !== "credit") return;
-    if (query.data?.actions.creditNote) setDialog("credit"); else setNotice("A credit note cannot be created from this invoice: it must be posted, with something left to credit.");
+    if (query.data?.actions.creditNote) setDialog("credit"); else setNotice("A credit note cannot be created from this invoice: it must be finalised, with something left to credit.");
   });
 
   if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
@@ -126,13 +126,13 @@ export function InvoiceDetailScreen({ invoiceId, gst, thread }: { invoiceId: str
   return (
     <div className="flex flex-col gap-4">
       {notice && <Notice tone="info" className="whitespace-pre-line">{notice}</Notice>}
-      {invoice.financeStatus === "pending_approval" && <Notice tone="warning">This invoice is waiting for Finance approval. It is posted once approved.</Notice>}
+      {invoice.financeStatus === "pending_approval" && <Notice tone="warning">This invoice is waiting for Finance approval. It is finalised once approved.</Notice>}
       {invoice.status === "reversed" && (
-        <Notice tone="warning">This invoice was reversed {by(invoice.reversed_at, invoice.reversed_by_name)}{invoice.reversal_reason ? `: ${invoice.reversal_reason}` : ""}. It is kept for the record; nothing is owed on it.</Notice>
+        <Notice tone="warning">This invoice was cancelled {by(invoice.reversed_at, invoice.reversed_by_name)}{invoice.reversal_reason ? `: ${invoice.reversal_reason}` : ""}. It is kept for the record; nothing is owed on it.</Notice>
       )}
       {invoice.status === "cancelled" && <Notice tone="warning">This draft was cancelled. It never reached the books.</Notice>}
       {invoice.status === "draft" && invoice.dueDateRequired && (
-        <Notice tone="warning">Payment terms &quot;{invoice.paymentTerm?.name}&quot; do not set a due date. Enter the due date (Edit) before posting this invoice.</Notice>
+        <Notice tone="warning">Payment terms &quot;{invoice.paymentTerm?.name}&quot; do not set a due date. Enter the due date (Edit) before finalising this invoice.</Notice>
       )}
       {detail.draftWarnings.map((warning, index) => <Notice key={index} tone="warning">{warning.message}</Notice>)}
       {available > 0.005 && (
@@ -163,7 +163,7 @@ export function InvoiceDetailScreen({ invoiceId, gst, thread }: { invoiceId: str
             { label: "Sales order", value: <Link className="hover:underline" href={`/sales/orders/${invoice.sales_order_id}`}>{invoice.sales_order_number}</Link> },
           ],
           primaryAction: actions.post ? (
-            <Button variant="primary" onPress={() => setDialog("post")}><Check className="size-4" aria-hidden="true" />Post Invoice</Button>
+            <Button variant="primary" onPress={() => setDialog("post")}><Check className="size-4" aria-hidden="true" />Finalise Invoice</Button>
           ) : actions.send ? (
             <Button variant="primary" onPress={() => setDialog("send")}><Send className="size-4" aria-hidden="true" />Send Invoice</Button>
           ) : undefined,
@@ -187,7 +187,7 @@ export function InvoiceDetailScreen({ invoiceId, gst, thread }: { invoiceId: str
                 { id: "terms", label: "Payment terms / due date", show: !actions.edit && (actions.changePaymentTerms || actions.overrideDueDate), run: () => setDialog("terms") },
                 { id: "dueDate", label: "Change due date", show: actions.changeDueDate, run: () => setDialog("dueDate") },
                 { id: "cancel", label: "Cancel draft", show: actions.cancel, run: () => setDialog("cancel") },
-                { id: "reverse", label: "Reverse", show: actions.reverse, run: () => setDialog("reverse") },
+                { id: "reverse", label: "Cancel", show: actions.reverse, run: () => setDialog("reverse") },
               ]} />
             </div>
           ),
@@ -233,7 +233,7 @@ export function InvoiceDetailScreen({ invoiceId, gst, thread }: { invoiceId: str
       {dialog === "terms" && <EditInvoiceDialog detail={detail} canChangeDates={false} termsOnly onClose={() => setDialog(null)} onDone={() => done("The payment terms and due date were saved.")} />}
       {dialog === "post" && <PostInvoiceDialog detail={detail} onClose={() => setDialog(null)} onDone={(message) => done(message)} />}
       {dialog === "cancel" && <CancelInvoiceDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The draft was cancelled.")} />}
-      {dialog === "reverse" && <ReverseInvoiceDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The invoice was reversed.")} />}
+      {dialog === "reverse" && <ReverseInvoiceDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The invoice was cancelled.")} />}
       {dialog === "send" && <SendInvoiceDialog detail={detail} onClose={() => setDialog(null)} onDone={(sentTo) => done(`The invoice was sent to ${sentTo}.`)} />}
       {dialog === "dueDate" && <ChangeDueDateDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The due date was changed.")} />}
       {dialog === "markSent" && <MarkSentDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The invoice is marked as sent.")} />}
@@ -266,12 +266,12 @@ function Overview({ detail }: { detail: InvoiceDetail }) {
       <Panel title="Invoice">
         <Facts items={[
           { label: "Invoice date", value: calendarDate(invoice.invoice_date) },
-          { label: "Posting date", value: calendarDate(invoice.accounting_date) },
+          { label: "Accounting date", value: calendarDate(invoice.accounting_date) },
           { label: "Payment terms", value: invoice.paymentTerm
             ? <span className="flex flex-col"><span>{invoice.paymentTerm.name}</span><span className="text-xs text-text-muted">{invoice.paymentTerm.summary}</span>
                 {[invoice.paymentTerm.description, invoice.paymentTerm.note].filter(Boolean).map((line, index) => <span key={index} className="text-xs text-text-muted">{line}</span>)}</span>
             : "—" },
-          { label: "Due date", value: invoice.dueDateRequired ? "To be entered before posting"
+          { label: "Due date", value: invoice.dueDateRequired ? "To be entered before finalising"
             : <span className="flex flex-col"><span>{calendarDate(invoice.due_date)}</span>
                 {invoice.due_date_overridden && invoice.paymentTerm?.calculationType !== "custom" && (
                   <span className="text-xs text-text-muted">Set by hand{invoice.due_date_override_reason ? `: ${invoice.due_date_override_reason}` : ""}{invoice.calculated_due_date ? ` · the terms work out ${calendarDate(invoice.calculated_due_date)}` : ""}</span>
@@ -294,8 +294,8 @@ function Overview({ detail }: { detail: InvoiceDetail }) {
       <Panel title="Status history">
         <Facts items={[
           { label: "Created", value: by(invoice.created_at, invoice.created_by_name) },
-          { label: "Posted", value: by(invoice.posted_at, invoice.posted_by_name) },
-          { label: "Reversed", value: by(invoice.reversed_at, invoice.reversed_by_name) },
+          { label: "Final", value: by(invoice.posted_at, invoice.posted_by_name) },
+          { label: "Cancelled", value: by(invoice.reversed_at, invoice.reversed_by_name) },
         ]} />
       </Panel>
     </div>
@@ -341,7 +341,7 @@ function Taxes({ detail }: { detail: InvoiceDetail }) {
   const currency = invoice.currency_code;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <Panel title="Tax by component" description="Worked out by the central tax engine for each line, from its tax category, the seller's registration and the place of supply.">
+      <Panel title="Tax by component" description="Worked out for each line from its tax category, your GST registration and the place of supply.">
         {!detail.taxSummary.length ? <p className="text-sm text-text-muted">No tax is charged on this invoice.</p> : (
           <table className="w-full text-sm">
             <thead className="bg-surface-muted text-left text-text-secondary"><tr className="border-b border-border"><th className="py-2 pr-3 font-medium">Tax</th><th className="py-2 pr-3 text-right font-medium">Taxable value</th><th className="py-2 text-right font-medium">Amount</th></tr></thead>
@@ -403,12 +403,12 @@ function Credits({ detail, onCredit }: { detail: InvoiceDetail; onCredit?: () =>
   const currency = invoice.currency_code;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <Panel title="Credit notes" description="A posted invoice is corrected by a credit note, never edited: its total stays as invoiced. Posting a credit note applies it to this invoice."
+      <Panel title="Credit notes" description="To correct a final invoice, make a credit note. The invoice itself never changes."
         actions={onCredit ? <Button variant="secondary" size="compact" onPress={onCredit}>Create Credit Note</Button> : undefined}>
         <Facts items={[
           { label: "Credit status", value: invoice.creditStatusLabel },
           { label: "Invoice total", value: money(currency, invoice.grand_total) },
-          { label: "Credited (posted credit notes)", value: money(currency, invoice.creditedTotal) },
+          { label: "Credited (final credit notes)", value: money(currency, invoice.creditedTotal) },
           { label: "Net after credits", value: money(currency, invoice.netAfterCredits) },
         ]} />
         {!detail.creditNotes.length ? <p className="text-sm text-text-muted">No credit notes.</p> : (
@@ -496,10 +496,10 @@ function Accounting({ detail }: { detail: InvoiceDetail }) {
   const invoice = detail.invoice;
   return (
     <div className="pt-4">
-      <Panel title="Accounting" description="Posting debits the customer's receivable and credits revenue and output tax.">
+      <Panel title="Accounting" description="Finalising debits the customer's receivable and credits revenue and output tax.">
         <Facts items={[
-          { label: "Journal entry", value: invoice.journal_entry_number ? <Link className="text-brand hover:underline" href="/accounting/journals">{invoice.journal_entry_number}</Link> : "Not posted yet" },
-          { label: "Posting date", value: calendarDate(invoice.accounting_date) },
+          { label: "Journal entry", value: invoice.journal_entry_number ? <Link className="text-brand hover:underline" href="/accounting/journals">{invoice.journal_entry_number}</Link> : "Not final yet" },
+          { label: "Accounting date", value: calendarDate(invoice.accounting_date) },
           { label: "Finance status", value: statusLabel(invoice.financeStatus) },
         ]} />
       </Panel>

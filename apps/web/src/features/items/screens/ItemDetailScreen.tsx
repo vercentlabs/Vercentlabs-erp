@@ -30,6 +30,7 @@ import { ItemValuationCard } from "@/features/valuation/components/ValuationCard
 import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
 
 import { ItemUnitsCard } from "../components/ItemUnitsCard";
+import { SalesWarningDialog } from "@/features/sales/shared/SalesWarningDialog";
 import { ReclassifyDialog } from "../components/ReclassifyDialog";
 import { CategoryPath, CopySkuButton, ErrorBanner, ItemTypeBadge, LENS, LifecycleBadge, attributesText, money, quantity, taxLine, unitLine, yesNo, type ItemLens } from "../item-format";
 
@@ -409,6 +410,15 @@ function PurchasingPanel({ item, details }: { item: Item; details?: ItemDetails 
 }
 
 function SalesPanel({ item, details }: { item: Item; details?: ItemDetails }) {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const [warning, setWarning] = useState(false);
+  const canWarn = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("products.edit") || workspace.permissions.includes("sales.settings.manage");
+  const basis = useMutation({
+    mutationFn: (value: string | null) => fetch(`/api/sales/products/${item.id}/invoice-basis`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ basis: value }) }).then((response) => { if (!response.ok) throw new Error("The change was not saved."); }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "products", "product", item.id) }),
+  });
   const lists = details?.access.sales ? [{ id: "orders", label: "Sales orders" }, { id: "quotations", label: "Quotations" }, ...(item.type !== "service" ? [{ id: "deliveries", label: "Deliveries" }, { id: "sales_returns", label: "Sales returns" }] : []),
     ...(details.access.accounting ? [{ id: "invoices", label: "Invoices" }] : [])] : [];
   return (
@@ -417,6 +427,19 @@ function SalesPanel({ item, details }: { item: Item; details?: ItemDetails }) {
         <Card title="Selling">
           <Facts items={[["Sellable", yesNo(item.isSellable)], ["Default sales unit", item.salesUomFactor && item.salesUomFactor !== 1 ? `${item.salesUom?.code} of ${item.salesUomFactor} ${item.baseUom?.code}` : unit(item.salesUom)], ["Tax", taxLine(item)]]} />
           {item.salesDescription && <p className="border-t border-border pt-3 text-sm whitespace-pre-wrap">{item.salesDescription}</p>}
+          {/* How it is billed (Sales report Phase 3): as ordered, as delivered, or the company's setting. */}
+          <div className="border-t border-border pt-3">
+            <Select label="Billed" size="compact" isDisabled={!canWarn || basis.isPending} selectedKey={item.invoiceBasis ?? "company"}
+              onSelectionChange={(key) => basis.mutate(key === "company" ? null : String(key))}
+              options={[{ value: "company", label: "As the Sales settings say" }, { value: "ordered", label: "As ordered" }, { value: "delivered", label: "As delivered" }]} />
+          </div>
+          {/* A sales warning (Sales report Phase 3): shown on documents, or stopping the sale. */}
+          <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <span className={item.salesWarning ? (item.salesWarningLevel === "block" ? "text-danger" : "text-warning") : "text-text-muted"}>
+              {item.salesWarning ? `${item.salesWarningLevel === "block" ? "Not sold" : "Sales warning"}: ${item.salesWarning}` : "No sales warning."}
+            </span>
+            {canWarn && <Button variant="ghost" size="compact" onPress={() => setWarning(true)}>{item.salesWarning ? "Change warning" : "Add sales warning"}</Button>}
+          </div>
         </Card>
         <Card title="Price lists">
           {!details ? <LoadingState label="Loading" rows={2} /> : details.sales.priceLists.length === 0 ? <p className="text-sm text-text-muted">Not on any price list yet: documents ask for a price. Prices are kept in price lists, not on the item.</p> : (
@@ -432,6 +455,10 @@ function SalesPanel({ item, details }: { item: Item; details?: ItemDetails }) {
         </Card>
       </div>
       {lists.length > 0 && <TransactionsPanel itemId={item.id} tabs={lists} />}
+      {warning && (
+        <SalesWarningDialog kind="product" id={item.id} name={item.name} level={item.salesWarningLevel ?? "warn"} message={item.salesWarning ?? null} onClose={() => setWarning(false)}
+          onDone={() => { setWarning(false); void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "products", "product", item.id) }); }} />
+      )}
     </div>
   );
 }

@@ -7,7 +7,7 @@ type QueryClient = {
 export type CloseOutcome = "won" | "lost";
 export type CloseReason = {
   id: string; code: string; name: string; outcome: CloseOutcome; category: string; sequence: number; active: boolean;
-  requiresNotes: boolean; capturesCompetitor: boolean; requiresCompetitor: boolean; offersFollowUp: boolean; linksDuplicate: boolean; useCount?: number;
+  requiresNotes: boolean; capturesCompetitor: boolean; requiresCompetitor: boolean; offersFollowUp: boolean; linksDuplicate: boolean; isStandard: boolean; useCount?: number;
 };
 export type CloseReasonInput = {
   outcome?: CloseOutcome; name?: string; category?: string;

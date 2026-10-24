@@ -12,8 +12,12 @@ import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { request, SalesApiError } from "@/features/sales/shared/http";
+import { post, request, SalesApiError } from "@/features/sales/shared/http";
 import { Notice, Panel } from "@/shared/ui/Panel";
+import { GspConnectionsPanel } from "../components/GspConnectionsPanel";
+import { LutPanel } from "../components/LutPanel";
+import { OnlinePaymentsPanel } from "../components/OnlinePaymentsPanel";
+import { CustomerPortalPanel } from "../components/CustomerPortalPanel";
 
 type Settings = {
   default_quote_validity_days: number;
@@ -28,6 +32,9 @@ type Settings = {
   credit_overdue_days?: number | null;
   unassigned_customers_visible?: boolean;
   einvoice_on_post?: boolean;
+  receipt_vouchers_from?: string | null;
+  order_on_online_acceptance?: boolean;
+  document_reply_to?: string | null;
   einvoice_30_day_limit?: boolean;
   require_requested_delivery_date: boolean;
   check_availability_on_confirm: boolean;
@@ -103,7 +110,7 @@ function SaveBar({ canManage, save, onSave, saved, readOnlyText }: {
 // --------------------------------------------------- quotation & order rules
 export function QuotationOrderRulesScreen() {
   return (
-    <SettingsPage title="Quotation & Order Rules" description="When a quotation needs a second person, how long it stays valid, and what an order needs before it is confirmed.">
+    <SettingsPage title="Quotation & Order Rules" description="Quotation approval and validity, and what an order needs before it is confirmed.">
       {({ settings }) => <QuotationOrderRulesForm settings={settings} />}
     </SettingsPage>
   );
@@ -123,10 +130,12 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
   const [requireDelivery, setRequireDelivery] = useState(Boolean(settings.require_requested_delivery_date));
   const [unassigned, setUnassigned] = useState(Boolean(settings.unassigned_customers_visible));
   const [typedLines, setTypedLines] = useState(settings.allow_lines_without_item !== false);
+  const [orderOnAccept, setOrderOnAccept] = useState(Boolean(settings.order_on_online_acceptance));
+  const [replyTo, setReplyTo] = useState(settings.document_reply_to ?? "");
   const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
   return (
     <div className="flex flex-col gap-4">
-      <Panel title="Quotation approval" description="A quotation needs approval by someone other than its author when any trigger below is met. Set an amount to 0 to switch that trigger off.">
+      <Panel title="Quotation approval" description="Someone other than the author must approve when any trigger below is met. Use 0 to switch one off.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <NumberField label="Approval above amount" value={quoteAmount} onChange={touch(setQuoteAmount)} minValue={0} step={0.01} isDisabled={!canManage} />
           <NumberField label="Approval above discount (%)" value={quoteDiscount} onChange={touch(setQuoteDiscount)} minValue={0} maxValue={100} step={1} isDisabled={!canManage} />
@@ -139,15 +148,24 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
         </div>
         <TextArea label="Standard terms and conditions for quotations" description="Copied onto each new quotation, where it can be changed. Printed on the quotation."
           value={quotationTerms} onChange={touch(setQuotationTerms)} isDisabled={!canManage} />
+        <Switch isSelected={orderOnAccept} onChange={touch(setOrderOnAccept)} isDisabled={!canManage}>Make the sales order when the customer accepts online</Switch>
       </Panel>
       <Panel title="Sales orders" description="Orders are confirmed by someone with the Confirm sales orders permission; there is no order approval.">
         <Switch isSelected={direct} onChange={touch(setDirect)} isDisabled={!canManage}>Allow orders without a quotation</Switch>
         <Switch isSelected={requirePo} onChange={touch(setRequirePo)} isDisabled={!canManage}>Require the customer&apos;s PO number before an order is confirmed</Switch>
         <Switch isSelected={requireDelivery} onChange={touch(setRequireDelivery)} isDisabled={!canManage}>Require a requested delivery date before an order is confirmed</Switch>
       </Panel>
-      <Panel title="Lines" description="A line that is just a name, price, HSN/SAC and GST, for something not in the catalogue (a one-off service, a course batch). It can be saved as a product later.">
+      <Panel title="Lines" description="A line with just a name, price, HSN/SAC and GST, for things not in the catalogue.">
         <Switch isSelected={typedLines} onChange={touch(setTypedLines)} isDisabled={!canManage}>Allow lines without a catalogue product</Switch>
       </Panel>
+      <Panel title="Replies to document emails" description="Customers' replies to quotations, orders and invoices go here and join the document.">
+        <div className="sm:max-w-md">
+          <TextField label="Reply-to address" type="email" value={replyTo} onChange={touch(setReplyTo)} isDisabled={!canManage} placeholder="For example: sales-replies@yourcompany.com"
+            description="Point this mailbox at an inbound address set to Sales replies (Settings, Integrations)." />
+        </div>
+      </Panel>
+      <OnlinePaymentsPanel canManage={canManage} />
+      <CustomerPortalPanel canManage={canManage} />
       <Panel title="Customers" description="A salesperson who sees only their own customers sees those they are the salesperson of or added.">
         <Switch isSelected={unassigned} onChange={touch(setUnassigned)} isDisabled={!canManage}>Every salesperson also sees customers with no salesperson</Switch>
       </Panel>
@@ -155,7 +173,7 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
         onSave={() => save.mutate({
           defaultQuoteValidityDays: validity, quotationApprovalAmount: quoteAmount, quotationApprovalDiscount: quoteDiscount, minimumMarginPercent: margin,
           defaultQuotationTerms: quotationTerms, allowDirectOrders: direct, requireCustomerPo: requirePo, requireRequestedDeliveryDate: requireDelivery,
-          unassignedCustomersVisible: unassigned, allowLinesWithoutItem: typedLines,
+          unassignedCustomersVisible: unassigned, allowLinesWithoutItem: typedLines, orderOnOnlineAcceptance: orderOnAccept, documentReplyTo: replyTo.trim() || null,
         })} />
     </div>
   );
@@ -164,7 +182,7 @@ function QuotationOrderRulesForm({ settings }: { settings: Settings }) {
 // ---------------------------------------------------------------- fulfillment
 export function FulfillmentSettingsScreen() {
   return (
-    <SettingsPage title="Fulfillment Settings" description="What invoicing is based on, how stock is checked and reserved when an order is confirmed, the warehouse new orders start from, and the delivery note.">
+    <SettingsPage title="Delivery Settings" description="How orders are billed, when stock is kept aside, and which warehouse orders start from.">
       {(loaded) => <FulfillmentForm {...loaded} />}
     </SettingsPage>
   );
@@ -190,11 +208,11 @@ function FulfillmentForm({ settings, warehouses }: Loaded) {
             selectedKey={basis} onSelectionChange={(key) => touch(setBasis)(String(key ?? "ordered"))} isDisabled={!canManage} />
         </div>
       </Panel>
-      <Panel title="Availability and reservation" description="Availability is on hand minus reserved, in each warehouse; stock under quality hold is not available. Checking availability never blocks an order.">
+      <Panel title="Availability and stock kept aside" description="Checks stock on hand that is not kept aside. Checking never blocks an order.">
         <Switch isSelected={checkOnConfirm} onChange={touch(setCheckOnConfirm)} isDisabled={!canManage}>Check availability when an order is confirmed</Switch>
-        <Switch isSelected={reserveOnConfirm} onChange={touch(setReserveOnConfirm)} isDisabled={!canManage}>Reserve available stock when an order is confirmed</Switch>
+        <Switch isSelected={reserveOnConfirm} onChange={touch(setReserveOnConfirm)} isDisabled={!canManage}>Keep available stock aside when an order is confirmed</Switch>
       </Panel>
-      <Panel title="Default warehouse" description="Where a new sales order's goods come from unless the order or a line says otherwise. Only a starting value: it can be changed on the order.">
+      <Panel title="Default warehouse" description="Where new orders' goods come from. It can be changed on each order.">
         {inactiveDefault && <Notice tone="warning">The warehouse chosen here is no longer active, so new orders start without one.</Notice>}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="Default warehouse" options={[{ value: "", label: "None" }, ...warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.name} (${warehouse.code})` }))]}
@@ -217,7 +235,7 @@ function FulfillmentForm({ settings, warehouses }: Loaded) {
 // ------------------------------------------------------------ discount controls
 export function DiscountControlsScreen() {
   return (
-    <SettingsPage title="Discount Controls" description="Which discounts can be given on quotations, orders and invoices, how much a salesperson or a manager may give, and when a reason is required.">
+    <SettingsPage title="Discount limits" description="Which discounts can be given, how much each person may give, and when a reason is needed.">
       {({ settings }) => <DiscountForm settings={settings} />}
     </SettingsPage>
   );
@@ -239,7 +257,7 @@ function DiscountForm({ settings }: { settings: Settings }) {
   const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
   return (
     <div className="flex flex-col gap-4">
-      <Panel title="Allowed discounts" description="A discount is given on a line or on the whole document, as a percentage or a fixed amount. Standard customer prices belong in price lists, not here.">
+      <Panel title="Allowed discounts" description="Discounts on a line or the whole document. Put standard customer prices in price lists.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Switch isSelected={lineDiscounts} onChange={touch(setLineDiscounts)} isDisabled={!canManage}>Allow line discounts</Switch>
           <Switch isSelected={documentDiscounts} onChange={touch(setDocumentDiscounts)} isDisabled={!canManage}>Allow document discounts</Switch>
@@ -247,7 +265,7 @@ function DiscountForm({ settings }: { settings: Settings }) {
           <Switch isSelected={amountDiscounts} onChange={touch(setAmountDiscounts)} isDisabled={!canManage}>Fixed amount discounts</Switch>
         </div>
       </Panel>
-      <Panel title="Limits and reasons" description="The limit applies to each line's total discount: its own discount plus its share of the document discount. Users who may override the limit are not restricted; a price override needs its own permission.">
+      <Panel title="Limits and reasons" description="The limit covers each line's own discount plus its share of the document discount.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <TextField label="Salesperson maximum discount (%)" description="Leave empty for no limit." inputMode="decimal" value={discountLimit}
             onChange={(value) => touch(setDiscountLimit)(percentInput(value))} isDisabled={!canManage} />
@@ -271,7 +289,7 @@ function DiscountForm({ settings }: { settings: Settings }) {
 // approval: the order waits in Credit hold until someone who can release credit confirms it with a reason (the salesperson can ask).
 export function CreditControlScreen() {
   return (
-    <SettingsPage title="Credit Control" description="What happens when an order would take a customer over its credit limit, or the customer has bills overdue too long.">
+    <SettingsPage title="Credit Control" description="What happens when an order takes a customer over their credit limit, or bills are overdue too long.">
       {({ settings }) => <CreditControlForm settings={settings} />}
     </SettingsPage>
   );
@@ -286,7 +304,7 @@ function CreditControlForm({ settings }: { settings: Settings }) {
   const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
   return (
     <div className="flex flex-col gap-4">
-      <Panel title="When an order goes over the limit" description="Each customer's credit limit is set on the customer, in the company's currency (0: no limit). Used credit is what the customer owes, less advances and credit notes, plus confirmed orders not yet invoiced.">
+      <Panel title="When an order goes over the limit" description="Set each customer's limit on the customer (0 means no limit). Used credit includes confirmed orders not yet billed.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="An order over the customer's credit limit" selectedKey={creditControl} onSelectionChange={(key) => touch(setCreditControl)(String(key ?? "block"))} isDisabled={!canManage}
             options={[
@@ -297,7 +315,7 @@ function CreditControlForm({ settings }: { settings: Settings }) {
           <NumberField label="Also hold orders when a bill is overdue more than (days)" description="Leave empty to not check overdue bills." value={overdueDays}
             onChange={touch(setOverdueDays)} minValue={0} maxValue={3650} step={1} isDisabled={!canManage || creditControl === "off"} />
         </div>
-        <p className="text-sm text-text-secondary">A held order shows in Sales Orders › Credit hold and on the home. The salesperson can ask for it to be released; whoever has
+        <p className="text-sm text-text-secondary">A held order shows in Sales Orders › Waiting for credit approval and on the home. The salesperson can ask for it to be released; whoever has
           the Release credit permission confirms it and gives the reason, which is kept on the order&apos;s history.</p>
       </Panel>
       <SaveBar canManage={canManage} save={save} saved={saved} readOnlyText="You can view these rules. Changing them needs the Sales settings permission."
@@ -325,15 +343,38 @@ function GstEinvoiceForm({ settings }: { settings: Settings }) {
   const touch = <T,>(setter: (value: T) => void) => (value: T) => { setSaved(false); setter(value); };
   return (
     <div className="flex flex-col gap-4">
-      <Panel title="E-invoice on posting" description="Switch on once the GSP credentials are tested. Without a GSP, generate the IRN on the e-invoice portal and record it on the invoice's GST tab.">
-        <Switch isSelected={onPost} onChange={touch(setOnPost)} isDisabled={!canManage}>Generate the IRN when an invoice, credit note or debit note to a registered customer is posted</Switch>
-        <p className="text-sm text-text-secondary">If the GSP refuses, the document stays posted and its GST tab shows why, to retry.</p>
+      <GspConnectionsPanel />
+      <Panel title="E-invoice when finalised" description="Switch on once the GSP is tested. Without one, enter the IRN on the invoice's GST tab.">
+        <Switch isSelected={onPost} onChange={touch(setOnPost)} isDisabled={!canManage}>Generate the IRN when an invoice, credit note or debit note to a registered customer is finalised</Switch>
+        <p className="text-sm text-text-secondary">If the GSP refuses, the document stays final and its GST tab shows why, to retry.</p>
       </Panel>
-      <Panel title="30-day reporting limit" description="From 1 April 2025 a company with annual turnover of ₹10 crore or more must report an invoice to the IRP within 30 days of its date. Check with your CA.">
+      <ReceiptVouchersSetting from={settings.receipt_vouchers_from ?? null} canManage={canManage} />
+      <LutPanel canManage={canManage} />
+      <Panel title="30-day reporting limit" description="Since 1 April 2025, companies with ₹10 crore turnover or more must report invoices within 30 days.">
         <Switch isSelected={limit} onChange={touch(setLimit)} isDisabled={!canManage}>Our turnover is ₹10 crore or more: warn on documents nearing 30 days without an IRN</Switch>
       </Panel>
       <SaveBar canManage={canManage} save={save} saved={saved} readOnlyText="You can view these settings. Changing them needs the Sales settings permission."
         onSave={() => save.mutate({ einvoiceOnPost: onPost, einvoice30DayLimit: limit })} />
     </div>
+  );
+}
+
+// GST on advances (Sales report Phase 2): receipt vouchers from a date, so payments before it are never touched. Saved on its own.
+function ReceiptVouchersSetting({ from, canManage }: { from: string | null; canManage: boolean }) {
+  const [on, setOn] = useState(Boolean(from));
+  const [date, setDate] = useState(from ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date()));
+  const save = useMutation({ mutationFn: (value: string | null) => post("/settings/receipt-vouchers", { from: value }) });
+  return (
+    <Panel title="Receipt vouchers for advances" description="For services: GST is paid on an advance when it is received, on a receipt voucher.">
+      {save.isError && <Notice tone="danger">{(save.error as Error).message}</Notice>}
+      <Switch isSelected={on} isDisabled={!canManage || save.isPending} onChange={(value) => { setOn(value); save.mutate(value ? date : null); }}>Issue receipt vouchers for advances</Switch>
+      {on && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <TextField label="From" type="date" value={date} onChange={setDate} isDisabled={!canManage} description="Payments before this date are not touched." />
+          <Button variant="secondary" isDisabled={!canManage || !date} isLoading={save.isPending} onPress={() => save.mutate(date)}>Save date</Button>
+        </div>
+      )}
+      {save.isSuccess && <p className="text-sm text-success">Saved.</p>}
+    </Panel>
   );
 }

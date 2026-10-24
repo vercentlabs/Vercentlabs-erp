@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify:routes": "node scripts/verify-routes.mjs"
+    "verify:routes": "node scripts/verify-routes.mjs",
+    "copy-lint": "node scripts/copy-lint.mjs"
   },
   "dependencies": {
     "@swc/helpers": "0.5.15",

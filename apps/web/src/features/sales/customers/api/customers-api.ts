@@ -10,6 +10,7 @@ export type CustomerCapabilities = Record<
   | "viewAddresses" | "inactivateAddress" | "setDefaultBilling" | "setDefaultShipping" | "editAddressGstin" | "viewContacts" | "inactivateContact" | "setPrimaryContact", boolean>;
 
 export type Customer = {
+  salesWarning?: string | null;
   id: string;
   customerNumber: string;
   accountNumber: string;

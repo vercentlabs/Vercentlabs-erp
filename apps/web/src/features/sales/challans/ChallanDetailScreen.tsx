@@ -47,7 +47,7 @@ export function ChallanDetailScreen({ challanId }: { challanId: string }) {
       {change.isError && !cancelling && <p role="alert" className="text-sm text-danger">{change.error instanceof SalesApiError ? change.error.message : "That could not be done."}</p>}
       <Panel title="Details">
         <Facts items={[
-          { label: "Consignee", value: challan.customer.displayName ?? "Own branch" },
+          { label: "Ship to", value: challan.customer.displayName ?? "Own branch" },
           { label: "GSTIN", value: challan.customer.gstin ?? "—" },
           { label: "Deliver to", value: [challan.shipTo.line1, challan.shipTo.city, challan.shipTo.state].filter(Boolean).join(", ") || "—" },
           { label: "Sales order", value: challan.salesOrderId ? <Link className="hover:underline" href={`/sales/orders/${challan.salesOrderId}`}>{challan.salesOrderNumber}</Link> : "—" },

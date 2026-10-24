@@ -139,7 +139,7 @@ Regards`);
   });
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Proforma invoice ${number}`}
-      description="The quotation set out as a request for payment, for the customer's PO or advance. It is marked as not a tax invoice and changes nothing on the quotation." size="lg">
+      description="A payment request for the customer's PO or advance. It is not a tax invoice." size="lg">
       <div className="flex flex-col gap-3">
         {send.isError && <p role="alert" className="text-sm text-danger">{failureText(send.error, "The email could not be sent.")}</p>}
         <TextField label="Advance requested (%)" type="number" description="Optional. For example 30 asks for 30% of the total in advance." value={advance} onChange={setAdvance}
@@ -215,7 +215,7 @@ function ReviseDialog({ quotation, onClose, onDone }: { quotation: LifecycleQuot
   const save = useMutation({ mutationFn: () => reviseSalesQuotation(quotation.id, reason.trim(), idempotencyKey), onSuccess: ({ result }) => onDone(result.id) });
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Create a revision of ${quotation.number}`}
-      description="A new draft quotation is made with the same lines and prices for you to change. This quotation stays as it is until the revision is sent, then it is superseded.">
+      description="Makes a new draft to change. This quotation is replaced once the new one is sent.">
       <div className="flex flex-col gap-3">
         {save.isError && <p role="alert" className="text-sm text-danger">{failureText(save.error, "The revision could not be created.")}</p>}
         <TextArea label="Reason for the revision" isRequired value={reason} onChange={setReason} />

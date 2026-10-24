@@ -30,8 +30,8 @@ const MODES = [
 ];
 const KINDS: Record<ImportKind, { noun: string; required: string; requiredKeys: string[]; hint: string }> = {
   customers: { noun: "customers", required: "Customer Name", requiredKeys: ["displayName"], hint: "Each row becomes a customer, checked exactly like one typed in by hand." },
-  addresses: { noun: "addresses", required: "Customer Number and Address Line 1", requiredKeys: ["customerNumber", "line1"], hint: "Each row adds an address to the customer named by its customer number. An address the customer already has is skipped." },
-  contacts: { noun: "contacts", required: "Customer Number and First Name", requiredKeys: ["customerNumber", "firstName"], hint: "Each row adds a person to the customer named by its customer number. A row whose email or mobile matches an existing contact links that contact." },
+  addresses: { noun: "addresses", required: "Customer Number and Address Line 1", requiredKeys: ["customerNumber", "line1"], hint: "Each row adds an address to the customer with that number. Addresses they already have are skipped." },
+  contacts: { noun: "contacts", required: "Customer Number and First Name", requiredKeys: ["customerNumber", "firstName"], hint: "Each row adds a person to the customer with that number. Matching email or mobile links the existing contact." },
 };
 const JOB_ENTITY: Record<ImportKind, SalesDataJobEntity> = { customers: "customers", addresses: "customer_addresses", contacts: "customer_contacts" };
 const OUTCOME: Record<ImportRow["outcome"], { label: string; tone: "success" | "info" | "neutral" | "warning" | "danger" }> = {

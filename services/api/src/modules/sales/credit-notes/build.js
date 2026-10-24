@@ -104,7 +104,7 @@ export function draftWarnings(chosen) {
     const over = type === CREDIT_TYPES.quantity ? quantity + line.draftQuantity > line.quantityLeft + EPSILON : amount + line.draftValue > line.valueLeft + 0.005;
     if (!over) return [];
     return [{ item: line.item_name_snapshot, otherDrafts: line.draftCreditNotes,
-      message: `${line.item_name_snapshot}: draft ${line.draftCreditNotes.join(", ")} also credit this line; together they credit more than is left, so only the first posted goes through.` }];
+      message: `${line.item_name_snapshot}: draft ${line.draftCreditNotes.join(", ")} also credit this line; together they credit more than is left, so only the first finalised goes through.` }];
   });
 }
 

@@ -30,7 +30,7 @@ export function CommissionRulesScreen() {
   const data = query.data;
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Commission Rules" description="Commission accrues when an order is confirmed, from the rule that applies on the order's date, in the company's currency. A salesperson's own rule comes before everyone's."
+      <PageHeader title="Commission Rules" description="Commission is earned when an order is confirmed. A salesperson's own rule comes before the general one."
         primaryAction={data?.canManage ? <Button variant="primary" onPress={() => setEditing("new")}>New rule</Button> : undefined} />
       {query.isLoading && <LoadingState label="Loading commission rules" rows={4} />}
       {query.isError && <ErrorState title="Could not load commission rules" action={{ label: "Try again", onPress: () => void query.refetch() }} />}

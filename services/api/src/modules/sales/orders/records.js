@@ -193,13 +193,13 @@ export async function draftDocument(client, context, order, input, today) {
   if (document.partyId !== order.party_id)
     throw new OrderError(409, "An order made from a quotation keeps the quotation's customer. Create a new order for another customer.", "SALES_ORDER_CUSTOMER_LOCKED");
   const current = (await client.query(
-    `SELECT currency_code, exchange_rate, price_list_id, document_discount_type, document_discount_value, discount_reason_code, discount_reason_text
+    `SELECT currency_code, exchange_rate, price_list_id, document_discount_type, document_discount_value, discount_reason_code, discount_reason_text, coupon_code
        FROM tenant.sales_order_versions WHERE organization_id = $1 AND id = $2`, [context.organizationId, order.current_version_id])).rows[0];
   document = {
     ...document,
     currencyCode: current.currency_code.trim(), exchangeRate: current.exchange_rate, priceListId: current.price_list_id,
     documentDiscountType: current.document_discount_type, documentDiscountValue: current.document_discount_value, discountReasonCode: current.discount_reason_code,
-    discountReasonText: current.discount_reason_text,
+    discountReasonText: current.discount_reason_text, couponCode: current.coupon_code,
     lines: document.lines.map((line) => {
       const source = quoted.get(line.salesOrderLineId);
       if (!source || source.line.item_id !== line.itemId) return line;
@@ -220,7 +220,7 @@ export async function previewSalesOrder(client, context, orderId, input = {}) {
   const order = await lockOrder(client, context, orderId);
   await assertOrderVisible(client, context, order.id);
   const document = await draftDocument(client, context, order, input, await databaseToday(client));
-  return priced(client, context, document, { carryDocumentDiscount: Boolean(order.source_quotation_id), allowMissingPrice: true, preview: true });
+  return priced(client, context, document, { carryDocumentDiscount: Boolean(order.source_quotation_id), allowMissingPrice: true, preview: true, orderId: order.id });
 }
 
 // Saves changes to a Draft as its next version. expectedVersionNumber is the
@@ -236,7 +236,7 @@ export async function updateSalesOrder(client, context, orderId, input = {}) {
     throw new OrderError(409, "Someone else changed this order. Reload it and make your change again.", "SALES_ORDER_VERSION_CONFLICT");
   const document = await draftDocument(client, context, order, input, await databaseToday(client));
   const before = await commercialSnapshot(client, context, order.current_version_id);
-  const preview = await priced(client, context, document, { carryDocumentDiscount: Boolean(order.source_quotation_id) });
+  const preview = await priced(client, context, document, { carryDocumentDiscount: Boolean(order.source_quotation_id), orderId: order.id });
   if (before.version.payment_term_id && (preview.master.paymentTerm?.id ?? null) !== before.version.payment_term_id)
     requireOrderPermission(context, ORDER_PERMISSIONS.changePaymentTerms, "You do not have permission to change the payment terms.");
   const version = await insertOrderVersion(client, context, order.id, document, preview);
@@ -712,8 +712,11 @@ export async function exportSalesOrders(client, context, filters = {}) {
     rows.push(...page.rows);
     if (page.rows.length < 200) break;
   }
+  // Export selected (CRM parity): only the ticked rows.
+  const wanted = new Set(String(filters.ids ?? "").split(",").filter(Boolean));
+  if (wanted.size) rows.splice(0, rows.length, ...rows.filter((row) => wanted.has(row.id)));
   const header = ["Sales order", "Order date", "Customer", "Customer number", "Customer PO", "Quotation", "Salesperson", "Requested delivery", "Currency", "Total", "Order status", "Confirmation",
-    "Reservation", "Fulfilment", "Delivered", "Cancelled", "Invoicing", "Balance due"];
+    "Stock kept aside", "Delivery", "Delivered", "Cancelled", "Invoicing", "Balance due"];
   const body = rows.map((row) => [row.sales_order_number, dayOf(row.order_date), row.customer_name, row.customer_number, row.customer_po_number, row.source_quotation_number, row.owner_name,
     dayOf(row.requested_delivery_date), row.currency_code, row.grand_total, row.statusLabel, row.confirmationLabel, row.reservationLabel, row.fulfillmentLabel,
     row.tracking.fulfillment.applies ? `${row.tracking.fulfillment.delivered} / ${row.tracking.fulfillment.ordered}` : "", row.tracking.fulfillment.cancelled || "", row.invoicingLabel,

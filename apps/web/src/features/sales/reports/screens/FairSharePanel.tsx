@@ -33,7 +33,7 @@ export function FairSharePanel() {
   const known = options.data ? (found ? mergeSalesOptions(options.data, found) : options.data) : null;
   const ready = Boolean(itemId && warehouseId);
   return (
-    <Panel title="Short stock: share it fairly" description="When free stock is less than what confirmed orders need, share it in proportion to each order instead of first come, first served.">
+    <Panel title="Short stock: share it fairly" description="When stock is short, share it across confirmed orders in proportion instead of first come, first served.">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {known && <SalesSearchPicker creatable={false} kind="products" label="Product" value={itemId} known={known}
           onPick={(id, results) => { setFound((current) => mergeSalesOptions(current ?? known, results)); setItemId(id || null); setPlan(null); }} />}
@@ -42,7 +42,7 @@ export function FairSharePanel() {
         <div className="flex items-end gap-2">
           <Button variant="secondary" isDisabled={!ready} isLoading={run.isPending && run.variables === true} onPress={() => run.mutate(true)}>Preview</Button>
           {plan?.preview && plan.lines.some((line) => line.share > 0) && (
-            <Button variant="primary" isLoading={run.isPending && run.variables === false} onPress={() => run.mutate(false)}>Reserve the shares</Button>
+            <Button variant="primary" isLoading={run.isPending && run.variables === false} onPress={() => run.mutate(false)}>Keep the shares aside</Button>
           )}
         </div>
       </div>
@@ -51,9 +51,9 @@ export function FairSharePanel() {
         <>
           <p className="text-sm text-text-secondary">
             {quantity(plan.available)} free against {quantity(plan.demand)} still needed (in the product&apos;s base unit).
-            {plan.available + 1e-6 >= plan.demand ? " There is enough for every order." : ""}{plan.preview ? "" : " Reserved."}
+            {plan.available + 1e-6 >= plan.demand ? " There is enough for every order." : ""}{plan.preview ? "" : " Kept aside."}
           </p>
-          <LinesTable columns={["Order", { label: "Still needed", numeric: true }, { label: "Share", numeric: true }, ...(plan.preview ? [] : [{ label: "Reserved", numeric: true }])]}
+          <LinesTable columns={["Order", { label: "Still needed", numeric: true }, { label: "Share", numeric: true }, ...(plan.preview ? [] : [{ label: "Kept aside", numeric: true }])]}
             empty={plan.lines.length ? undefined : "No confirmed order needs this product from this warehouse."}>
             {plan.lines.map((line) => (
               <tr key={line.lineId}>

@@ -38,7 +38,7 @@ async function holdLocation(client, context, warehouseId, disposition) {
       WHERE organization_id = $1 AND warehouse_id = $2 AND upper(btrim(code)) = upper(btrim($3))`,
     [context.organizationId, warehouseId, code])).rows[0];
   if (existing.disposition === "available" || existing.allow_allocation || existing.status !== "active")
-    throw new ReturnError(409, `The location ${code} of the return warehouse must be an active location that holds held (never allocated) stock.`, "SALES_RETURN_HOLD_LOCATION_INVALID");
+    throw new ReturnError(409, `The location ${code} of the return warehouse must be an active location for stock on hold (never given to orders).`, "SALES_RETURN_HOLD_LOCATION_INVALID");
   return existing.id;
 }
 
@@ -112,7 +112,7 @@ export async function receiveSalesReturn(client, context, returnId, input = {}) 
   const restocked = (await client.query(`SELECT stock_movement_id FROM tenant.sales_return_lines WHERE organization_id = $1 AND sales_return_id = $2 AND stock_movement_id IS NOT NULL`,
     [context.organizationId, salesReturn.id])).rows.map((row) => row.stock_movement_id);
   const cogs = await postCostOfGoodsJournal(client, context, { movementIds: restocked, date: dayOf(salesReturn.return_date), reference: salesReturn.return_number,
-    description: `Sales return ${salesReturn.return_number}: cost of goods sold reversed`, sourceType: "sales_return", sourceId: salesReturn.id, sourceNumber: salesReturn.return_number });
+    description: `Sales return ${salesReturn.return_number}: cost of goods sold taken back`, sourceType: "sales_return", sourceId: salesReturn.id, sourceNumber: salesReturn.return_number });
   await client.query(
     `UPDATE tenant.sales_returns SET status = 'received', received_at = clock_timestamp(), received_by = $3, cogs_journal_entry_id = $4, version = version + 1, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, salesReturn.id, context.userId ?? null, cogs?.journalEntryId ?? null]);

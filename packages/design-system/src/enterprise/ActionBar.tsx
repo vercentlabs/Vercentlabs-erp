@@ -131,10 +131,10 @@ export function ActionBar({ className, start, end, leading, activeFilterCount, o
     // so its controls and the end actions share lines instead of stacking.
     <div className={cn("flex flex-wrap items-center justify-between gap-2 sm:gap-3", className)}>
       <div className="flex flex-1 flex-wrap items-center gap-2 max-sm:contents">
-        {leading}
+        {/* On a phone: the search has the first line to itself; the view dropdown leads the second, filling what Filters and the buttons leave. */}
+        {leading && <div className="flex min-w-0 max-sm:flex-1 sm:contents">{leading}</div>}
         {search && (
-          // On a phone the search leads the row with just enough room left beside it for the Filters icon; everything else wraps below.
-          <div className="min-w-0 flex-1 max-sm:order-first max-sm:basis-[calc(100%-3.75rem)] sm:min-w-64">
+          <div className="min-w-0 flex-1 max-sm:order-first max-sm:basis-full sm:min-w-64">
             {cloneElement(search, { className: "w-full" })}
           </div>
         )}

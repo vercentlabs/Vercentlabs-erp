@@ -61,7 +61,7 @@ export function ConfirmOrderDialog({ orderId, number, versionNumber, onClose, on
   const problems = refused ?? data?.problems ?? [];
   return (
     <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Confirm ${number}`} size="lg"
-      description="Confirming commits the order: it is priced and taxed again by the server, recorded as the Order Confirmation, and opens it to reservation, delivery and invoicing.">
+      description="The order is priced again, gets its confirmation number, and can then be delivered and billed.">
       <div className="flex flex-col gap-4">
         {check.isLoading && <p className="text-sm text-text-muted">Checking the order…</p>}
         {check.isError && <Notice>{failureText(check.error, "The order could not be checked.")}</Notice>}
@@ -129,11 +129,11 @@ export function ConfirmOrderDialog({ orderId, number, versionNumber, onClose, on
                     <li key={line.itemName}>{line.itemName}: {line.problem ?? `needs ${amount(line.required)}, available ${amount(line.available)}, short ${amount(line.shortage)}${line.unit ? ` ${line.unit}` : ""}`}</li>
                   ))}
                 </ul>
-                <p className="text-xs text-text-muted">A shortage does not stop the confirmation; the rest is reserved when it arrives.</p>
+                <p className="text-xs text-text-muted">A shortage does not stop the confirmation; the rest is kept aside when it arrives.</p>
               </Section>
             )}
             <p className="text-xs text-text-muted">
-              {data.reservesOnConfirm ? "Stock that is available is reserved as soon as the order is confirmed." : "Stock is not reserved automatically: use Reserve Stock after confirming."} Services are never reserved.
+              {data.reservesOnConfirm ? "Stock that is available is kept aside as soon as the order is confirmed." : "Stock is not kept aside automatically: use Keep Stock Aside after confirming."} Services are never kept aside.
             </p>
           </>
         )}

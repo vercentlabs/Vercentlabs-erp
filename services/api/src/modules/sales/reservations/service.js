@@ -46,7 +46,7 @@ async function confirmedOrder(client, context, orderId) {
   const order = await lockOrder(client, context, orderId);
   await assertOrderVisible(client, context, order.id);
   if (order.lifecycle_status !== STATUS.confirmed)
-    throw new OrderError(409, order.lifecycle_status === STATUS.draft ? "Confirm the order before reserving stock: a draft cannot hold inventory." : "Stock is reserved only for a confirmed order.",
+    throw new OrderError(409, order.lifecycle_status === STATUS.draft ? "Confirm the order before keeping stock aside: a draft cannot hold inventory." : "Stock is kept aside only for a confirmed order.",
       "SALES_ORDER_NOT_CONFIRMED");
   return order;
 }
@@ -58,7 +58,7 @@ const defaultWarehouseOf = async (client, context, order) =>
 async function reserveLine(client, context, order, line, wanted, defaultWarehouseId) {
   const outcome = { lineId: line.lineId, itemName: line.itemName, unit: line.unit, wanted: round(wanted), reserved: 0, shortage: round(wanted), reservations: [], warehouseId: null, problem: null };
   const warehouseId = line.warehouseId ?? defaultWarehouseId;
-  if (!warehouseId) return { ...outcome, problem: "Warehouse required before reservation." };
+  if (!warehouseId) return { ...outcome, problem: "Warehouse required before keeping stock aside." };
   const warehouse = (await client.query(`SELECT id, name, status, shipping_enabled AND sales_fulfillment AS shipping_enabled FROM tenant.warehouses WHERE organization_id = $1 AND id = $2`, [context.organizationId, warehouseId])).rows[0];
   if (!warehouse || warehouse.status !== "active" || !warehouse.shipping_enabled)
     return { ...outcome, warehouseId, problem: `${warehouse?.name ?? "The warehouse"} is inactive or does not ship.` };
@@ -81,7 +81,7 @@ async function reserveLine(client, context, order, line, wanted, defaultWarehous
   return {
     ...outcome, warehouseId, warehouseName: warehouse.name, reserved, shortage: round(Math.max(0, wanted - reserved)),
     reservations: result.reservations.map((reservation) => reservation.reservation_number),
-    problem: reserved + EPSILON < wanted ? (reserved > EPSILON ? "Stock is short: reserved what is available." : "No stock available.") : null,
+    problem: reserved + EPSILON < wanted ? (reserved > EPSILON ? "Stock is short: kept aside what is available." : "No stock available.") : null,
   };
 }
 
@@ -120,7 +120,7 @@ function requireFullUnlessPartial(context, outcome) {
   if (orderCan(context, RESERVATION_PERMISSIONS.reservePartial)) return;
   const short = outcome.find((line) => line.shortage > EPSILON);
   if (short)
-    throw new OrderError(409, `${short.itemName}: only ${short.reserved} ${short.unit ?? ""} of ${short.wanted} can be reserved now. Reserving part of a line needs the partial reservation permission; nothing was reserved.`.replace("  ", " "),
+    throw new OrderError(409, `${short.itemName}: only ${short.reserved} ${short.unit ?? ""} of ${short.wanted} can be kept aside now. Keeping aside part of a line needs the permission to keep part of a line aside; nothing was kept aside.`.replace("  ", " "),
       "SALES_RESERVATION_PARTIAL_NOT_ALLOWED", { lines: outcome.filter((line) => line.shortage > EPSILON).map((line) => ({ lineId: line.lineId, wanted: line.wanted, available: line.reserved })) });
 }
 
@@ -138,7 +138,7 @@ async function finish(client, context, order, outcome) {
 // Reserve Available / Reserve Remaining for the whole order (or the lines given).
 // input: { lineIds?, idempotencyKey? }
 export async function reserveSalesOrderStock(client, context, orderId, input = {}) {
-  requireOrderPermission(context, RESERVATION_PERMISSIONS.reserve, "You do not have permission to reserve stock for sales orders.");
+  requireOrderPermission(context, RESERVATION_PERMISSIONS.reserve, "You do not have permission to keep stock aside for sales orders.");
   const lineIds = Array.isArray(input.lineIds) && input.lineIds.length ? input.lineIds.map((id) => requireUuid(id, "Order line")) : null;
   const order = await confirmedOrder(client, context, orderId);
   return idempotent(client, context, "sales.order.reserve", input.idempotencyKey, { orderId: order.id, lineIds }, async () => {
@@ -151,7 +151,7 @@ export async function reserveSalesOrderStock(client, context, orderId, input = {
 // Reserves a chosen quantity of one line (all of its unreserved demand when no quantity is given).
 // input: { lineId, quantity?, idempotencyKey? }
 export async function reserveSalesOrderLine(client, context, orderId, input = {}) {
-  requireOrderPermission(context, RESERVATION_PERMISSIONS.reserve, "You do not have permission to reserve stock for sales orders.");
+  requireOrderPermission(context, RESERVATION_PERMISSIONS.reserve, "You do not have permission to keep stock aside for sales orders.");
   const lineId = requireUuid(input.lineId, "Order line");
   const order = await confirmedOrder(client, context, orderId);
   return idempotent(client, context, "sales.order.reserve_line", input.idempotencyKey, { orderId: order.id, lineId, quantity: input.quantity ?? null }, async () => {
@@ -159,14 +159,14 @@ export async function reserveSalesOrderLine(client, context, orderId, input = {}
     const line = lines.find((entry) => entry.lineId === lineId);
     if (!line) throw new OrderError(404, "That line is not on this order.", "SALES_ORDER_LINE_NOT_FOUND");
     if (!line.stockTracked)
-      throw new OrderError(409, `${line.itemName} is ${line.deliverable ? "not inventory tracked" : "a service"}: it is never reserved.`, "SALES_RESERVATION_NOT_STOCK");
+      throw new OrderError(409, `${line.itemName} is ${line.deliverable ? "not inventory tracked" : "a service"}: it is never kept aside.`, "SALES_RESERVATION_NOT_STOCK");
     const unreserved = round(line.remainingToDeliver - line.reserved);
     if (unreserved <= EPSILON)
-      throw new OrderError(409, `${line.itemName}: everything still to deliver is already reserved.`, "SALES_RESERVATION_NOTHING_TO_RESERVE");
+      throw new OrderError(409, `${line.itemName}: everything still to deliver is already kept aside.`, "SALES_RESERVATION_NOTHING_TO_RESERVE");
     const wanted = input.quantity == null || input.quantity === "" ? unreserved : Number(input.quantity);
-    if (!Number.isFinite(wanted) || wanted <= 0) throw new OrderError(400, "Enter the quantity to reserve.", "SALES_ORDER_VALIDATION");
+    if (!Number.isFinite(wanted) || wanted <= 0) throw new OrderError(400, "Enter the quantity to keep aside.", "SALES_ORDER_VALIDATION");
     if (wanted > unreserved + EPSILON)
-      throw new OrderError(409, `${line.itemName}: only ${unreserved} ${line.unit ?? ""} is still to reserve (ordered ${line.ordered}, delivered ${line.delivered}, cancelled ${line.cancelled}, reserved ${round(line.reserved)}).`.replace("  ", " "),
+      throw new OrderError(409, `${line.itemName}: only ${unreserved} ${line.unit ?? ""} is still to keep aside (ordered ${line.ordered}, delivered ${line.delivered}, cancelled ${line.cancelled}, kept aside ${round(line.reserved)}).`.replace("  ", " "),
         "SALES_RESERVATION_EXCEEDS_DEMAND");
     const outcome = [await reserveLine(client, context, order, line, wanted, await defaultWarehouseOf(client, context, order))];
     requireFullUnlessPartial(context, outcome);
@@ -212,10 +212,10 @@ export async function trimLineReservation(client, context, order, lineId, reason
 
 // Release Reservation by hand. input: { lineId?, quantity?, reasonCode, reason? }
 export async function releaseSalesOrderReservation(client, context, orderId, input = {}) {
-  requireOrderPermission(context, RESERVATION_PERMISSIONS.release, "You do not have permission to release stock reservations.");
+  requireOrderPermission(context, RESERVATION_PERMISSIONS.release, "You do not have permission to release stock kept aside.");
   const reasonCode = text(input.reasonCode, 40);
   const reason = text(input.reason, 500);
-  if (!reasonCode && !reason) throw new OrderError(400, "Say why the reservation is released.", "SALES_ORDER_RELEASE_REASON_REQUIRED", { field: "reasonCode" });
+  if (!reasonCode && !reason) throw new OrderError(400, "Say why the stock kept aside is released.", "SALES_ORDER_RELEASE_REASON_REQUIRED", { field: "reasonCode" });
   if (reasonCode && !RELEASE_REASONS.some((entry) => entry.code === reasonCode)) throw new OrderError(400, "Choose a release reason from the list.", "SALES_ORDER_RELEASE_REASON_INVALID");
   if (reasonCode === "other" && !reason) throw new OrderError(400, "Describe the reason for releasing.", "SALES_ORDER_RELEASE_REASON_REQUIRED", { field: "reason" });
   const order = await lockOrder(client, context, orderId);
@@ -223,12 +223,12 @@ export async function releaseSalesOrderReservation(client, context, orderId, inp
   const lineId = input.lineId ? requireUuid(input.lineId, "Order line") : null;
   let quantity = null;
   if (input.quantity != null && input.quantity !== "") {
-    if (!lineId) throw new OrderError(400, "Choose the line to release part of its reservation.", "SALES_ORDER_VALIDATION");
+    if (!lineId) throw new OrderError(400, "Choose the line to release part of what it kept aside.", "SALES_ORDER_VALIDATION");
     quantity = Number(input.quantity);
     const line = (await loadOrderLineProgress(client, context.organizationId, order.current_version_id)).find((entry) => entry.lineId === lineId);
     if (!Number.isFinite(quantity) || quantity <= 0) throw new OrderError(400, "Enter the quantity to release.", "SALES_ORDER_VALIDATION");
     if (!line || quantity > line.reserved + EPSILON)
-      throw new OrderError(409, `Only ${round(line?.reserved ?? 0)} ${line?.unit ?? ""} is reserved on this line.`.replace("  ", " "), "SALES_RESERVATION_EXCEEDS_ACTIVE");
+      throw new OrderError(409, `Only ${round(line?.reserved ?? 0)} ${line?.unit ?? ""} is kept aside on this line.`.replace("  ", " "), "SALES_RESERVATION_EXCEEDS_ACTIVE");
   }
   const label = [RELEASE_REASONS.find((entry) => entry.code === reasonCode)?.label, reason].filter(Boolean).join(": ");
   const released = await releaseOrderReservations(client, context, order, { lineId, quantity, how: "released", reasonCode: reasonCode ?? "other", reason: label });
@@ -251,7 +251,7 @@ export async function consumeReservationForDelivery(client, context, { order, li
       ORDER BY reservation.created_at, reservation.reservation_number NULLS FIRST, reservation.id FOR UPDATE OF reservation`, [context.organizationId, line.lineId])).rows;
   const elsewhere = reservations.find((reservation) => reservation.warehouse_id !== warehouseId);
   if (elsewhere)
-    throw new OrderError(409, `${line.itemName} is reserved in ${elsewhere.warehouse_name}. Deliver from there, or change the line's warehouse (which releases that reservation) first.`, "SALES_DELIVERY_WAREHOUSE_MISMATCH");
+    throw new OrderError(409, `${line.itemName} is kept aside in ${elsewhere.warehouse_name}. Deliver from there, or change the line's warehouse (which releases what is kept aside there) first.`, "SALES_DELIVERY_WAREHOUSE_MISMATCH");
   let left = round(quantity * factor);
   const consumed = [];
   // The ledger keeps the line's unit beside the base quantity (2 BOX of 12 = 24 PCS).
@@ -284,7 +284,7 @@ export async function consumeReservationForDelivery(client, context, { order, li
 // The reservations of an order: what each reserved, still holds, consumed (by which delivery) and released, and for how long it has been held.
 export async function getSalesOrderReservations(client, context, orderId) {
   requireOrderAccess(context);
-  requireOrderPermission(context, RESERVATION_PERMISSIONS.view, "You do not have permission to view stock reservations.");
+  requireOrderPermission(context, RESERVATION_PERMISSIONS.view, "You do not have permission to view stock kept aside.");
   const id = requireUuid(orderId);
   await assertOrderVisible(client, context, id);
   const [reservations, consumptions] = [
@@ -326,7 +326,7 @@ export async function getSalesOrderReservations(client, context, orderId) {
 // reservations themselves, and each order line's active reservation against what is still to deliver.
 // With repair (and the permission to adjust stock), the cache is rebuilt and excess sales reservations are released.
 export async function reconcileSalesReservations(client, context, { repair = false } = {}) {
-  requireOrderPermission(context, RESERVATION_PERMISSIONS.viewAll, "You do not have permission to review all stock reservations.");
+  requireOrderPermission(context, RESERVATION_PERMISSIONS.viewAll, "You do not have permission to review all stock kept aside.");
   const values = [context.organizationId];
   const scope = orderScopeSql(context, values, "sales_order");
   const { rows } = await client.query(
@@ -348,7 +348,7 @@ export async function reconcileSalesReservations(client, context, { repair = fal
   if (repair) {
     for (const entry of excess) {
       const order = await lockOrder(client, context, entry.orderId);
-      const released = await releaseOrderReservations(client, context, order, { lineId: entry.lineId, quantity: round(entry.reserved - entry.needed), how: "released", reasonCode: "reservation_correction", reason: "Reconciliation: more was reserved than still needed" });
+      const released = await releaseOrderReservations(client, context, order, { lineId: entry.lineId, quantity: round(entry.reserved - entry.needed), how: "released", reasonCode: "reservation_correction", reason: "Reconciliation: more was kept aside than still needed" });
       await recordOrderEvent(client, context, order.id, "sales_order.stock_released", order.lifecycle_status, order.lifecycle_status, { lines: released, reasonCode: "reservation_correction", reason: "Reconciliation" });
       await refreshSalesOrderProgress(client, context.organizationId, order.id, context.userId ?? null);
     }
@@ -365,9 +365,9 @@ export { RESERVATION_STATUS_LABELS };
 // preview? (work it out, reserve nothing), idempotencyKey? }. Returns { available, demand, lines: [{ orderId, orderNumber, lineId, needed,
 // share, reserved }] }.
 export async function allocateStockFairShare(client, context, input = {}) {
-  requireOrderPermission(context, RESERVATION_PERMISSIONS.reserve, "You do not have permission to reserve stock for sales orders.");
+  requireOrderPermission(context, RESERVATION_PERMISSIONS.reserve, "You do not have permission to keep stock aside for sales orders.");
   if (!orderCan(context, RESERVATION_PERMISSIONS.reservePartial))
-    throw new OrderError(403, "Sharing stock between orders reserves part of lines: it needs the partial reservation permission.", "PERMISSION_DENIED");
+    throw new OrderError(403, "Sharing stock between orders keeps aside part of lines: it needs the permission to keep part of a line aside.", "PERMISSION_DENIED");
   const itemId = requireUuid(input.itemId, "Product");
   const warehouseId = requireUuid(input.warehouseId, "Warehouse");
   const values = [context.organizationId, itemId];

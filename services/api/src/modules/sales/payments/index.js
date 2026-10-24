@@ -7,6 +7,7 @@ import { loadCustomerRow } from "../customers/records.js";
 import { invoiceCan } from "../invoices/access.js";
 import { INVOICE_PERMISSIONS, InvoiceError } from "../invoices/constants.js";
 import { companyToday } from "../today.js";
+import { adjustReceiptVouchers } from "../advances/index.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const PAYMENT_METHODS = Object.freeze({ upi: "UPI", bank_transfer: "NEFT / RTGS / IMPS", cheque: "Cheque", cash: "Cash", card: "Card", other: "Other" });
@@ -89,7 +90,9 @@ export function allocateOldestFirst(invoices, amount) {
 //          bankAccountId?, currencyCode?, notes?,
 //          allocations? [{ invoiceId, amount, tdsAmount?, tdsSection? }] — omitted: oldest first; [] keeps it all as an advance }
 // Returns { receiptId, receiptNumber, amount, applied, advance, allocations: [{ invoiceId, invoiceNumber, amount }] }.
-export async function recordCustomerPayment(client, context, input = {}) {
+// A cheque goes on the cheque register (Sales report Phase 2). A post-dated one (dated after today) posts nothing yet: it waits on the
+// register and its receipt is posted when it clears ({ postDated: true, chequeId }). options.fromCheque: the register posting it.
+export async function recordCustomerPayment(client, context, input = {}, options = {}) {
   requireRecord(context);
   const customer = await loadCustomerRow(client, context, input.partyId);
   const amount = rupees(input.amount);
@@ -107,6 +110,14 @@ export async function recordCustomerPayment(client, context, input = {}) {
   }
   const currency = text(input.currencyCode, 3).toUpperCase() || String(customer.currency_code ?? "").trim()
     || String((await client.query("SELECT base_currency FROM public.organizations WHERE id = $1", [context.organizationId])).rows[0]?.base_currency ?? "").trim() || null;
+  if (method === "cheque" && !options.fromCheque && chequeDate > today) {
+    const cheque = (await client.query(
+      `INSERT INTO tenant.sales_cheques (organization_id, party_id, cheque_number, cheque_date, drawee_bank, amount, currency_code, allocations, reference, notes, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $11) RETURNING id`,
+      [context.organizationId, customer.id, chequeNumber, chequeDate, text(input.draweeBank, 100) || null, amount.toFixed(2), currency,
+        Array.isArray(input.allocations) ? JSON.stringify(input.allocations) : null, text(input.reference) || null, text(input.notes, 1000) || null, context.userId ?? null])).rows[0];
+    return { postDated: true, chequeId: cheque.id, receiptId: null, receiptNumber: null, amount, applied: 0, advance: 0, allocations: [] };
+  }
   const open = await openInvoices(client, context.organizationId, customer.id, currency);
   const byId = new Map(open.map((invoice) => [invoice.id, invoice]));
   const requested = Array.isArray(input.allocations) ? input.allocations : allocateOldestFirst(open, amount);
@@ -142,7 +153,17 @@ export async function recordCustomerPayment(client, context, input = {}) {
   } catch (error) {
     throw refused(error, "The payment could not be recorded");
   }
+  let chequeId = options.fromCheque ?? null;
+  if (options.fromCheque)
+    await client.query("UPDATE tenant.sales_cheques SET receipt_id = $3, updated_at = now() WHERE organization_id = $1 AND id = $2", [context.organizationId, options.fromCheque, receipt.id]);
+  else if (method === "cheque")
+    chequeId = (await client.query(
+      `INSERT INTO tenant.sales_cheques (organization_id, party_id, receipt_id, cheque_number, cheque_date, drawee_bank, amount, currency_code, reference, notes, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11) RETURNING id`,
+      [context.organizationId, customer.id, receipt.id, chequeNumber, chequeDate, text(input.draweeBank, 100) || null, amount.toFixed(2), currency, text(input.reference) || null,
+        text(input.notes, 1000) || null, context.userId ?? null])).rows[0].id;
   return {
+    ...(chequeId ? { chequeId } : {}),
     receiptId: receipt.id, receiptNumber: receipt.receipt_number, amount, applied, advance: rupees(amount - applied),
     allocations: allocations.map((entry) => ({ invoiceId: entry.invoice.id, invoiceNumber: entry.invoice.invoice_number, amount: entry.amount, tds: entry.tds })),
   };
@@ -181,8 +202,11 @@ export async function applyAdvanceToInvoice(client, context, invoiceId, input = 
   } catch (error) {
     throw refused(error, "The advance could not be applied");
   }
+  // The GST already paid on these advances (their receipt vouchers) is adjusted against this invoice (Sales report Phase 2, GSTR-1 11B).
+  const vouchers = [];
+  for (const row of used) vouchers.push(...await adjustReceiptVouchers(client, context, { receiptId: row.receiptId, invoiceId, amount: row.amount }));
   const after = (await client.query("SELECT outstanding_amount, status FROM tenant.accounting_customer_invoices WHERE id = $1", [invoiceId])).rows[0];
-  return { applied: rupees(used.reduce((total, row) => total + row.amount, 0)), receipts: used, outstanding: Number(after.outstanding_amount), status: after.status };
+  return { applied: rupees(used.reduce((total, row) => total + row.amount, 0)), receipts: used, vouchers, outstanding: Number(after.outstanding_amount), status: after.status };
 }
 
 // One payment received with the bills it paid (for its page and its PDF), for a customer the person may see.

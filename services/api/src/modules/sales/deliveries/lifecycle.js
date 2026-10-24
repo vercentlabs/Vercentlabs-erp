@@ -268,7 +268,7 @@ export async function updateShipmentDetails(client, context, deliveryId, input =
 export async function changeDeliveryWarehouse(client, context, deliveryId, input = {}) {
   requireDeliveryPermission(context, DELIVERY_PERMISSIONS.edit, "You do not have permission to prepare deliveries.");
   if (!deliveryCan(context, DELIVERY_PERMISSIONS.changeWarehouse))
-    throw new DeliveryError(403, "You do not have permission to change the fulfillment warehouse.", "PERMISSION_DENIED");
+    throw new DeliveryError(403, "You do not have permission to change the delivery warehouse.", "PERMISSION_DENIED");
   const warehouseId = requireUuid(input.warehouseId, "Warehouse");
   const seen = await loadDelivery(client, context, deliveryId);
   await lockOrder(client, context, seen.sales_order_id);

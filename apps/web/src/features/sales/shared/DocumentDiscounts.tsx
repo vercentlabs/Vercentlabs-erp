@@ -77,9 +77,9 @@ export function DocumentDiscountPanel({ discounts, currencyCode, value, onChange
           isDisabled={!hasAnyDiscount}
         />
       </div>
-      {preview && Number(preview.totals.documentDiscountAmount) > 0 && (
+      {preview && manualDiscount(preview) > 0 && (
         <p className="text-sm text-text-secondary">
-          {money(currencyCode, preview.totals.documentDiscountAmount)} off
+          {money(currencyCode, manualDiscount(preview))} off
           {value.type === "amount" ? ` (${Number(Number(preview.totals.documentDiscountPercent).toFixed(2))}%)` : ""}, shared across the lines.
         </p>
       )}
@@ -91,19 +91,24 @@ export function DocumentDiscountPanel({ discounts, currencyCode, value, onChange
   );
 }
 
-// Subtotal → line discounts → document discount → taxable value → tax → total.
+// The header discount includes a coupon's (Sales report Phase 3), shown on its own row.
+const manualDiscount = (preview: SalesDocumentPreview) => Number(preview.totals.documentDiscountAmount) - Number(preview.totals.couponAmount ?? 0);
+
+// Subtotal → line discounts → document discount → coupon → taxable value → tax → total.
 export function DocumentTotals({ currencyCode, preview }: { currencyCode: string; preview: SalesDocumentPreview }) {
   const totals = preview.totals;
   const lineDiscounts = Number(totals.lineDiscountTotal);
-  const documentDiscount = Number(totals.documentDiscountAmount);
+  const documentDiscount = manualDiscount(preview);
+  const coupon = Number(totals.couponAmount ?? 0);
   const rows: Array<{ label: string; value: string; rule?: boolean; strong?: boolean }> = [
     { label: "Subtotal", value: money(currencyCode, totals.grossTotal) },
     ...(lineDiscounts ? [{ label: "Line discounts", value: `- ${money(currencyCode, totals.lineDiscountTotal)}` }] : []),
     ...(lineDiscounts && documentDiscount ? [{ label: "Net before additional discount", value: money(currencyCode, Number(totals.grossTotal) - lineDiscounts), rule: true }] : []),
     ...(documentDiscount
-      ? [{ label: `Additional discount${totals.documentDiscountType === "percent" ? ` ${Number(totals.documentDiscountValue)}%` : ""}`, value: `- ${money(currencyCode, totals.documentDiscountAmount)}` }]
+      ? [{ label: `Additional discount${totals.documentDiscountType === "percent" ? ` ${Number(totals.documentDiscountValue)}%` : ""}`, value: `- ${money(currencyCode, documentDiscount)}` }]
       : []),
-    { label: "Taxable value", value: money(currencyCode, totals.taxableTotal), rule: Boolean(lineDiscounts || documentDiscount) },
+    ...(coupon ? [{ label: `Coupon ${totals.couponCode ?? ""}`.trim(), value: `- ${money(currencyCode, coupon)}` }] : []),
+    { label: "Taxable value", value: money(currencyCode, totals.taxableTotal), rule: Boolean(lineDiscounts || documentDiscount || coupon) },
     ...(Number(totals.chargeTotal) ? [{ label: "Charges", value: money(currencyCode, totals.chargeTotal) }] : []),
     ...(preview.tax.summary.length
       ? preview.tax.summary.map((entry) => ({ label: `${entry.label} ${Number(entry.rate)}%`, value: money(currencyCode, entry.taxAmount) }))

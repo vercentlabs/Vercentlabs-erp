@@ -29,7 +29,7 @@ export function BeatsScreen() {
     queryFn: () => request<{ routes: Beat[] }>(`/routes?status=all${today ? "&today=true" : ""}`).then((r) => r.routes) });
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Beats" description="The rounds salespeople make: the customers of one area, visited on the same weekdays. Put a customer on a beat from the customer's page."
+      <PageHeader title="Beats" description="The rounds salespeople make, visiting one area on set weekdays. Add a customer from their page."
         primaryAction={canManage ? <Button variant="primary" onPress={() => setEditing("new")}>New beat</Button> : undefined} />
       <Switch isSelected={today} onChange={setToday}>Only today&apos;s beats</Switch>
       {query.isError ? <ErrorState title="Could not load the beats" action={{ label: "Try again", onPress: () => void query.refetch() }} /> : (

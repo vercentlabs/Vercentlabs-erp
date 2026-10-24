@@ -4,6 +4,7 @@
 // registration, prices, discounts and tax are copied onto the version and its
 // lines, so a later change to the customer, a product, a price list or a tax
 // rate never changes an order already made.
+import { readSectionLines } from "../section-lines.js";
 import { createHash } from "node:crypto";
 
 import { documentDiscountColumns, documentTaxColumns, lineTaxColumns } from "../index.js";
@@ -47,6 +48,9 @@ export async function insertOrderVersion(client, context, orderId, input, previe
   const taxValues = documentTaxColumns(preview);
   const version = await insert(client, "tenant.sales_order_versions", {
     organization_id: context.organizationId, sales_order_id: orderId, version_number: versionNumber, amendment_reason: text(input.changeNote, 1000),
+    section_lines: json(readSectionLines(input.sectionLines, preview.lines.length)),
+    delivery_method_id: input.deliveryMethodId || null,
+    coupon_id: totals.couponId ?? null, coupon_code: totals.couponCode ?? null, coupon_amount: totals.couponAmount ?? 0,
     currency_code: master.currencyCode, base_currency_code: master.baseCurrencyCode, exchange_rate: asDatabaseDecimal(master.exchangeRate),
     price_list_id: master.priceList?.id ?? null, payment_term_id: master.paymentTerm?.id ?? null, billing_address_id: master.billing.id, shipping_address_id: master.shipping.id,
     customer_snapshot: json(snapshots.customer), contact_snapshot: json(snapshots.contact), billing_address_snapshot: json(snapshots.billingAddress),
@@ -67,7 +71,7 @@ export async function insertOrderVersion(client, context, orderId, input, previe
   for (const line of preview.lines) {
     const inserted = await insert(client, "tenant.sales_order_lines", {
       organization_id: context.organizationId, sales_order_version_id: version.id, source_quotation_line_id: line.sourceQuotationLineId ?? null, sequence: line.sequence,
-      item_id: line.itemId, uom_id: line.uomId, warehouse_id: line.warehouseId,
+      item_id: line.itemId, uom_id: line.uomId, warehouse_id: line.warehouseId, supply_route: line.supplyRoute ?? "stock",
       item_code_snapshot: line.itemCodeSnapshot, item_name_snapshot: line.itemNameSnapshot, description_snapshot: line.descriptionSnapshot, hsn_sac_snapshot: line.hsnSacSnapshot,
       uom_snapshot: line.uomSnapshot, quantity: line.quantity, base_quantity: line.baseQuantity, conversion_factor: line.conversionFactor,
       list_unit_price: line.listUnitPrice, unit_price: line.unitPrice, manual_price_override: Boolean(line.manualPriceOverride), manual_price_reason: line.manualPriceReason ?? null,

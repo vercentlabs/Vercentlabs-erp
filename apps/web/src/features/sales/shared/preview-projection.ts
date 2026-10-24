@@ -30,6 +30,8 @@ export function projectDocumentPreview(preview: Record<string, unknown>, context
       documentDiscountValue: totals.documentDiscountValue,
       documentDiscountPercent: totals.documentDiscountPercent,
       documentDiscountAmount: totals.documentDiscountAmount,
+      couponCode: totals.couponCode,
+      couponAmount: totals.couponAmount,
       taxableTotal: totals.taxableTotal,
       discountTotal: totals.discountTotal,
       chargeTotal: totals.chargeTotal,

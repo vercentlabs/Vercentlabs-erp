@@ -23,6 +23,9 @@ import { calendarDate, money } from "@/features/sales/shared/format";
 import { getSalesOptions, listSalesQuotations, quotationExportUrl, type QuotationFilters, type SalesQuotationRow } from "../api/quotations-api";
 import { QuotationStatusBadge } from "../components/QuotationStatusBadge";
 import { readListState, useListUrlState } from "@/features/sales/shared/listUrlState";
+import { ExportLink, exportHref, useListColumns } from "@/features/sales/shared/list-kit";
+import { BOARD_LIMIT, SalesBoard, useBoardMode, type BoardCard } from "@/features/sales/shared/SalesBoard";
+import { MyViews } from "@/shared/ui/MyViews";
 
 const PAGE_SIZE = 25;
 const ANY = "any";
@@ -78,6 +81,16 @@ export function SalesQuotationsScreen() {
   });
   const rows = listQuery.data?.rows ?? [];
   const total = listQuery.data?.total ?? 0;
+  // The board (CRM parity): the same filters, the newest 200, one column per stage.
+  const board = useBoardMode("sales.quotations.board");
+  const boardQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "sales", "quotations", "board", listFilters),
+    queryFn: () => listSalesQuotations({ ...listFilters, limit: BOARD_LIMIT, offset: 0 }), enabled: board.mode === "board",
+  });
+  const boardRows = boardQuery.data?.rows ?? [];
+  const boardCards: Array<BoardCard & { stage: string }> = boardRows.map((row) => ({ id: row.id, href: `/sales/quotations/${row.id}`, title: row.quotation_number,
+    subtitle: row.customer_name, meta: [calendarDate(row.quotation_date), row.owner_name].filter(Boolean).join(" · "), currency: row.currency_code, amount: Number(row.grand_total),
+    stage: row.status }));
   const can = listQuery.data?.capabilities;
 
   const columns = useMemo<ColumnDef<SalesQuotationRow, unknown>[]>(() => [
@@ -95,6 +108,11 @@ export function SalesQuotationsScreen() {
     { id: "total", accessorKey: "grand_total", header: "Total", cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{money(row.original.currency_code, row.original.grand_total)}</span> },
     { id: "order", header: "Sales order", enableSorting: false, cell: ({ row }) => row.original.converted_order_id ? <StatusBadge tone="success">Created</StatusBadge> : "" },
   ], []);
+  // CRM parity: choose the columns, tick rows to export them.
+  const cols = useListColumns("sales.quotations.columns", columns);
+  const mayExport = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.quotation.export");
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const chosen = Object.keys(selected).filter((id) => selected[id]);
 
   if (listQuery.isError && listQuery.error instanceof SalesApiError && listQuery.error.status === 403)
     return <PermissionState title="You don't have access to quotations" description="Ask an administrator for the View quotations permission." />;
@@ -120,6 +138,8 @@ export function SalesQuotationsScreen() {
 
   return (
     <EnterpriseListPage
+      bulkActionBar={chosen.length && mayExport ? { selectedCount: chosen.length, onClearSelection: () => setSelected({}),
+        actions: <ExportLink compact label="Export selected" href={exportHref("/api/sales/quotations/export", listFilters, chosen)} /> } : undefined}
       header={{
         title: "Quotations",
         description: "Priced offers to customers, from draft through confirmation, sending and the customer's answer to a sales order.",
@@ -141,10 +161,26 @@ export function SalesQuotationsScreen() {
             {date("validTo")}
           </>
         ),
+        end: (
+          <><MyViews listKey="sales.quotations" state={{ view, search: submitted, filters, sorting }}
+            onApply={(saved) => { setViewState(saved.view); setSearch(saved.search); setSubmittedState(saved.search); setFiltersState({ ...NO_FILTERS, ...saved.filters }); setSortingState(saved.sorting); setPageIndex(0); }} />{board.toggle}{cols.menu}</>
+        ),
       }}
       filterBar={activeFilters.length ? { filters: activeFilters, onRemove: (id) => setFilters({ ...filters, [id]: NO_FILTERS[id as FilterKey] }), onClearAll: () => setFilters(NO_FILTERS) } : undefined}
     >
+      {board.mode === "board" ? (
+        <SalesBoard loading={boardQuery.isLoading} total={boardQuery.data?.total ?? 0} cards={boardCards}
+          columnOf={(card) => (card as BoardCard & { stage: string }).stage}
+          columns={[{ key: "draft", label: "Draft" }, { key: "awaiting_approval", label: "Awaiting approval", tone: "warning" }, { key: "confirmed", label: "Finalised" },
+            { key: "sent", label: "Sent" }, { key: "accepted", label: "Accepted", tone: "success" }, { key: "rejected", label: "Rejected", tone: "danger" },
+            { key: "expired", label: "Expired", tone: "warning" }]} />
+      ) : (
       <EnterpriseDataGrid<SalesQuotationRow>
+        columnVisibility={cols.visibility}
+        onColumnVisibilityChange={cols.setVisibility}
+        enableRowSelection
+        rowSelection={selected}
+        onRowSelectionChange={setSelected}
         aria-label="Quotations"
         columns={columns}
         data={rows}
@@ -172,6 +208,7 @@ export function SalesQuotationsScreen() {
           </div>
         )}
       />
+      )}
     </EnterpriseListPage>
   );
 }

@@ -24,6 +24,8 @@ import { getPurchaseRfq } from "../../modules/procurement/rfqs/index.js";
 import { getDealQuote, loadSharedDealQuote, resolveSharedDealQuote } from "../../modules/crm/quotes/index.js";
 import { findIndianState } from "@vercentlabs/shared-types";
 import { getSalesChallan } from "../../modules/sales/challans.js";
+import { rowsWithSections } from "../../modules/sales/section-lines.js";
+import { getReceiptVoucherDocument, getRefundVoucherDocument } from "../../modules/sales/advances/index.js";
 import { getSalesPayment } from "../../modules/sales/payments/index.js";
 import { getDebitNoteDocument } from "../../modules/sales/debit-notes/index.js";
 import { getCustomerStatementDocument } from "../../modules/sales/outstanding/index.js";
@@ -134,7 +136,7 @@ async function quotationModel(client, session, data) {
   const customer = quote.customer_snapshot || {};
   const company = await companyDetails(client, session.organizationId);
   const currency = String(quote.currency_code || "").trim();
-  const status = { draft: "Draft", awaiting_approval: "Draft - awaiting approval", cancelled: "Cancelled", superseded: "Superseded", expired: "Expired" }[quote.status];
+  const status = { draft: "Draft", awaiting_approval: "Draft - awaiting approval", cancelled: "Cancelled", superseded: "Replaced by a newer version", expired: "Expired" }[quote.status];
   return {
     title: "Quotation",
     documentNumber: quote.quotation_number,
@@ -160,8 +162,16 @@ async function quotationModel(client, session, data) {
       { label: "Prices", value: quote.price_list_tax_inclusive ? "Inclusive of tax" : "Exclusive of tax" },
       { label: "Sales person", value: quote.owner_name ?? "" },
     ].filter((field) => field.value),
-    table: salesLines(data.lines, currency),
+    table: salesLines(data.lines, currency, quote.section_lines),
     totals: salesTotals(quote, data.taxLines ?? []),
+    // Optional products (Sales report Phase 3): offered beside the lines, not in the total.
+    summaryTable: (quote.optional_lines ?? []).length ? {
+      title: "Optional extras (not in the total: add any when you accept)",
+      columns: [{ key: "item", label: "Item", width: "46%" }, { key: "quantity", label: "Qty", align: "right", width: "14%" },
+        { key: "price", label: `Price (${currency})`, align: "right", width: "20%" }, { key: "total", label: "Amount with tax", align: "right", width: "20%" }],
+      rows: quote.optional_lines.map((line) => ({ item: line.description || line.name, quantity: `${Number(line.quantity)} ${line.unit ?? ""}`.trim(),
+        price: amount(line.unitPrice), total: amount(line.lineTotal) })),
+    } : null,
     notes: [
       ...paymentTermNotes(quote.payment_term_snapshot),
       ...(quote.customer_notes ? [{ label: "Notes", text: quote.customer_notes }] : []),
@@ -282,7 +292,7 @@ function sellerLines(seller, company) {
   return [seller.legalName ?? seller.name, seller.address, seller.gstin ? `GSTIN ${seller.gstin}` : null, seller.stateName ? `${seller.stateName}${seller.stateCode ? ` (${seller.stateCode})` : ""}` : null].filter(Boolean);
 }
 
-function salesLines(lines, currency) {
+function salesLines(lines, currency, sections = []) {
   return {
     columns: [
       { key: "item", label: "Item", width: "32%" },
@@ -293,7 +303,7 @@ function salesLines(lines, currency) {
       { key: "tax", label: "Tax", align: "right", width: "10%" },
       { key: "total", label: "Amount", align: "right", width: "13%" },
     ],
-    rows: lines.map((line) => ({
+    rows: rowsWithSections(lines.map((line) => ({
       item: [line.item_name_snapshot, line.description_snapshot && line.description_snapshot !== line.item_name_snapshot ? line.description_snapshot : null, line.hsn_sac_snapshot ? `${line.hsn_sac_kind === "sac" ? "SAC" : "HSN"} ${line.hsn_sac_snapshot}` : null].filter(Boolean).join(" · "),
       quantity: `${Number(line.quantity)} ${line.uom_snapshot ?? ""}`.trim(),
       price: amount(line.unit_price),
@@ -303,7 +313,7 @@ function salesLines(lines, currency) {
       // The rate the line was taxed at, or why it was not.
       tax: line.tax_treatment && line.tax_treatment !== "taxable" ? String(line.tax_treatment).replace(/_/g, " ") : `${amount(line.tax_amount)} (${Number(line.tax_rate)}%)`,
       total: amount(line.line_total),
-    })),
+    })), sections),
   };
 }
 
@@ -311,7 +321,9 @@ function salesLines(lines, currency) {
 // discount, the taxable value, tax (by component when given) and the total.
 function salesTotals(header, taxLines = []) {
   const currency = String(header.currency_code || "").trim();
-  const documentDiscount = Number(header.document_discount_amount);
+  // The header discount includes a coupon's (Sales report Phase 3), shown on its own row.
+  const coupon = Number(header.coupon_amount ?? 0);
+  const documentDiscount = Number(header.document_discount_amount) - coupon;
   const lineDiscounts = Number(header.line_discount_total);
   return [
     { label: "Subtotal", value: amount(header.gross_total) },
@@ -319,7 +331,8 @@ function salesTotals(header, taxLines = []) {
     ...(documentDiscount
       ? [{ label: header.document_discount_type === "percent" ? `Additional discount ${Number(header.document_discount_value)}%` : "Additional discount", value: `-${amount(documentDiscount)}` }]
       : []),
-    ...(lineDiscounts || documentDiscount ? [{ label: "Taxable value", value: amount(header.taxable_total) }] : []),
+    ...(coupon ? [{ label: `Coupon ${header.coupon_code ?? ""}`.trim(), value: `-${amount(coupon)}` }] : []),
+    ...(lineDiscounts || documentDiscount || coupon ? [{ label: "Taxable value", value: amount(header.taxable_total) }] : []),
     ...(Number(header.charge_total) ? [{ label: "Charges", value: amount(header.charge_total) }] : []),
     ...(taxLines.length
       ? taxLines.map((tax) => ({ label: `${tax.label ?? String(tax.tax_type).toUpperCase()} ${Number(tax.rate)}%`, value: amount(tax.tax_amount) }))
@@ -348,7 +361,7 @@ function orderConfirmationModel(snapshot, meta) {
   const customer = order.customer_snapshot || {};
   const contact = order.contact_snapshot || {};
   const status = meta.draft ? "Draft - not confirmed"
-    : meta.supersededAt ? `Superseded on ${day(meta.supersededAt)}: replaced by a later revision`
+    : meta.supersededAt ? `Replaced on ${day(meta.supersededAt)} by a newer version`
       : meta.cancelled ? "The order was later cancelled" : null;
   return {
     title: meta.draft ? "Sales Order" : "Order Confirmation",
@@ -378,7 +391,7 @@ function orderConfirmationModel(snapshot, meta) {
       { label: "Delivery terms", value: order.delivery_terms ?? "" },
       { label: "Sales person", value: order.owner_name ?? "" },
     ].filter((field) => field.value),
-    table: salesLines(snapshot.lines ?? [], String(order.currency_code || "").trim()),
+    table: salesLines(snapshot.lines ?? [], String(order.currency_code || "").trim(), order.section_lines),
     totals: salesTotals(order, snapshot.taxLines ?? []),
     notes: [
       ...paymentTermNotes(order.payment_term_snapshot),
@@ -459,7 +472,8 @@ function purchaseOrderModel(data) {
     totals: [
       { label: "Subtotal", value: amount(order.gross_total) },
       ...(Number(order.line_discount_total) ? [{ label: "Line discounts", value: `-${amount(order.line_discount_total)}` }] : []),
-      ...(Number(order.document_discount_amount) ? [{ label: "Order discount", value: `-${amount(order.document_discount_amount)}` }] : []),
+      ...(Number(order.document_discount_amount) - Number(order.coupon_amount ?? 0) ? [{ label: "Order discount", value: `-${amount(Number(order.document_discount_amount) - Number(order.coupon_amount ?? 0))}` }] : []),
+      ...(Number(order.coupon_amount ?? 0) ? [{ label: `Coupon ${order.coupon_code ?? ""}`.trim(), value: `-${amount(order.coupon_amount)}` }] : []),
       { label: "Taxable value", value: amount(order.taxable_total) },
       ...(taxLines.length ? taxLines.map((tax) => ({ label: `${tax.label} ${Number(tax.rate)}%`, value: amount(tax.tax_amount) })) : [{ label: "Tax", value: amount(order.tax_total) }]),
       { label: `Total (${currency})`, value: amount(order.grand_total), emphasis: true },
@@ -861,6 +875,19 @@ function salesChallanModel(data) {
   };
 }
 
+// What a registered seller's sales invoice is called (Sales report Phase 2, bill of supply). Exempt, nil-rated and non-GST lines go on a
+// Bill of Supply; with taxable lines too, the document is an Invoice-cum-Bill of Supply (Rule 46A). Zero-rated lines (exports, SEZ) stay
+// on a Tax Invoice. A composition seller's invoice is retitled Bill of Supply when it is rendered (below).
+export function salesInvoiceTitle(lines, seller) {
+  const taxed = lines.some((line) => (line.taxes ?? []).some((tax) => Number(tax.tax_amount) > 0));
+  if (!seller?.gstin) return taxed ? "Tax Invoice" : "Invoice";
+  const supplyOnly = (line) => ["exempt", "non_taxable", "nil_rated"].includes(line.tax_treatment)
+    || (line.tax_treatment === "taxable" && Number(line.tax_rate ?? 0) === 0 && !(line.taxes ?? []).some((tax) => Number(tax.tax_amount) > 0));
+  const billOfSupply = lines.filter(supplyOnly).length;
+  if (!lines.length || !billOfSupply) return "Tax Invoice";
+  return billOfSupply === lines.length ? "Bill of Supply" : "Invoice-cum-Bill of Supply";
+}
+
 // The (Tax) Invoice, from the invoice's own snapshots: the seller registration,
 // the customer and addresses as invoiced, the place of supply, each line with
 // its HSN/SAC and tax components, and the totals. Internal notes are never printed.
@@ -872,7 +899,7 @@ function salesInvoiceModel(data, uqcOf = null) {
   const seller = invoice.seller_snapshot || {};
   const taxed = lines.some((line) => line.taxes.some((tax) => Number(tax.tax_amount) > 0));
   const types = ["cgst", "sgst", "igst", "cess"].filter((type) => lines.some((line) => line.taxes.some((tax) => tax.tax_type === type)));
-  const status = { draft: "Draft - not posted", reversed: `Reversed${invoice.reversal_reason ? `: ${invoice.reversal_reason}` : ""}` }[invoice.status];
+  const status = { draft: "Draft - not final", reversed: `Cancelled${invoice.reversal_reason ? `: ${invoice.reversal_reason}` : ""}` }[invoice.status];
   const gross = lines.reduce((total, line) => total + Number(line.gross_amount ?? Number(line.quantity) * Number(line.unit_price)), 0);
   const discount = lines.reduce((total, line) => total + Number(line.discount_amount), 0);
   const taxable = lines.reduce((total, line) => total + Number(line.net_amount), 0);
@@ -880,7 +907,7 @@ function salesInvoiceModel(data, uqcOf = null) {
   // Indian FMCG invoices print the MRP of each unit (Sales audit, should-have).
   const withMrp = lines.some((line) => Number(line.mrp) > 0);
   return {
-    title: taxed || seller.gstin ? "Tax Invoice" : "Invoice",
+    title: salesInvoiceTitle(lines, seller),
     documentNumber: invoice.invoice_number,
     issuedAt: `Invoice date: ${day(invoice.invoice_date) ?? ""}`,
     organizationName: company.name,
@@ -902,6 +929,8 @@ function salesInvoiceModel(data, uqcOf = null) {
       { label: "Place of supply", value: invoice.place_of_supply ? `${invoice.place_of_supply_name ?? ""} (${invoice.place_of_supply})`.trim() : "" },
       { label: "Payment terms", value: invoice.payment_term_snapshot?.name ?? "" },
       { label: "IRN", value: invoice.e_invoice_reference ?? "" },
+      { label: "Shipping bill", value: data.exportDetails?.shipping_bill_number ? `${data.exportDetails.shipping_bill_number}${data.exportDetails.shipping_bill_date ? ` of ${day(data.exportDetails.shipping_bill_date)}` : ""}` : "" },
+      { label: "Port code", value: data.exportDetails?.port_code ?? "" },
       { label: "Tax payable on reverse charge", value: taxed || seller.gstin ? (invoice.reverse_charge ? "Yes" : "No") : "" },
     ].filter((field) => field.value),
     table: {
@@ -915,7 +944,7 @@ function salesInvoiceModel(data, uqcOf = null) {
         ...types.map((type) => ({ key: type, label: label[type], align: "right", width: "10%" })),
         { key: "total", label: "Amount", align: "right", width: "12%" },
       ],
-      rows: lines.map((line) => ({
+      rows: rowsWithSections(lines.map((line) => ({
         item: [line.item_name_snapshot, line.description_snapshot && line.description_snapshot !== line.item_name_snapshot ? line.description_snapshot : null,
           line.hsn_sac_code ? `${line.hsn_sac_kind === "sac" ? "SAC" : "HSN"} ${line.hsn_sac_code}` : null, batchText(line.batches)].filter(Boolean).join(" · "),
         quantity: `${Number(line.quantity)} ${line.uom_snapshot ?? ""}`.trim(),
@@ -928,7 +957,7 @@ function salesInvoiceModel(data, uqcOf = null) {
           return [type, tax ? `${amount(tax.tax_amount)} (${Number(tax.rate)}%)` : ""];
         })),
         total: amount(line.line_total),
-      })),
+      })), invoice.section_lines),
     },
     totals: [
       { label: "Subtotal", value: amount(gross) },
@@ -939,6 +968,10 @@ function salesInvoiceModel(data, uqcOf = null) {
       { label: `Total (${currency})`, value: amount(invoice.grand_total), emphasis: true },
     ],
     notes: [
+      // The declaration an export or SEZ invoice must carry (Sales report Phase 3).
+      ...(data.exportDetails ? [{ label: "", text: taxed
+        ? `Supply meant for ${invoice.supply_type === "sez" ? "SEZ unit or developer" : "export"} with payment of integrated tax.`
+        : `Supply meant for ${invoice.supply_type === "sez" ? "SEZ unit or developer" : "export"} under bond or letter of undertaking without payment of integrated tax${data.exportDetails.lut_number ? ` (LUT ${data.exportDetails.lut_number}${data.exportDetails.lut_date ? ` dated ${day(data.exportDetails.lut_date)}` : ""})` : ""}.` }] : []),
       ...paymentTermNotes(invoice.payment_term_snapshot),
       ...(invoice.customer_notes ? [{ label: "Notes", text: invoice.customer_notes }] : []),
       ...(invoice.terms_and_conditions ? [{ label: "Terms and conditions", text: invoice.terms_and_conditions }] : []),
@@ -1067,6 +1100,52 @@ function paymentReceiptModel(data, company) {
     totals: [{ label: `Received (${currency})`, value: amount(payment.amount), emphasis: true }],
     notes: [{ label: "", text: "This receipt confirms a payment. It is not a tax document." }],
     footer: payment.number,
+  };
+}
+
+// The receipt voucher for an advance (Rule 50) and the refund voucher when it is returned (Rule 51): supplier and recipient with their
+// GSTINs, the voucher's number and date, the description, the amount, the rate and the tax by head, and the place of supply.
+function advanceVoucherModel(data, company, refund = null) {
+  const { voucher } = data;
+  const amounts = refund ?? voucher;
+  const heads = voucher.supplyNature === "inter" ? [["IGST", amounts.igst, voucher.rate]] : [["CGST", amounts.cgst, voucher.rate / 2], ["SGST", amounts.sgst, voucher.rate / 2]];
+  return {
+    title: refund ? "Refund Voucher" : "Receipt Voucher",
+    documentNumber: refund ? refund.number : voucher.number,
+    issuedAt: `Date: ${day(refund ? refund.date : voucher.date) ?? ""}`,
+    organizationName: company.name,
+    status: null,
+    parties: [
+      { label: "Supplier", lines: [voucher.seller?.name ?? company.name, voucher.seller?.address, voucher.sellerGstin ? `GSTIN ${voucher.sellerGstin}` : null].filter(Boolean) },
+      { label: refund ? "Refunded to" : "Received from", lines: [voucher.customerName, voucher.customerNumber ? `Customer no. ${voucher.customerNumber}` : null,
+        voucher.customerGstin ? `GSTIN ${voucher.customerGstin}` : null].filter(Boolean) },
+    ],
+    fields: [
+      { label: refund ? "Refund voucher no." : "Receipt voucher no.", value: refund ? refund.number : voucher.number },
+      ...(refund ? [{ label: "Against receipt voucher", value: `${voucher.number} of ${day(voucher.date) ?? ""}` }] : [{ label: "Payment", value: voucher.receiptNumber ?? "" }]),
+      { label: "Place of supply", value: `${findIndianState({ code: voucher.placeOfSupply })?.name ?? ""} (${voucher.placeOfSupply})`.trim() },
+      { label: "Supply", value: voucher.supplyNature === "inter" ? "Inter-state" : "Intra-state" },
+    ].filter((field) => field.value),
+    table: {
+      columns: [
+        { key: "item", label: "Description", width: "40%" },
+        { key: "sac", label: "SAC / HSN", width: "15%" },
+        { key: "rate", label: "Rate", align: "right", width: "10%" },
+        { key: "taxable", label: "Taxable value", align: "right", width: "17%" },
+        { key: "total", label: "Amount", align: "right", width: "18%" },
+      ],
+      rows: [{ item: refund ? `Refund of advance: ${refund.reason}` : voucher.description ?? "Advance received", sac: voucher.sacHsn ?? "", rate: `${voucher.rate}%`,
+        taxable: amount(amounts.taxable), total: amount(refund ? refund.amount : voucher.amount) }],
+    },
+    totals: [
+      { label: "Taxable value", value: amount(amounts.taxable) },
+      ...heads.map(([label, value, rate]) => ({ label: `${label} ${rate}%`, value: amount(value) })),
+      { label: refund ? "Refunded (INR)" : "Advance received (INR)", value: amount(refund ? refund.amount : voucher.amount), emphasis: true },
+    ],
+    notes: [{ label: "", text: refund
+      ? "Refund voucher under Rule 51 of the CGST Rules, 2017, for an advance returned without a supply."
+      : "Receipt voucher under Rule 50 of the CGST Rules, 2017. The tax on this advance is adjusted on the tax invoice for the supply." }],
+    footer: refund ? refund.number : voucher.number,
   };
 }
 
@@ -1620,6 +1699,34 @@ export const DOCUMENT_RENDERERS = Object.freeze([
     money: (data) => ({ amount: data.creditNote.grand_total, currency: data.creditNote.currency_code }),
     copies: ["Original for recipient", "Duplicate for supplier"],
     fileName: (data) => `Credit-Note-${data.creditNote.invoice_number}${data.creditNote.status === "draft" ? "-draft" : ""}`,
+  }),
+  Object.freeze({
+    key: "sales.receipt_voucher",
+    moduleKey: "sales",
+    permission: "sales.invoice.payments.view",
+    label: "Receipt voucher",
+    async load(client, session, id) {
+      return { ...(await getReceiptVoucherDocument(client, salesContext(session), id)), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return advanceVoucherModel(data, data.company);
+    },
+    money: (data) => ({ amount: data.voucher.amount, currency: "INR" }),
+    fileName: (data) => `Receipt-voucher-${data.voucher.number}`,
+  }),
+  Object.freeze({
+    key: "sales.refund_voucher",
+    moduleKey: "sales",
+    permission: "sales.invoice.payments.view",
+    label: "Refund voucher",
+    async load(client, session, id) {
+      return { ...(await getRefundVoucherDocument(client, salesContext(session), id)), company: await companyDetails(client, session.organizationId) };
+    },
+    async toModel(_client, _session, data) {
+      return advanceVoucherModel(data, data.company, data.refund);
+    },
+    money: (data) => ({ amount: data.refund.amount, currency: "INR" }),
+    fileName: (data) => `Refund-voucher-${data.refund.number}`,
   }),
   Object.freeze({
     key: "sales.receipt",

@@ -15,7 +15,7 @@ export const RESULT_LABELS = Object.freeze({
   available: "Available",
   partially_available: "Partially available",
   unavailable: "Unavailable",
-  not_required: "Nothing left to fulfil",
+  not_required: "Nothing left to deliver",
   not_tracked: "Not inventory tracked",
   no_warehouse: "Choose a warehouse",
 });

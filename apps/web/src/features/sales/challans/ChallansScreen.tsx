@@ -37,7 +37,7 @@ export function ChallansScreen() {
   const columns = useMemo<ColumnDef<Challan, unknown>[]>(() => [
     { id: "challanNumber", accessorKey: "challanNumber", header: "Challan", cell: ({ row }) => <span className="font-medium text-text">{row.original.challanNumber}</span> },
     { id: "challanDate", accessorKey: "challanDate", header: "Date" },
-    { id: "customer", header: "Consignee", enableSorting: false, cell: ({ row }) => row.original.customer.displayName ?? "Own branch" },
+    { id: "customer", header: "Ship to", enableSorting: false, cell: ({ row }) => row.original.customer.displayName ?? "Own branch" },
     { id: "purposeLabel", accessorKey: "purposeLabel", header: "Why" },
     { id: "salesOrderNumber", accessorKey: "salesOrderNumber", header: "Sales order", cell: ({ row }) => row.original.salesOrderNumber ?? "" },
     { id: "totalValue", accessorKey: "totalValue", header: "Value", cell: ({ row }) => <span className="tabular-nums">{money("INR", row.original.totalValue)}</span> },
@@ -49,11 +49,11 @@ export function ChallansScreen() {
       <EnterpriseListPage
         header={{
           title: "Delivery Challans",
-          description: "Goods that move without a delivery: ahead of the invoice, on approval, for job work, to a branch or an exhibition. Make one for an order from the order's page.",
+          description: "Goods sent without a delivery: before billing, on approval, for job work, to a branch or exhibition.",
           primaryAction: can ? <Button variant="primary" onPress={() => setCreating(true)}><Plus className="size-4" aria-hidden="true" />New challan</Button> : undefined,
         }}
         savedViews={{ views: VIEWS, activeViewId: status, onSelect: (id) => { setStatus(id); paged.resetPage(); } }}
-        actionBar={{ start: <SearchField aria-label="Search challans" placeholder="Search number, consignee or order" className="w-full sm:w-80" value={search} onChange={setSearch} /> }}
+        actionBar={{ start: <SearchField aria-label="Search challans" placeholder="Search number, ship to or order" className="w-full sm:w-80" value={search} onChange={setSearch} /> }}
       >
         <EnterpriseDataGrid<Challan>
           aria-label="Delivery challans" columns={columns} data={paged.pageRows} getRowId={(row) => row.id}
@@ -103,7 +103,7 @@ function NewChallanDialog({ purposes, onClose, onCreated }: { purposes: Array<{ 
         <div className="grid gap-4 sm:grid-cols-2">
           <Select label="Why the goods move" selectedKey={purpose} onSelectionChange={(key) => setPurpose(String(key))} options={purposes.map((entry) => ({ value: entry.code, label: entry.label }))} />
           {purpose !== "branch_transfer" ? (
-            <ComboBox label="Consignee" isRequired options={(parties.data ?? []).map((party) => ({ value: party.id, label: party.display_name }))} selectedKey={partyId}
+            <ComboBox label="Ship to" isRequired options={(parties.data ?? []).map((party) => ({ value: party.id, label: party.display_name }))} selectedKey={partyId}
               onSelectionChange={(key) => setPartyId(key ? String(key) : null)} onInputChange={setText} isLoading={parties.isFetching} allowsEmptyCollection defaultFilter={() => true}
               placeholder="Search customers" emptyMessage="No matching customers" />
           ) : <span />}

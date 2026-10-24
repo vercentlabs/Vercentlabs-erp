@@ -14,7 +14,7 @@ const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
 async function postedCreditNote(client, context, creditNoteId) {
   const creditNote = await loadCreditNote(client, context, creditNoteId, { lock: true });
-  if (!FINANCE_POSTED.includes(creditNote.status)) throw new CreditNoteError(409, "Post the credit note before sending it.", "SALES_CREDIT_NOTE_NOT_POSTED");
+  if (!FINANCE_POSTED.includes(creditNote.status)) throw new CreditNoteError(409, "Finalise the credit note before sending it.", "SALES_CREDIT_NOTE_NOT_POSTED");
   return creditNote;
 }
 
@@ -58,8 +58,10 @@ export async function sendCreditNote(client, context, creditNoteId, input = {}, 
     ?? `Please find attached our credit note ${creditNote.invoice_number}${customer ? ` for ${customer}` : ""} against invoice ${creditNote.source_invoice_number}.`;
   const prepared = await prepareFileUpload({ fileName: attachment.fileName, mimeType: "application/pdf", bytes: attachment.content, maximumBytes: 10 * 1024 * 1024, allowedTypes: ["application/pdf"] }, env);
   const file = await storeFile(client, { organizationId: context.organizationId, entityType: CREDIT_NOTE_FILE_ENTITY, entityId: creditNote.id, prepared, uploadedBy: context.userId ?? null }, { env });
+  // Replies come back to the company's document address and join the document (Sales report Phase 3).
+  const { documentReplyTo, keepSentDocumentEmail } = await import("../document-emails.js");
   const result = await sendMail({
-    meter: { client, organizationId: context.organizationId },
+    meter: { client, organizationId: context.organizationId }, replyTo: await documentReplyTo(client, context.organizationId),
     to, cc: cc.length ? cc : undefined, subject, text: message,
     html: `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">${escapeHtml(message).replace(/\n/g, "<br>")}</body></html>`,
     attachments: [{ filename: attachment.fileName, content: attachment.content, contentType: "application/pdf" }],
@@ -67,6 +69,7 @@ export async function sendCreditNote(client, context, creditNoteId, input = {}, 
   if (!result.sent)
     throw new CreditNoteError(409, "Email is not set up for this workspace. Download the PDF, send it yourself and mark the credit note as sent.", "SALES_CREDIT_NOTE_EMAIL_UNAVAILABLE");
   const recipients = [to, ...cc].join(", ");
+  await keepSentDocumentEmail(client, context, { type: "sales.credit_note", id: creditNote.id, messageId: result.messageId, to: recipients, subject, body: message });
   await recordSend(client, context, creditNote, { channel: "email", recipients, subject, messageId: result.messageId ?? null, pdfFileId: file.id, idempotencyKey: key });
   await recordCreditNoteEvent(client, context, creditNote.id, "sales_credit_note.sent", "posted", "posted", { recipient: recipients, subject });
   return { creditNoteId: creditNote.id, sentTo: recipients, messageId: result.messageId ?? null, replayed: false };

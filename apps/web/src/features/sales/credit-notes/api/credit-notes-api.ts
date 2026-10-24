@@ -188,6 +188,11 @@ export const postCreditNote = (id: string, expectedVersion?: number) =>
 export const cancelCreditNote = (id: string, reason?: string) => post<{ result: unknown }>(`/credit-notes/${id}/cancel`, { reason });
 export const reverseCreditNote = (id: string, reason: string) =>
   post<{ result: { unapplied?: Array<{ invoiceNumber: string; amount: string }> } }>(`/credit-notes/${id}/reverse`, { reason });
+export type CreditNoteApplication = { creditLeft: number; currencyCode: string;
+  invoices: Array<{ invoiceId: string; invoiceNumber: string; invoiceDate: string; dueDate: string | null; outstanding: number }> };
+export const getCreditNoteApplication = (id: string) => request<{ application: CreditNoteApplication }>(`/credit-notes/${id}/apply`).then((result) => result.application);
+export const applyCreditNote = (id: string, allocations: Array<{ invoiceId: string; amount: number }>) =>
+  post<{ result: { applied: Array<{ invoiceNumber: string | null; amount: string }> } }>(`/credit-notes/${id}/apply`, { allocations });
 export const sendCreditNote = (id: string, input: { to: string; cc?: string; subject?: string; message?: string; idempotencyKey: string }) =>
   post<{ result: { sentTo: string } }>(`/credit-notes/${id}/send`, input);
 export const markCreditNoteSent = (id: string, input: { channel: string; recipient?: string; note?: string; idempotencyKey?: string }) => post<{ result: unknown }>(`/credit-notes/${id}/mark-sent`, input);

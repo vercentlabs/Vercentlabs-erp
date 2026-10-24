@@ -27,7 +27,7 @@ import {
   creditNoteFileUrl, creditNotePdfUrl, getCreditNote, listCreditNoteFiles, removeCreditNoteFile, uploadCreditNoteFile, type CreditNoteDetail, type CreditNoteLine,
 } from "../api/credit-notes-api";
 import {
-  CancelCreditNoteDialog, EditCreditNoteDialog, MarkCreditNoteSentDialog, PostCreditNoteDialog, ReverseCreditNoteDialog, SendCreditNoteDialog, failureText,
+  ApplyCreditDialog, CancelCreditNoteDialog, EditCreditNoteDialog, MarkCreditNoteSentDialog, PostCreditNoteDialog, ReverseCreditNoteDialog, SendCreditNoteDialog, failureText,
 } from "../components/CreditNoteDialogs";
 import { CreditNoteStatusBadges } from "../components/CreditNoteStatusBadges";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
@@ -44,13 +44,13 @@ const quantity = (value: number | string | null | undefined) => Number(value ?? 
 const by = (at: string | null, name: string | null) => (at ? `${dateTime(at)}${name ? ` by ${name}` : ""}` : "—");
 const TAX_LABELS: Record<string, string> = { cgst: "CGST", sgst: "SGST", igst: "IGST", cess: "Cess" };
 
-type DialogKind = "edit" | "post" | "cancel" | "reverse" | "send" | "markSent" | null;
+type DialogKind = "edit" | "post" | "cancel" | "reverse" | "send" | "markSent" | "apply" | null;
 
 const EVENT_LABELS: Record<string, string> = {
   "sales_credit_note.created": "Credit note created", "sales_credit_note.updated": "Draft changed", "sales_credit_note.submitted_for_approval": "Sent to Finance for approval",
-  "sales_credit_note.posted": "Credit note posted", "sales_credit_note.cancelled": "Draft cancelled", "sales_credit_note.reversed": "Credit note reversed",
+  "sales_credit_note.posted": "Credit note finalised", "sales_credit_note.cancelled": "Draft cancelled", "sales_credit_note.reversed": "Credit note cancelled",
   "sales_credit_note.sent": "Credit note emailed", "sales_credit_note.marked_sent": "Marked as sent", "sales_credit_note.file_added": "File added", "sales_credit_note.file_removed": "File removed",
-  "accounting.customer_credit.allocated": "Applied to invoices", "accounting.customer_credit.refunded": "Credit refunded", "accounting.customer_credit.refund_reversed": "Refund reversed", "accounting.customer_credit_note.reversed": "Reversing entry posted",
+  "accounting.customer_credit.allocated": "Applied to invoices", "accounting.customer_credit.refunded": "Credit refunded", "accounting.customer_credit.refund_reversed": "Refund cancelled", "accounting.customer_credit_note.reversed": "Reversing entry made",
   "accounting.customer_invoice.approved": "Approved by Finance", "accounting.customer_invoice.submitted_for_approval": "Submitted to Finance",
 };
 function eventDetail(event: SalesDocumentEvent) {
@@ -102,13 +102,13 @@ export function CreditNoteDetailScreen({ creditNoteId }: { creditNoteId: string 
   return (
     <div className="flex flex-col gap-4">
       {notice && <Notice tone="info" className="whitespace-pre-line">{notice}</Notice>}
-      {creditNote.financeStatus === "pending_approval" && <Notice tone="warning">This credit note is waiting for Finance approval. It is posted and applied once approved.</Notice>}
+      {creditNote.financeStatus === "pending_approval" && <Notice tone="warning">This credit note is waiting for Finance approval. It is finalised and applied once approved.</Notice>}
       {creditNote.status === "reversed" && (
-        <Notice tone="warning">This credit note was reversed {by(creditNote.reversed_at, creditNote.reversed_by_name)}{creditNote.reversal_reason ? `: ${creditNote.reversal_reason}` : ""}. It is kept for the record; it credits nothing.</Notice>
+        <Notice tone="warning">This credit note was cancelled {by(creditNote.reversed_at, creditNote.reversed_by_name)}{creditNote.reversal_reason ? `: ${creditNote.reversal_reason}` : ""}. It is kept for the record; it credits nothing.</Notice>
       )}
       {creditNote.status === "cancelled" && <Notice tone="warning">This draft was cancelled. It never reached the books.</Notice>}
       {creditNote.status === "draft" && detail.problems.length > 0 && (
-        <Notice tone="warning"><span className="font-medium">It cannot be posted yet:</span><ul className="list-disc pl-4">{detail.problems.map((problem, index) => <li key={index}>{problem.message}</li>)}</ul></Notice>
+        <Notice tone="warning"><span className="font-medium">It cannot be finalised yet:</span><ul className="list-disc pl-4">{detail.problems.map((problem, index) => <li key={index}>{problem.message}</li>)}</ul></Notice>
       )}
       {detail.warnings.map((warning, index) => <Notice key={index} tone="warning">{warning.message}</Notice>)}
 
@@ -125,7 +125,7 @@ export function CreditNoteDetailScreen({ creditNoteId }: { creditNoteId: string 
             ...(posted && creditNote.unapplied !== null ? [{ label: "Unapplied credit", value: money(currency, creditNote.unapplied) }] : []),
           ],
           primaryAction: actions.post ? (
-            <Button variant="primary" onPress={() => setDialog("post")}><Check className="size-4" aria-hidden="true" />Post Credit Note</Button>
+            <Button variant="primary" onPress={() => setDialog("post")}><Check className="size-4" aria-hidden="true" />Finalise Credit Note</Button>
           ) : actions.send ? (
             <Button variant="primary" onPress={() => setDialog("send")}><Send className="size-4" aria-hidden="true" />Send Credit Note</Button>
           ) : undefined,
@@ -136,14 +136,14 @@ export function CreditNoteDetailScreen({ creditNoteId }: { creditNoteId: string 
               {actions.print && posted && <LinkButton variant="secondary" href={creditNotePdfUrl(creditNoteId)} download>Download</LinkButton>}
               {actions.markSent && <Button variant="secondary" onPress={() => setDialog("markSent")}>Mark as Sent</Button>}
               {actions.markSent && <WhatsAppSendButton kind="credit_note" id={creditNoteId} onSent={refresh} />}
-              {actions.applyCredit && <LinkButton variant="secondary" href={`/accounting/customer-invoices?view=credit_notes&partyId=${creditNote.party_id}`}><Wallet className="size-4" aria-hidden="true" />Apply Credit</LinkButton>}
+              {actions.applyCredit && <Button variant="secondary" onPress={() => setDialog("apply")}><Wallet className="size-4" aria-hidden="true" />Use Credit</Button>}
               {actions.refund && (
                 <LinkButton variant="secondary" href={`/sales/refunds?sourceType=credit_note&sourceId=${creditNote.id}&partyId=${creditNote.party_id}`}>
                   <Banknote className="size-4" aria-hidden="true" />Refund Credit
                 </LinkButton>
               )}
               {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel Draft</Button>}
-              {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Reverse</Button>}
+              {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Cancel</Button>}
             </div>
           ),
         }}
@@ -185,6 +185,7 @@ export function CreditNoteDetailScreen({ creditNoteId }: { creditNoteId: string 
       {dialog === "cancel" && <CancelCreditNoteDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The draft was cancelled.")} />}
       {dialog === "reverse" && <ReverseCreditNoteDialog detail={detail} onClose={() => setDialog(null)} onDone={(message) => done(message)} />}
       {dialog === "send" && <SendCreditNoteDialog detail={detail} onClose={() => setDialog(null)} onDone={(sentTo) => done(`The credit note was sent to ${sentTo}.`)} />}
+      {dialog === "apply" && <ApplyCreditDialog detail={detail} onClose={() => setDialog(null)} onDone={(message) => done(message)} />}
       {dialog === "markSent" && <MarkCreditNoteSentDialog detail={detail} onClose={() => setDialog(null)} onDone={() => done("The credit note is marked as sent.")} />}
     </div>
   );
@@ -211,10 +212,10 @@ function Overview({ detail }: { detail: CreditNoteDetail }) {
           { label: "Original invoice", value: <Link className="text-brand hover:underline" href={`/sales/invoices/${creditNote.source_invoice_id}`}>{creditNote.sourceInvoice.invoiceNumber}</Link> },
           { label: "Invoice date", value: calendarDate(creditNote.sourceInvoice.invoiceDate) },
           { label: "Invoice total", value: money(currency, creditNote.sourceInvoice.grandTotal) },
-          { label: "Credited on the invoice (posted)", value: money(currency, creditNote.sourceInvoice.creditedTotal) },
+          { label: "Credited on the invoice (final)", value: money(currency, creditNote.sourceInvoice.creditedTotal) },
           { label: "Reason", value: [creditNote.reasonLabel, creditNote.reason_note].filter(Boolean).join(": ") },
           { label: "Credit note date", value: calendarDate(creditNote.invoice_date) },
-          { label: "Posting date", value: calendarDate(creditNote.accounting_date) },
+          { label: "Accounting date", value: calendarDate(creditNote.accounting_date) },
           { label: "Currency", value: creditNote.currency_code },
           { label: "Customer order no. (PO)", value: creditNote.customer_po_number ?? "—" },
           { label: "Sent", value: creditNote.sent ? `${dateTime(creditNote.sent_at)}${creditNote.sent_to ? ` to ${creditNote.sent_to}` : ""}` : "Not sent" },
@@ -230,8 +231,8 @@ function Overview({ detail }: { detail: CreditNoteDetail }) {
       <Panel title="Status history">
         <Facts items={[
           { label: "Created", value: by(creditNote.created_at, creditNote.created_by_name) },
-          { label: "Posted", value: by(creditNote.posted_at, creditNote.posted_by_name) },
-          { label: "Reversed", value: by(creditNote.reversed_at, creditNote.reversed_by_name) },
+          { label: "Final", value: by(creditNote.posted_at, creditNote.posted_by_name) },
+          { label: "Cancelled", value: by(creditNote.reversed_at, creditNote.reversed_by_name) },
         ]} />
       </Panel>
     </div>
@@ -311,7 +312,7 @@ function Application({ detail }: { detail: CreditNoteDetail }) {
   const currency = creditNote.currency_code;
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <Panel title="Where the credit went" description="Posting applies the credit note to its invoice for as much as the invoice still owes. What is left is the customer's credit: Finance applies it to other invoices or refunds it. The credit note's amount never changes.">
+      <Panel title="Where the credit went" description="Finalising takes it off the invoice; anything left is the customer's credit for Finance to use or refund.">
         <Facts columns={4} items={[
           { label: "Credit note amount", value: money(currency, creditNote.grand_total) },
           { label: "Applied to invoices", value: creditNote.status === "posted" ? money(currency, creditNote.applied ?? 0) : "—" },
@@ -319,7 +320,7 @@ function Application({ detail }: { detail: CreditNoteDetail }) {
           { label: "Remaining credit", value: creditNote.status === "posted" ? money(currency, creditNote.unapplied ?? 0) : "—" },
           { label: "Invoice still owes", value: creditNote.sourceInvoice.outstanding === null ? "—" : money(currency, creditNote.sourceInvoice.outstanding) },
         ]} />
-        {!detail.allocations.length ? <p className="text-sm text-text-muted">{creditNote.status === "posted" ? "Not applied to any invoice." : "Applied when posted."}</p> : (
+        {!detail.allocations.length ? <p className="text-sm text-text-muted">{creditNote.status === "posted" ? "Not applied to any invoice." : "Applied when finalised."}</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.allocations.map((allocation) => (
               <li key={allocation.id} className="flex flex-wrap items-center gap-3 py-2">
@@ -333,7 +334,7 @@ function Application({ detail }: { detail: CreditNoteDetail }) {
           </ul>
         )}
       </Panel>
-      <Panel title="Refunds" description="Money Finance paid back out of this credit. A credit note does not need a refund: its credit can be applied to another invoice instead.">
+      <Panel title="Refunds" description="Money Finance paid back out of this credit. The credit can go on another invoice instead.">
         {!detail.refunds.length ? <p className="text-sm text-text-muted">No refunds.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.refunds.map((refund) => (
@@ -413,11 +414,11 @@ function Accounting({ detail }: { detail: CreditNoteDetail }) {
   const creditNote = detail.creditNote;
   return (
     <div className="pt-4">
-      <Panel title="Accounting" description="Posting credits the customer's receivable and debits revenue and output tax: the reverse of the invoice.">
+      <Panel title="Accounting" description="Finalising credits the customer's receivable and debits revenue and output tax: the opposite of the invoice.">
         <Facts items={[
-          { label: "Journal entry", value: creditNote.journal_entry_number ? <Link className="text-brand hover:underline" href="/accounting/journals">{creditNote.journal_entry_number}</Link> : "Not posted yet" },
+          { label: "Journal entry", value: creditNote.journal_entry_number ? <Link className="text-brand hover:underline" href="/accounting/journals">{creditNote.journal_entry_number}</Link> : "Not final yet" },
           { label: "Reversing entry", value: creditNote.reversal_entry_number ?? "—" },
-          { label: "Posting date", value: calendarDate(creditNote.accounting_date) },
+          { label: "Accounting date", value: calendarDate(creditNote.accounting_date) },
           { label: "Finance status", value: statusLabel(creditNote.financeStatus) },
         ]} />
       </Panel>

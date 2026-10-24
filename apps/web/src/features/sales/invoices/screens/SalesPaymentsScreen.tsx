@@ -15,6 +15,8 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { SalesApiError, request } from "@/features/sales/shared/http";
 import { calendarDate, money } from "@/features/sales/shared/format";
 import { SalesCreateMenu } from "@/features/sales/shared/SalesCreateMenu";
+import { ExportLink, exportHref, useListColumns } from "@/features/sales/shared/list-kit";
+import { UrlViews } from "@/shared/ui/MyViews";
 
 type PaymentRow = {
   id: string; receipt_number: string; receipt_date: string; amount: number; currency_code: string; methodLabel: string | null; external_reference: string | null;
@@ -64,16 +66,25 @@ export function SalesPaymentsScreen() {
         </span>
       ),
     },
-    { id: "status", header: "Status", cell: ({ row }) => (row.original.status === "reversed" ? <span className="text-danger">Reversed</span> : "Received") },
+    { id: "status", header: "Status", cell: ({ row }) => (row.original.status === "reversed" ? <span className="text-danger">Cancelled</span> : "Received") },
   ], []);
+  // CRM parity: choose the columns, save the view, tick payments to export them.
+  const cols = useListColumns("sales.payments.columns", columns);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const chosen = Object.keys(selected).filter((id) => selected[id]);
+  const mayExport = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.invoice.payments.view");
+  const filters = { search: submitted, from, to };
   if (listQuery.isError && listQuery.error instanceof SalesApiError && listQuery.error.status === 403)
     return <PermissionState title="You don't have access to payments" description="Ask an administrator for the View invoice payments permission." />;
   const hasCriteria = Boolean(submitted || from || to);
   const canRecord = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("sales.invoice.record_payment");
   return (
     <EnterpriseListPage
+      bulkActionBar={chosen.length && mayExport ? { selectedCount: chosen.length, onClearSelection: () => setSelected({}),
+        actions: <ExportLink compact label="Export selected" href={exportHref("/api/sales/list-export/payments", filters, chosen)} /> } : undefined}
       header={{ title: "Payments Received", description: "What customers paid, the bills each payment settled and what is kept as an advance.",
-        primaryAction: canRecord ? <LinkButton variant="primary" href="/sales/payments/new">New payment</LinkButton> : <SalesCreateMenu /> }}
+        primaryAction: canRecord ? <LinkButton variant="primary" href="/sales/payments/new">New payment</LinkButton> : <SalesCreateMenu />,
+        secondaryActions: mayExport ? <ExportLink href={exportHref("/api/sales/list-export/payments", filters)} /> : undefined }}
       actionBar={{
         start: (
           <>
@@ -82,9 +93,15 @@ export function SalesPaymentsScreen() {
             <TextField aria-label="Received to" type="date" size="compact" className="w-40" value={to} onChange={(value) => go({ to: value })} />
           </>
         ),
+        end: <><UrlViews listKey="sales.payments" />{cols.menu}</>,
       }}
     >
       <EnterpriseDataGrid<PaymentRow>
+        columnVisibility={cols.visibility}
+        onColumnVisibilityChange={cols.setVisibility}
+        enableRowSelection
+        rowSelection={selected}
+        onRowSelectionChange={setSelected}
         aria-label="Payments received"
         columns={columns}
         data={rows}

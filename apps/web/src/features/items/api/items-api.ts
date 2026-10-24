@@ -14,6 +14,9 @@ type Unit = { code: string; name: string; decimalPlaces?: number | null } | null
 
 export type Item = {
   id: string;
+  salesWarningLevel?: "none" | "warn" | "block";
+  invoiceBasis?: "ordered" | "delivered" | null;
+  salesWarning?: string | null;
   code: string;
   sku: string;
   skuGenerationMode: "manual" | "automatic";

@@ -56,7 +56,8 @@ export async function collectOutward(client, c, registration, from, to, { source
   // ---- Finance customer invoices / credit notes / debit notes
   const inv = (await client.query(`SELECT i.id, i.invoice_number, i.invoice_type, i.invoice_date, i.status, i.customer_snapshot, i.place_of_supply, i.supply_type, i.grand_total, i.tax_total,
       i.exchange_rate, i.source_invoice_id, o.invoice_number AS original_number, o.invoice_date AS original_date, i.e_invoice_status, i.e_invoice_reference, i.updated_at,
-      COALESCE(si.seller_registration_id, scn.seller_registration_id, sdn.seller_registration_id) AS seller_registration_id
+      COALESCE(si.seller_registration_id, scn.seller_registration_id, sdn.seller_registration_id) AS seller_registration_id,
+      si.shipping_bill_number, si.shipping_bill_date, si.port_code
     FROM tenant.accounting_customer_invoices i LEFT JOIN tenant.sales_invoices si ON si.customer_invoice_id = i.id
     -- A Sales credit or debit note was issued by its invoice's registration (Sales plan: debit notes).
     LEFT JOIN tenant.sales_credit_notes scn ON scn.customer_invoice_id = i.id
@@ -100,7 +101,8 @@ export async function collectOutward(client, c, registration, from, to, { source
       recipientGstin: String(i.customer_snapshot?.gstin ?? "").trim().toUpperCase() || null, recipientName: i.customer_snapshot?.legalName ?? i.customer_snapshot?.displayName ?? null,
       pos, nature: pos && seller ? (pos === seller ? "intra" : "inter") : null, supplyType: i.supply_type ?? "domestic", value: Math.round(paise(i.grand_total) * fx),
       taxTotal: Math.round(paise(i.tax_total) * fx), original: i.source_invoice_id ? { number: i.original_number, date: ymd(i.original_date) } : null, linked: Boolean(i.source_invoice_id),
-      einvoice: { status: i.e_invoice_status, reference: i.e_invoice_reference }, updatedAt: i.updated_at, lines });
+      einvoice: { status: i.e_invoice_status, reference: i.e_invoice_reference }, updatedAt: i.updated_at, lines,
+      exportDetails: i.port_code || i.shipping_bill_number ? { portCode: i.port_code, shippingBillNumber: i.shipping_bill_number, shippingBillDate: ymd(i.shipping_bill_date) } : null });
   }
 
   // ---- POS GST invoices and credit notes
@@ -168,8 +170,8 @@ export function checkDocument(d, registration, { sellerState }) {
   const lineTax = d.lines.reduce((s, l) => s + l.lineTax, 0);
   if (Math.abs(lineTax - d.taxTotal) > 1) add("DOCUMENT_TAX_MISMATCH", "blocking", `The lines' tax (${(lineTax / 100).toFixed(2)}) does not match the document's tax total (${(d.taxTotal / 100).toFixed(2)}).`);
   if (d.kind !== "invoice" && !d.linked) add("NOTE_UNLINKED", "warning", "This note is not linked to the invoice it corrects.");
-  if (d.supplyType === "export" || d.supplyType === "sez") add("ZERO_RATED_DETAILS", "warning",
-    `${d.supplyType === "export" ? "Export" : "SEZ supply"}: the shipping bill / port code (or the SEZ endorsement) is not captured here. Complete those details on the portal.`);
+  if (d.supplyType === "export" && !(d.exportDetails?.portCode && d.exportDetails?.shippingBillNumber)) add("ZERO_RATED_DETAILS", "warning",
+    "Export: enter the shipping bill and port code on the invoice (Export details), or complete them on the portal.");
   const einvoiceDue = registration.einvoice_applicable && (!registration.einvoice_applicable_from || ymd(registration.einvoice_applicable_from) <= d.date)
     && (d.recipientGstin || d.supplyType === "export" || d.supplyType === "sez");
   if (einvoiceDue && !["generated", "registered"].includes(String(d.einvoice?.status ?? "")) && !d.einvoice?.reference) add("EINVOICE_MISSING", "warning",

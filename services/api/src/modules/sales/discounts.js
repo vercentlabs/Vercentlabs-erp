@@ -118,7 +118,10 @@ export function checkDiscountRules(context, master, input, lines, options = {}) 
   for (const entry of lines) {
     // A line carried from a quotation was checked when it was quoted.
     if (entry.quoted) continue;
-    const effective = decimal(entry.effectiveDiscountPercent);
+    // A coupon's share was approved when the coupon was set up (Sales report Phase 3).
+    const gross = decimal(entry.grossAmount);
+    const coupon = decimal(entry.couponAmount || 0);
+    const effective = sub(decimal(entry.effectiveDiscountPercent), gross > 0n && coupon > 0n ? div(mul(coupon, 100), gross) : decimal(0));
     if (effective > requested) { requested = effective; line = entry.sequence; }
   }
   const result = {

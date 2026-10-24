@@ -7,6 +7,7 @@
 // and tax components. A draft is not owed, not in the books and not invoiced:
 // another draft may bill the same quantity for a while (each is warned of the
 // others), and posting decides, against what is really left then.
+import { carrySectionLines, saveSectionLines } from "../section-lines.js";
 import { changeCustomerInvoiceDueDate, createCustomerInvoice, replaceCustomerInvoiceDraft } from "../../accounting/receivables.js";
 import { PaymentTermError, calculateDueDate, readTermSnapshot, salesTermSnapshot } from "../../../core/payment-terms/index.js";
 import { asDatabaseDecimal, decimal } from "../../../core/decimal.js";
@@ -157,8 +158,8 @@ export async function createInvoiceFromSalesOrder(client, context, orderId, inpu
   const invoiceDate = readDate(input.invoiceDate, "Invoice date") ?? await companyToday(client);
   const taxOf = await taxEngineFor(client, context, { ...version, invoice_date: invoiceDate });
   const built = [...await buildInvoiceLines(client, context, source, chosen, taxOf), ...chargeInvoiceLines(pendingCharges)];
-  const postingDate = readDate(input.postingDate, "Posting date");
-  if (postingDate && postingDate !== invoiceDate) requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostingDate, "You do not have permission to change the posting date.");
+  const postingDate = readDate(input.postingDate, "Accounting date");
+  if (postingDate && postingDate !== invoiceDate) requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostingDate, "You do not have permission to change the accounting date.");
   // The invoice inherits the order's agreed payment terms as they were agreed, never today's customer terms or master. Its due date
   // is worked out from its own date; terms that set no date (custom) leave it to be entered before posting.
   const calculatedDueDate = calculateDueDate(invoiceDate, version.payment_term_snapshot);
@@ -184,6 +185,7 @@ export async function createInvoiceFromSalesOrder(client, context, orderId, inpu
       JSON.stringify(version.seller_snapshot ?? {}), version.place_of_supply_name ?? null, version.supply_nature ?? null, version.customer_po_number ?? null,
       order.owner_user_id ?? null, text(input.customerNotes, 4000) ?? version.customer_notes ?? null, text(input.internalNotes, 4000), context.userId ?? null, calculatedDueDate]);
   await writeSalesLines(client, context, created.id, created.lineIds, built);
+  await carryOrderSections(client, context, created.id, version, chosen);
   const summary = [...chosen.map(({ line, quantity }) => ({ item: line.itemName, quantity, unit: line.unit })),
     ...pendingCharges.map((charge) => ({ item: charge.label, quantity: 1, unit: null }))];
   await recordInvoiceEvent(client, context, created.id, "sales_invoice.created", null, INVOICE_STATUS.draft,
@@ -191,6 +193,15 @@ export async function createInvoiceFromSalesOrder(client, context, orderId, inpu
   await recordOrderEvent(client, context, order.id, "sales_order.invoice_created", order.lifecycle_status,
     { invoiceId: created.id, invoiceNumber: created.invoiceNumber, deliveryId: delivery?.id, deliveryNumber: delivery?.number, status: INVOICE_STATUS.draft, lines: summary });
   return { invoiceId: created.id, invoiceNumber: created.invoiceNumber, status: INVOICE_STATUS.draft, replayed: false, warnings: draftWarnings(chosen) };
+}
+
+// The order's headings and notes (Sales report Phase 2), each before the same line on the invoice, or the next line it bills.
+async function carryOrderSections(client, context, invoiceId, version, chosen) {
+  if (!Array.isArray(version.section_lines) || !version.section_lines.length) return;
+  const order = (await client.query("SELECT id FROM tenant.sales_order_lines WHERE organization_id = $1 AND sales_order_version_id = $2 ORDER BY sequence",
+    [context.organizationId, version.id])).rows.map((row) => row.id);
+  const kept = chosen.map(({ line }) => order.indexOf(line.lineId)).filter((index) => index >= 0);
+  await saveSectionLines(client, "tenant.sales_invoices", "customer_invoice_id", invoiceId, carrySectionLines(version.section_lines, kept));
 }
 
 // Other drafts billing the same order lines: only what is left when each is posted can be posted.
@@ -333,17 +344,17 @@ export async function updateDraftInvoice(client, context, invoiceId, input = {})
   const invoice = await loadInvoice(client, context, invoiceId, { lock: true });
   if (invoice.status !== "draft")
     throw new InvoiceError(409, invoice.status === "pending_approval" || invoice.status === "approved" ? "The invoice is with Finance for approval and cannot be changed."
-      : "A posted invoice cannot be changed. Use a credit note.", "SALES_INVOICE_LOCKED");
+      : "A final invoice cannot be changed. Use a credit note.", "SALES_INVOICE_LOCKED");
   if (input.expectedVersion != null && Number(input.expectedVersion) !== Number(invoice.version))
     throw new InvoiceError(409, "Someone else changed this invoice. Reload it and try again.", "SALES_INVOICE_VERSION_CONFLICT");
   const has = (key) => Object.prototype.hasOwnProperty.call(input, key) && input[key] !== undefined;
   const changes = [];
   const invoiceDate = has("invoiceDate") ? readDate(input.invoiceDate, "Invoice date") ?? dayOf(invoice.invoice_date) : dayOf(invoice.invoice_date);
-  const postingDate = has("postingDate") ? readDate(input.postingDate, "Posting date") ?? invoiceDate : (dayOf(invoice.accounting_date) === dayOf(invoice.invoice_date) ? invoiceDate : dayOf(invoice.accounting_date));
+  const postingDate = has("postingDate") ? readDate(input.postingDate, "Accounting date") ?? invoiceDate : (dayOf(invoice.accounting_date) === dayOf(invoice.invoice_date) ? invoiceDate : dayOf(invoice.accounting_date));
   if (postingDate !== invoiceDate && (has("postingDate") || has("invoiceDate")))
-    requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostingDate, "You do not have permission to change the posting date.");
+    requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostingDate, "You do not have permission to change the accounting date.");
   if (invoiceDate !== dayOf(invoice.invoice_date)) changes.push({ what: "Invoice date", from: dayOf(invoice.invoice_date), to: invoiceDate });
-  if (postingDate !== dayOf(invoice.accounting_date)) changes.push({ what: "Posting date", from: dayOf(invoice.accounting_date), to: postingDate });
+  if (postingDate !== dayOf(invoice.accounting_date)) changes.push({ what: "Accounting date", from: dayOf(invoice.accounting_date), to: postingDate });
   const sets = [];
   const values = [context.organizationId, invoice.id];
   const set = (column, value, cast = "") => { values.push(value); sets.push(`${column} = $${values.length}${cast}`); };
@@ -390,7 +401,7 @@ export async function updateDraftInvoice(client, context, invoiceId, input = {})
     if (!overridden) reason = null;
   } else if (overridden && calculated !== null && (termSnapshot?.id !== undefined && termSnapshot.id !== currentTerm?.id || invoiceDate !== dayOf(invoice.invoice_date))) {
     overridden = false; reason = null; dueDate = calculated;
-    changes.push({ what: "Due date override", from: before, to: "worked out again from the payment terms" });
+    changes.push({ what: "Due date changed", from: before, to: "worked out again from the payment terms" });
   }
   if (dueDate < invoiceDate) throw new InvoiceError(400, "The due date cannot be before the invoice date.", "SALES_INVOICE_DUE_DATE_INVALID", { field: "dueDate" });
   if (dueDate !== before) changes.push({ what: overridden ? "Due date (set by hand)" : "Due date", from: before, to: dueDate, reason: overridden ? reason ?? undefined : undefined });
@@ -585,7 +596,7 @@ async function otherDrafts(client, context, invoice, lines) {
     const state = position.get(line.source_sales_order_line_id);
     if (!state || state.onDrafts <= EPSILON || Number(line.quantity) + state.onDrafts <= state.invoiceableNow + EPSILON) return [];
     return [{ item: line.item_name_snapshot, invoiceableNow: state.invoiceableNow, otherDrafts: state.draftInvoices,
-      message: `${line.item_name_snapshot}: ${state.draftInvoices.map((draft) => `${draft.invoiceNumber} (${draft.quantity})`).join(", ")} also bill this line and only ${state.invoiceableNow} is left: whichever is posted first goes through.` }];
+      message: `${line.item_name_snapshot}: ${state.draftInvoices.map((draft) => `${draft.invoiceNumber} (${draft.quantity})`).join(", ")} also bill this line and only ${state.invoiceableNow} is left: whichever is finalised first goes through.` }];
   });
 }
 
@@ -688,7 +699,7 @@ export async function listSalesInvoices(client, context, filters = {}) {
 // Corrects the due date of a posted invoice that still owes something: by permission, with a reason, kept in its history.
 // Nothing else on the invoice changes; overdue and ageing follow the new date. input: { dueDate, reason }
 export async function changePostedInvoiceDueDate(client, context, invoiceId, input = {}) {
-  requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostedDueDate, "You do not have permission to change a posted invoice's due date.");
+  requireInvoicePermission(context, INVOICE_PERMISSIONS.changePostedDueDate, "You do not have permission to change a final invoice's due date.");
   const reason = text(input.reason, 500);
   if (!reason) throw new InvoiceError(400, "Give the reason for changing the due date.", "SALES_INVOICE_DUE_DATE_REASON_REQUIRED", { field: "reason" });
   const dueDate = readDate(input.dueDate, "Due date");

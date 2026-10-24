@@ -23,6 +23,8 @@ const documentLineSchema = z.object({
   salesOrderLineId: uuid.nullish(),
   // A free line of a scheme (Sales audit M3).
   schemeRuleId: uuid.nullish(),
+  // Make-to-order (Sales report Phase 3): bought or made for this order on confirmation.
+  supplyRoute: z.enum(["stock", "buy", "make"]).optional(),
 });
 
 const documentChargeSchema = z.object({
@@ -77,6 +79,13 @@ export const documentSchema = z.object({
   revisionReason: z.string().trim().max(1000).nullish(),
   idempotencyKey: z.string().trim().max(200).nullish(),
   lines: z.array(documentLineSchema).min(1).max(500),
+  // Headings and notes between the lines (Sales report Phase 2): each before item line `position`.
+  // The delivery method that sets the freight charge (Sales report Phase 3).
+  deliveryMethodId: z.string().uuid().nullish(),
+  couponCode: z.string().trim().max(30).nullish(),
+  // Optional products offered beside the lines (Sales report Phase 3): priced, not in the total.
+  optionalLines: z.array(z.object({ itemId: z.string().uuid(), uomId: z.string().uuid().nullish(), quantity: z.number().positive(), description: z.string().max(2000).nullish() })).max(30).optional(),
+  sectionLines: z.array(z.object({ kind: z.enum(["section", "note"]), text: z.string().trim().min(1).max(1000), position: z.number().int().min(0).max(500) })).max(100).optional(),
   charges: z.array(documentChargeSchema).max(50).optional(),
 });
 

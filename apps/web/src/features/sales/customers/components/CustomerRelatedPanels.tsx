@@ -22,7 +22,7 @@ const LISTS: Record<RelatedList, { noun: string; empty: string; title: string; d
   orders: { noun: "Sales order", empty: "No sales orders for this customer yet.", title: "", detail: "Delivery · Invoicing", amount: true },
   deliveries: { noun: "Delivery", empty: "No deliveries for this customer yet.", title: "Sales order", detail: "Tracking" },
   invoices: { noun: "Invoice", empty: "No invoices for this customer yet.", title: "", due: "Due", amount: true, outstanding: "Outstanding" },
-  payments: { noun: "Receipt", empty: "No payments from this customer yet.", title: "", detail: "Method", amount: true, outstanding: "Unallocated" },
+  payments: { noun: "Receipt", empty: "No payments from this customer yet.", title: "", detail: "Method", amount: true, outstanding: "Not used yet" },
   returns: { noun: "Document", empty: "No returns or credit notes for this customer.", title: "Reason", detail: "Type", amount: true },
   projects: { noun: "Project", empty: "No projects for this customer.", title: "Name", detail: "Manager", due: undefined },
   support: { noun: "Ticket", empty: "No support tickets from this customer.", title: "Subject", detail: "Priority" },

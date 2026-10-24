@@ -44,7 +44,7 @@ export async function recordInvoicePayment(client, context, invoiceId, input = {
       WHERE organization_id = $1 AND id = $2 FOR UPDATE`, [context.organizationId, invoiceId])).rows[0];
   if (!invoice || invoice.invoice_type !== "invoice") throw new InvoiceError(404, "Invoice not found.", "SALES_INVOICE_NOT_FOUND");
   if (!["posted", "partially_paid", "overdue", "disputed"].includes(invoice.status))
-    throw new InvoiceError(409, invoice.status === "paid" ? "This invoice is already paid." : "Post the invoice before recording a payment.", "SALES_INVOICE_NOT_PAYABLE");
+    throw new InvoiceError(409, invoice.status === "paid" ? "This invoice is already paid." : "Finalise the invoice before recording a payment.", "SALES_INVOICE_NOT_PAYABLE");
   const amount = Math.round(Number(input.amount) * 100) / 100;
   const outstanding = Number(invoice.outstanding_amount);
   if (!(amount > 0)) throw new InvoiceError(400, "Enter the amount received.", "SALES_PAYMENT_INVALID", { field: "amount" });

@@ -90,7 +90,7 @@ export async function createSalesChallan(client, c, input = {}) {
     if (!order) throw invalid("salesOrderId", "Choose a confirmed sales order.");
     partyId = order.party_id;
   }
-  if (!partyId && purpose !== "branch_transfer") throw invalid("partyId", "Choose the consignee.");
+  if (!partyId && purpose !== "branch_transfer") throw invalid("partyId", "Choose who the goods go to.");
   const party = partyId ? (await client.query(
     "SELECT id, display_name, legal_name, gstin, customer_number, code FROM tenant.business_parties WHERE organization_id = $1 AND id = $2 AND status = 'active'",
     [c.organizationId, partyId])).rows[0] : null;
@@ -100,7 +100,7 @@ export async function createSalesChallan(client, c, input = {}) {
     const address = (await client.query(
       `SELECT * FROM tenant.addresses WHERE organization_id = $1 AND id = $2 AND party_id = $3`,
       [c.organizationId, input.shippingAddressId, partyId])).rows[0];
-    if (!address) throw invalid("shippingAddressId", "Choose one of the consignee's addresses.");
+    if (!address) throw invalid("shippingAddressId", "Choose one of the ship-to addresses.");
     shipTo = { label: address.label, line1: address.line1 ?? address.address_line1, line2: address.line2 ?? address.address_line2, city: address.city, state: address.state ?? address.state_name,
       stateCode: address.state_code, postalCode: address.postal_code, countryCode: address.country_code };
   }

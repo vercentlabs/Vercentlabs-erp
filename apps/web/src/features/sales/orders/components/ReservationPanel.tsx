@@ -51,25 +51,25 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
   return (
     <>
       <Panel title="Stock kept aside"
-        description={order.status === "draft" ? "Stock is reserved once the order is confirmed; a draft never holds stock."
-          : "Reserved stock is set aside in the line's warehouse: it is no longer available to other orders but stays on hand until it is delivered."}
+        description={order.status === "draft" ? "Stock is kept aside once the order is confirmed; a draft never holds stock."
+          : "Stock kept aside stays in the warehouse for this order until it is delivered."}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={RESERVATION_TONE[order.reservation] ?? "neutral"}>{order.reservationLabel}</StatusBadge>
-            {actions.reserve && <Button variant="secondary" size="compact" isLoading={reserving} onPress={onReserveRemaining}>Reserve Remaining</Button>}
+            {actions.reserve && <Button variant="secondary" size="compact" isLoading={reserving} onPress={onReserveRemaining}>Keep the Rest Aside</Button>}
             {actions.release && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "release", line: null })}>Release All</Button>}
             {actions.deliver && <Button variant="primary" size="compact" onPress={onDeliver}>Create Delivery</Button>}
           </div>
         )}>
-        {!goods.length ? <p className="text-sm text-text-muted">This order has only services: there is nothing to reserve or deliver.</p> : (
+        {!goods.length ? <p className="text-sm text-text-muted">This order has only services: there is nothing to keep aside or deliver.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[48rem] text-sm">
               <thead className="bg-surface-muted text-left text-text-secondary">
                 <tr className="border-b border-border">
                   <th className="py-2 pr-3 font-medium">Product</th><th className="py-2 pr-3 font-medium">Warehouse</th>
                   <th className="py-2 pr-3 text-right font-medium">Ordered</th><th className="py-2 pr-3 text-right font-medium">Delivered</th>
-                  <th className="py-2 pr-3 text-right font-medium">Cancelled</th><th className="py-2 pr-3 text-right font-medium">Reserved</th>
-                  <th className="py-2 pr-3 text-right font-medium">Unreserved</th><th className="py-2 pr-3 text-right font-medium">Available</th><th className="py-2 font-medium" />
+                  <th className="py-2 pr-3 text-right font-medium">Cancelled</th><th className="py-2 pr-3 text-right font-medium">Kept aside</th>
+                  <th className="py-2 pr-3 text-right font-medium">Not kept aside</th><th className="py-2 pr-3 text-right font-medium">Available</th><th className="py-2 font-medium" />
                 </tr>
               </thead>
               <tbody>
@@ -87,7 +87,7 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
                       <td className="py-2 pr-3 text-right tabular-nums text-text-muted">{line.is_stock_tracked && line.available_in_warehouse != null ? amount(line.available_in_warehouse) : "—"}</td>
                       <td className="py-2">
                         <span className="flex justify-end gap-1">
-                          {line.is_stock_tracked && canReserve && unreserved > 0 && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "reserve", line })}>Reserve</Button>}
+                          {line.is_stock_tracked && canReserve && unreserved > 0 && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "reserve", line })}>Keep aside</Button>}
                           {line.is_stock_tracked && canRelease && Number(line.reserved_quantity) > 0 && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "release", line })}>Release</Button>}
                         </span>
                       </td>
@@ -101,14 +101,14 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
       </Panel>
 
       {detail.capabilities.viewReservations && (records.data?.length ?? 0) > 0 && (
-        <Panel title="Reservations" description="Each reservation keeps what it reserved; deliveries consume it and releases give it back, never by rewriting it.">
-          {records.isError && <Notice>{failureText(records.error, "The reservations could not be loaded.")}</Notice>}
+        <Panel title="Stock kept aside" description="What was kept aside for each line, and what deliveries used or releases gave back.">
+          {records.isError && <Notice>{failureText(records.error, "The stock kept aside could not be loaded.")}</Notice>}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[48rem] text-sm">
               <thead className="bg-surface-muted text-left text-text-secondary">
                 <tr className="border-b border-border">
-                  <th className="py-2 pr-3 font-medium">Reservation</th><th className="py-2 pr-3 font-medium">Product</th><th className="py-2 pr-3 font-medium">Warehouse</th>
-                  <th className="py-2 pr-3 text-right font-medium">Reserved</th><th className="py-2 pr-3 text-right font-medium">Still held</th>
+                  <th className="py-2 pr-3 font-medium">Stock kept aside</th><th className="py-2 pr-3 font-medium">Product</th><th className="py-2 pr-3 font-medium">Warehouse</th>
+                  <th className="py-2 pr-3 text-right font-medium">Kept aside</th><th className="py-2 pr-3 text-right font-medium">Still held</th>
                   <th className="py-2 pr-3 text-right font-medium">Consumed</th><th className="py-2 pr-3 text-right font-medium">Released</th><th className="py-2 font-medium">Status</th>
                 </tr>
               </thead>
@@ -120,7 +120,7 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
                       <tr className="border-b border-border">
                         <td className="py-2 pr-3">
                           <button type="button" className="inline-flex items-center gap-1 font-medium tabular-nums text-brand hover:underline" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : record.id)}>
-                            {expanded ? <ChevronDown className="size-3" aria-hidden="true" /> : <ChevronRight className="size-3" aria-hidden="true" />}{record.reservationNumber ?? "Earlier reservation"}
+                            {expanded ? <ChevronDown className="size-3" aria-hidden="true" /> : <ChevronRight className="size-3" aria-hidden="true" />}{record.reservationNumber ?? "Earlier stock kept aside"}
                           </button>
                         </td>
                         <td className="py-2 pr-3">{record.itemName}</td>
@@ -140,9 +140,9 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
                         <tr className="border-b border-border bg-surface-muted">
                           <td colSpan={8} className="px-3 py-2 text-sm">
                             <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
-                              <div><dt className="inline text-text-muted">Reserved: </dt><dd className="inline">{dateTime(record.reservedAt)}{record.reservedByName ? ` by ${record.reservedByName}` : ""}</dd></div>
+                              <div><dt className="inline text-text-muted">Kept aside: </dt><dd className="inline">{dateTime(record.reservedAt)}{record.reservedByName ? ` by ${record.reservedByName}` : ""}</dd></div>
                               <div><dt className="inline text-text-muted">Order: </dt><dd className="inline">{order.sales_order_number}</dd></div>
-                              {record.reservationId && <div><a className="text-brand hover:underline" href={`/inventory/reservations/${record.reservationId}`}>View allocation in Stock Reservations</a></div>}
+                              {record.reservationId && <div><a className="text-brand hover:underline" href={`/inventory/reservations/${record.reservationId}`}>Open it in Stock</a></div>}
                               {record.consumptions.map((consumption, index) => (
                                 <div key={index}><dt className="inline text-text-muted">Consumed: </dt><dd className="inline">{withUnit(consumption.quantity, record.unit)} by {consumption.deliveryNumber ?? "a delivery"} on {dateTime(consumption.consumedAt)}</dd></div>
                               ))}
@@ -163,12 +163,12 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
       )}
 
       {history.length > 0 && (
-        <Panel title="Reservation history">
+        <Panel title="Stock kept aside history">
           <ol className="flex flex-col divide-y divide-border text-sm">
             {history.map((event, index) => {
               const m = (event.metadata ?? {}) as Record<string, unknown>;
               const lines = Array.isArray(m.lines) ? (m.lines as Array<Record<string, unknown>>) : [];
-              const what = { "sales_order.stock_reserved": "Reserved", "sales_order.stock_released": "Released", "sales_order.reservation_consumed": `Consumed by ${String(m.deliveryNumber ?? "a delivery")}`, "sales_order.warehouse_changed": "Warehouse changed" }[event.event_type];
+              const what = { "sales_order.stock_reserved": "Kept aside", "sales_order.stock_released": "Released", "sales_order.reservation_consumed": `Consumed by ${String(m.deliveryNumber ?? "a delivery")}`, "sales_order.warehouse_changed": "Warehouse changed" }[event.event_type];
               return (
                 <li key={event.id ?? index} className="flex flex-col gap-0.5 py-2">
                   <span className="font-medium">{what}</span>
@@ -187,7 +187,7 @@ export function ReservationPanel({ orderId, detail, reserving, onReserveRemainin
       )}
 
       {dialog?.kind === "reserve" && dialog.line && <ReserveLineDialog orderId={orderId} line={dialog.line} onClose={() => setDialog(null)} onDone={(message) => { setDialog(null); onChanged(message); }} />}
-      {dialog?.kind === "release" && <ReleaseDialog orderId={orderId} line={dialog.line} onClose={() => setDialog(null)} onDone={() => { setDialog(null); onChanged("The reservation was released."); }} />}
+      {dialog?.kind === "release" && <ReleaseDialog orderId={orderId} line={dialog.line} onClose={() => setDialog(null)} onDone={() => { setDialog(null); onChanged("The stock kept aside was released."); }} />}
     </>
   );
 }
@@ -201,19 +201,19 @@ function ReserveLineDialog({ orderId, line, onClose, onDone }: { orderId: string
     onSuccess: ({ result }) => {
       const outcome = result.lines[0];
       onDone(outcome && outcome.reserved + 1e-9 < outcome.wanted
-        ? `Reserved ${amount(outcome.reserved)} of ${amount(outcome.wanted)}: ${outcome.problem ?? "stock is short"}. ${amount(outcome.shortage)} stays unreserved.`
-        : `${amount(outcome?.reserved)} ${line.uom_snapshot ?? ""} reserved${outcome?.reservations?.length ? ` (${outcome.reservations.join(", ")})` : ""}.`);
+        ? `Kept aside ${amount(outcome.reserved)} of ${amount(outcome.wanted)}: ${outcome.problem ?? "stock is short"}. ${amount(outcome.shortage)} is not kept aside.`
+        : `${amount(outcome?.reserved)} ${line.uom_snapshot ?? ""} kept aside${outcome?.reservations?.length ? ` (${outcome.reservations.join(", ")})` : ""}.`);
     },
   });
   return (
-    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Reserve ${line.item_name_snapshot}`}
-      description={`Up to ${withUnit(unreserved, line.uom_snapshot)} is still unreserved in ${line.warehouse_name ?? "the line's warehouse"}. Stock is checked again now; if less is available, what is available is reserved.`}>
+    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={`Keep aside ${line.item_name_snapshot}`}
+      description={`Up to ${withUnit(unreserved, line.uom_snapshot)} is still not kept aside. What is available now will be kept aside.`}>
       <div className="flex flex-col gap-3">
-        {save.isError && <Notice>{failureText(save.error, "The stock could not be reserved.")}</Notice>}
+        {save.isError && <Notice>{failureText(save.error, "The stock could not be kept aside.")}</Notice>}
         <NumberField label={`Quantity (${line.uom_snapshot ?? "units"})`} value={quantity} minValue={0} maxValue={unreserved} step={1} onChange={(value) => setQuantity(Number.isFinite(value) ? value : 0)} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>
-          <Button variant="primary" isLoading={save.isPending} isDisabled={!(quantity > 0)} onPress={() => save.mutate()}>Reserve</Button>
+          <Button variant="primary" isLoading={save.isPending} isDisabled={!(quantity > 0)} onPress={() => save.mutate()}>Keep aside</Button>
         </div>
       </div>
     </Dialog>
@@ -230,10 +230,10 @@ function ReleaseDialog({ orderId, line, onClose, onDone }: { orderId: string; li
     onSuccess: onDone,
   });
   return (
-    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={line ? `Release ${line.item_name_snapshot}` : "Release all reserved stock"}
-      description="The stock becomes available to other orders. The order stays confirmed and can be reserved again.">
+    <Dialog isOpen onOpenChange={(isOpen) => !isOpen && onClose()} title={line ? `Release ${line.item_name_snapshot}` : "Release all stock kept aside"}
+      description="The stock becomes available to other orders. The order stays confirmed and can be kept aside again.">
       <div className="flex flex-col gap-3">
-        {save.isError && <Notice>{failureText(save.error, "The reservation could not be released.")}</Notice>}
+        {save.isError && <Notice>{failureText(save.error, "The stock kept aside could not be released.")}</Notice>}
         {line && <NumberField label={`Quantity (${line.uom_snapshot ?? "units"})`} value={quantity} minValue={0} maxValue={held} step={1} onChange={(value) => setQuantity(Number.isFinite(value) ? value : 0)} />}
         <Select label="Reason" isRequired placeholder="Choose a reason" options={RELEASE_REASONS.map((entry) => ({ value: entry.code, label: entry.label }))}
           selectedKey={reasonCode || null} onSelectionChange={(key) => setReasonCode(String(key ?? ""))} />

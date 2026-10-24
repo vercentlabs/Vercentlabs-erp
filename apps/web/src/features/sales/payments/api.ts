@@ -17,7 +17,7 @@ export type PaymentInput = {
   partyId: string; amount: number; receiptDate?: string; paymentMethod?: string; reference?: string; chequeNumber?: string; chequeDate?: string; draweeBank?: string;
   bankAccountId?: string | null; notes?: string; allocations?: Array<{ invoiceId: string; amount: number; tdsAmount?: number; tdsSection?: string }>;
 };
-export type PaymentResult = { receiptId: string; receiptNumber: string; amount: number; applied: number; advance: number;
+export type PaymentResult = { postDated?: boolean; chequeId?: string; receiptId: string | null; receiptNumber: string | null; amount: number; applied: number; advance: number;
   allocations: Array<{ invoiceId: string; invoiceNumber: string; amount: number; tds: number }> };
 export type PaymentDetail = {
   payment: { id: string; number: string; date: string; amount: number; unapplied: number; currencyCode: string; method: string; methodLabel: string; reference: string | null;

@@ -92,8 +92,8 @@ export function CreateInvoiceDialog({ orderId, number, onClose, onDone }: { orde
   });
   return (
     <Shell title={`Invoice ${number}`}
-      description={delivered ? "Goods are invoiced once delivered; services as ordered. The invoice is created as a draft: check it, then post it."
-        : "Enter what is invoiced now; what is left can be invoiced later. The invoice is created as a draft: check it, then post it."}
+      description={delivered ? "Goods are invoiced once delivered; services as ordered. The invoice is created as a draft: check it, then finalise it."
+        : "Enter what to bill now; the rest can be billed later. Check the draft, then finalise it."}
       size="lg" error={save.error ?? proposal.error} fallback="The invoice could not be created." onClose={onClose} label="Create Draft Invoice" isLoading={save.isPending}
       isDisabled={!lines.length} onPress={() => save.mutate()}>
       {proposal.isLoading ? <p className="text-sm text-text-muted">Loading what is left to invoice…</p>
@@ -101,7 +101,7 @@ export function CreateInvoiceDialog({ orderId, number, onClose, onDone }: { orde
           : <QuantityRows rows={rows} values={values} onChange={setValues} />}
       {waiting.length > 0 && rows.length > 0 && <p className="text-xs text-text-muted">{waiting.map((line) => line.itemName).join(", ")}: nothing to invoice now.</p>}
       {(proposal.data?.lines ?? []).some((line) => line.onDrafts > 0 && line.eligible > 0) && (
-        <Notice tone="warning">Other draft invoices already bill some of these lines. Drafts are not invoiced: whichever is posted first goes through, and the rest are refused for what is no longer left.</Notice>
+        <Notice tone="warning">Other draft invoices already bill some of these lines. Drafts are not invoiced: whichever is finalised first goes through, and the rest are refused for what is no longer left.</Notice>
       )}
       <TextArea label="Customer notes" description="Printed on the invoice. Left empty, the order's customer notes are used." value={customerNotes} onChange={setCustomerNotes} />
       <TextArea label="Internal notes" description="Never printed." value={internalNotes} onChange={setInternalNotes} />
@@ -123,7 +123,7 @@ export function DeliveryInvoiceDialog({ deliveryId, number, lines: deliveryLines
   const lines = chosen(rows, values).map((line) => ({ deliveryLineId: line.id, quantity: line.quantity }));
   const save = useMutation({ mutationFn: () => createInvoiceFromDelivery(deliveryId, { idempotencyKey, lines }), onSuccess: ({ result }) => onDone(result.invoiceId) });
   return (
-    <Shell title={`Invoice ${number}`} description="A draft invoice for what this delivery delivered, at the order's agreed prices, discounts and tax. Check it, then post it."
+    <Shell title={`Invoice ${number}`} description="A draft invoice for what this delivery delivered, at the order's agreed prices. Check it, then finalise it."
       size="lg" error={save.error} fallback="The invoice could not be created." onClose={onClose} label="Create Draft Invoice" isLoading={save.isPending} isDisabled={!lines.length} onPress={() => save.mutate()}>
       {rows.length ? <QuantityRows rows={rows} values={values} onChange={setValues} /> : <p className="text-sm text-text-muted">Everything on this delivery has been invoiced.</p>}
     </Shell>
@@ -173,14 +173,14 @@ export function EditInvoiceDialog({ detail, canChangeDates, termsOnly = false, o
   });
   return (
     <Shell title={termsOnly ? `Payment terms and due date of ${invoice.invoice_number}` : `Edit ${invoice.invoice_number}`}
-      description={termsOnly ? "The due date follows the payment terms and the invoice date, unless another date is set with a reason." : "The values are worked out again from the order as agreed. The due date follows the payment terms and the invoice date."}
+      description={termsOnly ? "The due date follows the payment terms and the invoice date, unless another date is set with a reason." : "Values come from the order as agreed. The due date follows the payment terms."}
       size="lg" error={save.error} fallback="The invoice could not be saved." onClose={onClose} label="Save" isLoading={save.isPending}
       isDisabled={(!termsOnly && !lines.some((line) => line.quantity > 0)) || Boolean(dueDate && !clearOverride && termType !== "custom" && !dueDateReason.trim())} onPress={() => save.mutate()}>
       {!termsOnly && <QuantityRows rows={rows} values={values} onChange={setValues} />}
       {!termsOnly && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <TextField label="Invoice date" type="date" value={invoiceDate} onChange={setInvoiceDate} />
-          {canChangeDates && <TextField label="Posting date" type="date" value={postingDate} onChange={setPostingDate} />}
+          {canChangeDates && <TextField label="Accounting date" type="date" value={postingDate} onChange={setPostingDate} />}
         </div>
       )}
       {detail.actions.changePaymentTerms ? (
@@ -193,7 +193,7 @@ export function EditInvoiceDialog({ detail, canChangeDates, termsOnly = false, o
       <p className="text-sm text-text-secondary">
         Due date now <span className="font-medium tabular-nums text-text">{invoice.dueDateRequired ? "not entered" : day(invoice.due_date)}</span>
         {invoice.due_date_overridden && termType !== "custom" ? ` (set by hand${invoice.due_date_override_reason ? `: ${invoice.due_date_override_reason}` : ""}; the terms work out ${day(invoice.calculated_due_date) || "no date"})` : ""}.
-        {termType === "custom" ? " These terms set no date: enter the due date before posting." : " Saving another invoice date or other terms works it out again."}
+        {termType === "custom" ? " These terms set no date: enter the due date before finalising." : " Saving another invoice date or other terms works it out again."}
       </p>
       {detail.actions.overrideDueDate && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -219,19 +219,19 @@ export function PostInvoiceDialog({ detail, onClose, onDone }: { detail: Invoice
     queryFn: () => validateInvoice(invoice.id).then((r) => r.check),
     staleTime: 0, gcTime: 0,
   });
-  const recalculate = useMutation({ mutationFn: () => updateDraftInvoice(invoice.id, { expectedVersion: invoice.version, recalculateTax: true }), onSuccess: () => onDone("The tax was worked out again on the invoice date. Check the invoice, then post it.") });
+  const recalculate = useMutation({ mutationFn: () => updateDraftInvoice(invoice.id, { expectedVersion: invoice.version, recalculateTax: true }), onSuccess: () => onDone("The tax was worked out again on the invoice date. Check the invoice, then finalise it.") });
   const save = useMutation({
     mutationFn: () => postInvoice(invoice.id, invoice.version),
-    onSuccess: ({ result }) => onDone(result.awaitingApproval ? "The invoice is waiting for Finance approval before it is posted." : [`Invoice ${result.invoiceNumber} is posted: it is now the customer's receivable.`,
+    onSuccess: ({ result }) => onDone(result.awaitingApproval ? "The invoice is waiting for Finance approval before it is finalised." : [`Invoice ${result.invoiceNumber} is final: it is now the customer's receivable.`,
       result.einvoice?.status === "generated" ? `IRN generated: ${result.einvoice.irn}.` : result.einvoice?.status === "failed" ? `The IRN could not be generated (${result.einvoice.error}). Retry from the GST tab.` : null].filter(Boolean).join(" ")),
   });
   const problems = check.data?.problems ?? [];
   return (
-    <Shell title={`Post ${invoice.invoice_number}?`}
-      description="Posting makes the invoice the customer's receivable and enters it in the books (receivable, revenue and output tax). A posted invoice cannot be edited: corrections are credit notes."
-      error={save.error ?? recalculate.error ?? check.error} fallback="The invoice could not be posted." onClose={onClose} label="Post Invoice" isLoading={save.isPending}
+    <Shell title={`Finalise ${invoice.invoice_number}?`}
+      description="The customer then owes this invoice and it goes into the books. Correct it later with a credit note."
+      error={save.error ?? recalculate.error ?? check.error} fallback="The invoice could not be finalised." onClose={onClose} label="Finalise Invoice" isLoading={save.isPending}
       isDisabled={check.isLoading || problems.length > 0} onPress={() => save.mutate()}>
-      <p className="text-sm">Total <span className="font-medium tabular-nums">{money(invoice.currency_code, invoice.grand_total)}</span> · due {day(invoice.due_date)} · posting date {day(invoice.accounting_date)}</p>
+      <p className="text-sm">Total <span className="font-medium tabular-nums">{money(invoice.currency_code, invoice.grand_total)}</span> · due {day(invoice.due_date)} · accounting date {day(invoice.accounting_date)}</p>
       {check.isLoading ? <p className="text-sm text-text-muted">Checking the invoice…</p> : problems.length ? (
         <Notice tone="warning">
           <ul className="list-disc pl-4">{problems.map((problem, index) => <li key={index}>{problem.message}</li>)}</ul>
@@ -260,9 +260,9 @@ export function ReverseInvoiceDialog({ detail, onClose, onDone }: { detail: Invo
   const [reason, setReason] = useState("");
   const save = useMutation({ mutationFn: () => reverseInvoice(detail.invoice.id, reason.trim()), onSuccess: onDone });
   return (
-    <Shell title={`Reverse ${detail.invoice.invoice_number}?`}
-      description="For an invoice posted in error, with no payment or credit applied: a reversing entry takes back the receivable, revenue and output tax. The invoice is kept, marked Reversed. For anything else, use a credit note."
-      error={save.error} fallback="The invoice could not be reversed." onClose={onClose} label="Reverse Invoice" tone="danger" isLoading={save.isPending} isDisabled={!reason.trim()} onPress={() => save.mutate()}>
+    <Shell title={`Cancel ${detail.invoice.invoice_number}?`}
+      description="Use this for an invoice finalised by mistake, with nothing paid or credited. Otherwise use a credit note."
+      error={save.error} fallback="The invoice could not be cancelled." onClose={onClose} label="Cancel Invoice" tone="danger" isLoading={save.isPending} isDisabled={!reason.trim()} onPress={() => save.mutate()}>
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
     </Shell>
   );
@@ -316,7 +316,7 @@ export function ChangeDueDateDialog({ detail, onClose, onDone }: { detail: Invoi
   const save = useMutation({ mutationFn: () => changeInvoiceDueDate(invoice.id, { dueDate, reason: reason.trim() }), onSuccess: onDone });
   return (
     <Shell title={`Change the due date of ${invoice.invoice_number}`}
-      description="The invoice is posted: only its due date changes, and overdue and ageing follow the new date. The amounts, the payment terms and the books stay as they are."
+      description="Only the due date changes. Amounts and the books stay as they are."
       error={save.error} fallback="The due date could not be changed." onClose={onClose} label="Change Due Date" isLoading={save.isPending}
       isDisabled={!dueDate || dueDate === day(invoice.due_date) || !reason.trim()} onPress={() => save.mutate()}>
       <p className="text-sm">Payment terms <span className="font-medium">{invoice.paymentTerm?.name ?? "none"}</span> · invoice date {day(invoice.invoice_date)} · due {day(invoice.due_date)}</p>

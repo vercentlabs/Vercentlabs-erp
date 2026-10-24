@@ -25,10 +25,12 @@ import { CustomerAddressesPanel } from "../components/CustomerAddressesPanel";
 import { CustomerContactsPanel } from "../components/CustomerContactsPanel";
 import { CustomerStatusDialog, LinkAccountDialog, type StatusAction } from "../components/CustomerDialogs";
 import { CustomerOverviewPanel } from "../components/CustomerOverviewPanel";
+import { CustomerRemindersPanel } from "../components/CustomerRemindersPanel";
 import { CustomerLedgerPanel } from "../components/CustomerLedgerPanel";
 import { CustomerHistoryPanel, CustomerRelatedPanel, type RelatedList } from "../components/CustomerRelatedPanels";
 import { useTabParam } from "@/features/sales/shared/useTabParam";
 import { RecordThreadPanel } from "@/features/platform/record-thread/RecordThreadPanel";
+import { SalesWarningDialog } from "@/features/sales/shared/SalesWarningDialog";
 
 const RELATED_TABS: Array<{ id: RelatedList; label: string; needs: "sales" | "finance" | "projects" | "support" }> = [
   { id: "quotations", label: "Quotations", needs: "sales" },
@@ -46,7 +48,7 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [tab, setTab] = useTabParam("overview");
-  const [dialog, setDialog] = useState<StatusAction | "link" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<StatusAction | "link" | "delete" | "warning" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const customerQuery = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "customer", customerId), queryFn: () => getCustomer(customerId) });
@@ -88,6 +90,7 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
 
   const menu: Array<{ id: string; label: string; run: () => void }> = [
     ...(can.edit ? [{ id: "edit", label: "Edit customer", run: () => router.push(`/sales/customers/${customer.id}/edit`) }] : []),
+    ...(can.edit ? [{ id: "warning", label: customer.salesWarning ? "Change sales warning" : "Add sales warning", run: () => setDialog("warning") }] : []),
     ...(customer.status === "active" && can.block ? [{ id: "block", label: "Block", run: () => setDialog("block") }] : []),
     ...(customer.status === "blocked" && can.unblock ? [{ id: "unblock", label: "Unblock", run: () => setDialog("unblock") }] : []),
     ...(customer.status !== "inactive" && can.inactivate ? [{ id: "deactivate", label: "Inactivate", run: () => setDialog("deactivate") }] : []),
@@ -110,7 +113,9 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
           status: <CustomerStatusBadge status={customer.status} />,
           fields: [
             { label: "Primary contact", value: customer.primaryContactName ?? "Not set" },
-            { label: "Phone", value: customer.phone ?? customer.primaryContactPhone ?? "Not set" },
+            // Call, WhatsApp or email in one tap (CRM parity: an account page leads with how to reach it).
+            { label: "Phone", value: <ReachLinks phone={customer.phone ?? customer.primaryContactPhone ?? null} /> },
+            ...(customer.email ? [{ label: "Email", value: <a className="text-brand hover:underline" href={`mailto:${customer.email}`}>{customer.email}</a> }] : []),
             { label: "Location", value: cityState(customer) || "Not set" },
             { label: "GSTIN", value: customer.gstin ?? "Not set" },
             { label: "Payment terms", value: customer.paymentTermName ?? "Not set" },
@@ -125,7 +130,7 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
               {access.sales && has("sales.invoice.request") && active && <LinkButton href={`/sales/orders?view=ready_to_invoice&f.partyId=${customer.id}`} variant="secondary">New Invoice</LinkButton>}
               {menu.length > 0 && (
                 <MenuTrigger>
-                  <Button variant="outline" aria-label="More actions"><MoreHorizontal className="size-4" aria-hidden="true" /></Button>
+                  <Button variant="outline"><MoreHorizontal className="size-4" aria-hidden="true" />More</Button>
                   <Menu onAction={(key) => menu.find((entry) => entry.id === key)?.run()}>
                     {menu.map((entry) => <MenuItem key={entry.id} id={entry.id}>{entry.label}</MenuItem>)}
                   </Menu>
@@ -137,6 +142,11 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
         tabs={
           <div className="flex flex-col gap-3">
             <ErrorBanner message={error} />
+            {customer.salesWarning && (
+              <p role="status" className="rounded-[var(--radius-control)] border border-warning-emphasis/40 bg-warning-soft px-3 py-2 text-sm text-warning">
+                <span className="font-medium">Sales warning:</span> {customer.salesWarning}
+              </p>
+            )}
             {customer.status === "blocked" && (
               <p role="status" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
                 Blocked{customer.blockedByName ? ` by ${customer.blockedByName}` : ""}{customer.blockedAt ? ` on ${formatDate(customer.blockedAt)}` : ""}: {customer.blockReason}. New quotations and sales orders cannot be created.
@@ -167,7 +177,7 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
           {relatedTabs.map((entry) => (
             <TabPanel key={entry.id} id={entry.id}><CustomerRelatedPanel customerId={customer.id} list={entry.id} /></TabPanel>
           ))}
-          {access.finance && <TabPanel id="ledger"><CustomerLedgerPanel customerId={customer.id} /></TabPanel>}
+          {access.finance && <TabPanel id="ledger"><div className="flex flex-col gap-4"><CustomerLedgerPanel customerId={customer.id} /><CustomerRemindersPanel customerId={customer.id} /></div></TabPanel>}
           {(access.notes || access.files) && (
             <TabPanel id="notes">
               <div className="flex flex-col gap-6 pt-3">
@@ -181,13 +191,29 @@ export function CustomerDetailScreen({ customerId }: { customerId: string }) {
         </Tabs>
       </RecordDetailsPage>
 
+      {dialog === "warning" && (
+        <SalesWarningDialog kind="customer" id={customer.id} name={customer.displayName} message={customer.salesWarning ?? null} onClose={() => setDialog(null)} onDone={refresh} />
+      )}
       {(dialog === "block" || dialog === "unblock" || dialog === "activate" || dialog === "deactivate") && (
         <CustomerStatusDialog customer={customer} action={dialog} onClose={() => setDialog(null)} onDone={refresh} />
       )}
       {dialog === "link" && <LinkAccountDialog customer={customer} onClose={() => setDialog(null)} onDone={refresh} />}
       <AlertDialog isOpen={dialog === "delete"} onOpenChange={(open) => !open && setDialog(null)} title={`Delete ${customer.displayName}?`}
-        description="This permanently removes the customer with its addresses and history. Only a customer with no quotations, orders, invoices or other records can be deleted; otherwise inactivate it."
+        description="Deletes the customer for good. Only possible with no documents; otherwise make it inactive."
         confirmLabel="Delete customer" onConfirm={() => remove.mutate()} isConfirming={remove.isPending} />
     </>
+  );
+}
+
+// A phone number as Call and WhatsApp links (an Indian 10-digit number gets +91).
+function ReachLinks({ phone }: { phone: string | null }) {
+  if (!phone) return <>Not set</>;
+  const digits = phone.replace(/\D/g, "");
+  const full = digits.length === 10 ? `91${digits}` : digits;
+  return (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <a className="text-brand hover:underline" href={`tel:+${full}`}>{phone}</a>
+      <a className="text-brand hover:underline" href={`https://wa.me/${full}`} target="_blank" rel="noreferrer">WhatsApp</a>
+    </span>
   );
 }

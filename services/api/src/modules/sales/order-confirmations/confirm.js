@@ -120,15 +120,19 @@ export async function confirmSalesOrder(client, context, orderId, input = {}) {
       await client.query("ROLLBACK TO SAVEPOINT sales_order_deal_value");
     }
   }
+  // Make-to-order (Sales report Phase 3): the "buy" and "make" lines raise their purchase or production; never blocks the confirmation.
+  const { raiseSupplyForOrder } = await import("../supply.js");
+  const supply = await raiseSupplyForOrder(client, context, order);
   await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "sales", eventType: "sales.order.confirmed", entityType: "sales.order", entityId: order.id,
     payload: { orderNumber: order.sales_order_number, customerId: order.party_id, ownerUserId: order.owner_user_id, total: order.grand_total, currencyCode: order.currency_code?.trim() } });
   await notifyRecordOwner(client, context, { userId: order.owner_user_id ?? order.created_by, category: "sales_document",
-    title: `Sales order ${order.sales_order_number} was confirmed`, message: "It is confirmed; stock is reserved where it was available.",
+    title: `Sales order ${order.sales_order_number} was confirmed`, message: "It is confirmed; stock is kept aside where it was available.",
     href: `/sales/orders/${order.id}`, entityType: "sales_order", entityId: order.id });
   return {
     orderId: order.id, confirmed: true, status: STATUS.confirmed, changed: true, confirmationId: confirmation.id, confirmationVersion: confirmation.version,
     fulfillmentStatus: progress.fulfillmentStatus, reservation, shortages: check.shortages, warnings: check.warnings, sourceOpportunityId: order.source_opportunity_id ?? null,
     dealValueUpdated: Boolean(deal?.changed),
+    supply: supply.map((row) => ({ sequence: row.line_sequence, route: row.route, documentType: row.document_type, documentNumber: row.document_number, error: row.error })),
   };
 }
 

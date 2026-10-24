@@ -72,6 +72,7 @@ export type SalesOrderLine = {
   item_id: string;
   // A free line of a scheme (Sales audit M3).
   scheme_rule_id?: string | null;
+  supply_route?: "stock" | "buy" | "make";
   uom_id: string | null;
   warehouse_id: string | null;
   warehouse_name: string | null;
@@ -216,6 +217,10 @@ export type SalesOrderDetail = {
     credit_release_requested_at?: string | null;
     current_version_id: string;
     version_number: number;
+    section_lines?: Array<{ kind: "section" | "note"; text: string; position: number }>;
+    delivery_method_id?: string | null;
+    coupon_code?: string | null;
+    coupon_amount?: string;
     lifecycle_status: string;
     party_id: string;
     contact_id: string | null;
@@ -358,7 +363,7 @@ export type StockReservationRecord = {
 };
 export const RELEASE_REASONS = [
   { code: "customer_delay", label: "Customer delay" }, { code: "warehouse_reassignment", label: "Warehouse reassignment" }, { code: "order_amendment", label: "Order amendment" },
-  { code: "reservation_correction", label: "Reservation correction" }, { code: "other", label: "Other" },
+  { code: "reservation_correction", label: "Correction to stock kept aside" }, { code: "other", label: "Other" },
 ];
 
 export type OrderFile = { id: string; fileName: string; mimeType: string; sizeBytes: number; uploadedAt: string };

@@ -26,6 +26,7 @@ import {
 } from "../api/price-lists-api";
 import { PriceDialog, PriceListFormDialog } from "../components/PriceListDialogs";
 import { validity } from "./PriceListsScreen";
+import { PriceRulesPanel } from "../components/PriceRulesPanel";
 
 const PAGE = 100;
 const STATE_LABEL: Record<PriceEntry["state"], { label: string; tone: "success" | "info" | "neutral" | "warning" }> = {
@@ -121,6 +122,7 @@ export function PriceListDetailScreen({ priceListId }: { priceListId: string }) 
       <Tabs defaultSelectedKey="prices">
         <TabList aria-label="Price list sections">
           <Tab id="prices">Prices ({list.entryCount})</Tab>
+          <Tab id="rules">Price rules</Tab>
           <Tab id="history">History</Tab>
         </TabList>
         <TabPanel id="prices">
@@ -177,6 +179,7 @@ export function PriceListDetailScreen({ priceListId }: { priceListId: string }) 
             )}
           </div>
         </TabPanel>
+        <TabPanel id="rules"><div className="pt-3"><PriceRulesPanel priceListId={list.id} currencyCode={list.currencyCode.trim()} canManage={Boolean(can.managePrices && list.isActive)} /></div></TabPanel>
         <TabPanel id="history"><HistoryPanel priceListId={list.id} /></TabPanel>
       </Tabs>
     </RecordDetailsPage>
@@ -190,7 +193,7 @@ export function PriceListDetailScreen({ priceListId }: { priceListId: string }) 
       )}
       {historyFor && <ProductPricesDialog priceList={list} entry={historyFor} onClose={() => setHistoryFor(null)} />}
       <AlertDialog isOpen={dialog === "delete"} onOpenChange={(open) => !open && setDialog(null)} title={`Delete ${list.name}?`}
-        description="Removes the price list and its prices permanently. A list used by documents, customers, opportunities or POS stores cannot be deleted; deactivate it instead."
+        description="Deletes the price list for good. A list in use cannot be deleted; deactivate it instead."
         confirmLabel="Delete" isConfirming={remove.isPending} onConfirm={() => remove.mutate()} />
     </>
   );
