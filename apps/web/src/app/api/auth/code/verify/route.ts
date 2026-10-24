@@ -14,7 +14,8 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request, process.env);
     const { email, code } = schema.parse(await readJson(request));
-    await withIngressClient((client) => enforceRateLimit(client, `login:${clientIp(request, process.env)}`, 10, 300));
+    // Its own counter: wrong passwords must not lock out the code that is the way back in (each code also allows only a few tries).
+    await withIngressClient((client) => enforceRateLimit(client, `login-code-verify:${clientIp(request, process.env)}`, 10, 300));
     const result = await ingressTransaction((client) => verifySignInCode(client, email, code, process.env));
     await withIngressClient((client) => recordLoginEvent(client, { request, email, userId: result.ok ? result.userId : null, succeeded: result.ok,
       reason: result.ok ? undefined : `code_${result.reason}`, env: process.env }));
